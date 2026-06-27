@@ -1,0 +1,118 @@
+[
+  {
+    "username": "admin",
+    "avatar": "/static/images/avatar.png",
+    "nick": "CyberPhoenix",
+    "level": 17,
+    "hackcoins": 5420,
+    "respect": 84,
+    "exp": "13 750 / 15 000",
+    "clan": "SYNΔX",
+    "curently_possition": {
+      "lat": 52.293518,
+      "lng": 21.030321
+    },
+    "inventory": [
+      "injector_x_v1",
+      "ghost_ping_x3",
+      "zero_day_exploit"
+    ],
+    "files": {
+      "tools": [
+        "ScanProbe.sh"
+      ],
+      "download": [],
+      "pictures": [],
+      "social-media": []
+    },
+    "security": {
+      "exploit_protection": false,
+      "scan_detection": true,
+      "stealth_mode": true,
+      "vpn_enabled": true
+    },
+    "system_status": {
+      "2fa": "off",
+      "firewall": "off",
+      "ports": "open"
+    },
+    "friends": [
+      "Kira",
+      "Ghostshell"
+    ],
+    "messages": [
+      0,
+      2
+    ],
+    "apps": [
+      {
+        "id": "scan_probe_v1",
+        "name": "ScanProbe",
+        "icon": "🛰️",
+        "type": "scanner",
+        "detects": [
+          "open_ports",
+          "user_location"
+        ],
+        "interferes_with": [
+          "stealth_mode"
+        ],
+        "requires_off": [
+          "scan_detection"
+        ],
+        "disables": [],
+        "affects": [
+          "player_risk_level"
+        ],
+        "description": "Aktywna sonda wykrywająca porty i lokalizację użytkowników. Może zostać wykryta przez aktywną ochronę.",
+        "interface": "progressbar_random",
+        "levels": [
+          {
+            "title": "ScanProbe – Aktywne skanowanie portów i lokalizacji",
+            "steps": [
+              "Inicjalizacja sondy...",
+              "Ustalanie adresu IP...",
+              "Sprawdzanie otwartych portów...",
+              "Analiza geolokalizacji użytkownika..."
+            ],
+            "result_success": "✅ Zidentyfikowano otwarte porty i przybliżoną lokalizację.",
+            "result_failure": "❌ Skanowanie zostało przerwane lub zablokowane."
+          }
+        ]
+      }
+    ],
+    "targets": [
+      {
+        "lat": 52.2898823,
+        "lng": 21.0309401,
+        "label": "Textilmarket",
+        "icon": "👕"
+      },
+      {
+        "lat": 52.2933282,
+        "lng": 21.0358333,
+        "label": "Serwer",
+        "icon": "🖥️"
+      },
+      {
+        "lat": 52.2905045,
+        "lng": 21.0232968,
+        "label": "WiFi",
+        "icon": "📡"
+      },
+      {
+        "lat": 52.2900622,
+        "lng": 21.0302861,
+        "label": "Serwer",
+        "icon": "🖥️"
+      }
+    ],
+    "hacked": [],
+    "own_places": [],
+    "system_messages": [],
+    "aimed_target": {},
+    "launch_queue": [],
+    "password": "1234",
+    "salt": "dsKBU7sgacbs7GGDW"
+  }
+]

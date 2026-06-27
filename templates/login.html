@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Logowanie</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #111; color: #0f0; }
+    form { display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1px solid #0f0; border-radius: 8px; }
+    input { padding: 8px; background: #000; color: #0f0; border: 1px solid #0f0; }
+    button { padding: 8px; background: #0f0; color: #000; font-weight: bold; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <form method="POST">
+    <h2>🔐 Logowanie</h2>
+    <input type="text" name="username" placeholder="Nazwa użytkownika" required>
+    <input type="password" name="password" placeholder="Hasło" required>
+    <button type="submit">Zaloguj się</button>
+    <p>Nie masz konta? <a href="/register">Zarejestruj się tutaj</a></p>
+    {% if error %}<div style="color: red;">{{ error }}</div>{% endif %}
+  </form>
+</body>
+</html>

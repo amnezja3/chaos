@@ -1,0 +1,93 @@
+[
+  {
+    "id": 1,
+    "type": "success",
+    "title": "[NetShield] Hotspot aktywowany",
+    "text": "Gracz pomyślnie wdrożył wirtualny punkt dostępu w strefie bezpiecznej. Monitoring rozpoczęty. Sygnał zakodowany.",
+    "status": "shown"
+  },
+  {
+    "id": 2,
+    "type": "warning",
+    "title": "⚠️ [UserGate] Podejrzane działanie",
+    "text": "System UserGate wykrył próbę logowania do zasobów zabezpieczonych za pomocą klucza tymczasowego. Sugerowany przegląd sesji.",
+    "status": "shown"
+  },
+  {
+    "id": 3,
+    "type": "danger",
+    "title": "‼️ [CoreWatch] Błąd procesora",
+    "text": "Moduł CoreWatch zarejestrował powtarzające się błędy obliczeniowe. Algorytmy przetwarzania danych działają w stanie niestabilnym.",
+    "status": "shown"
+  },
+  {
+    "id": 4,
+    "type": "danger",
+    "title": "‼️ [RAMScope] Pamięć przeciążona",
+    "text": "RAMScope zgłasza wykorzystanie pamięci powyżej 95%. Procesy tymczasowe nie są zwalniane. Możliwy efekt domina.",
+    "status": "shown"
+  },
+  {
+    "id": 5,
+    "type": "danger",
+    "title": "‼️ [SysPulse] System nie odpowiada",
+    "text": "SysPulse nie otrzymał odpowiedzi od jądra operacyjnego. Przerwanie restartu przez brak potwierdzenia SHA256 integrity lock.",
+    "status": "shown"
+  },
+  {
+    "id": 6,
+    "type": "danger",
+    "title": "‼️ [LinkTrace] Utracono kontakt z serwerem",
+    "text": "Połączenie z jednostką nadrzędną zostało zerwane. Dane gracza nie mogą być synchronizowane. Tryb offline awaryjny aktywowany.",
+    "status": "shown"
+  },
+  {
+    "id": 7,
+    "type": "danger",
+    "title": "‼️ [LeakSniffer] Wyciek danych",
+    "text": "Moduł LeakSniffer potwierdził transfer nieautoryzowanych danych do hosta zewnętrznego. To koniec. GAME OVER.",
+    "status": "shown"
+  },
+  {
+    "title": "Instalacja zakończona",
+    "text": "Aplikacja <b>ScanProbe</b> została poprawnie zainstalowana!",
+    "type": "success",
+    "status": "shown"
+  },
+  {
+    "title": "Instalacja zakończona",
+    "text": "Aplikacja <b>GhostPing</b> została poprawnie zainstalowana!",
+    "type": "success",
+    "status": "shown"
+  },
+  {
+    "title": "Instalacja zakończona",
+    "text": "Aplikacja <b>ScanProbe</b> została poprawnie zainstalowana!",
+    "type": "success",
+    "status": "shown"
+  },
+  {
+    "title": "Instalacja zakończona",
+    "text": "Aplikacja <b>DeepSniff</b> została poprawnie zainstalowana!",
+    "type": "success",
+    "status": "shown"
+  },
+  {
+    "title": "Instalacja zakończona",
+    "text": "Aplikacja <b>StealthBrowser</b> została poprawnie zainstalowana!",
+    "type": "success",
+    "status": "shown"
+  },
+  {
+    "title": "Instalacja zakończona",
+    "text": "Aplikacja <b>PhantomVPN</b> została poprawnie zainstalowana!",
+    "type": "success",
+    "status": "shown"
+  },
+  {
+    "title": "Instalacja zakończona",
+    "text": "Aplikacja <b>ShadowLayer</b> została poprawnie zainstalowana!",
+    "type": "success",
+    "status": "shown"
+  }
+]

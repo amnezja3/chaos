@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Mapa agenta",
+    "desc": "Zobacz wizualizację mapy środowiska AI"
+  },
+  {
+    "name": "Raport decyzji",
+    "desc": "Zbiór logów z ostatnich analiz moralnych"
+  },
+  {
+    "name": "Eksperyment Iskra",
+    "desc": "Badania nad samoświadomością agentów"
+  }
+]

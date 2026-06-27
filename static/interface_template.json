@@ -1,0 +1,46 @@
+{
+  "terminal": {
+    "levels": [
+      {
+        "level": "int",
+        "output": ["str"],
+        "delay": "int (optional)"
+      }
+    ]
+  },
+  "window": {
+    "levels": [
+      {
+        "level": "int",
+        "title": "str",
+        "message": "str",
+        "button": "str"
+      }
+    ]
+  },
+  "button_choices": {
+    "levels": [
+      {
+        "level": "int",
+        "question": "str",
+        "options": [
+          {
+            "label": "str",
+            "effect": "str"
+          }
+        ]
+      }
+    ]
+  },
+  "progressbar_random": {
+    "levels": [
+      {
+        "level": "int",
+        "progress_text": "str",
+        "success_rate": "int (0–100)",
+        "on_success": "str",
+        "on_failure": "str"
+      }
+    ]
+  }
+}

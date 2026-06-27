@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fake Linux Terminals</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div id="boot-preloader" class="boot-preloader" aria-live="polite">
+    <div class="boot-panel">
+      <div class="boot-panel-title">ghost_init.pkg</div>
+      <div class="boot-progress"><span id="boot-progress-fill"></span></div>
+      <div id="boot-status">Ładowanie systemu...</div>
+      <div class="boot-log" id="boot-log">sys_inst --run</div>
+    </div>
+  </div>
+  <div id="desktop-icons"></div>
+  <div id="system-toast-container"></div>
+
+  <script>
+    // Spróbuj wejść w tryb fullscreen po interakcji
+    window.addEventListener('load', () => {
+      const elem = document.documentElement;
+      const enterFull = () => {
+        if (elem.requestFullscreen) {
+          elem.requestFullscreen();
+        } else if (elem.webkitRequestFullscreen) {
+          elem.webkitRequestFullscreen();
+        } else if (elem.msRequestFullscreen) {
+          elem.msRequestFullscreen();
+        }
+      };
+
+      // Wymagana interakcja użytkownika – np. kliknięcie
+      document.addEventListener('click', () => {
+        enterFull();
+      }, { once: true });
+    });
+  </script>
+
+  <script src="{{ url_for('static', filename='js/terminal.js') }}"></script>
+</body>
+</html>

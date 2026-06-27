@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>GhostSystem - Rejestracja</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      background: #030504;
+      color: #d7ffe0;
+      font-family: "Courier New", monospace;
+      overflow: hidden;
+    }
+
+    #installer {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    #background-image {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      z-index: 1;
+      filter: saturate(0.82) brightness(0.6);
+      transform: scale(1.02);
+      transition: background-image 360ms ease, filter 360ms ease;
+    }
+
+    #installer::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 75% 20%, rgba(120, 255, 55, 0.14), transparent 26%),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.76), rgba(0, 0, 0, 0.34) 46%, rgba(0, 0, 0, 0.78));
+    }
+
+    #installer::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      pointer-events: none;
+      opacity: 0.13;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.08),
+        rgba(255, 255, 255, 0.08) 1px,
+        transparent 1px,
+        transparent 5px
+      );
+    }
+
+    #form-box {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      height: 100%;
+      padding: 42px;
+    }
+
+    #step-content {
+      width: 100%;
+      height: 100%;
+    }
+
+    .onboarding-step {
+      width: min(1460px, calc(100vw - 84px));
+      height: min(820px, calc(100vh - 112px));
+      margin: 24px auto 0;
+      display: grid;
+      grid-template-columns: minmax(520px, 1.12fr) minmax(430px, 0.88fr);
+      gap: 24px;
+      animation: stepIn 360ms ease both;
+    }
+
+    .onboarding-step.has-identity-panel {
+      width: min(1680px, calc(100vw - 56px));
+      grid-template-columns: minmax(420px, 0.96fr) minmax(300px, 0.5fr) minmax(430px, 0.72fr);
+      gap: 18px;
+      margin-top: 8px;
+    }
+
+    .onboarding-story,
+    .onboarding-console,
+    .identity-panel {
+      border: 1px solid rgba(126, 255, 86, 0.24);
+      background: rgba(0, 8, 4, 0.72);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.48);
+      backdrop-filter: blur(3px);
+    }
+
+    .onboarding-story {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .story-image-wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      background: #000;
+      border-bottom: 1px solid rgba(126, 255, 86, 0.18);
+      display: grid;
+      place-items: center;
+      padding: 16px;
+    }
+
+    .story-image-wrap img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+      object-position: center;
+      filter: saturate(0.95) contrast(1.05);
+    }
+
+    .story-copy {
+      padding: 20px 22px 24px;
+      min-height: 220px;
+      flex: 0 0 auto;
+    }
+
+    .story-kicker,
+    .console-topline {
+      color: #7aff8f;
+      font-size: 0.76rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .story-copy h1 {
+      margin: 8px 0 14px;
+      color: #c8ff50;
+      font-size: clamp(1.35rem, 2vw, 2rem);
+      line-height: 1.1;
+      text-shadow: 0 0 14px rgba(102, 255, 65, 0.24);
+    }
+
+    #prelog-text {
+      color: #dfffe5;
+      line-height: 1.62;
+      font-size: 1rem;
+      min-height: 6.5em;
+    }
+
+    #prelog-text::after {
+      content: "";
+      display: inline-block;
+      width: 8px;
+      height: 1.1em;
+      margin-left: 4px;
+      background: #a8ff3c;
+      vertical-align: -0.18em;
+      animation: cursorBlink 0.85s steps(1) infinite;
+    }
+
+    .onboarding-console {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 18px;
+      overflow: hidden;
+    }
+
+    .has-identity-panel .onboarding-console {
+      min-height: 0;
+    }
+
+    .identity-panel {
+      min-width: 0;
+      display: flex;
+      align-items: stretch;
+      padding: 18px;
+      overflow: hidden;
+    }
+
+    .console-topline {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(126, 255, 86, 0.16);
+    }
+
+    .console-body {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 16px;
+      overflow: auto;
+      padding-right: 4px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(183, 255, 56, 0.55) rgba(0, 0, 0, 0.35);
+    }
+
+    .has-identity-panel .console-body {
+      justify-content: flex-start;
+      overflow: hidden;
+      padding-right: 0;
+    }
+
+    .console-body::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .console-body::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.35);
+    }
+
+    .console-body::-webkit-scrollbar-thumb {
+      background: rgba(183, 255, 56, 0.55);
+    }
+
+    .ghost-field {
+      display: grid;
+      gap: 8px;
+      color: #d7ffe0;
+    }
+
+    .ghost-field span {
+      color: #8dff9f;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    input,
+    button {
+      font-family: "Courier New", monospace;
+    }
+
+    input {
+      width: 100%;
+      padding: 13px 14px;
+      border: 1px solid rgba(139, 255, 62, 0.4);
+      background: rgba(0, 0, 0, 0.62);
+      color: #e9ffed;
+      font-size: 1rem;
+      outline: none;
+      box-shadow: inset 0 0 18px rgba(42, 255, 70, 0.05);
+    }
+
+    input:focus {
+      border-color: rgba(181, 255, 68, 0.82);
+      box-shadow: 0 0 0 3px rgba(130, 255, 70, 0.1), inset 0 0 18px rgba(42, 255, 70, 0.06);
+    }
+
+    .field-hint,
+    .empty-state {
+      color: #93b99b;
+      line-height: 1.5;
+    }
+
+    .choice-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      align-content: center;
+    }
+
+    .has-identity-panel .choice-grid {
+      grid-template-columns: 1fr;
+      align-content: start;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 2px 4px 2px 0;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(183, 255, 56, 0.55) rgba(0, 0, 0, 0.35);
+    }
+
+    .has-identity-panel .choice-grid::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .has-identity-panel .choice-grid::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.35);
+    }
+
+    .has-identity-panel .choice-grid::-webkit-scrollbar-thumb {
+      background: rgba(183, 255, 56, 0.55);
+    }
+
+    .choice-card {
+      min-height: 134px;
+      border: 1px solid rgba(126, 255, 86, 0.22);
+      background: rgba(0, 10, 4, 0.68);
+      color: #d7ffe0;
+      padding: 15px;
+      text-align: left;
+      cursor: pointer;
+      display: grid;
+      gap: 6px;
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+
+    .choice-card:hover,
+    .choice-card.selected {
+      transform: translateY(-2px);
+      border-color: rgba(181, 255, 68, 0.82);
+      background: rgba(9, 34, 13, 0.78);
+    }
+
+    .choice-card strong {
+      color: #f2fff4;
+      font-size: 1.12rem;
+    }
+
+    .choice-card small {
+      color: #9ebfa5;
+      line-height: 1.35;
+    }
+
+    .choice-code {
+      width: max-content;
+      color: #b7ff38;
+      font-size: 0.76rem;
+      letter-spacing: 0.1em;
+      border: 1px solid rgba(139, 255, 62, 0.28);
+      padding: 3px 6px;
+    }
+
+    .identity-preview {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: stretch;
+      width: 100%;
+      padding: 18px;
+      border: 1px solid rgba(126, 255, 86, 0.26);
+      background:
+        radial-gradient(circle at 50% 34%, rgba(110, 255, 50, 0.12), transparent 42%),
+        rgba(0, 0, 0, 0.34);
+    }
+
+    .avatar-box {
+      width: 100%;
+      min-height: 390px;
+      height: 100%;
+      background-size: cover;
+      background-position: center top;
+      background-repeat: no-repeat;
+      border: 1px solid rgba(139, 255, 62, 0.32);
+      box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.35);
+    }
+
+    .avatar-box.faction-preview {
+      min-height: 330px;
+      height: 100%;
+      background-size: contain;
+      background-position: center;
+      background-color: rgba(0, 0, 0, 0.28);
+    }
+
+    .avatar-info {
+      color: #e7ffec;
+      line-height: 1.45;
+      font-size: clamp(1.25rem, 1.7vw, 1.9rem);
+      text-shadow: 0 0 14px rgba(126, 255, 86, 0.18);
+      text-align: center;
+    }
+
+    .summary-card {
+      display: grid;
+      grid-template-columns: 112px minmax(0, 1fr);
+      gap: 14px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid rgba(126, 255, 86, 0.18);
+      background: rgba(0, 0, 0, 0.32);
+    }
+
+    .summary-card img {
+      width: 112px;
+      height: 138px;
+      object-fit: cover;
+      object-position: top center;
+      border: 1px solid rgba(139, 255, 62, 0.28);
+    }
+
+    .summary-card p {
+      margin: 0 0 8px;
+      color: #d9ffe0;
+    }
+
+    .summary-card b {
+      display: inline-block;
+      min-width: 94px;
+      color: #8dff9f;
+      font-weight: normal;
+    }
+
+    .step-nav {
+      flex: 0 0 auto;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(126, 255, 86, 0.16);
+      background: rgba(0, 8, 4, 0.92);
+    }
+
+    .ghost-btn {
+      min-width: 112px;
+      border: 1px solid rgba(139, 255, 62, 0.4);
+      padding: 11px 16px;
+      cursor: pointer;
+      font-weight: bold;
+      letter-spacing: 0.06em;
+      transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+    }
+
+    .ghost-btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(181, 255, 68, 0.86);
+    }
+
+    .ghost-btn:disabled {
+      cursor: wait;
+      opacity: 0.72;
+      transform: none;
+    }
+
+    .ghost-btn.primary {
+      background: #b7ff38;
+      color: #071007;
+    }
+
+    .ghost-btn.secondary {
+      background: rgba(0, 0, 0, 0.35);
+      color: #d7ffe0;
+    }
+
+    #progress-bar {
+      position: absolute;
+      left: 42px;
+      right: 42px;
+      bottom: 26px;
+      height: 8px;
+      z-index: 15;
+      background: rgba(0, 0, 0, 0.58);
+      border: 1px solid rgba(139, 255, 62, 0.28);
+      padding: 2px;
+    }
+
+    #progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #66d92f, #c8ff50);
+      box-shadow: 0 0 16px rgba(120, 255, 60, 0.34);
+      transition: width 0.45s ease;
+    }
+
+    #progress-label {
+      position: absolute;
+      right: 42px;
+      bottom: 39px;
+      z-index: 16;
+      color: #9effa8;
+      font-size: 0.78rem;
+      letter-spacing: 0.12em;
+    }
+
+    #error-msg {
+      position: absolute;
+      left: 50%;
+      bottom: 48px;
+      transform: translateX(-50%);
+      z-index: 20;
+      min-height: 20px;
+      color: #ff6b6b;
+      background: rgba(0, 0, 0, 0.62);
+      border: 1px solid rgba(255, 80, 80, 0.35);
+      padding: 7px 12px;
+      max-width: min(760px, calc(100vw - 84px));
+      text-align: center;
+    }
+
+    #error-msg:empty {
+      display: none;
+    }
+
+    @keyframes cursorBlink {
+      0%, 45% { opacity: 1; }
+      46%, 100% { opacity: 0; }
+    }
+
+    @keyframes stepIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 980px) {
+      body { overflow: auto; }
+      #installer { min-height: 100vh; height: auto; overflow: visible; }
+      #form-box { height: auto; min-height: 100vh; padding: 20px; }
+      .onboarding-step {
+        width: 100%;
+        height: auto;
+        grid-template-columns: 1fr;
+        margin: 24px 0 76px;
+      }
+      .onboarding-step.has-identity-panel {
+        width: 100%;
+        grid-template-columns: 1fr;
+        margin-top: 24px;
+      }
+      .story-image-wrap { min-height: 260px; }
+      .identity-preview {
+        grid-template-rows: auto auto;
+      }
+      .avatar-box {
+        min-height: 320px;
+      }
+      .avatar-box.faction-preview {
+        min-height: 260px;
+      }
+      .choice-grid { grid-template-columns: 1fr; }
+      #progress-bar { left: 20px; right: 20px; }
+      #progress-label { right: 20px; }
+    }
+
+    @media (max-height: 760px) and (min-width: 981px) {
+      #form-box { padding-top: 20px; }
+      .onboarding-step {
+        height: calc(100vh - 92px);
+        margin-top: 8px;
+      }
+      .story-copy {
+        min-height: 176px;
+        padding: 16px 18px 18px;
+      }
+      #prelog-text {
+        font-size: 0.92rem;
+        line-height: 1.5;
+      }
+      .choice-card { min-height: 112px; }
+      .has-identity-panel .choice-card {
+        min-height: 104px;
+        padding: 12px;
+      }
+      .has-identity-panel .choice-card strong {
+        font-size: 1.02rem;
+      }
+      .identity-preview {
+        gap: 12px;
+        padding: 14px;
+      }
+      .avatar-box {
+        min-height: 280px;
+      }
+      .avatar-box.faction-preview { min-height: 230px; }
+    }
+  </style>
+</head>
+<body class="ghost-install">
+  <div id="installer">
+    <div id="background-image"></div>
+    <audio id="onboarding-music" src="/static/mp3/onboarding_music.mp3" preload="auto" autoplay loop></audio>
+
+    <div id="form-box">
+      <div id="step-content"></div>
+      <div id="error-msg"></div>
+    </div>
+
+    <div id="progress-bar">
+      <div id="progress-fill"></div>
+    </div>
+    <div id="progress-label">1/6</div>
+  </div>
+
+  <script src="/static/js/register_scripts.js"></script>
+  <script src="/static/js/AvatarSelector.js"></script>
+</body>
+</html>

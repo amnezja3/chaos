@@ -1,0 +1,18 @@
+{
+    "scan_system": {
+        "result": "🔍 Wynik skanowania systemu:\n- 🚨 Otwarte porty: 21, 22, 80\n- 🔓 Brak aktywnego firewall'a\n- ❌ 2FA nieaktywne\n- 🕵️ Publiczny profil w social-media\nUżyj `fix_<problem>` aby zabezpieczyć (np. fix_firewall)",
+        "type": "system"
+    },
+    "fix_firewall": {
+        "result": "✅ Firewall aktywowany. Porty niezabezpieczone zostały zablokowane.",
+        "type": "system"
+    },
+    "fix_2fa": {
+        "result": "✅ 2FA zostało włączone. Twój profil jest teraz znacznie bezpieczniejszy.",
+        "type": "system"
+    },
+    "fix_ports": {
+        "result": "✅ Porty 21 i 22 zostały zamknięte.",
+        "type": "system"
+    }
+}

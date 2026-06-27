@@ -1,0 +1,482 @@
+[
+  {
+    "lat": 52.289721,
+    "lng": 21.032016,
+    "label": "WiFi",
+    "icon": "📡"
+  },
+  {
+    "lat": 52.2883567,
+    "lng": 21.0300128,
+    "label": "Oznaczony cel",
+    "icon": "🍔"
+  },
+  {
+    "lat": 52.288355,
+    "lng": 21.030166,
+    "label": "WiFi",
+    "icon": "📡"
+  },
+  {
+    "lat": 52.289608,
+    "lng": 21.031629,
+    "label": "Rower",
+    "icon": "🚲"
+  },
+  {
+    "lat": 52.289404,
+    "lng": 21.031833,
+    "label": "Bankomat",
+    "icon": "🏧"
+  },
+  {
+    "lat": 52.288886,
+    "lng": 21.028121,
+    "label": "WiFi",
+    "icon": "📡"
+  },
+  {
+    "lat": 52.290692,
+    "lng": 21.027167,
+    "label": "WiFi",
+    "icon": "📡"
+  },
+  {
+    "lat": 52.289273,
+    "lng": 21.033764,
+    "label": "Serwer",
+    "icon": "🖥️"
+  },
+  {
+    "lat": 52.290875,
+    "lng": 21.032541,
+    "label": "Cel",
+    "icon": "🎯"
+  },
+  {
+    "lat": 52.2890695,
+    "lng": 21.0309703,
+    "label": "Oznaczony cel",
+    "icon": "🍽️"
+  },
+  {
+    "lat": 52.288037,
+    "lng": 21.030595,
+    "label": "Cel",
+    "icon": "🎯"
+  },
+  {
+    "lat": 52.2895667,
+    "lng": 21.0304363,
+    "label": "Oznaczony cel",
+    "icon": "👕"
+  },
+  {
+    "lat": 52.2900622,
+    "lng": 21.0302861,
+    "label": "Oznaczony cel",
+    "icon": "💻"
+  },
+  {
+    "lat": 52.289224,
+    "lng": 21.0306028,
+    "label": "Oznaczony cel",
+    "icon": "📍"
+  },
+  {
+    "lat": 52.288432,
+    "lng": 21.030718,
+    "label": "Rower",
+    "icon": "🚲"
+  },
+  {
+    "lat": 52.289224,
+    "lng": 21.0306028,
+    "label": "Oznaczony cel",
+    "icon": "📍"
+  },
+  {
+    "lat": 52.2890695,
+    "lng": 21.0309703,
+    "label": "Oznaczony cel",
+    "icon": "🍽️"
+  },
+  {
+    "lat": 52.2895667,
+    "lng": 21.0304363,
+    "label": "Oznaczony cel",
+    "icon": "👕"
+  },
+  {
+    "lat": 52.2883567,
+    "lng": 21.0300128,
+    "label": "Oznaczony cel",
+    "icon": "🍔"
+  },
+  {
+    "lat": 52.2882517,
+    "lng": 21.0321211,
+    "label": "Oznaczony cel",
+    "icon": "📍"
+  },
+  {
+    "lat": 52.2883567,
+    "lng": 21.0300128,
+    "label": "Oznaczony cel",
+    "icon": "🍔"
+  },
+  {
+    "lat": 52.2900622,
+    "lng": 21.0302861,
+    "label": "Oznaczony cel",
+    "icon": "💻"
+  },
+  {
+    "lat": 52.2896395,
+    "lng": 21.0311171,
+    "label": "Oznaczony cel",
+    "icon": "👕"
+  },
+  {
+    "lat": 52.2896395,
+    "lng": 21.0311171,
+    "label": "Oznaczony cel",
+    "icon": "👕"
+  },
+  {
+    "lat": 52.2900622,
+    "lng": 21.0302861,
+    "label": "Oznaczony cel",
+    "icon": "💻"
+  },
+  {
+    "lat": 52.288398,
+    "lng": 21.030876,
+    "label": "WiFi",
+    "icon": "📡"
+  },
+  {
+    "lat": 52.288163,
+    "lng": 21.030887,
+    "label": "WiFi",
+    "icon": "📡"
+  },
+  {
+    "lat": 52.288299,
+    "lng": 21.030176,
+    "label": "Serwer",
+    "icon": "🖥️"
+  },
+  {
+    "lat": 52.2882517,
+    "lng": 21.0321211,
+    "label": "Oznaczony cel",
+    "icon": "📍"
+  },
+  {
+    "lat": 52.2900622,
+    "lng": 21.0302861,
+    "label": "Oznaczony cel",
+    "icon": "💻"
+  },
+  {
+    "lat": 52.2890695,
+    "lng": 21.0309703,
+    "label": "Oznaczony cel",
+    "icon": "🍽️"
+  },
+  {
+    "lat": 52.288345,
+    "lng": 21.030608,
+    "label": "Bankomat",
+    "icon": "🏧"
+  },
+  {
+    "lat": 52.2900258,
+    "lng": 21.0300729,
+    "label": "Oznaczony cel",
+    "icon": "📍"
+  },
+  {
+    "lat": 52.2900258,
+    "lng": 21.0300729,
+    "label": "Oznaczony cel",
+    "icon": "📍"
+  },
+  {
+    "lat": 52.2900622,
+    "lng": 21.0302861,
+    "label": "Oznaczony cel",
+    "icon": "💻"
+  },
+  {
+    "lat": 52.2898386,
+    "lng": 21.0280587,
+    "label": "Oznaczony cel",
+    "icon": "📍"
+  },
+  {
+    "lat": 52.289224,
+    "lng": 21.0306028,
+    "label": "Oznaczony cel",
+    "icon": "📍"
+  },
+  {
+    "lat": 52.2898386,
+    "lng": 21.0280587,
+    "label": "Oznaczony cel",
+    "icon": "📍"
+  },
+  {
+    "lat": 52.2900622,
+    "lng": 21.0302861,
+    "label": "Oznaczony cel",
+    "icon": "💻"
+  },
+  {
+    "lat": 52.2900622,
+    "lng": 21.0302861,
+    "label": "Oznaczony cel",
+    "icon": "💻"
+  },
+  {
+    "lat": 52.2897316,
+    "lng": 21.0305171,
+    "label": "Oznaczony cel",
+    "icon": "🏪"
+  },
+  {
+    "lat": 52.2900622,
+    "lng": 21.0302861,
+    "label": "Oznaczony cel",
+    "icon": "💻"
+  },
+  {
+    "lat": 52.2900622,
+    "lng": 21.0302861,
+    "label": "Oznaczony cel",
+    "icon": "💻"
+  },
+  {
+    "lat": 52.2900202,
+    "lng": 21.0308757,
+    "label": "Oznaczony cel",
+    "icon": "👕"
+  },
+  {
+    "lat": 52.2896395,
+    "lng": 21.0311171,
+    "label": "Oznaczony cel",
+    "icon": "👕"
+  },
+  {
+    "lat": 52.2900258,
+    "lng": 21.0300729,
+    "label": "FUP Warszawa 38",
+    "icon": "📍"
+  },
+  {
+    "lat": 52.2898386,
+    "lng": 21.0280587,
+    "label": "Brak nazwy",
+    "icon": "📍"
+  },
+  {
+    "lat": 52.2897242,
+    "lng": 21.0302432,
+    "label": "Empik",
+    "icon": "📚"
+  },
+  {
+    "lat": 52.2900622,
+    "lng": 21.0302861,
+    "label": "RTV Euro AGD",
+    "icon": "💻"
+  },
+  {
+    "lat": 52.2898823,
+    "lng": 21.0309401,
+    "label": "Textilmarket",
+    "icon": "👕"
+  },
+  {
+    "lat": 52.2900622,
+    "lng": 21.0302861,
+    "label": "RTV Euro AGD",
+    "icon": "💻"
+  },
+  {
+    "lat": 52.2896395,
+    "lng": 21.0311171,
+    "label": "50 style",
+    "icon": "👕"
+  },
+  {
+    "lat": 52.2900622,
+    "lng": 21.0302861,
+    "label": "RTV Euro AGD",
+    "icon": "💻"
+  },
+  {
+    "lat": 52.2900622,
+    "lng": 21.0302861,
+    "label": "RTV Euro AGD",
+    "icon": "💻"
+  },
+  {
+    "lat": 52.2900258,
+    "lng": 21.0300729,
+    "label": "FUP Warszawa 38",
+    "icon": "📍"
+  },
+  {
+    "lat": 52.2896395,
+    "lng": 21.0311171,
+    "label": "50 style",
+    "icon": "👕"
+  },
+  {
+    "lat": 52.2900622,
+    "lng": 21.0302861,
+    "label": "RTV Euro AGD",
+    "icon": "💻"
+  },
+  {
+    "lat": 52.2896395,
+    "lng": 21.0311171,
+    "label": "50 style",
+    "icon": "👕"
+  },
+  {
+    "lat": 52.2897316,
+    "lng": 21.0305171,
+    "label": "Stokrotka",
+    "icon": "🏪"
+  },
+  {
+    "lat": 52.2895667,
+    "lng": 21.0304363,
+    "label": "C&A",
+    "icon": "👕"
+  },
+  {
+    "lat": 52.290129,
+    "lng": 21.030294,
+    "label": "Bankomat",
+    "icon": "🏧"
+  },
+  {
+    "lat": 52.288477,
+    "lng": 21.031013,
+    "label": "WiFi",
+    "icon": "📡"
+  },
+  {
+    "lat": 52.288728,
+    "lng": 21.029935,
+    "label": "Serwer",
+    "icon": "🖥️"
+  },
+  {
+    "lat": 52.2896395,
+    "lng": 21.0311171,
+    "label": "50 style",
+    "icon": "👕"
+  },
+  {
+    "lat": 52.2941829,
+    "lng": 21.027583,
+    "label": "Żabka",
+    "icon": "🏪"
+  },
+  {
+    "lat": 52.293997,
+    "lng": 21.02658,
+    "label": "Brak nazwy",
+    "icon": "🪑"
+  },
+  {
+    "lat": 52.294754,
+    "lng": 21.0229543,
+    "label": "Bank Pekao",
+    "icon": "🏦"
+  },
+  {
+    "lat": 52.294754,
+    "lng": 21.0229543,
+    "label": "Bank Pekao",
+    "icon": "🏦"
+  },
+  {
+    "lat": 52.2929559,
+    "lng": 21.0290525,
+    "label": "Kancelaria",
+    "icon": "🏢"
+  },
+  {
+    "lat": 52.2945392,
+    "lng": 21.0219628,
+    "label": "RUCH S.A.",
+    "icon": "🏪"
+  },
+  {
+    "lat": 52.2945096,
+    "lng": 21.0221738,
+    "label": "Brak nazwy",
+    "icon": "🏧"
+  },
+  {
+    "lat": 52.2945392,
+    "lng": 21.0219628,
+    "label": "RUCH S.A.",
+    "icon": "🏪"
+  },
+  {
+    "lat": 52.294226,
+    "lng": 21.020193,
+    "label": "Rower",
+    "icon": "🚲"
+  },
+  {
+    "lat": 52.2924994,
+    "lng": 21.0158423,
+    "label": "Car-Droom",
+    "icon": "🏪"
+  },
+  {
+    "lat": 52.295954,
+    "lng": 21.021266,
+    "label": "Rower",
+    "icon": "🚲"
+  },
+  {
+    "lat": 52.295879,
+    "lng": 21.021341,
+    "label": "WiFi",
+    "icon": "📡"
+  },
+  {
+    "lat": 52.2986838,
+    "lng": 21.0335917,
+    "label": "Brak nazwy",
+    "icon": "🚲"
+  },
+  {
+    "lat": 52.2996447,
+    "lng": 21.0416968,
+    "label": "Żabka",
+    "icon": "🏪"
+  },
+  {
+    "lat": 52.2996362,
+    "lng": 21.041795,
+    "label": "Trzy Pierożki",
+    "icon": "🏪"
+  },
+  {
+    "lat": 52.2987338,
+    "lng": 21.0420694,
+    "label": "Broadway Club",
+    "icon": "📍"
+  }
+]

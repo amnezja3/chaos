@@ -1,0 +1,822 @@
+[
+  {
+    "id": "scan_probe_v1",
+    "name": "ScanProbe",
+    "icon": "🛰️",
+    "type": "scanner",
+    "detects": ["open_ports", "user_location"],
+    "interferes_with": [
+        "stealth_mode",
+        "system_visibility",
+        "vpn_enabled",
+        "browser_protection"
+    ],
+    "requires_off": [
+        "scan_detection",
+        "firewall"
+    ],
+    "price": 120,
+    "allowed_fractions": [],
+    "disables": [],
+    "affects": ["player_risk_level"],
+    "description": "Aktywna sonda wykrywająca porty i lokalizację użytkowników. Może zostać wykryta przez aktywną ochronę.",
+    "interface": "progressbar_random",
+    "levels": [
+        {
+            "title": "ScanProbe – Aktywne skanowanie portów i lokalizacji",
+            "steps": [
+            "Inicjalizacja sondy...",
+            "Ustalanie adresu IP...",
+            "Sprawdzanie otwartych portów...",
+            "Analiza geolokalizacji użytkownika..."
+            ],
+            "result_success": "✅ Zidentyfikowano otwarte porty i przybliżoną lokalizację.",
+            "result_failure": "❌ Skanowanie zostało przerwane lub zablokowane."
+        }
+    ]
+
+  },
+  {
+    "id": "deep_sniff_r2",
+    "name": "DeepSniff",
+    "icon": "🔍",
+    "type": "scanner",
+    "detects": ["processes", "active_tasks", "security_logs"],
+    "interferes_with": [
+        "firewall",
+        "log_integrity",
+        "system_integrity",
+        "system_integrity_check",
+        "scan_detection",
+        "network_anomaly_detection",
+        "spoofing_protection"
+    ],
+    "requires_off": [
+        "log_guardian",
+        "heap_protection"
+    ],
+    "price": 140,
+    "allowed_fractions": [],
+    "disables": [],
+    "affects": ["traceability", "detection_risk"],
+    "description": "Skaner głęboki analizujący działające procesy i logi bezpieczeństwa. Może zostać zablokowany przez aktywne logowanie lub ochronę integralności dzienników.",
+    "interface": "progressbar_random",
+    "levels": [
+        {
+            "title": "DeepSniff – Analiza procesów i logów",
+            "steps": [
+            "Łączenie z systemem...",
+            "Odczyt aktywnych zadań...",
+            "Sprawdzanie integralności logów...",
+            "Zbieranie podejrzanych wpisów..."
+            ],
+            "result_success": "✅ Wykryto aktywne zadania i podejrzane wpisy w logach.",
+            "result_failure": "❌ Nie udało się uzyskać dostępu do logów lub procesów."
+        }
+    ]
+
+  },
+  {
+    "id": "ghost_ping_x3",
+    "name": "GhostPing",
+    "icon": "👻",
+    "type": "scanner",
+    "detects": ["device_presence", "stealth_failures"],
+    "interferes_with": [
+        "stealth_mode",
+        "vpn_enabled",
+        "system_visibility",
+        "anonymity_score"
+    ],
+    "requires_off": [
+        "network_anomaly_detection",
+        "activity_monitor",
+        "player_tracking"
+    ],
+    "price": 120,
+    "allowed_fractions": [],
+    "disables": ["vpn_obfuscation"],
+    "affects": ["traceability", "alert_state"],
+    "description": "Ultralekki skaner do wykrywania obecności innych użytkowników w sieci i błędów w ich kamuflażu. Podatny na wykrycie przez zaawansowaną detekcję anomalii.",
+    "interface": "progressbar_random",
+    "levels": [
+        {
+            "title": "GhostPing – Pingowanie ukrytych urządzeń",
+            "steps": [
+            "Wysyłanie sygnału ping...",
+            "Oczekiwanie na odpowiedzi...",
+            "Analiza odpowiedzi sieciowych...",
+            "Sprawdzanie błędów kamuflażu..."
+            ],
+            "result_success": "✅ Wykryto obecność ukrytych użytkowników oraz błędy maskowania.",
+            "result_failure": "❌ Brak odpowiedzi – urządzenia mogą być poza zasięgiem lub dobrze ukryte."
+        }
+    ]
+
+  },
+  {
+    "id": "stealth_browser_v2",
+    "name": "StealthBrowser",
+    "icon": "🕵️‍♂️",
+    "type": "browser",
+    "detects": ["phishing_pages"],
+    "interferes_with": [
+        "browser_history_log",
+        "file_visibility",
+        "traceability",
+        "system_visibility",
+        "process_monitor"
+    ],
+    "requires_off": [
+        "browser_protection",
+        "activity_monitor"        
+    ],
+    "price": 95,
+    "allowed_fractions": [],
+    "disables": ["browser_history_log"],
+    "affects": ["anonymity_score"],
+    "description": "Minimalistyczna przeglądarka z ukrytym referrerem, bez historii. Wrażliwa na aktywną ochronę przeglądarki.",
+    "interface": "window",
+    "levels": [
+        {
+            "title": "StealthBrowser v2 – Tryb ukryty",
+            "list": [
+            "🌐 Domyślna strona: xhttp://start.local",
+            "🔒 Referrer ukryty: TAK",
+            "📜 Historia przeglądania: WYŁĄCZONA",
+            "🛡️ Blokada skryptów: AKTYWNA"
+            ],
+            "buttons": [
+            { "label": "Otwórz nową kartę", "action": "open_tab" },
+            { "label": "Zamknij przeglądarkę", "action": "close_browser" }
+            ]
+        }
+    ]
+  },
+  {
+    "id": "crypto_vault_v1",
+    "name": "EncryptedFileVault",
+    "icon": "🔐",
+    "type": "file_explorer",
+    "detects": [],
+    "interferes_with": [
+        "file_visibility",
+        "file_indexing",
+        "system_visibility",
+        "log_integrity"
+    ],
+    "requires_off": [
+        "process_monitor",
+        "storage_integrity"
+    ],
+    "price": 105,
+    "allowed_fractions": [],
+    "disables": ["file_visibility"],
+    "affects": ["storage_integrity"],
+    "description": "Szyfrowany eksplorator użytkownika. Ukrywa zawartość przed systemem i analizą plików.",
+    "interface": "window",
+    "levels": [
+        {
+            "title": "Encrypted File Vault – Dostęp szyfrowany",
+            "list": [
+            "📁 Folder: /vault",
+            "🧾 Plik: log.txt — 🔐 zaszyfrowany",
+            "🧾 Plik: secrets.dat — 🔐 zaszyfrowany",
+            "🔄 Indeksowanie plików: WYŁĄCZONE",
+            "👁️ Widoczność w systemie: UKRYTA"
+            ],
+            "buttons": [
+            { "label": "Odszyfruj pliki", "action": "decrypt_files" },
+            { "label": "Zamknij sejf", "action": "close_vault" }
+            ]
+        }
+    ]
+  },
+  {
+    "id": "phantom_vpn_v1",
+    "name": "PhantomVPN",
+    "icon": "🛡️",
+    "type": "vpn",
+    "detects": ["ip_leaks"],
+    "interferes_with": [
+        "exploit_protection",
+        "traceability",
+        "system_visibility",
+        "player_tracking"
+    ],
+    "requires_off": [
+        "vpn_blocker",
+        "network_anomaly_detection"
+    ],
+    "price": 88,
+    "allowed_fractions": [],
+    "disables": [],
+    "affects": ["anonymity_score", "network_latency"],
+    "description": "Tunel VPN z autoprzełączaniem. Maskuje aktywność gracza, ale może kolidować z wstrzykiwaniem exploitów do sesji TCP/IP.",
+    "interface": "progressbar_random",
+    "levels": [
+        {
+            "title": "Establishing VPN Tunnel",
+            "steps": [
+            "Negotiating encryption parameters...",
+            "Assigning virtual IP address...",
+            "Securing communication channel...",
+            "Finalizing tunnel handshake..."
+            ],
+            "result_success": "VPN tunnel established successfully. IP masked.",
+            "result_failure": "VPN connection failed. Check for VPN blockers or network issues."
+        }
+    ]
+},
+{
+    "id": "shadow_layer_v1",
+    "name": "ShadowLayer",
+    "icon": "👤",
+    "type": "stealth",
+    "detects": [],
+    "interferes_with": [
+        "scan_probe_v1",
+        "logging_daemon",
+        "activity_monitor",
+        "traceability",
+        "system_integrity_check",
+        "player_risk_level"
+    ],
+    "requires_off": [
+        "scan_detection"
+    ],
+    "disables": [
+        "player_tracking",
+        "browser_history_log"
+    ],
+    "affects": [
+        "detectability",
+        "system_visibility",
+        "traceability"
+    ],
+    "price": 132,
+    "allowed_fractions": [],
+    "description": "Warstwa maskująca działania gracza w systemie. Redukuje widoczność, ale ogranicza dostęp do aktywnych funkcji systemowych.",
+    "interface": "button_choices",
+    "levels": [
+        {
+            "title": "Wybierz tryb ukrycia:",
+            "text": "ShadowLayer pozwala ukryć działania systemowe. Wybierz poziom ukrycia – im głębszy, tym większe ryzyko dezaktywacji funkcji.",
+            "options": [
+                {
+                "label": "Pasywny – tylko maskowanie logów",
+                "effect": {
+                    "system_visibility": false,
+                    "player_tracking": false
+                },
+                "price": 70
+                },
+                {
+                "label": "Agresywny – pełna izolacja",
+                "effect": {
+                    "system_visibility": false,
+                    "player_tracking": false,
+                    "access_level": -1
+                },
+                "price": 130
+                },
+                {
+                "label": "Cichy tunel – ukrycie aktywności sieciowej",
+                "effect": {
+                    "system_visibility": false,
+                    "traceability": 0,
+                    "anonymity_score": 100
+                },
+                "price": 240
+                },
+                {
+                "label": "Symulacja bezczynności – zamaskowanie działań jako idle",
+                "effect": {
+                    "player_risk_level": 0,
+                    "activity_monitor": false,
+                    "detectability": 0
+                },
+                "price": 185
+                },
+                {
+                "label": "Deep Phantom Mode – pełna separacja jądra (EXPERYMENTALNY)",
+                "effect": {
+                    "system_visibility": false,
+                    "player_tracking": false,
+                    "access_level": -3,
+                    "traceability": 0,
+                    "system_integrity": 100
+                },
+                "price": 3000
+                },
+                {
+                "label": "Anuluj",
+                "effect": {}
+                }
+            ]
+        }
+    ]
+},
+{
+    "id": "injector_x_v1",
+    "name": "InjectorX",
+    "icon": "💉",
+    "type": "exploit",
+    "detects": ["vulnerable_services"],
+    "interferes_with": [
+        "vpn_enabled",
+        "firewall_core",
+        "memory_guard",
+        "heap_protection"
+    ],
+    "requires_off": [
+        "exploit_protection",
+        "kernel_guard"
+    ],
+    "price": 280,
+    "allowed_fractions": [],
+    "disables": ["system_integrity_check"],
+    "affects": ["system_compromise_level"],
+    "description": "Zaawansowane narzędzie typu exploit injection. Skuteczne tylko przy wyłączonej ochronie jądra. Może obniżyć integralność systemu.",
+    "interface": "terminal",
+    "levels": [
+        {
+            "command": "inject -target vulnerable_service_45 -mode stealth",
+            "logs": [
+            "Łączenie z usługą docelową...",
+            "Próba ominięcia ochrony jądra...",
+            "Wstrzyknięcie kodu zakończone sukcesem.",
+            "Integralność systemu: -15%"
+            ]
+        },
+        {
+            "command": "inject -target vulnerable_service_12 -mode brute",
+            "logs": [
+            "Łączenie z usługą docelową...",
+            "Firewall core aktywny – dostęp zablokowany!",
+            "Wstrzyknięcie zakończone niepowodzeniem."
+            ]
+        }
+    ]
+
+},
+{
+    "id": "procmon_v1",
+    "name": "ProcessMon",
+    "icon": "🧬",
+    "type": "os_component",
+    "interferes_with": [
+        "background_injection",
+        "stealth_mode",
+        "injector_x_v1",
+        "shadow_layer_v1"
+    ],
+    "requires_off": [],
+    "price": 240,
+    "allowed_fractions": [],
+    "disables": ["background_injection"],
+    "affects": ["os_stability", "security_score"],
+    "description": "Monitor procesów systemowych. Wykrywa nieautoryzowane aplikacje i działania, ale może ograniczać działanie narzędzi ofensywnych.",
+    "interface": "window",
+    "levels": [
+        {
+            "title": "Monitor procesów",
+            "list": [
+                "PID: 2331 | Nazwa: injector_x_v1 | Status: Wykryto próbę iniekcji",
+                "PID: 4522 | Nazwa: shadow_layer_v1 | Status: Ukryty proces - zagrożenie",
+                "PID: 1090 | Nazwa: trusted_daemon | Status: OK"
+            ],
+            "buttons": [
+            {
+                "label": "Zakończ proces",
+                "action": "terminate_selected"
+            },
+            {
+                "label": "Zignoruj",
+                "action": "ignore"
+            }
+            ]
+        }
+    ]
+
+},
+{
+    "id": "drivecrypt_v1",
+    "name": "DriveEncryptor",
+    "icon": "🔐",
+    "type": "os_component",
+    "detects": [],
+    "interferes_with": [
+        "file_indexing",
+        "background_injection",
+        "memory_guard",
+        "file_visibility"
+    ],
+    "requires_off": [
+        "exploit_protection",
+        "process_monitor"
+    ],
+    "price": 260,
+    "allowed_fractions": [],
+    "disables": ["unencrypted_access"],
+    "affects": ["data_protection", "system_speed"],
+    "description": "Moduł szyfrowania systemu plików. Chroni dane gracza, ale wpływa na wydajność i może kolidować z narzędziami indeksującymi.",
+    "interface": "progressbar_random",
+    "levels": [
+        {
+            "title": "DriveEncryptor – Szyfrowanie przestrzeni dyskowej",
+            "steps": [
+            "🔐 Inicjalizacja modułu DriveEncryptor...",
+            "🔄 Skanowanie struktur katalogowych...",
+            "🗂️ Zabezpieczanie danych użytkownika...",
+            "💾 Nadpisywanie niezaszyfrowanych sektorów..."
+            ],
+            "result_success": "✅ Wszystkie dane zostały skutecznie zaszyfrowane.",
+            "result_failure": "❌ Proces szyfrowania nie został zakończony poprawnie."
+        }
+    ]
+
+},
+{
+    "id": "zeroday_hunter",
+    "name": "ZeroDayHunter",
+    "icon": "🕳️",
+    "type": "exploit",
+    "detects": ["zero_day_vulnerabilities", "unpatched_nodes"],
+    "interferes_with": ["exploit_protection", "system_monitor"],
+    "requires_off": ["patch_guard"],
+    "disables": [],
+    "affects": ["risk_level", "access_level"],
+    "description": "Zaawansowany wykrywacz podatności typu zero-day. Może otwierać nieznane wektory ataku, ale jest łatwy do wykrycia przy aktywnym monitoringu.",
+    "interface": "terminal",
+    "price": 160,
+    "allowed_fractions": [],
+    "levels": [
+        {
+            "command": "launch zeroday_scan --deep --verbose",
+            "logs": [
+            "run launch zeroday_scan deep verbose",
+            "check vulnerabilities 0day",
+            "report generate format json"
+            ]
+            
+        }
+    ]
+
+},
+{
+    "id": "mem_overflow_v1",
+    "name": "MemoryOverflow",
+    "icon": "🧠",
+    "type": "exploit",
+    "detects": [],
+    "interferes_with": [
+        "process_monitor",
+        "system_integrity_check",
+        "os_hardening",
+        "log_guardian"
+    ],
+    "requires_off": [
+        "exploit_protection",
+        "kernel_guard"
+    ],
+    "price": 310,
+    "allowed_fractions": [],
+    "disables": ["memory_guard"],
+    "affects": ["system_integrity", "exploit_success_rate"],
+    "description": "Atak przepełnienia pamięci operacyjnej. Skuteczny przy wyłączonych zabezpieczeniach pamięci – może uszkodzić system docelowy lub samego gracza.",
+    "interface": "progressbar_random",
+    "levels": [
+        {
+            "title": "MemoryOverflow – Przepełnienie pamięci",
+            "steps": [
+            "📤 Wysyłanie danych testowych...",
+            "💽 Przekraczanie granicy bufora...",
+            "📉 Manipulacja alokacją RAM...",
+            "🧠 Inicjalizacja przepełnienia pamięci..."
+            ],
+            "result_success": "💥 Pamięć przeciążona – exploit zakończony powodzeniem.",
+            "result_failure": "⚠️ Atak wykryty i zablokowany. Proces zrestartowany przez system."
+        }
+    ]
+
+},
+{
+  "id": "pencombo_v1",
+  "name": "PenCombo",
+  "icon": "🛠️",
+  "type": "exploit_suite",
+  "detects": ["open_ports", "weak_configs", "inject_points"],
+  "interferes_with": [
+    "firewall_core",
+    "os_hardening",
+    "memory_guard",
+    "system_integrity_check",
+    "log_guardian"
+  ],
+  "requires_off": [
+    "exploit_protection",
+    "kernel_guard"
+  ],
+  "disables": [
+    "system_integrity_check",
+    "process_monitor"
+  ],
+  "affects": [
+    "system_compromise_level",
+    "exploit_success_rate",
+    "risk_level"
+  ],
+  "price": 318,
+  "allowed_fractions": [],
+  "description": "Zestaw skonsolidowanych technik penetracyjnych do automatycznego rozpoznania, eskalacji uprawnień i wstrzykiwania kodu. Umożliwia działania ofensywne w różnych wektorach systemowych.",
+  "interface": "button_choices",
+  "levels": [
+    {
+      "title": "Wybierz tryb ataku PenCombo:",
+      "text": "Zintegrowany zestaw technik penetracyjnych. Dostosuj tryb do celu – od skanowania aż po wstrzyknięcie kodu.",
+      "options": [
+        {
+          "label": "Recon Mode – pasywna analiza i detekcja słabości",
+          "effect": {
+            "risk_level": 10,
+            "exploit_success_rate": 10
+          },
+          "price": 90
+        },
+        {
+          "label": "Injection Mode – aktywna iniekcja kodu",
+          "effect": {
+            "system_compromise_level": 35,
+            "system_integrity": -15
+          },
+          "price": 160
+        },
+        {
+          "label": "Privilege Escalation – eskalacja z niskich uprawnień",
+          "effect": {
+            "access_level": 2,
+            "system_integrity_check": false,
+            "traceability": 30
+          },
+          "price": 260
+        },
+        {
+          "label": "All-In-One Strike – pełna sekwencja penetracyjna",
+          "effect": {
+            "system_compromise_level": 70,
+            "access_level": 3,
+            "exploit_success_rate": 95,
+            "traceability": 65
+          },
+          "price": 318
+        },
+        {
+          "label": "Hack that all",
+          "effect": {
+            "stealth_mode": false,
+            "scan_detection": false,
+            "exploit_protection": false,
+            "vpn_enabled": false,
+            "browser_protection": false,
+            "os_hardening": false,
+            "log_guardian": false,
+            "process_monitor": false,
+            "firewall": false,
+            "log_integrity": false,
+            "network_anomaly_detection": false,
+            "spoofing_protection": false,
+            "browser_history_log": false,
+            "file_visibility": false,
+            "file_indexing": false,
+            "storage_integrity": false,
+            "anonymity_score": false,
+            "vpn_blocker": false,
+            "activity_monitor": false,
+            "player_tracking": false,
+            "system_visibility": false,
+            "firewall_core": false,
+            "kernel_guard": false,
+            "system_integrity_check": false,
+            "system_compromise_level": 1,
+            "heap_protection": false,
+            "memory_lock": false,
+            "unencrypted_access": false,
+            "background_injection": false,
+            "memory_guard": false,
+            "player_risk_level": false,
+            "traceability": 1,
+            "system_integrity": 1,
+            "exploit_success_rate": false,
+            "risk_level": 1,
+            "access_level": false
+          }
+        }
+      ]
+    }
+  ]
+},
+{
+  "id": "camstream_v1",
+  "name": "CamStream",
+  "icon": "🎥",
+  "type": "scanner",
+  "detects": ["camera_feed", "video_stream"],
+  "interferes_with": ["system_visibility", "camera_streaming"],
+  "requires_off": ["camera_firewall"],
+  "price": 160,
+  "allowed_fractions": [],
+  "disables": [],
+  "affects": ["visibility", "player_risk_level"],
+  "description": "Moduł zdalnego podglądu obrazu z kamer IP. Delikatny jak cień, ale może aktywować alert w systemie monitoringu.",
+  "interface": "progressbar_random",
+  "levels": [
+    {
+      "title": "CamStream – Podgląd kamery",
+      "steps": [
+        "🔍 Wyszukiwanie aktywnych kamer...",
+        "📡 Nawiązywanie połączenia...",
+        "🖼️ Streamowanie obrazu...",
+        "📁 Buforowanie danych wideo..."
+      ],
+      "result_success": "✅ Obraz z kamery uzyskany. Obiekt pod obserwacją.",
+      "result_failure": "❌ Kamera odrzuciła połączenie. Możliwa aktywna ochrona."
+    }
+  ]
+},
+{
+  "id": "camdisabler_v1",
+  "name": "CamDisabler",
+  "icon": "📴",
+  "type": "exploit",
+  "interferes_with": ["camera", "video_stream", "security_alert"],
+  "requires_off": ["camera_firewall", "motion_detection"],
+  "price": 175,
+  "allowed_fractions": [],
+  "disables": ["camera"],
+  "affects": ["traceability", "detection_risk"],
+  "description": "Narzędzie do wyłączenia i zakłócenia kamer IP. Pozostawia ślad w logach, jeśli nie działa w trybie stealth.",
+  "interface": "terminal",
+  "levels": [
+    {
+      "command": "disable_camera --target=ipcam_21 --mode=bruteforce",
+      "logs": [
+        "Połączenie z kamerą...",
+        "Próba wyłączenia aktywnego streamu...",
+        "Zakłócanie transmisji sygnału wideo...",
+        "✅ Kamera została dezaktywowana."
+      ]
+    },
+    {
+      "command": "disable_camera --target=ipcam_21 --mode=stealth",
+      "logs": [
+        "Skanowanie otwartych portów kamery...",
+        "Iniekcja kodu zakłócającego działanie...",
+        "⚠️ Aktywna ochrona wykryta – operacja przerwana."
+      ]
+    }
+  ]
+},
+{
+  "id": "micsniff_v1",
+  "name": "MicSniff",
+  "icon": "🎙️",
+  "type": "scanner",
+  "detects": ["microphone_activity", "audio_stream"],
+  "interferes_with": ["sound_protection", "privacy_mode"],
+  "requires_off": ["audio_guardian"],
+  "price": 145,
+  "allowed_fractions": [],
+  "disables": [],
+  "affects": ["traceability", "detection_risk"],
+  "description": "Sniffer mikrofonowy – cichy podsłuch otoczenia. Idealny do wykrycia rozmów lub dźwięków wokół celu.",
+  "interface": "progressbar_random",
+  "levels": [
+    {
+      "title": "MicSniff – Nasłuch mikrofonu",
+      "steps": [
+        "📡 Wyszukiwanie aktywnych mikrofonów...",
+        "🎧 Nasłuch kanału audio...",
+        "📥 Analiza poziomu dźwięku...",
+        "📤 Odszyfrowywanie strumienia audio..."
+      ],
+      "result_success": "✅ Dźwięk przechwycony. Możliwa aktywna rozmowa.",
+      "result_failure": "❌ Brak źródła dźwięku lub blokada audio."
+    }
+  ]
+},
+{
+  "id": "bttracer_v1",
+  "name": "BTTracer",
+  "icon": "📶",
+  "type": "scanner",
+  "detects": ["bluetooth_devices", "device_presence"],
+  "interferes_with": ["privacy_mode"],
+  "requires_off": ["bluetooth_guardian"],
+  "price": 110,
+  "allowed_fractions": [],
+  "disables": [],
+  "affects": ["traceability", "network_map"],
+  "description": "Skaner aktywnych urządzeń Bluetooth w okolicy. Przydatny do śledzenia obecności użytkownika lub jego sprzętu.",
+  "interface": "progressbar_random",
+  "levels": [
+    {
+      "title": "BTTracer – Skanowanie sygnałów BLE",
+      "steps": [
+        "📡 Wykrywanie aktywnych beaconów...",
+        "🔍 Analiza sygnału RSSI...",
+        "📍 Namierzanie pozycji urządzeń...",
+        "📲 Odczyt identyfikatorów MAC..."
+      ],
+      "result_success": "✅ Znaleziono urządzenia Bluetooth w pobliżu.",
+      "result_failure": "❌ Brak aktywnych urządzeń lub sygnał zakłócony."
+    }
+  ]
+},
+{
+  "id": "gpsprobe_v1",
+  "name": "GPSProbe",
+  "icon": "🛰️",
+  "type": "scanner",
+  "detects": ["gps_location", "movement_data"],
+  "interferes_with": ["gps_signal"],
+  "requires_off": ["location_shield", "signal_noise"],
+  "price": 130,
+  "allowed_fractions": [],
+  "disables": [],
+  "affects": ["traceability", "real_time_tracking"],
+  "description": "Sonda GPS do lokalizacji ruchomych obiektów. Pozwala zdalnie ustalić współrzędne celu.",
+  "interface": "progressbar_random",
+  "levels": [
+    {
+      "title": "GPSProbe – Ustalanie lokalizacji",
+      "steps": [
+        "🔎 Namierzanie sygnału GPS...",
+        "📍 Łączenie z satelitą...",
+        "🛰️ Synchronizacja danych lokalizacyjnych...",
+        "📡 Odbiór współrzędnych..."
+      ],
+      "result_success": "✅ Pozycja GPS ustalona. Cel śledzony.",
+      "result_failure": "❌ Brak sygnału GPS lub silne zakłócenia."
+    }
+  ]
+},
+{
+  "id": "wifibreaker_v1",
+  "name": "WiFiBreaker",
+  "icon": "📶",
+  "type": "exploit",
+  "detects": [],
+  "interferes_with": ["wifi_guard", "access_point_security"],
+  "requires_off": ["mac_filtering", "signal_jammer"],
+  "price": 150,
+  "allowed_fractions": [],
+  "disables": ["firewall", "dhcp_lease"],
+  "affects": ["network_access", "player_risk_level"],
+  "description": "Włam do sieci Wi-Fi. Uzyskaj dostęp do lokalnej infrastruktury lub podsłuchuj ruch.",
+  "interface": "progressbar_random",
+  "levels": [
+    {
+      "title": "WiFiBreaker – Przełamywanie zabezpieczeń",
+      "steps": [
+        "🔐 Odczytywanie sygnału...",
+        "📡 Próba uwierzytelnienia...",
+        "🧬 Analiza hasła WPA2...",
+        "🔓 Złamano zabezpieczenia!"
+      ],
+      "result_success": "✅ Uzyskano dostęp do Wi-Fi.",
+      "result_failure": "❌ Próba nieudana. Silne szyfrowanie."
+    }
+  ]
+},
+{
+  "id": "data_corruptor_v1",
+  "name": "DataCorruptor",
+  "icon": "💣",
+  "type": "exploit",
+  "detects": [],
+  "interferes_with": ["cloud_sync", "data_backup", "file_watchdog"],
+  "requires_off": ["system_integrity_check"],
+  "price": 200,
+  "allowed_fractions": [],
+  "disables": ["file_indexing"],
+  "affects": ["data_integrity", "system_visibility"],
+  "description": "Sabotaż plików i danych ofiary. Niszczy logi, archiwa, zrzuty baz danych.",
+  "interface": "progressbar_random",
+  "levels": [
+    {
+      "title": "Uszkadzanie danych...",
+      "steps": [
+        "📂 Wyszukiwanie wrażliwych plików...",
+        "🧨 Wprowadzanie błędów CRC...",
+        "📉 Usuwanie kopii zapasowych...",
+        "💥 Sabotaż zakończony"
+      ],
+      "result_success": "✅ Dane uszkodzone. System destabilizowany.",
+      "result_failure": "❌ Nie udało się naruszyć systemu – aktywny nadzór bezpieczeństwa."
+    }
+  ]
+}
+
+]
+

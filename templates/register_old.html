@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Rejestracja</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    body.ghost-install {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      font-family: 'Courier New', monospace;
+      color: #0f0;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #background-image {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-size: cover;
+      background-position: center;
+      z-index: 1;
+      transition: background-image 0.5s ease-in-out;
+    }
+
+    #form-overlay {
+      position: relative;
+      /* bottom: 0; */
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.85);
+      padding: 30px;
+      /* border-top-left-radius: 12px;
+      border-top-right-radius: 12px; */
+      width: 100%;
+      max-width: 600px;
+      max-height: 600px;
+      height: 100%;
+      min-height: 300px;
+      z-index: 9999 !important;
+      opacity: 1 !important;
+      display: block !important;
+      outline: 2px dashed lime;
+    }
+
+    #form-step-container {
+      position: relative;
+      z-index: 15;
+      margin-top: 100px;
+    }
+
+    input, select, button {
+      background-color: rgba(0, 0, 0, 0.6);
+    }
+
+
+    #progress-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 6px;
+      width: 100%;
+      background: #222;
+      z-index: 10;
+    }
+
+    #progress-fill {
+      height: 100%;
+      background: #0f0;
+      width: 0%;
+      transition: width 0.5s ease-in-out;
+    }
+
+    .step {
+      display: none;
+    }
+    .step.active {
+      display: block;
+    }
+    .step#step-1 {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    .faction-options {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .faction-options button {
+      flex: 1 1 40%;
+    }
+    .faction-options button.selected {
+      background: #0f0;
+      color: #000;
+      border: 2px solid #fff;
+    }
+    
+    #step-2 {
+      position: absolute;
+      top: 60%;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+    }
+
+    .role-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .role-options button {
+      padding: 10px 20px;
+      background: #111;
+      color: #0f0;
+      border: 1px solid #0f0;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .role-options button:hover {
+      background: #0f0;
+      color: #000;
+    }
+    .role-options button.selected {
+      background: #0f0;
+      color: #000;
+      border: 2px solid #fff;
+    }
+
+    .step#step-3 {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    .step#step-4 {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    .step#step-5 {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    .step#step-6 {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      background: #111;
+      color: #0f0;
+      border: 1px solid #0f0;
+      font-family: 'Courier New', monospace;
+    }
+
+    button {
+      background: #0f0;
+      color: #000;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #33ff33;
+    }
+
+    #error-msg {
+      color: #f33;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+
+  </style>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      showStep(1);
+    });
+
+  </script>
+</head>
+<body class="ghost-install">
+  
+
+  <div id="form-overlay">
+    <div id="form-step-container">
+      <!-- formularze kroków -->
+      <div id="step-1" class="step active">
+        <input type="text" id="username" placeholder="Nazwa użytkownika">
+        <button onclick="nextStep(1)">Dalej</button>
+      </div>
+
+      <div id="step-2" class="step">
+        <div class="faction-options">
+          <button onclick="selectFaction(1, this)">☯ Strażnicy Ładu</button>
+          <button onclick="selectFaction(2, this)">⚡ Echo Wolności</button>
+          <button onclick="selectFaction(3, this)">💼 VIREX</button>
+          <button onclick="selectFaction(4, this)">☠️ Siatka Widmo</button>
+        </div>
+        <button onclick="nextStep(2)">Dalej</button>
+      </div>
+      <input type="hidden" id="faction">
+
+      <div id="step-3" class="step">
+        <input type="hidden" id="role">
+        <div id="role-buttons" class="role-options"></div>
+        <button onclick="nextStep(3)">Dalej</button>
+      </div>
+
+      <div id="step-4" class="step">
+        <input type="password" id="password" placeholder="Hasło">
+        <input type="password" id="confirm_password" placeholder="Powtórz hasło">
+        <button onclick="nextStep(4)">Dalej</button>
+      </div>
+
+      <div id="step-5" class="step">
+        <input type="email" id="email" placeholder="E-mail">
+        <button onclick="nextStep(5)">Dalej</button>
+      </div>
+
+      <div id="step-6" class="step">
+        <input type="text" id="nick" placeholder="Nick gracza">
+        <button onclick="finalize()">Zakończ rejestrację</button>
+      </div>
+    </div>
+    <div id="error-msg" class="error"></div>
+  </div>
+
+  <div id="background-image"></div>
+
+  <div id="progress-bar">
+    <div id="progress-fill"></div>
+  </div>
+
+  <script src="/static/js/register_scripts.js"></script>
+  
+</body>
+<!-- <body>
+
+<div id="container">
+  <h2>Rejestracja</h2>
+
+  <div id="step-1" class="step active">
+    <input type="text" id="username" placeholder="Nazwa użytkownika">
+    <button onclick="nextStep(1)">Dalej</button>
+  </div>
+
+  <div id="step-2" class="step">
+    <select id="faction">
+      <option value="">Wybierz frakcję</option>
+      <option value="1">Frakcja 1</option>
+      <option value="2">Frakcja 2</option>
+    </select>
+    <button onclick="nextStep(2)">Dalej</button>
+  </div>
+
+  <div id="step-3" class="step">
+    <select id="role">
+      <option value="">Wybierz rolę</option>
+      <option value="1">Zwiadowca</option>
+      <option value="2">Specjalista</option>
+    </select>
+    <button onclick="nextStep(3)">Dalej</button>
+  </div>
+
+  <div id="step-4" class="step">
+    <input type="password" id="password" placeholder="Hasło">
+    <input type="password" id="confirm_password" placeholder="Powtórz hasło">
+    <button onclick="nextStep(4)">Dalej</button>
+  </div>
+
+  <div id="step-5" class="step">
+    <input type="email" id="email" placeholder="E-mail">
+    <button onclick="nextStep(5)">Dalej</button>
+  </div>
+
+  <div id="step-6" class="step">
+    <input type="text" id="nick" placeholder="Nick gracza">
+    <button onclick="finalize()">Zakończ rejestrację</button>
+  </div>
+
+  <div class="error" id="error-msg"></div>
+</div>
+
+<script src="/static/js/register_scripts.js"></script>
+</body> -->
+</html>

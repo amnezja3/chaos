@@ -1,0 +1,17 @@
+[
+  {
+    "id": "firewall",
+    "status": "off",
+    "desc": "Firewall nieaktywny – Twój system jest podatny na ataki z sieci."
+  },
+  {
+    "id": "2fa",
+    "status": "off",
+    "desc": "Brak 2FA – każdy, kto zna hasło, ma dostęp do konta."
+  },
+  {
+    "id": "ports",
+    "status": "open",
+    "desc": "Otwarte porty: 21, 22 – dostępne z zewnątrz."
+  }
+]

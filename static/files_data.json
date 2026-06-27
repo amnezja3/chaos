@@ -1,0 +1,14 @@
+{
+  "tools": [
+    { "name": "exploit.sh", "type": "file" },
+    { "name": "scanner", "type": "folder" }
+  ],
+  "download": [
+    { "name": "report.pdf", "type": "file" }
+  ],
+  "pictures": [
+    { "name": "avatar.png", "type": "file" },
+    { "name": "wallpaper", "type": "folder" }
+  ],
+  "social-media": []
+}

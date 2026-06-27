@@ -1,0 +1,2581 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Mapa</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {{ folium_css|safe }}
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .context-menu {
+      position: absolute;
+      background: #f8f8f8;
+      border: 1px solid rgb(102, 102, 102);
+      color: #2a2a2a;
+      font-family: monospace;
+      font-size: 10px;
+      z-index: 10000;
+      border-radius: 5px;
+      padding: 5px;
+    }
+    .context-menu div {
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .context-menu div:hover {
+      background: rgba(115, 115, 115, 0.5);
+    }
+    .context-menu div.disabled {
+      opacity: 0.35;
+      cursor: default;
+      pointer-events: none;
+    }
+    .context-menu div.disabled:hover {
+      background: transparent;
+    }
+    .context-menu div.player-action-disabled {
+      opacity: 0.42;
+      cursor: default;
+    }
+    .context-menu div.player-action-disabled:hover {
+      background: transparent;
+    }
+    .context-menu .player-action-reason {
+      display: block;
+      color: #666;
+      font-size: 9px;
+      margin-top: 2px;
+      max-width: 190px;
+      white-space: normal;
+    }
+
+    .player-actor-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 12000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.62);
+      font-family: monospace;
+    }
+
+    .player-actor-modal {
+      width: min(720px, 100%);
+      max-height: min(760px, calc(100vh - 48px));
+      overflow: auto;
+      background: #f8f8f8;
+      border: 1px solid #1d5c35;
+      border-radius: 6px;
+      color: #111;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .player-actor-modal__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid #d6d6d6;
+    }
+
+    .player-actor-modal__title {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .player-actor-modal__relation {
+      margin-top: 4px;
+      color: #23633b;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .player-actor-modal__close {
+      width: 34px;
+      height: 34px;
+      border: 1px solid #1d5c35;
+      border-radius: 4px;
+      background: #eef7f0;
+      color: #111;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .player-actor-modal__close:hover {
+      background: #dff4e4;
+    }
+
+    .player-actor-modal__body {
+      display: grid;
+      grid-template-columns: 132px 1fr;
+      gap: 18px;
+      padding: 18px;
+    }
+
+    .player-actor-modal__avatar {
+      width: 112px;
+      height: 112px;
+      border: 1px solid #1d5c35;
+      border-radius: 6px;
+      background: #111;
+      color: #b7ff33;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 42px;
+      font-weight: 700;
+      overflow: hidden;
+    }
+
+    .player-actor-modal__avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .player-actor-modal__grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 16px;
+      font-size: 12px;
+    }
+
+    .player-actor-modal__field span {
+      display: block;
+      color: #35624a;
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .player-actor-modal__field strong {
+      display: block;
+      word-break: break-word;
+    }
+
+    .player-actor-modal__actions {
+      grid-column: 1 / -1;
+      border-top: 1px solid #d6d6d6;
+      padding-top: 14px;
+      margin-top: 2px;
+    }
+
+    .player-actor-modal__actions h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+    }
+
+    .player-actor-modal__action-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .player-actor-modal__action {
+      border: 1px solid #b7c8b9;
+      border-radius: 4px;
+      padding: 8px 10px;
+      background: #fff;
+      font-size: 11px;
+    }
+
+    .player-actor-modal__action.is-enabled {
+      border-color: #2cbf71;
+      background: #effbf3;
+    }
+
+    .player-actor-modal__action.is-disabled {
+      opacity: 0.62;
+    }
+
+    .player-actor-modal__reason {
+      display: block;
+      margin-top: 4px;
+      color: #666;
+      font-size: 10px;
+      line-height: 1.3;
+    }
+
+    @media (max-width: 640px) {
+      .player-actor-modal__body,
+      .player-actor-modal__grid,
+      .player-actor-modal__action-list {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .context-menu-clean {
+        position: absolute;
+        background: #f8f8f8;
+        border: 1px solid rgb(102, 102, 102);
+        color: #2a2a2a;
+        font-family: monospace;
+        font-size: 10px;
+        z-index: 10000;
+        border-radius: 5px;
+        padding: 5px;
+    }
+
+    .context-menu-clean div {
+        padding: 5px 10px;
+        cursor: pointer;
+    }
+
+    /* Brak podświetlenia */
+    .context-menu-clean div:hover {
+        background: transparent;
+    }
+
+    .security-preset-bar {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 8px 10px 10px;
+      padding-bottom: 7px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+      font-family: monospace;
+    }
+
+    .security-preset-button {
+      cursor: pointer;
+      border: 1px solid #6f8f77;
+      background: #eef4ee;
+      color: #17301c;
+      font-family: monospace;
+      font-size: 9px;
+      line-height: 1;
+      padding: 4px 7px;
+      border-radius: 3px;
+      min-width: 42px;
+      text-transform: uppercase;
+    }
+
+    .security-preset-button:hover {
+      border-color: #169a44;
+      background: #dff5e4;
+      color: #06240e;
+    }
+
+    .security-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(98px, 1fr));
+      column-gap: 14px;
+      row-gap: 5px;
+      font-size: 8px;
+      line-height: 1.2;
+      align-items: center;
+      padding: 0 8px 4px;
+    }
+
+    .security-row {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 17px;
+      white-space: nowrap;
+    }
+
+    .security-state {
+      display: inline-block;
+      width: 14px;
+      flex: 0 0 14px;
+      text-align: center;
+      font-weight: 700;
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    .security-state.on {
+      color: #35bf78;
+    }
+
+    .security-state.off {
+      color: #ff3f6b;
+    }
+
+    .leaflet-tooltip {
+      pointer-events: none !important;
+    }
+
+    .clan-vulnerability-pin {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: monospace;
+      color: #d8ff80;
+      text-shadow: 0 1px 3px #000;
+      transform: translateY(-8px);
+    }
+    .clan-vulnerability-pin__icon {
+      width: 31px;
+      height: 31px;
+      border-radius: 50%;
+      border: 2px solid #b8ff28;
+      background: rgba(9, 28, 8, 0.88);
+      box-shadow: 0 0 12px rgba(163, 255, 36, 0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+    }
+    .clan-vulnerability-pin__tag {
+      margin-top: 2px;
+      padding: 1px 5px;
+      border: 1px solid rgba(184, 255, 40, 0.75);
+      background: rgba(0, 0, 0, 0.82);
+      max-width: 112px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 10px;
+    }
+
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  
+  <div style="height: 100%; width: 100%;">
+    {{ map_html|safe }}
+  </div>
+    <script>
+        window.profileData = JSON.parse('{{ profile | tojson | safe }}');
+    </script>
+
+  {{ folium_js|safe }}
+
+    <script>
+        const map = window[Object.keys(window).find(k => k.startsWith("map_"))];
+        let lastContextWasMarker = false;
+        const targetLayerRegistry = new Map();
+        let scanResultLayers = [];
+        const clanVulnerabilityRegistry = new Map();
+        const baseZoom = map.getZoom();
+        let zoomReturnTimer = null;
+        let zoomReturnInterval = null;
+        let programmaticMapMove = false;
+
+        function clearZoomReturn() {
+            if (zoomReturnTimer) {
+                clearTimeout(zoomReturnTimer);
+                zoomReturnTimer = null;
+            }
+            if (zoomReturnInterval) {
+                clearInterval(zoomReturnInterval);
+                zoomReturnInterval = null;
+            }
+        }
+
+        function scheduleZoomReturn() {
+            if (programmaticMapMove || map.getZoom() >= baseZoom) return;
+            clearZoomReturn();
+            zoomReturnTimer = setTimeout(() => {
+                zoomReturnInterval = setInterval(() => {
+                    const currentZoom = map.getZoom();
+                    if (currentZoom >= baseZoom) {
+                        clearZoomReturn();
+                        return;
+                    }
+                    programmaticMapMove = true;
+                    map.setZoom(Math.min(baseZoom, currentZoom + 1), { animate: true });
+                    setTimeout(() => {
+                        programmaticMapMove = false;
+                    }, 350);
+                }, 650);
+            }, 1000);
+        }
+
+        map.on('zoomend', scheduleZoomReturn);
+        map.on('dragstart movestart zoomstart', () => {
+            if (!programmaticMapMove) clearZoomReturn();
+        });
+        map.on('dragend moveend', scheduleZoomReturn);
+        map.createPane('territoryPane');
+        map.getPane('territoryPane').style.zIndex = 250;
+        map.getPane('territoryPane').style.pointerEvents = 'auto';
+
+        function targetLayerKey(lat, lng, label = "") {
+            return `${Number(lat).toFixed(6)}:${Number(lng).toFixed(6)}:${label || ""}`;
+        }
+
+        function vulnerabilityTargetKey(target) {
+            if (!target) return "";
+            const lat = Number(target.lat);
+            const lng = Number(target.lng !== undefined ? target.lng : target.lon);
+            const label = String(target.label || target.name || "");
+            if (Number.isNaN(lat) || Number.isNaN(lng)) return "";
+            return `${lat.toFixed(5)}:${lng.toFixed(5)}:${label}`;
+        }
+
+        function refreshParentToolbarProfile() {
+            try {
+                if (window.parent && window.parent !== window && typeof window.parent.refreshToolbarProfile === 'function') {
+                    window.parent.refreshToolbarProfile();
+                }
+            } catch (err) {
+                // Parent toolbar refresh is optional.
+            }
+        }
+
+        function findClanVulnerabilityForTarget(target) {
+            const key = vulnerabilityTargetKey(target);
+            return key ? clanVulnerabilityRegistry.get(key) : null;
+        }
+
+        function rememberTargetLayer(lat, lng, label, layer) {
+            const key = targetLayerKey(lat, lng, label);
+            const previous = targetLayerRegistry.get(key);
+            if (previous && map.hasLayer(previous)) {
+                map.removeLayer(previous);
+            }
+            targetLayerRegistry.set(key, layer);
+            return layer;
+        }
+
+        function clearScanResultLayers() {
+            scanResultLayers.forEach(layer => {
+                if (map.hasLayer(layer)) map.removeLayer(layer);
+            });
+            scanResultLayers = [];
+        }
+
+        function rememberScanResultLayer(layer) {
+            scanResultLayers.push(layer);
+            return layer;
+        }
+
+        function removeScanResultForTarget(target) {
+            const targetKey = vulnerabilityTargetKey(target);
+            if (!targetKey) return;
+            scanResultLayers = scanResultLayers.filter(layer => {
+                const layerTarget = layer && layer._scanTarget;
+                if (vulnerabilityTargetKey(layerTarget) !== targetKey) {
+                    return true;
+                }
+                if (map.hasLayer(layer)) {
+                    map.removeLayer(layer);
+                }
+                return false;
+            });
+        }
+
+        function getNearestScanTarget(containerPoint, fallbackTarget) {
+            let best = null;
+            scanResultLayers.forEach(layer => {
+                if (!map.hasLayer(layer) || !layer.getLatLng || !layer._scanTarget) return;
+                const point = map.latLngToContainerPoint(layer.getLatLng());
+                const dx = point.x - containerPoint.x;
+                const dy = point.y - containerPoint.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const generatedPenalty = layer._scanTarget.generated ? 10 : 0;
+                const score = distance + generatedPenalty;
+                if (!best || score < best.score) {
+                    best = {
+                        target: layer._scanTarget,
+                        score,
+                        distance
+                    };
+                }
+            });
+
+            if (best && best.distance <= 46) {
+                return best.target;
+            }
+            return fallbackTarget;
+        }
+
+        function handleScanContextFromDomEvent(event) {
+            if (!scanResultLayers.length) return false;
+
+            const point = map.mouseEventToContainerPoint(event);
+            const pickedTarget = getNearestScanTarget(point, null);
+            if (!pickedTarget) return false;
+
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.stopImmediatePropagation) {
+                event.stopImmediatePropagation();
+            }
+
+            document.querySelectorAll('.context-menu').forEach(el => el.remove());
+            showMarkerContextMenu(point.x, point.y, pickedTarget, pickedTarget.icon, pickedTarget.label);
+            lastContextWasMarker = true;
+            return true;
+        }
+
+        function removeScanResultAt(lat, lng) {
+            const wantedLat = Number(lat).toFixed(6);
+            const wantedLng = Number(lng).toFixed(6);
+            scanResultLayers = scanResultLayers.filter(layer => {
+                if (!layer.getLatLng) return true;
+                const pos = layer.getLatLng();
+                const matches = Number(pos.lat).toFixed(6) === wantedLat && Number(pos.lng).toFixed(6) === wantedLng;
+                if (matches && map.hasLayer(layer)) map.removeLayer(layer);
+                return !matches;
+            });
+        }
+
+        function removeContestedTargetAt(lat, lng) {
+            const wantedLat = Number(lat).toFixed(6);
+            const wantedLng = Number(lng).toFixed(6);
+            if (!Array.isArray(window.contestedTargetLayers)) return;
+            window.contestedTargetLayers = window.contestedTargetLayers.filter(layer => {
+                if (!layer.getLatLng) return true;
+                const pos = layer.getLatLng();
+                const matches = Number(pos.lat).toFixed(6) === wantedLat && Number(pos.lng).toFixed(6) === wantedLng;
+                if (matches && map.hasLayer(layer)) map.removeLayer(layer);
+                return !matches;
+            });
+        }
+
+        function hideDomTargetMarkers(lat, lng, label = "") {
+            const wantedLat = Number(lat).toFixed(6);
+            const wantedLng = Number(lng).toFixed(6);
+            document.querySelectorAll('.marker-label, .marker-hacked').forEach(el => {
+                const elLat = Number(el.dataset.lat).toFixed(6);
+                const elLng = Number(el.dataset.lng).toFixed(6);
+                const labelMatches = !label || !el.dataset.label || el.dataset.label === label;
+                if (elLat === wantedLat && elLng === wantedLng && labelMatches) {
+                    const markerEl = el.closest('.leaflet-marker-icon');
+                    if (markerEl) markerEl.style.display = 'none';
+                }
+            });
+        }
+
+        function addInteractiveTargetMarker(lat, lng, label = "Cel", icon = "🎯", obj = {}) {
+            removeScanResultAt(lat, lng);
+            hideDomTargetMarkers(lat, lng, label);
+            const markerObj = {
+                lat: Number(lat),
+                lon: Number(lng),
+                label,
+                icon,
+                name: obj.name || label,
+                source_type: obj.source_type || "manual",
+                generated: obj.generated || false
+            };
+            const marker = L.marker([markerObj.lat, markerObj.lon], {
+                icon: L.divIcon({
+                    className: 'custom-text-icon',
+                    html: `<div style="text-align:center;color:#0f0;font-size:2.5rem;font-family:monospace;text-shadow:1px 1px 2px black;"><div>${icon}</div></div>`,
+                    iconSize: [80, 40],
+                    iconAnchor: [40, 20]
+                })
+            }).addTo(map);
+            marker.bindTooltip(label, { permanent: false, direction: 'top' });
+            marker.on('contextmenu', function(e) {
+                e.originalEvent.preventDefault();
+                e.originalEvent.stopPropagation();
+                document.querySelectorAll('.context-menu').forEach(el => el.remove());
+                showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerObj, icon, label);
+            });
+            return rememberTargetLayer(markerObj.lat, markerObj.lon, label, marker);
+        }
+
+        function addInteractiveHackedMarker(target) {
+            const lat = Number(target.lat);
+            const lng = Number(target.lng ?? target.lon);
+            const label = target.label || target.name || "Cel";
+            const icon = target.icon || "📦";
+            removeScanResultAt(lat, lng);
+            removeContestedTargetAt(lat, lng);
+            hideDomTargetMarkers(lat, lng);
+            const marker = L.marker([lat, lng], {
+                zIndexOffset: 1000,
+                icon: L.divIcon({
+                    className: 'target-hacked',
+                    html: `<div style="font-size:3rem;line-height:2rem;">${icon}</div>`,
+                    iconSize: [32, 42],
+                    iconAnchor: [16, 42]
+                })
+            }).addTo(map);
+            marker.bindTooltip(label, { permanent: false, direction: 'top' });
+            marker.on('contextmenu', function(e) {
+                e.originalEvent.preventDefault();
+                e.originalEvent.stopPropagation();
+                showMenuForHacked(e.containerPoint.x, e.containerPoint.y, { lat, lon: lng }, icon, label);
+            });
+            return rememberTargetLayer(lat, lng, label, marker);
+        }
+
+        window.markMapTargetHacked = function(target) {
+            if (!target || target.lat === undefined || (target.lng === undefined && target.lon === undefined)) return;
+            window.profileData = window.profileData || {};
+            window.profileData.hacked = window.profileData.hacked || [];
+            window.profileData.hacked.push(target);
+            window.profileData.aimed_target = {};
+            addInteractiveHackedMarker(target);
+            if (window.refreshPlayerAreas) {
+                window.refreshPlayerAreas();
+                setTimeout(window.refreshPlayerAreas, 900);
+            }
+            if (window.refreshClanVulnerabilities) {
+                window.refreshClanVulnerabilities();
+            }
+        };
+
+        // Blokuj menu przeglądarki
+        map.getContainer().addEventListener('contextmenu', function (e) {
+            if (handleScanContextFromDomEvent(e)) return;
+            e.preventDefault();
+        }, true);
+
+
+        map.on('contextmenu', function (e) {
+            const lat = e.latlng.lat.toFixed(6);
+            const lng = e.latlng.lng.toFixed(6);
+            if (lastContextWasMarker) {
+                lastContextWasMarker = false; // reset
+                return;
+            }
+
+            showContextMenu(e.containerPoint.x, e.containerPoint.y, lat, lng);
+        });
+
+
+
+        function showContextMenu(x, y, lat, lng) {
+            if (lastContextWasMarker) {
+                lastContextWasMarker = false; // 👈 resetuj
+                return;
+            }
+            closeMenus();
+            setupGlobalCloseListener();
+
+            const menu = document.createElement('div');
+            menu.className = 'context-menu';
+            menu.style.top = `${y}px`;
+            menu.style.left = `${x}px`;
+
+            
+            let html = `<div onclick="closeMenus(); mapAction('scan', ${lat}, ${lng})">🔎 Skanuj</div>`;
+            
+            html += `
+                <div onclick="closeMenus(); mapAction('travel', ${lat}, ${lng})">🚲 Podróżuj</div>
+            `;
+            const canClearScan = scanResultLayers.length > 0;
+            html += canClearScan
+                ? `<div onclick="clearScanResultLayers(); closeMenus();">🧹 Wyczyść scan</div>`
+                : `<div class="disabled">🧹 Wyczyść scan</div>`;
+            menu.innerHTML = html;
+            document.body.appendChild(menu);
+        }
+
+
+        function showMarkerContextMenu(x, y, obj, iconEmoji, label) {
+            const vulnerability = findClanVulnerabilityForTarget(obj);
+            if (vulnerability) {
+                if (vulnerability.is_reporter) {
+                    showVulnerabilityReporterMenu(x, y, vulnerability);
+                    return;
+                }
+                const target = vulnerability.target || obj;
+                showHackingMenuForMarker(
+                    x,
+                    y,
+                    {
+                        ...target,
+                        vulnerability_id: vulnerability.id,
+                        lat: Number(vulnerability.lat || target.lat || obj.lat),
+                        lng: Number(vulnerability.lng || target.lng || target.lon || obj.lng || obj.lon),
+                        lon: Number(vulnerability.lng || target.lng || target.lon || obj.lng || obj.lon),
+                        label: vulnerability.label || target.label || label,
+                        name: vulnerability.name || target.name || label,
+                        icon: vulnerability.icon || target.icon || iconEmoji,
+                        source_type: vulnerability.source_type || target.source_type || obj.source_type || "manual",
+                        generated: Boolean(vulnerability.generated || target.generated || obj.generated),
+                        security: vulnerability.security || target.security || {}
+                    },
+                    vulnerability.icon || iconEmoji,
+                    vulnerability.label || label
+                );
+                return;
+            }
+
+            closeMenus();
+            setupGlobalCloseListener();
+
+            const menu = document.createElement('div');
+            menu.className = 'context-menu';
+            menu.style.top = `${y}px`;
+            menu.style.left = `${x}px`;
+
+            const safeLabel = window.escapeMapText ? window.escapeMapText(label) : label;
+            const header = document.createElement('div');
+            header.innerHTML = `<strong>${iconEmoji} ${safeLabel}</strong>`;
+            menu.appendChild(header);
+
+            const separator = document.createElement('hr');
+            separator.style.margin = '4px 0';
+            menu.appendChild(separator);
+
+            [
+                { text: 'Zglos podatnosc', action: 'report' },
+                { text: 'Podrozuj', action: 'travel' },
+                { text: `Oznacz ${label}`, action: 'mark_target' },
+            ].forEach(item => {
+                const row = document.createElement('div');
+                row.textContent = item.text;
+                row.addEventListener('click', () => {
+                    if (item.action === 'report') {
+                        reportVulnerability({
+                            lat: obj.lat,
+                            lon: obj.lon,
+                            lng: obj.lng || obj.lon,
+                            label: obj.label || label,
+                            icon: obj.icon || iconEmoji,
+                            source_type: obj.source_type || "manual",
+                            name: obj.name || label,
+                            generated: Boolean(obj.generated)
+                        });
+                        return;
+                    }
+                    markerMenuAction(
+                        item.action,
+                        obj.lat,
+                        obj.lon,
+                        obj.label || label,
+                        obj.icon || iconEmoji,
+                        obj.source_type || "manual",
+                        obj.name || label,
+                        Boolean(obj.generated)
+                    );
+                });
+                menu.appendChild(row);
+            });
+
+            document.body.appendChild(menu);
+            lastContextWasMarker = true;
+        }
+
+        function showHackingMenuForMarker(x, y, obj, iconEmoji, label) {
+            closeMenus();
+            setupGlobalCloseListener();
+
+            const menu = document.createElement('div');
+            menu.className = 'context-menu';
+            menu.style.top = `${y}px`;
+            menu.style.left = `${x}px`;
+
+            // Ustal typ celu
+            const source = (obj.source_type || "").toLowerCase();
+            const name = (obj.name || "").toLowerCase();
+
+            let actions = [];
+            if (obj.target_mode === "player") {
+                actions = [
+                    { label: "Scan Ports", action: "scan_ports" },
+                    { label: "Exploit", action: "exploit" },
+                    { label: "Sniff", action: "sniff" },
+                    { label: "Trace", action: "trace" }
+                ];
+            }
+            // KAMERY
+            else if (name.includes("kamera") || source.includes("camera")) {
+                actions = [
+                    { label: "🎥 Podgląd obrazu", action: "camera_stream" },
+                    { label: "❌ Wyłącz kamerę", action: "camera_shutdown" }
+                ];
+            }
+            // OSOBY
+            else if (name.includes("osoba") || name.includes("klient") || source.includes("person")) {
+                actions = [
+                    { label: "📡 Śledź urządzenie", action: "trace_device" },
+                    { label: "🎙️ Podsłuchuj rozmowę", action: "mic_sniff" }
+                ];
+            }
+            // SAMOCHODY
+            // (["auto", "tesla", "vw", "car", "parking"].some(t => source.includes(t) || name.includes(t)))
+            else if (name.includes("auto") || name.includes("tesla") || name.includes("vw") || source.includes("car") || source.includes("parking")) {
+                actions = [
+                    { label: "🚗 Przejmij system pokładowy", action: "car_hack" },
+                    { label: "📍 Śledź GPS", action: "trace_gps" }
+                ];
+            }
+            // BANKOMATY
+            else if (source.includes("atm")) {
+                actions = [
+                    { label: "📊 Przejmij logi transakcji", action: "atm_logs" },
+                    { label: "🐛 Zainstaluj sniffer", action: "install_sniffer" }
+                ];
+            }
+            // RESTAURACJE, KAWIARNIE
+            else if (["restaurant", "bar", "cafe", "fast_food"].some(t => source.includes(t))) {
+                actions = [
+                    { label: "📶 Wykryj hotspoty", action: "scan_hotspots" },
+                    { label: "🔊 Przejmij odtwarzacz audio", action: "audio_hack" }
+                ];
+            }
+            // DOMYŚLNIE
+            else {
+                actions = [
+                    { label: "🛠️ Przeskanuj porty", action: "scan_ports" },
+                    { label: "💥 Zainstaluj exploit", action: "exploit" },
+                    { label: "📡 Śledź ruch", action: "sniff" },
+                    { label: "📍 Namierz cel", action: "trace" }
+                ];
+            }
+
+            // Nagłówek
+            const safeIcon = window.escapeMapText ? window.escapeMapText(iconEmoji || '') : (iconEmoji || '');
+            const safeLabel = window.escapeMapText ? window.escapeMapText(label || '') : (label || '');
+            menu.innerHTML = `<div><strong>${safeIcon} ${safeLabel}</strong></div><hr style="margin:4px 0;">`;
+
+            // Generuj przyciski akcji
+            actions.forEach(act => {
+                const row = document.createElement('div');
+                row.textContent = act.label;
+                row.addEventListener('click', () => {
+                    hackingAction(
+                        act.action,
+                        obj.lat,
+                        obj.lon,
+                        obj.label || label,
+                        obj.icon,
+                        obj.source_type || "manual",
+                        obj.name || label,
+                        Boolean(obj.generated || false),
+                        obj.vulnerability_id || null,
+                        obj.target_mode || null,
+                        obj.contest_owner_username || null,
+                        obj.foreign_area_id || null,
+                        obj.target_username || null
+                    );
+                });
+                menu.appendChild(row);
+            });
+
+
+            document.body.appendChild(menu);
+            lastContextWasMarker = true;
+        }
+
+
+        // function showHackingMenuForMarker(x, y, obj, iconEmoji, label) {
+        //     closeMenus();
+        //     setupGlobalCloseListener();
+
+        //     const menu = document.createElement('div');
+        //     menu.className = 'context-menu';
+        //     menu.style.top = `${y}px`;
+        //     menu.style.left = `${x}px`;
+        //     console.log("💻 Wyświetlam menu hackowania", { x, y, label });
+
+        //     menu.innerHTML = `
+        //         <div><strong>${iconEmoji} ${label}</strong></div>
+        //         <hr style="margin:4px 0;">
+        //         <div onclick="hackingAction('scan_ports', ${obj.lat}, ${obj.lon}, '${label}', '${iconEmoji}')">🛠️ Przeskanuj porty</div>
+        //         <div onclick="hackingAction('exploit', ${obj.lat}, ${obj.lon}, '${label}', '${iconEmoji}')">💥 Zainstaluj exploit</div>
+        //         <div onclick="hackingAction('sniff', ${obj.lat}, ${obj.lon}, '${label}', '${iconEmoji}')">📡 Śledź ruch</div>
+        //         <div onclick="hackingAction('trace', ${obj.lat}, ${obj.lon}, '${label}', '${iconEmoji}')">📍 Namierz cel</div>
+        //     `;
+
+        //     document.body.appendChild(menu);
+        //     lastContextWasMarker = true;
+        // }
+
+        function showMenuForHacked(x, y, obj, iconEmoji, label) {
+            closeMenus();
+            setupGlobalCloseListener();
+
+            const SECURITY_LABELS = {
+                "stealth_mode": "Ukrycie",
+                "scan_detection": "Skan",
+                "exploit_protection": "Exploit",
+                "vpn_enabled": "VPN",
+                "browser_protection": "WWW",
+                "os_hardening": "OS+",
+                "log_guardian": "Logi+",
+                "process_monitor": "Procesy",
+                "firewall": "Zapora",
+                "log_integrity": "Logi",
+                "network_anomaly_detection": "Anomalie",
+                "spoofing_protection": "Spoof",
+                "browser_history_log": "Historia",
+                "file_visibility": "Pliki",
+                "file_indexing": "Indeks",
+                "storage_integrity": "Dysk",
+                "anonymity_score": "Anonimowość",
+                "vpn_blocker": "VPN 🔒",
+                "activity_monitor": "Aktyw.",
+                "player_tracking": "Tracking",
+                "system_visibility": "Widocz.",
+                "firewall_core": "Jądro",
+                "kernel_guard": "Kernel",
+                "system_integrity_check": "Sys Check",
+                "system_compromise_level": "Kompromis",
+                "heap_protection": "Heap",
+                "memory_lock": "Blok. RAM",
+                "unencrypted_access": "Brak szyfr.",
+                "background_injection": "Inject",
+                "memory_guard": "RAM+",
+                "player_risk_level": "Ryzyko 🧑‍💻",
+                "traceability": "Śledzalność",
+                "system_integrity": "Integralność",
+                "exploit_success_rate": "Sukces Expl.",
+                "risk_level": "Ryzyko",
+                "access_level": "Dostęp"
+            };
+
+
+
+
+            fetch('/target-security-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    lat: parseFloat(obj.lat), 
+                    lng: parseFloat(obj.lon),
+                    label
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) {
+                    addSystemMessage("danger", "❌ Błąd", data.message);
+                    return;
+                }
+
+                const security = data.security;
+                const menu = document.createElement('div');
+                menu.className = 'context-menu-clean';
+                menu.style.top = `${y}px`;
+                menu.style.left = `${x}px`;
+
+                let html = `
+                    <strong style="font-size: 14px; margin-left: 1rem;">${label}</strong>
+                    <div class="security-preset-bar">
+                        ${['open', 'low', 'regular', 'secure', 'all'].map(preset => `
+                            <button type="button" class="security-preset-button" onclick="securePreset('${preset}', ${obj.lat}, ${obj.lon})">
+                                ${preset}
+                            </button>
+                        `).join('')}
+                    </div>
+                    <div class="security-grid">
+                `;
+
+
+                for (const [key, value] of Object.entries(security)) {
+                    const icon = value ? '🟢' : '❌';
+                    const labelFormatted = SECURITY_LABELS[key] || key.replace(/_/g, ' ');
+                    const stateIcon = value
+                        ? '<span class="security-state on">&#9679;</span>'
+                        : '<span class="security-state off">&times;</span>';
+
+                    html += `
+                        <div class="security-row"
+                            data-security-key="${key}"
+                            data-security-label="${labelFormatted}"
+                            onclick="secureAction('${key}', ${obj.lat}, ${obj.lon}, '${label}', '', this)"
+                        >
+                            ${stateIcon} ${labelFormatted}
+                        </div>`;
+                }
+
+                html += '</div>';
+                menu.innerHTML = html;
+
+                document.body.appendChild(menu);
+                lastContextWasMarker = true;
+            })
+            .catch(() => {
+                addSystemMessage("danger", "❌ Błąd", "Nie udało się pobrać stanu zabezpieczeń.");
+            });
+        }
+
+
+        function hackingAction(action, lat, lng, label, icon, source_type = "manual", name = label, generated = false, vulnerability_id = null, target_mode = null, contest_owner_username = null, foreign_area_id = null, target_username = null) {
+            closeMenus();
+
+            fetch('/hack-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action,
+                    lat,
+                    lng,
+                    label,
+                    icon,
+                    source_type,
+                    name,
+                    generated,
+                    vulnerability_id,
+                    target_mode,
+                    contest_owner_username,
+                    foreign_area_id,
+                    target_username
+                })
+            })
+            .then(async res => {
+                const data = await res.json();
+                if (!res.ok || data.blocked) {
+                    addSystemMessage("warning", `⛔ ${action}`, data.status || "Akcja zablokowana.");
+                    return null;
+                }
+                return data;
+            })
+            .then(data => {
+                if (!data) return;
+                refreshParentToolbarProfile();
+                addSystemMessage("success", `✅ ${action}`, data.status);
+            })
+            .catch(() => addSystemMessage("danger", "❌ Hackowanie", "Błąd operacji hackowania"));
+        }
+
+
+        function repaintSecurityMenuLegacy(security) {
+            if (!security) return;
+            document.querySelectorAll('.context-menu-clean [data-security-key]').forEach(rowEl => {
+                const key = rowEl.dataset.securityKey;
+                const value = Boolean(security[key]);
+                    const icon = value ? '<span class="security-state on">●</span>' : '<span class="security-state off">×</span>';
+                const labelText = rowEl.dataset.securityLabel || key;
+                rowEl.innerHTML = `${icon} ${labelText}`;
+            });
+        }
+
+
+        function repaintSecurityMenuSafe(security) {
+            if (!security) return;
+            document.querySelectorAll('.context-menu-clean [data-security-key]').forEach(rowEl => {
+                const key = rowEl.dataset.securityKey;
+                const value = Boolean(security[key]);
+                const icon = value ? '<span class="security-state on">&#9679;</span>' : '<span class="security-state off">&times;</span>';
+                const labelText = rowEl.dataset.securityLabel || key;
+                rowEl.innerHTML = `${icon} ${labelText}`;
+            });
+        }
+
+
+        function secureAction(action, lat, lng, label, icon, rowEl = null) {
+            fetch('/secure-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action, lat, lng, label, icon })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    addSystemMessage("success", `🔁 ${action}`, `Nowy stan: ${data.new_value ? '🟢' : '❌'}`);
+                    repaintSecurityMenuSafe(data.security);
+                    // Bez przeładowania mapy; menu pobiera aktualny stan przy kolejnym otwarciu.
+                } else {
+                    addSystemMessage("warning", `⚠️ ${action}`, data.message || "Nie udało się wykonać akcji");
+                }
+            })
+            .catch(() => {
+                addSystemMessage("danger", "❌ Hackowanie", "Błąd operacji zabezpieczeń");
+            });
+        }
+
+
+        function securePreset(preset, lat, lng) {
+            fetch('/secure-preset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ preset, lat, lng })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    addSystemMessage("success", `Preset ${preset}`, data.message || "Zapisano preset zabezpieczen.");
+                    repaintSecurityMenuSafe(data.security);
+                } else {
+                    addSystemMessage("warning", `Preset ${preset}`, data.message || "Nie udalo sie zapisac presetu.");
+                }
+            })
+            .catch(() => {
+                addSystemMessage("danger", "Hackowanie", "Blad zapisu presetu zabezpieczen");
+            });
+        }
+
+
+
+        function setupGlobalCloseListener() {
+            window.removeEventListener('mousedown', closeMenus, true);
+            window.removeEventListener('click', closeMenus, true);
+            setTimeout(() => {
+                window.addEventListener('mousedown', closeMenus, true);
+                window.addEventListener('click', closeMenus, true);
+            }, 10);
+        }
+
+        function closeMenus(e) {
+
+            const clickedInsideMenu = e && e.target && e.target.closest && e.target.closest('.context-menu, .context-menu-clean');
+            
+            if (clickedInsideMenu) {
+                return;
+            }
+
+            document.querySelectorAll('.context-menu, .context-menu-clean').forEach(el => el.remove());
+            window.removeEventListener('mousedown', closeMenus, true);
+            window.removeEventListener('click', closeMenus, true);
+
+            // 👉 pozwól na ponowne pojawienie się menu mapy
+            lastContextWasMarker = false;
+        }
+
+
+        async function reportVulnerability(target) {
+            closeMenus();
+            try {
+                const res = await fetch('/api/vulnerabilities/report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target })
+                });
+                const data = await res.json();
+                const message = data.message || (data.success ? 'Podatnosc wystawiona.' : 'Nie udalo sie wystawic podatnosci.');
+
+                if (!res.ok || !data.success) {
+                    addSystemMessage('warning', 'Podatnosc', message);
+                    return;
+                }
+
+                addSystemMessage('success', 'Podatnosc', message);
+                removeScanResultForTarget(target);
+                if (data.report) {
+                    const reportTarget = data.report.target || target;
+                    const registryTarget = {
+                        ...reportTarget,
+                        vulnerability_id: data.report.id,
+                        lat: Number(data.report.lat || reportTarget.lat || target.lat),
+                        lng: Number(data.report.lng || reportTarget.lng || reportTarget.lon || target.lng || target.lon),
+                        lon: Number(data.report.lng || reportTarget.lng || reportTarget.lon || target.lng || target.lon),
+                        label: data.report.label || reportTarget.label || target.label,
+                        name: data.report.name || reportTarget.name || target.name,
+                        icon: data.report.icon || reportTarget.icon || target.icon,
+                        source_type: data.report.source_type || reportTarget.source_type || target.source_type,
+                        generated: Boolean(data.report.generated || reportTarget.generated || target.generated),
+                        security: data.report.security || reportTarget.security || {}
+                    };
+                    const registryKey = vulnerabilityTargetKey(registryTarget);
+                    if (registryKey) {
+                        clanVulnerabilityRegistry.set(registryKey, {
+                            ...data.report,
+                            is_reporter: Boolean(data.report.is_reporter),
+                            target: registryTarget
+                        });
+                    }
+                }
+                if (window.refreshClanVulnerabilities) {
+                    window.refreshClanVulnerabilities();
+                }
+            } catch (err) {
+                console.warn('Vulnerability report failed', err);
+                addSystemMessage('warning', 'Podatnosc', 'Nie udalo sie wystawic podatnosci.');
+            } finally {
+                lastContextWasMarker = false;
+            }
+        }
+
+
+        async function withdrawClanVulnerability(reportId) {
+            closeMenus();
+            try {
+                const res = await fetch(`/api/vulnerabilities/${reportId}/withdraw`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                const message = data.message || (data.success ? 'Oznaczenie wycofane.' : 'Nie mozna wycofac oznaczenia.');
+
+                if (!res.ok || !data.success) {
+                    addSystemMessage('warning', 'Podatnosc', message);
+                    return;
+                }
+
+                addSystemMessage('success', 'Podatnosc', message);
+                if (data.report) {
+                    const registryKey = vulnerabilityTargetKey(data.report.target || data.report);
+                    if (registryKey) {
+                        clanVulnerabilityRegistry.delete(registryKey);
+                    }
+                }
+                if (window.refreshClanVulnerabilities) {
+                    window.refreshClanVulnerabilities();
+                }
+            } catch (err) {
+                console.warn('Vulnerability withdraw failed', err);
+                addSystemMessage('warning', 'Podatnosc', 'Nie udalo sie wycofac oznaczenia.');
+            } finally {
+                lastContextWasMarker = false;
+            }
+        }
+
+
+        function showVulnerabilityReporterMenu(x, y, report) {
+            closeMenus();
+            setupGlobalCloseListener();
+
+            const menu = document.createElement('div');
+            menu.className = 'context-menu';
+            menu.style.top = `${y}px`;
+            menu.style.left = `${x}px`;
+
+            const icon = window.escapeMapText ? window.escapeMapText(report.icon || '') : (report.icon || '');
+            const label = window.escapeMapText ? window.escapeMapText(report.label || report.name || 'Cel') : (report.label || report.name || 'Cel');
+            menu.innerHTML = `<div><strong>${icon} ${label}</strong></div><hr style="margin:4px 0;">`;
+
+            const row = document.createElement('div');
+            row.textContent = 'Wycofaj oznaczenie';
+            row.addEventListener('click', () => withdrawClanVulnerability(report.id));
+            menu.appendChild(row);
+
+            document.body.appendChild(menu);
+            lastContextWasMarker = true;
+        }
+
+
+        async function markerMenuAction(action, lat, lng, label, icon, sourceType = "manual", name = label, generated = false) {
+            closeMenus();
+            await mapAction(action, lat, lng, label, icon, sourceType, name, generated);
+
+            // ✅ Odśwież iframe (czyli całą mapę)
+            // location.reload();
+
+            lastContextWasMarker = false;
+        }
+
+        
+        
+        async function mapAction(action, lat, lng, label = "Oznaczony cel", icon = "🎯", sourceType = "manual", name = label, generated = false) {
+            try {
+                const res = await fetch('/map-action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action,
+                        lat,
+                        lng,
+                        label,
+                        icon,
+                        source_type: sourceType,
+                        name,
+                        generated
+                    })
+                });
+                const data = await res.json();
+                
+                if (data.status === "too_far") {
+                    addSystemMessage("warning", "🧭 Podróż", data.message || "Cel zbyt daleko.");
+                    // location.reload();
+                    return;
+                }
+                addSystemMessage("success", "🗺️ Mapa", data.status);
+
+                if (action === 'mark_target') {
+                    addInteractiveTargetMarker(lat, lng, label, icon, { name, source_type: sourceType, generated });
+                    refreshParentToolbarProfile();
+                }
+
+                if (action === 'scan') {
+                    clearScanResultLayers();
+                    const results = data.markers || [];
+                    results.forEach(obj => {
+                        const target = {
+                            lat: Number(obj.lat),
+                            lon: Number(obj.lon),
+                            label: obj.name || 'Nieznany obiekt',
+                            name: obj.name || 'Nieznany obiekt',
+                            icon: obj.icon || "📍",
+                            source_type: obj.source_type || "unknown",
+                            generated: Boolean(obj.generated)
+                        };
+
+                        if (Number.isNaN(target.lat) || Number.isNaN(target.lon)) return;
+
+                        const isPersonTarget = target.name.toLowerCase().includes("klient")
+                            || target.name.toLowerCase().includes("osoba")
+                            || target.source_type.toLowerCase().includes("person");
+                        const markerFontSize = target.generated
+                            ? (isPersonTarget ? "1.05rem" : "1.28rem")
+                            : "2.5rem";
+                        const markerIconSize = target.generated
+                            ? (isPersonTarget ? [20, 20] : [28, 28])
+                            : [80, 40];
+                        const markerIconAnchor = target.generated
+                            ? (isPersonTarget ? [10, 10] : [14, 14])
+                            : [40, 20];
+
+                        const marker = L.marker([target.lat, target.lon], {
+                            zIndexOffset: target.generated ? 100 : 700,
+                            icon: L.divIcon({
+                                className: 'custom-text-icon',
+                                html: `
+                                    <div style="
+                                        text-align: center;
+                                        color: #0f0;
+                                        font-size: ${markerFontSize};
+                                        font-family: monospace;
+                                        text-shadow: 1px 1px 2px black;
+                                    ">
+                                        <div>${target.icon}</div>
+                                    </div>
+                                `,
+                                iconSize: markerIconSize,
+                                iconAnchor: markerIconAnchor
+                            })
+                        }).addTo(map);
+
+                        marker._scanTarget = target;
+                        rememberScanResultLayer(marker);
+                        marker.bindTooltip(target.label, { permanent: false, direction: 'top' });
+
+                        marker.on('contextmenu', function(e) {
+                            e.originalEvent.stopPropagation(); // ⛔ blokuje przejęcie przez mapę
+                            e.originalEvent.preventDefault();
+                            document.querySelectorAll('.context-menu').forEach(el => el.remove());
+                            const pickedTarget = getNearestScanTarget(e.containerPoint, target);
+                            showMarkerContextMenu(
+                                e.containerPoint.x,
+                                e.containerPoint.y,
+                                pickedTarget,
+                                pickedTarget.icon,
+                                pickedTarget.label
+                            );
+                        });
+
+                    });
+                    
+                }
+
+                if (action === 'travel') {
+                   
+                    const profile = window.profileData || {};
+                    const fromRaw = profile.curently_possition || { lat: 52.2297, lng: 21.0122 };
+                    const toRaw = { lat, lng };
+
+                    const from = {
+                        lat: parseFloat(fromRaw.lat),
+                        lng: parseFloat(fromRaw.lng)
+                    };
+                    const to = {
+                        lat: parseFloat(toRaw.lat),
+                        lng: parseFloat(toRaw.lng)
+                    };
+
+                    if (
+                        isNaN(from.lat) || isNaN(from.lng) ||
+                        isNaN(to.lat) || isNaN(to.lng)
+                    ) {
+                        console.error("❌ Nieprawidłowe współrzędne (NaN):", { from, to });
+                        addSystemMessage("danger", "📍 Błąd", "Nieprawidłowe współrzędne.");
+                        return;
+                    }
+
+                    if (data.status === "too_far") {
+                        addSystemMessage("warning", "🧭 Podróż", "Cel jest zbyt oddalony.");
+                        // Bez przeładowania mapy przy błędzie zasięgu.
+                        return;
+                    }
+
+                    const avatarMarker = window.avatarMarkerRef;
+                    if (!avatarMarker) {
+                        console.warn("⚠️ Nie znaleziono markera awatara");
+                        return;
+                    }
+
+                    await animateAvatarTravel(avatarMarker, from, to, 1500);
+                    window.profileData.curently_possition = { ...to };
+                    if (window.refreshPlayerActors) {
+                        window.refreshPlayerActors();
+                    }
+                }
+
+
+
+                return data;
+            } catch (err) {
+                addSystemMessage("danger", "🖥️ Połączenie", "❌ Błąd połączenia");
+                console.error(err);
+            }
+        }
+
+
+        function mapAction_old(action, lat, lng, label = "Oznaczony cel", icon = "🎯") {
+            fetch('/map-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action,
+                    lat,
+                    lng,
+                    label,
+                    icon,
+                    source_type: label,
+                    name: label
+                })
+                // body: JSON.stringify({ action, lat, lng, label, icon })
+            })
+            .then(res => res.json())
+            .then(data => {
+                addSystemMessage("success", "🗺️ Mapa", data.status);
+
+                if (action === 'mark_target') {
+                    addLiveMarker(lat, lng, label, icon); 
+                }
+
+                // if (action === 'travel') {
+                //     setTimeout(() => location.reload(), 300); // ⏱️ opóźnienie reload
+                // }
+                
+
+                if (action === 'scan') {
+                    const results = data.markers || [];
+                    results.forEach(obj => {
+                        const label = obj.name || 'Nieznany obiekt';
+                        const tags = obj.tags || {};
+
+                        const iconEmoji = obj.icon || "📍";
+                        
+                        const marker = L.marker([obj.lat, obj.lon], {
+                            icon: L.divIcon({
+                                className: 'custom-text-icon',
+                                html: `
+                                    <div style="
+                                        text-align: center;
+                                        color: #0f0;
+                                        font-size: 2.5rem;
+                                        font-family: monospace;
+                                        text-shadow: 1px 1px 2px black;
+                                    ">
+                                        <div>${iconEmoji}</div>
+                                    </div>
+                                `,
+                                iconSize: [80, 40],
+                                iconAnchor: [40, 20]
+                            })
+                        }).addTo(map);
+
+                        marker.bindTooltip(label, { permanent: false, direction: 'top' });
+
+                        marker.on('contextmenu', function(e) {
+                            e.originalEvent.stopPropagation(); // ⛔ blokuje przejęcie przez mapę
+                            document.querySelectorAll('.context-menu').forEach(el => el.remove());
+                            showMarkerContextMenu(e.containerPoint.x, e.containerPoint.y, obj, iconEmoji, label);
+                        });
+
+                    });
+                    
+                }
+            })
+
+            .catch(() => addSystemMessage("danger", "🖥️ Połączenie", "❌ Błąd połączenia"));
+        }
+
+        
+        const bikeDirectionIcons = {
+            up: "/static/icons/racing_bike_up.png",
+            up_right: "/static/icons/racing_bike_up_right.png",
+            right: "/static/icons/racing_bike_right.png",
+            down_right: "/static/icons/racing_bike_down_right.png",
+            down: "/static/icons/racing_bike_down.png",
+            down_left: "/static/icons/racing_bike_down_left.png",
+            left: "/static/icons/racing_bike_left.png",
+            up_left: "/static/icons/racing_bike_up_left.png"
+        };
+
+        function getBikeDirection(from, to) {
+            const dx = to.lng - from.lng;
+            const dy = to.lat - from.lat;
+            if (Math.abs(dx) < 0.000001 && Math.abs(dy) < 0.000001) return "right";
+
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+            if (angle >= -22.5 && angle < 22.5) return "right";
+            if (angle >= 22.5 && angle < 67.5) return "up_right";
+            if (angle >= 67.5 && angle < 112.5) return "up";
+            if (angle >= 112.5 && angle < 157.5) return "up_left";
+            if (angle >= 157.5 || angle < -157.5) return "left";
+            if (angle >= -157.5 && angle < -112.5) return "down_left";
+            if (angle >= -112.5 && angle < -67.5) return "down";
+            return "down_right";
+        }
+
+        function buildBikeIcon(direction = "right") {
+            const src = bikeDirectionIcons[direction] || bikeDirectionIcons.right;
+            const riderName = window.escapeMapText
+                ? window.escapeMapText((window.profileData && (window.profileData.nick || window.profileData.username)) || "Avatar")
+                : ((window.profileData && (window.profileData.nick || window.profileData.username)) || "Avatar");
+            return L.divIcon({
+                className: 'custom-avatar-icon',
+                html: `
+                    <div style="
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 1rem;
+                        color: white;
+                        text-shadow: 0 0 2px black;
+                    ">
+                        <span style="font-size: 0.8rem; margin-bottom: 4px; color:red;">${riderName}</span>
+                        <img src="${src}" alt="scigacz" style="width: 48px; height: auto;">
+                    </div>
+                `,
+                iconSize: [48, 48],
+                iconAnchor: [24, 48],
+                popupAnchor: [0, -40]
+            });
+        }
+
+        function updateAvatarDirection(targetLatLng) {
+            const marker = window.avatarMarkerRef;
+            if (!marker || !targetLatLng) return;
+            const current = marker.getLatLng();
+            const direction = getBikeDirection(
+                { lat: current.lat, lng: current.lng },
+                { lat: targetLatLng.lat, lng: targetLatLng.lng }
+            );
+            if (window.avatarBikeDirection === direction) return;
+            window.avatarBikeDirection = direction;
+            marker.setIcon(buildBikeIcon(direction));
+        }
+
+        async function animateAvatarTravel(marker, from, to, duration = 2000) {
+            window.avatarBikeDirection = null;
+            marker.setIcon(buildBikeIcon(getBikeDirection(from, to)));
+            return new Promise(resolve => {
+                const steps = 60;
+                const interval = duration / steps;
+                let step = 0;
+
+                const deltaLat = (to.lat - from.lat) / steps;
+                const deltaLng = (to.lng - from.lng) / steps;
+
+                const move = () => {
+                    step++;
+                    const newLat = from.lat + deltaLat * step;
+                    const newLng = from.lng + deltaLng * step;
+                    marker.setLatLng([newLat, newLng]);
+                    marker.setIcon(buildBikeIcon(getBikeDirection(
+                        { lat: newLat, lng: newLng },
+                        to
+                    )));
+
+                    if (step < steps) {
+                        setTimeout(move, interval);
+                    } else {
+                        resolve();
+                    }
+                };
+
+                move();
+            });
+        }
+
+
+
+
+        function addLiveMarker(lat, lng, label = "Cel", emoji = "🎯") {
+            L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'emoji-marker',
+                    html: `<div style="font-size:2rem;">${emoji}</div>`,
+                    iconSize: [32, 42],
+                    iconAnchor: [16, 42]
+                })
+            }).addTo(map)
+            .bindTooltip(label, { permanent: true, direction: 'top' });
+        }
+
+
+        const profileData = window.profileData;
+        if (!profileData) {
+            addSystemMessage("danger", "📁 Profil", "❌ Brak danych profilu");
+        } else {
+            const avatarLatLng = [
+                profileData.curently_possition.lat,
+                profileData.curently_possition.lng
+            ];
+
+            const avatarIcon = L.divIcon({
+                className: 'custom-avatar-icon',
+                html: `
+                    <div style="
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 1rem;
+                        color: white;
+                        text-shadow: 0 0 2px black;
+                    ">
+                        <span style="font-size: 0.8rem; margin-bottom: 4px; color:red;">Avatar</span>
+                        <img src="/static/icons/racing_bike.png" alt="ścigacz" style="width: 48px; height: auto;">
+                    </div>
+                `,
+                iconSize: [48, 48],
+                iconAnchor: [24, 48],
+                popupAnchor: [0, -40]
+            });
+            
+            const avatarMarker = L.marker(avatarLatLng, { icon: avatarIcon }).addTo(map);
+            avatarMarker.bindPopup("👤 Twój Avatar");
+
+            // 👇 ZAPISUJEMY GLOBALNIE
+            window.avatarMarkerRef = avatarMarker;
+            window.avatarBikeDirection = "right";
+            avatarMarker.setIcon(buildBikeIcon("right"));
+            map.on('mousemove', function(e) {
+                updateAvatarDirection(e.latlng);
+            });
+
+            window.friendMarkers = {};
+            window.playerActorMarkers = {};
+
+            window.escapeMapText = function(value) {
+                return String(value || '').replace(/[&<>"']/g, function (m) {
+                    return {
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#39;'
+                    }[m];
+                });
+            };
+
+            window.buildFriendIcon = function(friend) {
+                const name = window.escapeMapText(friend.nick || friend.username || 'friend');
+                const avatar = friend.avatar
+                    ? `<img src="${window.escapeMapText(friend.avatar)}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid #26ff6a;background:#111;">`
+                    : `<div style="width:34px;height:34px;border-radius:50%;border:2px solid #26ff6a;background:#111;display:flex;align-items:center;justify-content:center;color:#26ff6a;">@</div>`;
+
+                return L.divIcon({
+                    className: 'friend-player-marker',
+                    html: `
+                        <div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-8px);font-family:monospace;color:#26ff6a;text-shadow:0 1px 2px #000;">
+                            <div style="font-size:10px;background:rgba(0,0,0,0.75);padding:1px 5px;border:1px solid #26ff6a;margin-bottom:2px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>
+                            ${avatar}
+                        </div>
+                    `,
+                    iconSize: [64, 58],
+                    iconAnchor: [32, 54],
+                    popupAnchor: [0, -48]
+                });
+            };
+
+            window.playerActorRelationLabels = {
+                friend: 'Znajomy',
+                intruder: 'Intruz na twoim terenie',
+                same_clan: 'Twoj klan',
+                enemy_clan: 'Wrogi klan',
+                neutral: 'Gracz',
+                self: 'Ty'
+            };
+
+            window.playerActorActionLabels = {
+                add_friend: '🤝 Dodaj do znajomych',
+                chat: '💬 Rozpocznij rozmowę',
+                transfer_hc: '💸 Przelej HC',
+                mark_target: '🎯 Oznacz jako cel',
+                profile: 'ℹ️ Charakterystyka'
+            };
+
+            window.hidePlayerActorProfile = function() {
+                const existing = document.querySelector('.player-actor-modal-backdrop');
+                if (existing) {
+                    existing.remove();
+                }
+                if (window.playerActorProfileEscHandler) {
+                    document.removeEventListener('keydown', window.playerActorProfileEscHandler);
+                    window.playerActorProfileEscHandler = null;
+                }
+            };
+
+            window.renderPlayerActorProfileModal = function(actor) {
+                const context = actor.context || {};
+                const relationLabel = window.playerActorRelationLabels[actor.relation] || actor.relation || 'Gracz';
+                const sources = Array.isArray(context.sources) ? context.sources.join(', ') : '';
+                const clan = actor.clan || context.clan || '';
+                const status = actor.status || context.contact_status || context.status || '';
+                const level = actor.level || context.level || '';
+                const profession = actor.profession || context.profession || '';
+                const territoryCount = actor.territory_count ?? context.territory_count;
+                const targetStatus = actor.target_status || context.target_status || (context.is_marked_target ? 'aimed' : '');
+                const lat = parseFloat(actor.lat);
+                const lng = parseFloat(actor.lng);
+                const coords = (!Number.isNaN(lat) && !Number.isNaN(lng)) ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : '';
+                const safe = window.escapeMapText;
+                const safeValue = value => safe(value === 0 ? '0' : value);
+
+                const fields = [
+                    ['Nick', actor.nick || actor.username || 'Gracz'],
+                    ['Username', actor.username || ''],
+                    ['Relacja', relationLabel],
+                    ['Context source', context.source || ''],
+                    ['Context sources', sources],
+                    ['Status', status],
+                    ['Klan', clan],
+                    ['Poziom', level],
+                    ['Profesja', profession],
+                    ['Terytoria', territoryCount],
+                    ['Status celu', targetStatus ? 'Na celowniku' : ''],
+                    ['Pozycja', coords]
+                ].filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '');
+
+                const actionRows = Object.entries(window.playerActorActionLabels).map(([actionKey, label]) => {
+                    const actionState = (actor.actions && actor.actions[actionKey]) || { enabled: false, reason: 'Akcja niedostepna.' };
+                    const stateClass = actionState.enabled ? 'is-enabled' : 'is-disabled';
+                    const stateText = actionState.enabled ? 'aktywne' : 'zablokowane';
+                    const reason = !actionState.enabled && actionState.reason
+                        ? `<span class="player-actor-modal__reason">${safeValue(actionState.reason)}</span>`
+                        : '';
+                    return `
+                        <div class="player-actor-modal__action ${stateClass}">
+                            <strong>${safeValue(label)}</strong><br>
+                            <span>${safeValue(stateText)}</span>
+                            ${reason}
+                        </div>
+                    `;
+                }).join('');
+
+                const avatar = actor.avatar
+                    ? `<img src="${safeValue(actor.avatar)}" alt="">`
+                    : safeValue((actor.nick || actor.username || '@').slice(0, 1).toUpperCase());
+
+                const backdrop = document.createElement('div');
+                backdrop.className = 'player-actor-modal-backdrop';
+                backdrop.innerHTML = `
+                    <section class="player-actor-modal" role="dialog" aria-modal="true" aria-label="Charakterystyka gracza">
+                        <header class="player-actor-modal__header">
+                            <div>
+                                <h2 class="player-actor-modal__title">${safeValue(actor.nick || actor.username || 'Gracz')}</h2>
+                                <div class="player-actor-modal__relation">${safeValue(relationLabel)}</div>
+                            </div>
+                            <button type="button" class="player-actor-modal__close" aria-label="Zamknij">x</button>
+                        </header>
+                        <div class="player-actor-modal__body">
+                            <div class="player-actor-modal__avatar">${avatar}</div>
+                            <div class="player-actor-modal__grid">
+                                ${fields.map(([label, value]) => `
+                                    <div class="player-actor-modal__field">
+                                        <span>${safeValue(label)}</span>
+                                        <strong>${safeValue(value)}</strong>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="player-actor-modal__actions">
+                                <h3>Akcje</h3>
+                                <div class="player-actor-modal__action-list">${actionRows}</div>
+                            </div>
+                        </div>
+                    </section>
+                `;
+
+                backdrop.addEventListener('click', function(e) {
+                    if (e.target === backdrop) {
+                        window.hidePlayerActorProfile();
+                    }
+                });
+                backdrop.querySelector('.player-actor-modal').addEventListener('click', function(e) {
+                    e.stopPropagation();
+                });
+                backdrop.querySelector('.player-actor-modal__close').addEventListener('click', window.hidePlayerActorProfile);
+                return backdrop;
+            };
+
+            window.showPlayerActorProfile = function(actor) {
+                closeMenus();
+                window.hidePlayerActorProfile();
+                const modal = window.renderPlayerActorProfileModal(actor || {});
+                document.body.appendChild(modal);
+                window.playerActorProfileEscHandler = function(e) {
+                    if (e.key === 'Escape') {
+                        window.hidePlayerActorProfile();
+                    }
+                };
+                document.addEventListener('keydown', window.playerActorProfileEscHandler);
+            };
+
+            window.requestPlayerActorFriend = async function(actor) {
+                const actorName = actor.nick || actor.username || 'gracz';
+                if (!actor.username) {
+                    addSystemMessage('warning', 'Kontakt', 'Brak identyfikatora gracza.');
+                    return;
+                }
+                try {
+                    const res = await fetch('/api/player-contact/request', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ target_username: actor.username })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) {
+                        addSystemMessage('warning', 'Kontakt', data.error || 'Nie udalo sie wyslac zaproszenia.');
+                        return;
+                    }
+                    addSystemMessage('info', 'Kontakt', data.message || `Wyslano gest przywitania do ${actorName}.`);
+                    if (window.refreshPlayerActors) {
+                        window.refreshPlayerActors();
+                    }
+                } catch (err) {
+                    console.warn('Player contact request failed', err);
+                    addSystemMessage('warning', 'Kontakt', 'Nie udalo sie polaczyc z systemem kontaktow.');
+                }
+            };
+
+            window.openPlayerActorChat = function(actor) {
+                const actorName = actor.nick || actor.username || 'gracz';
+                if (!actor.username) {
+                    addSystemMessage('warning', 'Rozmowa', 'Brak identyfikatora gracza.');
+                    return;
+                }
+
+                const opener = (
+                    (window.parent && window.parent !== window && window.parent.openEmailChatWith)
+                    || window.openEmailChatWith
+                );
+                if (typeof opener === 'function') {
+                    opener(actor.username);
+                    return;
+                }
+
+                addSystemMessage(
+                    'info',
+                    'Rozmowa',
+                    `Rozmowa z ${actorName} bedzie otwierana w komunikatorze w kolejnym kroku.`
+                );
+            };
+
+            window.buildPlayerTargetFromActor = function(actor, targetOverride = null) {
+                const target = targetOverride || {};
+                const context = actor.context || {};
+                const lat = parseFloat(target.lat ?? actor.lat);
+                const lng = parseFloat(target.lng ?? target.lon ?? actor.lng);
+                const label = target.label || target.name || actor.nick || actor.username || 'Gracz';
+                return {
+                    id: target.id || `player:${actor.username || target.target_username || target.username || label}`,
+                    target_id: target.target_id || `player:${actor.username || target.target_username || target.username || label}`,
+                    target_mode: 'player',
+                    target_username: target.target_username || target.username || actor.username,
+                    username: target.username || target.target_username || actor.username,
+                    nick: target.nick || actor.nick || actor.username,
+                    relation: target.relation || actor.relation || context.relation || '',
+                    lat,
+                    lng,
+                    lon: lng,
+                    label,
+                    name: target.name || label,
+                    title: target.title || label,
+                    icon: target.icon || actor.icon || '🎯',
+                    source_type: target.source_type || 'player',
+                    generated: target.generated !== undefined ? Boolean(target.generated) : true,
+                    stationary: false,
+                    security: target.security || {},
+                    actions_allowed: target.actions_allowed || {
+                        scan_ports: false,
+                        exploit: false,
+                        sniff: false,
+                        trace: false
+                    }
+                };
+            };
+
+            window.showPlayerActorHackMenu = function(actor, targetOverride = null, x = null, y = null) {
+                const target = window.buildPlayerTargetFromActor(actor || {}, targetOverride);
+                if (Number.isNaN(target.lat) || Number.isNaN(target.lng) || !target.target_username) {
+                    addSystemMessage('warning', 'Cel', 'Brak danych pozycji player targetu.');
+                    return;
+                }
+                let menuX = x;
+                let menuY = y;
+                if (menuX === null || menuY === null) {
+                    const point = map.latLngToContainerPoint([target.lat, target.lng]);
+                    menuX = Math.max(12, point.x + 12);
+                    menuY = Math.max(12, point.y + 12);
+                }
+                showHackingMenuForMarker(menuX, menuY, target, target.icon || '🎯', target.label || target.name || 'Gracz');
+            };
+
+            window.markPlayerActorTarget = async function(actor) {
+                const actorName = actor.nick || actor.username || 'gracz';
+                if (!actor.username) {
+                    addSystemMessage('warning', 'Cel', 'Brak identyfikatora gracza.');
+                    return;
+                }
+                try {
+                    const res = await fetch('/api/map/player-targets/mark', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ target_username: actor.username })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) {
+                        addSystemMessage('warning', 'Cel', data.error || 'Nie udalo sie oznaczyc gracza.');
+                        return;
+                    }
+                    addSystemMessage('success', 'Cel', data.message || `${actorName} jest na celowniku.`);
+                    if (window.refreshPlayerActors) {
+                        window.refreshPlayerActors();
+                    }
+                    window.showPlayerActorHackMenu(actor, data.target || null);
+                    refreshParentToolbarProfile();
+                } catch (err) {
+                    console.warn('Player target mark failed', err);
+                    addSystemMessage('warning', 'Cel', 'Nie udalo sie polaczyc z systemem celowania.');
+                }
+            };
+
+            window.handlePlayerActorAction = function(actionKey, actor) {
+                closeMenus();
+                if (actionKey === 'profile') {
+                    window.showPlayerActorProfile(actor);
+                    return;
+                }
+                if (actionKey === 'add_friend') {
+                    window.requestPlayerActorFriend(actor);
+                    return;
+                }
+                if (actionKey === 'chat') {
+                    window.openPlayerActorChat(actor);
+                    return;
+                }
+                if (actionKey === 'transfer_hc') {
+                    const opener = (
+                        (window.parent && window.parent !== window && window.parent.openWalletTransferTo)
+                        || window.openWalletTransferTo
+                    );
+                    if (typeof opener === 'function' && actor.username) {
+                        opener(actor.username);
+                        return;
+                    }
+                    addSystemMessage(
+                        'info',
+                        'Wallet HC',
+                        `Przelew HC do ${actor.nick || actor.username || 'gracza'} bedzie dostepny po uruchomieniu Wallet.`
+                    );
+                    return;
+                }
+                if (actionKey === 'mark_target') {
+                    window.markPlayerActorTarget(actor);
+                    return;
+                }
+                const actorName = actor.nick || actor.username || 'gracz';
+                if (actionKey === 'profile') {
+                    addSystemMessage(
+                        'info',
+                        'Charakterystyka',
+                        `${actorName}: panel charakterystyki zostanie podpięty w kolejnym sprincie.`
+                    );
+                    return;
+                }
+                addSystemMessage(
+                    'info',
+                    window.playerActorActionLabels[actionKey] || 'Akcja gracza',
+                    `Moduł w budowie dla gracza ${actorName}.`
+                );
+            };
+
+            window.showPlayerActorMenu = function(actor, x, y) {
+                closeMenus();
+                setupGlobalCloseListener();
+
+                const menu = document.createElement('div');
+                menu.className = 'context-menu';
+                menu.style.top = `${y}px`;
+                menu.style.left = `${x}px`;
+
+                const relationLabel = window.playerActorRelationLabels[actor.relation] || actor.relation || 'Gracz';
+                const title = document.createElement('div');
+                title.innerHTML = `<strong>${window.escapeMapText(actor.nick || actor.username || 'Gracz')}</strong><br><span style="font-size:9px;color:#555;">${window.escapeMapText(relationLabel)}</span>`;
+                menu.appendChild(title);
+
+                const hr = document.createElement('hr');
+                hr.style.margin = '4px 0';
+                menu.appendChild(hr);
+
+                Object.entries(window.playerActorActionLabels).forEach(([actionKey, label]) => {
+                    const actionState = (actor.actions && actor.actions[actionKey]) || { enabled: false, reason: 'Akcja niedostępna.' };
+                    const row = document.createElement('div');
+                    row.textContent = label;
+                    if (actionState.enabled) {
+                        row.addEventListener('click', () => window.handlePlayerActorAction(actionKey, actor));
+                    } else {
+                        row.className = 'player-action-disabled';
+                        row.title = actionState.reason || 'Akcja niedostępna.';
+                        const reason = document.createElement('span');
+                        reason.className = 'player-action-reason';
+                        reason.textContent = actionState.reason || 'Akcja niedostępna.';
+                        row.appendChild(reason);
+                    }
+                    menu.appendChild(row);
+                });
+
+                document.body.appendChild(menu);
+                lastContextWasMarker = true;
+            };
+
+            window.buildPlayerActorIcon = function(actor) {
+                const sources = (actor.context && actor.context.sources) || [];
+                const isIntruder = actor.relation === 'intruder' || sources.includes('intruder');
+                const isFriend = actor.relation === 'friend' || sources.includes('friend');
+                const isTarget = Boolean(actor.target_status || (actor.context && actor.context.is_marked_target));
+                const name = window.escapeMapText(actor.nick || actor.username || 'gracz');
+                const color = isIntruder ? '#ff4b4b' : (isFriend ? '#26ff6a' : '#d8ff80');
+                const background = isIntruder ? '#210707' : '#111';
+                const fallback = isIntruder ? '!' : '@';
+                const avatar = actor.avatar
+                    ? `<img src="${window.escapeMapText(actor.avatar)}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid ${isTarget ? '#ff1b1b' : color};background:${background};${isTarget ? 'box-shadow:0 0 0 4px rgba(255,0,0,0.45),0 0 12px #ff1b1b;' : ''}">`
+                    : `<div style="width:34px;height:34px;border-radius:50%;border:2px solid ${isTarget ? '#ff1b1b' : color};background:${background};display:flex;align-items:center;justify-content:center;color:${isTarget ? '#ff6b6b' : color};font-weight:700;${isTarget ? 'box-shadow:0 0 0 4px rgba(255,0,0,0.45),0 0 12px #ff1b1b;' : ''}">${fallback}</div>`;
+                const targetBadge = isTarget
+                    ? `<div style="font-size:9px;background:#4a0000;color:#ffb3b3;border:1px solid #ff1b1b;padding:1px 5px;margin-top:2px;">CEL</div>`
+                    : '';
+
+                return L.divIcon({
+                    className: isIntruder ? 'area-intruder-marker' : 'friend-player-marker',
+                    html: `
+                        <div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-8px);font-family:monospace;color:${color};text-shadow:0 1px 2px #000;">
+                            <div style="font-size:10px;background:rgba(0,0,0,0.80);padding:1px 5px;border:1px solid ${isTarget ? '#ff1b1b' : color};margin-bottom:2px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${isTarget ? '#ffb3b3' : color};">${name}</div>
+                            ${avatar}
+                            ${targetBadge}
+                        </div>
+                    `,
+                    iconSize: [68, isTarget ? 76 : 58],
+                    iconAnchor: [34, 54],
+                    popupAnchor: [0, -48]
+                });
+            };
+
+            window.renderPlayerActors = function(actors) {
+                const visible = new Set();
+
+                (actors || []).forEach(actor => {
+                    const key = actor.username || actor.nick;
+                    const lat = parseFloat(actor.lat);
+                    const lng = parseFloat(actor.lng);
+                    if (!key || Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+                    visible.add(key);
+                    const relationLabel = window.playerActorRelationLabels[actor.relation] || actor.relation || 'Gracz';
+                    const popup = `${window.escapeMapText(actor.nick || key)}<br>${window.escapeMapText(relationLabel)}`;
+
+                    if (!window.playerActorMarkers[key]) {
+                        const marker = L.marker([lat, lng], { icon: window.buildPlayerActorIcon(actor) }).addTo(map);
+                        marker.bindPopup(popup, { autoPan: false });
+                        marker.on('contextmenu', function(e) {
+                            e.originalEvent.preventDefault();
+                            e.originalEvent.stopPropagation();
+                            if (actor.target_status || (actor.context && actor.context.is_marked_target)) {
+                                window.showPlayerActorHackMenu(actor, null, e.containerPoint.x, e.containerPoint.y);
+                                return;
+                            }
+                            window.showPlayerActorMenu(actor, e.containerPoint.x, e.containerPoint.y);
+                        });
+                        window.playerActorMarkers[key] = marker;
+                    } else {
+                        window.playerActorMarkers[key].setLatLng([lat, lng]);
+                        window.playerActorMarkers[key].setIcon(window.buildPlayerActorIcon(actor));
+                        window.playerActorMarkers[key].bindPopup(popup, { autoPan: false });
+                        window.playerActorMarkers[key].off('contextmenu');
+                        window.playerActorMarkers[key].on('contextmenu', function(e) {
+                            e.originalEvent.preventDefault();
+                            e.originalEvent.stopPropagation();
+                            if (actor.target_status || (actor.context && actor.context.is_marked_target)) {
+                                window.showPlayerActorHackMenu(actor, null, e.containerPoint.x, e.containerPoint.y);
+                                return;
+                            }
+                            window.showPlayerActorMenu(actor, e.containerPoint.x, e.containerPoint.y);
+                        });
+                    }
+                });
+
+                Object.keys(window.playerActorMarkers).forEach(key => {
+                    if (!visible.has(key)) {
+                        if (map.hasLayer(window.playerActorMarkers[key])) {
+                            map.removeLayer(window.playerActorMarkers[key]);
+                        }
+                        delete window.playerActorMarkers[key];
+                    }
+                });
+            };
+
+            window.refreshPlayerActors = async function() {
+                try {
+                    const res = await fetch('/api/map/player-actors');
+                    if (res.status === 401) {
+                        stopMapRefreshTimers();
+                        return;
+                    }
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const keepCenter = map.getCenter();
+                    const keepZoom = map.getZoom();
+
+                    window.renderPlayerActors(data.player_actors || []);
+
+                    programmaticMapMove = true;
+                    map.setView(keepCenter, keepZoom, { animate: false });
+                    setTimeout(() => {
+                        programmaticMapMove = false;
+                    }, 0);
+                } catch (err) {
+                    console.warn('Player actor refresh failed', err);
+                }
+            };
+
+            window.refreshFriendMarkers = async function() {
+                try {
+                    const res = await fetch('/api/map/friends');
+                    if (res.status === 401) {
+                        stopMapRefreshTimers();
+                        return;
+                    }
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const visible = new Set();
+                    const keepCenter = map.getCenter();
+                    const keepZoom = map.getZoom();
+
+                    (data.friends || []).forEach(friend => {
+                        const key = friend.username || friend.nick;
+                        const lat = parseFloat(friend.lat);
+                        const lng = parseFloat(friend.lng);
+                        if (!key || Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+                        visible.add(key);
+                        if (!window.friendMarkers[key]) {
+                            const marker = L.marker([lat, lng], { icon: window.buildFriendIcon(friend) }).addTo(map);
+                            marker.bindPopup(`${window.escapeMapText(friend.nick || key)}<br>Znajomy`, { autoPan: false });
+                            window.friendMarkers[key] = marker;
+                        } else {
+                            window.friendMarkers[key].setLatLng([lat, lng]);
+                            window.friendMarkers[key].setIcon(window.buildFriendIcon(friend));
+                        }
+                    });
+
+                    Object.keys(window.friendMarkers).forEach(key => {
+                        if (!visible.has(key)) {
+                            map.removeLayer(window.friendMarkers[key]);
+                            delete window.friendMarkers[key];
+                        }
+                    });
+
+                    programmaticMapMove = true;
+                    map.setView(keepCenter, keepZoom, { animate: false });
+                    setTimeout(() => {
+                        programmaticMapMove = false;
+                    }, 0);
+                } catch (err) {
+                    console.warn('Friend marker refresh failed', err);
+                }
+            };
+
+            window.playerAreaLayers = [];
+            window.areaIntruderLayers = [];
+            window.clanVulnerabilityLayers = [];
+            window.contestedTargetLayers = [];
+            window.conflictAreaLayers = [];
+            window.capturedConflictPillarLayers = [];
+            window.mapRefreshTimers = window.mapRefreshTimers || [];
+            window.playerAreaRefreshSeq = 0;
+            window.stopMapRefreshTimers = function() {
+                window.mapRefreshTimers.forEach(timer => clearInterval(timer));
+                window.mapRefreshTimers = [];
+            };
+
+            window.buildClanVulnerabilityIcon = function(report) {
+                const icon = window.escapeMapText ? window.escapeMapText(report.icon || '!')
+                    : (report.icon || '!');
+                const label = window.escapeMapText ? window.escapeMapText(report.label || report.name || 'Podatnosc')
+                    : (report.label || report.name || 'Podatnosc');
+
+                return L.divIcon({
+                    className: 'clan-vulnerability-icon',
+                    html: `
+                        <div class="clan-vulnerability-pin">
+                            <div class="clan-vulnerability-pin__icon">${icon}</div>
+                            <div class="clan-vulnerability-pin__tag">${label}</div>
+                        </div>
+                    `,
+                    iconSize: [86, 56],
+                    iconAnchor: [43, 45],
+                    popupAnchor: [0, -40]
+                });
+            };
+
+            window.refreshClanVulnerabilities = async function() {
+                try {
+                    const res = await fetch('/api/map/clan-vulnerabilities');
+                    if (res.status === 401) {
+                        stopMapRefreshTimers();
+                        return;
+                    }
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const keepCenter = map.getCenter();
+                    const keepZoom = map.getZoom();
+
+                    window.clanVulnerabilityLayers.forEach(layer => map.removeLayer(layer));
+                    window.clanVulnerabilityLayers = [];
+                    clanVulnerabilityRegistry.clear();
+
+                    (data.vulnerabilities || []).forEach(report => {
+                        const target = report.target || {};
+                        const lat = parseFloat(report.lat || target.lat);
+                        const lng = parseFloat(report.lng || target.lng || target.lon);
+                        if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+                        const markerTarget = {
+                            ...target,
+                            vulnerability_id: report.id,
+                            lat,
+                            lng,
+                            lon: lng,
+                            label: report.label || target.label || target.name || 'Podatnosc',
+                            name: report.name || target.name || report.label || 'Podatnosc',
+                            icon: report.icon || target.icon || '!',
+                            source_type: report.source_type || target.source_type || 'manual',
+                            generated: Boolean(report.generated || target.generated),
+                            security: report.security || target.security || {}
+                        };
+                        const registryKey = vulnerabilityTargetKey(markerTarget);
+                        if (registryKey) {
+                            clanVulnerabilityRegistry.set(registryKey, {
+                                ...report,
+                                target: markerTarget
+                            });
+                        }
+
+                        const marker = L.marker([lat, lng], {
+                            zIndexOffset: 850,
+                            icon: window.buildClanVulnerabilityIcon(report)
+                        }).addTo(map);
+
+                        marker.bindTooltip(markerTarget.label, { permanent: false, direction: 'top' });
+                        marker.on('contextmenu', function(e) {
+                            e.originalEvent.preventDefault();
+                            e.originalEvent.stopPropagation();
+                            if (report.is_reporter) {
+                                showVulnerabilityReporterMenu(e.containerPoint.x, e.containerPoint.y, report);
+                                return;
+                            }
+                            showHackingMenuForMarker(
+                                e.containerPoint.x,
+                                e.containerPoint.y,
+                                markerTarget,
+                                markerTarget.icon,
+                                markerTarget.label
+                            );
+                        });
+
+                        window.clanVulnerabilityLayers.push(marker);
+                    });
+
+                    programmaticMapMove = true;
+                    map.setView(keepCenter, keepZoom, { animate: false });
+                    setTimeout(() => {
+                        programmaticMapMove = false;
+                    }, 0);
+                } catch (err) {
+                    console.warn('Clan vulnerabilities refresh failed', err);
+                }
+            };
+
+            window.refreshPlayerAreas = async function() {
+                const refreshSeq = ++window.playerAreaRefreshSeq;
+                try {
+                    const res = await fetch('/api/map/player-areas');
+                    if (res.status === 401) {
+                        stopMapRefreshTimers();
+                        return;
+                    }
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    if (refreshSeq !== window.playerAreaRefreshSeq) return;
+                    const keepCenter = map.getCenter();
+                    const keepZoom = map.getZoom();
+
+                    window.playerAreaLayers.forEach(layer => {
+                        if (map.hasLayer(layer)) map.removeLayer(layer);
+                    });
+                    window.playerAreaLayers = [];
+                    window.areaIntruderLayers.forEach(layer => {
+                        if (map.hasLayer(layer)) map.removeLayer(layer);
+                    });
+                    window.areaIntruderLayers = [];
+                    window.contestedTargetLayers.forEach(layer => {
+                        if (map.hasLayer(layer)) map.removeLayer(layer);
+                    });
+                    window.contestedTargetLayers = [];
+                    window.conflictAreaLayers.forEach(layer => {
+                        if (map.hasLayer(layer)) map.removeLayer(layer);
+                    });
+                    window.conflictAreaLayers = [];
+                    window.capturedConflictPillarLayers.forEach(layer => {
+                        if (map.hasLayer(layer)) map.removeLayer(layer);
+                    });
+                    window.capturedConflictPillarLayers = [];
+
+                    (data.areas || []).forEach(area => {
+                        const points = (area.vertices || [])
+                            .map(vertex => [parseFloat(vertex.lat), parseFloat(vertex.lng)])
+                            .filter(point => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
+                        if (points.length < 3) return;
+
+                        const isEncircled = area.status === 'encircled';
+                        const color = isEncircled ? '#ffcc33' : (area.is_mine ? '#26ff6a' : '#ff4b4b');
+                        const fillColor = isEncircled ? '#b88700' : (area.is_mine ? '#0aa83d' : '#b62020');
+                        const polygon = L.polygon(points, {
+                            pane: 'territoryPane',
+                            color,
+                            fillColor,
+                            fillOpacity: isEncircled ? 0.26 : (area.is_mine ? 0.13 : 0.20),
+                            weight: isEncircled ? 4 : (area.is_mine ? 2 : 3),
+                            dashArray: isEncircled ? '4 5' : (area.is_mine ? null : '8 6'),
+                            interactive: true
+                        }).addTo(map);
+                        const owner = window.escapeMapText(area.owner_nick || area.owner_username || 'unknown');
+                        const status = window.escapeMapText(area.status || 'active');
+                        const size = Math.round(Number(area.area_size || 0));
+                        polygon.bindTooltip(`${area.is_mine ? 'Twoje pole' : 'Pole gracza'}: ${owner}<br>Status: ${status}<br>Pow.: ${size} m²`, {
+                            sticky: true,
+                            opacity: 0.95
+                        });
+                        {
+                            const ownerNick = window.escapeMapText(area.owner_nick || area.owner_username || 'unknown');
+                            const ownerUsername = window.escapeMapText(area.owner_username || 'unknown');
+                            const ownerClan = window.escapeMapText(area.owner_clan || 'brak');
+                            polygon.bindTooltip(`${area.is_mine ? 'Twoje pole' : 'Pole gracza'}: ${ownerNick}<br>Login: ${ownerUsername}<br>Klan: ${ownerClan}<br>Status: ${status}<br>Pow.: ${size} mÂ˛`, {
+                                sticky: true,
+                                opacity: 0.95
+                            });
+                        }
+                        window.playerAreaLayers.push(polygon);
+                    });
+
+                    (data.conflict_areas || []).forEach(conflict => {
+                        const intersections = conflict.intersections && conflict.intersections.length
+                            ? conflict.intersections
+                            : [conflict.intersection || []];
+                        const participants = conflict.participants_display
+                            ? window.escapeMapText(conflict.participants_display)
+                            : (conflict.participant_names || conflict.participants || [])
+                                .map(name => window.escapeMapText(name))
+                                .join(', ');
+
+                        intersections.forEach((intersection, index) => {
+                            const points = (intersection || [])
+                                .map(vertex => [parseFloat(vertex.lat), parseFloat(vertex.lng)])
+                                .filter(point => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
+                            if (points.length < 3) return;
+
+                            const polygon = L.polygon(points, {
+                                pane: 'territoryPane',
+                                color: '#ffb300',
+                                fillColor: '#ff8a00',
+                                fillOpacity: 0.18,
+                                weight: 3,
+                                dashArray: '3 5',
+                                interactive: true
+                            }).addTo(map);
+
+                            polygon.bindTooltip(`Konflikt terytorium<br>Uczestnicy: ${participants || 'brak'}<br>Strefa: ${index + 1}`, {
+                                sticky: true,
+                                opacity: 0.95
+                            });
+                            window.conflictAreaLayers.push(polygon);
+                        });
+                    });
+
+                    (data.contested_targets || []).forEach(target => {
+                        const lat = parseFloat(target.lat);
+                        const lng = parseFloat(target.lng || target.lon);
+                        if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+                        const label = window.escapeMapText(target.label || target.name || 'Kolizja');
+                        const owner = window.escapeMapText(target.owner_nick || target.owner_username || 'wrog');
+                        const icon = target.icon || '🎯';
+                        const markerTarget = {
+                            ...target,
+                            lat,
+                            lng,
+                            lon: lng,
+                            target_mode: 'territory_contest',
+                            contest_owner_username: target.owner_username,
+                            label: target.label || target.name || 'Kolizja',
+                            name: target.name || target.label || 'Kolizja',
+                            icon
+                        };
+                        const marker = L.marker([lat, lng], {
+                            zIndexOffset: 920,
+                            icon: L.divIcon({
+                                className: 'territory-contest-target',
+                                html: `
+                                    <div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-10px);font-family:monospace;color:#ff4b4b;text-shadow:0 1px 2px #000;">
+                                        <div style="font-size:10px;background:rgba(35,0,0,0.86);padding:1px 5px;border:1px solid #ff4b4b;margin-bottom:2px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</div>
+                                        <div style="width:32px;height:32px;border-radius:50%;border:2px solid #ff4b4b;background:#210707;display:flex;align-items:center;justify-content:center;font-size:18px;">${window.escapeMapText(icon)}</div>
+                                    </div>
+                                `,
+                                iconSize: [74, 62],
+                                iconAnchor: [37, 56],
+                                popupAnchor: [0, -48]
+                            })
+                        }).addTo(map);
+
+                        marker.bindTooltip(`Punkt kolizyjny: ${label}<br>Wlasciciel: ${owner}`, { sticky: true });
+                        marker.on('contextmenu', function(e) {
+                            e.originalEvent.preventDefault();
+                            e.originalEvent.stopPropagation();
+                            showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerTarget, icon, markerTarget.label);
+                        });
+                        window.contestedTargetLayers.push(marker);
+                    });
+
+                    (data.captured_conflict_pillars || []).forEach(item => {
+                        const target = item.target || item;
+                        const lat = parseFloat(target.lat);
+                        const lng = parseFloat(target.lng || target.lon);
+                        if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+                        const label = window.escapeMapText(target.label || target.name || 'Przejety filar');
+                        const capturedBy = window.escapeMapText(item.captured_by || item.hacked_by || target.owner_username || 'unknown');
+                        const previousOwner = window.escapeMapText(item.previous_owner || 'unknown');
+                        const marker = L.circleMarker([lat, lng], {
+                            pane: 'territoryPane',
+                            radius: 10,
+                            color: '#b8ff28',
+                            fillColor: '#162a0a',
+                            fillOpacity: 0.72,
+                            weight: 3,
+                            interactive: true
+                        }).addTo(map);
+
+                        marker.bindTooltip(`Przejety filar: ${label}<br>Nowy wlasciciel: ${capturedBy}<br>Poprzedni: ${previousOwner}`, {
+                            sticky: true,
+                            opacity: 0.95
+                        });
+                        window.capturedConflictPillarLayers.push(marker);
+                    });
+
+                    programmaticMapMove = true;
+                    map.setView(keepCenter, keepZoom, { animate: false });
+                    setTimeout(() => {
+                        programmaticMapMove = false;
+                    }, 0);
+                } catch (err) {
+                    console.warn('Player area refresh failed', err);
+                }
+            };
+
+            window.refreshPlayerActors();
+            window.refreshPlayerAreas();
+            window.refreshClanVulnerabilities();
+            window.stopMapRefreshTimers();
+            window.mapRefreshTimers.push(setInterval(window.refreshPlayerActors, 5000));
+            window.mapRefreshTimers.push(setInterval(window.refreshPlayerAreas, 10000));
+            window.mapRefreshTimers.push(setInterval(window.refreshClanVulnerabilities, 10000));
+        }
+
+
+
+    `   📡 WiFi	📡 📶 🛜
+        🏦 Bank	🏦 💰 🏛️
+        🏧 Bankomat	🏧
+        📡 Antena satelitarna	📡 🛰️
+        🖥️ Serwer / Komputer	🖥️ 🗄️ 💾
+        🚲 Rower	🚲
+        ☠️ Czaszka i kości	☠️ 💀
+    `
+
+    // Obsługa zwykłych celów
+    document.querySelectorAll('.marker-label').forEach(labelEl => {
+        const parentEl = labelEl.closest('.leaflet-marker-icon');
+        if (!parentEl) return;
+
+        const lat = parseFloat(labelEl.dataset.lat);
+        const lng = parseFloat(labelEl.dataset.lng);
+        const label = labelEl.dataset.label || 'Cel';
+        const icon = labelEl.dataset.icon || '🎯';
+
+        // Nowe: dodatkowe dane jeśli są obecne
+        const name = labelEl.dataset.name || label;
+        const source_type = labelEl.dataset.sourceType || "manual";
+        const generated = labelEl.dataset.generated === "true";
+        const target_mode = labelEl.dataset.targetMode || null;
+        const target_username = labelEl.dataset.targetUsername || "";
+        const relation = labelEl.dataset.relation || "";
+
+        parentEl.addEventListener('contextmenu', e => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            showHackingMenuForMarker(e.pageX, e.pageY, {
+                lat: lat,
+                lon: lng,
+                label: label,
+                icon: icon,
+                name: name,
+                source_type: source_type,
+                generated: generated,
+                target_mode: target_mode,
+                target_username: target_username,
+                relation: relation
+            }, icon, label);
+        });
+    });
+
+
+    // Obsługa zhakowanych celów
+    document.querySelectorAll('.marker-hacked').forEach(labelEl => {
+        const parentEl = labelEl.closest('.leaflet-marker-icon');
+        if (!parentEl) return;
+
+        const lat = parseFloat(labelEl.dataset.lat);
+        const lng = parseFloat(labelEl.dataset.lng);
+        const label = labelEl.dataset.label || 'Cel';
+        const icon = labelEl.dataset.icon || '🎯';
+
+        // Dodaj listener bezpośrednio do labelEl (bo to już .marker-hacked)
+        labelEl.addEventListener('contextmenu', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            showMenuForHacked(e.pageX, e.pageY, { lat, lon: lng }, icon, label);
+        });
+    });
+
+
+
+
+    function addSystemMessage(type, title, text) {
+        fetch('/add-system-message', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                type: type,
+                title: title,
+                text: text
+            })
+        })
+        .then(res => res.json())
+        .then(res => {
+            if (res.status === "success") {
+            } else {
+                console.warn("⚠️ Błąd dodawania wiadomości:", res.message || res.error);
+            }
+        })
+        .catch(err => {
+            console.error("❌ Błąd połączenia z serwerem", err);
+        });
+    }
+    </script>
+
+
+</body>
+</html>

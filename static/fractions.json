@@ -1,0 +1,215 @@
+{
+    "Strażnicy Ładu": {
+        "name": "Sentinel Core",
+        "ethics": "Etyczna",
+        "style": "Obrona",
+        "motivation": "Stabilizacja i ochrona systemu",
+        "manifest": "„Sieć jest strukturą. Struktura potrzebuje ładu. Chaos to wirus.”\nStrażnicy Ładu istnieją po to, by bronić fundamentów Sieci przed zakusami korporacji, sabotażystów i ideologicznych radykałów.\nWierzymy w siłę reguł, systemowego bezpieczeństwa i równowagi.\nNasza misja to utrzymanie integralności danych, neutralizacja zagrożeń i utrzymanie porządku w wirtualnych granicach.\nDziałamy, gdy algorytmy zawodzą – jesteśmy ostatnią linią obrony.",
+        "professions": [
+            {
+                
+                "name": "Analizator",
+                "role": "Skanowanie, wykrywanie",
+                "skills": ["AI", "sensory", "logi systemowe"],
+                "description": "Rozpracowuje anomalie, wykrywa wrogie skrypty, pełni rolę detektywa."
+            },
+            {
+                "name": "Obrońca",
+                "role": "Tarcza zespołu",
+                "skills": ["Firewall", "absorbcja", "przeciwdziałanie"],
+                "description": "Tworzy bariery, odciąga uwagę, wspiera drużynę pod ostrzałem."
+            },
+            {
+                "name": "Rekonstruktor",
+                "role": "Naprawa i odbudowa",
+                "skills": ["naprawy systemowe", "retoryka"],
+                "description": "Przywraca system do równowagi, naprawia struktury i morale."
+            },
+            {
+                "name": "Mediator",
+                "role": "Rozwiązywanie konfliktów",
+                "skills": ["empatia algorytmiczna", "logika"],
+                "description": "Buduje mosty, przeciwdziała eskalacjom międzyfrakcyjnym."
+            },
+            {
+                "name": "Egzekutor",
+                "role": "Ostateczny głos",
+                "skills": ["prawo systemowe", "reset"],
+                "description": "Podejmuje twarde decyzje – gdy trzeba wyczyścić zagrożenie, nie waha się."
+            }
+        ],
+        "tools": [
+            {
+                "name": "Firewall Dome",
+                "type": "obrona",
+                "neutralizes": ["Data Leech", "Disinfo Storm"],
+                "vulnerable_to": ["Algorithm Corruptor", "Neural Phantom"]
+            },
+                {
+                "name": "SysPurifier",
+                "type": "oczyszczanie",
+                "neutralizes": ["Glitch Injector", "Market Claw"],
+                "vulnerable_to": ["Black Mirror", "Truth Splitter"]
+            }
+        ]
+    },
+    "Echo Wolności": {
+        "name": "NOVA Anarch",
+        "ethics": "Etyczna",
+        "style": "Haktywizm",
+        "motivation": "Wolność i prawda",
+        "manifest": "„Informacja chce być wolna. System się boi.”\nNOVA to ruch. Nie organizacja. Nie struktura. To Echo tych, którzy widzą kłamstwo.\nNaszym celem jest ujawnianie prawdy, wyrywanie korzeni manipulacji i zmuszanie systemu do transparentności.\nMy nie atakujemy ludzi – atakujemy iluzję, w której żyją. Każda przecieknięta linia kodu to gwóźdź do trumny kłamstwa.",
+        "professions": [
+            {
+                "name": "Haktywista",
+                "role": "Włamywacz sprawiedliwy",
+                "skills": ["przenikanie", "expose", "backtrack"],
+                "description": "Zbiera dowody, włamywacz z misją ideologiczną."
+            },
+            {
+                "name": "Socjotechnik",
+                "role": "Manipulacja słowem",
+                "skills": ["wpływ", "dezinformacja"],
+                "description": "Mistrz podszeptów i przekonywania – manipuluje zachowaniem wroga."
+            },
+            {
+                "name": "Odsłaniacz",
+                "role": "Ujawnianie prawdy",
+                "skills": ["przecieki", "analiza danych"],
+                "description": "Specjalista od przecieków i grzebania w ukrytych warstwach danych."
+            },
+            {
+                "name": "Wizjoner",
+                "role": "Symbol idei",
+                "skills": ["charyzma", "sztuka", "komunikacja"],
+                "description": "Twórca ideologii i motywacji ruchu NOVA."
+            },
+            {
+                "name": "Zapalnik",
+                "role": "Katalizator rebelii",
+                "skills": ["prowokacja", "sabotaż"],
+                "description": "Podsyca napięcia, wznieca zamieszki, prowokuje zmianę."
+            }
+        ],
+        "tools": [
+            {
+                "name": "Expose Protocol",
+                "type": "ujawnianie",
+                "neutralizes": ["DeepMock Engine", "Black Mirror"],
+                "vulnerable_to": ["Market Claw", "System Sentinel"]
+            },
+            {
+                "name": "Data Leak Bomb",
+                "type": "przeciek",
+                "neutralizes": ["Algorithm Corruptor", "Sys Sentinel"],
+                "vulnerable_to": ["Firewall Dome", "Echo Jammer"]
+            }
+        ]
+    },
+    "VIREX Korporacja": {
+        "name": "VIREX Conglomerate",
+        "ethics": "Nieetyczna",
+        "style": "Kontrola, przejęcia",
+        "motivation": "Pieniądze i dominacja",
+        "manifest": "„Sieć to rynek. Władza to własność. Kontrola to kapitał.”\nVIREX nie wierzy w wolność ani w porządek. VIREX wierzy we własność.\nPrzejęliśmy sektor bankowy, rynek danych i infrastrukturę systemu. Teraz czas na resztę.\nInwestujemy w przyszłość Sieci, tworząc backdoory, manipulując handlem i oferując „ochronę” tym, którzy płacą.\nJesteś z nami albo jesteś targetem.",
+        "professions": [
+            {
+                "name": "Broker",
+                "role": "Zarządzanie zasobami",
+                "skills": ["Rynek danych", "waluty cyfrowe"],
+                "description": "Kontroluje ekonomię i dostęp do narzędzi. Zawsze ma coś do sprzedaży."
+            },
+            {
+                "name": "Architekt",
+                "role": "Projektant systemów",
+                "skills": ["Backdoory", "core programming"],
+                "description": "Tworzy luki w systemie jeszcze zanim ktoś zdoła je załatać."
+            },
+            {
+                "name": "Manipulator",
+                "role": "Wpływ i infiltracja",
+                "skills": ["Deep fake", "social AI"],
+                "description": "Tworzy alternatywną rzeczywistość. Może zmienić dane w taki sposób, że nikt nie zauważy."
+            },
+            {
+                "name": "Egzekutor Zysku",
+                "role": "Usuwanie przeszkód",
+                "skills": ["Przemoc taktyczna", "sabotaż"],
+                "description": "Tam, gdzie trzeba „wyciszyć temat”. Czysta, zimna siła."
+            },
+            {
+                "name": "Kurator Algorytmu",
+                "role": "Utrzymanie dominacji",
+                "skills": ["Analiza trendów", "predictive AI"],
+                "description": "Działa jak główny analityk. Przewiduje ruchy przeciwnika na podstawie wzorców."
+            }
+        ],
+        "tools": [
+            {
+                "name": "Market Claw",
+                "type": "kontrola rynku",
+                "neutralizes": ["Data Leak Bomb", "Expose Protocol"],
+                "vulnerable_to": ["Firewall Dome", "Truth Splitter"]
+            },
+            {
+                "name": "DeepMock Engine",
+                "type": "deepfake",
+                "neutralizes": ["Expose Protocol", "Mediator AI"],
+                "vulnerable_to": ["SysPurifier", "Reality Slicer"]
+            }
+        ]
+    },
+    "Siatka Widmo": {
+        "name": "Phantom Mesh",
+        "ethics": "Nieetyczna",
+        "style": "Sabotaż, iluzja, ataki psychologiczne",
+        "motivation": "Chaos i destrukcja struktur",
+        "manifest": "„Zburz porządek. Zatrzymaj kontrolę. Zaneguj wszystko.”\nJesteśmy echem rozpadu. Kodem, który nie pasuje. Pęknięciem w murze systemu.\nSiatka Widmo nie szuka władzy. Szuka pustki.\nNaszym celem jest dezinformacja, sabotaż i rozsiewanie wątpliwości.\nNie walczymy z systemem. Pokazujemy, że nigdy nie istniał.",
+        "professions": [
+            {
+                "name": "Iluzjonista",
+                "role": "Tworzenie fałszywej rzeczywistości",
+                "skills": ["Symulacje", "podmiany danych"],
+                "description": "Zmienia wygląd systemów, ludzi i miejsc. Nigdy nie wiadomo, co jest prawdą."
+            },
+            {
+                "name": "Wirusolog",
+                "role": "Tworzenie chaosu",
+                "skills": ["Malware", "glitch injection"],
+                "description": "Pisze kod jak zarazę. Jeden klik i wszystko się sypie."
+            },
+            {
+                "name": "Paranoik",
+                "role": "Dezinformacja i sabotaż",
+                "skills": ["Plotki", "shadow trails"],
+                "description": "Tworzy echo tam, gdzie nic nie ma. Słyszysz go, ale go nie widzisz."
+            },
+            {
+                "name": "Rozłamowiec",
+                "role": "Rozbijanie struktur",
+                "skills": ["Eksploatacja", "luki"],
+                "description": "Rozpadające się struktury to jego dzieło. Łamie, rozcina, rozszczelnia."
+            },
+            {
+                "name": "Lustrzany Sędzia",
+                "role": "Lustracja i wypaczenie",
+                "skills": ["Rewizje danych", "nadpisy"],
+                "description": "Przepuszcza cię przez własne odbicie i pokazuje ci, że jesteś kłamstwem."
+            }
+        ],
+        "tools": [
+            {
+                "name": "Black Mirror",
+                "type": "psychomanipulacja",
+                "neutralizes": ["SysPurifier", "Wizjoner Beacon"],
+                "vulnerable_to": ["Expose Protocol", "Firewall Dome"]
+            },
+                {
+                "name": "Glitch Injector",
+                "type": "sabotaż",
+                "neutralizes": ["Firewall Dome", "System Sentinel"],
+                "vulnerable_to": ["SysPurifier", "Backtrack Pulse"]
+            }
+        ]
+    }
+}
