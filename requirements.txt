@@ -1,0 +1,7 @@
+Flask>=3.0,<4
+Flask-Session>=0.8,<1
+folium>=0.16,<1
+MarkupSafe>=2.1,<4
+overpy>=0.7,<1
+requests>=2.31,<3
+pytest>=8,<9
