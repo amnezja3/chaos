@@ -1014,6 +1014,12 @@ def operation_duration_seconds(operation_type):
     return DEFAULT_OPERATION_DURATIONS_SECONDS.get(operation_type, 10 * 60)
 
 
+OPERATION_ACTIVE_STATUSES = {"start", "running"}
+OPERATION_TERMINAL_STATUSES = {"completed", "failed", "detected", "cancelled", "timeout"}
+OPERATION_FINALIZABLE_STATUSES = {"completed", "timeout"}
+OPERATION_RISK_ASSESSABLE_STATUSES = {"completed", "timeout", "cancelled", "detected"}
+
+
 def movement_model_for_operation(operation_type, target_type):
     operation_type = str(operation_type or "").strip()
     target_type = str(target_type or "").strip()
@@ -1064,6 +1070,7 @@ RISK_EVENT_BASE_SCORES = {
     "atm_alarm": 72,
     "camera_detected": 46,
     "sniffer_detected": 58,
+    "abandoned_operation": 38,
 }
 
 RISK_EVENT_MESSAGES = {
@@ -1072,6 +1079,7 @@ RISK_EVENT_MESSAGES = {
     "atm_alarm": "Terminal finansowy wykryl nietypowa probe odczytu danych.",
     "camera_detected": "System obserwacji zarejestrowal anomalie przy kamerze.",
     "sniffer_detected": "Implant/sniffer zostawil sygnature w monitoringu celu.",
+    "abandoned_operation": "Porzucona operacja zostawila slaby slad w systemie.",
 }
 
 
@@ -1231,6 +1239,28 @@ def support_operation_matches_target(operation, support_operation, max_distance_
     return False, distance
 
 
+def operation_is_active(operation, now_ts=None):
+    if not isinstance(operation, dict):
+        return False
+    if operation.get("status") not in OPERATION_ACTIVE_STATUSES:
+        return False
+    try:
+        now_ts = now_ts if now_ts is not None else datetime.now(timezone.utc).timestamp()
+        remaining = operation_remaining_seconds(operation, now_ts)
+    except Exception:
+        remaining = None
+    return remaining is None or remaining > 0
+
+
+def support_operation_is_active_for_modifier(operation, now_ts=None):
+    if not operation_is_active(operation, now_ts=now_ts):
+        return False
+    support_state = operation.get("support_state") if isinstance(operation.get("support_state"), dict) else {}
+    if support_state and support_state.get("active") is False:
+        return False
+    return True
+
+
 def find_risk_modifiers(profile, operation, event_type):
     if event_type != "camera_detected":
         return []
@@ -1244,6 +1274,8 @@ def find_risk_modifiers(profile, operation, event_type):
         if support_operation is operation:
             continue
         if support_operation.get("operation_type") != "camera_shutdown":
+            continue
+        if not support_operation_is_active_for_modifier(support_operation):
             continue
         if not operation_windows_overlap(operation, support_operation):
             continue
@@ -1293,6 +1325,9 @@ def apply_risk_modifiers(profile, operation, event_type, score):
 
 
 def risk_events_for_operation(operation):
+    if operation.get("status") == "cancelled":
+        return ["abandoned_operation"]
+
     operation_type = str(operation.get("operation_type") or "")
     risk_state = operation.get("risk_state") if isinstance(operation.get("risk_state"), dict) else {}
     events = [
@@ -1322,7 +1357,7 @@ def assess_operation_risk(profile, operation):
     risk_state = operation.setdefault("risk_state", initial_risk_state_for_operation(operation.get("operation_type")))
     if risk_state.get("assessed"):
         return False
-    if operation.get("status") not in {"completed", "timeout"}:
+    if operation.get("status") not in OPERATION_RISK_ASSESSABLE_STATUSES:
         return False
 
     events = risk_events_for_operation(operation)
@@ -1526,6 +1561,8 @@ def operation_iso_from_ts(timestamp):
 
 def ensure_vehicle_tracking_checkpoints(operation, now_ts):
     if operation.get("operation_type") != "vehicle_tracking":
+        return False
+    if operation.get("status") not in (OPERATION_ACTIVE_STATUSES | OPERATION_FINALIZABLE_STATUSES):
         return False
 
     started_ts = parse_operation_timestamp(operation.get("started_at"))
@@ -1739,6 +1776,21 @@ def normalize_runtime_file_entry(entry, folder):
     entry["created_at"] = runtime_file_created_at({**entry, "metadata": metadata})
     entry["sellable"] = bool(entry.get("sellable", False))
     entry["market_status"] = str(entry.get("market_status") or "not_listed")
+    completeness_info = infer_file_completeness(entry, metadata, resource_types)
+    metadata["completeness_percent"] = completeness_info["percent"]
+    metadata["completeness_tier"] = completeness_info["tier"]
+    metadata["missing_fields"] = completeness_info["missing_fields"]
+    metadata["quality_score"] = completeness_info["quality_score"]
+    metadata.setdefault("completeness", {})
+    if isinstance(metadata["completeness"], dict):
+        metadata["completeness"]["percent"] = completeness_info["percent"]
+        metadata["completeness"]["tier"] = completeness_info["tier"]
+        metadata["completeness"]["missing"] = completeness_info["missing_fields"]
+        metadata["completeness"]["quality_score"] = completeness_info["quality_score"]
+    entry["completeness_percent"] = completeness_info["percent"]
+    entry["completeness_tier"] = completeness_info["tier"]
+    entry["missing_fields"] = completeness_info["missing_fields"]
+    entry["quality_score"] = completeness_info["quality_score"]
     entry["metadata"] = metadata
     entry["id"] = runtime_file_id(folder, entry)
     return entry
@@ -1808,6 +1860,149 @@ MARKET_CATEGORY_BASE_VALUE = {
     "network": 32,
 }
 
+RESOURCE_COMPLETENESS_FIELDS = {
+    "gps_logs": ["checkpoint_count", "duration", "accuracy", "route_confidence"],
+    "location_history": ["checkpoint_count", "time_span", "accuracy", "target_identity_confidence"],
+    "device_logs": ["events_count", "time_span", "device_identity", "signal_quality"],
+    "personal_records": ["identity_fields", "profile_depth", "confidence", "freshness"],
+    "financial_records": ["transactions_count", "time_span", "account_confidence", "amount_visibility"],
+    "credentials": ["credential_count", "validity", "scope", "freshness"],
+    "email_accounts": ["account_count", "domain_quality", "access_validity", "metadata_depth"],
+    "call_history": ["call_count", "time_span", "contact_resolution", "metadata_depth"],
+    "messenger_data": ["thread_count", "metadata_depth", "identity_confidence", "freshness"],
+    "audio_transcript": ["duration", "speaker_count", "transcript_quality", "keyword_hits"],
+    "camera_dump": ["duration", "frame_quality", "angle_quality", "event_hits"],
+    "video_material": ["duration", "resolution", "event_hits", "continuity"],
+    "atm_dump": ["record_count", "time_span", "account_confidence", "terminal_identity"],
+    "vehicle_diagnostics": ["systems_count", "fault_depth", "ecu_access", "telemetry_quality"],
+    "wifi_networks": ["network_count", "security_types", "signal_strength", "geo_accuracy"],
+    "hotspot_database": ["hotspot_count", "coverage_area", "freshness", "geo_accuracy"],
+}
+
+QUALITY_SCORE_BY_LABEL = {
+    "placeholder": 52,
+    "low": 35,
+    "medium": 62,
+    "high": 82,
+    "sealed": 70,
+}
+
+
+def clamp_int(value, minimum=0, maximum=100, default=0):
+    try:
+        number = int(round(float(value)))
+    except (TypeError, ValueError):
+        number = int(default)
+    return max(minimum, min(maximum, number))
+
+
+def completeness_tier_for_percent(percent):
+    percent = clamp_int(percent)
+    if percent >= 85:
+        return "rich"
+    if percent >= 60:
+        return "enhanced"
+    if percent >= 35:
+        return "basic"
+    return "fragment"
+
+
+def quality_score_from_metadata(metadata, summary=None):
+    summary = summary if isinstance(summary, dict) else {}
+    if "quality_score" in metadata:
+        return clamp_int(metadata.get("quality_score"), default=50)
+    if "quality_score" in summary:
+        return clamp_int(summary.get("quality_score"), default=50)
+    quality = str(metadata.get("quality") or summary.get("quality") or "").strip().lower()
+    frame_quality = str(metadata.get("frame_quality") or "").strip().lower()
+    if quality in QUALITY_SCORE_BY_LABEL:
+        return QUALITY_SCORE_BY_LABEL[quality]
+    if frame_quality in QUALITY_SCORE_BY_LABEL:
+        return QUALITY_SCORE_BY_LABEL[frame_quality]
+    return 50
+
+
+def default_missing_fields_for_resources(resource_types, metadata):
+    missing = []
+    for resource_type in resource_types:
+        for field in RESOURCE_COMPLETENESS_FIELDS.get(str(resource_type), []):
+            if field not in metadata and field not in missing:
+                missing.append(field)
+    return missing[:10]
+
+
+def infer_file_completeness(entry, metadata, resource_types):
+    summary = entry.get("summary") if isinstance(entry.get("summary"), dict) else {}
+    completeness = metadata.get("completeness") if isinstance(metadata.get("completeness"), dict) else {}
+    explicit_percent = (
+        entry.get("completeness_percent")
+        or summary.get("completeness_percent")
+        or completeness.get("percent")
+        or metadata.get("completeness_percent")
+    )
+    quality_score = quality_score_from_metadata(metadata, summary)
+
+    if explicit_percent is not None:
+        percent = clamp_int(explicit_percent, default=50)
+    else:
+        folder = str(entry.get("file_category") or "")
+        record_count = (
+            metadata.get("record_count")
+            or metadata.get("checkpoint_count")
+            or metadata.get("collected_count")
+            or summary.get("record_count")
+            or summary.get("credential_count")
+            or len(entry.get("records", []) or [])
+            or len(entry.get("checkpoints", []) or [])
+            or 1
+        )
+        try:
+            record_count = int(record_count)
+        except (TypeError, ValueError):
+            record_count = 1
+        resource_bonus = max(0, len(resource_types) - 1) * 8
+        if folder == "gps":
+            percent = 35 + min(45, record_count * 6) + resource_bonus
+        elif folder in {"device", "personal"}:
+            total = len(DEVICE_INTELLIGENCE_RESOURCE_TYPES)
+            known = len([item for item in resource_types if item in DEVICE_INTELLIGENCE_RESOURCE_TYPES])
+            percent = int(round((known / total) * 100)) if total else 40
+        elif folder == "camera":
+            duration = int(metadata.get("duration_seconds") or summary.get("duration_seconds") or 60)
+            percent = 30 + min(35, duration // 12) + (20 if "video_material" in resource_types else 0)
+        elif folder in {"atm", "financial"}:
+            percent = 45 + min(35, record_count * 4) + resource_bonus
+        elif folder == "credentials":
+            percent = 48 + min(35, record_count * 7)
+        else:
+            percent = 45 + resource_bonus
+        percent = clamp_int(percent, default=50)
+
+    tier = (
+        entry.get("completeness_tier")
+        or summary.get("tier")
+        or completeness.get("tier")
+        or metadata.get("completeness_tier")
+        or completeness_tier_for_percent(percent)
+    )
+    missing_fields = (
+        entry.get("missing_fields")
+        or summary.get("missing_fields")
+        or completeness.get("missing")
+        or completeness.get("missing_fields")
+        or metadata.get("missing_fields")
+        or default_missing_fields_for_resources(resource_types, metadata)
+    )
+    if not isinstance(missing_fields, list):
+        missing_fields = [str(missing_fields)]
+    missing_fields = [str(item) for item in missing_fields if str(item).strip()]
+    return {
+        "percent": percent,
+        "tier": str(tier),
+        "missing_fields": missing_fields,
+        "quality_score": quality_score,
+    }
+
 
 def ghost_exchange_market_category(file_entry):
     resources = file_entry.get("resource_types") if isinstance(file_entry.get("resource_types"), list) else []
@@ -1841,7 +2036,8 @@ def ghost_exchange_price_preview(file_entry):
     metadata = file_entry.get("metadata") if isinstance(file_entry.get("metadata"), dict) else {}
     summary = file_entry.get("summary") if isinstance(file_entry.get("summary"), dict) else {}
 
-    resource_bonus = max(0, len(resources) - 1) * 8
+    resource_count = max(1, len(resources))
+    resource_bonus = max(0, resource_count - 1) * 8
     record_count = (
         metadata.get("record_count")
         or metadata.get("checkpoint_count")
@@ -1855,17 +2051,13 @@ def ghost_exchange_price_preview(file_entry):
     except (TypeError, ValueError):
         volume_bonus = 0
 
-    completeness = metadata.get("completeness") if isinstance(metadata.get("completeness"), dict) else {}
-    completeness_percent = (
-        summary.get("completeness_percent")
-        or completeness.get("percent")
-        or metadata.get("completeness_percent")
-        or 50
-    )
-    try:
-        completeness_multiplier = 0.75 + (max(0, min(100, float(completeness_percent))) / 100.0) * 0.75
-    except (TypeError, ValueError):
-        completeness_multiplier = 1.0
+    completeness_percent = file_entry.get("completeness_percent") or metadata.get("completeness_percent") or 50
+    completeness_percent = clamp_int(completeness_percent, default=50)
+    completeness_multiplier = 0.7 + (completeness_percent / 100.0) * 0.85
+    quality_score = file_entry.get("quality_score") or metadata.get("quality_score") or quality_score_from_metadata(metadata, summary)
+    quality_score = clamp_int(quality_score, default=50)
+    quality_multiplier = 0.75 + (quality_score / 100.0) * 0.55
+    resource_count_multiplier = 1.0 + min(0.25, max(0, resource_count - 1) * 0.04)
 
     seed = "|".join([
         str(file_entry.get("id") or ""),
@@ -1875,7 +2067,13 @@ def ghost_exchange_price_preview(file_entry):
     ])
     digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()
     demand_multiplier = 0.9 + (int(digest[:2], 16) / 255.0) * 0.35
-    price = int(round((base_value + resource_bonus + volume_bonus) * completeness_multiplier * demand_multiplier))
+    price = int(round(
+        (base_value + resource_bonus + volume_bonus)
+        * completeness_multiplier
+        * quality_multiplier
+        * resource_count_multiplier
+        * demand_multiplier
+    ))
     return max(5, price)
 
 
@@ -1896,6 +2094,10 @@ def ghost_exchange_listing_payload(file_entry):
         "created_at": file_entry.get("created_at"),
         "source_operation_id": file_entry.get("source_operation_id") or file_entry.get("operation_id"),
         "target_snapshot": file_entry.get("target_snapshot", {}),
+        "completeness_percent": file_entry.get("completeness_percent"),
+        "completeness_tier": file_entry.get("completeness_tier"),
+        "missing_fields": file_entry.get("missing_fields", []),
+        "quality_score": file_entry.get("quality_score"),
         "metadata": file_entry.get("metadata", {}),
     }
 
@@ -2051,6 +2253,8 @@ def build_vehicle_tracking_gps_file(operation):
     started = operation.get("started_at")
     ended = operation.get("ended_at") or operation.get("expires_at")
     checkpoints = list(operation.get("checkpoints") or [])
+    completeness_percent = clamp_int(35 + min(45, len(checkpoints) * 6) + 16, default=60)
+    quality_score = clamp_int(55 + min(25, len(checkpoints) * 3), default=60)
     slug = operation_filename_slug(target_label)
     filename = f"gps_{slug}_{operation_id}.log"
     return {
@@ -2072,7 +2276,17 @@ def build_vehicle_tracking_gps_file(operation):
             "started_at": started,
             "ended_at": ended,
             "accuracy": "medium",
-            "quality": "placeholder",
+            "quality": "medium",
+            "quality_score": quality_score,
+            "completeness_percent": completeness_percent,
+            "completeness_tier": completeness_tier_for_percent(completeness_percent),
+            "missing_fields": [],
+            "completeness": {
+                "percent": completeness_percent,
+                "tier": completeness_tier_for_percent(completeness_percent),
+                "missing": [],
+                "quality_score": quality_score,
+            },
         },
         "checkpoints": checkpoints,
     }
@@ -2154,6 +2368,7 @@ def build_device_intelligence_file(operation):
     operation_id = operation.get("operation_id") or "operation"
     resources = device_tracking_resource_types(operation)
     completeness = device_package_completeness(resources)
+    quality_score = clamp_int(45 + completeness["resource_count"] * 8, default=55)
     folder = "personal" if any(item in resources for item in ["personal_records", "financial_records", "call_history", "messenger_data"]) else "device"
     directory = "/data/personal" if folder == "personal" else "/data/device"
     filename = f"device_{operation_filename_slug(target_label)}_{operation_id}.pkg"
@@ -2175,12 +2390,18 @@ def build_device_intelligence_file(operation):
             "started_at": operation.get("started_at"),
             "ended_at": operation.get("ended_at") or operation.get("expires_at"),
             "completeness": completeness,
-            "quality": "placeholder",
+            "quality": "medium" if completeness["resource_count"] <= 4 else "high",
+            "quality_score": quality_score,
+            "completeness_percent": completeness["percent"],
+            "completeness_tier": completeness["tier"],
+            "missing_fields": completeness.get("missing", []),
         },
         "summary": {
             "label": "Device Intelligence",
             "tier": completeness["tier"],
             "completeness_percent": completeness["percent"],
+            "quality_score": quality_score,
+            "missing_fields": completeness.get("missing", []),
             "included": resources,
         },
     }
@@ -2242,6 +2463,9 @@ def build_camera_fragment_file(operation, fragment_index, fragment_start_ts, fra
     operation_id = operation.get("operation_id") or "operation"
     resources = camera_stream_resource_types(operation)
     primary = "video_material" if "video_material" in resources else "camera_dump"
+    completeness_percent = 72 if primary == "video_material" else 56
+    quality_score = 74 if primary == "video_material" else 60
+    missing_fields = [] if primary == "video_material" else ["resolution", "continuity"]
     extension = "vid" if primary == "video_material" else "cam"
     filename = f"camera_{operation_filename_slug(target_label)}_{operation_id}_{fragment_index:03d}.{extension}"
     duration = max(0, int(fragment_end_ts - fragment_start_ts))
@@ -2265,21 +2489,36 @@ def build_camera_fragment_file(operation, fragment_index, fragment_start_ts, fra
             "started_at": operation_iso_from_ts(fragment_start_ts),
             "ended_at": operation_iso_from_ts(fragment_end_ts),
             "duration_seconds": duration,
-            "quality": "placeholder",
-            "frame_quality": "medium",
+            "quality": "high" if primary == "video_material" else "medium",
+            "quality_score": quality_score,
+            "frame_quality": "high" if primary == "video_material" else "medium",
             "resource_primary": primary,
+            "completeness_percent": completeness_percent,
+            "completeness_tier": completeness_tier_for_percent(completeness_percent),
+            "missing_fields": missing_fields,
+            "completeness": {
+                "percent": completeness_percent,
+                "tier": completeness_tier_for_percent(completeness_percent),
+                "missing": missing_fields,
+                "quality_score": quality_score,
+            },
         },
         "summary": {
             "label": "Camera Stream Fragment",
             "duration_seconds": duration,
             "resource_primary": primary,
             "has_video_material": "video_material" in resources,
+            "completeness_percent": completeness_percent,
+            "quality_score": quality_score,
+            "missing_fields": missing_fields,
         },
     }
 
 
 def ensure_camera_stream_fragments(profile, operation, now_ts):
     if operation.get("operation_type") != "camera_stream":
+        return False
+    if operation.get("status") not in (OPERATION_ACTIVE_STATUSES | OPERATION_FINALIZABLE_STATUSES):
         return False
 
     started_ts = parse_operation_timestamp(operation.get("started_at"))
@@ -2422,6 +2661,8 @@ def build_atm_dump_file(operation):
     target_label = target.get("label") or target.get("name") or operation.get("target_id") or "atm"
     operation_id = operation.get("operation_id") or "operation"
     records = atm_record_rows(operation, "atm")
+    completeness_percent = clamp_int(45 + min(35, len(records) * 4), default=65)
+    quality_score = 62
     filename = f"atm_{operation_filename_slug(target_label)}_{operation_id}.dump"
     return {
         "name": filename,
@@ -2441,7 +2682,17 @@ def build_atm_dump_file(operation):
             "record_count": len(records),
             "started_at": operation.get("started_at"),
             "ended_at": operation.get("ended_at") or operation.get("expires_at"),
-            "quality": "placeholder",
+            "quality": "medium",
+            "quality_score": quality_score,
+            "completeness_percent": completeness_percent,
+            "completeness_tier": completeness_tier_for_percent(completeness_percent),
+            "missing_fields": ["time_span", "terminal_identity"],
+            "completeness": {
+                "percent": completeness_percent,
+                "tier": completeness_tier_for_percent(completeness_percent),
+                "missing": ["time_span", "terminal_identity"],
+                "quality_score": quality_score,
+            },
             "risk_hint": "high-value/high-risk",
         },
         "records": records,
@@ -2453,6 +2704,8 @@ def build_financial_records_file(operation):
     target_label = target.get("label") or target.get("name") or operation.get("target_id") or "atm"
     operation_id = operation.get("operation_id") or "operation"
     records = atm_record_rows(operation, "financial")
+    completeness_percent = clamp_int(58 + min(34, len(records) * 4), default=80)
+    quality_score = 78
     filename = f"finance_{operation_filename_slug(target_label)}_{operation_id}.dat"
     return {
         "name": filename,
@@ -2472,7 +2725,17 @@ def build_financial_records_file(operation):
             "record_count": len(records),
             "started_at": operation.get("started_at"),
             "ended_at": operation.get("ended_at") or operation.get("expires_at"),
-            "quality": "placeholder",
+            "quality": "high",
+            "quality_score": quality_score,
+            "completeness_percent": completeness_percent,
+            "completeness_tier": completeness_tier_for_percent(completeness_percent),
+            "missing_fields": ["amount_visibility"],
+            "completeness": {
+                "percent": completeness_percent,
+                "tier": completeness_tier_for_percent(completeness_percent),
+                "missing": ["amount_visibility"],
+                "quality_score": quality_score,
+            },
             "account_confidence": "medium",
             "risk_hint": "high-value/high-risk",
         },
@@ -2561,6 +2824,8 @@ def build_sniffer_financial_file(operation):
     target_label = target.get("label") or target.get("name") or operation.get("target_id") or "implant"
     operation_id = operation.get("operation_id") or "operation"
     records = atm_record_rows(operation, "financial")
+    completeness_percent = clamp_int(55 + min(35, len(records) * 4), default=78)
+    quality_score = 75
     filename = f"sniff_finance_{operation_filename_slug(target_label)}_{operation_id}.dat"
     return {
         "name": filename,
@@ -2582,7 +2847,17 @@ def build_sniffer_financial_file(operation):
             "duration_seconds": operation_duration_from_timestamps(operation),
             "collected_count": len(records),
             "risk_hint": "long_operation/sniffer_detected/high_value",
-            "quality": "placeholder",
+            "quality": "high",
+            "quality_score": quality_score,
+            "completeness_percent": completeness_percent,
+            "completeness_tier": completeness_tier_for_percent(completeness_percent),
+            "missing_fields": ["account_confidence"],
+            "completeness": {
+                "percent": completeness_percent,
+                "tier": completeness_tier_for_percent(completeness_percent),
+                "missing": ["account_confidence"],
+                "quality_score": quality_score,
+            },
         },
         "records": records,
     }
@@ -2594,6 +2869,8 @@ def build_sniffer_credentials_file(operation):
     operation_id = operation.get("operation_id") or "operation"
     seed = stable_procedural_seed(operation_id, "credentials", operation.get("target_id"))
     credential_count = 2 + (seed % 4)
+    completeness_percent = clamp_int(48 + min(35, credential_count * 7), default=68)
+    quality_score = clamp_int(62 + credential_count * 4, default=70)
     filename = f"credentials_{operation_filename_slug(target_label)}_{operation_id}.enc"
     return {
         "name": filename,
@@ -2617,11 +2894,25 @@ def build_sniffer_credentials_file(operation):
             "risk_hint": "long_operation/sniffer_detected/high_value",
             "encryption": "sealed",
             "scope": "access tokens",
+            "quality": "sealed",
+            "quality_score": quality_score,
+            "completeness_percent": completeness_percent,
+            "completeness_tier": completeness_tier_for_percent(completeness_percent),
+            "missing_fields": ["validity", "freshness"],
+            "completeness": {
+                "percent": completeness_percent,
+                "tier": completeness_tier_for_percent(completeness_percent),
+                "missing": ["validity", "freshness"],
+                "quality_score": quality_score,
+            },
         },
         "summary": {
             "label": "Encrypted Credentials",
             "credential_count": credential_count,
             "plain_text_visible": False,
+            "completeness_percent": completeness_percent,
+            "quality_score": quality_score,
+            "missing_fields": ["validity", "freshness"],
         },
     }
 
@@ -2630,6 +2921,8 @@ def build_sniffer_device_file(operation):
     target = operation.get("target") or {}
     target_label = target.get("label") or target.get("name") or operation.get("target_id") or "implant"
     operation_id = operation.get("operation_id") or "operation"
+    completeness_percent = 17
+    quality_score = 48
     filename = f"device_logs_{operation_filename_slug(target_label)}_{operation_id}.log"
     return {
         "name": filename,
@@ -2650,19 +2943,27 @@ def build_sniffer_device_file(operation):
             "ended_at": operation.get("ended_at") or operation.get("expires_at"),
             "duration_seconds": operation_duration_from_timestamps(operation),
             "collected_count": 6,
-            "quality": "placeholder",
+            "quality": "low",
+            "quality_score": quality_score,
             "risk_hint": "long_operation/sniffer_detected",
+            "completeness_percent": completeness_percent,
+            "completeness_tier": "fragment",
+            "missing_fields": [item for item in DEVICE_INTELLIGENCE_RESOURCE_TYPES if item != "device_logs"],
             "completeness": {
                 "resource_count": 1,
                 "max_resource_count": len(DEVICE_INTELLIGENCE_RESOURCE_TYPES),
-                "percent": 17,
-                "tier": "basic",
+                "percent": completeness_percent,
+                "tier": "fragment",
+                "missing": [item for item in DEVICE_INTELLIGENCE_RESOURCE_TYPES if item != "device_logs"],
+                "quality_score": quality_score,
             },
         },
         "summary": {
             "label": "Sniffer Device Logs",
-            "tier": "basic",
-            "completeness_percent": 17,
+            "tier": "fragment",
+            "completeness_percent": completeness_percent,
+            "quality_score": quality_score,
+            "missing_fields": [item for item in DEVICE_INTELLIGENCE_RESOURCE_TYPES if item != "device_logs"],
             "included": ["device_logs"],
         },
     }
@@ -2762,6 +3063,40 @@ def finalize_persistent_sniffer_files(profile, operation):
     return True
 
 
+def mark_operation_cleanup_state(operation, now_iso=None):
+    if not isinstance(operation, dict):
+        return False
+    if operation.get("status") not in OPERATION_TERMINAL_STATUSES:
+        return False
+
+    cleanup = operation.setdefault("cleanup_state", {})
+    changed = False
+    now_iso = now_iso or runtime_file_now()
+
+    updates = {
+        "active_object_active": False,
+        "marker_visible": False,
+        "support_active": False,
+        "cleaned_at": cleanup.get("cleaned_at") or now_iso,
+    }
+    if operation.get("operation_type") == "persistent_sniffer":
+        updates["implant_state"] = "ended"
+    if operation.get("operation_type") == "camera_shutdown":
+        support_state = operation.setdefault("support_state", {})
+        if support_state.get("active") is not False:
+            support_state["active"] = False
+            changed = True
+        if support_state.get("risk_modifier_active") is not False:
+            support_state["risk_modifier_active"] = False
+            changed = True
+
+    for key, value in updates.items():
+        if cleanup.get(key) != value:
+            cleanup[key] = value
+            changed = True
+    return changed
+
+
 def refresh_operation_runtime(operation, now_ts=None):
     now_ts = now_ts if now_ts is not None else datetime.now(timezone.utc).timestamp()
     refreshed = dict(operation or {})
@@ -2785,7 +3120,7 @@ def refresh_operation_runtime(operation, now_ts=None):
     refreshed["remaining_seconds"] = remaining
     refreshed["expired"] = remaining == 0 if remaining is not None else False
 
-    if refreshed.get("status") in {"start", "running"} and refreshed["expired"]:
+    if refreshed.get("status") in OPERATION_ACTIVE_STATUSES and refreshed["expired"]:
         refreshed["status"] = "timeout"
 
     current_position = compute_operation_position(refreshed, now_ts)
@@ -2811,10 +3146,13 @@ def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None):
         refreshed_operations.append(refreshed)
         if persist_timeouts and operation.get("status") != refreshed.get("status"):
             operation["status"] = refreshed.get("status")
-            if refreshed.get("status") in {"completed", "timeout"}:
+            if refreshed.get("status") in OPERATION_TERMINAL_STATUSES:
                 operation["ended_at"] = operation.get("ended_at") or operation_iso_from_ts(now_ts)
             changed = True
-        if operation.get("status") in {"completed", "timeout"}:
+        if operation.get("status") in OPERATION_TERMINAL_STATUSES:
+            if mark_operation_cleanup_state(operation, now_iso=operation_iso_from_ts(now_ts)):
+                changed = True
+        if operation.get("status") in OPERATION_FINALIZABLE_STATUSES:
             if finalize_vehicle_tracking_file(profile, operation):
                 changed = True
             if finalize_device_tracking_file(profile, operation):
@@ -2823,6 +3161,7 @@ def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None):
                 changed = True
             if finalize_persistent_sniffer_files(profile, operation):
                 changed = True
+        if operation.get("status") in OPERATION_RISK_ASSESSABLE_STATUSES:
             if assess_operation_risk(profile, operation):
                 changed = True
 
@@ -2833,11 +3172,49 @@ def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None):
 
 
 def active_operations_from_operations(operations):
-    active_statuses = {"start", "running"}
     return [
         operation for operation in (operations or [])
-        if operation.get("status") in active_statuses
+        if operation_is_active(operation)
     ]
+
+
+def operation_history_from_operations(operations):
+    return [
+        operation for operation in (operations or [])
+        if operation.get("status") in OPERATION_TERMINAL_STATUSES
+    ]
+
+
+def cancel_profile_operation(profile, operation_id, cancelled_by="player", now_ts=None):
+    if not operation_id:
+        return None, "missing_operation_id"
+    now_ts = now_ts if now_ts is not None else datetime.now(timezone.utc).timestamp()
+    operations = profile.setdefault("operations", [])
+    for operation in operations:
+        if not isinstance(operation, dict):
+            continue
+        if str(operation.get("operation_id") or "") != str(operation_id):
+            continue
+        if operation.get("status") in OPERATION_TERMINAL_STATUSES:
+            return operation, "already_terminal"
+        if operation.get("status") not in OPERATION_ACTIVE_STATUSES:
+            return operation, "not_active"
+
+        now_iso = operation_iso_from_ts(now_ts)
+        operation["status"] = "cancelled"
+        operation["ended_at"] = now_iso
+        operation["cancelled_at"] = now_iso
+        operation["cancelled_by"] = cancelled_by
+        operation["remaining_seconds"] = 0
+        operation["expired"] = True
+        resource_buffer = operation.setdefault("resource_buffer", {})
+        resource_buffer["cancelled"] = True
+        resource_buffer.setdefault("files", [])
+        mark_operation_cleanup_state(operation, now_iso=now_iso)
+        assess_operation_risk(profile, operation)
+        normalize_files_inventory(profile)
+        return operation, "cancelled"
+    return None, "not_found"
 
 
 def active_operations_from_profile(profile):
@@ -6164,6 +6541,52 @@ def api_operations():
         "success": True,
         "operations": operations,
         "active_operations": active_operations_from_operations(operations),
+        "operation_history": operation_history_from_operations(operations),
+    })
+
+
+@app.route("/api/operations/cancel", methods=["POST"])
+def api_cancel_operation():
+    if "user" not in session:
+        return jsonify({"success": False, "message": "Brak danych uzytkownika"}), 401
+
+    data = request.get_json() or {}
+    operation_id = str(data.get("operation_id") or "").strip()
+    if not operation_id:
+        return jsonify({"success": False, "message": "Brak identyfikatora operacji."}), 400
+
+    profile = sync_session_profile()
+    operation, result = cancel_profile_operation(profile, operation_id, cancelled_by=session["user"])
+    if result == "not_found":
+        return jsonify({"success": False, "message": "Nie znaleziono operacji."}), 404
+    if result in {"already_terminal", "not_active"}:
+        return jsonify({
+            "success": False,
+            "message": "Operacja nie jest juz aktywna.",
+            "operation": operation,
+        }), 409
+
+    UserProfileManager(session["user"]).update_profile({
+        "operations": profile.get("operations", []),
+        "files": profile.get("files", {}),
+        "risk_events": profile.get("risk_events", []),
+        "system_messages": profile.get("system_messages", []),
+    })
+    stored_profile = user_store.get_profile(session["user"]) or {}
+    profile["operations"] = stored_profile.get("operations", [])
+    profile["files"] = stored_profile.get("files", {})
+    profile["risk_events"] = stored_profile.get("risk_events", [])
+    profile["system_messages"] = stored_profile.get("system_messages", [])
+    session["profile"] = profile
+    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False)
+
+    return jsonify({
+        "success": True,
+        "message": "Operacja zostala anulowana.",
+        "operation": operation,
+        "operations": operations,
+        "active_operations": active_operations_from_operations(operations),
+        "operation_history": operation_history_from_operations(operations),
     })
 
 

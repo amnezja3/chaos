@@ -1152,3 +1152,135 @@ Sprint 15 zamkniety.
 ### Nastepny sprint
 
 Sprint 16 - Risk UI / tuning albo kolejny zakres z `game_play_260626.md`.
+
+---
+
+## 28.06.2026
+
+### Sprint
+
+Sprint 16 - Operation Lifecycle + Cleanup.
+
+### Cel
+
+Domknac cykl zycia operacji tak, zeby zakonczone, timeoutowane i anulowane operacje nie zostawialy aktywnych markerow, nie produkowaly duplikatow plikow i nie dawaly wygaslych efektow support.
+
+### Co zostalo wykonane
+
+* Dodano wspolne stale lifecycle: active, terminal, finalizable i risk-assessable statuses.
+* Dodano cleanup state dla operacji terminalnych.
+* `completed`, `timeout`, `failed`, `detected` i `cancelled` nie sa juz traktowane jako aktywne operacje.
+* `persistent_sniffer` po zakonczeniu dostaje stan zakonczonego implantu.
+* `camera_shutdown` po wygasnieciu przestaje byc aktywnym risk reducerem.
+* Dodano risk event `abandoned_operation` dla operacji anulowanych.
+* Dodano backendowy helper i endpoint `POST /api/operations/cancel`.
+* Active Operations Panel dostal przycisk anulowania aktywnej operacji.
+* `/api/operations` zwraca teraz osobno `active_operations` oraz `operation_history`.
+* Dodano regresje dla anulowania operacji i wygaslego support reducera.
+
+### Najwazniejsze decyzje
+
+* `cancelled` nie jest sukcesem i nie uruchamia finalizerow plikow.
+* Anulowanie zapisuje historie i lekki risk event, ale nie usuwa operacji z profilu.
+* Support reducer dziala tylko wtedy, gdy operacja wspierajaca jest nadal aktywna.
+* Historia operacji zostaje w profilu; cleanup dotyczy aktywnych markerow i efektow runtime.
+
+### Problemy
+
+* Gameplay Smoke admina pokazuje historyczne risk modifiers z poprzednich przebiegow, bo konto dev kumuluje stan. Aktualne zachowanie wygaslego supportu zabezpiecza test regresyjny.
+* UI historii operacji jest jeszcze minimalne; panel mapy pokazuje aktywne operacje, a historia jest dostepna w payloadzie.
+
+### Zmienione pliki
+
+* `run.py`
+* `templates/map_template.html`
+* `tests/test_target_persistence.py`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `python -m py_compile run.py database.py profileManagment.py tools\smoke_admin_inventory.py` - OK
+* `node --check static/js/terminal.js` - OK
+* `python -m unittest tests.test_target_persistence` - OK, 28 testow
+* Gameplay Smoke `python tools\smoke_admin_inventory.py` - OK:
+  * admin ma wymagane aplikacje testowe,
+  * akcje mapy tworza operacje,
+  * `/api/operations` finalizuje/odswieza stan,
+  * powstaja pliki GPS/Camera/ATM/Credentials,
+  * Ghost Exchange widzi sprzedawalne pliki,
+  * preview sale dziala.
+
+### Status
+
+Sprint 16 zamkniety.
+
+### Nastepny sprint
+
+Sprint 17 - kolejny zakres z `doc/game_play_260626.md`.
+
+---
+
+## 28.06.2026
+
+### Sprint
+
+Sprint 17 - Resource Completeness + Pricing.
+
+### Cel
+
+Sprawic, zeby lepsze aplikacje i bogatsze paczki danych mialy widoczna kompletność, jakosc oraz wyzsza wycene w Ghost Exchange.
+
+### Co zostalo wykonane
+
+* Dodano centralna normalizacje kompletności plikow runtime.
+* Kazdy plik danych moze miec teraz `completeness_percent`, `completeness_tier`, `missing_fields` i `quality_score`.
+* Ujednolicono kompletność dla GPS, Device, Camera, ATM, Financial i Credentials.
+* Buildery nowych plikow dopisuja metadane kompletności i jakosci.
+* Ghost Exchange liczy `price_preview` z base value, kompletności, jakosci, liczby zasobow i wolumenu.
+* Listing Ghost Exchange pokazuje kompletność, tier, jakosc i brakujace pola.
+* File Manager pokazuje kompletność/jakosc/braki w liscie plikow oraz w podgladach danych.
+* Dodano regresje sprawdzajace normalizacje kompletności oraz wyzsza cene bogatszej paczki Device Intelligence.
+
+### Najwazniejsze decyzje
+
+* Kompletność jest normalizowana centralnie przy inventory, zeby stare pliki tez dostaly sensowne wartosci.
+* `quality_score` jest liczba 0-100, a opisowe `quality` zostaje kompatybilnym dodatkiem.
+* Dynamiczny popyt nie zostal dodany; losowy/deterministyczny multiplier zostal zachowany jako lekka wariacja preview.
+* Finalny sale flow korzysta z tego samego `price_preview`, ale mechanika sprzedazy nie zostala przebudowana.
+
+### Problemy
+
+* Czesc tekstow File Managera nadal ma historyczne mojibake z wczesniejszego kodowania; Sprint 17 nie naprawial globalnie kodowania UI.
+* Gameplay Smoke na koncie admin kumuluje pliki testowe i historie sprzedazy. To swiadome zachowanie konta developerskiego.
+
+### Zmienione pliki
+
+* `run.py`
+* `static/js/terminal.js`
+* `tests/test_target_persistence.py`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `python -m py_compile run.py database.py profileManagment.py tools\smoke_admin_inventory.py` - OK
+* `node --check static/js/terminal.js` - OK
+* `python -m unittest tests.test_target_persistence` - OK, 29 testow
+* Gameplay Smoke `python tools\smoke_admin_inventory.py` - OK:
+  * admin ma wymagane aplikacje,
+  * akcje mapy tworza operacje,
+  * `/api/operations` finalizuje dane,
+  * powstaja pliki GPS/Camera/ATM/Credentials,
+  * Ghost Exchange pokazuje nowe `price_preview`.
+* Gameplay Smoke sale `python tools\smoke_admin_inventory.py --sell` - OK:
+  * sprzedaz zwieksza HC,
+  * duplicate sale jest blokowany,
+  * plik znika z danych,
+  * powstaje historia rynku i mail.
+
+### Status
+
+Sprint 17 zamkniety.
+
+### Nastepny sprint
+
+Sprint 18 - kolejny zakres z `doc/game_play_260626.md`.

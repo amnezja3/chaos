@@ -4,12 +4,16 @@ from unittest.mock import patch
 
 import run
 from run import (
+    active_operations_from_operations,
     build_player_actor,
+    cancel_profile_operation,
+    collect_ghost_exchange_files,
     create_operations_for_app_action,
     ensure_files_inventory,
     filter_targets_by_position,
     get_apps_for_map_action,
     normalize_app_contract,
+    operation_history_from_operations,
     refresh_operation_runtime,
     refresh_operations_runtime,
     resolve_player_actor_relation,
@@ -753,6 +757,152 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(gps_file["target_snapshot"]["label"], "Old Vehicle")
         self.assertFalse(gps_file["sellable"])
         self.assertEqual(gps_file["market_status"], "not_listed")
+        self.assertIn("completeness_percent", gps_file)
+        self.assertIn("completeness_tier", gps_file)
+        self.assertIn("missing_fields", gps_file)
+        self.assertIn("quality_score", gps_file)
+
+    def test_ghost_exchange_prices_richer_device_package_higher(self):
+        profile = {
+            "files": {
+                "device": [{
+                    "id": "basic_device",
+                    "name": "basic_device.pkg",
+                    "file_category": "device",
+                    "directory": "/data/device",
+                    "preview_mode": "card",
+                    "resource_types": ["location_history", "device_logs"],
+                    "metadata": {
+                        "operation_id": "op_basic",
+                        "completeness_percent": 33,
+                        "completeness_tier": "fragment",
+                        "quality_score": 48,
+                        "collected_count": 2,
+                    },
+                }],
+                "personal": [{
+                    "id": "rich_device",
+                    "name": "rich_device.pkg",
+                    "file_category": "personal",
+                    "directory": "/data/personal",
+                    "preview_mode": "card",
+                    "resource_types": [
+                        "location_history",
+                        "device_logs",
+                        "personal_records",
+                        "call_history",
+                        "messenger_data",
+                    ],
+                    "metadata": {
+                        "operation_id": "op_rich",
+                        "completeness_percent": 83,
+                        "completeness_tier": "rich",
+                        "quality_score": 85,
+                        "collected_count": 8,
+                    },
+                }],
+            }
+        }
+
+        listings = collect_ghost_exchange_files(profile)
+        by_id = {item["id"]: item for item in listings}
+
+        self.assertGreater(by_id["rich_device"]["price_preview"], by_id["basic_device"]["price_preview"])
+        self.assertEqual(by_id["basic_device"]["completeness_percent"], 33)
+        self.assertEqual(by_id["rich_device"]["completeness_tier"], "rich")
+        self.assertEqual(by_id["rich_device"]["quality_score"], 85)
+
+    def test_cancelled_operation_moves_to_history_without_final_file(self):
+        profile = {
+            "files": {"gps": []},
+            "operations": [{
+                "operation_id": "op_cancel_vehicle",
+                "operation_type": "vehicle_tracking",
+                "owner_username": "neo",
+                "target": {"lat": 52.1, "lng": 21.2, "label": "Tracked car"},
+                "target_id": "map:52.1:21.2:Tracked car",
+                "target_type": "vehicle",
+                "status": "running",
+                "started_at": "2026-06-27T10:00:00Z",
+                "expires_at": "2026-06-27T12:00:00Z",
+                "duration_seconds": 7200,
+                "movement_model": "road_movement",
+                "resource_buffer": {"resource_types": ["gps_logs", "location_history"], "items": []},
+            }],
+            "risk_events": [],
+            "system_messages": [],
+        }
+
+        operation, result = cancel_profile_operation(
+            profile,
+            "op_cancel_vehicle",
+            cancelled_by="neo",
+            now_ts=datetime(2026, 6, 27, 10, 30, tzinfo=timezone.utc).timestamp(),
+        )
+        refreshed, changed = refresh_operations_runtime(
+            profile,
+            persist_timeouts=True,
+            now_ts=datetime(2026, 6, 27, 12, 30, tzinfo=timezone.utc).timestamp(),
+        )
+
+        self.assertEqual(result, "cancelled")
+        self.assertEqual(operation["status"], "cancelled")
+        self.assertEqual(refreshed[0]["status"], "cancelled")
+        self.assertEqual(active_operations_from_operations(refreshed), [])
+        self.assertEqual(len(operation_history_from_operations(refreshed)), 1)
+        self.assertEqual(profile["files"]["gps"], [])
+        self.assertEqual(profile["operations"][0]["cleanup_state"]["active_object_active"], False)
+        self.assertEqual(profile["operations"][0]["cleanup_state"]["marker_visible"], False)
+        self.assertEqual(profile["risk_events"][0]["event_type"], "abandoned_operation")
+        self.assertFalse(changed)
+
+    def test_expired_camera_shutdown_no_longer_reduces_camera_risk(self):
+        profile = {
+            "operations": [
+                {
+                    "operation_id": "op_shutdown_expired",
+                    "operation_type": "camera_shutdown",
+                    "owner_username": "neo",
+                    "target": {"lat": 52.1, "lng": 21.2, "label": "Kamera sklepu"},
+                    "target_id": "map:52.1:21.2:Kamera sklepu",
+                    "target_type": "camera",
+                    "status": "timeout",
+                    "started_at": "2026-06-27T10:00:00Z",
+                    "expires_at": "2026-06-27T10:05:00Z",
+                    "ended_at": "2026-06-27T10:05:00Z",
+                    "duration_seconds": 300,
+                    "support_state": {"active": False, "risk_modifier": "camera_shutdown"},
+                },
+                {
+                    "operation_id": "op_camera_stream_risk",
+                    "operation_type": "camera_stream",
+                    "owner_username": "neo",
+                    "target": {"lat": 52.1001, "lng": 21.2001, "label": "Kamera sklepu"},
+                    "target_id": "map:52.1001:21.2001:Kamera sklepu",
+                    "target_type": "camera",
+                    "status": "timeout",
+                    "started_at": "2026-06-27T10:01:00Z",
+                    "expires_at": "2026-06-27T10:06:00Z",
+                    "ended_at": "2026-06-27T10:06:00Z",
+                    "duration_seconds": 300,
+                    "risk_state": {"level": "none", "events": ["camera_detected"], "score": 0},
+                },
+            ],
+            "risk_events": [],
+            "system_messages": [],
+        }
+
+        refreshed, changed = refresh_operations_runtime(
+            profile,
+            persist_timeouts=True,
+            now_ts=datetime(2026, 6, 27, 10, 10, tzinfo=timezone.utc).timestamp(),
+        )
+
+        self.assertTrue(changed)
+        risk_event = next(event for event in profile["risk_events"] if event["event_type"] == "camera_detected")
+        self.assertEqual(risk_event["risk_score"], 46)
+        self.assertEqual(risk_event["modifiers"], [])
+        self.assertEqual(active_operations_from_operations(refreshed), [])
 
 
 if __name__ == "__main__":

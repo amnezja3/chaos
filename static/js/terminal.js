@@ -1837,6 +1837,9 @@ function createBrowser() {
             const resources = Array.isArray(item.resource_types) && item.resource_types.length
                 ? item.resource_types.join(', ')
                 : '-';
+            const missingFields = Array.isArray(item.missing_fields) ? item.missing_fields : [];
+            const completeness = Number(item.completeness_percent ?? (item.metadata || {}).completeness_percent ?? 0);
+            const qualityScore = Number(item.quality_score ?? (item.metadata || {}).quality_score ?? 0);
             const card = document.createElement('article');
             card.className = `googolplex-card ghost-exchange-card ${prepared ? 'is-listed-preview' : ''}`;
             card.innerHTML = `
@@ -1850,6 +1853,9 @@ function createBrowser() {
                     <span>Rynek: <b>${escapeHTML(item.market_category || '-')}</b></span>
                     <span>Zasoby: <b>${escapeHTML(resources)}</b></span>
                     <span>Status: <b>${escapeHTML(status)}</b></span>
+                    <span>Kompletność: <b>${Math.max(0, Math.min(100, completeness))}% / ${escapeHTML(item.completeness_tier || (item.metadata || {}).completeness_tier || '-')}</b></span>
+                    <span>Jakość: <b>${Math.max(0, Math.min(100, qualityScore))}/100</b></span>
+                    <span>Braki: <b>${escapeHTML(missingFields.length ? missingFields.slice(0, 3).join(', ') : 'brak')}</b></span>
                 </div>
                 <div class="googolplex-card-footer">
                     <strong>${Number(item.price_preview || 0)} HC</strong>
@@ -4492,9 +4498,15 @@ async function createFileManager(options = {}) {
                         : '-';
                     const sourceOperation = fileEntry.source_operation_id || fileEntry.operation_id || (fileEntry.metadata || {}).operation_id || '-';
                     const marketStatus = fileEntry.market_status || 'not_listed';
+                    const completeness = fileEntry.completeness_percent ?? (fileEntry.metadata || {}).completeness_percent ?? 0;
+                    const qualityScore = fileEntry.quality_score ?? (fileEntry.metadata || {}).quality_score ?? 0;
+                    const missingFields = Array.isArray(fileEntry.missing_fields)
+                        ? fileEntry.missing_fields
+                        : (Array.isArray((fileEntry.metadata || {}).missing_fields) ? (fileEntry.metadata || {}).missing_fields : []);
                     meta = `
                         <span class="file-manager-name" style="display:block;color:#8fd6a4;font-size:11px;">${escapeHTML(fileEntry.directory || folderName)} | ${escapeHTML(category)} | ${escapeHTML(previewMode)}</span>
                         <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Zasoby: ${escapeHTML(resources)} | Operacja: ${escapeHTML(sourceOperation)} | Rynek: ${escapeHTML(marketStatus)}</span>
+                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Kompletność: ${escapeHTML(String(completeness))}% | Jakość: ${escapeHTML(String(qualityScore))}/100 | Braki: ${escapeHTML(missingFields.length ? missingFields.slice(0, 3).join(', ') : 'brak')}</span>
                     `;
                 }
                 list += `
@@ -4572,6 +4584,15 @@ async function createFileManager(options = {}) {
             const summary = fileEntry.summary || {};
             const resources = Array.isArray(fileEntry.resource_types) ? fileEntry.resource_types : [];
             const records = Array.isArray(fileEntry.records) ? fileEntry.records : [];
+            const completenessPercent = fileEntry.completeness_percent ?? metadata.completeness_percent ?? summary.completeness_percent ?? completeness.percent ?? 0;
+            const completenessTier = fileEntry.completeness_tier || metadata.completeness_tier || summary.tier || completeness.tier || 'basic';
+            const qualityScore = fileEntry.quality_score ?? metadata.quality_score ?? summary.quality_score ?? completeness.quality_score ?? 0;
+            const missingFields = Array.isArray(fileEntry.missing_fields)
+                ? fileEntry.missing_fields
+                : (Array.isArray(metadata.missing_fields)
+                    ? metadata.missing_fields
+                    : (Array.isArray(completeness.missing) ? completeness.missing : []));
+            const fileValuePreview = metadata.price_preview ? `${metadata.price_preview} HC` : '-';
             if (fileEntry.preview_mode === "card") {
                 container.innerHTML = `
                     <div class="file-manager-header">
@@ -4583,6 +4604,9 @@ async function createFileManager(options = {}) {
                         <p>Plik: <b>${escapeHTML(filename)}</b></p>
                         <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
                         <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                        <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
+                        <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
                         <p>Kompletność: <b>${escapeHTML(String(summary.completeness_percent ?? completeness.percent ?? 0))}%</b></p>
                         <p>Tier: <b>${escapeHTML(summary.tier || completeness.tier || 'basic')}</b></p>
                         <div style="height:10px;border:1px solid #0f0;background:#031403;margin:8px 0 12px;">
@@ -4618,6 +4642,10 @@ async function createFileManager(options = {}) {
                         <p>Kategoria: <b>${escapeHTML(fileEntry.file_category || folderName)}</b></p>
                         <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
                         <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>Kompletność: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
+                        <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                        <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
+                        <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
                         <p>Rekordy: <b>${escapeHTML(String(metadata.record_count ?? records.length))}</b></p>
                         <p>Ryzyko: <b>${escapeHTML(metadata.risk_hint || 'high-value/high-risk')}</b></p>
                         <h4>Zasoby</h4>
@@ -4656,6 +4684,10 @@ async function createFileManager(options = {}) {
                         <p>Plik: <b>${escapeHTML(filename)}</b></p>
                         <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
                         <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>Kompletność: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
+                        <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                        <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
+                        <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
                         <p>Zebrane wpisy: <b>${escapeHTML(String(summary.credential_count || metadata.collected_count || 0))}</b></p>
                         <p>Instalacja: <b>${escapeHTML(metadata.installed_at || '-')}</b></p>
                         <p>Koniec: <b>${escapeHTML(metadata.ended_at || '-')}</b></p>
@@ -4708,6 +4740,10 @@ async function createFileManager(options = {}) {
                         <p>Plik: <b>${escapeHTML(filename)}</b></p>
                         <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
                         <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>Kompletność: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
+                        <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                        <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
+                        <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
                         <p>Fragment: <b>${escapeHTML(String(fileEntry.fragment_index || metadata.fragment_index || '-'))}</b></p>
                         <p>Czas fragmentu: <b>${escapeHTML(durationLabel)}</b></p>
                         <p>Start: <b>${escapeHTML(metadata.started_at || '-')}</b></p>
@@ -4739,6 +4775,10 @@ async function createFileManager(options = {}) {
                     <p>Kategoria: <b>${escapeHTML(fileEntry.file_category || folderName)}</b></p>
                     <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
                     <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                    <p>Kompletność: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
+                    <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                    <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
+                    <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
                     <p>Checkpointy: <b>${escapeHTML(String(metadata.checkpoint_count ?? checkpoints.length))}</b></p>
                     <p>Jakość: <b>${escapeHTML(metadata.quality || '-')}</b> | Dokładność: <b>${escapeHTML(metadata.accuracy || '-')}</b></p>
                     <table style="width:100%;border-collapse:collapse;margin-top:10px;">

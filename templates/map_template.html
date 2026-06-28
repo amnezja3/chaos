@@ -423,6 +423,29 @@
       font-weight: 700;
     }
 
+    .active-operation-card__actions {
+      margin-top: 7px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .active-operation-card__cancel {
+      border: 1px solid rgba(255, 98, 98, 0.78);
+      border-radius: 4px;
+      background: rgba(60, 0, 0, 0.36);
+      color: #ffd8d8;
+      font-family: monospace;
+      font-size: 10px;
+      line-height: 1;
+      padding: 5px 8px;
+      cursor: pointer;
+    }
+
+    .active-operation-card__cancel:hover {
+      background: rgba(120, 0, 0, 0.58);
+      color: #ffffff;
+    }
+
     .active-operation-marker {
       pointer-events: auto;
     }
@@ -1888,6 +1911,7 @@
                     const started = window.escapeMapText(window.formatOperationDate(operation.started_at));
                     const expires = window.escapeMapText(window.formatOperationDate(operation.expires_at));
                     const remaining = window.escapeMapText(window.formatRemainingTime(operation.expires_at));
+                    const operationId = window.escapeMapText(operation.operation_id || '');
                     return `
                         <div class="active-operation-card">
                             <div class="active-operation-card__title">
@@ -1897,6 +1921,7 @@
                             <div class="active-operation-card__type">${type}</div>
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>
                             <div class="active-operation-card__remaining">Pozostalo: ${remaining}</div>
+                            ${operationId ? `<div class="active-operation-card__actions"><button type="button" class="active-operation-card__cancel" data-operation-cancel="${operationId}">Anuluj</button></div>` : ''}
                         </div>
                     `;
                 }).join('');
@@ -1954,6 +1979,51 @@
                     window.activeOperationLayers.push(marker);
                 });
             };
+
+            window.notifyOperationLifecycle = function(message, type = 'info') {
+                try {
+                    if (window.parent && typeof window.parent.showSystemToast === 'function') {
+                        window.parent.showSystemToast({ title: 'Operacje', text: message }, type);
+                        return;
+                    }
+                } catch (err) {
+                    console.warn('Operation toast bridge failed', err);
+                }
+                console.log(`[OPERACJE] ${message}`);
+            };
+
+            window.cancelActiveOperation = async function(operationId) {
+                if (!operationId) return;
+                try {
+                    const res = await fetch('/api/operations/cancel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ operation_id: operationId })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || !data.success) {
+                        window.notifyOperationLifecycle(data.message || 'Nie udalo sie anulowac operacji.', 'error');
+                        return;
+                    }
+                    window.notifyOperationLifecycle(data.message || 'Operacja zostala anulowana.', 'success');
+                    await window.refreshActiveOperations();
+                } catch (err) {
+                    console.warn('Cancel operation failed', err);
+                    window.notifyOperationLifecycle('Nie udalo sie anulowac operacji.', 'error');
+                }
+            };
+
+            if (!window.activeOperationCancelHandlerBound) {
+                document.addEventListener('click', event => {
+                    const button = event.target.closest('[data-operation-cancel]');
+                    if (!button) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const operationId = button.getAttribute('data-operation-cancel');
+                    window.cancelActiveOperation(operationId);
+                });
+                window.activeOperationCancelHandlerBound = true;
+            }
 
             window.refreshActiveOperations = async function() {
                 try {
