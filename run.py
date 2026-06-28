@@ -3742,6 +3742,17 @@ def normalize_app_contract(app):
         normalized["operation_types"] = inferred_operations
         if inferred_operations:
             normalized["operation_types_source"] = "legacy_inferred"
+
+    normalized["resource_types"] = list(dict.fromkeys(
+        str(resource_type).strip()
+        for resource_type in as_list(normalized.get("resource_types"))
+        if str(resource_type).strip()
+    ))
+    normalized["target_types"] = list(dict.fromkeys(
+        str(target_type).strip()
+        for target_type in as_list(normalized.get("target_types"))
+        if str(target_type).strip()
+    ))
     return normalized
 
 
@@ -3790,6 +3801,74 @@ def serialize_tool_selection_app(app):
         "tool_file": app.get("file_name") or app.get("project_file") or (f"{name}.sh" if name else ""),
         "description": app.get("description", ""),
     }
+
+
+def infer_googleplex_app_level(app):
+    level = str(app.get("app_level") or app.get("level_label") or "").strip()
+    if level:
+        return level
+
+    try:
+        required_level = int(app.get("required_level") or 1)
+    except (TypeError, ValueError):
+        required_level = 1
+    try:
+        price = int(app.get("price") or 0)
+    except (TypeError, ValueError):
+        price = 0
+
+    resource_count = len(as_list(app.get("resource_types")))
+    operation_count = len(as_list(app.get("operation_types")))
+
+    if required_level >= 10 or price >= 3000 or resource_count >= 3:
+        return "Pro"
+    if required_level >= 4 or price >= 1000 or operation_count >= 2 or resource_count >= 2:
+        return "Advanced"
+    return "Basic"
+
+
+def googleplex_catalog_payload(app, profile):
+    item = dict(app or {})
+    item["map_actions"] = [
+        str(action).strip()
+        for action in as_list(item.get("map_actions"))
+        if str(action).strip()
+    ]
+    item["operation_types"] = [
+        str(operation_type).strip()
+        for operation_type in as_list(item.get("operation_types"))
+        if str(operation_type).strip()
+    ]
+    item["resource_types"] = [
+        str(resource_type).strip()
+        for resource_type in as_list(item.get("resource_types"))
+        if str(resource_type).strip()
+    ]
+    item["target_types"] = [
+        str(target_type).strip()
+        for target_type in as_list(item.get("target_types"))
+        if str(target_type).strip()
+    ]
+    item["app_level"] = infer_googleplex_app_level(item)
+    item["installed"] = app_is_installed(profile, item.get("id"))
+
+    try:
+        price = max(0, int(item.get("price") or 0))
+    except (TypeError, ValueError):
+        price = 0
+    balance = int((profile or {}).get("hackcoins", 0) or 0)
+    item["can_afford"] = balance >= price
+    item["install_blocked_reason"] = ""
+    if item["installed"]:
+        item["install_blocked_reason"] = "Aplikacja juz kupiona."
+    elif not item["can_afford"]:
+        item["install_blocked_reason"] = f"Brak HC. Cena: {price}, masz: {balance}."
+
+    requirement_error = validate_app_install_requirements(item, profile or {})
+    if not item["install_blocked_reason"] and requirement_error:
+        item["install_blocked_reason"] = requirement_error
+
+    return item
 
 
 def validate_app_install_requirements(app_data, profile):
@@ -7852,15 +7931,12 @@ def resources():
     appsdata = get_app_catalog()
 
     profile = sync_session_profile()
-    installed = {app.get("id") for app in profile.get("apps", [])}
 
     catalog = []
     for app in appsdata:
         if not app.get("published", True):
             continue
-        item = dict(app)
-        item["installed"] = item.get("id") in installed
-        catalog.append(item)
+        catalog.append(googleplex_catalog_payload(app, profile))
 
     return jsonify(catalog)
 
@@ -8545,7 +8621,11 @@ def install_app():
         mgr = UserProfileManager(session["user"])
         apps = profile.get("apps", [])
         if any(a.get("id") == app_id for a in apps):
-            return jsonify({"status": "success", "message": "App already installed"})
+            return jsonify({
+                "status": "error",
+                "reason": "already_installed",
+                "message": "Aplikacja jest juz kupiona."
+            }), 409
 
         requirement_error = validate_app_install_requirements(app_data, profile)
         if requirement_error:
@@ -8577,7 +8657,8 @@ def install_app():
             if int(profile.get("hackcoins", 0) or 0) < price:
                 return jsonify({
                     "status": "error",
-                    "message": f"Za malo HackCoinow. Cena: {price}, masz: {profile.get('hackcoins', 0)}."
+                    "reason": "insufficient_hc",
+                    "message": f"Brak HC. Cena: {price}, masz: {profile.get('hackcoins', 0)}."
                 })
 
             profile["hackcoins"] = int(profile.get("hackcoins", 0) or 0) - price
@@ -8638,7 +8719,7 @@ def install_app():
         print(f"[SUCCESS] Zainstalowano {app_data['name']}")
         return jsonify({
             "status": "success",
-            "message": "App installed successfully.",
+            "message": "Aplikacja została zainstalowana.",
             "hackcoins": profile.get("hackcoins", 0),
             "price": price,
             "paid_to": payee_username if price > 0 else None

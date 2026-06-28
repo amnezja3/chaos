@@ -1284,3 +1284,274 @@ Sprint 17 zamkniety.
 ### Nastepny sprint
 
 Sprint 18 - kolejny zakres z `doc/game_play_260626.md`.
+
+---
+
+## 28.06.2026
+
+### Sprint
+
+Sprint 18 - Googleplex Progression Integration.
+
+### Cel
+
+Domknac powrot HC z Ghost Exchange do gameplayu przez Googleplex: sprzedaz danych daje HC, a HC pozwala kupic aplikacje, ktore trafiaja do `/tools` i dzialaja z runtime map actions.
+
+### Co zostalo wykonane
+
+* Rozszerzono payload `/resources.json` o kontrakt aplikacji dla Googleplex:
+  * `map_actions`,
+  * `operation_types`,
+  * `resource_types`,
+  * `target_types`,
+  * `app_level`,
+  * `can_afford`,
+  * `install_blocked_reason`.
+* Ujednolicono normalizacje aplikacji tak, zeby kupione kopie mialy listowe `resource_types` i `target_types`.
+* Googleplex pokazuje teraz podglad:
+  * poziomu aplikacji Basic / Advanced / Pro,
+  * akcji mapy,
+  * typow operacji,
+  * produkowanych zasobow.
+* Wyszukiwarka Googleplex znajduje aplikacje rowniez po polach kontraktu, np. `trace_gps`, `vehicle_tracking`, `gps_logs`.
+* Instalator blokuje duplikat jako `already_installed` zamiast udawac sukces.
+* Instalator zwraca czytelny blad braku HC.
+* Po zakupie backend zwraca komunikat `Aplikacja została zainstalowana.`
+* Dodano dev smoke `tools/smoke_googleplex_progression.py`, ktory sprawdza swiezy zakup aplikacji i wpis w `/tools`.
+* Dodano regresje dla payloadu Googleplex i blokad katalogu.
+
+### Najwazniejsze decyzje
+
+* `app_level` jest wyliczany runtime jako Basic / Advanced / Pro z ceny, wymagan i bogactwa kontraktu; nie zmieniamy ekonomii cen.
+* Googleplex korzysta dalej z tego samego `/install-app`, bez nowego sklepu i bez drugiego instalatora.
+* Aplikacje admin test seed moga miec `purchase_account: admin`; gdy kupuje je admin, smoke potwierdza instalacje, ale saldo netto admina moze sie nie zmienic.
+
+### Problemy
+
+* Czesc UI w `terminal.js` nadal ma historyczne mojibake, dlatego nie przebudowywano globalnie tekstow instalatora.
+* Smoke Googleplex dla admina trafil na aplikacje z platnoscia do admina, wiec HC po zakupie zostaly netto bez zmian. Dla zwyklego gracza instalator nadal pobiera HC i przekazuje je odbiorcy.
+
+### Zmienione pliki
+
+* `run.py`
+* `static/js/terminal.js`
+* `static/css/style.css`
+* `tests/test_target_persistence.py`
+* `tools/smoke_googleplex_progression.py`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `python -m py_compile run.py database.py profileManagment.py tools\smoke_admin_inventory.py tools\smoke_googleplex_progression.py` - OK
+* `node --check static/js/terminal.js` - OK
+* `python -m unittest tests.test_target_persistence` - OK, 31 testow
+* Gameplay Smoke `python tools\smoke_admin_inventory.py --sell` - OK:
+  * admin ma aplikacje w `/tools`,
+  * akcje mapy tworza operacje,
+  * operacje finalizuja pliki,
+  * Ghost Exchange pokazuje pliki,
+  * preview i sprzedaz dzialaja,
+  * duplicate sale jest blokowany.
+* Googleplex Progression Smoke `python tools\smoke_googleplex_progression.py` - OK:
+  * znaleziono niekupiona aplikacje z `map_actions`,
+  * zakup przeszedl,
+  * aplikacja trafila do `profile.apps`,
+  * wpis `.sh` trafil do `files.tools`.
+
+### Status
+
+Sprint 18 zamkniety.
+
+### Nastepny sprint
+
+Sprint 19 - kolejny zakres z `doc/game_play_260626.md`.
+
+---
+
+## 28.06.2026
+
+### Sprint
+
+Sprint 19 - Integration Playtest + Balance Pass.
+
+### Cel
+
+Sprawdzic, czy pętla `mapa -> aplikacja -> operacja -> plik -> Ghost Exchange -> sprzedaz -> mail -> HC -> Googleplex -> /tools -> mapa` dziala jako jedna gra, a nie zestaw osobnych systemow.
+
+### Co zostalo wykonane
+
+* Przeprowadzono pelny playtest integracyjny kontem `admin`.
+* Rozszerzono `tools/smoke_admin_inventory.py` o:
+  * akcje `trace_device`,
+  * pelny tryb `--full-loop`,
+  * audyt spójnosci plikow danych,
+  * kontrole liczby aktywnych operacji po cleanup,
+  * guard przeciw nadmiernemu spamowi risk eventow,
+  * sprzedaz po jednej paczce z glownych sciezek operacji.
+* Smoke obejmuje teraz sciezki:
+  * `vehicle_tracking -> gps -> sale`,
+  * `device_tracking -> personal/device -> sale`,
+  * `camera_stream -> camera -> sale`,
+  * `atm_log_extraction -> atm/financial -> sale`,
+  * `persistent_sniffer -> credentials/financial -> sale`,
+  * `camera_shutdown -> risk reducer`.
+* Potwierdzono, ze terminalne operacje nie zostaja jako aktywne po wymuszonym timeout/refresh.
+* Potwierdzono, ze pliki maja `operation_id`, `source_operation_id`, `market_status` i `sellable`.
+* Potwierdzono, ze duplicate sale jest blokowany przez istniejacy sale flow.
+* Potwierdzono, ze Googleplex Progression Smoke instaluje kolejna aplikacje i dodaje ja do `/tools`.
+
+### Najwazniejsze decyzje
+
+* Sprint 19 nie dodaje nowej mechaniki; rozszerza testy smoke i naprawia tylko widocznosc playtestu.
+* `risk_delta` w pelnym smoke jest traktowany jako wazniejszy wskaznik niz calkowita liczba `risk_events`, bo konto admin kumuluje historie.
+* Przyjeto prosty guard smoke: risk delta powyzej 12 eventow na pelna petle oznacza potencjalny spam.
+* Ceny preview w aktualnym loopie sa akceptowalne dla MVP: ok. 40-180 HC za paczke, z wyraznie wyzsza wartoscia credentials i ATM.
+
+### Problemy
+
+* Konto admin ma narastajacy runtime: pliki, market history, risk events i maile kumuluja sie po smoke. To zgodne z rola konta developerskiego, ale przed testami balansu warto okresowo resetowac swiat.
+* Smoke Googleplex instalowal aplikacje z `purchase_account: admin`, wiec saldo netto admina nie spadlo. Instalacja, `/tools` i kontrakt aplikacji zostaly potwierdzone.
+* Czesc komunikatow konsolowych nadal pokazuje mojibake z historycznego kodowania.
+
+### Zmienione pliki
+
+* `tools/smoke_admin_inventory.py`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `python -m py_compile run.py database.py profileManagment.py tools\smoke_admin_inventory.py tools\smoke_googleplex_progression.py` - OK
+* `node --check static/js/terminal.js` - OK
+* `python -m unittest tests.test_target_persistence` - OK, 31 testow
+* Gameplay Smoke `python tools\smoke_admin_inventory.py --full-loop` - OK:
+  * instalowane aplikacje sa w `/tools`,
+  * akcje mapy tworza operacje,
+  * po timeout active operations = 0,
+  * risk delta = 9,
+  * data consistency issues = 0,
+  * Ghost Exchange widzi sprzedawalne pliki,
+  * sprzedaz przeszla dla GPS, device/personal, camera, ATM i credentials.
+* Googleplex Progression Smoke `python tools\smoke_googleplex_progression.py` - OK:
+  * kupiono kolejna aplikacje z `map_actions`,
+  * aplikacja trafila do `profile.apps`,
+  * plik `.sh` trafil do `files.tools`.
+
+### Status
+
+Sprint 19 zamkniety.
+
+### Nastepny sprint
+
+Sprint 20 - Gameplay Loop Closure v1.
+
+---
+
+## 28.06.2026
+
+### Sprint
+
+Sprint 20 - Gameplay Loop Closure v1 / Release Candidate.
+
+### Cel
+
+Zamknac pierwsza grywalna wersje petli CHAOS v1:
+`mapa -> aplikacja -> operacja -> aktywny swiat -> plik -> Ghost Exchange -> sprzedaz -> mail/HC -> Googleplex -> nowa aplikacja -> mapa`.
+
+### Co zostalo wykonane
+
+* Wykonano release candidate pass bez dodawania nowych mechanik.
+* Uruchomiono walidacje skladni backendu i frontendu.
+* Uruchomiono regresje `tests.test_target_persistence`.
+* Uruchomiono pelny Gameplay Smoke kontem `admin` w trybie `--full-loop`.
+* Uruchomiono Googleplex Progression Smoke.
+* Potwierdzono spojnosc runtime:
+  * po cleanup active operations = 0,
+  * `operation_history` istnieje i narasta,
+  * `market_history` istnieje przez sale flow,
+  * `risk_events` istnieja i nie spamuja ponad guard smoke,
+  * pliki danych maja `source_operation_id`,
+  * sprzedane pliki nie zostaja w katalogach `/data`,
+  * kupione aplikacje trafiaja do `/tools`.
+* Przygotowano checkpoint repo pod tag `v0.3-gameplay-loop-v1`.
+
+### Gameplay Loop v1 Status
+
+#### Co dziala
+
+* Router map actions korzysta z `app.map_actions`.
+* Wybor narzedzia przechodzi przez `/tools`, gdy do akcji pasuje wiele aplikacji.
+* Aplikacje tworza operacje runtime.
+* Aktywne operacje odswiezaja stan bez realtime loopa.
+* `vehicle_tracking`, `device_tracking`, `camera_stream`, `atm_log_extraction` i `persistent_sniffer` tworza pliki danych.
+* File Manager obsluguje runtime inventory danych.
+* Ghost Exchange pokazuje sprzedawalne pliki, robi preview i finalna sprzedaz.
+* Sprzedaz dodaje HC, tworzy mail/system feedback i zabezpiecza przed duplicate sale.
+* Googleplex pozwala wydac HC na kolejne aplikacje.
+* Risk MVP i support reducer `camera_shutdown` dzialaja jako lekka warstwa kosztu ryzyka.
+
+#### MVP / placeholder
+
+* Konsekwencje ryzyka sa lekkie: warning, partial detection i cooldown placeholder.
+* Brak jeszcze ciezkich kar typu jail, wanted level, HC loss.
+* Brak dynamicznego rynku, frakcji, AI buyerow i player-to-player trading.
+* Konto `admin` jest kontem developerskim i kumuluje runtime smoke.
+* Czesc starych komunikatow konsolowych nadal ma historyczne problemy kodowania.
+
+#### Sprint 21+
+
+* Blacknet / AI / frakcje / research tree.
+* Dynamiczny popyt i pelniejsze balansowanie ekonomii.
+* Ciezsze konsekwencje ryzyka.
+* Dalszy polish UI i czyszczenie historycznego kodowania.
+* Nowe operacje tylko po domknieciu balansu v1.
+
+### Najwazniejsze decyzje
+
+* Sprint 20 nie dodaje nowych systemow; zamyka release candidate przez testy, smoke i porzadek repo.
+* Full Gameplay Smoke jest brama zamkniecia sprintu.
+* Runtime konta `admin`, SQLite, sesje i cache nie wchodza do commita.
+* Googleplex smoke moze nie zmieniac salda netto admina, jesli `purchase_account` kupowanej aplikacji to `admin`; akceptujemy to jako ceche konta developerskiego.
+
+### Problemy
+
+* Nie znaleziono blokujacych regresji w RC pass.
+* Runtime admina jest narastajacy; do czystych testow balansu nalezy uzyc resetu dev state.
+* Mojibake w niektorych logach pozostaje znanym dlugiem polish.
+
+### Zmienione pliki
+
+* `run.py`
+* `static/js/terminal.js`
+* `static/css/style.css`
+* `tests/test_target_persistence.py`
+* `tools/smoke_admin_inventory.py`
+* `tools/smoke_googleplex_progression.py`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `python -m py_compile run.py database.py profileManagment.py tools\smoke_admin_inventory.py tools\smoke_googleplex_progression.py` - OK
+* `node --check static/js/terminal.js` - OK
+* `python -m unittest tests.test_target_persistence` - OK, 31 testow
+* Gameplay Smoke `python tools\smoke_admin_inventory.py --full-loop` - OK:
+  * all required test apps are installed,
+  * `/tools` contains installed apps,
+  * map actions create operations,
+  * forced timeout leaves active operations = 0,
+  * operation history = 113,
+  * risk delta = 9,
+  * data consistency issues = 0,
+  * Ghost Exchange files = 20,
+  * sale passed for GPS, device/personal, camera, ATM and credentials.
+* Googleplex Progression Smoke `python tools\smoke_googleplex_progression.py` - OK:
+  * bought `admin_test_mic_sniff_2`,
+  * app was added to `profile.apps`,
+  * `Admin Mic Sniff Plus.sh` was added to `/tools`.
+
+### Status
+
+Sprint 20 zamkniety.
+
+### Nastepny sprint
+
+Sprint 21 - kolejny zakres po release candidate v1.

@@ -14,10 +14,12 @@ from run import app, collect_ghost_exchange_files, ensure_files_inventory, mail_
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "1234"
 RUN_SALE = "--sell" in sys.argv
+RUN_FULL_LOOP = "--full-loop" in sys.argv
 
 APP_IDS = [
     "admin_test_scan_ports_1",
     "admin_test_trace_gps_1",
+    "admin_test_trace_device_2",
     "admin_test_camera_shutdown_1",
     "admin_test_camera_stream_1",
     "admin_test_atm_logs_1",
@@ -40,6 +42,14 @@ MAP_ACTIONS = [
         "lng": 21.0122,
         "label": "Smoke Vehicle",
         "source_type": "car",
+    },
+    {
+        "action": "trace_device",
+        "selected_app_id": "admin_test_trace_device_2",
+        "lat": 52.2299,
+        "lng": 21.0126,
+        "label": "Smoke Phone",
+        "source_type": "person",
     },
     {
         "action": "camera_shutdown",
@@ -75,7 +85,14 @@ MAP_ACTIONS = [
     },
 ]
 
-REQUIRED_FOLDERS = ["gps", "camera", "atm", "financial", "credentials"]
+REQUIRED_FOLDERS = ["gps", "device", "personal", "camera", "atm", "financial", "credentials"]
+FULL_LOOP_SALE_GROUPS = [
+    ("vehicle_tracking", {"gps"}),
+    ("device_tracking", {"device", "personal"}),
+    ("camera_stream", {"camera"}),
+    ("atm_log_extraction", {"atm", "financial"}),
+    ("persistent_sniffer", {"credentials", "financial"}),
+]
 
 
 def print_section(title):
@@ -195,19 +212,78 @@ def seed_demo_files_if_needed():
     seeds = {
         "gps": demo_entry("gps", "demo_gps_route.log", ["gps_logs", "location_history"], "table"),
         "camera": demo_entry("camera", "demo_camera_fragment.cam", ["camera_dump"], "media_placeholder"),
+        "device": demo_entry("device", "demo_device_package.pkg", ["location_history", "device_logs"], "card"),
+        "personal": demo_entry("personal", "demo_personal_package.pkg", ["personal_records", "call_history"], "card"),
         "atm": demo_entry("atm", "demo_atm_dump.dump", ["atm_dump"], "table"),
         "financial": demo_entry("financial", "demo_financial_records.dat", ["financial_records"], "table"),
         "credentials": demo_entry("credentials", "demo_credentials.enc", ["credentials"], "encrypted_blob"),
     }
+    folders_to_seed = [
+        folder for folder in ["gps", "camera", "credentials"]
+        if not before.get(folder)
+    ]
+    if not before.get("atm") and not before.get("financial"):
+        folders_to_seed.append("atm")
     added = []
-    for folder, entry in seeds.items():
-        if not before.get(folder):
+    for folder in folders_to_seed:
+        entry = seeds.get(folder)
+        if entry:
             files[folder].append(entry)
             added.append(folder)
     if added:
         ensure_files_inventory(profile)
         UserProfileManager(ADMIN_USERNAME).update_profile({"files": profile["files"]})
     return added
+
+
+def data_consistency_issues(profile):
+    files = ensure_files_inventory(profile)
+    issues = []
+    for folder in REQUIRED_FOLDERS:
+        for item in files.get(folder, []):
+            if not isinstance(item, dict):
+                issues.append((folder, "not_dict", str(item)[:40]))
+                continue
+            if not item.get("source_operation_id"):
+                issues.append((folder, "missing_source_operation_id", item.get("name")))
+            if item.get("market_status") is None:
+                issues.append((folder, "missing_market_status", item.get("name")))
+            if not isinstance(item.get("sellable"), bool):
+                issues.append((folder, "invalid_sellable", item.get("name")))
+            metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+            if not metadata.get("operation_id"):
+                issues.append((folder, "missing_metadata_operation_id", item.get("name")))
+    return issues
+
+
+def sell_one_from_group(client, files, group_name, folders, sold_ids):
+    candidate = next(
+        (
+            item for item in files
+            if item.get("file_category") in folders
+            and item.get("id") not in sold_ids
+        ),
+        None,
+    )
+    if not candidate:
+        return {
+            "group": group_name,
+            "status": "missing",
+            "message": "no sellable file",
+        }
+
+    response = client.post("/api/ghost-exchange/sell", json={"file_id": candidate.get("id")})
+    data = response_json(response)
+    sold_ids.add(candidate.get("id"))
+    return {
+        "group": group_name,
+        "file": candidate.get("name"),
+        "category": candidate.get("file_category"),
+        "status_code": response.status_code,
+        "success": data.get("success"),
+        "message": data.get("message"),
+        "price": (data.get("sale") or {}).get("price"),
+    }
 
 
 def main():
@@ -226,6 +302,7 @@ def main():
         print("tools_count:", len(tools))
 
         print_section("Map actions")
+        risk_before = len((user_store.get_profile(ADMIN_USERNAME).get("risk_events") or []))
         for row in run_map_actions(client):
             safe_print(row)
 
@@ -236,9 +313,15 @@ def main():
         operations_response = client.get("/api/operations")
         operations_data = response_json(operations_response)
         print("api_operations:", operations_response.status_code, operations_data.get("success"), "ops:", len(operations_data.get("operations", [])))
+        active_count = len(operations_data.get("active_operations", []) or [])
+        history_count = len(operations_data.get("operation_history", []) or [])
+        print("active_operations:", active_count, "operation_history:", history_count)
+        if active_count:
+            raise RuntimeError(f"Expected no active operations after forced timeout, got {active_count}")
 
         profile = user_store.get_profile(ADMIN_USERNAME)
         risk_events = profile.get("risk_events", []) or []
+        risk_delta = len(risk_events) - risk_before
         risk_counts = Counter(event.get("event_type") for event in risk_events if isinstance(event, dict))
         modified_events = [
             event for event in risk_events
@@ -246,6 +329,9 @@ def main():
         ]
         print_section("Risk events")
         print("risk_events_count:", len(risk_events))
+        print("risk_events_delta:", risk_delta)
+        if risk_delta > 12:
+            raise RuntimeError(f"Risk spam guard failed: delta={risk_delta}")
         print("risk_event_types:", dict(sorted(risk_counts.items())))
         print("risk_modified_events:", len(modified_events))
         if modified_events:
@@ -288,6 +374,12 @@ def main():
         direct_exchange_files = collect_ghost_exchange_files(user_store.get_profile(ADMIN_USERNAME))
         print("direct_ghost_exchange_files:", len(direct_exchange_files))
 
+        print_section("Data consistency")
+        issues = data_consistency_issues(user_store.get_profile(ADMIN_USERNAME))
+        print("issues_count:", len(issues))
+        for issue in issues[:12]:
+            safe_print(" ", issue)
+
         exchange_response = client.get("/api/ghost-exchange")
         exchange_data = response_json(exchange_response)
         files = exchange_data.get("files", [])
@@ -303,7 +395,7 @@ def main():
             print("api_preview:", preview_response.status_code, preview_data.get("success"), preview_data.get("message"))
             print("file:", (preview_data.get("file") or {}).get("name"), (preview_data.get("file") or {}).get("market_status"))
 
-        if RUN_SALE:
+        if RUN_SALE and not RUN_FULL_LOOP:
             sale_files = (client.get("/api/ghost-exchange").get_json() or {}).get("files", [])
             if sale_files:
                 before_profile = user_store.get_profile(ADMIN_USERNAME)
@@ -334,6 +426,17 @@ def main():
                     print("last_profile_market_record:", last_profile_sale.get("file_name"), last_profile_sale.get("status"), last_profile_sale.get("price"))
                 if latest_mail:
                     print("latest_mail:", latest_mail[-1].get("subject"), latest_mail[-1].get("created_at"))
+
+        if RUN_FULL_LOOP:
+            print_section("Full loop sale groups")
+            sold_ids = set()
+            group_files = (client.get("/api/ghost-exchange").get_json() or {}).get("files", [])
+            for group_name, folders in FULL_LOOP_SALE_GROUPS:
+                result = sell_one_from_group(client, group_files, group_name, folders, sold_ids)
+                safe_print(result)
+                if not result.get("success"):
+                    raise RuntimeError(f"Full loop sale failed for {group_name}: {result}")
+                group_files = (client.get("/api/ghost-exchange").get_json() or {}).get("files", [])
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ from run import (
     ensure_files_inventory,
     filter_targets_by_position,
     get_apps_for_map_action,
+    googleplex_catalog_payload,
     normalize_app_contract,
     operation_history_from_operations,
     refresh_operation_runtime,
@@ -140,6 +141,52 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertIn("trace_gps", app["map_actions"])
         self.assertIn("vehicle_tracking", app["operation_types"])
         self.assertEqual(app["operation_types_source"], "legacy_inferred")
+
+    def test_googleplex_catalog_payload_exposes_runtime_contract(self):
+        app = normalize_app_contract({
+            "id": "gps_tracker_v1",
+            "name": "GPS Tracker",
+            "price": 50,
+            "map_actions": ["trace_gps"],
+            "operation_types": ["vehicle_tracking"],
+            "resource_types": ["gps_logs", "location_history"],
+            "target_types": ["vehicle"],
+        })
+        profile = {"hackcoins": 120, "apps": []}
+
+        payload = googleplex_catalog_payload(app, profile)
+
+        self.assertFalse(payload["installed"])
+        self.assertTrue(payload["can_afford"])
+        self.assertEqual(payload["install_blocked_reason"], "")
+        self.assertEqual(payload["map_actions"], ["trace_gps"])
+        self.assertEqual(payload["operation_types"], ["vehicle_tracking"])
+        self.assertEqual(payload["resource_types"], ["gps_logs", "location_history"])
+        self.assertEqual(payload["app_level"], "Advanced")
+
+    def test_googleplex_catalog_payload_blocks_installed_and_missing_hc(self):
+        app = normalize_app_contract({
+            "id": "atm_reader_v1",
+            "name": "ATM Reader",
+            "price": 500,
+            "map_actions": ["atm_logs"],
+            "operation_types": ["atm_log_extraction"],
+            "resource_types": ["atm_dump"],
+        })
+
+        installed_payload = googleplex_catalog_payload(app, {
+            "hackcoins": 1000,
+            "apps": [{"id": "atm_reader_v1"}],
+        })
+        poor_payload = googleplex_catalog_payload(app, {
+            "hackcoins": 10,
+            "apps": [],
+        })
+
+        self.assertTrue(installed_payload["installed"])
+        self.assertEqual(installed_payload["install_blocked_reason"], "Aplikacja juz kupiona.")
+        self.assertFalse(poor_payload["can_afford"])
+        self.assertIn("Brak HC", poor_payload["install_blocked_reason"])
 
     def test_create_operation_for_app_action_adds_runtime_operation(self):
         profile = {"operations": []}

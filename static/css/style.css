@@ -350,6 +350,29 @@ body {
   white-space: nowrap;
 }
 
+.googolplex-contract {
+  display: grid;
+  gap: 5px;
+  color: #9fd9b2;
+  font-size: 0.76rem;
+  border-top: 1px solid rgba(0, 170, 102, 0.25);
+  border-bottom: 1px solid rgba(0, 170, 102, 0.18);
+  padding: 7px 0;
+}
+
+.googolplex-contract b {
+  color: #d9ffe6;
+  font-weight: normal;
+}
+
+.googolplex-card-hint {
+  color: #ffd39b;
+  border: 1px solid rgba(255, 184, 93, 0.35);
+  background: rgba(255, 184, 93, 0.08);
+  padding: 6px 8px;
+  font-size: 0.78rem;
+}
+
 .googolplex-card-footer strong {
   color: #fff;
 }

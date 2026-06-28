@@ -1748,6 +1748,25 @@ function createBrowser() {
     let walletBalance = 0;
     let activeBrowserTab = "googleplex";
 
+    const googleplexList = (value) => Array.isArray(value)
+        ? value.map(item => String(item || '').trim()).filter(Boolean)
+        : [];
+    const googleplexListText = (value) => {
+        const list = googleplexList(value);
+        return list.length ? list.join(', ') : '-';
+    };
+    const googleplexSearchText = (item) => [
+        item.name,
+        item.description,
+        item.type,
+        item.category,
+        item.app_level,
+        ...googleplexList(item.map_actions),
+        ...googleplexList(item.operation_types),
+        ...googleplexList(item.resource_types),
+        ...googleplexList(item.target_types)
+    ].join(' ').toLowerCase();
+
     const renderCatalog = () => {
         if (activeBrowserTab !== "googleplex") return;
         const query = search.value.toLowerCase().trim();
@@ -1756,12 +1775,7 @@ function createBrowser() {
             return;
         }
 
-        const matches = catalog.filter(item =>
-            (item.name || "").toLowerCase().includes(query) ||
-            (item.description || "").toLowerCase().includes(query) ||
-            (item.type || "").toLowerCase().includes(query) ||
-            (item.category || "").toLowerCase().includes(query)
-        );
+        const matches = catalog.filter(item => googleplexSearchText(item).includes(query));
 
         results.innerHTML = '';
         if (matches.length === 0) {
@@ -1773,9 +1787,10 @@ function createBrowser() {
             const price = Number(item.price || 0);
             const installed = item.installed === true;
             const canAfford = walletBalance >= price;
-            const canInstall = !installed && canAfford;
+            const installBlockedReason = item.install_blocked_reason || "";
+            const canInstall = !installed && canAfford && !installBlockedReason;
             const buttonLabel = installed ? "Zainstalowane" : (canAfford ? "Zainstaluj" : "Brak środków");
-            const hasInstallRequirements = item.type === "pro-system-tool" || item.category === "pro-system-tools" || item.category === "creators";
+            const hasInstallRequirements = item.type === "pro-system-tool" || item.category === "pro-system-tools" || item.category === "creators" || item.required_level || item.required_respect;
             const riskLevel = Math.max(0, Math.min(5, Number(item.risk_level || 0)));
             const riskStars = riskLevel ? "&#9733;".repeat(riskLevel) : "brak";
             const proMeta = hasInstallRequirements ? `
@@ -1784,6 +1799,17 @@ function createBrowser() {
                     <span>Respect ${Number(item.required_respect || 0)}</span>
                     <span>Risk ${riskStars}</span>
                 </div>
+            ` : "";
+            const contractMeta = `
+                <div class="googolplex-contract">
+                    <span>Poziom: <b>${escapeHTML(item.app_level || 'Basic')}</b></span>
+                    <span>Map: <b>${escapeHTML(googleplexListText(item.map_actions))}</b></span>
+                    <span>Ops: <b>${escapeHTML(googleplexListText(item.operation_types))}</b></span>
+                    <span>Data: <b>${escapeHTML(googleplexListText(item.resource_types))}</b></span>
+                </div>
+            `;
+            const blockedHint = installBlockedReason ? `
+                <div class="googolplex-card-hint">${escapeHTML(installBlockedReason)}</div>
             ` : "";
             const card = document.createElement('article');
             card.className = 'googolplex-card';
@@ -1794,6 +1820,8 @@ function createBrowser() {
                 </div>
                 <p>${escapeHTML(item.description || 'Brak opisu.')}</p>
                 ${proMeta}
+                ${contractMeta}
+                ${blockedHint}
                 <div class="googolplex-card-meta">
                     <span>${escapeHTML(item.type || 'tool')}</span>
                     <span>${Number(item.downloads || 0)} pobrań</span>
