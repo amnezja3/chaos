@@ -337,6 +337,165 @@
       font-size: 10px;
     }
 
+    .active-operations-panel {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      width: min(340px, calc(100vw - 24px));
+      max-height: min(48vh, 420px);
+      overflow: auto;
+      z-index: 9500;
+      border: 1px solid rgba(60, 255, 120, 0.76);
+      border-radius: 6px;
+      background: rgba(5, 12, 8, 0.88);
+      color: #e8ffe8;
+      font-family: monospace;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(3px);
+    }
+
+    .active-operations-panel.is-empty {
+      opacity: 0.72;
+    }
+
+    .active-operations-panel__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(60, 255, 120, 0.26);
+      color: #9cff9c;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .active-operations-panel__count {
+      color: #c8ffd2;
+      font-size: 10px;
+      font-weight: 400;
+    }
+
+    .active-operations-panel__body {
+      padding: 8px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .active-operation-card {
+      border: 1px solid rgba(94, 255, 139, 0.22);
+      border-radius: 5px;
+      background: rgba(0, 0, 0, 0.46);
+      padding: 7px 8px;
+      font-size: 10px;
+      line-height: 1.35;
+    }
+
+    .active-operation-card__title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: #ffffff;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .active-operation-card__type {
+      color: #9cff9c;
+    }
+
+    .active-operation-card__status {
+      color: #ffd36b;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .active-operation-card__meta {
+      color: #bed8c1;
+      word-break: break-word;
+    }
+
+    .active-operation-card__remaining {
+      margin-top: 4px;
+      color: #7dff9d;
+      font-weight: 700;
+    }
+
+    .active-operation-marker {
+      pointer-events: auto;
+    }
+
+    .active-operation-pin {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transform: translateY(-10px);
+      color: #b7ff33;
+      font-family: monospace;
+      text-shadow: 0 1px 3px #000;
+    }
+
+    .active-operation-pin__badge {
+      min-width: 34px;
+      height: 30px;
+      padding: 0 4px;
+      border: 2px solid #8cff4a;
+      border-radius: 8px;
+      background: rgba(3, 18, 7, 0.92);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+      box-shadow: 0 0 12px rgba(94, 255, 120, 0.58);
+    }
+
+    .active-operation-pin__timer {
+      margin-top: 2px;
+      padding: 1px 5px;
+      border: 1px solid rgba(140, 255, 74, 0.72);
+      border-radius: 3px;
+      background: rgba(0, 0, 0, 0.82);
+      color: #d9ffd1;
+      font-size: 9px;
+      white-space: nowrap;
+    }
+
+    .active-operation-pin--camera .active-operation-pin__badge {
+      border-color: #53e5ff;
+      color: #c9f8ff;
+      box-shadow: 0 0 12px rgba(83, 229, 255, 0.6);
+    }
+
+    .active-operation-pin--shutdown .active-operation-pin__badge {
+      border-color: #ffd36b;
+      color: #ffe8a3;
+      box-shadow: 0 0 12px rgba(255, 211, 107, 0.55);
+    }
+
+    .active-operation-pin--tracking .active-operation-pin__badge {
+      border-color: #ff4b4b;
+      color: #ffc2c2;
+      box-shadow: 0 0 12px rgba(255, 75, 75, 0.62);
+    }
+
+    .active-operation-pin--implant .active-operation-pin__badge {
+      border-color: #c97dff;
+      color: #f0d4ff;
+      box-shadow: 0 0 12px rgba(201, 125, 255, 0.6);
+    }
+
+    @media (max-width: 720px) {
+      .active-operations-panel {
+        top: auto;
+        right: 8px;
+        bottom: 8px;
+        width: min(320px, calc(100vw - 16px));
+        max-height: 34vh;
+      }
+    }
+
 
     body, html {
       margin: 0;
@@ -350,6 +509,7 @@
   <div style="height: 100%; width: 100%;">
     {{ map_html|safe }}
   </div>
+  <div id="active-operations-panel" class="active-operations-panel is-empty" aria-live="polite"></div>
     <script>
         window.profileData = JSON.parse('{{ profile | tojson | safe }}');
     </script>
@@ -366,6 +526,8 @@
         let zoomReturnTimer = null;
         let zoomReturnInterval = null;
         let programmaticMapMove = false;
+        window.activeOperationLayers = [];
+        window.latestActiveOperations = [];
 
         function clearZoomReturn() {
             if (zoomReturnTimer) {
@@ -1028,7 +1190,22 @@
             })
             .then(data => {
                 if (!data) return;
+                if (data.tool_selection_required) {
+                    const opener = window.parent && window.parent !== window
+                        ? window.parent.openToolSelectionForMapAction
+                        : window.openToolSelectionForMapAction;
+                    if (typeof opener === 'function') {
+                        opener(data);
+                    } else {
+                        addSystemMessage("warning", "🛠️ Narzędzia", "Otwórz Pliki i wybierz narzędzie z /tools.");
+                    }
+                    addSystemMessage("info", `🛠️ ${action}`, data.status || "Wybierz narzędzie.");
+                    return;
+                }
                 refreshParentToolbarProfile();
+                if (window.refreshActiveOperations) {
+                    window.refreshActiveOperations();
+                }
                 addSystemMessage("success", `✅ ${action}`, data.status);
             })
             .catch(() => addSystemMessage("danger", "❌ Hackowanie", "Błąd operacji hackowania"));
@@ -1647,6 +1824,162 @@
                         "'": '&#39;'
                     }[m];
                 });
+            };
+
+            window.parseOperationTime = function(value) {
+                if (!value) return null;
+                const raw = String(value);
+                const normalized = /(?:Z|[+-]\d{2}:\d{2})$/.test(raw) ? raw : `${raw}Z`;
+                const time = new Date(normalized);
+                return Number.isNaN(time.getTime()) ? null : time;
+            };
+
+            window.formatOperationDate = function(value) {
+                const time = window.parseOperationTime(value);
+                if (!time) return '-';
+                return time.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            };
+
+            window.formatRemainingTime = function(expiresAt) {
+                const time = window.parseOperationTime(expiresAt);
+                if (!time) return '--:--';
+                const seconds = Math.max(0, Math.floor((time.getTime() - Date.now()) / 1000));
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const rest = seconds % 60;
+                if (hours > 0) {
+                    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+                }
+                return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+            };
+
+            window.operationLabel = function(operation) {
+                const target = operation.target || {};
+                return target.label || target.name || operation.target_id || 'Cel operacji';
+            };
+
+            window.operationMarkerMeta = function(operation) {
+                const type = operation.operation_type || '';
+                if (type === 'camera_stream') {
+                    return { icon: 'CAM', css: 'active-operation-pin--camera', label: 'STREAM' };
+                }
+                if (type === 'camera_shutdown') {
+                    return { icon: 'OFF', css: 'active-operation-pin--shutdown', label: 'SHUTDOWN' };
+                }
+                if (type === 'vehicle_tracking') {
+                    return { icon: 'GPS', css: 'active-operation-pin--tracking', label: 'TRACKING' };
+                }
+                if (type === 'persistent_sniffer') {
+                    return { icon: 'IMP', css: 'active-operation-pin--implant', label: 'IMPLANT' };
+                }
+                return { icon: 'OP', css: '', label: 'OPERATION' };
+            };
+
+            window.renderActiveOperationsPanel = function(operations) {
+                const panel = document.getElementById('active-operations-panel');
+                if (!panel) return;
+                const active = operations || [];
+                panel.classList.toggle('is-empty', active.length === 0);
+
+                const cards = active.map(operation => {
+                    const label = window.escapeMapText(window.operationLabel(operation));
+                    const type = window.escapeMapText(operation.operation_type || 'operation');
+                    const status = window.escapeMapText(operation.status || 'unknown');
+                    const started = window.escapeMapText(window.formatOperationDate(operation.started_at));
+                    const expires = window.escapeMapText(window.formatOperationDate(operation.expires_at));
+                    const remaining = window.escapeMapText(window.formatRemainingTime(operation.expires_at));
+                    return `
+                        <div class="active-operation-card">
+                            <div class="active-operation-card__title">
+                                <span>${label}</span>
+                                <span class="active-operation-card__status">${status}</span>
+                            </div>
+                            <div class="active-operation-card__type">${type}</div>
+                            <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>
+                            <div class="active-operation-card__remaining">Pozostalo: ${remaining}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                panel.innerHTML = `
+                    <div class="active-operations-panel__header">
+                        <span>Aktywne operacje</span>
+                        <span class="active-operations-panel__count">${active.length}</span>
+                    </div>
+                    <div class="active-operations-panel__body">
+                        ${cards || '<div class="active-operation-card"><div class="active-operation-card__meta">Brak aktywnych operacji.</div></div>'}
+                    </div>
+                `;
+            };
+
+            window.clearActiveOperationLayers = function() {
+                (window.activeOperationLayers || []).forEach(layer => {
+                    if (map.hasLayer(layer)) map.removeLayer(layer);
+                });
+                window.activeOperationLayers = [];
+            };
+
+            window.renderActiveOperationMarkers = function(operations) {
+                window.clearActiveOperationLayers();
+                (operations || []).forEach(operation => {
+                    const target = operation.target || {};
+                    const position = operation.current_position || target;
+                    const lat = parseFloat(position.lat);
+                    const lng = parseFloat(position.lng !== undefined ? position.lng : position.lon);
+                    if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+                    const meta = window.operationMarkerMeta(operation);
+                    const label = window.escapeMapText(window.operationLabel(operation));
+                    const remaining = window.escapeMapText(window.formatRemainingTime(operation.expires_at));
+                    const marker = L.marker([lat, lng], {
+                        zIndexOffset: 780,
+                        icon: L.divIcon({
+                            className: 'active-operation-marker',
+                            html: `
+                                <div class="active-operation-pin ${meta.css}">
+                                    <div class="active-operation-pin__badge">${window.escapeMapText(meta.icon)}</div>
+                                    <div class="active-operation-pin__timer">${remaining}</div>
+                                </div>
+                            `,
+                            iconSize: [72, 58],
+                            iconAnchor: [36, 52],
+                            popupAnchor: [0, -44]
+                        })
+                    }).addTo(map);
+
+                    marker.bindTooltip(`${window.escapeMapText(meta.label)}<br>${label}<br>${remaining}`, {
+                        sticky: true,
+                        opacity: 0.95
+                    });
+                    window.activeOperationLayers.push(marker);
+                });
+            };
+
+            window.refreshActiveOperations = async function() {
+                try {
+                    const res = await fetch('/api/operations');
+                    if (res.status === 401) {
+                        stopMapRefreshTimers();
+                        return;
+                    }
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const active = data.active_operations || [];
+                    const keepCenter = map.getCenter();
+                    const keepZoom = map.getZoom();
+
+                    window.latestActiveOperations = active;
+                    window.renderActiveOperationsPanel(active);
+                    window.renderActiveOperationMarkers(active);
+
+                    programmaticMapMove = true;
+                    map.setView(keepCenter, keepZoom, { animate: false });
+                    setTimeout(() => {
+                        programmaticMapMove = false;
+                    }, 0);
+                } catch (err) {
+                    console.warn('Active operations refresh failed', err);
+                }
             };
 
             window.buildFriendIcon = function(friend) {
@@ -2475,10 +2808,12 @@
             window.refreshPlayerActors();
             window.refreshPlayerAreas();
             window.refreshClanVulnerabilities();
+            window.refreshActiveOperations();
             window.stopMapRefreshTimers();
             window.mapRefreshTimers.push(setInterval(window.refreshPlayerActors, 5000));
             window.mapRefreshTimers.push(setInterval(window.refreshPlayerAreas, 10000));
             window.mapRefreshTimers.push(setInterval(window.refreshClanVulnerabilities, 10000));
+            window.mapRefreshTimers.push(setInterval(window.refreshActiveOperations, 10000));
         }
 
 

@@ -1719,8 +1719,12 @@ function createBrowser() {
     </div>
     <div class="googolplex-shell">
         <div class="googolplex-header">
-            <h1>Googolplex</h1>
+            <h1 id="${terminalId}-title">Googolplex</h1>
             <div id="${terminalId}-wallet" class="googolplex-wallet">HackCoiny: ...</div>
+        </div>
+        <div class="browser-tabs">
+            <button type="button" class="browser-tab is-active" data-browser-tab="googleplex">Googleplex</button>
+            <button type="button" class="browser-tab" data-browser-tab="exchange">Ghost Exchange</button>
         </div>
         <input type="text" id="${terminalId}-search" placeholder="Wyszukaj aplikację..." class="googolplex-search">
         <div id="${terminalId}-results" class="googolplex-grid"></div>
@@ -1740,9 +1744,12 @@ function createBrowser() {
     const results = term.querySelector(`#${terminalId}-results`);
     const wallet = term.querySelector(`#${terminalId}-wallet`);
     let catalog = [];
+    let exchangeFiles = [];
     let walletBalance = 0;
+    let activeBrowserTab = "googleplex";
 
     const renderCatalog = () => {
+        if (activeBrowserTab !== "googleplex") return;
         const query = search.value.toLowerCase().trim();
         if (!query) {
             results.innerHTML = "";
@@ -1806,6 +1813,63 @@ function createBrowser() {
         });
     };
 
+    const renderExchange = () => {
+        if (activeBrowserTab !== "exchange") return;
+        const query = search.value.toLowerCase().trim();
+        const matches = exchangeFiles.filter(item => {
+            const resources = Array.isArray(item.resource_types) ? item.resource_types.join(' ') : '';
+            return !query ||
+                String(item.name || '').toLowerCase().includes(query) ||
+                String(item.file_category || '').toLowerCase().includes(query) ||
+                String(item.market_category || '').toLowerCase().includes(query) ||
+                resources.toLowerCase().includes(query);
+        });
+
+        results.innerHTML = '';
+        if (matches.length === 0) {
+            results.innerHTML = '<div class="googolplex-empty">Brak sprzedawalnych plikow danych.</div>';
+            return;
+        }
+
+        matches.forEach(item => {
+            const status = item.market_status || 'not_listed';
+            const prepared = status === 'listed_preview';
+            const resources = Array.isArray(item.resource_types) && item.resource_types.length
+                ? item.resource_types.join(', ')
+                : '-';
+            const card = document.createElement('article');
+            card.className = `googolplex-card ghost-exchange-card ${prepared ? 'is-listed-preview' : ''}`;
+            card.innerHTML = `
+                <div class="googolplex-card-title">
+                    <span class="googolplex-card-icon">GX</span>
+                    <span>${escapeHTML(item.name || 'Pakiet danych')}</span>
+                </div>
+                <p>${escapeHTML(item.directory || item.file_category || '/data')} | ${escapeHTML(item.preview_mode || 'preview')}</p>
+                <div class="ghost-exchange-meta">
+                    <span>Kategoria: <b>${escapeHTML(item.file_category || '-')}</b></span>
+                    <span>Rynek: <b>${escapeHTML(item.market_category || '-')}</b></span>
+                    <span>Zasoby: <b>${escapeHTML(resources)}</b></span>
+                    <span>Status: <b>${escapeHTML(status)}</b></span>
+                </div>
+                <div class="googolplex-card-footer">
+                    <strong>${Number(item.price_preview || 0)} HC</strong>
+                    <button type="button" class="ghost-exchange-preview-btn" ${prepared ? 'disabled' : ''}>
+                        ${prepared ? 'Preview gotowy' : 'Preview sale'}
+                    </button>
+                    <button type="button" class="ghost-exchange-sell-btn">Sprzedaj</button>
+                </div>
+            `;
+            card.querySelector('.ghost-exchange-preview-btn').addEventListener('click', async () => {
+                if (prepared) return;
+                await previewGhostExchangeSale(item.id);
+            });
+            card.querySelector('.ghost-exchange-sell-btn').addEventListener('click', async () => {
+                await sellGhostExchangeFile(item.id);
+            });
+            results.appendChild(card);
+        });
+    };
+
     async function loadCatalog() {
         const [profileRes, resourcesRes] = await Promise.all([
             fetch('/api/profile'),
@@ -1818,7 +1882,99 @@ function createBrowser() {
         renderCatalog();
     }
 
-    search.addEventListener('input', renderCatalog);
+    async function loadExchange() {
+        results.innerHTML = '<div class="googolplex-empty">Synchronizacja Ghost Exchange...</div>';
+        try {
+            const res = await fetch('/api/ghost-exchange');
+            const data = await res.json();
+            if (!res.ok || data.success === false) {
+                results.innerHTML = `<div class="googolplex-empty">${escapeHTML(data.message || 'Nie udalo sie pobrac Ghost Exchange.')}</div>`;
+                return;
+            }
+            exchangeFiles = data.files || [];
+            renderExchange();
+        } catch (err) {
+            console.warn('Ghost Exchange load failed', err);
+            results.innerHTML = '<div class="googolplex-empty">Brak polaczenia z Ghost Exchange.</div>';
+        }
+    }
+
+    async function previewGhostExchangeSale(fileId) {
+        if (!fileId) return;
+        try {
+            const res = await fetch('/api/ghost-exchange/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file_id: fileId })
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) {
+                addSystemMessage("warning", "Ghost Exchange", data.message || "Nie udalo sie przygotowac oferty.");
+                return;
+            }
+            exchangeFiles = data.files || exchangeFiles.map(item => item.id === fileId ? data.file : item);
+            addSystemMessage("info", "Ghost Exchange", data.message || "Oferta przygotowana w trybie preview.");
+            renderExchange();
+        } catch (err) {
+            console.warn('Ghost Exchange preview failed', err);
+            addSystemMessage("danger", "Ghost Exchange", "Brak polaczenia z Ghost Exchange.");
+        }
+    }
+
+    async function sellGhostExchangeFile(fileId) {
+        if (!fileId) return;
+        try {
+            const res = await fetch('/api/ghost-exchange/sell', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file_id: fileId })
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) {
+                addSystemMessage("warning", "Ghost Exchange", data.message || "Nie udalo sie sprzedac pakietu.");
+                return;
+            }
+            exchangeFiles = data.files || exchangeFiles.filter(item => item.id !== fileId);
+            walletBalance = Number(data.balance || walletBalance || 0);
+            wallet.textContent = `HackCoiny: ${walletBalance}`;
+            if (typeof refreshSystemBar === "function") {
+                refreshSystemBar();
+            }
+            addSystemMessage("success", "Ghost Exchange", data.message || "Pakiet danych sprzedany.");
+            renderExchange();
+        } catch (err) {
+            console.warn('Ghost Exchange sell failed', err);
+            addSystemMessage("danger", "Ghost Exchange", "Brak polaczenia z Ghost Exchange.");
+        }
+    }
+
+    function switchBrowserTab(tabName) {
+        activeBrowserTab = tabName;
+        term.querySelectorAll('.browser-tab').forEach(button => {
+            button.classList.toggle('is-active', button.dataset.browserTab === tabName);
+        });
+        const title = term.querySelector(`#${terminalId}-title`);
+        if (tabName === "exchange") {
+            title.textContent = "Ghost Exchange";
+            search.placeholder = "Szukaj danych, kategorii rynku, zasobow...";
+            loadExchange();
+        } else {
+            title.textContent = "Googolplex";
+            search.placeholder = "Wyszukaj aplikacje...";
+            renderCatalog();
+        }
+    }
+
+    term.querySelectorAll('.browser-tab').forEach(button => {
+        button.addEventListener('click', () => switchBrowserTab(button.dataset.browserTab || "googleplex"));
+    });
+    search.addEventListener('input', () => {
+        if (activeBrowserTab === "exchange") {
+            renderExchange();
+        } else {
+            renderCatalog();
+        }
+    });
     loadCatalog().catch(() => {
         results.innerHTML = '<div class="googolplex-empty">Nie udało się pobrać katalogu.</div>';
     });
@@ -4102,9 +4258,88 @@ function createGhostLabHub() {
     return term;
 }
 
-async function createFileManager() {
+function normalizeToolSelectionPayload(payload) {
+    const apps = Array.isArray(payload?.matching_apps) ? payload.matching_apps : [];
+    return {
+        ...payload,
+        matching_apps: apps,
+        pending_action: payload?.pending_action || {},
+        app_ids: new Set(apps.map(app => String(app.id || ""))),
+        app_names: new Set(apps.map(app => String(app.name || ""))),
+        tool_files: new Set(apps.map(app => String(app.tool_file || `${app.name || app.id}.sh`))),
+        open_tools: true
+    };
+}
+
+function getToolSelectionAppForFile(filename) {
+    const selection = window.activeToolSelection;
+    if (!selection || !Array.isArray(selection.matching_apps)) return null;
+    const normalizedFilename = String(filename || "");
+    return selection.matching_apps.find(app => {
+        const name = String(app.name || app.id || "");
+        const toolFile = String(app.tool_file || `${name}.sh`);
+        return normalizedFilename === toolFile || normalizedFilename === `${name}.sh` || normalizedFilename === name;
+    }) || null;
+}
+
+async function selectMapActionTool(appId) {
+    const selection = window.activeToolSelection;
+    if (!selection || !selection.pending_action) {
+        addSystemMessage("warning", "🛠️ Narzędzia", "Brak aktywnej akcji mapy.");
+        return;
+    }
+
+    const app = selection.matching_apps.find(item => String(item.id || "") === String(appId || ""));
+    if (!app) {
+        addSystemMessage("warning", "🛠️ Narzędzia", "To narzędzie nie pasuje do aktywnej akcji.");
+        return;
+    }
+
+    try {
+        const res = await fetch('/hack-action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ...selection.pending_action,
+                selected_app_id: app.id
+            })
+        });
+        const data = await res.json();
+        if (!res.ok || data.blocked) {
+            addSystemMessage("warning", "🛠️ Narzędzia", data.status || "Nie udało się uruchomić narzędzia.");
+            return;
+        }
+
+        window.activeToolSelection = null;
+        addSystemMessage("success", "🛠️ Narzędzie", data.status || `Uruchomiono ${app.name || app.id}.`);
+        if (typeof refreshToolbarProfile === "function") refreshToolbarProfile();
+    } catch (err) {
+        console.error("Błąd wyboru narzędzia:", err);
+        addSystemMessage("danger", "🛠️ Narzędzia", "Błąd połączenia podczas wyboru narzędzia.");
+    }
+}
+
+window.openToolSelectionForMapAction = async function(payload) {
+    window.activeToolSelection = normalizeToolSelectionPayload(payload || {});
+    const title = window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || "akcja";
+    addSystemMessage("info", "🛠️ Wybór narzędzia", `Wybierz narzędzie dla: ${title}`);
+    await createFileManager({ toolSelection: window.activeToolSelection });
+};
+
+async function createFileManager(options = {}) {
     // Jeden FileManager na raz
-    if (document.querySelector(`.terminal[data-app="files"]`)) return;
+    const existing = document.querySelector(`.terminal[data-app="files"]`);
+    if (existing) {
+        bringWindowToFront(existing);
+        if (options.toolSelection) {
+            window.activeToolSelection = normalizeToolSelectionPayload(options.toolSelection);
+            const managerId = existing.dataset.fileManagerId || window.fileManagerTerminalId;
+            if (managerId && typeof window.openFolderInManager === "function") {
+                window.openFolderInManager(managerId, "tools");
+            }
+        }
+        return existing;
+    }
 
     const term = document.createElement('div');
     term.className = 'terminal';
@@ -4118,7 +4353,30 @@ async function createFileManager() {
     term.style.flexDirection = 'column';
 
     const terminalId = `files-${Date.now()}`;
-    const systemDirs = ['tools', 'projects', 'download', 'pictures', 'social-media'];
+    window.fileManagerTerminalId = terminalId;
+    term.dataset.fileManagerId = terminalId;
+    if (options.toolSelection) {
+        window.activeToolSelection = normalizeToolSelectionPayload(options.toolSelection);
+    }
+    const systemDirs = [
+        'tools',
+        'gps',
+        'device',
+        'audio',
+        'camera',
+        'atm',
+        'credentials',
+        'financial',
+        'personal',
+        'network',
+        'vehicle',
+        'system',
+        'market',
+        'projects',
+        'download',
+        'pictures',
+        'social-media'
+    ];
 
     term.innerHTML = `
         <div class="title-bar">
@@ -4143,6 +4401,9 @@ async function createFileManager() {
     }
     const files = profileData.files;
     if (!Array.isArray(files.projects)) files.projects = [];
+    systemDirs.forEach(dir => {
+        if (!Array.isArray(files[dir])) files[dir] = [];
+    });
 
     renderFolders();
 
@@ -4159,12 +4420,29 @@ async function createFileManager() {
     window.openFolderInManager = (id, folderName) => {
         const container = document.getElementById(`${id}-content`);
         const fileList = files[folderName] || [];
+        const renderedToolAppIds = new Set();
 
         let list = "";
-        fileList.forEach(filename => {
+        fileList.forEach(fileEntry => {
+            const filename = typeof fileEntry === "string" ? fileEntry : String(fileEntry.name || fileEntry.filename || "plik");
+            const matchingTool = folderName === "tools" ? getToolSelectionAppForFile(filename) : null;
+            const isMatchingTool = Boolean(matchingTool);
+            if (isMatchingTool) renderedToolAppIds.add(String(matchingTool.id || ""));
             // Ikonka per folder
             let icon = "📄";
             if (folderName === "tools") icon = "🔧";
+            if (folderName === "gps") icon = "GPS";
+            if (folderName === "device") icon = "DEV";
+            if (folderName === "audio") icon = "AUD";
+            if (folderName === "personal") icon = "ID";
+            if (folderName === "camera") icon = "CAM";
+            if (folderName === "atm") icon = "ATM";
+            if (folderName === "financial") icon = "FIN";
+            if (folderName === "credentials") icon = "KEY";
+            if (folderName === "network") icon = "NET";
+            if (folderName === "vehicle") icon = "CAR";
+            if (folderName === "system") icon = "SYS";
+            if (folderName === "market") icon = "MKT";
             if (folderName === "pictures") icon = "🖼️";
             if (folderName === "download") icon = "⬇️";
             if (folderName === "social-media") icon = "💬";
@@ -4172,14 +4450,20 @@ async function createFileManager() {
             // Klasa pliku
             let fileClass = "file-manager-file";
             if (folderName === "tools") fileClass += " file-manager-tool";
+            if (isMatchingTool) fileClass += " file-manager-tool-match";
 
             // W tools – dodaj Uninstall
             if (folderName === "tools") {
                 list += `
-                    <div class="file-manager-row file-manager-row-dark">
+                    <div class="file-manager-row file-manager-row-dark ${isMatchingTool ? 'file-manager-row-match' : ''}">
                         <span class="file-manager-file" onclick="window.runFile('${folderName}','${filename}')">
                             <span class="file-manager-icon">🔧</span>
                             <span class="file-manager-name">${filename}</span>
+                            ${isMatchingTool ? `
+                                <button class="file-manager-tool-select" data-app-id="${escapeHTML(matchingTool.id || '')}" onclick="event.stopPropagation();window.selectMapActionTool('${escapeHTML(matchingTool.id || '')}')">
+                                    Użyj
+                                </button>
+                            ` : ''}
                             <button class="file-manager-uninstall-btn" onclick="event.stopPropagation();window.uninstallApp('${filename}')">
                                 🗑️ <span class="file-manager-uninstall-label">Odinstaluj</span>
                             </button>
@@ -4199,24 +4483,66 @@ async function createFileManager() {
                     </div>
                 `;
             } else {
+                let meta = "";
+                if (typeof fileEntry === "object" && fileEntry) {
+                    const category = fileEntry.file_category || folderName;
+                    const previewMode = fileEntry.preview_mode || 'file';
+                    const resources = Array.isArray(fileEntry.resource_types) && fileEntry.resource_types.length
+                        ? fileEntry.resource_types.join(', ')
+                        : '-';
+                    const sourceOperation = fileEntry.source_operation_id || fileEntry.operation_id || (fileEntry.metadata || {}).operation_id || '-';
+                    const marketStatus = fileEntry.market_status || 'not_listed';
+                    meta = `
+                        <span class="file-manager-name" style="display:block;color:#8fd6a4;font-size:11px;">${escapeHTML(fileEntry.directory || folderName)} | ${escapeHTML(category)} | ${escapeHTML(previewMode)}</span>
+                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Zasoby: ${escapeHTML(resources)} | Operacja: ${escapeHTML(sourceOperation)} | Rynek: ${escapeHTML(marketStatus)}</span>
+                    `;
+                }
                 list += `
                     <div class="file-manager-row">
                         <div class="${fileClass}" onclick="window.runFile('${folderName}','${filename}')">
                             <span class="file-manager-icon">${icon}</span>
                             <span class="file-manager-name">${filename}</span>
+                            ${meta}
                         </div>
                     </div>
                 `;
             }
         });
 
+        if (folderName === "tools" && window.activeToolSelection) {
+            window.activeToolSelection.matching_apps.forEach(app => {
+                const appId = String(app.id || "");
+                if (!appId || renderedToolAppIds.has(appId)) return;
+                const name = String(app.name || app.id || "tool");
+                const filename = String(app.tool_file || `${name}.sh`);
+                list += `
+                    <div class="file-manager-row file-manager-row-dark file-manager-row-match">
+                        <span class="file-manager-file file-manager-tool file-manager-tool-match" onclick="window.runFile('tools','${filename}')">
+                            <span class="file-manager-icon">${escapeHTML(app.icon || '🔧')}</span>
+                            <span class="file-manager-name">${escapeHTML(filename)}</span>
+                            <button class="file-manager-tool-select" data-app-id="${escapeHTML(appId)}" onclick="event.stopPropagation();window.selectMapActionTool('${escapeHTML(appId)}')">
+                                Użyj
+                            </button>
+                        </span>
+                    </div>
+                `;
+            });
+        }
+
         if (!list) list = `<div class="file-manager-empty">Brak plików</div>`;
+        const selectionHeader = folderName === "tools" && window.activeToolSelection ? `
+            <div class="file-manager-selection-hint">
+                Akcja mapy: <b>${escapeHTML(window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || '-')}</b>.
+                Wybierz podświetlone narzędzie.
+            </div>
+        ` : "";
 
         container.innerHTML = `
             <div class="file-manager-header">
                 <button class="file-manager-back-btn" onclick="window.renderFoldersRoot('${id}')">⬅ Wróć</button>
                 <span class="file-manager-folder-title">📂 ${folderName}</span>
             </div>
+            ${selectionHeader}
             <div class="file-manager-list">${list}</div>
         `;
     };
@@ -4233,8 +4559,206 @@ async function createFileManager() {
     // Klik w dowolny plik — symulacja otwarcia/uruchomienia
     window.runFile = (folderName, filename) => {
         console.log(`[RUN] Plik uruchomiony: ${folderName}/${filename}`);
+        const fileList = files[folderName] || [];
+        const fileEntry = fileList.find(item => {
+            const itemName = typeof item === "string" ? item : String(item.name || item.filename || "");
+            return itemName === filename;
+        });
+        if (fileEntry && typeof fileEntry === "object") {
+            const container = document.getElementById(`${terminalId}-content`);
+            const checkpoints = Array.isArray(fileEntry.checkpoints) ? fileEntry.checkpoints : [];
+            const metadata = fileEntry.metadata || {};
+            const completeness = metadata.completeness || {};
+            const summary = fileEntry.summary || {};
+            const resources = Array.isArray(fileEntry.resource_types) ? fileEntry.resource_types : [];
+            const records = Array.isArray(fileEntry.records) ? fileEntry.records : [];
+            if (fileEntry.preview_mode === "card") {
+                container.innerHTML = `
+                    <div class="file-manager-header">
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">⬅ Wróć</button>
+                        <span class="file-manager-folder-title">📄 ${escapeHTML(filename)}</span>
+                    </div>
+                    <div class="file-manager-row file-manager-row-dark" style="display:block;">
+                        <h3>${escapeHTML(summary.label || 'Device Intelligence')}</h3>
+                        <p>Plik: <b>${escapeHTML(filename)}</b></p>
+                        <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
+                        <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>Kompletność: <b>${escapeHTML(String(summary.completeness_percent ?? completeness.percent ?? 0))}%</b></p>
+                        <p>Tier: <b>${escapeHTML(summary.tier || completeness.tier || 'basic')}</b></p>
+                        <div style="height:10px;border:1px solid #0f0;background:#031403;margin:8px 0 12px;">
+                            <div style="height:100%;width:${Math.max(0, Math.min(100, Number(summary.completeness_percent ?? completeness.percent ?? 0)))}%;background:#38ff80;"></div>
+                        </div>
+                        <h4>Zasoby w paczce</h4>
+                        <ul>
+                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || '<li>Brak zasobów.</li>'}
+                        </ul>
+                        <p>Jakość: <b>${escapeHTML(metadata.quality || '-')}</b></p>
+                    </div>
+                `;
+                return;
+            }
+            if (fileEntry.preview_mode === "table" && records.length) {
+                const recordRows = records.slice(0, 80).map(record => `
+                    <tr>
+                        <td>${escapeHTML(String(record.index || ''))}</td>
+                        <td>${escapeHTML(record.timestamp || record.created_at || '')}</td>
+                        <td>${escapeHTML(record.account || '-')}</td>
+                        <td>${escapeHTML(record.event || '-')}</td>
+                        <td>${escapeHTML(record.amount_hint || '-')}</td>
+                        <td>${escapeHTML(record.confidence || '-')}</td>
+                    </tr>
+                `).join('');
+                container.innerHTML = `
+                    <div class="file-manager-header">
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">â¬… WrĂłÄ‡</button>
+                        <span class="file-manager-folder-title">FIN ${escapeHTML(filename)}</span>
+                    </div>
+                    <div class="file-manager-row file-manager-row-dark" style="display:block;">
+                        <h3>${escapeHTML(filename)}</h3>
+                        <p>Kategoria: <b>${escapeHTML(fileEntry.file_category || folderName)}</b></p>
+                        <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
+                        <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>Rekordy: <b>${escapeHTML(String(metadata.record_count ?? records.length))}</b></p>
+                        <p>Ryzyko: <b>${escapeHTML(metadata.risk_hint || 'high-value/high-risk')}</b></p>
+                        <h4>Zasoby</h4>
+                        <ul>
+                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || '<li>Brak zasobow.</li>'}
+                        </ul>
+                        <table style="width:100%;border-collapse:collapse;margin-top:10px;">
+                            <thead>
+                                <tr>
+                                    <th style="text-align:left;border-bottom:1px solid #0f0;">#</th>
+                                    <th style="text-align:left;border-bottom:1px solid #0f0;">Czas</th>
+                                    <th style="text-align:left;border-bottom:1px solid #0f0;">Konto</th>
+                                    <th style="text-align:left;border-bottom:1px solid #0f0;">Event</th>
+                                    <th style="text-align:left;border-bottom:1px solid #0f0;">Kwota</th>
+                                    <th style="text-align:left;border-bottom:1px solid #0f0;">Pewnosc</th>
+                                </tr>
+                            </thead>
+                            <tbody>${recordRows || '<tr><td colspan="6">Brak rekordow.</td></tr>'}</tbody>
+                        </table>
+                    </div>
+                `;
+                return;
+            }
+            if (fileEntry.preview_mode === "encrypted_blob") {
+                container.innerHTML = `
+                    <div class="file-manager-header">
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">â¬… WrĂłÄ‡</button>
+                        <span class="file-manager-folder-title">KEY ${escapeHTML(filename)}</span>
+                    </div>
+                    <div class="file-manager-row file-manager-row-dark" style="display:block;">
+                        <h3>${escapeHTML(summary.label || 'Encrypted Data Blob')}</h3>
+                        <div style="border:1px solid #0f0;background:#020802;margin:10px 0;padding:14px;color:#8fd6a4;">
+                            <div style="font-size:12px;letter-spacing:2px;">ENCRYPTED BLOB</div>
+                            <div style="font-size:20px;margin-top:8px;">•••• •••• •••• ••••</div>
+                        </div>
+                        <p>Plik: <b>${escapeHTML(filename)}</b></p>
+                        <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
+                        <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>Zebrane wpisy: <b>${escapeHTML(String(summary.credential_count || metadata.collected_count || 0))}</b></p>
+                        <p>Instalacja: <b>${escapeHTML(metadata.installed_at || '-')}</b></p>
+                        <p>Koniec: <b>${escapeHTML(metadata.ended_at || '-')}</b></p>
+                        <p>Ryzyko: <b>${escapeHTML(metadata.risk_hint || 'long_operation/sniffer_detected/high_value')}</b></p>
+                        <p>Dane jawne: <b>NIE</b></p>
+                        <h4>Zasoby</h4>
+                        <ul>
+                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || '<li>Brak zasobow.</li>'}
+                        </ul>
+                    </div>
+                `;
+                return;
+            }
+            if (fileEntry.preview_mode === "operation_state") {
+                container.innerHTML = `
+                    <div class="file-manager-header">
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">â¬… WrĂłÄ‡</button>
+                        <span class="file-manager-folder-title">SYS ${escapeHTML(filename)}</span>
+                    </div>
+                    <div class="file-manager-row file-manager-row-dark" style="display:block;">
+                        <h3>${escapeHTML(filename)}</h3>
+                        <p>Kategoria: <b>${escapeHTML(fileEntry.file_category || folderName)}</b></p>
+                        <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
+                        <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>Stan: <b>${escapeHTML(metadata.state || fileEntry.status || '-')}</b></p>
+                        <p>Instalacja: <b>${escapeHTML(metadata.installed_at || '-')}</b></p>
+                        <p>Koniec: <b>${escapeHTML(metadata.ended_at || '-')}</b></p>
+                        <p>Ryzyko: <b>${escapeHTML(metadata.risk_hint || '-')}</b></p>
+                        <h4>Zasoby</h4>
+                        <ul>
+                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || '<li>Brak zasobow.</li>'}
+                        </ul>
+                    </div>
+                `;
+                return;
+            }
+            if (fileEntry.preview_mode === "media_placeholder") {
+                const durationSeconds = Number(metadata.duration_seconds || summary.duration_seconds || 0);
+                const durationLabel = `${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s`;
+                container.innerHTML = `
+                    <div class="file-manager-header">
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">â¬… WrĂłÄ‡</button>
+                        <span class="file-manager-folder-title">CAM ${escapeHTML(filename)}</span>
+                    </div>
+                    <div class="file-manager-row file-manager-row-dark" style="display:block;">
+                        <h3>${escapeHTML(summary.label || 'Camera Stream Fragment')}</h3>
+                        <div style="height:130px;border:1px solid #0f0;background:linear-gradient(135deg,#020802,#071a10);display:flex;align-items:center;justify-content:center;margin:10px 0;color:#8fd6a4;letter-spacing:2px;">
+                            MEDIA PLACEHOLDER
+                        </div>
+                        <p>Plik: <b>${escapeHTML(filename)}</b></p>
+                        <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
+                        <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>Fragment: <b>${escapeHTML(String(fileEntry.fragment_index || metadata.fragment_index || '-'))}</b></p>
+                        <p>Czas fragmentu: <b>${escapeHTML(durationLabel)}</b></p>
+                        <p>Start: <b>${escapeHTML(metadata.started_at || '-')}</b></p>
+                        <p>Koniec: <b>${escapeHTML(metadata.ended_at || '-')}</b></p>
+                        <p>Jakosc: <b>${escapeHTML(metadata.frame_quality || metadata.quality || '-')}</b></p>
+                        <h4>Zasoby</h4>
+                        <ul>
+                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || '<li>Brak zasobow.</li>'}
+                        </ul>
+                    </div>
+                `;
+                return;
+            }
+            const checkpointRows = checkpoints.slice(0, 80).map(point => `
+                <tr>
+                    <td>${escapeHTML(String(point.index || ''))}</td>
+                    <td>${escapeHTML(point.created_at || '')}</td>
+                    <td>${escapeHTML(String(point.lat || ''))}</td>
+                    <td>${escapeHTML(String(point.lng || ''))}</td>
+                </tr>
+            `).join('');
+            container.innerHTML = `
+                <div class="file-manager-header">
+                    <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">⬅ Wróć</button>
+                    <span class="file-manager-folder-title">📄 ${escapeHTML(filename)}</span>
+                </div>
+                <div class="file-manager-row file-manager-row-dark" style="display:block;">
+                    <h3>${escapeHTML(filename)}</h3>
+                    <p>Kategoria: <b>${escapeHTML(fileEntry.file_category || folderName)}</b></p>
+                    <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
+                    <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                    <p>Checkpointy: <b>${escapeHTML(String(metadata.checkpoint_count ?? checkpoints.length))}</b></p>
+                    <p>Jakość: <b>${escapeHTML(metadata.quality || '-')}</b> | Dokładność: <b>${escapeHTML(metadata.accuracy || '-')}</b></p>
+                    <table style="width:100%;border-collapse:collapse;margin-top:10px;">
+                        <thead>
+                            <tr>
+                                <th style="text-align:left;border-bottom:1px solid #0f0;">#</th>
+                                <th style="text-align:left;border-bottom:1px solid #0f0;">Czas</th>
+                                <th style="text-align:left;border-bottom:1px solid #0f0;">Lat</th>
+                                <th style="text-align:left;border-bottom:1px solid #0f0;">Lng</th>
+                            </tr>
+                        </thead>
+                        <tbody>${checkpointRows || '<tr><td colspan="4">Brak checkpointów.</td></tr>'}</tbody>
+                    </table>
+                </div>
+            `;
+            return;
+        }
         addSystemMessage("info", "📁 Otwieranie pliku", `(Symulacja) Otwierasz plik: ${filename}`);
     };
+    window.selectMapActionTool = selectMapActionTool;
     window.uninstallApp = (appName) => {
         console.log(`[UNINSTALL] Żądanie odinstalowania: ${appName}`);
         addSystemMessage("warning", "🗑️ Deinstalacja", `(Symulacja) Odinstalowano ${appName}`);
@@ -4255,6 +4779,10 @@ async function createFileManager() {
             window.openFolderInManager(terminalId, "projects");
         }
     };
+
+    if (window.activeToolSelection?.open_tools) {
+        window.openFolderInManager(terminalId, "tools");
+    }
 }
 
 

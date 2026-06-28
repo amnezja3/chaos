@@ -4,154 +4,254 @@
     "name": "ScanProbe",
     "icon": "🛰️",
     "type": "scanner",
-    "detects": ["open_ports", "user_location"],
+    "detects": [
+      "open_ports",
+      "user_location"
+    ],
     "interferes_with": [
-        "stealth_mode",
-        "system_visibility",
-        "vpn_enabled",
-        "browser_protection"
+      "stealth_mode",
+      "system_visibility",
+      "vpn_enabled",
+      "browser_protection"
     ],
     "requires_off": [
-        "scan_detection",
-        "firewall"
+      "scan_detection",
+      "firewall"
     ],
     "price": 120,
     "allowed_fractions": [],
     "disables": [],
-    "affects": ["player_risk_level"],
+    "affects": [
+      "player_risk_level"
+    ],
     "description": "Aktywna sonda wykrywająca porty i lokalizację użytkowników. Może zostać wykryta przez aktywną ochronę.",
     "interface": "progressbar_random",
     "levels": [
-        {
-            "title": "ScanProbe – Aktywne skanowanie portów i lokalizacji",
-            "steps": [
-            "Inicjalizacja sondy...",
-            "Ustalanie adresu IP...",
-            "Sprawdzanie otwartych portów...",
-            "Analiza geolokalizacji użytkownika..."
-            ],
-            "result_success": "✅ Zidentyfikowano otwarte porty i przybliżoną lokalizację.",
-            "result_failure": "❌ Skanowanie zostało przerwane lub zablokowane."
-        }
+      {
+        "title": "ScanProbe – Aktywne skanowanie portów i lokalizacji",
+        "steps": [
+          "Inicjalizacja sondy...",
+          "Ustalanie adresu IP...",
+          "Sprawdzanie otwartych portów...",
+          "Analiza geolokalizacji użytkownika..."
+        ],
+        "result_success": "✅ Zidentyfikowano otwarte porty i przybliżoną lokalizację.",
+        "result_failure": "❌ Skanowanie zostało przerwane lub zablokowane."
+      }
+    ],
+    "downloads": 5,
+    "map_actions": [
+      "scan_ports",
+      "trace"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "poi",
+      "camera",
+      "atm",
+      "server",
+      "router",
+      "player",
+      "pillar",
+      "person",
+      "phone",
+      "vehicle"
+    ],
+    "operation_types": [
+      "generic_trace"
+    ],
+    "resource_types": [
+      "internal_recon_state",
+      "location_history"
     ]
-
   },
   {
     "id": "deep_sniff_r2",
     "name": "DeepSniff",
     "icon": "🔍",
     "type": "scanner",
-    "detects": ["processes", "active_tasks", "security_logs"],
+    "detects": [
+      "processes",
+      "active_tasks",
+      "security_logs"
+    ],
     "interferes_with": [
-        "firewall",
-        "log_integrity",
-        "system_integrity",
-        "system_integrity_check",
-        "scan_detection",
-        "network_anomaly_detection",
-        "spoofing_protection"
+      "firewall",
+      "log_integrity",
+      "system_integrity",
+      "system_integrity_check",
+      "scan_detection",
+      "network_anomaly_detection",
+      "spoofing_protection"
     ],
     "requires_off": [
-        "log_guardian",
-        "heap_protection"
+      "log_guardian",
+      "heap_protection"
     ],
     "price": 140,
     "allowed_fractions": [],
     "disables": [],
-    "affects": ["traceability", "detection_risk"],
+    "affects": [
+      "traceability",
+      "detection_risk"
+    ],
     "description": "Skaner głęboki analizujący działające procesy i logi bezpieczeństwa. Może zostać zablokowany przez aktywne logowanie lub ochronę integralności dzienników.",
     "interface": "progressbar_random",
     "levels": [
-        {
-            "title": "DeepSniff – Analiza procesów i logów",
-            "steps": [
-            "Łączenie z systemem...",
-            "Odczyt aktywnych zadań...",
-            "Sprawdzanie integralności logów...",
-            "Zbieranie podejrzanych wpisów..."
-            ],
-            "result_success": "✅ Wykryto aktywne zadania i podejrzane wpisy w logach.",
-            "result_failure": "❌ Nie udało się uzyskać dostępu do logów lub procesów."
-        }
-    ]
-
+      {
+        "title": "DeepSniff – Analiza procesów i logów",
+        "steps": [
+          "Łączenie z systemem...",
+          "Odczyt aktywnych zadań...",
+          "Sprawdzanie integralności logów...",
+          "Zbieranie podejrzanych wpisów..."
+        ],
+        "result_success": "✅ Wykryto aktywne zadania i podejrzane wpisy w logach.",
+        "result_failure": "❌ Nie udało się uzyskać dostępu do logów lub procesów."
+      }
+    ],
+    "downloads": 5,
+    "map_actions": [
+      "sniff"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "poi",
+      "server",
+      "router",
+      "player",
+      "pillar"
+    ],
+    "operation_types": [],
+    "resource_types": []
   },
   {
     "id": "ghost_ping_x3",
     "name": "GhostPing",
     "icon": "👻",
     "type": "scanner",
-    "detects": ["device_presence", "stealth_failures"],
+    "detects": [
+      "device_presence",
+      "stealth_failures"
+    ],
     "interferes_with": [
-        "stealth_mode",
-        "vpn_enabled",
-        "system_visibility",
-        "anonymity_score"
+      "stealth_mode",
+      "vpn_enabled",
+      "system_visibility",
+      "anonymity_score"
     ],
     "requires_off": [
-        "network_anomaly_detection",
-        "activity_monitor",
-        "player_tracking"
+      "network_anomaly_detection",
+      "activity_monitor",
+      "player_tracking"
     ],
     "price": 120,
     "allowed_fractions": [],
-    "disables": ["vpn_obfuscation"],
-    "affects": ["traceability", "alert_state"],
+    "disables": [
+      "vpn_obfuscation"
+    ],
+    "affects": [
+      "traceability",
+      "alert_state"
+    ],
     "description": "Ultralekki skaner do wykrywania obecności innych użytkowników w sieci i błędów w ich kamuflażu. Podatny na wykrycie przez zaawansowaną detekcję anomalii.",
     "interface": "progressbar_random",
     "levels": [
-        {
-            "title": "GhostPing – Pingowanie ukrytych urządzeń",
-            "steps": [
-            "Wysyłanie sygnału ping...",
-            "Oczekiwanie na odpowiedzi...",
-            "Analiza odpowiedzi sieciowych...",
-            "Sprawdzanie błędów kamuflażu..."
-            ],
-            "result_success": "✅ Wykryto obecność ukrytych użytkowników oraz błędy maskowania.",
-            "result_failure": "❌ Brak odpowiedzi – urządzenia mogą być poza zasięgiem lub dobrze ukryte."
-        }
+      {
+        "title": "GhostPing – Pingowanie ukrytych urządzeń",
+        "steps": [
+          "Wysyłanie sygnału ping...",
+          "Oczekiwanie na odpowiedzi...",
+          "Analiza odpowiedzi sieciowych...",
+          "Sprawdzanie błędów kamuflażu..."
+        ],
+        "result_success": "✅ Wykryto obecność ukrytych użytkowników oraz błędy maskowania.",
+        "result_failure": "❌ Brak odpowiedzi – urządzenia mogą być poza zasięgiem lub dobrze ukryte."
+      }
+    ],
+    "downloads": 2,
+    "map_actions": [
+      "trace",
+      "trace_device"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "poi",
+      "person",
+      "phone",
+      "player",
+      "vehicle",
+      "pillar"
+    ],
+    "operation_types": [
+      "generic_trace",
+      "device_tracking"
+    ],
+    "resource_types": [
+      "location_history",
+      "device_logs"
     ]
-
   },
   {
     "id": "stealth_browser_v2",
     "name": "StealthBrowser",
     "icon": "🕵️‍♂️",
     "type": "browser",
-    "detects": ["phishing_pages"],
+    "detects": [
+      "phishing_pages"
+    ],
     "interferes_with": [
-        "browser_history_log",
-        "file_visibility",
-        "traceability",
-        "system_visibility",
-        "process_monitor"
+      "browser_history_log",
+      "file_visibility",
+      "traceability",
+      "system_visibility",
+      "process_monitor"
     ],
     "requires_off": [
-        "browser_protection",
-        "activity_monitor"        
+      "browser_protection",
+      "activity_monitor"
     ],
     "price": 95,
     "allowed_fractions": [],
-    "disables": ["browser_history_log"],
-    "affects": ["anonymity_score"],
+    "disables": [
+      "browser_history_log"
+    ],
+    "affects": [
+      "anonymity_score"
+    ],
     "description": "Minimalistyczna przeglądarka z ukrytym referrerem, bez historii. Wrażliwa na aktywną ochronę przeglądarki.",
     "interface": "window",
     "levels": [
-        {
-            "title": "StealthBrowser v2 – Tryb ukryty",
-            "list": [
-            "🌐 Domyślna strona: xhttp://start.local",
-            "🔒 Referrer ukryty: TAK",
-            "📜 Historia przeglądania: WYŁĄCZONA",
-            "🛡️ Blokada skryptów: AKTYWNA"
-            ],
-            "buttons": [
-            { "label": "Otwórz nową kartę", "action": "open_tab" },
-            { "label": "Zamknij przeglądarkę", "action": "close_browser" }
-            ]
-        }
-    ]
+      {
+        "title": "StealthBrowser v2 – Tryb ukryty",
+        "list": [
+          "🌐 Domyślna strona: xhttp://start.local",
+          "🔒 Referrer ukryty: TAK",
+          "📜 Historia przeglądania: WYŁĄCZONA",
+          "🛡️ Blokada skryptów: AKTYWNA"
+        ],
+        "buttons": [
+          {
+            "label": "Otwórz nową kartę",
+            "action": "open_tab"
+          },
+          {
+            "label": "Zamknij przeglądarkę",
+            "action": "close_browser"
+          }
+        ]
+      }
+    ],
+    "map_actions": [],
+    "target_types": [],
+    "operation_types": [],
+    "resource_types": [],
+    "contract_review": {
+      "needs_review": true,
+      "reasons": [
+        "no map_actions inferred"
+      ]
+    }
   },
   {
     "id": "crypto_vault_v1",
@@ -160,663 +260,2564 @@
     "type": "file_explorer",
     "detects": [],
     "interferes_with": [
-        "file_visibility",
-        "file_indexing",
-        "system_visibility",
-        "log_integrity"
+      "file_visibility",
+      "file_indexing",
+      "system_visibility",
+      "log_integrity"
     ],
     "requires_off": [
-        "process_monitor",
-        "storage_integrity"
+      "process_monitor",
+      "storage_integrity"
     ],
     "price": 105,
     "allowed_fractions": [],
-    "disables": ["file_visibility"],
-    "affects": ["storage_integrity"],
+    "disables": [
+      "file_visibility"
+    ],
+    "affects": [
+      "storage_integrity"
+    ],
     "description": "Szyfrowany eksplorator użytkownika. Ukrywa zawartość przed systemem i analizą plików.",
     "interface": "window",
     "levels": [
-        {
-            "title": "Encrypted File Vault – Dostęp szyfrowany",
-            "list": [
-            "📁 Folder: /vault",
-            "🧾 Plik: log.txt — 🔐 zaszyfrowany",
-            "🧾 Plik: secrets.dat — 🔐 zaszyfrowany",
-            "🔄 Indeksowanie plików: WYŁĄCZONE",
-            "👁️ Widoczność w systemie: UKRYTA"
-            ],
-            "buttons": [
-            { "label": "Odszyfruj pliki", "action": "decrypt_files" },
-            { "label": "Zamknij sejf", "action": "close_vault" }
-            ]
-        }
-    ]
+      {
+        "title": "Encrypted File Vault – Dostęp szyfrowany",
+        "list": [
+          "📁 Folder: /vault",
+          "🧾 Plik: log.txt — 🔐 zaszyfrowany",
+          "🧾 Plik: secrets.dat — 🔐 zaszyfrowany",
+          "🔄 Indeksowanie plików: WYŁĄCZONE",
+          "👁️ Widoczność w systemie: UKRYTA"
+        ],
+        "buttons": [
+          {
+            "label": "Odszyfruj pliki",
+            "action": "decrypt_files"
+          },
+          {
+            "label": "Zamknij sejf",
+            "action": "close_vault"
+          }
+        ]
+      }
+    ],
+    "downloads": 3,
+    "map_actions": [],
+    "target_types": [],
+    "operation_types": [],
+    "resource_types": [],
+    "contract_review": {
+      "needs_review": true,
+      "reasons": [
+        "no map_actions inferred"
+      ]
+    }
   },
   {
     "id": "phantom_vpn_v1",
     "name": "PhantomVPN",
     "icon": "🛡️",
     "type": "vpn",
-    "detects": ["ip_leaks"],
+    "detects": [
+      "ip_leaks"
+    ],
     "interferes_with": [
-        "exploit_protection",
-        "traceability",
-        "system_visibility",
-        "player_tracking"
+      "exploit_protection",
+      "traceability",
+      "system_visibility",
+      "player_tracking"
     ],
     "requires_off": [
-        "vpn_blocker",
-        "network_anomaly_detection"
+      "vpn_blocker",
+      "network_anomaly_detection"
     ],
     "price": 88,
     "allowed_fractions": [],
     "disables": [],
-    "affects": ["anonymity_score", "network_latency"],
+    "affects": [
+      "anonymity_score",
+      "network_latency"
+    ],
     "description": "Tunel VPN z autoprzełączaniem. Maskuje aktywność gracza, ale może kolidować z wstrzykiwaniem exploitów do sesji TCP/IP.",
     "interface": "progressbar_random",
     "levels": [
-        {
-            "title": "Establishing VPN Tunnel",
-            "steps": [
-            "Negotiating encryption parameters...",
-            "Assigning virtual IP address...",
-            "Securing communication channel...",
-            "Finalizing tunnel handshake..."
-            ],
-            "result_success": "VPN tunnel established successfully. IP masked.",
-            "result_failure": "VPN connection failed. Check for VPN blockers or network issues."
-        }
+      {
+        "title": "Establishing VPN Tunnel",
+        "steps": [
+          "Negotiating encryption parameters...",
+          "Assigning virtual IP address...",
+          "Securing communication channel...",
+          "Finalizing tunnel handshake..."
+        ],
+        "result_success": "VPN tunnel established successfully. IP masked.",
+        "result_failure": "VPN connection failed. Check for VPN blockers or network issues."
+      }
+    ],
+    "downloads": 2,
+    "map_actions": [
+      "trace"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "poi",
+      "person",
+      "phone",
+      "player",
+      "vehicle",
+      "pillar"
+    ],
+    "operation_types": [
+      "generic_trace"
+    ],
+    "resource_types": [
+      "location_history"
     ]
-},
-{
+  },
+  {
     "id": "shadow_layer_v1",
     "name": "ShadowLayer",
     "icon": "👤",
     "type": "stealth",
     "detects": [],
     "interferes_with": [
-        "scan_probe_v1",
-        "logging_daemon",
-        "activity_monitor",
-        "traceability",
-        "system_integrity_check",
-        "player_risk_level"
+      "scan_probe_v1",
+      "logging_daemon",
+      "activity_monitor",
+      "traceability",
+      "system_integrity_check",
+      "player_risk_level"
     ],
     "requires_off": [
-        "scan_detection"
+      "scan_detection"
     ],
     "disables": [
-        "player_tracking",
-        "browser_history_log"
+      "player_tracking",
+      "browser_history_log"
     ],
     "affects": [
-        "detectability",
-        "system_visibility",
-        "traceability"
+      "detectability",
+      "system_visibility",
+      "traceability"
     ],
     "price": 132,
     "allowed_fractions": [],
     "description": "Warstwa maskująca działania gracza w systemie. Redukuje widoczność, ale ogranicza dostęp do aktywnych funkcji systemowych.",
     "interface": "button_choices",
     "levels": [
-        {
-            "title": "Wybierz tryb ukrycia:",
-            "text": "ShadowLayer pozwala ukryć działania systemowe. Wybierz poziom ukrycia – im głębszy, tym większe ryzyko dezaktywacji funkcji.",
-            "options": [
-                {
-                "label": "Pasywny – tylko maskowanie logów",
-                "effect": {
-                    "system_visibility": false,
-                    "player_tracking": false
-                },
-                "price": 70
-                },
-                {
-                "label": "Agresywny – pełna izolacja",
-                "effect": {
-                    "system_visibility": false,
-                    "player_tracking": false,
-                    "access_level": -1
-                },
-                "price": 130
-                },
-                {
-                "label": "Cichy tunel – ukrycie aktywności sieciowej",
-                "effect": {
-                    "system_visibility": false,
-                    "traceability": 0,
-                    "anonymity_score": 100
-                },
-                "price": 240
-                },
-                {
-                "label": "Symulacja bezczynności – zamaskowanie działań jako idle",
-                "effect": {
-                    "player_risk_level": 0,
-                    "activity_monitor": false,
-                    "detectability": 0
-                },
-                "price": 185
-                },
-                {
-                "label": "Deep Phantom Mode – pełna separacja jądra (EXPERYMENTALNY)",
-                "effect": {
-                    "system_visibility": false,
-                    "player_tracking": false,
-                    "access_level": -3,
-                    "traceability": 0,
-                    "system_integrity": 100
-                },
-                "price": 3000
-                },
-                {
-                "label": "Anuluj",
-                "effect": {}
-                }
-            ]
-        }
-    ]
-},
-{
+      {
+        "title": "Wybierz tryb ukrycia:",
+        "text": "ShadowLayer pozwala ukryć działania systemowe. Wybierz poziom ukrycia – im głębszy, tym większe ryzyko dezaktywacji funkcji.",
+        "options": [
+          {
+            "label": "Pasywny – tylko maskowanie logów",
+            "effect": {
+              "system_visibility": false,
+              "player_tracking": false
+            },
+            "price": 70
+          },
+          {
+            "label": "Agresywny – pełna izolacja",
+            "effect": {
+              "system_visibility": false,
+              "player_tracking": false,
+              "access_level": -1
+            },
+            "price": 130
+          },
+          {
+            "label": "Cichy tunel – ukrycie aktywności sieciowej",
+            "effect": {
+              "system_visibility": false,
+              "traceability": 0,
+              "anonymity_score": 100
+            },
+            "price": 240
+          },
+          {
+            "label": "Symulacja bezczynności – zamaskowanie działań jako idle",
+            "effect": {
+              "player_risk_level": 0,
+              "activity_monitor": false,
+              "detectability": 0
+            },
+            "price": 185
+          },
+          {
+            "label": "Deep Phantom Mode – pełna separacja jądra (EXPERYMENTALNY)",
+            "effect": {
+              "system_visibility": false,
+              "player_tracking": false,
+              "access_level": -3,
+              "traceability": 0,
+              "system_integrity": 100
+            },
+            "price": 3000
+          },
+          {
+            "label": "Anuluj",
+            "effect": {}
+          }
+        ]
+      }
+    ],
+    "map_actions": [],
+    "target_types": [],
+    "operation_types": [],
+    "resource_types": [],
+    "contract_review": {
+      "needs_review": true,
+      "reasons": [
+        "no map_actions inferred"
+      ]
+    }
+  },
+  {
     "id": "injector_x_v1",
     "name": "InjectorX",
     "icon": "💉",
     "type": "exploit",
-    "detects": ["vulnerable_services"],
+    "detects": [
+      "vulnerable_services"
+    ],
     "interferes_with": [
-        "vpn_enabled",
-        "firewall_core",
-        "memory_guard",
-        "heap_protection"
+      "vpn_enabled",
+      "firewall_core",
+      "memory_guard",
+      "heap_protection"
     ],
     "requires_off": [
-        "exploit_protection",
-        "kernel_guard"
+      "exploit_protection",
+      "kernel_guard"
     ],
     "price": 280,
     "allowed_fractions": [],
-    "disables": ["system_integrity_check"],
-    "affects": ["system_compromise_level"],
+    "disables": [
+      "system_integrity_check"
+    ],
+    "affects": [
+      "system_compromise_level"
+    ],
     "description": "Zaawansowane narzędzie typu exploit injection. Skuteczne tylko przy wyłączonej ochronie jądra. Może obniżyć integralność systemu.",
     "interface": "terminal",
     "levels": [
-        {
-            "command": "inject -target vulnerable_service_45 -mode stealth",
-            "logs": [
-            "Łączenie z usługą docelową...",
-            "Próba ominięcia ochrony jądra...",
-            "Wstrzyknięcie kodu zakończone sukcesem.",
-            "Integralność systemu: -15%"
-            ]
-        },
-        {
-            "command": "inject -target vulnerable_service_12 -mode brute",
-            "logs": [
-            "Łączenie z usługą docelową...",
-            "Firewall core aktywny – dostęp zablokowany!",
-            "Wstrzyknięcie zakończone niepowodzeniem."
-            ]
-        }
-    ]
-
-},
-{
+      {
+        "command": "inject -target vulnerable_service_45 -mode stealth",
+        "logs": [
+          "Łączenie z usługą docelową...",
+          "Próba ominięcia ochrony jądra...",
+          "Wstrzyknięcie kodu zakończone sukcesem.",
+          "Integralność systemu: -15%"
+        ]
+      },
+      {
+        "command": "inject -target vulnerable_service_12 -mode brute",
+        "logs": [
+          "Łączenie z usługą docelową...",
+          "Firewall core aktywny – dostęp zablokowany!",
+          "Wstrzyknięcie zakończone niepowodzeniem."
+        ]
+      }
+    ],
+    "downloads": 1,
+    "map_actions": [
+      "exploit"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "poi",
+      "camera",
+      "atm",
+      "server",
+      "router",
+      "player",
+      "pillar"
+    ],
+    "operation_types": [],
+    "resource_types": []
+  },
+  {
     "id": "procmon_v1",
     "name": "ProcessMon",
     "icon": "🧬",
     "type": "os_component",
     "interferes_with": [
-        "background_injection",
-        "stealth_mode",
-        "injector_x_v1",
-        "shadow_layer_v1"
+      "background_injection",
+      "stealth_mode",
+      "injector_x_v1",
+      "shadow_layer_v1"
     ],
     "requires_off": [],
     "price": 240,
     "allowed_fractions": [],
-    "disables": ["background_injection"],
-    "affects": ["os_stability", "security_score"],
+    "disables": [
+      "background_injection"
+    ],
+    "affects": [
+      "os_stability",
+      "security_score"
+    ],
     "description": "Monitor procesów systemowych. Wykrywa nieautoryzowane aplikacje i działania, ale może ograniczać działanie narzędzi ofensywnych.",
     "interface": "window",
     "levels": [
-        {
-            "title": "Monitor procesów",
-            "list": [
-                "PID: 2331 | Nazwa: injector_x_v1 | Status: Wykryto próbę iniekcji",
-                "PID: 4522 | Nazwa: shadow_layer_v1 | Status: Ukryty proces - zagrożenie",
-                "PID: 1090 | Nazwa: trusted_daemon | Status: OK"
-            ],
-            "buttons": [
-            {
-                "label": "Zakończ proces",
-                "action": "terminate_selected"
-            },
-            {
-                "label": "Zignoruj",
-                "action": "ignore"
-            }
-            ]
-        }
-    ]
-
-},
-{
+      {
+        "title": "Monitor procesów",
+        "list": [
+          "PID: 2331 | Nazwa: injector_x_v1 | Status: Wykryto próbę iniekcji",
+          "PID: 4522 | Nazwa: shadow_layer_v1 | Status: Ukryty proces - zagrożenie",
+          "PID: 1090 | Nazwa: trusted_daemon | Status: OK"
+        ],
+        "buttons": [
+          {
+            "label": "Zakończ proces",
+            "action": "terminate_selected"
+          },
+          {
+            "label": "Zignoruj",
+            "action": "ignore"
+          }
+        ]
+      }
+    ],
+    "downloads": 1,
+    "map_actions": [],
+    "target_types": [],
+    "operation_types": [],
+    "resource_types": [],
+    "contract_review": {
+      "needs_review": true,
+      "reasons": [
+        "no map_actions inferred"
+      ]
+    }
+  },
+  {
     "id": "drivecrypt_v1",
     "name": "DriveEncryptor",
     "icon": "🔐",
     "type": "os_component",
     "detects": [],
     "interferes_with": [
-        "file_indexing",
-        "background_injection",
-        "memory_guard",
-        "file_visibility"
+      "file_indexing",
+      "background_injection",
+      "memory_guard",
+      "file_visibility"
     ],
     "requires_off": [
-        "exploit_protection",
-        "process_monitor"
+      "exploit_protection",
+      "process_monitor"
     ],
     "price": 260,
     "allowed_fractions": [],
-    "disables": ["unencrypted_access"],
-    "affects": ["data_protection", "system_speed"],
+    "disables": [
+      "unencrypted_access"
+    ],
+    "affects": [
+      "data_protection",
+      "system_speed"
+    ],
     "description": "Moduł szyfrowania systemu plików. Chroni dane gracza, ale wpływa na wydajność i może kolidować z narzędziami indeksującymi.",
     "interface": "progressbar_random",
     "levels": [
-        {
-            "title": "DriveEncryptor – Szyfrowanie przestrzeni dyskowej",
-            "steps": [
-            "🔐 Inicjalizacja modułu DriveEncryptor...",
-            "🔄 Skanowanie struktur katalogowych...",
-            "🗂️ Zabezpieczanie danych użytkownika...",
-            "💾 Nadpisywanie niezaszyfrowanych sektorów..."
-            ],
-            "result_success": "✅ Wszystkie dane zostały skutecznie zaszyfrowane.",
-            "result_failure": "❌ Proces szyfrowania nie został zakończony poprawnie."
-        }
-    ]
-
-},
-{
+      {
+        "title": "DriveEncryptor – Szyfrowanie przestrzeni dyskowej",
+        "steps": [
+          "🔐 Inicjalizacja modułu DriveEncryptor...",
+          "🔄 Skanowanie struktur katalogowych...",
+          "🗂️ Zabezpieczanie danych użytkownika...",
+          "💾 Nadpisywanie niezaszyfrowanych sektorów..."
+        ],
+        "result_success": "✅ Wszystkie dane zostały skutecznie zaszyfrowane.",
+        "result_failure": "❌ Proces szyfrowania nie został zakończony poprawnie."
+      }
+    ],
+    "map_actions": [],
+    "target_types": [],
+    "operation_types": [],
+    "resource_types": [],
+    "contract_review": {
+      "needs_review": true,
+      "reasons": [
+        "no map_actions inferred"
+      ]
+    }
+  },
+  {
     "id": "zeroday_hunter",
     "name": "ZeroDayHunter",
     "icon": "🕳️",
     "type": "exploit",
-    "detects": ["zero_day_vulnerabilities", "unpatched_nodes"],
-    "interferes_with": ["exploit_protection", "system_monitor"],
-    "requires_off": ["patch_guard"],
+    "detects": [
+      "zero_day_vulnerabilities",
+      "unpatched_nodes"
+    ],
+    "interferes_with": [
+      "exploit_protection",
+      "system_monitor"
+    ],
+    "requires_off": [
+      "patch_guard"
+    ],
     "disables": [],
-    "affects": ["risk_level", "access_level"],
+    "affects": [
+      "risk_level",
+      "access_level"
+    ],
     "description": "Zaawansowany wykrywacz podatności typu zero-day. Może otwierać nieznane wektory ataku, ale jest łatwy do wykrycia przy aktywnym monitoringu.",
     "interface": "terminal",
     "price": 160,
     "allowed_fractions": [],
     "levels": [
-        {
-            "command": "launch zeroday_scan --deep --verbose",
-            "logs": [
-            "run launch zeroday_scan deep verbose",
-            "check vulnerabilities 0day",
-            "report generate format json"
-            ]
-            
-        }
-    ]
-
-},
-{
+      {
+        "command": "launch zeroday_scan --deep --verbose",
+        "logs": [
+          "run launch zeroday_scan deep verbose",
+          "check vulnerabilities 0day",
+          "report generate format json"
+        ]
+      }
+    ],
+    "downloads": 4,
+    "map_actions": [
+      "exploit"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "poi",
+      "camera",
+      "atm",
+      "server",
+      "router",
+      "player",
+      "pillar"
+    ],
+    "operation_types": [],
+    "resource_types": []
+  },
+  {
     "id": "mem_overflow_v1",
     "name": "MemoryOverflow",
     "icon": "🧠",
     "type": "exploit",
     "detects": [],
     "interferes_with": [
-        "process_monitor",
-        "system_integrity_check",
-        "os_hardening",
-        "log_guardian"
+      "process_monitor",
+      "system_integrity_check",
+      "os_hardening",
+      "log_guardian"
     ],
     "requires_off": [
-        "exploit_protection",
-        "kernel_guard"
+      "exploit_protection",
+      "kernel_guard"
     ],
     "price": 310,
     "allowed_fractions": [],
-    "disables": ["memory_guard"],
-    "affects": ["system_integrity", "exploit_success_rate"],
+    "disables": [
+      "memory_guard"
+    ],
+    "affects": [
+      "system_integrity",
+      "exploit_success_rate"
+    ],
     "description": "Atak przepełnienia pamięci operacyjnej. Skuteczny przy wyłączonych zabezpieczeniach pamięci – może uszkodzić system docelowy lub samego gracza.",
     "interface": "progressbar_random",
     "levels": [
-        {
-            "title": "MemoryOverflow – Przepełnienie pamięci",
-            "steps": [
-            "📤 Wysyłanie danych testowych...",
-            "💽 Przekraczanie granicy bufora...",
-            "📉 Manipulacja alokacją RAM...",
-            "🧠 Inicjalizacja przepełnienia pamięci..."
-            ],
-            "result_success": "💥 Pamięć przeciążona – exploit zakończony powodzeniem.",
-            "result_failure": "⚠️ Atak wykryty i zablokowany. Proces zrestartowany przez system."
-        }
-    ]
-
-},
-{
-  "id": "pencombo_v1",
-  "name": "PenCombo",
-  "icon": "🛠️",
-  "type": "exploit_suite",
-  "detects": ["open_ports", "weak_configs", "inject_points"],
-  "interferes_with": [
-    "firewall_core",
-    "os_hardening",
-    "memory_guard",
-    "system_integrity_check",
-    "log_guardian"
-  ],
-  "requires_off": [
-    "exploit_protection",
-    "kernel_guard"
-  ],
-  "disables": [
-    "system_integrity_check",
-    "process_monitor"
-  ],
-  "affects": [
-    "system_compromise_level",
-    "exploit_success_rate",
-    "risk_level"
-  ],
-  "price": 318,
-  "allowed_fractions": [],
-  "description": "Zestaw skonsolidowanych technik penetracyjnych do automatycznego rozpoznania, eskalacji uprawnień i wstrzykiwania kodu. Umożliwia działania ofensywne w różnych wektorach systemowych.",
-  "interface": "button_choices",
-  "levels": [
-    {
-      "title": "Wybierz tryb ataku PenCombo:",
-      "text": "Zintegrowany zestaw technik penetracyjnych. Dostosuj tryb do celu – od skanowania aż po wstrzyknięcie kodu.",
-      "options": [
-        {
-          "label": "Recon Mode – pasywna analiza i detekcja słabości",
-          "effect": {
-            "risk_level": 10,
-            "exploit_success_rate": 10
+      {
+        "title": "MemoryOverflow – Przepełnienie pamięci",
+        "steps": [
+          "📤 Wysyłanie danych testowych...",
+          "💽 Przekraczanie granicy bufora...",
+          "📉 Manipulacja alokacją RAM...",
+          "🧠 Inicjalizacja przepełnienia pamięci..."
+        ],
+        "result_success": "💥 Pamięć przeciążona – exploit zakończony powodzeniem.",
+        "result_failure": "⚠️ Atak wykryty i zablokowany. Proces zrestartowany przez system."
+      }
+    ],
+    "downloads": 2,
+    "map_actions": [
+      "exploit"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "poi",
+      "camera",
+      "atm",
+      "server",
+      "router",
+      "player",
+      "pillar"
+    ],
+    "operation_types": [],
+    "resource_types": []
+  },
+  {
+    "id": "pencombo_v1",
+    "name": "PenCombo",
+    "icon": "🛠️",
+    "type": "exploit_suite",
+    "detects": [
+      "open_ports",
+      "weak_configs",
+      "inject_points"
+    ],
+    "interferes_with": [
+      "firewall_core",
+      "os_hardening",
+      "memory_guard",
+      "system_integrity_check",
+      "log_guardian"
+    ],
+    "requires_off": [
+      "exploit_protection",
+      "kernel_guard"
+    ],
+    "disables": [
+      "system_integrity_check",
+      "process_monitor"
+    ],
+    "affects": [
+      "system_compromise_level",
+      "exploit_success_rate",
+      "risk_level"
+    ],
+    "price": 318,
+    "allowed_fractions": [],
+    "description": "Zestaw skonsolidowanych technik penetracyjnych do automatycznego rozpoznania, eskalacji uprawnień i wstrzykiwania kodu. Umożliwia działania ofensywne w różnych wektorach systemowych.",
+    "interface": "button_choices",
+    "levels": [
+      {
+        "title": "Wybierz tryb ataku PenCombo:",
+        "text": "Zintegrowany zestaw technik penetracyjnych. Dostosuj tryb do celu – od skanowania aż po wstrzyknięcie kodu.",
+        "options": [
+          {
+            "label": "Recon Mode – pasywna analiza i detekcja słabości",
+            "effect": {
+              "risk_level": 10,
+              "exploit_success_rate": 10
+            },
+            "price": 90
           },
-          "price": 90
-        },
-        {
-          "label": "Injection Mode – aktywna iniekcja kodu",
-          "effect": {
-            "system_compromise_level": 35,
-            "system_integrity": -15
+          {
+            "label": "Injection Mode – aktywna iniekcja kodu",
+            "effect": {
+              "system_compromise_level": 35,
+              "system_integrity": -15
+            },
+            "price": 160
           },
-          "price": 160
-        },
-        {
-          "label": "Privilege Escalation – eskalacja z niskich uprawnień",
-          "effect": {
-            "access_level": 2,
-            "system_integrity_check": false,
-            "traceability": 30
+          {
+            "label": "Privilege Escalation – eskalacja z niskich uprawnień",
+            "effect": {
+              "access_level": 2,
+              "system_integrity_check": false,
+              "traceability": 30
+            },
+            "price": 260
           },
-          "price": 260
-        },
-        {
-          "label": "All-In-One Strike – pełna sekwencja penetracyjna",
-          "effect": {
-            "system_compromise_level": 70,
-            "access_level": 3,
-            "exploit_success_rate": 95,
-            "traceability": 65
+          {
+            "label": "All-In-One Strike – pełna sekwencja penetracyjna",
+            "effect": {
+              "system_compromise_level": 70,
+              "access_level": 3,
+              "exploit_success_rate": 95,
+              "traceability": 65
+            },
+            "price": 318
           },
-          "price": 318
-        },
-        {
-          "label": "Hack that all",
-          "effect": {
-            "stealth_mode": false,
-            "scan_detection": false,
-            "exploit_protection": false,
-            "vpn_enabled": false,
-            "browser_protection": false,
-            "os_hardening": false,
-            "log_guardian": false,
-            "process_monitor": false,
-            "firewall": false,
-            "log_integrity": false,
-            "network_anomaly_detection": false,
-            "spoofing_protection": false,
-            "browser_history_log": false,
-            "file_visibility": false,
-            "file_indexing": false,
-            "storage_integrity": false,
-            "anonymity_score": false,
-            "vpn_blocker": false,
-            "activity_monitor": false,
-            "player_tracking": false,
-            "system_visibility": false,
-            "firewall_core": false,
-            "kernel_guard": false,
-            "system_integrity_check": false,
-            "system_compromise_level": 1,
-            "heap_protection": false,
-            "memory_lock": false,
-            "unencrypted_access": false,
-            "background_injection": false,
-            "memory_guard": false,
-            "player_risk_level": false,
-            "traceability": 1,
-            "system_integrity": 1,
-            "exploit_success_rate": false,
-            "risk_level": 1,
-            "access_level": false
+          {
+            "label": "Hack that all",
+            "effect": {
+              "stealth_mode": false,
+              "scan_detection": false,
+              "exploit_protection": false,
+              "vpn_enabled": false,
+              "browser_protection": false,
+              "os_hardening": false,
+              "log_guardian": false,
+              "process_monitor": false,
+              "firewall": false,
+              "log_integrity": false,
+              "network_anomaly_detection": false,
+              "spoofing_protection": false,
+              "browser_history_log": false,
+              "file_visibility": false,
+              "file_indexing": false,
+              "storage_integrity": false,
+              "anonymity_score": false,
+              "vpn_blocker": false,
+              "activity_monitor": false,
+              "player_tracking": false,
+              "system_visibility": false,
+              "firewall_core": false,
+              "kernel_guard": false,
+              "system_integrity_check": false,
+              "system_compromise_level": 1,
+              "heap_protection": false,
+              "memory_lock": false,
+              "unencrypted_access": false,
+              "background_injection": false,
+              "memory_guard": false,
+              "player_risk_level": false,
+              "traceability": 1,
+              "system_integrity": 1,
+              "exploit_success_rate": false,
+              "risk_level": 1,
+              "access_level": false
+            }
           }
+        ]
+      }
+    ],
+    "downloads": 7,
+    "map_actions": [
+      "exploit",
+      "scan_ports"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "poi",
+      "camera",
+      "atm",
+      "server",
+      "router",
+      "player",
+      "pillar"
+    ],
+    "operation_types": [],
+    "resource_types": [
+      "internal_recon_state"
+    ]
+  },
+  {
+    "id": "camstream_v1",
+    "name": "CamStream",
+    "icon": "🎥",
+    "type": "scanner",
+    "detects": [
+      "camera_feed",
+      "video_stream"
+    ],
+    "interferes_with": [
+      "system_visibility",
+      "camera_streaming"
+    ],
+    "requires_off": [
+      "camera_firewall"
+    ],
+    "price": 160,
+    "allowed_fractions": [],
+    "disables": [],
+    "affects": [
+      "visibility",
+      "player_risk_level"
+    ],
+    "description": "Moduł zdalnego podglądu obrazu z kamer IP. Delikatny jak cień, ale może aktywować alert w systemie monitoringu.",
+    "interface": "progressbar_random",
+    "levels": [
+      {
+        "title": "CamStream – Podgląd kamery",
+        "steps": [
+          "🔍 Wyszukiwanie aktywnych kamer...",
+          "📡 Nawiązywanie połączenia...",
+          "🖼️ Streamowanie obrazu...",
+          "📁 Buforowanie danych wideo..."
+        ],
+        "result_success": "✅ Obraz z kamery uzyskany. Obiekt pod obserwacją.",
+        "result_failure": "❌ Kamera odrzuciła połączenie. Możliwa aktywna ochrona."
+      }
+    ],
+    "downloads": 2,
+    "map_actions": [
+      "camera_stream"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "camera"
+    ],
+    "operation_types": [
+      "camera_stream"
+    ],
+    "resource_types": [
+      "camera_dump"
+    ]
+  },
+  {
+    "id": "camdisabler_v1",
+    "name": "CamDisabler",
+    "icon": "📴",
+    "type": "exploit",
+    "interferes_with": [
+      "camera",
+      "video_stream",
+      "security_alert"
+    ],
+    "requires_off": [
+      "camera_firewall",
+      "motion_detection"
+    ],
+    "price": 175,
+    "allowed_fractions": [],
+    "disables": [
+      "camera"
+    ],
+    "affects": [
+      "traceability",
+      "detection_risk"
+    ],
+    "description": "Narzędzie do wyłączenia i zakłócenia kamer IP. Pozostawia ślad w logach, jeśli nie działa w trybie stealth.",
+    "interface": "terminal",
+    "levels": [
+      {
+        "command": "disable_camera --target=ipcam_21 --mode=bruteforce",
+        "logs": [
+          "Połączenie z kamerą...",
+          "Próba wyłączenia aktywnego streamu...",
+          "Zakłócanie transmisji sygnału wideo...",
+          "✅ Kamera została dezaktywowana."
+        ]
+      },
+      {
+        "command": "disable_camera --target=ipcam_21 --mode=stealth",
+        "logs": [
+          "Skanowanie otwartych portów kamery...",
+          "Iniekcja kodu zakłócającego działanie...",
+          "⚠️ Aktywna ochrona wykryta – operacja przerwana."
+        ]
+      }
+    ],
+    "downloads": 1,
+    "map_actions": [
+      "camera_shutdown",
+      "exploit"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "camera",
+      "poi",
+      "atm",
+      "server",
+      "router",
+      "player",
+      "pillar"
+    ],
+    "operation_types": [
+      "camera_shutdown"
+    ],
+    "resource_types": []
+  },
+  {
+    "id": "micsniff_v1",
+    "name": "MicSniff",
+    "icon": "🎙️",
+    "type": "scanner",
+    "detects": [
+      "microphone_activity",
+      "audio_stream"
+    ],
+    "interferes_with": [
+      "sound_protection",
+      "privacy_mode"
+    ],
+    "requires_off": [
+      "audio_guardian"
+    ],
+    "price": 145,
+    "allowed_fractions": [],
+    "disables": [],
+    "affects": [
+      "traceability",
+      "detection_risk"
+    ],
+    "description": "Sniffer mikrofonowy – cichy podsłuch otoczenia. Idealny do wykrycia rozmów lub dźwięków wokół celu.",
+    "interface": "progressbar_random",
+    "levels": [
+      {
+        "title": "MicSniff – Nasłuch mikrofonu",
+        "steps": [
+          "📡 Wyszukiwanie aktywnych mikrofonów...",
+          "🎧 Nasłuch kanału audio...",
+          "📥 Analiza poziomu dźwięku...",
+          "📤 Odszyfrowywanie strumienia audio..."
+        ],
+        "result_success": "✅ Dźwięk przechwycony. Możliwa aktywna rozmowa.",
+        "result_failure": "❌ Brak źródła dźwięku lub blokada audio."
+      }
+    ],
+    "downloads": 2,
+    "map_actions": [
+      "mic_sniff"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "person",
+      "venue"
+    ],
+    "operation_types": [
+      "microphone_sniffer"
+    ],
+    "resource_types": [
+      "audio_transcript"
+    ]
+  },
+  {
+    "id": "bttracer_v1",
+    "name": "BTTracer",
+    "icon": "📶",
+    "type": "scanner",
+    "detects": [
+      "bluetooth_devices",
+      "device_presence"
+    ],
+    "interferes_with": [
+      "privacy_mode"
+    ],
+    "requires_off": [
+      "bluetooth_guardian"
+    ],
+    "price": 110,
+    "allowed_fractions": [],
+    "disables": [],
+    "affects": [
+      "traceability",
+      "network_map"
+    ],
+    "description": "Skaner aktywnych urządzeń Bluetooth w okolicy. Przydatny do śledzenia obecności użytkownika lub jego sprzętu.",
+    "interface": "progressbar_random",
+    "levels": [
+      {
+        "title": "BTTracer – Skanowanie sygnałów BLE",
+        "steps": [
+          "📡 Wykrywanie aktywnych beaconów...",
+          "🔍 Analiza sygnału RSSI...",
+          "📍 Namierzanie pozycji urządzeń...",
+          "📲 Odczyt identyfikatorów MAC..."
+        ],
+        "result_success": "✅ Znaleziono urządzenia Bluetooth w pobliżu.",
+        "result_failure": "❌ Brak aktywnych urządzeń lub sygnał zakłócony."
+      }
+    ],
+    "downloads": 5,
+    "map_actions": [
+      "trace",
+      "trace_device"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "poi",
+      "person",
+      "phone",
+      "player",
+      "vehicle",
+      "pillar"
+    ],
+    "operation_types": [
+      "generic_trace",
+      "device_tracking"
+    ],
+    "resource_types": [
+      "location_history",
+      "device_logs"
+    ]
+  },
+  {
+    "id": "gpsprobe_v1",
+    "name": "GPSProbe",
+    "icon": "🛰️",
+    "type": "scanner",
+    "detects": [
+      "gps_location",
+      "movement_data"
+    ],
+    "interferes_with": [
+      "gps_signal"
+    ],
+    "requires_off": [
+      "location_shield",
+      "signal_noise"
+    ],
+    "price": 130,
+    "allowed_fractions": [],
+    "disables": [],
+    "affects": [
+      "traceability",
+      "real_time_tracking"
+    ],
+    "description": "Sonda GPS do lokalizacji ruchomych obiektów. Pozwala zdalnie ustalić współrzędne celu.",
+    "interface": "progressbar_random",
+    "levels": [
+      {
+        "title": "GPSProbe – Ustalanie lokalizacji",
+        "steps": [
+          "🔎 Namierzanie sygnału GPS...",
+          "📍 Łączenie z satelitą...",
+          "🛰️ Synchronizacja danych lokalizacyjnych...",
+          "📡 Odbiór współrzędnych..."
+        ],
+        "result_success": "✅ Pozycja GPS ustalona. Cel śledzony.",
+        "result_failure": "❌ Brak sygnału GPS lub silne zakłócenia."
+      }
+    ],
+    "map_actions": [
+      "trace_gps"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "vehicle"
+    ],
+    "operation_types": [
+      "vehicle_tracking"
+    ],
+    "resource_types": [
+      "gps_logs",
+      "location_history"
+    ]
+  },
+  {
+    "id": "wifibreaker_v1",
+    "name": "WiFiBreaker",
+    "icon": "📶",
+    "type": "exploit",
+    "detects": [],
+    "interferes_with": [
+      "wifi_guard",
+      "access_point_security"
+    ],
+    "requires_off": [
+      "mac_filtering",
+      "signal_jammer"
+    ],
+    "price": 150,
+    "allowed_fractions": [],
+    "disables": [
+      "firewall",
+      "dhcp_lease"
+    ],
+    "affects": [
+      "network_access",
+      "player_risk_level"
+    ],
+    "description": "Włam do sieci Wi-Fi. Uzyskaj dostęp do lokalnej infrastruktury lub podsłuchuj ruch.",
+    "interface": "progressbar_random",
+    "levels": [
+      {
+        "title": "WiFiBreaker – Przełamywanie zabezpieczeń",
+        "steps": [
+          "🔐 Odczytywanie sygnału...",
+          "📡 Próba uwierzytelnienia...",
+          "🧬 Analiza hasła WPA2...",
+          "🔓 Złamano zabezpieczenia!"
+        ],
+        "result_success": "✅ Uzyskano dostęp do Wi-Fi.",
+        "result_failure": "❌ Próba nieudana. Silne szyfrowanie."
+      }
+    ],
+    "downloads": 1,
+    "map_actions": [
+      "exploit"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "poi",
+      "camera",
+      "atm",
+      "server",
+      "router",
+      "player",
+      "pillar"
+    ],
+    "operation_types": [],
+    "resource_types": []
+  },
+  {
+    "id": "data_corruptor_v1",
+    "name": "DataCorruptor",
+    "icon": "💣",
+    "type": "exploit",
+    "detects": [],
+    "interferes_with": [
+      "cloud_sync",
+      "data_backup",
+      "file_watchdog"
+    ],
+    "requires_off": [
+      "system_integrity_check"
+    ],
+    "price": 200,
+    "allowed_fractions": [],
+    "disables": [
+      "file_indexing"
+    ],
+    "affects": [
+      "data_integrity",
+      "system_visibility"
+    ],
+    "description": "Sabotaż plików i danych ofiary. Niszczy logi, archiwa, zrzuty baz danych.",
+    "interface": "progressbar_random",
+    "levels": [
+      {
+        "title": "Uszkadzanie danych...",
+        "steps": [
+          "📂 Wyszukiwanie wrażliwych plików...",
+          "🧨 Wprowadzanie błędów CRC...",
+          "📉 Usuwanie kopii zapasowych...",
+          "💥 Sabotaż zakończony"
+        ],
+        "result_success": "✅ Dane uszkodzone. System destabilizowany.",
+        "result_failure": "❌ Nie udało się naruszyć systemu – aktywny nadzór bezpieczeństwa."
+      }
+    ],
+    "downloads": 3,
+    "map_actions": [
+      "exploit"
+    ],
+    "map_actions_source": "migration_inferred",
+    "target_types": [
+      "poi",
+      "camera",
+      "atm",
+      "server",
+      "router",
+      "player",
+      "pillar"
+    ],
+    "operation_types": [],
+    "resource_types": []
+  },
+  {
+    "id": "user_igideberi_genehacker_20260618220303",
+    "name": "GeneHacker",
+    "icon": "🔓",
+    "type": "scanner",
+    "detects": [],
+    "interferes_with": [
+      "access_level",
+      "exploit_success_rate"
+    ],
+    "requires_off": [],
+    "price": 100,
+    "allowed_fractions": [],
+    "disables": [
+      "activity_monitor",
+      "exploit_protection"
+    ],
+    "affects": [
+      "activity_monitor",
+      "background_injection"
+    ],
+    "description": "Otwiera target",
+    "interface": "button_choices",
+    "levels": [
+      {
+        "title": "Open",
+        "text": "Ready to win 4 U.",
+        "options": [
+          {
+            "id": 0,
+            "label": "Wykonaj",
+            "effect": {
+              "access_level": false,
+              "exploit_success_rate": false
+            }
+          }
+        ]
+      }
+    ],
+    "creator_username": "igideberi",
+    "creator_nick": "IngvarTheGrate",
+    "generated": true,
+    "published": true,
+    "downloads": 1,
+    "project_file": "GeneHacker.sh",
+    "created_at": "2026-06-18T22:03:03",
+    "map_actions": [],
+    "target_types": [],
+    "operation_types": [],
+    "resource_types": [],
+    "contract_review": {
+      "needs_review": true,
+      "reasons": [
+        "no map_actions inferred"
+      ]
+    }
+  },
+  {
+    "id": "ghostlab_getsfilen_1",
+    "name": "GetsFilen",
+    "icon": "🧪",
+    "type": "pro-system-tool",
+    "category": "pro-system-tools",
+    "description": "GhostLab Publisher artifact from custom. Custom runtime zostanie aktywowany w pozniejszym sprincie.",
+    "price": 3000,
+    "required_level": 10,
+    "required_respect": 120,
+    "allowed_fractions": [],
+    "risk_level": 3,
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "creator_nick": "CyberPhoenix",
+    "interface": "terminal",
+    "published": true,
+    "downloads": 1,
+    "generated": true,
+    "ghostlab_generated": true,
+    "runtime_status": "pending_custom_runtime",
+    "source": "ghostlab",
+    "source_project_id": "glp_getsfilen_20260625125225",
+    "source_build_version": 1,
+    "artifact_id": "glp_getsfilen_20260625125225_build_1",
+    "tool_category": "",
+    "template_id": "custom",
+    "template_name": "",
+    "levels": [
+      {
+        "command": "ghostlab-tool --artifact glp_getsfilen_20260625125225_build_1",
+        "logs": [
+          "GhostLab artifact installed.",
+          "Custom pro-system runtime pending.",
+          "Tool metadata available in Googleplex."
+        ]
+      }
+    ],
+    "metadata": {
+      "blueprint": {
+        "notes": "OK"
+      },
+      "artifact": {
+        "artifact_id": "glp_getsfilen_20260625125225_build_1",
+        "project_id": "glp_getsfilen_20260625125225",
+        "project_name": "GetsFilen",
+        "version": 1,
+        "status": "compiled",
+        "compiled_at": "2026-06-25T12:56:07",
+        "template_id": "custom",
+        "template_name": "",
+        "tool_category": "",
+        "runtime_contract": "custom_blueprint",
+        "blueprint_snapshot": {
+          "notes": "OK"
         }
-      ]
-    }
-  ]
-},
-{
-  "id": "camstream_v1",
-  "name": "CamStream",
-  "icon": "🎥",
-  "type": "scanner",
-  "detects": ["camera_feed", "video_stream"],
-  "interferes_with": ["system_visibility", "camera_streaming"],
-  "requires_off": ["camera_firewall"],
-  "price": 160,
-  "allowed_fractions": [],
-  "disables": [],
-  "affects": ["visibility", "player_risk_level"],
-  "description": "Moduł zdalnego podglądu obrazu z kamer IP. Delikatny jak cień, ale może aktywować alert w systemie monitoringu.",
-  "interface": "progressbar_random",
-  "levels": [
-    {
-      "title": "CamStream – Podgląd kamery",
-      "steps": [
-        "🔍 Wyszukiwanie aktywnych kamer...",
-        "📡 Nawiązywanie połączenia...",
-        "🖼️ Streamowanie obrazu...",
-        "📁 Buforowanie danych wideo..."
-      ],
-      "result_success": "✅ Obraz z kamery uzyskany. Obiekt pod obserwacją.",
-      "result_failure": "❌ Kamera odrzuciła połączenie. Możliwa aktywna ochrona."
-    }
-  ]
-},
-{
-  "id": "camdisabler_v1",
-  "name": "CamDisabler",
-  "icon": "📴",
-  "type": "exploit",
-  "interferes_with": ["camera", "video_stream", "security_alert"],
-  "requires_off": ["camera_firewall", "motion_detection"],
-  "price": 175,
-  "allowed_fractions": [],
-  "disables": ["camera"],
-  "affects": ["traceability", "detection_risk"],
-  "description": "Narzędzie do wyłączenia i zakłócenia kamer IP. Pozostawia ślad w logach, jeśli nie działa w trybie stealth.",
-  "interface": "terminal",
-  "levels": [
-    {
-      "command": "disable_camera --target=ipcam_21 --mode=bruteforce",
-      "logs": [
-        "Połączenie z kamerą...",
-        "Próba wyłączenia aktywnego streamu...",
-        "Zakłócanie transmisji sygnału wideo...",
-        "✅ Kamera została dezaktywowana."
-      ]
+      }
     },
-    {
-      "command": "disable_camera --target=ipcam_21 --mode=stealth",
-      "logs": [
-        "Skanowanie otwartych portów kamery...",
-        "Iniekcja kodu zakłócającego działanie...",
-        "⚠️ Aktywna ochrona wykryta – operacja przerwana."
-      ]
-    }
-  ]
-},
-{
-  "id": "micsniff_v1",
-  "name": "MicSniff",
-  "icon": "🎙️",
-  "type": "scanner",
-  "detects": ["microphone_activity", "audio_stream"],
-  "interferes_with": ["sound_protection", "privacy_mode"],
-  "requires_off": ["audio_guardian"],
-  "price": 145,
-  "allowed_fractions": [],
-  "disables": [],
-  "affects": ["traceability", "detection_risk"],
-  "description": "Sniffer mikrofonowy – cichy podsłuch otoczenia. Idealny do wykrycia rozmów lub dźwięków wokół celu.",
-  "interface": "progressbar_random",
-  "levels": [
-    {
-      "title": "MicSniff – Nasłuch mikrofonu",
-      "steps": [
-        "📡 Wyszukiwanie aktywnych mikrofonów...",
-        "🎧 Nasłuch kanału audio...",
-        "📥 Analiza poziomu dźwięku...",
-        "📤 Odszyfrowywanie strumienia audio..."
-      ],
-      "result_success": "✅ Dźwięk przechwycony. Możliwa aktywna rozmowa.",
-      "result_failure": "❌ Brak źródła dźwięku lub blokada audio."
-    }
-  ]
-},
-{
-  "id": "bttracer_v1",
-  "name": "BTTracer",
-  "icon": "📶",
-  "type": "scanner",
-  "detects": ["bluetooth_devices", "device_presence"],
-  "interferes_with": ["privacy_mode"],
-  "requires_off": ["bluetooth_guardian"],
-  "price": 110,
-  "allowed_fractions": [],
-  "disables": [],
-  "affects": ["traceability", "network_map"],
-  "description": "Skaner aktywnych urządzeń Bluetooth w okolicy. Przydatny do śledzenia obecności użytkownika lub jego sprzętu.",
-  "interface": "progressbar_random",
-  "levels": [
-    {
-      "title": "BTTracer – Skanowanie sygnałów BLE",
-      "steps": [
-        "📡 Wykrywanie aktywnych beaconów...",
-        "🔍 Analiza sygnału RSSI...",
-        "📍 Namierzanie pozycji urządzeń...",
-        "📲 Odczyt identyfikatorów MAC..."
-      ],
-      "result_success": "✅ Znaleziono urządzenia Bluetooth w pobliżu.",
-      "result_failure": "❌ Brak aktywnych urządzeń lub sygnał zakłócony."
-    }
-  ]
-},
-{
-  "id": "gpsprobe_v1",
-  "name": "GPSProbe",
-  "icon": "🛰️",
-  "type": "scanner",
-  "detects": ["gps_location", "movement_data"],
-  "interferes_with": ["gps_signal"],
-  "requires_off": ["location_shield", "signal_noise"],
-  "price": 130,
-  "allowed_fractions": [],
-  "disables": [],
-  "affects": ["traceability", "real_time_tracking"],
-  "description": "Sonda GPS do lokalizacji ruchomych obiektów. Pozwala zdalnie ustalić współrzędne celu.",
-  "interface": "progressbar_random",
-  "levels": [
-    {
-      "title": "GPSProbe – Ustalanie lokalizacji",
-      "steps": [
-        "🔎 Namierzanie sygnału GPS...",
-        "📍 Łączenie z satelitą...",
-        "🛰️ Synchronizacja danych lokalizacyjnych...",
-        "📡 Odbiór współrzędnych..."
-      ],
-      "result_success": "✅ Pozycja GPS ustalona. Cel śledzony.",
-      "result_failure": "❌ Brak sygnału GPS lub silne zakłócenia."
-    }
-  ]
-},
-{
-  "id": "wifibreaker_v1",
-  "name": "WiFiBreaker",
-  "icon": "📶",
-  "type": "exploit",
-  "detects": [],
-  "interferes_with": ["wifi_guard", "access_point_security"],
-  "requires_off": ["mac_filtering", "signal_jammer"],
-  "price": 150,
-  "allowed_fractions": [],
-  "disables": ["firewall", "dhcp_lease"],
-  "affects": ["network_access", "player_risk_level"],
-  "description": "Włam do sieci Wi-Fi. Uzyskaj dostęp do lokalnej infrastruktury lub podsłuchuj ruch.",
-  "interface": "progressbar_random",
-  "levels": [
-    {
-      "title": "WiFiBreaker – Przełamywanie zabezpieczeń",
-      "steps": [
-        "🔐 Odczytywanie sygnału...",
-        "📡 Próba uwierzytelnienia...",
-        "🧬 Analiza hasła WPA2...",
-        "🔓 Złamano zabezpieczenia!"
-      ],
-      "result_success": "✅ Uzyskano dostęp do Wi-Fi.",
-      "result_failure": "❌ Próba nieudana. Silne szyfrowanie."
-    }
-  ]
-},
-{
-  "id": "data_corruptor_v1",
-  "name": "DataCorruptor",
-  "icon": "💣",
-  "type": "exploit",
-  "detects": [],
-  "interferes_with": ["cloud_sync", "data_backup", "file_watchdog"],
-  "requires_off": ["system_integrity_check"],
-  "price": 200,
-  "allowed_fractions": [],
-  "disables": ["file_indexing"],
-  "affects": ["data_integrity", "system_visibility"],
-  "description": "Sabotaż plików i danych ofiary. Niszczy logi, archiwa, zrzuty baz danych.",
-  "interface": "progressbar_random",
-  "levels": [
-    {
-      "title": "Uszkadzanie danych...",
-      "steps": [
-        "📂 Wyszukiwanie wrażliwych plików...",
-        "🧨 Wprowadzanie błędów CRC...",
-        "📉 Usuwanie kopii zapasowych...",
-        "💥 Sabotaż zakończony"
-      ],
-      "result_success": "✅ Dane uszkodzone. System destabilizowany.",
-      "result_failure": "❌ Nie udało się naruszyć systemu – aktywny nadzór bezpieczeństwa."
-    }
-  ]
-}
-
+    "map_actions": [],
+    "target_types": [],
+    "operation_types": [],
+    "resource_types": []
+  },
+  {
+    "id": "admin_test_scan_ports_1",
+    "name": "Admin Scan Ports Lite",
+    "icon": "TST",
+    "type": "scanner",
+    "category": "admin-test-map-tools",
+    "price": 10,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 1,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "scan_ports"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "poi",
+      "camera",
+      "atm",
+      "server",
+      "router",
+      "player",
+      "pillar"
+    ],
+    "operation_types": [],
+    "resource_types": [
+      "internal_recon_state"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: scan_ports. Wariant Lite.",
+    "levels": [
+      {
+        "title": "Admin Scan Ports Lite - Scan Ports",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Scan Ports Lite: akcja Scan Ports zakonczona powodzeniem.",
+        "result_failure": "Admin Scan Ports Lite: akcja Scan Ports zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_scan_ports_2",
+    "name": "Admin Scan Ports Plus",
+    "icon": "TST",
+    "type": "scanner",
+    "category": "admin-test-map-tools",
+    "price": 15,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 2,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "scan_ports"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "poi",
+      "camera",
+      "atm",
+      "server",
+      "router",
+      "player",
+      "pillar"
+    ],
+    "operation_types": [],
+    "resource_types": [
+      "internal_recon_state"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: scan_ports. Wariant Plus.",
+    "levels": [
+      {
+        "title": "Admin Scan Ports Plus - Scan Ports",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Scan Ports Plus: akcja Scan Ports zakonczona powodzeniem.",
+        "result_failure": "Admin Scan Ports Plus: akcja Scan Ports zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_exploit_1",
+    "name": "Admin Exploit Lite",
+    "icon": "TST",
+    "type": "exploit",
+    "category": "admin-test-map-tools",
+    "price": 10,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 1,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "exploit"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "poi",
+      "camera",
+      "atm",
+      "server",
+      "router",
+      "player",
+      "pillar"
+    ],
+    "operation_types": [],
+    "resource_types": [],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: exploit. Wariant Lite.",
+    "levels": [
+      {
+        "title": "Admin Exploit Lite - Exploit",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Exploit Lite: akcja Exploit zakonczona powodzeniem.",
+        "result_failure": "Admin Exploit Lite: akcja Exploit zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_exploit_2",
+    "name": "Admin Exploit Plus",
+    "icon": "TST",
+    "type": "exploit",
+    "category": "admin-test-map-tools",
+    "price": 15,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 2,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "exploit"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "poi",
+      "camera",
+      "atm",
+      "server",
+      "router",
+      "player",
+      "pillar"
+    ],
+    "operation_types": [],
+    "resource_types": [],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: exploit. Wariant Plus.",
+    "levels": [
+      {
+        "title": "Admin Exploit Plus - Exploit",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Exploit Plus: akcja Exploit zakonczona powodzeniem.",
+        "result_failure": "Admin Exploit Plus: akcja Exploit zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_sniff_1",
+    "name": "Admin Sniff Lite",
+    "icon": "TST",
+    "type": "sniffer",
+    "category": "admin-test-map-tools",
+    "price": 10,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 1,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "sniff"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "poi",
+      "server",
+      "router",
+      "player",
+      "pillar"
+    ],
+    "operation_types": [],
+    "resource_types": [
+      "internal_recon_state"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: sniff. Wariant Lite.",
+    "levels": [
+      {
+        "title": "Admin Sniff Lite - Sniff",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Sniff Lite: akcja Sniff zakonczona powodzeniem.",
+        "result_failure": "Admin Sniff Lite: akcja Sniff zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_sniff_2",
+    "name": "Admin Sniff Plus",
+    "icon": "TST",
+    "type": "sniffer",
+    "category": "admin-test-map-tools",
+    "price": 15,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 2,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "sniff"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "poi",
+      "server",
+      "router",
+      "player",
+      "pillar"
+    ],
+    "operation_types": [],
+    "resource_types": [
+      "credentials"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: sniff. Wariant Plus.",
+    "levels": [
+      {
+        "title": "Admin Sniff Plus - Sniff",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Sniff Plus: akcja Sniff zakonczona powodzeniem.",
+        "result_failure": "Admin Sniff Plus: akcja Sniff zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_trace_1",
+    "name": "Admin Trace Lite",
+    "icon": "TST",
+    "type": "tracker",
+    "category": "admin-test-map-tools",
+    "price": 10,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 1,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "trace"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "poi",
+      "person",
+      "phone",
+      "player",
+      "vehicle",
+      "pillar"
+    ],
+    "operation_types": [
+      "generic_trace"
+    ],
+    "resource_types": [
+      "location_history"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: trace. Wariant Lite.",
+    "levels": [
+      {
+        "title": "Admin Trace Lite - Trace",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Trace Lite: akcja Trace zakonczona powodzeniem.",
+        "result_failure": "Admin Trace Lite: akcja Trace zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_trace_2",
+    "name": "Admin Trace Plus",
+    "icon": "TST",
+    "type": "tracker",
+    "category": "admin-test-map-tools",
+    "price": 15,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 2,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "trace"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "poi",
+      "person",
+      "phone",
+      "player",
+      "vehicle",
+      "pillar"
+    ],
+    "operation_types": [
+      "generic_trace"
+    ],
+    "resource_types": [
+      "location_history",
+      "device_logs"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: trace. Wariant Plus.",
+    "levels": [
+      {
+        "title": "Admin Trace Plus - Trace",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Trace Plus: akcja Trace zakonczona powodzeniem.",
+        "result_failure": "Admin Trace Plus: akcja Trace zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_trace_gps_1",
+    "name": "Admin Trace GPS Lite",
+    "icon": "TST",
+    "type": "tracker",
+    "category": "admin-test-map-tools",
+    "price": 10,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 1,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "trace_gps"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "vehicle"
+    ],
+    "operation_types": [
+      "vehicle_tracking"
+    ],
+    "resource_types": [
+      "gps_logs"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: trace_gps. Wariant Lite.",
+    "levels": [
+      {
+        "title": "Admin Trace GPS Lite - Trace GPS",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Trace GPS Lite: akcja Trace GPS zakonczona powodzeniem.",
+        "result_failure": "Admin Trace GPS Lite: akcja Trace GPS zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_trace_gps_2",
+    "name": "Admin Trace GPS Plus",
+    "icon": "TST",
+    "type": "tracker",
+    "category": "admin-test-map-tools",
+    "price": 15,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 2,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "trace_gps"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "vehicle"
+    ],
+    "operation_types": [
+      "vehicle_tracking"
+    ],
+    "resource_types": [
+      "gps_logs",
+      "location_history"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: trace_gps. Wariant Plus.",
+    "levels": [
+      {
+        "title": "Admin Trace GPS Plus - Trace GPS",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Trace GPS Plus: akcja Trace GPS zakonczona powodzeniem.",
+        "result_failure": "Admin Trace GPS Plus: akcja Trace GPS zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_trace_device_1",
+    "name": "Admin Trace Device Lite",
+    "icon": "TST",
+    "type": "tracker",
+    "category": "admin-test-map-tools",
+    "price": 10,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 1,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "trace_device"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "person",
+      "phone",
+      "player"
+    ],
+    "operation_types": [
+      "device_tracking"
+    ],
+    "resource_types": [
+      "location_history",
+      "device_logs"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: trace_device. Wariant Lite.",
+    "levels": [
+      {
+        "title": "Admin Trace Device Lite - Trace Device",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Trace Device Lite: akcja Trace Device zakonczona powodzeniem.",
+        "result_failure": "Admin Trace Device Lite: akcja Trace Device zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_trace_device_2",
+    "name": "Admin Trace Device Plus",
+    "icon": "TST",
+    "type": "tracker",
+    "category": "admin-test-map-tools",
+    "price": 15,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 2,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "trace_device"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "person",
+      "phone",
+      "player"
+    ],
+    "operation_types": [
+      "device_tracking"
+    ],
+    "resource_types": [
+      "location_history",
+      "device_logs",
+      "personal_records",
+      "call_history"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: trace_device. Wariant Plus.",
+    "levels": [
+      {
+        "title": "Admin Trace Device Plus - Trace Device",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Trace Device Plus: akcja Trace Device zakonczona powodzeniem.",
+        "result_failure": "Admin Trace Device Plus: akcja Trace Device zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_mic_sniff_1",
+    "name": "Admin Mic Sniff Lite",
+    "icon": "TST",
+    "type": "sniffer",
+    "category": "admin-test-map-tools",
+    "price": 10,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 1,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "mic_sniff"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "person",
+      "venue"
+    ],
+    "operation_types": [
+      "microphone_sniffer"
+    ],
+    "resource_types": [
+      "audio_transcript"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: mic_sniff. Wariant Lite.",
+    "levels": [
+      {
+        "title": "Admin Mic Sniff Lite - Mic Sniff",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Mic Sniff Lite: akcja Mic Sniff zakonczona powodzeniem.",
+        "result_failure": "Admin Mic Sniff Lite: akcja Mic Sniff zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_mic_sniff_2",
+    "name": "Admin Mic Sniff Plus",
+    "icon": "TST",
+    "type": "sniffer",
+    "category": "admin-test-map-tools",
+    "price": 15,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 2,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "mic_sniff"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "person",
+      "venue"
+    ],
+    "operation_types": [
+      "microphone_sniffer"
+    ],
+    "resource_types": [
+      "audio_transcript"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: mic_sniff. Wariant Plus.",
+    "levels": [
+      {
+        "title": "Admin Mic Sniff Plus - Mic Sniff",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Mic Sniff Plus: akcja Mic Sniff zakonczona powodzeniem.",
+        "result_failure": "Admin Mic Sniff Plus: akcja Mic Sniff zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_camera_stream_1",
+    "name": "Admin Camera Stream Lite",
+    "icon": "TST",
+    "type": "camera_tool",
+    "category": "admin-test-map-tools",
+    "price": 10,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 1,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "camera_stream"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "camera"
+    ],
+    "operation_types": [
+      "camera_stream"
+    ],
+    "resource_types": [
+      "camera_dump"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: camera_stream. Wariant Lite.",
+    "levels": [
+      {
+        "title": "Admin Camera Stream Lite - Camera Stream",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Camera Stream Lite: akcja Camera Stream zakonczona powodzeniem.",
+        "result_failure": "Admin Camera Stream Lite: akcja Camera Stream zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_camera_stream_2",
+    "name": "Admin Camera Stream Plus",
+    "icon": "TST",
+    "type": "camera_tool",
+    "category": "admin-test-map-tools",
+    "price": 15,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 2,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "camera_stream"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "camera"
+    ],
+    "operation_types": [
+      "camera_stream"
+    ],
+    "resource_types": [
+      "camera_dump",
+      "video_material"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: camera_stream. Wariant Plus.",
+    "levels": [
+      {
+        "title": "Admin Camera Stream Plus - Camera Stream",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Camera Stream Plus: akcja Camera Stream zakonczona powodzeniem.",
+        "result_failure": "Admin Camera Stream Plus: akcja Camera Stream zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_camera_shutdown_1",
+    "name": "Admin Camera Shutdown Lite",
+    "icon": "TST",
+    "type": "camera_tool",
+    "category": "admin-test-map-tools",
+    "price": 10,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 1,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "camera_shutdown"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "camera"
+    ],
+    "operation_types": [
+      "camera_shutdown"
+    ],
+    "resource_types": [],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: camera_shutdown. Wariant Lite.",
+    "levels": [
+      {
+        "title": "Admin Camera Shutdown Lite - Camera Shutdown",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Camera Shutdown Lite: akcja Camera Shutdown zakonczona powodzeniem.",
+        "result_failure": "Admin Camera Shutdown Lite: akcja Camera Shutdown zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_camera_shutdown_2",
+    "name": "Admin Camera Shutdown Plus",
+    "icon": "TST",
+    "type": "camera_tool",
+    "category": "admin-test-map-tools",
+    "price": 15,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 2,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "camera_shutdown"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "camera"
+    ],
+    "operation_types": [
+      "camera_shutdown"
+    ],
+    "resource_types": [],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: camera_shutdown. Wariant Plus.",
+    "levels": [
+      {
+        "title": "Admin Camera Shutdown Plus - Camera Shutdown",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Camera Shutdown Plus: akcja Camera Shutdown zakonczona powodzeniem.",
+        "result_failure": "Admin Camera Shutdown Plus: akcja Camera Shutdown zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_atm_logs_1",
+    "name": "Admin ATM Logs Lite",
+    "icon": "TST",
+    "type": "financial_tool",
+    "category": "admin-test-map-tools",
+    "price": 10,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 1,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "atm_logs"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "atm"
+    ],
+    "operation_types": [
+      "atm_log_extraction"
+    ],
+    "resource_types": [
+      "atm_dump"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: atm_logs. Wariant Lite.",
+    "levels": [
+      {
+        "title": "Admin ATM Logs Lite - ATM Logs",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin ATM Logs Lite: akcja ATM Logs zakonczona powodzeniem.",
+        "result_failure": "Admin ATM Logs Lite: akcja ATM Logs zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_atm_logs_2",
+    "name": "Admin ATM Logs Plus",
+    "icon": "TST",
+    "type": "financial_tool",
+    "category": "admin-test-map-tools",
+    "price": 15,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 2,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "atm_logs"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "atm"
+    ],
+    "operation_types": [
+      "atm_log_extraction"
+    ],
+    "resource_types": [
+      "atm_dump",
+      "financial_records"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: atm_logs. Wariant Plus.",
+    "levels": [
+      {
+        "title": "Admin ATM Logs Plus - ATM Logs",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin ATM Logs Plus: akcja ATM Logs zakonczona powodzeniem.",
+        "result_failure": "Admin ATM Logs Plus: akcja ATM Logs zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_install_sniffer_1",
+    "name": "Admin Install Sniffer Lite",
+    "icon": "TST",
+    "type": "sniffer",
+    "category": "admin-test-map-tools",
+    "price": 10,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 1,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "install_sniffer"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "atm",
+      "router",
+      "server"
+    ],
+    "operation_types": [
+      "persistent_sniffer"
+    ],
+    "resource_types": [
+      "credentials"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: install_sniffer. Wariant Lite.",
+    "levels": [
+      {
+        "title": "Admin Install Sniffer Lite - Install Sniffer",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Install Sniffer Lite: akcja Install Sniffer zakonczona powodzeniem.",
+        "result_failure": "Admin Install Sniffer Lite: akcja Install Sniffer zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_install_sniffer_2",
+    "name": "Admin Install Sniffer Plus",
+    "icon": "TST",
+    "type": "sniffer",
+    "category": "admin-test-map-tools",
+    "price": 15,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 2,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "install_sniffer"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "atm",
+      "router",
+      "server"
+    ],
+    "operation_types": [
+      "persistent_sniffer"
+    ],
+    "resource_types": [
+      "financial_records",
+      "credentials",
+      "device_logs",
+      "internal_recon_state"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: install_sniffer. Wariant Plus.",
+    "levels": [
+      {
+        "title": "Admin Install Sniffer Plus - Install Sniffer",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Install Sniffer Plus: akcja Install Sniffer zakonczona powodzeniem.",
+        "result_failure": "Admin Install Sniffer Plus: akcja Install Sniffer zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_scan_hotspots_1",
+    "name": "Admin Scan Hotspots Lite",
+    "icon": "TST",
+    "type": "scanner",
+    "category": "admin-test-map-tools",
+    "price": 10,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 1,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "scan_hotspots"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "venue"
+    ],
+    "operation_types": [
+      "wifi_scanner"
+    ],
+    "resource_types": [
+      "wifi_networks"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: scan_hotspots. Wariant Lite.",
+    "levels": [
+      {
+        "title": "Admin Scan Hotspots Lite - Scan Hotspots",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Scan Hotspots Lite: akcja Scan Hotspots zakonczona powodzeniem.",
+        "result_failure": "Admin Scan Hotspots Lite: akcja Scan Hotspots zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_scan_hotspots_2",
+    "name": "Admin Scan Hotspots Plus",
+    "icon": "TST",
+    "type": "scanner",
+    "category": "admin-test-map-tools",
+    "price": 15,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 2,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "scan_hotspots"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "venue"
+    ],
+    "operation_types": [
+      "wifi_scanner"
+    ],
+    "resource_types": [
+      "wifi_networks",
+      "hotspot_database"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: scan_hotspots. Wariant Plus.",
+    "levels": [
+      {
+        "title": "Admin Scan Hotspots Plus - Scan Hotspots",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Scan Hotspots Plus: akcja Scan Hotspots zakonczona powodzeniem.",
+        "result_failure": "Admin Scan Hotspots Plus: akcja Scan Hotspots zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_audio_hack_1",
+    "name": "Admin Audio Hack Lite",
+    "icon": "TST",
+    "type": "audio_tool",
+    "category": "admin-test-map-tools",
+    "price": 10,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 1,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "audio_hack"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "venue"
+    ],
+    "operation_types": [
+      "audio_interference"
+    ],
+    "resource_types": [
+      "audio_transcript"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: audio_hack. Wariant Lite.",
+    "levels": [
+      {
+        "title": "Admin Audio Hack Lite - Audio Hack",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Audio Hack Lite: akcja Audio Hack zakonczona powodzeniem.",
+        "result_failure": "Admin Audio Hack Lite: akcja Audio Hack zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_audio_hack_2",
+    "name": "Admin Audio Hack Plus",
+    "icon": "TST",
+    "type": "audio_tool",
+    "category": "admin-test-map-tools",
+    "price": 15,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 2,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "audio_hack"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "venue"
+    ],
+    "operation_types": [
+      "audio_interference"
+    ],
+    "resource_types": [
+      "audio_transcript"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: audio_hack. Wariant Plus.",
+    "levels": [
+      {
+        "title": "Admin Audio Hack Plus - Audio Hack",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Audio Hack Plus: akcja Audio Hack zakonczona powodzeniem.",
+        "result_failure": "Admin Audio Hack Plus: akcja Audio Hack zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_car_hack_1",
+    "name": "Admin Car Hack Lite",
+    "icon": "TST",
+    "type": "vehicle_tool",
+    "category": "admin-test-map-tools",
+    "price": 10,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 1,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "car_hack"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "vehicle"
+    ],
+    "operation_types": [
+      "vehicle_ecu"
+    ],
+    "resource_types": [
+      "vehicle_diagnostics"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: car_hack. Wariant Lite.",
+    "levels": [
+      {
+        "title": "Admin Car Hack Lite - Car Hack",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Car Hack Lite: akcja Car Hack zakonczona powodzeniem.",
+        "result_failure": "Admin Car Hack Lite: akcja Car Hack zablokowana."
+      }
+    ]
+  },
+  {
+    "id": "admin_test_car_hack_2",
+    "name": "Admin Car Hack Plus",
+    "icon": "TST",
+    "type": "vehicle_tool",
+    "category": "admin-test-map-tools",
+    "price": 15,
+    "required_level": 1,
+    "required_respect": 0,
+    "allowed_fractions": [],
+    "purchase_account": "admin",
+    "creator_username": "admin",
+    "risk_level": 2,
+    "published": true,
+    "downloads": 0,
+    "interface": "progressbar_random",
+    "map_actions": [
+      "car_hack"
+    ],
+    "map_actions_source": "admin_test_seed",
+    "target_types": [
+      "vehicle"
+    ],
+    "operation_types": [
+      "vehicle_ecu"
+    ],
+    "resource_types": [
+      "vehicle_diagnostics"
+    ],
+    "detects": [],
+    "affects": [],
+    "interferes_with": [],
+    "requires_off": [],
+    "disables": [],
+    "description": "Tanie narzedzie testowe admina dla map action: car_hack. Wariant Plus.",
+    "levels": [
+      {
+        "title": "Admin Car Hack Plus - Car Hack",
+        "steps": [
+          "Init test module...",
+          "Binding map action...",
+          "Running simulated payload...",
+          "Writing operation state..."
+        ],
+        "result_success": "Admin Car Hack Plus: akcja Car Hack zakonczona powodzeniem.",
+        "result_failure": "Admin Car Hack Plus: akcja Car Hack zablokowana."
+      }
+    ]
+  }
 ]
-

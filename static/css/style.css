@@ -246,6 +246,29 @@ body {
   white-space: nowrap;
 }
 
+.browser-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid rgba(0, 170, 102, 0.45);
+  padding-bottom: 8px;
+}
+
+.browser-tab {
+  background: #06100b;
+  color: #8fd6a4;
+  border: 1px solid #0a6;
+  padding: 7px 12px;
+  font-family: monospace;
+  cursor: pointer;
+}
+
+.browser-tab:hover,
+.browser-tab.is-active {
+  background: #0b2a18;
+  color: #d8ffe5;
+  border-color: #38ff80;
+}
+
 .googolplex-search {
   background: #07110b;
   color: #0f0;
@@ -349,6 +372,28 @@ body {
   background: #222;
   color: #777;
   cursor: not-allowed;
+}
+
+.ghost-exchange-card {
+  border-color: #c49c2f;
+  background: #111006;
+  color: #ffeab0;
+}
+
+.ghost-exchange-card.is-listed-preview {
+  border-color: #38ff80;
+  box-shadow: inset 0 0 0 1px rgba(56, 255, 128, 0.2);
+}
+
+.ghost-exchange-meta {
+  display: grid;
+  gap: 5px;
+  color: #d8c588;
+  font-size: 0.78rem;
+}
+
+.ghost-exchange-meta b {
+  color: #fff5c9;
 }
 
 .googolplex-empty {
@@ -2216,6 +2261,37 @@ form button:hover {
 }
 .file-manager-file:hover {
     color: #e6e6e6;
+}
+.file-manager-row-match {
+    background: rgba(0, 255, 102, 0.08);
+    outline: 1px solid rgba(0, 255, 102, 0.45);
+}
+.file-manager-tool-match .file-manager-name {
+    color: #8cff9c;
+    text-shadow: 0 0 8px rgba(0, 255, 102, 0.35);
+}
+.file-manager-tool-select {
+    margin-left: auto;
+    background: #052b13;
+    color: #baffc6;
+    border: 1px solid #28ff68;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.72em;
+    padding: 3px 10px;
+    cursor: pointer;
+}
+.file-manager-tool-select:hover {
+    background: #0b4a21;
+    color: #ffffff;
+}
+.file-manager-selection-hint {
+    border: 1px solid rgba(0, 255, 102, 0.45);
+    background: rgba(0, 0, 0, 0.35);
+    color: #baffc6;
+    margin: 6px 0 10px;
+    padding: 7px 9px;
+    font-size: 0.82rem;
 }
 .file-manager-icon {
     font-size: 1.1em;
