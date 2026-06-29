@@ -9,7 +9,7 @@ import re
 import math
 import ipaddress
 import html
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from random import random, choice, randint, sample
 import random as random_module
 import hashlib
@@ -287,6 +287,7 @@ MAP_ACTION_OPERATION_TYPES = {
     "install_sniffer": ["persistent_sniffer"],
     "scan_hotspots": ["wifi_scanner"],
     "audio_hack": ["audio_interference"],
+    "car_hack": ["vehicle_ecu"],
 }
 
 DEFAULT_OPERATION_DURATIONS_SECONDS = {
@@ -1004,10 +1005,22 @@ def build_operation_target_id(target):
     return f"map:{key[0]}:{key[1]}:{label}"
 
 
+def operation_utc_iso(value):
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
 def operation_expiry_iso(now, operation_type):
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    else:
+        now = now.astimezone(timezone.utc)
     duration = DEFAULT_OPERATION_DURATIONS_SECONDS.get(operation_type, 10 * 60)
-    expires_at = datetime.utcfromtimestamp(now.timestamp() + duration)
-    return expires_at.isoformat(timespec="seconds") + "Z"
+    expires_at = now + timedelta(seconds=duration)
+    return operation_utc_iso(expires_at)
 
 
 def operation_duration_seconds(operation_type):
@@ -1407,7 +1420,7 @@ def risk_scan_action_dedupe_key(username, action, lat, lng):
 
 
 def build_operation_instance(username, app, map_action_id, operation_type, target):
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     operation_id = f"op_{now.strftime('%Y%m%d%H%M%S')}_{randint(100000, 999999)}"
     target_snapshot = dict(target or {})
     target_type = infer_target_type_from_target(target_snapshot)
@@ -1428,7 +1441,7 @@ def build_operation_instance(username, app, map_action_id, operation_type, targe
         "target_type": target_type,
         "target_mode": target_mode,
         "status": "running",
-        "started_at": now.isoformat(timespec="seconds") + "Z",
+        "started_at": operation_utc_iso(now),
         "expires_at": operation_expiry_iso(now, operation_type),
         "duration_seconds": duration_seconds,
         "movement_model": movement_model,
@@ -1773,9 +1786,9 @@ def normalize_runtime_file_entry(entry, folder):
     if target_snapshot:
         entry["target_snapshot"] = target_snapshot
         metadata.setdefault("target", target_snapshot)
-    entry["created_at"] = runtime_file_created_at({**entry, "metadata": metadata})
-    entry["sellable"] = bool(entry.get("sellable", False))
     entry["market_status"] = str(entry.get("market_status") or "not_listed")
+    entry["created_at"] = runtime_file_created_at({**entry, "metadata": metadata})
+    entry["sellable"] = is_ghost_exchange_sellable(entry)
     completeness_info = infer_file_completeness(entry, metadata, resource_types)
     metadata["completeness_percent"] = completeness_info["percent"]
     metadata["completeness_tier"] = completeness_info["tier"]
@@ -2246,6 +2259,61 @@ def data_file_exists(files, folder, operation_id):
     )
 
 
+def operation_file_references(operation):
+    resource_buffer = operation.get("resource_buffer") if isinstance(operation.get("resource_buffer"), dict) else {}
+    names = {
+        str(item.get("name") or "")
+        for item in resource_buffer.get("files", [])
+        if isinstance(item, dict) and str(item.get("name") or "").strip()
+    }
+    names.update(
+        str(item.get("file_name") or "")
+        for item in operation.get("fragments", [])
+        if isinstance(item, dict) and str(item.get("file_name") or "").strip()
+    )
+    return {name for name in names if name}
+
+
+def operation_artifact_exists(profile, files, folders, operation_id, file_name=None, fragment_index=None):
+    operation_id = str(operation_id or "")
+    file_name = str(file_name or "")
+
+    def entry_matches(entry):
+        if not isinstance(entry, dict):
+            return False
+        metadata = entry.get("metadata") if isinstance(entry.get("metadata"), dict) else {}
+        entry_operation_id = str(
+            entry.get("source_operation_id")
+            or entry.get("operation_id")
+            or metadata.get("operation_id")
+            or ""
+        )
+        entry_name = str(entry.get("name") or entry.get("filename") or metadata.get("sold_file_name") or "")
+        sold_file_name = str(metadata.get("sold_file_name") or entry.get("file_name") or "")
+        if file_name and file_name not in {entry_name, sold_file_name}:
+            return False
+        if fragment_index is not None:
+            try:
+                if int(entry.get("fragment_index") or metadata.get("fragment_index") or -1) != int(fragment_index):
+                    return False
+            except (TypeError, ValueError):
+                return False
+        if operation_id and entry_operation_id == operation_id:
+            return True
+        if operation_id and (operation_id in entry_name or operation_id in sold_file_name):
+            return True
+        return bool(file_name and file_name in {entry_name, sold_file_name})
+
+    for folder in folders:
+        if any(entry_matches(item) for item in files.get(folder, [])):
+            return True
+    if any(entry_matches(item) for item in files.get("market", [])):
+        return True
+    if any(entry_matches(item) for item in profile.get("market_history", []) or []):
+        return True
+    return False
+
+
 def build_vehicle_tracking_gps_file(operation):
     target = operation.get("target") or {}
     target_label = target.get("label") or target.get("name") or operation.get("target_id") or "vehicle"
@@ -2299,11 +2367,13 @@ def finalize_vehicle_tracking_file(profile, operation):
         return False
 
     resource_buffer = operation.setdefault("resource_buffer", {})
-    if resource_buffer.get("gps_file_created"):
-        return False
-
     files = ensure_files_inventory(profile)
     operation_id = operation.get("operation_id")
+    if resource_buffer.get("gps_file_created") and operation_artifact_exists(profile, files, ["gps"], operation_id):
+        return False
+    if resource_buffer.get("gps_file_created"):
+        resource_buffer["gps_file_created"] = False
+
     if gps_file_exists(files, operation_id):
         resource_buffer["gps_file_created"] = True
         return False
@@ -2414,12 +2484,14 @@ def finalize_device_tracking_file(profile, operation):
         return False
 
     resource_buffer = operation.setdefault("resource_buffer", {})
-    if resource_buffer.get("device_file_created"):
-        return False
-
     files = ensure_files_inventory(profile)
     folder, device_file = build_device_intelligence_file(operation)
     operation_id = operation.get("operation_id")
+    if resource_buffer.get("device_file_created") and operation_artifact_exists(profile, files, [folder], operation_id):
+        return False
+    if resource_buffer.get("device_file_created"):
+        resource_buffer["device_file_created"] = False
+
     if data_file_exists(files, folder, operation_id):
         resource_buffer["device_file_created"] = True
         return False
@@ -2547,10 +2619,32 @@ def ensure_camera_stream_fragments(profile, operation, now_ts):
     }
     changed = False
     for index in range(1, target_count + 1):
-        if index in existing_indexes:
-            continue
         fragment_start = started_ts + (index - 1) * interval
         fragment_end = min(started_ts + index * interval, expires_ts)
+        if index in existing_indexes:
+            fragment_name = next(
+                (
+                    str(item.get("file_name") or "")
+                    for item in fragments
+                    if isinstance(item, dict) and int(item.get("fragment_index") or -1) == index
+                ),
+                "",
+            )
+            if (
+                not camera_file_exists(files, operation.get("operation_id"), index)
+                and not operation_artifact_exists(
+                    profile,
+                    files,
+                    ["camera"],
+                    operation.get("operation_id"),
+                    file_name=fragment_name or None,
+                    fragment_index=index,
+                )
+            ):
+                fragment_file = build_camera_fragment_file(operation, index, fragment_start, fragment_end)
+                files["camera"].append(fragment_file)
+                changed = True
+            continue
         fragment_file = build_camera_fragment_file(operation, index, fragment_start, fragment_end)
         if not camera_file_exists(files, operation.get("operation_id"), index):
             files["camera"].append(fragment_file)
@@ -2750,12 +2844,22 @@ def finalize_atm_log_extraction_files(profile, operation):
         return False
 
     resource_buffer = operation.setdefault("resource_buffer", {})
-    if resource_buffer.get("atm_files_created"):
-        return False
-
     files = ensure_files_inventory(profile)
     operation_id = operation.get("operation_id")
     resources = atm_log_resource_types(operation)
+    expected_folders = []
+    if "atm_dump" in resources:
+        expected_folders.append("atm")
+    if "financial_records" in resources:
+        expected_folders.append("financial")
+    if resource_buffer.get("atm_files_created") and all(
+        operation_artifact_exists(profile, files, [folder], operation_id)
+        for folder in expected_folders
+    ):
+        return False
+    if resource_buffer.get("atm_files_created"):
+        resource_buffer["atm_files_created"] = False
+
     created_files = []
 
     if "atm_dump" in resources and not data_file_exists(files, "atm", operation_id):
@@ -3006,12 +3110,26 @@ def finalize_persistent_sniffer_files(profile, operation):
         return False
 
     resource_buffer = operation.setdefault("resource_buffer", {})
-    if resource_buffer.get("sniffer_files_created"):
-        return False
-
     files = ensure_files_inventory(profile)
     operation_id = operation.get("operation_id")
     resources = persistent_sniffer_resource_types(operation)
+    expected_folders = []
+    if "financial_records" in resources:
+        expected_folders.append("financial")
+    if "credentials" in resources:
+        expected_folders.append("credentials")
+    if "device_logs" in resources:
+        expected_folders.append("device")
+    if "internal_recon_state" in resources:
+        expected_folders.append("system")
+    if resource_buffer.get("sniffer_files_created") and all(
+        operation_artifact_exists(profile, files, [folder], operation_id)
+        for folder in expected_folders
+    ):
+        return False
+    if resource_buffer.get("sniffer_files_created"):
+        resource_buffer["sniffer_files_created"] = False
+
     created_files = []
 
     if "financial_records" in resources and not data_file_exists(files, "financial", operation_id):
@@ -3061,6 +3179,421 @@ def finalize_persistent_sniffer_files(profile, operation):
             "file_category": file_entry["file_category"],
         })
     return True
+
+
+WIFI_SCANNER_RESOURCE_TYPES = ["wifi_networks", "hotspot_database"]
+AUDIO_INTERFERENCE_RESOURCE_TYPES = ["audio_transcript"]
+VEHICLE_ECU_RESOURCE_TYPES = ["vehicle_diagnostics"]
+GENERIC_TRACE_RESOURCE_TYPES = ["location_history", "internal_recon_state"]
+
+
+def operation_declared_resources(operation, allowed, fallback):
+    resource_buffer = operation.get("resource_buffer") or {}
+    declared = [
+        str(item).strip()
+        for item in resource_buffer.get("resource_types", [])
+        if str(item).strip() in allowed
+    ]
+    if not declared:
+        declared = list(fallback)
+    return list(dict.fromkeys(declared))
+
+
+def wifi_scanner_resource_types(operation):
+    return operation_declared_resources(operation, WIFI_SCANNER_RESOURCE_TYPES, ["wifi_networks"])
+
+
+def audio_interference_resource_types(operation):
+    return operation_declared_resources(operation, AUDIO_INTERFERENCE_RESOURCE_TYPES, ["audio_transcript"])
+
+
+def vehicle_ecu_resource_types(operation):
+    return operation_declared_resources(operation, VEHICLE_ECU_RESOURCE_TYPES, ["vehicle_diagnostics"])
+
+
+def generic_trace_resource_types(operation):
+    return operation_declared_resources(operation, GENERIC_TRACE_RESOURCE_TYPES, ["location_history"])
+
+
+def build_wifi_scanner_file(operation):
+    target = operation.get("target") or {}
+    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "network"
+    operation_id = operation.get("operation_id") or "operation"
+    resources = wifi_scanner_resource_types(operation)
+    seed = stable_procedural_seed(operation_id, "wifi_scanner", operation.get("target_id"))
+    rng = random_module.Random(seed)
+    network_count = 4 + rng.randint(0, 5)
+    records = []
+    for index in range(1, network_count + 1):
+        records.append({
+            "index": index,
+            "ssid": f"AP_{rng.randint(1000, 9999)}",
+            "security": choice(["WPA2", "WPA3", "WPA2-Enterprise"]),
+            "signal": f"-{rng.randint(38, 84)} dBm",
+            "channel": rng.choice([1, 6, 11, 36, 44, 149]),
+        })
+    if "hotspot_database" in resources:
+        hotspot_count = network_count + rng.randint(3, 8)
+    else:
+        hotspot_count = network_count
+    completeness_percent = clamp_int(46 + network_count * 5 + (16 if "hotspot_database" in resources else 0), default=62)
+    quality_score = clamp_int(54 + network_count * 3 + (12 if "hotspot_database" in resources else 0), default=64)
+    filename = f"wifi_{operation_filename_slug(target_label)}_{operation_id}.net"
+    return {
+        "name": filename,
+        "file_category": "network",
+        "directory": "/data/network",
+        "preview_mode": "table",
+        "resource_types": resources,
+        "operation_id": operation_id,
+        "source_operation_type": operation.get("operation_type"),
+        "status": "stored",
+        "sellable": False,
+        "market_status": "not_listed",
+        "metadata": {
+            "operation_id": operation_id,
+            "target": target,
+            "target_id": operation.get("target_id"),
+            "started_at": operation.get("started_at"),
+            "ended_at": operation.get("ended_at") or operation.get("expires_at"),
+            "record_count": len(records),
+            "network_count": network_count,
+            "hotspot_count": hotspot_count,
+            "quality": "high" if "hotspot_database" in resources else "medium",
+            "quality_score": quality_score,
+            "completeness_percent": completeness_percent,
+            "completeness_tier": completeness_tier_for_percent(completeness_percent),
+            "missing_fields": [] if "hotspot_database" in resources else ["coverage_area", "freshness"],
+        },
+        "records": records,
+        "summary": {
+            "label": "Wi-Fi Recon",
+            "record_count": len(records),
+            "hotspot_count": hotspot_count,
+            "completeness_percent": completeness_percent,
+            "quality_score": quality_score,
+        },
+    }
+
+
+def build_audio_interference_file(operation):
+    target = operation.get("target") or {}
+    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "audio"
+    operation_id = operation.get("operation_id") or "operation"
+    duration = operation_duration_from_timestamps(operation)
+    line_count = max(3, min(12, duration // 180 or 3))
+    lines = [
+        {"timestamp": operation.get("started_at"), "speaker": "unknown", "text": "fragment zakloconego strumienia audio"}
+        for _ in range(line_count)
+    ]
+    completeness_percent = clamp_int(42 + min(35, line_count * 5), default=60)
+    quality_score = clamp_int(48 + min(30, line_count * 4), default=58)
+    filename = f"audio_{operation_filename_slug(target_label)}_{operation_id}.txt"
+    return {
+        "name": filename,
+        "file_category": "audio",
+        "directory": "/data/audio",
+        "preview_mode": "transcript",
+        "resource_types": audio_interference_resource_types(operation),
+        "operation_id": operation_id,
+        "source_operation_type": operation.get("operation_type"),
+        "status": "stored",
+        "sellable": False,
+        "market_status": "not_listed",
+        "metadata": {
+            "operation_id": operation_id,
+            "target": target,
+            "target_id": operation.get("target_id"),
+            "started_at": operation.get("started_at"),
+            "ended_at": operation.get("ended_at") or operation.get("expires_at"),
+            "duration_seconds": duration,
+            "speaker_count": 1,
+            "transcript_quality": "partial",
+            "quality_score": quality_score,
+            "completeness_percent": completeness_percent,
+            "completeness_tier": completeness_tier_for_percent(completeness_percent),
+            "missing_fields": ["speaker_count", "keyword_hits"],
+        },
+        "transcript": lines,
+        "summary": {
+            "label": "Audio Transcript",
+            "line_count": line_count,
+            "completeness_percent": completeness_percent,
+            "quality_score": quality_score,
+        },
+    }
+
+
+def build_vehicle_ecu_file(operation):
+    target = operation.get("target") or {}
+    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "vehicle"
+    operation_id = operation.get("operation_id") or "operation"
+    seed = stable_procedural_seed(operation_id, "vehicle_ecu", operation.get("target_id"))
+    rng = random_module.Random(seed)
+    systems = ["ECU", "ABS", "BMS", "GPS", "infotainment"]
+    records = [
+        {
+            "system": system,
+            "status": rng.choice(["nominal", "warning", "locked", "diagnostic"]),
+            "confidence": rng.choice(["medium", "high"]),
+        }
+        for system in systems[: 3 + rng.randint(0, 2)]
+    ]
+    completeness_percent = clamp_int(50 + len(records) * 7, default=72)
+    quality_score = clamp_int(58 + len(records) * 5, default=74)
+    filename = f"vehicle_{operation_filename_slug(target_label)}_{operation_id}.diag"
+    return {
+        "name": filename,
+        "file_category": "vehicle",
+        "directory": "/data/vehicle",
+        "preview_mode": "table",
+        "resource_types": vehicle_ecu_resource_types(operation),
+        "operation_id": operation_id,
+        "source_operation_type": operation.get("operation_type"),
+        "status": "stored",
+        "sellable": False,
+        "market_status": "not_listed",
+        "metadata": {
+            "operation_id": operation_id,
+            "target": target,
+            "target_id": operation.get("target_id"),
+            "started_at": operation.get("started_at"),
+            "ended_at": operation.get("ended_at") or operation.get("expires_at"),
+            "systems_count": len(records),
+            "quality": "medium",
+            "quality_score": quality_score,
+            "completeness_percent": completeness_percent,
+            "completeness_tier": completeness_tier_for_percent(completeness_percent),
+            "missing_fields": ["fault_depth", "telemetry_quality"],
+        },
+        "records": records,
+        "summary": {
+            "label": "Vehicle Diagnostics",
+            "systems_count": len(records),
+            "completeness_percent": completeness_percent,
+            "quality_score": quality_score,
+        },
+    }
+
+
+def build_generic_trace_location_file(operation):
+    target = operation.get("target") or {}
+    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "target"
+    operation_id = operation.get("operation_id") or "operation"
+    started_ts = parse_operation_timestamp(operation.get("started_at")) or datetime.now(timezone.utc).timestamp()
+    expires_ts = parse_operation_timestamp(operation.get("ended_at") or operation.get("expires_at")) or started_ts
+    duration = max(0, int(expires_ts - started_ts))
+    checkpoint_count = max(2, min(8, duration // 600 or 2))
+    checkpoints = []
+    for index in range(1, checkpoint_count + 1):
+        checkpoint_ts = started_ts + (duration * index / checkpoint_count if checkpoint_count else 0)
+        position = compute_operation_position(operation, checkpoint_ts) or operation_base_position(operation)
+        if isinstance(position, tuple):
+            position = {"lat": round(position[0], 7), "lng": round(position[1], 7)}
+        checkpoints.append({
+            "index": index,
+            "created_at": operation_iso_from_ts(checkpoint_ts),
+            "lat": (position or {}).get("lat"),
+            "lng": (position or {}).get("lng"),
+            "event_type": "generic_trace_checkpoint",
+        })
+    completeness_percent = clamp_int(38 + checkpoint_count * 7, default=58)
+    quality_score = clamp_int(50 + checkpoint_count * 4, default=62)
+    filename = f"trace_{operation_filename_slug(target_label)}_{operation_id}.log"
+    return {
+        "name": filename,
+        "file_category": "gps",
+        "directory": "/data/gps",
+        "preview_mode": "table",
+        "resource_types": ["location_history"],
+        "operation_id": operation_id,
+        "source_operation_type": operation.get("operation_type"),
+        "status": "stored",
+        "sellable": False,
+        "market_status": "not_listed",
+        "metadata": {
+            "operation_id": operation_id,
+            "target": target,
+            "target_id": operation.get("target_id"),
+            "started_at": operation.get("started_at"),
+            "ended_at": operation.get("ended_at") or operation.get("expires_at"),
+            "checkpoint_count": len(checkpoints),
+            "quality": "medium",
+            "quality_score": quality_score,
+            "completeness_percent": completeness_percent,
+            "completeness_tier": completeness_tier_for_percent(completeness_percent),
+            "missing_fields": ["target_identity_confidence"],
+        },
+        "checkpoints": checkpoints,
+        "summary": {
+            "label": "Generic Trace",
+            "checkpoint_count": len(checkpoints),
+            "completeness_percent": completeness_percent,
+            "quality_score": quality_score,
+        },
+    }
+
+
+def append_operation_file_reference(operation, file_entry):
+    resource_buffer = operation.setdefault("resource_buffer", {})
+    resource_buffer.setdefault("files", [])
+    if any(item.get("name") == file_entry.get("name") for item in resource_buffer["files"]):
+        return
+    resource_buffer["files"].append({
+        "name": file_entry["name"],
+        "directory": file_entry["directory"],
+        "file_category": file_entry["file_category"],
+    })
+
+
+def finalize_camera_stream_file(profile, operation):
+    if operation.get("operation_type") != "camera_stream":
+        return False
+    if operation.get("status") not in {"completed", "timeout"}:
+        return False
+
+    files = ensure_files_inventory(profile)
+    operation_id = operation.get("operation_id")
+    fragments = operation.setdefault("fragments", [])
+    if data_file_exists(files, "camera", operation_id) or operation_artifact_exists(profile, files, ["camera"], operation_id):
+        return False
+    if fragments:
+        operation["fragments"] = []
+        resource_buffer = operation.setdefault("resource_buffer", {})
+        resource_buffer["camera_fragments_created"] = 0
+        resource_buffer["files"] = [
+            item for item in resource_buffer.get("files", [])
+            if not (isinstance(item, dict) and item.get("file_category") == "camera")
+        ]
+    if data_file_exists(files, "camera", operation_id):
+        return False
+
+    started_ts = parse_operation_timestamp(operation.get("started_at"))
+    ended_ts = parse_operation_timestamp(operation.get("ended_at") or operation.get("expires_at"))
+    if started_ts is None:
+        started_ts = datetime.now(timezone.utc).timestamp()
+    if ended_ts is None or ended_ts <= started_ts:
+        ended_ts = started_ts + min(60, int(operation.get("duration_seconds") or 60))
+    fragment_file = build_camera_fragment_file(operation, 1, started_ts, ended_ts)
+    files["camera"].append(fragment_file)
+    fragments.append({
+        "fragment_index": 1,
+        "file_name": fragment_file["name"],
+        "created_at": fragment_file["metadata"]["ended_at"],
+        "started_at": fragment_file["metadata"]["started_at"],
+        "ended_at": fragment_file["metadata"]["ended_at"],
+        "resource_types": fragment_file["resource_types"],
+    })
+    resource_buffer = operation.setdefault("resource_buffer", {})
+    resource_buffer["camera_fragments_created"] = 1
+    append_operation_file_reference(operation, fragment_file)
+    return True
+
+
+def finalize_wifi_scanner_files(profile, operation):
+    if operation.get("operation_type") != "wifi_scanner":
+        return False
+    if operation.get("status") not in {"completed", "timeout"}:
+        return False
+    resource_buffer = operation.setdefault("resource_buffer", {})
+    files = ensure_files_inventory(profile)
+    operation_id = operation.get("operation_id")
+    if resource_buffer.get("network_files_created") and operation_artifact_exists(profile, files, ["network"], operation_id):
+        return False
+    if resource_buffer.get("network_files_created"):
+        resource_buffer["network_files_created"] = False
+
+    if data_file_exists(files, "network", operation_id):
+        resource_buffer["network_files_created"] = True
+        return False
+    network_file = build_wifi_scanner_file(operation)
+    files["network"].append(network_file)
+    resource_buffer["network_files_created"] = True
+    append_operation_file_reference(operation, network_file)
+    return True
+
+
+def finalize_audio_interference_files(profile, operation):
+    if operation.get("operation_type") != "audio_interference":
+        return False
+    if operation.get("status") not in {"completed", "timeout"}:
+        return False
+    resource_buffer = operation.setdefault("resource_buffer", {})
+    files = ensure_files_inventory(profile)
+    operation_id = operation.get("operation_id")
+    if resource_buffer.get("audio_files_created") and operation_artifact_exists(profile, files, ["audio"], operation_id):
+        return False
+    if resource_buffer.get("audio_files_created"):
+        resource_buffer["audio_files_created"] = False
+
+    if data_file_exists(files, "audio", operation_id):
+        resource_buffer["audio_files_created"] = True
+        return False
+    audio_file = build_audio_interference_file(operation)
+    files["audio"].append(audio_file)
+    resource_buffer["audio_files_created"] = True
+    append_operation_file_reference(operation, audio_file)
+    return True
+
+
+def finalize_vehicle_ecu_files(profile, operation):
+    if operation.get("operation_type") != "vehicle_ecu":
+        return False
+    if operation.get("status") not in {"completed", "timeout"}:
+        return False
+    resource_buffer = operation.setdefault("resource_buffer", {})
+    files = ensure_files_inventory(profile)
+    operation_id = operation.get("operation_id")
+    if resource_buffer.get("vehicle_files_created") and operation_artifact_exists(profile, files, ["vehicle"], operation_id):
+        return False
+    if resource_buffer.get("vehicle_files_created"):
+        resource_buffer["vehicle_files_created"] = False
+
+    if data_file_exists(files, "vehicle", operation_id):
+        resource_buffer["vehicle_files_created"] = True
+        return False
+    vehicle_file = build_vehicle_ecu_file(operation)
+    files["vehicle"].append(vehicle_file)
+    resource_buffer["vehicle_files_created"] = True
+    append_operation_file_reference(operation, vehicle_file)
+    return True
+
+
+def finalize_generic_trace_file(profile, operation):
+    if operation.get("operation_type") != "generic_trace":
+        return False
+    if operation.get("status") not in {"completed", "timeout"}:
+        return False
+    resource_buffer = operation.setdefault("resource_buffer", {})
+    files = ensure_files_inventory(profile)
+    operation_id = operation.get("operation_id")
+    changed = False
+    resources = generic_trace_resource_types(operation)
+    expected_folders = []
+    if "location_history" in resources:
+        expected_folders.append("gps")
+    if "internal_recon_state" in resources:
+        expected_folders.append("system")
+    if resource_buffer.get("trace_files_created") and all(
+        operation_artifact_exists(profile, files, [folder], operation_id)
+        for folder in expected_folders
+    ):
+        return False
+    if resource_buffer.get("trace_files_created"):
+        resource_buffer["trace_files_created"] = False
+
+    if "location_history" in resources and not data_file_exists(files, "gps", operation_id):
+        trace_file = build_generic_trace_location_file(operation)
+        files["gps"].append(trace_file)
+        append_operation_file_reference(operation, trace_file)
+        changed = True
+    if "internal_recon_state" in resources and not data_file_exists(files, "system", operation_id):
+        system_file = build_sniffer_system_state_file(operation)
+        files["system"].append(system_file)
+        append_operation_file_reference(operation, system_file)
+        changed = True
+    resource_buffer["trace_files_created"] = True
+    return changed
 
 
 def mark_operation_cleanup_state(operation, now_iso=None):
@@ -3161,6 +3694,16 @@ def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None):
                 changed = True
             if finalize_persistent_sniffer_files(profile, operation):
                 changed = True
+            if finalize_camera_stream_file(profile, operation):
+                changed = True
+            if finalize_wifi_scanner_files(profile, operation):
+                changed = True
+            if finalize_audio_interference_files(profile, operation):
+                changed = True
+            if finalize_vehicle_ecu_files(profile, operation):
+                changed = True
+            if finalize_generic_trace_file(profile, operation):
+                changed = True
         if operation.get("status") in OPERATION_RISK_ASSESSABLE_STATUSES:
             if assess_operation_risk(profile, operation):
                 changed = True
@@ -3169,6 +3712,31 @@ def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None):
         normalize_files_inventory(profile)
 
     return refreshed_operations, changed
+
+
+def refresh_and_persist_operations(username, profile):
+    if not username or not isinstance(profile, dict):
+        return profile
+
+    operations, changed = refresh_operations_runtime(profile, persist_timeouts=True)
+    if not changed:
+        return profile
+
+    UserProfileManager(username).update_profile({
+        "operations": profile.get("operations", []),
+        "files": profile.get("files", {}),
+        "risk_events": profile.get("risk_events", []),
+        "system_messages": profile.get("system_messages", []),
+        "market_history": profile.get("market_history", []),
+    })
+    fresh_profile = user_store.get_profile(username) or profile
+    fresh_profile = dict(fresh_profile)
+    fresh_profile.pop("password", None)
+    fresh_profile.pop("salt", None)
+    fresh_profile["apps"] = normalize_app_contracts(fresh_profile.get("apps", []))
+    normalize_files_inventory(fresh_profile)
+    session["profile"] = fresh_profile
+    return fresh_profile
 
 
 def active_operations_from_operations(operations):
@@ -6590,6 +7158,7 @@ def api_profile():
         return jsonify({"error": "Brak danych użytkownika"}), 401
 
     profile = sync_session_profile()
+    profile = refresh_and_persist_operations(session["user"], profile)
     # print(profile)
     return jsonify(profile)
 
@@ -6600,21 +7169,8 @@ def api_operations():
         return jsonify({"success": False, "message": "Brak danych uzytkownika"}), 401
 
     profile = sync_session_profile()
-    operations, changed = refresh_operations_runtime(profile, persist_timeouts=True)
-    if changed:
-        UserProfileManager(session["user"]).update_profile({
-            "operations": profile.get("operations", []),
-            "files": profile.get("files", {}),
-            "risk_events": profile.get("risk_events", []),
-            "system_messages": profile.get("system_messages", []),
-        })
-        stored_profile = user_store.get_profile(session["user"])
-        profile["operations"] = stored_profile.get("operations", [])
-        profile["files"] = stored_profile.get("files", {})
-        profile["risk_events"] = stored_profile.get("risk_events", [])
-        profile["system_messages"] = stored_profile.get("system_messages", [])
-        session["profile"] = profile
-        operations, _ = refresh_operations_runtime(profile, persist_timeouts=False)
+    profile = refresh_and_persist_operations(session["user"], profile)
+    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False)
 
     return jsonify({
         "success": True,
@@ -6675,6 +7231,7 @@ def api_ghost_exchange():
         return jsonify({"success": False, "message": "Brak danych uzytkownika"}), 401
 
     profile = user_store.get_profile(session["user"]) or sync_session_profile()
+    profile = refresh_and_persist_operations(session["user"], profile)
     return jsonify({
         "success": True,
         "currency": "HC",
@@ -6694,6 +7251,7 @@ def api_ghost_exchange_preview():
         return jsonify({"success": False, "message": "Brak identyfikatora pliku."}), 400
 
     profile = user_store.get_profile(session["user"]) or sync_session_profile()
+    profile = refresh_and_persist_operations(session["user"], profile)
     file_entry = mark_ghost_exchange_preview(profile, file_id)
     if not file_entry:
         return jsonify({"success": False, "message": "Plik nie jest dostepny do przygotowania oferty."}), 404
@@ -6720,6 +7278,7 @@ def api_ghost_exchange_sell():
 
     username = session["user"]
     profile = user_store.get_profile(username) or sync_session_profile()
+    profile = refresh_and_persist_operations(username, profile)
     sale = sell_ghost_exchange_file(profile, username, file_id)
     if not sale:
         return jsonify({"success": False, "message": "Plik nie jest dostepny do sprzedazy albo zostal juz sprzedany."}), 404

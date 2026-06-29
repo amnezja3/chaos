@@ -31,7 +31,45 @@ const BOOT_FAKE_LOGS = [
     "warming map cache",
     "binding terminal pipes",
     "loading googolplex index",
-    "install with caution"
+    "install with caution",
+    "loading neural interface",
+    "connecting quantum relay",
+    "opening darknet tunnel",
+    "verifying identity mask",
+    "patching memory allocator",
+    "loading encrypted registry",
+    "checking entropy pool",
+    "scanning local devices",
+    "initializing packet sniffer",
+    "hooking network adapters",
+    "injecting runtime modules",
+    "loading signal decoder",
+    "rebuilding routing table",
+    "indexing hidden storage",
+    "synchronizing satellite clock",
+    "connecting ghost exchange",
+    "validating crypto keys",
+    "loading biometric bypass",
+    "resolving anonymous routes",
+    "decrypting archive fragments",
+    "starting telemetry daemon",
+    "flushing event queue",
+    "building world topology",
+    "calibrating intrusion sensors",
+    "loading exploit database",
+    "checking firmware integrity",
+    "unlocking secure sandbox",
+    "mounting encrypted volumes",
+    "generating session fingerprint",
+    "replaying cached transactions",
+    "loading threat signatures",
+    "connecting relay nodes",
+    "starting stealth engine",
+    "initializing cyberpanel core",
+    "building navigation mesh",
+    "mapping surveillance network",
+    "loading player profile",
+    "system ready"
 ];
 
 function cycleBootLog() {
@@ -1477,6 +1515,19 @@ function notifyOpenMapsTargetHacked(target) {
     });
 }
 
+function notifyOpenMapsOperationsChanged() {
+    document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
+        try {
+            const mapWindow = frame.contentWindow;
+            if (mapWindow && typeof mapWindow.refreshActiveOperations === 'function') {
+                mapWindow.refreshActiveOperations();
+            }
+        } catch (err) {
+            console.warn("Nie udalo sie odswiezyc operacji mapy:", err);
+        }
+    });
+}
+
 async function sendGonnaWinRequest(appId, choiceId = null) {
     try {
         const response = await fetch('/gonna-win', {
@@ -1689,7 +1740,9 @@ function createMap() {
 
     document.body.appendChild(term);
     makeDraggable(term);
-    term.querySelector('.close-btn').addEventListener('click', () => term.remove());
+    const closeButton = term.querySelector('.close-btn');
+    if (closeButton) closeButton.textContent = 'x';
+    closeButton?.addEventListener('click', () => term.remove());
 }
 
 
@@ -4347,6 +4400,7 @@ async function selectMapActionTool(appId) {
         window.activeToolSelection = null;
         addSystemMessage("success", "🛠️ Narzędzie", data.status || `Uruchomiono ${app.name || app.id}.`);
         if (typeof refreshToolbarProfile === "function") refreshToolbarProfile();
+        if (typeof notifyOpenMapsOperationsChanged === "function") notifyOpenMapsOperationsChanged();
     } catch (err) {
         console.error("Błąd wyboru narzędzia:", err);
         addSystemMessage("danger", "🛠️ Narzędzia", "Błąd połączenia podczas wyboru narzędzia.");
@@ -4411,6 +4465,110 @@ async function createFileManager(options = {}) {
         'pictures',
         'social-media'
     ];
+    const folderLabels = {
+        tools: 'Tools',
+        gps: 'Sledzenie',
+        device: 'Urzadzenia',
+        audio: 'Audio',
+        camera: 'Kamery',
+        atm: 'ATM',
+        credentials: 'Dostepy',
+        financial: 'Finanse',
+        personal: 'Dane osobowe',
+        network: 'Siec',
+        vehicle: 'Pojazdy',
+        system: 'System',
+        market: 'Rynek',
+        projects: 'Projekty',
+        download: 'Download',
+        pictures: 'Obrazy',
+        'social-media': 'Social'
+    };
+    const operationTypeLabels = {
+        vehicle_tracking: 'sledzenie pojazdu',
+        device_tracking: 'sledzenie urzadzenia',
+        camera_stream: 'monitoring kamery',
+        camera_shutdown: 'wylaczenie kamery',
+        atm_log_extraction: 'odczyt logow ATM',
+        persistent_sniffer: 'implant sieciowy',
+        generic_trace: 'sledzenie celu',
+        wifi_scanner: 'skanowanie hotspotow',
+        audio_interference: 'audio hack',
+        vehicle_ecu: 'hakowanie ECU'
+    };
+    const folderIcons = {
+        tools: '🔧',
+        gps: 'TRK',
+        device: 'DEV',
+        audio: 'AUD',
+        personal: 'ID',
+        camera: 'CAM',
+        atm: 'ATM',
+        financial: 'FIN',
+        credentials: 'KEY',
+        network: 'NET',
+        vehicle: 'CAR',
+        system: 'SYS',
+        market: 'MKT',
+        projects: 'PRJ',
+        pictures: '🖼️',
+        download: '⬇️',
+        'social-media': '💬'
+    };
+    const getFolderLabel = (folderName) => folderLabels[folderName] || folderName;
+    Object.assign(folderIcons, {
+        tools: 'TOOL',
+        pictures: 'IMG',
+        download: 'DL',
+        'social-media': 'SOC'
+    });
+    const getFolderIcon = (folderName) => folderIcons[folderName] || '📄';
+    const getFileOperationType = (fileEntry) => {
+        if (!fileEntry || typeof fileEntry !== 'object') return '';
+        const metadata = fileEntry.metadata || {};
+        return fileEntry.source_operation_type || metadata.source_operation_type || fileEntry.operation_type || '';
+    };
+    const getFileOperationLabel = (fileEntry) => {
+        const operationType = getFileOperationType(fileEntry);
+        return operationTypeLabels[operationType] || operationType || '-';
+    };
+    const polishFileManagerText = (root) => {
+        if (!root) return;
+        const replacements = new Map([
+            ['KompletnoĹ›Ä‡', 'Kompletność'],
+            ['KompletnoÄ‡', 'Kompletność'],
+            ['JakoĹ›Ä‡', 'Jakość'],
+            ['wartoĹ›Ä‡', 'wartość'],
+            ['WartoĹ›Ä‡', 'Wartość'],
+            ['DokĹ‚adnoĹ›Ä‡', 'Dokładność'],
+            ['PewnoĹ›Ä‡', 'Pewność'],
+            ['Brak plikĂłw', 'Brak plików'],
+            ['Brak zasobĂłw', 'Brak zasobów'],
+            ['Brak checkpointĂłw', 'Brak checkpointów'],
+            ['Sprzedawalny', 'Sprzedawalne'],
+            ['UĹĽyj', 'Użyj'],
+            ['podĹ›wietlone narzÄ™dzie', 'podświetlone narzędzie'],
+            ['WrĂłÄ‡', 'Wróć'],
+            ['WrÄ‚Ĺ‚Ă„â€ˇ', 'Wróć'],
+            ['MenedĹĽer plikĂłw', 'Menedżer plików']
+        ]);
+        root.querySelectorAll('.file-manager-back-btn').forEach(button => {
+            if (button.dataset.polishedBack !== '1') {
+                button.innerHTML = '&larr; Wr&oacute;&cacute;';
+                button.dataset.polishedBack = '1';
+            }
+        });
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        nodes.forEach(node => {
+            let value = node.nodeValue || '';
+            replacements.forEach((replacement, pattern) => {
+                value = value.split(pattern).join(replacement);
+            });
+            if (value !== node.nodeValue) node.nodeValue = value;
+        });
+    };
 
     term.innerHTML = `
         <div class="title-bar">
@@ -4425,7 +4583,20 @@ async function createFileManager(options = {}) {
 
     document.body.appendChild(term);
     makeDraggable(term);
-    term.querySelector('.close-btn').addEventListener('click', () => term.remove());
+    const fileManagerTitle = term.querySelector('.title-bar');
+    if (fileManagerTitle && fileManagerTitle.firstChild) fileManagerTitle.firstChild.nodeValue = 'Menedżer plików ';
+    const fileManagerClose = term.querySelector('.close-btn');
+    if (fileManagerClose) fileManagerClose.textContent = 'x';
+    const fileManagerContent = document.getElementById(`${terminalId}-content`);
+    const fileManagerObserver = new MutationObserver(() => polishFileManagerText(fileManagerContent));
+    if (fileManagerContent) {
+        fileManagerObserver.observe(fileManagerContent, { childList: true, subtree: true, characterData: true });
+        polishFileManagerText(fileManagerContent);
+    }
+    term.querySelector('.close-btn').addEventListener('click', () => {
+        fileManagerObserver.disconnect();
+        term.remove();
+    });
 
     // Pobierz dane profilu
     const profileData = await getUserProfile();
@@ -4446,7 +4617,10 @@ async function createFileManager(options = {}) {
         foldersDiv.innerHTML = '';
         systemDirs.forEach(dir => {
             const folder = document.createElement('div');
+            const folderLabel = getFolderLabel(dir);
             folder.innerHTML = `<span style="cursor:pointer;" onclick="window.openFolderInManager('${terminalId}', '${dir}')">📂 <b>${dir}</b></span>`;
+            folder.innerHTML = `<span style="cursor:pointer;" onclick="window.openFolderInManager('${terminalId}', '${dir}')">đź“‚ <b>${escapeHTML(folderLabel)}</b> <span style="color:#6fbf89;">/${escapeHTML(dir)}</span></span>`;
+            folder.innerHTML = `<span style="cursor:pointer;" onclick="window.openFolderInManager('${terminalId}', '${dir}')">[DIR] <b>${escapeHTML(folderLabel)}</b> <span style="color:#6fbf89;">/${escapeHTML(dir)}</span></span>`;
             foldersDiv.appendChild(folder);
         });
     }
@@ -4480,6 +4654,8 @@ async function createFileManager(options = {}) {
             if (folderName === "pictures") icon = "🖼️";
             if (folderName === "download") icon = "⬇️";
             if (folderName === "social-media") icon = "💬";
+
+            icon = getFolderIcon(folderName);
 
             // Klasa pliku
             let fileClass = "file-manager-file";
@@ -4526,6 +4702,8 @@ async function createFileManager(options = {}) {
                         : '-';
                     const sourceOperation = fileEntry.source_operation_id || fileEntry.operation_id || (fileEntry.metadata || {}).operation_id || '-';
                     const marketStatus = fileEntry.market_status || 'not_listed';
+                    const operationLabel = getFileOperationLabel(fileEntry);
+                    const sellableLabel = fileEntry.sellable ? 'tak' : 'nie';
                     const completeness = fileEntry.completeness_percent ?? (fileEntry.metadata || {}).completeness_percent ?? 0;
                     const qualityScore = fileEntry.quality_score ?? (fileEntry.metadata || {}).quality_score ?? 0;
                     const missingFields = Array.isArray(fileEntry.missing_fields)
@@ -4533,7 +4711,8 @@ async function createFileManager(options = {}) {
                         : (Array.isArray((fileEntry.metadata || {}).missing_fields) ? (fileEntry.metadata || {}).missing_fields : []);
                     meta = `
                         <span class="file-manager-name" style="display:block;color:#8fd6a4;font-size:11px;">${escapeHTML(fileEntry.directory || folderName)} | ${escapeHTML(category)} | ${escapeHTML(previewMode)}</span>
-                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Zasoby: ${escapeHTML(resources)} | Operacja: ${escapeHTML(sourceOperation)} | Rynek: ${escapeHTML(marketStatus)}</span>
+                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Zasoby: ${escapeHTML(resources)} | Typ: ${escapeHTML(operationLabel)} | Operacja: ${escapeHTML(sourceOperation)}</span>
+                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Rynek: ${escapeHTML(marketStatus)} | Sprzedawalny: ${escapeHTML(sellableLabel)}</span>
                         <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Kompletność: ${escapeHTML(String(completeness))}% | Jakość: ${escapeHTML(String(qualityScore))}/100 | Braki: ${escapeHTML(missingFields.length ? missingFields.slice(0, 3).join(', ') : 'brak')}</span>
                     `;
                 }
@@ -4580,7 +4759,7 @@ async function createFileManager(options = {}) {
         container.innerHTML = `
             <div class="file-manager-header">
                 <button class="file-manager-back-btn" onclick="window.renderFoldersRoot('${id}')">⬅ Wróć</button>
-                <span class="file-manager-folder-title">📂 ${folderName}</span>
+                <span class="file-manager-folder-title">📂 ${escapeHTML(getFolderLabel(folderName))} <small style="color:#6fbf89;">/${escapeHTML(folderName)}</small></span>
             </div>
             ${selectionHeader}
             <div class="file-manager-list">${list}</div>
@@ -4612,6 +4791,7 @@ async function createFileManager(options = {}) {
             const summary = fileEntry.summary || {};
             const resources = Array.isArray(fileEntry.resource_types) ? fileEntry.resource_types : [];
             const records = Array.isArray(fileEntry.records) ? fileEntry.records : [];
+            const operationLabel = getFileOperationLabel(fileEntry);
             const completenessPercent = fileEntry.completeness_percent ?? metadata.completeness_percent ?? summary.completeness_percent ?? completeness.percent ?? 0;
             const completenessTier = fileEntry.completeness_tier || metadata.completeness_tier || summary.tier || completeness.tier || 'basic';
             const qualityScore = fileEntry.quality_score ?? metadata.quality_score ?? summary.quality_score ?? completeness.quality_score ?? 0;
@@ -4632,6 +4812,7 @@ async function createFileManager(options = {}) {
                         <p>Plik: <b>${escapeHTML(filename)}</b></p>
                         <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
                         <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                        <p>Typ operacji: <b>${escapeHTML(operationLabel)}</b></p>
                         <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
                         <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
                         <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
@@ -4803,6 +4984,7 @@ async function createFileManager(options = {}) {
                     <p>Kategoria: <b>${escapeHTML(fileEntry.file_category || folderName)}</b></p>
                     <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
                     <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
+                    <p>Typ operacji: <b>${escapeHTML(operationLabel)}</b></p>
                     <p>Kompletność: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
                     <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
                     <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
@@ -5401,5 +5583,3 @@ document.addEventListener("DOMContentLoaded", () => {
     pollLaunchQueue();
     refreshPlayerHackAccess();
 });
-
-

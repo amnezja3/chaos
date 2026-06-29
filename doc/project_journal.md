@@ -1555,3 +1555,117 @@ Sprint 20 zamkniety.
 ### Nastepny sprint
 
 Sprint 21 - kolejny zakres po release candidate v1.
+
+---
+
+## 29.06.2026
+
+### Sprint
+
+v0.3.3 - Inventory Semantics Polish.
+
+### Cel
+
+Ujednolicic semantyke inventory po audycie routingu plikow:
+`sellable` ma oznaczac kwalifikacje pliku do Ghost Exchange, a katalog `gps` ma byc czytelniejszy UX-owo dla `generic_trace`.
+
+### Co zostalo wykonane
+
+* Zmieniono normalizacje runtime files tak, zeby `sellable` bylo liczone tym samym filtrem co eligibility Ghost Exchange.
+* Stare pliki po normalizacji dostaja spojny status `sellable` bez migracji katalogow.
+* File Manager pokazuje katalog `gps` jako szersze `Sledzenie`, pozostawiajac techniczne `/gps`.
+* Lista plikow pokazuje typ operacji w ludzkiej nazwie oraz status sprzedawalnosci.
+* Podglad pliku pokazuje typ operacji w glownych widokach trackingowych.
+
+### Najwazniejsze decyzje
+
+* `sellable` oznacza eligibility do Ghost Exchange, a nie fakt przygotowania oferty.
+* `market_status` zostaje osobnym stanem flow rynku: `not_listed`, `ready_to_list`, `listed_preview`, `sold`.
+* `file_category = gps` zostaje bez migracji; UX label to `Sledzenie`, zeby `generic_trace` nie wygladal jak wylacznie GPS pojazdu.
+
+### Problemy
+
+* File Manager nadal ma historyczne mojibake w czesci tekstow UI; nie bylo to zakresem v0.3.3.
+* Runtime admina narasta po smoke testach i nie powinien byc commitowany jako stan gry.
+
+### Zmienione pliki
+
+* `run.py`
+* `static/js/terminal.js`
+* `tests/test_target_persistence.py`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `python -m py_compile run.py database.py profileManagment.py` - OK
+* `node --check static/js/terminal.js` - OK
+* `python -m unittest tests.test_target_persistence` - OK, 38 testow
+* Gameplay Smoke `python tools\smoke_admin_inventory.py --full-loop` - OK:
+  * map actions create operations,
+  * forced timeout leaves active operations = 0,
+  * generated files are visible in Ghost Exchange,
+  * full-loop sale passed for GPS, device/personal, camera, ATM and credentials.
+
+### Status
+
+v0.3.3 Inventory Semantics Polish zamkniety.
+
+---
+
+## 29.06.2026
+
+### Phase 1 Complete
+
+Pierwsza wersja gameplay loop zostala ukonczona.
+
+Pelna sciezka gry dziala jako jedna petla:
+
+Mapa
+
+↓
+
+Aplikacja
+
+↓
+
+Operacja
+
+↓
+
+Aktywny swiat
+
+↓
+
+Pliki
+
+↓
+
+Ghost Exchange
+
+↓
+
+Sprzedaz
+
+↓
+
+HackCoins
+
+↓
+
+Googleplex
+
+↓
+
+Nowe aplikacje
+
+↓
+
+Powrot na mape
+
+### Efekt
+
+CHAOS przechodzi z budowy silnika gameplayu do rozbudowy swiata gry i przygotowania pierwszych testow multiplayer na serwerze.
+
+### Status
+
+Phase 1 zamkniete. Wersja developerska v0.3.4-stable gotowa do wystawienia po commicie, tagu i pushu.

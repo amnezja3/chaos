@@ -372,10 +372,43 @@
       letter-spacing: 0.5px;
     }
 
+    .active-operations-panel__title {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
     .active-operations-panel__count {
       color: #c8ffd2;
       font-size: 10px;
       font-weight: 400;
+    }
+
+    .active-operations-panel__tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 7px 8px 0;
+    }
+
+    .active-operations-panel__tab {
+      border: 1px solid rgba(60, 255, 120, 0.32);
+      border-radius: 4px;
+      background: rgba(0, 0, 0, 0.26);
+      color: #bfffc9;
+      font-family: monospace;
+      font-size: 10px;
+      line-height: 1;
+      padding: 6px 8px;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .active-operations-panel__tab.is-active {
+      border-color: rgba(60, 255, 120, 0.82);
+      background: rgba(30, 130, 60, 0.28);
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(60, 255, 120, 0.18);
     }
 
     .active-operations-panel__body {
@@ -402,6 +435,28 @@
       margin-bottom: 4px;
     }
 
+    .active-operation-card__name {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .active-operation-card__icon {
+      min-width: 22px;
+      width: 22px;
+      height: 22px;
+      border: 1px solid rgba(125, 255, 157, 0.52);
+      border-radius: 4px;
+      background: rgba(14, 36, 18, 0.78);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #d6ffd6;
+      font-size: 11px;
+      box-shadow: 0 0 8px rgba(125, 255, 157, 0.12);
+    }
+
     .active-operation-card__type {
       color: #9cff9c;
     }
@@ -421,6 +476,11 @@
       margin-top: 4px;
       color: #7dff9d;
       font-weight: 700;
+    }
+
+    .active-operation-card__risk {
+      margin-top: 3px;
+      color: #ffd36b;
     }
 
     .active-operation-card__actions {
@@ -507,6 +567,30 @@
       border-color: #c97dff;
       color: #f0d4ff;
       box-shadow: 0 0 12px rgba(201, 125, 255, 0.6);
+    }
+
+    .active-operation-pin--network .active-operation-pin__badge {
+      border-color: #65ffbe;
+      color: #ceffe8;
+      box-shadow: 0 0 12px rgba(101, 255, 190, 0.58);
+    }
+
+    .active-operation-pin--audio .active-operation-pin__badge {
+      border-color: #ff7adf;
+      color: #ffd2f6;
+      box-shadow: 0 0 12px rgba(255, 122, 223, 0.56);
+    }
+
+    .active-operation-pin--vehicle .active-operation-pin__badge {
+      border-color: #ff9c45;
+      color: #ffe0bd;
+      box-shadow: 0 0 12px rgba(255, 156, 69, 0.58);
+    }
+
+    .active-operation-pin--atm .active-operation-pin__badge {
+      border-color: #66d9ff;
+      color: #d5f6ff;
+      box-shadow: 0 0 12px rgba(102, 217, 255, 0.58);
     }
 
     @media (max-width: 720px) {
@@ -1881,21 +1965,83 @@
                 return target.label || target.name || operation.target_id || 'Cel operacji';
             };
 
+            window.OPERATION_CENTER_TYPES = {
+                vehicle_tracking: {
+                    name: 'Śledzenie GPS',
+                    icon: 'GPS',
+                    css: 'active-operation-pin--tracking',
+                    markerLabel: 'ŚLEDZENIE GPS'
+                },
+                device_tracking: {
+                    name: 'Śledzenie urządzenia',
+                    icon: 'DEV',
+                    css: 'active-operation-pin--tracking',
+                    markerLabel: 'ŚLEDZENIE URZĄDZENIA'
+                },
+                camera_stream: {
+                    name: 'Monitoring kamery',
+                    icon: 'CAM',
+                    css: 'active-operation-pin--camera',
+                    markerLabel: 'MONITORING'
+                },
+                camera_shutdown: {
+                    name: 'Wyłączenie kamery',
+                    icon: 'OFF',
+                    css: 'active-operation-pin--shutdown',
+                    markerLabel: 'KAMERA OFF'
+                },
+                atm_log_extraction: {
+                    name: 'Odczyt logów ATM',
+                    icon: 'ATM',
+                    css: 'active-operation-pin--atm',
+                    markerLabel: 'LOGI ATM'
+                },
+                persistent_sniffer: {
+                    name: 'Implant sieciowy',
+                    icon: 'IMP',
+                    css: 'active-operation-pin--implant',
+                    markerLabel: 'IMPLANT'
+                },
+                generic_trace: {
+                    name: 'Śledzenie celu',
+                    icon: 'TRC',
+                    css: 'active-operation-pin--tracking',
+                    markerLabel: 'ŚLEDZENIE'
+                },
+                wifi_scanner: {
+                    name: 'Skanowanie hotspotów',
+                    icon: 'WIFI',
+                    css: 'active-operation-pin--network',
+                    markerLabel: 'HOTSPOTY'
+                },
+                audio_interference: {
+                    name: 'Audio Hack',
+                    icon: 'AUD',
+                    css: 'active-operation-pin--audio',
+                    markerLabel: 'AUDIO HACK'
+                },
+                vehicle_ecu: {
+                    name: 'Hakowanie ECU',
+                    icon: 'ECU',
+                    css: 'active-operation-pin--vehicle',
+                    markerLabel: 'ECU'
+                }
+            };
+
             window.operationMarkerMeta = function(operation) {
                 const type = operation.operation_type || '';
-                if (type === 'camera_stream') {
-                    return { icon: 'CAM', css: 'active-operation-pin--camera', label: 'STREAM' };
-                }
-                if (type === 'camera_shutdown') {
-                    return { icon: 'OFF', css: 'active-operation-pin--shutdown', label: 'SHUTDOWN' };
-                }
-                if (type === 'vehicle_tracking') {
-                    return { icon: 'GPS', css: 'active-operation-pin--tracking', label: 'TRACKING' };
-                }
-                if (type === 'persistent_sniffer') {
-                    return { icon: 'IMP', css: 'active-operation-pin--implant', label: 'IMPLANT' };
-                }
-                return { icon: 'OP', css: '', label: 'OPERATION' };
+                const meta = window.OPERATION_CENTER_TYPES[type] || {};
+                return {
+                    icon: meta.icon || 'OP',
+                    css: meta.css || '',
+                    label: meta.markerLabel || meta.name || 'OPERACJA',
+                    name: meta.name || type || 'Operacja'
+                };
+            };
+
+            window.operationRiskLabel = function(operation) {
+                const riskState = operation.risk_state || {};
+                return riskState.level || riskState.risk_level || operation.risk_level || 'brak';
             };
 
             window.renderActiveOperationsPanel = function(operations) {
@@ -1905,22 +2051,29 @@
                 panel.classList.toggle('is-empty', active.length === 0);
 
                 const cards = active.map(operation => {
+                    const meta = window.operationMarkerMeta(operation);
                     const label = window.escapeMapText(window.operationLabel(operation));
-                    const type = window.escapeMapText(operation.operation_type || 'operation');
+                    const type = window.escapeMapText(meta.name);
                     const status = window.escapeMapText(operation.status || 'unknown');
                     const started = window.escapeMapText(window.formatOperationDate(operation.started_at));
                     const expires = window.escapeMapText(window.formatOperationDate(operation.expires_at));
                     const remaining = window.escapeMapText(window.formatRemainingTime(operation.expires_at));
+                    const risk = window.escapeMapText(window.operationRiskLabel(operation));
+                    const icon = window.escapeMapText(meta.icon);
                     const operationId = window.escapeMapText(operation.operation_id || '');
                     return `
                         <div class="active-operation-card">
                             <div class="active-operation-card__title">
-                                <span>${label}</span>
+                                <span class="active-operation-card__name">
+                                    <span class="active-operation-card__icon">${icon}</span>
+                                    <span>${type}</span>
+                                </span>
                                 <span class="active-operation-card__status">${status}</span>
                             </div>
-                            <div class="active-operation-card__type">${type}</div>
+                            <div class="active-operation-card__type">Target: ${label}</div>
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>
-                            <div class="active-operation-card__remaining">Pozostalo: ${remaining}</div>
+                            <div class="active-operation-card__remaining">Pozostało: ${remaining}</div>
+                            <div class="active-operation-card__risk">Ryzyko: ${risk}</div>
                             ${operationId ? `<div class="active-operation-card__actions"><button type="button" class="active-operation-card__cancel" data-operation-cancel="${operationId}">Anuluj</button></div>` : ''}
                         </div>
                     `;
@@ -1928,11 +2081,18 @@
 
                 panel.innerHTML = `
                     <div class="active-operations-panel__header">
-                        <span>Aktywne operacje</span>
+                        <span class="active-operations-panel__title">Centrum Operacji</span>
                         <span class="active-operations-panel__count">${active.length}</span>
+                    </div>
+                    <div class="active-operations-panel__tabs">
+                        <div class="active-operations-panel__tab is-active">Aktywne</div>
+                        <div class="active-operations-panel__tab">Historia</div>
                     </div>
                     <div class="active-operations-panel__body">
                         ${cards || '<div class="active-operation-card"><div class="active-operation-card__meta">Brak aktywnych operacji.</div></div>'}
+                        <div class="active-operation-card active-operation-card--history-placeholder">
+                            <div class="active-operation-card__meta">Historia operacji zostanie podłączona w kolejnym widoku.</div>
+                        </div>
                     </div>
                 `;
             };

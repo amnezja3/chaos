@@ -24,6 +24,7 @@ logs/
 data/*.sqlite
 data/*.sqlite3
 data/*.db
+data/backups/
 *.sqlite
 *.sqlite3
 *.db

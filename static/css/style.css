@@ -285,6 +285,7 @@ body {
   overflow-y: auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(min-content, auto);
   align-content: start;
   gap: 12px;
 }
@@ -294,10 +295,13 @@ body {
   background: #06100b;
   color: #b7ffd0;
   padding: 12px;
-  min-height: 170px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow: hidden;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .googolplex-card-title {
@@ -317,7 +321,8 @@ body {
 .googolplex-card p {
   margin: 0;
   color: #9fd9b2;
-  min-height: 48px;
+  min-height: 0;
+  line-height: 1.35;
 }
 
 .googolplex-card-meta,
@@ -326,6 +331,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
 }
 
 .googolplex-card-meta {
@@ -375,6 +381,7 @@ body {
 
 .googolplex-card-footer strong {
   color: #fff;
+  white-space: nowrap;
 }
 
 .googolplex-card-footer button {
@@ -384,6 +391,8 @@ body {
   padding: 7px 10px;
   font-family: monospace;
   cursor: pointer;
+  min-width: 0;
+  white-space: normal;
 }
 
 .googolplex-card-footer button:hover:not(:disabled) {
@@ -413,10 +422,21 @@ body {
   gap: 5px;
   color: #d8c588;
   font-size: 0.78rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .ghost-exchange-meta b {
   color: #fff5c9;
+}
+
+.ghost-exchange-card .googolplex-card-footer {
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.ghost-exchange-card .googolplex-card-footer button {
+  flex: 1 1 120px;
 }
 
 .googolplex-empty {
@@ -2272,15 +2292,19 @@ form button:hover {
 }
 .file-manager-file {
     display: flex;
-    align-items: center;
-    color: #5a5a5a;
+    align-items: flex-start;
+    gap: 8px;
+    flex-wrap: wrap;
+    color: #d8ffe1;
     font-size: 0.8rem;
     cursor: pointer;
-    /* padding: 7px 0; */
+    padding: 7px 6px;
     width: 100%;
-    border-radius: 8px;
+    min-width: 0;
+    border-radius: 4px;
     transition: background 0.14s;
     position: relative;
+    overflow-wrap: anywhere;
 }
 .file-manager-file:hover {
     color: #e6e6e6;
@@ -2318,13 +2342,68 @@ form button:hover {
 }
 .file-manager-icon {
     font-size: 1.1em;
-    margin-right: 12px;
+    flex: 0 0 38px;
+    margin-right: 0;
+    color: #8fd6a4;
 }
 .file-manager-name {
     font-weight: 400;
     color: #fff;
     letter-spacing: 0.3px;
     margin-right: 9px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.file-manager-file > .file-manager-name:first-of-type {
+    flex: 1 1 calc(100% - 52px);
+}
+.file-manager-file > .file-manager-name:not(:first-of-type) {
+    flex: 1 1 100%;
+    margin-left: 46px;
+    margin-right: 0;
+    line-height: 1.35;
+}
+.file-manager-primary {
+    display: block;
+    color: #fff;
+    font-weight: 700;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+.file-manager-details {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+.file-manager-meta {
+    display: block;
+    color: #6fbf89;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+.file-manager-meta-strong {
+    color: #8fd6a4;
+    font-size: 0.78rem;
+}
+.file-manager-preview {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+}
+.file-manager-preview table {
+    min-width: 560px;
+}
+.file-manager-row table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+.file-manager-preview p,
+.file-manager-preview li {
+    overflow-wrap: anywhere;
 }
 .file-manager-uninstall-btn {
     margin-left: 6px;

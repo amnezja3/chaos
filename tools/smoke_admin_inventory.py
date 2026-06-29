@@ -15,6 +15,9 @@ ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "1234"
 RUN_SALE = "--sell" in sys.argv
 RUN_FULL_LOOP = "--full-loop" in sys.argv
+RUN_REAL_UI_CHECK = "--real-ui-check" in sys.argv
+RUN_NO_SEED = "--no-seed" in sys.argv or RUN_REAL_UI_CHECK
+RUN_NO_SALE = "--no-sale" in sys.argv or RUN_REAL_UI_CHECK
 
 APP_IDS = [
     "admin_test_scan_ports_1",
@@ -358,12 +361,15 @@ def main():
         summary = inventory_summary(profile)
         missing = [folder for folder, entries in summary.items() if folder in {"gps", "camera", "credentials"} and not entries]
         missing_atm_financial = not summary.get("atm") and not summary.get("financial")
-        if missing or missing_atm_financial:
+        if (missing or missing_atm_financial) and not RUN_NO_SEED:
             print_section("Demo seed")
             print("missing:", missing, "missing_atm_or_financial:", missing_atm_financial)
             print("seeded:", seed_demo_files_if_needed())
             profile = user_store.get_profile(ADMIN_USERNAME)
             summary = inventory_summary(profile)
+        elif missing or missing_atm_financial:
+            print_section("Demo seed")
+            print("skipped_by_flag:", True, "missing:", missing, "missing_atm_or_financial:", missing_atm_financial)
 
         print_section("Inventory")
         for folder, entries in summary.items():
@@ -395,7 +401,7 @@ def main():
             print("api_preview:", preview_response.status_code, preview_data.get("success"), preview_data.get("message"))
             print("file:", (preview_data.get("file") or {}).get("name"), (preview_data.get("file") or {}).get("market_status"))
 
-        if RUN_SALE and not RUN_FULL_LOOP:
+        if RUN_SALE and not RUN_FULL_LOOP and not RUN_NO_SALE:
             sale_files = (client.get("/api/ghost-exchange").get_json() or {}).get("files", [])
             if sale_files:
                 before_profile = user_store.get_profile(ADMIN_USERNAME)
@@ -427,7 +433,7 @@ def main():
                 if latest_mail:
                     print("latest_mail:", latest_mail[-1].get("subject"), latest_mail[-1].get("created_at"))
 
-        if RUN_FULL_LOOP:
+        if RUN_FULL_LOOP and not RUN_NO_SALE:
             print_section("Full loop sale groups")
             sold_ids = set()
             group_files = (client.get("/api/ghost-exchange").get_json() or {}).get("files", [])

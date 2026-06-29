@@ -224,6 +224,44 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(operation["movement_model"], "road_movement")
         self.assertIn("procedural_seed", operation)
 
+    def test_operation_expiry_uses_timezone_aware_utc_durations(self):
+        cases = [
+            ("trace_gps", "vehicle_tracking", "car", 2 * 60 * 60),
+            ("camera_stream", "camera_stream", "camera", 30 * 60),
+            ("install_sniffer", "persistent_sniffer", "router", 3 * 60 * 60),
+        ]
+
+        for map_action_id, operation_type, source_type, expected_duration in cases:
+            with self.subTest(operation_type=operation_type):
+                operation = run.build_operation_instance(
+                    "neo",
+                    {
+                        "id": f"{operation_type}_app",
+                        "name": operation_type,
+                        "resource_types": [],
+                    },
+                    map_action_id,
+                    operation_type,
+                    {
+                        "lat": 52.1,
+                        "lng": 21.2,
+                        "label": operation_type,
+                        "source_type": source_type,
+                        "target_mode": "standard",
+                    },
+                )
+                started_ts = run.parse_operation_timestamp(operation["started_at"])
+                expires_ts = run.parse_operation_timestamp(operation["expires_at"])
+
+                self.assertIsNotNone(started_ts)
+                self.assertIsNotNone(expires_ts)
+                self.assertAlmostEqual(expires_ts - started_ts, expected_duration, delta=1)
+
+                refreshed = refresh_operation_runtime(operation, now_ts=started_ts + 1)
+                self.assertEqual(refreshed["status"], "running")
+                self.assertGreater(refreshed["remaining_seconds"], 0)
+                self.assertTrue(run.operation_is_active(refreshed, now_ts=started_ts + 1))
+
     def test_refresh_operation_runtime_marks_expired_operation_timeout(self):
         profile = {
             "operations": [{
@@ -756,6 +794,215 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(profile["operations"][0]["risk_state"]["level"], "high")
         self.assertIn("high_value", profile["operations"][0]["risk_state"]["events"])
 
+    def test_wifi_scanner_timeout_creates_network_file_without_duplicates(self):
+        profile = {
+            "files": {"network": []},
+            "operations": [{
+                "operation_id": "op_wifi_scan",
+                "operation_type": "wifi_scanner",
+                "owner_username": "neo",
+                "target": {"lat": 52.1, "lng": 21.2, "label": "Cafe"},
+                "target_id": "map:52.1:21.2:Cafe",
+                "target_type": "venue",
+                "status": "running",
+                "started_at": "2026-06-27T10:00:00Z",
+                "expires_at": "2026-06-27T10:10:00Z",
+                "duration_seconds": 600,
+                "movement_model": "none",
+                "resource_buffer": {"resource_types": ["wifi_networks", "hotspot_database"], "items": []},
+            }]
+        }
+
+        refreshed, changed = refresh_operations_runtime(
+            profile,
+            persist_timeouts=True,
+            now_ts=datetime(2026, 6, 27, 10, 15, tzinfo=timezone.utc).timestamp(),
+        )
+        _, changed_again = refresh_operations_runtime(
+            profile,
+            persist_timeouts=True,
+            now_ts=datetime(2026, 6, 27, 10, 20, tzinfo=timezone.utc).timestamp(),
+        )
+
+        self.assertTrue(changed)
+        self.assertFalse(changed_again)
+        self.assertEqual(refreshed[0]["status"], "timeout")
+        self.assertEqual(len(profile["files"]["network"]), 1)
+        network_file = profile["files"]["network"][0]
+        self.assertEqual(network_file["file_category"], "network")
+        self.assertEqual(network_file["directory"], "/data/network")
+        self.assertEqual(network_file["preview_mode"], "table")
+        self.assertEqual(network_file["resource_types"], ["wifi_networks", "hotspot_database"])
+        self.assertTrue(collect_ghost_exchange_files(profile))
+
+    def test_audio_interference_timeout_creates_audio_transcript_without_duplicates(self):
+        profile = {
+            "files": {"audio": []},
+            "operations": [{
+                "operation_id": "op_audio_hack",
+                "operation_type": "audio_interference",
+                "owner_username": "neo",
+                "target": {"lat": 52.1, "lng": 21.2, "label": "Bar"},
+                "target_id": "map:52.1:21.2:Bar",
+                "target_type": "venue",
+                "status": "running",
+                "started_at": "2026-06-27T10:00:00Z",
+                "expires_at": "2026-06-27T10:20:00Z",
+                "duration_seconds": 1200,
+                "movement_model": "static_active_timer",
+                "resource_buffer": {"resource_types": ["audio_transcript"], "items": []},
+            }]
+        }
+
+        refreshed, changed = refresh_operations_runtime(
+            profile,
+            persist_timeouts=True,
+            now_ts=datetime(2026, 6, 27, 10, 25, tzinfo=timezone.utc).timestamp(),
+        )
+        _, changed_again = refresh_operations_runtime(
+            profile,
+            persist_timeouts=True,
+            now_ts=datetime(2026, 6, 27, 10, 30, tzinfo=timezone.utc).timestamp(),
+        )
+
+        self.assertTrue(changed)
+        self.assertFalse(changed_again)
+        self.assertEqual(refreshed[0]["status"], "timeout")
+        self.assertEqual(len(profile["files"]["audio"]), 1)
+        audio_file = profile["files"]["audio"][0]
+        self.assertEqual(audio_file["file_category"], "audio")
+        self.assertEqual(audio_file["directory"], "/data/audio")
+        self.assertEqual(audio_file["preview_mode"], "transcript")
+        self.assertEqual(audio_file["resource_types"], ["audio_transcript"])
+        self.assertGreaterEqual(len(audio_file["transcript"]), 3)
+        self.assertTrue(collect_ghost_exchange_files(profile))
+
+    def test_vehicle_ecu_timeout_creates_vehicle_diagnostics_without_duplicates(self):
+        profile = {
+            "files": {"vehicle": []},
+            "operations": [{
+                "operation_id": "op_vehicle_ecu",
+                "operation_type": "vehicle_ecu",
+                "owner_username": "neo",
+                "target": {"lat": 52.1, "lng": 21.2, "label": "Auto"},
+                "target_id": "map:52.1:21.2:Auto",
+                "target_type": "vehicle",
+                "status": "running",
+                "started_at": "2026-06-27T10:00:00Z",
+                "expires_at": "2026-06-27T10:10:00Z",
+                "duration_seconds": 600,
+                "movement_model": "road_movement",
+                "resource_buffer": {"resource_types": ["vehicle_diagnostics"], "items": []},
+            }]
+        }
+
+        refreshed, changed = refresh_operations_runtime(
+            profile,
+            persist_timeouts=True,
+            now_ts=datetime(2026, 6, 27, 10, 15, tzinfo=timezone.utc).timestamp(),
+        )
+        _, changed_again = refresh_operations_runtime(
+            profile,
+            persist_timeouts=True,
+            now_ts=datetime(2026, 6, 27, 10, 20, tzinfo=timezone.utc).timestamp(),
+        )
+
+        self.assertTrue(changed)
+        self.assertFalse(changed_again)
+        self.assertEqual(refreshed[0]["status"], "timeout")
+        self.assertEqual(len(profile["files"]["vehicle"]), 1)
+        vehicle_file = profile["files"]["vehicle"][0]
+        self.assertEqual(vehicle_file["file_category"], "vehicle")
+        self.assertEqual(vehicle_file["directory"], "/data/vehicle")
+        self.assertEqual(vehicle_file["preview_mode"], "table")
+        self.assertEqual(vehicle_file["resource_types"], ["vehicle_diagnostics"])
+        self.assertTrue(vehicle_file["records"])
+        self.assertTrue(collect_ghost_exchange_files(profile))
+
+    def test_generic_trace_timeout_creates_location_history_without_duplicates(self):
+        profile = {
+            "files": {"gps": [], "system": []},
+            "operations": [{
+                "operation_id": "op_generic_trace",
+                "operation_type": "generic_trace",
+                "owner_username": "neo",
+                "target": {"lat": 52.1, "lng": 21.2, "label": "Cel"},
+                "target_id": "map:52.1:21.2:Cel",
+                "target_type": "poi",
+                "status": "running",
+                "started_at": "2026-06-27T10:00:00Z",
+                "expires_at": "2026-06-27T11:00:00Z",
+                "duration_seconds": 3600,
+                "movement_model": "local_walk",
+                "resource_buffer": {"resource_types": ["location_history", "internal_recon_state"], "items": []},
+            }]
+        }
+
+        refreshed, changed = refresh_operations_runtime(
+            profile,
+            persist_timeouts=True,
+            now_ts=datetime(2026, 6, 27, 11, 5, tzinfo=timezone.utc).timestamp(),
+        )
+        _, changed_again = refresh_operations_runtime(
+            profile,
+            persist_timeouts=True,
+            now_ts=datetime(2026, 6, 27, 11, 10, tzinfo=timezone.utc).timestamp(),
+        )
+
+        self.assertTrue(changed)
+        self.assertFalse(changed_again)
+        self.assertEqual(refreshed[0]["status"], "timeout")
+        self.assertEqual(len(profile["files"]["gps"]), 1)
+        self.assertEqual(len(profile["files"]["system"]), 1)
+        trace_file = profile["files"]["gps"][0]
+        self.assertEqual(trace_file["file_category"], "gps")
+        self.assertEqual(trace_file["directory"], "/data/gps")
+        self.assertEqual(trace_file["preview_mode"], "table")
+        self.assertEqual(trace_file["resource_types"], ["location_history"])
+        self.assertTrue(trace_file["checkpoints"])
+        listings = collect_ghost_exchange_files(profile)
+        self.assertEqual(len([item for item in listings if item["file_category"] == "gps"]), 1)
+
+    def test_camera_stream_timeout_creates_minimal_dump_without_prior_fragments(self):
+        profile = {
+            "files": {"camera": []},
+            "operations": [{
+                "operation_id": "op_camera_minimal",
+                "operation_type": "camera_stream",
+                "owner_username": "neo",
+                "target": {"lat": 52.1, "lng": 21.2, "label": "Kamera"},
+                "target_id": "map:52.1:21.2:Kamera",
+                "target_type": "camera",
+                "status": "running",
+                "started_at": "2026-06-27T10:00:00Z",
+                "expires_at": "2026-06-27T10:02:00Z",
+                "duration_seconds": 120,
+                "movement_model": "static_active_timer",
+                "resource_buffer": {"resource_types": ["camera_dump"], "items": []},
+            }]
+        }
+
+        refreshed, changed = refresh_operations_runtime(
+            profile,
+            persist_timeouts=True,
+            now_ts=datetime(2026, 6, 27, 10, 3, tzinfo=timezone.utc).timestamp(),
+        )
+        _, changed_again = refresh_operations_runtime(
+            profile,
+            persist_timeouts=True,
+            now_ts=datetime(2026, 6, 27, 10, 4, tzinfo=timezone.utc).timestamp(),
+        )
+
+        self.assertTrue(changed)
+        self.assertFalse(changed_again)
+        self.assertEqual(refreshed[0]["status"], "timeout")
+        self.assertEqual(len(profile["files"]["camera"]), 1)
+        camera_file = profile["files"]["camera"][0]
+        self.assertEqual(camera_file["file_category"], "camera")
+        self.assertEqual(camera_file["resource_types"], ["camera_dump"])
+        self.assertEqual(camera_file["metadata"]["duration_seconds"], 120)
+        self.assertTrue(collect_ghost_exchange_files(profile))
+
     def test_file_inventory_normalizes_runtime_data_files_and_keeps_tools_compatible(self):
         profile = {
             "files": {
@@ -802,12 +1049,35 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(gps_file["source_operation_id"], "op_old_gps")
         self.assertEqual(gps_file["created_at"], "2026-06-28T10:00:00Z")
         self.assertEqual(gps_file["target_snapshot"]["label"], "Old Vehicle")
-        self.assertFalse(gps_file["sellable"])
+        self.assertTrue(gps_file["sellable"])
         self.assertEqual(gps_file["market_status"], "not_listed")
         self.assertIn("completeness_percent", gps_file)
         self.assertIn("completeness_tier", gps_file)
         self.assertIn("missing_fields", gps_file)
         self.assertIn("quality_score", gps_file)
+
+    def test_file_inventory_sellable_matches_ghost_exchange_eligibility(self):
+        profile = {
+            "files": {
+                "gps": [{
+                    "name": "trace_client.log",
+                    "operation_id": "op_trace_client",
+                    "resource_types": ["location_history"],
+                }],
+                "system": [{
+                    "name": "recon_state.sys",
+                    "operation_id": "op_recon",
+                    "resource_types": ["internal_recon_state"],
+                }],
+            }
+        }
+
+        files = ensure_files_inventory(profile)
+        listings = collect_ghost_exchange_files(profile)
+
+        self.assertTrue(files["gps"][0]["sellable"])
+        self.assertFalse(files["system"][0]["sellable"])
+        self.assertEqual([item["id"] for item in listings], [files["gps"][0]["id"]])
 
     def test_ghost_exchange_prices_richer_device_package_higher(self):
         profile = {
@@ -950,6 +1220,50 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(risk_event["risk_score"], 46)
         self.assertEqual(risk_event["modifiers"], [])
         self.assertEqual(active_operations_from_operations(refreshed), [])
+
+    def test_finalizer_recreates_missing_atm_file_when_created_flag_is_stale(self):
+        profile = {
+            "files": {
+                "atm": [],
+                "financial": [],
+                "market": [],
+            },
+            "market_history": [],
+            "operations": [{
+                "operation_id": "op_atm_missing_file",
+                "operation_type": "atm_log_extraction",
+                "owner_username": "neo",
+                "source_app_id": "atm_reader",
+                "map_action_id": "atm_logs",
+                "target": {"lat": 52.1, "lng": 21.2, "label": "ATM"},
+                "target_id": "map:52.1:21.2:ATM",
+                "target_type": "atm",
+                "target_mode": "standard",
+                "status": "timeout",
+                "started_at": "2026-06-27T10:00:00Z",
+                "expires_at": "2026-06-27T10:05:00Z",
+                "ended_at": "2026-06-27T10:05:00Z",
+                "duration_seconds": 300,
+                "resource_buffer": {
+                    "resource_types": ["atm_dump"],
+                    "atm_files_created": True,
+                    "files": [{"name": "lost_atm_dump.dump", "file_category": "atm"}],
+                },
+            }],
+            "risk_events": [],
+            "system_messages": [],
+        }
+
+        _, changed = refresh_operations_runtime(
+            profile,
+            persist_timeouts=True,
+            now_ts=datetime(2026, 6, 27, 10, 6, tzinfo=timezone.utc).timestamp(),
+        )
+
+        self.assertTrue(changed)
+        self.assertEqual(len(profile["files"]["atm"]), 1)
+        self.assertEqual(profile["files"]["atm"][0]["source_operation_id"], "op_atm_missing_file")
+        self.assertTrue(profile["operations"][0]["resource_buffer"]["atm_files_created"])
 
 
 if __name__ == "__main__":
