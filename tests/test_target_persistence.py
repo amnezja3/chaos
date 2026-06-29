@@ -1,8 +1,11 @@
 import unittest
+import os
+import tempfile
 from datetime import datetime, timezone
 from unittest.mock import patch
 
 import run
+from database import DevBugReportStore
 from run import (
     active_operations_from_operations,
     build_player_actor,
@@ -21,6 +24,46 @@ from run import (
     target_position_key,
     targets_share_position,
 )
+
+
+class DevBugReportStoreTest(unittest.TestCase):
+    def test_dev_mode_gate_uses_environment(self):
+        with patch.dict(os.environ, {"APP_ENV": "production", "CHAOS_DEV_MODE": ""}, clear=False):
+            self.assertFalse(run.is_dev_mode_enabled())
+
+        with patch.dict(os.environ, {"APP_ENV": "staging", "CHAOS_DEV_MODE": ""}, clear=False):
+            self.assertTrue(run.is_dev_mode_enabled())
+
+        with patch.dict(os.environ, {"APP_ENV": "production", "CHAOS_DEV_MODE": "true"}, clear=False):
+            self.assertTrue(run.is_dev_mode_enabled())
+
+    def test_dev_bug_report_store_creates_lists_and_updates_status(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            store = DevBugReportStore(db_path=path)
+            report = store.create_report(
+                {
+                    "title": "Camera cards overlap",
+                    "description": "Long cards break UI",
+                    "category": "UI",
+                    "severity": "high",
+                    "current_url": "/desktop",
+                },
+                created_by="tester",
+                app_version="test-build",
+            )
+
+            self.assertEqual(report["status"], "new")
+            self.assertEqual(report["category"], "UI")
+            self.assertEqual(len(store.list_reports(search="camera")), 1)
+            self.assertEqual(len(store.find_similar("Camera overlap")), 1)
+
+            updated = store.update_report(report["id"], {"status": "confirmed"})
+            self.assertEqual(updated["status"], "confirmed")
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
 
 
 class FakeTerritoryStore:

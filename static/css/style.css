@@ -3034,3 +3034,227 @@ form button:hover {
   color: #9cffb0;
   font-size: 12px;
 }
+.dev-bug-reporter {
+  min-width: 760px;
+  min-height: 520px;
+}
+
+.dev-bug-shell {
+  height: calc(100% - 30px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #080d0b;
+  color: #d9ffe2;
+  overflow: hidden;
+}
+
+.dev-bug-toolbar,
+.dev-bug-form-grid,
+.dev-bug-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dev-bug-toolbar input,
+.dev-bug-toolbar select,
+.dev-bug-card input,
+.dev-bug-card select,
+.dev-bug-card textarea {
+  background: #020805;
+  color: #caffd7;
+  border: 1px solid #168a48;
+  padding: 7px 8px;
+  font-family: monospace;
+}
+
+.dev-bug-toolbar input {
+  flex: 1 1 220px;
+}
+
+.dev-bug-toolbar button,
+.dev-bug-card button {
+  background: #072313;
+  color: #9cffb3;
+  border: 1px solid #28b96a;
+  padding: 7px 12px;
+  font-family: monospace;
+  cursor: pointer;
+}
+
+.dev-bug-toolbar button:hover,
+.dev-bug-card button:hover {
+  background: #0d3a20;
+}
+
+.dev-bug-message {
+  min-height: 20px;
+  border: 1px solid rgba(40, 185, 106, 0.35);
+  background: rgba(0, 0, 0, 0.35);
+  padding: 6px 8px;
+  color: #aaffc2;
+}
+
+.dev-bug-message[data-type="error"] {
+  border-color: #ff4e6a;
+  color: #ff9aaa;
+}
+
+.dev-bug-message[data-type="success"] {
+  border-color: #42df7b;
+  color: #b4ffc7;
+}
+
+.dev-bug-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(250px, 34%) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.dev-bug-list,
+.dev-bug-detail {
+  min-height: 0;
+  overflow: auto;
+}
+
+.dev-bug-list {
+  border: 1px solid rgba(40, 185, 106, 0.45);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 8px;
+}
+
+.dev-bug-list-item {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 9px;
+  text-align: left;
+  background: #06120b;
+  color: #d9ffe2;
+  border: 1px solid rgba(40, 185, 106, 0.4);
+  cursor: pointer;
+}
+
+.dev-bug-list-item.active,
+.dev-bug-list-item:hover {
+  border-color: #5dff9a;
+  background: #0b2415;
+}
+
+.dev-bug-list-item strong,
+.dev-bug-description,
+.dev-bug-context dd {
+  overflow-wrap: anywhere;
+}
+
+.dev-bug-list-item span,
+.dev-bug-list-item small {
+  color: #8fcb9f;
+}
+
+.dev-bug-card {
+  border: 1px solid rgba(40, 185, 106, 0.45);
+  background: rgba(2, 9, 5, 0.78);
+  padding: 12px;
+  margin: 0 0 12px;
+}
+
+.dev-bug-card h3 {
+  margin: 0 0 10px;
+  color: #baffc9;
+}
+
+.dev-bug-card label {
+  display: grid;
+  gap: 5px;
+  margin: 0 0 10px;
+}
+
+.dev-bug-card textarea {
+  resize: vertical;
+  min-height: 92px;
+}
+
+.dev-bug-form-grid {
+  align-items: stretch;
+}
+
+.dev-bug-form-grid label {
+  flex: 1 1 180px;
+}
+
+.dev-bug-detail-head {
+  justify-content: space-between;
+}
+
+.dev-bug-detail-head h3 {
+  margin: 0;
+  max-width: 72%;
+  overflow-wrap: anywhere;
+}
+
+.dev-bug-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.dev-bug-meta span {
+  border: 1px solid rgba(40, 185, 106, 0.45);
+  background: #06120b;
+  padding: 4px 7px;
+  color: #a8f7ba;
+}
+
+.dev-bug-description {
+  white-space: pre-wrap;
+  color: #e8ffee;
+}
+
+.dev-bug-context {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 5px 10px;
+  margin: 10px 0 0;
+}
+
+.dev-bug-context dt {
+  color: #80c892;
+}
+
+.dev-bug-context dd {
+  margin: 0;
+}
+
+.dev-bug-duplicates {
+  border: 1px solid #f0c14b;
+  background: rgba(60, 42, 0, 0.55);
+  color: #ffe8a8;
+  padding: 8px;
+  display: grid;
+  gap: 4px;
+  margin: 0 0 10px;
+}
+
+.dev-bug-empty {
+  color: #8fcb9f;
+  padding: 12px;
+}
+
+@media (max-width: 820px) {
+  .dev-bug-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dev-bug-reporter {
+    width: calc(100vw - 24px) !important;
+    min-width: 0;
+  }
+}

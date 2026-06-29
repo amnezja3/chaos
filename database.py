@@ -172,6 +172,25 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS dev_bug_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                category TEXT NOT NULL DEFAULT 'Other',
+                severity TEXT NOT NULL DEFAULT 'medium',
+                status TEXT NOT NULL DEFAULT 'new',
+                created_by TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                app_version TEXT NOT NULL DEFAULT '',
+                current_url TEXT NOT NULL DEFAULT '',
+                screen TEXT NOT NULL DEFAULT '',
+                context_json TEXT NOT NULL DEFAULT '{}'
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS captured_targets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 owner_username TEXT NOT NULL,
@@ -302,6 +321,9 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_player_hack_tool_usage_pair ON player_hack_tool_usage(attacker_username, victim_username, tool_id, created_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dev_bug_reports_status ON dev_bug_reports(status, category, updated_at)"
         )
 
 
@@ -514,6 +536,173 @@ class JsonResourceStore:
                 """,
                 (key, dumps_json(value), utc_now()),
             )
+
+
+class DevBugReportStore:
+    VALID_CATEGORIES = {
+        "UI", "Map", "Operations", "Files", "Ghost Exchange",
+        "Googleplex", "Login", "Performance", "Other"
+    }
+    VALID_SEVERITIES = {"low", "medium", "high", "blocker"}
+    VALID_STATUSES = {"new", "confirmed", "in_progress", "fixed", "duplicate", "wontfix"}
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    def _row_to_report(self, row):
+        return {
+            "id": row["id"],
+            "title": row["title"],
+            "description": row["description"],
+            "category": row["category"],
+            "severity": row["severity"],
+            "status": row["status"],
+            "created_by": row["created_by"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "app_version": row["app_version"],
+            "current_url": row["current_url"],
+            "screen": row["screen"],
+            "context": loads_json(row["context_json"], {}),
+        }
+
+    def _normalize_category(self, value):
+        value = str(value or "Other").strip()
+        return value if value in self.VALID_CATEGORIES else "Other"
+
+    def _normalize_severity(self, value):
+        value = str(value or "medium").strip().lower()
+        return value if value in self.VALID_SEVERITIES else "medium"
+
+    def _normalize_status(self, value):
+        value = str(value or "new").strip().lower()
+        return value if value in self.VALID_STATUSES else "new"
+
+    def list_reports(self, search="", category="", status="", limit=200):
+        search = str(search or "").strip().lower()
+        category = str(category or "").strip()
+        status = str(status or "").strip().lower()
+        limit = max(1, min(int(limit or 200), 500))
+
+        clauses = []
+        params = []
+        if category:
+            clauses.append("category = ?")
+            params.append(self._normalize_category(category))
+        if status:
+            clauses.append("status = ?")
+            params.append(self._normalize_status(status))
+        if search:
+            clauses.append("(lower(title) LIKE ? OR lower(description) LIKE ?)")
+            needle = f"%{search}%"
+            params.extend([needle, needle])
+
+        sql = "SELECT * FROM dev_bug_reports"
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
+        sql += " ORDER BY updated_at DESC, id DESC LIMIT ?"
+        params.append(limit)
+
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(sql, params).fetchall()
+            return [self._row_to_report(row) for row in rows]
+
+    def find_similar(self, title, limit=5):
+        words = [
+            re_word for re_word in
+            [part.strip().lower() for part in str(title or "").replace("-", " ").split()]
+            if len(re_word) >= 4
+        ]
+        if not words:
+            return []
+
+        clauses = ["lower(title) LIKE ?" for _ in words[:6]]
+        params = [f"%{word}%" for word in words[:6]]
+        params.append(max(1, min(int(limit or 5), 10)))
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM dev_bug_reports
+                WHERE {" OR ".join(clauses)}
+                ORDER BY updated_at DESC, id DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+            return [self._row_to_report(row) for row in rows]
+
+    def create_report(self, data, created_by, app_version=""):
+        title = str((data or {}).get("title") or "").strip()
+        if not title:
+            raise ValueError("Tytul zgloszenia jest wymagany.")
+
+        now = utc_now()
+        context = (data or {}).get("context") or {}
+        if not isinstance(context, dict):
+            context = {"raw": str(context)}
+
+        with db_connect(self.db_path) as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO dev_bug_reports (
+                    title, description, category, severity, status, created_by,
+                    created_at, updated_at, app_version, current_url, screen, context_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    title,
+                    str((data or {}).get("description") or "").strip(),
+                    self._normalize_category((data or {}).get("category")),
+                    self._normalize_severity((data or {}).get("severity")),
+                    self._normalize_status((data or {}).get("status") or "new"),
+                    str(created_by or ""),
+                    now,
+                    now,
+                    str(app_version or (data or {}).get("app_version") or ""),
+                    str((data or {}).get("current_url") or ""),
+                    str((data or {}).get("screen") or ""),
+                    dumps_json(context),
+                ),
+            )
+            row = conn.execute(
+                "SELECT * FROM dev_bug_reports WHERE id = ?",
+                (cur.lastrowid,),
+            ).fetchone()
+            return self._row_to_report(row)
+
+    def update_report(self, report_id, data):
+        report_id = int(report_id)
+        allowed = {}
+        if "status" in (data or {}):
+            allowed["status"] = self._normalize_status((data or {}).get("status"))
+        if "severity" in (data or {}):
+            allowed["severity"] = self._normalize_severity((data or {}).get("severity"))
+        if "category" in (data or {}):
+            allowed["category"] = self._normalize_category((data or {}).get("category"))
+        if "title" in (data or {}):
+            title = str((data or {}).get("title") or "").strip()
+            if title:
+                allowed["title"] = title
+        if "description" in (data or {}):
+            allowed["description"] = str((data or {}).get("description") or "").strip()
+
+        if not allowed:
+            with db_connect(self.db_path) as conn:
+                row = conn.execute("SELECT * FROM dev_bug_reports WHERE id = ?", (report_id,)).fetchone()
+                return self._row_to_report(row) if row else None
+
+        allowed["updated_at"] = utc_now()
+        assignments = ", ".join(f"{key} = ?" for key in allowed)
+        params = list(allowed.values()) + [report_id]
+        with db_connect(self.db_path) as conn:
+            conn.execute(
+                f"UPDATE dev_bug_reports SET {assignments} WHERE id = ?",
+                params,
+            )
+            row = conn.execute("SELECT * FROM dev_bug_reports WHERE id = ?", (report_id,)).fetchone()
+            return self._row_to_report(row) if row else None
 
 
 class TerritoryStore:

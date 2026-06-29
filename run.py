@@ -18,7 +18,7 @@ from flask_session import Session
 from poiFetchClass import POIFetcher
 import Haversine
 from profileManagment import UserProfileManager, authenticate_user
-from database import JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore
+from database import JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore
 import requests
 
 app = Flask(__name__)
@@ -33,6 +33,27 @@ territory_conflict_store = TerritoryConflictStore()
 vulnerability_store = VulnerabilityStore()
 wallet_store = WalletStore()
 player_hack_access_store = PlayerHackAccessStore()
+dev_bug_report_store = DevBugReportStore()
+
+APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
+
+
+def is_dev_mode_enabled():
+    env = (os.environ.get("APP_ENV") or os.environ.get("FLASK_ENV") or "development").strip().lower()
+    explicit = (os.environ.get("CHAOS_DEV_MODE") or os.environ.get("DEV_MODE") or "").strip().lower()
+    if explicit in {"1", "true", "yes", "on"}:
+        return True
+    if explicit in {"0", "false", "no", "off"}:
+        return False
+    return env in {"dev", "development", "staging", "test", "local"}
+
+
+def require_dev_mode():
+    if not is_dev_mode_enabled():
+        return jsonify({"success": False, "message": "Dev Bug Reporter jest dostepny tylko w dev/staging."}), 403
+    if "user" not in session:
+        return jsonify({"success": False, "message": "Brak danych uzytkownika."}), 401
+    return None
 
 VULNERABILITY_MAX_ENABLED_SECURITY = 5
 VULNERABILITY_REPORT_THRESHOLD = 0.30
@@ -7159,8 +7180,83 @@ def api_profile():
 
     profile = sync_session_profile()
     profile = refresh_and_persist_operations(session["user"], profile)
+    profile["dev_mode"] = is_dev_mode_enabled()
+    profile["app_version"] = APP_VERSION
     # print(profile)
     return jsonify(profile)
+
+
+@app.route("/api/dev/bug-reports")
+def api_dev_bug_reports():
+    denied = require_dev_mode()
+    if denied:
+        return denied
+
+    reports = dev_bug_report_store.list_reports(
+        search=request.args.get("search", ""),
+        category=request.args.get("category", ""),
+        status=request.args.get("status", ""),
+    )
+    return jsonify({
+        "success": True,
+        "reports": reports,
+        "categories": sorted(DevBugReportStore.VALID_CATEGORIES),
+        "severities": sorted(DevBugReportStore.VALID_SEVERITIES),
+        "statuses": sorted(DevBugReportStore.VALID_STATUSES),
+        "app_version": APP_VERSION,
+    })
+
+
+@app.route("/api/dev/bug-reports/similar")
+def api_dev_bug_report_similar():
+    denied = require_dev_mode()
+    if denied:
+        return denied
+
+    return jsonify({
+        "success": True,
+        "reports": dev_bug_report_store.find_similar(request.args.get("title", "")),
+    })
+
+
+@app.route("/api/dev/bug-reports", methods=["POST"])
+def api_dev_bug_report_create():
+    denied = require_dev_mode()
+    if denied:
+        return denied
+
+    data = request.get_json() or {}
+    try:
+        report = dev_bug_report_store.create_report(
+            data,
+            created_by=session.get("user"),
+            app_version=APP_VERSION,
+        )
+    except ValueError as exc:
+        return jsonify({"success": False, "message": str(exc)}), 400
+
+    return jsonify({
+        "success": True,
+        "report": report,
+        "similar": dev_bug_report_store.find_similar(report.get("title", "")),
+        "message": "Zgloszenie zostalo zapisane.",
+    })
+
+
+@app.route("/api/dev/bug-reports/<int:report_id>", methods=["PATCH"])
+def api_dev_bug_report_update(report_id):
+    denied = require_dev_mode()
+    if denied:
+        return denied
+
+    report = dev_bug_report_store.update_report(report_id, request.get_json() or {})
+    if not report:
+        return jsonify({"success": False, "message": "Nie znaleziono zgloszenia."}), 404
+    return jsonify({
+        "success": True,
+        "report": report,
+        "message": "Zgloszenie zostalo zaktualizowane.",
+    })
 
 
 @app.route("/api/operations")
