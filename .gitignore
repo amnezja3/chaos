@@ -1,5 +1,7 @@
 # Python bytecode and caches
 __pycache__/
+**/__pycache__/
+*.pyc
 *.py[cod]
 *$py.class
 .pytest_cache/
@@ -21,6 +23,7 @@ logs/
 *.log
 
 # Local databases and generated cache
+data/game.sqlite3
 data/*.sqlite
 data/*.sqlite3
 data/*.db

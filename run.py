@@ -9,6 +9,7 @@ import re
 import math
 import ipaddress
 import html
+import subprocess
 from datetime import datetime, timezone, timedelta
 from random import random, choice, randint, sample
 import random as random_module
@@ -36,6 +37,8 @@ player_hack_access_store = PlayerHackAccessStore()
 dev_bug_report_store = DevBugReportStore()
 
 APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
+_GIT_COMMIT_HASH = None
+_GIT_BUILD_TAG = None
 
 
 def is_dev_mode_enabled():
@@ -54,6 +57,102 @@ def require_dev_mode():
     if "user" not in session:
         return jsonify({"success": False, "message": "Brak danych uzytkownika."}), 401
     return None
+
+
+def get_git_commit_hash():
+    global _GIT_COMMIT_HASH
+    if _GIT_COMMIT_HASH is not None:
+        return _GIT_COMMIT_HASH
+    env_hash = os.environ.get("GIT_COMMIT") or os.environ.get("COMMIT_HASH") or os.environ.get("SOURCE_VERSION")
+    if env_hash:
+        _GIT_COMMIT_HASH = env_hash.strip()
+        return _GIT_COMMIT_HASH
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        _GIT_COMMIT_HASH = result.stdout.strip() if result.returncode == 0 else ""
+    except Exception:
+        _GIT_COMMIT_HASH = ""
+    return _GIT_COMMIT_HASH
+
+
+def get_git_build_tag():
+    global _GIT_BUILD_TAG
+    if _GIT_BUILD_TAG is not None:
+        return _GIT_BUILD_TAG
+    env_tag = os.environ.get("BUILD_TAG") or os.environ.get("APP_VERSION") or ""
+    try:
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--always", "--dirty"],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        _GIT_BUILD_TAG = result.stdout.strip() if result.returncode == 0 else env_tag.strip()
+    except Exception:
+        _GIT_BUILD_TAG = env_tag.strip()
+    return _GIT_BUILD_TAG
+
+
+def build_dev_bug_server_context(username, client_context=None):
+    client_context = client_context if isinstance(client_context, dict) else {}
+    env = (os.environ.get("APP_ENV") or os.environ.get("FLASK_ENV") or "development").strip().lower()
+    profile = user_store.get_profile(username) or {}
+    operations = profile.get("operations", []) or []
+    active_ops = active_operations_from_operations(operations) if operations else []
+    aimed_target = profile.get("aimed_target") or {}
+    return {
+        **client_context,
+        "server_timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "server": {
+            "app_version": APP_VERSION,
+            "git_tag": get_git_build_tag(),
+            "commit_hash": get_git_commit_hash(),
+            "app_env": env,
+            "dev_mode": is_dev_mode_enabled(),
+        },
+        "session": {
+            "username": username,
+            "level": profile.get("level"),
+            "hackcoins": profile.get("hackcoins"),
+            "respect": profile.get("respect"),
+        },
+        "profile_snapshot": {
+            "username": username,
+            "nick": profile.get("nick"),
+            "clan": profile.get("clan"),
+            "level": profile.get("level"),
+            "hackcoins": profile.get("hackcoins"),
+            "respect": profile.get("respect"),
+        },
+        "active_operations_summary": [
+            {
+                "operation_id": op.get("operation_id"),
+                "operation_type": op.get("operation_type"),
+                "status": op.get("status"),
+                "target_label": (op.get("target") or {}).get("label") or (op.get("target") or {}).get("name"),
+                "expires_at": op.get("expires_at"),
+                "remaining_seconds": op.get("remaining_seconds"),
+            }
+            for op in active_ops[:20]
+        ],
+        "aimed_target": {
+            "label": aimed_target.get("label") or aimed_target.get("name"),
+            "source_type": aimed_target.get("source_type"),
+            "target_mode": aimed_target.get("target_mode"),
+            "target_username": aimed_target.get("target_username"),
+            "lat": aimed_target.get("lat"),
+            "lng": aimed_target.get("lng"),
+        } if aimed_target else {},
+    }
 
 VULNERABILITY_MAX_ENABLED_SECURITY = 5
 VULNERABILITY_REPORT_THRESHOLD = 0.30
@@ -7226,6 +7325,11 @@ def api_dev_bug_report_create():
         return denied
 
     data = request.get_json() or {}
+    data["context"] = build_dev_bug_server_context(
+        session.get("user"),
+        client_context=data.get("context"),
+    )
+    data["app_version"] = APP_VERSION
     try:
         report = dev_bug_report_store.create_report(
             data,

@@ -138,6 +138,26 @@ const devBugReporterApp = {
 
 const desktop = document.getElementById('desktop-icons');
 const iconSpacing = 100; // odstęp w pionie
+const MOBILE_SAFE_MODE_QUERY = '(max-width: 900px), (max-height: 700px)';
+
+function isMobileSafeMode() {
+    return window.matchMedia && window.matchMedia(MOBILE_SAFE_MODE_QUERY).matches;
+}
+
+function applyMobileSafeModeToWindow(win) {
+    if (!win || !win.classList || (!win.classList.contains('terminal') && !win.classList.contains('app-window'))) return;
+    if (isMobileSafeMode()) {
+        win.dataset.mobileSafeMode = 'true';
+        win.style.transform = 'none';
+        win.style.resize = 'none';
+        return;
+    }
+    delete win.dataset.mobileSafeMode;
+}
+
+function applyMobileSafeModeToOpenWindows() {
+    document.querySelectorAll('.terminal, .app-window').forEach(applyMobileSafeModeToWindow);
+}
 
 function getDesktopIconKey(app) {
     return String(app.id || app.label || app.name || 'app').toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
@@ -723,6 +743,9 @@ async function buildIconsFromJsonWithCommand(jsonData) {
 
 
 function findAvailablePosition(width = 300, height = 200, padding = 20) {
+    if (isMobileSafeMode()) {
+        return { top: 0, left: 0 };
+    }
     const index = document.querySelectorAll('.terminal, .app-window').length;
     const toolbarHeight = 54;
     const step = 28;
@@ -1353,6 +1376,93 @@ const DEV_BUG_CATEGORIES = ["UI", "Map", "Operations", "Files", "Ghost Exchange"
 const DEV_BUG_SEVERITIES = ["low", "medium", "high", "blocker"];
 const DEV_BUG_STATUSES = ["new", "confirmed", "in_progress", "fixed", "duplicate", "wontfix"];
 
+function getDevBugActiveWindowContext() {
+    const active = document.querySelector('.terminal.active, .app-window.active') || document.querySelector('.terminal, .app-window');
+    if (!active) return {};
+    return {
+        title: active.dataset.appTitle || getWindowTitle(active),
+        app: active.dataset.app || '',
+        window_id: active.dataset.windowId || '',
+    };
+}
+
+function summarizeDevBugOperations(operations) {
+    return (operations || []).slice(0, 20).map(op => ({
+        operation_id: op.operation_id,
+        operation_type: op.operation_type,
+        status: op.status,
+        target_label: op.target?.label || op.target?.name || '',
+        expires_at: op.expires_at,
+        remaining_seconds: op.remaining_seconds,
+    }));
+}
+
+async function collectDevBugReporterContext() {
+    const profile = toolbarProfile || await getUserProfile().catch(() => null) || {};
+    let operations = [];
+    try {
+        const res = await fetch('/api/operations');
+        const data = await res.json();
+        operations = data.active_operations || data.operations || [];
+    } catch (err) {
+        operations = [];
+    }
+    return {
+        client_timestamp: new Date().toISOString(),
+        route: window.location.pathname,
+        current_url: window.location.href,
+        user_agent: navigator.userAgent,
+        viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight,
+        },
+        screen: {
+            width: window.screen?.width,
+            height: window.screen?.height,
+        },
+        active_window: getDevBugActiveWindowContext(),
+        profile: {
+            username: profile.username,
+            nick: profile.nick,
+            level: profile.level,
+            hackcoins: profile.hackcoins,
+            respect: profile.respect,
+            clan: profile.clan,
+        },
+        aimed_target: profile.aimed_target || {},
+        active_operations_summary: summarizeDevBugOperations(operations),
+        last_map_action: window.lastMapAction || window.activeMapAction || sessionStorage.getItem('last_map_action') || '',
+        last_tool_selection: window.lastToolSelection || sessionStorage.getItem('last_tool_selection') || '',
+        TODO_NEXT: "Screenshot upload zostaje osobnym tematem.",
+    };
+}
+
+function renderDevBugContextSummary(context = {}) {
+    const server = context.server || {};
+    const session = context.session || context.profile_snapshot || context.profile || {};
+    const viewport = context.viewport || {};
+    const activeWindow = context.active_window || {};
+    const operations = context.active_operations_summary || [];
+    const aimed = context.aimed_target || {};
+    const rows = [
+        ["Build", [server.app_version || context.app_version, server.git_tag, server.commit_hash].filter(Boolean).join(" / ") || "-"],
+        ["Env", `${server.app_env || "-"} / dev=${server.dev_mode === undefined ? "-" : server.dev_mode}`],
+        ["User", [session.username, session.level ? `LVL ${session.level}` : "", session.hackcoins !== undefined ? `HC ${session.hackcoins}` : "", session.respect !== undefined ? `RSP ${session.respect}` : ""].filter(Boolean).join(" / ") || "-"],
+        ["Window", activeWindow.title || "-"],
+        ["Route", context.current_url || context.route || "-"],
+        ["Viewport", viewport.width && viewport.height ? `${viewport.width}x${viewport.height}` : "-"],
+        ["Target", aimed.label || aimed.name || aimed.target_username || "-"],
+        ["Operations", operations.length ? operations.map(op => `${op.operation_type}:${op.status}`).join(", ") : "-"],
+        ["Last action", context.last_map_action || "-"],
+        ["Last tool", context.last_tool_selection || "-"],
+    ];
+    return `
+        <dl class="dev-bug-context dev-bug-context-summary">
+            ${rows.map(([label, value]) => `<dt>${escapeHTML(label)}</dt><dd>${escapeHTML(String(value))}</dd>`).join('')}
+        </dl>
+    `;
+}
+
 function createDevBugReporterApp() {
     const app = document.createElement('div');
     app.className = 'app-window dev-bug-reporter';
@@ -1468,6 +1578,12 @@ function createDevBugReporterApp() {
                 <dt>URL</dt><dd>${escapeHTML(report.current_url || '-')}</dd>
                 <dt>Ekran</dt><dd>${escapeHTML(report.screen || '-')}</dd>
             </dl>
+            <h4>Kontekst</h4>
+            ${renderDevBugContextSummary(report.context || {})}
+            <details class="dev-bug-context-json">
+                <summary>Pełny context_json</summary>
+                <textarea readonly>${escapeHTML(JSON.stringify(report.context || {}, null, 2))}</textarea>
+            </details>
         `;
         detail.querySelector('[data-bug-status-update]')?.addEventListener('change', async (event) => {
             await updateBugReportStatus(report.id, event.target.value);
@@ -1585,6 +1701,7 @@ function createDevBugReporterApp() {
     app.querySelector('[data-bug-form]')?.addEventListener('submit', async (event) => {
         event.preventDefault();
         const form = event.currentTarget;
+        const context = await collectDevBugReporterContext();
         const payload = {
             title: form.title.value,
             description: form.description.value,
@@ -1592,10 +1709,7 @@ function createDevBugReporterApp() {
             severity: form.severity.value,
             current_url: window.location.href,
             screen: `${window.innerWidth}x${window.innerHeight}`,
-            context: {
-                user_agent: navigator.userAgent,
-                app: 'desktop'
-            }
+            context
         };
         setMessage('Zapisywanie zgłoszenia...');
         try {
@@ -1984,6 +2098,7 @@ function app_button_choices(id, levels) {
 
 function makeDraggable(term) {
     registerWindowInTaskbar(term);
+    applyMobileSafeModeToWindow(term);
     const bar = term.querySelector('.title-bar');
     bringWindowToFront(term);
     if (!bar) return;
@@ -1993,6 +2108,10 @@ function makeDraggable(term) {
 
     bar.addEventListener('mousedown', (e) => {
         bringWindowToFront(term);
+        if (isMobileSafeMode()) {
+            applyMobileSafeModeToWindow(term);
+            return;
+        }
 
         isDragging = true;
         x = e.clientX - term.offsetLeft;
@@ -2002,6 +2121,12 @@ function makeDraggable(term) {
 
     window.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
+        if (isMobileSafeMode()) {
+            isDragging = false;
+            document.body.style.userSelect = 'auto';
+            applyMobileSafeModeToWindow(term);
+            return;
+        }
         term.style.left = `${e.clientX - x}px`;
         term.style.top = `${e.clientY - y}px`;
     });
@@ -2011,6 +2136,8 @@ function makeDraggable(term) {
         document.body.style.userSelect = 'auto';
     });
 }
+
+window.addEventListener('resize', applyMobileSafeModeToOpenWindows);
 
 // Aktywuj istniejące terminale
 document.querySelectorAll('.terminal').forEach(makeDraggable);
