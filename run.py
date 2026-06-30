@@ -1065,7 +1065,87 @@ def targets_share_position(left, right, precision=5):
 def target_label_value(target):
     if not isinstance(target, dict):
         return ""
-    return str(target.get("label") or target.get("name") or "")
+    return display_target_label(target)
+
+
+UNNAMED_TARGET_VALUES = {
+    "",
+    "brak nazwy",
+    "brak_nazwy",
+    "no name",
+    "unnamed",
+    "unnamed target",
+    "unknown",
+    "none",
+    "null",
+}
+
+
+def is_missing_target_name(value):
+    if value is None:
+        return True
+    normalized = str(value).strip().lower()
+    return normalized in UNNAMED_TARGET_VALUES
+
+
+def target_fallback_prefix(target):
+    target = target or {}
+    target_type = str(target.get("target_type") or infer_target_type_from_target(target) or "").strip().lower()
+    source_type = str(target.get("source_type") or "").strip().lower()
+
+    if target_type in {"vehicle", "vehicle_source"} or source_type in {"car", "vehicle"}:
+        return "ECU"
+    if target_type in {"person", "player"} or source_type in {"person", "player"}:
+        return "SUBJECT"
+    if target_type == "phone" or source_type == "phone":
+        return "DEVICE"
+    if target_type == "camera" or source_type == "camera":
+        return "CAM"
+    if target_type == "atm" or source_type == "atm":
+        return "ATM"
+    if target_type in {"router", "server"} or source_type in {"router", "server", "hotspot"}:
+        return "NET"
+    if source_type in {"shop", "amenity", "restaurant", "bar", "cafe", "fast_food", "parking", "office"}:
+        return "NODE"
+    if target_type == "poi":
+        return "POI"
+    return "TARGET"
+
+
+def deterministic_target_code(target):
+    target = target or {}
+    seed_parts = []
+    for key in ("osm_id", "node_id", "id", "lat", "lng", "lon", "source_type", "target_type", "procedural_seed"):
+        value = target.get(key)
+        if value is not None and str(value).strip():
+            seed_parts.append(f"{key}:{value}")
+    if not seed_parts:
+        seed_parts.append(json.dumps(target, sort_keys=True, default=str))
+    digest = hashlib.sha1("|".join(seed_parts).encode("utf-8")).hexdigest()
+    return digest[:6].upper()
+
+
+def display_target_label(target, fallback_prefix=None):
+    if not isinstance(target, dict):
+        return "TARGET-000000"
+    for key in ("display_label", "label", "name", "title"):
+        value = target.get(key)
+        if not is_missing_target_name(value):
+            return str(value).strip()
+    prefix = fallback_prefix or target_fallback_prefix(target)
+    return f"{prefix}-{deterministic_target_code(target)}"
+
+
+def apply_target_display_label(target):
+    if not isinstance(target, dict):
+        return target
+    display_label = display_target_label(target)
+    target["display_label"] = display_label
+    if is_missing_target_name(target.get("label")):
+        target["label"] = display_label
+    if is_missing_target_name(target.get("name")):
+        target["name"] = display_label
+    return target
 
 
 def filter_targets_by_position(targets, reference_target, match_label=False):
@@ -1543,6 +1623,7 @@ def build_operation_instance(username, app, map_action_id, operation_type, targe
     now = datetime.now(timezone.utc)
     operation_id = f"op_{now.strftime('%Y%m%d%H%M%S')}_{randint(100000, 999999)}"
     target_snapshot = dict(target or {})
+    apply_target_display_label(target_snapshot)
     target_type = infer_target_type_from_target(target_snapshot)
     target_mode = str(target_snapshot.get("target_mode") or "standard")
     target_id = build_operation_target_id(target_snapshot)
@@ -2436,7 +2517,7 @@ def operation_artifact_exists(profile, files, folders, operation_id, file_name=N
 
 def build_vehicle_tracking_gps_file(operation):
     target = operation.get("target") or {}
-    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "vehicle"
+    target_label = display_target_label(target, "VEHICLE")
     operation_id = operation.get("operation_id") or "operation"
     started = operation.get("started_at")
     ended = operation.get("ended_at") or operation.get("expires_at")
@@ -2554,7 +2635,7 @@ def device_package_completeness(resource_types):
 
 def build_device_intelligence_file(operation):
     target = operation.get("target") or {}
-    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "device"
+    target_label = display_target_label(target, "DEVICE")
     operation_id = operation.get("operation_id") or "operation"
     resources = device_tracking_resource_types(operation)
     completeness = device_package_completeness(resources)
@@ -2651,7 +2732,7 @@ def camera_file_exists(files, operation_id, fragment_index):
 
 def build_camera_fragment_file(operation, fragment_index, fragment_start_ts, fragment_end_ts):
     target = operation.get("target") or {}
-    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "camera"
+    target_label = display_target_label(target, "CAM")
     operation_id = operation.get("operation_id") or "operation"
     resources = camera_stream_resource_types(operation)
     primary = "video_material" if "video_material" in resources else "camera_dump"
@@ -2872,7 +2953,7 @@ def atm_record_rows(operation, row_type="atm"):
 
 def build_atm_dump_file(operation):
     target = operation.get("target") or {}
-    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "atm"
+    target_label = display_target_label(target, "ATM")
     operation_id = operation.get("operation_id") or "operation"
     records = atm_record_rows(operation, "atm")
     completeness_percent = clamp_int(45 + min(35, len(records) * 4), default=65)
@@ -2915,7 +2996,7 @@ def build_atm_dump_file(operation):
 
 def build_financial_records_file(operation):
     target = operation.get("target") or {}
-    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "atm"
+    target_label = display_target_label(target, "ATM")
     operation_id = operation.get("operation_id") or "operation"
     records = atm_record_rows(operation, "financial")
     completeness_percent = clamp_int(58 + min(34, len(records) * 4), default=80)
@@ -3045,7 +3126,7 @@ def operation_duration_from_timestamps(operation):
 
 def build_sniffer_financial_file(operation):
     target = operation.get("target") or {}
-    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "implant"
+    target_label = display_target_label(target, "IMPLANT")
     operation_id = operation.get("operation_id") or "operation"
     records = atm_record_rows(operation, "financial")
     completeness_percent = clamp_int(55 + min(35, len(records) * 4), default=78)
@@ -3089,7 +3170,7 @@ def build_sniffer_financial_file(operation):
 
 def build_sniffer_credentials_file(operation):
     target = operation.get("target") or {}
-    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "implant"
+    target_label = display_target_label(target, "IMPLANT")
     operation_id = operation.get("operation_id") or "operation"
     seed = stable_procedural_seed(operation_id, "credentials", operation.get("target_id"))
     credential_count = 2 + (seed % 4)
@@ -3143,7 +3224,7 @@ def build_sniffer_credentials_file(operation):
 
 def build_sniffer_device_file(operation):
     target = operation.get("target") or {}
-    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "implant"
+    target_label = display_target_label(target, "IMPLANT")
     operation_id = operation.get("operation_id") or "operation"
     completeness_percent = 17
     quality_score = 48
@@ -3195,7 +3276,7 @@ def build_sniffer_device_file(operation):
 
 def build_sniffer_system_state_file(operation):
     target = operation.get("target") or {}
-    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "implant"
+    target_label = display_target_label(target, "IMPLANT")
     operation_id = operation.get("operation_id") or "operation"
     filename = f"recon_state_{operation_filename_slug(target_label)}_{operation_id}.state"
     return {
@@ -3337,7 +3418,7 @@ def generic_trace_resource_types(operation):
 
 def build_wifi_scanner_file(operation):
     target = operation.get("target") or {}
-    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "network"
+    target_label = display_target_label(target, "NET")
     operation_id = operation.get("operation_id") or "operation"
     resources = wifi_scanner_resource_types(operation)
     seed = stable_procedural_seed(operation_id, "wifi_scanner", operation.get("target_id"))
@@ -3398,7 +3479,7 @@ def build_wifi_scanner_file(operation):
 
 def build_audio_interference_file(operation):
     target = operation.get("target") or {}
-    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "audio"
+    target_label = display_target_label(target, "AUDIO")
     operation_id = operation.get("operation_id") or "operation"
     duration = operation_duration_from_timestamps(operation)
     line_count = max(3, min(12, duration // 180 or 3))
@@ -3446,7 +3527,7 @@ def build_audio_interference_file(operation):
 
 def build_vehicle_ecu_file(operation):
     target = operation.get("target") or {}
-    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "vehicle"
+    target_label = display_target_label(target, "ECU")
     operation_id = operation.get("operation_id") or "operation"
     seed = stable_procedural_seed(operation_id, "vehicle_ecu", operation.get("target_id"))
     rng = random_module.Random(seed)
@@ -3498,7 +3579,7 @@ def build_vehicle_ecu_file(operation):
 
 def build_generic_trace_location_file(operation):
     target = operation.get("target") or {}
-    target_label = target.get("label") or target.get("name") or operation.get("target_id") or "target"
+    target_label = display_target_label(target, "TARGET")
     operation_id = operation.get("operation_id") or "operation"
     started_ts = parse_operation_timestamp(operation.get("started_at")) or datetime.now(timezone.utc).timestamp()
     expires_ts = parse_operation_timestamp(operation.get("ended_at") or operation.get("expires_at")) or started_ts
@@ -6522,8 +6603,8 @@ def map_view():
     ]
     for t in targets:
         text_icon = t.get("icon", "🎯")
-        label = t.get("label", "Cel")
-        name = t.get("name", label)
+        label = display_target_label(t)
+        name = display_target_label(t)
         source_type = t.get("source_type", "manual")
         generated = str(t.get("generated", False)).lower()
 
@@ -6554,8 +6635,8 @@ def map_view():
     hacked = profile.get("hacked", [])
     for h in hacked:
         text_icon = h.get("icon", "🛜")
-        label = h.get("label", "Cel")
-        name = h.get("name", label)
+        label = display_target_label(h)
+        name = display_target_label(h)
         source_type = h.get("source_type", "hacked")
         generated = str(h.get("generated", False)).lower()
         h_lng = h.get("lng", h.get("lon"))
@@ -6589,8 +6670,8 @@ def map_view():
     if profile_aimed_target.get("lat") is not None and profile_aimed_target.get("lng") is not None:
 
         text_icon = profile_aimed_target.get("icon", "📶")
-        label = profile_aimed_target.get("label", "Cel")
-        name = profile_aimed_target.get("name", label)
+        label = display_target_label(profile_aimed_target)
+        name = display_target_label(profile_aimed_target)
         source_type = profile_aimed_target.get("source_type", "aimed")
         generated = str(profile_aimed_target.get("generated", False)).lower()
         target_mode = html.escape(str(profile_aimed_target.get("target_mode") or "standard"))
@@ -7199,6 +7280,7 @@ def hack_action():
                 "trace": False
             }
         }
+        apply_target_display_label(aimed_target)
 
         aimed_target["actions_allowed"][action] = True
         aimed_target["actions_allowed"][canonical_action] = True
@@ -7260,7 +7342,7 @@ def hack_action():
     })
 
     return jsonify({
-        "status": f"🎯 Cel ustawiony: {label}",
+        "status": f"🎯 Cel ustawiony: {display_target_label(profile.get('aimed_target') or {})}",
         "target": profile["aimed_target"],
         "added_apps": new_apps,
         "created_operations": created_operations,
@@ -9744,7 +9826,7 @@ def gonna_win():
             hacked_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
             attacker_name = profile.get("nick") or session["user"]
             attacker_clan = get_profile_clan(profile) or "brak"
-            target_label = captured_target.get("label") or captured_target.get("name") or "Brak nazwy"
+            target_label = display_target_label(captured_target)
             add_system_message_to_user(
                 vulnerability_report.get("reported_by_username"),
                 "success",
@@ -9794,7 +9876,7 @@ def gonna_win():
                 areas=all_areas_after_owner_rebuild
             )
             attacker_name = profile.get("nick") or session["user"]
-            target_label = captured_target.get("label") or captured_target.get("name") or "Brak nazwy"
+            target_label = display_target_label(captured_target)
             add_system_message_to_user(
                 contest_owner_username,
                 "danger",

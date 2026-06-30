@@ -823,7 +823,54 @@
             });
         }
 
+        function isMissingTargetDisplayName(value) {
+            const normalized = String(value || '').trim().toLowerCase();
+            return !normalized || ['brak nazwy', 'brak_nazwy', 'no name', 'unnamed', 'unnamed target', 'unknown', 'none', 'null', 'nieznany obiekt'].includes(normalized);
+        }
+
+        function targetDisplayCode(obj = {}) {
+            const seed = [
+                obj.osm_id,
+                obj.node_id,
+                obj.id,
+                obj.lat,
+                obj.lng ?? obj.lon,
+                obj.source_type,
+                obj.target_type,
+                obj.procedural_seed
+            ].filter(value => value !== undefined && value !== null && String(value).trim() !== '').join('|') || JSON.stringify(obj);
+            let hash = 0;
+            for (let i = 0; i < seed.length; i++) {
+                hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+                hash |= 0;
+            }
+            return Math.abs(hash).toString(16).toUpperCase().padStart(6, '0').slice(0, 6);
+        }
+
+        function targetDisplayPrefix(obj = {}) {
+            const sourceType = String(obj.source_type || '').toLowerCase();
+            const targetType = String(obj.target_type || '').toLowerCase();
+            if (targetType === 'vehicle' || sourceType === 'car' || sourceType === 'vehicle') return 'ECU';
+            if (targetType === 'person' || targetType === 'player' || sourceType === 'person' || sourceType === 'player') return 'SUBJECT';
+            if (targetType === 'phone' || sourceType === 'phone') return 'DEVICE';
+            if (targetType === 'camera' || sourceType === 'camera') return 'CAM';
+            if (targetType === 'atm' || sourceType === 'atm') return 'ATM';
+            if (['router', 'server'].includes(targetType) || ['router', 'server', 'hotspot'].includes(sourceType)) return 'NET';
+            if (['shop', 'amenity', 'restaurant', 'bar', 'cafe', 'fast_food', 'parking', 'office'].includes(sourceType)) return 'NODE';
+            if (targetType === 'poi') return 'POI';
+            return 'TARGET';
+        }
+
+        function mapTargetDisplayLabel(obj = {}, fallbackPrefix = null) {
+            for (const key of ['display_label', 'label', 'name', 'title']) {
+                if (!isMissingTargetDisplayName(obj[key])) return String(obj[key]).trim();
+            }
+            return `${fallbackPrefix || targetDisplayPrefix(obj)}-${targetDisplayCode(obj)}`;
+        }
+
         function addInteractiveTargetMarker(lat, lng, label = "Cel", icon = "🎯", obj = {}) {
+            const displayObj = { ...obj, lat, lng, label };
+            label = mapTargetDisplayLabel(displayObj);
             removeScanResultAt(lat, lng);
             hideDomTargetMarkers(lat, lng, label);
             const markerObj = {
@@ -831,8 +878,11 @@
                 lon: Number(lng),
                 label,
                 icon,
-                name: obj.name || label,
+                name: isMissingTargetDisplayName(obj.name) ? label : obj.name,
                 source_type: obj.source_type || "manual",
+                target_type: obj.target_type || "",
+                osm_id: obj.osm_id || null,
+                node_id: obj.node_id || null,
                 generated: obj.generated || false
             };
             const marker = L.marker([markerObj.lat, markerObj.lon], {
@@ -856,7 +906,7 @@
         function addInteractiveHackedMarker(target) {
             const lat = Number(target.lat);
             const lng = Number(target.lng ?? target.lon);
-            const label = target.label || target.name || "Cel";
+            const label = mapTargetDisplayLabel(target, "TARGET");
             const icon = target.icon || "📦";
             removeScanResultAt(lat, lng);
             removeContestedTargetAt(lat, lng);
@@ -1570,13 +1620,20 @@
                     clearScanResultLayers();
                     const results = data.markers || [];
                     results.forEach(obj => {
+                        const displayLabel = mapTargetDisplayLabel({
+                            ...obj,
+                            target_type: obj.target_type || 'poi'
+                        });
                         const target = {
                             lat: Number(obj.lat),
                             lon: Number(obj.lon),
-                            label: obj.name || 'Nieznany obiekt',
-                            name: obj.name || 'Nieznany obiekt',
+                            label: displayLabel,
+                            name: isMissingTargetDisplayName(obj.name) ? displayLabel : obj.name,
                             icon: obj.icon || "📍",
                             source_type: obj.source_type || "unknown",
+                            target_type: obj.target_type || "poi",
+                            osm_id: obj.osm_id || null,
+                            node_id: obj.node_id || null,
                             generated: Boolean(obj.generated)
                         };
 
@@ -1721,7 +1778,7 @@
                 if (action === 'scan') {
                     const results = data.markers || [];
                     results.forEach(obj => {
-                        const label = obj.name || 'Nieznany obiekt';
+                        const label = mapTargetDisplayLabel({ ...obj, target_type: obj.target_type || 'poi' });
                         const tags = obj.tags || {};
 
                         const iconEmoji = obj.icon || "📍";

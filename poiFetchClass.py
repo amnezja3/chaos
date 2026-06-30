@@ -81,7 +81,9 @@ out body;
 
         for node in result.nodes:
             entry = {
-                "name": node.tags.get("name", "Brak nazwy"),
+                "name": node.tags.get("name", ""),
+                "osm_id": getattr(node, "id", None),
+                "node_id": getattr(node, "id", None),
                 "lat": float(node.lat),
                 "lon": float(node.lon),
                 "tags": node.tags,

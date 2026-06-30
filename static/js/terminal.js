@@ -2171,7 +2171,8 @@ function createMap() {
 
 function createBrowser() {
     const term = document.createElement('div');
-    term.className = 'terminal';
+    term.className = 'terminal browser-window';
+    term.dataset.app = "browser";
     term.style.display = 'flex';
     term.style.flexDirection = 'column';
     const position = findAvailablePosition();
@@ -2187,7 +2188,7 @@ function createBrowser() {
         WebDragons
         <span class="close-btn" style="float:right; cursor:pointer;">✖</span>
     </div>
-    <div style="padding: 5px; background: #111; color: #fff; display: flex; gap: 5px;">
+    <div class="browser-nav">
         <button class="nav-btn">⬅</button>
         <button class="nav-btn">➡</button>
         <input type="text" value="xhttp://webdragons.hck" readonly class="url-bar">

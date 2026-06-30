@@ -12,6 +12,7 @@ from run import (
     cancel_profile_operation,
     collect_ghost_exchange_files,
     create_operations_for_app_action,
+    display_target_label,
     ensure_files_inventory,
     filter_targets_by_position,
     get_apps_for_map_action,
@@ -24,6 +25,43 @@ from run import (
     target_position_key,
     targets_share_position,
 )
+
+
+class TargetDisplayLabelTest(unittest.TestCase):
+    def test_unnamed_poi_gets_deterministic_node_label(self):
+        target = {
+            "name": "",
+            "label": "Brak nazwy",
+            "source_type": "shop",
+            "target_type": "poi",
+            "osm_id": 123456,
+            "lat": 52.2297,
+            "lng": 21.0122,
+        }
+
+        label = display_target_label(target)
+
+        self.assertTrue(label.startswith("NODE-"))
+        self.assertNotEqual(label, "Brak nazwy")
+        self.assertEqual(label, display_target_label(dict(target)))
+
+    def test_named_target_keeps_real_name(self):
+        target = {
+            "name": "Zabka",
+            "label": "",
+            "source_type": "shop",
+            "lat": 52.1,
+            "lng": 21.2,
+        }
+
+        self.assertEqual(display_target_label(target), "Zabka")
+
+    def test_vehicle_and_person_prefixes_are_readable(self):
+        vehicle = {"source_type": "car", "name": "", "lat": 52.1, "lng": 21.2}
+        person = {"source_type": "person", "name": "", "lat": 52.1, "lng": 21.2}
+
+        self.assertTrue(display_target_label(vehicle).startswith("ECU-"))
+        self.assertTrue(display_target_label(person).startswith("SUBJECT-"))
 
 
 class DevBugReportStoreTest(unittest.TestCase):
@@ -49,6 +87,10 @@ class DevBugReportStoreTest(unittest.TestCase):
                     "category": "UI",
                     "severity": "high",
                     "current_url": "/desktop",
+                    "context": {
+                        "client_timestamp": "2026-06-29T12:00:00",
+                        "active_window": {"title": "Mapa"},
+                    },
                 },
                 created_by="tester",
                 app_version="test-build",
@@ -56,6 +98,7 @@ class DevBugReportStoreTest(unittest.TestCase):
 
             self.assertEqual(report["status"], "new")
             self.assertEqual(report["category"], "UI")
+            self.assertEqual(report["context"]["active_window"]["title"], "Mapa")
             self.assertEqual(len(store.list_reports(search="camera")), 1)
             self.assertEqual(len(store.find_similar("Camera overlap")), 1)
 
@@ -64,6 +107,38 @@ class DevBugReportStoreTest(unittest.TestCase):
         finally:
             if os.path.exists(path):
                 os.remove(path)
+
+    def test_dev_bug_server_context_uses_trusted_profile_username(self):
+        fake_profile = {
+            "username": "admin",
+            "nick": "Admin",
+            "level": 6,
+            "hackcoins": 123,
+            "respect": 7,
+            "aimed_target": {"label": "Target A", "target_mode": "standard"},
+            "operations": [
+                {
+                    "operation_id": "op1",
+                    "operation_type": "camera_stream",
+                    "status": "running",
+                    "target": {"label": "Camera"},
+                    "expires_at": "2999-06-29T12:30:00+00:00",
+                    "remaining_seconds": 1800,
+                }
+            ],
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value=fake_profile):
+            context = run.build_dev_bug_server_context(
+                "admin",
+                client_context={"profile": {"username": "spoofed"}, "current_url": "/desktop"},
+            )
+
+        self.assertEqual(context["session"]["username"], "admin")
+        self.assertEqual(context["profile_snapshot"]["level"], 6)
+        self.assertEqual(context["aimed_target"]["label"], "Target A")
+        self.assertEqual(context["active_operations_summary"][0]["operation_type"], "camera_stream")
+        self.assertIn("server_timestamp", context)
 
 
 class FakeTerritoryStore:
