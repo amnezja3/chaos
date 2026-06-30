@@ -2471,10 +2471,16 @@ function createBrowser() {
                 return;
             }
             exchangeFiles = data.files || exchangeFiles.filter(item => item.id !== fileId);
-            walletBalance = Number(data.balance || walletBalance || 0);
+            walletBalance = Number(Object.prototype.hasOwnProperty.call(data, "balance") ? data.balance : (walletBalance || 0));
             wallet.textContent = `HackCoiny: ${walletBalance}`;
-            if (typeof refreshSystemBar === "function") {
-                refreshSystemBar();
+            if (typeof setToolbarProfile === "function") {
+                setToolbarProfile({
+                    ...(toolbarProfile || {}),
+                    hackcoins: walletBalance
+                });
+            }
+            if (typeof refreshToolbarProfile === "function") {
+                await refreshToolbarProfile().catch(() => null);
             }
             addSystemMessage("success", "Ghost Exchange", data.message || "Pakiet danych sprzedany.");
             renderExchange();
