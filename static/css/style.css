@@ -414,6 +414,115 @@ body {
   min-width: 0;
 }
 
+.browser-window.browser-compact .googolplex-shell {
+  padding: 8px;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.browser-window.browser-compact .googolplex-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
+}
+
+.browser-window.browser-compact .googolplex-header h1 {
+  font-size: 1.6rem;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+}
+
+.browser-window.browser-compact .googolplex-wallet {
+  justify-self: start;
+  max-width: min(210px, 100%);
+  padding: 5px 7px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.browser-window.browser-compact .browser-nav {
+  gap: 4px;
+}
+
+.browser-window.browser-compact .browser-nav .nav-btn,
+.browser-window.browser-compact .browser-nav .fav-btn {
+  padding: 6px 8px;
+}
+
+.browser-window.browser-compact .url-bar {
+  min-width: 0;
+  font-size: 0.86rem;
+  padding-inline: 6px;
+}
+
+.browser-window.browser-compact .browser-tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 6px;
+  padding-bottom: 5px;
+}
+
+.browser-window.browser-compact .browser-tab {
+  flex: 1 0 auto;
+  padding: 6px 8px;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.browser-window.browser-compact .googolplex-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  font-size: 0.9rem;
+}
+
+.browser-window.browser-compact .googolplex-grid {
+  grid-template-columns: 1fr !important;
+  gap: 9px;
+  overflow-x: hidden;
+}
+
+.browser-window.browser-compact .googolplex-card {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px;
+  gap: 7px;
+}
+
+.browser-window.browser-compact .googolplex-card-title {
+  grid-template-columns: 24px minmax(0, 1fr);
+}
+
+.browser-window.browser-compact .googolplex-card-title > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.browser-window.browser-compact .googolplex-card p {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.88rem;
+}
+
+.browser-window.browser-compact .googolplex-card-meta,
+.browser-window.browser-compact .googolplex-card-footer {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.browser-window.browser-compact .googolplex-card-footer button {
+  width: 100%;
+}
+
 .googolplex-card-footer button:hover:not(:disabled) {
   background: #095;
 }

@@ -2142,6 +2142,21 @@ window.addEventListener('resize', applyMobileSafeModeToOpenWindows);
 // Aktywuj istniejące terminale
 document.querySelectorAll('.terminal').forEach(makeDraggable);
 
+function applyBrowserCompactMode(term) {
+    if (!term) return;
+    const width = term.getBoundingClientRect().width || term.offsetWidth || window.innerWidth;
+    term.classList.toggle('browser-compact', width <= 720);
+}
+
+function observeBrowserCompactMode(term) {
+    applyBrowserCompactMode(term);
+    if (window.ResizeObserver) {
+        const observer = new ResizeObserver(() => applyBrowserCompactMode(term));
+        observer.observe(term);
+    }
+    window.addEventListener('resize', () => applyBrowserCompactMode(term));
+}
+
 function createMap() {
     if (document.querySelector(`.terminal[data-app="map"]`)) return;
     const term = document.createElement('div');
@@ -2214,6 +2229,7 @@ function createBrowser() {
         contentWrapper.style.minHeight = '0';
     }
     makeDraggable(term);
+    observeBrowserCompactMode(term);
     term.querySelector('.close-btn').addEventListener('click', () => term.remove());
 
     // Obsługa wyszukiwania
