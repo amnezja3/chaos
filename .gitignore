@@ -31,6 +31,7 @@ data/backups/
 *.sqlite
 *.sqlite3
 *.db
+!data/game.example.sqlite3
 poi_cache.json
 
 # Local configuration and secrets
