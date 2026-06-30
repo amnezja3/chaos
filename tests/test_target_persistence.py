@@ -1,11 +1,12 @@
 import unittest
 import os
+import sqlite3
 import tempfile
 from datetime import datetime, timezone
 from unittest.mock import patch
 
 import run
-from database import DevBugReportStore
+from database import DevBugReportStore, JsonResourceStore
 from run import (
     active_operations_from_operations,
     build_player_actor,
@@ -139,6 +140,34 @@ class DevBugReportStoreTest(unittest.TestCase):
         self.assertEqual(context["aimed_target"]["label"], "Target A")
         self.assertEqual(context["active_operations_summary"][0]["operation_type"], "camera_stream")
         self.assertIn("server_timestamp", context)
+
+
+class JsonResourceStoreSeedTest(unittest.TestCase):
+    def test_static_seed_uses_resource_whitelist(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            JsonResourceStore(db_path=path)
+            conn = sqlite3.connect(path)
+            try:
+                keys = {
+                    row[0]
+                    for row in conn.execute("SELECT key FROM json_resources").fetchall()
+                }
+            finally:
+                conn.close()
+
+            self.assertIn("app_config", keys)
+            self.assertIn("user_template", keys)
+            self.assertIn("user_security", keys)
+            self.assertIn("terminal_command", keys)
+            self.assertNotIn("targets", keys)
+            self.assertNotIn("resources", keys)
+            self.assertNotIn("system_status", keys)
+            self.assertNotIn("system_messages", keys)
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
 
 
 class FakeTerritoryStore:

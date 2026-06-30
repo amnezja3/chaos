@@ -1669,3 +1669,65 @@ CHAOS przechodzi z budowy silnika gameplayu do rozbudowy swiata gry i przygotowa
 ### Status
 
 Phase 1 zamkniete. Wersja developerska v0.3.4-stable gotowa do wystawienia po commicie, tagu i pushu.
+
+---
+
+## 30.06.2026
+
+### Sprint
+
+Static JSON Resource Cleanup - Sprint A/B/C.
+
+### Cel
+
+Domknac architekture JSON -> SQLite i usunac niejasnosc, czy `static/*.json`
+jest runtime source of truth.
+
+### Co zostalo wykonane
+
+* Dodano dokument `doc/resource_architecture.md` opisujacy warstwy:
+  repository content, static JSON, `JsonResourceStore`, SQLite `json_resources`,
+  backend runtime i profile runtime.
+* Dodano `static/README.md` z podzialem plikow JSON na active seed,
+  legacy/demo/reference, mail legacy/dev seed oraz future/reference.
+* Dodano `tools/sync_static_json_resources.py` z trybem dry-run i `--apply`.
+* Ograniczono automatyczny seed `JsonResourceStore.seed_static_directory()` do
+  jawnej whitelisty runtime resources.
+* Dodano test regresyjny pilnujacy, ze legacy JSON-y nie sa seedowane jako
+  runtime resources.
+
+### Najwazniejsze decyzje
+
+* `static/*.json` jest contentem repozytorium i seed/reference, nie live runtime.
+* Runtime source of truth dla JSON resources to SQLite `json_resources`.
+* Runtime player state pozostaje w tabeli `users` / `profile_json`.
+* Sync statycznych JSON-ow do SQLite jest jawna operacja developerska.
+
+### Problemy
+
+* Istniejace bazy moga nadal miec legacy klucze w `json_resources`; nowa
+  whitelista blokuje ich automatyczne seedowanie, ale nie usuwa starych rekordow.
+
+### Zmienione pliki
+
+* `database.py`
+* `doc/resource_architecture.md`
+* `doc/project_journal.md`
+* `static/README.md`
+* `tests/test_target_persistence.py`
+* `tools/sync_static_json_resources.py`
+
+### Wynik testow
+
+* `python -m py_compile run.py database.py profileManagment.py tools/sync_static_json_resources.py` - OK
+* `python -m unittest tests.test_target_persistence` - OK, 46 testow
+* `python tools/sync_static_json_resources.py` - dry-run OK:
+  * `changed`: `user_template`
+  * `unchanged`: `app_config`, `fractions`, `friends`, `messages`, `terminal_command`, `user_security`
+  * `extra_in_db`: legacy/reference keys pozostawione w istniejacej bazie runtime
+* `python tools/sync_static_json_resources.py --apply --key app_config` - OK, backup poprzedniej wartosci zapisany w `data/backups/json_resources_sync_*`.
+* `/resources.json` po syncu zwraca katalog Googleplex z SQLite.
+
+### Status
+
+Static JSON Resource Cleanup zamkniety.

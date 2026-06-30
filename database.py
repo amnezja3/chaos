@@ -454,6 +454,19 @@ class UserStore:
 
 
 class JsonResourceStore:
+    # Repository JSON files are seed/reference content. Runtime reads from the
+    # SQLite json_resources table; changing static/*.json requires an explicit
+    # sync/import step and should not silently mutate runtime state.
+    SEED_RESOURCE_KEYS = {
+        "app_config",
+        "user_template",
+        "user_security",
+        "terminal_command",
+        "messages",
+        "friends",
+        "fractions",
+    }
+
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
         init_db(self.db_path)
@@ -487,6 +500,8 @@ class JsonResourceStore:
                     continue
                 path = os.path.join(static_dir, filename)
                 key = os.path.splitext(filename)[0]
+                if key not in self.SEED_RESOURCE_KEYS:
+                    continue
                 self._seed_file_if_missing(conn, key, path)
 
     def get(self, key, seed_path=None, default=None):
