@@ -2225,6 +2225,24 @@ function createBrowser() {
     let walletBalance = 0;
     let activeBrowserTab = "googleplex";
 
+    const updateBrowserNarrowMode = () => {
+        const shell = term.querySelector('.googolplex-shell');
+        const measuredWidth = (shell?.getBoundingClientRect().width)
+            || term.getBoundingClientRect().width
+            || term.offsetWidth
+            || window.innerWidth;
+        term.classList.toggle('browser-narrow', measuredWidth < 720);
+    };
+
+    updateBrowserNarrowMode();
+    if (window.ResizeObserver) {
+        const browserNarrowObserver = new ResizeObserver(updateBrowserNarrowMode);
+        browserNarrowObserver.observe(term);
+        const shell = term.querySelector('.googolplex-shell');
+        if (shell) browserNarrowObserver.observe(shell);
+    }
+    window.addEventListener('resize', updateBrowserNarrowMode);
+
     const googleplexList = (value) => Array.isArray(value)
         ? value.map(item => String(item || '').trim()).filter(Boolean)
         : [];
@@ -2246,9 +2264,11 @@ function createBrowser() {
 
     const renderCatalog = () => {
         if (activeBrowserTab !== "googleplex") return;
+        updateBrowserNarrowMode();
         const query = search.value.toLowerCase().trim();
         if (!query) {
             results.innerHTML = "";
+            updateBrowserNarrowMode();
             return;
         }
 
@@ -2257,6 +2277,7 @@ function createBrowser() {
         results.innerHTML = '';
         if (matches.length === 0) {
             results.innerHTML = '<div class="googolplex-empty">Brak aplikacji do pokazania.</div>';
+            updateBrowserNarrowMode();
             return;
         }
 
@@ -2316,10 +2337,12 @@ function createBrowser() {
             });
             results.appendChild(card);
         });
+        updateBrowserNarrowMode();
     };
 
     const renderExchange = () => {
         if (activeBrowserTab !== "exchange") return;
+        updateBrowserNarrowMode();
         const query = search.value.toLowerCase().trim();
         const matches = exchangeFiles.filter(item => {
             const resources = Array.isArray(item.resource_types) ? item.resource_types.join(' ') : '';
@@ -2333,6 +2356,7 @@ function createBrowser() {
         results.innerHTML = '';
         if (matches.length === 0) {
             results.innerHTML = '<div class="googolplex-empty">Brak sprzedawalnych plikow danych.</div>';
+            updateBrowserNarrowMode();
             return;
         }
 
@@ -2379,6 +2403,7 @@ function createBrowser() {
             });
             results.appendChild(card);
         });
+        updateBrowserNarrowMode();
     };
 
     async function loadCatalog() {
@@ -2461,6 +2486,7 @@ function createBrowser() {
 
     function switchBrowserTab(tabName) {
         activeBrowserTab = tabName;
+        updateBrowserNarrowMode();
         term.querySelectorAll('.browser-tab').forEach(button => {
             button.classList.toggle('is-active', button.dataset.browserTab === tabName);
         });
