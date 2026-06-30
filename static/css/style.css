@@ -247,8 +247,9 @@ body {
 .googolplex-header h1 {
   margin: 0;
   color: #0f0;
-  font-size: 3rem;
+  font-size: clamp(1.85rem, 4.6vw, 2.55rem);
   line-height: 1;
+  overflow-wrap: anywhere;
 }
 
 .googolplex-wallet {
@@ -465,12 +466,14 @@ body {
 }
 
 @media (max-width: 1180px) {
+  .googolplex-grid,
   .browser-window .googolplex-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px), (max-height: 700px) {
+  .googolplex-grid,
   .browser-window .googolplex-grid {
     grid-template-columns: 1fr;
   }
@@ -3316,6 +3319,111 @@ form button:hover {
 }
 
 @media (max-width: 900px), (max-height: 700px) {
+  .googolplex-shell {
+    padding: 8px;
+    gap: 8px;
+    overflow: hidden;
+  }
+
+  .googolplex-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 6px;
+  }
+
+  .googolplex-header h1 {
+    font-size: clamp(1.35rem, 7vw, 1.85rem);
+    line-height: 0.98;
+  }
+
+  .googolplex-wallet {
+    justify-self: start;
+    max-width: 100%;
+    padding: 5px 7px;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .browser-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 5px;
+  }
+
+  .browser-tab {
+    flex: 1 0 auto;
+    padding: 6px 8px;
+    font-size: 0.86rem;
+    white-space: nowrap;
+  }
+
+  .googolplex-search {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px;
+    font-size: 0.9rem;
+  }
+
+  .googolplex-grid {
+    gap: 9px;
+    overflow-x: hidden;
+    padding-right: 1px;
+  }
+
+  .googolplex-card {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px;
+    gap: 7px;
+  }
+
+  .googolplex-card-title {
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 7px;
+  }
+
+  .googolplex-card-title > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .googolplex-card p {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.88rem;
+  }
+
+  .googolplex-contract,
+  .ghost-exchange-meta {
+    font-size: 0.72rem;
+  }
+
+  .googolplex-contract span,
+  .ghost-exchange-meta span {
+    min-width: 0;
+  }
+
+  .googolplex-card-meta,
+  .googolplex-card-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .googolplex-card-footer button {
+    width: 100%;
+  }
+
+  .ghost-exchange-card .googolplex-card-title {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
   body {
     padding-bottom: 46px;
     overflow: hidden;
@@ -3546,6 +3654,40 @@ form button:hover {
 }
 
 @media (max-width: 560px) {
+  .browser-nav {
+    gap: 4px;
+  }
+
+  .browser-nav .fav-btn {
+    display: none;
+  }
+
+  .browser-nav .nav-btn {
+    padding-inline: 8px;
+  }
+
+  .url-bar {
+    font-size: 0.82rem;
+    padding-inline: 6px;
+  }
+
+  .googolplex-header h1 {
+    font-size: clamp(1.2rem, 8vw, 1.55rem);
+  }
+
+  .googolplex-wallet {
+    max-width: 150px;
+  }
+
+  .googolplex-card p {
+    -webkit-line-clamp: 3;
+  }
+
+  .googolplex-contract {
+    max-height: 6.5em;
+    overflow: hidden;
+  }
+
   #system-status-strip span:nth-child(4) {
     display: none;
   }
