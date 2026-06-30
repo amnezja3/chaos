@@ -2142,21 +2142,6 @@ window.addEventListener('resize', applyMobileSafeModeToOpenWindows);
 // Aktywuj istniejące terminale
 document.querySelectorAll('.terminal').forEach(makeDraggable);
 
-function applyBrowserCompactMode(term) {
-    if (!term) return;
-    const width = term.getBoundingClientRect().width || term.offsetWidth || window.innerWidth;
-    term.classList.toggle('browser-compact', width <= 720);
-}
-
-function observeBrowserCompactMode(term) {
-    applyBrowserCompactMode(term);
-    if (window.ResizeObserver) {
-        const observer = new ResizeObserver(() => applyBrowserCompactMode(term));
-        observer.observe(term);
-    }
-    window.addEventListener('resize', () => applyBrowserCompactMode(term));
-}
-
 function createMap() {
     if (document.querySelector(`.terminal[data-app="map"]`)) return;
     const term = document.createElement('div');
@@ -2229,7 +2214,6 @@ function createBrowser() {
         contentWrapper.style.minHeight = '0';
     }
     makeDraggable(term);
-    observeBrowserCompactMode(term);
     term.querySelector('.close-btn').addEventListener('click', () => term.remove());
 
     // Obsługa wyszukiwania
@@ -2260,29 +2244,11 @@ function createBrowser() {
         ...googleplexList(item.target_types)
     ].join(' ').toLowerCase();
 
-    const syncBrowserLayout = () => {
-        const width = results.getBoundingClientRect().width || term.getBoundingClientRect().width || term.offsetWidth || window.innerWidth;
-        const compact = width <= 720;
-        term.classList.toggle('browser-compact', compact);
-        results.style.gridTemplateColumns = compact
-            ? 'minmax(0, 1fr)'
-            : (width <= 980 ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))');
-    };
-
-    if (window.ResizeObserver) {
-        const browserLayoutObserver = new ResizeObserver(syncBrowserLayout);
-        browserLayoutObserver.observe(term);
-        browserLayoutObserver.observe(results);
-    }
-    window.addEventListener('resize', syncBrowserLayout);
-
     const renderCatalog = () => {
         if (activeBrowserTab !== "googleplex") return;
-        syncBrowserLayout();
         const query = search.value.toLowerCase().trim();
         if (!query) {
             results.innerHTML = "";
-            syncBrowserLayout();
             return;
         }
 
@@ -2291,7 +2257,6 @@ function createBrowser() {
         results.innerHTML = '';
         if (matches.length === 0) {
             results.innerHTML = '<div class="googolplex-empty">Brak aplikacji do pokazania.</div>';
-            syncBrowserLayout();
             return;
         }
 
@@ -2351,12 +2316,10 @@ function createBrowser() {
             });
             results.appendChild(card);
         });
-        syncBrowserLayout();
     };
 
     const renderExchange = () => {
         if (activeBrowserTab !== "exchange") return;
-        syncBrowserLayout();
         const query = search.value.toLowerCase().trim();
         const matches = exchangeFiles.filter(item => {
             const resources = Array.isArray(item.resource_types) ? item.resource_types.join(' ') : '';
@@ -2370,7 +2333,6 @@ function createBrowser() {
         results.innerHTML = '';
         if (matches.length === 0) {
             results.innerHTML = '<div class="googolplex-empty">Brak sprzedawalnych plikow danych.</div>';
-            syncBrowserLayout();
             return;
         }
 
@@ -2417,7 +2379,6 @@ function createBrowser() {
             });
             results.appendChild(card);
         });
-        syncBrowserLayout();
     };
 
     async function loadCatalog() {
