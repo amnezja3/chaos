@@ -204,6 +204,104 @@ class LightweightPollingEndpointTest(unittest.TestCase):
         self.assertEqual(response.get_json(), [])
 
 
+class MissingProfileAndSessionSafetyTest(unittest.TestCase):
+    def test_map_without_profile_redirects_to_login_instead_of_500(self):
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "ghost"
+
+        with patch.object(run, "sync_session_profile", return_value=None):
+            response = client.get("/map")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.headers["Location"].endswith("/"))
+
+        follow = client.get("/")
+        self.assertEqual(follow.status_code, 200)
+        self.assertIn("Brak danych profilu".encode("utf-8"), follow.data)
+
+    def test_root_username_profile_loads_even_when_nick_is_rut(self):
+        profile = {
+            "username": "root",
+            "nick": "Rut",
+            "apps": [],
+            "files": {},
+            "own_places": None,
+            "captured_targets": None,
+            "territory": None,
+            "areas": None,
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value=profile):
+            loaded = run.load_profile_readonly("root", normalize_apps=False, normalize_files=False)
+
+        self.assertEqual(loaded["username"], "root")
+        self.assertEqual(loaded["nick"], "Rut")
+        self.assertEqual(loaded["own_places"], [])
+        self.assertEqual(loaded["captured_targets"], [])
+        self.assertEqual(loaded["territory"], [])
+        self.assertEqual(loaded["areas"], [])
+
+    def test_territory_hack_does_not_replace_session_user_with_owner(self):
+        class FakeProfileManager:
+            created_for = []
+
+            def __init__(self, username):
+                self.username = username
+                self.__class__.created_for.append(username)
+
+            def update_profile(self, updates):
+                self.updates = updates
+
+        critical_security = {
+            key: True
+            for key in [
+                "stealth_mode", "scan_detection", "exploit_protection", "vpn_enabled",
+                "browser_protection", "os_hardening", "log_guardian", "process_monitor",
+                "firewall", "log_integrity", "network_anomaly_detection", "spoofing_protection",
+                "activity_monitor", "player_tracking", "system_visibility", "firewall_core",
+                "kernel_guard", "system_integrity_check", "heap_protection", "memory_lock",
+                "background_injection", "memory_guard", "vpn_blocker",
+            ]
+        }
+        profile = {
+            "username": "root",
+            "nick": "Rut",
+            "apps": [{
+                "id": "noop_tool",
+                "name": "Noop Tool",
+                "requires_off": [],
+                "interferes_with": [],
+                "levels": [{"options": []}],
+            }],
+            "aimed_target": {
+                "target_mode": "territory_contest",
+                "contest_owner_username": "owner_a",
+                "lat": 52.1,
+                "lng": 21.2,
+                "label": "Foreign pillar",
+                "security": critical_security,
+                "actions_allowed": {"scan_ports": True},
+            },
+            "system_messages": [],
+        }
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "root"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "find_captured_target_for_owner", return_value=None), \
+                patch.object(run, "UserProfileManager", FakeProfileManager):
+            response = client.post("/gonna-win", json={"app_id": "noop_tool"})
+
+        self.assertEqual(response.status_code, 200)
+        with client.session_transaction() as sess:
+            self.assertEqual(sess["user"], "root")
+        self.assertIn("root", FakeProfileManager.created_for)
+        self.assertNotIn("owner_a", FakeProfileManager.created_for)
+
+
 class FakeTerritoryStore:
     def __init__(self, targets):
         self.targets = targets

@@ -4004,6 +4004,7 @@ def load_profile_readonly(username, strip_sensitive=True, normalize_apps=True, n
         profile["apps"] = normalize_app_contracts(profile.get("apps", []))
     if normalize_files:
         normalize_files_inventory(profile)
+    normalize_runtime_profile_defaults(profile)
     return profile
 
 
@@ -5811,6 +5812,35 @@ app.config['SECRET_KEY'] = 'bardzo-tajny-klucz-123'
 Session(app)
 
 
+def normalize_runtime_profile_defaults(profile):
+    if not isinstance(profile, dict):
+        return profile
+
+    for key in ("own_places", "captured_targets", "territory", "areas"):
+        if not isinstance(profile.get(key), list):
+            profile[key] = []
+    return profile
+
+
+def log_missing_profile_warning(source):
+    print(
+        "[WARN] missing profile "
+        f"source={source} user={session.get('user') or '-'} "
+        f"path={request.path if request else '-'} "
+        f"referer={request.headers.get('Referer', '-') if request else '-'}",
+        flush=True,
+    )
+
+
+def redirect_missing_profile_to_login():
+    message = "Brak danych profilu. Zaloguj sie ponownie albo skontaktuj sie z administratorem."
+    log_missing_profile_warning("map_view")
+    session.pop("user", None)
+    session.pop("profile", None)
+    session["login_error"] = message
+    return redirect(url_for("index"))
+
+
 def sync_session_profile(rebuild_territory=True):
     username = session.get("user")
     if not username:
@@ -5825,13 +5855,22 @@ def sync_session_profile(rebuild_territory=True):
         profile.pop("salt", None)
         profile["apps"] = normalize_app_contracts(profile.get("apps", []))
         normalize_files_inventory(profile)
+        normalize_runtime_profile_defaults(profile)
         session["profile"] = profile
         return profile
 
-    mgr = UserProfileManager(username)
+    try:
+        mgr = UserProfileManager(username)
+    except ValueError:
+        log_missing_profile_warning("sync_session_profile")
+        return None
     profile = mgr.get_profile(strip_sensitive=True)
+    if not isinstance(profile, dict):
+        log_missing_profile_warning("sync_session_profile")
+        return None
     profile["apps"] = normalize_app_contracts(profile.get("apps", []))
     normalize_files_inventory(profile)
+    normalize_runtime_profile_defaults(profile)
     normalized_clan = get_profile_clan(profile)
     if normalized_clan and normalized_clan != profile.get("clan"):
         profile["clan"] = normalized_clan
@@ -6032,7 +6071,7 @@ def index():
 
         return render_template("login.html", error="❌ Nieprawidłowe dane logowania")
 
-    return render_template("login.html")
+    return render_template("login.html", error=session.pop("login_error", None))
 
 @app.route("/register")
 def register_page():
@@ -6662,6 +6701,8 @@ def secure_preset():
 @app.route("/map")
 def map_view():
     profile = sync_session_profile()
+    if not profile:
+        return redirect_missing_profile_to_login()
     ava_lat = profile.get("curently_possition", {}).get("lat", 52.2297)
     ava_lng = profile.get("curently_possition", {}).get("lng", 21.0122)
     zoom = get_player_map_zoom(profile)
