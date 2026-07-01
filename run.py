@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, jsonify, redirect, url_for, Response
+from flask import Flask, render_template, request, session, jsonify, redirect, url_for, Response, g
 from markupsafe import Markup
 from terminals.commands import interpret_command
 import folium
@@ -10,6 +10,7 @@ import math
 import ipaddress
 import html
 import subprocess
+import time
 from datetime import datetime, timezone, timedelta
 from random import random, choice, randint, sample
 import random as random_module
@@ -39,6 +40,53 @@ dev_bug_report_store = DevBugReportStore()
 APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
 _GIT_COMMIT_HASH = None
 _GIT_BUILD_TAG = None
+PERF_LOG_ENDPOINTS = {
+    "/api/operations",
+    "/api/map/player-areas",
+    "/api/map/player-actors",
+    "/api/map/clan-vulnerabilities",
+    "/launch-queue",
+    "/system-messages",
+    "/command",
+    "/gonna-win",
+}
+PERF_LOG_MIN_MS = 100
+PERF_LOG_MIN_SIZE = 20 * 1024
+
+
+def is_perf_log_enabled():
+    value = (os.environ.get("CHAOS_PERF_LOG") or "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+@app.before_request
+def start_perf_timer():
+    if is_perf_log_enabled() and request.path in PERF_LOG_ENDPOINTS:
+        g.perf_log_started_at = time.perf_counter()
+
+
+@app.after_request
+def log_slow_or_large_response(response):
+    started_at = getattr(g, "perf_log_started_at", None)
+    if started_at is None:
+        return response
+
+    elapsed_ms = int(round((time.perf_counter() - started_at) * 1000))
+    try:
+        size = response.calculate_content_length()
+    except Exception:
+        size = response.content_length
+    size = int(size or 0)
+
+    if elapsed_ms >= PERF_LOG_MIN_MS or size >= PERF_LOG_MIN_SIZE:
+        user = session.get("user") or "-"
+        print(
+            f"[PERF] {request.method} {request.path} "
+            f"status={response.status_code} ms={elapsed_ms} size={size} user={user}",
+            flush=True,
+        )
+
+    return response
 
 
 def is_dev_mode_enabled():

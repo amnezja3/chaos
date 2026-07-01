@@ -1731,3 +1731,52 @@ jest runtime source of truth.
 ### Status
 
 Static JSON Resource Cleanup zamkniety.
+
+---
+
+## 30.06.2026
+
+### Sprint
+
+PM2 ecosystem configuration cleanup.
+
+### Cel
+
+Oddzielic lokalna konfiguracje PM2 konkretnego serwera od repozytorium,
+podobnie jak runtime `data/game.sqlite3`.
+
+### Co zostalo wykonane
+
+* Dodano `ecosystem.config.example.js` jako wersjonowany template PM2.
+* Dodano instrukcje kopiowania lokalnej konfiguracji:
+  `cp ecosystem.config.example.js ecosystem.config.js`.
+* Dodano `ecosystem.config.js` do `.gitignore`.
+
+### Najwazniejsze decyzje
+
+* `ecosystem.config.js` jest lokalnym plikiem serwera i nie powinien byc
+  sledzony przez Git.
+* `ecosystem.config.example.js` pozostaje w repo jako dokumentowany punkt startu
+  dla nowych serwerow.
+
+### Problemy
+
+* Obecny `run.py` nadal uruchamia Flask przez `app.run(debug=True)`, wiec `PORT`
+  w template jest przygotowany jako standard konfiguracji srodowiska, ale sama
+  aplikacja musi go respektowac dopiero w osobnym tasku, jesli bedzie taka
+  potrzeba.
+
+### Zmienione pliki
+
+* `.gitignore`
+* `ecosystem.config.example.js`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `node --check ecosystem.config.example.js` - OK
+* `git ls-files ecosystem.config.js` - pusty wynik, plik nie jest sledzony.
+
+### Status
+
+PM2 config cleanup zamkniety.
