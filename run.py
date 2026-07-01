@@ -3988,6 +3988,25 @@ def refresh_and_persist_operations(username, profile):
     return fresh_profile
 
 
+def load_profile_readonly(username, strip_sensitive=True, normalize_apps=True, normalize_files=False):
+    if not username:
+        return None
+
+    profile = user_store.get_profile(username)
+    if not profile:
+        return None
+
+    profile = dict(profile)
+    if strip_sensitive:
+        profile.pop("password", None)
+        profile.pop("salt", None)
+    if normalize_apps:
+        profile["apps"] = normalize_app_contracts(profile.get("apps", []))
+    if normalize_files:
+        normalize_files_inventory(profile)
+    return profile
+
+
 def active_operations_from_operations(operations):
     return [
         operation for operation in (operations or [])
@@ -4000,6 +4019,51 @@ def operation_history_from_operations(operations):
         operation for operation in (operations or [])
         if operation.get("status") in OPERATION_TERMINAL_STATUSES
     ]
+
+
+def summarize_operation_for_client(operation):
+    target = operation.get("target") if isinstance(operation.get("target"), dict) else {}
+    current_position = operation.get("current_position")
+    if not isinstance(current_position, dict):
+        current_position = {}
+    risk_state = operation.get("risk_state") if isinstance(operation.get("risk_state"), dict) else {}
+
+    return {
+        "operation_id": operation.get("operation_id"),
+        "operation_type": operation.get("operation_type"),
+        "owner_username": operation.get("owner_username"),
+        "source_app_id": operation.get("source_app_id"),
+        "map_action_id": operation.get("map_action_id"),
+        "target_id": operation.get("target_id"),
+        "target": {
+            "label": target.get("label") or target.get("name") or target.get("target_id"),
+            "name": target.get("name") or target.get("label"),
+            "lat": target.get("lat"),
+            "lng": target.get("lng", target.get("lon")),
+            "target_type": target.get("target_type"),
+            "target_mode": target.get("target_mode"),
+        },
+        "target_type": operation.get("target_type"),
+        "target_mode": operation.get("target_mode"),
+        "status": operation.get("status"),
+        "started_at": operation.get("started_at"),
+        "expires_at": operation.get("expires_at"),
+        "ended_at": operation.get("ended_at"),
+        "remaining_seconds": operation.get("remaining_seconds"),
+        "expired": operation.get("expired"),
+        "current_position": {
+            "lat": current_position.get("lat"),
+            "lng": current_position.get("lng", current_position.get("lon")),
+        } if current_position else {},
+        "risk_state": {
+            "level": risk_state.get("level") or risk_state.get("risk_level"),
+            "risk_level": risk_state.get("risk_level") or risk_state.get("level"),
+            "score": risk_state.get("score"),
+            "hint": risk_state.get("hint"),
+            "modifiers": risk_state.get("modifiers", []),
+        },
+        "risk_level": operation.get("risk_level"),
+    }
 
 
 def cancel_profile_operation(profile, operation_id, cancelled_by="player", now_ts=None):
@@ -7498,14 +7562,32 @@ def api_operations():
     if "user" not in session:
         return jsonify({"success": False, "message": "Brak danych uzytkownika"}), 401
 
-    profile = sync_session_profile()
+    summary_mode = str(request.args.get("summary") or request.args.get("active_only") or "").strip().lower() in {"1", "true", "yes", "active"}
+    if summary_mode:
+        profile = load_profile_readonly(session["user"], normalize_apps=False, normalize_files=False)
+        if not profile:
+            session.clear()
+            return jsonify({"success": False, "message": "Brak danych uzytkownika"}), 401
+    else:
+        profile = sync_session_profile()
     profile = refresh_and_persist_operations(session["user"], profile)
     operations, _ = refresh_operations_runtime(profile, persist_timeouts=False)
+    active_operations = active_operations_from_operations(operations)
+
+    if summary_mode:
+        return jsonify({
+            "success": True,
+            "active_operations": [
+                summarize_operation_for_client(operation)
+                for operation in active_operations
+            ],
+            "active_count": len(active_operations),
+        })
 
     return jsonify({
         "success": True,
         "operations": operations,
-        "active_operations": active_operations_from_operations(operations),
+        "active_operations": active_operations,
         "operation_history": operation_history_from_operations(operations),
     })
 
@@ -9434,19 +9516,28 @@ def get_system_messages():
         return jsonify([])
 
     # Synchronizuj i załaduj aktualny profil
-    profile = sync_session_profile()
-    mgr = UserProfileManager(session["user"])
+    profile = load_profile_readonly(session["user"], normalize_apps=False, normalize_files=False)
+    if not profile:
+        session.clear()
+        return jsonify({"logout": True})
 
     messages = profile.get("system_messages", [])
 
     # Wyciągnij nowe wiadomości
     new_msgs = [m for m in messages if m.get("status") == "new"]
+    if not new_msgs:
+        return jsonify([])
 
     # Usuń wiadomości o statusie 'new' z listy
     messages = [m for m in messages if m.get("status") != "new"]
 
     # Zaktualizuj profil bez tych wiadomości
+    mgr = UserProfileManager(session["user"])
     mgr.update_profile({"system_messages": messages})
+    session_profile = session.get("profile")
+    if isinstance(session_profile, dict):
+        session_profile["system_messages"] = messages
+        session["profile"] = session_profile
     return jsonify(new_msgs)
 
 @app.route('/add-system-message', methods=['POST'])
@@ -9624,7 +9715,7 @@ def launch_queue():
         return jsonify([])
 
     try:
-        profile = sync_session_profile()
+        profile = load_profile_readonly(session["user"], normalize_apps=False, normalize_files=False)
     except Exception:
         session.clear()
         return jsonify({"logout": True})
@@ -9634,11 +9725,17 @@ def launch_queue():
         return jsonify({"logout": True})
 
     launch_list = profile.get("launch_queue", [])
+    if not launch_list:
+        return jsonify([])
 
     # Opróżnij kolejkę po pobraniu
     profile["launch_queue"] = []
     mgr = UserProfileManager(session["user"])
     mgr.update_profile({"launch_queue": []})
+    session_profile = session.get("profile")
+    if isinstance(session_profile, dict):
+        session_profile["launch_queue"] = []
+        session["profile"] = session_profile
     return jsonify(launch_list)
 
 
@@ -9984,7 +10081,3 @@ def gonna_win():
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-
-

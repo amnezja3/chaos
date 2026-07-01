@@ -1401,7 +1401,7 @@ async function collectDevBugReporterContext() {
     const profile = toolbarProfile || await getUserProfile().catch(() => null) || {};
     let operations = [];
     try {
-        const res = await fetch('/api/operations');
+        const res = await fetch('/api/operations?summary=1');
         const data = await res.json();
         operations = data.active_operations || data.operations || [];
     } catch (err) {

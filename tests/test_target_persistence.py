@@ -170,6 +170,40 @@ class JsonResourceStoreSeedTest(unittest.TestCase):
                 os.remove(path)
 
 
+class LightweightPollingEndpointTest(unittest.TestCase):
+    def test_empty_launch_queue_does_not_write_profile(self):
+        profile = {"username": "tester", "launch_queue": [], "system_messages": []}
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "tester"
+        with patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")), \
+                patch.object(run, "UserProfileManager", side_effect=AssertionError("write should not run")):
+            response = client.get("/launch-queue")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), [])
+
+    def test_system_messages_without_new_messages_does_not_write_profile(self):
+        profile = {
+            "username": "tester",
+            "launch_queue": [],
+            "system_messages": [
+                {"title": "Old", "text": "Read already", "status": "read"}
+            ],
+        }
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "tester"
+        with patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")), \
+                patch.object(run, "UserProfileManager", side_effect=AssertionError("write should not run")):
+            response = client.get("/system-messages")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), [])
+
+
 class FakeTerritoryStore:
     def __init__(self, targets):
         self.targets = targets
