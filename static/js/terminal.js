@@ -100,6 +100,81 @@ function finishBootLoader(message = "System gotowy.") {
 
 cycleBootLog();
 
+const desktopLoadingState = {
+    active: new Map(),
+    seq: 0,
+    showTimer: null,
+    slowTimer: null,
+    visible: false,
+    element: null,
+    text: null
+};
+
+function ensureDesktopLoadingStatus() {
+    if (desktopLoadingState.element) {
+        return desktopLoadingState.element;
+    }
+    const status = document.createElement('div');
+    status.className = 'desktop-sync-status';
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    status.innerHTML = `
+        <span class="desktop-sync-status__spinner" aria-hidden="true"></span>
+        <span class="desktop-sync-status__text">Sprawdzam system...</span>
+    `;
+    document.body.appendChild(status);
+    desktopLoadingState.element = status;
+    desktopLoadingState.text = status.querySelector('.desktop-sync-status__text');
+    return status;
+}
+
+function updateDesktopLoadingStatus(message) {
+    const status = ensureDesktopLoadingStatus();
+    if (desktopLoadingState.text) {
+        desktopLoadingState.text.textContent = message || 'Sprawdzam system...';
+    }
+    status.classList.add('is-visible');
+    desktopLoadingState.visible = true;
+}
+
+function beginDesktopLoading(message) {
+    const token = `desktop-load-${++desktopLoadingState.seq}`;
+    desktopLoadingState.active.set(token, message || 'Sprawdzam system...');
+    clearTimeout(desktopLoadingState.showTimer);
+    clearTimeout(desktopLoadingState.slowTimer);
+    desktopLoadingState.showTimer = setTimeout(() => {
+        const latest = Array.from(desktopLoadingState.active.values()).pop();
+        if (latest) {
+            updateDesktopLoadingStatus(latest);
+        }
+    }, 280);
+    desktopLoadingState.slowTimer = setTimeout(() => {
+        if (desktopLoadingState.active.size > 0) {
+            updateDesktopLoadingStatus('Sieć przeciążona...');
+        }
+    }, 2000);
+    return token;
+}
+
+function endDesktopLoading(token) {
+    if (token) {
+        desktopLoadingState.active.delete(token);
+    }
+    if (desktopLoadingState.active.size > 0) {
+        const latest = Array.from(desktopLoadingState.active.values()).pop();
+        if (desktopLoadingState.visible && latest) {
+            updateDesktopLoadingStatus(latest);
+        }
+        return;
+    }
+    clearTimeout(desktopLoadingState.showTimer);
+    clearTimeout(desktopLoadingState.slowTimer);
+    if (desktopLoadingState.element) {
+        desktopLoadingState.element.classList.remove('is-visible');
+    }
+    desktopLoadingState.visible = false;
+}
+
 const SYSTEM_ICON_LIBRARY = [
     '\u{1F6E0}\uFE0F', '\u2328\uFE0F', '\u{1FA9F}', '\u{1F518}', '\u{1F9E0}',
     '\u{1F4A5}', '\u{1F50D}', '\u{1F512}', '\u{1F513}', '\u{1F510}',
@@ -5971,6 +6046,7 @@ function showSystemToast(message, type = 'success') {
 }
 
 async function pollSystemMessages() {
+    const loadingToken = beginDesktopLoading('Sprawdzam system...');
     try {
         const res = await fetch('/system-messages');
         const data = await res.json();
@@ -5981,6 +6057,8 @@ async function pollSystemMessages() {
         });
     } catch (err) {
         console.error("Błąd pobierania komunikatów systemowych");
+    } finally {
+        endDesktopLoading(loadingToken);
     }
 }
 
@@ -5988,6 +6066,7 @@ async function pollSystemMessages() {
 setInterval(pollSystemMessages, 10000);
 
 async function pollLaunchQueue() {
+    const loadingToken = beginDesktopLoading('Sprawdzam system...');
     try {
         const res = await fetch('/launch-queue');
         const appsToLaunch = await res.json();
@@ -6030,6 +6109,7 @@ async function pollLaunchQueue() {
         console.error("❌ Błąd podczas pobierania launch-queue:", err);
     } finally {
         // Spróbuj ponownie za 10 sekund
+        endDesktopLoading(loadingToken);
         setTimeout(pollLaunchQueue, 10000);
     }
 }

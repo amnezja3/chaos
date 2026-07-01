@@ -110,6 +110,55 @@ body {
   color: #73ff35;
 }
 
+.desktop-sync-status {
+  position: fixed;
+  right: 14px;
+  bottom: 58px;
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  max-width: min(320px, calc(100vw - 28px));
+  padding: 8px 11px;
+  border: 1px solid rgba(38, 255, 106, 0.68);
+  border-radius: 4px;
+  background: rgba(2, 8, 5, 0.9);
+  color: #9dff9d;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.2;
+  box-shadow: 0 0 14px rgba(38, 255, 106, 0.16);
+  pointer-events: none;
+}
+
+.desktop-sync-status.is-visible {
+  display: flex;
+}
+
+.desktop-sync-status__spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(157, 255, 157, 0.26);
+  border-top-color: #26ff6a;
+  border-radius: 50%;
+  animation: chaos-sync-spin 900ms linear infinite;
+  flex: 0 0 auto;
+}
+
+@keyframes chaos-sync-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 900px), (max-height: 700px) {
+  .desktop-sync-status {
+    right: 8px;
+    bottom: 54px;
+    max-width: calc(100vw - 16px);
+    padding: 6px 9px;
+    font-size: 11px;
+  }
+}
+
 @media (max-width: 760px) {
   .boot-panel {
     left: 8vw;

@@ -49,6 +49,55 @@
       white-space: normal;
     }
 
+    .chaos-map-sync-status {
+      position: fixed;
+      right: 14px;
+      bottom: 14px;
+      z-index: 11000;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      max-width: min(320px, calc(100vw - 28px));
+      padding: 8px 11px;
+      border: 1px solid rgba(38, 255, 106, 0.7);
+      border-radius: 4px;
+      background: rgba(3, 10, 6, 0.88);
+      color: #9dff9d;
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1.2;
+      box-shadow: 0 0 14px rgba(38, 255, 106, 0.18);
+      pointer-events: none;
+    }
+
+    .chaos-map-sync-status.is-visible {
+      display: flex;
+    }
+
+    .chaos-map-sync-status__spinner {
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(157, 255, 157, 0.26);
+      border-top-color: #26ff6a;
+      border-radius: 50%;
+      animation: chaos-sync-spin 900ms linear infinite;
+      flex: 0 0 auto;
+    }
+
+    @keyframes chaos-sync-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 640px), (max-height: 700px) {
+      .chaos-map-sync-status {
+        right: 8px;
+        bottom: 58px;
+        max-width: calc(100vw - 16px);
+        padding: 6px 9px;
+        font-size: 11px;
+      }
+    }
+
     .player-actor-modal-backdrop {
       position: fixed;
       inset: 0;
@@ -2242,7 +2291,85 @@
                 window.activeOperationCancelHandlerBound = true;
             }
 
+            window.mapLoadingState = window.mapLoadingState || {
+                active: new Map(),
+                seq: 0,
+                showTimer: null,
+                slowTimer: null,
+                visible: false,
+                element: null,
+                text: null
+            };
+
+            window.ensureMapLoadingStatus = function() {
+                if (window.mapLoadingState.element) {
+                    return window.mapLoadingState.element;
+                }
+                const status = document.createElement('div');
+                status.className = 'chaos-map-sync-status';
+                status.setAttribute('role', 'status');
+                status.setAttribute('aria-live', 'polite');
+                status.innerHTML = `
+                    <span class="chaos-map-sync-status__spinner" aria-hidden="true"></span>
+                    <span class="chaos-map-sync-status__text">Synchronizacja mapy...</span>
+                `;
+                document.body.appendChild(status);
+                window.mapLoadingState.element = status;
+                window.mapLoadingState.text = status.querySelector('.chaos-map-sync-status__text');
+                return status;
+            };
+
+            window.updateMapLoadingStatus = function(message) {
+                const status = window.ensureMapLoadingStatus();
+                if (window.mapLoadingState.text) {
+                    window.mapLoadingState.text.textContent = message || 'Synchronizacja mapy...';
+                }
+                status.classList.add('is-visible');
+                window.mapLoadingState.visible = true;
+            };
+
+            window.beginMapLoading = function(message) {
+                const state = window.mapLoadingState;
+                const token = `map-load-${++state.seq}`;
+                state.active.set(token, message || 'Synchronizacja mapy...');
+                clearTimeout(state.showTimer);
+                clearTimeout(state.slowTimer);
+                state.showTimer = setTimeout(() => {
+                    const latest = Array.from(state.active.values()).pop();
+                    if (latest) {
+                        window.updateMapLoadingStatus(latest);
+                    }
+                }, 280);
+                state.slowTimer = setTimeout(() => {
+                    if (state.active.size > 0) {
+                        window.updateMapLoadingStatus('Sieć przeciążona...');
+                    }
+                }, 2000);
+                return token;
+            };
+
+            window.endMapLoading = function(token) {
+                const state = window.mapLoadingState;
+                if (token) {
+                    state.active.delete(token);
+                }
+                if (state.active.size > 0) {
+                    const latest = Array.from(state.active.values()).pop();
+                    if (state.visible && latest) {
+                        window.updateMapLoadingStatus(latest);
+                    }
+                    return;
+                }
+                clearTimeout(state.showTimer);
+                clearTimeout(state.slowTimer);
+                if (state.element) {
+                    state.element.classList.remove('is-visible');
+                }
+                state.visible = false;
+            };
+
             window.refreshActiveOperations = async function() {
+                const loadingToken = window.beginMapLoading('Aktualizacja operacji...');
                 try {
                     const res = await fetch('/api/operations?summary=1');
                     if (res.status === 401) {
@@ -2266,6 +2393,8 @@
                     }, 0);
                 } catch (err) {
                     console.warn('Active operations refresh failed', err);
+                } finally {
+                    window.endMapLoading(loadingToken);
                 }
             };
 
@@ -2725,6 +2854,7 @@
             };
 
             window.refreshPlayerActors = async function() {
+                const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
                 try {
                     const res = await fetch('/api/map/player-actors');
                     if (res.status === 401) {
@@ -2745,6 +2875,8 @@
                     }, 0);
                 } catch (err) {
                     console.warn('Player actor refresh failed', err);
+                } finally {
+                    window.endMapLoading(loadingToken);
                 }
             };
 
@@ -2908,6 +3040,7 @@
 
             window.refreshPlayerAreas = async function() {
                 const refreshSeq = ++window.playerAreaRefreshSeq;
+                const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
                 try {
                     const res = await fetch('/api/map/player-areas');
                     if (res.status === 401) {
@@ -3089,6 +3222,8 @@
                     }, 0);
                 } catch (err) {
                     console.warn('Player area refresh failed', err);
+                } finally {
+                    window.endMapLoading(loadingToken);
                 }
             };
 
