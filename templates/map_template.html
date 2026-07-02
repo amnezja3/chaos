@@ -2358,61 +2358,61 @@
             window.OPERATION_CENTER_TYPES = {
                 vehicle_tracking: {
                     name: 'Śledzenie GPS',
-                    icon: 'GPS',
+                    icon: '+',
                     css: 'active-operation-pin--tracking',
                     markerLabel: 'ŚLEDZENIE GPS'
                 },
                 device_tracking: {
                     name: 'Śledzenie urządzenia',
-                    icon: 'DEV',
+                    icon: '*',
                     css: 'active-operation-pin--tracking',
                     markerLabel: 'ŚLEDZENIE URZĄDZENIA'
                 },
                 camera_stream: {
                     name: 'Monitoring kamery',
-                    icon: 'CAM',
+                    icon: '@',
                     css: 'active-operation-pin--camera',
                     markerLabel: 'MONITORING'
                 },
                 camera_shutdown: {
                     name: 'Wyłączenie kamery',
-                    icon: 'OFF',
+                    icon: '-',
                     css: 'active-operation-pin--shutdown',
                     markerLabel: 'KAMERA OFF'
                 },
                 atm_log_extraction: {
                     name: 'Odczyt logów ATM',
-                    icon: 'ATM',
+                    icon: '%',
                     css: 'active-operation-pin--atm',
                     markerLabel: 'LOGI ATM'
                 },
                 persistent_sniffer: {
                     name: 'Implant sieciowy',
-                    icon: 'IMP',
+                    icon: '#',
                     css: 'active-operation-pin--implant',
                     markerLabel: 'IMPLANT'
                 },
                 generic_trace: {
                     name: 'Śledzenie celu',
-                    icon: 'TRC',
+                    icon: '>',
                     css: 'active-operation-pin--tracking',
                     markerLabel: 'ŚLEDZENIE'
                 },
                 wifi_scanner: {
                     name: 'Skanowanie hotspotów',
-                    icon: 'WIFI',
+                    icon: '=',
                     css: 'active-operation-pin--network',
                     markerLabel: 'HOTSPOTY'
                 },
                 audio_interference: {
                     name: 'Audio Hack',
-                    icon: 'AUD',
+                    icon: '~',
                     css: 'active-operation-pin--audio',
                     markerLabel: 'AUDIO HACK'
                 },
                 vehicle_ecu: {
                     name: 'Hakowanie ECU',
-                    icon: 'ECU',
+                    icon: '!',
                     css: 'active-operation-pin--vehicle',
                     markerLabel: 'ECU'
                 }
@@ -2422,7 +2422,7 @@
                 const type = operation.operation_type || '';
                 const meta = window.OPERATION_CENTER_TYPES[type] || {};
                 return {
-                    icon: meta.icon || 'OP',
+                    icon: meta.icon || '?',
                     css: meta.css || '',
                     label: meta.markerLabel || meta.name || 'OPERACJA',
                     name: meta.name || type || 'Operacja'
