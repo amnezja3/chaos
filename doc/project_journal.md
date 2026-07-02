@@ -1780,3 +1780,70 @@ podobnie jak runtime `data/game.sqlite3`.
 ### Status
 
 PM2 config cleanup zamkniety.
+
+---
+
+## 02.07.2026
+
+### Sprint
+
+Map context menu stabilization - player actors / territory / scan menu bug hunt.
+
+### Cel
+
+Ustabilizowac prawy klik na mapie po refaktorach player actors, player areas
+i scan targetow. Objawem bylo otwieranie menu gracza albo obcego targetu po
+kliknieciu w pozornie puste pole mapy.
+
+### Co zostalo wykonane
+
+* Przesledzono flow `map.on('contextmenu')`, marker contextmenu, tooltipow,
+  legacy Folium polygonow i registry layerow.
+* Dodano czyszczenie starych player area polygonow oraz defensywne registry
+  cleanup dla warstw mapy.
+* Usunieto popupy z player actor markerow i zamieniono ich zachowanie na menu
+  pod prawym klikiem.
+* Ograniczono hitbox player actor markerow: staly wrapper, `overflow:hidden`,
+  brak elementow wychodzacych poza ikone.
+* Dodano walidacje geometryczna `getBoundingClientRect()` przed otwarciem
+  `showPlayerActorMenu()`.
+* Dodano proteze dla false-positive Leaflet event: gdy Leaflet odpali handler
+  player actora poza prawdziwym hitboxem markera, klik jest przeliczany z
+  oryginalnego DOM eventu przez `map.mouseEventToContainerPoint()` i otwierane
+  jest zwykle menu mapy.
+* Usunieto tooltipy z player actorow, bo nick jest juz widoczny jako label nad
+  avatarem.
+
+### Najwazniejsze decyzje
+
+* Player actor menu moze otwierac sie tylko po kliknieciu w realny rect markera.
+* Pusty klik mapy ma pokazywac menu mapy: Skanuj / Podrozuj / Wyczysc scan.
+* Proteza false-positive eventu zostaje jako defensywny airbag przy blednym
+  routingu eventu Leafleta, ale nie zmienia mechaniki gry.
+* Player actor tooltipy sa zbedne i zostaly usuniete z UI.
+
+### Problemy
+
+* Leaflet potrafil odpalic marker `contextmenu` mimo klikniecia poza realnym
+  rect markera. Przyczyna wydaje sie lezec w interakcji divIcon/hitbox/layerow
+  po wielu refreshach mapy.
+* W kodzie mapy pozostaja tymczasowe logi diagnostyczne `console.warn` i
+  `console.trace` dodane podczas dochodzenia. Trzeba je usunac w osobnym polish
+  tasku, gdy bug zostanie potwierdzony jako zamkniety.
+
+### Zmienione pliki
+
+* `templates/map_template.html`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* Reczny test gracza potwierdzil, ze menu przy player actors zaczelo pokazywac
+  sie poprawnie.
+* `/map` renderuje sie poprawnie w Flask test client.
+* `git diff --check -- templates/map_template.html` - OK.
+
+### Status
+
+Map context menu stabilization w toku, ale glowny problem z menu player actorow
+zostal praktycznie opanowany.

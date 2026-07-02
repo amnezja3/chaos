@@ -3032,18 +3032,12 @@
             window.renderPlayerActors = function(actors) {
                 const visible = new Set();
 
-                function resetPlayerActorMarkerUi(marker, tooltip) {
+                function clearPlayerActorMarkerTooltip(marker) {
                     if (!marker) return;
                     if (typeof marker.closePopup === 'function') marker.closePopup();
                     if (typeof marker.unbindPopup === 'function') marker.unbindPopup();
                     if (typeof marker.closeTooltip === 'function') marker.closeTooltip();
                     if (typeof marker.unbindTooltip === 'function') marker.unbindTooltip();
-                    marker.bindTooltip(tooltip, {
-                        permanent: false,
-                        direction: 'top',
-                        sticky: false,
-                        opacity: 0.95
-                    });
                 }
 
                 function auditPlayerActorMarkerBounds(marker, actor) {
@@ -3114,12 +3108,10 @@
                     if (!key || Number.isNaN(lat) || Number.isNaN(lng)) return;
 
                     visible.add(key);
-                    const relationLabel = window.playerActorRelationLabels[menuActor.relation] || menuActor.relation || 'Gracz';
-                    const tooltip = `${window.escapeMapText(menuActor.nick || key)}<br>${window.escapeMapText(relationLabel)}`;
 
                     if (!window.playerActorMarkers[key]) {
                         const marker = L.marker([lat, lng], { icon: window.buildPlayerActorIcon(menuActor) }).addTo(map);
-                        resetPlayerActorMarkerUi(marker, tooltip);
+                        clearPlayerActorMarkerTooltip(marker);
                         marker._playerActorSnapshot = menuActor;
                         marker.on('contextmenu', function(e) {
                             const actorSnapshot = marker._playerActorSnapshot || menuActor;
@@ -3139,7 +3131,7 @@
                     } else {
                         window.playerActorMarkers[key].setLatLng([lat, lng]);
                         window.playerActorMarkers[key].setIcon(window.buildPlayerActorIcon(menuActor));
-                        resetPlayerActorMarkerUi(window.playerActorMarkers[key], tooltip);
+                        clearPlayerActorMarkerTooltip(window.playerActorMarkers[key]);
                         window.playerActorMarkers[key]._playerActorSnapshot = menuActor;
                         window.playerActorMarkers[key].off('contextmenu');
                         window.playerActorMarkers[key].on('contextmenu', function(e) {
