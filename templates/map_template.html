@@ -354,10 +354,37 @@
     }
 
     .custom-text-icon,
-    .friend-player-marker,
-    .area-intruder-marker,
     .territory-contest-target {
       overflow: hidden !important;
+    }
+
+    .friend-player-marker,
+    .area-intruder-marker {
+      box-sizing: border-box !important;
+      max-width: 68px !important;
+      max-height: 76px !important;
+      overflow: hidden !important;
+      pointer-events: auto !important;
+    }
+
+    .player-actor-marker-hitbox {
+      box-sizing: border-box;
+      overflow: hidden;
+      pointer-events: auto;
+    }
+
+    .player-actor-marker-hitbox *,
+    .player-actor-marker-label,
+    .player-actor-marker-avatar,
+    .player-actor-marker-badge {
+      box-sizing: border-box;
+      pointer-events: none;
+    }
+
+    .player-actor-marker-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .clan-vulnerability-pin {
@@ -2974,29 +3001,31 @@
                 const isIntruder = actor.relation === 'intruder' || sources.includes('intruder');
                 const isFriend = actor.relation === 'friend' || sources.includes('friend');
                 const isTarget = Boolean(actor.target_status || (actor.context && actor.context.is_marked_target));
+                const markerWidth = 68;
+                const markerHeight = isTarget ? 76 : 58;
                 const name = window.escapeMapText(actor.nick || actor.username || 'gracz');
                 const color = isIntruder ? '#ff4b4b' : (isFriend ? '#26ff6a' : '#d8ff80');
                 const background = isIntruder ? '#210707' : '#111';
                 const fallback = isIntruder ? '!' : '@';
                 const avatar = actor.avatar
-                    ? `<img src="${window.escapeMapText(actor.avatar)}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid ${isTarget ? '#ff1b1b' : color};background:${background};${isTarget ? 'box-shadow:0 0 0 4px rgba(255,0,0,0.45),0 0 12px #ff1b1b;' : ''}">`
-                    : `<div style="width:34px;height:34px;border-radius:50%;border:2px solid ${isTarget ? '#ff1b1b' : color};background:${background};display:flex;align-items:center;justify-content:center;color:${isTarget ? '#ff6b6b' : color};font-weight:700;${isTarget ? 'box-shadow:0 0 0 4px rgba(255,0,0,0.45),0 0 12px #ff1b1b;' : ''}">${fallback}</div>`;
+                    ? `<img class="player-actor-marker-avatar" src="${window.escapeMapText(actor.avatar)}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid ${isTarget ? '#ff1b1b' : color};background:${background};${isTarget ? 'box-shadow:0 0 0 3px rgba(255,0,0,0.42),0 0 10px #ff1b1b;' : ''}">`
+                    : `<div class="player-actor-marker-avatar" style="width:34px;height:34px;border-radius:50%;border:2px solid ${isTarget ? '#ff1b1b' : color};background:${background};display:flex;align-items:center;justify-content:center;color:${isTarget ? '#ff6b6b' : color};font-weight:700;${isTarget ? 'box-shadow:0 0 0 3px rgba(255,0,0,0.42),0 0 10px #ff1b1b;' : ''}">${fallback}</div>`;
                 const targetBadge = isTarget
-                    ? `<div style="font-size:9px;background:#4a0000;color:#ffb3b3;border:1px solid #ff1b1b;padding:1px 5px;margin-top:2px;">CEL</div>`
+                    ? `<div class="player-actor-marker-badge" style="width:36px;height:13px;line-height:10px;font-size:9px;background:#4a0000;color:#ffb3b3;border:1px solid #ff1b1b;padding:1px 3px;margin-top:2px;text-align:center;overflow:hidden;">CEL</div>`
                     : '';
 
                 return L.divIcon({
-                    className: isIntruder ? 'area-intruder-marker' : 'friend-player-marker',
+                    className: isIntruder ? 'area-intruder-marker player-actor-marker-root' : 'friend-player-marker player-actor-marker-root',
                     html: `
-                        <div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-8px);font-family:monospace;color:${color};text-shadow:0 1px 2px #000;">
-                            <div style="font-size:10px;background:rgba(0,0,0,0.80);padding:1px 5px;border:1px solid ${isTarget ? '#ff1b1b' : color};margin-bottom:2px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${isTarget ? '#ffb3b3' : color};">${name}</div>
+                        <div class="player-actor-marker-hitbox" style="width:${markerWidth}px;height:${markerHeight}px;max-width:${markerWidth}px;max-height:${markerHeight}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;font-family:monospace;color:${color};text-shadow:0 1px 2px #000;">
+                            <div class="player-actor-marker-label" style="width:62px;height:16px;line-height:12px;font-size:10px;background:rgba(0,0,0,0.80);padding:1px 4px;border:1px solid ${isTarget ? '#ff1b1b' : color};margin-bottom:2px;color:${isTarget ? '#ffb3b3' : color};text-align:center;">${name}</div>
                             ${avatar}
                             ${targetBadge}
                         </div>
                     `,
-                    iconSize: [68, isTarget ? 76 : 58],
-                    iconAnchor: [34, 54],
-                    popupAnchor: [0, -48]
+                    iconSize: [markerWidth, markerHeight],
+                    iconAnchor: [Math.round(markerWidth / 2), markerHeight - 4],
+                    popupAnchor: [0, -markerHeight + 8]
                 });
             };
 
@@ -3015,6 +3044,24 @@
                         sticky: false,
                         opacity: 0.95
                     });
+                }
+
+                function auditPlayerActorMarkerBounds(marker, actor) {
+                    if (!marker || typeof marker.getElement !== 'function') return;
+                    setTimeout(() => {
+                        const element = marker.getElement();
+                        if (!element || typeof element.getBoundingClientRect !== 'function') return;
+                        const rect = element.getBoundingClientRect();
+                        if (rect.width > 90 || rect.height > 96) {
+                            console.warn('[map] Player actor marker oversized hitbox', {
+                                username: actor && actor.username,
+                                nick: actor && actor.nick,
+                                width: rect.width,
+                                height: rect.height,
+                                className: element.className
+                            });
+                        }
+                    }, 0);
                 }
 
                 (actors || []).forEach(actor => {
@@ -3042,6 +3089,7 @@
                             window.showPlayerActorMenu(actorSnapshot, e.containerPoint.x, e.containerPoint.y, 'playerActorMarker');
                         });
                         window.playerActorMarkers[key] = marker;
+                        auditPlayerActorMarkerBounds(marker, menuActor);
                     } else {
                         window.playerActorMarkers[key].setLatLng([lat, lng]);
                         window.playerActorMarkers[key].setIcon(window.buildPlayerActorIcon(menuActor));
@@ -3057,6 +3105,7 @@
                             }
                             window.showPlayerActorMenu(actorSnapshot, e.containerPoint.x, e.containerPoint.y, 'playerActorMarker');
                         });
+                        auditPlayerActorMarkerBounds(window.playerActorMarkers[key], menuActor);
                     }
                 });
 
