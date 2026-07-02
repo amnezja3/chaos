@@ -781,6 +781,63 @@
             lastContextWasMarker = true;
         }
 
+        function cloneMapMenuPayload(value) {
+            if (!value || typeof value !== 'object') return value;
+            try {
+                if (typeof structuredClone === 'function') {
+                    return structuredClone(value);
+                }
+            } catch (err) {
+                // Fall through to JSON clone for plain map payloads.
+            }
+            try {
+                return JSON.parse(JSON.stringify(value));
+            } catch (err) {
+                return { ...value };
+            }
+        }
+
+        function freezeMapMenuPayload(value) {
+            const snapshot = cloneMapMenuPayload(value);
+            if (snapshot && typeof snapshot === 'object') {
+                try {
+                    return Object.freeze(snapshot);
+                } catch (err) {
+                    return snapshot;
+                }
+            }
+            return snapshot;
+        }
+
+        function normalizeMapMenuTarget(target) {
+            const snapshot = cloneMapMenuPayload(target || {});
+            if (!snapshot || typeof snapshot !== 'object') return {};
+            const lat = Number(snapshot.lat);
+            const lng = Number(snapshot.lng !== undefined ? snapshot.lng : snapshot.lon);
+            if (Number.isFinite(lat)) snapshot.lat = lat;
+            if (Number.isFinite(lng)) {
+                snapshot.lng = lng;
+                snapshot.lon = lng;
+            }
+            snapshot.label = mapTargetDisplayLabel(snapshot, snapshot.target_mode === 'player' ? 'SUBJECT' : null);
+            snapshot.name = isMissingTargetDisplayName(snapshot.name) ? snapshot.label : snapshot.name;
+            return freezeMapMenuPayload(snapshot);
+        }
+
+        function warnSuspiciousAdminMenuRoute(kind, payload, source) {
+            const username = String(
+                (payload && (payload.target_username || payload.username || payload.owner_username || payload.contest_owner_username))
+                || ''
+            ).toLowerCase();
+            if (username === 'admin' && source !== 'playerActorMarker') {
+                console.warn('[map] Podejrzany routing menu admina', {
+                    kind,
+                    source,
+                    payload: cloneMapMenuPayload(payload)
+                });
+            }
+        }
+
         function removeMapLayerSafe(layer) {
             if (!layer) return;
             if (typeof layer.closePopup === 'function') layer.closePopup();
@@ -1023,9 +1080,10 @@
             label = mapTargetDisplayLabel(displayObj);
             removeScanResultAt(lat, lng);
             hideDomTargetMarkers(lat, lng, label);
-            const markerObj = {
+            const markerObj = normalizeMapMenuTarget({
                 lat: Number(lat),
                 lon: Number(lng),
+                lng: Number(lng),
                 label,
                 icon,
                 name: isMissingTargetDisplayName(obj.name) ? label : obj.name,
@@ -1034,7 +1092,7 @@
                 osm_id: obj.osm_id || null,
                 node_id: obj.node_id || null,
                 generated: obj.generated || false
-            };
+            });
             const marker = L.marker([markerObj.lat, markerObj.lon], {
                 icon: L.divIcon({
                     className: 'custom-text-icon',
@@ -1047,7 +1105,7 @@
             marker.on('contextmenu', function(e) {
                 consumeMapContextEvent(e);
                 document.querySelectorAll('.context-menu').forEach(el => el.remove());
-                showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerObj, icon, label);
+                showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerObj, icon, label, 'interactiveTargetMarker');
             });
             return rememberTargetLayer(markerObj.lat, markerObj.lon, label, marker);
         }
@@ -1057,6 +1115,7 @@
             const lng = Number(target.lng ?? target.lon);
             const label = mapTargetDisplayLabel(target, "TARGET");
             const icon = target.icon || "📦";
+            const menuTarget = normalizeMapMenuTarget({ ...target, lat, lng, lon: lng, label, icon });
             removeScanResultAt(lat, lng);
             removeContestedTargetAt(lat, lng);
             hideDomTargetMarkers(lat, lng);
@@ -1072,7 +1131,7 @@
             marker.bindTooltip(label, { permanent: false, direction: 'top' });
             marker.on('contextmenu', function(e) {
                 consumeMapContextEvent(e);
-                showMenuForHacked(e.containerPoint.x, e.containerPoint.y, { lat, lon: lng }, icon, label);
+                showMenuForHacked(e.containerPoint.x, e.containerPoint.y, menuTarget, icon, label);
             });
             return rememberTargetLayer(lat, lng, label, marker);
         }
@@ -1140,32 +1199,35 @@
         }
 
 
-        function showMarkerContextMenu(x, y, obj, iconEmoji, label) {
-            const vulnerability = findClanVulnerabilityForTarget(obj);
+        function showMarkerContextMenu(x, y, obj, iconEmoji, label, source = 'marker') {
+            const menuObj = normalizeMapMenuTarget(obj || {});
+            warnSuspiciousAdminMenuRoute('markerContext', menuObj, source);
+            const vulnerability = findClanVulnerabilityForTarget(menuObj);
             if (vulnerability) {
                 if (vulnerability.is_reporter) {
                     showVulnerabilityReporterMenu(x, y, vulnerability);
                     return;
                 }
-                const target = vulnerability.target || obj;
+                const target = normalizeMapMenuTarget(vulnerability.target || menuObj);
                 showHackingMenuForMarker(
                     x,
                     y,
                     {
                         ...target,
                         vulnerability_id: vulnerability.id,
-                        lat: Number(vulnerability.lat || target.lat || obj.lat),
-                        lng: Number(vulnerability.lng || target.lng || target.lon || obj.lng || obj.lon),
-                        lon: Number(vulnerability.lng || target.lng || target.lon || obj.lng || obj.lon),
+                        lat: Number(vulnerability.lat || target.lat || menuObj.lat),
+                        lng: Number(vulnerability.lng || target.lng || target.lon || menuObj.lng || menuObj.lon),
+                        lon: Number(vulnerability.lng || target.lng || target.lon || menuObj.lng || menuObj.lon),
                         label: vulnerability.label || target.label || label,
                         name: vulnerability.name || target.name || label,
                         icon: vulnerability.icon || target.icon || iconEmoji,
-                        source_type: vulnerability.source_type || target.source_type || obj.source_type || "manual",
-                        generated: Boolean(vulnerability.generated || target.generated || obj.generated),
+                        source_type: vulnerability.source_type || target.source_type || menuObj.source_type || "manual",
+                        generated: Boolean(vulnerability.generated || target.generated || menuObj.generated),
                         security: vulnerability.security || target.security || {}
                     },
                     vulnerability.icon || iconEmoji,
-                    vulnerability.label || label
+                    vulnerability.label || label,
+                    'clanVulnerability'
                 );
                 return;
             }
@@ -1197,26 +1259,26 @@
                 row.addEventListener('click', () => {
                     if (item.action === 'report') {
                         reportVulnerability({
-                            lat: obj.lat,
-                            lon: obj.lon,
-                            lng: obj.lng || obj.lon,
-                            label: obj.label || label,
-                            icon: obj.icon || iconEmoji,
-                            source_type: obj.source_type || "manual",
-                            name: obj.name || label,
-                            generated: Boolean(obj.generated)
+                            lat: menuObj.lat,
+                            lon: menuObj.lon,
+                            lng: menuObj.lng || menuObj.lon,
+                            label: menuObj.label || label,
+                            icon: menuObj.icon || iconEmoji,
+                            source_type: menuObj.source_type || "manual",
+                            name: menuObj.name || label,
+                            generated: Boolean(menuObj.generated)
                         });
                         return;
                     }
                     markerMenuAction(
                         item.action,
-                        obj.lat,
-                        obj.lon,
-                        obj.label || label,
-                        obj.icon || iconEmoji,
-                        obj.source_type || "manual",
-                        obj.name || label,
-                        Boolean(obj.generated)
+                        menuObj.lat,
+                        menuObj.lon,
+                        menuObj.label || label,
+                        menuObj.icon || iconEmoji,
+                        menuObj.source_type || "manual",
+                        menuObj.name || label,
+                        Boolean(menuObj.generated)
                     );
                 });
                 menu.appendChild(row);
@@ -1226,7 +1288,9 @@
             lastContextWasMarker = true;
         }
 
-        function showHackingMenuForMarker(x, y, obj, iconEmoji, label) {
+        function showHackingMenuForMarker(x, y, obj, iconEmoji, label, source = 'marker') {
+            const menuTarget = normalizeMapMenuTarget(obj || {});
+            warnSuspiciousAdminMenuRoute('hackingMenu', menuTarget, source);
             closeMenus();
             setupGlobalCloseListener();
 
@@ -1236,11 +1300,11 @@
             menu.style.left = `${x}px`;
 
             // Ustal typ celu
-            const source = (obj.source_type || "").toLowerCase();
-            const name = (obj.name || "").toLowerCase();
+            const targetSourceType = (menuTarget.source_type || "").toLowerCase();
+            const name = (menuTarget.name || "").toLowerCase();
 
             let actions = [];
-            if (obj.target_mode === "player") {
+            if (menuTarget.target_mode === "player") {
                 actions = [
                     { label: "Scan Ports", action: "scan_ports" },
                     { label: "Exploit", action: "exploit" },
@@ -1249,14 +1313,14 @@
                 ];
             }
             // KAMERY
-            else if (name.includes("kamera") || source.includes("camera")) {
+            else if (name.includes("kamera") || targetSourceType.includes("camera")) {
                 actions = [
                     { label: "🎥 Podgląd obrazu", action: "camera_stream" },
                     { label: "❌ Wyłącz kamerę", action: "camera_shutdown" }
                 ];
             }
             // OSOBY
-            else if (name.includes("osoba") || name.includes("klient") || source.includes("person")) {
+            else if (name.includes("osoba") || name.includes("klient") || targetSourceType.includes("person")) {
                 actions = [
                     { label: "📡 Śledź urządzenie", action: "trace_device" },
                     { label: "🎙️ Podsłuchuj rozmowę", action: "mic_sniff" }
@@ -1264,21 +1328,21 @@
             }
             // SAMOCHODY
             // (["auto", "tesla", "vw", "car", "parking"].some(t => source.includes(t) || name.includes(t)))
-            else if (name.includes("auto") || name.includes("tesla") || name.includes("vw") || source.includes("car") || source.includes("parking")) {
+            else if (name.includes("auto") || name.includes("tesla") || name.includes("vw") || targetSourceType.includes("car") || targetSourceType.includes("parking")) {
                 actions = [
                     { label: "🚗 Przejmij system pokładowy", action: "car_hack" },
                     { label: "📍 Śledź GPS", action: "trace_gps" }
                 ];
             }
             // BANKOMATY
-            else if (source.includes("atm")) {
+            else if (targetSourceType.includes("atm")) {
                 actions = [
                     { label: "📊 Przejmij logi transakcji", action: "atm_logs" },
                     { label: "🐛 Zainstaluj sniffer", action: "install_sniffer" }
                 ];
             }
             // RESTAURACJE, KAWIARNIE
-            else if (["restaurant", "bar", "cafe", "fast_food"].some(t => source.includes(t))) {
+            else if (["restaurant", "bar", "cafe", "fast_food"].some(t => targetSourceType.includes(t))) {
                 actions = [
                     { label: "📶 Wykryj hotspoty", action: "scan_hotspots" },
                     { label: "🔊 Przejmij odtwarzacz audio", action: "audio_hack" }
@@ -1306,18 +1370,18 @@
                 row.addEventListener('click', () => {
                     hackingAction(
                         act.action,
-                        obj.lat,
-                        obj.lon,
-                        obj.label || label,
-                        obj.icon,
-                        obj.source_type || "manual",
-                        obj.name || label,
-                        Boolean(obj.generated || false),
-                        obj.vulnerability_id || null,
-                        obj.target_mode || null,
-                        obj.contest_owner_username || null,
-                        obj.foreign_area_id || null,
-                        obj.target_username || null
+                        menuTarget.lat,
+                        menuTarget.lon,
+                        menuTarget.label || label,
+                        menuTarget.icon,
+                        menuTarget.source_type || "manual",
+                        menuTarget.name || label,
+                        Boolean(menuTarget.generated || false),
+                        menuTarget.vulnerability_id || null,
+                        menuTarget.target_mode || null,
+                        menuTarget.contest_owner_username || null,
+                        menuTarget.foreign_area_id || null,
+                        menuTarget.target_username || null
                     );
                 });
                 menu.appendChild(row);
@@ -1353,6 +1417,7 @@
         // }
 
         function showMenuForHacked(x, y, obj, iconEmoji, label) {
+            const menuObj = normalizeMapMenuTarget(obj || {});
             closeMenus();
             setupGlobalCloseListener();
 
@@ -1402,8 +1467,8 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    lat: parseFloat(obj.lat), 
-                    lng: parseFloat(obj.lon),
+                    lat: parseFloat(menuObj.lat),
+                    lng: parseFloat(menuObj.lon),
                     label
                 })
             })
@@ -1424,7 +1489,7 @@
                     <strong style="font-size: 14px; margin-left: 1rem;">${label}</strong>
                     <div class="security-preset-bar">
                         ${['open', 'low', 'regular', 'secure', 'all'].map(preset => `
-                            <button type="button" class="security-preset-button" onclick="securePreset('${preset}', ${obj.lat}, ${obj.lon})">
+                            <button type="button" class="security-preset-button" onclick="securePreset('${preset}', ${menuObj.lat}, ${menuObj.lon})">
                                 ${preset}
                             </button>
                         `).join('')}
@@ -1444,7 +1509,7 @@
                         <div class="security-row"
                             data-security-key="${key}"
                             data-security-label="${labelFormatted}"
-                            onclick="secureAction('${key}', ${obj.lat}, ${obj.lon}, '${label}', '', this)"
+                            onclick="secureAction('${key}', ${menuObj.lat}, ${menuObj.lon}, '${label}', '', this)"
                         >
                             ${stateIcon} ${labelFormatted}
                         </div>`;
@@ -1774,6 +1839,7 @@
                         const target = {
                             lat: Number(obj.lat),
                             lon: Number(obj.lon),
+                            lng: Number(obj.lon),
                             label: displayLabel,
                             name: isMissingTargetDisplayName(obj.name) ? displayLabel : obj.name,
                             icon: obj.icon || "📍",
@@ -1785,22 +1851,23 @@
                         };
 
                         if (Number.isNaN(target.lat) || Number.isNaN(target.lon)) return;
+                        const menuTarget = normalizeMapMenuTarget(target);
 
-                        const isPersonTarget = target.name.toLowerCase().includes("klient")
-                            || target.name.toLowerCase().includes("osoba")
-                            || target.source_type.toLowerCase().includes("person");
-                        const markerFontSize = target.generated
+                        const isPersonTarget = menuTarget.name.toLowerCase().includes("klient")
+                            || menuTarget.name.toLowerCase().includes("osoba")
+                            || menuTarget.source_type.toLowerCase().includes("person");
+                        const markerFontSize = menuTarget.generated
                             ? (isPersonTarget ? "1.05rem" : "1.28rem")
                             : "2.5rem";
-                        const markerIconSize = target.generated
+                        const markerIconSize = menuTarget.generated
                             ? (isPersonTarget ? [20, 20] : [28, 28])
                             : [80, 40];
-                        const markerIconAnchor = target.generated
+                        const markerIconAnchor = menuTarget.generated
                             ? (isPersonTarget ? [10, 10] : [14, 14])
                             : [40, 20];
 
-                        const marker = L.marker([target.lat, target.lon], {
-                            zIndexOffset: target.generated ? 100 : 700,
+                        const marker = L.marker([menuTarget.lat, menuTarget.lon], {
+                            zIndexOffset: menuTarget.generated ? 100 : 700,
                             icon: L.divIcon({
                                 className: 'custom-text-icon',
                                 html: `
@@ -1811,7 +1878,7 @@
                                         font-family: monospace;
                                         text-shadow: 1px 1px 2px black;
                                     ">
-                                        <div>${target.icon}</div>
+                                        <div>${menuTarget.icon}</div>
                                     </div>
                                 `,
                                 iconSize: markerIconSize,
@@ -1819,9 +1886,9 @@
                             })
                         }).addTo(map);
 
-                        marker._scanTarget = target;
+                        marker._scanTarget = menuTarget;
                         rememberScanResultLayer(marker);
-                        marker.bindTooltip(target.label, { permanent: false, direction: 'top' });
+                        marker.bindTooltip(menuTarget.label, { permanent: false, direction: 'top' });
 
                         marker.on('contextmenu', function(e) {
                             consumeMapContextEvent(e);
@@ -1829,9 +1896,10 @@
                             showMarkerContextMenu(
                                 e.containerPoint.x,
                                 e.containerPoint.y,
-                                target,
-                                target.icon,
-                                target.label
+                                menuTarget,
+                                menuTarget.icon,
+                                menuTarget.label,
+                                'scanTargetMarker'
                             );
                         });
 
@@ -1927,8 +1995,17 @@
                         const tags = obj.tags || {};
 
                         const iconEmoji = obj.icon || "📍";
+                        const menuTarget = normalizeMapMenuTarget({
+                            ...obj,
+                            lat: Number(obj.lat),
+                            lon: Number(obj.lon),
+                            lng: Number(obj.lon),
+                            label,
+                            icon: iconEmoji,
+                            target_type: obj.target_type || 'poi'
+                        });
                         
-                        const marker = L.marker([obj.lat, obj.lon], {
+                        const marker = L.marker([menuTarget.lat, menuTarget.lon], {
                             icon: L.divIcon({
                                 className: 'custom-text-icon',
                                 html: `
@@ -1952,7 +2029,7 @@
                         marker.on('contextmenu', function(e) {
                             e.originalEvent.stopPropagation(); // ⛔ blokuje przejęcie przez mapę
                             document.querySelectorAll('.context-menu').forEach(el => el.remove());
-                            showMarkerContextMenu(e.containerPoint.x, e.containerPoint.y, obj, iconEmoji, label);
+                            showMarkerContextMenu(e.containerPoint.x, e.containerPoint.y, menuTarget, iconEmoji, label, 'legacyScanTargetMarker');
                         });
 
                     });
@@ -2732,7 +2809,7 @@
             };
 
             window.showPlayerActorHackMenu = function(actor, targetOverride = null, x = null, y = null) {
-                const target = window.buildPlayerTargetFromActor(actor || {}, targetOverride);
+                const target = normalizeMapMenuTarget(window.buildPlayerTargetFromActor(actor || {}, targetOverride));
                 if (Number.isNaN(target.lat) || Number.isNaN(target.lng) || !target.target_username) {
                     addSystemMessage('warning', 'Cel', 'Brak danych pozycji player targetu.');
                     return;
@@ -2744,7 +2821,7 @@
                     menuX = Math.max(12, point.x + 12);
                     menuY = Math.max(12, point.y + 12);
                 }
-                showHackingMenuForMarker(menuX, menuY, target, target.icon || '🎯', target.label || target.name || 'Gracz');
+                showHackingMenuForMarker(menuX, menuY, target, target.icon || '🎯', target.label || target.name || 'Gracz', 'playerActorMarker');
             };
 
             window.markPlayerActorTarget = async function(actor) {
@@ -2826,7 +2903,9 @@
                 );
             };
 
-            window.showPlayerActorMenu = function(actor, x, y) {
+            window.showPlayerActorMenu = function(actor, x, y, source = 'unknown') {
+                const menuActor = freezeMapMenuPayload(actor || {});
+                warnSuspiciousAdminMenuRoute('playerActorMenu', menuActor, source);
                 closeMenus();
                 setupGlobalCloseListener();
 
@@ -2835,9 +2914,9 @@
                 menu.style.top = `${y}px`;
                 menu.style.left = `${x}px`;
 
-                const relationLabel = window.playerActorRelationLabels[actor.relation] || actor.relation || 'Gracz';
+                const relationLabel = window.playerActorRelationLabels[menuActor.relation] || menuActor.relation || 'Gracz';
                 const title = document.createElement('div');
-                title.innerHTML = `<strong>${window.escapeMapText(actor.nick || actor.username || 'Gracz')}</strong><br><span style="font-size:9px;color:#555;">${window.escapeMapText(relationLabel)}</span>`;
+                title.innerHTML = `<strong>${window.escapeMapText(menuActor.nick || menuActor.username || 'Gracz')}</strong><br><span style="font-size:9px;color:#555;">${window.escapeMapText(relationLabel)}</span>`;
                 menu.appendChild(title);
 
                 const hr = document.createElement('hr');
@@ -2845,11 +2924,11 @@
                 menu.appendChild(hr);
 
                 Object.entries(window.playerActorActionLabels).forEach(([actionKey, label]) => {
-                    const actionState = (actor.actions && actor.actions[actionKey]) || { enabled: false, reason: 'Akcja niedostępna.' };
+                    const actionState = (menuActor.actions && menuActor.actions[actionKey]) || { enabled: false, reason: 'Akcja niedostępna.' };
                     const row = document.createElement('div');
                     row.textContent = label;
                     if (actionState.enabled) {
-                        row.addEventListener('click', () => window.handlePlayerActorAction(actionKey, actor));
+                        row.addEventListener('click', () => window.handlePlayerActorAction(actionKey, menuActor));
                     } else {
                         row.className = 'player-action-disabled';
                         row.title = actionState.reason || 'Akcja niedostępna.';
@@ -2914,39 +2993,44 @@
                 }
 
                 (actors || []).forEach(actor => {
-                    const key = actor.username || actor.nick;
-                    const lat = parseFloat(actor.lat);
-                    const lng = parseFloat(actor.lng);
+                    const menuActor = freezeMapMenuPayload(actor || {});
+                    const key = menuActor.username || menuActor.nick;
+                    const lat = parseFloat(menuActor.lat);
+                    const lng = parseFloat(menuActor.lng);
                     if (!key || Number.isNaN(lat) || Number.isNaN(lng)) return;
 
                     visible.add(key);
-                    const relationLabel = window.playerActorRelationLabels[actor.relation] || actor.relation || 'Gracz';
-                    const tooltip = `${window.escapeMapText(actor.nick || key)}<br>${window.escapeMapText(relationLabel)}`;
+                    const relationLabel = window.playerActorRelationLabels[menuActor.relation] || menuActor.relation || 'Gracz';
+                    const tooltip = `${window.escapeMapText(menuActor.nick || key)}<br>${window.escapeMapText(relationLabel)}`;
 
                     if (!window.playerActorMarkers[key]) {
-                        const marker = L.marker([lat, lng], { icon: window.buildPlayerActorIcon(actor) }).addTo(map);
+                        const marker = L.marker([lat, lng], { icon: window.buildPlayerActorIcon(menuActor) }).addTo(map);
                         resetPlayerActorMarkerUi(marker, tooltip);
+                        marker._playerActorSnapshot = menuActor;
                         marker.on('contextmenu', function(e) {
                             consumeMapContextEvent(e);
-                            if (actor.target_status || (actor.context && actor.context.is_marked_target)) {
-                                window.showPlayerActorHackMenu(actor, null, e.containerPoint.x, e.containerPoint.y);
+                            const actorSnapshot = marker._playerActorSnapshot || menuActor;
+                            if (actorSnapshot.target_status || (actorSnapshot.context && actorSnapshot.context.is_marked_target)) {
+                                window.showPlayerActorHackMenu(actorSnapshot, null, e.containerPoint.x, e.containerPoint.y);
                                 return;
                             }
-                            window.showPlayerActorMenu(actor, e.containerPoint.x, e.containerPoint.y);
+                            window.showPlayerActorMenu(actorSnapshot, e.containerPoint.x, e.containerPoint.y, 'playerActorMarker');
                         });
                         window.playerActorMarkers[key] = marker;
                     } else {
                         window.playerActorMarkers[key].setLatLng([lat, lng]);
-                        window.playerActorMarkers[key].setIcon(window.buildPlayerActorIcon(actor));
+                        window.playerActorMarkers[key].setIcon(window.buildPlayerActorIcon(menuActor));
                         resetPlayerActorMarkerUi(window.playerActorMarkers[key], tooltip);
+                        window.playerActorMarkers[key]._playerActorSnapshot = menuActor;
                         window.playerActorMarkers[key].off('contextmenu');
                         window.playerActorMarkers[key].on('contextmenu', function(e) {
                             consumeMapContextEvent(e);
-                            if (actor.target_status || (actor.context && actor.context.is_marked_target)) {
-                                window.showPlayerActorHackMenu(actor, null, e.containerPoint.x, e.containerPoint.y);
+                            const actorSnapshot = window.playerActorMarkers[key]._playerActorSnapshot || menuActor;
+                            if (actorSnapshot.target_status || (actorSnapshot.context && actorSnapshot.context.is_marked_target)) {
+                                window.showPlayerActorHackMenu(actorSnapshot, null, e.containerPoint.x, e.containerPoint.y);
                                 return;
                             }
-                            window.showPlayerActorMenu(actor, e.containerPoint.x, e.containerPoint.y);
+                            window.showPlayerActorMenu(actorSnapshot, e.containerPoint.x, e.containerPoint.y, 'playerActorMarker');
                         });
                     }
                 });
@@ -3090,7 +3174,7 @@
                         const lng = parseFloat(report.lng || target.lng || target.lon);
                         if (Number.isNaN(lat) || Number.isNaN(lng)) return;
 
-                        const markerTarget = {
+                        const markerTarget = normalizeMapMenuTarget({
                             ...target,
                             vulnerability_id: report.id,
                             lat,
@@ -3102,7 +3186,7 @@
                             source_type: report.source_type || target.source_type || 'manual',
                             generated: Boolean(report.generated || target.generated),
                             security: report.security || target.security || {}
-                        };
+                        });
                         const registryKey = vulnerabilityTargetKey(markerTarget);
                         if (registryKey) {
                             clanVulnerabilityRegistry.set(registryKey, {
@@ -3128,7 +3212,8 @@
                                 e.containerPoint.y,
                                 markerTarget,
                                 markerTarget.icon,
-                                markerTarget.label
+                                markerTarget.label,
+                                'clanVulnerabilityMarker'
                             );
                         });
 
@@ -3248,7 +3333,7 @@
                         const label = window.escapeMapText(target.label || target.name || 'Kolizja');
                         const owner = window.escapeMapText(target.owner_nick || target.owner_username || 'wrog');
                         const icon = target.icon || '🎯';
-                        const markerTarget = {
+                        const markerTarget = normalizeMapMenuTarget({
                             ...target,
                             lat,
                             lng,
@@ -3258,7 +3343,7 @@
                             label: target.label || target.name || 'Kolizja',
                             name: target.name || target.label || 'Kolizja',
                             icon
-                        };
+                        });
                         const marker = L.marker([lat, lng], {
                             zIndexOffset: 920,
                             icon: L.divIcon({
@@ -3278,7 +3363,7 @@
                         marker.bindTooltip(`Punkt kolizyjny: ${label}<br>Wlasciciel: ${owner}`, { sticky: true });
                         marker.on('contextmenu', function(e) {
                             consumeMapContextEvent(e);
-                            showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerTarget, icon, markerTarget.label);
+                            showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerTarget, icon, markerTarget.label, 'contestedTargetMarker');
                         });
                         registerLayerInArray('contestedTargetLayers', marker);
                     });
@@ -3358,21 +3443,23 @@
         const target_mode = labelEl.dataset.targetMode || null;
         const target_username = labelEl.dataset.targetUsername || "";
         const relation = labelEl.dataset.relation || "";
+        const menuTarget = normalizeMapMenuTarget({
+            lat,
+            lon: lng,
+            lng,
+            label,
+            icon,
+            name,
+            source_type,
+            generated,
+            target_mode,
+            target_username,
+            relation
+        });
 
         labelEl.addEventListener('contextmenu', e => {
             consumeMapContextEvent(e);
-            showHackingMenuForMarker(e.pageX, e.pageY, {
-                lat: lat,
-                lon: lng,
-                label: label,
-                icon: icon,
-                name: name,
-                source_type: source_type,
-                generated: generated,
-                target_mode: target_mode,
-                target_username: target_username,
-                relation: relation
-            }, icon, label);
+            showHackingMenuForMarker(e.pageX, e.pageY, menuTarget, icon, label, 'domTargetMarker');
         });
     });
 
@@ -3387,7 +3474,7 @@
         // Dodaj listener bezpośrednio do labelEl (bo to już .marker-hacked)
         labelEl.addEventListener('contextmenu', e => {
             consumeMapContextEvent(e);
-            showMenuForHacked(e.pageX, e.pageY, { lat, lon: lng }, icon, label);
+            showMenuForHacked(e.pageX, e.pageY, normalizeMapMenuTarget({ lat, lon: lng, lng, label, icon }), icon, label);
         });
     });
 
