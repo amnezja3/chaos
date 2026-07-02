@@ -384,7 +384,7 @@ ADMIN_SEED_SPECS = [
     {
         "map_action": "scan_ports",
         "name": "Port Sentinel",
-        "icon": "[P]",
+        "icon": "🔍",
         "type": "scanner",
         "tool_family": "scanner_recon",
         "description": "Profesjonalna sonda rozpoznania uslug celu w swiecie CHAOS. Tworzy stan recon, nie loot handlowy.",
@@ -401,7 +401,7 @@ ADMIN_SEED_SPECS = [
     {
         "map_action": "exploit",
         "name": "Vector Key",
-        "icon": "[X]",
+        "icon": "💥",
         "type": "exploit",
         "tool_family": "exploit",
         "description": "Symulowane narzedzie wplywu na cel. Przygotowuje warunki pod dalsze operacje bez realnych instrukcji.",
@@ -419,7 +419,7 @@ ADMIN_SEED_SPECS = [
     {
         "map_action": "sniff",
         "name": "Signal Lattice",
-        "icon": "[N]",
+        "icon": "📡",
         "type": "sniffer",
         "tool_family": "sniffer",
         "description": "Lekki sniffer grywalny do obserwacji sygnalow celu i odblokowania kolejnych krokow.",
@@ -436,7 +436,7 @@ ADMIN_SEED_SPECS = [
     {
         "map_action": "trace",
         "name": "Trace Compass",
-        "icon": "[T]",
+        "icon": "🎯",
         "type": "tracker",
         "tool_family": "scanner_recon",
         "description": "Uniwersalny tracker celu, laczacy lokalne slady z mapa operacji.",
@@ -453,7 +453,7 @@ ADMIN_SEED_SPECS = [
     {
         "map_action": "camera_stream",
         "name": "Glass Eye",
-        "icon": "[C]",
+        "icon": "👁️",
         "type": "camera_tool",
         "tool_family": "sniffer",
         "description": "Monitor kamery z buforowaniem fragmentow materialu dla File Managera.",
@@ -470,7 +470,7 @@ ADMIN_SEED_SPECS = [
     {
         "map_action": "camera_shutdown",
         "name": "Blindfold Relay",
-        "icon": "[B]",
+        "icon": "🛡️",
         "type": "camera_tool",
         "tool_family": "exploit",
         "description": "Czasowe zaklocenie kamery jako support operation zmniejszajaca ryzyko obserwacji.",
@@ -487,7 +487,7 @@ ADMIN_SEED_SPECS = [
     {
         "map_action": "trace_device",
         "name": "Device Threader",
-        "icon": "[D]",
+        "icon": "📶",
         "type": "tracker",
         "tool_family": "scanner_recon",
         "description": "Tracker urzadzen i telefonow, budujacy pakiet device intelligence.",
@@ -504,7 +504,7 @@ ADMIN_SEED_SPECS = [
     {
         "map_action": "mic_sniff",
         "name": "Quiet Room",
-        "icon": "[M]",
+        "icon": "📡",
         "type": "audio_tool",
         "tool_family": "sniffer",
         "description": "Operacja mikrofonowa tworzaca transkrypcje audio jako placeholder gameplayowy.",
@@ -521,7 +521,7 @@ ADMIN_SEED_SPECS = [
     {
         "map_action": "car_hack",
         "name": "ECU Prism",
-        "icon": "[E]",
+        "icon": "🚗",
         "type": "vehicle_tool",
         "tool_family": "exploit",
         "description": "Diagnostyczne narzedzie ECU dla pojazdow w swiecie gry.",
@@ -539,7 +539,7 @@ ADMIN_SEED_SPECS = [
     {
         "map_action": "trace_gps",
         "name": "Route Weaver",
-        "icon": "[G]",
+        "icon": "🗺️",
         "type": "tracker",
         "tool_family": "scanner_recon",
         "description": "Tracker GPS pojazdow zapisujacy checkpointy i historie lokalizacji.",
@@ -556,7 +556,7 @@ ADMIN_SEED_SPECS = [
     {
         "map_action": "atm_logs",
         "name": "Vault Ledger",
-        "icon": "[A]",
+        "icon": "💳",
         "type": "financial_tool",
         "tool_family": "sniffer",
         "description": "Wysokowartosciowy czytnik logow ATM dla paczek finansowych wysokiego ryzyka.",
@@ -574,7 +574,7 @@ ADMIN_SEED_SPECS = [
     {
         "map_action": "install_sniffer",
         "name": "Needle Implant",
-        "icon": "[I]",
+        "icon": "🧲",
         "type": "sniffer",
         "tool_family": "sniffer",
         "description": "Trwaly implant danych dla routerow, serwerow i ATM. Zbiera dane po czasie.",
@@ -592,7 +592,7 @@ ADMIN_SEED_SPECS = [
     {
         "map_action": "scan_hotspots",
         "name": "Hotspot Cartographer",
-        "icon": "[W]",
+        "icon": "📶",
         "type": "scanner",
         "tool_family": "scanner_recon",
         "description": "Skaner sieci bezprzewodowych i hotspotow na mapie.",
@@ -609,7 +609,7 @@ ADMIN_SEED_SPECS = [
     {
         "map_action": "audio_hack",
         "name": "Echo Needle",
-        "icon": "[O]",
+        "icon": "🎙️",
         "type": "audio_tool",
         "tool_family": "exploit",
         "description": "Zaklocenie audio tworzace transkrypcje lub stan wsparcia zalezne od celu.",

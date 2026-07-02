@@ -1,11 +1,14 @@
 import json
+import re
 import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
 
 from scripts.app_catalog_cleanup import (
+    ADMIN_SEED_SOURCE,
     IMPORTANT_MAP_ACTIONS,
+    build_admin_seed_tools,
     cleanup_database,
     read_app_config,
 )
@@ -16,6 +19,8 @@ def dumps(value):
 
 
 class AppCatalogCleanupTests(unittest.TestCase):
+    TEXT_ABBREVIATION_ICON_RE = re.compile(r"^\[?[A-Za-z0-9]{1,4}\]?$")
+
     def make_db(self):
         tmp = tempfile.TemporaryDirectory()
         db_path = Path(tmp.name) / "game.sqlite3"
@@ -178,6 +183,19 @@ class AppCatalogCleanupTests(unittest.TestCase):
         self.assertIn("Alice Custom.sh", profile["files"]["tools"])
         self.assertIn("Alice GhostLab.glab", profile["files"]["projects"])
         self.assertNotEqual(profile["storage_used"], 999)
+
+    def test_admin_seed_icons_are_not_text_abbreviations(self):
+        seeds = build_admin_seed_tools("CyberPhoenix")
+        self.assertGreater(len(seeds), 0)
+        for app in seeds:
+            with self.subTest(app=app["id"]):
+                self.assertEqual(app["map_actions_source"], ADMIN_SEED_SOURCE)
+                icon = str(app.get("icon") or "").strip()
+                self.assertTrue(icon)
+                self.assertFalse(
+                    self.TEXT_ABBREVIATION_ICON_RE.match(icon),
+                    f"{app['id']} uses text abbreviation icon {icon!r}",
+                )
 
 
 if __name__ == "__main__":
