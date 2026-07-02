@@ -108,6 +108,26 @@ Nie kazdy obiekt potrzebuje tooltipa.
 Player actor ma juz label nad avatarem i menu pod prawym klikiem, wiec dodatkowy
 tooltip `Nick / Znajomy` jest zbedny i moze tylko zwiekszac szum eventow.
 
+## Tool selection z mapy
+
+Wybor narzedzia z File Managera `/tools` jest czescia map interaction runtime.
+
+Zasady:
+
+- backend wybiera kandydatow po `app.map_actions`,
+- frontend dostaje snapshot `matching_apps` dla konkretnego `map_action_id`,
+- `activeToolSelection` nie moze podmieniac kliknietego targetu na inny obiekt,
+- klik w `/tools` musi odeslac `selected_app_id` razem z oryginalnym snapshotem celu,
+- File Manager moze podswietlac narzedzia, ale nie powinien sam zgadywac akcji po `type`, `detects` albo nazwie pliku,
+- jezeli narzedzie pasuje tylko przez migracje legacy, UI powinno docelowo pokazac `map_actions_source`.
+
+Decision:
+
+* Przyjeto: `app.map_actions` pozostaje jedynym docelowym routerem wyboru
+  narzedzia z mapy.
+* Przyjeto: globalny stan wyboru narzedzia moze byc tylko tymczasowym payloadem
+  UI, nie zrodlem prawdy o targetach mapy.
+
 ## Decision
 
 Mapa CHAOS bedzie rozwijana jako zestaw samodzielnych interaktywnych warstw.

@@ -1024,6 +1024,1062 @@ Decision:
 
 ---
 
+# Faza A — Architektura gry
+
+Faza A porządkuje fundamenty po gameplay loop v1. Nie chodzi jeszcze o pełny kreator dla gracza, tylko o to, żeby runtime, katalog aplikacji, pojemność, waga i jakość mówiły jednym językiem.
+
+---
+
+# Sprint 21 — Audit
+
+## Cel gameplayowy
+
+Gracz i projektant systemu widzą, które aplikacje są tylko UI, które są narzędziami mapy, a które tworzą operacje i dane.
+
+Ten sprint porządkuje fundament pod Googleplex Tool Laboratory bez przebudowy kreatorów.
+
+## UX
+
+Googleplex i File Manager zaczynają pokazywać aplikację jako kontrakt:
+
+```text
+interface
+↓
+map_actions
+↓
+operation_types
+↓
+resource_types
+↓
+file_size / disk_usage
+↓
+quality / reliability
+```
+
+## Przepływ danych
+
+```text
+app_config / json_resources
+↓
+app contract audit
+↓
+Googleplex card
+↓
+files.tools
+↓
+map action runtime
+```
+
+## Systemy
+
+* Googleplex,
+* app contract,
+* File Manager,
+* `/tools`,
+* `map_actions`,
+* `operation_types`,
+* `resource_types`,
+* `target_types`.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/app_contract.md` — `file_size`, `disk_usage`, `quality_score`, `reliability`.
+* `doc/file_model.md` — aplikacje i pliki jako obiekty z wagą.
+* `doc/map_interactions.md` — wybór narzędzia nie może mieszać targetów ani globalnego stanu.
+
+## Kryteria akceptacji
+
+* Wiadomo, które aplikacje mają jawne `map_actions`.
+* Wiadomo, które aplikacje są tylko `migration_inferred`.
+* Googleplex pokazuje kontrakt aplikacji czytelnie.
+* File Manager `/tools` pokazuje, dlaczego narzędzie pasuje do akcji mapy.
+* Runtime mapy nie zostaje przebudowany.
+
+---
+
+# Sprint 21.5 — Gameplay Contract
+
+## Cel gameplayowy
+
+Zanim kreatory zaczną tworzyć nowe narzędzia, gra musi mieć spójny kontrakt tego, czym jest aplikacja gameplayowa.
+
+Sprint 21.5 zamienia audyt ze Sprintu 21 w jawny kontrakt projektowy i runtime checklistę.
+
+## UX
+
+Gracz jeszcze nie dostaje dużej nowej funkcji, ale Googleplex, File Manager i przyszły kreator zaczynają używać tych samych pojęć:
+
+```text
+narzędzie
+↓
+środowisko działania
+↓
+akcja mapy
+↓
+operacja
+↓
+zasób
+↓
+plik
+↓
+waga
+↓
+jakość
+↓
+ryzyko
+```
+
+## Przepływ danych
+
+```text
+doc/app_contract.md
+↓
+runtime app normalization
+↓
+Googleplex metadata
+↓
+File Manager metadata
+↓
+tool selection
+```
+
+## Systemy
+
+* `normalize_app_contract()`,
+* `googleplex_catalog_payload()`,
+* `serialize_tool_selection_app()`,
+* File Manager preview,
+* Googleplex cards,
+* app creator payload.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/app_contract.md` — finalna lista pól wymaganych dla gameplay tool.
+* `doc/gameplay_terms.md` — dopisać `file_size`, `disk_usage`, `quality_score`, `reliability`, `creator_power`.
+* `doc/file_model.md` — rozróżnić wagę aplikacji i wagę pliku danych.
+
+## Kryteria akceptacji
+
+* Wiadomo, które pola są obowiązkowe dla runtime, a które są tylko opisowe.
+* Wiadomo, które pola tworzą UI, a które gameplay.
+* Fallback legacy jest opisany jako migracja.
+* Przyszły wizard nie musi zgadywać nazw pól.
+* Nie ma zmian w mechanice mapy ani ekonomii.
+
+---
+
+# Sprint 22 — Disk Capacity + Tool File Size
+
+## Cel gameplayowy
+
+Pulpit gracza zaczyna mieć ograniczenia zasobów. Aplikacje i pliki danych mają wagę, więc arsenał nie jest nieskończony.
+
+## UX
+
+Gracz widzi:
+
+* pojemność dysku,
+* zajęte miejsce,
+* wagę aplikacji przed zakupem,
+* wagę pliku danych,
+* ostrzeżenie, gdy instalacja lub zapis pliku zbliża się do limitu.
+
+Na start limit może być miękki: ostrzeżenie zamiast blokady.
+
+## Przepływ danych
+
+```text
+app.file_size / app.disk_usage
+↓
+install preview
+↓
+profile.storage_used
+↓
+files.* file_size
+↓
+File Manager usage bar
+```
+
+## Systemy
+
+* `profile.storage_capacity`,
+* `profile.storage_used`,
+* `app.file_size`,
+* `file.file_size`,
+* Googleplex,
+* File Manager,
+* `/install-app`.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/file_model.md` — `file_size`, `disk_usage`, `storage_capacity`, `storage_used`.
+* `doc/app_contract.md` — `install_size` / `disk_usage` jako część kontraktu aplikacji.
+* `doc/resource_types.md` — bazowe wagi typów danych.
+
+## Kryteria akceptacji
+
+* Każda aplikacja w Googleplex ma wagę albo domyślną wagę.
+* Każdy nowy plik gameplayowy ma `file_size`.
+* File Manager pokazuje użycie dysku.
+* Instalacja aplikacji pokazuje wpływ na pojemność.
+* Brak regresji sprzedaży i generowania plików.
+
+---
+
+# Sprint 23 — Tool Quality + Creator Power
+
+## Cel gameplayowy
+
+Poziom i reputacja twórcy zaczynają mieć znaczenie. Dwie aplikacje tego samego typu mogą mieć inną jakość, niezawodność i wagę.
+
+## UX
+
+Gracz w Googleplex widzi:
+
+* poziom narzędzia,
+* jakość,
+* niezawodność,
+* ryzyko awarii,
+* twórcę,
+* przewidywaną jakość danych.
+
+Twórca widzi w kreatorze, że jego poziom wpływa na wynik publikacji.
+
+## Przepływ danych
+
+```text
+creator level / respect
+↓
+creator_power
+↓
+quality_score
+↓
+reliability
+↓
+operation quality
+↓
+file completeness / price preview
+```
+
+## Systemy
+
+* profile level/respect,
+* `creator_username`,
+* `creator_nick`,
+* `creator_power`,
+* `quality_score`,
+* `reliability`,
+* operation finalizers,
+* Ghost Exchange price preview.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/app_contract.md` — `quality_score`, `reliability`, `creator_power`.
+* `doc/resource_types.md` — wpływ jakości aplikacji na kompletność zasobów.
+* `doc/data_economy.md` — jakość jako mnożnik ceny.
+
+## Kryteria akceptacji
+
+* Aplikacje mają `quality_score` i `reliability`.
+* Lepszy twórca tworzy lepsze narzędzie.
+* Jakość aplikacji wpływa na kompletność pliku albo `quality_score` pliku.
+* Googleplex pokazuje jakość narzędzia.
+* Ghost Exchange uwzględnia jakość danych.
+
+---
+
+# Faza B — Edukacja gracza
+
+Faza B zmienia kreatory z formularzy w proces uczenia gracza. Gracz ma zrozumieć, że narzędzie jest decyzją projektową: do czego działa, co produkuje, ile waży, jak ryzykuje i jaką ma jakość.
+
+---
+
+# Sprint 24 — Map Tool Classification Cleanup
+
+## Cel gameplayowy
+
+Arsenał gracza staje się zrozumiały. Narzędzia nie podświetlają się przy złej akcji mapy tylko dlatego, że stare pola `detects/type` coś zasugerowały.
+
+## UX
+
+Przy wyborze narzędzia z mapy gracz widzi tylko sensowne narzędzia.
+
+Przykład:
+
+* `scan_ports` pokazuje skanery/recon.
+* `exploit` pokazuje exploity.
+* `sniff` pokazuje sniffery.
+* `trace_gps` pokazuje trackery GPS.
+
+PenCombo / exploit_suite nie powinno być pokazywane jako `scan_ports`, jeśli kontrakt nie mówi tego jawnie.
+
+## Przepływ danych
+
+```text
+map_action_id
+↓
+explicit app.map_actions
+↓
+tool selection
+↓
+selected_app_id
+↓
+operation
+```
+
+## Systemy
+
+* `get_apps_for_map_action()`,
+* `infer_legacy_map_actions()`,
+* `map_actions_source`,
+* migracja katalogu aplikacji,
+* File Manager `/tools`.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/app_contract.md` — fallback legacy jako `TODO_MIGRATION`, nie główny router.
+* `doc/map_actions.md` — lista dozwolonych klas narzędzi dla każdej akcji.
+* `doc/gameplay_matrix.md` — support-only vs data-producing.
+
+## Kryteria akceptacji
+
+* Jawne `app.map_actions` wygrywa zawsze.
+* Fallback legacy można wyłączyć flagą dev/test.
+* Aplikacje `migration_inferred` są oznaczone w Googleplex.
+* Narzędzia podświetlane w `/tools` odpowiadają akcji mapy.
+* Testy obejmują PenCombo / exploit_suite i `scan_ports`.
+
+---
+
+# Sprint 25 — Step-by-Step Tool Creator UX
+
+## Cel gameplayowy
+
+Kreator aplikacji przestaje być formularzem JSON. Gracz projektuje narzędzie świadomie, krok po kroku.
+
+## UX
+
+Wizard:
+
+```text
+1. Typ narzędzia
+2. Środowisko działania
+3. Akcje mapy / desktopu
+4. Operacje
+5. Zasoby
+6. Ryzyko
+7. Waga / pojemność
+8. Jakość / niezawodność
+9. Podsumowanie
+10. Publikacja
+```
+
+To nadal wykorzystuje istniejące ButtonMaker, TermCreator, WindowMaker i AppForge. Nie tworzymy drugiego sklepu ani drugiego publishera.
+
+## Przepływ danych
+
+```text
+creator wizard
+↓
+draft app contract
+↓
+validation
+↓
+/api/apps/generate
+↓
+json_resources.app_config
+↓
+Googleplex
+```
+
+## Systemy
+
+* kreatory UI w `terminal.js`,
+* `/api/apps/generate`,
+* `build_generated_app()`,
+* Googleplex,
+* `profile.files.projects`.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/app_contract.md` — minimalny kontrakt aplikacji tworzonej przez gracza.
+* `doc/file_model.md` — projekty i pliki tools jako inventory.
+* `doc/resource_architecture.md` — publikacja zmienia SQLite `json_resources`, nie statyczny JSON.
+
+## Kryteria akceptacji
+
+* Kreator prowadzi przez jawne `map_actions`.
+* Kreator pokazuje wagę, jakość i ryzyko przed publikacją.
+* Opublikowana aplikacja ma pełny kontrakt.
+* Stare kreatory nadal działają jako uproszczone tryby.
+
+---
+
+# Sprint 26 — Scanner Path
+
+## Cel gameplayowy
+
+Gracz może stworzyć własne narzędzie skanujące/recon, które działa w istniejącym runtime mapy.
+
+## UX
+
+Ścieżka Scanner:
+
+* wybór targetów,
+* wybór `map_actions`: `scan_ports`, `trace`, `trace_device`, `scan_hotspots`,
+* wybór, czy wynik jest tylko `internal_recon_state`, czy tworzy plik,
+* wybór jakości i zasięgu,
+* podgląd ryzyka.
+
+## Przepływ danych
+
+```text
+scanner blueprint
+↓
+app.map_actions
+↓
+operation_types
+↓
+resource_types
+↓
+quality/reliability
+↓
+Googleplex app
+```
+
+## Systemy
+
+* AppForge / Tool Creator wizard,
+* `scan_ports`,
+* `trace`,
+* `trace_device`,
+* `scan_hotspots`,
+* operation core,
+* File Manager.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/map_actions.md` — scanner actions.
+* `doc/operations.md` — które skanery tworzą operacje, a które tylko stan rozpoznania.
+* `doc/resource_types.md` — `internal_recon_state` i dane sieciowe.
+
+## Kryteria akceptacji
+
+* Custom scanner instaluje się z Googleplex.
+* Custom scanner pojawia się w `/tools`.
+* Custom scanner podświetla się tylko dla swoich `map_actions`.
+* Custom scanner może tworzyć operację albo tylko stan support.
+* Nie powstają sprzedawalne pliki, jeśli aplikacja ich nie deklaruje.
+
+---
+
+# Sprint 27 — Exploit Path
+
+## Cel gameplayowy
+
+Gracz może stworzyć narzędzie ofensywne: exploit albo sniffer, z jasnym kosztem ryzyka.
+
+## UX
+
+Ścieżka Exploit/Sniffer:
+
+* wybór celu: router, server, ATM, camera, player target,
+* wybór `map_actions`: `exploit`, `sniff`, `install_sniffer`,
+* wybór czasu działania,
+* wybór typów zasobów,
+* wybór hałasu/ryzyka,
+* podgląd skuteczności i wykrywalności.
+
+## Przepływ danych
+
+```text
+offensive blueprint
+↓
+map action
+↓
+operation
+↓
+risk_state
+↓
+resource buffer
+↓
+file
+```
+
+## Systemy
+
+* exploit runtime,
+* persistent sniffer,
+* risk MVP,
+* support operations,
+* operation finalizers,
+* Ghost Exchange.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/risk_events.md` — wpływ jakości i hałasu aplikacji na ryzyko.
+* `doc/operations.md` — custom exploit/sniffer jako wariant istniejących operacji.
+* `doc/app_contract.md` — `noise_level`, `failure_rate`, `risk_modifier`.
+
+## Kryteria akceptacji
+
+* Custom exploit/sniffer ma jawne `operation_types`.
+* Narzędzie może generować pliki tylko zgodnie z `resource_types`.
+* Ryzyko uwzględnia jakość i hałas.
+* Tool selection nie miesza exploitów ze scannerami.
+
+---
+
+# Faza C — Endgame
+
+Faza C domyka endgame narzędzi: GhostLab, balans ekonomii aplikacji i Googleplex Tool Laboratory v1 jako pełny warsztat tworzenia narzędzi.
+
+---
+
+# Sprint 28 — GhostLab Pro Tools Contract
+
+## Cel gameplayowy
+
+GhostLab staje się ścieżką dla zaawansowanych narzędzi pro-system-tools, ale nadal korzysta z tego samego modelu aplikacji Googleplex.
+
+## UX
+
+GhostLab pokazuje pipeline:
+
+```text
+Project
+↓
+Template
+↓
+Blueprint
+↓
+Validate
+↓
+Compile
+↓
+Artifact
+↓
+Publisher
+↓
+Googleplex
+```
+
+Custom pro-system-tool może być kupiony i zainstalowany, ale jego runtime nie może omijać Player Hack Access.
+
+## Przepływ danych
+
+```text
+files.pro_system_projects
+↓
+compiled artifact
+↓
+pro-system-tool app contract
+↓
+json_resources.app_config
+↓
+Googleplex
+↓
+profile.apps
+```
+
+## Systemy
+
+* GhostLab,
+* Publisher,
+* Googleplex,
+* Player Hack Access,
+* pro-system-tools.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/app_contract.md` — pro-system-tool jako zwykła aplikacja z dodatkowymi wymaganiami.
+* `doc/operations.md` — custom pro-tools nie tworzą nowych operacji bez osobnego runtime.
+* `doc/resource_architecture.md` — Publisher zapisuje do SQLite runtime catalog.
+
+## Kryteria akceptacji
+
+* GhostLab publikuje pełny kontrakt aplikacji.
+* Custom pro-system-tool instaluje się jak każda aplikacja.
+* Tool nie działa bez aktywnego Player Hack Access.
+* Googleplex pokazuje wymagania, wagę, jakość i ryzyko.
+
+---
+
+# Sprint 29 — Tool Balance Pass + Pricing
+
+## Cel gameplayowy
+
+Rynek aplikacji zaczyna być czytelny ekonomicznie. Cena narzędzia wynika z jego mocy, jakości, ryzyka, wagi i poziomu wymagań.
+
+## UX
+
+Googleplex pokazuje:
+
+* cena,
+* poziom,
+* respect,
+* waga,
+* jakość,
+* ryzyko,
+* przewidywany typ wyniku.
+
+Gracz rozumie, dlaczego droższe narzędzie jest lepsze.
+
+## Przepływ danych
+
+```text
+app contract
+↓
+power score
+↓
+price hint
+↓
+Googleplex price
+↓
+install decision
+```
+
+## Systemy
+
+* Googleplex,
+* app pricing,
+* creator app generation,
+* quality/reliability,
+* storage/disk usage,
+* Ghost Exchange economy.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/data_economy.md` — relacja ceny aplikacji do potencjalnego zwrotu z danych.
+* `doc/app_contract.md` — `price_hint`, `power_score`.
+* `doc/file_model.md` — waga aplikacji a decyzja instalacji.
+
+## Kryteria akceptacji
+
+* Cena aplikacji nie jest ręczną liczbą bez kontekstu.
+* Aplikacja o większej jakości/zakresie ma większy koszt.
+* Waga aplikacji wpływa na decyzję instalacji.
+* Testowe ceny nie psują pętli HC -> Googleplex -> lepsze dane.
+
+---
+
+# Sprint 30 — Googleplex Tool Laboratory v1
+
+## Cel gameplayowy
+
+Googleplex Tool Laboratory domyka pierwszą wersję warsztatu tworzenia narzędzi. Gracz nie edytuje JSON-a, tylko projektuje aplikację jako realny element gameplayu.
+
+## UX
+
+Laboratorium łączy:
+
+* AppForge,
+* ButtonMaker,
+* TermCreator,
+* WindowMaker,
+* GhostLab,
+* Googleplex Publisher,
+* app contract preview.
+
+Gracz wybiera ścieżkę:
+
+```text
+Simple Tool
+Map Tool
+Data Tool
+Offensive Tool
+Pro System Tool
+```
+
+Każda ścieżka prowadzi przez te same pojęcia:
+
+```text
+interface
+map_actions
+target_types
+operation_types
+resource_types
+risk
+file_size
+quality
+reliability
+price
+publish
+```
+
+## Przepływ danych
+
+```text
+laboratory wizard
+↓
+validated app contract
+↓
+generated project
+↓
+publish
+↓
+json_resources.app_config
+↓
+Googleplex
+↓
+install
+↓
+/tools
+↓
+map runtime
+↓
+uninstall
+```
+
+## Systemy
+
+* wszystkie kreatory,
+* GhostLab,
+* Googleplex,
+* app contract,
+* storage model,
+* quality model,
+* map tool selection.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/app_contract.md` — finalny kontrakt aplikacji tworzonej przez gracza.
+* `doc/file_model.md` — aplikacja jako plik/narzędzie z wagą.
+* `doc/resource_architecture.md` — publikacja i sync katalogu.
+* `doc/project_journal.md` — podsumowanie zamknięcia Tool Laboratory v1.
+
+## Kryteria akceptacji
+
+* Gracz tworzy aplikację bez ręcznej edycji JSON.
+* Aplikacja ma pełny kontrakt.
+* Aplikacja pojawia się w Googleplex.
+* Można ją kupić, zainstalować i zobaczyć w `/tools`.
+* Jeśli ma `map_actions`, działa z wyborem narzędzia na mapie.
+* Pojemność dysku, waga, jakość, ryzyko i cena są widoczne przed publikacją i instalacją.
+
+---
+
+# Sprint 30.5 — Guided Tool Laboratory Experience
+
+## Cel gameplayowy
+
+Kreatory przestają wyglądać jak techniczny formularz. Gracz jest prowadzony
+krok po kroku przez decyzje projektowe i rozumie, dlaczego każda z nich ma
+znaczenie.
+
+Sprint 30.5 nie zmienia kontraktu aplikacji, runtime, ekonomii, storage ani
+publish flow. To warstwa UX i narracji nad istniejącym Tool Laboratory v1.
+
+## UX
+
+Każdy krok kreatora ma:
+
+* tytuł,
+* subtitle,
+* opis,
+* edukacyjną notkę,
+* gameplay hint.
+
+Nazwy techniczne zostają w kontrakcie, ale UI mówi językiem gracza:
+
+```text
+target_types      -> Jakim obiektem chcesz się zająć?
+map_actions       -> Skąd gracz ma uruchamiać narzędzie?
+operation_types   -> Co ma zrobić Twoje narzędzie?
+resource_types    -> Jakich informacji ma szukać?
+tool_mode         -> Gdzie będzie działało?
+quality_score     -> Jak dopracowane jest narzędzie?
+```
+
+## Przepływ decyzji
+
+```text
+rodzina narzędzia
+↓
+tryb działania
+↓
+typ celu
+↓
+sensowne akcje / operacje / zasoby
+↓
+preview kontraktu
+↓
+publish
+```
+
+## Systemy
+
+* AppForge,
+* TermCreator,
+* WindowMaker,
+* ButtonMaker,
+* GhostLab jako kompatybilny publish path,
+* Googleplex Tool Laboratory v1.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/app_contract.md` — guided UX nie zmienia pól kontraktu.
+* `doc/gameplay_terms.md` — pojęcia `guided_step`, `educational_note`,
+  `gameplay_hint`.
+* `doc/project_journal.md` — wpis Sprintu 30.5.
+
+## Kryteria akceptacji
+
+* Kreator pokazuje jeden etap decyzji naraz.
+* Każdy etap ma narrację i wyjaśnienie konsekwencji.
+* Wybór rodziny/trybu/celu zawęża kolejne listy.
+* UI nie używa nagłówków typu `operation_types` jako głównego języka gracza.
+* Nie zmieniono backendowego kontraktu aplikacji.
+* Nie dodano nowego kreatora ani publish flow.
+
+---
+
+# Sprint 31 — Database Migration & Server Upgrade Scripts
+
+## Cel gameplayowy
+
+Gra wchodzi w etap, w którym baza produkcyjna/testowa żyje na serwerze i nie jest wersjonowana w Git. Każda zmiana struktury danych musi mieć własną, bezpieczną migrację.
+
+Ten sprint nie dodaje nowych mechanik. Chroni istniejący świat graczy przed ręcznymi zmianami w SQLite.
+
+## UX
+
+Gracz nie widzi nowego ekranu, ale zyskuje stabilność:
+
+* aktualizacje gry nie kasują profilu,
+* nowe pola pojawiają się bez resetu kont,
+* storage, jakość i nowe kontrakty aplikacji mogą być dodawane bez ręcznego grzebania w bazie,
+* deploy serwera ma powtarzalną procedurę.
+
+## Przepływ danych
+
+```text
+git pull
+↓
+backup DB
+↓
+run migration
+↓
+schema_migrations
+↓
+restart app
+↓
+gameplay smoke
+```
+
+## Systemy
+
+* SQLite runtime DB,
+* `json_resources`,
+* `users.profile_json`,
+* przyszłe pola storage/quality,
+* PM2/server deploy,
+* `project_journal.md`.
+
+## Etap 0 — App Catalog Cleanup
+
+Przed standardowymi migracjami Sprint 31 porządkuje katalog aplikacji i narzędzi.
+
+Cel:
+
+* wyczyścić `json_resources.app_config` ze starych narzędzi testowych/dev,
+* usunąć `admin_test_seed`,
+* usunąć albo zastąpić stare `migration_inferred`,
+* zachować aplikacje wytworzone przez grę,
+* zachować GhostLab published apps,
+* dodać produkcyjny zestaw `admin_seed_v1`,
+* wyczyścić profile graczy z testowych aplikacji,
+* wyczyścić orphan `files.tools`,
+* przeliczyć `storage_used`,
+* nie usuwać `files.projects`.
+
+Skrypt:
+
+```text
+scripts/app_catalog_cleanup.py
+```
+
+Tryby:
+
+```bash
+python scripts/app_catalog_cleanup.py --db data/game.sqlite3
+python scripts/app_catalog_cleanup.py --db data/game.sqlite3 --apply
+```
+
+Wymagania:
+
+* dry-run jako domyślny tryb,
+* `--apply` jako jedyna ścieżka zapisu,
+* backup przed zmianą,
+* raport różnic,
+* brak destrukcyjnych zmian bez jawnego apply.
+
+Po tym etapie w systemie powinny zostać:
+
+* produkcyjne narzędzia seed/admin_seed_v1,
+* narzędzia wytworzone przez grę,
+* narzędzia GhostLab,
+* narzędzia dopisane świadomie w kolejnych sprintach.
+
+## Struktura migracji
+
+Przyjęty kierunek:
+
+```text
+migrations/
+  001_add_storage_fields.py
+  002_add_app_quality_fields.py
+  003_normalize_tool_contracts.py
+```
+
+Alternatywnie dopuszczalne:
+
+```text
+scripts/db_migrations/
+```
+
+Ważne jest jedno stałe miejsce, numeracja i jawna kolejność.
+
+## Zasady migracji
+
+Każda migracja musi być:
+
+* numerowana,
+* opisana,
+* idempotentna,
+* możliwa do uruchomienia drugi raz bez szkody,
+* ograniczona do jednego celu,
+* testowana lokalnie przed deployem,
+* poprzedzona backupem DB,
+* zapisana w stanie migracji.
+
+Migracja nie może:
+
+* usuwać danych bez wyraźnej decyzji,
+* nadpisywać runtime smoke przypadkiem,
+* zakładać, że `data/game.sqlite3` jest w Git,
+* mieszać zmian struktury z refaktorem gameplayu.
+
+## Stan migracji
+
+Docelowo dodać tabelę:
+
+```text
+schema_migrations
+```
+
+Minimalne pola:
+
+* `id`,
+* `name`,
+* `applied_at`,
+* `checksum` albo `script_hash`,
+* `status`,
+* `notes`.
+
+Jeżeli tabela jeszcze nie istnieje, pierwszy migrator tworzy ją sam.
+
+## Komenda serwerowa
+
+Przykład:
+
+```bash
+python migrations/001_add_storage_fields.py --db data/game.sqlite3 --apply
+```
+
+Tryby:
+
+* domyślnie `dry-run`,
+* zapis tylko z `--apply`,
+* opcjonalnie `--backup`,
+* opcjonalnie `--rollback`, tylko jeśli rollback jest prosty i bezpieczny.
+
+## Backup
+
+Przed migracją:
+
+```bash
+cp data/game.sqlite3 data/backups/game_YYYYMMDD_HHMMSS_before_001.sqlite3
+```
+
+Backup jest runtime i nie trafia do Git.
+
+## Rollback
+
+Rollback jest wymagany tylko wtedy, gdy jest prosty i bezpieczny.
+
+Jeżeli migracja dodaje pola domyślne do JSON profili, rollback może być ryzykowny i nie powinien usuwać danych graczy. W takim przypadku rollbackiem jest przywrócenie backupu bazy.
+
+## Checklist deploy
+
+```text
+1. git pull
+2. sprawdź APP_ENV / branch / tag
+3. zatrzymaj albo wycisz ruch, jeśli trzeba
+4. backup data/game.sqlite3
+5. dry-run migracji
+6. run migration --apply
+7. sprawdź schema_migrations
+8. restart app / pm2 restart
+9. gameplay smoke admina
+10. sprawdź logi PERF / error
+11. dopisz wpis do project_journal.md
+```
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/resource_architecture.md` — baza runtime nie jest wersjonowana, migrujemy ją skryptami.
+* `doc/project_journal.md` — każda migracja dostaje wpis z datą, nazwą, wynikiem i backupem.
+* `README.md` — krótka komenda deploy/migration dla serwera.
+
+## Kryteria akceptacji
+
+* Istnieje katalog migracji.
+* Istnieje pierwszy przykład migracji w trybie dry-run/apply.
+* Istnieje `schema_migrations` albo równoważny stan migracji.
+* Migracja tworzy backup przed zmianą.
+* Migracja jest idempotentna.
+* Lokalny test migracji przechodzi na kopii bazy.
+* Deploy checklist jest opisany.
+* `project_journal.md` jest aktualizowany po każdej migracji.
+
+Decision:
+
+* Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.
+* Przyjęto: Sprinty 21–30 są podzielone na trzy fazy: Architektura gry, Edukacja gracza i Endgame.
+* Przyjęto: Sprint 21.5 domyka Gameplay Contract pomiędzy audytem a implementacją pojemności.
+* Przyjęto: Sprinty 21–30 rozwijają narzędzia gracza i Googleplex Tool Laboratory bez tworzenia drugiego sklepu, drugiego systemu plików ani drugiego runtime aplikacji.
+* Przyjęto: pojemność i waga stają się częścią kontraktu aplikacji oraz modelu plików.
+* Przyjęto: Sprint 31 domyka zasady bezpiecznej aktualizacji bazy na serwerze przez idempotentne migracje.
+
+---
+
 # Podsumowanie projektowe
 
 CHAOS nie jest tylko grą o hakowaniu.

@@ -1695,6 +1695,11 @@ def build_operation_instance(username, app, map_action_id, operation_type, targe
         "duration_seconds": duration_seconds,
         "movement_model": movement_model,
         "procedural_seed": procedural_seed,
+        "source_app_quality": {
+            "creator_power": clamp_percent(app.get("creator_power"), default=DEFAULT_CREATOR_POWER),
+            "quality_score": clamp_percent(app.get("quality_score"), default=DEFAULT_APP_QUALITY_SCORE),
+            "reliability": clamp_percent(app.get("reliability"), default=DEFAULT_APP_RELIABILITY),
+        },
         "resource_buffer": {
             "resource_types": [
                 str(resource_type).strip()
@@ -1702,6 +1707,8 @@ def build_operation_instance(username, app, map_action_id, operation_type, targe
                 if str(resource_type).strip()
             ],
             "items": [],
+            "quality_score": clamp_percent(app.get("quality_score"), default=DEFAULT_APP_QUALITY_SCORE),
+            "reliability": clamp_percent(app.get("reliability"), default=DEFAULT_APP_RELIABILITY),
         },
         "risk_state": initial_risk_state_for_operation(operation_type),
     }
@@ -1963,6 +1970,350 @@ FILE_CATEGORY_DEFAULTS = {
     },
 }
 
+DEFAULT_STORAGE_CAPACITY_MB = 512
+DEFAULT_APP_FILE_SIZE_MB = 8
+DEFAULT_APP_DISK_USAGE_MB = 12
+DEFAULT_APP_QUALITY_SCORE = 55
+DEFAULT_APP_RELIABILITY = 65
+DEFAULT_CREATOR_POWER = 35
+DEFAULT_APP_PRICE_HINT_HC = 120
+FILE_CATEGORY_SIZE_HINTS_MB = {
+    "gps": 4,
+    "device": 8,
+    "personal": 9,
+    "audio": 6,
+    "camera": 14,
+    "atm": 10,
+    "financial": 12,
+    "credentials": 7,
+    "network": 6,
+    "vehicle": 7,
+    "system": 2,
+    "market": 1,
+    "projects": 16,
+    "pro_system_projects": 24,
+}
+
+
+def clamp_storage_number(value, default=0, minimum=0):
+    try:
+        number = int(round(float(value)))
+    except (TypeError, ValueError):
+        number = int(default)
+    return max(minimum, number)
+
+
+def estimate_app_file_size(app):
+    app = app if isinstance(app, dict) else {}
+    explicit = app.get("file_size") or app.get("install_size")
+    if explicit is not None:
+        return clamp_storage_number(explicit, default=DEFAULT_APP_FILE_SIZE_MB, minimum=1)
+
+    interface = str(app.get("interface") or "").strip()
+    action_count = len(as_list(app.get("map_actions")))
+    operation_count = len(as_list(app.get("operation_types")))
+    resource_count = len(as_list(app.get("resource_types")))
+    base = DEFAULT_APP_FILE_SIZE_MB
+    if interface in {"window", "system_launcher"}:
+        base += 6
+    elif interface == "terminal":
+        base += 3
+    elif interface == "button_choices":
+        base += 2
+    base += min(12, action_count * 2 + operation_count * 3 + resource_count * 2)
+    if str(app.get("type") or "") in {"pro-system-tool", "system_lab"}:
+        base += 10
+    return clamp_storage_number(base, default=DEFAULT_APP_FILE_SIZE_MB, minimum=1)
+
+
+def normalize_app_storage_fields(app):
+    if not isinstance(app, dict):
+        return app
+    file_size = estimate_app_file_size(app)
+    disk_usage = app.get("disk_usage")
+    if disk_usage is None:
+        disk_usage = app.get("install_size")
+    if disk_usage is None:
+        disk_usage = max(file_size, file_size + 4)
+    disk_usage = clamp_storage_number(disk_usage, default=max(DEFAULT_APP_DISK_USAGE_MB, file_size), minimum=1)
+    app["file_size"] = file_size
+    app["install_size"] = disk_usage
+    app["disk_usage"] = disk_usage
+    return app
+
+
+def clamp_percent(value, default=0):
+    try:
+        number = int(round(float(value)))
+    except (TypeError, ValueError):
+        number = int(default)
+    return max(0, min(100, number))
+
+
+def calculate_creator_power(profile):
+    if not isinstance(profile, dict):
+        return DEFAULT_CREATOR_POWER
+    try:
+        level = int(profile.get("level") or 1)
+    except (TypeError, ValueError):
+        level = 1
+    try:
+        respect = int(profile.get("respect") or 0)
+    except (TypeError, ValueError):
+        respect = 0
+    try:
+        hackcoins = int(profile.get("hackcoins") or 0)
+    except (TypeError, ValueError):
+        hackcoins = 0
+    power = 20 + level * 2 + respect / 25 + min(12, hackcoins / 10000)
+    return clamp_percent(power, default=DEFAULT_CREATOR_POWER)
+
+
+def infer_app_complexity_score(app):
+    if not isinstance(app, dict):
+        return 0
+    action_count = len(as_list(app.get("map_actions")))
+    operation_count = len(as_list(app.get("operation_types")))
+    resource_count = len(as_list(app.get("resource_types")))
+    target_count = len(as_list(app.get("target_types")))
+    interface = str(app.get("interface") or "").strip()
+    complexity = action_count * 2 + operation_count * 3 + resource_count * 3 + target_count
+    if interface in {"window", "system_launcher"}:
+        complexity += 4
+    if str(app.get("type") or "") in {"pro-system-tool", "system_lab"}:
+        complexity += 6
+    return min(30, complexity)
+
+
+def normalize_app_quality_fields(app):
+    if not isinstance(app, dict):
+        return app
+    creator_power = app.get("creator_power")
+    if creator_power is None:
+        creator_power = DEFAULT_CREATOR_POWER
+    creator_power = clamp_percent(creator_power, default=DEFAULT_CREATOR_POWER)
+    complexity = infer_app_complexity_score(app)
+    quality = app.get("quality_score")
+    if quality is None:
+        quality = DEFAULT_APP_QUALITY_SCORE + int(round((creator_power - DEFAULT_CREATOR_POWER) * 0.35)) + min(12, complexity // 2)
+    reliability = app.get("reliability")
+    if reliability is None:
+        reliability = DEFAULT_APP_RELIABILITY + int(round((creator_power - DEFAULT_CREATOR_POWER) * 0.25)) - min(8, complexity // 5)
+    app["creator_power"] = creator_power
+    app["quality_score"] = clamp_percent(quality, default=DEFAULT_APP_QUALITY_SCORE)
+    app["reliability"] = clamp_percent(reliability, default=DEFAULT_APP_RELIABILITY)
+    return app
+
+
+def app_is_pro_system_contract(app):
+    if not isinstance(app, dict):
+        return False
+    return (
+        str(app.get("type") or "").strip() == "pro-system-tool"
+        or str(app.get("category") or "").strip() == "pro-system-tools"
+        or bool(app.get("ghostlab_generated"))
+    )
+
+
+def infer_app_power_score(app):
+    if not isinstance(app, dict):
+        return 0
+    quality = clamp_percent(app.get("quality_score"), default=DEFAULT_APP_QUALITY_SCORE)
+    reliability = clamp_percent(app.get("reliability"), default=DEFAULT_APP_RELIABILITY)
+    disk_usage = clamp_storage_number(
+        app.get("disk_usage") or app.get("install_size") or app.get("file_size"),
+        default=DEFAULT_APP_DISK_USAGE_MB,
+        minimum=1,
+    )
+    risk_level = clamp_storage_number(app.get("risk_level"), default=0, minimum=0)
+    required_level = clamp_storage_number(app.get("required_level"), default=1, minimum=1)
+    required_respect = clamp_storage_number(app.get("required_respect"), default=0, minimum=0)
+    tool_family = str(app.get("tool_family") or "").strip()
+    tool_mode = str(app.get("tool_mode") or app.get("scanner_mode") or "").strip()
+
+    score = 10 + infer_app_complexity_score(app) * 2
+    score += max(0, quality - 50) * 0.30
+    score += max(0, reliability - 50) * 0.18
+    score += min(15, disk_usage / 4)
+    score += min(12, risk_level * 2)
+    score += min(10, required_level / 2)
+    score += min(8, required_respect / 50)
+    if tool_mode == "map":
+        score += 3
+    elif tool_mode == "hybrid":
+        score += 7
+    if tool_family == "scanner_recon":
+        score += 2
+    elif tool_family in {"exploit", "sniffer"}:
+        score += 6
+    elif tool_family == "pro_system_tool":
+        score += 12
+    if app_is_pro_system_contract(app):
+        score += 18
+    return clamp_percent(score, default=35)
+
+
+def infer_app_price_hint(app):
+    if not isinstance(app, dict):
+        return DEFAULT_APP_PRICE_HINT_HC
+    power_score = infer_app_power_score(app)
+    disk_usage = clamp_storage_number(
+        app.get("disk_usage") or app.get("install_size") or app.get("file_size"),
+        default=DEFAULT_APP_DISK_USAGE_MB,
+        minimum=1,
+    )
+    action_count = len(as_list(app.get("map_actions")))
+    operation_count = len(as_list(app.get("operation_types")))
+    resource_count = len(as_list(app.get("resource_types")))
+    tool_mode = str(app.get("tool_mode") or app.get("scanner_mode") or "").strip()
+
+    hint = DEFAULT_APP_PRICE_HINT_HC + power_score * 8 + disk_usage * 3
+    hint += action_count * 35 + operation_count * 70 + resource_count * 45
+    if tool_mode == "map":
+        hint += 60
+    elif tool_mode == "hybrid":
+        hint += 120
+    if str(app.get("tool_family") or "").strip() in {"exploit", "sniffer"}:
+        hint += 140
+    if app_is_pro_system_contract(app):
+        hint += 1800
+    return max(5, int(round(hint / 5.0) * 5))
+
+
+def infer_app_balance_tier(power_score):
+    try:
+        score = int(power_score)
+    except (TypeError, ValueError):
+        score = 0
+    if score >= 75:
+        return "Pro"
+    if score >= 50:
+        return "Advanced"
+    return "Basic"
+
+
+def infer_app_recommended_requirements(app, power_score=None):
+    if not isinstance(app, dict):
+        return 1, 0
+    if power_score is None:
+        power_score = infer_app_power_score(app)
+    recommended_level = max(1, int(round(power_score / 10)))
+    recommended_respect = max(0, int(round(power_score * 2)))
+    if app_is_pro_system_contract(app):
+        recommended_level = max(recommended_level, 10)
+        recommended_respect = max(recommended_respect, 120)
+    return recommended_level, recommended_respect
+
+
+def normalize_app_balance_fields(app):
+    if not isinstance(app, dict):
+        return app
+    power_score = infer_app_power_score(app)
+    price_hint = app.get("price_hint")
+    if price_hint is None:
+        price_hint = infer_app_price_hint(app)
+    price_hint = clamp_storage_number(price_hint, default=DEFAULT_APP_PRICE_HINT_HC, minimum=5)
+    recommended_level, recommended_respect = infer_app_recommended_requirements(app, power_score)
+    app["power_score"] = power_score
+    app["price_hint"] = price_hint
+    app["balance_tier"] = infer_app_balance_tier(power_score)
+    app["recommended_level"] = max(
+        recommended_level,
+        clamp_storage_number(app.get("recommended_level"), default=0, minimum=0),
+    )
+    app["recommended_respect"] = max(
+        recommended_respect,
+        clamp_storage_number(app.get("recommended_respect"), default=0, minimum=0),
+    )
+    return app
+
+
+def enforce_generated_app_price_floor(app):
+    if not isinstance(app, dict):
+        return app
+    normalize_app_balance_fields(app)
+    current_price = clamp_storage_number(app.get("price"), default=0, minimum=0)
+    price_hint = clamp_storage_number(app.get("price_hint"), default=DEFAULT_APP_PRICE_HINT_HC, minimum=5)
+    app["price"] = max(current_price, price_hint)
+    return app
+
+
+def build_generated_app_quality_fields(creator_profile, app_seed=None):
+    creator_power = calculate_creator_power(creator_profile)
+    complexity = infer_app_complexity_score(app_seed or {})
+    quality = clamp_percent(38 + creator_power * 0.48 + complexity * 0.35, default=DEFAULT_APP_QUALITY_SCORE)
+    reliability = clamp_percent(48 + creator_power * 0.38 - min(10, complexity / 3), default=DEFAULT_APP_RELIABILITY)
+    return {
+        "creator_power": creator_power,
+        "quality_score": quality,
+        "reliability": reliability,
+    }
+
+
+def estimate_runtime_file_size(folder, entry, metadata=None, resource_types=None):
+    entry = entry if isinstance(entry, dict) else {}
+    metadata = metadata if isinstance(metadata, dict) else {}
+    explicit = entry.get("file_size") or metadata.get("file_size")
+    if explicit is not None:
+        return clamp_storage_number(explicit, default=FILE_CATEGORY_SIZE_HINTS_MB.get(folder, 2), minimum=1)
+
+    base = FILE_CATEGORY_SIZE_HINTS_MB.get(str(folder), 2)
+    resources = resource_types if isinstance(resource_types, list) else []
+    record_count = (
+        metadata.get("record_count")
+        or metadata.get("checkpoint_count")
+        or metadata.get("collected_count")
+        or len(entry.get("records", []) or [])
+        or len(entry.get("checkpoints", []) or [])
+        or 1
+    )
+    try:
+        record_count = int(record_count)
+    except (TypeError, ValueError):
+        record_count = 1
+    size = base + max(0, len(resources) - 1) * 2 + min(32, max(0, record_count - 1))
+    if "video_material" in resources:
+        size += 12
+    if "credentials" in resources or "financial_records" in resources:
+        size += 3
+    return clamp_storage_number(size, default=base, minimum=1)
+
+
+def calculate_profile_storage_used(profile):
+    if not isinstance(profile, dict):
+        return 0
+    total = 0
+    for app in normalize_app_contracts(profile.get("apps", [])):
+        if isinstance(app, dict):
+            total += clamp_storage_number(app.get("disk_usage") or app.get("install_size") or app.get("file_size"), default=0)
+    files = profile.get("files") if isinstance(profile.get("files"), dict) else {}
+    for folder, items in files.items():
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict):
+                total += clamp_storage_number(item.get("file_size"), default=0)
+            elif folder in {"projects", "pro_system_projects"}:
+                total += FILE_CATEGORY_SIZE_HINTS_MB.get(folder, 8)
+    return total
+
+
+def normalize_profile_storage(profile):
+    if not isinstance(profile, dict):
+        return profile
+    capacity = clamp_storage_number(
+        profile.get("storage_capacity"),
+        default=DEFAULT_STORAGE_CAPACITY_MB,
+        minimum=64,
+    )
+    used = calculate_profile_storage_used(profile)
+    profile["storage_capacity"] = capacity
+    profile["storage_used"] = used
+    profile["storage_unit"] = "MB"
+    profile["storage_soft_limit"] = True
+    profile["storage_over_limit"] = used > capacity
+    return profile
+
 
 def runtime_file_now():
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -2035,6 +2386,9 @@ def normalize_runtime_file_entry(entry, folder):
     if target_snapshot:
         entry["target_snapshot"] = target_snapshot
         metadata.setdefault("target", target_snapshot)
+    file_size = estimate_runtime_file_size(folder, entry, metadata=metadata, resource_types=resource_types)
+    entry["file_size"] = file_size
+    metadata.setdefault("file_size", file_size)
     entry["market_status"] = str(entry.get("market_status") or "not_listed")
     entry["created_at"] = runtime_file_created_at({**entry, "metadata": metadata})
     entry["sellable"] = is_ghost_exchange_sellable(entry)
@@ -2521,6 +2875,56 @@ def operation_file_references(operation):
         if isinstance(item, dict) and str(item.get("file_name") or "").strip()
     )
     return {name for name in names if name}
+
+
+def apply_operation_quality_to_files(profile, operation):
+    operation_id = str(operation.get("operation_id") or "")
+    if not operation_id:
+        return False
+    source_quality = operation.get("source_app_quality") if isinstance(operation.get("source_app_quality"), dict) else {}
+    resource_buffer = operation.get("resource_buffer") if isinstance(operation.get("resource_buffer"), dict) else {}
+    quality_score = clamp_percent(
+        source_quality.get("quality_score") or resource_buffer.get("quality_score"),
+        default=DEFAULT_APP_QUALITY_SCORE,
+    )
+    reliability = clamp_percent(
+        source_quality.get("reliability") or resource_buffer.get("reliability"),
+        default=DEFAULT_APP_RELIABILITY,
+    )
+    creator_power = clamp_percent(
+        source_quality.get("creator_power"),
+        default=DEFAULT_CREATOR_POWER,
+    )
+    files = ensure_files_inventory(profile)
+    changed = False
+    for folder in DATA_FILE_FOLDERS:
+        if folder == "market":
+            continue
+        for index, item in enumerate(files.get(folder, [])):
+            if not isinstance(item, dict):
+                continue
+            metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+            item_operation_id = str(item.get("source_operation_id") or item.get("operation_id") or metadata.get("operation_id") or "")
+            if item_operation_id != operation_id:
+                continue
+            metadata = dict(metadata)
+            previous_quality = clamp_percent(item.get("quality_score") or metadata.get("quality_score"), default=0)
+            blended_quality = max(previous_quality, quality_score)
+            if item.get("quality_score") != blended_quality:
+                item["quality_score"] = blended_quality
+                changed = True
+            for key, value in {
+                "source_app_quality_score": quality_score,
+                "source_app_reliability": reliability,
+                "source_app_creator_power": creator_power,
+            }.items():
+                if metadata.get(key) != value:
+                    metadata[key] = value
+                    changed = True
+            metadata["quality_score"] = blended_quality
+            item["metadata"] = metadata
+            files[folder][index] = item
+    return changed
 
 
 def operation_artifact_exists(profile, files, folders, operation_id, file_name=None, fragment_index=None):
@@ -3953,12 +4357,15 @@ def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None):
                 changed = True
             if finalize_generic_trace_file(profile, operation):
                 changed = True
+            if apply_operation_quality_to_files(profile, operation):
+                changed = True
         if operation.get("status") in OPERATION_RISK_ASSESSABLE_STATUSES:
             if assess_operation_risk(profile, operation):
                 changed = True
 
     if changed:
         normalize_files_inventory(profile)
+        normalize_profile_storage(profile)
 
     return refreshed_operations, changed
 
@@ -3977,6 +4384,11 @@ def refresh_and_persist_operations(username, profile):
         "risk_events": profile.get("risk_events", []),
         "system_messages": profile.get("system_messages", []),
         "market_history": profile.get("market_history", []),
+        "storage_capacity": profile.get("storage_capacity"),
+        "storage_used": profile.get("storage_used"),
+        "storage_unit": profile.get("storage_unit", "MB"),
+        "storage_soft_limit": True,
+        "storage_over_limit": profile.get("storage_over_limit", False),
     })
     fresh_profile = user_store.get_profile(username) or profile
     fresh_profile = dict(fresh_profile)
@@ -4556,8 +4968,6 @@ def infer_legacy_map_actions(app):
         actions.add("scan_ports")
     if app_type in {"exploit", "exploit_suite"}:
         actions.add("exploit")
-    if app_type == "exploit_suite" and has_any(detects, {"open_ports", "weak_configs"}):
-        actions.add("scan_ports")
     if app_type in {"scanner", "os_component"} and has_any(detects, {"processes", "active_tasks", "security_logs"}):
         actions.add("sniff")
     if has_any(detects, {"user_location", "device_presence", "ip_leaks"}):
@@ -4586,6 +4996,27 @@ def infer_legacy_map_actions(app):
     return sorted(actions)
 
 
+LEGACY_MAP_ACTION_SOURCES = {"legacy_inferred", "migration_inferred"}
+
+
+def cleanup_migrated_map_actions(app, actions):
+    """Remove known false-positive map actions from migrated app contracts."""
+    app_type = str((app or {}).get("type") or "").strip()
+    action_set = {
+        str(action).strip()
+        for action in (actions or [])
+        if str(action).strip()
+    }
+
+    # Sprint 24: exploit_suite used to inherit scan_ports from weak_configs /
+    # open_ports. That made PenCombo appear as a scanner. Keep exploit, remove
+    # scan_ports unless the app has a truly explicit, non-migrated contract.
+    if app_type == "exploit_suite":
+        action_set.discard("scan_ports")
+
+    return sorted(action_set)
+
+
 def infer_operation_types_from_map_actions(map_actions):
     operations = []
     for action in map_actions or []:
@@ -4595,7 +5026,7 @@ def infer_operation_types_from_map_actions(map_actions):
     return operations
 
 
-def normalize_app_contract(app):
+def normalize_app_contract(app, infer_legacy=True):
     normalized = dict(app or {})
     explicit_actions = [
         str(action).strip()
@@ -4603,14 +5034,19 @@ def normalize_app_contract(app):
         if str(action).strip()
     ]
     if explicit_actions:
+        source = str(normalized.get("map_actions_source") or "").strip()
+        if source in LEGACY_MAP_ACTION_SOURCES:
+            explicit_actions = cleanup_migrated_map_actions(normalized, explicit_actions)
         normalized["map_actions"] = list(dict.fromkeys(explicit_actions))
-    else:
+    elif infer_legacy:
         inferred = infer_legacy_map_actions(normalized)
         if inferred:
-            normalized["map_actions"] = inferred
+            normalized["map_actions"] = cleanup_migrated_map_actions(normalized, inferred)
             normalized["map_actions_source"] = "legacy_inferred"
         else:
             normalized["map_actions"] = []
+    else:
+        normalized["map_actions"] = []
 
     explicit_operations = [
         str(operation_type).strip()
@@ -4635,11 +5071,21 @@ def normalize_app_contract(app):
         for target_type in as_list(normalized.get("target_types"))
         if str(target_type).strip()
     ))
+    normalize_app_storage_fields(normalized)
+    normalize_app_quality_fields(normalized)
+    normalize_app_balance_fields(normalized)
     return normalized
 
 
-def normalize_app_contracts(apps):
-    return [normalize_app_contract(app) for app in (apps or [])]
+def normalize_app_contracts(apps, infer_legacy=True):
+    return [normalize_app_contract(app, infer_legacy=infer_legacy) for app in (apps or [])]
+
+
+def is_legacy_map_action_fallback_enabled():
+    value = os.environ.get("CHAOS_LEGACY_MAP_ACTION_FALLBACK")
+    if value is None:
+        return True
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def get_apps_for_map_action(apps, map_action_id, allow_legacy_fallback=True):
@@ -4647,7 +5093,8 @@ def get_apps_for_map_action(apps, map_action_id, allow_legacy_fallback=True):
     if not map_action_id:
         return [], "none"
 
-    normalized_apps = normalize_app_contracts(apps)
+    legacy_enabled = allow_legacy_fallback and is_legacy_map_action_fallback_enabled()
+    normalized_apps = normalize_app_contracts(apps, infer_legacy=legacy_enabled)
     matched = [
         app for app in normalized_apps
         if map_action_id in {
@@ -4655,11 +5102,15 @@ def get_apps_for_map_action(apps, map_action_id, allow_legacy_fallback=True):
             for action in as_list(app.get("map_actions"))
             if str(action).strip()
         }
+        and (
+            legacy_enabled
+            or str(app.get("map_actions_source") or "").strip() not in LEGACY_MAP_ACTION_SOURCES
+        )
     ]
     if matched:
         return matched, "map_actions"
 
-    if not allow_legacy_fallback:
+    if not legacy_enabled:
         return [], "none"
 
     # TODO_MIGRATION: keep the old router only for installed apps that have not
@@ -4680,8 +5131,22 @@ def serialize_tool_selection_app(app):
         "type": app.get("type", ""),
         "map_actions": as_list(app.get("map_actions")),
         "operation_types": as_list(app.get("operation_types")),
+        "resource_types": as_list(app.get("resource_types")),
+        "target_types": as_list(app.get("target_types")),
         "tool_file": app.get("file_name") or app.get("project_file") or (f"{name}.sh" if name else ""),
         "description": app.get("description", ""),
+        "file_size": app.get("file_size"),
+        "disk_usage": app.get("disk_usage") or app.get("install_size"),
+        "install_size": app.get("install_size") or app.get("disk_usage"),
+        "quality_score": app.get("quality_score"),
+        "reliability": app.get("reliability"),
+        "creator_power": app.get("creator_power"),
+        "power_score": app.get("power_score"),
+        "price_hint": app.get("price_hint"),
+        "balance_tier": app.get("balance_tier"),
+        "recommended_level": app.get("recommended_level"),
+        "recommended_respect": app.get("recommended_respect"),
+        "map_actions_source": app.get("map_actions_source", ""),
     }
 
 
@@ -4711,6 +5176,9 @@ def infer_googleplex_app_level(app):
 
 def googleplex_catalog_payload(app, profile):
     item = dict(app or {})
+    normalize_app_storage_fields(item)
+    normalize_app_quality_fields(item)
+    normalize_app_balance_fields(item)
     item["map_actions"] = [
         str(action).strip()
         for action in as_list(item.get("map_actions"))
@@ -4984,6 +5452,60 @@ def build_ghostlab_artifact(project, blueprint, version):
     }
 
 
+def ghostlab_template_app_contract(template_id):
+    template_id = str(template_id or "")
+    contracts = {
+        "financial_sniffer": {
+            "tool_family": "sniffer",
+            "tool_mode": "desktop",
+            "map_actions": [],
+            "target_types": ["player"],
+            "operation_types": [],
+            "resource_types": ["financial_records", "internal_recon_state"],
+        },
+        "friend_kicker": {
+            "tool_family": "exploit",
+            "tool_mode": "desktop",
+            "map_actions": [],
+            "target_types": ["player"],
+            "operation_types": [],
+            "resource_types": ["internal_recon_state"],
+        },
+        "security_panel_proxy": {
+            "tool_family": "exploit",
+            "tool_mode": "desktop",
+            "map_actions": [],
+            "target_types": ["player"],
+            "operation_types": [],
+            "resource_types": ["internal_recon_state"],
+        },
+        "system_log_reader": {
+            "tool_family": "scanner_recon",
+            "tool_mode": "desktop",
+            "map_actions": [],
+            "target_types": ["player"],
+            "operation_types": [],
+            "resource_types": ["device_logs", "internal_recon_state"],
+        },
+        "arsenal_cleaner": {
+            "tool_family": "exploit",
+            "tool_mode": "desktop",
+            "map_actions": [],
+            "target_types": ["player"],
+            "operation_types": [],
+            "resource_types": ["internal_recon_state"],
+        },
+    }
+    return dict(contracts.get(template_id, {
+        "tool_family": "pro_system_tool",
+        "tool_mode": "desktop",
+        "map_actions": [],
+        "target_types": ["player"],
+        "operation_types": [],
+        "resource_types": ["internal_recon_state"],
+    }))
+
+
 def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
     artifact = project.get("artifact") if isinstance(project.get("artifact"), dict) else {}
     if not artifact:
@@ -5017,7 +5539,8 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
     }
     required_level, required_respect = required_defaults.get(template_id, (10, 120))
     app_id = str(project.get("googleplex_app_id") or f"ghostlab_{project.get('slug')}_{artifact.get('version', 1)}")
-    return {
+    contract = ghostlab_template_app_contract(template_id)
+    app = {
         "id": app_id,
         "name": str(project.get("name") or "GhostLab Tool"),
         "icon": str(project.get("icon") or "🧪"),
@@ -5063,6 +5586,14 @@ def build_ghostlab_googleplex_app(project, owner_username, owner_profile):
             "artifact": artifact,
         },
     }
+    app.update(contract)
+    app["map_actions_source"] = "ghostlab_contract"
+    app.update(build_generated_app_quality_fields(owner_profile or {}, app))
+    app = normalize_app_contract(app, infer_legacy=False)
+    normalize_app_storage_fields(app)
+    normalize_app_quality_fields(app)
+    enforce_generated_app_price_floor(app)
+    return app
 
 
 def serialize_ghostlab_project(project):
@@ -5070,6 +5601,13 @@ def serialize_ghostlab_project(project):
     validation = validate_ghostlab_blueprint(project.get("template_id"), blueprint)
     builds = project.get("builds") if isinstance(project.get("builds"), list) else []
     artifact = project.get("artifact") if isinstance(project.get("artifact"), dict) else {}
+    publisher_contract = ghostlab_template_app_contract(project.get("template_id") or artifact.get("template_id"))
+    publisher_contract.update({
+        "type": "pro-system-tool",
+        "category": "pro-system-tools",
+        "map_actions_source": "ghostlab_contract",
+        "runtime_status": "pending_custom_runtime",
+    })
     return {
         "id": str(project.get("id") or ""),
         "name": str(project.get("name") or "Untitled"),
@@ -5083,6 +5621,7 @@ def serialize_ghostlab_project(project):
         "builds": builds,
         "artifact": artifact,
         "latest_build": builds[-1] if builds else None,
+        "publisher_contract": publisher_contract,
         "googleplex_app_id": str(project.get("googleplex_app_id") or ""),
         "published_at": str(project.get("published_at") or ""),
         "status": str(project.get("status") or "draft"),
@@ -5168,8 +5707,36 @@ def remove_app_tool_files(files, app):
         value = str(app.get(key) or "").strip() if isinstance(app, dict) else ""
         if value:
             candidates.add(value)
-    files["tools"] = [item for item in tools if str(item) not in candidates]
+    files["tools"] = [
+        item for item in tools
+        if tool_file_entry_name(item) not in candidates
+    ]
     return files
+
+
+def tool_file_entry_name(item):
+    if isinstance(item, dict):
+        return str(
+            item.get("name")
+            or item.get("filename")
+            or item.get("file_name")
+            or item.get("project_file")
+            or ""
+        ).strip()
+    return str(item or "").strip()
+
+
+def app_tool_file_candidates(app):
+    app = app if isinstance(app, dict) else {}
+    name = app_display_name(app)
+    candidates = set()
+    if name:
+        candidates.add(f"{name}.sh")
+    for key in ["project_file", "file_name"]:
+        value = str(app.get(key) or "").strip()
+        if value:
+            candidates.add(value)
+    return candidates
 
 
 def player_actor_action(enabled, reason=""):
@@ -5688,6 +6255,9 @@ def parse_option_lines(value):
     return options
 
 
+CREATOR_EXPLICIT_TOOL_FAMILIES = {"scanner_recon", "exploit", "sniffer"}
+
+
 def build_generated_app(data, creator_username, creator_nick):
     name = str(data.get("name", "")).strip()
     if not name:
@@ -5706,6 +6276,15 @@ def build_generated_app(data, creator_username, creator_nick):
     requires_off = parse_csv_field(data.get("requires_off"))
     interferes_with = parse_csv_field(data.get("interferes_with"))
     disables = parse_csv_field(data.get("disables"))
+    map_actions = parse_csv_field(data.get("map_actions"))
+    operation_types = parse_csv_field(data.get("operation_types"))
+    resource_types = parse_csv_field(data.get("resource_types"))
+    target_types = parse_csv_field(data.get("target_types"))
+    tool_family = str(data.get("tool_family") or "").strip()
+    tool_mode = str(data.get("tool_mode") or data.get("scanner_mode") or "").strip()
+    if tool_family not in CREATOR_EXPLICIT_TOOL_FAMILIES:
+        tool_mode = ""
+    scanner_mode = tool_mode if tool_family == "scanner_recon" else ""
 
     app = {
         "id": app_id,
@@ -5730,6 +6309,31 @@ def build_generated_app(data, creator_username, creator_nick):
         "project_file": f"{name}.sh",
         "created_at": datetime.utcnow().isoformat(timespec="seconds"),
     }
+    if tool_family:
+        app["tool_family"] = tool_family
+    if tool_mode:
+        app["tool_mode"] = tool_mode
+    if scanner_mode:
+        app["scanner_mode"] = scanner_mode
+    if map_actions:
+        app["map_actions"] = map_actions
+        app["map_actions_source"] = "creator_explicit"
+    elif tool_family in CREATOR_EXPLICIT_TOOL_FAMILIES:
+        app["map_actions"] = []
+        app["map_actions_source"] = "creator_explicit"
+    if operation_types:
+        app["operation_types"] = operation_types
+    if resource_types:
+        app["resource_types"] = resource_types
+    if target_types:
+        app["target_types"] = target_types
+
+    creator_profile = user_store.get_profile(creator_username) or {}
+    app.update(build_generated_app_quality_fields(creator_profile, app))
+    app = normalize_app_contract(app, infer_legacy=tool_family not in CREATOR_EXPLICIT_TOOL_FAMILIES)
+    normalize_app_storage_fields(app)
+    normalize_app_quality_fields(app)
+    enforce_generated_app_price_floor(app)
 
     level_title = str(data.get("level_title") or f"{name} - panel").strip()
 
@@ -5819,6 +6423,7 @@ def normalize_runtime_profile_defaults(profile):
     for key in ("own_places", "captured_targets", "territory", "areas"):
         if not isinstance(profile.get(key), list):
             profile[key] = []
+    normalize_profile_storage(profile)
     return profile
 
 
@@ -7709,7 +8314,15 @@ def api_ghost_exchange_preview():
     if not file_entry:
         return jsonify({"success": False, "message": "Plik nie jest dostepny do przygotowania oferty."}), 404
 
-    UserProfileManager(session["user"]).update_profile({"files": profile.get("files", {})})
+    normalize_profile_storage(profile)
+    UserProfileManager(session["user"]).update_profile({
+        "files": profile.get("files", {}),
+        "storage_capacity": profile.get("storage_capacity"),
+        "storage_used": profile.get("storage_used"),
+        "storage_unit": profile.get("storage_unit", "MB"),
+        "storage_soft_limit": True,
+        "storage_over_limit": profile.get("storage_over_limit", False),
+    })
     session["profile"] = profile
     return jsonify({
         "success": True,
@@ -7760,11 +8373,17 @@ def api_ghost_exchange_sell():
         "Sprzedano pakiet danych",
         mail_body,
     )
+    normalize_profile_storage(profile)
 
     UserProfileManager(username).update_profile({
         "hackcoins": profile.get("hackcoins", 0),
         "files": profile.get("files", {}),
         "market_history": profile.get("market_history", []),
+        "storage_capacity": profile.get("storage_capacity"),
+        "storage_used": profile.get("storage_used"),
+        "storage_unit": profile.get("storage_unit", "MB"),
+        "storage_soft_limit": True,
+        "storage_over_limit": profile.get("storage_over_limit", False),
     })
     session["profile"] = profile
 
@@ -9715,6 +10334,9 @@ def install_app():
         if file_name not in tools:
             tools.append(file_name)
         files["tools"] = tools
+        profile["apps"] = normalize_app_contracts(apps)
+        profile["files"] = files
+        normalize_profile_storage(profile)
 
         if (not is_system_catalog_app(app_data)) or app_data.get("ghostlab_generated"):
             for app in store:
@@ -9725,9 +10347,14 @@ def install_app():
 
         # --- Aktualizuj profil (aplikacje i pliki) ---
         mgr.update_profile({
-            "apps": apps,
+            "apps": profile.get("apps", apps),
             "files": files,
-            "hackcoins": profile.get("hackcoins", 0)
+            "hackcoins": profile.get("hackcoins", 0),
+            "storage_capacity": profile.get("storage_capacity"),
+            "storage_used": profile.get("storage_used"),
+            "storage_unit": profile.get("storage_unit", "MB"),
+            "storage_soft_limit": True,
+            "storage_over_limit": profile.get("storage_over_limit", False),
         })
 
         # --- SYSTEM MESSAGE zapisane do profilu ---
@@ -9750,12 +10377,112 @@ def install_app():
             "message": "Aplikacja została zainstalowana.",
             "hackcoins": profile.get("hackcoins", 0),
             "price": price,
-            "paid_to": payee_username if price > 0 else None
+            "paid_to": payee_username if price > 0 else None,
+            "storage": {
+                "capacity": profile.get("storage_capacity"),
+                "used": profile.get("storage_used"),
+                "unit": profile.get("storage_unit", "MB"),
+                "added": app_data.get("disk_usage") or app_data.get("install_size") or app_data.get("file_size") or 0,
+                "soft_limit": True,
+                "over_limit": profile.get("storage_over_limit", False),
+            }
         })
 
     except Exception as e:
         print(f"[EXCEPTION] Wystąpił błąd podczas instalacji: {e}")
         return jsonify({"status": "error", "message": str(e)})
+
+@app.route('/api/apps/uninstall', methods=['POST'])
+def uninstall_app():
+    if "user" not in session:
+        return jsonify({"status": "error", "message": "Nie jestes zalogowany."}), 401
+
+    data = request.get_json() or {}
+    app_id = str(data.get("app_id") or "").strip()
+    tool_file = str(data.get("tool_file") or data.get("filename") or "").strip()
+    app_name = str(data.get("name") or "").strip()
+
+    profile = sync_session_profile()
+    if not profile:
+        return jsonify({"status": "error", "message": "Brak danych profilu."}), 404
+
+    apps = normalize_app_contracts(profile.get("apps", []))
+    normalize_files_inventory(profile)
+    files = profile.get("files", {})
+
+    matched_app = None
+    for app in apps:
+        candidates = app_tool_file_candidates(app)
+        if app_id and str(app.get("id") or "") == app_id:
+            matched_app = app
+            break
+        if tool_file and tool_file in candidates:
+            matched_app = app
+            break
+        if app_name and app_display_name(app) == app_name:
+            matched_app = app
+            break
+
+    removed_app = False
+    removed_tool = False
+    if matched_app:
+        matched_id = str(matched_app.get("id") or "")
+        apps = [
+            app for app in apps
+            if str(app.get("id") or "") != matched_id
+        ]
+        before_tools = len(files.get("tools", []) or [])
+        files = remove_app_tool_files(files, matched_app)
+        removed_tool = len(files.get("tools", []) or []) != before_tools
+        removed_app = True
+    elif tool_file:
+        tools = list(files.get("tools", []) or [])
+        kept_tools = [
+            item for item in tools
+            if tool_file_entry_name(item) != tool_file
+        ]
+        removed_tool = len(kept_tools) != len(tools)
+        files["tools"] = kept_tools
+
+    profile["apps"] = normalize_app_contracts(apps)
+    profile["files"] = files
+    normalize_profile_storage(profile)
+
+    mgr = UserProfileManager(session["user"])
+    mgr.update_profile({
+        "apps": profile.get("apps", []),
+        "files": profile.get("files", {}),
+        "storage_capacity": profile.get("storage_capacity"),
+        "storage_used": profile.get("storage_used"),
+        "storage_unit": profile.get("storage_unit", "MB"),
+        "storage_soft_limit": True,
+        "storage_over_limit": profile.get("storage_over_limit", False),
+    })
+    session["profile"] = profile
+
+    status = "success" if removed_app or removed_tool else "noop"
+    message = (
+        "Aplikacja zostala odinstalowana."
+        if removed_app
+        else "Aplikacja nie byla zainstalowana."
+    )
+    return jsonify({
+        "status": status,
+        "success": True,
+        "removed_app": removed_app,
+        "removed_tool": removed_tool,
+        "message": message,
+        "apps": profile.get("apps", []),
+        "files": profile.get("files", {}),
+        "storage": {
+            "capacity": profile.get("storage_capacity"),
+            "used": profile.get("storage_used"),
+            "unit": profile.get("storage_unit", "MB"),
+            "soft_limit": True,
+            "over_limit": profile.get("storage_over_limit", False),
+        }
+    })
+
 
 @app.route("/launch-queue")
 def launch_queue():

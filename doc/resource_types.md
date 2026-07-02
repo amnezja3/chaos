@@ -63,6 +63,73 @@ Lepsza aplikacja może:
 * zebrać dane z dłuższego okresu,
 * wzbogacić paczkę o metadane.
 
+### Wpływ jakości aplikacji
+
+Od Sprintu 23 aplikacja przekazuje do operacji snapshot:
+
+```text
+source_app_quality
+```
+
+Obejmuje on:
+
+* `creator_power`,
+* `quality_score`,
+* `reliability`.
+
+Zasada runtime:
+
+* `quality_score` aplikacji może podnieść `quality_score` pliku,
+* wyższa jakość może później zwiększać kompletność paczki,
+* `reliability` jest przygotowane pod awarie i ryzyko, ale Sprint 23 nie robi
+  jeszcze pełnego rebalance,
+* niższa jakość nie usuwa danych, tylko daje słabszy wynik.
+
+Decision:
+
+* Przyjęto: pierwszym efektem jakości narzędzia jest wpływ na `file.quality_score`.
+* Przyjęto: szczegółowe mnożniki kompletności zostają do dalszego balansu po playteście.
+
+### Bazowa waga zasobu
+
+Sprint 22 dodaje miękki model pojemności. `resource_type` może mieć bazową
+wagę, z której runtime wyprowadza `file.file_size`.
+
+Zasady:
+
+* waga zasobu nie jest jego ceną,
+* większy plik nie zawsze jest bardziej wartościowy,
+* kompletność i jakość nadal są osobnymi polami,
+* `internal_recon_state` może mieć wagę techniczną, ale nie tworzy pliku
+  handlowego w `/data`.
+
+Orientacyjne wagi runtime:
+
+| resource_type | base file size |
+| --- | ---: |
+| `internal_recon_state` | 2 MB |
+| `gps_logs` | 4 MB |
+| `location_history` | 4 MB |
+| `device_logs` | 8 MB |
+| `personal_records` | 9 MB |
+| `financial_records` | 12 MB |
+| `credentials` | 7 MB |
+| `email_accounts` | 7 MB |
+| `call_history` | 9 MB |
+| `messenger_data` | 9 MB |
+| `audio_transcript` | 6 MB |
+| `camera_dump` | 14 MB |
+| `video_material` | 26 MB |
+| `atm_dump` | 10 MB |
+| `vehicle_diagnostics` | 7 MB |
+| `wifi_networks` | 6 MB |
+| `hotspot_database` | 8 MB |
+
+Decision:
+
+* Przyjęto: Sprint 22 używa bazowych wag jako miękkiego UI/balansu, nie jako
+  twardej symulacji bajtów.
+
 ---
 
 ## Kategorie zasobów
@@ -284,6 +351,80 @@ Sprawdzone względem:
 * Przyjęto: `hotspot_database` jest sprzedawalny, ale wymaga lepszej aplikacji albo agregacji wielu `wifi_networks`.
 * Przyjęto: `network_scan` z wcześniejszych dokumentów zostaje wycofany z podstawowego modelu Sprintu 0.5. Dla skanowania portów używamy `internal_recon_state`, a dla Wi-Fi używamy `wifi_networks` / `hotspot_database`.
 * Przyjęto: jeżeli później powstanie `generic_sniffer`, będzie używał tego samego modelu app-dependent resources i nie dostanie osobnego domyślnego lootu.
+
+---
+
+## Sprint 26 — Scanner / Recon resources
+
+Scanner / Recon może produkować zasoby tylko wtedy, gdy aplikacja deklaruje je
+w `resource_types`.
+
+Domyślne kierunki:
+
+| Rodzina zasobów | `resource_types` | Uwagi |
+| --- | --- | --- |
+| Stan rozpoznania | `internal_recon_state` | Nie jest plikiem handlowym i nie trafia do Ghost Exchange. |
+| Lokalizacja / śledzenie | `location_history`, `gps_logs`, `device_logs` | Powstaje przez operacje typu `generic_trace`, `vehicle_tracking`, `device_tracking`. |
+| Sieć / hotspoty | `wifi_networks`, `hotspot_database` | `hotspot_database` wymaga lepszej aplikacji albo agregacji. |
+| Surveillance / kamera | `camera_dump` | Tylko gdy scanner jawnie deklaruje `camera_stream` i zasób kamery. |
+
+Zasady:
+
+* desktop scanner może tworzyć tylko stan/profil celu bez `map_actions`,
+* map scanner może być support-only i produkować tylko `internal_recon_state`,
+* hybrydowy scanner może mieć pliki, ale tylko zgodnie z `resource_types`,
+* Sprint 26 nie dodaje zasobów exploit/sniffer takich jak `credentials` jako
+  domyślnego wyniku ścieżki Scanner / Recon.
+
+---
+
+## Sprint 27 — Exploit / Sniffer resources
+
+Exploit i Sniffer mogą produkować pliki tylko zgodnie z jawnym
+`resource_types` aplikacji.
+
+Exploit:
+
+| Operacja / efekt | Sensowne `resource_types` | Uwagi |
+| --- | --- | --- |
+| `camera_shutdown` | none / `internal_recon_state` | Support operation; nie produkuje loot files domyślnie. |
+| `persistent_sniffer` | `credentials`, `financial_records`, `device_logs`, `internal_recon_state` | Jeśli exploit instaluje implant, zasób zależy od aplikacji. |
+| `audio_interference` | `audio_transcript`, `internal_recon_state` | Tylko gdy aplikacja zapisuje efekt operacji. |
+| `vehicle_ecu` | `vehicle_diagnostics`, `internal_recon_state` | Diagnostyka pojazdu powstaje tylko przy jawnym zasobie. |
+
+Sniffer:
+
+| Operacja / efekt | Sensowne `resource_types` | Uwagi |
+| --- | --- | --- |
+| `persistent_sniffer` | `credentials`, `financial_records`, `device_logs`, `internal_recon_state` | Długotrwały implant. |
+| `microphone_sniffer` | `audio_transcript` | Podsłuch jako transkrypcja gameplayowa. |
+| `atm_log_extraction` | `atm_dump`, `financial_records` | Wysokowartościowe dane finansowe. |
+| `camera_stream` | `camera_dump`, `video_material` | Materiał kamery zależny od aplikacji. |
+
+Decision:
+
+* Przyjęto: Sprint 27 nie dodaje nowych `resource_type`; używa istniejących
+  zasobów i jawnego kontraktu aplikacji.
+* Przyjęto: `credentials` nie są częścią Scanner / Recon, ale mogą być wynikiem
+  Sniffer albo Exploit, jeśli aplikacja to deklaruje.
+
+## Sprint 28 — GhostLab pro-system-tool resources
+
+GhostLab Publisher nie dodaje nowych `resource_type`.
+
+Zasady:
+
+* `pro-system-tool` dostaje `resource_types` z template,
+* jeśli template nie produkuje danych, używa `internal_recon_state` jako
+  informacyjnego zasobu technicznego,
+* `operation_types` pozostaje puste, dopóki przyszły custom runtime nie zacznie
+  tworzyć operacji,
+* zasoby GhostLab nie omijają File Modelu ani Ghost Exchange.
+
+Decision:
+
+* Przyjęto: Sprint 28 normalizuje kontrakt zasobów GhostLab, ale nie dodaje
+  nowych finalizerów i nie publikuje nowych typów danych.
 
 ---
 

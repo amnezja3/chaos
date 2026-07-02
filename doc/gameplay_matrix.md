@@ -34,8 +34,57 @@ Ta tabela jest kontraktową warstwą Sprintu 0. Nie zastępuje prostej tabeli po
 * `camera_stream` jest aktywną operacją widoczną przy obiekcie. Stream powinien mieć licznik czasu nagrania, np. `01:35:34`, odświeżany przy refreshu mapy. Produkcja `camera_dump` lub materiału wideo zależy od aplikacji.
 * `car_hack` nie produkuje domyślnie `vehicle_diagnostics`. O wyniku decyduje konkretna aplikacja i jej kontrakt.
 * `sniff` zostaje jako bazowa akcja procesu hackowania. Może być support action albo data-producing action, zależnie od aplikacji.
+* Tool selection wybiera aplikacje po `app.map_actions`. Pola `type`,
+  `detects`, `affects` i `interferes_with` są tylko fallbackiem migracyjnym.
+* `scan_ports` powinno pokazywać scanner/recon tools. `exploit_suite` nie jest
+  scannerem tylko dlatego, że wykrywa `open_ports` albo `weak_configs`.
+* `map_actions_source: migration_inferred` i `legacy_inferred` są stanami
+  przejściowymi. Jawny kontrakt aplikacji jest źródłem prawdy.
+* Scanner / Recon po Sprincie 26 jest rodziną narzędzi. Może być mapowy,
+  desktopowy na `aimed_target` albo hybrydowy.
+* Desktop scanner może nie mieć `map_actions`, ale powinien mieć sensowne
+  `target_types`, `operation_types` i `resource_types`.
+* Scanner mapowy/hybrydowy może tworzyć operację tylko wtedy, gdy deklaruje
+  odpowiedni `operation_type`; `scan_ports` samo w sobie pozostaje support /
+  recon state.
+* Exploit / Sniffer po Sprincie 27 są rodzinami kreatora. Korzystają z
+  istniejących `map_actions`, `operation_types` i `resource_types`.
+* Desktop Exploit/Sniffer może nie mieć `map_actions`, ale nie może dostać ich
+  przez fallback legacy; musi mieć jawny kontrakt celu, operacji i zasobów.
+* `install_sniffer` jest świadomie hybrydowe: może być wybierane przez ścieżkę
+  Exploit albo Sniffer, zależnie od intencji aplikacji.
+* GhostLab po Sprincie 28 publikuje `pro-system-tool` jako zwykły rekord
+  Googleplex z pełnym kontraktem aplikacji.
+* GhostLab `pro-system-tool` domyślnie działa w trybie desktop na `player`
+  przez Player Hack Access i nie dodaje nowych `map_actions` ani
+  `operation_types` bez osobnego runtime.
 
 ## TODO_DECISION
 
 * `video_material` jest przyszłym `resource_type`, ale jego kontrakt zostanie doprecyzowany w Sprincie 0.5 / Model Danych.
 * `generic_sniffer` nie jest obowiązkowym kontraktem teraz. Jeśli będzie potrzebny, wraca jako TODO_FUTURE.
+## Tool Laboratory v1 lifecycle
+
+Sprint 30 domyka lifecycle aplikacji bez dodawania nowych `map_action_id`.
+
+```text
+creator / GhostLab
+↓
+publish to json_resources.app_config
+↓
+Googleplex install
+↓
+profile.apps + files.tools
+↓
+tool selection / desktop runtime
+↓
+uninstall
+↓
+profile cleanup + storage recalculation
+```
+
+Decision:
+
+* Przyjęto: Tool Laboratory v1 nie zmienia map action matrix. Zamyka cykl
+  aplikacji wokół istniejących `map_actions`, `operation_types` i
+  `resource_types`.

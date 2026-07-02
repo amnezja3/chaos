@@ -9,6 +9,8 @@ import run
 from database import DevBugReportStore, JsonResourceStore, MailStore
 from run import (
     active_operations_from_operations,
+    apply_operation_quality_to_files,
+    build_generated_app,
     build_player_actor,
     cancel_profile_operation,
     collect_ghost_exchange_files,
@@ -19,6 +21,7 @@ from run import (
     get_apps_for_map_action,
     googleplex_catalog_payload,
     normalize_app_contract,
+    normalize_profile_storage,
     operation_history_from_operations,
     refresh_operation_runtime,
     refresh_operations_runtime,
@@ -471,6 +474,91 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertIn("vehicle_tracking", app["operation_types"])
         self.assertEqual(app["operation_types_source"], "legacy_inferred")
 
+    def test_exploit_suite_legacy_inference_does_not_add_scan_ports(self):
+        app = normalize_app_contract({
+            "id": "pencombo_v1",
+            "name": "PenCombo",
+            "type": "exploit_suite",
+            "detects": ["open_ports", "weak_configs", "inject_points"],
+        })
+
+        self.assertIn("exploit", app["map_actions"])
+        self.assertNotIn("scan_ports", app["map_actions"])
+        self.assertEqual(app["map_actions_source"], "legacy_inferred")
+
+    def test_migration_inferred_pencombo_does_not_match_scan_ports(self):
+        pencombo = {
+            "id": "pencombo_v1",
+            "name": "PenCombo",
+            "type": "exploit_suite",
+            "map_actions": ["exploit", "scan_ports"],
+            "map_actions_source": "migration_inferred",
+        }
+        scanner = {
+            "id": "scan_probe_v1",
+            "name": "ScanProbe",
+            "type": "scanner",
+            "map_actions": ["scan_ports"],
+            "map_actions_source": "migration_inferred",
+        }
+
+        scan_matches, scan_source = get_apps_for_map_action([pencombo, scanner], "scan_ports")
+        exploit_matches, exploit_source = get_apps_for_map_action([pencombo, scanner], "exploit")
+
+        scan_ids = [app["id"] for app in scan_matches]
+        self.assertEqual(scan_source, "map_actions")
+        self.assertEqual(scan_ids, ["scan_probe_v1"])
+        self.assertEqual(exploit_source, "map_actions")
+        self.assertEqual([app["id"] for app in exploit_matches], ["pencombo_v1"])
+
+    def test_explicit_exploit_suite_map_actions_still_win(self):
+        explicit_hybrid = normalize_app_contract({
+            "id": "explicit_hybrid",
+            "name": "Explicit Hybrid",
+            "type": "exploit_suite",
+            "map_actions": ["exploit", "scan_ports"],
+        })
+
+        self.assertIn("scan_ports", explicit_hybrid["map_actions"])
+        self.assertIn("exploit", explicit_hybrid["map_actions"])
+
+    def test_sniff_action_matches_sniffer_not_exploit_suite(self):
+        apps = [
+            {
+                "id": "deep_sniff_r2",
+                "name": "DeepSniff",
+                "type": "scanner",
+                "map_actions": ["sniff"],
+                "map_actions_source": "migration_inferred",
+            },
+            {
+                "id": "pencombo_v1",
+                "name": "PenCombo",
+                "type": "exploit_suite",
+                "map_actions": ["exploit"],
+                "map_actions_source": "migration_inferred",
+            },
+        ]
+
+        matched, source = get_apps_for_map_action(apps, "sniff")
+
+        self.assertEqual(source, "map_actions")
+        self.assertEqual([app["id"] for app in matched], ["deep_sniff_r2"])
+
+    def test_legacy_fallback_can_be_disabled_for_dev_tests(self):
+        apps = [{
+            "id": "legacy_scanner",
+            "name": "Legacy Scanner",
+            "type": "scanner",
+            "detects": ["open_ports"],
+        }]
+
+        with patch.dict(os.environ, {"CHAOS_LEGACY_MAP_ACTION_FALLBACK": "false"}):
+            matched, source = get_apps_for_map_action(apps, "scan_ports", allow_legacy_fallback=True)
+
+        self.assertEqual(matched, [])
+        self.assertEqual(source, "none")
+
     def test_googleplex_catalog_payload_exposes_runtime_contract(self):
         app = normalize_app_contract({
             "id": "gps_tracker_v1",
@@ -492,6 +580,445 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(payload["operation_types"], ["vehicle_tracking"])
         self.assertEqual(payload["resource_types"], ["gps_logs", "location_history"])
         self.assertEqual(payload["app_level"], "Advanced")
+        self.assertGreater(payload["file_size"], 0)
+        self.assertGreater(payload["disk_usage"], 0)
+        self.assertEqual(payload["install_size"], payload["disk_usage"])
+        self.assertGreater(payload["power_score"], 0)
+        self.assertGreater(payload["price_hint"], 0)
+        self.assertIn(payload["balance_tier"], {"Basic", "Advanced", "Pro"})
+
+    def test_app_contract_adds_default_storage_fields(self):
+        app = normalize_app_contract({
+            "id": "camera_tool_v1",
+            "name": "Camera Tool",
+            "interface": "window",
+            "type": "camera_tool",
+            "map_actions": ["camera_stream"],
+            "operation_types": ["camera_stream"],
+            "resource_types": ["camera_dump", "video_material"],
+        })
+
+        self.assertGreaterEqual(app["file_size"], 1)
+        self.assertGreaterEqual(app["disk_usage"], app["file_size"])
+        self.assertEqual(app["install_size"], app["disk_usage"])
+        self.assertGreaterEqual(app["quality_score"], 0)
+        self.assertGreaterEqual(app["reliability"], 0)
+        self.assertGreaterEqual(app["creator_power"], 0)
+        self.assertGreater(app["power_score"], 0)
+        self.assertGreater(app["price_hint"], 0)
+        self.assertIn(app["balance_tier"], {"Basic", "Advanced", "Pro"})
+
+    def test_legacy_app_keeps_explicit_price_but_gets_balance_hint(self):
+        app = normalize_app_contract({
+            "id": "admin_test_scan_ports_1",
+            "name": "Admin Test Scanner",
+            "type": "scanner",
+            "price": 10,
+            "map_actions": ["scan_ports"],
+            "map_actions_source": "admin_test_seed",
+            "operation_types": ["wifi_scanner"],
+            "resource_types": ["internal_recon_state"],
+        })
+
+        self.assertEqual(app["price"], 10)
+        self.assertGreater(app["price_hint"], app["price"])
+        self.assertGreater(app["power_score"], 0)
+
+    def test_pro_system_tool_has_higher_balance_than_basic_tool(self):
+        basic = normalize_app_contract({
+            "id": "basic_ping",
+            "name": "Basic Ping",
+            "type": "scanner",
+            "price": 80,
+            "map_actions": ["scan_ports"],
+            "operation_types": ["wifi_scanner"],
+            "resource_types": ["internal_recon_state"],
+        })
+        pro = normalize_app_contract({
+            "id": "ghostlab_financial",
+            "name": "GhostLab Financial",
+            "type": "pro-system-tool",
+            "category": "pro-system-tools",
+            "price": 3000,
+            "required_level": 12,
+            "required_respect": 180,
+            "tool_family": "sniffer",
+            "tool_mode": "desktop",
+            "operation_types": [],
+            "resource_types": ["financial_records", "internal_recon_state"],
+            "ghostlab_generated": True,
+        }, infer_legacy=False)
+
+        self.assertGreater(pro["disk_usage"], basic["disk_usage"])
+        self.assertGreater(pro["power_score"], basic["power_score"])
+        self.assertGreater(pro["price_hint"], basic["price_hint"])
+
+    def test_generated_app_quality_depends_on_creator_power(self):
+        payload = {
+            "name": "Creator Scanner",
+            "interface": "progressbar_random",
+            "type": "scanner",
+            "detects": "open_ports,user_location",
+            "price": 10,
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value={"level": 1, "respect": 0, "hackcoins": 0}):
+            low_app = build_generated_app(payload, "low_creator", "Low")
+        with patch.object(run.user_store, "get_profile", return_value={"level": 50, "respect": 1000, "hackcoins": 100000}):
+            high_app = build_generated_app(payload, "high_creator", "High")
+
+        self.assertGreater(high_app["creator_power"], low_app["creator_power"])
+        self.assertGreater(high_app["quality_score"], low_app["quality_score"])
+        self.assertGreater(high_app["reliability"], low_app["reliability"])
+        self.assertGreater(high_app["price_hint"], low_app["price_hint"])
+
+    def test_generated_app_price_uses_balance_floor(self):
+        payload = {
+            "name": "Cheap Creator Tool",
+            "interface": "progressbar_random",
+            "type": "scanner",
+            "tool_family": "scanner_recon",
+            "tool_mode": "map",
+            "map_actions": ["scan_ports"],
+            "operation_types": ["wifi_scanner"],
+            "resource_types": ["wifi_networks"],
+            "target_types": ["router"],
+            "price": 1,
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value={"level": 5, "respect": 10, "hackcoins": 100}):
+            app = build_generated_app(payload, "cheap_creator", "Cheap")
+
+        self.assertGreater(app["price_hint"], 1)
+        self.assertEqual(app["price"], app["price_hint"])
+
+    def test_generated_app_preserves_explicit_gameplay_contract(self):
+        payload = {
+            "name": "Wizard Scanner",
+            "interface": "progressbar_random",
+            "type": "scanner",
+            "map_actions": ["scan_ports"],
+            "target_types": ["router", "server"],
+            "operation_types": ["wifi_scanner"],
+            "resource_types": ["wifi_networks"],
+            "price": 25,
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value={"level": 12, "respect": 120, "hackcoins": 1000}):
+            app = build_generated_app(payload, "wizard_creator", "Wizard")
+
+        self.assertEqual(app["map_actions"], ["scan_ports"])
+        self.assertEqual(app["map_actions_source"], "creator_explicit")
+        self.assertEqual(app["target_types"], ["router", "server"])
+        self.assertEqual(app["operation_types"], ["wifi_scanner"])
+        self.assertEqual(app["resource_types"], ["wifi_networks"])
+
+    def test_map_scanner_creator_generates_explicit_contract(self):
+        payload = {
+            "name": "Map Recon",
+            "interface": "progressbar_random",
+            "type": "scanner",
+            "tool_family": "scanner_recon",
+            "scanner_mode": "map",
+            "map_actions": ["scan_ports", "scan_hotspots"],
+            "target_types": ["router", "venue"],
+            "operation_types": ["wifi_scanner"],
+            "resource_types": ["wifi_networks", "internal_recon_state"],
+            "detects": ["open_ports"],
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value={"level": 10, "respect": 100, "hackcoins": 500}):
+            app = build_generated_app(payload, "scanner_creator", "Scanner")
+
+        self.assertEqual(app["tool_family"], "scanner_recon")
+        self.assertEqual(app["tool_mode"], "map")
+        self.assertEqual(app["scanner_mode"], "map")
+        self.assertEqual(app["map_actions"], ["scan_ports", "scan_hotspots"])
+        self.assertEqual(app["map_actions_source"], "creator_explicit")
+        self.assertEqual(app["target_types"], ["router", "venue"])
+        self.assertEqual(app["operation_types"], ["wifi_scanner"])
+        self.assertEqual(app["resource_types"], ["wifi_networks", "internal_recon_state"])
+
+    def test_desktop_scanner_creator_can_omit_map_actions(self):
+        payload = {
+            "name": "Desktop Recon",
+            "interface": "terminal",
+            "type": "scanner",
+            "tool_family": "scanner_recon",
+            "scanner_mode": "desktop",
+            "target_types": ["router", "server"],
+            "operation_types": ["generic_trace"],
+            "resource_types": ["internal_recon_state"],
+            "detects": ["open_ports"],
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value={"level": 8, "respect": 40, "hackcoins": 200}):
+            app = build_generated_app(payload, "scanner_creator", "Scanner")
+
+        self.assertEqual(app["tool_family"], "scanner_recon")
+        self.assertEqual(app["tool_mode"], "desktop")
+        self.assertEqual(app["scanner_mode"], "desktop")
+        self.assertEqual(app["map_actions"], [])
+        self.assertEqual(app["map_actions_source"], "creator_explicit")
+        self.assertEqual(app["target_types"], ["router", "server"])
+        self.assertEqual(app["operation_types"], ["generic_trace"])
+        self.assertEqual(app["resource_types"], ["internal_recon_state"])
+
+    def test_hybrid_scanner_creator_can_use_map_and_aimed_target_contract(self):
+        payload = {
+            "name": "Hybrid Recon",
+            "interface": "window",
+            "type": "scanner",
+            "tool_family": "scanner_recon",
+            "scanner_mode": "hybrid",
+            "map_actions": ["trace", "scan_ports"],
+            "target_types": ["poi", "player"],
+            "operation_types": ["generic_trace"],
+            "resource_types": ["location_history", "internal_recon_state"],
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value={"level": 20, "respect": 250, "hackcoins": 5000}):
+            app = build_generated_app(payload, "scanner_creator", "Scanner")
+
+        self.assertEqual(app["tool_family"], "scanner_recon")
+        self.assertEqual(app["tool_mode"], "hybrid")
+        self.assertEqual(app["scanner_mode"], "hybrid")
+        self.assertEqual(app["map_actions"], ["trace", "scan_ports"])
+        self.assertEqual(app["map_actions_source"], "creator_explicit")
+        self.assertEqual(app["operation_types"], ["generic_trace"])
+        self.assertEqual(app["resource_types"], ["location_history", "internal_recon_state"])
+
+    def test_map_exploit_creator_generates_explicit_contract(self):
+        payload = {
+            "name": "Map Exploit",
+            "interface": "button_choices",
+            "type": "exploit",
+            "tool_family": "exploit",
+            "tool_mode": "map",
+            "map_actions": ["exploit", "camera_shutdown"],
+            "target_types": ["camera", "router"],
+            "operation_types": ["camera_shutdown"],
+            "resource_types": ["internal_recon_state"],
+            "detects": ["weak_configs"],
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value={"level": 18, "respect": 220, "hackcoins": 2000}):
+            app = build_generated_app(payload, "exploit_creator", "Exploit")
+
+        self.assertEqual(app["tool_family"], "exploit")
+        self.assertEqual(app["tool_mode"], "map")
+        self.assertEqual(app["map_actions"], ["exploit", "camera_shutdown"])
+        self.assertEqual(app["map_actions_source"], "creator_explicit")
+        self.assertEqual(app["target_types"], ["camera", "router"])
+        self.assertEqual(app["operation_types"], ["camera_shutdown"])
+        self.assertEqual(app["resource_types"], ["internal_recon_state"])
+
+    def test_desktop_exploit_creator_can_omit_map_actions(self):
+        payload = {
+            "name": "Desktop Exploit",
+            "interface": "terminal",
+            "type": "exploit",
+            "tool_family": "exploit",
+            "tool_mode": "desktop",
+            "target_types": ["server"],
+            "operation_types": ["audio_interference"],
+            "resource_types": ["internal_recon_state"],
+            "detects": ["weak_configs"],
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value={"level": 12, "respect": 80, "hackcoins": 300}):
+            app = build_generated_app(payload, "exploit_creator", "Exploit")
+
+        self.assertEqual(app["tool_family"], "exploit")
+        self.assertEqual(app["tool_mode"], "desktop")
+        self.assertEqual(app["map_actions"], [])
+        self.assertEqual(app["map_actions_source"], "creator_explicit")
+        self.assertEqual(app["target_types"], ["server"])
+        self.assertEqual(app["operation_types"], ["audio_interference"])
+        self.assertEqual(app["resource_types"], ["internal_recon_state"])
+
+    def test_map_sniffer_creator_generates_explicit_contract(self):
+        payload = {
+            "name": "Map Sniffer",
+            "interface": "progressbar_random",
+            "type": "sniffer",
+            "tool_family": "sniffer",
+            "tool_mode": "map",
+            "map_actions": ["sniff", "atm_logs"],
+            "target_types": ["atm", "router"],
+            "operation_types": ["atm_log_extraction"],
+            "resource_types": ["atm_dump", "financial_records"],
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value={"level": 16, "respect": 140, "hackcoins": 1200}):
+            app = build_generated_app(payload, "sniffer_creator", "Sniffer")
+
+        self.assertEqual(app["tool_family"], "sniffer")
+        self.assertEqual(app["tool_mode"], "map")
+        self.assertEqual(app["map_actions"], ["sniff", "atm_logs"])
+        self.assertEqual(app["map_actions_source"], "creator_explicit")
+        self.assertEqual(app["operation_types"], ["atm_log_extraction"])
+        self.assertEqual(app["resource_types"], ["atm_dump", "financial_records"])
+
+    def test_hybrid_sniffer_creator_can_use_map_and_aimed_target_contract(self):
+        payload = {
+            "name": "Hybrid Sniffer",
+            "interface": "window",
+            "type": "sniffer",
+            "tool_family": "sniffer",
+            "tool_mode": "hybrid",
+            "map_actions": ["install_sniffer", "camera_stream"],
+            "target_types": ["camera", "server"],
+            "operation_types": ["persistent_sniffer", "camera_stream"],
+            "resource_types": ["credentials", "camera_dump", "internal_recon_state"],
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value={"level": 24, "respect": 300, "hackcoins": 7000}):
+            app = build_generated_app(payload, "sniffer_creator", "Sniffer")
+
+        self.assertEqual(app["tool_family"], "sniffer")
+        self.assertEqual(app["tool_mode"], "hybrid")
+        self.assertEqual(app["map_actions"], ["install_sniffer", "camera_stream"])
+        self.assertEqual(app["map_actions_source"], "creator_explicit")
+        self.assertEqual(app["operation_types"], ["persistent_sniffer", "camera_stream"])
+        self.assertEqual(app["resource_types"], ["credentials", "camera_dump", "internal_recon_state"])
+
+    def test_creator_tool_family_disables_legacy_map_action_inference(self):
+        payload = {
+            "name": "Desktop Family Tool",
+            "interface": "terminal",
+            "type": "exploit",
+            "tool_family": "exploit",
+            "tool_mode": "desktop",
+            "target_types": ["server"],
+            "operation_types": ["audio_interference"],
+            "resource_types": ["internal_recon_state"],
+            "detects": ["open_ports", "weak_configs"],
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value={"level": 10, "respect": 80, "hackcoins": 300}):
+            app = build_generated_app(payload, "exploit_creator", "Exploit")
+
+        self.assertEqual(app["map_actions"], [])
+        self.assertEqual(app["map_actions_source"], "creator_explicit")
+
+    def test_ghostlab_published_tool_has_app_contract(self):
+        project = {
+            "id": "glp_logs",
+            "name": "Log Reader Pro",
+            "slug": "log_reader_pro",
+            "icon": "GL",
+            "template_id": "system_log_reader",
+            "template_name": "System Log Reader",
+            "tool_category": "intel",
+            "blueprint": run.default_ghostlab_blueprint("system_log_reader"),
+        }
+        project["artifact"] = run.build_ghostlab_artifact(project, project["blueprint"], 1)
+        owner_profile = {"nick": "Builder", "level": 30, "respect": 450, "hackcoins": 12000}
+
+        app = run.build_ghostlab_googleplex_app(project, "builder", owner_profile)
+
+        self.assertEqual(app["type"], "pro-system-tool")
+        self.assertEqual(app["category"], "pro-system-tools")
+        self.assertEqual(app["source"], "ghostlab")
+        self.assertEqual(app["tool_family"], "scanner_recon")
+        self.assertEqual(app["tool_mode"], "desktop")
+        self.assertEqual(app["map_actions"], [])
+        self.assertEqual(app["map_actions_source"], "ghostlab_contract")
+        self.assertEqual(app["target_types"], ["player"])
+        self.assertEqual(app["operation_types"], [])
+        self.assertEqual(app["resource_types"], ["device_logs", "internal_recon_state"])
+        self.assertGreater(app["file_size"], 0)
+        self.assertGreaterEqual(app["disk_usage"], app["file_size"])
+        self.assertEqual(app["install_size"], app["disk_usage"])
+        self.assertGreater(app["quality_score"], 0)
+        self.assertGreater(app["reliability"], 0)
+
+    def test_ghostlab_published_tool_preserves_requirements_and_googleplex_shape(self):
+        project = {
+            "id": "glp_fin",
+            "name": "Financial Lab Tool",
+            "slug": "financial_lab_tool",
+            "template_id": "financial_sniffer",
+            "template_name": "Financial Sniffer",
+            "tool_category": "finance",
+            "blueprint": run.default_ghostlab_blueprint("financial_sniffer"),
+        }
+        project["artifact"] = run.build_ghostlab_artifact(project, project["blueprint"], 2)
+        owner_profile = {"nick": "Builder", "level": 40, "respect": 700, "hackcoins": 20000}
+
+        app = run.build_ghostlab_googleplex_app(project, "builder", owner_profile)
+        payload = googleplex_catalog_payload(app, {"hackcoins": 99999, "apps": []})
+
+        self.assertEqual(app["required_level"], 12)
+        self.assertEqual(app["required_respect"], 180)
+        self.assertEqual(app["purchase_account"], "builder")
+        self.assertEqual(app["tool_family"], "sniffer")
+        self.assertEqual(payload["id"], app["id"])
+        self.assertEqual(payload["type"], "pro-system-tool")
+        self.assertEqual(payload["map_actions"], [])
+        self.assertEqual(payload["operation_types"], [])
+        self.assertEqual(payload["resource_types"], ["financial_records", "internal_recon_state"])
+
+    def test_operation_quality_can_raise_generated_file_quality(self):
+        profile = {
+            "files": {
+                "gps": [{
+                    "name": "quality_demo.log",
+                    "source_operation_id": "op_quality",
+                    "resource_types": ["gps_logs"],
+                    "metadata": {"checkpoint_count": 1, "quality_score": 35},
+                }]
+            }
+        }
+        ensure_files_inventory(profile)
+        operation = {
+            "operation_id": "op_quality",
+            "source_app_quality": {
+                "creator_power": 90,
+                "quality_score": 82,
+                "reliability": 88,
+            },
+        }
+
+        changed = apply_operation_quality_to_files(profile, operation)
+        ensure_files_inventory(profile)
+        file_entry = profile["files"]["gps"][0]
+
+        self.assertTrue(changed)
+        self.assertEqual(file_entry["quality_score"], 82)
+        self.assertEqual(file_entry["metadata"]["source_app_quality_score"], 82)
+        self.assertEqual(file_entry["metadata"]["source_app_reliability"], 88)
+
+    def test_runtime_files_and_profile_get_soft_storage_usage(self):
+        profile = {
+            "apps": [
+                normalize_app_contract({
+                    "id": "gps_tracker_v1",
+                    "name": "GPS Tracker",
+                    "map_actions": ["trace_gps"],
+                    "operation_types": ["vehicle_tracking"],
+                    "resource_types": ["gps_logs"],
+                    "disk_usage": 20,
+                })
+            ],
+            "files": {
+                "gps": [{
+                    "name": "gps_demo.log",
+                    "resource_types": ["gps_logs", "location_history"],
+                    "metadata": {"checkpoint_count": 3},
+                }]
+            },
+        }
+
+        files = ensure_files_inventory(profile)
+        normalize_profile_storage(profile)
+
+        self.assertGreater(files["gps"][0]["file_size"], 0)
+        self.assertEqual(profile["storage_capacity"], 512)
+        self.assertEqual(profile["storage_unit"], "MB")
+        self.assertTrue(profile["storage_soft_limit"])
+        self.assertGreaterEqual(profile["storage_used"], 20 + files["gps"][0]["file_size"])
 
     def test_googleplex_catalog_payload_blocks_installed_and_missing_hc(self):
         app = normalize_app_contract({
@@ -516,6 +1043,211 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(installed_payload["install_blocked_reason"], "Aplikacja juz kupiona.")
         self.assertFalse(poor_payload["can_afford"])
         self.assertIn("Brak HC", poor_payload["install_blocked_reason"])
+
+    def test_uninstall_app_removes_profile_app_tool_and_recalculates_storage(self):
+        app = normalize_app_contract({
+            "id": "lifecycle_tool",
+            "name": "Lifecycle Tool",
+            "type": "scanner",
+            "price": 100,
+            "disk_usage": 30,
+            "map_actions": ["scan_ports"],
+            "operation_types": ["wifi_scanner"],
+            "resource_types": ["internal_recon_state"],
+        })
+        profile = {
+            "username": "tester",
+            "apps": [app],
+            "files": {
+                "tools": ["Lifecycle Tool.sh"],
+                "projects": ["Lifecycle Tool.sh"],
+            },
+            "storage_capacity": 512,
+        }
+        updates = {}
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                updates.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "tester"
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "UserProfileManager", FakeManager):
+            response = client.post("/api/apps/uninstall", json={
+                "app_id": "lifecycle_tool",
+                "tool_file": "Lifecycle Tool.sh",
+            })
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data["status"], "success")
+        self.assertTrue(data["removed_app"])
+        self.assertTrue(data["removed_tool"])
+        self.assertEqual(data["apps"], [])
+        self.assertNotIn("Lifecycle Tool.sh", data["files"]["tools"])
+        self.assertIn("Lifecycle Tool.sh", data["files"]["projects"])
+        self.assertEqual(updates["apps"], [])
+        self.assertNotIn("Lifecycle Tool.sh", updates["files"]["tools"])
+        self.assertLess(data["storage"]["used"], 30 + run.FILE_CATEGORY_SIZE_HINTS_MB["projects"])
+
+    def test_uninstall_app_is_idempotent_for_missing_app(self):
+        profile = {
+            "username": "tester",
+            "apps": [],
+            "files": {"tools": [], "projects": []},
+            "storage_capacity": 512,
+        }
+        updates = {}
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                updates.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "tester"
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "UserProfileManager", FakeManager):
+            response = client.post("/api/apps/uninstall", json={
+                "app_id": "missing_tool",
+                "tool_file": "Missing Tool.sh",
+            })
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data["status"], "noop")
+        self.assertTrue(data["success"])
+        self.assertFalse(data["removed_app"])
+        self.assertFalse(data["removed_tool"])
+        self.assertEqual(data["apps"], [])
+        self.assertEqual(data["files"]["tools"], [])
+        self.assertEqual(updates["apps"], [])
+
+    def test_uninstall_seed_and_ghostlab_apps_only_changes_profile(self):
+        seed_app = normalize_app_contract({
+            "id": "seed_scan",
+            "name": "Seed Scan",
+            "type": "scanner",
+            "price": 120,
+            "map_actions": ["scan_ports"],
+            "operation_types": ["wifi_scanner"],
+            "resource_types": ["internal_recon_state"],
+        })
+        ghostlab_app = normalize_app_contract({
+            "id": "ghostlab_tool",
+            "name": "GhostLab Tool",
+            "type": "pro-system-tool",
+            "category": "pro-system-tools",
+            "ghostlab_generated": True,
+            "price": 3000,
+            "project_file": "GhostLab Tool.sh",
+            "resource_types": ["internal_recon_state"],
+        }, infer_legacy=False)
+        profile = {
+            "username": "tester",
+            "apps": [seed_app, ghostlab_app],
+            "files": {
+                "tools": ["Seed Scan.sh", "GhostLab Tool.sh"],
+                "projects": ["GhostLab Tool.glab"],
+            },
+            "storage_capacity": 512,
+        }
+        updates = {}
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+                updates.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "tester"
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run.resources_store, "set", side_effect=AssertionError("catalog should not change")):
+            ghost_response = client.post("/api/apps/uninstall", json={
+                "app_id": "ghostlab_tool",
+                "tool_file": "GhostLab Tool.sh",
+            })
+            seed_response = client.post("/api/apps/uninstall", json={
+                "app_id": "seed_scan",
+                "tool_file": "Seed Scan.sh",
+            })
+
+        self.assertEqual(ghost_response.status_code, 200)
+        self.assertEqual(seed_response.status_code, 200)
+        self.assertEqual(seed_response.get_json()["apps"], [])
+        self.assertEqual(updates["files"]["tools"], [])
+        self.assertEqual(updates["files"]["projects"], ["GhostLab Tool.glab"])
+
+    def test_generated_app_install_tools_uninstall_lifecycle(self):
+        payload = {
+            "name": "Lifecycle Generated",
+            "interface": "progressbar_random",
+            "type": "scanner",
+            "tool_family": "scanner_recon",
+            "tool_mode": "map",
+            "map_actions": ["scan_ports"],
+            "target_types": ["router"],
+            "operation_types": ["wifi_scanner"],
+            "resource_types": ["internal_recon_state"],
+            "price": 1,
+        }
+        with patch.object(run.user_store, "get_profile", return_value={"level": 12, "respect": 100, "hackcoins": 1000}):
+            app = build_generated_app(payload, "tester", "Tester")
+        profile = {
+            "username": "tester",
+            "nick": "Tester",
+            "hackcoins": 10000,
+            "apps": [],
+            "files": {"tools": [], "projects": []},
+            "storage_capacity": 512,
+            "system_messages": [],
+        }
+        store = [dict(app)]
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "tester"
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run.resources_store, "get", return_value=store), \
+                patch.object(run.resources_store, "set", side_effect=lambda key, value: store[:] == value), \
+                patch.object(run, "get_app_catalog", return_value=store):
+            install_response = client.post("/install-app", json={"app_id": app["id"]})
+            install_data = install_response.get_json()
+            self.assertEqual(install_response.status_code, 200)
+            self.assertEqual(install_data["status"], "success")
+            self.assertTrue(any(item.get("id") == app["id"] for item in profile["apps"]))
+            self.assertIn(f"{app['name']}.sh", profile["files"]["tools"])
+            uninstall_response = client.post("/api/apps/uninstall", json={
+                "app_id": app["id"],
+                "tool_file": f"{app['name']}.sh",
+            })
+
+        uninstall_data = uninstall_response.get_json()
+        self.assertEqual(uninstall_response.status_code, 200)
+        self.assertEqual(uninstall_data["status"], "success")
+        self.assertFalse(any(item.get("id") == app["id"] for item in uninstall_data["apps"]))
+        self.assertNotIn(f"{app['name']}.sh", uninstall_data["files"]["tools"])
 
     def test_create_operation_for_app_action_adds_runtime_operation(self):
         profile = {"operations": []}

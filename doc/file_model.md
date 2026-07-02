@@ -83,6 +83,125 @@ Pliki w `/tools`:
 * mogą być usuwane lub instalowane przez mechanikę Googleplex,
 * nie są sprzedawane jako dane z operacji.
 
+### Aplikacja jako plik z wagą
+
+Po Sprincie 21 aplikacja w `/tools` jest traktowana jako obiekt inventory,
+ale nadal nie jest lootem danych.
+
+Docelowe pola:
+
+| Pole | Znaczenie |
+| --- | --- |
+| `file_size` | Waga paczki aplikacji widoczna w Googleplex i File Managerze. |
+| `disk_usage` | Miejsce zajęte po instalacji aplikacji w profilu gracza. |
+| `storage_capacity` | Maksymalna pojemność profilu/urządzenia gracza. |
+| `storage_used` | Suma miejsca zajętego przez aplikacje, pliki danych i projekty. |
+
+Decision:
+
+* Przyjęto: aplikacje w `/tools` liczą się do przyszłej pojemności, ale nie są sprzedawalnymi zasobami Ghost Exchange.
+* Przyjęto: jeśli aplikacja nie ma `file_size` albo `disk_usage`, runtime może użyć wartości domyślnej dopiero w Sprincie 22.
+* Przyjęto: katalog `/tools` ma pokazywać, dlaczego narzędzie pasuje do akcji mapy, ale samo dopasowanie dalej wynika z `app.map_actions`.
+
+### Waga aplikacji a waga pliku danych
+
+Sprint 21.5 rozdziela trzy pojęcia, które nie powinny być mieszane:
+
+| Pojęcie | Dotyczy | Znaczenie |
+| --- | --- | --- |
+| `app.file_size` | aplikacji w Googleplex / `/tools` | Rozmiar paczki aplikacji widoczny przed instalacją. |
+| `app.disk_usage` | aplikacji po instalacji | Ile miejsca aplikacja zajmuje w przyszłym limicie dysku. |
+| `file.file_size` | pliku danych w `/data/*` | Rozmiar wygenerowanej paczki danych, dumpa albo logu. |
+
+Zasady:
+
+* aplikacja w `/tools` nie jest `resource_type`,
+* plik danych w `/data/*` może mieć `resource_types`,
+* aplikacja nie trafia do Ghost Exchange jako loot,
+* plik danych może trafić do Ghost Exchange, jeśli ma `sellable: true`,
+* `storage_used` docelowo sumuje aplikacje, dane i projekty, ale Sprint 21.5
+  nie wprowadza jeszcze blokady pojemności.
+
+Decision:
+
+* Przyjęto: runtime może normalizować brakujące wagi dopiero od Sprintu 22.
+* Przyjęto: kreator z Sprintu 25 musi pokazywać wagę aplikacji przed publikacją.
+
+### Sprint 22 — miękka pojemność
+
+Sprint 22 implementuje miękki model pojemności:
+
+| Pole | Runtime |
+| --- | --- |
+| `profile.storage_capacity` | Domyślnie `512 MB`. |
+| `profile.storage_used` | Wyliczane z zainstalowanych aplikacji, plików danych i projektów. |
+| `profile.storage_unit` | `MB`. |
+| `profile.storage_soft_limit` | `true`; przekroczenie limitu jest ostrzeżeniem. |
+| `profile.storage_over_limit` | Flaga informacyjna, nie blokada. |
+
+Zasady Sprintu 22:
+
+* instalacja aplikacji nie jest blokowana przez brak miejsca,
+* File Manager pokazuje pasek użycia dysku,
+* Googleplex pokazuje `file_size` i `disk_usage/install_size`,
+* nowe pliki gameplayowe dostają domyślne `file_size`,
+* sprzedaż pliku przelicza `storage_used`, bo plik znika z `/data`.
+
+Decision:
+
+* Przyjęto: jednostką Sprintu 22 jest umowne `MB`, wystarczające dla UI i balansu.
+* Przyjęto: twardy limit pojemności zostaje na późniejszy sprint, po przetestowaniu balansu.
+
+### Waga narzędzia a balans ceny po Sprincie 29
+
+Sprint 29 wiąże wagę aplikacji z miękką wyceną narzędzia:
+
+* `file_size` mówi, jak duża jest paczka narzędzia,
+* `disk_usage` / `install_size` mówi, ile miejsca zajmuje po instalacji,
+* większa liczba `map_actions`, `operation_types` i `resource_types` zwykle
+  podnosi wagę oraz `power_score`,
+* `price_hint` rośnie razem z wagą, jakością i zakresem działania.
+
+To nadal jest miękki model:
+
+* brak miejsca na dysku nie blokuje jeszcze instalacji,
+* `storage_used` jest informacją dla gracza,
+* ręczne ceny seed/legacy aplikacji pozostają kompatybilne,
+* nowe aplikacje z kreatorów korzystają z `price_hint` jako minimalnej ceny
+  publikacji.
+
+Decision:
+
+* Przyjęto: pojemność dysku pozostaje elementem UX i balansu decyzji, ale nie
+  jest jeszcze twardą bramką progresji.
+
+### Uninstall narzędzia po Sprincie 30
+
+Od Sprintu 30 aplikacja w `/tools` jest normalnym elementem inventory gracza,
+ale jej odinstalowanie nie jest tym samym co usunięcie projektu lub publikacji.
+
+Uninstall:
+
+* usuwa aplikację z `profile.apps`,
+* usuwa odpowiadający wpis z `files.tools`,
+* przelicza `profile.storage_used`,
+* zostawia `files.projects`,
+* zostawia katalog Googleplex i `json_resources.app_config`,
+* działa idempotentnie, jeśli aplikacji już nie ma.
+
+Nie robi:
+
+* usuwania seed app z katalogu Googleplex,
+* wycofania generated app z katalogu,
+* usunięcia projektu `.glab` albo projektu kreatora,
+* twardego storage enforcement.
+
+Decision:
+
+* Przyjęto: `files.tools` reprezentuje instalację narzędzia u gracza, a
+  `files.projects` reprezentuje projekt/źródło. Te dwa byty nie są usuwane tą
+  samą akcją.
+
 ### Katalogi danych są częścią ekonomii gry
 
 Katalogi `/data/*` są głównym inventory danych.
@@ -335,6 +454,27 @@ Sprawdzone względem:
 * Przyjęto: `file_category = media` z wcześniejszych dokumentów mapuje się na `camera`.
 * Przyjęto: `file_category = secrets` z wcześniejszych dokumentów mapuje się na `credentials`.
 * Przyjęto: project files nie są sprzedawalnymi resource files. Publikacja projektów będzie osobnym flow creatorów/GhostLab.
+
+### Sprint 25 — projekty kreatorów
+
+AppForge, TermCreator, WindowMaker i ButtonMaker nadal zapisują projekt w
+`files.projects` po publikacji przez `/api/apps/generate`.
+
+Zasady:
+
+* projekt kreatora nie jest lootem danych,
+* projekt nie trafia do Ghost Exchange,
+* opublikowana aplikacja trafia do katalogu Googleplex jako rekord
+  `json_resources.app_config`,
+* zainstalowana aplikacja trafia do `/tools`,
+* waga aplikacji (`file_size`, `disk_usage`) dotyczy narzędzia w `/tools`, a nie
+  samego projektu w `/projects`,
+* krokowy wizard jest UX-em nad istniejącym flow, nie nowym systemem plików.
+
+Decision:
+
+* Przyjęto: Sprint 25 nie zmienia sposobu przechowywania projektów. Porządkuje
+  tylko to, jakie pola kontraktu gracz widzi przed publikacją.
 
 ---
 

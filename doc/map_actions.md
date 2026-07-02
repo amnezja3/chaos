@@ -24,6 +24,81 @@ Menu mapy nie powinno zakładać efektu końcowego wyłącznie po `map_action_id
 
 ---
 
+## Klasyfikacja narzędzi mapy
+
+Tool selection używa `app.map_actions` jako głównego routera. Pola legacy
+takie jak `type`, `detects`, `affects` i `interferes_with` mogą pomagać tylko
+w migracji starych aplikacji.
+
+Zasady po Sprincie 24:
+
+* jawny kontrakt aplikacji wygrywa z inferencją legacy,
+* `map_actions_source: migration_inferred` jest oznaczeniem wymagającym review,
+* `map_actions_source: legacy_inferred` jest runtime fallbackiem dla starych
+  aplikacji,
+* fallback legacy można wyłączyć w dev/test przez
+  `CHAOS_LEGACY_MAP_ACTION_FALLBACK=false`,
+* `scan_ports` pokazuje narzędzia scanner/recon,
+* `exploit` pokazuje exploity i exploit suites,
+* `sniff` pokazuje sniffery i narzędzia czytające ruch,
+* `trace_gps` pokazuje trackery GPS,
+* `exploit_suite` nie powinno być pokazywane przy `scan_ports`, jeśli ta akcja
+  pochodzi tylko z migracji albo domysłu.
+
+Decision:
+
+* Przyjęto: PenCombo / `exploit_suite` nie jest scannerem dla `scan_ports`.
+* Przyjęto: hybrydowe narzędzie może obsługiwać `scan_ports` i `exploit` tylko
+  wtedy, gdy ma jawne `map_actions` bez źródła legacy.
+
+### Scanner / Recon actions po Sprincie 26
+
+Scanner / Recon nie jest równy `scan_ports`. Kreator scannerów może proponować
+różne akcje rozpoznania, zależnie od trybu:
+
+| Tryb | Sensowne akcje mapy | Uwaga |
+| --- | --- | --- |
+| Scanner mapowy | `scan_ports`, `trace`, `trace_gps`, `trace_device`, `scan_hotspots`, `camera_stream` | Działa z menu mapy i wymaga jawnego `app.map_actions`. |
+| Scanner desktopowy | brak wymaganych `map_actions` | Działa na aktualny `aimed_target`; nie powinien dostać akcji z fallbacku legacy. |
+| Scanner hybrydowy | jak scanner mapowy, ale z możliwością działania z desktopu | Nadal używa jawnych `map_actions`, jeśli ma być widoczny na mapie. |
+
+Zasady:
+
+* `scan_ports` pozostaje rozpoznaniem procesu, nie lootem danych,
+* `trace` / `trace_gps` / `trace_device` mogą tworzyć operacje śledzenia,
+* `scan_hotspots` może tworzyć `wifi_scanner`,
+* `camera_stream` może być użyte jako recon/surveillance tylko wtedy, gdy
+  aplikacja jawnie deklaruje ten kontrakt,
+* `exploit`, `sniff` i `install_sniffer` należą do kolejnej ścieżki kreatora,
+  nie do podstawowego Scanner / Recon Path.
+
+### Exploit / Sniffer actions po Sprincie 27
+
+Exploit i Sniffer są osobnymi rodzinami kreatora. Nie powinny wracać do
+scannerów przez fallback migracyjny.
+
+| Rodzina | Sensowne akcje mapy | Uwagi |
+| --- | --- | --- |
+| Exploit | `exploit`, `camera_shutdown`, `install_sniffer`, `audio_hack`, `car_hack` | Symulowany wpływ na cel, support operation albo operacja produkująca dane zależnie od kontraktu. |
+| Sniffer | `sniff`, `mic_sniff`, `atm_logs`, `install_sniffer`, `camera_stream` | Obserwacja, podsłuch, implant albo zbieranie danych przez operację gry. |
+
+Tryb desktopowy:
+
+* może mieć puste `map_actions`,
+* działa na aktualny `aimed_target`,
+* nadal powinien mieć jawne `target_types`, `operation_types` i
+  `resource_types`,
+* nie powinien dostawać akcji z `type/detects`.
+
+Decision:
+
+* Przyjęto: `install_sniffer` może pojawić się w rodzinie Exploit i Sniffer,
+  bo gameplayowo jest hybrydą wpływu na cel i późniejszej obserwacji.
+* Przyjęto: `camera_stream` w rodzinie Sniffer oznacza obserwację/surveillance,
+  nie exploit.
+
+---
+
 ## Tabela map_actions
 
 | map_action_id | label | menu_group | target_types | requires_app | default_operation_type | default_resource_types | active_operation | trade_resources | risk_signal | notes |

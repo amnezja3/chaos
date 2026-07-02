@@ -483,6 +483,151 @@ Nie zastępuje:
 
 ---
 
+## file_size
+
+Waga paczki aplikacji albo pliku widoczna dla gracza.
+
+Użycie:
+
+* Googleplex,
+* File Manager,
+* preview instalacji,
+* przyszłe limity pojemności.
+
+Nie zastępuje:
+
+* `price`,
+* `disk_usage`,
+* `resource_type`.
+
+`file_size` mówi, jak duży jest artefakt. Dla aplikacji może oznaczać rozmiar
+pakietu w `/tools`; dla danych może oznaczać wagę pliku w `/data/*`.
+
+---
+
+## disk_usage
+
+Miejsce zajmowane po instalacji albo zapisaniu w inventory.
+
+Użycie:
+
+* przyszłe `storage_used`,
+* walidacja instalacji,
+* ostrzeżenia o zapełnieniu dysku.
+
+Nie zastępuje:
+
+* `file_size`,
+* `storage_capacity`,
+* ceny aplikacji.
+
+`disk_usage` może być większe niż `file_size`, bo zainstalowana aplikacja może
+zajmować więcej miejsca niż sama paczka.
+
+---
+
+## quality_score
+
+Liczbowa jakość narzędzia albo danych.
+
+Użycie:
+
+* kompletność plików,
+* preview wartości w Ghost Exchange,
+* przyszły wpływ poziomu twórcy na aplikację.
+
+Nie zastępuje:
+
+* `app.map_actions`,
+* `reliability`,
+* `risk_level`.
+
+`quality_score` mówi, jak dobry jest wynik, ale nie decyduje, czy aplikacja
+może obsłużyć akcję mapy.
+
+---
+
+## reliability
+
+Przewidywana niezawodność aplikacji.
+
+Użycie:
+
+* ryzyko awarii,
+* skuteczność operacji,
+* przyszły balans narzędzi.
+
+Nie zastępuje:
+
+* `quality_score`,
+* `risk_event`,
+* `operation_type`.
+
+`reliability` mówi, jak stabilnie narzędzie działa, a nie jak wartościowe dane
+produkuje.
+
+---
+
+## creator_power
+
+Syntetyczna moc twórcy aplikacji.
+
+Użycie:
+
+* przyszłe kreatory,
+* jakość generowanej aplikacji,
+* niezawodność,
+* balans ceny i wymagań.
+
+Nie zastępuje:
+
+* `required_level`,
+* `required_respect`,
+* `creator_username`.
+
+`creator_power` jest parametrem tworzenia narzędzia, a nie identyfikatorem
+twórcy ani warunkiem zakupu.
+
+---
+
+## creator_wizard_step
+
+Krok w istniejącym kreatorze aplikacji.
+
+Użycie:
+
+* AppForge,
+* TermCreator,
+* WindowMaker,
+* ButtonMaker,
+* przyszły Googleplex Tool Laboratory.
+
+Nie zastępuje:
+
+* `app.interface`,
+* `app.map_actions`,
+* `operation_type`,
+* endpointu publikacji.
+
+Sprint 25 przyjmuje następujące kroki:
+
+| Krok | Znaczenie |
+| --- | --- |
+| `meta` | Nazwa, opis, ikona i cena aplikacji. |
+| `tool_type` | Typ narzędzia i rozpoznawane cechy. |
+| `environment` | Sposób uruchomienia UI i `target_types`. |
+| `map_actions` | Jawne intencje mapy obsługiwane przez aplikację. |
+| `operations` | Operacje, które aplikacja może utworzyć. |
+| `resources` | Zasoby, które aplikacja może produkować. |
+| `risk` | Pola ryzyka i wpływu na system celu. |
+| `storage_quality_preview` | Podgląd wagi, jakości i niezawodności. |
+| `publish` | Publikacja do Googleplex przez istniejący endpoint. |
+
+`creator_wizard_step` opisuje UX prowadzenia gracza. Nie jest osobnym modelem
+runtime i nie tworzy nowej ścieżki publikacji.
+
+---
+
 ## Decyzje człowieka
 
 * `phone` zostaje rozwijanym `target_type` na potrzeby kontraktu gameplayu. Implementacyjnie może być później powiązany z `person`, `player` albo urządzeniem, ale nie blokujemy go teraz.
@@ -493,3 +638,19 @@ Nie zastępuje:
 
 * Doprecyzować, czy `phone` będzie widoczny jako osobny marker mapy, czy jako urządzenie przypięte do `person` / `player`.
 * Dopisać docelowe realne `source_type` dla `router` i `server`, poza mockami.
+## Guided creator UX
+
+Sprint 30.5 dodaje do kreatorów warstwę prowadzenia gracza przez decyzje.
+
+| Pojęcie | Znaczenie | Czego nie zastępuje |
+| --- | --- | --- |
+| `guided_step` | Krok kreatora pokazujący jedną decyzję naraz. | Nie jest nowym runtime ani nowym endpointem. |
+| `subtitle` | Krótki kontekst kroku. | Nie zastępuje opisu aplikacji. |
+| `educational_note` | Bezpieczne skojarzenie edukacyjne z klasą narzędzia. | Nie jest instrukcją techniczną. |
+| `gameplay_hint` | Konsekwencja decyzji w świecie gry. | Nie zastępuje walidacji kontraktu. |
+
+Decision:
+
+* Przyjęto: guided UX tłumaczy istniejące pola kontraktu językiem gracza.
+* Przyjęto: narracja nie podaje nazw realnych narzędzi ani instrukcji
+  ofensywnych.

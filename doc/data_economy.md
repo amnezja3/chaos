@@ -359,6 +359,98 @@ Decision:
 * Przyjęto: pierwsza wersja rynku może liczyć cenę deterministycznie z metadanych pliku, bez aukcji i bez negocjacji.
 * Przyjęto: `buyer_demand` może być na start statycznym mnożnikiem kategorii, a dopiero później dynamicznym systemem.
 
+### Jakość narzędzia jako źródło jakości danych
+
+Od Sprintu 23 `quality` pliku może pochodzić z dwóch źródeł:
+
+* jakości samego materiału/danych,
+* `quality_score` aplikacji, która uruchomiła operację.
+
+Flow:
+
+```text
+app.quality_score
+↓
+operation.source_app_quality
+↓
+file.quality_score
+↓
+Ghost Exchange quality_multiplier
+```
+
+Zasady:
+
+* lepsza aplikacja może podnieść `file.quality_score`,
+* `reliability` jest przygotowana pod przyszłe awarie i ryzyko,
+* Sprint 23 nie zmienia jeszcze finalnego pricingu poza użyciem istniejącego
+  `quality_multiplier`,
+* jakość nie zastępuje kompletności; dobry tool może zebrać mało danych, ale w
+  lepszej jakości.
+
+Decision:
+
+* Przyjęto: Ghost Exchange nadal korzysta z `file.quality_score`, a aplikacje
+  wpływają na ten parametr przez operację i finalizację pliku.
+
+### Tool Balance Pass po Sprincie 29
+
+Sprint 29 porządkuje relację między ceną aplikacji a jej kontraktem. To pierwszy
+balance pass, nie finalna ekonomia narzędzi.
+
+Nowe pola aplikacji:
+
+* `power_score` - miękki wskaźnik siły narzędzia,
+* `price_hint` - sugerowana cena narzędzia,
+* `balance_tier` - Basic / Advanced / Pro,
+* `recommended_level` i `recommended_respect` - miękkie rekomendacje progresji.
+
+Heurystyka:
+
+```text
+contract scope
+↓
+file_size / disk_usage
+↓
+quality_score / reliability
+↓
+risk / pro-system status
+↓
+power_score
+↓
+price_hint
+```
+
+Zasady:
+
+* lepsze i szersze narzędzie ma wyższy `power_score`,
+* cięższe narzędzie ma wyższy `price_hint`,
+* `pro-system-tool` dostaje wyższą wagę i wyższą sugerowaną cenę,
+* aplikacje generowane przez kreatory nie publikują się poniżej własnego
+  `price_hint`,
+* seed/legacy aplikacje zachowują ręczne ceny, ale pokazują `price_hint` w UI.
+
+Decision:
+
+* Przyjęto: Sprint 29 nie wprowadza dynamicznego popytu, frakcji kupujących ani
+  nowego modelu sklepu.
+* Przyjęto: cena narzędzia jest na razie miękko wyjaśniana przez `price_hint`,
+  a nie przeliczana globalnie dla całego katalogu.
+
+### Uninstall a ekonomia po Sprincie 30
+
+Odinstalowanie aplikacji:
+
+* nie jest sprzedażą,
+* nie zwraca automatycznie HC,
+* nie usuwa aplikacji z Googleplex,
+* nie zmienia historii rynku danych,
+* zwalnia tylko miejsce w miękkim modelu storage gracza.
+
+Decision:
+
+* Przyjęto: refundy, odsprzedaż aplikacji i wtórny rynek narzędzi nie są częścią
+  Googleplex Tool Laboratory v1.
+
 ---
 
 ## Data lifecycle

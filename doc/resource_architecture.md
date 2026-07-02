@@ -84,6 +84,40 @@ profile.apps + profile.files.tools
 /hack-action -> app.map_actions -> operations
 ```
 
+## Creator Publish Flow
+
+Sprint 25 keeps the existing publish path for player-created applications.
+
+```text
+AppForge / TermCreator / WindowMaker / ButtonMaker
+        |
+        v
+creator wizard draft contract
+        |
+        v
+POST /api/apps/generate
+        |
+        v
+json_resources.app_config
+        |
+        v
+Googleplex
+        |
+        v
+/install-app
+        |
+        v
+profile.apps + profile.files.tools
+```
+
+Rules:
+
+* creators do not write to `static/app_config.json`,
+* creators do not create a second catalog,
+* generated apps should carry explicit `map_actions` when the player selected
+  them in the wizard,
+* project files remain in `profile.files.projects`.
+
 ## Active Seed Keys
 
 `JsonResourceStore.seed_static_directory()` only seeds the approved resource
@@ -119,4 +153,3 @@ as runtime resources by default.
   JSON files.
 * Decision: legacy JSON files stay in the repository for now, documented as
   reference/demo content rather than deleted.
-

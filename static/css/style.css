@@ -1529,6 +1529,29 @@ form button:hover {
   color: #eaffdf;
 }
 
+.ghostlab-contract-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+  margin-top: 10px;
+  border: 1px solid rgba(120, 255, 68, 0.18);
+  background: rgba(0, 0, 0, 0.18);
+  padding: 9px;
+  font-size: 12px;
+}
+
+.ghostlab-contract-preview span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9fcfa5;
+}
+
+.ghostlab-contract-preview b {
+  color: #eaffdf;
+}
+
 .ghostlab-exchange-layout {
   display: grid;
   gap: 14px;
@@ -2423,6 +2446,40 @@ form button:hover {
     padding: 7px 9px;
     font-size: 0.82rem;
 }
+.file-manager-storage {
+    border: 1px solid rgba(0, 255, 102, 0.32);
+    background: rgba(0, 20, 8, 0.42);
+    padding: 7px 9px;
+    margin: 0 0 10px;
+    color: #baffc6;
+    font-size: 0.78rem;
+}
+.file-manager-storage-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+}
+.file-manager-storage-bar {
+    height: 7px;
+    border: 1px solid rgba(0, 255, 102, 0.38);
+    background: rgba(0, 0, 0, 0.6);
+    margin-top: 5px;
+    overflow: hidden;
+}
+.file-manager-storage-bar span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #0f0, #9cffc2);
+}
+.file-manager-storage-warning,
+.file-manager-tool-meta {
+    display: block;
+    color: #f4df7b;
+    font-size: 0.72rem;
+    margin-left: 46px;
+    flex: 1 1 100%;
+}
 .file-manager-icon {
     font-size: 1.1em;
     flex: 0 0 38px;
@@ -2953,6 +3010,165 @@ form button:hover {
   gap: 10px;
 }
 
+.creator-wizard {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+}
+
+.creator-wizard-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.creator-wizard-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid #174f2b;
+  background: #06100a;
+  color: #8affaa;
+  padding: 7px;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 11px;
+  text-align: left;
+}
+
+.creator-wizard-tab span {
+  display: grid;
+  place-items: center;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #1d6b37;
+  color: #d7ffe1;
+}
+
+.creator-wizard-tab.active {
+  border-color: #00d15a;
+  background: #0b2a16;
+  color: #d7ffe1;
+}
+
+.creator-step-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.creator-step-panel[hidden] {
+  display: none;
+}
+
+.creator-step-panel h4 {
+  margin: 0;
+  color: #d7ffe1;
+}
+
+.creator-step-narrative {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #1d6b37;
+  background: #041007;
+  padding: 10px;
+}
+
+.creator-step-narrative h4 {
+  margin: 0;
+  color: #d7ffe1;
+  font-size: 16px;
+}
+
+.creator-step-narrative p,
+.creator-step-narrative small,
+.creator-step-narrative em {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.creator-step-narrative small {
+  color: #baf7c8;
+}
+
+.creator-step-narrative em {
+  color: #ffeaa0;
+  font-style: normal;
+}
+
+.creator-step-kicker {
+  color: #6fbf89;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.creator-step-note {
+  margin: 0;
+  color: #9cffb0;
+  font-size: 12px;
+}
+
+.creator-scanner-box {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #1d6b37;
+  background: #06100a;
+  padding: 10px;
+}
+
+.creator-scanner-box[hidden] {
+  display: none;
+}
+
+.creator-panel-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.creator-readonly-contract {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #1d6b37;
+  background: #06100a;
+  padding: 9px;
+  color: #9cffb0;
+}
+
+.creator-preview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 12px;
+  border: 1px solid #1d6b37;
+  background: #06100a;
+  padding: 10px;
+  color: #9cffb0;
+  font-size: 12px;
+}
+
+.creator-contract-preview {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid #1d6b37;
+  background: #020503;
+  color: #d7ffe1;
+  padding: 10px;
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+
+.creator-interface-slot {
+  display: grid;
+  gap: 10px;
+}
+
 .appforge-form label {
   display: grid;
   gap: 4px;
@@ -3066,6 +3282,10 @@ form button:hover {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px 10px;
+}
+
+.creator-contract-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .appforge-check {

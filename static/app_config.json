@@ -871,8 +871,7 @@
     ],
     "downloads": 7,
     "map_actions": [
-      "exploit",
-      "scan_ports"
+      "exploit"
     ],
     "map_actions_source": "migration_inferred",
     "target_types": [
