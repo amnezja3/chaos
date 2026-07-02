@@ -353,6 +353,13 @@
       pointer-events: none !important;
     }
 
+    .custom-text-icon,
+    .friend-player-marker,
+    .area-intruder-marker,
+    .territory-contest-target {
+      overflow: hidden !important;
+    }
+
     .clan-vulnerability-pin {
       display: flex;
       flex-direction: column;
@@ -755,16 +762,47 @@
         function rememberTargetLayer(lat, lng, label, layer) {
             const key = targetLayerKey(lat, lng, label);
             const previous = targetLayerRegistry.get(key);
-            if (previous && map.hasLayer(previous)) {
-                map.removeLayer(previous);
+            if (previous) {
+                removeMapLayerSafe(previous);
             }
             targetLayerRegistry.set(key, layer);
             return layer;
         }
 
+        function consumeMapContextEvent(e) {
+            const original = e && (e.originalEvent || e);
+            if (!original) return;
+            if (original.preventDefault) original.preventDefault();
+            if (original.stopPropagation) original.stopPropagation();
+            if (original.stopImmediatePropagation) original.stopImmediatePropagation();
+            if (window.L && L.DomEvent && L.DomEvent.stop) {
+                L.DomEvent.stop(original);
+            }
+            lastContextWasMarker = true;
+        }
+
+        function removeMapLayerSafe(layer) {
+            if (!layer) return;
+            if (typeof layer.closeTooltip === 'function') layer.closeTooltip();
+            if (typeof layer.unbindTooltip === 'function') layer.unbindTooltip();
+            if (map.hasLayer(layer)) map.removeLayer(layer);
+        }
+
+        function isSaneTerritoryPolygon(points) {
+            if (!Array.isArray(points) || points.length < 3) return false;
+
+            const lats = points.map(point => Number(point[0])).filter(Number.isFinite);
+            const lngs = points.map(point => Number(point[1])).filter(Number.isFinite);
+            if (lats.length !== points.length || lngs.length !== points.length) return false;
+
+            const latSpan = Math.max(...lats) - Math.min(...lats);
+            const lngSpan = Math.max(...lngs) - Math.min(...lngs);
+            return latSpan <= 0.25 && lngSpan <= 0.25;
+        }
+
         function clearScanResultLayers() {
             scanResultLayers.forEach(layer => {
-                if (map.hasLayer(layer)) map.removeLayer(layer);
+                removeMapLayerSafe(layer);
             });
             scanResultLayers = [];
         }
@@ -782,55 +820,9 @@
                 if (vulnerabilityTargetKey(layerTarget) !== targetKey) {
                     return true;
                 }
-                if (map.hasLayer(layer)) {
-                    map.removeLayer(layer);
-                }
+                removeMapLayerSafe(layer);
                 return false;
             });
-        }
-
-        function getNearestScanTarget(containerPoint, fallbackTarget) {
-            let best = null;
-            scanResultLayers.forEach(layer => {
-                if (!map.hasLayer(layer) || !layer.getLatLng || !layer._scanTarget) return;
-                const point = map.latLngToContainerPoint(layer.getLatLng());
-                const dx = point.x - containerPoint.x;
-                const dy = point.y - containerPoint.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const generatedPenalty = layer._scanTarget.generated ? 10 : 0;
-                const score = distance + generatedPenalty;
-                if (!best || score < best.score) {
-                    best = {
-                        target: layer._scanTarget,
-                        score,
-                        distance
-                    };
-                }
-            });
-
-            if (best && best.distance <= 46) {
-                return best.target;
-            }
-            return fallbackTarget;
-        }
-
-        function handleScanContextFromDomEvent(event) {
-            if (!scanResultLayers.length) return false;
-
-            const point = map.mouseEventToContainerPoint(event);
-            const pickedTarget = getNearestScanTarget(point, null);
-            if (!pickedTarget) return false;
-
-            event.preventDefault();
-            event.stopPropagation();
-            if (event.stopImmediatePropagation) {
-                event.stopImmediatePropagation();
-            }
-
-            document.querySelectorAll('.context-menu').forEach(el => el.remove());
-            showMarkerContextMenu(point.x, point.y, pickedTarget, pickedTarget.icon, pickedTarget.label);
-            lastContextWasMarker = true;
-            return true;
         }
 
         function removeScanResultAt(lat, lng) {
@@ -840,7 +832,7 @@
                 if (!layer.getLatLng) return true;
                 const pos = layer.getLatLng();
                 const matches = Number(pos.lat).toFixed(6) === wantedLat && Number(pos.lng).toFixed(6) === wantedLng;
-                if (matches && map.hasLayer(layer)) map.removeLayer(layer);
+                if (matches) removeMapLayerSafe(layer);
                 return !matches;
             });
         }
@@ -853,7 +845,7 @@
                 if (!layer.getLatLng) return true;
                 const pos = layer.getLatLng();
                 const matches = Number(pos.lat).toFixed(6) === wantedLat && Number(pos.lng).toFixed(6) === wantedLng;
-                if (matches && map.hasLayer(layer)) map.removeLayer(layer);
+                if (matches) removeMapLayerSafe(layer);
                 return !matches;
             });
         }
@@ -944,8 +936,7 @@
             }).addTo(map);
             marker.bindTooltip(label, { permanent: false, direction: 'top' });
             marker.on('contextmenu', function(e) {
-                e.originalEvent.preventDefault();
-                e.originalEvent.stopPropagation();
+                consumeMapContextEvent(e);
                 document.querySelectorAll('.context-menu').forEach(el => el.remove());
                 showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerObj, icon, label);
             });
@@ -971,8 +962,7 @@
             }).addTo(map);
             marker.bindTooltip(label, { permanent: false, direction: 'top' });
             marker.on('contextmenu', function(e) {
-                e.originalEvent.preventDefault();
-                e.originalEvent.stopPropagation();
+                consumeMapContextEvent(e);
                 showMenuForHacked(e.containerPoint.x, e.containerPoint.y, { lat, lon: lng }, icon, label);
             });
             return rememberTargetLayer(lat, lng, label, marker);
@@ -996,7 +986,6 @@
 
         // Blokuj menu przeglądarki
         map.getContainer().addEventListener('contextmenu', function (e) {
-            if (handleScanContextFromDomEvent(e)) return;
             e.preventDefault();
         }, true);
 
@@ -1726,16 +1715,14 @@
                         marker.bindTooltip(target.label, { permanent: false, direction: 'top' });
 
                         marker.on('contextmenu', function(e) {
-                            e.originalEvent.stopPropagation(); // ⛔ blokuje przejęcie przez mapę
-                            e.originalEvent.preventDefault();
+                            consumeMapContextEvent(e);
                             document.querySelectorAll('.context-menu').forEach(el => el.remove());
-                            const pickedTarget = getNearestScanTarget(e.containerPoint, target);
                             showMarkerContextMenu(
                                 e.containerPoint.x,
                                 e.containerPoint.y,
-                                pickedTarget,
-                                pickedTarget.icon,
-                                pickedTarget.label
+                                target,
+                                target.icon,
+                                target.label
                             );
                         });
 
@@ -2205,7 +2192,7 @@
 
             window.clearActiveOperationLayers = function() {
                 (window.activeOperationLayers || []).forEach(layer => {
-                    if (map.hasLayer(layer)) map.removeLayer(layer);
+                    removeMapLayerSafe(layer);
                 });
                 window.activeOperationLayers = [];
             };
@@ -2817,8 +2804,7 @@
                         const marker = L.marker([lat, lng], { icon: window.buildPlayerActorIcon(actor) }).addTo(map);
                         marker.bindPopup(popup, { autoPan: false });
                         marker.on('contextmenu', function(e) {
-                            e.originalEvent.preventDefault();
-                            e.originalEvent.stopPropagation();
+                            consumeMapContextEvent(e);
                             if (actor.target_status || (actor.context && actor.context.is_marked_target)) {
                                 window.showPlayerActorHackMenu(actor, null, e.containerPoint.x, e.containerPoint.y);
                                 return;
@@ -2832,8 +2818,7 @@
                         window.playerActorMarkers[key].bindPopup(popup, { autoPan: false });
                         window.playerActorMarkers[key].off('contextmenu');
                         window.playerActorMarkers[key].on('contextmenu', function(e) {
-                            e.originalEvent.preventDefault();
-                            e.originalEvent.stopPropagation();
+                            consumeMapContextEvent(e);
                             if (actor.target_status || (actor.context && actor.context.is_marked_target)) {
                                 window.showPlayerActorHackMenu(actor, null, e.containerPoint.x, e.containerPoint.y);
                                 return;
@@ -2846,7 +2831,7 @@
                 Object.keys(window.playerActorMarkers).forEach(key => {
                     if (!visible.has(key)) {
                         if (map.hasLayer(window.playerActorMarkers[key])) {
-                            map.removeLayer(window.playerActorMarkers[key]);
+                            removeMapLayerSafe(window.playerActorMarkers[key]);
                         }
                         delete window.playerActorMarkers[key];
                     }
@@ -2912,7 +2897,7 @@
 
                     Object.keys(window.friendMarkers).forEach(key => {
                         if (!visible.has(key)) {
-                            map.removeLayer(window.friendMarkers[key]);
+                            removeMapLayerSafe(window.friendMarkers[key]);
                             delete window.friendMarkers[key];
                         }
                     });
@@ -2972,7 +2957,7 @@
                     const keepCenter = map.getCenter();
                     const keepZoom = map.getZoom();
 
-                    window.clanVulnerabilityLayers.forEach(layer => map.removeLayer(layer));
+                    window.clanVulnerabilityLayers.forEach(layer => removeMapLayerSafe(layer));
                     window.clanVulnerabilityLayers = [];
                     clanVulnerabilityRegistry.clear();
 
@@ -3010,8 +2995,7 @@
 
                         marker.bindTooltip(markerTarget.label, { permanent: false, direction: 'top' });
                         marker.on('contextmenu', function(e) {
-                            e.originalEvent.preventDefault();
-                            e.originalEvent.stopPropagation();
+                            consumeMapContextEvent(e);
                             if (report.is_reporter) {
                                 showVulnerabilityReporterMenu(e.containerPoint.x, e.containerPoint.y, report);
                                 return;
@@ -3054,23 +3038,23 @@
                     const keepZoom = map.getZoom();
 
                     window.playerAreaLayers.forEach(layer => {
-                        if (map.hasLayer(layer)) map.removeLayer(layer);
+                        removeMapLayerSafe(layer);
                     });
                     window.playerAreaLayers = [];
                     window.areaIntruderLayers.forEach(layer => {
-                        if (map.hasLayer(layer)) map.removeLayer(layer);
+                        removeMapLayerSafe(layer);
                     });
                     window.areaIntruderLayers = [];
                     window.contestedTargetLayers.forEach(layer => {
-                        if (map.hasLayer(layer)) map.removeLayer(layer);
+                        removeMapLayerSafe(layer);
                     });
                     window.contestedTargetLayers = [];
                     window.conflictAreaLayers.forEach(layer => {
-                        if (map.hasLayer(layer)) map.removeLayer(layer);
+                        removeMapLayerSafe(layer);
                     });
                     window.conflictAreaLayers = [];
                     window.capturedConflictPillarLayers.forEach(layer => {
-                        if (map.hasLayer(layer)) map.removeLayer(layer);
+                        removeMapLayerSafe(layer);
                     });
                     window.capturedConflictPillarLayers = [];
 
@@ -3079,6 +3063,10 @@
                             .map(vertex => [parseFloat(vertex.lat), parseFloat(vertex.lng)])
                             .filter(point => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
                         if (points.length < 3) return;
+                        if (!isSaneTerritoryPolygon(points)) {
+                            console.warn('[map] Pominieto podejrzane terytorium', area.owner_username, points);
+                            return;
+                        }
 
                         const isEncircled = area.status === 'encircled';
                         const color = isEncircled ? '#ffcc33' : (area.is_mine ? '#26ff6a' : '#ff4b4b');
@@ -3095,19 +3083,13 @@
                         const owner = window.escapeMapText(area.owner_nick || area.owner_username || 'unknown');
                         const status = window.escapeMapText(area.status || 'active');
                         const size = Math.round(Number(area.area_size || 0));
-                        polygon.bindTooltip(`${area.is_mine ? 'Twoje pole' : 'Pole gracza'}: ${owner}<br>Status: ${status}<br>Pow.: ${size} m²`, {
+                        const ownerNick = window.escapeMapText(area.owner_nick || area.owner_username || 'unknown');
+                        const ownerUsername = window.escapeMapText(area.owner_username || 'unknown');
+                        const ownerClan = window.escapeMapText(area.owner_clan || 'brak');
+                        polygon.bindTooltip(`${area.is_mine ? 'Twoje pole' : 'Pole gracza'}: ${ownerNick}<br>Login: ${ownerUsername}<br>Klan: ${ownerClan}<br>Status: ${status}<br>Pow.: ${size} m²`, {
                             sticky: true,
                             opacity: 0.95
                         });
-                        {
-                            const ownerNick = window.escapeMapText(area.owner_nick || area.owner_username || 'unknown');
-                            const ownerUsername = window.escapeMapText(area.owner_username || 'unknown');
-                            const ownerClan = window.escapeMapText(area.owner_clan || 'brak');
-                            polygon.bindTooltip(`${area.is_mine ? 'Twoje pole' : 'Pole gracza'}: ${ownerNick}<br>Login: ${ownerUsername}<br>Klan: ${ownerClan}<br>Status: ${status}<br>Pow.: ${size} mÂ˛`, {
-                                sticky: true,
-                                opacity: 0.95
-                            });
-                        }
                         window.playerAreaLayers.push(polygon);
                     });
 
@@ -3126,6 +3108,10 @@
                                 .map(vertex => [parseFloat(vertex.lat), parseFloat(vertex.lng)])
                                 .filter(point => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
                             if (points.length < 3) return;
+                            if (!isSaneTerritoryPolygon(points)) {
+                                console.warn('[map] Pominieto podejrzany konflikt terytorium', conflict.id, points);
+                                return;
+                            }
 
                             const polygon = L.polygon(points, {
                                 pane: 'territoryPane',
@@ -3182,8 +3168,7 @@
 
                         marker.bindTooltip(`Punkt kolizyjny: ${label}<br>Wlasciciel: ${owner}`, { sticky: true });
                         marker.on('contextmenu', function(e) {
-                            e.originalEvent.preventDefault();
-                            e.originalEvent.stopPropagation();
+                            consumeMapContextEvent(e);
                             showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerTarget, icon, markerTarget.label);
                         });
                         window.contestedTargetLayers.push(marker);
@@ -3251,9 +3236,6 @@
 
     // Obsługa zwykłych celów
     document.querySelectorAll('.marker-label').forEach(labelEl => {
-        const parentEl = labelEl.closest('.leaflet-marker-icon');
-        if (!parentEl) return;
-
         const lat = parseFloat(labelEl.dataset.lat);
         const lng = parseFloat(labelEl.dataset.lng);
         const label = labelEl.dataset.label || 'Cel';
@@ -3267,10 +3249,8 @@
         const target_username = labelEl.dataset.targetUsername || "";
         const relation = labelEl.dataset.relation || "";
 
-        parentEl.addEventListener('contextmenu', e => {
-            e.preventDefault();
-            e.stopPropagation();
-
+        labelEl.addEventListener('contextmenu', e => {
+            consumeMapContextEvent(e);
             showHackingMenuForMarker(e.pageX, e.pageY, {
                 lat: lat,
                 lon: lng,
@@ -3289,9 +3269,6 @@
 
     // Obsługa zhakowanych celów
     document.querySelectorAll('.marker-hacked').forEach(labelEl => {
-        const parentEl = labelEl.closest('.leaflet-marker-icon');
-        if (!parentEl) return;
-
         const lat = parseFloat(labelEl.dataset.lat);
         const lng = parseFloat(labelEl.dataset.lng);
         const label = labelEl.dataset.label || 'Cel';
@@ -3299,8 +3276,7 @@
 
         // Dodaj listener bezpośrednio do labelEl (bo to już .marker-hacked)
         labelEl.addEventListener('contextmenu', e => {
-            e.preventDefault();
-            e.stopPropagation();
+            consumeMapContextEvent(e);
             showMenuForHacked(e.pageX, e.pageY, { lat, lon: lng }, icon, label);
         });
     });
