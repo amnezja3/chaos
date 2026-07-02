@@ -230,6 +230,45 @@ function applyMobileSafeModeToWindow(win) {
     delete win.dataset.mobileSafeMode;
 }
 
+function makeDraggable(el) {
+    if (!el || el.dataset.draggableBound === '1') return;
+    el.dataset.draggableBound = '1';
+
+    registerWindowInTaskbar(el);
+    applyMobileSafeModeToWindow(el);
+
+    const titleBar = el.querySelector('.title-bar') || el;
+    let isDragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    titleBar.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.close-btn, button, input, textarea, select, a')) return;
+        if (isMobileSafeMode()) return;
+
+        isDragging = true;
+        offsetX = e.clientX - el.offsetLeft;
+        offsetY = e.clientY - el.offsetTop;
+        document.body.style.userSelect = 'none';
+        bringWindowToFront(el);
+        e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        el.style.left = `${e.clientX - offsetX}px`;
+        el.style.top = `${e.clientY - offsetY}px`;
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        document.body.style.userSelect = 'auto';
+    });
+
+    el.addEventListener('mousedown', () => bringWindowToFront(el));
+}
+
 function applyMobileSafeModeToOpenWindows() {
     document.querySelectorAll('.terminal, .app-window').forEach(applyMobileSafeModeToWindow);
 }
