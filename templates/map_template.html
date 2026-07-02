@@ -1153,10 +1153,6 @@
         };
 
         // Blokuj menu przeglądarki
-        map.getContainer().addEventListener('contextmenu', function (e) {
-            e.preventDefault();
-        }, true);
-
         function closeAllMapMenus() {
             document.querySelectorAll('.context-menu, .context-menu-clean').forEach(el => el.remove());
             window.removeEventListener('mousedown', closeMenus, true);
@@ -1165,6 +1161,9 @@
         }
 
         map.on('contextmenu', function (e) {
+            if (e.originalEvent?.preventDefault) {
+                e.originalEvent.preventDefault();
+            }
             console.warn('[map] MAP CONTEXTMENU FIRED', {
                 targetClass: e.originalEvent?.target?.className,
                 containerPoint: e.containerPoint,
