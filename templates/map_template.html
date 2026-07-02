@@ -1157,22 +1157,31 @@
             e.preventDefault();
         }, true);
 
+        function closeAllMapMenus() {
+            document.querySelectorAll('.context-menu, .context-menu-clean').forEach(el => el.remove());
+            window.removeEventListener('mousedown', closeMenus, true);
+            window.removeEventListener('click', closeMenus, true);
+            lastContextWasMarker = false;
+        }
 
         map.on('contextmenu', function (e) {
-            const lat = e.latlng.lat.toFixed(6);
-            const lng = e.latlng.lng.toFixed(6);
-            if (lastContextWasMarker) {
-                lastContextWasMarker = false; // reset
-                return;
-            }
+            console.warn('[map] MAP CONTEXTMENU FIRED', {
+                targetClass: e.originalEvent?.target?.className,
+                containerPoint: e.containerPoint,
+                latlng: e.latlng,
+                defaultPrevented: e.originalEvent?.defaultPrevented,
+                menuBefore: document.querySelector('#markerContextMenu, .marker-context-menu, .player-actor-menu, .context-menu, .context-menu-clean')?.textContent
+            });
 
-            showContextMenu(e.containerPoint.x, e.containerPoint.y, lat, lng);
+            closeAllMapMenus();
+            showContextMenu(e.containerPoint.x, e.containerPoint.y, e.latlng.lat, e.latlng.lng, true);
+            return;
         });
 
 
 
-        function showContextMenu(x, y, lat, lng) {
-            if (lastContextWasMarker) {
+        function showContextMenu(x, y, lat, lng, forceMapMenu = false) {
+            if (!forceMapMenu && lastContextWasMarker) {
                 lastContextWasMarker = false; // 👈 resetuj
                 return;
             }
