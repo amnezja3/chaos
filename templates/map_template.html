@@ -3090,6 +3090,22 @@
                     return true;
                 }
 
+                function showMapMenuFromOriginalContextEvent(e) {
+                    const originalEvent = e && e.originalEvent;
+                    if (!originalEvent || !map || typeof map.mouseEventToContainerPoint !== 'function') return;
+                    const containerPoint = map.mouseEventToContainerPoint(originalEvent);
+                    const latlng = map.containerPointToLatLng(containerPoint);
+
+                    closeAllMapMenus();
+                    showContextMenu(
+                        containerPoint.x,
+                        containerPoint.y,
+                        latlng.lat,
+                        latlng.lng,
+                        true
+                    );
+                }
+
                 (actors || []).forEach(actor => {
                     const menuActor = freezeMapMenuPayload(actor || {});
                     const key = menuActor.username || menuActor.nick;
@@ -3107,7 +3123,10 @@
                         marker._playerActorSnapshot = menuActor;
                         marker.on('contextmenu', function(e) {
                             const actorSnapshot = marker._playerActorSnapshot || menuActor;
-                            if (!isPlayerActorContextEventInsideMarker(marker, e, actorSnapshot)) return;
+                            if (!isPlayerActorContextEventInsideMarker(marker, e, actorSnapshot)) {
+                                showMapMenuFromOriginalContextEvent(e);
+                                return;
+                            }
                             consumeMapContextEvent(e);
                             if (actorSnapshot.target_status || (actorSnapshot.context && actorSnapshot.context.is_marked_target)) {
                                 window.showPlayerActorHackMenu(actorSnapshot, null, e.containerPoint.x, e.containerPoint.y);
@@ -3125,7 +3144,10 @@
                         window.playerActorMarkers[key].off('contextmenu');
                         window.playerActorMarkers[key].on('contextmenu', function(e) {
                             const actorSnapshot = window.playerActorMarkers[key]._playerActorSnapshot || menuActor;
-                            if (!isPlayerActorContextEventInsideMarker(window.playerActorMarkers[key], e, actorSnapshot)) return;
+                            if (!isPlayerActorContextEventInsideMarker(window.playerActorMarkers[key], e, actorSnapshot)) {
+                                showMapMenuFromOriginalContextEvent(e);
+                                return;
+                            }
                             consumeMapContextEvent(e);
                             if (actorSnapshot.target_status || (actorSnapshot.context && actorSnapshot.context.is_marked_target)) {
                                 window.showPlayerActorHackMenu(actorSnapshot, null, e.containerPoint.x, e.containerPoint.y);
