@@ -834,12 +834,26 @@
             return String(content || '');
         }
 
-        function cleanupLegacyPlayerAreaLayers() {
-            const territoryTooltipPatterns = [
+        function isLegacyPlayerAreaTooltipText(text) {
+            const value = String(text || '');
+            return [
                 'Pole gracza',
                 'Twoje pole',
                 'Konflikt terytorium'
-            ];
+            ].some(pattern => value.includes(pattern));
+        }
+
+        function cleanupLegacyPlayerAreaTooltipDom() {
+            document.querySelectorAll('.leaflet-tooltip').forEach(node => {
+                const text = `${node.textContent || ''} ${node.innerHTML || ''}`;
+                if (isLegacyPlayerAreaTooltipText(text)) {
+                    node.remove();
+                }
+            });
+        }
+
+        function cleanupLegacyPlayerAreaLayers() {
+            cleanupLegacyPlayerAreaTooltipDom();
 
             map.eachLayer(layer => {
                 if (!layer || layer._chaosLayerRegistry) return;
@@ -848,7 +862,7 @@
                 if (!looksLikePolygon) return;
 
                 const tooltipText = getLayerTooltipText(layer);
-                if (!territoryTooltipPatterns.some(pattern => tooltipText.includes(pattern))) return;
+                if (!isLegacyPlayerAreaTooltipText(tooltipText)) return;
 
                 try {
                     removeMapLayerSafe(layer);
@@ -856,12 +870,30 @@
                     console.warn('[map] Nie udalo sie usunac legacy player area layer', err);
                 }
             });
+
+            cleanupLegacyPlayerAreaTooltipDom();
         }
         window.cleanupLegacyPlayerAreaLayers = cleanupLegacyPlayerAreaLayers;
 
         function scheduleLegacyPlayerAreaCleanup() {
-            [0, 250, 1000, 2000].forEach(delay => {
+            [0, 250, 1000, 2000, 5000].forEach(delay => {
                 setTimeout(cleanupLegacyPlayerAreaLayers, delay);
+            });
+        }
+
+        if (!map._chaosLegacyPlayerAreaCleanupBound) {
+            map._chaosLegacyPlayerAreaCleanupBound = true;
+            map.on('layeradd', event => {
+                const layer = event && event.layer;
+                setTimeout(() => {
+                    if (!layer || layer._chaosLayerRegistry) return;
+                    const looksLikePolygon = (window.L && L.Polygon && layer instanceof L.Polygon)
+                        || (typeof layer.getBounds === 'function' && typeof layer.getLatLngs === 'function');
+                    if (!looksLikePolygon) return;
+                    if (!isLegacyPlayerAreaTooltipText(getLayerTooltipText(layer))) return;
+                    removeMapLayerSafe(layer);
+                    cleanupLegacyPlayerAreaTooltipDom();
+                }, 0);
             });
         }
 
@@ -3148,7 +3180,7 @@
                         const isEncircled = area.status === 'encircled';
                         const color = isEncircled ? '#ffcc33' : (area.is_mine ? '#26ff6a' : '#ff4b4b');
                         const fillColor = isEncircled ? '#b88700' : (area.is_mine ? '#0aa83d' : '#b62020');
-                        const polygon = L.polygon(points, {
+                        const polygon = registerLayerInArray('playerAreaLayers', L.polygon(points, {
                             pane: 'territoryPane',
                             color,
                             fillColor,
@@ -3156,7 +3188,8 @@
                             weight: isEncircled ? 4 : (area.is_mine ? 2 : 3),
                             dashArray: isEncircled ? '4 5' : (area.is_mine ? null : '8 6'),
                             interactive: true
-                        }).addTo(map);
+                        }));
+                        polygon.addTo(map);
                         const owner = window.escapeMapText(area.owner_nick || area.owner_username || 'unknown');
                         const status = window.escapeMapText(area.status || 'active');
                         const size = Math.round(Number(area.area_size || 0));
@@ -3167,7 +3200,6 @@
                             sticky: true,
                             opacity: 0.95
                         });
-                        registerLayerInArray('playerAreaLayers', polygon);
                     });
 
                     (data.conflict_areas || []).forEach(conflict => {
@@ -3190,7 +3222,7 @@
                                 return;
                             }
 
-                            const polygon = L.polygon(points, {
+                            const polygon = registerLayerInArray('conflictAreaLayers', L.polygon(points, {
                                 pane: 'territoryPane',
                                 color: '#ffb300',
                                 fillColor: '#ff8a00',
@@ -3198,13 +3230,13 @@
                                 weight: 3,
                                 dashArray: '3 5',
                                 interactive: true
-                            }).addTo(map);
+                            }));
+                            polygon.addTo(map);
 
                             polygon.bindTooltip(`Konflikt terytorium<br>Uczestnicy: ${participants || 'brak'}<br>Strefa: ${index + 1}`, {
                                 sticky: true,
                                 opacity: 0.95
                             });
-                            registerLayerInArray('conflictAreaLayers', polygon);
                         });
                     });
 
