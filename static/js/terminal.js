@@ -2158,6 +2158,30 @@ function app_button_choices(id, levels) {
     });
 }
 
+function createMap() {
+    if (document.querySelector(`.terminal[data-app="map"]`)) return;
+    const term = document.createElement('div');
+    term.className = 'terminal map-window';
+    term.dataset.app = "map";
+    const position = findAvailablePosition();
+    term.style.top = `${position.top}px`;
+    term.style.left = `${position.left}px`;
+    term.style.width = `1200px`;
+    term.style.height = `500px`;
+
+    term.innerHTML = `
+        <div class="title-bar">
+            Mapa
+            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
+        </div>
+        <iframe src="/map" width="100%" height="100%" style="border:none;"></iframe>
+    `;
+
+    document.body.appendChild(term);
+    makeDraggable(term);
+    term.querySelector('.close-btn')?.addEventListener('click', () => term.remove());
+}
+
 function createBrowser() {
     const term = document.createElement('div');
     term.className = 'terminal browser-window';
