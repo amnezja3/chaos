@@ -716,7 +716,7 @@ async function buildIconsFromJsonWithCommand(jsonData) {
                 };
 
                 icons.push({
-                    icon: app.icon || 'âť“',
+                    icon: app.icon || '\u2753',
                     label: name,
                     action
                 });
@@ -739,7 +739,7 @@ async function buildIconsFromJsonWithCommand(jsonData) {
         // const res = await fetch('static/app_config.json');
         const profileData = await getUserProfile();
         if (!profileData) {
-            addSystemMessage("danger", "đź“ Profil", "âťŚ Brak danych profilu");
+            addSystemMessage("danger", "\u{1F4C1} Profil", "\u2716 Brak danych profilu");
             finishBootLoader("Nie udaĹ‚o siÄ™ wczytaÄ‡ profilu.");
             return;
         }
@@ -944,7 +944,7 @@ function attachTerminalInputHandler(input, content) {
             content.scrollTop = content.scrollHeight;
 
         } catch (err) {
-            content.innerHTML += `<br><span style="color:red;">âťŚ BĹ‚Ä…d komunikacji z serwerem</span>`;
+            content.innerHTML += `<br><span style="color:red;">\u2716 B\u0142\u0105d komunikacji z serwerem</span>`;
         }
     });
 }
@@ -1028,7 +1028,7 @@ function openSystemLogReaderApp(payload = {}) {
     const victimName = access.victim_nick || access.victim_username || 'unknown';
     const secondsLeft = access.seconds_left ?? playerHackAccessState?.seconds_left ?? 0;
     app.innerHTML = `
-        <div class="title-bar">System Log Reader <span class="close-btn" style="float:right; cursor:pointer;">x</span></div>
+        <div class="title-bar">System Log Reader <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="system-log-reader-content">
             <div class="system-log-reader-meta">
                 <span>victim: <b>${escapeHTML(String(victimName))}</b></span>
@@ -1079,7 +1079,7 @@ function openFinancialSnifferApp(payload = {}) {
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
     app.innerHTML = `
-        <div class="title-bar">Financial Sniffer <span class="close-btn" style="float:right; cursor:pointer;">x</span></div>
+        <div class="title-bar">Financial Sniffer <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="financial-sniffer-content"></div>
     `;
     document.body.appendChild(app);
@@ -1123,7 +1123,7 @@ function openFriendKickerApp(payload = {}) {
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
     app.innerHTML = `
-        <div class="title-bar">Friend Kicker <span class="close-btn" style="float:right; cursor:pointer;">x</span></div>
+        <div class="title-bar">Friend Kicker <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="friend-kicker-content"></div>
     `;
     document.body.appendChild(app);
@@ -1168,7 +1168,7 @@ function openArsenalCleanerApp(payload = {}) {
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
     app.innerHTML = `
-        <div class="title-bar">Arsenal Cleaner <span class="close-btn" style="float:right; cursor:pointer;">x</span></div>
+        <div class="title-bar">Arsenal Cleaner <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="arsenal-cleaner-content"></div>
     `;
     document.body.appendChild(app);
@@ -1244,7 +1244,7 @@ function openSecurityPanelProxyApp(payload = {}) {
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
     app.innerHTML = `
-        <div class="title-bar">Security Panel Proxy <span class="close-btn" style="float:right; cursor:pointer;">x</span></div>
+        <div class="title-bar">Security Panel Proxy <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="security-panel-proxy-content"></div>
     `;
     document.body.appendChild(app);
@@ -1550,7 +1550,7 @@ function createDevBugReporterApp() {
     app.style.width = '920px';
     app.style.height = '620px';
     app.innerHTML = `
-        <div class="title-bar">Dev Bug Reporter <span class="close-btn" style="float:right; cursor:pointer;">&times;</span></div>
+        <div class="title-bar">Dev Bug Reporter <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content dev-bug-shell">
             <div class="dev-bug-toolbar">
                 <input type="search" data-bug-search placeholder="Szukaj zgĹ‚oszeĹ„..." />
@@ -1837,7 +1837,7 @@ function createTerminal() {
     const terminalId = `terminal-${terminalCount}`;
 
     term.innerHTML = `
-        <div class="title-bar">Terminal <span class="close-btn" style="float:right; cursor:pointer;">âś–</span></div>
+        <div class="title-bar">Terminal <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="terminal-body">
             <div class="content" id="${terminalId}-content">
                 <div class="terminal-line">
@@ -1860,6 +1860,7 @@ function createTerminal() {
 }
 
 function app_window(id, levels) {
+    const level = levels[0] || {};
     const app = document.createElement('div');
     app.className = 'app-window';
     const position = findAvailablePosition();
@@ -1867,14 +1868,14 @@ function app_window(id, levels) {
     app.style.left = `${position.left}px`;
 
     app.innerHTML = `
-        <div class="title-bar">${id} <span class="close-btn" style="float:right; cursor:pointer;">âś–</span></div>
+        <div class="title-bar">${escapeHTML(id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content">
-            <h3>${levels[0].title || 'Aplikacja'}</h3>
-            <ul>${levels[0].list.map(item => `<li>${item}</li>`).join('')}</ul>
+            <h3>${escapeHTML(level.title || 'Aplikacja')}</h3>
+            <ul>${(level.list || []).map(item => `<li>${escapeHTML(String(item || ''))}</li>`).join('')}</ul>
             <div class="button-row">
-                ${levels[0].buttons.map((b, i) => `
-                    <button data-action="${b.action}" data-label="${b.label}">
-                        ${b.label}
+                ${(level.buttons || []).map((b, i) => `
+                    <button data-action="${escapeHTML(b.action || '')}" data-label="${escapeHTML(b.label || '')}">
+                        ${escapeHTML(b.label || '')}
                     </button>
                 `).join('')}
             </div>
@@ -1893,19 +1894,15 @@ function app_window(id, levels) {
         btn.addEventListener('click', async () => {
             const action = btn.dataset.action;
             const label = btn.dataset.label;
-
-            const response = await sendGonnaWinRequest(id, action);  // <-- uĹĽycie naszej funkcji
+            const response = await sendGonnaWinRequest(id, action);
             const success = response.success === true;
 
-            addSystemMessage('info', 'đź•ąď¸Ź Akcja', `Akcja: ${label} | Wynik: ${success ? "âś…" : "âťŚ"}`);
-            resultBox.innerHTML = success ? "âś… Sukces!" : "âťŚ Niepowodzenie.";
+            addSystemMessage('info', '\u25B6 Akcja', `Akcja: ${label} | Wynik: ${success ? "\u2714" : "\u2716"}`);
+            resultBox.textContent = success ? "\u2714 Sukces!" : "\u2716 Niepowodzenie.";
             resultBox.style.color = success ? "#0f0" : "#f33";
         });
     });
 }
-
-
-
 
 async function app_progressbar_random(id, levels) {
     const level = levels[0];
@@ -1917,7 +1914,7 @@ async function app_progressbar_random(id, levels) {
     app.style.left = `${position.left}px`;
 
     app.innerHTML = `
-        <div class="title-bar">${level.title || id} <span class="close-btn" style="float:right; cursor:pointer;">âś–</span></div>
+        <div class="title-bar">${escapeHTML(level.title || id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content">
             <div class="progress-log" style="font-family: monospace; font-size: 13px; margin-bottom: 10px;"></div>
             <div class="progress-bar" style="position: relative; height: 20px; background: #333;">
@@ -1943,21 +1940,21 @@ async function app_progressbar_random(id, levels) {
         if (stepIndex >= totalSteps) {
             // <- tutaj korzystamy z odpowiedzi
             notifyGonnaWin(id).then(success => {
-                result.innerHTML = success ? level.result_success : level.result_failure;
+                result.textContent = success ? (level.result_success || "Operacja zako\u0144czona.") : (level.result_failure || "Operacja nie powiod\u0142a si\u0119.");
                 result.style.color = success ? "#0f0" : "#f33";
             }).catch(() => {
-                result.innerHTML = "âťŚ BĹ‚Ä…d poĹ‚Ä…czenia z serwerem.";
+                result.textContent = "\u2716 B\u0142\u0105d po\u0142\u0105czenia z serwerem.";
                 result.style.color = "#f33";
             });
             return;
         }
 
         const msg = steps[stepIndex];
-        log.innerHTML += `<div>đź•“ ${msg}</div>`;
+        log.innerHTML += `<div>\u23F1 ${escapeHTML(String(msg || ''))}</div>`;
         fill.style.width = `${(stepIndex + 1) * progressPerStep}%`;
 
         stepIndex++;
-        setTimeout(runNextStep, 1000 + Math.random() * 1000); // miÄ™dzy 1â€“2s delay
+        setTimeout(runNextStep, 1000 + Math.random() * 1000);
     }
 
 
@@ -2042,8 +2039,8 @@ async function sendGonnaWinRequest(appId, choiceId = null) {
 
 function app_terminal(id, levels) {
     notifyGonnaWin(id);
-    const level = levels[0];
-    const commands = level.command ? [level.command, ...level.logs] : level.logs || [];
+    const level = levels[0] || {};
+    const commands = level.command ? [level.command, ...(level.logs || [])] : (level.logs || []);
 
     const app = document.createElement('div');
     app.className = 'app-window';
@@ -2051,7 +2048,7 @@ function app_terminal(id, levels) {
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
     app.innerHTML = `
-        <div class="title-bar">${id} <span class="close-btn" style="float:right; cursor:pointer;">âś–</span></div>
+        <div class="title-bar">${escapeHTML(id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content" style="background: black; color: #0f0; font-family: monospace; padding: 10px;">
             <div class="terminal-log" style="min-height: 200px;"></div>
         </div>
@@ -2061,10 +2058,10 @@ function app_terminal(id, levels) {
     app.querySelector('.close-btn').addEventListener('click', () => app.remove());
 
     const log = app.querySelector('.terminal-log');
-
     let commandIndex = 0;
 
     function simulateTyping(command, callback) {
+        const safeCommand = String(command || '');
         const line = document.createElement('div');
         line.className = 'terminal-line';
         const label = document.createElement('span');
@@ -2076,16 +2073,13 @@ function app_terminal(id, levels) {
 
         let charIndex = 0;
         const typingInterval = setInterval(() => {
-            typingSpan.textContent += command[charIndex];
+            typingSpan.textContent += safeCommand[charIndex] || '';
             charIndex++;
-            if (charIndex >= command.length) {
+            if (charIndex >= safeCommand.length) {
                 clearInterval(typingInterval);
                 setTimeout(() => {
-                    // PrzenieĹ› wpisane polecenie wyĹĽej jako "executed"
-                    line.innerHTML = `> ${command}`;
-
-                    // Dodaj pasek progresu jeĹ›li komenda zawiera sĹ‚owo typu "scan" lub "check"
-                    if (/scan|check|report/i.test(command)) {
+                    line.textContent = `> ${safeCommand}`;
+                    if (/scan|check|report/i.test(safeCommand)) {
                         const progress = document.createElement('div');
                         progress.style.cssText = `
                             background: #0f0;
@@ -2102,8 +2096,7 @@ function app_terminal(id, levels) {
                             if (percent >= 100) clearInterval(barInterval);
                         }, 200);
                     }
-
-                    callback(); // przejdĹş do kolejnego polecenia
+                    callback();
                     log.scrollTop = log.scrollHeight;
                 }, 500);
             }
@@ -2120,9 +2113,8 @@ function app_terminal(id, levels) {
     runNextCommand();
 }
 
-
 function app_button_choices(id, levels) {
-    const lvl = levels[0];
+    const lvl = levels[0] || {};
     const app = document.createElement('div');
     app.className = 'app-window';
     const position = findAvailablePosition();
@@ -2130,14 +2122,14 @@ function app_button_choices(id, levels) {
     app.style.left = `${position.left}px`;
 
     app.innerHTML = `
-        <div class="title-bar">${id} <span class="close-btn" style="float:right; cursor:pointer;">âś–</span></div>
+        <div class="title-bar">${escapeHTML(id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content">
-            <h3>${lvl.title}</h3>
-            <p>${lvl.text}</p>
+            <h3>${escapeHTML(lvl.title || 'Wybierz opcj\u0119')}</h3>
+            <p>${escapeHTML(lvl.text || '')}</p>
             <div class="button-row">
-                ${lvl.options.map((opt, i) => `
-                    <button data-opt-id="${opt.id || i}" class="choice-btn">
-                        ${opt.label}
+                ${(lvl.options || []).map((opt, i) => `
+                    <button data-opt-id="${escapeHTML(opt.id || i)}" class="choice-btn">
+                        ${escapeHTML(opt.label || '')}
                     </button>
                 `).join('')}
             </div>
@@ -2149,7 +2141,6 @@ function app_button_choices(id, levels) {
     makeDraggable(app);
     app.querySelector('.close-btn').addEventListener('click', () => app.remove());
 
-    // ObsĹ‚uga klikniÄ™cia kaĹĽdego guzika
     const buttons = app.querySelectorAll('.choice-btn');
     const resultBox = app.querySelector('.choice-result');
 
@@ -2157,92 +2148,15 @@ function app_button_choices(id, levels) {
         btn.addEventListener('click', async () => {
             const optId = btn.dataset.optId;
             const choiceLabel = btn.textContent.trim();
-
-            // WywoĹ‚anie backendu i oczekiwanie na wynik
-            const response = await sendGonnaWinRequest(id, optId); // nowa wersja z 2 parametrami
+            const response = await sendGonnaWinRequest(id, optId);
             const success = response.success === true;
 
-            addSystemMessage('info', 'đź§Ş Efekt', `Wybrano: ${choiceLabel} | Wynik: ${success ? "âś… SUKCES" : "âťŚ PORAĹ»KA"}`);
-            resultBox.innerHTML = success ? "âś… UdaĹ‚o siÄ™!" : "âťŚ Niestety nie tym razem.";
+            addSystemMessage('info', '\u2699 Efekt', `Wybrano: ${choiceLabel} | Wynik: ${success ? "\u2714 SUKCES" : "\u2716 PORA\u017bKA"}`);
+            resultBox.textContent = success ? "\u2714 Uda\u0142o si\u0119!" : "\u2716 Niestety nie tym razem.";
             resultBox.style.color = success ? "#0f0" : "#f33";
         });
     });
 }
-
-
-
-function makeDraggable(term) {
-    registerWindowInTaskbar(term);
-    applyMobileSafeModeToWindow(term);
-    const bar = term.querySelector('.title-bar');
-    bringWindowToFront(term);
-    if (!bar) return;
-    let isDragging = false, x = 0, y = 0;
-
-    term.addEventListener('mousedown', () => bringWindowToFront(term));
-
-    bar.addEventListener('mousedown', (e) => {
-        bringWindowToFront(term);
-        if (isMobileSafeMode()) {
-            applyMobileSafeModeToWindow(term);
-            return;
-        }
-
-        isDragging = true;
-        x = e.clientX - term.offsetLeft;
-        y = e.clientY - term.offsetTop;
-        document.body.style.userSelect = 'none';
-    });
-
-    window.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        if (isMobileSafeMode()) {
-            isDragging = false;
-            document.body.style.userSelect = 'auto';
-            applyMobileSafeModeToWindow(term);
-            return;
-        }
-        term.style.left = `${e.clientX - x}px`;
-        term.style.top = `${e.clientY - y}px`;
-    });
-
-    window.addEventListener('mouseup', () => {
-        isDragging = false;
-        document.body.style.userSelect = 'auto';
-    });
-}
-
-window.addEventListener('resize', applyMobileSafeModeToOpenWindows);
-
-// Aktywuj istniejÄ…ce terminale
-document.querySelectorAll('.terminal').forEach(makeDraggable);
-
-function createMap() {
-    if (document.querySelector(`.terminal[data-app="map"]`)) return;
-    const term = document.createElement('div');
-    term.className = 'terminal map-window';
-    term.dataset.app = "map";
-    const position = findAvailablePosition();
-    term.style.top = `${position.top}px`;
-    term.style.left = `${position.left}px`;
-    term.style.width = `1200px`;
-    term.style.height = `500px`;
-
-    term.innerHTML = `
-        <div class="title-bar">
-            Mapa
-            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
-        </div>
-        <iframe src="/map" width="100%" height="100%" style="border:none;"></iframe>
-    `;
-
-    document.body.appendChild(term);
-    makeDraggable(term);
-    const closeButton = term.querySelector('.close-btn');
-    if (closeButton) closeButton.textContent = 'x';
-    closeButton?.addEventListener('click', () => term.remove());
-}
-
 
 function createBrowser() {
     const term = document.createElement('div');
@@ -2268,7 +2182,7 @@ function createBrowser() {
     term.innerHTML = `
     <div class="title-bar">
         WebDragons
-        <span class="close-btn" style="float:right; cursor:pointer;">${browserUiIcons.close}</span>
+        <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
     </div>
     <div class="browser-nav">
         <button class="nav-btn">${browserUiIcons.back}</button>
@@ -2618,7 +2532,7 @@ function createBrowser() {
         }
     });
     loadCatalog().catch(() => {
-        results.innerHTML = '<div class="googolplex-empty">Nie udaĹ‚o siÄ™ pobraÄ‡ katalogu.</div>';
+        results.innerHTML = '<div class="googolplex-empty">Nie uda\u0142o si\u0119 pobra\u0107 katalogu.</div>';
     });
 }
 
@@ -2649,7 +2563,7 @@ function openWalletApp(options = {}) {
     term.innerHTML = `
         <div class="title-bar">
             Wallet HC
-            <span class="close-btn" style="float:right; cursor:pointer;">x</span>
+            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <div class="wallet-shell"></div>
     `;
@@ -2814,9 +2728,9 @@ window.openWalletTransferTo = function(username) {
 function showInstallAppProgress(app, onInstalled = null) {
     // Okno progressbar (symulacja jak instalator Windows/Linux)
     const steps = [
-        `Rozpoczynanie instalacji aplikacji: <b>${app.name}</b>`,
-        `Pobieranie plikĂłw...`,
-        `Instalacja skĹ‚adnikĂłw...`,
+        `Rozpoczynanie instalacji aplikacji: ${app.name || 'aplikacja'}`,
+        `Pobieranie plik\u00f3w...`,
+        `Instalacja sk\u0142adnik\u00f3w...`,
         `Rejestracja aplikacji w systemie...`,
         `Finalizacja...`
     ];
@@ -2827,7 +2741,7 @@ function showInstallAppProgress(app, onInstalled = null) {
     appWindow.style.top = `${position.top}px`;
     appWindow.style.left = `${position.left}px`;
     appWindow.innerHTML = `
-        <div class="title-bar">${app.name} â€“ Instalacja <span class="close-btn" style="float:right; cursor:pointer;">âś–</span></div>
+        <div class="title-bar">${escapeHTML(app.name || 'Aplikacja')} - Instalacja <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content">
             <div class="progress-log" style="font-family: monospace; font-size: 13px; margin-bottom: 10px;"></div>
             <div class="progress-bar" style="position: relative; height: 20px; background: #333;">
@@ -2859,9 +2773,9 @@ function showInstallAppProgress(app, onInstalled = null) {
                 if (data.status === "success") {
                     const storage = data.storage || {};
                     const storageLine = storage.used
-                        ? `<br><span style="color:#8fd6a4;">Dysk: ${escapeHTML(formatStorageSize(storage.used, storage.unit || 'MB'))} / ${escapeHTML(formatStorageSize(storage.capacity, storage.unit || 'MB'))}${storage.over_limit ? ' (ponad limit miÄ™kki)' : ''}</span>`
+                        ? `<br><span style="color:#8fd6a4;">Dysk: ${escapeHTML(formatStorageSize(storage.used, storage.unit || 'MB'))} / ${escapeHTML(formatStorageSize(storage.capacity, storage.unit || 'MB'))}${storage.over_limit ? ' (ponad limit mi\u0119kki)' : ''}</span>`
                         : '';
-                    result.innerHTML = `<span style="color:#0f0;">âś… Aplikacja zainstalowana.</span>${storageLine}`;
+                    result.innerHTML = `<span style="color:#0f0;">\u2714 Aplikacja zainstalowana.</span>${storageLine}`;
                     if (Object.prototype.hasOwnProperty.call(data, "hackcoins")) {
                         setToolbarProfile({
                             ...toolbarProfile,
@@ -2890,16 +2804,16 @@ function showInstallAppProgress(app, onInstalled = null) {
                         }
                     }, 4000);
                 } else {
-                    result.innerHTML = `<span style="color:#f33;">âťŚ BĹ‚Ä…d instalacji: ${data.message}</span>`;
+                    result.innerHTML = `<span style="color:#f33;">\u2716 B\u0142\u0105d instalacji: ${escapeHTML(data.message || '')}</span>`;
                 }
             })
             .catch(err => {
-                result.innerHTML = `<span style="color:#f33;">âťŚ BĹ‚Ä…d poĹ‚Ä…czenia z serwerem.</span>`;
+                result.innerHTML = `<span style="color:#f33;">\u2716 B\u0142\u0105d po\u0142\u0105czenia z serwerem.</span>`;
             });
             return;
         }
 
-        log.innerHTML += `<div>đź•“ ${steps[stepIndex]}</div>`;
+        log.innerHTML += `<div>\u23F1 ${escapeHTML(String(steps[stepIndex] || ''))}</div>`;
         fill.style.width = `${(stepIndex + 1) * progressPerStep}%`;
 
         stepIndex++;
@@ -2921,7 +2835,7 @@ async function refreshDesktop(closeWindows = true) {
     // 3. Pobierz najnowszy profil
     const profileData = await getUserProfile();
     if (!profileData) {
-        addSystemMessage("danger", "đź“ Profil", "âťŚ Brak danych profilu");
+            addSystemMessage("danger", "\u{1F4C1} Profil", "\u2716 Brak danych profilu");
         return;
     }
 
@@ -3003,7 +2917,7 @@ function createSettings() {
     term.innerHTML = `
         <div class="title-bar">
             Ustawienia
-            <span class="close-btn" style="float:right; cursor:pointer;">âś–</span>
+            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <div style="padding: 10px; background: #111; color: #0f0; flex:1;">
             <h3>Tapeta</h3>
@@ -3046,7 +2960,7 @@ async function createProfile() {
 
     const profileData = await getUserProfile();
     if (!profileData) {
-        addSystemMessage("danger", "đź“ Profil", "âťŚ Brak danych profilu");
+            addSystemMessage("danger", "\u{1F4C1} Profil", "\u2716 Brak danych profilu");
         return;
     }
 
@@ -3090,7 +3004,7 @@ async function createProfile() {
     term.innerHTML = `
         <div class="title-bar">
             Profil gracza
-            <span class="close-btn" style="float:right; cursor:pointer;">âś–</span>
+            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <div style="padding: 10px; background: #111; color: #0f0; flex:1; font-family: monospace; overflow-y:auto;">
             <div style="text-align: center;">
@@ -3209,7 +3123,7 @@ function createAppForgeLegacy() {
     term.innerHTML = `
         <div class="title-bar">
             AppForge
-            <span class="close-btn" style="float:right; cursor:pointer;">âś–</span>
+            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <form class="appforge-form">
             <div class="appforge-grid">
@@ -4174,7 +4088,7 @@ function creatorBaseWindow(appName, interfaceName) {
     term.innerHTML = `
         <div class="title-bar">
             ${appName}: ${interfaceName}
-            <span class="close-btn" style="float:right; cursor:pointer;">x</span>
+            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <form class="appforge-form"></form>
     `;
@@ -5532,7 +5446,7 @@ function createGhostLabHub() {
     term.innerHTML = `
         <div class="title-bar">
             GhostLab ${GHOSTLAB_VERSION}
-            <span class="close-btn" style="float:right; cursor:pointer;">x</span>
+            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <div class="ghostlab-shell"></div>
     `;
@@ -5576,13 +5490,13 @@ function getToolSelectionAppForFile(filename) {
 async function selectMapActionTool(appId) {
     const selection = window.activeToolSelection;
     if (!selection || !selection.pending_action) {
-        addSystemMessage("warning", "đź› ď¸Ź NarzÄ™dzia", "Brak aktywnej akcji mapy.");
+        addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", "Brak aktywnej akcji mapy.");
         return;
     }
 
     const app = selection.matching_apps.find(item => String(item.id || "") === String(appId || ""));
     if (!app) {
-        addSystemMessage("warning", "đź› ď¸Ź NarzÄ™dzia", "To narzÄ™dzie nie pasuje do aktywnej akcji.");
+        addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", "To narz\u0119dzie nie pasuje do aktywnej akcji.");
         return;
     }
 
@@ -5597,24 +5511,24 @@ async function selectMapActionTool(appId) {
         });
         const data = await res.json();
         if (!res.ok || data.blocked) {
-            addSystemMessage("warning", "đź› ď¸Ź NarzÄ™dzia", data.status || "Nie udaĹ‚o siÄ™ uruchomiÄ‡ narzÄ™dzia.");
+            addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", data.status || "Nie uda\u0142o si\u0119 uruchomi\u0107 narz\u0119dzia.");
             return;
         }
 
         window.activeToolSelection = null;
-        addSystemMessage("success", "đź› ď¸Ź NarzÄ™dzie", data.status || `Uruchomiono ${app.name || app.id}.`);
+        addSystemMessage("success", "\u{1F6E0}\uFE0F Narz\u0119dzie", data.status || `Uruchomiono ${app.name || app.id}.`);
         if (typeof refreshToolbarProfile === "function") refreshToolbarProfile();
         if (typeof notifyOpenMapsOperationsChanged === "function") notifyOpenMapsOperationsChanged();
     } catch (err) {
         console.error("BĹ‚Ä…d wyboru narzÄ™dzia:", err);
-        addSystemMessage("danger", "đź› ď¸Ź NarzÄ™dzia", "BĹ‚Ä…d poĹ‚Ä…czenia podczas wyboru narzÄ™dzia.");
+        addSystemMessage("danger", "\u{1F6E0}\uFE0F Narz\u0119dzia", "B\u0142\u0105d po\u0142\u0105czenia podczas wyboru narz\u0119dzia.");
     }
 }
 
 window.openToolSelectionForMapAction = async function(payload) {
     window.activeToolSelection = normalizeToolSelectionPayload(payload || {});
     const title = window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || "akcja";
-    addSystemMessage("info", "đź› ď¸Ź WybĂłr narzÄ™dzia", `Wybierz narzÄ™dzie dla: ${title}`);
+    addSystemMessage("info", "\u{1F6E0}\uFE0F Wyb\u00f3r narz\u0119dzia", `Wybierz narz\u0119dzie dla: ${title}`);
     await createFileManager({ toolSelection: window.activeToolSelection });
 };
 
@@ -5776,7 +5690,7 @@ async function createFileManager(options = {}) {
     term.innerHTML = `
         <div class="title-bar">
             MenedĹĽer plikĂłw
-            <span class="close-btn" style="float:right; cursor:pointer;">âś–</span>
+            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <div style="padding: 10px; background: #111; color: #0f0; flex:1; overflow-y:auto; font-family: monospace;" id="${terminalId}-content">
             <h3>Katalogi:</h3>
@@ -5804,7 +5718,7 @@ async function createFileManager(options = {}) {
     // Pobierz dane profilu
     const profileData = await getUserProfile();
     if (!profileData || !profileData.files) {
-        addSystemMessage("danger", "đź“‚ Pliki", "âťŚ BĹ‚Ä…d Ĺ‚adowania plikĂłw");
+        addSystemMessage("danger", "\u{1F4C2} Pliki", "\u2716 B\u0142\u0105d \u0142adowania plik\u00f3w");
         return;
     }
     const files = profileData.files;
@@ -6271,7 +6185,7 @@ async function createFileManager(options = {}) {
             `;
             return;
         }
-        addSystemMessage("info", "đź“ Otwieranie pliku", `(Symulacja) Otwierasz plik: ${filename}`);
+        addSystemMessage("info", "\u{1F4C1} Otwieranie pliku", `(Symulacja) Otwierasz plik: ${filename}`);
     };
     window.selectMapActionTool = selectMapActionTool;
     window.uninstallApp = async (appName, appId = "") => {
@@ -6287,7 +6201,7 @@ async function createFileManager(options = {}) {
             });
             const data = await response.json();
             if (!response.ok || data.success === false || data.status === "error") {
-                throw new Error(data.message || 'Nie udaĹ‚o siÄ™ odinstalowaÄ‡ aplikacji.');
+            addSystemMessage("danger", "Deinstalacja", err.message || "Nie uda\u0142o si\u0119 odinstalowa\u0107 aplikacji.");
             }
             if (data.files && Array.isArray(data.files.tools)) {
                 files.tools = data.files.tools;
@@ -6316,7 +6230,7 @@ async function createFileManager(options = {}) {
             await refreshToolbarProfile().catch(() => null);
             addSystemMessage("warning", "Deinstalacja", data.message || `Odinstalowano ${appName}`);
         } catch (err) {
-            addSystemMessage("danger", "Deinstalacja", err.message || "Nie udaĹ‚o siÄ™ odinstalowaÄ‡ aplikacji.");
+            addSystemMessage("danger", "Deinstalacja", err.message || "Nie uda\u0142o si\u0119 odinstalowa\u0107 aplikacji.");
         }
     };
     window.removeProjectFromGoogleplex = async (filename) => {
@@ -6362,7 +6276,7 @@ function createEmailClientLegacy() {
     term.innerHTML = `
         <div class="title-bar">
             Skrzynka mailowa
-            <span class="close-btn" style="float:right; cursor:pointer;">âś–</span>
+            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <div style="display: flex; flex: 1; background: #111; color: #0f0; font-family: monospace;">
             <!-- WiadomoĹ›ci -->
@@ -6442,7 +6356,7 @@ function createEmailClient() {
     term.innerHTML = `
         <div class="title-bar">
             Skrzynka mailowa
-            <span class="close-btn" style="float:right; cursor:pointer;">x</span>
+            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <div class="mail-shell">
             <div class="mail-sidebar">
