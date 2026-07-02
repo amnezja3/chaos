@@ -2790,6 +2790,20 @@
             window.renderPlayerActors = function(actors) {
                 const visible = new Set();
 
+                function resetPlayerActorMarkerUi(marker, tooltip) {
+                    if (!marker) return;
+                    if (typeof marker.closePopup === 'function') marker.closePopup();
+                    if (typeof marker.unbindPopup === 'function') marker.unbindPopup();
+                    if (typeof marker.closeTooltip === 'function') marker.closeTooltip();
+                    if (typeof marker.unbindTooltip === 'function') marker.unbindTooltip();
+                    marker.bindTooltip(tooltip, {
+                        permanent: false,
+                        direction: 'top',
+                        sticky: false,
+                        opacity: 0.95
+                    });
+                }
+
                 (actors || []).forEach(actor => {
                     const key = actor.username || actor.nick;
                     const lat = parseFloat(actor.lat);
@@ -2798,11 +2812,11 @@
 
                     visible.add(key);
                     const relationLabel = window.playerActorRelationLabels[actor.relation] || actor.relation || 'Gracz';
-                    const popup = `${window.escapeMapText(actor.nick || key)}<br>${window.escapeMapText(relationLabel)}`;
+                    const tooltip = `${window.escapeMapText(actor.nick || key)}<br>${window.escapeMapText(relationLabel)}`;
 
                     if (!window.playerActorMarkers[key]) {
                         const marker = L.marker([lat, lng], { icon: window.buildPlayerActorIcon(actor) }).addTo(map);
-                        marker.bindPopup(popup, { autoPan: false });
+                        resetPlayerActorMarkerUi(marker, tooltip);
                         marker.on('contextmenu', function(e) {
                             consumeMapContextEvent(e);
                             if (actor.target_status || (actor.context && actor.context.is_marked_target)) {
@@ -2815,7 +2829,7 @@
                     } else {
                         window.playerActorMarkers[key].setLatLng([lat, lng]);
                         window.playerActorMarkers[key].setIcon(window.buildPlayerActorIcon(actor));
-                        window.playerActorMarkers[key].bindPopup(popup, { autoPan: false });
+                        resetPlayerActorMarkerUi(window.playerActorMarkers[key], tooltip);
                         window.playerActorMarkers[key].off('contextmenu');
                         window.playerActorMarkers[key].on('contextmenu', function(e) {
                             consumeMapContextEvent(e);
