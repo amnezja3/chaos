@@ -3090,21 +3090,6 @@
                     return true;
                 }
 
-                function showMapMenuForRejectedPlayerActorEvent(marker, e) {
-                    const originalEvent = e && e.originalEvent;
-                    const latlng = (e && e.latlng) || (marker && typeof marker.getLatLng === 'function'
-                        ? marker.getLatLng()
-                        : null);
-                    closeAllMapMenus();
-                    showContextMenu(
-                        (e && e.containerPoint && e.containerPoint.x) ?? (originalEvent && originalEvent.clientX) ?? 0,
-                        (e && e.containerPoint && e.containerPoint.y) ?? (originalEvent && originalEvent.clientY) ?? 0,
-                        (latlng && latlng.lat) ?? 0,
-                        (latlng && latlng.lng) ?? 0,
-                        true
-                    );
-                }
-
                 (actors || []).forEach(actor => {
                     const menuActor = freezeMapMenuPayload(actor || {});
                     const key = menuActor.username || menuActor.nick;
@@ -3122,10 +3107,7 @@
                         marker._playerActorSnapshot = menuActor;
                         marker.on('contextmenu', function(e) {
                             const actorSnapshot = marker._playerActorSnapshot || menuActor;
-                            if (!isPlayerActorContextEventInsideMarker(marker, e, actorSnapshot)) {
-                                showMapMenuForRejectedPlayerActorEvent(marker, e);
-                                return;
-                            }
+                            if (!isPlayerActorContextEventInsideMarker(marker, e, actorSnapshot)) return;
                             consumeMapContextEvent(e);
                             if (actorSnapshot.target_status || (actorSnapshot.context && actorSnapshot.context.is_marked_target)) {
                                 window.showPlayerActorHackMenu(actorSnapshot, null, e.containerPoint.x, e.containerPoint.y);
@@ -3143,10 +3125,7 @@
                         window.playerActorMarkers[key].off('contextmenu');
                         window.playerActorMarkers[key].on('contextmenu', function(e) {
                             const actorSnapshot = window.playerActorMarkers[key]._playerActorSnapshot || menuActor;
-                            if (!isPlayerActorContextEventInsideMarker(window.playerActorMarkers[key], e, actorSnapshot)) {
-                                showMapMenuForRejectedPlayerActorEvent(window.playerActorMarkers[key], e);
-                                return;
-                            }
+                            if (!isPlayerActorContextEventInsideMarker(window.playerActorMarkers[key], e, actorSnapshot)) return;
                             consumeMapContextEvent(e);
                             if (actorSnapshot.target_status || (actorSnapshot.context && actorSnapshot.context.is_marked_target)) {
                                 window.showPlayerActorHackMenu(actorSnapshot, null, e.containerPoint.x, e.containerPoint.y);
