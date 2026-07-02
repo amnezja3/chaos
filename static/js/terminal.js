@@ -2231,7 +2231,7 @@ function createMap() {
     term.innerHTML = `
         <div class="title-bar">
             Mapa
-            <span class="close-btn" style="float:right; cursor:pointer;">âś–</span>
+            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <iframe src="/map" width="100%" height="100%" style="border:none;"></iframe>
     `;
@@ -2257,17 +2257,24 @@ function createBrowser() {
     term.style.height = `560px`;
 
     const terminalId = `browser-${Date.now()}`;
+    const browserUiIcons = {
+        close: '\u2716',
+        back: '\u2190',
+        forward: '\u2192',
+        favorite: '\u2B50',
+        app: '\u25A3'
+    };
 
     term.innerHTML = `
     <div class="title-bar">
         WebDragons
-        <span class="close-btn" style="float:right; cursor:pointer;">âś–</span>
+        <span class="close-btn" style="float:right; cursor:pointer;">${browserUiIcons.close}</span>
     </div>
     <div class="browser-nav">
-        <button class="nav-btn">â¬…</button>
-        <button class="nav-btn">âžˇ</button>
+        <button class="nav-btn">${browserUiIcons.back}</button>
+        <button class="nav-btn">${browserUiIcons.forward}</button>
         <input type="text" value="xhttp://webdragons.hck" readonly class="url-bar">
-        <button class="fav-btn" title="Dodaj do ulubionych">â­</button>
+        <button class="fav-btn" title="Dodaj do ulubionych">${browserUiIcons.favorite}</button>
     </div>
     <div class="googolplex-shell">
         <div class="googolplex-header">
@@ -2278,7 +2285,7 @@ function createBrowser() {
             <button type="button" class="browser-tab is-active" data-browser-tab="googleplex">Googleplex</button>
             <button type="button" class="browser-tab" data-browser-tab="exchange">Ghost Exchange</button>
         </div>
-        <input type="text" id="${terminalId}-search" placeholder="Wyszukaj aplikacjÄ™..." class="googolplex-search">
+        <input type="text" id="${terminalId}-search" placeholder="Wyszukaj aplikacj\u0119..." class="googolplex-search">
         <div id="${terminalId}-results" class="googolplex-grid"></div>
     </div>
     `;
@@ -2362,7 +2369,7 @@ function createBrowser() {
             const canAfford = walletBalance >= price;
             const installBlockedReason = item.install_blocked_reason || "";
             const canInstall = !installed && canAfford && !installBlockedReason;
-            const buttonLabel = installed ? "Zainstalowane" : (canAfford ? "Zainstaluj" : "Brak Ĺ›rodkĂłw");
+            const buttonLabel = installed ? "Zainstalowane" : (canAfford ? "Zainstaluj" : "Brak \u015brodk\u00f3w");
             const hasInstallRequirements = item.type === "pro-system-tool" || item.category === "pro-system-tools" || item.category === "creators" || item.required_level || item.required_respect;
             const riskLevel = Math.max(0, Math.min(5, Number(item.risk_level || 0)));
             const riskStars = riskLevel ? "&#9733;".repeat(riskLevel) : "brak";
@@ -2391,9 +2398,9 @@ function createBrowser() {
                     <span>Data: <b>${escapeHTML(googleplexListText(item.resource_types))}</b></span>
                     <span>Waga: <b>${escapeHTML(formatStorageSize(fileSize))}</b></span>
                     <span>Instalacja: <b>${escapeHTML(formatStorageSize(diskUsage))}</b></span>
-                    <span>JakoĹ›Ä‡: <b>${qualityScore}/100</b></span>
-                    <span>NiezawodnoĹ›Ä‡: <b>${reliability}/100</b></span>
-                    <span>Moc twĂłrcy: <b>${creatorPower}/100</b></span>
+                    <span>Jako\u015b\u0107: <b>${qualityScore}/100</b></span>
+                    <span>Niezawodno\u015b\u0107: <b>${reliability}/100</b></span>
+                    <span>Moc tw\u00f3rcy: <b>${creatorPower}/100</b></span>
                     <span>Moc: <b>${powerScore}/100</b></span>
                     <span>Cena sugerowana: <b>${priceHint ? `${priceHint} HC` : '-'}</b></span>
                 </div>
@@ -2405,7 +2412,7 @@ function createBrowser() {
             card.className = 'googolplex-card';
             card.innerHTML = `
                 <div class="googolplex-card-title">
-                    <span class="googolplex-card-icon">${item.icon || 'â–ˇ'}</span>
+                    <span class="googolplex-card-icon">${item.icon || browserUiIcons.app}</span>
                     <span>${escapeHTML(item.name || 'Aplikacja')}</span>
                 </div>
                 <p>${escapeHTML(item.description || 'Brak opisu.')}</p>
@@ -2414,7 +2421,7 @@ function createBrowser() {
                 ${blockedHint}
                 <div class="googolplex-card-meta">
                     <span>${escapeHTML(item.type || 'tool')}</span>
-                    <span>${Number(item.downloads || 0)} pobraĹ„</span>
+                    <span>${Number(item.downloads || 0)} pobra\u0144</span>
                 </div>
                 <div class="googolplex-card-footer">
                     <strong>${price} HC</strong>
@@ -2465,7 +2472,7 @@ function createBrowser() {
             card.className = `googolplex-card ghost-exchange-card ${prepared ? 'is-listed-preview' : ''}`;
             card.innerHTML = `
                 <div class="googolplex-card-title">
-                    <span class="googolplex-card-icon">GX</span>
+                    <span class="googolplex-card-icon">${item.icon || browserUiIcons.app}</span>
                     <span>${escapeHTML(item.name || 'Pakiet danych')}</span>
                 </div>
                 <p>${escapeHTML(item.directory || item.file_category || '/data')} | ${escapeHTML(item.preview_mode || 'preview')}</p>
@@ -2474,8 +2481,8 @@ function createBrowser() {
                     <span>Rynek: <b>${escapeHTML(item.market_category || '-')}</b></span>
                     <span>Zasoby: <b>${escapeHTML(resources)}</b></span>
                     <span>Status: <b>${escapeHTML(status)}</b></span>
-                    <span>KompletnoĹ›Ä‡: <b>${Math.max(0, Math.min(100, completeness))}% / ${escapeHTML(item.completeness_tier || (item.metadata || {}).completeness_tier || '-')}</b></span>
-                    <span>JakoĹ›Ä‡: <b>${Math.max(0, Math.min(100, qualityScore))}/100</b></span>
+                    <span>Kompletno\u015b\u0107: <b>${Math.max(0, Math.min(100, completeness))}% / ${escapeHTML(item.completeness_tier || (item.metadata || {}).completeness_tier || '-')}</b></span>
+                    <span>Jako\u015b\u0107: <b>${qualityScore}/100</b></span>
                     <span>Braki: <b>${escapeHTML(missingFields.length ? missingFields.slice(0, 3).join(', ') : 'brak')}</b></span>
                 </div>
                 <div class="googolplex-card-footer">
@@ -5693,8 +5700,16 @@ async function createFileManager(options = {}) {
         audio_interference: 'audio hack',
         vehicle_ecu: 'hakowanie ECU'
     };
+    const fileManagerUiIcons = {
+        file: '\u{1F4C4}',
+        folder: '\u{1F4C2}',
+        tool: '\u{1F527}',
+        project: '\u{1F6E0}\uFE0F',
+        uninstall: '\u2715',
+        back: '\u2190'
+    };
     const folderIcons = {
-        tools: 'đź”§',
+        tools: fileManagerUiIcons.tool,
         gps: 'TRK',
         device: 'DEV',
         audio: 'AUD',
@@ -5708,18 +5723,12 @@ async function createFileManager(options = {}) {
         system: 'SYS',
         market: 'MKT',
         projects: 'PRJ',
-        pictures: 'đź–Ľď¸Ź',
-        download: 'â¬‡ď¸Ź',
-        'social-media': 'đź’¬'
-    };
-    const getFolderLabel = (folderName) => folderLabels[folderName] || folderName;
-    Object.assign(folderIcons, {
-        tools: 'TOOL',
         pictures: 'IMG',
         download: 'DL',
         'social-media': 'SOC'
-    });
-    const getFolderIcon = (folderName) => folderIcons[folderName] || 'đź“„';
+    };
+    const getFolderLabel = (folderName) => folderLabels[folderName] || folderName;
+    const getFolderIcon = (folderName) => folderIcons[folderName] || fileManagerUiIcons.file;
     const getFileOperationType = (fileEntry) => {
         if (!fileEntry || typeof fileEntry !== 'object') return '';
         const metadata = fileEntry.metadata || {};
@@ -5731,24 +5740,21 @@ async function createFileManager(options = {}) {
     };
     const polishFileManagerText = (root) => {
         if (!root) return;
-        const replacements = new Map([
-            ['KompletnoÄąâ€şĂ„â€ˇ', 'KompletnoĹ›Ä‡'],
-            ['KompletnoĂ„â€ˇ', 'KompletnoĹ›Ä‡'],
-            ['JakoÄąâ€şĂ„â€ˇ', 'JakoĹ›Ä‡'],
-            ['wartoÄąâ€şĂ„â€ˇ', 'wartoĹ›Ä‡'],
-            ['WartoÄąâ€şĂ„â€ˇ', 'WartoĹ›Ä‡'],
-            ['DokÄąâ€šadnoÄąâ€şĂ„â€ˇ', 'DokĹ‚adnoĹ›Ä‡'],
-            ['PewnoÄąâ€şĂ„â€ˇ', 'PewnoĹ›Ä‡'],
-            ['Brak plikÄ‚Ĺ‚w', 'Brak plikĂłw'],
-            ['Brak zasobÄ‚Ĺ‚w', 'Brak zasobĂłw'],
-            ['Brak checkpointÄ‚Ĺ‚w', 'Brak checkpointĂłw'],
-            ['Sprzedawalny', 'Sprzedawalne'],
-            ['UÄąÄ˝yj', 'UĹĽyj'],
-            ['podÄąâ€şwietlone narzĂ„â„˘dzie', 'podĹ›wietlone narzÄ™dzie'],
-            ['WrÄ‚Ĺ‚Ă„â€ˇ', 'WrĂłÄ‡'],
-            ['WrĂ„â€šÄąâ€šÄ‚â€žĂ˘â‚¬Ë‡', 'WrĂłÄ‡'],
-            ['MenedÄąÄ˝er plikÄ‚Ĺ‚w', 'MenedĹĽer plikĂłw']
-        ]);
+        const replacements = [
+            [/Kompletno[^\s:]*/g, 'Kompletno\u015b\u0107'],
+            [/Jako[^\s:]*/g, 'Jako\u015b\u0107'],
+            [/warto[^\s:]*/g, 'warto\u015b\u0107'],
+            [/Warto[^\s:]*/g, 'Warto\u015b\u0107'],
+            [/Dok[^\s:]*/g, 'Dok\u0142adno\u015b\u0107'],
+            [/Pewno[^\s:]*/g, 'Pewno\u015b\u0107'],
+            [/Brak plik[^\s.]*/g, 'Brak plik\u00f3w'],
+            [/Brak zasob[^\s.]*/g, 'Brak zasob\u00f3w'],
+            [/Brak checkpoint[^\s.]*/g, 'Brak checkpoint\u00f3w'],
+            [/U[^\s]*yj/g, 'U\u017cyj'],
+            [/pod[^\s]*wietlone narz[^\s.]*dzie/g, 'pod\u015bwietlone narz\u0119dzie'],
+            [/Wr[^\s]*/g, 'Wr\u00f3\u0107'],
+            [/Mened[^\s]*er plik[^\s]*/g, 'Mened\u017cer plik\u00f3w']
+        ];
         root.querySelectorAll('.file-manager-back-btn').forEach(button => {
             if (button.dataset.polishedBack !== '1') {
                 button.innerHTML = '&larr; Wr&oacute;&cacute;';
@@ -5760,8 +5766,8 @@ async function createFileManager(options = {}) {
         while (walker.nextNode()) nodes.push(walker.currentNode);
         nodes.forEach(node => {
             let value = node.nodeValue || '';
-            replacements.forEach((replacement, pattern) => {
-                value = value.split(pattern).join(replacement);
+            replacements.forEach(([pattern, replacement]) => {
+                value = value.replace(pattern, replacement);
             });
             if (value !== node.nodeValue) node.nodeValue = value;
         });
@@ -5915,17 +5921,17 @@ async function createFileManager(options = {}) {
                 list += `
                     <div class="file-manager-row file-manager-row-dark ${isMatchingTool ? 'file-manager-row-match' : ''}">
                         <span class="file-manager-file" onclick="window.runFile('${folderName}','${filename}')">
-                            <span class="file-manager-icon">đź”§</span>
+                            <span class="file-manager-icon">${fileManagerUiIcons.tool}</span>
                             <span class="file-manager-name">${filename}</span>
                             ${toolSizeLine}
                             ${toolContractLine}
                             ${isMatchingTool ? `
                                 <button class="file-manager-tool-select" data-app-id="${escapeHTML(matchingTool.id || '')}" onclick="event.stopPropagation();window.selectMapActionTool('${escapeHTML(matchingTool.id || '')}')">
-                                    UĹĽyj
+                                    U\u017cyj
                                 </button>
                             ` : ''}
                             <button class="file-manager-uninstall-btn" onclick="event.stopPropagation();window.uninstallApp('${escapeHTML(filename)}', '${escapeHTML(toolAppId)}')">
-                                đź—‘ď¸Ź <span class="file-manager-uninstall-label">Odinstaluj</span>
+                                ${fileManagerUiIcons.uninstall} <span class="file-manager-uninstall-label">Odinstaluj</span>
                             </button>
                         </span>
                     </div>
@@ -5934,7 +5940,7 @@ async function createFileManager(options = {}) {
                 list += `
                     <div class="file-manager-row file-manager-row-dark">
                         <span class="file-manager-file" onclick="window.runFile('${folderName}','${filename}')">
-                            <span class="file-manager-icon">đź› ď¸Ź</span>
+                            <span class="file-manager-icon">${fileManagerUiIcons.project}</span>
                             <span class="file-manager-name">${filename}</span>
                             <button class="file-manager-uninstall-btn" onclick="event.stopPropagation();window.removeProjectFromGoogleplex('${filename}')">
                                 Wycofaj
@@ -5965,7 +5971,7 @@ async function createFileManager(options = {}) {
                         <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Zasoby: ${escapeHTML(resources)} | Typ: ${escapeHTML(operationLabel)} | Operacja: ${escapeHTML(sourceOperation)}</span>
                         <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Rynek: ${escapeHTML(marketStatus)} | Sprzedawalny: ${escapeHTML(sellableLabel)}</span>
                         <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Rozmiar: ${escapeHTML(formatStorageSize(fileSize))}</span>
-                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">KompletnoĹ›Ä‡: ${escapeHTML(String(completeness))}% | JakoĹ›Ä‡: ${escapeHTML(String(qualityScore))}/100 | Braki: ${escapeHTML(missingFields.length ? missingFields.slice(0, 3).join(', ') : 'brak')}</span>
+                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">Kompletno\u015b\u0107: ${escapeHTML(String(completeness))}% | Jako\u015b\u0107: ${escapeHTML(String(qualityScore))}/100 | Braki: ${escapeHTML(missingFields.length ? missingFields.slice(0, 3).join(', ') : 'brak')}</span>
                     `;
                 }
                 list += `
@@ -5993,11 +5999,11 @@ async function createFileManager(options = {}) {
                 list += `
                     <div class="file-manager-row file-manager-row-dark file-manager-row-match">
                         <span class="file-manager-file file-manager-tool file-manager-tool-match" onclick="window.runFile('tools','${filename}')">
-                            <span class="file-manager-icon">${escapeHTML(app.icon || 'đź”§')}</span>
+                            <span class="file-manager-icon">${escapeHTML(app.icon || fileManagerUiIcons.tool)}</span>
                             <span class="file-manager-name">${escapeHTML(filename)}</span>
                             ${appSizeLine}
                             <button class="file-manager-tool-select" data-app-id="${escapeHTML(appId)}" onclick="event.stopPropagation();window.selectMapActionTool('${escapeHTML(appId)}')">
-                                UĹĽyj
+                                    U\u017cyj
                             </button>
                         </span>
                     </div>
@@ -6005,18 +6011,18 @@ async function createFileManager(options = {}) {
             });
         }
 
-        if (!list) list = `<div class="file-manager-empty">Brak plikĂłw</div>`;
+        if (!list) list = `<div class="file-manager-empty">Brak plik\u00f3w</div>`;
         const selectionHeader = folderName === "tools" && window.activeToolSelection ? `
             <div class="file-manager-selection-hint">
                 Akcja mapy: <b>${escapeHTML(window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || '-')}</b>.
-                Wybierz podĹ›wietlone narzÄ™dzie.
+                Wybierz pod\u015bwietlone narz\u0119dzie.
             </div>
         ` : "";
 
         container.innerHTML = `
             <div class="file-manager-header">
-                <button class="file-manager-back-btn" onclick="window.renderFoldersRoot('${id}')">â¬… WrĂłÄ‡</button>
-                <span class="file-manager-folder-title">đź“‚ ${escapeHTML(getFolderLabel(folderName))} <small style="color:#6fbf89;">/${escapeHTML(folderName)}</small></span>
+                <button class="file-manager-back-btn" onclick="window.renderFoldersRoot('${id}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                <span class="file-manager-folder-title">${fileManagerUiIcons.folder} ${escapeHTML(getFolderLabel(folderName))} <small style="color:#6fbf89;">/${escapeHTML(folderName)}</small></span>
             </div>
             ${storageMeterHTML()}
             ${selectionHeader}
@@ -6063,8 +6069,8 @@ async function createFileManager(options = {}) {
             if (fileEntry.preview_mode === "card") {
                 container.innerHTML = `
                     <div class="file-manager-header">
-                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">â¬… WrĂłÄ‡</button>
-                        <span class="file-manager-folder-title">đź“„ ${escapeHTML(filename)}</span>
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                        <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(filename)}</span>
                     </div>
                     <div class="file-manager-row file-manager-row-dark" style="display:block;">
                         <h3>${escapeHTML(summary.label || 'Device Intelligence')}</h3>
@@ -6102,8 +6108,8 @@ async function createFileManager(options = {}) {
                 `).join('');
                 container.innerHTML = `
                     <div class="file-manager-header">
-                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">Ă˘Â¬â€¦ WrÄ‚Ĺ‚Ă„â€ˇ</button>
-                        <span class="file-manager-folder-title">FIN ${escapeHTML(filename)}</span>
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                        <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(filename)}</span>
                     </div>
                     <div class="file-manager-row file-manager-row-dark" style="display:block;">
                         <h3>${escapeHTML(filename)}</h3>
@@ -6140,8 +6146,8 @@ async function createFileManager(options = {}) {
             if (fileEntry.preview_mode === "encrypted_blob") {
                 container.innerHTML = `
                     <div class="file-manager-header">
-                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">Ă˘Â¬â€¦ WrÄ‚Ĺ‚Ă„â€ˇ</button>
-                        <span class="file-manager-folder-title">KEY ${escapeHTML(filename)}</span>
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                        <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(filename)}</span>
                     </div>
                     <div class="file-manager-row file-manager-row-dark" style="display:block;">
                         <h3>${escapeHTML(summary.label || 'Encrypted Data Blob')}</h3>
@@ -6172,8 +6178,8 @@ async function createFileManager(options = {}) {
             if (fileEntry.preview_mode === "operation_state") {
                 container.innerHTML = `
                     <div class="file-manager-header">
-                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">Ă˘Â¬â€¦ WrÄ‚Ĺ‚Ă„â€ˇ</button>
-                        <span class="file-manager-folder-title">SYS ${escapeHTML(filename)}</span>
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                        <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(filename)}</span>
                     </div>
                     <div class="file-manager-row file-manager-row-dark" style="display:block;">
                         <h3>${escapeHTML(filename)}</h3>
@@ -6197,8 +6203,8 @@ async function createFileManager(options = {}) {
                 const durationLabel = `${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s`;
                 container.innerHTML = `
                     <div class="file-manager-header">
-                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">Ă˘Â¬â€¦ WrÄ‚Ĺ‚Ă„â€ˇ</button>
-                        <span class="file-manager-folder-title">CAM ${escapeHTML(filename)}</span>
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                        <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(filename)}</span>
                     </div>
                     <div class="file-manager-row file-manager-row-dark" style="display:block;">
                         <h3>${escapeHTML(summary.label || 'Camera Stream Fragment')}</h3>
@@ -6235,8 +6241,8 @@ async function createFileManager(options = {}) {
             `).join('');
             container.innerHTML = `
                 <div class="file-manager-header">
-                    <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">â¬… WrĂłÄ‡</button>
-                    <span class="file-manager-folder-title">đź“„ ${escapeHTML(filename)}</span>
+                    <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                    <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(filename)}</span>
                 </div>
                 <div class="file-manager-row file-manager-row-dark" style="display:block;">
                     <h3>${escapeHTML(filename)}</h3>
