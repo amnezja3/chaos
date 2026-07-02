@@ -1154,6 +1154,8 @@
 
         // Blokuj menu przeglądarki
         function closeAllMapMenus() {
+            console.warn('[map-menu] closeAllMapMenus CALLED');
+            console.trace();
             document.querySelectorAll('.context-menu, .context-menu-clean').forEach(el => el.remove());
             window.removeEventListener('mousedown', closeMenus, true);
             window.removeEventListener('click', closeMenus, true);
@@ -1180,6 +1182,8 @@
 
 
         function showContextMenu(x, y, lat, lng, forceMapMenu = false) {
+            console.warn('[map-menu] showContextMenu CALLED', { x, y, lat, lng, forceMapMenu });
+            console.trace();
             if (!forceMapMenu && lastContextWasMarker) {
                 lastContextWasMarker = false; // 👈 resetuj
                 return;
@@ -1667,6 +1671,11 @@
         }
 
         function closeMenus(e) {
+            console.warn('[map-menu] closeMenus CALLED', {
+                eventType: e && e.type,
+                targetClass: e && e.target && e.target.className
+            });
+            console.trace();
 
             const clickedInsideMenu = e && e.target && e.target.closest && e.target.closest('.context-menu, .context-menu-clean');
             
@@ -2912,6 +2921,14 @@
             };
 
             window.showPlayerActorMenu = function(actor, x, y, source = 'unknown') {
+                console.warn('[map-menu] showPlayerActorMenu CALLED', {
+                    source,
+                    username: actor && actor.username,
+                    nick: actor && actor.nick,
+                    x,
+                    y
+                });
+                console.trace();
                 const menuActor = freezeMapMenuPayload(actor || {});
                 warnSuspiciousAdminMenuRoute('playerActorMenu', menuActor, source);
                 closeMenus();
