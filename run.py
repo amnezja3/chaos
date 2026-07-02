@@ -8439,7 +8439,7 @@ def mark_player_target():
         for intruder in territory_store.list_recent_area_intruders(viewer_username)
     )
     context = {
-        "is_friend": mail_store.is_contact(viewer_username, target_username),
+        "is_friend": mail_store.is_accepted_contact(viewer_username, target_username),
         "is_intruder": is_intruder,
     }
     relation = resolve_player_actor_relation(viewer_profile, target_profile, context)
@@ -8520,7 +8520,7 @@ def map_friends():
 
     username = session["user"]
     friends = []
-    for contact in mail_store.list_contacts(username):
+    for contact in mail_store.list_accepted_contacts(username):
         friend_profile = user_store.get_profile(contact.get("name", ""))
         if not friend_profile:
             continue
@@ -8636,7 +8636,7 @@ def map_player_actors():
             context=context,
         )
 
-    for contact in mail_store.list_contacts(viewer_username):
+    for contact in mail_store.list_accepted_contacts(viewer_username):
         actor_profile = user_store.get_profile(contact.get("name", ""))
         if not actor_profile:
             continue
@@ -9446,11 +9446,18 @@ def request_player_contact():
     if not target_profile:
         return jsonify({"success": False, "error": "Nie ma takiego uzytkownika."}), 404
 
-    if mail_store.is_contact(username, target_username):
+    if mail_store.is_accepted_contact(username, target_username):
         return jsonify({
             "success": True,
             "status": "already_friend",
             "message": "Ten gracz jest juz na liscie znajomych.",
+            "contacts": mail_store.list_contacts(username),
+        })
+    if mail_store.is_contact(username, target_username):
+        return jsonify({
+            "success": True,
+            "status": "already_pending",
+            "message": "Zaproszenie juz oczekuje.",
             "contacts": mail_store.list_contacts(username),
         })
     if mail_store.is_contact(target_username, username):

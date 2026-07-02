@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from unittest.mock import patch
 
 import run
-from database import DevBugReportStore, JsonResourceStore
+from database import DevBugReportStore, JsonResourceStore, MailStore
 from run import (
     active_operations_from_operations,
     build_player_actor,
@@ -106,8 +106,13 @@ class DevBugReportStoreTest(unittest.TestCase):
             updated = store.update_report(report["id"], {"status": "confirmed"})
             self.assertEqual(updated["status"], "confirmed")
         finally:
-            if os.path.exists(path):
-                os.remove(path)
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{path}{suffix}"
+                if os.path.exists(candidate):
+                    try:
+                        os.remove(candidate)
+                    except PermissionError:
+                        pass
 
     def test_dev_bug_server_context_uses_trusted_profile_username(self):
         fake_profile = {
@@ -166,8 +171,53 @@ class JsonResourceStoreSeedTest(unittest.TestCase):
             self.assertNotIn("system_status", keys)
             self.assertNotIn("system_messages", keys)
         finally:
-            if os.path.exists(path):
-                os.remove(path)
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{path}{suffix}"
+                if os.path.exists(candidate):
+                    try:
+                        os.remove(candidate)
+                    except PermissionError:
+                        pass
+
+
+class MailStoreFriendshipStatusTest(unittest.TestCase):
+    def test_pending_contact_is_not_accepted_friendship(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            store = MailStore(db_path=path)
+            now = datetime.now(timezone.utc).isoformat()
+            with sqlite3.connect(path) as conn:
+                conn.execute(
+                    "INSERT INTO users (username, password, salt, profile_json, created_at, updated_at) VALUES (?, '', '', '{}', ?, ?)",
+                    ("alice", now, now),
+                )
+                conn.execute(
+                    "INSERT INTO users (username, password, salt, profile_json, created_at, updated_at) VALUES (?, '', '', '{}', ?, ?)",
+                    ("bob", now, now),
+                )
+                conn.commit()
+
+            store.add_contact("alice", "bob")
+
+            self.assertTrue(store.is_contact("alice", "bob"))
+            self.assertFalse(store.is_accepted_contact("alice", "bob"))
+            self.assertEqual(store.list_accepted_contacts("alice"), [])
+            self.assertTrue(store.has_pending_contact_request("alice", "bob"))
+
+            store.add_contact("bob", "alice")
+
+            self.assertTrue(store.is_accepted_contact("alice", "bob"))
+            self.assertEqual(store.list_accepted_contacts("alice")[0]["name"], "bob")
+            self.assertFalse(store.has_pending_contact_request("alice", "bob"))
+        finally:
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{path}{suffix}"
+                if os.path.exists(candidate):
+                    try:
+                        os.remove(candidate)
+                    except PermissionError:
+                        pass
 
 
 class LightweightPollingEndpointTest(unittest.TestCase):

@@ -2126,6 +2126,40 @@ class MailStore:
             ).fetchone()
             return row is not None
 
+    def is_accepted_contact(self, username, contact_name):
+        if not username or not contact_name:
+            return False
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT 1
+                FROM contacts own
+                JOIN contacts reciprocal
+                    ON reciprocal.owner_username = own.contact_name
+                    AND reciprocal.contact_name = own.owner_username
+                WHERE own.owner_username = ?
+                    AND own.contact_name = ?
+                """,
+                (username, contact_name),
+            ).fetchone()
+            return row is not None
+
+    def list_accepted_contacts(self, username):
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT own.contact_name, own.status
+                FROM contacts own
+                JOIN contacts reciprocal
+                    ON reciprocal.owner_username = own.contact_name
+                    AND reciprocal.contact_name = own.owner_username
+                WHERE own.owner_username = ?
+                ORDER BY own.contact_name COLLATE NOCASE
+                """,
+                (username,),
+            ).fetchall()
+            return [{"name": row["contact_name"], "status": row["status"]} for row in rows]
+
     def has_direct_thread(self, username, peer_name):
         with db_connect(self.db_path) as conn:
             row = conn.execute(
@@ -2144,8 +2178,10 @@ class MailStore:
     def has_pending_contact_request(self, requester, target_name):
         if not requester or not target_name:
             return False
-        if self.is_contact(requester, target_name) or self.is_contact(target_name, requester):
+        if self.is_accepted_contact(requester, target_name):
             return False
+        if self.is_contact(requester, target_name) or self.is_contact(target_name, requester):
+            return True
         return self.has_direct_thread(target_name, requester) or self.has_direct_thread(requester, target_name)
 
     def add_contact_pair(self, username, contact_name, status="offline"):
