@@ -1813,6 +1813,8 @@ kliknieciu w pozornie puste pole mapy.
   jest zwykle menu mapy.
 * Usunieto tooltipy z player actorow, bo nick jest juz widoczny jako label nad
   avatarem.
+* Dodano `doc/map_interactions.md` jako lekcje architektoniczna dla przyszlych
+  sprintow mapy.
 
 ### Najwazniejsze decyzje
 
@@ -1821,6 +1823,10 @@ kliknieciu w pozornie puste pole mapy.
 * Proteza false-positive eventu zostaje jako defensywny airbag przy blednym
   routingu eventu Leafleta, ale nie zmienia mechaniki gry.
 * Player actor tooltipy sa zbedne i zostaly usuniete z UI.
+* Kazdy interaktywny obiekt mapy powinien byc samodzielny: wlasny registry,
+  cleanup, snapshot danych, hitbox, menu i sciezka eventow.
+* Obiekt mapy nie powinien udawac klikniecia w mape ani w inny obiekt. Protezy
+  moga istniec tylko jako defensywny airbag, nie jako glowny routing.
 
 ### Problemy
 
@@ -1835,6 +1841,7 @@ kliknieciu w pozornie puste pole mapy.
 
 * `templates/map_template.html`
 * `doc/project_journal.md`
+* `doc/map_interactions.md`
 
 ### Wynik testow
 

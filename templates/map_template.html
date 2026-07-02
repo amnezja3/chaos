@@ -358,6 +358,30 @@
       overflow: hidden !important;
     }
 
+    .scan-target-marker-root {
+      box-sizing: border-box !important;
+      overflow: hidden !important;
+      pointer-events: auto !important;
+    }
+
+    .scan-target-marker-hitbox {
+      box-sizing: border-box;
+      overflow: hidden;
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: #0f0;
+      font-family: monospace;
+      text-shadow: 1px 1px 2px black;
+    }
+
+    .scan-target-marker-hitbox * {
+      box-sizing: border-box;
+      pointer-events: none;
+    }
+
     .friend-player-marker,
     .area-intruder-marker {
       box-sizing: border-box !important;
@@ -1102,6 +1126,49 @@
             return `${fallbackPrefix || targetDisplayPrefix(obj)}-${targetDisplayCode(obj)}`;
         }
 
+        function isContextEventInsideMarkerHitbox(marker, e, targetSnapshot = {}, source = 'marker') {
+            const element = marker && typeof marker.getElement === 'function'
+                ? marker.getElement()
+                : null;
+            const rect = element && typeof element.getBoundingClientRect === 'function'
+                ? element.getBoundingClientRect()
+                : null;
+            const originalEvent = e && e.originalEvent;
+
+            if (!rect || !originalEvent
+                || originalEvent.clientX < rect.left
+                || originalEvent.clientX > rect.right
+                || originalEvent.clientY < rect.top
+                || originalEvent.clientY > rect.bottom) {
+                console.warn('[map] Ignoruje contextmenu markera poza hitboxem', {
+                    source,
+                    label: targetSnapshot && (targetSnapshot.label || targetSnapshot.name),
+                    clientX: originalEvent && originalEvent.clientX,
+                    clientY: originalEvent && originalEvent.clientY,
+                    rect
+                });
+                return false;
+            }
+
+            return true;
+        }
+
+        function showMapMenuFromOriginalContextEvent(e) {
+            const originalEvent = e && e.originalEvent;
+            if (!originalEvent || !map || typeof map.mouseEventToContainerPoint !== 'function') return;
+            const containerPoint = map.mouseEventToContainerPoint(originalEvent);
+            const latlng = map.containerPointToLatLng(containerPoint);
+
+            closeAllMapMenus();
+            showContextMenu(
+                containerPoint.x,
+                containerPoint.y,
+                latlng.lat,
+                latlng.lng,
+                true
+            );
+        }
+
         function addInteractiveTargetMarker(lat, lng, label = "Cel", icon = "🎯", obj = {}) {
             const displayObj = { ...obj, lat, lng, label };
             label = mapTargetDisplayLabel(displayObj);
@@ -1122,14 +1189,18 @@
             });
             const marker = L.marker([markerObj.lat, markerObj.lon], {
                 icon: L.divIcon({
-                    className: 'custom-text-icon',
-                    html: `<div style="text-align:center;color:#0f0;font-size:2.5rem;font-family:monospace;text-shadow:1px 1px 2px black;"><div>${icon}</div></div>`,
+                    className: 'custom-text-icon scan-target-marker-root',
+                    html: `<div class="scan-target-marker-hitbox" style="width:80px;height:40px;max-width:80px;max-height:40px;font-size:2.5rem;line-height:40px;"><div>${icon}</div></div>`,
                     iconSize: [80, 40],
                     iconAnchor: [40, 20]
                 })
             }).addTo(map);
             marker.bindTooltip(label, { permanent: false, direction: 'top' });
             marker.on('contextmenu', function(e) {
+                if (!isContextEventInsideMarkerHitbox(marker, e, markerObj, 'interactiveTargetMarker')) {
+                    showMapMenuFromOriginalContextEvent(e);
+                    return;
+                }
                 consumeMapContextEvent(e);
                 document.querySelectorAll('.context-menu').forEach(el => el.remove());
                 showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerObj, icon, label, 'interactiveTargetMarker');
@@ -1913,15 +1984,9 @@
                         const marker = L.marker([menuTarget.lat, menuTarget.lon], {
                             zIndexOffset: menuTarget.generated ? 100 : 700,
                             icon: L.divIcon({
-                                className: 'custom-text-icon',
+                                className: 'custom-text-icon scan-target-marker-root',
                                 html: `
-                                    <div style="
-                                        text-align: center;
-                                        color: #0f0;
-                                        font-size: ${markerFontSize};
-                                        font-family: monospace;
-                                        text-shadow: 1px 1px 2px black;
-                                    ">
+                                    <div class="scan-target-marker-hitbox" style="width:${markerIconSize[0]}px;height:${markerIconSize[1]}px;max-width:${markerIconSize[0]}px;max-height:${markerIconSize[1]}px;font-size:${markerFontSize};line-height:${markerIconSize[1]}px;">
                                         <div>${menuTarget.icon}</div>
                                     </div>
                                 `,
@@ -1935,6 +2000,10 @@
                         marker.bindTooltip(menuTarget.label, { permanent: false, direction: 'top' });
 
                         marker.on('contextmenu', function(e) {
+                            if (!isContextEventInsideMarkerHitbox(marker, e, menuTarget, 'scanTargetMarker')) {
+                                showMapMenuFromOriginalContextEvent(e);
+                                return;
+                            }
                             consumeMapContextEvent(e);
                             document.querySelectorAll('.context-menu').forEach(el => el.remove());
                             showMarkerContextMenu(
@@ -2051,15 +2120,9 @@
                         
                         const marker = L.marker([menuTarget.lat, menuTarget.lon], {
                             icon: L.divIcon({
-                                className: 'custom-text-icon',
+                                className: 'custom-text-icon scan-target-marker-root',
                                 html: `
-                                    <div style="
-                                        text-align: center;
-                                        color: #0f0;
-                                        font-size: 2.5rem;
-                                        font-family: monospace;
-                                        text-shadow: 1px 1px 2px black;
-                                    ">
+                                    <div class="scan-target-marker-hitbox" style="width:80px;height:40px;max-width:80px;max-height:40px;font-size:2.5rem;line-height:40px;">
                                         <div>${iconEmoji}</div>
                                     </div>
                                 `,
@@ -2071,7 +2134,11 @@
                         marker.bindTooltip(label, { permanent: false, direction: 'top' });
 
                         marker.on('contextmenu', function(e) {
-                            e.originalEvent.stopPropagation(); // ⛔ blokuje przejęcie przez mapę
+                            if (!isContextEventInsideMarkerHitbox(marker, e, menuTarget, 'legacyScanTargetMarker')) {
+                                showMapMenuFromOriginalContextEvent(e);
+                                return;
+                            }
+                            consumeMapContextEvent(e);
                             document.querySelectorAll('.context-menu').forEach(el => el.remove());
                             showMarkerContextMenu(e.containerPoint.x, e.containerPoint.y, menuTarget, iconEmoji, label, 'legacyScanTargetMarker');
                         });
@@ -3082,22 +3149,6 @@
                     }
 
                     return true;
-                }
-
-                function showMapMenuFromOriginalContextEvent(e) {
-                    const originalEvent = e && e.originalEvent;
-                    if (!originalEvent || !map || typeof map.mouseEventToContainerPoint !== 'function') return;
-                    const containerPoint = map.mouseEventToContainerPoint(originalEvent);
-                    const latlng = map.containerPointToLatLng(containerPoint);
-
-                    closeAllMapMenus();
-                    showContextMenu(
-                        containerPoint.x,
-                        containerPoint.y,
-                        latlng.lat,
-                        latlng.lng,
-                        true
-                    );
                 }
 
                 (actors || []).forEach(actor => {
