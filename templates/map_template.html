@@ -783,9 +783,86 @@
 
         function removeMapLayerSafe(layer) {
             if (!layer) return;
+            if (typeof layer.closePopup === 'function') layer.closePopup();
+            if (typeof layer.unbindPopup === 'function') layer.unbindPopup();
             if (typeof layer.closeTooltip === 'function') layer.closeTooltip();
             if (typeof layer.unbindTooltip === 'function') layer.unbindTooltip();
+            if (typeof layer.off === 'function') layer.off();
             if (map.hasLayer(layer)) map.removeLayer(layer);
+        }
+
+        function registerLayerInArray(name, layer) {
+            window[name] = window[name] || [];
+            if (layer) {
+                layer._chaosLayerRegistry = name;
+                window[name].push(layer);
+            }
+            return layer;
+        }
+
+        function clearLayerArray(name) {
+            window[name] = window[name] || [];
+            const knownLayers = new Set(window[name]);
+
+            map.eachLayer(layer => {
+                if (layer && layer._chaosLayerRegistry === name) {
+                    knownLayers.add(layer);
+                }
+            });
+
+            knownLayers.forEach(layer => {
+                try {
+                    removeMapLayerSafe(layer);
+                    if (layer) {
+                        delete layer._chaosLayerRegistry;
+                    }
+                } catch (err) {
+                    console.warn('[map] Nie udalo sie usunac layera', name, err);
+                }
+            });
+
+            window[name] = [];
+        }
+
+        function getLayerTooltipText(layer) {
+            if (!layer || typeof layer.getTooltip !== 'function') return '';
+            const tooltip = layer.getTooltip();
+            if (!tooltip) return '';
+            const content = typeof tooltip.getContent === 'function'
+                ? tooltip.getContent()
+                : tooltip._content;
+            return String(content || '');
+        }
+
+        function cleanupLegacyPlayerAreaLayers() {
+            const territoryTooltipPatterns = [
+                'Pole gracza',
+                'Twoje pole',
+                'Konflikt terytorium'
+            ];
+
+            map.eachLayer(layer => {
+                if (!layer || layer._chaosLayerRegistry) return;
+                const looksLikePolygon = (window.L && L.Polygon && layer instanceof L.Polygon)
+                    || (typeof layer.getBounds === 'function' && typeof layer.getLatLngs === 'function');
+                if (!looksLikePolygon) return;
+
+                const tooltipText = getLayerTooltipText(layer);
+                if (!territoryTooltipPatterns.some(pattern => tooltipText.includes(pattern))) return;
+
+                try {
+                    removeMapLayerSafe(layer);
+                } catch (err) {
+                    console.warn('[map] Nie udalo sie usunac legacy player area layer', err);
+                }
+            });
+        }
+        window.cleanupLegacyPlayerAreaLayers = cleanupLegacyPlayerAreaLayers;
+
+        function scheduleLegacyPlayerAreaCleanup() {
+            [0, 250, 1000, 2000].forEach(delay => {
+                setTimeout(cleanupLegacyPlayerAreaLayers, delay);
+            });
         }
 
         function isSaneTerritoryPolygon(points) {
@@ -3051,26 +3128,12 @@
                     const keepCenter = map.getCenter();
                     const keepZoom = map.getZoom();
 
-                    window.playerAreaLayers.forEach(layer => {
-                        removeMapLayerSafe(layer);
-                    });
-                    window.playerAreaLayers = [];
-                    window.areaIntruderLayers.forEach(layer => {
-                        removeMapLayerSafe(layer);
-                    });
-                    window.areaIntruderLayers = [];
-                    window.contestedTargetLayers.forEach(layer => {
-                        removeMapLayerSafe(layer);
-                    });
-                    window.contestedTargetLayers = [];
-                    window.conflictAreaLayers.forEach(layer => {
-                        removeMapLayerSafe(layer);
-                    });
-                    window.conflictAreaLayers = [];
-                    window.capturedConflictPillarLayers.forEach(layer => {
-                        removeMapLayerSafe(layer);
-                    });
-                    window.capturedConflictPillarLayers = [];
+                    cleanupLegacyPlayerAreaLayers();
+                    clearLayerArray('playerAreaLayers');
+                    clearLayerArray('areaIntruderLayers');
+                    clearLayerArray('contestedTargetLayers');
+                    clearLayerArray('conflictAreaLayers');
+                    clearLayerArray('capturedConflictPillarLayers');
 
                     (data.areas || []).forEach(area => {
                         const points = (area.vertices || [])
@@ -3104,7 +3167,7 @@
                             sticky: true,
                             opacity: 0.95
                         });
-                        window.playerAreaLayers.push(polygon);
+                        registerLayerInArray('playerAreaLayers', polygon);
                     });
 
                     (data.conflict_areas || []).forEach(conflict => {
@@ -3141,7 +3204,7 @@
                                 sticky: true,
                                 opacity: 0.95
                             });
-                            window.conflictAreaLayers.push(polygon);
+                            registerLayerInArray('conflictAreaLayers', polygon);
                         });
                     });
 
@@ -3185,7 +3248,7 @@
                             consumeMapContextEvent(e);
                             showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerTarget, icon, markerTarget.label);
                         });
-                        window.contestedTargetLayers.push(marker);
+                        registerLayerInArray('contestedTargetLayers', marker);
                     });
 
                     (data.captured_conflict_pillars || []).forEach(item => {
@@ -3211,7 +3274,7 @@
                             sticky: true,
                             opacity: 0.95
                         });
-                        window.capturedConflictPillarLayers.push(marker);
+                        registerLayerInArray('capturedConflictPillarLayers', marker);
                     });
 
                     programmaticMapMove = true;
@@ -3227,6 +3290,7 @@
             };
 
             window.refreshPlayerActors();
+            scheduleLegacyPlayerAreaCleanup();
             window.refreshPlayerAreas();
             window.refreshClanVulnerabilities();
             window.refreshActiveOperations();
