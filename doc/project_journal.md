@@ -2936,3 +2936,114 @@ serwerowymi: wyczyścić stare narzędzia testowe, dodać produkcyjny zestaw
 
 Sprint 31 jest przygotowany jako zestaw narzędzi i dokumentacji. Testy
 regresyjne przeszły na działającym interpreterze uruchomionym poza sandboxem.
+
+---
+
+## 03.07.2026
+
+### Sprint
+
+Sprint 32 - Target Bar Feedback Audit & Plan.
+
+### Cel
+
+Przygotować plan subtelnego feedbacku hackowania na belce CEL bez implementacji
+mechaniki, UI ani zmian runtime.
+
+### Co zostało wykonane
+
+* Sprawdzono renderowanie górnej belki statusu w `static/js/terminal.js`.
+* Potwierdzono, że belka CEL korzysta z `toolbarProfile.aimed_target`.
+* Sprawdzono, że `/api/profile` zwraca pełny profil po `sync_session_profile()`
+  i `refresh_and_persist_operations()`.
+* Sprawdzono, że `/hack-action` aktualizuje `profile.aimed_target.security`
+  oraz `profile.aimed_target.actions_allowed`.
+* Potwierdzono, że `templates/map_template.html` odświeża toolbar po akcji przez
+  `refreshParentToolbarProfile()`.
+* Przygotowano plan Sprintu 33 dla kropek `actions_allowed` i cienkiego paska
+  rozbrojenia celu.
+
+### Najważniejsze decyzje
+
+* Feedback ma pozostać wyłącznie w sekcji CEL.
+* Kropki reprezentują tylko `scan_ports`, `exploit`, `sniff`, `trace`.
+* Pasek pokazuje rozbrojenie celu, nie poziom zabezpieczenia.
+* Obliczenia można wykonać po stronie frontendu na podstawie `aimed_target`,
+  bez nowego endpointu.
+
+### Problemy
+
+* Lista boolean security keys jest obecnie zduplikowana logicznie: backend ma
+  `CRITICAL_SECURITY_KEYS`, a frontend nie ma jeszcze wspólnego read modelu dla
+  belki CEL.
+* Trzeba pilnować, aby subtelny feedback nie rozpychał dolnego paska na mobile.
+
+### Zmienione pliki
+
+* `doc/project_journal.md`
+
+### Wynik testów
+
+Nie uruchamiano testów, bo Sprint 32 jest audytem i planem bez zmian runtime.
+
+### Status
+
+Sprint 32 jest gotowy jako raport i plan implementacji Sprintu 33.
+
+---
+
+## 03.07.2026
+
+### Sprint
+
+Sprint 33 - Target Bar Micro Feedback.
+
+### Cel
+
+Dodać subtelny, animowany feedback postępu hackowania wyłącznie w sekcji CEL,
+bez nowego panelu, bez backendu i bez zmiany mechaniki gameplayu.
+
+### Co zostało wykonane
+
+* Dodano frontendowy read model dla kropek `actions_allowed`.
+* Dodano frontendowe liczenie poziomu rozbrojenia z boolean security keys.
+* Dodano preferencję przyszłego backendowego read modelu
+  `aimed_target.disarm_progress` / `aimed_target.feedback.disarm_progress`.
+* Dodano monotoniczny progress paska w obrębie tego samego celu.
+* Dodano stan poprzedniego feedbacku, żeby zwykły refresh nie powodował migania.
+* Rozszerzono `renderToolbarStatus()` o mikro-feedback w istniejącej belce CEL.
+* Dodano CSS dla czterech stałych kropek, cienkiego paska i subtelnych animacji.
+* Rozszerzono test helperów terminala o target bar feedback.
+
+### Najważniejsze decyzje
+
+* Feedback jest wyłącznie wizualizacją stanu, nie mechaniką.
+* Kropki mają stałą kolejność: `scan_ports`, `exploit`, `sniff`, `trace`.
+* Pasek nie cofa się dla tego samego celu, żeby starszy snapshot profilu nie
+  dawał wrażenia regresu.
+* Frontend nie pokazuje liczby zabezpieczeń, procentów ani pełnego stanu celu.
+
+### Problemy
+
+* Lista security keys jest lokalnym read modelem frontendu i powinna zostać
+  zastąpiona backendowym `aimed_target.feedback`, jeśli backend zacznie go
+  udostępniać.
+
+### Zmienione pliki
+
+* `static/js/terminal.js`
+* `static/css/style.css`
+* `tools/test_terminal_runtime_helpers.js`
+* `doc/project_journal.md`
+
+### Wynik testów
+
+* `node --check static/js/terminal.js` - OK.
+* `node --check tools/test_terminal_runtime_helpers.js` - OK.
+* `node tools/test_terminal_runtime_helpers.js` - OK.
+* `python -m py_compile run.py database.py profileManagment.py` - OK.
+* `python -m unittest tests.test_target_persistence` - 83 testy OK.
+
+### Status
+
+Sprint 33 można uznać za zamknięty jako frontendowy micro feedback belki CEL.

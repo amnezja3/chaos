@@ -19,14 +19,35 @@ function extractFunction(name) {
   throw new Error(`Unclosed function: ${name}`);
 }
 
+function extractConst(name) {
+  const start = source.indexOf(`const ${name}`);
+  if (start < 0) throw new Error(`Missing const: ${name}`);
+  const end = source.indexOf(';\n', start);
+  if (end < 0) throw new Error(`Unclosed const: ${name}`);
+  return source.slice(start, end + 1);
+}
+
 const sandbox = {};
 vm.createContext(sandbox);
 vm.runInContext(
   [
+    'let toolbarTargetFeedbackState = { targetKey: "", dotSignature: "", progress: 0 };',
+    extractConst('TARGET_FEEDBACK_ACTION_KEYS'),
+    extractConst('TARGET_FEEDBACK_SECURITY_KEYS'),
     extractFunction('normalizeButtonChoiceOption'),
     extractFunction('escapeHTML'),
+    extractFunction('targetFeedbackClampPercent'),
+    extractFunction('hasToolbarAimedTarget'),
+    extractFunction('getTargetFeedbackKey'),
+    extractFunction('getTargetActionDots'),
+    extractFunction('calculateTargetDisarmProgress'),
+    extractFunction('resolveTargetBarFeedback'),
     'this.normalizeButtonChoiceOption = normalizeButtonChoiceOption;',
     'this.escapeHTML = escapeHTML;',
+    'this.hasToolbarAimedTarget = hasToolbarAimedTarget;',
+    'this.getTargetActionDots = getTargetActionDots;',
+    'this.calculateTargetDisarmProgress = calculateTargetDisarmProgress;',
+    'this.resolveTargetBarFeedback = resolveTargetBarFeedback;',
   ].join('\n'),
   sandbox
 );
@@ -49,5 +70,41 @@ const objectOption = sandbox.normalizeButtonChoiceOption({ title: 'Tryb <safe>',
 assertEqual(objectOption.label, 'Tryb <safe>', 'object option title label');
 assertEqual(objectOption.action, 'run', 'object option action');
 assertEqual(sandbox.escapeHTML(objectOption), 'Tryb &lt;safe&gt;', 'object option escapes through label');
+
+assertEqual(sandbox.hasToolbarAimedTarget({}), false, 'empty aimed target is neutral');
+assertEqual(sandbox.calculateTargetDisarmProgress({}), 0, 'missing security progress is zero');
+
+const feedbackTarget = {
+  lat: 52.1,
+  lng: 21.2,
+  label: 'POI',
+  actions_allowed: { scan_ports: true, exploit: false, sniff: true, trace: false },
+  security: {
+    stealth_mode: false,
+    scan_detection: false,
+    exploit_protection: true,
+    vpn_enabled: true,
+    anonymity_score: 99,
+    access_level: 4
+  }
+};
+const dots = sandbox.getTargetActionDots(feedbackTarget);
+assertEqual(dots.map(dot => dot.active).join(','), 'true,false,true,false', 'actions map to fixed dots');
+assertEqual(sandbox.calculateTargetDisarmProgress(feedbackTarget), 50, 'numeric security fields ignored');
+
+const firstFeedback = sandbox.resolveTargetBarFeedback(feedbackTarget);
+assertEqual(firstFeedback.progress, 50, 'initial feedback progress');
+const staleFeedback = sandbox.resolveTargetBarFeedback({
+  ...feedbackTarget,
+  security: { stealth_mode: true, scan_detection: true, exploit_protection: true, vpn_enabled: true }
+});
+assertEqual(staleFeedback.progress, 50, 'same target progress is monotonic');
+const nextTargetFeedback = sandbox.resolveTargetBarFeedback({
+  ...feedbackTarget,
+  lat: 52.2,
+  security: { stealth_mode: true, scan_detection: true, exploit_protection: true, vpn_enabled: true }
+});
+assertEqual(nextTargetFeedback.progress, 0, 'new target resets progress');
+assertEqual(nextTargetFeedback.targetChanged, true, 'new target marks target change');
 
 console.log('terminal runtime helper tests passed');

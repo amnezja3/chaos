@@ -6,6 +6,7 @@ const runningWindows = new Map();
 let desktopSettings = { wallpaper: "", icon_positions: {} };
 let desktopSaveTimer = null;
 let toolbarProfile = null;
+let toolbarTargetFeedbackState = { targetKey: "", dotSignature: "", progress: 0 };
 let desktopSessionActive = true;
 let playerHackAccessState = null;
 let playerHackAccessTimer = null;
@@ -492,6 +493,101 @@ function calculateToolbarArsenalCoverage(profile) {
     return Math.round((covered / activeKeys.length) * 100);
 }
 
+const TARGET_FEEDBACK_ACTION_KEYS = ["scan_ports", "exploit", "sniff", "trace"];
+const TARGET_FEEDBACK_SECURITY_KEYS = [
+    "stealth_mode", "scan_detection", "exploit_protection", "vpn_enabled",
+    "browser_protection", "os_hardening", "log_guardian", "process_monitor",
+    "firewall", "log_integrity", "network_anomaly_detection", "spoofing_protection",
+    "activity_monitor", "player_tracking", "system_visibility", "firewall_core",
+    "kernel_guard", "system_integrity_check", "heap_protection", "memory_lock",
+    "background_injection", "memory_guard", "vpn_blocker"
+];
+
+function targetFeedbackClampPercent(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return null;
+    return Math.max(0, Math.min(100, Math.round(number)));
+}
+
+function hasToolbarAimedTarget(aimedTarget) {
+    const target = aimedTarget || {};
+    return Boolean(target.lat !== undefined || target.lng !== undefined || target.label || target.name);
+}
+
+function getTargetFeedbackKey(aimedTarget) {
+    const target = aimedTarget || {};
+    if (!hasToolbarAimedTarget(target)) return "";
+    const lng = target.lng !== undefined ? target.lng : target.lon;
+    return [
+        target.target_id || target.id || "",
+        target.target_mode || "",
+        target.target_username || target.username || "",
+        target.vulnerability_id || "",
+        target.lat !== undefined ? Number(target.lat).toFixed(6) : "",
+        lng !== undefined ? Number(lng).toFixed(6) : "",
+        target.label || target.name || ""
+    ].join("|");
+}
+
+function getTargetActionDots(aimedTarget) {
+    const actions = ((aimedTarget || {}).actions_allowed || {});
+    return TARGET_FEEDBACK_ACTION_KEYS.map(key => ({
+        key,
+        active: actions[key] === true
+    }));
+}
+
+function calculateTargetDisarmProgress(aimedTarget) {
+    const target = aimedTarget || {};
+    const feedback = target.feedback && typeof target.feedback === "object" ? target.feedback : {};
+    const backendProgress = targetFeedbackClampPercent(
+        target.disarm_progress !== undefined ? target.disarm_progress : feedback.disarm_progress
+    );
+    if (backendProgress !== null) return backendProgress;
+
+    const security = target.security && typeof target.security === "object" ? target.security : {};
+    const keys = TARGET_FEEDBACK_SECURITY_KEYS.filter(key => typeof security[key] === "boolean");
+    if (!keys.length) return 0;
+
+    const disabled = keys.filter(key => security[key] === false).length;
+    return Math.round((disabled / keys.length) * 100);
+}
+
+function resolveTargetBarFeedback(aimedTarget) {
+    if (!hasToolbarAimedTarget(aimedTarget)) {
+        toolbarTargetFeedbackState = { targetKey: "", dotSignature: "", progress: 0 };
+        return null;
+    }
+
+    const targetKey = getTargetFeedbackKey(aimedTarget);
+    const previous = toolbarTargetFeedbackState || { targetKey: "", dotSignature: "", progress: 0 };
+    const dots = getTargetActionDots(aimedTarget);
+    const dotSignature = dots.map(dot => dot.active ? "1" : "0").join("");
+    const rawProgress = calculateTargetDisarmProgress(aimedTarget);
+    const sameTarget = previous.targetKey === targetKey;
+    const progress = sameTarget ? Math.max(previous.progress || 0, rawProgress) : rawProgress;
+    const targetChanged = Boolean(previous.targetKey && previous.targetKey !== targetKey);
+    const changed = targetChanged || previous.dotSignature !== dotSignature || progress !== previous.progress;
+
+    toolbarTargetFeedbackState = { targetKey, dotSignature, progress };
+    return { dots, progress, targetKey, changed, targetChanged };
+}
+
+function renderTargetBarFeedback(feedback) {
+    if (!feedback) return "";
+    const dots = feedback.dots.map(dot => {
+        const classes = ["target-action-dot"];
+        if (dot.active) classes.push("is-active");
+        return `<i class="${classes.join(" ")}" data-action="${escapeHTML(dot.key)}"></i>`;
+    }).join("");
+    return `
+        <i class="target-feedback" aria-hidden="true">
+            <i class="target-action-dots">${dots}</i>
+            <i class="target-disarm-track"><i class="target-disarm-fill"></i></i>
+        </i>
+    `;
+}
+
 async function refreshToolbarProfile() {
     const profile = await getUserProfile();
     if (profile) setToolbarProfile(profile);
@@ -504,12 +600,21 @@ function renderToolbarStatus() {
 
     const profile = toolbarProfile || {};
     const aimedTarget = profile.aimed_target || {};
-    const hasTarget = Boolean(aimedTarget.lat !== undefined || aimedTarget.lng !== undefined || aimedTarget.label || aimedTarget.name);
+    const hasTarget = hasToolbarAimedTarget(aimedTarget);
     const targetLabel = aimedTarget.label || aimedTarget.name || "brak";
     const arsenalCoverage = calculateToolbarArsenalCoverage(profile);
     const arsenalLabel = arsenalCoverage === null ? "--" : `${arsenalCoverage}%`;
+    const targetFeedback = resolveTargetBarFeedback(aimedTarget);
+    const targetClasses = [
+        "system-status-target",
+        hasTarget ? "is-aimed" : "",
+        targetFeedback ? "has-target-feedback" : "",
+        targetFeedback?.changed ? "is-feedback-change" : "",
+        targetFeedback?.targetChanged ? "is-target-change" : ""
+    ].filter(Boolean).join(" ");
+    const targetProgressStyle = targetFeedback ? ` style="--target-disarm-progress: ${targetFeedback.progress}%;"` : "";
     strip.innerHTML = `
-        <span class="system-status-target ${hasTarget ? 'is-aimed' : ''}" title="Cel na celowniku: ${escapeHTML(String(targetLabel))}"><b>CEL</b><em>${escapeHTML(String(targetLabel))}</em></span>
+        <span class="${targetClasses}" title="Cel na celowniku: ${escapeHTML(String(targetLabel))}"${targetProgressStyle}><b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(targetLabel))}</em>${renderTargetBarFeedback(targetFeedback)}</i></span>
         <span><b>ARS</b> ${arsenalLabel}</span>
         <span><b>HC</b> ${Number(profile.hackcoins || 0)}</span>
         <span><b>LVL</b> ${Number(profile.level || 1)}</span>

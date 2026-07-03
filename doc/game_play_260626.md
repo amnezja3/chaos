@@ -2069,6 +2069,287 @@ Uzupełnić:
 * Deploy checklist jest opisany.
 * `project_journal.md` jest aktualizowany po każdej migracji.
 
+---
+
+# Sprint 32 — Target Bar Feedback Audit & Plan
+
+## Cel gameplayowy
+
+Gracz zaczyna dostawać subtelną informację, czy sekwencja działań na celu
+posuwa hack do przodu, ale bez dużego panelu, tutoriala, procentów i dodatkowego
+UI poza belką CEL.
+
+Sprint 32 jest audytem i planem. Nie implementuje jeszcze zmian w runtime.
+
+## UX
+
+Belka CEL pozostaje częścią górnego/dolnego statusu systemu.
+
+Stany:
+
+* brak oznaczonego celu:
+  * belka CEL zwykła/zielona jak pozostałe statusy,
+  * tekst: `CEL brak`,
+  * bez kropek,
+  * bez progressbara.
+* oznaczony cel:
+  * belka CEL czerwona jak obecnie,
+  * tekst celu zostaje,
+  * pod nazwą celu pojawiają się cztery bardzo małe kropki,
+  * pod kropkami pojawia się bardzo cienki progressbar rozbrojenia.
+
+Kropki reprezentują:
+
+```text
+scan_ports
+exploit
+sniff
+trace
+```
+
+Kropka świeci, jeśli odpowiadające `actions_allowed` ma wartość `true`.
+Kropka jest wygaszona, jeśli wartość jest `false` albo jej brakuje.
+
+Progressbar pokazuje poziom rozbrojenia celu, nie poziom zabezpieczenia.
+
+## Przepływ danych
+
+```text
+/hack-action
+↓
+profile.aimed_target.actions_allowed
+profile.aimed_target.security
+↓
+/api/profile
+↓
+toolbarProfile.aimed_target
+↓
+renderToolbarStatus()
+↓
+subtelny feedback w sekcji CEL
+```
+
+## Systemy
+
+* `profile.aimed_target`,
+* `actions_allowed`,
+* `security`,
+* `/hack-action`,
+* `/api/profile`,
+* `refreshToolbarProfile()`,
+* `renderToolbarStatus()`,
+* `system-status-strip`.
+
+## Algorytm planowany
+
+Aktywne kropki:
+
+* użyć kolejności `scan_ports`, `exploit`, `sniff`, `trace`,
+* odczytać `profile.aimed_target.actions_allowed`,
+* `true` = aktywna kropka,
+* `false` / brak = wygaszona kropka,
+* brak celu = nie renderować kropek.
+
+Poziom rozbrojenia:
+
+* liczyć tylko booleanowe pola zabezpieczeń zgodne z gameplayowym progiem
+  rozbrojenia,
+* `true` oznacza aktywne zabezpieczenie,
+* `false` oznacza zdjęte zabezpieczenie,
+* progress = liczba pól `false` / liczba pól booleanowych w read modelu,
+* brak danych = progress 0.
+
+Uwaga architektoniczna:
+
+* jeżeli w przyszłości backend zacznie udostępniać
+  `aimed_target.disarm_progress` albo `aimed_target.feedback`, frontend powinien
+  automatycznie przejść na backendowy read model,
+* lokalne liczenie w Sprincie 33 jest tylko tymczasowym read modelem UI,
+* backend pozostaje źródłem prawdy dla tego, co jest zabezpieczeniem.
+
+Nie traktować jako boolean security:
+
+* `anonymity_score`,
+* `system_compromise_level`,
+* `player_risk_level`,
+* `traceability`,
+* `system_integrity`,
+* `exploit_success_rate`,
+* `risk_level`,
+* `access_level`.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/project_journal.md` — wpis audytu Sprintu 32.
+
+## Kryteria akceptacji
+
+* Wiadomo, gdzie renderowana jest belka CEL.
+* Wiadomo, skąd frontend bierze `aimed_target`.
+* Wiadomo, że `actions_allowed` i `security` są dostępne przez `/api/profile`.
+* Wiadomo, że po `/hack-action` toolbar może zostać odświeżony bez nowego
+  endpointu.
+* Istnieje plan Sprintu 33.
+* Nie zmieniono gameplayu, map runtime, operacji ani ekonomii.
+
+---
+
+# Sprint 33 — Target Bar Micro Feedback
+
+## Cel gameplayowy
+
+Gracz widzi na belce CEL bardzo dyskretny sygnał postępu hackowania:
+które podstawowe akcje zostały wykonane i czy zabezpieczenia celu są zdejmowane.
+
+To ma być informacja dla spostrzegawczych graczy, nie tutorial.
+
+Feedback pokazuje wyłącznie postęp działań gracza. Nie zdradza pełnej wiedzy o
+celu, liczby zabezpieczeń, brakujących kroków ani dokładnego procentu.
+
+## UX
+
+W sekcji CEL dodać:
+
+* cztery małe kropki 5-6px,
+* cienki pasek rozbrojenia 2-3px,
+* brak tekstu pomocniczego,
+* brak legendy,
+* brak tooltipów na start,
+* brak procentów,
+* brak nowego panelu.
+
+Animacje:
+
+* kropka nie zapala się skokowo, tylko przechodzi subtelnie przez stan pośredni
+  w 200-300 ms,
+* pasek rozbrojenia rośnie płynnie, zamiast przeskakiwać natychmiast,
+* przy zmianie celu feedback robi krótki fade out / fade in w 100-150 ms,
+* jeśli `actions_allowed` i progress się nie zmieniły, toolbar nie animuje się
+  ponownie i nie miga przy zwykłym refreshu.
+
+Zasady kropek:
+
+* kolejność kropek jest stała: `scan_ports`, `exploit`, `sniff`, `trace`,
+* pojedyncza kropka nigdy nie znika,
+* pojedyncza kropka nigdy nie zmienia pozycji,
+* zmienia się wyłącznie stan kropki: wygaszona, animowana, aktywna.
+
+Zasady paska:
+
+* w obrębie jednego oznaczonego celu pasek nie może się cofać,
+* cofnięcie paska jest dozwolone wyłącznie po zmianie celu, utracie celu,
+  ponownym oznaczeniu celu albo świadomym resecie gameplayowym,
+* zwykły refresh profilu, polling i odświeżenie toolbaru nie mogą powodować
+  cofania progressu.
+
+Belka nie może rozpychać:
+
+* `ARS`,
+* `HC`,
+* `LVL`,
+* `RSP`,
+* trybu mobile.
+
+## Przepływ danych
+
+```text
+toolbarProfile.aimed_target
+↓
+target action dots
+↓
+target disarm progress
+↓
+renderToolbarStatus()
+↓
+CSS micro feedback
+```
+
+## Systemy
+
+* `static/js/terminal.js`,
+* `static/css/style.css`,
+* `renderToolbarStatus()`,
+* `calculateToolbarArsenalCoverage()`,
+* `system-status-target`.
+
+## Zakres implementacji
+
+1. Dodać małe helpery frontendowe:
+   * `getTargetActionDots(aimedTarget)`,
+   * `calculateTargetDisarmProgress(aimedTarget)`,
+   * opcjonalnie `renderTargetBarFeedback(aimedTarget)`.
+2. Rozszerzyć markup `system-status-target` w `renderToolbarStatus()`.
+3. Dodać CSS dla kropek i paska.
+4. Dodać lekki stan poprzedniego feedbacku, żeby animować tylko realną zmianę.
+5. Dodać animację kropek, animację paska i fade przy zmianie celu.
+6. Zachować monotoniczny progress paska dla aktualnego celu.
+7. Zachować obecny czerwony stan belki dla aktywnego celu.
+8. Nie dodawać nowego endpointu.
+9. Nie zmieniać `/hack-action`.
+10. Nie zmieniać warunku przejęcia celu.
+11. Nie zmieniać map runtime.
+
+## Testy ręczne
+
+* Brak celu:
+  * `CEL brak`,
+  * brak kropek,
+  * brak progressbara.
+* Oznaczony cel:
+  * czerwona belka CEL,
+  * widoczne cztery kropki,
+  * widoczny cienki pasek.
+* Po `scan_ports` świeci pierwsza kropka.
+* Po `exploit`, `sniff`, `trace` świecą kolejne kropki.
+* Po zdjęciu zabezpieczeń pasek rośnie.
+* Kropka i pasek animują się tylko wtedy, gdy postęp realnie się zmienił.
+* Odświeżenie profilu bez zmiany celu ani postępu nie powoduje migania.
+* Zmiana celu robi subtelny fade out / fade in sekcji feedbacku.
+* Na małym ekranie belka nie nachodzi na ARS/HC/LVL/RSP.
+
+## Testy automatyczne
+
+Jeśli możliwe dodać test pure helperów:
+
+* brak `aimed_target` zwraca stan neutralny,
+* `actions_allowed` mapuje się na cztery kropki,
+* pola liczbowe `security` są ignorowane,
+* progress liczy tylko boolean security,
+* brak `security` daje progress 0,
+* ten sam stan feedbacku nie wymusza ponownej animacji,
+* zmiana celu resetuje stan animacji.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/project_journal.md` — wpis po implementacji Sprintu 33.
+
+## Kryteria akceptacji
+
+* Feedback jest widoczny tylko przy oznaczonym celu.
+* Feedback działa bez nowego endpointu.
+* Kropki odpowiadają `actions_allowed`.
+* Pasek odpowiada rozbrojeniu boolean security.
+* Brak procentów, legendy i tutoriala.
+* Feedback jest animowany subtelnie i tylko przy realnej zmianie postępu.
+* Feedback nie zdradza liczby zabezpieczeń ani pełnego stanu celu.
+* Pasek nie cofa się w obrębie tego samego celu.
+* Brak regresji w mapie, `/hack-action`, operacjach i ekonomii.
+
+## UI Contract
+
+Feedback nie jest elementem mechaniki.
+
+Feedback jest wyłącznie wizualizacją aktualnego stanu gameplayu.
+
+Frontend nigdy nie podejmuje decyzji o stanie celu.
+
+Frontend wyłącznie renderuje dane otrzymane z backendu albo policzone lokalnie
+zgodnie z read modelem Sprintu 32.
+
 Decision:
 
 * Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.
@@ -2077,6 +2358,7 @@ Decision:
 * Przyjęto: Sprinty 21–30 rozwijają narzędzia gracza i Googleplex Tool Laboratory bez tworzenia drugiego sklepu, drugiego systemu plików ani drugiego runtime aplikacji.
 * Przyjęto: pojemność i waga stają się częścią kontraktu aplikacji oraz modelu plików.
 * Przyjęto: Sprint 31 domyka zasady bezpiecznej aktualizacji bazy na serwerze przez idempotentne migracje.
+* Przyjęto: Sprinty 32–33 rozwijają subtelny feedback celu wyłącznie na belce CEL, bez nowego panelu i bez zmiany warunku hackowania.
 
 ---
 
