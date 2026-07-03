@@ -3,6 +3,7 @@ from markupsafe import Markup
 from terminals.commands import interpret_command
 import folium
 from folium.features import DivIcon
+import copy
 import os
 import json
 import re
@@ -702,6 +703,55 @@ def conflict_area_key(area):
         if vertex.get("lat") is not None and vertex.get("lng") is not None
     )
     return f"{area.get('owner_username')}:{vertex_key}"
+
+
+def normalize_player_area(area):
+    if not isinstance(area, dict):
+        return None
+    owner_username = str(area.get("owner_username") or area.get("owner") or area.get("login") or "").strip()
+    if not owner_username:
+        return None
+    vertices = []
+    for vertex in area.get("vertices") or []:
+        if isinstance(vertex, dict):
+            lat = vertex.get("lat")
+            lng = vertex.get("lng", vertex.get("lon"))
+        elif isinstance(vertex, (list, tuple)) and len(vertex) >= 2:
+            lat, lng = vertex[0], vertex[1]
+        else:
+            continue
+        try:
+            lat = float(lat)
+            lng = float(lng)
+        except (TypeError, ValueError):
+            continue
+        vertices.append({"lat": lat, "lng": lng})
+    if len(vertices) < 3:
+        return None
+    status = str(area.get("status") or "active").strip() or "active"
+    normalized = dict(area)
+    normalized["owner_username"] = owner_username
+    normalized["vertices"] = vertices
+    normalized["status"] = status
+    if normalized.get("centroid_lat") is None:
+        normalized["centroid_lat"] = sum(vertex["lat"] for vertex in vertices) / len(vertices)
+    if normalized.get("centroid_lng") is None:
+        normalized["centroid_lng"] = sum(vertex["lng"] for vertex in vertices) / len(vertices)
+    return normalized
+
+
+def safe_player_areas(areas):
+    normalized = []
+    skipped = 0
+    for area in areas or []:
+        clean = normalize_player_area(area)
+        if clean:
+            normalized.append(clean)
+        else:
+            skipped += 1
+    if skipped:
+        print(f"[WARN] skipped invalid territory areas: {skipped}", flush=True)
+    return normalized
 
 
 def territory_conflict_key(*areas):
@@ -6130,19 +6180,28 @@ def notify_area_intrusion(actor_username, lat, lng):
 
 
 def notify_encircled_area_owners(cooldown_seconds=300):
-    for area in territory_store.list_player_areas():
+    for area in safe_player_areas(territory_store.list_player_areas()):
         if area.get("status") != "encircled":
             continue
 
         owner_username = area.get("owner_username")
         area_id = area.get("id")
-        if territory_store.recent_area_event_exists(
+        area_key = conflict_area_key(area)
+        has_stable_event = territory_store.area_event_exists_with_payload_key(
+            owner_username,
+            owner_username,
+            "area_encircled",
+            "area_key",
+            area_key,
+        )
+        has_recent_legacy_event = territory_store.recent_area_event_exists(
             owner_username,
             owner_username,
             "area_encircled",
             area_id=area_id,
-            seconds=cooldown_seconds
-        ):
+            seconds=cooldown_seconds,
+        )
+        if has_stable_event or has_recent_legacy_event:
             continue
 
         territory_store.add_area_event(
@@ -6152,7 +6211,7 @@ def notify_encircled_area_owners(cooldown_seconds=300):
             area_id=area_id,
             lat=area.get("centroid_lat"),
             lng=area.get("centroid_lng"),
-            payload={"area_status": "encircled"}
+            payload={"area_status": "encircled", "area_key": area_key}
         )
         add_system_message_to_user(
             owner_username,
@@ -7913,6 +7972,25 @@ def normalize_runtime_profile_defaults(profile):
     return profile
 
 
+def profile_template_payload(profile):
+    if not isinstance(profile, dict):
+        return {}
+
+    template = resources_store.get("user_template", default={}) or {}
+    if not isinstance(template, dict) or not template:
+        payload = dict(profile)
+    else:
+        payload = {
+            key: copy.deepcopy(profile[key]) if key in profile else copy.deepcopy(default_value)
+            for key, default_value in template.items()
+        }
+
+    payload.pop("password", None)
+    payload.pop("salt", None)
+    normalize_profile_storage(payload)
+    return payload
+
+
 def log_missing_profile_warning(source):
     print(
         "[WARN] missing profile "
@@ -8956,7 +9034,7 @@ def map_view():
         map_html=Markup(map_html),
         folium_css=Markup('<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />'),
         folium_js=Markup('<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>'),
-        profile=profile
+        profile=profile_template_payload(profile)
     )
 
 
@@ -10813,9 +10891,9 @@ def map_player_areas():
 
     profile = sync_session_profile(rebuild_territory=False)
     username = session["user"]
-    all_areas = territory_store.list_player_areas()
+    all_areas = safe_player_areas(territory_store.list_player_areas())
     if refresh_stale_territory_polygons(all_areas):
-        all_areas = territory_store.list_player_areas()
+        all_areas = safe_player_areas(territory_store.list_player_areas())
 
     detect_territory_conflicts(
         actor_username=username,
@@ -10830,22 +10908,27 @@ def map_player_areas():
     contested_targets = find_contested_targets_for_player(username, all_areas)
     areas = []
     for area in all_areas:
-        owner_username = area.get("owner_username")
-        owner_profile = user_store.get_profile(owner_username)
-        if not owner_profile:
+        clean_area = normalize_player_area(area)
+        if not clean_area:
             continue
-        status = area.get("status", "active")
+        owner_username = clean_area.get("owner_username")
+        owner_profile = user_store.get_profile(owner_username)
+        if not owner_profile and owner_username != username:
+            continue
+        if not owner_profile:
+            owner_profile = profile if owner_username == username else {}
+        status = clean_area.get("status", "active")
         areas.append({
-            "id": area.get("id"),
+            "id": clean_area.get("id"),
             "owner_username": owner_username,
             "owner_nick": (owner_profile or {}).get("nick") or owner_username,
             "owner_clan": get_profile_clan(owner_profile or {}),
             "is_mine": owner_username == username,
-            "vertices": area.get("vertices", []),
-            "centroid_lat": area.get("centroid_lat"),
-            "centroid_lng": area.get("centroid_lng"),
-            "area_size": area.get("area_size"),
-            "max_edge_distance": area.get("max_edge_distance"),
+            "vertices": clean_area.get("vertices", []),
+            "centroid_lat": clean_area.get("centroid_lat"),
+            "centroid_lng": clean_area.get("centroid_lng"),
+            "area_size": clean_area.get("area_size"),
+            "max_edge_distance": clean_area.get("max_edge_distance"),
             "status": status,
             "exposed": status == "encircled",
         })

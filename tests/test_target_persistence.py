@@ -1,5 +1,7 @@
 import unittest
+import json
 import os
+import re
 import sqlite3
 import tempfile
 from datetime import datetime, timezone, timedelta
@@ -32,6 +34,7 @@ from run import (
     normalize_file_market_status,
     normalize_profile_storage,
     operation_history_from_operations,
+    profile_template_payload,
     queue_market_eligible_files,
     refresh_market_runtime,
     refresh_operation_runtime,
@@ -306,6 +309,114 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(loaded["territory"], [])
         self.assertEqual(loaded["areas"], [])
 
+    def test_map_profile_payload_uses_template_shape(self):
+        profile = {
+            "username": "tester",
+            "nick": "O'Reilly \"Mapa\" Łódź",
+            "password": "secret",
+            "salt": "salt",
+            "apps": [],
+            "files": {},
+            "targets": [],
+            "hacked": [],
+            "own_places": None,
+            "captured_targets": None,
+            "territory": [{"broken": object()}],
+            "areas": [{"vertices": "broken"}],
+            "system_messages": [
+                {"title": "Cytat", "text": "Pole 'A' mówi \"hej\" — Łódź"}
+            ],
+            "curently_possition": {"lat": 52.2297, "lng": 21.0122},
+            "aimed_target": {},
+            "field_from_database_bypass": "'}; window.pwned = true; //",
+        }
+
+        payload = profile_template_payload(profile)
+
+        self.assertEqual(payload["username"], "tester")
+        self.assertEqual(payload["nick"], "O'Reilly \"Mapa\" Łódź")
+        self.assertNotIn("password", payload)
+        self.assertNotIn("salt", payload)
+        self.assertNotIn("field_from_database_bypass", payload)
+        self.assertNotIn("territory", payload)
+        self.assertNotIn("areas", payload)
+
+    def test_map_embeds_profile_as_json_literal(self):
+        profile = {
+            "username": "tester",
+            "nick": "O'Reilly \"Mapa\" Łódź",
+            "apps": [],
+            "files": {},
+            "targets": [],
+            "hacked": [],
+            "own_places": None,
+            "captured_targets": None,
+            "territory": [{"broken": object()}],
+            "areas": [{"vertices": "broken"}],
+            "system_messages": [
+                {"title": "Cytat", "text": "Pole 'A' mówi \"hej\" — Łódź"}
+            ],
+            "curently_possition": {"lat": 52.2297, "lng": 21.0122},
+            "aimed_target": {},
+            "field_from_database_bypass": "'}; window.pwned = true; //",
+        }
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "tester"
+
+        with patch.object(run, "sync_session_profile", return_value=profile):
+            response = client.get("/map")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertNotIn("JSON.parse('{{ profile", html)
+        self.assertNotIn("field_from_database_bypass", html)
+        self.assertNotIn("window.pwned", html)
+        match = re.search(r"window\.profileData = (.*?);\s*</script>", html, re.S)
+        self.assertIsNotNone(match)
+        embedded_profile = json.loads(match.group(1))
+        self.assertEqual(embedded_profile["nick"], "O'Reilly \"Mapa\" Łódź")
+        self.assertNotIn("territory", embedded_profile)
+        self.assertNotIn("areas", embedded_profile)
+
+    def test_map_embeds_large_profile_payload_as_json_literal(self):
+        profile = {
+            "username": "tester",
+            "nick": "Duży payload 'quoted' Łódź",
+            "apps": [],
+            "files": {},
+            "targets": [],
+            "hacked": [],
+            "system_messages": [
+                {
+                    "title": f"Alert {index}",
+                    "text": "POLE ZOSTAŁO OTOCZONE 'quoted' \"double\" Łódź " + ("x" * 1200),
+                }
+                for index in range(55)
+            ],
+            "curently_possition": {"lat": 52.2297, "lng": 21.0122},
+            "aimed_target": {},
+            "field_from_database_bypass": "'}; window.pwned = true; //",
+        }
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "tester"
+
+        with patch.object(run, "sync_session_profile", return_value=profile):
+            response = client.get("/map")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertNotIn("JSON.parse('{{ profile", html)
+        match = re.search(r"window\.profileData = (.*?);\s*</script>", html, re.S)
+        self.assertIsNotNone(match)
+        self.assertGreater(len(match.group(1)), 57000)
+        embedded_profile = json.loads(match.group(1))
+        self.assertEqual(embedded_profile["system_messages"][0]["title"], "Alert 0")
+        self.assertNotIn("field_from_database_bypass", embedded_profile)
+
     def test_territory_hack_does_not_replace_session_user_with_owner(self):
         class FakeProfileManager:
             created_for = []
@@ -364,6 +475,165 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
             self.assertEqual(sess["user"], "root")
         self.assertIn("root", FakeProfileManager.created_for)
         self.assertNotIn("owner_a", FakeProfileManager.created_for)
+
+    def test_map_player_areas_skips_invalid_area_and_keeps_owner_encircled_area(self):
+        profile = {
+            "username": "main",
+            "nick": "Main()",
+            "level": 4,
+            "apps": [],
+            "files": {},
+        }
+        areas = [
+            {"id": 1, "owner_username": "main", "status": "active", "vertices": []},
+            {
+                "id": 2,
+                "owner_username": "main",
+                "status": "encircled",
+                "vertices": [
+                    {"lat": 52.0, "lng": 21.0},
+                    {"lat": 52.0, "lng": 21.01},
+                    {"lat": 52.01, "lng": 21.0},
+                ],
+                "area_size": 1000,
+            },
+            {
+                "id": 3,
+                "owner_username": "other",
+                "status": "active",
+                "vertices": [
+                    {"lat": 53.0, "lng": 22.0},
+                    {"lat": 53.0, "lng": 22.01},
+                    {"lat": 53.01, "lng": 22.0},
+                ],
+                "area_size": 2000,
+            },
+        ]
+
+        class FakeTerritoryStoreForMap:
+            def list_player_areas(self):
+                return list(areas)
+
+            def list_recent_area_intruders(self, username):
+                return []
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "main"
+
+        def fake_profile(username):
+            if username == "main":
+                return profile
+            if username == "other":
+                return {"username": "other", "nick": "Other", "level": 3}
+            return None
+
+        with patch.object(run, "territory_store", FakeTerritoryStoreForMap()), \
+                patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run.user_store, "get_profile", side_effect=fake_profile), \
+                patch.object(run, "refresh_stale_territory_polygons", return_value=False), \
+                patch.object(run, "detect_territory_conflicts", return_value=[]), \
+                patch.object(run, "get_active_conflicts_for_player", return_value=[]), \
+                patch.object(run, "find_contested_targets_for_player", return_value=[]):
+            response = client.get("/api/map/player-areas")
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(data["areas"]), 2)
+        own_area = next(item for item in data["areas"] if item["owner_username"] == "main")
+        self.assertTrue(own_area["is_mine"])
+        self.assertEqual(own_area["status"], "encircled")
+        self.assertTrue(own_area["exposed"])
+
+    def test_encircled_area_notification_uses_stable_area_key(self):
+        area_first = {
+            "id": 10,
+            "owner_username": "main",
+            "status": "encircled",
+            "centroid_lat": 52.0,
+            "centroid_lng": 21.0,
+            "vertices": [
+                {"lat": 52.0, "lng": 21.0},
+                {"lat": 52.0, "lng": 21.01},
+                {"lat": 52.01, "lng": 21.0},
+            ],
+        }
+        area_second = dict(area_first, id=99)
+
+        class FakeTerritoryStoreForEncircled:
+            def __init__(self):
+                self.calls = 0
+                self.events = []
+
+            def list_player_areas(self):
+                self.calls += 1
+                return [area_first if self.calls == 1 else area_second]
+
+            def area_event_exists_with_payload_key(self, owner_username, actor_username, event_type, payload_key, payload_value):
+                return any(
+                    event["owner_username"] == owner_username
+                    and event["actor_username"] == actor_username
+                    and event["event_type"] == event_type
+                    and event["payload"].get(payload_key) == payload_value
+                    for event in self.events
+                )
+
+            def recent_area_event_exists(self, owner_username, actor_username, event_type, area_id=None, seconds=60):
+                return False
+
+            def add_area_event(self, **event):
+                self.events.append(event)
+
+        fake_store = FakeTerritoryStoreForEncircled()
+        messages = []
+        with patch.object(run, "territory_store", fake_store), \
+                patch.object(run, "add_system_message_to_user", side_effect=lambda *args: messages.append(args) or True):
+            run.notify_encircled_area_owners()
+            run.notify_encircled_area_owners()
+
+        self.assertEqual(len(fake_store.events), 1)
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(fake_store.events[0]["payload"]["area_status"], "encircled")
+        self.assertIn("area_key", fake_store.events[0]["payload"])
+
+    def test_encircled_area_notification_respects_recent_legacy_event(self):
+        area = {
+            "id": 10,
+            "owner_username": "main",
+            "status": "encircled",
+            "centroid_lat": 52.0,
+            "centroid_lng": 21.0,
+            "vertices": [
+                {"lat": 52.0, "lng": 21.0},
+                {"lat": 52.0, "lng": 21.01},
+                {"lat": 52.01, "lng": 21.0},
+            ],
+        }
+
+        class FakeTerritoryStoreWithLegacyEvent:
+            def list_player_areas(self):
+                return [area]
+
+            def area_event_exists_with_payload_key(self, owner_username, actor_username, event_type, payload_key, payload_value):
+                return False
+
+            def recent_area_event_exists(self, owner_username, actor_username, event_type, area_id=None, seconds=60):
+                return (
+                    owner_username == "main"
+                    and actor_username == "main"
+                    and event_type == "area_encircled"
+                    and area_id == 10
+                )
+
+            def add_area_event(self, **event):
+                raise AssertionError("recent legacy event should suppress duplicate area_encircled alert")
+
+        messages = []
+        with patch.object(run, "territory_store", FakeTerritoryStoreWithLegacyEvent()), \
+                patch.object(run, "add_system_message_to_user", side_effect=lambda *args: messages.append(args) or True):
+            run.notify_encircled_area_owners()
+
+        self.assertEqual(messages, [])
 
 
 class FakeTerritoryStore:

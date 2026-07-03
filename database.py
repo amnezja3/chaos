@@ -1164,6 +1164,27 @@ class TerritoryStore:
         with db_connect(self.db_path) as conn:
             return conn.execute(query, params).fetchone() is not None
 
+    def area_event_exists_with_payload_key(self, owner_username, actor_username, event_type, payload_key, payload_value):
+        if not payload_key or payload_value is None:
+            return False
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT payload_json
+                FROM area_events
+                WHERE owner_username = ?
+                    AND actor_username = ?
+                    AND event_type = ?
+                ORDER BY id DESC
+                """,
+                (owner_username, actor_username, event_type),
+            ).fetchall()
+        for row in rows:
+            payload = loads_json(row["payload_json"], {})
+            if isinstance(payload, dict) and str(payload.get(payload_key) or "") == str(payload_value):
+                return True
+        return False
+
     def list_recent_area_intruders(self, owner_username, seconds=120):
         threshold = (datetime.utcnow() - timedelta(seconds=seconds)).isoformat(timespec="seconds")
         with db_connect(self.db_path) as conn:

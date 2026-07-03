@@ -3601,3 +3601,69 @@ ekonomii.
 ### Status
 
 Sprint 39.1 jest zaimplementowany kodowo i czeka na pelna walidacje regresyjna.
+
+---
+
+## 03.07.2026
+
+### Sprint
+
+Hotfix - territory encirclement / map profile regression.
+
+### Cel
+
+Zdiagnozowac regresje profilu i mapy po mechanice otoczenia pola: znikajace
+terytorium wlasciciela, ryzyko blokowania payloadu mapy przez uszkodzony rekord
+oraz spam komunikatow `Pole zostalo otoczone`.
+
+### Co zostalo wykonane
+
+* Dodano defensywna normalizacje area payloadu:
+  * `normalize_player_area(area)`,
+  * `safe_player_areas(areas)`.
+* `/api/map/player-areas` pomija pojedyncze uszkodzone pola, ale nadal zwraca
+  poprawne pozostale terytoria.
+* Wlasciciel widzi swoje pole takze w statusie `encircled`.
+* Alert otoczenia pola nie opiera sie juz na nietrwalej wartosci `area_id`.
+* Alert `area_encircled` dostaje stabilny `area_key` wyliczony z ownera i
+  geometrii pola.
+* `TerritoryStore` dostal read-only helper
+  `area_event_exists_with_payload_key(...)`.
+* Dodano read-only skrypt diagnostyczny `tools/diagnose_territory_state.py` do
+  sprawdzania produkcyjnych profili/terytoriow bez modyfikowania danych.
+
+### Przyczyna
+
+`rebuild_player_areas()` kasuje i tworzy rekordy `player_areas` od nowa. Dla
+pola otoczonego zmienial sie `area_id`, a idempotencja alertu uzywala wlasnie
+`area_id`. Ten sam obszar mogl wiec wygladac jak nowe zdarzenie po rebuildzie,
+co powodowalo spam komunikatu.
+
+Drugi problem byl defensywny: endpoint mapy budowal payload z `player_areas`
+bez izolowania uszkodzonego wpisu. Pojedyncze puste/niepelne pole moglo
+zaburzyc render albo profil.
+
+### Zmienione pliki
+
+* `run.py`
+* `database.py`
+* `tests/test_target_persistence.py`
+* `tools/diagnose_territory_state.py`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* Test regresyjny uszkodzonego area + encircled owner area - OK.
+* Test regresyjny idempotencji alertu `area_encircled` po zmianie `area_id` -
+  OK.
+* `python -m unittest tests.test_target_persistence` - 108 testow OK.
+* `python -m unittest tests.test_app_catalog_cleanup` - 4 testy OK.
+* `node --check static/js/terminal.js` - OK.
+
+### Status
+
+Hotfix jest gotowy kodowo. Do analizy produkcyjnej mozna uruchomic read-only:
+
+```text
+python tools/diagnose_territory_state.py --username <login>
+```

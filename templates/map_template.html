@@ -725,7 +725,7 @@
   </div>
   <div id="active-operations-panel" class="active-operations-panel is-empty" aria-live="polite"></div>
     <script>
-        window.profileData = JSON.parse('{{ profile | tojson | safe }}');
+        window.profileData = {{ profile | tojson }};
     </script>
 
   {{ folium_js|safe }}
