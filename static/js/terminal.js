@@ -6278,7 +6278,8 @@ async function createFileManager(options = {}) {
             });
             const data = await response.json();
             if (!response.ok || data.success === false || data.status === "error") {
-            addSystemMessage("danger", "Deinstalacja", err.message || "Nie uda\u0142o si\u0119 odinstalowa\u0107 aplikacji.");
+                addSystemMessage("danger", "Deinstalacja", data.message || "Nie uda\u0142o si\u0119 odinstalowa\u0107 aplikacji.");
+                return;
             }
             if (data.files && Array.isArray(data.files.tools)) {
                 files.tools = data.files.tools;
@@ -6304,6 +6305,9 @@ async function createFileManager(options = {}) {
                 fileManagerContent.insertAdjacentHTML('afterbegin', storageMeterHTML());
             }
             window.openFolderInManager(terminalId, "tools");
+            if (typeof refreshDesktop === "function") {
+                await refreshDesktop(false);
+            }
             await refreshToolbarProfile().catch(() => null);
             addSystemMessage("warning", "Deinstalacja", data.message || `Odinstalowano ${appName}`);
         } catch (err) {
