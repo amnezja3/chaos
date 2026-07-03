@@ -735,6 +735,7 @@
         let lastContextWasMarker = false;
         const targetLayerRegistry = new Map();
         let aimedTargetLayer = null;
+        let aimedTargetMenuSnapshot = null;
         let scanResultLayers = [];
         const clanVulnerabilityRegistry = new Map();
         const baseZoom = map.getZoom();
@@ -1211,6 +1212,11 @@
                 document.querySelectorAll('.context-menu').forEach(el => el.remove());
                 showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerObj, icon, label, 'interactiveTargetMarker');
             });
+            aimedTargetMenuSnapshot = {
+                target: markerObj,
+                icon,
+                label
+            };
             aimedTargetLayer = rememberTargetLayer(markerObj.lat, markerObj.lon, label, marker);
             return aimedTargetLayer;
         }
@@ -1243,6 +1249,7 @@
                 removeMapLayerSafe(aimedTargetLayer);
                 aimedTargetLayer = null;
             }
+            aimedTargetMenuSnapshot = null;
             const marker = L.marker([lat, lng], {
                 zIndexOffset: 1000,
                 icon: L.divIcon({
@@ -1286,6 +1293,30 @@
             lastContextWasMarker = false;
         }
 
+        function showAimedTargetMenuNearPoint(containerPoint) {
+            if (!aimedTargetLayer || !aimedTargetMenuSnapshot || !containerPoint || typeof map.latLngToContainerPoint !== 'function') {
+                return false;
+            }
+            const targetLatLng = typeof aimedTargetLayer.getLatLng === 'function' ? aimedTargetLayer.getLatLng() : null;
+            if (!targetLatLng) return false;
+            const targetPoint = map.latLngToContainerPoint(targetLatLng);
+            const dx = Number(containerPoint.x) - Number(targetPoint.x);
+            const dy = Number(containerPoint.y) - Number(targetPoint.y);
+            const distance = Math.sqrt((dx * dx) + (dy * dy));
+            if (!Number.isFinite(distance) || distance > 58) return false;
+
+            closeAllMapMenus();
+            showHackingMenuForMarker(
+                containerPoint.x,
+                containerPoint.y,
+                aimedTargetMenuSnapshot.target,
+                aimedTargetMenuSnapshot.icon,
+                aimedTargetMenuSnapshot.label,
+                'aimedTargetProximity'
+            );
+            return true;
+        }
+
         map.on('contextmenu', function (e) {
             if (e.originalEvent?.preventDefault) {
                 e.originalEvent.preventDefault();
@@ -1298,6 +1329,9 @@
                 menuBefore: document.querySelector('#markerContextMenu, .marker-context-menu, .player-actor-menu, .context-menu, .context-menu-clean')?.textContent
             });
 
+            if (showAimedTargetMenuNearPoint(e.containerPoint)) {
+                return;
+            }
             closeAllMapMenus();
             showContextMenu(e.containerPoint.x, e.containerPoint.y, e.latlng.lat, e.latlng.lng, true);
             return;
