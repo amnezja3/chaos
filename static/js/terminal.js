@@ -613,8 +613,11 @@ function renderToolbarStatus() {
         targetFeedback?.targetChanged ? "is-target-change" : ""
     ].filter(Boolean).join(" ");
     const targetProgressStyle = targetFeedback ? ` style="--target-disarm-progress: ${targetFeedback.progress}%;"` : "";
+    const targetContent = targetFeedback
+        ? `<b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(targetLabel))}</em>${renderTargetBarFeedback(targetFeedback)}</i>`
+        : `<b>CEL</b><em>${escapeHTML(String(targetLabel))}</em>`;
     strip.innerHTML = `
-        <span class="${targetClasses}" title="Cel na celowniku: ${escapeHTML(String(targetLabel))}"${targetProgressStyle}><b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(targetLabel))}</em>${renderTargetBarFeedback(targetFeedback)}</i></span>
+        <span class="${targetClasses}" title="Cel na celowniku: ${escapeHTML(String(targetLabel))}"${targetProgressStyle}>${targetContent}</span>
         <span><b>ARS</b> ${arsenalLabel}</span>
         <span><b>HC</b> ${Number(profile.hackcoins || 0)}</span>
         <span><b>LVL</b> ${Number(profile.level || 1)}</span>

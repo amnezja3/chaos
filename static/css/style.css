@@ -737,6 +737,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-height: 28px;
   min-width: 58px;
   justify-content: center;
   padding: 5px 8px;
@@ -744,6 +745,7 @@ body {
   background: rgba(2, 10, 5, 0.72);
   color: #c6f6cd;
   font-size: 0.82rem;
+  box-sizing: border-box;
 }
 
 #system-status-strip .system-status-target {
@@ -752,11 +754,13 @@ body {
   justify-content: flex-start;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: min-height 150ms ease, padding 150ms ease, border-color 150ms ease, background 150ms ease, color 150ms ease, box-shadow 150ms ease;
 }
 
 #system-status-strip .system-status-target.has-target-feedback {
   align-items: center;
   gap: 6px;
+  min-height: 38px;
   padding-top: 4px;
   padding-bottom: 4px;
 }
@@ -804,6 +808,7 @@ body {
   opacity: 0.92;
   font-style: normal;
   pointer-events: none;
+  animation: target-feedback-enter 150ms ease-out;
 }
 
 #system-status-strip .target-action-dots {
@@ -857,6 +862,17 @@ body {
 
 #system-status-strip .system-status-target.is-target-change .target-feedback {
   animation: target-feedback-fade 150ms ease-out;
+}
+
+@keyframes target-feedback-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-1px);
+  }
+  100% {
+    opacity: 0.92;
+    transform: translateY(0);
+  }
 }
 
 @keyframes target-action-dot-activate {
@@ -4010,6 +4026,7 @@ form button:hover {
   }
 
   #system-status-strip span {
+    min-height: 28px;
     min-width: auto;
     padding: 5px 6px;
     font-size: 0.76rem;
@@ -4018,6 +4035,10 @@ form button:hover {
   #system-status-strip .system-status-target {
     min-width: 78px;
     max-width: min(35vw, 150px);
+  }
+
+  #system-status-strip .system-status-target.has-target-feedback {
+    min-height: 38px;
   }
 
   #system-status-strip .target-feedback {

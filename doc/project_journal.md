@@ -3047,3 +3047,55 @@ bez nowego panelu, bez backendu i bez zmiany mechaniki gameplayu.
 ### Status
 
 Sprint 33 można uznać za zamknięty jako frontendowy micro feedback belki CEL.
+
+---
+
+## 03.07.2026
+
+### Sprint
+
+Sprint 34 - Target Bar UX Polish.
+
+### Cel
+
+Domknąć wizualnie sekcję CEL tak, aby stan bez celu wyglądał jak zwykły element
+statusbara, a oznaczony cel aktywował rozszerzony tryb hackowania.
+
+### Co zostało wykonane
+
+* Uproszczono markup neutralnego stanu CEL do takiego samego układu jak pozostałe
+  pola statusbara.
+* Rozszerzony wrapper feedbacku renderuje się tylko wtedy, gdy istnieje
+  oznaczony cel.
+* Dodano płynne przejścia dla koloru, ramki, tła, cienia, paddingu i wysokości
+  sekcji CEL.
+* Zachowano rozszerzoną wysokość tylko dla stanu z oznaczonym celem.
+* Dostosowano CSS mobile tak, aby neutralny CEL miał standardową wysokość, a
+  rozszerzenie dotyczyło tylko sekcji CEL.
+
+### Najważniejsze decyzje
+
+* Stan neutralny nie ma kropek, paska, czerwonego tła ani dodatkowego wrappera.
+* Sprint 34 nie zmienia read modelu, algorytmu progressu ani danych backendowych.
+
+### Problemy
+
+* Powrót z celu do braku celu animuje głównie kontener belki CEL. Sam feedback
+  znika wraz ze zmianą markup, bo nie dodano osobnego systemu exit animation.
+
+### Zmienione pliki
+
+* `static/js/terminal.js`
+* `static/css/style.css`
+* `doc/project_journal.md`
+
+### Wynik testów
+
+* `node --check static/js/terminal.js` - OK.
+* `python -m py_compile run.py database.py profileManagment.py` - OK.
+* `python -m unittest tests.test_target_persistence` - 83 testy OK.
+* `node tools/test_terminal_runtime_helpers.js` - OK.
+
+### Status
+
+Sprint 34 można uznać za zamknięty jako UX polish belki CEL.
