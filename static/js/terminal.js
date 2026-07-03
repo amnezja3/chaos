@@ -615,7 +615,7 @@ function renderToolbarStatus() {
     const targetProgressStyle = targetFeedback ? ` style="--target-disarm-progress: ${targetFeedback.progress}%;"` : "";
     const targetContent = targetFeedback
         ? `<b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(targetLabel))}</em>${renderTargetBarFeedback(targetFeedback)}</i>`
-        : `<b>CEL</b><em>${escapeHTML(String(targetLabel))}</em>`;
+        : `<b>CEL</b>`;
     strip.innerHTML = `
         <span class="${targetClasses}" title="Cel na celowniku: ${escapeHTML(String(targetLabel))}"${targetProgressStyle}>${targetContent}</span>
         <span><b>ARS</b> ${arsenalLabel}</span>
