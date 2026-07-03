@@ -1685,6 +1685,22 @@
                 if (window.refreshActiveOperations) {
                     window.refreshActiveOperations();
                 }
+                if (data.target && data.target.lat !== undefined && (data.target.lng !== undefined || data.target.lon !== undefined)) {
+                    const target = data.target;
+                    const targetLat = Number(target.lat);
+                    const targetLng = Number(target.lng !== undefined ? target.lng : target.lon);
+                    if (Number.isFinite(targetLat) && Number.isFinite(targetLng)) {
+                        window.profileData = window.profileData || {};
+                        window.profileData.aimed_target = target;
+                        addInteractiveTargetMarker(
+                            targetLat,
+                            targetLng,
+                            mapTargetDisplayLabel(target, "TARGET"),
+                            target.icon || icon || "🎯",
+                            target
+                        );
+                    }
+                }
                 addSystemMessage("success", `✅ ${action}`, data.status);
             })
             .catch(() => addSystemMessage("danger", "❌ Hackowanie", "Błąd operacji hackowania"));
