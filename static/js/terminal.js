@@ -83,7 +83,7 @@ function setBootProgress(percent, message) {
     if (!bootLoader.overlay) return;
     const value = Math.max(4, Math.min(100, Number(percent) || 4));
     if (bootLoader.fill) bootLoader.fill.style.width = `${value}%`;
-    if (bootLoader.status) bootLoader.status.textContent = message || "Ĺadowanie systemu...";
+    if (bootLoader.status) bootLoader.status.textContent = message || "Ładowanie systemu...";
 }
 
 function finishBootLoader(message = "System gotowy.") {
@@ -150,7 +150,7 @@ function beginDesktopLoading(message) {
     }, 280);
     desktopLoadingState.slowTimer = setTimeout(() => {
         if (desktopLoadingState.active.size > 0) {
-            updateDesktopLoadingStatus('SieÄ‡ przeciÄ…ĹĽona...');
+            updateDesktopLoadingStatus('Sieć przeciążona...');
         }
     }, 2000);
     return token;
@@ -212,7 +212,7 @@ const devBugReporterApp = {
 };
 
 const desktop = document.getElementById('desktop-icons');
-const iconSpacing = 100; // odstÄ™p w pionie
+const iconSpacing = 100; // odstęp w pionie
 const MOBILE_SAFE_MODE_QUERY = '(max-width: 900px), (max-height: 700px)';
 
 function isMobileSafeMode() {
@@ -315,7 +315,7 @@ function postDesktopSettings(settings) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
         keepalive: true
-    }).catch(err => console.warn("Nie udaĹ‚o siÄ™ zapisaÄ‡ pulpitu:", err));
+    }).catch(err => console.warn("Nie udało się zapisać pulpitu:", err));
 }
 
 function saveDesktopSettingsNow(partial = {}) {
@@ -540,11 +540,11 @@ function renderStartMenu() {
         </div>
         <div class="system-start-footer">
             <button class="system-start-item system-action-restart" type="button">
-                <span>â†»</span>
+                <span>↻</span>
                 <span>Restart</span>
             </button>
             <button class="system-start-item system-action-logout" type="button">
-                <span>âŹ»</span>
+                <span>⏻</span>
                 <span>Logout</span>
             </button>
         </div>
@@ -580,7 +580,7 @@ async function launchFromToolbar(app) {
     try {
         await Promise.resolve(app.action());
     } catch (err) {
-        console.error("BĹ‚Ä…d uruchamiania aplikacji z paska:", err);
+        console.error("Błąd uruchamiania aplikacji z paska:", err);
         return;
     }
 
@@ -724,7 +724,7 @@ async function buildIconsFromJsonWithCommand(jsonData) {
                         body: JSON.stringify({ username: pending.username })
                     });
                     const deleteData = await deleteRes.json();
-                    content.innerHTML += `<br>${escapeHTML(deleteData.message || "Operacja zakoĹ„czona.")}`;
+                    content.innerHTML += `<br>${escapeHTML(deleteData.message || "Operacja zakończona.")}`;
                     appendTerminalPrompt(content);
                     return;
                 }
@@ -744,7 +744,7 @@ async function buildIconsFromJsonWithCommand(jsonData) {
                 const levels = appData.levels;
                 const type = appData.interface;
 
-                // đź‘‡ Zbuduj action dokĹ‚adnie jak w terminalu, ale bez logĂłw
+                // 👇 Zbuduj action dokładnie jak w terminalu, ale bez logów
                 const action = () => {
                     if (runSystemLauncherApp(appData)) return;
                     if (type === "window") app_window(id, levels);
@@ -764,7 +764,7 @@ async function buildIconsFromJsonWithCommand(jsonData) {
             }
 
         } catch (err) {
-            console.error(`BĹ‚Ä…d przy pobieraniu ${name}:`, err);
+            console.error(`Błąd przy pobieraniu ${name}:`, err);
         }
     }
 
@@ -779,7 +779,7 @@ async function buildIconsFromJsonWithCommand(jsonData) {
         const profileData = await getUserProfile();
         if (!profileData) {
             addSystemMessage("danger", "\u{1F4C1} Profil", "\u2716 Brak danych profilu");
-            finishBootLoader("Nie udaĹ‚o siÄ™ wczytaÄ‡ profilu.");
+            finishBootLoader("Nie udało się wczytać profilu.");
             return;
         }
         const res = profileData.apps;
@@ -792,21 +792,21 @@ async function buildIconsFromJsonWithCommand(jsonData) {
         setBootProgress(58, `Indeksowanie aplikacji: ${jsonApps.length}`);
         const generatedIcons = await buildIconsFromJsonWithCommand(jsonApps);
         const systemApps = profileData.dev_mode ? [...desktopApps, devBugReporterApp] : desktopApps;
-        const allApps = [...generatedIcons, ...systemApps]; // dodajesz wĹ‚asne z kodu
+        const allApps = [...generatedIcons, ...systemApps]; // dodajesz własne z kodu
         setBootProgress(76, "Montowanie paska systemowego...");
         setToolbarLaunchers(allApps, profileData);
         setBootProgress(88, "Odtwarzanie tapety i pozycji ikon...");
         applyDesktopSettings(profileData.desktop_settings || {});
         renderDesktopIcons(allApps, desktopSettings);
-        finishBootLoader("ghost_init.pkg zakoĹ„czony. System gotowy.");
+        finishBootLoader("ghost_init.pkg zakończony. System gotowy.");
         return;
     } catch (err) {
-        console.error("BĹ‚Ä…d startu pulpitu:", err);
-        finishBootLoader("Tryb awaryjny: pulpit uruchomiony czÄ™Ĺ›ciowo.");
+        console.error("Błąd startu pulpitu:", err);
+        finishBootLoader("Tryb awaryjny: pulpit uruchomiony częściowo.");
         return;
     }
 
-    const iconHeight = 100; // wysokoĹ›Ä‡ + padding
+    const iconHeight = 100; // wysokość + padding
     const topOffset = 10;
     const leftOffset = 10;
     const colSpacing = 100;
@@ -826,7 +826,7 @@ async function buildIconsFromJsonWithCommand(jsonData) {
 
         icon.addEventListener('dblclick', app.action);
 
-        // â¬‡ď¸Ź ObsĹ‚uga przeciÄ…gania:
+        // ⬇️ Obsługa przeciągania:
         let isDragging = false;
         let offsetX = 0;
         let offsetY = 0;
@@ -955,12 +955,12 @@ function attachTerminalInputHandler(input, content) {
                 const levels = app.levels;
                 const type = app.interface;
 
-                // đź‘‡ WyĹ›wietl consoleEffect zanim pojawi siÄ™ nowy input
+                // 👇 Wyświetl consoleEffect zanim pojawi się nowy input
                 const conDiv = document.createElement('div');
                 conDiv.innerHTML = consoleEffect.replace(/\n/g, "<br>");
                 content.appendChild(conDiv);
 
-                // đź‘‡ Uruchom aplikacjÄ™
+                // 👇 Uruchom aplikację
                 if (!runSystemLauncherApp(app)) {
                 if (type === "window") app_window(id, levels);
                 if (type === "progressbar_random") app_progressbar_random(id, levels);
@@ -969,7 +969,7 @@ function attachTerminalInputHandler(input, content) {
                 }
             }
 
-            // đź‘‡ Dopiero teraz tworzysz nowÄ… liniÄ™ terminala
+            // 👇 Dopiero teraz tworzysz nową linię terminala
             const newLine = document.createElement('div');
             newLine.className = 'terminal-line';
             newLine.innerHTML = `
@@ -1017,13 +1017,13 @@ function addSystemMessage(type, title, text) {
     .then(res => res.json())
     .then(res => {
         if (res.status === "success") {
-            console.log("âś… WiadomoĹ›Ä‡ systemowa dodana");
+            console.log("✅ Wiadomość systemowa dodana");
         } else {
-            console.warn("âš ď¸Ź BĹ‚Ä…d dodawania wiadomoĹ›ci:", res.message || res.error);
+            console.warn("⚠️ Błąd dodawania wiadomości:", res.message || res.error);
         }
     })
     .catch(err => {
-        console.error("âťŚ BĹ‚Ä…d poĹ‚Ä…czenia z serwerem", err);
+        console.error("❌ Błąd połączenia z serwerem", err);
     });
 }
 
@@ -1457,7 +1457,7 @@ async function usePlayerHackTool(toolId) {
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
-            if (msg) msg.textContent = data.error || 'NarzÄ™dzie niedostepne.';
+            if (msg) msg.textContent = data.error || 'Narzędzie niedostepne.';
             return;
         }
         if (msg) msg.textContent = data.message || 'Tool placeholder.';
@@ -1592,7 +1592,7 @@ function createDevBugReporterApp() {
         <div class="title-bar">Dev Bug Reporter <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content dev-bug-shell">
             <div class="dev-bug-toolbar">
-                <input type="search" data-bug-search placeholder="Szukaj zgĹ‚oszeĹ„..." />
+                <input type="search" data-bug-search placeholder="Szukaj zgłoszeń..." />
                 <select data-bug-category-filter>
                     <option value="">Wszystkie kategorie</option>
                     ${DEV_BUG_CATEGORIES.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
@@ -1601,23 +1601,23 @@ function createDevBugReporterApp() {
                     <option value="">Wszystkie statusy</option>
                     ${DEV_BUG_STATUSES.map(status => `<option value="${status}">${status}</option>`).join('')}
                 </select>
-                <button type="button" data-bug-refresh>OdĹ›wieĹĽ</button>
+                <button type="button" data-bug-refresh>Odśwież</button>
             </div>
             <div class="dev-bug-message" data-bug-message></div>
             <div class="dev-bug-layout">
                 <aside class="dev-bug-list" data-bug-list>
-                    <div class="dev-bug-empty">Ĺadowanie zgĹ‚oszeĹ„...</div>
+                    <div class="dev-bug-empty">Ładowanie zgłoszeń...</div>
                 </aside>
                 <main class="dev-bug-detail">
                     <section class="dev-bug-card" data-bug-detail>
-                        <h3>Wybierz zgĹ‚oszenie</h3>
-                        <p>Lista jest wspĂłlna dla testerĂłw dev/staging.</p>
+                        <h3>Wybierz zgłoszenie</h3>
+                        <p>Lista jest wspólna dla testerów dev/staging.</p>
                     </section>
                     <section class="dev-bug-card">
-                        <h3>Nowe zgĹ‚oszenie</h3>
+                        <h3>Nowe zgłoszenie</h3>
                         <form data-bug-form>
-                            <label>TytuĹ‚
-                                <input type="text" name="title" required maxlength="160" placeholder="KrĂłtko: co nie dziaĹ‚a?" />
+                            <label>Tytuł
+                                <input type="text" name="title" required maxlength="160" placeholder="Krótko: co nie działa?" />
                             </label>
                             <div class="dev-bug-duplicates" data-bug-duplicates hidden></div>
                             <label>Opis
@@ -1635,7 +1635,7 @@ function createDevBugReporterApp() {
                                     </select>
                                 </label>
                             </div>
-                            <button type="submit">Dodaj zgĹ‚oszenie</button>
+                            <button type="submit">Dodaj zgłoszenie</button>
                         </form>
                     </section>
                 </main>
@@ -1666,8 +1666,8 @@ function createDevBugReporterApp() {
         if (!detail) return;
         if (!report) {
             detail.innerHTML = `
-                <h3>Wybierz zgĹ‚oszenie</h3>
-                <p>Lista jest wspĂłlna dla testerĂłw dev/staging.</p>
+                <h3>Wybierz zgłoszenie</h3>
+                <p>Lista jest wspólna dla testerów dev/staging.</p>
             `;
             return;
         }
@@ -1695,7 +1695,7 @@ function createDevBugReporterApp() {
             <h4>Kontekst</h4>
             ${renderDevBugContextSummary(report.context || {})}
             <details class="dev-bug-context-json">
-                <summary>PeĹ‚ny context_json</summary>
+                <summary>Pełny context_json</summary>
                 <textarea readonly>${escapeHTML(JSON.stringify(report.context || {}, null, 2))}</textarea>
             </details>
         `;
@@ -1708,7 +1708,7 @@ function createDevBugReporterApp() {
         const list = app.querySelector('[data-bug-list]');
         if (!list) return;
         if (!state.reports.length) {
-            list.innerHTML = '<div class="dev-bug-empty">Brak zgĹ‚oszeĹ„ dla aktualnych filtrĂłw.</div>';
+            list.innerHTML = '<div class="dev-bug-empty">Brak zgłoszeń dla aktualnych filtrów.</div>';
             renderDetail(null);
             return;
         }
@@ -1739,21 +1739,21 @@ function createDevBugReporterApp() {
         if (search) params.set('search', search);
         if (category) params.set('category', category);
         if (status) params.set('status', status);
-        setMessage('Ĺadowanie zgĹ‚oszeĹ„...');
+        setMessage('Ładowanie zgłoszeń...');
         try {
             const res = await fetch(`/api/dev/bug-reports?${params.toString()}`);
             const data = await res.json();
             if (!res.ok || !data.success) {
-                setMessage(data.message || 'Dev Bug Reporter jest niedostÄ™pny.', 'error');
+                setMessage(data.message || 'Dev Bug Reporter jest niedostępny.', 'error');
                 return;
             }
             state.reports = data.reports || [];
             state.appVersion = data.app_version || '';
-            setMessage(`ZgĹ‚oszenia: ${state.reports.length}`, 'success');
+            setMessage(`Zgłoszenia: ${state.reports.length}`, 'success');
             renderList();
         } catch (err) {
             console.error('Dev Bug Reporter load failed:', err);
-            setMessage('BĹ‚Ä…d poĹ‚Ä…czenia z Dev Bug Reporter.', 'error');
+            setMessage('Błąd połączenia z Dev Bug Reporter.', 'error');
         }
     };
 
@@ -1767,14 +1767,14 @@ function createDevBugReporterApp() {
             });
             const data = await res.json();
             if (!res.ok || !data.success) {
-                setMessage(data.message || 'Nie udaĹ‚o siÄ™ zmieniÄ‡ statusu.', 'error');
+                setMessage(data.message || 'Nie udało się zmienić statusu.', 'error');
                 return;
             }
             setMessage(data.message || 'Status zmieniony.', 'success');
             await loadReports();
         } catch (err) {
             console.error('Dev Bug Reporter update failed:', err);
-            setMessage('BĹ‚Ä…d aktualizacji statusu.', 'error');
+            setMessage('Błąd aktualizacji statusu.', 'error');
         }
     };
 
@@ -1798,7 +1798,7 @@ function createDevBugReporterApp() {
             }
             box.hidden = false;
             box.innerHTML = `
-                <strong>MoĹĽliwe, ĹĽe taki bug juĹĽ istnieje.</strong>
+                <strong>Możliwe, że taki bug już istnieje.</strong>
                 ${reports.map(item => `<span>#${item.id} ${escapeHTML(item.title)}</span>`).join('')}
             `;
         } catch (err) {
@@ -1825,7 +1825,7 @@ function createDevBugReporterApp() {
             screen: `${window.innerWidth}x${window.innerHeight}`,
             context
         };
-        setMessage('Zapisywanie zgĹ‚oszenia...');
+        setMessage('Zapisywanie zgłoszenia...');
         try {
             const res = await fetch('/api/dev/bug-reports', {
                 method: 'POST',
@@ -1834,7 +1834,7 @@ function createDevBugReporterApp() {
             });
             const data = await res.json();
             if (!res.ok || !data.success) {
-                setMessage(data.message || 'Nie udaĹ‚o siÄ™ zapisaÄ‡ zgĹ‚oszenia.', 'error');
+                setMessage(data.message || 'Nie udało się zapisać zgłoszenia.', 'error');
                 return;
             }
             form.reset();
@@ -1844,11 +1844,11 @@ function createDevBugReporterApp() {
                 dupes.innerHTML = '';
             }
             state.selectedId = data.report?.id || null;
-            setMessage(data.message || 'ZgĹ‚oszenie zapisane.', 'success');
+            setMessage(data.message || 'Zgłoszenie zapisane.', 'success');
             await loadReports();
         } catch (err) {
             console.error('Dev Bug Reporter create failed:', err);
-            setMessage('BĹ‚Ä…d zapisu zgĹ‚oszenia.', 'error');
+            setMessage('Błąd zapisu zgłoszenia.', 'error');
         }
     });
 
@@ -1899,7 +1899,12 @@ function createTerminal() {
 }
 
 function app_window(id, levels) {
-    const level = levels[0] || {};
+    const safeLevels = Array.isArray(levels) ? levels : [];
+    const level = safeLevels[0] || {};
+    const items = Array.isArray(level.list) && level.list.length
+        ? level.list
+        : [`Aplikacja ${id} uruchomiona.`];
+    const windowButtons = Array.isArray(level.buttons) ? level.buttons : [];
     const app = document.createElement('div');
     app.className = 'app-window';
     const position = findAvailablePosition();
@@ -1910,9 +1915,9 @@ function app_window(id, levels) {
         <div class="title-bar">${escapeHTML(id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content">
             <h3>${escapeHTML(level.title || 'Aplikacja')}</h3>
-            <ul>${(level.list || []).map(item => `<li>${escapeHTML(String(item || ''))}</li>`).join('')}</ul>
+            <ul>${items.map(item => `<li>${escapeHTML(String(item || ''))}</li>`).join('')}</ul>
             <div class="button-row">
-                ${(level.buttons || []).map((b, i) => `
+                ${windowButtons.map((b, i) => `
                     <button data-action="${escapeHTML(b.action || '')}" data-label="${escapeHTML(b.label || '')}">
                         ${escapeHTML(b.label || '')}
                     </button>
@@ -1944,8 +1949,11 @@ function app_window(id, levels) {
 }
 
 async function app_progressbar_random(id, levels) {
-    const level = levels[0];
-    const steps = level.steps || [];
+    const safeLevels = Array.isArray(levels) ? levels : [];
+    const level = safeLevels[0] || {};
+    const steps = Array.isArray(level.steps) && level.steps.length
+        ? level.steps
+        : ["Inicjalizacja modułu...", "Wykonanie operacji...", "Finalizacja..."];
     const app = document.createElement('div');
     app.className = 'app-window';
     const position = findAvailablePosition();
@@ -2017,8 +2025,8 @@ async function notifyGonnaWin(appId) {
         }
         return data.success === true;
     } catch (err) {
-        console.error(`âťŚ BĹ‚Ä…d poĹ‚Ä…czenia z /gonna-win dla ${appId}`, err);
-        return false; // default przy bĹ‚Ä™dzie
+        console.error(`❌ Błąd połączenia z /gonna-win dla ${appId}`, err);
+        return false; // default przy błędzie
     }
 }
 
@@ -2031,7 +2039,7 @@ function notifyOpenMapsTargetHacked(target) {
                 mapWindow.markMapTargetHacked(target);
             }
         } catch (err) {
-            console.warn("Nie udaĹ‚o siÄ™ odĹ›wieĹĽyÄ‡ markera mapy:", err);
+            console.warn("Nie udało się odświeżyć markera mapy:", err);
         }
     });
 }
@@ -2071,15 +2079,17 @@ async function sendGonnaWinRequest(appId, choiceId = null) {
         }
         return data;
     } catch (error) {
-        console.error("BĹ‚Ä…d komunikacji z backendem:", error);
+        console.error("Błąd komunikacji z backendem:", error);
         return { success: false };
     }
 }
 
 function app_terminal(id, levels) {
     notifyGonnaWin(id);
-    const level = levels[0] || {};
-    const commands = level.command ? [level.command, ...(level.logs || [])] : (level.logs || []);
+    const safeLevels = Array.isArray(levels) ? levels : [];
+    const level = safeLevels[0] || {};
+    const logs = Array.isArray(level.logs) ? level.logs : [];
+    const commands = level.command ? [level.command, ...logs] : (logs.length ? logs : [`./${id}.sh`, "Raport zapisany."]);
 
     const app = document.createElement('div');
     app.className = 'app-window';
@@ -2153,7 +2163,11 @@ function app_terminal(id, levels) {
 }
 
 function app_button_choices(id, levels) {
-    const lvl = levels[0] || {};
+    const safeLevels = Array.isArray(levels) ? levels : [];
+    const lvl = safeLevels[0] || {};
+    const options = Array.isArray(lvl.options) && lvl.options.length
+        ? lvl.options
+        : [{ id: 0, label: "Wykonaj", effect: {} }];
     const app = document.createElement('div');
     app.className = 'app-window';
     const position = findAvailablePosition();
@@ -2166,7 +2180,7 @@ function app_button_choices(id, levels) {
             <h3>${escapeHTML(lvl.title || 'Wybierz opcj\u0119')}</h3>
             <p>${escapeHTML(lvl.text || '')}</p>
             <div class="button-row">
-                ${(lvl.options || []).map((opt, i) => `
+                ${options.map((opt, i) => `
                     <button data-opt-id="${escapeHTML(opt.id || i)}" class="choice-btn">
                         ${escapeHTML(opt.label || '')}
                     </button>
@@ -2275,7 +2289,7 @@ function createBrowser() {
     makeDraggable(term);
     term.querySelector('.close-btn').addEventListener('click', () => term.remove());
 
-    // ObsĹ‚uga wyszukiwania
+    // Obsługa wyszukiwania
     const search = term.querySelector(`#${terminalId}-search`);
     const results = term.querySelector(`#${terminalId}-results`);
     const wallet = term.querySelector(`#${terminalId}-wallet`);
@@ -2825,7 +2839,7 @@ function showInstallAppProgress(app, onInstalled = null) {
 
     function runNextStep() {
         if (stepIndex >= steps.length) {
-            // WysyĹ‚ka do backendu na koĹ„cu
+            // Wysyłka do backendu na końcu
             fetch('/install-app', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -2846,23 +2860,23 @@ function showInstallAppProgress(app, onInstalled = null) {
                         });
                     }
 
-                    // Zamykamy okno po 4 sekundach i przeĹ‚adowujemy "pulpit"
+                    // Zamykamy okno po 4 sekundach i przeładowujemy "pulpit"
                     setTimeout(async () => {
-                        // ZnajdĹş i usuĹ„ okno instalacji
+                        // Znajdź i usuń okno instalacji
                         if (appWindow && appWindow.parentNode) appWindow.parentNode.removeChild(appWindow);
 
                         if (typeof onInstalled === "function") {
                             await onInstalled(data);
                         }
 
-                        // OdĹ›wieĹĽ caĹ‚oĹ›Ä‡ przez przeĹ‚adowanie strony (najproĹ›ciej)
+                        // Odśwież całość przez przeładowanie strony (najprościej)
                         // location.reload();
 
-                        // Lub lepiej: przebuduj ikony, menedĹĽer plikĂłw itd. bez reloadu:
+                        // Lub lepiej: przebuduj ikony, menedżer plików itd. bez reloadu:
                         if (typeof refreshDesktop === "function") {
                             refreshDesktop(false);
                         } else {
-                            // fallback: przeĹ‚aduj caĹ‚oĹ›Ä‡
+                            // fallback: przeładuj całość
                             location.reload();
                         }
                     }, 4000);
@@ -2886,7 +2900,7 @@ function showInstallAppProgress(app, onInstalled = null) {
 }
 
 async function refreshDesktop(closeWindows = true) {
-    // 1. CzyĹ›Ä‡ wszystkie ikony z pulpitu
+    // 1. Czyść wszystkie ikony z pulpitu
     const desktop = document.getElementById('desktop-icons');
     if (desktop) desktop.innerHTML = '';
 
@@ -2906,14 +2920,14 @@ async function refreshDesktop(closeWindows = true) {
     const jsonApps = profileData.apps || [];
     const generatedIcons = await buildIconsFromJsonWithCommand(jsonApps);
 
-    // PoĹ‚Ä…cz wĹ‚asne i systemowe aplikacje
+    // Połącz własne i systemowe aplikacje
     const allApps = [...generatedIcons, ...desktopApps];
     setToolbarLaunchers(allApps, profileData);
     applyDesktopSettings(profileData.desktop_settings || {});
     renderDesktopIcons(allApps, desktopSettings);
     return;
 
-    // Od nowa rozmieĹ›Ä‡ ikony na pulpicie
+    // Od nowa rozmieść ikony na pulpicie
     const iconHeight = 100;
     const topOffset = 10;
     const leftOffset = 10;
@@ -2933,7 +2947,7 @@ async function refreshDesktop(closeWindows = true) {
 
         icon.addEventListener('dblclick', app.action);
 
-        // Drag & drop obsĹ‚uga (skopiowana z twojego kodu)
+        // Drag & drop obsługa (skopiowana z twojego kodu)
         let isDragging = false;
         let offsetX = 0;
         let offsetY = 0;
@@ -2984,9 +2998,9 @@ function createSettings() {
         </div>
         <div style="padding: 10px; background: #111; color: #0f0; flex:1;">
             <h3>Tapeta</h3>
-            <button class="wall-btn" data-wall="wall-1">đźŚ… Tapeta 1</button>
-            <button class="wall-btn" data-wall="wall-2">đźŹ™ď¸Ź Tapeta 2</button>
-            <button class="wall-btn" data-wall="wall-3">đźŚŚ Tapeta 3</button>
+            <button class="wall-btn" data-wall="wall-1">🌅 Tapeta 1</button>
+            <button class="wall-btn" data-wall="wall-2">🏙️ Tapeta 2</button>
+            <button class="wall-btn" data-wall="wall-3">🌌 Tapeta 3</button>
         </div>
     `;
 
@@ -2994,7 +3008,7 @@ function createSettings() {
     makeDraggable(term);
     term.querySelector('.close-btn').addEventListener('click', () => term.remove());
 
-    // ObsĹ‚uga zmiany tapety
+    // Obsługa zmiany tapety
     term.querySelectorAll('.wall-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const wall = btn.dataset.wall;
@@ -3040,7 +3054,7 @@ async function createProfile() {
         .join("");
 
     const securityList = Object.entries(profileData.security || {})
-        .map(([key, value]) => `đź” ${key}: <b>${value ? 'ON' : 'OFF'}</b>`)
+        .map(([key, value]) => `🔐 ${key}: <b>${value ? 'ON' : 'OFF'}</b>`)
         .join("<br>");
     const territoryStats = profileData.territory_stats || {};
     const totalArea = Math.round(Number(territoryStats.total_area || 0));
@@ -3060,8 +3074,8 @@ async function createProfile() {
     const playerClan = factionNames[String(rawPlayerClan)] || rawPlayerClan;
     profileData.clan = playerClan;
     const territoryDetailsHtml = `
-            <p>Efektywna kontrola: <b>${effectiveArea} mÂ˛</b></p>
-            <p>GÄ™stoĹ›Ä‡ siatki: <b>x${densityMultiplier.toFixed(2)}</b> (${spanDensity.toFixed(2)} przÄ™seĹ‚ / 100 m)</p>
+            <p>Efektywna kontrola: <b>${effectiveArea} m²</b></p>
+            <p>Gęstość siatki: <b>x${densityMultiplier.toFixed(2)}</b> (${spanDensity.toFixed(2)} przęseł / 100 m)</p>
     `;
 
     term.innerHTML = `
@@ -3078,23 +3092,23 @@ async function createProfile() {
 
             <hr style="border: 1px solid #0f0; margin: 15px 0;">
 
-            <p>đź’° HackCoiny: <b>${profileData.hackcoins}</b></p>
-            <p>đź§  DoĹ›wiadczenie: <b>${profileData.exp}</b></p>
-            <p>đź”Ą Respect: <b>${profileData.respect}</b> pkt</p>
-            <p>đź‘Ą Klan: <b>${profileData.clan}</b></p>
+            <p>💰 HackCoiny: <b>${profileData.hackcoins}</b></p>
+            <p>🧠 Doświadczenie: <b>${profileData.exp}</b></p>
+            <p>🔥 Respect: <b>${profileData.respect}</b> pkt</p>
+            <p>👥 Klan: <b>${profileData.clan}</b></p>
 
             <hr style="border: 1px solid #0f0; margin: 15px 0;">
             <h4>Terytorium:</h4>
             ${territoryDetailsHtml}
-            <p>đźź© Klastry: <b>${territoryStats.clusters_count || 0}</b></p>
-            <p>đź“ Powierzchnia: <b>${totalArea} mÂ˛</b></p>
-            <p>â¬† Do nastÄ™pnego levela: <b>${areaToNext} mÂ˛</b></p>
-            <p>đźŹŤď¸Ź ZasiÄ™g motocykla: <b>${actionRange} m</b></p>
+            <p>🟩 Klastry: <b>${territoryStats.clusters_count || 0}</b></p>
+            <p>📐 Powierzchnia: <b>${totalArea} m²</b></p>
+            <p>⬆ Do następnego levela: <b>${areaToNext} m²</b></p>
+            <p>🏍️ Zasięg motocykla: <b>${actionRange} m</b></p>
             
             <hr style="border: 1px solid #0f0; margin: 15px 0;">
 
-            <p>đź“¦ Inventory: <b>${profileData.inventory.length}</b> aplikacji</p>
-            <p>đź“Ť Pozycja: <b>lat: ${profileData.curently_possition.lat}, lng: ${profileData.curently_possition.lng}</b></p>
+            <p>📦 Inventory: <b>${profileData.inventory.length}</b> aplikacji</p>
+            <p>📍 Pozycja: <b>lat: ${profileData.curently_possition.lat}, lng: ${profileData.curently_possition.lng}</b></p>
 
             <hr style="border: 1px solid #0f0; margin: 15px 0;">
             <h4>Zabezpieczenia:</h4>
@@ -3160,11 +3174,11 @@ async function getUserProfile() {
             desktopSessionActive = false;
             return null;
         }
-        if (!res.ok) throw new Error("NieprawidĹ‚owy response");
+        if (!res.ok) throw new Error("Nieprawidłowy response");
         const data = await res.json();
         return data;
     } catch (err) {
-        console.error("âťŚ BĹ‚Ä…d pobierania profilu uĹĽytkownika:", err);
+        console.error("❌ Błąd pobierania profilu użytkownika:", err);
         return null;
     }
 }
@@ -3194,8 +3208,8 @@ function createAppForgeLegacy() {
                 <label>Typ<input name="type" value="scanner" placeholder="scanner"></label>
                 <label>Ikonka
                     <span class="appforge-icon-row">
-                        <input name="icon" maxlength="16" value="đź› ď¸Ź" placeholder="đź› ď¸Ź">
-                        <span class="appforge-icon-preview">đź› ď¸Ź</span>
+                        <input name="icon" maxlength="16" value="\u{1F6E0}\uFE0F" placeholder="\u{1F6E0}\uFE0F">
+                        <span class="appforge-icon-preview">\u{1F6E0}\uFE0F</span>
                     </span>
                 </label>
                 <label>Cena<input name="price" type="number" min="0" step="1" value="100"></label>
@@ -3251,7 +3265,7 @@ function createAppForgeLegacy() {
         } else if (selected === "button_choices") {
             levelFields.innerHTML = `
                 <h4>Levels: button_choices</h4>
-                <label>levels[0].title<input name="level_title" placeholder="Wybierz tryb dziaĹ‚ania"></label>
+                <label>levels[0].title<input name="level_title" placeholder="Wybierz tryb dzia\u0142ania"></label>
                 <label>levels[0].text<textarea name="button_text" rows="3" placeholder="Opis wyboru dla gracza"></textarea></label>
                 <label>levels[0].options<textarea name="button_options" rows="5" placeholder="Label|effect|price&#10;Recon|risk_level=10,access_level=1|90&#10;Disable firewall|firewall=false|140"></textarea></label>
             `;
@@ -3260,7 +3274,7 @@ function createAppForgeLegacy() {
                 <h4>Levels: progressbar_random</h4>
                 <label>levels[0].title<input name="level_title" placeholder="Wykonywanie operacji"></label>
                 <label>levels[0].steps<textarea name="progress_steps" rows="5" placeholder="Jedna linia = jeden krok progressbara"></textarea></label>
-                <label>levels[0].result_success<input name="result_success" placeholder="Operacja zakoĹ„czona powodzeniem."></label>
+                <label>levels[0].result_success<input name="result_success" placeholder="Operacja zako\u0144czona powodzeniem."></label>
                 <label>levels[0].result_failure<input name="result_failure" placeholder="Operacja zablokowana."></label>
             `;
         }
@@ -3365,35 +3379,35 @@ const CREATOR_WIZARD_STEPS = [
 
 const CREATOR_STEP_NARRATIVE = [
     {
-        title: "Nadaj narzedziu tozsamosc",
+        title: "Nadaj narz\u0119dziu to\u017csamo\u015b\u0107",
         subtitle: "Pierwszy sygnal dla gracza i katalogu Googleplex.",
         description: "Nazwa, ikona i opis mowia, czym jest aplikacja zanim ktokolwiek spojrzy w jej kontrakt.",
-        educational_note: "Profesjonalne narzedzia tej klasy sa rozpoznawalne po celu, zakresie i wiarygodnym opisie.",
+        educational_note: "Profesjonalne narz\u0119dzia tej klasy s\u0105 rozpoznawalne po celu, zakresie i wiarygodnym opisie.",
         gameplay_hint: "Cena jest punktem startu. Runtime moze pokazac sugerowana wartosc w podgladzie balansu."
     },
     {
-        title: "Wybierz rodzine narzedzia",
+        title: "Wybierz rodzin\u0119 narz\u0119dzia",
         subtitle: "Rodzina zawedza dalsze decyzje.",
-        description: "Scanner, Exploit i Sniffer opisuja intencje gameplayowa, a nie realna instrukcje dzialania.",
+        description: "Scanner, Exploit i Sniffer opisuj\u0105 intencj\u0119 gameplayow\u0105, a nie realn\u0105 instrukcj\u0119 dzia\u0142ania.",
         educational_note: "Administratorzy i zespoly bezpieczenstwa uzywaja podobnych klas rozwiazan do rozpoznania, kontroli i obserwacji systemow.",
         gameplay_hint: "Wybrana rodzina filtruje akcje, operacje i zasoby w kolejnych krokach."
     },
     {
         title: "Wskaz obiekt zainteresowania",
         subtitle: "Cel decyduje, jakie opcje maja sens.",
-        description: "Inaczej projektuje sie narzedzie dla pojazdu, inaczej dla kamery, a inaczej dla routera.",
+        description: "Inaczej projektuje si\u0119 narz\u0119dzie dla pojazdu, inaczej dla kamery, a inaczej dla routera.",
         educational_note: "W swiecie CHAOS kazdy obiekt ma inne cyfrowe zmysly: lokalizacje, obraz, sygnal, logi albo dostep.",
         gameplay_hint: "Po wyborze celu kreator ukrywa niepasujace operacje i informacje."
     },
     {
         title: "Okresl miejsce uruchomienia",
         subtitle: "Mapa, desktop albo oba tryby.",
-        description: "Nie kazde narzedzie musi byc widoczne w menu mapy. Desktop moze dzialac na oznaczony cel.",
-        educational_note: "To rozroznienie przypomina prace z kontekstem: czasem dzialasz na obiekcie w terenie, czasem na juz wybranym celu.",
+        description: "Nie ka\u017cde narz\u0119dzie musi by\u0107 widoczne w menu mapy. Desktop mo\u017ce dzia\u0142a\u0107 na oznaczony cel.",
+        educational_note: "To rozr\u00f3\u017cnienie przypomina prac\u0119 z kontekstem: czasem dzia\u0142asz na obiekcie w terenie, czasem na ju\u017c wybranym celu.",
         gameplay_hint: "Tryb desktopowy moze nie miec akcji mapy. Tryb mapowy powinien miec jawne map_actions."
     },
     {
-        title: "Zdecyduj, co narzedzie ma zrobic",
+        title: "Zdecyduj, co narz\u0119dzie ma zrobi\u0107",
         subtitle: "To jest serce kontraktu operacji.",
         description: "Wybierasz efekt gameplayowy: sledzenie, stream, odczyt, zaklocenie albo implant.",
         educational_note: "Nie chodzi o realne komendy. Chodzi o opis skutku w symulowanym swiecie gry.",
@@ -3403,29 +3417,29 @@ const CREATOR_STEP_NARRATIVE = [
         title: "Wybierz informacje, ktorych szuka",
         subtitle: "Dane sa paliwem ekonomii CHAOS.",
         description: "Zasoby okreslaja, jaki typ pliku albo stanu moze powstac po operacji.",
-        educational_note: "Podobne klasy narzedzi w realnym swiecie pomagaja zrozumiec, jakie sygnaly i metadane istnieja w systemach.",
-        gameplay_hint: "Nie kazdy zasob jest sprzedawalny. `internal_recon_state` moze tylko przygotowac dalsze dzialanie."
+        educational_note: "Podobne klasy narz\u0119dzi w realnym \u015bwiecie pomagaj\u0105 zrozumie\u0107, jakie sygna\u0142y i metadane istniej\u0105 w systemach.",
+        gameplay_hint: "Nie ka\u017cdy zas\u00f3b jest sprzedawalny. `internal_recon_state` mo\u017ce tylko przygotowa\u0107 dalsze dzia\u0142anie."
     },
     {
         title: "Ustal ryzyko i zaleznosci",
-        subtitle: "Kazde narzedzie ma slady i wymagania.",
-        description: "Ten krok opisuje, z czym narzedzie koliduje, co wylacza i jakie warunki powinny byc spelnione.",
-        educational_note: "Swiadome projektowanie narzedzia polega tez na rozumieniu ograniczen, nie tylko mozliwosci.",
+        subtitle: "Ka\u017cde narz\u0119dzie ma \u015blady i wymagania.",
+        description: "Ten krok opisuje, z czym narz\u0119dzie koliduje, co wy\u0142\u0105cza i jakie warunki powinny by\u0107 spe\u0142nione.",
+        educational_note: "\u015awiadome projektowanie narz\u0119dzia polega te\u017c na rozumieniu ogranicze\u0144, nie tylko mo\u017cliwo\u015bci.",
         gameplay_hint: "To nadal sa pola kontraktu gry. Nie tworza realnych instrukcji ani nowego systemu ryzyka."
     },
     {
         title: "Sprawdz kontrakt przed publikacja",
         subtitle: "Podglad laczy decyzje w jedna aplikacje.",
-        description: "Tutaj widzisz, jak wybor rodziny, celu, dzialania i danych zamienia sie w app contract.",
-        educational_note: "Dobry projekt narzedzia powinien byc czytelny bez zagladania w kod.",
+        description: "Tutaj widzisz, jak wyb\u00f3r rodziny, celu, dzia\u0142ania i danych zamienia si\u0119 w app contract.",
+        educational_note: "Dobry projekt narz\u0119dzia powinien by\u0107 czytelny bez zagl\u0105dania w kod.",
         gameplay_hint: "Waga, jakosc, niezawodnosc i cena sugerowana sa liczone przez runtime."
     },
     {
         title: "Opublikuj w Googleplex",
         subtitle: "Ten sam katalog, ten sam runtime.",
         description: "Publikacja uzywa istniejacego endpointu i trafia do tego samego Googleplexa co inne aplikacje.",
-        educational_note: "CHAOS traktuje narzedzie jak element ekosystemu: projekt, publikacja, instalacja, uzycie i uninstall.",
-        gameplay_hint: "Po publikacji aplikacje kupujesz i instalujesz tak jak inne narzedzia."
+        educational_note: "CHAOS traktuje narz\u0119dzie jak element ekosystemu: projekt, publikacja, instalacja, u\u017cycie i uninstall.",
+        gameplay_hint: "Po publikacji aplikacj\u0119 kupujesz i instalujesz tak jak inne narz\u0119dzia."
     }
 ];
 
@@ -3513,7 +3527,7 @@ const CREATOR_OPTION_LABELS = {
         trace: "Sledz cel",
         trace_gps: "Sledz pojazd GPS",
         trace_device: "Sledz urzadzenie",
-        camera_stream: "Ogladaj obraz z kamery",
+        camera_stream: "Ogl\u0105daj obraz z kamery",
         camera_shutdown: "Zakloc kamere",
         atm_logs: "Odczytaj logi ATM",
         install_sniffer: "Zainstaluj implant",
@@ -3635,7 +3649,7 @@ const CREATOR_SCANNER_MODE_PRESETS = {
     },
     hybrid: {
         label: "Scanner hybrydowy",
-        description: "NarzÄ™dzie recon dziaĹ‚ajÄ…ce z mapy i z desktopu, bez wchodzenia w Ĺ›cieĹĽkÄ™ exploit/sniffer.",
+        description: "Narz\u0119dzie recon dzia\u0142aj\u0105ce z mapy i z desktopu, bez wchodzenia w \u015bcie\u017ck\u0119 exploit/sniffer.",
         map_actions: ["scan_ports", "trace", "trace_gps", "trace_device", "scan_hotspots", "camera_stream"],
         operation_types: ["generic_trace", "vehicle_tracking", "device_tracking", "wifi_scanner", "camera_stream"],
         resource_types: ["internal_recon_state", "gps_logs", "location_history", "device_logs", "camera_dump", "wifi_networks", "hotspot_database"],
@@ -3646,7 +3660,7 @@ const CREATOR_SCANNER_MODE_PRESETS = {
 const CREATOR_EXPLOIT_MODE_PRESETS = {
     map: {
         label: "Exploit mapowy",
-        description: "Symulowane wykorzystanie sĹ‚aboĹ›ci celu uruchamiane z mapy w Ĺ›wiecie gry.",
+        description: "Symulowane wykorzystanie s\u0142abo\u015bci celu uruchamiane z mapy w \u015bwiecie gry.",
         map_actions: ["exploit", "camera_shutdown", "install_sniffer", "audio_hack", "car_hack"],
         operation_types: ["camera_shutdown", "persistent_sniffer", "audio_interference", "vehicle_ecu"],
         resource_types: ["internal_recon_state", "financial_records", "credentials", "vehicle_diagnostics"],
@@ -3654,7 +3668,7 @@ const CREATOR_EXPLOIT_MODE_PRESETS = {
     },
     desktop: {
         label: "Exploit desktopowy na oznaczony cel",
-        description: "Symulowany wpĹ‚yw na aktualny aimed_target bez automatycznego podpinania do menu mapy.",
+        description: "Symulowany wp\u0142yw na aktualny aimed_target bez automatycznego podpinania do menu mapy.",
         map_actions: [],
         operation_types: ["camera_shutdown", "audio_interference", "vehicle_ecu"],
         resource_types: ["internal_recon_state", "vehicle_diagnostics"],
@@ -3662,7 +3676,7 @@ const CREATOR_EXPLOIT_MODE_PRESETS = {
     },
     hybrid: {
         label: "Exploit hybrydowy",
-        description: "NarzÄ™dzie dziaĹ‚ajÄ…ce z mapy i desktopu, nadal w ramach symulowanego Ĺ›wiata CHAOS.",
+        description: "Narz\u0119dzie dzia\u0142aj\u0105ce z mapy i desktopu, nadal w ramach symulowanego \u015bwiata CHAOS.",
         map_actions: ["exploit", "camera_shutdown", "install_sniffer", "audio_hack", "car_hack"],
         operation_types: ["camera_shutdown", "persistent_sniffer", "audio_interference", "vehicle_ecu"],
         resource_types: ["internal_recon_state", "financial_records", "credentials", "vehicle_diagnostics"],
@@ -3673,7 +3687,7 @@ const CREATOR_EXPLOIT_MODE_PRESETS = {
 const CREATOR_SNIFFER_MODE_PRESETS = {
     map: {
         label: "Sniffer mapowy",
-        description: "Symulowane zbieranie sygnaĹ‚Ăłw lub danych przez operacjÄ™ uruchamianÄ… z mapy.",
+        description: "Symulowane zbieranie sygna\u0142\u00f3w lub danych przez operacj\u0119 uruchamian\u0105 z mapy.",
         map_actions: ["sniff", "mic_sniff", "atm_logs", "install_sniffer", "camera_stream"],
         operation_types: ["persistent_sniffer", "microphone_sniffer", "atm_log_extraction", "camera_stream"],
         resource_types: ["credentials", "financial_records", "atm_dump", "audio_transcript", "camera_dump", "video_material", "device_logs", "internal_recon_state"],
@@ -3681,7 +3695,7 @@ const CREATOR_SNIFFER_MODE_PRESETS = {
     },
     desktop: {
         label: "Sniffer desktopowy na oznaczony cel",
-        description: "Symulowany podglÄ…d sygnaĹ‚Ăłw aktualnego aimed_target bez obowiÄ…zkowego menu mapy.",
+        description: "Symulowany podgl\u0105d sygna\u0142\u00f3w aktualnego aimed_target bez obowi\u0105zkowego menu mapy.",
         map_actions: [],
         operation_types: ["persistent_sniffer", "microphone_sniffer", "atm_log_extraction", "camera_stream"],
         resource_types: ["credentials", "financial_records", "atm_dump", "audio_transcript", "camera_dump", "video_material", "device_logs", "internal_recon_state"],
@@ -3689,7 +3703,7 @@ const CREATOR_SNIFFER_MODE_PRESETS = {
     },
     hybrid: {
         label: "Sniffer hybrydowy",
-        description: "NarzÄ™dzie obserwacji dziaĹ‚ajÄ…ce z mapy i z desktopu w ramach operacji gry.",
+        description: "Narz\u0119dzie obserwacji dzia\u0142aj\u0105ce z mapy i z desktopu w ramach operacji gry.",
         map_actions: ["sniff", "mic_sniff", "atm_logs", "install_sniffer", "camera_stream"],
         operation_types: ["persistent_sniffer", "microphone_sniffer", "atm_log_extraction", "camera_stream"],
         resource_types: ["credentials", "financial_records", "atm_dump", "audio_transcript", "camera_dump", "video_material", "device_logs", "internal_recon_state"],
@@ -3700,29 +3714,29 @@ const CREATOR_SNIFFER_MODE_PRESETS = {
 const CREATOR_TOOL_FAMILY_PRESETS = {
     scanner_recon: {
         label: "Scanner / Recon",
-        boxTitle: "Gdzie dziala rozpoznanie?",
+        boxTitle: "Gdzie dzia\u0142a rozpoznanie?",
         defaultType: "scanner",
-        safetyText: "Narzędzia rozpoznania sluza do poznania powierzchni celu w swiecie gry. Wizard buduje swiadomosc, nie realne instrukcje.",
-        desktopMapNote: "Scanner desktopowy moze nie miec akcji mapy. Dziala na aktualny aimed_target.",
-        mapNote: "Wybierz tylko te akcje mapy, ktore aplikacja faktycznie obsluzy.",
+        safetyText: "Narz\u0119dzia rozpoznania s\u0142u\u017c\u0105 do poznania powierzchni celu w \u015bwiecie gry. Wizard buduje \u015bwiadomo\u015b\u0107, nie realne instrukcje.",
+        desktopMapNote: "Scanner desktopowy mo\u017ce nie mie\u0107 akcji mapy. Dzia\u0142a na aktualny aimed_target.",
+        mapNote: "Wybierz tylko te akcje mapy, kt\u00f3re aplikacja faktycznie obs\u0142u\u017cy.",
         modes: CREATOR_SCANNER_MODE_PRESETS
     },
     exploit: {
         label: "Exploit",
-        boxTitle: "Gdzie dziala exploit?",
+        boxTitle: "Gdzie dzia\u0142a exploit?",
         defaultType: "exploit",
-        safetyText: "Exploit w CHAOS oznacza symulowany wplyw na slabosc systemu w swiecie gry. Opisuj efekt gameplayowy, nie technike.",
-        desktopMapNote: "Exploit desktopowy moze nie miec akcji mapy. Dziala na aktualny aimed_target.",
-        mapNote: "Wybierz akcje mapy tylko wtedy, gdy narzedzie ma byc widoczne w menu mapy.",
+        safetyText: "Exploit w CHAOS oznacza symulowany wp\u0142yw na s\u0142abo\u015b\u0107 systemu w \u015bwiecie gry. Opisuj efekt gameplayowy, nie technik\u0119.",
+        desktopMapNote: "Exploit desktopowy mo\u017ce nie mie\u0107 akcji mapy. Dzia\u0142a na aktualny aimed_target.",
+        mapNote: "Wybierz akcje mapy tylko wtedy, gdy narz\u0119dzie ma by\u0107 widoczne w menu mapy.",
         modes: CREATOR_EXPLOIT_MODE_PRESETS
     },
     sniffer: {
         label: "Sniffer",
-        boxTitle: "Gdzie dziala sniffer?",
+        boxTitle: "Gdzie dzia\u0142a sniffer?",
         defaultType: "sniffer",
-        safetyText: "Sniffer w CHAOS oznacza symulowana obserwacje sygnalow lub danych w ramach operacji gry.",
-        desktopMapNote: "Sniffer desktopowy moze nie miec akcji mapy. Dziala na aktualny aimed_target.",
-        mapNote: "Wybierz akcje mapy tylko wtedy, gdy sniffer ma byc uruchamiany z mapy.",
+        safetyText: "Sniffer w CHAOS oznacza symulowan\u0105 obserwacj\u0119 sygna\u0142\u00f3w lub danych w ramach operacji gry.",
+        desktopMapNote: "Sniffer desktopowy mo\u017ce nie mie\u0107 akcji mapy. Dzia\u0142a na aktualny aimed_target.",
+        mapNote: "Wybierz akcje mapy tylko wtedy, gdy sniffer ma by\u0107 uruchamiany z mapy.",
         modes: CREATOR_SNIFFER_MODE_PRESETS
     }
 };
@@ -3813,7 +3827,7 @@ function creatorPanelNav(previous = true, next = true) {
 function polishCreatorWizardLabels(term) {
     const familySelect = term.querySelector('[name="tool_family"]');
     if (familySelect?.parentElement) {
-        familySelect.parentElement.childNodes[0].textContent = "Jaki rodzaj narzedzia chcesz stworzyc? ";
+        familySelect.parentElement.childNodes[0].textContent = "Jaki rodzaj narz\u0119dzia chcesz stworzy\u0107? ";
     }
     const typeSelect = term.querySelector('[name="type"]');
     if (typeSelect?.parentElement) {
@@ -3821,8 +3835,8 @@ function polishCreatorWizardLabels(term) {
     }
     const detects = term.querySelector('[name="detects"]');
     if (detects?.parentElement) {
-        detects.parentElement.childNodes[0].textContent = "Jakie slady lub sygnaly rozpoznaje? ";
-        detects.placeholder = "np. otwarte uslugi, ruch celu";
+        detects.parentElement.childNodes[0].textContent = "Jakie \u015blady lub sygna\u0142y rozpoznaje? ";
+        detects.placeholder = "np. otwarte us\u0142ugi, ruch celu";
     }
     const panelHeadings = [
         ["0", ""],
@@ -3841,14 +3855,14 @@ function polishCreatorWizardLabels(term) {
         if (heading && !text) heading.remove();
     });
     const friendlyFieldsets = [
-        ['[data-creator-panel="2"] .appforge-fieldset h4', "Jakim obiektem chcesz sie zajac?"],
-        ['[data-creator-panel="3"] .appforge-fieldset h4', "Skad gracz ma uruchamiac narzedzie?"],
-        ['[data-creator-panel="4"] .appforge-fieldset h4', "Co ma zrobic Twoje narzedzie?"],
-        ['[data-creator-panel="5"] .appforge-fieldset h4', "Jakich informacji ma szukac?"],
-        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(1) h4', "Z czym moze kolidowac?"],
-        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(2) h4', "Co powinno byc wylaczone?"],
-        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(3) h4', "Co narzedzie potrafi wylaczyc?"],
-        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(4) h4', "Na co wplywa po stronie gracza?"]
+        ['[data-creator-panel="2"] .appforge-fieldset h4', "Jakim obiektem chcesz si\u0119 zaj\u0105\u0107?"],
+        ['[data-creator-panel="3"] .appforge-fieldset h4', "Sk\u0105d gracz ma uruchamia\u0107 narz\u0119dzie?"],
+        ['[data-creator-panel="4"] .appforge-fieldset h4', "Co ma zrobi\u0107 Twoje narz\u0119dzie?"],
+        ['[data-creator-panel="5"] .appforge-fieldset h4', "Jakich informacji ma szuka\u0107?"],
+        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(1) h4', "Z czym mo\u017ce kolidowa\u0107?"],
+        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(2) h4', "Co powinno by\u0107 wy\u0142\u0105czone?"],
+        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(3) h4', "Co narz\u0119dzie potrafi wy\u0142\u0105czy\u0107?"],
+        ['[data-creator-panel="6"] .appforge-fieldset:nth-of-type(4) h4', "Na co wp\u0142ywa po stronie gracza?"]
     ];
     friendlyFieldsets.forEach(([selector, text]) => {
         const item = term.querySelector(selector);
@@ -3936,8 +3950,8 @@ function applyCreatorScannerMode(term) {
         ["map_actions", "operation_types", "resource_types", "target_types"].forEach(field => {
             setCreatorCheckboxFilter(term, field, null);
         });
-        if (familyTitle) familyTitle.textContent = "Tryb narzÄ™dzia";
-        if (familyNote) familyNote.textContent = "Wybierz Ĺ›cieĹĽkÄ™ kreatora, ĹĽeby zawÄ™ziÄ‡ kontrakt do sensownych pĂłl.";
+        if (familyTitle) familyTitle.textContent = "Tryb narz\u0119dzia";
+        if (familyNote) familyNote.textContent = "Wybierz \u015bcie\u017ck\u0119 kreatora, \u017ceby zaw\u0119zi\u0107 kontrakt do sensownych p\u00f3l.";
         if (familySafety) familySafety.textContent = "";
         if (mapNote) mapNote.textContent = "";
         updateCreatorContractPreview(term);
@@ -3998,17 +4012,17 @@ function appendCreatorMeta(form, keys, interfaceName) {
                 ${creatorPanelNav(false, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="1" hidden>
-                <h4>Typ narzÄ™dzia</h4>
-                <label>ĹšcieĹĽka kreatora
+                <h4>Typ narz\u0119dzia</h4>
+                <label>\u015acie\u017cka kreatora
                     <select name="tool_family">
-                        <option value="custom">OgĂłlne narzÄ™dzie</option>
+                        <option value="custom">Og\u00f3lne narz\u0119dzie</option>
                         ${Object.entries(CREATOR_TOOL_FAMILY_PRESETS).map(([value, preset]) => `
                             <option value="${escapeHTML(value)}">${escapeHTML(preset.label)}</option>
                         `).join("")}
                     </select>
                 </label>
                 <div class="creator-scanner-box" data-creator-family-box hidden>
-                    <label><span data-creator-family-title>Tryb narzÄ™dzia</span>
+                    <label><span data-creator-family-title>Tryb narz\u0119dzia</span>
                         <select name="tool_mode">
                             <option value="map">Mapowy</option>
                             <option value="desktop">Desktopowy na aimed_target</option>
@@ -4029,7 +4043,7 @@ function appendCreatorMeta(form, keys, interfaceName) {
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="2" hidden>
-                <h4>Ĺšrodowisko dziaĹ‚ania</h4>
+                <h4>\u015arodowisko dzia\u0142ania</h4>
                 <input type="hidden" name="interface" value="${escapeHTML(interfaceName)}">
                 <div class="creator-readonly-contract">
                     <span>Interface</span>
@@ -4040,7 +4054,7 @@ function appendCreatorMeta(form, keys, interfaceName) {
             </section>
             <section class="creator-step-panel" data-creator-panel="3" hidden>
                 <h4>Akcje mapy / desktopu</h4>
-                <p class="creator-step-note" data-creator-map-note>Wybierz akcje mapy tylko wtedy, gdy narzÄ™dzie ma byÄ‡ uruchamiane z menu mapy.</p>
+                <p class="creator-step-note" data-creator-map-note>Wybierz akcje mapy tylko wtedy, gdy narz\u0119dzie ma by\u0107 uruchamiane z menu mapy.</p>
                 <div class="appforge-fieldset"><h4>map_actions</h4>${creatorOptionCheckboxGroup(CREATOR_MAP_ACTION_OPTIONS, "map_actions")}</div>
                 ${creatorPanelNav(true, true)}
             </section>
@@ -4067,15 +4081,15 @@ function appendCreatorMeta(form, keys, interfaceName) {
                 <div class="creator-preview-grid">
                     <span>Waga aplikacji</span><b>runtime default</b>
                     <span>Disk usage</span><b>runtime default</b>
-                    <span>Quality</span><b>profil twĂłrcy</b>
-                    <span>Reliability</span><b>profil twĂłrcy</b>
+                    <span>Quality</span><b>profil tw\u00f3rcy</b>
+                    <span>Reliability</span><b>profil tw\u00f3rcy</b>
                 </div>
                 <pre class="creator-contract-preview" data-creator-contract-preview></pre>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="8" hidden>
                 <h4>Publikacja</h4>
-                <p class="creator-step-note">Publikacja uĹĽywa istniejÄ…cego endpointu /api/apps/generate i katalogu Googleplex.</p>
+                <p class="creator-step-note">Publikacja u\u017cywa istniej\u0105cego endpointu /api/apps/generate i katalogu Googleplex.</p>
                 <div class="creator-interface-slot"></div>
                 <button class="appforge-submit" type="submit">Publikuj w Googleplex</button>
                 <div class="appforge-status"></div>
@@ -4108,7 +4122,7 @@ function setupIconPicker(term, fallbackIcon = '\u{1F6E0}\uFE0F') {
     toggle.type = 'button';
     toggle.className = 'appforge-icon-picker-toggle';
     toggle.textContent = '\u25BE';
-    toggle.title = 'Wybierz ikonÄ™';
+    toggle.title = 'Wybierz ikon\u0119';
 
     const picker = document.createElement('div');
     picker.className = 'appforge-icon-picker';
@@ -4341,7 +4355,7 @@ const GHOSTLAB_TEMPLATES = [
     {
         id: "financial_sniffer",
         name: "Financial Sniffer",
-        icon: "đź’¸",
+        icon: "\u{1F4B8}",
         category: "finance",
         tool_category: "finance",
         recommended_level: 12,
@@ -4352,7 +4366,7 @@ const GHOSTLAB_TEMPLATES = [
     {
         id: "friend_kicker",
         name: "Friend Kicker",
-        icon: "đź‘‹",
+        icon: "\u{1F44B}",
         category: "social",
         tool_category: "social",
         recommended_level: 10,
@@ -4363,7 +4377,7 @@ const GHOSTLAB_TEMPLATES = [
     {
         id: "security_panel_proxy",
         name: "Security Panel Proxy",
-        icon: "đź›ˇď¸Ź",
+        icon: "\u{1F6E1}\uFE0F",
         category: "security",
         tool_category: "security",
         recommended_level: 15,
@@ -4374,7 +4388,7 @@ const GHOSTLAB_TEMPLATES = [
     {
         id: "system_log_reader",
         name: "System Log Reader",
-        icon: "đź“ś",
+        icon: "\u{1F4DC}",
         category: "intel",
         tool_category: "intel",
         recommended_level: 8,
@@ -4385,7 +4399,7 @@ const GHOSTLAB_TEMPLATES = [
     {
         id: "arsenal_cleaner",
         name: "Arsenal Cleaner",
-        icon: "đź§ą",
+        icon: "\u{1F9F9}",
         category: "apps",
         tool_category: "apps",
         recommended_level: 14,
@@ -4907,7 +4921,7 @@ function renderGhostLabProjects(root) {
     }
     list.innerHTML = ghostLabState.projects.map(project => `
         <button type="button" class="${project.id === ghostLabState.selectedProjectId ? 'active' : ''}" data-ghostlab-project-id="${escapeHTML(project.id)}">
-            <strong>${escapeHTML(project.icon || 'đź§Ş')} ${escapeHTML(project.name)}</strong>
+            <strong>${escapeHTML(project.icon || '🧪')} ${escapeHTML(project.name)}</strong>
             <span>${escapeHTML(project.tool_category || 'custom')} / ${escapeHTML(ghostLabProjectStatusLabel(project.status))}</span>
         </button>
     `).join("");
@@ -4921,7 +4935,7 @@ function renderGhostLabProjects(root) {
 
     const selected = selectedGhostLabProject();
     preview.innerHTML = selected ? `
-        <strong>${escapeHTML(selected.icon || 'đź§Ş')} ${escapeHTML(selected.name)}</strong>
+        <strong>${escapeHTML(selected.icon || '🧪')} ${escapeHTML(selected.name)}</strong>
         <span>ID: ${escapeHTML(selected.id)}</span>
         <span>Slug: ${escapeHTML(selected.slug)}</span>
         <span>Template: ${escapeHTML(selected.template_name || 'custom project')}</span>
@@ -5583,7 +5597,7 @@ async function selectMapActionTool(appId) {
         if (typeof refreshToolbarProfile === "function") refreshToolbarProfile();
         if (typeof notifyOpenMapsOperationsChanged === "function") notifyOpenMapsOperationsChanged();
     } catch (err) {
-        console.error("BĹ‚Ä…d wyboru narzÄ™dzia:", err);
+        console.error("Błąd wyboru narzędzia:", err);
         addSystemMessage("danger", "\u{1F6E0}\uFE0F Narz\u0119dzia", "B\u0142\u0105d po\u0142\u0105czenia podczas wyboru narz\u0119dzia.");
     }
 }
@@ -5752,7 +5766,7 @@ async function createFileManager(options = {}) {
 
     term.innerHTML = `
         <div class="title-bar">
-            MenedĹĽer plikĂłw
+            Menedżer plików
             <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <div style="padding: 10px; background: #111; color: #0f0; flex:1; overflow-y:auto; font-family: monospace;" id="${terminalId}-content">
@@ -5764,7 +5778,7 @@ async function createFileManager(options = {}) {
     document.body.appendChild(term);
     makeDraggable(term);
     const fileManagerTitle = term.querySelector('.title-bar');
-    if (fileManagerTitle && fileManagerTitle.firstChild) fileManagerTitle.firstChild.nodeValue = 'MenedĹĽer plikĂłw ';
+    if (fileManagerTitle && fileManagerTitle.firstChild) fileManagerTitle.firstChild.nodeValue = 'Menedżer plików ';
     const fileManagerClose = term.querySelector('.close-btn');
     if (fileManagerClose) fileManagerClose.textContent = 'x';
     const fileManagerContent = document.getElementById(`${terminalId}-content`);
@@ -5800,7 +5814,7 @@ async function createFileManager(options = {}) {
         const capacity = Math.max(1, storageSummary.capacity || 1);
         const used = Math.max(0, storageSummary.used || 0);
         const percent = Math.max(0, Math.min(100, Math.round((used / capacity) * 100)));
-        const warning = storageSummary.overLimit ? '<span class="file-manager-storage-warning">ponad limit miÄ™kki</span>' : '';
+        const warning = storageSummary.overLimit ? '<span class="file-manager-storage-warning">ponad limit miękki</span>' : '';
         return `
             <div class="file-manager-storage">
                 <div class="file-manager-storage-top">
@@ -5835,8 +5849,8 @@ async function createFileManager(options = {}) {
         systemDirs.forEach(dir => {
             const folder = document.createElement('div');
             const folderLabel = getFolderLabel(dir);
-            folder.innerHTML = `<span style="cursor:pointer;" onclick="window.openFolderInManager('${terminalId}', '${dir}')">đź“‚ <b>${dir}</b></span>`;
-            folder.innerHTML = `<span style="cursor:pointer;" onclick="window.openFolderInManager('${terminalId}', '${dir}')">Ä‘Ĺşâ€śâ€š <b>${escapeHTML(folderLabel)}</b> <span style="color:#6fbf89;">/${escapeHTML(dir)}</span></span>`;
+            folder.innerHTML = `<span style="cursor:pointer;" onclick="window.openFolderInManager('${terminalId}', '${dir}')">📂 <b>${dir}</b></span>`;
+            folder.innerHTML = `<span style="cursor:pointer;" onclick="window.openFolderInManager('${terminalId}', '${dir}')">📂 <b>${escapeHTML(folderLabel)}</b> <span style="color:#6fbf89;">/${escapeHTML(dir)}</span></span>`;
             folder.innerHTML = `<span style="cursor:pointer;" onclick="window.openFolderInManager('${terminalId}', '${dir}')">[DIR] <b>${escapeHTML(folderLabel)}</b> <span style="color:#6fbf89;">/${escapeHTML(dir)}</span></span>`;
             foldersDiv.appendChild(folder);
         });
@@ -5856,8 +5870,8 @@ async function createFileManager(options = {}) {
             const isMatchingTool = Boolean(matchingTool);
             if (isMatchingTool) renderedToolAppIds.add(String(matchingTool.id || ""));
             // Ikonka per folder
-            let icon = "đź“„";
-            if (folderName === "tools") icon = "đź”§";
+            let icon = "📄";
+            if (folderName === "tools") icon = "🔧";
             if (folderName === "gps") icon = "GPS";
             if (folderName === "device") icon = "DEV";
             if (folderName === "audio") icon = "AUD";
@@ -5870,9 +5884,9 @@ async function createFileManager(options = {}) {
             if (folderName === "vehicle") icon = "CAR";
             if (folderName === "system") icon = "SYS";
             if (folderName === "market") icon = "MKT";
-            if (folderName === "pictures") icon = "đź–Ľď¸Ź";
-            if (folderName === "download") icon = "â¬‡ď¸Ź";
-            if (folderName === "social-media") icon = "đź’¬";
+            if (folderName === "pictures") icon = "🖼️";
+            if (folderName === "download") icon = "⬇️";
+            if (folderName === "social-media") icon = "💬";
 
             icon = getFolderIcon(folderName);
 
@@ -5881,7 +5895,7 @@ async function createFileManager(options = {}) {
             if (folderName === "tools") fileClass += " file-manager-tool";
             if (isMatchingTool) fileClass += " file-manager-tool-match";
 
-            // W tools â€“ dodaj Uninstall
+            // W tools – dodaj Uninstall
             if (folderName === "tools") {
                 const toolDiskUsage = Number((toolMeta || {}).disk_usage || (toolMeta || {}).install_size || (toolMeta || {}).file_size || 0);
                 const toolAppId = String((toolMeta || {}).id || "");
@@ -6017,7 +6031,7 @@ async function createFileManager(options = {}) {
         renderFolders();
     };
 
-    // Klik w dowolny plik â€” symulacja otwarcia/uruchomienia
+    // Klik w dowolny plik — symulacja otwarcia/uruchomienia
     window.runFile = (folderName, filename) => {
         console.log(`[RUN] Plik uruchomiony: ${folderName}/${filename}`);
         const fileList = files[folderName] || [];
@@ -6055,19 +6069,19 @@ async function createFileManager(options = {}) {
                         <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
                         <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
                         <p>Typ operacji: <b>${escapeHTML(operationLabel)}</b></p>
-                        <p>JakoĹ›Ä‡: <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                        <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
                         <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
-                        <p>Przewidywana wartoĹ›Ä‡: <b>${escapeHTML(fileValuePreview)}</b></p>
-                        <p>KompletnoĹ›Ä‡: <b>${escapeHTML(String(summary.completeness_percent ?? completeness.percent ?? 0))}%</b></p>
+                        <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
+                        <p>Kompletność: <b>${escapeHTML(String(summary.completeness_percent ?? completeness.percent ?? 0))}%</b></p>
                         <p>Tier: <b>${escapeHTML(summary.tier || completeness.tier || 'basic')}</b></p>
                         <div style="height:10px;border:1px solid #0f0;background:#031403;margin:8px 0 12px;">
                             <div style="height:100%;width:${Math.max(0, Math.min(100, Number(summary.completeness_percent ?? completeness.percent ?? 0)))}%;background:#38ff80;"></div>
                         </div>
                         <h4>Zasoby w paczce</h4>
                         <ul>
-                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || '<li>Brak zasobĂłw.</li>'}
+                            ${resources.map(item => `<li>${escapeHTML(item)}</li>`).join('') || '<li>Brak zasobów.</li>'}
                         </ul>
-                        <p>JakoĹ›Ä‡: <b>${escapeHTML(metadata.quality || '-')}</b></p>
+                        <p>Jakość: <b>${escapeHTML(metadata.quality || '-')}</b></p>
                     </div>
                 `;
                 return;
@@ -6093,10 +6107,10 @@ async function createFileManager(options = {}) {
                         <p>Kategoria: <b>${escapeHTML(fileEntry.file_category || folderName)}</b></p>
                         <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
                         <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
-                        <p>KompletnoĹ›Ä‡: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
-                        <p>JakoĹ›Ä‡: <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                        <p>Kompletność: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
+                        <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
                         <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
-                        <p>Przewidywana wartoĹ›Ä‡: <b>${escapeHTML(fileValuePreview)}</b></p>
+                        <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
                         <p>Rekordy: <b>${escapeHTML(String(metadata.record_count ?? records.length))}</b></p>
                         <p>Ryzyko: <b>${escapeHTML(metadata.risk_hint || 'high-value/high-risk')}</b></p>
                         <h4>Zasoby</h4>
@@ -6130,15 +6144,15 @@ async function createFileManager(options = {}) {
                         <h3>${escapeHTML(summary.label || 'Encrypted Data Blob')}</h3>
                         <div style="border:1px solid #0f0;background:#020802;margin:10px 0;padding:14px;color:#8fd6a4;">
                             <div style="font-size:12px;letter-spacing:2px;">ENCRYPTED BLOB</div>
-                            <div style="font-size:20px;margin-top:8px;">â€˘â€˘â€˘â€˘ â€˘â€˘â€˘â€˘ â€˘â€˘â€˘â€˘ â€˘â€˘â€˘â€˘</div>
+                            <div style="font-size:20px;margin-top:8px;">•••• •••• •••• ••••</div>
                         </div>
                         <p>Plik: <b>${escapeHTML(filename)}</b></p>
                         <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
                         <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
-                        <p>KompletnoĹ›Ä‡: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
-                        <p>JakoĹ›Ä‡: <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                        <p>Kompletność: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
+                        <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
                         <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
-                        <p>Przewidywana wartoĹ›Ä‡: <b>${escapeHTML(fileValuePreview)}</b></p>
+                        <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
                         <p>Zebrane wpisy: <b>${escapeHTML(String(summary.credential_count || metadata.collected_count || 0))}</b></p>
                         <p>Instalacja: <b>${escapeHTML(metadata.installed_at || '-')}</b></p>
                         <p>Koniec: <b>${escapeHTML(metadata.ended_at || '-')}</b></p>
@@ -6191,10 +6205,10 @@ async function createFileManager(options = {}) {
                         <p>Plik: <b>${escapeHTML(filename)}</b></p>
                         <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
                         <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
-                        <p>KompletnoĹ›Ä‡: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
-                        <p>JakoĹ›Ä‡: <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                        <p>Kompletność: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
+                        <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
                         <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
-                        <p>Przewidywana wartoĹ›Ä‡: <b>${escapeHTML(fileValuePreview)}</b></p>
+                        <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
                         <p>Fragment: <b>${escapeHTML(String(fileEntry.fragment_index || metadata.fragment_index || '-'))}</b></p>
                         <p>Czas fragmentu: <b>${escapeHTML(durationLabel)}</b></p>
                         <p>Start: <b>${escapeHTML(metadata.started_at || '-')}</b></p>
@@ -6227,12 +6241,12 @@ async function createFileManager(options = {}) {
                     <p>Katalog: <b>${escapeHTML(fileEntry.directory || folderName)}</b></p>
                     <p>Operacja: <b>${escapeHTML(fileEntry.operation_id || metadata.operation_id || '-')}</b></p>
                     <p>Typ operacji: <b>${escapeHTML(operationLabel)}</b></p>
-                    <p>KompletnoĹ›Ä‡: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
-                    <p>JakoĹ›Ä‡: <b>${escapeHTML(String(qualityScore))}/100</b></p>
+                    <p>Kompletność: <b>${escapeHTML(String(completenessPercent))}% / ${escapeHTML(completenessTier)}</b></p>
+                    <p>Jakość: <b>${escapeHTML(String(qualityScore))}/100</b></p>
                     <p>Braki: <b>${escapeHTML(missingFields.length ? missingFields.join(', ') : 'brak')}</b></p>
-                    <p>Przewidywana wartoĹ›Ä‡: <b>${escapeHTML(fileValuePreview)}</b></p>
+                    <p>Przewidywana wartość: <b>${escapeHTML(fileValuePreview)}</b></p>
                     <p>Checkpointy: <b>${escapeHTML(String(metadata.checkpoint_count ?? checkpoints.length))}</b></p>
-                    <p>JakoĹ›Ä‡: <b>${escapeHTML(metadata.quality || '-')}</b> | DokĹ‚adnoĹ›Ä‡: <b>${escapeHTML(metadata.accuracy || '-')}</b></p>
+                    <p>Jakość: <b>${escapeHTML(metadata.quality || '-')}</b> | Dokładność: <b>${escapeHTML(metadata.accuracy || '-')}</b></p>
                     <table style="width:100%;border-collapse:collapse;margin-top:10px;">
                         <thead>
                             <tr>
@@ -6242,7 +6256,7 @@ async function createFileManager(options = {}) {
                                 <th style="text-align:left;border-bottom:1px solid #0f0;">Lng</th>
                             </tr>
                         </thead>
-                        <tbody>${checkpointRows || '<tr><td colspan="4">Brak checkpointĂłw.</td></tr>'}</tbody>
+                        <tbody>${checkpointRows || '<tr><td colspan="4">Brak checkpointów.</td></tr>'}</tbody>
                     </table>
                 </div>
             `;
@@ -6252,7 +6266,7 @@ async function createFileManager(options = {}) {
     };
     window.selectMapActionTool = selectMapActionTool;
     window.uninstallApp = async (appName, appId = "") => {
-        console.log(`[UNINSTALL] Ĺ»Ä…danie odinstalowania: ${appName}`);
+        console.log(`[UNINSTALL] Żądanie odinstalowania: ${appName}`);
         try {
             const response = await fetch('/api/apps/uninstall', {
                 method: 'POST',
@@ -6325,7 +6339,7 @@ function createEmailClientLegacy() {
 
     const term = document.createElement('div');
     term.className = 'terminal';
-    term.dataset.app = "email"; // đź”§ TO DODAJ
+    term.dataset.app = "email"; // 🔧 TO DODAJ
     const position = findAvailablePosition();
     term.style.top = `${position.top}px`;
     term.style.left = `${position.left}px`;
@@ -6342,16 +6356,16 @@ function createEmailClientLegacy() {
             <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <div style="display: flex; flex: 1; background: #111; color: #0f0; font-family: monospace;">
-            <!-- WiadomoĹ›ci -->
+            <!-- Wiadomości -->
             <div style="width: 60%; border-right: 1px solid #0f0; padding: 10px; overflow-y:auto;">
-                <h3>đź“Ą Odebrane</h3>
+                <h3>📥 Odebrane</h3>
                 <div id="${terminalId}-message-list"></div>
                 <hr>
                 <div id="${terminalId}-message-content" style="margin-top:10px; color: #fff;"></div>
             </div>
             <!-- Znajomi -->
             <div style="width: 40%; padding: 10px;">
-                <h3>đź‘Ą Znajomi</h3>
+                <h3>👥 Znajomi</h3>
                 <div id="${terminalId}-friends"></div>
             </div>
         </div>
@@ -6361,18 +6375,18 @@ function createEmailClientLegacy() {
     makeDraggable(term);
     term.querySelector('.close-btn').addEventListener('click', () => term.remove());
 
-    // Po osadzeniu HTML â€“ teraz selektory zadziaĹ‚ajÄ…
+    // Po osadzeniu HTML – teraz selektory zadziałają
     const msgList = term.querySelector(`#${terminalId}-message-list`);
     const msgContent = term.querySelector(`#${terminalId}-message-content`);
     const friendsList = term.querySelector(`#${terminalId}-friends`);
 
-    // Ĺadowanie wiadomoĹ›ci
+    // Ładowanie wiadomości
     fetch('/messages.json')
         .then(res => res.json())
         .then(messages => {
             messages.forEach((msg) => {
                 const div = document.createElement('div');
-                div.innerHTML = `đź“¨ <b>${msg.from}</b>: ${msg.subject}`;
+                div.innerHTML = `📨 <b>${msg.from}</b>: ${msg.subject}`;
                 div.style.cursor = "pointer";
                 div.style.marginBottom = "5px";
                 div.onclick = () => {
@@ -6386,14 +6400,14 @@ function createEmailClientLegacy() {
             });
         });
 
-    // Ĺadowanie znajomych
+    // Ładowanie znajomych
     fetch('/friends.json')
         .then(res => res.json())
         .then(friends => {
             friends.forEach(friend => {
                 const div = document.createElement('div');
                 const color = friend.status === "online" ? "#0f0" : "#666";
-                div.innerHTML = `đź‘¤ <span style="color:${color};">${friend.name}</span> (${friend.status})`;
+                div.innerHTML = `👤 <span style="color:${color};">${friend.name}</span> (${friend.status})`;
                 div.style.marginBottom = "5px";
                 friendsList.appendChild(div);
             });
@@ -6814,13 +6828,13 @@ async function pollSystemMessages() {
             }, i * 2000);
         });
     } catch (err) {
-        console.error("BĹ‚Ä…d pobierania komunikatĂłw systemowych");
+        console.error("Błąd pobierania komunikatów systemowych");
     } finally {
         endDesktopLoading(loadingToken);
     }
 }
 
-// đź” Co 10 sekund sprawdzaj nowe
+// 🔁 Co 10 sekund sprawdzaj nowe
 setInterval(pollSystemMessages, 10000);
 
 async function pollLaunchQueue() {
@@ -6856,7 +6870,7 @@ async function pollLaunchQueue() {
                         else if (type === "progressbar_random") app_progressbar_random(id, levels);
                         else if (type === "terminal") app_terminal(id, levels);
                         else if (type === "button_choices") app_button_choices(id, levels);
-                        else console.warn(`âť“ Nieznany interfejs: ${type}`);
+                        else console.warn(`❓ Nieznany interfejs: ${type}`);
                     };
 
                     action();
@@ -6864,15 +6878,15 @@ async function pollLaunchQueue() {
             }
         }
     } catch (err) {
-        console.error("âťŚ BĹ‚Ä…d podczas pobierania launch-queue:", err);
+        console.error("❌ Błąd podczas pobierania launch-queue:", err);
     } finally {
-        // SprĂłbuj ponownie za 10 sekund
+        // Spróbuj ponownie za 10 sekund
         endDesktopLoading(loadingToken);
         setTimeout(pollLaunchQueue, 10000);
     }
 }
 
-// Uruchom po zaĹ‚adowaniu strony
+// Uruchom po załadowaniu strony
 document.addEventListener("DOMContentLoaded", () => {
     pollLaunchQueue();
     refreshPlayerHackAccess();

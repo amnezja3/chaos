@@ -624,6 +624,132 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertGreater(app["price_hint"], app["price"])
         self.assertGreater(app["power_score"], 0)
 
+    def assert_generated_app_install_and_command_preserve_levels(self, payload, assert_levels):
+        with patch.object(run.user_store, "get_profile", return_value={"level": 18, "respect": 180, "hackcoins": 5000}):
+            app = build_generated_app(payload, "creator", "Creator")
+
+        assert_levels(app["levels"])
+
+        profile = {
+            "username": "creator",
+            "nick": "Creator",
+            "hackcoins": 10000,
+            "apps": [],
+            "files": {"tools": [], "projects": []},
+            "storage_capacity": 512,
+            "system_messages": [],
+        }
+        store = [dict(app)]
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "creator"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run.resources_store, "get", return_value=store), \
+                patch.object(run.resources_store, "set", return_value=None), \
+                patch.object(run, "get_app_catalog", return_value=store):
+            install_response = client.post("/install-app", json={"app_id": app["id"]})
+            self.assertEqual(install_response.status_code, 200)
+            self.assertEqual(install_response.get_json()["status"], "success")
+
+            installed = next(item for item in profile["apps"] if item["id"] == app["id"])
+            assert_levels(installed["levels"])
+            self.assertIn(f"{app['name']}.sh", profile["files"]["tools"])
+
+            command_response = client.post("/command", json={"input": app["name"].lower()})
+            command_data = command_response.get_json()
+            self.assertTrue(command_data["runApp"])
+            self.assertEqual(command_data["applicationId"], app["id"])
+            assert_levels(command_data["applicationEffect"]["levels"])
+
+    def test_button_maker_generated_app_keeps_button_choices_runtime_content(self):
+        payload = {
+            "name": "Choice Panel",
+            "interface": "button_choices",
+            "type": "custom",
+            "level_title": "Wybierz tryb",
+            "button_text": "Wybierz wariant działania.",
+            "button_options": "Recon|risk_level=10|90\nShield|firewall=false|120",
+            "price": 0,
+        }
+
+        def assert_levels(levels):
+            self.assertTrue(levels)
+            self.assertEqual(levels[0]["title"], "Wybierz tryb")
+            self.assertEqual(levels[0]["text"], "Wybierz wariant działania.")
+            self.assertEqual(len(levels[0]["options"]), 2)
+            self.assertEqual(levels[0]["options"][0]["label"], "Recon")
+
+        self.assert_generated_app_install_and_command_preserve_levels(payload, assert_levels)
+
+    def test_term_creator_generated_app_keeps_terminal_runtime_content(self):
+        payload = {
+            "name": "Log Runner",
+            "interface": "terminal",
+            "type": "custom",
+            "terminal_levels": [{
+                "command": "./log-runner.sh --target current",
+                "logs": "Start\nAnaliza\nRaport zapisany",
+            }],
+            "price": 0,
+        }
+
+        def assert_levels(levels):
+            self.assertTrue(levels)
+            self.assertEqual(levels[0]["command"], "./log-runner.sh --target current")
+            self.assertEqual(levels[0]["logs"], ["Start", "Analiza", "Raport zapisany"])
+
+        self.assert_generated_app_install_and_command_preserve_levels(payload, assert_levels)
+
+    def test_window_maker_generated_app_keeps_window_runtime_content(self):
+        payload = {
+            "name": "Status Window",
+            "interface": "window",
+            "type": "custom",
+            "level_title": "Panel statusu",
+            "window_list": "Sygnał stabilny\nKanał gotowy",
+            "window_buttons": "Uruchom|run_generated\nZamknij|close",
+            "price": 0,
+        }
+
+        def assert_levels(levels):
+            self.assertTrue(levels)
+            self.assertEqual(levels[0]["title"], "Panel statusu")
+            self.assertEqual(levels[0]["list"], ["Sygnał stabilny", "Kanał gotowy"])
+            self.assertEqual(levels[0]["buttons"][0]["label"], "Uruchom")
+
+        self.assert_generated_app_install_and_command_preserve_levels(payload, assert_levels)
+
+    def test_appforge_generated_app_keeps_progress_runtime_content(self):
+        payload = {
+            "name": "Progress Tool",
+            "interface": "progressbar_random",
+            "type": "custom",
+            "level_title": "Wykonanie",
+            "progress_steps": ["Kalibracja", "Pomiar", "Zapis stanu"],
+            "result_success": "Operacja zakończona.",
+            "result_failure": "Operacja przerwana.",
+            "price": 0,
+        }
+
+        def assert_levels(levels):
+            self.assertTrue(levels)
+            self.assertEqual(levels[0]["title"], "Wykonanie")
+            self.assertEqual(levels[0]["steps"], ["Kalibracja", "Pomiar", "Zapis stanu"])
+            self.assertEqual(levels[0]["result_success"], "Operacja zakończona.")
+            self.assertEqual(levels[0]["result_failure"], "Operacja przerwana.")
+
+        self.assert_generated_app_install_and_command_preserve_levels(payload, assert_levels)
+
     def test_pro_system_tool_has_higher_balance_than_basic_tool(self):
         basic = normalize_app_contract({
             "id": "basic_ping",
