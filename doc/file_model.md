@@ -478,6 +478,125 @@ Decision:
 
 ---
 
+## Sprint 35 — Market sector i Storage Gate foundation
+
+Sprint 35 doprecyzowuje fundament Fazy D bez zmiany finalizerów i bez tworzenia
+drugiego systemu plików.
+
+Nowe zasady:
+
+* `profile.files` pozostaje jedynym źródłem lootów danych gracza.
+* `sellable` oznacza eligibility do Ghost Exchange.
+* `market_status` opisuje lifecycle pliku względem rynku.
+* `market_sector` jest read-modelem rynku wyliczanym z `file_category` i
+  `resource_types`.
+* `market_volume_mb` jest read-modelem wolumenu pliku, opartym o `file_size`.
+* `storage_capacity`, `storage_used` i `file_size` pozostają jedynym modelem
+  storage.
+
+Statusy rynku normalizowane w Sprincie 35:
+
+| raw status | normalized status | notes |
+| --- | --- | --- |
+| `not_listed` | `queued_for_market` dla `sellable: true`, inaczej `created` | Nie zmienia jeszcze finalnego queue flow. |
+| `ready_to_list` | `queued_for_market` | Legacy status UI. |
+| `listed_preview` | `queued_for_market` | Legacy preview sprzedaży. |
+| `listed` | `listed` | Zachowany dla przyszłego trading state. |
+| `sold` | `sold` | Plik sprzedany. |
+| `archived` | `archived` | Historia / kopia niehandlowa. |
+
+Storage Gate w Sprincie 35 jest helperem przygotowawczym:
+
+* `can_store_runtime_file(profile, file_entry)` sprawdza, czy plik zmieści się w
+  aktualnym storage.
+* `build_storage_full_result(profile, operation, file_entry)` przygotowuje
+  kontrolowany wynik `storage_full` / `dropped_no_space`.
+* Finalizery nie są jeszcze przełączane na twardy storage enforcement.
+
+---
+
+## Sprint 36 — Market Queue jako stan pliku
+
+Sprint 36 wprowadza kolejkę rynku jako stan istniejących plików w
+`profile.files`. Nie powstaje osobna `market_queue`, tabela ani magazyn.
+
+Zasady:
+
+* `queue_market_eligible_files(profile)` przechodzi po istniejących plikach.
+* Plik kwalifikujący się do rynku dostaje `market_status:
+  queued_for_market`.
+* `queued_at` jest ustawiane tylko raz.
+* `market_sector` jest zapisany na pliku jako read model sektora.
+* Kolejkowanie nie usuwa pliku z katalogu danych.
+* Kolejkowanie nie zwalnia storage.
+* Kolejkowanie nie tworzy batcha, nie wypłaca HC i nie dotyka
+  `profile.market_history`.
+
+Ghost Exchange może pokazywać sektorowy read model kolejki, ale File Manager
+nadal pokazuje loot w oryginalnych katalogach.
+
+---
+
+## Sprint 37 — Auto-sale settlement jako lifecycle pliku
+
+Sprint 37 nie tworzy nowego magazynu plikow. Automatyczna sprzedaz paczek
+dziala na tych samych plikach w `profile.files`.
+
+Lifecycle:
+
+* pliki `queued_for_market` sa grupowane po `market_sector`,
+* po osiagnieciu progu sektora pliki dostaja `market_status: listed`,
+  `listed_at` i stabilny `batch_id`,
+* paczka moze zostac sprzedana dopiero po minimalnym czasie przebywania na rynku,
+* po sprzedazy oryginalne pliki znikaja z katalogow `/data/*`,
+* rekord paczki trafia do `files.market`,
+* wpis transakcji trafia do `profile.market_history`,
+* `storage_used` jest przeliczane po usunieciu danych.
+
+Zasady bezpieczenstwa:
+
+* `batch_id` jest stabilny dla zestawu plikow, sektora i gracza,
+* drugi refresh nie moze naliczyc HC drugi raz,
+* `listed_at` nie resetuje sie przy zwyklym refreshu,
+* File Manager pokazuje loot do momentu sprzedazy paczki.
+
+---
+
+## Sprint 39 - storage gate i produkty pojemnosci
+
+Sprint 39 wlacza storage jako realny warunek zapisu danych.
+
+Zasady:
+
+* finalizery operacji zapisujace dane korzystaja ze wspolnego helpera
+  `append_runtime_file_if_space(profile, operation, folder, file_entry)`,
+* helper sprawdza `storage_capacity`, `storage_used` i `file_size`,
+* jezeli brakuje miejsca, plik nie trafia do katalogu `/data/*`,
+* wynik operacji dostaje kontrolowany stan `storage_full` /
+  `dropped_no_space`,
+* gracz dostaje system message `Brak miejsca na zapis danych.`,
+* plik, ktory nie zostal zapisany, nie moze trafic do kolejki Ghost Exchange,
+* auto-sale usuwa sprzedane pliki z `/data/*` i przelicza `storage_used`,
+* instalacja aplikacji zwieksza `storage_used`,
+* uninstall aplikacji zmniejsza `storage_used`.
+
+Storage Upgrade jest produktem Googleplexa:
+
+* ma `product_type: storage_upgrade`,
+* ma `storage_capacity_bonus`,
+* po zakupie zwieksza `profile.storage_capacity`,
+* nie trafia do `profile.apps`,
+* nie trafia do `files.tools`,
+* nie jest aplikacja uruchamialna.
+
+Decision:
+
+* `profile.files`, `storage_capacity`, `storage_used` i `file_size` pozostaja
+  jedynym modelem storage.
+* Nie powstal osobny storage engine ani osobny sklep pojemnosci.
+
+---
+
 ## TODO_DECISION
 
 * Rekomendacja: w Sprincie 0.7 zdecydować, czy Ghost Exchange jest jedynym rynkiem danych, czy istnieją też frakcyjne rynki prywatne.

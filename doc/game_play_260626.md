@@ -2350,6 +2350,1001 @@ Frontend nigdy nie podejmuje decyzji o stanie celu.
 Frontend wyłącznie renderuje dane otrzymane z backendu albo policzone lokalnie
 zgodnie z read modelem Sprintu 32.
 
+---
+
+# Sprint 34 — Target Bar UX Polish
+
+## Cel gameplayowy
+
+Domknąć wizualnie sekcję CEL tak, żeby neutralny stan był zwykłym elementem
+statusbara, a oznaczony cel uruchamiał rozszerzony tryb hackowania.
+
+## UX
+
+Brak celu:
+
+* kafel wygląda jak `ARS`, `HC`, `LVL`, `RSP`,
+* pokazuje tylko `CEL`,
+* nie pokazuje `brak`,
+* nie renderuje kropek,
+* nie renderuje progressbara,
+* nie ma czerwieni, glow ani podwyższonej sekcji.
+
+Cel oznaczony:
+
+* kafel dostaje czerwony stan,
+* pokazuje nazwę celu,
+* pokazuje cztery kropki,
+* pokazuje cienki pasek rozbrojenia.
+
+## Systemy
+
+* `renderToolbarStatus()`,
+* `system-status-target`,
+* CSS statusbara.
+
+## Kryteria akceptacji
+
+* Brak celu renderuje osobny, neutralny markup.
+* Aktywny layout celu renderuje się tylko przy realnym `aimed_target`.
+* `is-aimed` nie występuje przy braku celu.
+* Nie zmieniono backendu, algorytmu progressu ani map runtime.
+
+---
+
+# Faza D — Ghost Exchange jako automatyczny rynek danych
+
+Faza D zamienia Ghost Exchange z ręcznego panelu sprzedaży pojedynczych plików w
+automatyczny rynek danych oparty o istniejący File Model, Storage Model,
+Googleplex i profil gracza.
+
+Nie powstaje drugi rynek, drugi system plików, drugi storage ani drugi economy
+engine. Wszystkie zmiany rozwijają istniejące:
+
+* `profile.files`,
+* `sellable`,
+* `market_status`,
+* `files.market`,
+* `profile.market_history`,
+* `storage_capacity`,
+* `storage_used`,
+* `file_size`,
+* `price_preview`,
+* Ghost Exchange,
+* File Manager,
+* Googleplex.
+
+Nowa pętla gameplayu:
+
+```text
+Mapa
+↓
+Operacja
+↓
+Plik
+↓
+Storage
+↓
+Market Queue
+↓
+Ghost Exchange
+↓
+Auto Sale
+↓
+HackCoins
+↓
+Googleplex
+↓
+Lepsze narzędzia
+↓
+Więcej operacji
+```
+
+Decision:
+
+* Przyjęto: Ghost Exchange jest rynkiem wyników operacji, nie sklepem z ręcznym
+  klikaniem `Sprzedaj`.
+* Przyjęto: File Manager pozostaje miejscem przeglądania lootów.
+* Przyjęto: Googleplex pozostaje miejscem wydawania HC.
+* Przyjęto: Storage Economy działa od początku Fazy D jako realne ograniczenie
+  zapisu danych.
+* Przyjęto: Storage Upgrade jest produktem Googleplexa, nie osobnym sklepem i
+  nie aplikacją uruchamialną.
+* Przyjęto: ręczna sprzedaż może zostać wyłącznie jako legacy/dev/debug.
+
+---
+
+# Sprint 35 — Ghost Exchange Market Model + Storage Gate Foundation
+
+## Cel gameplayowy
+
+Ustalić i wdrożyć fundament modelu rynku danych: plik jest lootem w
+`profile.files`, zajmuje miejsce na dysku, ma sektor rynku i może trafić do
+automatycznej kolejki Ghost Exchange.
+
+Gracz nie sprzedaje jeszcze paczek automatycznie, ale gra zaczyna mówić jednym
+językiem: plik, storage, eligibility, sektor, status rynku.
+
+## Architektura
+
+Sprint 35 rozszerza istniejące normalizacje, nie finalizery jako osobne systemy.
+
+Nowe helpery powinny mieszkać obok obecnych funkcji Ghost Exchange i File Modelu
+w `run.py`:
+
+* `market_sector_for_file(file_entry)`,
+* `normalize_file_market_status(file_entry)`,
+* `is_market_eligible_file(file_entry)`,
+* `can_store_runtime_file(profile, file_entry)`,
+* `build_storage_full_result(profile, operation, file_entry)`.
+
+`sellable` pozostaje znaczeniem eligibility do Ghost Exchange. `market_status`
+pozostaje lifecycle pliku względem rynku.
+
+## Systemy
+
+* `profile.files`,
+* `normalize_runtime_file_entry()`,
+* `is_ghost_exchange_sellable()`,
+* `ghost_exchange_price_preview()`,
+* `calculate_profile_storage_used()`,
+* `normalize_profile_storage()`,
+* File Manager,
+* Ghost Exchange.
+
+## Flow danych
+
+```text
+finalizer builds file object
+↓
+normalize_runtime_file_entry()
+↓
+file_size / sellable / price_preview
+↓
+market_sector
+↓
+storage check
+↓
+profile.files[category]
+```
+
+## Backend
+
+1. Dodać centralne mapowanie `file_category -> market_sector`.
+2. Dodać normalizację nowych statusów:
+   * `created`,
+   * `queued_for_market`,
+   * `listed`,
+   * `sold`,
+   * `archived`.
+3. Zmapować stare statusy:
+   * `not_listed` -> `queued_for_market`, jeśli `sellable == true`,
+   * `ready_to_list` -> `queued_for_market`,
+   * `listed_preview` -> `queued_for_market`, jeśli nie istnieje batch,
+   * `sold` -> `sold`,
+   * `archived` -> `archived`.
+4. Dodać read-only pola do payloadu Ghost Exchange:
+   * `market_sector`,
+   * `market_volume_mb`,
+   * `market_status`,
+   * `price_preview`.
+5. Nie usuwać jeszcze starego endpointu `sell`.
+
+## Frontend
+
+1. Ghost Exchange może nadal renderować stary widok, ale ma dostać dane
+   sektorowe w payloadzie.
+2. File Manager pokazuje istniejące pola:
+   * `market_status`,
+   * `sellable`,
+   * `file_size`.
+3. Nie dodawać jeszcze dashboardu.
+4. Nie dodawać nowego panelu rynku.
+
+## Storage
+
+1. Storage zaczyna być traktowany jako realny warunek zapisu danych.
+2. Sprint 35 przygotowuje helpery, ale finalizery można przełączać etapami.
+3. Jeśli helper wykryje brak miejsca, powinien zwracać wynik typu:
+   * `storage_full`,
+   * `dropped_no_space`.
+4. Brak miejsca nie cofa operacji, ale blokuje zapis danych.
+
+## Ghost Exchange
+
+Ghost Exchange nadal czyta istniejące pliki z `profile.files`. W Sprincie 35
+nie powstaje osobna kolejka poza plikami. Sektor rynku jest właściwością pliku,
+nie nowym magazynem.
+
+## Googleplex
+
+Bez zmian w UI. Sprint 35 tylko potwierdza, że przyszłe Storage Upgrade mają być
+produktami w istniejącym katalogu Googleplexa.
+
+## Migracje
+
+Brak wymaganej migracji produkcyjnej na tym etapie, jeśli normalizacja przy
+odczycie wystarczy.
+
+Przygotować opis migracji na Sprint 39:
+
+* normalizacja starych `market_status`,
+* uzupełnienie `market_sector`,
+* uzupełnienie brakujących `file_size`.
+
+## Testy
+
+* `market_sector_for_file()` mapuje wszystkie aktualne `file_category`.
+* Stare statusy mapują się do nowego modelu.
+* `sellable` nadal odpowiada eligibility Ghost Exchange.
+* `price_preview` nadal działa po normalizacji.
+* Brak miejsca zwraca kontrolowany wynik helpera, bez zapisu pliku.
+
+## Smoke
+
+Smoke tylko obserwacyjny:
+
+* wygenerować plik GPS/camera/ATM,
+* sprawdzić `file_size`,
+* sprawdzić `sellable`,
+* sprawdzić `market_sector`,
+* sprawdzić `market_status`.
+
+## Ryzyka
+
+* Zrobienie osobnej kolejki rynku zamiast użycia `profile.files`.
+* Zrobienie osobnego storage checka w każdym finalizerze.
+* Zmiana znaczenia `sellable`.
+* Ukrycie starych statusów bez migracji/normalizacji.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/file_model.md`,
+* `doc/data_economy.md`,
+* `doc/gameplay_matrix.md`,
+* `doc/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Istnieje jednoznaczny model `file -> storage -> market_sector`.
+* Stare statusy są opisane i normalizowane.
+* Każdy sellable file ma możliwy sektor rynku.
+* Storage gate ma wspólny helper.
+* Nie powstał drugi rynek ani drugi storage.
+
+---
+
+# Sprint 36 — Market Queue + File Lifecycle
+
+## Cel gameplayowy
+
+Sprzedawalne pliki po utworzeniu automatycznie trafiają do kolejki rynku.
+Gracz widzi, że dane czekają na skup sektorowy, ale nie klika pojedynczych
+przycisków sprzedaży.
+
+## Architektura
+
+Kolejka rynku jest stanem plików w `profile.files`, nie osobnym systemem.
+
+Helper:
+
+```text
+queue_market_eligible_files(profile)
+```
+
+ma być idempotentny i działać na istniejących plikach.
+
+## Systemy
+
+* `profile.files`,
+* `market_status`,
+* `sellable`,
+* `market_sector`,
+* `collect_ghost_exchange_files()`,
+* `GET /api/ghost-exchange`,
+* File Manager.
+
+## Flow danych
+
+```text
+profile.files[category]
+↓
+sellable == true
+↓
+market_status: queued_for_market
+↓
+queued_at
+↓
+market_sector bucket
+```
+
+## Backend
+
+1. Dodać `queue_market_eligible_files(profile)`.
+2. Wywołać helper w:
+   * `GET /api/ghost-exchange`,
+   * profilu po `refresh_and_persist_operations()`,
+   * normalizacji plików, jeśli profil jest zapisywany.
+3. Ustawić:
+   * `market_status: queued_for_market`,
+   * `queued_at`,
+   * `market_sector`.
+4. Nie wypłacać jeszcze HC automatycznie.
+5. Nie usuwać jeszcze plików z `/data`.
+6. Ręczny `sell` zostaje legacy/dev/debug.
+
+## Frontend
+
+1. Ghost Exchange pokazuje sektorowe oczekujące dane.
+2. Zamiast zachęty do sprzedaży pojedynczego pliku, UI pokazuje:
+   * `uzbierano X MB`,
+   * `brakuje Y MB`,
+   * `brakuje N rekordów`, jeśli sektor tego wymaga.
+3. File Manager nadal pokazuje loot w katalogach.
+
+## Storage
+
+1. Pliki w kolejce nadal zajmują miejsce.
+2. `storage_used` nie maleje po kolejkowaniu.
+3. Pełny dysk blokuje powstanie nowych danych, nie samo kolejkowanie danych już
+   zapisanych.
+
+## Ghost Exchange
+
+Ghost Exchange pokazuje read model kolejki:
+
+```text
+sector
+pending_files
+pending_mb
+threshold_mb
+missing_mb
+missing_records
+progress_percent
+estimated_sale_time
+```
+
+## Googleplex
+
+Bez zmian funkcjonalnych. Googleplex korzysta z HC dopiero po auto-sale w
+Sprincie 37.
+
+## Migracje
+
+Migracja nie jest obowiązkowa, jeśli queue może być ustawiane przez normalizację.
+
+Przygotować dry-run:
+
+* ile plików stanie się `queued_for_market`,
+* ile ma brakujące `market_sector`,
+* ile ma brakujące `file_size`.
+
+## Testy
+
+* Plik GPS trafia do `queued_for_market`.
+* Plik camera trafia do `queued_for_market`.
+* Plik ATM trafia do `queued_for_market`.
+* Plik credentials/financial trafia do `queued_for_market`.
+* `system/internal_recon_state` nie trafia do kolejki.
+* Drugi refresh nie zmienia `queued_at` i nie dubluje wpisów.
+
+## Smoke
+
+Gameplay smoke:
+
+* operacja,
+* plik,
+* File Manager widzi loot,
+* Ghost Exchange widzi sektor pending,
+* HC jeszcze się nie zmienia.
+
+## Ryzyka
+
+* Kolejka jako nowa lista obok `profile.files`.
+* Modyfikowanie `files.market` przed sprzedażą.
+* Usuwanie pliku z File Managera już po dodaniu do queue.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/file_model.md`,
+* `doc/data_economy.md`,
+* `doc/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Sellable files automatycznie trafiają do kolejki.
+* Kolejkowanie jest idempotentne.
+* File Manager nadal pokazuje loot.
+* Ghost Exchange pokazuje oczekujące sektory.
+* Storage nadal liczy pliki w kolejce.
+
+---
+
+# Sprint 37 — Auto Sale Settlement Engine
+
+## Cel gameplayowy
+
+Rynek danych sam rozlicza paczki sektorowe po osiągnięciu progów. Gracz zarabia
+HC dzięki operacjom i magazynowaniu danych, a nie dzięki klikaniu `Sprzedaj`.
+
+## Architektura
+
+Settlement jest kontrolowanym refreshem, nie realtime loopem.
+
+Helper:
+
+```text
+refresh_market_runtime(username, profile, now=None, persist=False)
+```
+
+może być wywoływany przez istniejące ścieżki:
+
+* `GET /api/ghost-exchange`,
+* `/api/profile`,
+* ewentualnie po `refresh_and_persist_operations()`.
+
+Rozliczenie musi być idempotentne.
+
+## Systemy
+
+* `profile.files`,
+* `files.market`,
+* `profile.market_history`,
+* `profile.hackcoins`,
+* mail/system messages,
+* `price_preview`,
+* `storage_used`.
+
+## Flow danych
+
+```text
+queued_for_market files
+↓
+group by market_sector
+↓
+sector threshold reached
+↓
+listed_at / minimum market dwell time
+↓
+stable batch_id
+↓
+batch valuation
+↓
+HC transfer
+↓
+market_history
+↓
+files.market sale record
+↓
+remove files from /data
+↓
+storage_used recalculated
+```
+
+## Backend
+
+1. Dodać batch builder sektorowy.
+2. Dodać stabilny `batch_id`, np. z:
+   * username,
+   * sector,
+   * sorted file ids.
+3. Dodać progi sektorów:
+   * `camera`: MB,
+   * `atm`: MB + liczba rekordów,
+   * `gps`: wolumen tras / MB,
+   * `device`: MB + liczba plików,
+   * `personal`: liczba rekordów / MB,
+   * `credentials`: liczba credentiali,
+   * `financial`: rekordy + MB,
+   * `network`, `audio`, `vehicle`: MB + liczba plików.
+4. Po osiągnięciu progu paczka przechodzi w stan `listed` i dostaje `listed_at`.
+5. Auto sale następuje dopiero po osiągnięciu progu oraz po minimalnym czasie
+   przebywania paczki na rynku.
+6. Minimalny czas może być różny per sektor, np.:
+   * `camera`: 5 minut,
+   * `credentials`: 3 minuty,
+   * `financial`: 6 minut,
+   * pozostałe sektory: 4-5 minut jako MVP.
+7. Cena paczki bazuje na istniejącym:
+   * `price_preview`,
+   * `quality_score`,
+   * `completeness_percent`,
+   * `file_size`,
+   * liczbie plików/rekordów.
+8. Przed wypłatą HC sprawdzić, czy `batch_id` nie istnieje w:
+   * `profile.market_history`,
+   * `files.market`.
+9. Po sprzedaży:
+   * usunąć pliki z ich katalogów `/data/*`,
+   * dodać rekord do `files.market`,
+   * dodać wpis do `profile.market_history`,
+   * dodać HC,
+   * dodać mail/system message,
+   * przeliczyć storage.
+
+## Frontend
+
+1. Ghost Exchange pokazuje, że sektor został rozliczony.
+2. Wallet i system toolbar odświeżają HC.
+3. Nie pokazywać ręcznego `Sprzedaj` jako głównego CTA.
+
+## Storage
+
+1. Pliki w kolejce zajmują miejsce.
+2. Sprzedaż paczki zwalnia miejsce.
+3. Jeśli brakuje danych do progu, storage nadal jest zajęty i gracz widzi, ile
+   brakuje do rozliczenia.
+
+## Ghost Exchange
+
+Pokazuje:
+
+* progress do paczki,
+* `brakuje X MB`,
+* `brakuje N rekordów`,
+* `estimated_sale_time`,
+* stan `listed` / `trading`,
+* ostatnią transakcję sektora,
+* HC z rozliczenia.
+
+## Googleplex
+
+Po auto-sale HC może zostać wydane w obecnym Googleplexie. Nie zmieniać flow
+zakupu aplikacji w tym sprincie.
+
+## Migracje
+
+Brak migracji strukturalnej, jeśli `batch_id` i batch records są przechowywane w
+`profile.market_history` oraz `files.market`.
+
+Jeśli potrzebne jest `market_state`, musi być częścią profilu i nie może stać się
+drugim magazynem plików.
+
+## Testy
+
+* Batch sprzedaje się po osiągnięciu progu.
+* Batch nie sprzedaje się przed progiem.
+* Batch nie sprzedaje się przed minimalnym czasem przebywania na rynku.
+* `listed_at` jest stabilne i nie resetuje się przy zwykłym refreshu.
+* Drugi refresh nie dodaje HC drugi raz.
+* `market_history` ma jeden wpis dla `batch_id`.
+* `files.market` ma jeden rekord sprzedaży.
+* Pliki znikają z `/data`.
+* `storage_used` maleje po sprzedaży.
+* Mail/system message powstaje raz.
+
+## Smoke
+
+Pełny smoke:
+
+* wygenerować kilka plików sektora,
+* osiągnąć próg,
+* wejść w Ghost Exchange,
+* zobaczyć stan `listed` / `trading`,
+* zobaczyć szacowany czas sprzedaży,
+* auto-sale rozlicza batch,
+* HC rosną,
+* File Manager nie pokazuje sprzedanych plików w `/data`,
+* historia rynku pokazuje batch.
+
+## Ryzyka
+
+* Settlement wywołany z wielu endpointów bez idempotencji.
+* Liczenie ceny paczki inną ekonomią niż `price_preview`.
+* Zostawienie sprzedanych plików w `/data`, co zablokuje storage.
+* Usunięcie plików bez wpisu historii.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/data_economy.md`,
+* `doc/file_model.md`,
+* `doc/gameplay_matrix.md`,
+* `doc/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Auto-sale działa bez ręcznego kliknięcia.
+* Settlement jest idempotentny.
+* HC, mail/system message i market history są spójne.
+* Storage zwalnia się po sprzedaży.
+* Nie powstał realtime loop.
+
+---
+
+# Sprint 38 — Ghost Exchange Dashboard v1
+
+## Cel gameplayowy
+
+Ghost Exchange staje się dashboardem rynku danych: gracz widzi sektory,
+postęp do paczek, wolumen, brakujące dane, historię sprzedaży i HC.
+
+## Architektura
+
+Dashboard jest read modelem istniejących danych:
+
+* `profile.files`,
+* `market_status`,
+* `market_sector`,
+* `files.market`,
+* `profile.market_history`.
+
+Nie przechowuje własnej prawdy o rynku.
+
+## Systemy
+
+* `GET /api/ghost-exchange`,
+* Browser / Ghost Exchange tab,
+* File Manager,
+* market history,
+* toolbar HC.
+
+## Flow danych
+
+```text
+profile.files + market_history
+↓
+build_ghost_exchange_dashboard_payload()
+↓
+sector cards
+↓
+recent transactions
+↓
+history chart
+```
+
+## Backend
+
+1. Rozszerzyć `GET /api/ghost-exchange` o dashboard payload:
+   * `summary`,
+   * `sectors`,
+   * `recent_transactions`,
+   * `history_7d`.
+2. Zostawić stare `files` tylko jako compatibility/dev, jeśli potrzebne.
+3. Dashboard powinien korzystać z tych samych helperów co settlement.
+
+## Frontend
+
+1. Zastąpić główną listę ofert sektorowym dashboardem.
+2. Ukryć przyciski `Sprzedaj` z normalnego flow.
+3. Każdy sektor pokazuje:
+   * oczekujące dane,
+   * w obrocie,
+   * sprzedane dzisiaj,
+   * HC dzisiaj,
+   * HC łącznie,
+   * średnią cenę paczki,
+   * progress do następnej paczki,
+   * brakujące MB/pliki/rekordy,
+   * ostatnie transakcje.
+4. Wykresy lekkie: CSS/SVG/canvas inline, bez ciężkiej biblioteki.
+5. Mobile: jedna kolumna.
+
+## Storage
+
+Dashboard pokazuje presję storage pośrednio:
+
+* ile danych czeka,
+* ile brakuje do sprzedaży,
+* kiedy potencjalnie zwolni się miejsce.
+
+Nie dodawać osobnego storage panelu w Ghost Exchange.
+
+## Ghost Exchange
+
+To główny sprint UX rynku. Ghost Exchange ma wyglądać jak giełda/skup danych,
+nie jak sklep z plikami.
+
+## Googleplex
+
+Bez zmian mechanicznych. Dashboard może sugerować, że większy storage pomaga
+zbierać większe paczki, ale zakup nadal dzieje się w Googleplexie.
+
+## Migracje
+
+Brak migracji danych. To read model i UI.
+
+## Testy
+
+* `GET /api/ghost-exchange` zwraca `summary`.
+* `GET /api/ghost-exchange` zwraca sektory.
+* Sektor pokazuje `missing_mb` albo `missing_records`.
+* Sektor pokazuje `estimated_sale_time`.
+* Recent transactions pochodzą z `profile.market_history`.
+* Główny UI nie renderuje ręcznego `Sprzedaj`.
+* Mobile nie ma poziomego scrolla.
+
+## Smoke
+
+Smoke:
+
+* dane poniżej progu pokazują progress i brakujące MB,
+* dane po progu pokazują stan `listed` / `trading` i szacowany czas sprzedaży,
+* dane po progu rozliczają batch,
+* dashboard pokazuje transakcję,
+* HC na toolbarze jest aktualne.
+
+## Ryzyka
+
+* Dashboard oparty o mocki zamiast profilu.
+* Duplikacja logiki progów w JS i Pythonie.
+* Za ciężki wykres spowalniający Browser.
+* Zostawienie starej listy plików jako głównego widoku.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/data_economy.md`,
+* `doc/gameplay_terms.md`,
+* `doc/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Ghost Exchange pokazuje dashboard sektorowy.
+* Gracz widzi, ile już uzbierał i ile jeszcze brakuje.
+* Nie ma setek przycisków `Sprzedaj`.
+* File Manager nadal pokazuje loot.
+* Dashboard nie jest nowym źródłem prawdy.
+
+---
+
+# Sprint 39 — Storage Economy + Market Migration + Balance
+
+## Cel gameplayowy
+
+Domknąć Fazę D: storage staje się realnym ograniczeniem, Ghost Exchange sprzedaje
+paczki w regularnym tempie, a Googleplex pozwala inwestować HC w większy dysk.
+
+Mały dysk ogranicza tempo zarabiania. Większy dysk pozwala zbierać większe paczki
+danych i sprawniej domykać rynek.
+
+## Architektura
+
+Sprint 39 scala:
+
+* twardy storage gate w finalizerach,
+* migrację starych statusów rynku,
+* Storage Upgrade jako produkt Googleplexa,
+* balance progów sektorowych,
+* smoke pełnej pętli.
+
+Nie tworzy osobnego sklepu storage.
+
+## Systemy
+
+* finalizery operacji,
+* `profile.files`,
+* `storage_capacity`,
+* `storage_used`,
+* Ghost Exchange settlement,
+* Googleplex `/install-app`,
+* `json_resources.app_config`,
+* smoke tools.
+
+## Flow danych
+
+```text
+operation finalizer
+↓
+storage gate
+↓
+file saved or dropped_no_space
+↓
+market queue
+↓
+sector batch
+↓
+auto sale
+↓
+storage freed
+↓
+HC
+↓
+Googleplex storage product
+↓
+storage_capacity increased
+```
+
+## Backend
+
+1. Finalizery zapisują pliki przez wspólny helper:
+   * `append_runtime_file_if_space(profile, operation, folder, file_entry)`.
+2. Przy braku miejsca:
+   * nie zapisywać pliku,
+   * oznaczyć wynik jako `storage_full` / `dropped_no_space`,
+   * dodać system message,
+   * nie dodawać danych do rynku.
+3. Dodać obsługę produktu Googleplex:
+   * `product_type: storage_upgrade`,
+   * `storage_capacity_bonus`.
+4. `/install-app` dla storage product:
+   * odejmuje HC,
+   * zwiększa `storage_capacity`,
+   * nie dodaje produktu do `profile.apps`,
+   * nie dodaje produktu do `files.tools`,
+   * zapisuje historię/system message.
+5. Zostawić zwykłe aplikacje bez zmian.
+
+## Frontend
+
+1. Googleplex pokazuje storage products jako produkty, nie aplikacje.
+2. Przycisk zakupu storage mówi o zwiększeniu pojemności.
+3. File Manager pokazuje nowe `storage_capacity`.
+4. Ghost Exchange pokazuje wpływ rynku na zwalnianie storage.
+
+## Storage
+
+1. Storage jest twardym ograniczeniem zapisu nowych danych.
+2. Storage full nie przerywa operacji, ale blokuje powstanie pliku.
+3. Dane niezapisane nie są sprzedawane.
+4. Auto-sale zwalnia miejsce.
+5. Storage upgrade zwiększa limit.
+
+## Ghost Exchange
+
+1. Progi sektorów zostają zbalansowane po pierwszym smoke:
+   * Camera: głównie MB,
+   * Financial: rekordy + MB,
+   * Credentials: liczba credentiali,
+   * GPS: wolumen tras / MB,
+   * Device/Personal: pliki + MB,
+   * ATM: rekordy + MB.
+2. Ghost Exchange pokazuje brakujące MB/rekordy jako informację gameplayową.
+
+## Googleplex
+
+Storage Upgrade jest produktem Googleplexa:
+
+```text
+Googleplex product
+↓
+purchase with HC
+↓
+storage_capacity bonus
+↓
+File Manager storage updated
+```
+
+Produkt nie jest aplikacją, nie ma runtime window i nie trafia do `/tools`.
+
+## Migracje
+
+Przygotować i uruchamiać przez Sprint 31 migration runner:
+
+1. Backup DB.
+2. Dry-run statusów:
+   * `not_listed`,
+   * `ready_to_list`,
+   * `listed_preview`,
+   * `sold`.
+3. Uzupełnienie:
+   * `market_sector`,
+   * `queued_at`,
+   * `file_size`,
+   * `storage_capacity`,
+   * `storage_used`.
+4. Dodanie seed produktów storage do `json_resources.app_config`.
+5. Walidacja:
+   * brak utraty `profile.market_history`,
+   * brak usunięcia plików bez statusu `sold`,
+   * brak wpisów storage product w `/tools`.
+
+## Testy
+
+* Pełny dysk blokuje zapis pliku.
+* Operacja przy pełnym dysku kończy się bez crasha.
+* `dropped_no_space` nie trafia do Ghost Exchange.
+* Auto-sale zwalnia storage.
+* Storage product zwiększa `storage_capacity`.
+* Storage product nie trafia do `profile.apps`.
+* Storage product nie trafia do `files.tools`.
+* Stare profile zachowują historię rynku.
+* Manual sale endpoint, jeśli zostaje, działa tylko jako legacy/dev i nie dubluje
+  auto-sale.
+
+## Smoke
+
+Finalny smoke Fazy D:
+
+* login admin,
+* wygenerowanie danych z operacji,
+* File Manager pokazuje loot i zajęty storage,
+* Ghost Exchange pokazuje sektor i progress,
+* auto-sale rozlicza batch,
+* HC rosną,
+* market history ma batch,
+* mail/system message istnieje,
+* storage maleje po sprzedaży,
+* zakup storage product w Googleplex zwiększa pojemność,
+* nowe operacje mogą zapisać więcej danych.
+
+## Ryzyka
+
+* Storage product jako aplikacja w `/tools`.
+* Twardy storage gate bez feedbacku dla gracza.
+* Migracja usuwająca stare pliki zamiast tylko normalizować statusy.
+* Balance progów zbyt wysoki, przez co mały dysk blokuje early game.
+* Balance progów zbyt niski, przez co rynek sprzedaje wszystko natychmiast.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/file_model.md`,
+* `doc/data_economy.md`,
+* `doc/app_contract.md`,
+* `doc/gameplay_matrix.md`,
+* `doc/resource_types.md`,
+* `doc/project_journal.md`,
+* dokument migracyjny Sprintu 31, jeśli wymaga nowych kroków.
+
+## Kryteria akceptacji
+
+* Storage jest realnym ograniczeniem zapisu danych.
+* Dane niezapisane nie trafiają do rynku.
+* Ghost Exchange sprzedaje paczki automatycznie.
+* Storage zwalnia się po sprzedaży paczki.
+* Googleplex ma storage products bez tworzenia osobnego sklepu.
+* Stare profile są kompatybilne.
+* Pełny gameplay smoke Fazy D przechodzi.
+
+---
+
+# Finalna architektura Fazy D
+
+Pełny docelowy przepływ:
+
+```text
+operacja
+↓
+finalizer
+↓
+storage gate
+↓
+profile.files
+↓
+storage_used / storage_capacity
+↓
+market queue przez market_status
+↓
+sector batch
+↓
+Ghost Exchange dashboard
+↓
+auto settlement
+↓
+files.market + profile.market_history
+↓
+HackCoins
+↓
+Googleplex
+↓
+storage products / lepsze narzędzia
+↓
+kolejne operacje
+```
+
+Zasady integracji:
+
+* `profile.files` pozostaje jedynym źródłem plików danych gracza.
+* `sellable` oznacza eligibility do Ghost Exchange.
+* `market_status` opisuje lifecycle pliku względem rynku.
+* `files.market` przechowuje rekordy sprzedaży/staging historii, nie nowe looty.
+* `profile.market_history` jest historią transakcji.
+* `storage_capacity`, `storage_used` i `file_size` są jedynym modelem storage.
+* `price_preview`, completeness i quality są bazą wyceny.
+* Ghost Exchange jest jedynym rynkiem danych Fazy D.
+* Googleplex jest jedynym miejscem wydawania HC.
+* Storage Upgrade jest produktem Googleplexa.
+* Frontend Ghost Exchange jest dashboardem read modelu, nie źródłem prawdy.
+* Auto-sale jest kontrolowanym refreshem, nie realtime loopem.
+
 Decision:
 
 * Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.
@@ -2359,6 +3354,7 @@ Decision:
 * Przyjęto: pojemność i waga stają się częścią kontraktu aplikacji oraz modelu plików.
 * Przyjęto: Sprint 31 domyka zasady bezpiecznej aktualizacji bazy na serwerze przez idempotentne migracje.
 * Przyjęto: Sprinty 32–33 rozwijają subtelny feedback celu wyłącznie na belce CEL, bez nowego panelu i bez zmiany warunku hackowania.
+* Przyjęto: Sprinty 35–39 zmieniają Ghost Exchange z ręcznego panelu sprzedaży plików w automatyczny rynek danych oparty o kolejkę, sektory i idempotentne rozliczenia.
 
 ---
 

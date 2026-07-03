@@ -2,27 +2,38 @@ import unittest
 import os
 import sqlite3
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
 import run
 from database import DevBugReportStore, JsonResourceStore, MailStore
 from run import (
     active_operations_from_operations,
+    append_runtime_file_if_space,
     apply_operation_quality_to_files,
     build_generated_app,
+    build_ghost_exchange_dashboard_payload,
+    build_ghost_exchange_sector_payload,
+    build_storage_full_result,
     build_player_actor,
+    can_store_runtime_file,
     cancel_profile_operation,
     collect_ghost_exchange_files,
     create_operations_for_app_action,
     display_target_label,
     ensure_files_inventory,
     filter_targets_by_position,
+    finalize_vehicle_tracking_file,
     get_apps_for_map_action,
     googleplex_catalog_payload,
+    is_market_eligible_file,
+    market_sector_for_file,
     normalize_app_contract,
+    normalize_file_market_status,
     normalize_profile_storage,
     operation_history_from_operations,
+    queue_market_eligible_files,
+    refresh_market_runtime,
     refresh_operation_runtime,
     refresh_operations_runtime,
     resolve_player_actor_relation,
@@ -1317,6 +1328,89 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(updates["files"]["tools"], [])
         self.assertEqual(updates["files"]["projects"], ["GhostLab Tool.glab"])
 
+    def test_googleplex_storage_upgrade_increases_capacity_without_app_or_tool(self):
+        profile = {
+            "username": "neo",
+            "nick": "Neo",
+            "hackcoins": 5000,
+            "level": 10,
+            "respect": 100,
+            "apps": [],
+            "files": {"tools": []},
+            "storage_capacity": 512,
+            "storage_used": 100,
+            "system_messages": [],
+        }
+        product = next(item for item in run.storage_upgrade_products_catalog() if item["id"] == "storage_ghost_vault_basic")
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "neo"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run, "get_app_catalog", return_value=[product]), \
+                patch.object(run, "ensure_purchase_account_profile", return_value={"username": "admin", "hackcoins": 0}), \
+                patch.object(run.user_store, "save_profile", return_value=None), \
+                patch.object(run.mail_store, "add_direct_notification", return_value=None):
+            response = client.post("/install-app", json={"app_id": product["id"]})
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data["status"], "success")
+        self.assertEqual(profile["storage_capacity"], 512 + product["storage_capacity_bonus"])
+        self.assertEqual(profile["apps"], [])
+        self.assertEqual(profile["files"]["tools"], [])
+        self.assertEqual(profile["storage_upgrades"][0]["id"], product["id"])
+        self.assertEqual(data["storage"]["added"], product["storage_capacity_bonus"])
+
+    def test_googleplex_storage_upgrade_requires_hackcoins(self):
+        profile = {
+            "username": "neo",
+            "nick": "Neo",
+            "hackcoins": 1,
+            "level": 10,
+            "respect": 100,
+            "apps": [],
+            "files": {"tools": []},
+            "storage_capacity": 512,
+            "storage_used": 100,
+            "system_messages": [],
+        }
+        product = next(item for item in run.storage_upgrade_products_catalog() if item["id"] == "storage_ghost_vault_basic")
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "neo"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run, "get_app_catalog", return_value=[product]), \
+                patch.object(run, "ensure_purchase_account_profile", return_value={"username": "admin", "hackcoins": 0}):
+            response = client.post("/install-app", json={"app_id": product["id"]})
+
+        data = response.get_json()
+        self.assertEqual(data["status"], "error")
+        self.assertEqual(data["reason"], "insufficient_hc")
+        self.assertEqual(profile["storage_capacity"], 512)
+        self.assertNotIn("storage_upgrades", profile)
+        self.assertEqual(profile["apps"], [])
+        self.assertEqual(profile["files"]["tools"], [])
+
     def test_generated_app_install_tools_uninstall_lifecycle(self):
         payload = {
             "name": "Lifecycle Generated",
@@ -2265,6 +2359,554 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertTrue(files["gps"][0]["sellable"])
         self.assertFalse(files["system"][0]["sellable"])
         self.assertEqual([item["id"] for item in listings], [files["gps"][0]["id"]])
+
+    def test_market_sector_maps_current_file_categories(self):
+        cases = {
+            "gps": "gps",
+            "device": "device",
+            "personal": "personal",
+            "camera": "camera",
+            "atm": "atm",
+            "financial": "financial",
+            "credentials": "credentials",
+            "network": "network",
+            "audio": "audio",
+            "vehicle": "vehicle",
+        }
+        for file_category, expected_sector in cases.items():
+            with self.subTest(file_category=file_category):
+                self.assertEqual(
+                    market_sector_for_file({
+                        "file_category": file_category,
+                        "resource_types": ["location_history"],
+                    }),
+                    expected_sector,
+                )
+
+        self.assertEqual(
+            market_sector_for_file({
+                "file_category": "unknown",
+                "resource_types": ["camera_dump"],
+            }),
+            "camera",
+        )
+
+    def test_file_market_status_normalizes_legacy_statuses(self):
+        base_file = {
+            "file_category": "gps",
+            "resource_types": ["location_history"],
+            "sellable": True,
+        }
+
+        self.assertEqual(normalize_file_market_status({**base_file, "market_status": "not_listed"}), "queued_for_market")
+        self.assertEqual(normalize_file_market_status({**base_file, "market_status": "ready_to_list"}), "queued_for_market")
+        self.assertEqual(normalize_file_market_status({**base_file, "market_status": "listed_preview"}), "queued_for_market")
+        self.assertEqual(normalize_file_market_status({**base_file, "market_status": "listed"}), "listed")
+        self.assertEqual(normalize_file_market_status({**base_file, "market_status": "sold"}), "sold")
+        self.assertEqual(normalize_file_market_status({**base_file, "market_status": "archived"}), "archived")
+        self.assertEqual(
+            normalize_file_market_status({
+                "file_category": "system",
+                "resource_types": ["internal_recon_state"],
+                "sellable": False,
+                "market_status": "not_listed",
+            }),
+            "created",
+        )
+
+    def test_sellable_still_defines_market_eligibility(self):
+        sellable_file = {
+            "file_category": "gps",
+            "resource_types": ["location_history"],
+            "sellable": True,
+            "market_status": "not_listed",
+        }
+        blocked_file = {
+            "file_category": "gps",
+            "resource_types": ["location_history"],
+            "sellable": False,
+            "market_status": "not_listed",
+        }
+        sold_file = {
+            "file_category": "gps",
+            "resource_types": ["location_history"],
+            "sellable": True,
+            "market_status": "sold",
+        }
+
+        self.assertTrue(is_market_eligible_file(sellable_file))
+        self.assertFalse(is_market_eligible_file(blocked_file))
+        self.assertFalse(is_market_eligible_file(sold_file))
+
+    def test_storage_gate_helpers_report_capacity_without_writing_file(self):
+        profile = {
+            "storage_capacity": 64,
+            "storage_used": 60,
+            "storage_unit": "MB",
+            "files": {"gps": []},
+        }
+        small_file = {
+            "name": "small_trace.log",
+            "file_category": "gps",
+            "resource_types": ["location_history"],
+            "file_size": 4,
+        }
+        large_file = {
+            "name": "large_trace.log",
+            "file_category": "gps",
+            "resource_types": ["location_history"],
+            "file_size": 8,
+        }
+        operation = {"operation_id": "op_storage_gate", "operation_type": "generic_trace"}
+
+        self.assertTrue(can_store_runtime_file(profile, small_file))
+        self.assertFalse(can_store_runtime_file(profile, large_file))
+        result = build_storage_full_result(profile, operation, large_file)
+        self.assertEqual(result["status"], "storage_full")
+        self.assertEqual(result["result"], "dropped_no_space")
+        self.assertEqual(result["storage_required"], 68)
+        self.assertEqual(profile["files"]["gps"], [])
+
+    def test_append_runtime_file_if_space_blocks_queue_and_adds_message_once(self):
+        profile = {
+            "storage_capacity": 64,
+            "storage_used": 63,
+            "storage_unit": "MB",
+            "files": {"gps": []},
+            "system_messages": [],
+        }
+        operation = {"operation_id": "op_storage_block", "operation_type": "generic_trace", "resource_buffer": {}}
+        file_entry = {
+            "name": "blocked_trace.log",
+            "file_category": "gps",
+            "directory": "/data/gps",
+            "resource_types": ["location_history"],
+            "file_size": 4,
+            "market_status": "not_listed",
+        }
+
+        first = append_runtime_file_if_space(profile, operation, "gps", file_entry)
+        second = append_runtime_file_if_space(profile, operation, "gps", file_entry)
+        queued_count = queue_market_eligible_files(profile)
+
+        self.assertFalse(first["stored"])
+        self.assertTrue(first["changed"])
+        self.assertFalse(second["stored"])
+        self.assertFalse(second["changed"])
+        self.assertEqual(profile["files"]["gps"], [])
+        self.assertEqual(queued_count, 0)
+        self.assertEqual(len(profile["system_messages"]), 1)
+        self.assertEqual(profile["system_messages"][0]["text"], "Brak miejsca na zapis danych.")
+
+    def test_vehicle_finalizer_drops_file_when_storage_is_full(self):
+        profile = {
+            "storage_capacity": 64,
+            "storage_used": 64,
+            "storage_unit": "MB",
+            "files": {"gps": []},
+            "system_messages": [],
+        }
+        operation = {
+            "operation_id": "op_vehicle_no_space",
+            "operation_type": "vehicle_tracking",
+            "status": "completed",
+            "target": {"name": "Bike"},
+            "resource_buffer": {},
+        }
+
+        changed = finalize_vehicle_tracking_file(profile, operation)
+        changed_again = finalize_vehicle_tracking_file(profile, operation)
+
+        self.assertTrue(changed)
+        self.assertFalse(changed_again)
+        self.assertEqual(profile["files"]["gps"], [])
+        self.assertEqual(queue_market_eligible_files(profile), 0)
+        self.assertEqual(len(profile["system_messages"]), 1)
+        self.assertTrue(operation["resource_buffer"]["storage_full"])
+
+    def test_ghost_exchange_payload_includes_sprint35_market_read_model(self):
+        profile = {
+            "files": {
+                "camera": [{
+                    "id": "camera_market_read_model",
+                    "name": "camera_market_read_model.cam",
+                    "file_category": "camera",
+                    "directory": "/data/camera",
+                    "resource_types": ["camera_dump"],
+                    "file_size": 14,
+                    "market_status": "not_listed",
+                }]
+            }
+        }
+
+        queue_market_eligible_files(profile)
+        listings = collect_ghost_exchange_files(profile)
+        self.assertEqual(len(listings), 1)
+        listing = listings[0]
+        self.assertEqual(listing["market_sector"], "camera")
+        self.assertEqual(listing["market_volume_mb"], 14)
+        self.assertEqual(listing["market_status"], "queued_for_market")
+        self.assertEqual(listing["normalized_market_status"], "queued_for_market")
+        self.assertGreater(listing["price_preview"], 0)
+
+    def test_queue_market_eligible_files_sets_status_sector_and_queued_at_once(self):
+        profile = {
+            "files": {
+                "gps": [{
+                    "id": "gps_queue_candidate",
+                    "name": "gps_queue_candidate.log",
+                    "file_category": "gps",
+                    "resource_types": ["location_history"],
+                    "file_size": 4,
+                    "market_status": "not_listed",
+                }]
+            }
+        }
+
+        changed = queue_market_eligible_files(profile)
+        queued_file = profile["files"]["gps"][0]
+        first_queued_at = queued_file.get("queued_at")
+
+        self.assertEqual(changed, 1)
+        self.assertEqual(queued_file["market_status"], "queued_for_market")
+        self.assertEqual(queued_file["market_sector"], "gps")
+        self.assertTrue(first_queued_at)
+
+        changed_again = queue_market_eligible_files(profile)
+        self.assertEqual(changed_again, 0)
+        self.assertEqual(profile["files"]["gps"][0]["queued_at"], first_queued_at)
+
+    def test_queue_market_eligible_files_skips_unsellable_and_sold_files(self):
+        profile = {
+            "files": {
+                "system": [{
+                    "id": "recon_state",
+                    "name": "recon_state.sys",
+                    "file_category": "system",
+                    "resource_types": ["internal_recon_state"],
+                    "sellable": False,
+                    "market_status": "not_listed",
+                }],
+                "gps": [{
+                    "id": "sold_gps",
+                    "name": "sold_gps.log",
+                    "file_category": "gps",
+                    "resource_types": ["location_history"],
+                    "sellable": True,
+                    "market_status": "sold",
+                }],
+            }
+        }
+
+        changed = queue_market_eligible_files(profile)
+
+        self.assertEqual(changed, 0)
+        self.assertEqual(profile["files"]["system"][0]["market_status"], "not_listed")
+        self.assertNotIn("queued_at", profile["files"]["system"][0])
+        self.assertEqual(profile["files"]["gps"][0]["market_status"], "sold")
+        self.assertNotIn("queued_at", profile["files"]["gps"][0])
+
+    def test_ghost_exchange_sector_payload_reports_pending_queue_read_model(self):
+        profile = {
+            "files": {
+                "camera": [{
+                    "id": "camera_pending",
+                    "name": "camera_pending.cam",
+                    "file_category": "camera",
+                    "resource_types": ["camera_dump"],
+                    "file_size": 14,
+                    "metadata": {"record_count": 2},
+                    "market_status": "not_listed",
+                }]
+            }
+        }
+        queue_market_eligible_files(profile)
+
+        sectors = build_ghost_exchange_sector_payload(profile)
+        camera_sector = next(item for item in sectors if item["sector"] == "camera")
+
+        self.assertEqual(camera_sector["pending_files"], 1)
+        self.assertEqual(camera_sector["pending_mb"], 14)
+        self.assertEqual(camera_sector["threshold_mb"], 50)
+        self.assertEqual(camera_sector["missing_mb"], 36)
+        self.assertEqual(camera_sector["missing_records"], 0)
+        self.assertGreater(camera_sector["progress_percent"], 0)
+        self.assertIn("min", camera_sector["estimated_sale_time"])
+
+    def test_ghost_exchange_dashboard_payload_includes_summary_recent_and_history(self):
+        profile = {
+            "files": {
+                "camera": [{
+                    "id": "camera_dashboard_pending",
+                    "name": "camera_dashboard_pending.cam",
+                    "file_category": "camera",
+                    "resource_types": ["camera_dump"],
+                    "file_size": 14,
+                    "market_status": "queued_for_market",
+                    "market_sector": "camera",
+                    "queued_at": "2026-07-03T09:00:00Z",
+                }],
+                "market": [],
+            },
+            "market_history": [{
+                "id": "batch_camera_dashboard",
+                "batch_id": "batch_camera_dashboard",
+                "file_name": "sold_batch_camera.pkg",
+                "market_sector": "camera",
+                "market_category": "surveillance",
+                "price": 120,
+                "currency": "HC",
+                "sold_at": "2026-07-03T10:00:00Z",
+                "status": "sold",
+                "file_count": 3,
+                "volume_mb": 42,
+            }],
+        }
+
+        dashboard = build_ghost_exchange_dashboard_payload(
+            profile,
+            now=datetime(2026, 7, 3, 12, 0, tzinfo=timezone.utc),
+        )
+        camera_sector = next(item for item in dashboard["sectors"] if item["sector"] == "camera")
+
+        self.assertIn("summary", dashboard)
+        self.assertIn("sectors", dashboard)
+        self.assertIn("recent_transactions", dashboard)
+        self.assertIn("history_7d", dashboard)
+        self.assertEqual(dashboard["summary"]["pending_files"], 1)
+        self.assertEqual(dashboard["summary"]["hc_today"], 120)
+        self.assertEqual(camera_sector["progress_percent"], 28)
+        self.assertEqual(camera_sector["missing_mb"], 36)
+        self.assertIn("estimated_sale_time", camera_sector)
+        self.assertEqual(camera_sector["sold_today_files"], 3)
+        self.assertEqual(camera_sector["hc_today"], 120)
+        self.assertEqual(camera_sector["hc_total"], 120)
+        self.assertEqual(camera_sector["average_price"], 120)
+        self.assertEqual(dashboard["recent_transactions"][0]["batch_id"], "batch_camera_dashboard")
+        self.assertEqual(len(dashboard["history_7d"]), 7)
+
+    def test_api_ghost_exchange_returns_dashboard_payload(self):
+        profile = {
+            "username": "tester",
+            "hackcoins": 500,
+            "files": {
+                "camera": [{
+                    "id": "camera_api_pending",
+                    "name": "camera_api_pending.cam",
+                    "file_category": "camera",
+                    "resource_types": ["camera_dump"],
+                    "file_size": 14,
+                    "market_status": "queued_for_market",
+                    "market_sector": "camera",
+                    "queued_at": "2026-07-03T09:00:00Z",
+                }],
+                "market": [],
+            },
+            "market_history": [{
+                "id": "batch_api_camera",
+                "batch_id": "batch_api_camera",
+                "file_name": "sold_batch_api_camera.pkg",
+                "market_sector": "camera",
+                "market_category": "surveillance",
+                "price": 77,
+                "currency": "HC",
+                "sold_at": "2026-07-03T10:00:00Z",
+                "status": "sold",
+                "file_count": 2,
+                "volume_mb": 28,
+            }],
+            "system_messages": [],
+        }
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "tester"
+        with patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run, "refresh_and_persist_operations", return_value=profile), \
+                patch.object(run, "UserProfileManager", side_effect=AssertionError("dashboard read should not write")):
+            response = client.get("/api/ghost-exchange")
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["balance"], 500)
+        self.assertIn("summary", data)
+        self.assertIn("sectors", data)
+        self.assertIn("recent_transactions", data)
+        self.assertIn("history_7d", data)
+        self.assertEqual(len(data["history_7d"]), 7)
+        camera_sector = next(item for item in data["sectors"] if item["sector"] == "camera")
+        self.assertIn("progress_percent", camera_sector)
+        self.assertTrue(camera_sector["missing_mb"] >= 0 or camera_sector["missing_records"] >= 0)
+        self.assertIn("estimated_sale_time", camera_sector)
+        self.assertEqual(data["recent_transactions"][0]["batch_id"], "batch_api_camera")
+
+    def test_ghost_exchange_frontend_renders_dashboard_without_main_sell_button(self):
+        with open(os.path.join(os.getcwd(), "static", "js", "terminal.js"), encoding="utf-8") as handle:
+            terminal_js = handle.read()
+        render_start = terminal_js.index("const renderExchange = () => {")
+        render_end = terminal_js.index("async function loadCatalog()", render_start)
+        render_exchange_source = terminal_js[render_start:render_end]
+
+        self.assertIn("gx-dashboard", render_exchange_source)
+        self.assertIn("gx-sector-grid", render_exchange_source)
+        self.assertIn("gx-summary-grid", render_exchange_source)
+        self.assertIn("gx-main-row", render_exchange_source)
+        self.assertIn("gx-transactions-panel", render_exchange_source)
+        self.assertIn("gx-chart-panel", render_exchange_source)
+        self.assertNotIn("ghost-exchange-sell-btn", render_exchange_source)
+        self.assertNotIn("Sprzedaj</button>", render_exchange_source)
+
+    def test_ghost_exchange_chart_css_supports_mobile_and_narrow_layout(self):
+        with open(os.path.join(os.getcwd(), "static", "css", "ghost_exchange_charts.css"), encoding="utf-8") as handle:
+            css = handle.read()
+
+        self.assertIn("@media (max-width: 900px)", css)
+        self.assertIn("(max-height: 700px)", css)
+        self.assertIn(".browser-window.browser-narrow .gx-sector-grid", css)
+        self.assertIn("@container (max-width: 720px)", css)
+        self.assertIn("grid-template-columns: minmax(0, 1fr)", css)
+
+    def test_queue_market_eligible_files_preserves_listed_batch(self):
+        profile = {
+            "files": {
+                "camera": [{
+                    "id": "camera_listed",
+                    "name": "camera_listed.cam",
+                    "file_category": "camera",
+                    "resource_types": ["camera_dump"],
+                    "file_size": 50,
+                    "market_status": "listed",
+                    "listed_at": "2026-07-03T10:00:00Z",
+                    "batch_id": "batch_camera_listed",
+                    "market_sector": "camera",
+                    "sellable": True,
+                }]
+            }
+        }
+
+        changed = queue_market_eligible_files(profile)
+        listed_file = profile["files"]["camera"][0]
+
+        self.assertEqual(changed, 0)
+        self.assertEqual(listed_file["market_status"], "listed")
+        self.assertEqual(listed_file["listed_at"], "2026-07-03T10:00:00Z")
+        self.assertEqual(listed_file["batch_id"], "batch_camera_listed")
+
+    def test_market_runtime_does_not_sell_before_sector_threshold(self):
+        profile = {
+            "hackcoins": 100,
+            "files": {
+                "camera": [{
+                    "id": "camera_small_1",
+                    "name": "camera_small_1.cam",
+                    "file_category": "camera",
+                    "resource_types": ["camera_dump"],
+                    "file_size": 20,
+                    "market_status": "not_listed",
+                }]
+            },
+            "market_history": [],
+            "system_messages": [],
+        }
+        now = datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc)
+
+        result = refresh_market_runtime("neo", profile, now=now)
+
+        self.assertTrue(result["changed"])
+        self.assertEqual(result["queued"], 1)
+        self.assertEqual(result["listed"], 0)
+        self.assertEqual(result["settled"], 0)
+        self.assertEqual(profile["hackcoins"], 100)
+        self.assertEqual(profile["market_history"], [])
+        self.assertEqual(profile["files"].get("market", []), [])
+        self.assertEqual(profile["files"]["camera"][0]["market_status"], "queued_for_market")
+
+    def test_market_runtime_lists_batch_and_waits_for_dwell_time(self):
+        profile = {
+            "hackcoins": 100,
+            "files": {
+                "camera": [
+                    {
+                        "id": f"camera_ready_{index}",
+                        "name": f"camera_ready_{index}.cam",
+                        "file_category": "camera",
+                        "resource_types": ["camera_dump"],
+                        "file_size": 14,
+                        "market_status": "not_listed",
+                    }
+                    for index in range(4)
+                ]
+            },
+            "market_history": [],
+            "system_messages": [],
+        }
+        now = datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc)
+
+        listed_result = refresh_market_runtime("neo", profile, now=now)
+        self.assertEqual(listed_result["queued"], 4)
+        self.assertEqual(listed_result["listed"], 4, profile["files"]["camera"])
+        self.assertEqual(listed_result["settled"], 0)
+        self.assertIn("listed_at", profile["files"]["camera"][0], profile["files"]["camera"])
+        listed_at = profile["files"]["camera"][0]["listed_at"]
+        batch_id = profile["files"]["camera"][0]["batch_id"]
+        waiting_result = refresh_market_runtime("neo", profile, now=now + timedelta(minutes=1))
+
+        self.assertEqual(waiting_result["settled"], 0)
+        self.assertEqual(profile["hackcoins"], 100)
+        self.assertEqual(profile["market_history"], [])
+        self.assertEqual(profile["files"].get("market", []), [])
+        self.assertTrue(all(item["market_status"] == "listed" for item in profile["files"]["camera"]))
+        self.assertTrue(all(item["listed_at"] == listed_at for item in profile["files"]["camera"]))
+        self.assertTrue(all(item["batch_id"] == batch_id for item in profile["files"]["camera"]))
+
+        sectors = build_ghost_exchange_sector_payload(profile)
+        camera_sector = next(item for item in sectors if item["sector"] == "camera")
+        self.assertEqual(camera_sector["status"], "trading")
+        self.assertEqual(camera_sector["listed_at"], listed_at)
+        self.assertEqual(camera_sector["batch_id"], batch_id)
+
+    def test_market_runtime_settles_batch_after_dwell_once(self):
+        profile = {
+            "hackcoins": 100,
+            "storage_capacity": 256,
+            "storage_used": 56,
+            "storage_unit": "MB",
+            "files": {
+                "camera": [
+                    {
+                        "id": f"camera_sell_{index}",
+                        "name": f"camera_sell_{index}.cam",
+                        "file_category": "camera",
+                        "resource_types": ["camera_dump"],
+                        "file_size": 14,
+                        "market_status": "not_listed",
+                    }
+                    for index in range(4)
+                ],
+                "market": [],
+            },
+            "market_history": [],
+            "system_messages": [],
+        }
+        now = datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc)
+
+        refresh_market_runtime("neo", profile, now=now)
+        with patch.object(run.mail_store, "add_direct_notification") as mail_mock:
+            settled_result = refresh_market_runtime("neo", profile, now=now + timedelta(minutes=6))
+            hc_after_sale = profile["hackcoins"]
+            second_result = refresh_market_runtime("neo", profile, now=now + timedelta(minutes=7))
+
+        self.assertEqual(settled_result["settled"], 1)
+        self.assertEqual(second_result["settled"], 0)
+        self.assertGreater(hc_after_sale, 100)
+        self.assertEqual(profile["hackcoins"], hc_after_sale)
+        self.assertEqual(len(profile["market_history"]), 1)
+        self.assertEqual(len(profile["files"]["market"]), 1)
+        self.assertEqual(profile["files"]["camera"], [])
+        self.assertLess(profile["storage_used"], 56)
+        self.assertEqual(len(profile["system_messages"]), 1)
+        self.assertEqual(profile["market_history"][0]["batch_id"], profile["files"]["market"][0]["batch_id"])
+        mail_mock.assert_called_once()
 
     def test_ghost_exchange_prices_richer_device_package_higher(self):
         profile = {

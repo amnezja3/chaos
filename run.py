@@ -1977,6 +1977,98 @@ DEFAULT_APP_QUALITY_SCORE = 55
 DEFAULT_APP_RELIABILITY = 65
 DEFAULT_CREATOR_POWER = 35
 DEFAULT_APP_PRICE_HINT_HC = 120
+STORAGE_UPGRADE_PRODUCTS = [
+    {
+        "id": "storage_ghost_vault_basic",
+        "name": "Ghost Vault Basic",
+        "description": "Podstawowe rozszerzenie pojemnosci dysku danych.",
+        "icon": "▣",
+        "product_type": "storage_upgrade",
+        "storage_capacity_bonus": 256,
+        "price": 650,
+        "purchase_account": "admin",
+        "creator_username": "admin",
+        "creator_nick": "CyberPhoenix",
+        "required_level": 1,
+        "required_respect": 0,
+        "published": True,
+        "generated": False,
+        "system_catalog": True,
+        "balance_tier": "Basic",
+    },
+    {
+        "id": "storage_ghost_vault_plus",
+        "name": "Ghost Vault Plus",
+        "description": "Wiekszy bufor danych pod dluzsze operacje i paczki rynku.",
+        "icon": "▣",
+        "product_type": "storage_upgrade",
+        "storage_capacity_bonus": 512,
+        "price": 1450,
+        "purchase_account": "admin",
+        "creator_username": "admin",
+        "creator_nick": "CyberPhoenix",
+        "required_level": 3,
+        "required_respect": 15,
+        "published": True,
+        "generated": False,
+        "system_catalog": True,
+        "balance_tier": "Advanced",
+    },
+    {
+        "id": "storage_data_vault",
+        "name": "Data Vault",
+        "description": "Magazyn danych dla graczy aktywnie pracujacych z Ghost Exchange.",
+        "icon": "▣",
+        "product_type": "storage_upgrade",
+        "storage_capacity_bonus": 1024,
+        "price": 3200,
+        "purchase_account": "admin",
+        "creator_username": "admin",
+        "creator_nick": "CyberPhoenix",
+        "required_level": 6,
+        "required_respect": 40,
+        "published": True,
+        "generated": False,
+        "system_catalog": True,
+        "balance_tier": "Pro",
+    },
+    {
+        "id": "storage_blackvault",
+        "name": "BlackVault",
+        "description": "Ciezki magazyn danych dla duzych paczek sektorowych.",
+        "icon": "▣",
+        "product_type": "storage_upgrade",
+        "storage_capacity_bonus": 2048,
+        "price": 7600,
+        "purchase_account": "admin",
+        "creator_username": "admin",
+        "creator_nick": "CyberPhoenix",
+        "required_level": 10,
+        "required_respect": 90,
+        "published": True,
+        "generated": False,
+        "system_catalog": True,
+        "balance_tier": "Pro",
+    },
+    {
+        "id": "storage_encrypted_cluster",
+        "name": "Encrypted Cluster",
+        "description": "Najwiekszy seedowy upgrade pojemnosci pod endgame rynku danych.",
+        "icon": "▣",
+        "product_type": "storage_upgrade",
+        "storage_capacity_bonus": 4096,
+        "price": 14800,
+        "purchase_account": "admin",
+        "creator_username": "admin",
+        "creator_nick": "CyberPhoenix",
+        "required_level": 16,
+        "required_respect": 160,
+        "published": True,
+        "generated": False,
+        "system_catalog": True,
+        "balance_tier": "Elite",
+    },
+]
 FILE_CATEGORY_SIZE_HINTS_MB = {
     "gps": 4,
     "device": 8,
@@ -2445,6 +2537,71 @@ GHOST_EXCHANGE_FILE_CATEGORIES = {
 
 GHOST_EXCHANGE_BLOCKED_RESOURCES = {"internal_recon_state"}
 
+MARKET_FILE_STATUSES = {
+    "created",
+    "queued_for_market",
+    "listed",
+    "sold",
+    "archived",
+}
+
+LEGACY_MARKET_STATUS_MAP = {
+    "ready_to_list": "queued_for_market",
+    "listed_preview": "queued_for_market",
+    "not_listed": "created",
+}
+
+MARKET_SECTOR_BY_FILE_CATEGORY = {
+    "gps": "gps",
+    "device": "device",
+    "personal": "personal",
+    "camera": "camera",
+    "atm": "atm",
+    "financial": "financial",
+    "credentials": "credentials",
+    "network": "network",
+    "audio": "audio",
+    "vehicle": "vehicle",
+}
+
+MARKET_SECTOR_BY_MARKET_CATEGORY = {
+    "location": "gps",
+    "device_intelligence": "device",
+    "personal": "personal",
+    "financial": "financial",
+    "credentials": "credentials",
+    "surveillance": "camera",
+    "audio": "audio",
+    "vehicle": "vehicle",
+    "network": "network",
+}
+
+MARKET_SECTOR_THRESHOLDS = {
+    "camera": {"threshold_mb": 50, "threshold_records": 0},
+    "atm": {"threshold_mb": 30, "threshold_records": 10},
+    "gps": {"threshold_mb": 25, "threshold_records": 0},
+    "device": {"threshold_mb": 35, "threshold_records": 0},
+    "personal": {"threshold_mb": 30, "threshold_records": 10},
+    "credentials": {"threshold_mb": 15, "threshold_records": 5},
+    "financial": {"threshold_mb": 25, "threshold_records": 10},
+    "network": {"threshold_mb": 30, "threshold_records": 0},
+    "audio": {"threshold_mb": 30, "threshold_records": 0},
+    "vehicle": {"threshold_mb": 30, "threshold_records": 0},
+}
+
+MARKET_SECTOR_DWELL_SECONDS = {
+    "camera": 5 * 60,
+    "credentials": 3 * 60,
+    "financial": 6 * 60,
+    "atm": 5 * 60,
+    "gps": 5 * 60,
+    "device": 5 * 60,
+    "personal": 5 * 60,
+    "network": 5 * 60,
+    "audio": 5 * 60,
+    "vehicle": 5 * 60,
+}
+
 RESOURCE_MARKET_CATEGORY = {
     "gps_logs": "location",
     "location_history": "location",
@@ -2629,6 +2786,19 @@ def ghost_exchange_market_category(file_entry):
     return RESOURCE_MARKET_CATEGORY.get(str(file_entry.get("file_category") or ""), "unknown")
 
 
+def market_sector_for_file(file_entry):
+    if not isinstance(file_entry, dict):
+        return "unknown"
+    file_category = str(file_entry.get("file_category") or "").strip()
+    if file_category in MARKET_SECTOR_BY_FILE_CATEGORY:
+        return MARKET_SECTOR_BY_FILE_CATEGORY[file_category]
+
+    market_category = ghost_exchange_market_category(file_entry)
+    if market_category in MARKET_SECTOR_BY_MARKET_CATEGORY:
+        return MARKET_SECTOR_BY_MARKET_CATEGORY[market_category]
+    return "unknown"
+
+
 def is_ghost_exchange_sellable(file_entry):
     if not isinstance(file_entry, dict):
         return False
@@ -2643,6 +2813,804 @@ def is_ghost_exchange_sellable(file_entry):
     if str(file_entry.get("market_status") or "not_listed") in {"sold", "deleted", "archived"}:
         return False
     return True
+
+
+def is_market_eligible_file(file_entry):
+    if not isinstance(file_entry, dict):
+        return False
+    if str(file_entry.get("market_status") or "not_listed") in {"sold", "deleted", "archived"}:
+        return False
+    if isinstance(file_entry.get("sellable"), bool):
+        return file_entry["sellable"] is True
+    return is_ghost_exchange_sellable(file_entry)
+
+
+def normalize_file_market_status(file_entry):
+    if not isinstance(file_entry, dict):
+        return "created"
+    raw_status = str(file_entry.get("market_status") or "not_listed").strip() or "not_listed"
+    if raw_status in {"sold", "archived", "listed", "queued_for_market"}:
+        return raw_status
+    if raw_status == "not_listed" and is_market_eligible_file(file_entry):
+        return "queued_for_market"
+    return LEGACY_MARKET_STATUS_MAP.get(raw_status, "created")
+
+
+def can_store_runtime_file(profile, file_entry):
+    if not isinstance(profile, dict) or not isinstance(file_entry, dict):
+        return False
+    capacity = clamp_storage_number(
+        profile.get("storage_capacity"),
+        default=DEFAULT_STORAGE_CAPACITY_MB,
+        minimum=64,
+    )
+    current_used = profile.get("storage_used")
+    if current_used is None:
+        current_used = calculate_profile_storage_used(profile)
+    current_used = clamp_storage_number(current_used, default=0, minimum=0)
+    file_size = clamp_storage_number(
+        file_entry.get("file_size") or (file_entry.get("metadata") or {}).get("file_size"),
+        default=estimate_runtime_file_size(file_entry.get("file_category"), file_entry),
+        minimum=1,
+    )
+    return current_used + file_size <= capacity
+
+
+def build_storage_full_result(profile, operation, file_entry):
+    profile = profile if isinstance(profile, dict) else {}
+    operation = operation if isinstance(operation, dict) else {}
+    file_entry = file_entry if isinstance(file_entry, dict) else {}
+    capacity = clamp_storage_number(
+        profile.get("storage_capacity"),
+        default=DEFAULT_STORAGE_CAPACITY_MB,
+        minimum=64,
+    )
+    current_used = profile.get("storage_used")
+    if current_used is None:
+        current_used = calculate_profile_storage_used(profile)
+    current_used = clamp_storage_number(current_used, default=0, minimum=0)
+    file_size = clamp_storage_number(
+        file_entry.get("file_size") or (file_entry.get("metadata") or {}).get("file_size"),
+        default=estimate_runtime_file_size(file_entry.get("file_category"), file_entry),
+        minimum=1,
+    )
+    return {
+        "status": "storage_full",
+        "result": "dropped_no_space",
+        "reason": "storage_capacity_exceeded",
+        "operation_id": operation.get("operation_id") or operation.get("id"),
+        "operation_type": operation.get("operation_type"),
+        "file_name": file_entry.get("name") or file_entry.get("filename"),
+        "file_category": file_entry.get("file_category"),
+        "file_size": file_size,
+        "storage_capacity": capacity,
+        "storage_used": current_used,
+        "storage_required": current_used + file_size,
+        "storage_unit": profile.get("storage_unit", "MB"),
+    }
+
+
+def runtime_storage_drop_key(operation, file_entry):
+    operation = operation if isinstance(operation, dict) else {}
+    file_entry = file_entry if isinstance(file_entry, dict) else {}
+    operation_id = operation.get("operation_id") or operation.get("id") or "operation"
+    file_name = file_entry.get("name") or file_entry.get("filename") or "file"
+    file_category = file_entry.get("file_category") or "data"
+    return f"{operation_id}:{file_category}:{file_name}"
+
+
+def append_storage_full_message(profile, drop_key):
+    if not isinstance(profile, dict):
+        return False
+    messages = profile.setdefault("system_messages", [])
+    if not isinstance(messages, list):
+        messages = []
+        profile["system_messages"] = messages
+    if any(isinstance(item, dict) and item.get("storage_drop_key") == drop_key for item in messages):
+        return False
+    numeric_ids = [
+        int(item.get("id", 0))
+        for item in messages
+        if isinstance(item, dict) and str(item.get("id", "")).isdigit()
+    ]
+    messages.append({
+        "id": max(numeric_ids, default=0) + 1,
+        "type": "warning",
+        "title": "Brak miejsca",
+        "text": "Brak miejsca na zapis danych.",
+        "status": "new",
+        "created_at": runtime_file_now(),
+        "storage_drop_key": drop_key,
+    })
+    return True
+
+
+def record_storage_full_drop(profile, operation, file_entry):
+    resource_buffer = operation.setdefault("resource_buffer", {}) if isinstance(operation, dict) else {}
+    drop_key = runtime_storage_drop_key(operation, file_entry)
+    drops = resource_buffer.setdefault("storage_drops", [])
+    if not isinstance(drops, list):
+        drops = []
+        resource_buffer["storage_drops"] = drops
+    for item in drops:
+        if isinstance(item, dict) and item.get("drop_key") == drop_key:
+            return item, False
+
+    result = build_storage_full_result(profile, operation, file_entry)
+    result["drop_key"] = drop_key
+    drops.append(result)
+    resource_buffer["storage_full"] = True
+    resource_buffer["last_storage_result"] = result
+    append_storage_full_message(profile, drop_key)
+    return result, True
+
+
+def append_runtime_file_if_space(profile, operation, folder, file_entry):
+    folder = str(folder or (file_entry or {}).get("file_category") or "").strip()
+    if not folder:
+        folder = "system"
+    candidate = normalize_runtime_file_entry(dict(file_entry or {}), folder)
+    if can_store_runtime_file(profile, candidate):
+        files = ensure_files_inventory(profile)
+        files.setdefault(folder, [])
+        files[folder].append(candidate)
+        normalize_profile_storage(profile)
+        return {
+            "stored": True,
+            "file": candidate,
+            "result": None,
+            "changed": True,
+        }
+
+    result, changed = record_storage_full_drop(profile, operation, candidate)
+    return {
+        "stored": False,
+        "file": None,
+        "result": result,
+        "changed": changed,
+    }
+
+
+def runtime_file_record_count(file_entry):
+    if not isinstance(file_entry, dict):
+        return 0
+    metadata = file_entry.get("metadata") if isinstance(file_entry.get("metadata"), dict) else {}
+    summary = file_entry.get("summary") if isinstance(file_entry.get("summary"), dict) else {}
+    value = (
+        metadata.get("record_count")
+        or metadata.get("checkpoint_count")
+        or metadata.get("collected_count")
+        or metadata.get("credential_count")
+        or metadata.get("network_count")
+        or metadata.get("systems_count")
+        or summary.get("record_count")
+        or summary.get("credential_count")
+        or summary.get("checkpoint_count")
+        or len(file_entry.get("records", []) or [])
+        or len(file_entry.get("checkpoints", []) or [])
+        or 1
+    )
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 1
+
+
+def queue_market_eligible_files(profile):
+    if not isinstance(profile, dict):
+        return 0
+    files = ensure_files_inventory(profile)
+    queued_at = runtime_file_now()
+    changed = 0
+    for folder, items in files.items():
+        if not isinstance(items, list):
+            continue
+        for index, file_entry in enumerate(items):
+            if not isinstance(file_entry, dict):
+                continue
+            status = str(file_entry.get("market_status") or "not_listed")
+            if status in {"sold", "deleted", "archived"}:
+                continue
+            if not is_market_eligible_file(file_entry):
+                continue
+            if status == "listed":
+                sector = market_sector_for_file(file_entry)
+                if file_entry.get("market_sector") != sector:
+                    file_entry["market_sector"] = sector
+                    items[index] = normalize_runtime_file_entry(file_entry, folder)
+                    items[index]["market_sector"] = sector
+                    changed += 1
+                continue
+
+            item_changed = False
+            if file_entry.get("market_status") != "queued_for_market":
+                file_entry["market_status"] = "queued_for_market"
+                item_changed = True
+            if not file_entry.get("queued_at"):
+                file_entry["queued_at"] = queued_at
+                item_changed = True
+            sector = market_sector_for_file(file_entry)
+            if file_entry.get("market_sector") != sector:
+                file_entry["market_sector"] = sector
+                item_changed = True
+            if item_changed:
+                items[index] = normalize_runtime_file_entry(file_entry, folder)
+                # normalize_runtime_file_entry preserves queued_at/market_sector through dict copy.
+                items[index]["queued_at"] = file_entry.get("queued_at")
+                items[index]["market_sector"] = sector
+                changed += 1
+    return changed
+
+
+def market_sector_estimated_sale_time(pending_mb, threshold_mb, pending_records, threshold_records):
+    missing_mb = max(0, int(threshold_mb or 0) - int(pending_mb or 0))
+    missing_records = max(0, int(threshold_records or 0) - int(pending_records or 0))
+    if missing_mb == 0 and missing_records == 0:
+        return "~5 min"
+    estimate = max(5, min(45, missing_mb * 2 + missing_records * 3))
+    return f"~{estimate} min"
+
+
+def market_runtime_now(now=None):
+    if isinstance(now, datetime):
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        return now.astimezone(timezone.utc)
+    if isinstance(now, (int, float)):
+        return datetime.fromtimestamp(float(now), tz=timezone.utc)
+    if isinstance(now, str) and now.strip():
+        parsed = parse_operation_timestamp(now)
+        if parsed is not None:
+            return datetime.fromtimestamp(parsed, tz=timezone.utc)
+    return datetime.now(timezone.utc)
+
+
+def market_runtime_iso(now=None):
+    return market_runtime_now(now).isoformat().replace("+00:00", "Z")
+
+
+def market_batch_id(username, sector, file_entries):
+    file_ids = sorted(
+        str(item.get("id") or item.get("name") or item.get("filename") or "")
+        for item in file_entries
+        if isinstance(item, dict)
+    )
+    seed = "|".join([str(username or ""), str(sector or ""), *file_ids])
+    digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16]
+    return f"batch_{operation_filename_slug(str(username or 'user'))}_{operation_filename_slug(str(sector or 'market'))}_{digest}"
+
+
+def market_batch_already_settled(profile, batch_id):
+    if not batch_id:
+        return False
+    for item in profile.get("market_history", []) or []:
+        if isinstance(item, dict) and str(item.get("batch_id") or item.get("id") or "") == str(batch_id):
+            return True
+    files = ensure_files_inventory(profile)
+    for item in files.get("market", []):
+        if not isinstance(item, dict):
+            continue
+        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        sale = item.get("sale") if isinstance(item.get("sale"), dict) else {}
+        if str(item.get("batch_id") or metadata.get("batch_id") or sale.get("batch_id") or "") == str(batch_id):
+            return True
+    return False
+
+
+def market_sector_threshold_reached(sector, pending_mb, pending_records):
+    threshold = MARKET_SECTOR_THRESHOLDS.get(str(sector or ""), {"threshold_mb": 25, "threshold_records": 0})
+    threshold_mb = int(threshold.get("threshold_mb") or 0)
+    threshold_records = int(threshold.get("threshold_records") or 0)
+    mb_ready = threshold_mb <= 0 or int(pending_mb or 0) >= threshold_mb
+    records_ready = threshold_records <= 0 or int(pending_records or 0) >= threshold_records
+    return mb_ready and records_ready
+
+
+def market_batch_price(file_entries):
+    total = 0
+    for item in file_entries:
+        if isinstance(item, dict):
+            total += ghost_exchange_price_preview(item)
+    file_count = max(1, len(file_entries))
+    volume = sum(
+        clamp_storage_number(
+            item.get("file_size") or (item.get("metadata") or {}).get("file_size"),
+            default=estimate_runtime_file_size(item.get("file_category"), item),
+            minimum=1,
+        )
+        for item in file_entries
+        if isinstance(item, dict)
+    )
+    volume_bonus = min(80, volume)
+    batch_bonus = min(45, max(0, file_count - 1) * 8)
+    return max(5, int(round(total + volume_bonus + batch_bonus)))
+
+
+def build_ghost_exchange_batch_sale_record(username, sector, batch_id, file_entries, price, sold_at):
+    file_names = [item.get("name") or item.get("filename") for item in file_entries if isinstance(item, dict)]
+    file_ids = [item.get("id") for item in file_entries if isinstance(item, dict)]
+    resource_types = []
+    for item in file_entries:
+        if isinstance(item, dict):
+            resource_types.extend([str(value) for value in item.get("resource_types", []) if str(value).strip()])
+    resource_types = list(dict.fromkeys(resource_types))
+    volume_mb = sum(
+        clamp_storage_number(
+            item.get("file_size") or (item.get("metadata") or {}).get("file_size"),
+            default=estimate_runtime_file_size(item.get("file_category"), item),
+            minimum=1,
+        )
+        for item in file_entries
+        if isinstance(item, dict)
+    )
+    record_count = sum(runtime_file_record_count(item) for item in file_entries if isinstance(item, dict))
+    market_category = ghost_exchange_market_category(file_entries[0]) if file_entries else "unknown"
+    return normalize_runtime_file_entry({
+        "id": batch_id,
+        "batch_id": batch_id,
+        "name": f"sold_batch_{sector}_{batch_id}.pkg",
+        "file_category": "market",
+        "directory": "/market/sold",
+        "preview_mode": "table",
+        "resource_types": resource_types,
+        "status": "sold",
+        "sellable": False,
+        "market_status": "sold",
+        "created_at": sold_at,
+        "metadata": {
+            "batch_id": batch_id,
+            "seller_username": username,
+            "market_sector": sector,
+            "market_category": market_category,
+            "buyer_type": ghost_exchange_buyer_type(market_category),
+            "price": price,
+            "currency": "HC",
+            "sold_at": sold_at,
+            "file_ids": file_ids,
+            "file_names": file_names,
+            "file_count": len(file_entries),
+            "volume_mb": volume_mb,
+            "record_count": record_count,
+        },
+        "sale": {
+            "batch_id": batch_id,
+            "market_sector": sector,
+            "market_category": market_category,
+            "buyer_type": ghost_exchange_buyer_type(market_category),
+            "price": price,
+            "currency": "HC",
+            "sold_at": sold_at,
+            "file_count": len(file_entries),
+            "volume_mb": volume_mb,
+            "record_count": record_count,
+        },
+    }, "market")
+
+
+def remove_market_batch_files(files, file_ids):
+    file_ids = {str(item) for item in file_ids if str(item).strip()}
+    removed = []
+    for folder in list(GHOST_EXCHANGE_FILE_CATEGORIES):
+        kept = []
+        for item in files.get(folder, []):
+            if isinstance(item, dict) and str(item.get("id") or "") in file_ids:
+                removed.append(item)
+                continue
+            kept.append(item)
+        files[folder] = kept
+    return removed
+
+
+def refresh_market_runtime(username, profile, now=None, persist=False):
+    if not isinstance(profile, dict):
+        return {"changed": False, "queued": 0, "listed": 0, "settled": 0, "sales": []}
+
+    files = ensure_files_inventory(profile)
+    now_dt = market_runtime_now(now)
+    now_iso = market_runtime_iso(now_dt)
+    changed = False
+    queued = queue_market_eligible_files(profile)
+    if queued:
+        changed = True
+    files = ensure_files_inventory(profile)
+
+    sector_entries = {}
+    for folder in GHOST_EXCHANGE_FILE_CATEGORIES:
+        for file_entry in files.get(folder, []):
+            if not isinstance(file_entry, dict):
+                continue
+            if file_entry.get("market_status") not in {"queued_for_market", "listed"}:
+                continue
+            if not is_market_eligible_file(file_entry):
+                continue
+            sector = file_entry.get("market_sector") or market_sector_for_file(file_entry)
+            sector_entries.setdefault(sector, []).append(file_entry)
+
+    listed_count = 0
+    sales = []
+    for sector, entries in sector_entries.items():
+        pending_mb = sum(
+            clamp_storage_number(
+                item.get("file_size") or (item.get("metadata") or {}).get("file_size"),
+                default=estimate_runtime_file_size(item.get("file_category"), item),
+                minimum=1,
+            )
+            for item in entries
+        )
+        pending_records = sum(runtime_file_record_count(item) for item in entries)
+        if not market_sector_threshold_reached(sector, pending_mb, pending_records):
+            continue
+
+        batch_id = market_batch_id(username, sector, entries)
+        if market_batch_already_settled(profile, batch_id):
+            continue
+
+        listed_at = None
+        for item in entries:
+            if item.get("batch_id") == batch_id and item.get("listed_at"):
+                listed_at = item.get("listed_at")
+                break
+        if not listed_at:
+            listed_at = now_iso
+            entry_ids = {str(item.get("id") or "") for item in entries if isinstance(item, dict)}
+            files = ensure_files_inventory(profile)
+            for item in entries:
+                item["market_status"] = "listed"
+                item["listed_at"] = listed_at
+                item["batch_id"] = batch_id
+                item["market_sector"] = sector
+            for folder in GHOST_EXCHANGE_FILE_CATEGORIES:
+                for item in files.get(folder, []):
+                    if isinstance(item, dict) and str(item.get("id") or "") in entry_ids:
+                        item["market_status"] = "listed"
+                        item["listed_at"] = listed_at
+                        item["batch_id"] = batch_id
+                        item["market_sector"] = sector
+            listed_count += len(entries)
+            changed = True
+            continue
+
+        listed_ts = parse_operation_timestamp(listed_at)
+        if listed_ts is None:
+            listed_ts = now_dt.timestamp()
+        dwell_seconds = MARKET_SECTOR_DWELL_SECONDS.get(sector, 5 * 60)
+        if now_dt.timestamp() - listed_ts < dwell_seconds:
+            continue
+
+        price = market_batch_price(entries)
+        sold_at = now_iso
+        sale_record = build_ghost_exchange_batch_sale_record(username, sector, batch_id, entries, price, sold_at)
+        file_ids = [item.get("id") for item in entries]
+        removed = remove_market_batch_files(files, file_ids)
+        if not removed:
+            continue
+        files.setdefault("market", []).append(sale_record)
+        history_entry = {
+            "id": batch_id,
+            "batch_id": batch_id,
+            "market_sector": sector,
+            "market_category": sale_record["metadata"].get("market_category"),
+            "buyer_type": sale_record["metadata"].get("buyer_type"),
+            "price": price,
+            "currency": "HC",
+            "sold_at": sold_at,
+            "status": "sold",
+            "file_ids": file_ids,
+            "file_names": [item.get("name") or item.get("filename") for item in entries],
+            "file_count": len(entries),
+            "volume_mb": sale_record["metadata"].get("volume_mb"),
+            "record_count": sale_record["metadata"].get("record_count"),
+        }
+        profile.setdefault("market_history", []).append(history_entry)
+        profile["hackcoins"] = int(profile.get("hackcoins", 0) or 0) + price
+        profile.setdefault("system_messages", []).append({
+            "title": "Ghost Exchange",
+            "text": f"Sprzedano paczke danych {sector} za {price} HC.",
+            "type": "success",
+            "status": "new",
+            "created_at": sold_at,
+            "batch_id": batch_id,
+        })
+        mail_store.add_direct_notification(
+            username,
+            "Ghost Exchange",
+            "Ghost Exchange",
+            "Sprzedano paczke danych",
+            (
+                f"Sektor: {sector}\n"
+                f"Liczba plikow: {len(entries)}\n"
+                f"Wolumen: {sale_record['metadata'].get('volume_mb')} MB\n"
+                f"Cena: {price} HC\n"
+                f"Batch: {batch_id}\n"
+                f"Czas: {sold_at}"
+            ),
+        )
+        normalize_files_inventory(profile)
+        normalize_profile_storage(profile)
+        sales.append(history_entry)
+        changed = True
+
+    if persist and changed:
+        UserProfileManager(username).update_profile({
+            "files": profile.get("files", {}),
+            "market_history": profile.get("market_history", []),
+            "hackcoins": profile.get("hackcoins", 0),
+            "system_messages": profile.get("system_messages", []),
+            "storage_capacity": profile.get("storage_capacity"),
+            "storage_used": profile.get("storage_used"),
+            "storage_unit": profile.get("storage_unit", "MB"),
+            "storage_soft_limit": True,
+            "storage_over_limit": profile.get("storage_over_limit", False),
+        })
+
+    return {
+        "changed": changed,
+        "queued": queued,
+        "listed": listed_count,
+        "settled": len(sales),
+        "sales": sales,
+    }
+
+
+def build_ghost_exchange_sector_payload(profile):
+    files = ensure_files_inventory(profile)
+    sectors = {
+        sector: {
+            "sector": sector,
+            "pending_files": 0,
+            "pending_mb": 0,
+            "pending_records": 0,
+            "threshold_mb": values.get("threshold_mb", 0),
+            "threshold_records": values.get("threshold_records", 0),
+            "missing_mb": values.get("threshold_mb", 0),
+            "missing_records": values.get("threshold_records", 0),
+            "progress_percent": 0,
+            "status": "collecting",
+            "listed_at": None,
+            "batch_id": None,
+            "last_transaction": None,
+            "estimated_sale_time": market_sector_estimated_sale_time(
+                0,
+                values.get("threshold_mb", 0),
+                0,
+                values.get("threshold_records", 0),
+            ),
+        }
+        for sector, values in MARKET_SECTOR_THRESHOLDS.items()
+    }
+
+    for folder in GHOST_EXCHANGE_FILE_CATEGORIES:
+        for file_entry in files.get(folder, []):
+            if not isinstance(file_entry, dict):
+                continue
+            if file_entry.get("market_status") not in {"queued_for_market", "listed"}:
+                continue
+            if not is_market_eligible_file(file_entry):
+                continue
+            sector = file_entry.get("market_sector") or market_sector_for_file(file_entry)
+            if sector not in sectors:
+                sectors[sector] = {
+                    "sector": sector,
+                    "pending_files": 0,
+                    "pending_mb": 0,
+                    "pending_records": 0,
+                    "threshold_mb": 25,
+                    "threshold_records": 0,
+                    "missing_mb": 25,
+                    "missing_records": 0,
+                    "progress_percent": 0,
+                    "status": "collecting",
+                    "listed_at": None,
+                    "batch_id": None,
+                    "last_transaction": None,
+                    "estimated_sale_time": "~25 min",
+                }
+            volume = clamp_storage_number(
+                file_entry.get("file_size") or (file_entry.get("metadata") or {}).get("file_size"),
+                default=estimate_runtime_file_size(folder, file_entry),
+                minimum=1,
+            )
+            sectors[sector]["pending_files"] += 1
+            sectors[sector]["pending_mb"] += volume
+            sectors[sector]["pending_records"] += runtime_file_record_count(file_entry)
+            if file_entry.get("market_status") == "listed":
+                sectors[sector]["status"] = "trading"
+                sectors[sector]["listed_at"] = sectors[sector]["listed_at"] or file_entry.get("listed_at")
+                sectors[sector]["batch_id"] = sectors[sector]["batch_id"] or file_entry.get("batch_id")
+
+    for sector, payload in sectors.items():
+        threshold_mb = int(payload.get("threshold_mb") or 0)
+        threshold_records = int(payload.get("threshold_records") or 0)
+        pending_mb = int(payload.get("pending_mb") or 0)
+        pending_records = int(payload.get("pending_records") or 0)
+        payload["missing_mb"] = max(0, threshold_mb - pending_mb)
+        payload["missing_records"] = max(0, threshold_records - pending_records)
+        mb_progress = 100 if threshold_mb <= 0 else min(100, int(round((pending_mb / threshold_mb) * 100)))
+        record_progress = 100 if threshold_records <= 0 else min(100, int(round((pending_records / threshold_records) * 100)))
+        payload["progress_percent"] = min(mb_progress, record_progress)
+        payload["estimated_sale_time"] = market_sector_estimated_sale_time(
+            pending_mb,
+            threshold_mb,
+            pending_records,
+            threshold_records,
+        )
+        if payload.get("status") != "trading" and payload.get("progress_percent") >= 100:
+            payload["status"] = "ready_to_list"
+
+    for entry in reversed(profile.get("market_history", []) or []):
+        if not isinstance(entry, dict):
+            continue
+        sector = entry.get("market_sector")
+        if sector in sectors and sectors[sector].get("last_transaction") is None:
+            sectors[sector]["last_transaction"] = entry
+    return sorted(sectors.values(), key=lambda item: item["sector"])
+
+
+def ghost_exchange_transaction_timestamp(entry):
+    if not isinstance(entry, dict):
+        return None
+    value = entry.get("sold_at") or entry.get("created_at")
+    if not value and isinstance(entry.get("sale"), dict):
+        value = entry["sale"].get("sold_at")
+    if not value and isinstance(entry.get("metadata"), dict):
+        value = entry["metadata"].get("sold_at")
+    ts = parse_operation_timestamp(value)
+    if ts is None:
+        return None
+    return datetime.fromtimestamp(ts, tz=timezone.utc)
+
+
+def normalize_ghost_exchange_transaction(entry):
+    if not isinstance(entry, dict):
+        return None
+    metadata = entry.get("metadata") if isinstance(entry.get("metadata"), dict) else {}
+    sale = entry.get("sale") if isinstance(entry.get("sale"), dict) else {}
+    sector = (
+        entry.get("market_sector")
+        or metadata.get("market_sector")
+        or sale.get("market_sector")
+        or MARKET_SECTOR_BY_MARKET_CATEGORY.get(str(entry.get("market_category") or metadata.get("market_category") or sale.get("market_category") or ""))
+        or entry.get("source_file_category")
+        or "unknown"
+    )
+    price = entry.get("price") or metadata.get("price") or sale.get("price") or 0
+    volume = entry.get("volume_mb") or metadata.get("volume_mb") or sale.get("volume_mb") or 0
+    file_count = entry.get("file_count") or metadata.get("file_count") or sale.get("file_count") or 1
+    record_count = entry.get("record_count") or metadata.get("record_count") or sale.get("record_count") or 0
+    sold_at_dt = ghost_exchange_transaction_timestamp(entry)
+    sold_at = sold_at_dt.isoformat().replace("+00:00", "Z") if sold_at_dt else (
+        entry.get("sold_at") or metadata.get("sold_at") or sale.get("sold_at") or ""
+    )
+    return {
+        "id": entry.get("batch_id") or entry.get("id") or sale.get("batch_id") or sale.get("file_id"),
+        "batch_id": entry.get("batch_id") or metadata.get("batch_id") or sale.get("batch_id"),
+        "file_name": entry.get("file_name") or metadata.get("sold_file_name") or sale.get("file_name") or entry.get("name") or "market_batch",
+        "market_sector": str(sector or "unknown"),
+        "market_category": entry.get("market_category") or metadata.get("market_category") or sale.get("market_category") or "unknown",
+        "buyer_type": entry.get("buyer_type") or metadata.get("buyer_type") or sale.get("buyer_type") or "system buyer",
+        "price": int(price or 0),
+        "currency": entry.get("currency") or metadata.get("currency") or sale.get("currency") or "HC",
+        "sold_at": sold_at,
+        "status": entry.get("status") or "sold",
+        "file_count": int(file_count or 0),
+        "volume_mb": clamp_storage_number(volume, default=0, minimum=0),
+        "record_count": int(record_count or 0),
+    }
+
+
+def collect_ghost_exchange_transactions(profile):
+    transactions = []
+    seen = set()
+    for entry in profile.get("market_history", []) or []:
+        transaction = normalize_ghost_exchange_transaction(entry)
+        if not transaction:
+            continue
+        key = str(transaction.get("batch_id") or transaction.get("id") or "")
+        if key and key in seen:
+            continue
+        if key:
+            seen.add(key)
+        transactions.append(transaction)
+    files = ensure_files_inventory(profile)
+    for entry in files.get("market", []):
+        transaction = normalize_ghost_exchange_transaction(entry)
+        if not transaction:
+            continue
+        key = str(transaction.get("batch_id") or transaction.get("id") or "")
+        if key and key in seen:
+            continue
+        if key:
+            seen.add(key)
+        transactions.append(transaction)
+    transactions.sort(
+        key=lambda item: parse_operation_timestamp(item.get("sold_at")) or 0,
+        reverse=True,
+    )
+    return transactions
+
+
+def build_ghost_exchange_history_7d(transactions, now=None):
+    now_dt = market_runtime_now(now)
+    days = []
+    for offset in range(6, -1, -1):
+        day = (now_dt - timedelta(days=offset)).date()
+        days.append({
+            "date": day.isoformat(),
+            "label": "Dzisiaj" if offset == 0 else ("Wczoraj" if offset == 1 else f"{offset} dni temu"),
+            "hc": 0,
+            "files": 0,
+            "volume_mb": 0,
+            "sectors": {sector: 0 for sector in MARKET_SECTOR_THRESHOLDS.keys()},
+        })
+    by_date = {item["date"]: item for item in days}
+    for transaction in transactions:
+        sold_at = ghost_exchange_transaction_timestamp(transaction)
+        if sold_at is None:
+            continue
+        bucket = by_date.get(sold_at.date().isoformat())
+        if not bucket:
+            continue
+        sector = str(transaction.get("market_sector") or "unknown")
+        bucket["hc"] += int(transaction.get("price") or 0)
+        bucket["files"] += int(transaction.get("file_count") or 0)
+        bucket["volume_mb"] += clamp_storage_number(transaction.get("volume_mb"), default=0, minimum=0)
+        bucket.setdefault("sectors", {})
+        bucket["sectors"][sector] = int(bucket["sectors"].get(sector, 0) or 0) + int(transaction.get("price") or 0)
+    return days
+
+
+def build_ghost_exchange_dashboard_payload(profile, sectors=None, now=None):
+    sectors = sectors if isinstance(sectors, list) else build_ghost_exchange_sector_payload(profile)
+    transactions = collect_ghost_exchange_transactions(profile)
+    today = market_runtime_now(now).date()
+    history_7d = build_ghost_exchange_history_7d(transactions, now=now)
+    for sector in sectors:
+        sector_name = str(sector.get("sector") or "unknown")
+        sector_transactions = [
+            item for item in transactions
+            if str(item.get("market_sector") or "unknown") == sector_name
+        ]
+        today_transactions = [
+            item for item in sector_transactions
+            if (ghost_exchange_transaction_timestamp(item) or datetime.fromtimestamp(0, tz=timezone.utc)).date() == today
+        ]
+        sold_today_files = sum(int(item.get("file_count") or 0) for item in today_transactions)
+        hc_today = sum(int(item.get("price") or 0) for item in today_transactions)
+        hc_total = sum(int(item.get("price") or 0) for item in sector_transactions)
+        average_price = int(round(hc_total / len(sector_transactions))) if sector_transactions else 0
+        sector["listed_batches"] = 1 if sector.get("status") == "trading" and sector.get("batch_id") else 0
+        sector["trading"] = sector.get("status") == "trading"
+        sector["sold_today_files"] = sold_today_files
+        sector["hc_today"] = hc_today
+        sector["hc_total"] = hc_total
+        sector["average_price"] = average_price
+        sector["sparkline"] = [
+            day.get("sectors", {}).get(sector_name, 0)
+            for day in history_7d
+        ]
+
+    pending_files = sum(int(item.get("pending_files") or 0) for item in sectors)
+    pending_mb = sum(clamp_storage_number(item.get("pending_mb"), default=0, minimum=0) for item in sectors)
+    listed_batches = sum(int(item.get("listed_batches") or 0) for item in sectors)
+    sold_today_files = sum(int(item.get("sold_today_files") or 0) for item in sectors)
+    hc_today = sum(int(item.get("hc_today") or 0) for item in sectors)
+    hc_total = sum(int(item.get("price") or 0) for item in transactions)
+    average_price = int(round(hc_total / len(transactions))) if transactions else 0
+    return {
+        "summary": {
+            "pending_files": pending_files,
+            "pending_mb": pending_mb,
+            "listed_batches": listed_batches,
+            "sold_today_files": sold_today_files,
+            "hc_today": hc_today,
+            "hc_total": hc_total,
+            "average_price": average_price,
+            "transaction_count": len(transactions),
+        },
+        "sectors": sectors,
+        "recent_transactions": transactions[:8],
+        "history_7d": history_7d,
+    }
 
 
 def ghost_exchange_price_preview(file_entry):
@@ -2696,6 +3664,11 @@ def ghost_exchange_price_preview(file_entry):
 def ghost_exchange_listing_payload(file_entry):
     raw_market_status = file_entry.get("market_status") or "not_listed"
     market_status = "ready_to_list" if raw_market_status == "not_listed" else raw_market_status
+    market_volume_mb = clamp_storage_number(
+        file_entry.get("file_size") or (file_entry.get("metadata") or {}).get("file_size"),
+        default=estimate_runtime_file_size(file_entry.get("file_category"), file_entry),
+        minimum=1,
+    )
     return {
         "id": file_entry.get("id"),
         "name": file_entry.get("name") or file_entry.get("filename") or "data_package",
@@ -2703,8 +3676,12 @@ def ghost_exchange_listing_payload(file_entry):
         "directory": file_entry.get("directory"),
         "resource_types": file_entry.get("resource_types", []),
         "market_category": ghost_exchange_market_category(file_entry),
+        "market_sector": market_sector_for_file(file_entry),
+        "market_volume_mb": market_volume_mb,
         "price_preview": ghost_exchange_price_preview(file_entry),
         "market_status": market_status,
+        "normalized_market_status": normalize_file_market_status(file_entry),
+        "market_lifecycle_status": normalize_file_market_status(file_entry),
         "raw_market_status": raw_market_status,
         "preview_mode": file_entry.get("preview_mode") or "file",
         "created_at": file_entry.get("created_at"),
@@ -3031,8 +4008,10 @@ def finalize_vehicle_tracking_file(profile, operation):
         resource_buffer["gps_file_created"] = True
         return False
 
-    gps_file = build_vehicle_tracking_gps_file(operation)
-    files["gps"].append(gps_file)
+    storage_result = append_runtime_file_if_space(profile, operation, "gps", build_vehicle_tracking_gps_file(operation))
+    if not storage_result["stored"]:
+        return storage_result["changed"]
+    gps_file = storage_result["file"]
     resource_buffer["gps_file_created"] = True
     resource_buffer.setdefault("files", []).append({
         "name": gps_file["name"],
@@ -3149,7 +4128,10 @@ def finalize_device_tracking_file(profile, operation):
         resource_buffer["device_file_created"] = True
         return False
 
-    files[folder].append(device_file)
+    storage_result = append_runtime_file_if_space(profile, operation, folder, device_file)
+    if not storage_result["stored"]:
+        return storage_result["changed"]
+    device_file = storage_result["file"]
     resource_buffer["device_file_created"] = True
     resource_buffer.setdefault("files", []).append({
         "name": device_file["name"],
@@ -3295,12 +4277,20 @@ def ensure_camera_stream_fragments(profile, operation, now_ts):
                 )
             ):
                 fragment_file = build_camera_fragment_file(operation, index, fragment_start, fragment_end)
-                files["camera"].append(fragment_file)
-                changed = True
+                storage_result = append_runtime_file_if_space(profile, operation, "camera", fragment_file)
+                if storage_result["stored"]:
+                    changed = True
+                elif storage_result["changed"]:
+                    changed = True
             continue
         fragment_file = build_camera_fragment_file(operation, index, fragment_start, fragment_end)
         if not camera_file_exists(files, operation.get("operation_id"), index):
-            files["camera"].append(fragment_file)
+            storage_result = append_runtime_file_if_space(profile, operation, "camera", fragment_file)
+            if not storage_result["stored"]:
+                if storage_result["changed"]:
+                    changed = True
+                continue
+            fragment_file = storage_result["file"]
         fragments.append({
             "fragment_index": index,
             "file_name": fragment_file["name"],
@@ -3514,20 +4504,26 @@ def finalize_atm_log_extraction_files(profile, operation):
         resource_buffer["atm_files_created"] = False
 
     created_files = []
+    changed = False
 
     if "atm_dump" in resources and not data_file_exists(files, "atm", operation_id):
-        atm_file = build_atm_dump_file(operation)
-        files["atm"].append(atm_file)
-        created_files.append(atm_file)
+        storage_result = append_runtime_file_if_space(profile, operation, "atm", build_atm_dump_file(operation))
+        if storage_result["stored"]:
+            created_files.append(storage_result["file"])
+            changed = True
+        elif storage_result["changed"]:
+            changed = True
 
     if "financial_records" in resources and not data_file_exists(files, "financial", operation_id):
-        financial_file = build_financial_records_file(operation)
-        files["financial"].append(financial_file)
-        created_files.append(financial_file)
+        storage_result = append_runtime_file_if_space(profile, operation, "financial", build_financial_records_file(operation))
+        if storage_result["stored"]:
+            created_files.append(storage_result["file"])
+            changed = True
+        elif storage_result["changed"]:
+            changed = True
 
     if not created_files:
-        resource_buffer["atm_files_created"] = True
-        return False
+        return changed
 
     risk_state = operation.setdefault("risk_state", initial_risk_state_for_operation("atm_log_extraction"))
     risk_state.setdefault("events", [])
@@ -3784,30 +4780,42 @@ def finalize_persistent_sniffer_files(profile, operation):
         resource_buffer["sniffer_files_created"] = False
 
     created_files = []
+    changed = False
 
     if "financial_records" in resources and not data_file_exists(files, "financial", operation_id):
-        entry = build_sniffer_financial_file(operation)
-        files["financial"].append(entry)
-        created_files.append(entry)
+        storage_result = append_runtime_file_if_space(profile, operation, "financial", build_sniffer_financial_file(operation))
+        if storage_result["stored"]:
+            created_files.append(storage_result["file"])
+            changed = True
+        elif storage_result["changed"]:
+            changed = True
 
     if "credentials" in resources and not data_file_exists(files, "credentials", operation_id):
-        entry = build_sniffer_credentials_file(operation)
-        files["credentials"].append(entry)
-        created_files.append(entry)
+        storage_result = append_runtime_file_if_space(profile, operation, "credentials", build_sniffer_credentials_file(operation))
+        if storage_result["stored"]:
+            created_files.append(storage_result["file"])
+            changed = True
+        elif storage_result["changed"]:
+            changed = True
 
     if "device_logs" in resources and not data_file_exists(files, "device", operation_id):
-        entry = build_sniffer_device_file(operation)
-        files["device"].append(entry)
-        created_files.append(entry)
+        storage_result = append_runtime_file_if_space(profile, operation, "device", build_sniffer_device_file(operation))
+        if storage_result["stored"]:
+            created_files.append(storage_result["file"])
+            changed = True
+        elif storage_result["changed"]:
+            changed = True
 
     if "internal_recon_state" in resources and not data_file_exists(files, "system", operation_id):
-        entry = build_sniffer_system_state_file(operation)
-        files["system"].append(entry)
-        created_files.append(entry)
+        storage_result = append_runtime_file_if_space(profile, operation, "system", build_sniffer_system_state_file(operation))
+        if storage_result["stored"]:
+            created_files.append(storage_result["file"])
+            changed = True
+        elif storage_result["changed"]:
+            changed = True
 
     if not created_files:
-        resource_buffer["sniffer_files_created"] = True
-        return False
+        return changed
 
     risk_state = operation.setdefault("risk_state", initial_risk_state_for_operation("persistent_sniffer"))
     risk_state.setdefault("events", [])
@@ -4127,8 +5135,15 @@ def finalize_camera_stream_file(profile, operation):
         started_ts = datetime.now(timezone.utc).timestamp()
     if ended_ts is None or ended_ts <= started_ts:
         ended_ts = started_ts + min(60, int(operation.get("duration_seconds") or 60))
-    fragment_file = build_camera_fragment_file(operation, 1, started_ts, ended_ts)
-    files["camera"].append(fragment_file)
+    storage_result = append_runtime_file_if_space(
+        profile,
+        operation,
+        "camera",
+        build_camera_fragment_file(operation, 1, started_ts, ended_ts),
+    )
+    if not storage_result["stored"]:
+        return storage_result["changed"]
+    fragment_file = storage_result["file"]
     fragments.append({
         "fragment_index": 1,
         "file_name": fragment_file["name"],
@@ -4159,8 +5174,10 @@ def finalize_wifi_scanner_files(profile, operation):
     if data_file_exists(files, "network", operation_id):
         resource_buffer["network_files_created"] = True
         return False
-    network_file = build_wifi_scanner_file(operation)
-    files["network"].append(network_file)
+    storage_result = append_runtime_file_if_space(profile, operation, "network", build_wifi_scanner_file(operation))
+    if not storage_result["stored"]:
+        return storage_result["changed"]
+    network_file = storage_result["file"]
     resource_buffer["network_files_created"] = True
     append_operation_file_reference(operation, network_file)
     return True
@@ -4182,8 +5199,10 @@ def finalize_audio_interference_files(profile, operation):
     if data_file_exists(files, "audio", operation_id):
         resource_buffer["audio_files_created"] = True
         return False
-    audio_file = build_audio_interference_file(operation)
-    files["audio"].append(audio_file)
+    storage_result = append_runtime_file_if_space(profile, operation, "audio", build_audio_interference_file(operation))
+    if not storage_result["stored"]:
+        return storage_result["changed"]
+    audio_file = storage_result["file"]
     resource_buffer["audio_files_created"] = True
     append_operation_file_reference(operation, audio_file)
     return True
@@ -4205,8 +5224,10 @@ def finalize_vehicle_ecu_files(profile, operation):
     if data_file_exists(files, "vehicle", operation_id):
         resource_buffer["vehicle_files_created"] = True
         return False
-    vehicle_file = build_vehicle_ecu_file(operation)
-    files["vehicle"].append(vehicle_file)
+    storage_result = append_runtime_file_if_space(profile, operation, "vehicle", build_vehicle_ecu_file(operation))
+    if not storage_result["stored"]:
+        return storage_result["changed"]
+    vehicle_file = storage_result["file"]
     resource_buffer["vehicle_files_created"] = True
     append_operation_file_reference(operation, vehicle_file)
     return True
@@ -4236,16 +5257,21 @@ def finalize_generic_trace_file(profile, operation):
         resource_buffer["trace_files_created"] = False
 
     if "location_history" in resources and not data_file_exists(files, "gps", operation_id):
-        trace_file = build_generic_trace_location_file(operation)
-        files["gps"].append(trace_file)
-        append_operation_file_reference(operation, trace_file)
-        changed = True
+        storage_result = append_runtime_file_if_space(profile, operation, "gps", build_generic_trace_location_file(operation))
+        if storage_result["stored"]:
+            append_operation_file_reference(operation, storage_result["file"])
+            changed = True
+        elif storage_result["changed"]:
+            changed = True
     if "internal_recon_state" in resources and not data_file_exists(files, "system", operation_id):
-        system_file = build_sniffer_system_state_file(operation)
-        files["system"].append(system_file)
-        append_operation_file_reference(operation, system_file)
-        changed = True
-    resource_buffer["trace_files_created"] = True
+        storage_result = append_runtime_file_if_space(profile, operation, "system", build_sniffer_system_state_file(operation))
+        if storage_result["stored"]:
+            append_operation_file_reference(operation, storage_result["file"])
+            changed = True
+        elif storage_result["changed"]:
+            changed = True
+    if any(data_file_exists(files, folder, operation_id) for folder in expected_folders):
+        resource_buffer["trace_files_created"] = True
     return changed
 
 
@@ -4921,8 +5947,12 @@ def creator_system_apps_catalog():
 def get_app_catalog():
     apps = resources_store.get("app_config", default=[]) or []
     return normalize_app_contracts(
-        list(apps) + pro_system_tools_catalog() + creator_system_apps_catalog()
+        list(apps) + pro_system_tools_catalog() + creator_system_apps_catalog() + storage_upgrade_products_catalog()
     )
+
+
+def storage_upgrade_products_catalog():
+    return [dict(product) for product in STORAGE_UPGRADE_PRODUCTS]
 
 
 def app_is_installed(profile, app_id):
@@ -4930,6 +5960,16 @@ def app_is_installed(profile, app_id):
     if not app_id:
         return False
     return any(str(app.get("id") or "").strip() == app_id for app in profile.get("apps", []) or [])
+
+
+def storage_product_is_purchased(profile, product_id):
+    product_id = str(product_id or "").strip()
+    if not product_id:
+        return False
+    upgrades = profile.get("storage_upgrades", []) if isinstance(profile, dict) else []
+    if not isinstance(upgrades, list):
+        return False
+    return any(str(item.get("id") or "").strip() == product_id for item in upgrades if isinstance(item, dict))
 
 
 def public_pro_system_tools(profile=None):
@@ -5200,7 +6240,10 @@ def googleplex_catalog_payload(app, profile):
         if str(target_type).strip()
     ]
     item["app_level"] = infer_googleplex_app_level(item)
-    item["installed"] = app_is_installed(profile, item.get("id"))
+    if item.get("product_type") == "storage_upgrade":
+        item["installed"] = storage_product_is_purchased(profile or {}, item.get("id"))
+    else:
+        item["installed"] = app_is_installed(profile, item.get("id"))
 
     try:
         price = max(0, int(item.get("price") or 0))
@@ -8288,12 +9331,37 @@ def api_ghost_exchange():
     if "user" not in session:
         return jsonify({"success": False, "message": "Brak danych uzytkownika"}), 401
 
-    profile = user_store.get_profile(session["user"]) or sync_session_profile()
-    profile = refresh_and_persist_operations(session["user"], profile)
+    username = session["user"]
+    profile = user_store.get_profile(username) or sync_session_profile()
+    profile = refresh_and_persist_operations(username, profile)
+    market_runtime = refresh_market_runtime(username, profile)
+    if market_runtime.get("changed"):
+        UserProfileManager(username).update_profile({
+            "files": profile.get("files", {}),
+            "market_history": profile.get("market_history", []),
+            "hackcoins": profile.get("hackcoins", 0),
+            "system_messages": profile.get("system_messages", []),
+            "storage_capacity": profile.get("storage_capacity"),
+            "storage_used": profile.get("storage_used"),
+            "storage_unit": profile.get("storage_unit", "MB"),
+            "storage_soft_limit": True,
+            "storage_over_limit": profile.get("storage_over_limit", False),
+        })
+        session["profile"] = profile
+    sectors = build_ghost_exchange_sector_payload(profile)
+    dashboard = build_ghost_exchange_dashboard_payload(profile, sectors=sectors)
     return jsonify({
         "success": True,
         "currency": "HC",
+        "balance": profile.get("hackcoins", 0),
+        "hackcoins": profile.get("hackcoins", 0),
         "files": collect_ghost_exchange_files(profile),
+        "summary": dashboard["summary"],
+        "sectors": dashboard["sectors"],
+        "recent_transactions": dashboard["recent_transactions"],
+        "history_7d": dashboard["history_7d"],
+        "market_runtime": market_runtime,
+        "market_queue_changed": market_runtime.get("queued", 0),
         "statuses": ["not_listed", "ready_to_list", "listed_preview"],
     })
 
@@ -10267,7 +11335,14 @@ def install_app():
         profile = sync_session_profile()
         mgr = UserProfileManager(session["user"])
         apps = profile.get("apps", [])
-        if any(a.get("id") == app_id for a in apps):
+        is_storage_product = app_data.get("product_type") == "storage_upgrade"
+        if is_storage_product and storage_product_is_purchased(profile, app_id):
+            return jsonify({
+                "status": "error",
+                "reason": "already_purchased",
+                "message": "Produkt storage jest juz kupiony."
+            }), 409
+        if not is_storage_product and any(a.get("id") == app_id for a in apps):
             return jsonify({
                 "status": "error",
                 "reason": "already_installed",
@@ -10322,6 +11397,70 @@ def install_app():
                 )
             elif payee_username == buyer_username:
                 profile["hackcoins"] = int(profile.get("hackcoins", 0) or 0) + price
+
+        if is_storage_product:
+            bonus = clamp_storage_number(app_data.get("storage_capacity_bonus"), default=0, minimum=1)
+            normalize_profile_storage(profile)
+            profile["storage_capacity"] = clamp_storage_number(
+                profile.get("storage_capacity"),
+                default=DEFAULT_STORAGE_CAPACITY_MB,
+                minimum=64,
+            ) + bonus
+            upgrades = profile.setdefault("storage_upgrades", [])
+            if not isinstance(upgrades, list):
+                upgrades = []
+                profile["storage_upgrades"] = upgrades
+            upgrades.append({
+                "id": app_id,
+                "name": app_data.get("name"),
+                "storage_capacity_bonus": bonus,
+                "price": price,
+                "purchased_at": runtime_file_now(),
+            })
+            normalize_profile_storage(profile)
+            system_messages = profile.get("system_messages", [])
+            if not isinstance(system_messages, list):
+                system_messages = []
+            system_messages.append({
+                "title": "Pojemnosc zwiekszona",
+                "text": f"Produkt <b>{app_data['name']}</b> zwiekszyl pojemnosc dysku o {bonus} MB.",
+                "type": "success",
+                "status": "new",
+            })
+            profile["system_messages"] = system_messages
+            mgr.update_profile({
+                "hackcoins": profile.get("hackcoins", 0),
+                "storage_capacity": profile.get("storage_capacity"),
+                "storage_used": profile.get("storage_used"),
+                "storage_unit": profile.get("storage_unit", "MB"),
+                "storage_soft_limit": True,
+                "storage_over_limit": profile.get("storage_over_limit", False),
+                "storage_upgrades": upgrades,
+                "system_messages": system_messages,
+            })
+            session["profile"] = sync_session_profile(rebuild_territory=False)
+            return jsonify({
+                "status": "success",
+                "message": "Pojemnosc dysku zostala zwiekszona.",
+                "hackcoins": profile.get("hackcoins", 0),
+                "price": price,
+                "paid_to": payee_username if price > 0 else None,
+                "storage": {
+                    "capacity": profile.get("storage_capacity"),
+                    "used": profile.get("storage_used"),
+                    "unit": profile.get("storage_unit", "MB"),
+                    "added": bonus,
+                    "soft_limit": True,
+                    "over_limit": profile.get("storage_over_limit", False),
+                },
+                "storage_upgrade": {
+                    "id": app_id,
+                    "name": app_data.get("name"),
+                    "storage_capacity_bonus": bonus,
+                },
+                "apps": profile.get("apps", apps),
+                "files": profile.get("files", {}),
+            })
 
         # --- Dodaj do apps ---
         if not any(a.get("id") == app_id for a in apps):

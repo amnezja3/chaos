@@ -58,6 +58,25 @@ Ta tabela jest kontraktową warstwą Sprintu 0. Nie zastępuje prostej tabeli po
 * GhostLab `pro-system-tool` domyślnie działa w trybie desktop na `player`
   przez Player Hack Access i nie dodaje nowych `map_actions` ani
   `operation_types` bez osobnego runtime.
+* Sprint 35 nie zmienia map action matrix. Dodaje wyłącznie read model rynku:
+  `market_sector`, znormalizowany status rynku i storage gate helpery dla plików
+  produkowanych przez istniejące operacje.
+* Operacje nadal produkują te same `resource_types`; Ghost Exchange dostaje tylko
+  dodatkowy opis tego, do którego sektora rynku trafi plik.
+
+* Sprint 37 nie zmienia map actions, operation types ani resource types. Dodaje
+  tylko settlement paczek dla plikow, ktore juz powstaly z istniejacych
+  finalizerow.
+* Sprint 38 zmienia UI Ghost Exchange z listy plikow na dashboard sektorowy.
+  File Manager nadal pokazuje loot, a Ghost Exchange renderuje read model z
+  `profile.files`, `files.market` i `profile.market_history`.
+* Sprint 39 nie zmienia map actions, operation types ani resource types. Dodaje
+  storage gate do finalizerow danych: operacja moze sie zakonczyc, ale plik
+  powstaje tylko wtedy, gdy profil ma wolne miejsce.
+* Plik zablokowany przez storage nie trafia do `profile.files`, nie zajmuje
+  miejsca, nie trafia do market queue i nie moze zostac sprzedany.
+* Storage Upgrade jest produktem Googleplexa, nie aplikacja, nie tool i nie
+  osobny sklep.
 
 ## TODO_DECISION
 

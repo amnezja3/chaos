@@ -9,6 +9,7 @@ if ROOT_DIR not in sys.path:
 
 from profileManagment import UserProfileManager
 from run import app, collect_ghost_exchange_files, ensure_files_inventory, mail_store, runtime_file_now, user_store
+from run import market_sector_for_file
 
 
 ADMIN_USERNAME = "admin"
@@ -172,6 +173,9 @@ def inventory_summary(profile):
                 "name": item.get("name"),
                 "resource_types": item.get("resource_types", []),
                 "market_status": item.get("market_status"),
+                "market_sector": market_sector_for_file(item),
+                "file_size": item.get("file_size"),
+                "sellable": item.get("sellable"),
             }
             for item in files.get(folder, [])
             if isinstance(item, dict)
@@ -303,6 +307,18 @@ def main():
         for app_id in APP_IDS:
             print(app_id, "installed:", any(app_id == (app.get("id") if isinstance(app, dict) else None) for app in profile.get("apps", [])))
         print("tools_count:", len(tools))
+        print(
+            "storage:",
+            profile.get("storage_used"),
+            "/",
+            profile.get("storage_capacity"),
+            profile.get("storage_unit", "MB"),
+        )
+        storage_products = [
+            item for item in client.get("/resources.json").get_json() or []
+            if isinstance(item, dict) and item.get("product_type") == "storage_upgrade"
+        ]
+        print("storage_products:", len(storage_products), [item.get("id") for item in storage_products[:5]])
 
         print_section("Map actions")
         risk_before = len((user_store.get_profile(ADMIN_USERNAME).get("risk_events") or []))
@@ -375,7 +391,15 @@ def main():
         for folder, entries in summary.items():
             print(folder, len(entries))
             for entry in entries[-3:]:
-                print(" ", entry["name"], entry["resource_types"], entry["market_status"])
+                print(
+                    " ",
+                    entry["name"],
+                    entry["resource_types"],
+                    "status:", entry["market_status"],
+                    "sector:", entry.get("market_sector"),
+                    "size:", entry.get("file_size"),
+                    "sellable:", entry.get("sellable"),
+                )
 
         direct_exchange_files = collect_ghost_exchange_files(user_store.get_profile(ADMIN_USERNAME))
         print("direct_ghost_exchange_files:", len(direct_exchange_files))
@@ -389,10 +413,60 @@ def main():
         exchange_response = client.get("/api/ghost-exchange")
         exchange_data = response_json(exchange_response)
         files = exchange_data.get("files", [])
+        sectors = exchange_data.get("sectors", [])
+        market_runtime = exchange_data.get("market_runtime") or {}
         print_section("Ghost Exchange")
         print("api_ghost_exchange:", exchange_response.status_code, exchange_data.get("success"), "files:", len(files))
+        profile_after_exchange = user_store.get_profile(ADMIN_USERNAME)
+        print(
+            "storage_after_exchange:",
+            profile_after_exchange.get("storage_used"),
+            "/",
+            profile_after_exchange.get("storage_capacity"),
+            profile_after_exchange.get("storage_unit", "MB"),
+        )
+        print(
+            "market_runtime:",
+            "queued:", market_runtime.get("queued"),
+            "listed:", market_runtime.get("listed"),
+            "settled:", market_runtime.get("settled"),
+            "sales:", len(market_runtime.get("sales") or []),
+        )
         for item in files[:12]:
-            print(" ", item.get("name"), item.get("file_category"), item.get("market_category"), item.get("price_preview"), item.get("market_status"))
+            print(
+                " ",
+                item.get("name"),
+                item.get("file_category"),
+                item.get("market_category"),
+                "sector:", item.get("market_sector"),
+                "volume_mb:", item.get("market_volume_mb"),
+                "price:", item.get("price_preview"),
+                "status:", item.get("market_status"),
+                "normalized:", item.get("normalized_market_status"),
+            )
+        pending_sectors = [item for item in sectors if item.get("pending_files")]
+        print("pending_sectors:", len(pending_sectors))
+        for sector in pending_sectors[:12]:
+            print(
+                " ",
+                sector.get("sector"),
+                "files:", sector.get("pending_files"),
+                "mb:", sector.get("pending_mb"),
+                "missing_mb:", sector.get("missing_mb"),
+                "missing_records:", sector.get("missing_records"),
+                "progress:", sector.get("progress_percent"),
+                "status:", sector.get("status"),
+                "listed_at:", sector.get("listed_at"),
+                "batch:", sector.get("batch_id"),
+                "eta:", sector.get("estimated_sale_time"),
+            )
+        queued_profile = user_store.get_profile(ADMIN_USERNAME)
+        queued_files = collect_ghost_exchange_files(queued_profile)
+        queued_count = len([
+            item for item in queued_files
+            if item.get("market_status") == "queued_for_market"
+        ])
+        print("queued_for_market_files:", queued_count)
 
         if files:
             preview_response = client.post("/api/ghost-exchange/preview", json={"file_id": files[0].get("id")})

@@ -713,6 +713,142 @@ Sprawdzone względem:
 
 ---
 
+## Sprint 35 — Ghost Exchange market foundation
+
+Sprint 35 nie uruchamia jeszcze automatycznej sprzedaży, batchy ani dashboardu.
+Domyka fundament ekonomii danych dla Fazy D.
+
+Zasady:
+
+* `sellable` pozostaje eligibility do Ghost Exchange.
+* `price_preview` pozostaje bazą przyszłej wyceny.
+* `market_sector` jest warstwą read modelu nad `file_category` i
+  `resource_types`.
+* `market_volume_mb` jest wolumenem danych liczonym z `file_size`.
+* `market_status` jest normalizowany do nowego modelu, ale stare preview/sell
+  flow pozostaje kompatybilne jako legacy/dev.
+
+Minimalne sektory Fazy D:
+
+| file_category | market_sector |
+| --- | --- |
+| `camera` | `camera` |
+| `atm` | `atm` |
+| `gps` | `gps` |
+| `device` | `device` |
+| `personal` | `personal` |
+| `credentials` | `credentials` |
+| `financial` | `financial` |
+| `network` | `network` |
+| `audio` | `audio` |
+| `vehicle` | `vehicle` |
+
+Sprint 35 wprowadza wyłącznie read model i helpery. Auto sale, `listed_at`,
+batch settlement i dashboard należą do kolejnych sprintów Fazy D.
+
+---
+
+## Sprint 36 — Market Queue read model
+
+Sprint 36 uruchamia pierwszy stan automatycznego rynku: sprzedawalny plik staje
+się elementem kolejki przez `market_status: queued_for_market`.
+
+Nie ma jeszcze:
+
+* batch settlement,
+* automatycznego transferu HC,
+* zmian w `market_history`,
+* usuwania plików z `/data`,
+* dashboardu v1.
+
+Ghost Exchange dostaje sektorowy read model:
+
+| field | meaning |
+| --- | --- |
+| `sector` | Sektor rynku danych. |
+| `pending_files` | Liczba plików w kolejce sektora. |
+| `pending_mb` | Łączny wolumen plików w kolejce. |
+| `threshold_mb` | Docelowy próg wolumenu dla przyszłej paczki. |
+| `missing_mb` | Ile MB brakuje do progu. |
+| `missing_records` | Ile rekordów brakuje do progu, jeśli sektor tego wymaga. |
+| `progress_percent` | Prosty read model postępu do przyszłej paczki. |
+| `estimated_sale_time` | Placeholder informacyjny; nie jest jeszcze licznikiem settlementu. |
+
+Decision:
+
+* Przyjęto: queue jest stanem pliku w `profile.files`, nie osobnym systemem.
+* Przyjęto: `queued_at` nie resetuje się przy kolejnym refreshu.
+* Przyjęto: storage nadal liczy pliki w kolejce.
+
+---
+
+## Sprint 37 — Auto-sale settlement
+
+Sprint 37 uruchamia kontrolowany settlement rynku danych bez realtime loopa.
+Rynek nie sprzedaje pojedynczych plikow z klikniecia jako glownej sciezki.
+Pliki w kolejce sa agregowane w paczki sektorowe.
+
+Zasady wyceny:
+
+* cena paczki bazuje na istniejacym `price_preview`,
+* do wyceny wchodza jakosc, kompletnosc, rozmiar i liczba plikow/rekordow,
+* paczka ma stabilny `batch_id`,
+* settlement sprawdza `profile.market_history` i `files.market`, zanim naliczy
+  HC.
+
+Zasady czasu:
+
+* prog sektora musi byc osiagniety przed listingiem,
+* po osiagnieciu progu paczka dostaje `listed_at`,
+* sprzedaz nastepuje dopiero po minimalnym czasie przebywania paczki na rynku,
+* `estimated_sale_time` pozostaje read-modelem dla Ghost Exchange.
+
+Efekty settlementu:
+
+* HC gracza rosna o wartosc paczki,
+* powstaje wpis w `profile.market_history`,
+* powstaje rekord sprzedazy w `files.market`,
+* gracz dostaje mail/system message od Ghost Exchange,
+* pliki danych sa usuwane z katalogow `/data/*`,
+* `storage_used` jest przeliczane.
+
+Decision:
+
+* Przyjeto: auto-sale jest kontrolowanym refreshem wywolywanym przez istniejace
+  sciezki, nie schedulerem i nie workerem.
+* Przyjeto: manual sell zostaje kompatybilnoscia legacy/dev, ale nie jest
+  glownym modelem ekonomii Fazy D.
+
+---
+
+## Sprint 39 - storage economy i market balance
+
+Sprint 39 domyka zaleznosc pomiedzy operacjami, storage, Ghost Exchange i
+Googleplexem.
+
+Zasady ekonomiczne:
+
+* pliki danych zajmuja miejsce do momentu sprzedazy paczki,
+* pelny dysk blokuje zapis nowych danych, ale nie cofa samej operacji,
+* dane niezapisane nie trafiaja do Ghost Exchange i nie moga zarobic HC,
+* auto-sale zwalnia storage dopiero po sprzedazy paczki,
+* maly dysk ogranicza tempo zbierania paczek,
+* wiekszy dysk pozwala dluzej akumulowac dane i stabilniej domykac progi rynku.
+
+Storage Upgrade jest produktem Googleplexa:
+
+* zakup kosztuje HC,
+* zwieksza `storage_capacity`,
+* nie tworzy aplikacji i nie trafia do `/tools`,
+* korzysta z tego samego flow zakupu co Googleplex.
+
+Decision:
+
+* Faza D nie tworzy osobnej ekonomii storage. Storage jest czescia tej samej
+  petli HC -> Googleplex -> operacje -> dane -> Ghost Exchange -> HC.
+
+---
+
 ## TODO_DECISION
 
 * Rekomendacja: przed implementacją ekonomii ustalić docelowe zakresy `base_value` i mnożników, bo to wpływa na balans HC i tempo progresu.

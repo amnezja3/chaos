@@ -3099,3 +3099,440 @@ statusbara, a oznaczony cel aktywował rozszerzony tryb hackowania.
 ### Status
 
 Sprint 34 można uznać za zamknięty jako UX polish belki CEL.
+
+---
+
+## 03.07.2026
+
+### Sprint
+
+Faza D - Finalny plan Sprintów 35-39.
+
+### Cel
+
+Zamknąć plan implementacji Ghost Exchange jako automatycznego rynku danych oraz
+Storage Economy bez tworzenia drugiego rynku, drugiego systemu plików, drugiego
+storage ani drugiej ekonomii.
+
+### Co zostało wykonane
+
+* Uporządkowano Sprinty 35-39 w `doc/game_play_260626.md` do formatu
+  implementacyjnego.
+* Doprecyzowano, że Ghost Exchange rozwija istniejące `profile.files`,
+  `sellable`, `market_status`, `files.market`, `profile.market_history`,
+  `storage_capacity`, `storage_used`, `file_size` i `price_preview`.
+* Rozpisano Storage Economy od początku Fazy D: dane zajmują miejsce, pełny dysk
+  blokuje zapis danych, a auto sale zwalnia storage.
+* Doprecyzowano, że Storage Upgrade jest produktem Googleplexa, nie aplikacją i
+  nie osobnym sklepem.
+* Doprecyzowano, że auto sale następuje po osiągnięciu progu sektora oraz po
+  minimalnym czasie przebywania paczki na rynku.
+* Dodano `estimated_sale_time` jako metrykę read modelu Ghost Exchange.
+* Dodano finalną architekturę Fazy D z pełnym przepływem:
+  operacja -> finalizer -> storage -> market queue -> sector batch -> auto
+  settlement -> HC -> Googleplex.
+
+### Najważniejsze decyzje
+
+* File Manager pozostaje miejscem przeglądania lootów.
+* Ghost Exchange jest dashboardem rynku danych i read modelem istniejącego
+  profilu.
+* Googleplex pozostaje jedynym miejscem wydawania HC.
+* Auto sale ma być kontrolowanym refreshem, nie realtime loopem.
+* Stan `listed` / `trading` ma budować poczucie żywego rynku zamiast
+  natychmiastowej sprzedaży po przekroczeniu progu.
+* Manual sell może zostać tylko jako legacy/dev/debug.
+
+### Problemy
+
+* Brak implementacji w tym wpisie. To świadomie tylko finalny plan wykonawczy
+  przed rozpoczęciem Sprintu 35.
+
+### Zmienione pliki
+
+* `doc/game_play_260626.md`
+* `doc/project_journal.md`
+
+### Wynik testów
+
+* `git diff --check -- doc/game_play_260626.md` - OK.
+
+### Status
+
+Plan Sprintów 35-39 można uznać za zamknięty i gotowy do implementacji sprint po
+sprincie.
+
+---
+
+## 03.07.2026
+
+### Sprint
+
+Sprint 35 - Ghost Exchange Market Model + Storage Gate Foundation.
+
+### Cel
+
+Wdrożyć fundament modelu rynku danych i storage gate bez dashboardu, bez
+auto-sale, bez batchy, bez nowych endpointów i bez przebudowy UI.
+
+### Co zostało wykonane
+
+* Dodano helper `market_sector_for_file(file_entry)` mapujący istniejące
+  `file_category` i `resource_types` na sektor rynku.
+* Dodano helper `normalize_file_market_status(file_entry)` dla statusów:
+  `not_listed`, `ready_to_list`, `listed_preview`, `listed`, `sold`,
+  `archived`.
+* Dodano helper `is_market_eligible_file(file_entry)` oparty o istniejące
+  znaczenie `sellable`.
+* Dodano helper `can_store_runtime_file(profile, file_entry)` sprawdzający
+  `storage_capacity`, `storage_used` i `file_size`.
+* Dodano helper `build_storage_full_result(profile, operation, file_entry)`
+  zwracający kontrolowany wynik `storage_full` / `dropped_no_space`.
+* Rozszerzono payload Ghost Exchange o read-model pola:
+  `market_sector`, `market_volume_mb`, `normalized_market_status` i
+  `market_lifecycle_status`.
+* Zachowano kompatybilność istniejącego `market_status` w payloadzie, żeby nie
+  zepsuć legacy preview/sell UI.
+* Zaktualizowano smoke admin inventory tylko o wypisywanie pól Sprintu 35.
+
+### Najważniejsze decyzje
+
+* Sprint 35 nie uruchamia queue, batchy ani auto-sale.
+* Sprint 35 nie zmienia `POST /api/ghost-exchange/sell` ani preview.
+* Storage gate jest helperem przygotowawczym; finalizery nie zostały jeszcze
+  przełączone na twarde enforcement.
+* `profile.files` pozostaje jedynym źródłem danych.
+
+### Problemy
+
+* Smoke `tools/smoke_admin_inventory.py` nie uruchomił się w lokalnej sesji
+  PowerShell z błędem uruchomienia procesu `python.exe`: `Określona sesja
+  logowania nie istnieje`. Ten sam interpreter działa dla `py_compile` i testów
+  unittest, więc problem dotyczy uruchomienia skryptu smoke w tej sesji.
+
+### Zmienione pliki
+
+* `run.py`
+* `tests/test_target_persistence.py`
+* `tools/smoke_admin_inventory.py`
+* `doc/file_model.md`
+* `doc/data_economy.md`
+* `doc/gameplay_matrix.md`
+* `doc/project_journal.md`
+
+### Wynik testów
+
+* `python -m py_compile run.py database.py profileManagment.py tools/smoke_admin_inventory.py` - OK.
+* `python -m unittest tests.test_target_persistence` - 88 testów OK.
+* `git diff --check` - OK.
+* `python tools/smoke_admin_inventory.py --real-ui-check` - nie wystartował z
+  powodu błędu środowiska procesu `python.exe`.
+* `python tools/smoke_admin_inventory.py --no-seed --no-sale` - nie wystartował
+  z tego samego powodu.
+
+### Status
+
+Implementacja Sprintu 35 jest gotowa kodowo i przeszła testy regresyjne.
+Gameplay smoke wymaga ponownego uruchomienia w działającej sesji procesu przed
+formalnym zamknięciem sprintu.
+
+---
+
+## 03.07.2026
+
+### Sprint
+
+Sprint 36 - Market Queue + File Lifecycle.
+
+### Cel
+
+Wprowadzić automatyczne kolejkowanie sprzedawalnych plików jako stan istniejących
+plików w `profile.files`, bez tworzenia osobnej kolejki, batchy, auto-sale,
+dashboardu ani storage upgrade.
+
+### Co zostało wykonane
+
+* Dodano helper `queue_market_eligible_files(profile)`.
+* Helper przechodzi po istniejących `profile.files`, korzysta z helperów
+  Sprintu 35 i działa idempotentnie.
+* Pliki market eligible dostają:
+  * `market_status: queued_for_market`,
+  * `queued_at`,
+  * `market_sector`.
+* `queued_at` jest ustawiane tylko raz i nie resetuje się przy kolejnym
+  refreshu.
+* `GET /api/ghost-exchange` wywołuje kolejkowanie i zapisuje zmienione pliki do
+  profilu tylko wtedy, gdy faktycznie coś się zmieniło.
+* Dodano sektorowy read model Ghost Exchange:
+  * `sector`,
+  * `pending_files`,
+  * `pending_mb`,
+  * `threshold_mb`,
+  * `missing_mb`,
+  * `missing_records`,
+  * `progress_percent`,
+  * `estimated_sale_time`.
+* Rozszerzono smoke admin inventory o wypisywanie sektorów pending i liczby
+  plików `queued_for_market`.
+
+### Najważniejsze decyzje
+
+* Kolejka rynku jest stanem pliku w `profile.files`, nie osobnym magazynem.
+* `collect_ghost_exchange_files()` pozostaje read-only, żeby nie zmieniać
+  zachowania legacy preview/sell.
+* Sprint 36 nie dotyka `profile.market_history`, nie dodaje HC i nie usuwa
+  plików z `/data`.
+* `estimated_sale_time` jest tylko placeholderem read modelu, nie licznikiem
+  settlementu.
+
+### Problemy
+
+* Smoke `tools/smoke_admin_inventory.py` nadal nie startuje w lokalnej sesji
+  PowerShell z błędem procesu `python.exe`: `Określona sesja logowania nie
+  istnieje`. Testy `py_compile` i `unittest` działają poprawnie.
+
+### Zmienione pliki
+
+* `run.py`
+* `tests/test_target_persistence.py`
+* `tools/smoke_admin_inventory.py`
+* `doc/file_model.md`
+* `doc/data_economy.md`
+* `doc/project_journal.md`
+
+### Wynik testów
+
+* `python -m py_compile run.py database.py profileManagment.py tools/smoke_admin_inventory.py` - OK.
+* `python -m unittest tests.test_target_persistence` - 91 testów OK.
+* `python tools/smoke_admin_inventory.py --no-seed --no-sale` - nie wystartował
+  z powodu błędu środowiska procesu `python.exe`.
+
+### Status
+
+Implementacja Sprintu 36 jest gotowa kodowo i przeszła testy regresyjne.
+Formalne zamknięcie wymaga ponownego uruchomienia smoke w działającej sesji.
+---
+
+## 03.07.2026
+
+### Sprint
+
+Sprint 37 - Auto Sale Settlement Engine.
+
+### Cel
+
+Uruchomic kontrolowany settlement Ghost Exchange: pliki z kolejki rynku tworza
+paczki sektorowe, paczka po osiagnieciu progu przechodzi w `listed`, a po
+minimalnym czasie na rynku sprzedaje sie automatycznie bez recznego klikania
+`Sprzedaj`.
+
+### Co zostalo wykonane
+
+* Dodano `MARKET_SECTOR_DWELL_SECONDS` z minimalnym czasem przebywania paczki na
+  rynku per sektor.
+* Dodano helper `refresh_market_runtime(username, profile, now=None,
+  persist=False)`.
+* Dodano stabilne `batch_id` dla paczki sektorowej oparte o gracza, sektor i
+  identyfikatory plikow.
+* Po osiagnieciu progu sektora pliki dostaja `market_status: listed`,
+  `listed_at` i `batch_id`.
+* Auto-sale uruchamia sie dopiero po uplywie minimalnego czasu na rynku.
+* Settlement sprawdza idempotencje przez `profile.market_history` i
+  `files.market`, nalicza HC raz, dodaje rekord rynku, usuwa sprzedane pliki z
+  katalogow `/data/*`, przelicza storage oraz dodaje system message i mail.
+* `GET /api/ghost-exchange` wywoluje settlement jako kontrolowany refresh
+  istniejacego endpointu.
+* Smoke admin inventory wypisuje `market_runtime`, status sektorow, `listed_at`
+  i `batch_id`.
+
+### Najwazniejsze decyzje
+
+* Nie powstal realtime loop, scheduler, worker ani nowy endpoint.
+* Kolejka i listing pozostaja stanem plikow w `profile.files`.
+* `files.market` przechowuje rekord sprzedazy paczki, a nie nowe looty.
+* Manual sell zostaje kompatybilnoscia legacy/dev i nie zostal przebudowany.
+* Dashboard Ghost Exchange nie zostal zaimplementowany; nalezy do Sprintu 38.
+
+### Problemy
+
+* W trakcie testow wykryto, ze `refresh_market_runtime()` uzywal referencji do
+  inventory sprzed normalizacji kolejki. Naprawiono to przez ponowne pobranie
+  aktualnego `profile.files` po `queue_market_eligible_files(profile)` oraz
+  zapis `listed_at` / `batch_id` po stabilnych `id` plikow.
+* Smoke nadal moze wymagac ponownego uruchomienia w dzialajacej sesji procesu,
+  jesli lokalny PowerShell zwroci blad `python.exe` znany ze Sprintow 35-36.
+
+### Zmienione pliki
+
+* `run.py`
+* `tests/test_target_persistence.py`
+* `tools/smoke_admin_inventory.py`
+* `doc/file_model.md`
+* `doc/data_economy.md`
+* `doc/gameplay_matrix.md`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `python -m unittest tests.test_target_persistence.TargetPersistenceHelpersTest.test_queue_market_eligible_files_preserves_listed_batch tests.test_target_persistence.TargetPersistenceHelpersTest.test_market_runtime_does_not_sell_before_sector_threshold tests.test_target_persistence.TargetPersistenceHelpersTest.test_market_runtime_lists_batch_and_waits_for_dwell_time tests.test_target_persistence.TargetPersistenceHelpersTest.test_market_runtime_settles_batch_after_dwell_once` - OK.
+* `python -m py_compile run.py database.py profileManagment.py tools/smoke_admin_inventory.py` - OK.
+* `python -m unittest tests.test_target_persistence` - 95 testow OK.
+* `git diff --check` - OK.
+* `python tools/smoke_admin_inventory.py --no-seed --no-sale` - nie wystartowal
+  z powodu bledu srodowiska procesu `python.exe`: `Okreslona sesja logowania nie
+  istnieje`.
+
+### Status
+
+Sprint 37 jest zaimplementowany kodowo i przeszedl testy regresyjne. Gameplay
+smoke wymaga ponownego uruchomienia w dzialajacej sesji procesu.
+---
+
+## 03.07.2026
+
+### Sprint
+
+Sprint 38 - Ghost Exchange Dashboard v1.
+
+### Cel
+
+Zastapic glowny widok Ghost Exchange lista pojedynczych plikow dashboardem
+sektorowego rynku danych, bez nowego endpointu, bez drugiego rynku i bez
+liczenia settlementu w JavaScript.
+
+### Co zostalo wykonane
+
+* Rozszerzono `GET /api/ghost-exchange` o payload:
+  * `summary`,
+  * `sectors`,
+  * `recent_transactions`,
+  * `history_7d`,
+  * aktualny `balance`.
+* Dodano backendowy read model dashboardu oparty o:
+  * `profile.files`,
+  * `market_status`,
+  * `market_sector`,
+  * `files.market`,
+  * `profile.market_history`.
+* `renderExchange()` w `static/js/terminal.js` renderuje teraz dashboard na
+  klasach `gx-*`:
+  * `gx-dashboard`,
+  * `gx-sector-grid`,
+  * `gx-summary-grid`,
+  * `gx-main-row`,
+  * `gx-transactions-panel`,
+  * `gx-chart-panel`.
+* Głowny widok Ghost Exchange nie renderuje juz `Preview sale` ani `Sprzedaj`.
+* Dodano lekkie inline SVG sparkline na kartach sektorow i fallback SVG dla
+  historii 7 dni.
+* Podlaczono `static/css/ghost_exchange_charts.css` przez import w `style.css`.
+* Dodano testy kontraktu API, frontendowego renderera i responsywnego CSS.
+
+### Najwazniejsze decyzje
+
+* JavaScript nie zna progow rynku i nie liczy settlementu. Renderuje tylko read
+  model z backendu.
+* Legacy `preview` i `sell` endpointy zostaja w backendzie jako kompatybilnosc,
+  ale nie sa glownym flow UI.
+* File Manager pozostaje miejscem podgladu lootow.
+* Sprint 38 nie dodaje storage upgrade i nie rozpoczyna Sprintu 39.
+
+### Zmienione pliki
+
+* `run.py`
+* `static/js/terminal.js`
+* `static/css/style.css`
+* `static/css/ghost_exchange_charts.css`
+* `tests/test_target_persistence.py`
+* `doc/gameplay_matrix.md`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `python -m py_compile run.py tests/test_target_persistence.py` - OK.
+* `node --check static/js/terminal.js` - OK.
+* Testy jednostkowe Sprintu 38 - OK.
+* `python -m py_compile run.py database.py profileManagment.py tools/smoke_admin_inventory.py` - OK.
+* `python -m unittest tests.test_target_persistence` - 99 testow OK.
+* `git diff --check` - OK; Git pokazal tylko ostrzezenie CRLF/LF dla
+  `static/css/style.css`.
+* `python tools/smoke_admin_inventory.py --no-seed --no-sale` - nie wystartowal
+  z powodu bledu srodowiska procesu `python.exe`: `Okreslona sesja logowania nie
+  istnieje`.
+
+### Status
+
+Sprint 38 jest zaimplementowany kodowo i przeszedl testy regresyjne. Gameplay
+smoke wymaga ponownego uruchomienia w dzialajacej sesji procesu.
+
+---
+
+## 03.07.2026
+
+### Sprint
+
+Sprint 39 - Storage Economy + Market Migration + Balance.
+
+### Cel
+
+Domknac Faze D przez wlaczenie storage jako realnego ograniczenia zapisu danych,
+dodanie produktow Storage Upgrade do istniejacego Googleplexa i zachowanie
+automatycznego rynku danych bez tworzenia drugiego marketu, storage engine ani
+sklepu.
+
+### Co zostalo wykonane
+
+* Dodano wspolny helper `append_runtime_file_if_space(profile, operation, folder,
+  file_entry)`.
+* Wszystkie finalizery tworzace runtime data files zapisują pliki przez storage
+  gate zamiast bezposredniego `files[folder].append(...)`.
+* Przy braku miejsca plik nie trafia do `/data/*`, operacja dostaje wynik
+  `storage_full` / `dropped_no_space`, a gracz dostaje system message:
+  `Brak miejsca na zapis danych.`.
+* Brak miejsca jest idempotentny: ten sam odrzucony plik nie spamuje wiadomościami
+  przy kolejnym refreshu.
+* Dodano seed produkty Googleplexa typu `storage_upgrade`:
+  * `Ghost Vault Basic`,
+  * `Ghost Vault Plus`,
+  * `Data Vault`,
+  * `BlackVault`,
+  * `Encrypted Cluster`.
+* `/install-app` obsluguje storage products w istniejacym flow zakupu:
+  * odejmuje HC,
+  * zwieksza `storage_capacity`,
+  * zapisuje `storage_upgrades`,
+  * nie dodaje produktu do `profile.apps`,
+  * nie dodaje produktu do `files.tools`.
+* Smoke admin inventory pokazuje aktualny storage i dostepne storage products.
+
+### Najwazniejsze decyzje
+
+* Storage Upgrade jest produktem Googleplexa, nie aplikacja i nie tool.
+* Storage Gate jest wspolnym helperem dla finalizerow, a nie osobnym storage
+  engine.
+* Dane niezapisane przez brak miejsca nie trafiaja do market queue.
+* Auto-sale ze Sprintu 37 pozostaje odpowiedzialne za zwalnianie storage po
+  sprzedazy paczki.
+
+### Zmienione pliki
+
+* `run.py`
+* `tests/test_target_persistence.py`
+* `tools/smoke_admin_inventory.py`
+* `doc/file_model.md`
+* `doc/data_economy.md`
+* `doc/gameplay_matrix.md`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `python -m py_compile run.py database.py profileManagment.py` - OK.
+* `python -m unittest tests.test_target_persistence` - 103 testy OK.
+* `node --check static/js/terminal.js` - OK.
+* Smoke wymaga uruchomienia po lokalnym sprawdzeniu srodowiska procesu, jesli
+  PowerShell zwroci znany blad `python.exe` z poprzednich sprintow.
+
+### Status
+
+Sprint 39 jest zaimplementowany kodowo. Faza D jest domknieta na poziomie
+Storage Economy, Googleplex storage products i market/storage lifecycle.

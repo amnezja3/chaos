@@ -2436,6 +2436,7 @@ function createBrowser() {
     const wallet = term.querySelector(`#${terminalId}-wallet`);
     let catalog = [];
     let exchangeFiles = [];
+    let exchangeDashboard = { summary: {}, sectors: [], recent_transactions: [], history_7d: [] };
     let walletBalance = 0;
     let activeBrowserTab = "googleplex";
 
@@ -2571,69 +2572,240 @@ function createBrowser() {
         updateBrowserNarrowMode();
     };
 
+    const gxSectorLabels = {
+        camera: "Kamery",
+        atm: "Bankomaty",
+        gps: "GPS",
+        device: "Dane urzadzen",
+        personal: "Dane osobowe",
+        credentials: "Dane logowania",
+        financial: "Dane finansowe",
+        network: "Sieci",
+        audio: "Audio",
+        vehicle: "Pojazdy",
+        unknown: "Inne dane"
+    };
+
+    const gxSectorSubtitles = {
+        camera: "Rynek kamer i monitoringu",
+        atm: "Rynek danych z bankomatow",
+        gps: "Rynek lokalizacji i tras",
+        device: "Rynek informacji o urzadzeniach",
+        personal: "Rynek danych osobowych",
+        credentials: "Rynek credentiali i kont",
+        financial: "Rynek finansow i transakcji",
+        network: "Rynek danych sieciowych",
+        audio: "Rynek sygnalow audio",
+        vehicle: "Rynek telemetrii pojazdow",
+        unknown: "Rynek danych niesklasyfikowanych"
+    };
+
+    const gxSectorIcons = {
+        camera: "\u25c9",
+        atm: "\u25a3",
+        gps: "\u2316",
+        device: "\u25a1",
+        personal: "\u25cb",
+        credentials: "\u25c7",
+        financial: "\u25b1",
+        network: "\u2301",
+        audio: "\u266a",
+        vehicle: "\u25c8",
+        unknown: "\u25a1"
+    };
+
+    const gxNumber = value => {
+        const number = Number(value || 0);
+        if (!Number.isFinite(number)) return 0;
+        return Math.round(number);
+    };
+
+    const gxFormatNumber = value => String(gxNumber(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const gxFormatHc = value => `${gxFormatNumber(value)} HC`;
+    const gxFormatMb = value => `${gxFormatNumber(value)} MB`;
+
+    const gxSparklineSvg = (values = [], className = "gx-sparkline") => {
+        const points = Array.isArray(values) ? values.map(Number).filter(Number.isFinite) : [];
+        const series = points.length ? points : [0, 0, 0, 0, 0, 0, 0];
+        const width = 120;
+        const height = 38;
+        const max = Math.max(...series, 1);
+        const step = series.length > 1 ? width / (series.length - 1) : width;
+        const polyline = series.map((value, index) => {
+            const x = index * step;
+            const y = height - ((value / max) * (height - 8)) - 4;
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(" ");
+        const lastX = (series.length - 1) * step;
+        const lastY = height - ((series[series.length - 1] / max) * (height - 8)) - 4;
+        return `
+            <svg class="${className}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+                <polyline points="${polyline}"></polyline>
+                <circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="2"></circle>
+            </svg>
+        `;
+    };
+
+    const gxHistoryChartSvg = history => {
+        const rows = Array.isArray(history) ? history : [];
+        if (!rows.length) {
+            return '<div class="gx-chart-empty">Historia sprzedazy zostanie widoczna po pierwszych transakcjach.</div>';
+        }
+        const values = rows.map(item => gxNumber(item.hc));
+        const labels = rows.map(item => item.label || item.date || "");
+        const width = 640;
+        const height = 210;
+        const padding = 24;
+        const max = Math.max(...values, 1);
+        const step = values.length > 1 ? (width - padding * 2) / (values.length - 1) : width - padding * 2;
+        const points = values.map((value, index) => {
+            const x = padding + index * step;
+            const y = height - padding - ((value / max) * (height - padding * 2));
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(" ");
+        const circles = values.map((value, index) => {
+            const x = padding + index * step;
+            const y = height - padding - ((value / max) * (height - padding * 2));
+            return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3"><title>${escapeHTML(labels[index])}: ${gxFormatHc(value)}</title></circle>`;
+        }).join("");
+        const axis = labels.map((label, index) => {
+            const x = padding + index * step;
+            return `<text x="${x.toFixed(1)}" y="${height - 4}" text-anchor="middle">${escapeHTML(label)}</text>`;
+        }).join("");
+        return `
+            <svg class="gx-sparkline gx-history-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Historia sprzedazy Ghost Exchange">
+                <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="rgba(0,255,102,.22)" />
+                <polyline points="${points}"></polyline>
+                ${circles}
+                <g class="gx-history-axis">${axis}</g>
+            </svg>
+        `;
+    };
+
+    const gxMissingText = sector => {
+        const missingRecords = gxNumber(sector.missing_records);
+        if (missingRecords > 0) return `Brakuje ${missingRecords} rekordow`;
+        return `Brakuje ${gxFormatMb(sector.missing_mb)}`;
+    };
+
     const renderExchange = () => {
         if (activeBrowserTab !== "exchange") return;
         updateBrowserNarrowMode();
         const query = search.value.toLowerCase().trim();
-        const matches = exchangeFiles.filter(item => {
-            const resources = Array.isArray(item.resource_types) ? item.resource_types.join(' ') : '';
+        const summary = exchangeDashboard.summary || {};
+        const sectors = Array.isArray(exchangeDashboard.sectors) ? exchangeDashboard.sectors : [];
+        const recentTransactions = Array.isArray(exchangeDashboard.recent_transactions)
+            ? exchangeDashboard.recent_transactions
+            : [];
+        const history = Array.isArray(exchangeDashboard.history_7d) ? exchangeDashboard.history_7d : [];
+        const matchingSectors = sectors.filter(sector => {
+            const name = gxSectorLabels[sector.sector] || sector.sector || "";
             return !query ||
-                String(item.name || '').toLowerCase().includes(query) ||
-                String(item.file_category || '').toLowerCase().includes(query) ||
-                String(item.market_category || '').toLowerCase().includes(query) ||
-                resources.toLowerCase().includes(query);
+                String(sector.sector || "").toLowerCase().includes(query) ||
+                String(name).toLowerCase().includes(query) ||
+                String(sector.status || "").toLowerCase().includes(query);
         });
 
         results.innerHTML = '';
-        if (matches.length === 0) {
-            results.innerHTML = '<div class="googolplex-empty">Brak sprzedawalnych plikow danych.</div>';
+        const dashboard = document.createElement('section');
+        dashboard.className = 'gx-dashboard';
+
+        if (!matchingSectors.length) {
+            dashboard.innerHTML = '<div class="gx-chart-empty">Brak sektorow rynku dla tego filtra.</div>';
+            results.appendChild(dashboard);
             updateBrowserNarrowMode();
             return;
         }
 
-        matches.forEach(item => {
-            const status = item.market_status || 'not_listed';
-            const prepared = status === 'listed_preview';
-            const resources = Array.isArray(item.resource_types) && item.resource_types.length
-                ? item.resource_types.join(', ')
-                : '-';
-            const missingFields = Array.isArray(item.missing_fields) ? item.missing_fields : [];
-            const completeness = Number(item.completeness_percent ?? (item.metadata || {}).completeness_percent ?? 0);
-            const qualityScore = Number(item.quality_score ?? (item.metadata || {}).quality_score ?? 0);
-            const card = document.createElement('article');
-            card.className = `googolplex-card ghost-exchange-card ${prepared ? 'is-listed-preview' : ''}`;
-            card.innerHTML = `
-                <div class="googolplex-card-title">
-                    <span class="googolplex-card-icon">${item.icon || browserUiIcons.app}</span>
-                    <span>${escapeHTML(item.name || 'Pakiet danych')}</span>
-                </div>
-                <p>${escapeHTML(item.directory || item.file_category || '/data')} | ${escapeHTML(item.preview_mode || 'preview')}</p>
-                <div class="ghost-exchange-meta">
-                    <span>Kategoria: <b>${escapeHTML(item.file_category || '-')}</b></span>
-                    <span>Rynek: <b>${escapeHTML(item.market_category || '-')}</b></span>
-                    <span>Zasoby: <b>${escapeHTML(resources)}</b></span>
-                    <span>Status: <b>${escapeHTML(status)}</b></span>
-                    <span>Kompletno\u015b\u0107: <b>${Math.max(0, Math.min(100, completeness))}% / ${escapeHTML(item.completeness_tier || (item.metadata || {}).completeness_tier || '-')}</b></span>
-                    <span>Jako\u015b\u0107: <b>${qualityScore}/100</b></span>
-                    <span>Braki: <b>${escapeHTML(missingFields.length ? missingFields.slice(0, 3).join(', ') : 'brak')}</b></span>
-                </div>
-                <div class="googolplex-card-footer">
-                    <strong>${Number(item.price_preview || 0)} HC</strong>
-                    <button type="button" class="ghost-exchange-preview-btn" ${prepared ? 'disabled' : ''}>
-                        ${prepared ? 'Preview gotowy' : 'Preview sale'}
-                    </button>
-                    <button type="button" class="ghost-exchange-sell-btn">Sprzedaj</button>
-                </div>
+        const sectorCards = matchingSectors.map(sector => {
+            const sectorKey = sector.sector || "unknown";
+            const progress = Math.max(0, Math.min(100, gxNumber(sector.progress_percent)));
+            const stateClass = sector.status === "trading" ? "is-trading" : (progress > 0 ? "is-waiting" : "");
+            return `
+                <article class="gx-sector-card ${stateClass}">
+                    <div class="gx-sector-head">
+                        <span class="gx-sector-icon">${escapeHTML(gxSectorIcons[sectorKey] || gxSectorIcons.unknown)}</span>
+                        <span>
+                            <span class="gx-sector-title">${escapeHTML(gxSectorLabels[sectorKey] || sectorKey)}</span>
+                            <span class="gx-sector-subtitle">${escapeHTML(gxSectorSubtitles[sectorKey] || gxSectorSubtitles.unknown)}</span>
+                        </span>
+                    </div>
+                    <div class="gx-sector-stats">
+                        <span class="gx-stat"><span class="gx-stat-label">Oczekuje</span><b class="gx-stat-value">${gxFormatNumber(sector.pending_files)} plikow</b></span>
+                        <span class="gx-stat"><span class="gx-stat-label">Wolumen</span><b class="gx-stat-value">${gxFormatMb(sector.pending_mb)}</b></span>
+                        <span class="gx-stat gx-stat-wide"><span class="gx-stat-label">HC dzisiaj</span><b class="gx-stat-value">${gxFormatHc(sector.hc_today)}</b></span>
+                    </div>
+                    <div class="gx-sector-progress">
+                        <div class="gx-progress-meta">
+                            <span>${escapeHTML(gxMissingText(sector))}</span>
+                            <span>${progress}%</span>
+                        </div>
+                        <div class="gx-progress-track"><span class="gx-progress-fill" style="--gx-progress:${progress}%"></span></div>
+                    </div>
+                    ${gxSparklineSvg(sector.sparkline)}
+                    <div class="gx-sector-foot">
+                        <span>${escapeHTML(sector.status || 'collecting')} · ${gxFormatNumber(sector.listed_batches || 0)} paczek</span>
+                        <b>${escapeHTML(sector.estimated_sale_time || '~5 min')}</b>
+                    </div>
+                </article>
             `;
-            card.querySelector('.ghost-exchange-preview-btn').addEventListener('click', async () => {
-                if (prepared) return;
-                await previewGhostExchangeSale(item.id);
-            });
-            card.querySelector('.ghost-exchange-sell-btn').addEventListener('click', async () => {
-                await sellGhostExchangeFile(item.id);
-            });
-            results.appendChild(card);
-        });
+        }).join("");
+
+        const summaryCards = `
+            <div class="gx-summary-card"><span class="gx-summary-label">Oczekujace dane</span><b class="gx-summary-value">${gxFormatNumber(summary.pending_files)} plikow / ${gxFormatMb(summary.pending_mb)}</b></div>
+            <div class="gx-summary-card"><span class="gx-summary-label">W obrocie</span><b class="gx-summary-value">${gxFormatNumber(summary.listed_batches)} paczek</b></div>
+            <div class="gx-summary-card"><span class="gx-summary-label">Sprzedane dzisiaj</span><b class="gx-summary-value">${gxFormatNumber(summary.sold_today_files)} plikow</b></div>
+            <div class="gx-summary-card"><span class="gx-summary-label">Zarobek dzisiaj</span><b class="gx-summary-value">${gxFormatHc(summary.hc_today)}</b></div>
+            <div class="gx-summary-card"><span class="gx-summary-label">Zarobek lacznie</span><b class="gx-summary-value">${gxFormatHc(summary.hc_total)}</b></div>
+            <div class="gx-summary-card"><span class="gx-summary-label">Srednia cena paczki</span><b class="gx-summary-value">${gxFormatHc(summary.average_price)}</b></div>
+        `;
+
+        const transactionRows = recentTransactions.length
+            ? recentTransactions.map(transaction => `
+                <div class="gx-transaction-row">
+                    <span>${escapeHTML(String(transaction.sold_at || '').slice(11, 16) || '--:--')}</span>
+                    <span class="gx-transaction-sector">${escapeHTML(gxSectorLabels[transaction.market_sector] || transaction.market_sector || '-')}</span>
+                    <span class="gx-transaction-desc">${escapeHTML(transaction.file_name || transaction.batch_id || 'Paczka danych')}</span>
+                    <span>${gxFormatMb(transaction.volume_mb)}</span>
+                    <span class="gx-transaction-hc">${gxFormatHc(transaction.price)}</span>
+                </div>
+            `).join("")
+            : '<div class="gx-chart-empty">Ostatnie transakcje pojawia sie po pierwszej sprzedazy paczki.</div>';
+
+        dashboard.innerHTML = `
+            <div class="gx-sector-grid">${sectorCards}</div>
+            <div class="gx-summary-grid">${summaryCards}</div>
+            <div class="gx-main-row">
+                <section class="gx-transactions-panel">
+                    <div class="gx-chart-header">
+                        <span class="gx-chart-title">Ostatnie transakcje</span>
+                        <span class="gx-chart-subtitle">Ghost Exchange</span>
+                    </div>
+                    <div class="gx-transactions-list">${transactionRows}</div>
+                </section>
+                <section class="gx-chart-panel">
+                    <div class="gx-chart-header">
+                        <span class="gx-chart-title">Historia sprzedazy (7 dni)</span>
+                        <span class="gx-chart-subtitle">fallback SVG / uPlot-ready</span>
+                    </div>
+                    <div class="gx-chart-legend">
+                        <span class="gx-chart-legend-item gx-series-camera">Kamery</span>
+                        <span class="gx-chart-legend-item gx-series-atm">Bankomaty</span>
+                        <span class="gx-chart-legend-item gx-series-gps">GPS</span>
+                        <span class="gx-chart-legend-item gx-series-personal">Dane osobowe</span>
+                        <span class="gx-chart-legend-item gx-series-financial">Finansowe</span>
+                    </div>
+                    <div class="gx-chart-body">
+                        <div class="gx-chart-uplot">${gxHistoryChartSvg(history)}</div>
+                    </div>
+                </section>
+            </div>
+            <div class="gx-dashboard-note">
+                <span>Automatyczny rynek danych dziala w tle. File Manager pozostaje miejscem podgladu lootow.</span>
+                <b>${gxFormatNumber(summary.transaction_count)} transakcji</b>
+            </div>
+        `;
+        results.appendChild(dashboard);
         updateBrowserNarrowMode();
     };
 
@@ -2659,6 +2831,25 @@ function createBrowser() {
                 return;
             }
             exchangeFiles = data.files || [];
+            exchangeDashboard = {
+                summary: data.summary || {},
+                sectors: data.sectors || [],
+                recent_transactions: data.recent_transactions || [],
+                history_7d: data.history_7d || []
+            };
+            if (Object.prototype.hasOwnProperty.call(data, "balance")) {
+                walletBalance = Number(data.balance || 0);
+                wallet.textContent = `HackCoiny: ${walletBalance}`;
+                if (typeof setToolbarProfile === "function") {
+                    setToolbarProfile({
+                        ...(toolbarProfile || {}),
+                        hackcoins: walletBalance
+                    });
+                }
+                if (typeof refreshToolbarProfile === "function") {
+                    await refreshToolbarProfile().catch(() => null);
+                }
+            }
             renderExchange();
         } catch (err) {
             console.warn('Ghost Exchange load failed', err);

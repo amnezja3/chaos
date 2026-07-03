@@ -1,0 +1,581 @@
+/* static/css/ghost_exchange_charts.css */
+/* Ghost Exchange Dashboard + uPlot skin */
+
+.gx-dashboard,
+.gx-dashboard * {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.gx-dashboard {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: 100%;
+  display: grid;
+  gap: 8px;
+  color: #baffc8;
+  font-family: monospace;
+  overflow-x: hidden;
+  container-type: inline-size;
+}
+
+.googolplex-grid > .gx-dashboard {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.gx-sector-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.gx-sector-card {
+  border: 1px solid rgba(0, 255, 102, 0.42);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(0, 255, 102, 0.12), transparent 46%),
+    linear-gradient(180deg, rgba(0, 28, 10, 0.88), rgba(0, 8, 3, 0.96));
+  box-shadow: inset 0 0 12px rgba(0, 255, 102, 0.05);
+  padding: 7px;
+  display: grid;
+  gap: 5px;
+  overflow: hidden;
+  align-content: start;
+  min-height: 0;
+  max-height: 190px;
+}
+
+.gx-sector-card.is-trading {
+  border-color: rgba(120, 255, 68, 0.72);
+  box-shadow:
+    inset 0 0 18px rgba(0, 255, 102, 0.12),
+    0 0 12px rgba(0, 255, 102, 0.08);
+}
+
+.gx-sector-card.is-waiting {
+  border-color: rgba(255, 217, 90, 0.46);
+}
+
+.gx-sector-head {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+}
+
+.gx-sector-icon {
+  color: #00ff66;
+  font-size: 1rem;
+  line-height: 1;
+  text-shadow: 0 0 8px rgba(0, 255, 102, 0.5);
+}
+
+.gx-sector-title {
+  color: #7fffd0;
+  display: block;
+  font-weight: 800;
+  font-size: 0.7rem;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gx-sector-subtitle {
+  color: #8fbf9a;
+  display: block;
+  font-size: 0.5rem;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gx-sector-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 5px;
+}
+
+.gx-stat-wide {
+  grid-column: 1 / -1;
+}
+
+.gx-stat {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+}
+
+.gx-stat-label {
+  color: #8fbf9a;
+  font-size: 0.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gx-stat-value {
+  color: #6ffff0;
+  font-size: 0.64rem;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gx-sector-progress {
+  display: grid;
+  gap: 3px;
+}
+
+.gx-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  color: #9dffb2;
+  font-size: 0.54rem;
+  line-height: 1.1;
+  overflow: hidden;
+}
+
+.gx-progress-meta span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gx-progress-track {
+  height: 4px;
+  border: 1px solid rgba(0, 255, 102, 0.35);
+  background: rgba(0, 0, 0, 0.56);
+  overflow: hidden;
+}
+
+.gx-progress-fill {
+  display: block;
+  height: 100%;
+  width: var(--gx-progress, 0%);
+  background: linear-gradient(90deg, #00ff66, #9cffc2);
+  box-shadow: 0 0 8px rgba(0, 255, 102, 0.42);
+}
+
+.gx-sparkline {
+  width: 100%;
+  height: 24px;
+  display: block;
+  overflow: visible;
+}
+
+.gx-sparkline path,
+.gx-sparkline polyline {
+  fill: none;
+  stroke: #00ff66;
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 3px rgba(0, 255, 102, 0.65));
+}
+
+.gx-sparkline circle {
+  fill: #00ff66;
+  filter: drop-shadow(0 0 3px rgba(0, 255, 102, 0.7));
+}
+
+.gx-history-svg line {
+  vector-effect: non-scaling-stroke;
+}
+
+.gx-history-svg {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  display: block;
+  overflow: hidden;
+}
+
+.gx-history-axis text,
+.gx-history-svg text {
+  fill: #7aa786;
+  font-size: 10px;
+  font-family: monospace;
+}
+
+.gx-sector-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  color: #8fbf9a;
+  font-size: 0.52rem;
+  line-height: 1.1;
+  overflow: hidden;
+}
+
+.gx-sector-foot span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gx-sector-foot b {
+  color: #00ff66;
+}
+
+.gx-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.gx-summary-card {
+  border: 1px solid rgba(0, 255, 102, 0.34);
+  background: linear-gradient(180deg, rgba(0, 28, 10, 0.72), rgba(0, 8, 3, 0.92));
+  padding: 8px 9px;
+  display: grid;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.gx-summary-label {
+  color: #9db99a;
+  font-size: 0.6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gx-summary-value {
+  color: #6ffff0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gx-main-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.35fr);
+  gap: 8px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.gx-chart-panel,
+.gx-transactions-panel {
+  border: 1px solid rgba(0, 255, 102, 0.36);
+  background: rgba(0, 10, 4, 0.72);
+  padding: 9px;
+  overflow: hidden;
+}
+
+.gx-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.gx-chart-title {
+  color: #00ff66;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.gx-chart-subtitle {
+  color: #8fbf9a;
+  font-size: 0.58rem;
+}
+
+.gx-chart-body {
+  height: clamp(210px, 32vh, 320px);
+  min-height: 210px;
+  overflow: hidden;
+}
+
+.gx-chart-uplot {
+  width: 100%;
+  height: 100%;
+  color: #baffc8;
+}
+
+.gx-chart-uplot .uplot {
+  font-family: monospace;
+  background: transparent;
+}
+
+.gx-chart-uplot .u-title {
+  display: none;
+}
+
+.gx-chart-uplot .u-wrap,
+.gx-chart-uplot .u-over,
+.gx-chart-uplot .u-under {
+  background: transparent;
+}
+
+.gx-chart-uplot .u-axis {
+  color: #7aa786;
+  font-size: 10px;
+}
+
+.gx-chart-uplot .u-grid {
+  stroke: rgba(0, 255, 102, 0.13);
+  stroke-width: 1;
+}
+
+.gx-chart-uplot .u-axis path,
+.gx-chart-uplot .u-axis line {
+  stroke: rgba(0, 255, 102, 0.22);
+}
+
+.gx-chart-uplot .u-cursor-x,
+.gx-chart-uplot .u-cursor-y {
+  stroke: rgba(156, 255, 194, 0.5);
+  stroke-dasharray: 2 3;
+}
+
+.gx-chart-uplot .u-legend {
+  display: none;
+}
+
+.gx-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 9px;
+  margin-bottom: 4px;
+  color: #baffc8;
+  font-size: 0.58rem;
+  line-height: 1.15;
+}
+
+.gx-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.gx-chart-legend-item::before {
+  content: "";
+  width: 12px;
+  height: 2px;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.gx-series-camera { color: #00ff66; }
+.gx-series-atm { color: #ffe45c; }
+.gx-series-gps { color: #33e8ff; }
+.gx-series-device { color: #9cffc2; }
+.gx-series-personal { color: #d55cff; }
+.gx-series-credentials { color: #ff4f86; }
+.gx-series-financial { color: #ffb84d; }
+
+.gx-chart-tooltip {
+  position: fixed;
+  z-index: 10020;
+  pointer-events: none;
+  border: 1px solid rgba(0, 255, 102, 0.58);
+  background: rgba(0, 8, 3, 0.95);
+  color: #d7ffe1;
+  padding: 7px 9px;
+  font-family: monospace;
+  font-size: 0.72rem;
+  box-shadow: 0 0 14px rgba(0, 255, 102, 0.16);
+}
+
+.gx-transactions-list {
+  display: grid;
+  gap: 0;
+}
+
+.gx-transaction-row {
+  display: grid;
+  grid-template-columns: 42px 88px minmax(64px, 1fr) 54px 62px;
+  gap: 5px;
+  align-items: center;
+  min-height: 24px;
+  border-bottom: 1px solid rgba(0, 255, 102, 0.14);
+  color: #c8ffd3;
+  font-size: 0.62rem;
+  overflow: hidden;
+}
+
+.gx-transaction-row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gx-transaction-row:last-child {
+  border-bottom: 0;
+}
+
+.gx-transaction-sector {
+  color: #00ff66;
+}
+
+.gx-transaction-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gx-transaction-hc {
+  color: #00ff66;
+  font-weight: 800;
+  text-align: right;
+}
+
+.gx-chart-empty,
+.gx-chart-loading,
+.gx-chart-error {
+  grid-column: 1 / -1;
+  border: 1px dashed rgba(0, 255, 102, 0.32);
+  background: rgba(0, 8, 3, 0.56);
+  color: #8fbf9a;
+  padding: 12px;
+  text-align: center;
+  font-size: 0.68rem;
+}
+
+.gx-chart-error {
+  border-color: rgba(255, 75, 95, 0.58);
+  color: #ffb7c0;
+}
+
+.gx-dashboard-note {
+  border: 1px solid rgba(0, 255, 102, 0.32);
+  background: rgba(0, 24, 8, 0.48);
+  color: #9db99a;
+  padding: 7px 9px;
+  font-size: 0.62rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.gx-dashboard-note b {
+  color: #00ff66;
+}
+
+@media (max-width: 1100px) {
+  .gx-sector-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .gx-summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(124px, 100%), 1fr));
+  }
+}
+
+@media (max-width: 980px) and (min-width: 901px) {
+  .gx-sector-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px), (max-height: 700px) {
+  .gx-dashboard {
+    gap: 7px;
+  }
+
+  .gx-sector-grid,
+  .gx-summary-grid,
+  .gx-main-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gx-sector-card,
+  .gx-summary-card,
+  .gx-chart-panel,
+  .gx-transactions-panel {
+    padding: 7px;
+  }
+
+  .gx-sector-card {
+    gap: 4px;
+    max-height: none;
+  }
+
+  .gx-sparkline:not(.gx-history-svg) {
+    height: 18px;
+  }
+
+  .gx-chart-body,
+  .gx-chart-uplot {
+    min-height: 200px;
+    height: 220px;
+  }
+
+  .gx-chart-legend {
+    font-size: 0.54rem;
+    gap: 3px 7px;
+  }
+
+  .gx-transaction-row {
+    grid-template-columns: 42px minmax(0, 1fr) 62px;
+  }
+
+  .gx-transaction-row > span:nth-child(2),
+  .gx-transaction-row > span:nth-child(4) {
+    display: none;
+  }
+
+  .gx-dashboard-note {
+    display: grid;
+  }
+}
+
+@container (max-width: 720px) {
+  .gx-sector-grid,
+  .gx-summary-grid,
+  .gx-main-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gx-chart-body,
+  .gx-chart-uplot {
+    min-height: 200px;
+    height: 220px;
+  }
+
+  .gx-transaction-row {
+    grid-template-columns: 42px minmax(0, 1fr) 62px;
+  }
+
+  .gx-transaction-row > span:nth-child(2),
+  .gx-transaction-row > span:nth-child(4) {
+    display: none;
+  }
+}
+
+.browser-window.browser-narrow .gx-sector-grid,
+.browser-window.browser-narrow .gx-summary-grid,
+.browser-window.browser-narrow .gx-main-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.browser-window.browser-narrow .gx-chart-body,
+.browser-window.browser-narrow .gx-chart-uplot {
+  min-height: 200px;
+  height: 220px;
+}
+
+.browser-window.browser-narrow .gx-transaction-row {
+  grid-template-columns: 42px minmax(0, 1fr) 62px;
+}
+
+.browser-window.browser-narrow .gx-transaction-row > span:nth-child(2),
+.browser-window.browser-narrow .gx-transaction-row > span:nth-child(4) {
+  display: none;
+}
