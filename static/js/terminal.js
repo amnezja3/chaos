@@ -2166,7 +2166,7 @@ function app_button_choices(id, levels) {
     const safeLevels = Array.isArray(levels) ? levels : [];
     const lvl = safeLevels[0] || {};
     const options = Array.isArray(lvl.options) && lvl.options.length
-        ? lvl.options
+        ? lvl.options.map((option, index) => normalizeButtonChoiceOption(option, index))
         : [{ id: 0, label: "Wykonaj", effect: {} }];
     const app = document.createElement('div');
     app.className = 'app-window';
@@ -2209,6 +2209,28 @@ function app_button_choices(id, levels) {
             resultBox.style.color = success ? "#0f0" : "#f33";
         });
     });
+}
+
+function normalizeButtonChoiceOption(option, index = 0) {
+    if (option === null || option === undefined) {
+        return { id: index, label: `Opcja ${index + 1}`, action: "", effect: {} };
+    }
+    if (typeof option !== "object") {
+        return {
+            id: index,
+            label: String(option),
+            action: "",
+            effect: {}
+        };
+    }
+    const label = option.label ?? option.text ?? option.title ?? option.name ?? option.value ?? `Opcja ${index + 1}`;
+    return {
+        ...option,
+        id: option.id ?? option.value ?? index,
+        label,
+        action: option.action ?? "",
+        effect: option.effect || {}
+    };
 }
 
 function createMap() {
@@ -6762,7 +6784,24 @@ window.openEmailChatWith = function(peerName) {
     return true;
 };
 
-function escapeHTML(str) {
+function escapeHTML(value) {
+    let str = "";
+    if (value === null || value === undefined) {
+        str = "";
+    } else if (typeof value === "object") {
+        const label = value.label ?? value.name ?? value.text ?? value.title ?? value.value;
+        if (label !== null && label !== undefined) {
+            str = String(label);
+        } else {
+            try {
+                str = JSON.stringify(value);
+            } catch (err) {
+                str = String(value);
+            }
+        }
+    } else {
+        str = String(value);
+    }
     return str.replace(/[&<>"']/g, function (m) {
         return {
             '&': '&amp;',
