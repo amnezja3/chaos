@@ -511,7 +511,18 @@ function targetFeedbackClampPercent(value) {
 
 function hasToolbarAimedTarget(aimedTarget) {
     const target = aimedTarget || {};
-    return Boolean(target.lat !== undefined || target.lng !== undefined || target.label || target.name);
+    const identity = String(
+        target.label
+        || target.name
+        || target.display_label
+        || target.title
+        || target.target_username
+        || target.username
+        || target.target_id
+        || target.id
+        || ""
+    ).trim();
+    return Boolean(identity && identity.toLowerCase() !== "brak");
 }
 
 function getTargetFeedbackKey(aimedTarget) {
@@ -604,20 +615,20 @@ function renderToolbarStatus() {
     const targetLabel = aimedTarget.label || aimedTarget.name || "brak";
     const arsenalCoverage = calculateToolbarArsenalCoverage(profile);
     const arsenalLabel = arsenalCoverage === null ? "--" : `${arsenalCoverage}%`;
-    const targetFeedback = resolveTargetBarFeedback(aimedTarget);
-    const targetClasses = [
-        "system-status-target",
-        hasTarget ? "is-aimed" : "",
-        targetFeedback ? "has-target-feedback" : "",
-        targetFeedback?.changed ? "is-feedback-change" : "",
-        targetFeedback?.targetChanged ? "is-target-change" : ""
-    ].filter(Boolean).join(" ");
-    const targetProgressStyle = targetFeedback ? ` style="--target-disarm-progress: ${targetFeedback.progress}%;"` : "";
-    const targetContent = targetFeedback
-        ? `<b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(targetLabel))}</em>${renderTargetBarFeedback(targetFeedback)}</i>`
-        : `<b>CEL</b>`;
+    const targetFeedback = hasTarget ? resolveTargetBarFeedback(aimedTarget) : resolveTargetBarFeedback(null);
+    const targetMarkup = hasTarget ? (() => {
+        const targetClasses = [
+            "system-status-target",
+            "is-aimed",
+            targetFeedback ? "has-target-feedback" : "",
+            targetFeedback?.changed ? "is-feedback-change" : "",
+            targetFeedback?.targetChanged ? "is-target-change" : ""
+        ].filter(Boolean).join(" ");
+        const targetProgressStyle = targetFeedback ? ` style="--target-disarm-progress: ${targetFeedback.progress}%;"` : "";
+        return `<span class="${targetClasses}" title="Cel na celowniku: ${escapeHTML(String(targetLabel))}"${targetProgressStyle}><b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(targetLabel))}</em>${renderTargetBarFeedback(targetFeedback)}</i></span>`;
+    })() : '<span class="system-status-target"><b>CEL</b></span>';
     strip.innerHTML = `
-        <span class="${targetClasses}" title="Cel na celowniku: ${escapeHTML(String(targetLabel))}"${targetProgressStyle}>${targetContent}</span>
+        ${targetMarkup}
         <span><b>ARS</b> ${arsenalLabel}</span>
         <span><b>HC</b> ${Number(profile.hackcoins || 0)}</span>
         <span><b>LVL</b> ${Number(profile.level || 1)}</span>

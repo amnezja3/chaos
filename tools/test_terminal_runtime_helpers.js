@@ -72,6 +72,8 @@ assertEqual(objectOption.action, 'run', 'object option action');
 assertEqual(sandbox.escapeHTML(objectOption), 'Tryb &lt;safe&gt;', 'object option escapes through label');
 
 assertEqual(sandbox.hasToolbarAimedTarget({}), false, 'empty aimed target is neutral');
+assertEqual(sandbox.hasToolbarAimedTarget({ lat: 0, lng: 0, label: '', name: '' }), false, 'template aimed target coordinates are neutral');
+assertEqual(sandbox.hasToolbarAimedTarget({ lat: 52.1, lng: 21.2, label: 'POI-1' }), true, 'labeled aimed target is active');
 assertEqual(sandbox.calculateTargetDisarmProgress({}), 0, 'missing security progress is zero');
 
 const feedbackTarget = {
