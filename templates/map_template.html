@@ -734,6 +734,7 @@
         const map = window[Object.keys(window).find(k => k.startsWith("map_"))];
         let lastContextWasMarker = false;
         const targetLayerRegistry = new Map();
+        let aimedTargetLayer = null;
         let scanResultLayers = [];
         const clanVulnerabilityRegistry = new Map();
         const baseZoom = map.getZoom();
@@ -1174,6 +1175,10 @@
             label = mapTargetDisplayLabel(displayObj);
             removeScanResultAt(lat, lng);
             hideDomTargetMarkers(lat, lng, label);
+            if (aimedTargetLayer) {
+                removeMapLayerSafe(aimedTargetLayer);
+                aimedTargetLayer = null;
+            }
             const markerObj = normalizeMapMenuTarget({
                 lat: Number(lat),
                 lon: Number(lng),
@@ -1205,7 +1210,23 @@
                 document.querySelectorAll('.context-menu').forEach(el => el.remove());
                 showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerObj, icon, label, 'interactiveTargetMarker');
             });
-            return rememberTargetLayer(markerObj.lat, markerObj.lon, label, marker);
+            aimedTargetLayer = rememberTargetLayer(markerObj.lat, markerObj.lon, label, marker);
+            return aimedTargetLayer;
+        }
+
+        function renderCurrentAimedTargetMarker() {
+            const aimedTarget = (window.profileData && window.profileData.aimed_target) || {};
+            if (!aimedTarget || aimedTarget.lat === undefined || (aimedTarget.lng === undefined && aimedTarget.lon === undefined)) return;
+            const lat = Number(aimedTarget.lat);
+            const lng = Number(aimedTarget.lng !== undefined ? aimedTarget.lng : aimedTarget.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+            addInteractiveTargetMarker(
+                lat,
+                lng,
+                mapTargetDisplayLabel(aimedTarget, "TARGET"),
+                aimedTarget.icon || "🎯",
+                aimedTarget
+            );
         }
 
         function addInteractiveHackedMarker(target) {
@@ -1217,6 +1238,10 @@
             removeScanResultAt(lat, lng);
             removeContestedTargetAt(lat, lng);
             hideDomTargetMarkers(lat, lng);
+            if (aimedTargetLayer) {
+                removeMapLayerSafe(aimedTargetLayer);
+                aimedTargetLayer = null;
+            }
             const marker = L.marker([lat, lng], {
                 zIndexOffset: 1000,
                 icon: L.divIcon({
@@ -3648,6 +3673,8 @@
 
 
     // Obsługa zhakowanych celów
+    renderCurrentAimedTargetMarker();
+
     document.querySelectorAll('.marker-hacked').forEach(labelEl => {
         const lat = parseFloat(labelEl.dataset.lat);
         const lng = parseFloat(labelEl.dataset.lng);
