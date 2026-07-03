@@ -849,6 +849,37 @@ Decision:
 
 ---
 
+## Sprint 39.1 - Googleplex Product Effects Runtime v1
+
+Googleplex obsluguje produkty systemowe zmieniajace parametry profilu przez ten
+sam zakup HC co aplikacje.
+
+Zasady:
+
+* nie powstaje drugi sklep,
+* nie powstaje osobny inventory itemow,
+* `/install-app` pozostaje wspolnym endpointem zakupu,
+* produkty nieaplikacyjne nie trafiaja do `profile.apps` ani `files.tools`,
+* efekty produktu wykonuje `apply_googleplex_product_effect(profile, product)`.
+
+Efekty v1:
+
+* `storage_capacity_bonus`,
+* `travel_city`,
+* `map_zoom_bonus`,
+* `scan_range_bonus`,
+* `bike_range_bonus`.
+
+Travel Ticket posiada tylko `travel_city`. Wspolrzedne pochodza z centralnego
+katalogu `TRAVEL_CITIES`, a nie z rekordu produktu.
+
+Decision:
+
+* Storage Upgrade ze Sprintu 39 zostal przeniesiony pod wspolny runtime efektow
+  produktow Googleplexa.
+
+---
+
 ## TODO_DECISION
 
 * Rekomendacja: przed implementacją ekonomii ustalić docelowe zakresy `base_value` i mnożników, bo to wpływa na balans HC i tempo progresu.

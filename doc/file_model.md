@@ -597,6 +597,22 @@ Decision:
 
 ---
 
+## Sprint 39.1 - produkty Googleplex a file model
+
+Produkty systemowe Googleplexa nie sa plikami aplikacji.
+
+Zasady:
+
+* produkt z `product_type` i `effects` jest kupowany przez istniejacy
+  `/install-app`,
+* produkt nie trafia do `profile.apps`,
+* produkt nie trafia do `files.tools`,
+* zakup moze zostac zapisany w `profile.googleplex_products`,
+* storage upgrade zachowuje kompatybilny wpis w `profile.storage_upgrades`,
+* efekty profilu sa zapisywane bez tworzenia nowego inventory systemu.
+
+---
+
 ## TODO_DECISION
 
 * Rekomendacja: w Sprincie 0.7 zdecydować, czy Ghost Exchange jest jedynym rynkiem danych, czy istnieją też frakcyjne rynki prywatne.

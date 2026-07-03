@@ -77,6 +77,10 @@ Ta tabela jest kontraktową warstwą Sprintu 0. Nie zastępuje prostej tabeli po
   miejsca, nie trafia do market queue i nie moze zostac sprzedany.
 * Storage Upgrade jest produktem Googleplexa, nie aplikacja, nie tool i nie
   osobny sklep.
+* Sprint 39.1 dodaje produkty Googleplexa jako efekty profilu, nie nowe
+  `map_actions`. Travel tickets zmieniaja `curently_possition` przez katalog
+  miast, a bonusy map/scan/bike sa polami profilu uzywanymi przez istniejace
+  helpery albo przyszle UI.
 
 ## TODO_DECISION
 

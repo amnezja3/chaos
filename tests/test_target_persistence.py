@@ -1411,6 +1411,131 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(profile["apps"], [])
         self.assertEqual(profile["files"]["tools"], [])
 
+    def test_googleplex_travel_ticket_moves_player_to_catalog_city(self):
+        profile = {
+            "username": "neo",
+            "nick": "Neo",
+            "hackcoins": 5000,
+            "level": 10,
+            "respect": 100,
+            "apps": [],
+            "files": {"tools": []},
+            "storage_capacity": 512,
+            "curently_possition": {"lat": 0, "lng": 0},
+            "system_messages": [],
+        }
+        product = next(item for item in run.googleplex_product_catalog() if item["id"] == "ticket_warszawa")
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "neo"
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run, "get_app_catalog", return_value=[product]), \
+                patch.object(run, "ensure_purchase_account_profile", return_value={"username": "admin", "hackcoins": 0}), \
+                patch.object(run.user_store, "save_profile", return_value=None), \
+                patch.object(run.mail_store, "add_direct_notification", return_value=None):
+            response = client.post("/install-app", json={"app_id": product["id"]})
+
+        city = run.TRAVEL_CITIES["Warszawa"]
+        data = response.get_json()
+        self.assertEqual(data["status"], "success")
+        self.assertEqual(profile["curently_possition"], {"lat": city["lat"], "lng": city["lng"]})
+        self.assertEqual(profile["current_city"], "Warszawa")
+        self.assertEqual(profile["apps"], [])
+        self.assertEqual(profile["files"]["tools"], [])
+
+    def test_googleplex_product_effects_add_profile_bonuses(self):
+        profile = {
+            "username": "neo",
+            "nick": "Neo",
+            "hackcoins": 20000,
+            "level": 20,
+            "respect": 200,
+            "apps": [],
+            "files": {"tools": []},
+            "storage_capacity": 512,
+            "system_messages": [],
+        }
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "neo"
+
+        products = [
+            next(item for item in run.googleplex_product_catalog() if item["id"] == "map_zoom_plus_1"),
+            next(item for item in run.googleplex_product_catalog() if item["id"] == "scan_range_300"),
+            next(item for item in run.googleplex_product_catalog() if item["id"] == "bike_range_500"),
+        ]
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run, "get_app_catalog", return_value=products), \
+                patch.object(run, "ensure_purchase_account_profile", return_value={"username": "admin", "hackcoins": 0}), \
+                patch.object(run.user_store, "save_profile", return_value=None), \
+                patch.object(run.mail_store, "add_direct_notification", return_value=None):
+            for product in products:
+                response = client.post("/install-app", json={"app_id": product["id"]})
+                self.assertEqual(response.get_json()["status"], "success")
+
+        self.assertEqual(profile["map_zoom_bonus"], 1)
+        self.assertEqual(profile["scan_range_bonus"], 300)
+        self.assertEqual(profile["bike_range_bonus"], 500)
+        self.assertEqual(profile["apps"], [])
+        self.assertEqual(profile["files"]["tools"], [])
+
+    def test_googleplex_product_requirements_block_level_and_respect(self):
+        product = next(item for item in run.googleplex_product_catalog() if item["id"] == "map_zoom_plus_2")
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                pass
+
+        def post_with(profile):
+            client = run.app.test_client()
+            with client.session_transaction() as sess:
+                sess["user"] = "neo"
+            with patch.object(run, "sync_session_profile", return_value=profile), \
+                    patch.object(run, "UserProfileManager", FakeManager), \
+                    patch.object(run, "get_app_catalog", return_value=[product]):
+                return client.post("/install-app", json={"app_id": product["id"]}).get_json()
+
+        low_level = {
+            "username": "neo",
+            "hackcoins": 99999,
+            "level": 1,
+            "respect": 100,
+            "apps": [],
+            "files": {"tools": []},
+        }
+        low_respect = {
+            "username": "neo",
+            "hackcoins": 99999,
+            "level": 10,
+            "respect": 0,
+            "apps": [],
+            "files": {"tools": []},
+        }
+
+        self.assertIn("Wymagany poziom", post_with(low_level)["message"])
+        self.assertIn("Wymagany Respect", post_with(low_respect)["message"])
+
     def test_generated_app_install_tools_uninstall_lifecycle(self):
         payload = {
             "name": "Lifecycle Generated",

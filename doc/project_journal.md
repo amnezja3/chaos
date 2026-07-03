@@ -3536,3 +3536,68 @@ sklepu.
 
 Sprint 39 jest zaimplementowany kodowo. Faza D jest domknieta na poziomie
 Storage Economy, Googleplex storage products i market/storage lifecycle.
+
+---
+
+## 03.07.2026
+
+### Sprint
+
+Sprint 39.1 - Googleplex Product Effects Runtime v1.
+
+### Cel
+
+Rozszerzyc istniejacy Googleplex o produkty zmieniajace parametry profilu bez
+tworzenia drugiego sklepu, osobnego inventory, osobnego storage ani nowej
+ekonomii.
+
+### Co zostalo wykonane
+
+* Dodano centralny katalog `TRAVEL_CITIES`.
+* Dodano wspolny router efektow `apply_googleplex_product_effect(profile,
+  product)`.
+* Produkty Googleplexa korzystaja z pol:
+  * `product_type`,
+  * `effects`,
+  * `category`,
+  * `consumable`,
+  * `required_level`,
+  * `required_respect`.
+* Storage Upgrade ze Sprintu 39 zostal podlaczony pod wspolny runtime efektow.
+* Dodano produkty v1:
+  * storage / HDD,
+  * travel tickets,
+  * map zoom bonus,
+  * scan range bonus,
+  * bike range bonus.
+* Travel Ticket trzyma tylko `travel_city`; wspolrzedne pochodza z katalogu
+  miast.
+* `/install-app` obsluguje produkty przez ten sam flow platnosci HC, ale nie
+  dodaje produktow do `profile.apps` ani `files.tools`.
+* Googleplex UI pokazuje produkty jako produkty systemowe, z przyciskiem `Kup`
+  i opisem efektow.
+
+### Najwazniejsze decyzje
+
+* Nie powstal nowy sklep ani inventory itemow.
+* Produkty nieaplikacyjne sa historia zakupu i efektem profilu, nie narzedziem
+  runtime.
+* Warszawa jest dostepna jako tani bilet powrotu do miasta startowego.
+
+### Zmienione pliki
+
+* `run.py`
+* `static/js/terminal.js`
+* `tests/test_target_persistence.py`
+* `doc/data_economy.md`
+* `doc/file_model.md`
+* `doc/gameplay_matrix.md`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* Testy punktowe produktow Googleplex - OK.
+
+### Status
+
+Sprint 39.1 jest zaimplementowany kodowo i czeka na pelna walidacje regresyjna.

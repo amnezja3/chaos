@@ -1977,7 +1977,380 @@ DEFAULT_APP_QUALITY_SCORE = 55
 DEFAULT_APP_RELIABILITY = 65
 DEFAULT_CREATOR_POWER = 35
 DEFAULT_APP_PRICE_HINT_HC = 120
+TRAVEL_CITIES = {
+    "Warszawa": {"name": "Warszawa", "country": "Polska", "lat": 52.2297, "lng": 21.0122},
+    "Krakow": {"name": "Krakow", "country": "Polska", "lat": 50.0647, "lng": 19.9450},
+    "Gdansk": {"name": "Gdansk", "country": "Polska", "lat": 54.3520, "lng": 18.6466},
+    "Wroclaw": {"name": "Wroclaw", "country": "Polska", "lat": 51.1079, "lng": 17.0385},
+    "Poznan": {"name": "Poznan", "country": "Polska", "lat": 52.4064, "lng": 16.9252},
+    "Lodz": {"name": "Lodz", "country": "Polska", "lat": 51.7592, "lng": 19.4560},
+    "Katowice": {"name": "Katowice", "country": "Polska", "lat": 50.2649, "lng": 19.0238},
+    "Szczecin": {"name": "Szczecin", "country": "Polska", "lat": 53.4285, "lng": 14.5528},
+    "Lublin": {"name": "Lublin", "country": "Polska", "lat": 51.2465, "lng": 22.5684},
+    "Bialystok": {"name": "Bialystok", "country": "Polska", "lat": 53.1325, "lng": 23.1688},
+    "Rzeszow": {"name": "Rzeszow", "country": "Polska", "lat": 50.0412, "lng": 21.9991},
+    "Olsztyn": {"name": "Olsztyn", "country": "Polska", "lat": 53.7784, "lng": 20.4801},
+    "Berlin": {"name": "Berlin", "country": "Niemcy", "lat": 52.5200, "lng": 13.4050},
+    "Praga": {"name": "Praga", "country": "Czechy", "lat": 50.0755, "lng": 14.4378},
+    "Wieden": {"name": "Wieden", "country": "Austria", "lat": 48.2082, "lng": 16.3738},
+    "Bratyslawa": {"name": "Bratyslawa", "country": "Slowacja", "lat": 48.1486, "lng": 17.1077},
+    "Budapeszt": {"name": "Budapeszt", "country": "Wegry", "lat": 47.4979, "lng": 19.0402},
+    "Amsterdam": {"name": "Amsterdam", "country": "Holandia", "lat": 52.3676, "lng": 4.9041},
+    "Bruksela": {"name": "Bruksela", "country": "Belgia", "lat": 50.8503, "lng": 4.3517},
+    "Paryz": {"name": "Paryz", "country": "Francja", "lat": 48.8566, "lng": 2.3522},
+    "Londyn": {"name": "Londyn", "country": "Wielka Brytania", "lat": 51.5072, "lng": -0.1276},
+    "Dublin": {"name": "Dublin", "country": "Irlandia", "lat": 53.3498, "lng": -6.2603},
+    "Madryt": {"name": "Madryt", "country": "Hiszpania", "lat": 40.4168, "lng": -3.7038},
+    "Barcelona": {"name": "Barcelona", "country": "Hiszpania", "lat": 41.3874, "lng": 2.1686},
+    "Lizbona": {"name": "Lizbona", "country": "Portugalia", "lat": 38.7223, "lng": -9.1393},
+    "Rzym": {"name": "Rzym", "country": "Wlochy", "lat": 41.9028, "lng": 12.4964},
+    "Mediolan": {"name": "Mediolan", "country": "Wlochy", "lat": 45.4642, "lng": 9.1900},
+    "Zurych": {"name": "Zurych", "country": "Szwajcaria", "lat": 47.3769, "lng": 8.5417},
+    "Oslo": {"name": "Oslo", "country": "Norwegia", "lat": 59.9139, "lng": 10.7522},
+    "Sztokholm": {"name": "Sztokholm", "country": "Szwecja", "lat": 59.3293, "lng": 18.0686},
+    "Helsinki": {"name": "Helsinki", "country": "Finlandia", "lat": 60.1699, "lng": 24.9384},
+    "Kopenhaga": {"name": "Kopenhaga", "country": "Dania", "lat": 55.6761, "lng": 12.5683},
+    "Nowy Jork": {"name": "Nowy Jork", "country": "USA", "lat": 40.7128, "lng": -74.0060},
+    "Los Angeles": {"name": "Los Angeles", "country": "USA", "lat": 34.0522, "lng": -118.2437},
+    "Chicago": {"name": "Chicago", "country": "USA", "lat": 41.8781, "lng": -87.6298},
+    "Toronto": {"name": "Toronto", "country": "Kanada", "lat": 43.6532, "lng": -79.3832},
+    "Meksyk": {"name": "Meksyk", "country": "Meksyk", "lat": 19.4326, "lng": -99.1332},
+    "Rio de Janeiro": {"name": "Rio de Janeiro", "country": "Brazylia", "lat": -22.9068, "lng": -43.1729},
+    "Buenos Aires": {"name": "Buenos Aires", "country": "Argentyna", "lat": -34.6037, "lng": -58.3816},
+    "Dubaj": {"name": "Dubaj", "country": "ZEA", "lat": 25.2048, "lng": 55.2708},
+    "Kair": {"name": "Kair", "country": "Egipt", "lat": 30.0444, "lng": 31.2357},
+    "Kapsztad": {"name": "Kapsztad", "country": "RPA", "lat": -33.9249, "lng": 18.4241},
+    "Delhi": {"name": "Delhi", "country": "Indie", "lat": 28.6139, "lng": 77.2090},
+    "Bangkok": {"name": "Bangkok", "country": "Tajlandia", "lat": 13.7563, "lng": 100.5018},
+    "Singapur": {"name": "Singapur", "country": "Singapur", "lat": 1.3521, "lng": 103.8198},
+    "Seul": {"name": "Seul", "country": "Korea Poludniowa", "lat": 37.5665, "lng": 126.9780},
+    "Tokio": {"name": "Tokio", "country": "Japonia", "lat": 35.6762, "lng": 139.6503},
+    "Pekin": {"name": "Pekin", "country": "Chiny", "lat": 39.9042, "lng": 116.4074},
+    "Sydney": {"name": "Sydney", "country": "Australia", "lat": -33.8688, "lng": 151.2093},
+    "Auckland": {"name": "Auckland", "country": "Nowa Zelandia", "lat": -36.8509, "lng": 174.7645},
+}
+
+def googleplex_product_base(product_id, name, description, product_type, category, price, effects, **extra):
+    product = {
+        "id": product_id,
+        "name": name,
+        "description": description,
+        "icon": extra.pop("icon", "+"),
+        "type": "system_product",
+        "product_type": product_type,
+        "category": category,
+        "effects": effects,
+        "price": price,
+        "purchase_account": "admin",
+        "creator_username": "admin",
+        "creator_nick": "CyberPhoenix",
+        "required_level": extra.pop("required_level", 1),
+        "required_respect": extra.pop("required_respect", 0),
+        "published": True,
+        "generated": False,
+        "system_catalog": True,
+        "consumable": extra.pop("consumable", False),
+        "balance_tier": extra.pop("balance_tier", "Basic"),
+    }
+    product.update(extra)
+    return product
+
 STORAGE_UPGRADE_PRODUCTS = [
+    googleplex_product_base(
+        "storage_ghost_vault_basic",
+        "Ghost Vault Basic",
+        "Podstawowe rozszerzenie pojemnosci dysku danych.",
+        "storage_upgrade",
+        "storage",
+        650,
+        [{"type": "storage_capacity_bonus", "value": 256}],
+        icon="+",
+        storage_capacity_bonus=256,
+    ),
+    googleplex_product_base(
+        "storage_ghost_vault_plus",
+        "Ghost Vault Plus",
+        "Wiekszy bufor danych pod dluzsze operacje i paczki rynku.",
+        "storage_upgrade",
+        "storage",
+        1450,
+        [{"type": "storage_capacity_bonus", "value": 512}],
+        icon="+",
+        storage_capacity_bonus=512,
+        required_level=3,
+        required_respect=15,
+        balance_tier="Advanced",
+    ),
+    googleplex_product_base(
+        "storage_data_vault",
+        "Data Vault",
+        "Magazyn danych dla graczy aktywnie pracujacych z Ghost Exchange.",
+        "storage_upgrade",
+        "storage",
+        3200,
+        [{"type": "storage_capacity_bonus", "value": 1024}],
+        icon="+",
+        storage_capacity_bonus=1024,
+        required_level=6,
+        required_respect=40,
+        balance_tier="Pro",
+    ),
+    googleplex_product_base(
+        "storage_blackvault",
+        "BlackVault",
+        "Ciezki magazyn danych dla duzych paczek sektorowych.",
+        "storage_upgrade",
+        "storage",
+        7600,
+        [{"type": "storage_capacity_bonus", "value": 2048}],
+        icon="+",
+        storage_capacity_bonus=2048,
+        required_level=10,
+        required_respect=90,
+        balance_tier="Pro",
+    ),
+    googleplex_product_base(
+        "storage_encrypted_cluster",
+        "Encrypted Cluster",
+        "Najwiekszy seedowy upgrade pojemnosci pod endgame rynku danych.",
+        "storage_upgrade",
+        "storage",
+        14800,
+        [{"type": "storage_capacity_bonus", "value": 4096}],
+        icon="+",
+        storage_capacity_bonus=4096,
+        required_level=16,
+        required_respect=160,
+        balance_tier="Elite",
+    ),
+]
+
+GOOGLEPLEX_EFFECT_PRODUCTS = [
+    *STORAGE_UPGRADE_PRODUCTS,
+    googleplex_product_base(
+        "ticket_warszawa",
+        "Bilet: Warszawa",
+        "Powrot do miasta startowego.",
+        "travel_ticket",
+        "travel",
+        60,
+        [{"type": "travel_city", "city": "Warszawa"}],
+        icon=">",
+        travel_city="Warszawa",
+        consumable=True,
+    ),
+    googleplex_product_base(
+        "ticket_krakow",
+        "Bilet: Krakow",
+        "Jednorazowy przejazd do Krakowa.",
+        "travel_ticket",
+        "travel",
+        95,
+        [{"type": "travel_city", "city": "Krakow"}],
+        icon=">",
+        travel_city="Krakow",
+        consumable=True,
+        required_level=2,
+    ),
+    googleplex_product_base(
+        "ticket_berlin",
+        "Bilet: Berlin",
+        "Jednorazowy przejazd do Berlina.",
+        "travel_ticket",
+        "travel",
+        180,
+        [{"type": "travel_city", "city": "Berlin"}],
+        icon=">",
+        travel_city="Berlin",
+        consumable=True,
+        required_level=3,
+        required_respect=10,
+    ),
+    googleplex_product_base(
+        "ticket_londyn",
+        "Bilet: Londyn",
+        "Jednorazowy przejazd do Londynu.",
+        "travel_ticket",
+        "travel",
+        260,
+        [{"type": "travel_city", "city": "Londyn"}],
+        icon=">",
+        travel_city="Londyn",
+        consumable=True,
+        required_level=4,
+        required_respect=20,
+    ),
+    googleplex_product_base(
+        "ticket_tokio",
+        "Bilet: Tokio",
+        "Jednorazowy przejazd do Tokio.",
+        "travel_ticket",
+        "travel",
+        520,
+        [{"type": "travel_city", "city": "Tokio"}],
+        icon=">",
+        travel_city="Tokio",
+        consumable=True,
+        required_level=7,
+        required_respect=45,
+    ),
+    googleplex_product_base(
+        "ticket_nowy_jork",
+        "Bilet: Nowy Jork",
+        "Jednorazowy przejazd do Nowego Jorku.",
+        "travel_ticket",
+        "travel",
+        520,
+        [{"type": "travel_city", "city": "Nowy Jork"}],
+        icon=">",
+        travel_city="Nowy Jork",
+        consumable=True,
+        required_level=7,
+        required_respect=45,
+    ),
+    googleplex_product_base(
+        "map_zoom_plus_1",
+        "Map Zoom +1",
+        "Lepsze przyblizenie mapy operacyjnej.",
+        "map_upgrade",
+        "map",
+        800,
+        [{"type": "map_zoom_bonus", "value": 1}],
+        icon="^",
+        required_level=2,
+        required_respect=10,
+    ),
+    googleplex_product_base(
+        "map_zoom_plus_2",
+        "Map Zoom +2",
+        "Zaawansowane przyblizenie mapy operacyjnej.",
+        "map_upgrade",
+        "map",
+        1900,
+        [{"type": "map_zoom_bonus", "value": 2}],
+        icon="^",
+        required_level=6,
+        required_respect=45,
+        balance_tier="Advanced",
+    ),
+    googleplex_product_base(
+        "map_zoom_plus_3",
+        "Map Zoom +3",
+        "Najwyzszy seedowy zoom mapy.",
+        "map_upgrade",
+        "map",
+        4200,
+        [{"type": "map_zoom_bonus", "value": 3}],
+        icon="^",
+        required_level=11,
+        required_respect=100,
+        balance_tier="Pro",
+    ),
+    googleplex_product_base(
+        "scan_range_100",
+        "Scan Range +100 m",
+        "Maly wzrost zasiegu rozpoznania.",
+        "scan_upgrade",
+        "map",
+        700,
+        [{"type": "scan_range_bonus", "value": 100}],
+        icon="~",
+        required_level=2,
+        required_respect=10,
+    ),
+    googleplex_product_base(
+        "scan_range_300",
+        "Scan Range +300 m",
+        "Sredni wzrost zasiegu rozpoznania.",
+        "scan_upgrade",
+        "map",
+        1700,
+        [{"type": "scan_range_bonus", "value": 300}],
+        icon="~",
+        required_level=5,
+        required_respect=35,
+        balance_tier="Advanced",
+    ),
+    googleplex_product_base(
+        "scan_range_500",
+        "Scan Range +500 m",
+        "Duzy wzrost zasiegu rozpoznania.",
+        "scan_upgrade",
+        "map",
+        3100,
+        [{"type": "scan_range_bonus", "value": 500}],
+        icon="~",
+        required_level=8,
+        required_respect=70,
+        balance_tier="Pro",
+    ),
+    googleplex_product_base(
+        "scan_range_1000",
+        "Scan Range +1000 m",
+        "Endgameowy wzrost zasiegu rozpoznania.",
+        "scan_upgrade",
+        "map",
+        6800,
+        [{"type": "scan_range_bonus", "value": 1000}],
+        icon="~",
+        required_level=14,
+        required_respect=140,
+        balance_tier="Elite",
+    ),
+    googleplex_product_base(
+        "bike_range_100",
+        "Bike Range +100 m",
+        "Maly wzrost zasiegu roweru.",
+        "bike_upgrade",
+        "travel",
+        500,
+        [{"type": "bike_range_bonus", "value": 100}],
+        icon=">",
+        required_level=1,
+        required_respect=5,
+    ),
+    googleplex_product_base(
+        "bike_range_300",
+        "Bike Range +300 m",
+        "Sredni wzrost zasiegu roweru.",
+        "bike_upgrade",
+        "travel",
+        1300,
+        [{"type": "bike_range_bonus", "value": 300}],
+        icon=">",
+        required_level=4,
+        required_respect=25,
+        balance_tier="Advanced",
+    ),
+    googleplex_product_base(
+        "bike_range_500",
+        "Bike Range +500 m",
+        "Duzy wzrost zasiegu roweru.",
+        "bike_upgrade",
+        "travel",
+        2600,
+        [{"type": "bike_range_bonus", "value": 500}],
+        icon=">",
+        required_level=7,
+        required_respect=55,
+        balance_tier="Pro",
+    ),
+    googleplex_product_base(
+        "bike_range_1000",
+        "Bike Range +1000 m",
+        "Endgameowy wzrost zasiegu roweru.",
+        "bike_upgrade",
+        "travel",
+        5600,
+        [{"type": "bike_range_bonus", "value": 1000}],
+        icon=">",
+        required_level=12,
+        required_respect=120,
+        balance_tier="Elite",
+    ),
+]
+
+LEGACY_STORAGE_UPGRADE_PRODUCTS = [
     {
         "id": "storage_ghost_vault_basic",
         "name": "Ghost Vault Basic",
@@ -5850,11 +6223,13 @@ def get_player_level(profile):
 
 def get_player_action_range(profile):
     level = get_player_level(profile)
-    return min(3000, round(300 * math.sqrt(level)))
+    bonus = clamp_storage_number((profile or {}).get("scan_range_bonus"), default=0, minimum=0)
+    return min(4000, round(300 * math.sqrt(level)) + bonus)
 
 
 def get_player_map_zoom(profile):
-    return 18
+    bonus = clamp_storage_number((profile or {}).get("map_zoom_bonus"), default=0, minimum=0)
+    return max(1, min(20, 18 + bonus))
 
 
 def get_player_min_map_zoom(profile):
@@ -5910,7 +6285,7 @@ def is_system_creator_app(app):
 
 
 def is_system_catalog_app(app):
-    return is_pro_system_tool(app) or is_system_creator_app(app)
+    return is_googleplex_product(app) or is_pro_system_tool(app) or is_system_creator_app(app)
 
 
 def profile_fraction_values(profile):
@@ -5947,12 +6322,16 @@ def creator_system_apps_catalog():
 def get_app_catalog():
     apps = resources_store.get("app_config", default=[]) or []
     return normalize_app_contracts(
-        list(apps) + pro_system_tools_catalog() + creator_system_apps_catalog() + storage_upgrade_products_catalog()
+        list(apps) + pro_system_tools_catalog() + creator_system_apps_catalog() + googleplex_product_catalog()
     )
 
 
+def googleplex_product_catalog():
+    return [dict(product) for product in GOOGLEPLEX_EFFECT_PRODUCTS]
+
+
 def storage_upgrade_products_catalog():
-    return [dict(product) for product in STORAGE_UPGRADE_PRODUCTS]
+    return [dict(product) for product in GOOGLEPLEX_EFFECT_PRODUCTS if product.get("product_type") == "storage_upgrade"]
 
 
 def app_is_installed(profile, app_id):
@@ -5970,6 +6349,70 @@ def storage_product_is_purchased(profile, product_id):
     if not isinstance(upgrades, list):
         return False
     return any(str(item.get("id") or "").strip() == product_id for item in upgrades if isinstance(item, dict))
+
+
+def googleplex_product_is_purchased(profile, product_id):
+    product_id = str(product_id or "").strip()
+    if not product_id:
+        return False
+    purchases = profile.get("googleplex_products", []) if isinstance(profile, dict) else []
+    if isinstance(purchases, list) and any(
+        str(item.get("id") or "").strip() == product_id
+        for item in purchases
+        if isinstance(item, dict)
+    ):
+        return True
+    return storage_product_is_purchased(profile, product_id)
+
+
+def is_googleplex_product(item):
+    return isinstance(item, dict) and bool(item.get("product_type") or item.get("effects"))
+
+
+def apply_googleplex_product_effect(profile, product):
+    if not isinstance(profile, dict) or not isinstance(product, dict):
+        return {"applied": [], "messages": []}
+    effects = product.get("effects")
+    if not isinstance(effects, list):
+        effects = []
+    applied = []
+    messages = []
+
+    for effect in effects:
+        if not isinstance(effect, dict):
+            continue
+        effect_type = str(effect.get("type") or "").strip()
+        if effect_type == "storage_capacity_bonus":
+            bonus = clamp_storage_number(effect.get("value") or product.get("storage_capacity_bonus"), default=0, minimum=1)
+            normalize_profile_storage(profile)
+            profile["storage_capacity"] = clamp_storage_number(
+                profile.get("storage_capacity"),
+                default=DEFAULT_STORAGE_CAPACITY_MB,
+                minimum=64,
+            ) + bonus
+            applied.append({"type": effect_type, "value": bonus})
+            messages.append(f"Pojemnosc dysku +{bonus} MB.")
+        elif effect_type == "travel_city":
+            city_key = str(effect.get("city") or product.get("travel_city") or "").strip()
+            city = TRAVEL_CITIES.get(city_key)
+            if not city:
+                raise ValueError(f"Nieznane miasto biletu: {city_key}")
+            profile["curently_possition"] = {
+                "lat": city["lat"],
+                "lng": city["lng"],
+            }
+            profile["current_city"] = city["name"]
+            applied.append({"type": effect_type, "city": city["name"], "lat": city["lat"], "lng": city["lng"]})
+            messages.append(f"Przejazd do miasta: {city['name']}.")
+        elif effect_type in {"map_zoom_bonus", "scan_range_bonus", "bike_range_bonus"}:
+            value = clamp_storage_number(effect.get("value"), default=0, minimum=1)
+            current = clamp_storage_number(profile.get(effect_type), default=0, minimum=0)
+            profile[effect_type] = current + value
+            applied.append({"type": effect_type, "value": value, "total": profile[effect_type]})
+            messages.append(f"{effect_type} +{value}.")
+
+    normalize_profile_storage(profile)
+    return {"applied": applied, "messages": messages}
 
 
 def public_pro_system_tools(profile=None):
@@ -6240,8 +6683,8 @@ def googleplex_catalog_payload(app, profile):
         if str(target_type).strip()
     ]
     item["app_level"] = infer_googleplex_app_level(item)
-    if item.get("product_type") == "storage_upgrade":
-        item["installed"] = storage_product_is_purchased(profile or {}, item.get("id"))
+    if is_googleplex_product(item):
+        item["installed"] = (not item.get("consumable")) and googleplex_product_is_purchased(profile or {}, item.get("id"))
     else:
         item["installed"] = app_is_installed(profile, item.get("id"))
 
@@ -11335,14 +11778,14 @@ def install_app():
         profile = sync_session_profile()
         mgr = UserProfileManager(session["user"])
         apps = profile.get("apps", [])
-        is_storage_product = app_data.get("product_type") == "storage_upgrade"
-        if is_storage_product and storage_product_is_purchased(profile, app_id):
+        is_product = is_googleplex_product(app_data)
+        if is_product and not app_data.get("consumable") and googleplex_product_is_purchased(profile, app_id):
             return jsonify({
                 "status": "error",
                 "reason": "already_purchased",
-                "message": "Produkt storage jest juz kupiony."
+                "message": "Produkt jest juz kupiony."
             }), 409
-        if not is_storage_product and any(a.get("id") == app_id for a in apps):
+        if not is_product and any(a.get("id") == app_id for a in apps):
             return jsonify({
                 "status": "error",
                 "reason": "already_installed",
@@ -11398,50 +11841,73 @@ def install_app():
             elif payee_username == buyer_username:
                 profile["hackcoins"] = int(profile.get("hackcoins", 0) or 0) + price
 
-        if is_storage_product:
-            bonus = clamp_storage_number(app_data.get("storage_capacity_bonus"), default=0, minimum=1)
-            normalize_profile_storage(profile)
-            profile["storage_capacity"] = clamp_storage_number(
-                profile.get("storage_capacity"),
-                default=DEFAULT_STORAGE_CAPACITY_MB,
-                minimum=64,
-            ) + bonus
-            upgrades = profile.setdefault("storage_upgrades", [])
-            if not isinstance(upgrades, list):
-                upgrades = []
-                profile["storage_upgrades"] = upgrades
-            upgrades.append({
+        if is_product:
+            effect_result = apply_googleplex_product_effect(profile, app_data)
+            purchases = profile.setdefault("googleplex_products", [])
+            if not isinstance(purchases, list):
+                purchases = []
+                profile["googleplex_products"] = purchases
+            purchase_record = {
                 "id": app_id,
                 "name": app_data.get("name"),
-                "storage_capacity_bonus": bonus,
+                "product_type": app_data.get("product_type"),
+                "category": app_data.get("category"),
+                "effects": effect_result.get("applied", []),
                 "price": price,
+                "consumable": bool(app_data.get("consumable")),
                 "purchased_at": runtime_file_now(),
-            })
-            normalize_profile_storage(profile)
+            }
+            purchases.append(purchase_record)
+            if app_data.get("product_type") == "storage_upgrade":
+                upgrades = profile.setdefault("storage_upgrades", [])
+                if not isinstance(upgrades, list):
+                    upgrades = []
+                    profile["storage_upgrades"] = upgrades
+                if not any(isinstance(item, dict) and item.get("id") == app_id for item in upgrades):
+                    storage_effect = next(
+                        (item for item in effect_result.get("applied", []) if item.get("type") == "storage_capacity_bonus"),
+                        {},
+                    )
+                    upgrades.append({
+                        "id": app_id,
+                        "name": app_data.get("name"),
+                        "storage_capacity_bonus": storage_effect.get("value") or app_data.get("storage_capacity_bonus"),
+                        "price": price,
+                        "purchased_at": purchase_record["purchased_at"],
+                    })
             system_messages = profile.get("system_messages", [])
             if not isinstance(system_messages, list):
                 system_messages = []
             system_messages.append({
-                "title": "Pojemnosc zwiekszona",
-                "text": f"Produkt <b>{app_data['name']}</b> zwiekszyl pojemnosc dysku o {bonus} MB.",
+                "title": "Zakup Googleplex",
+                "text": f"Produkt <b>{app_data['name']}</b> zostal aktywowany.",
                 "type": "success",
                 "status": "new",
+                "product_id": app_id,
+                "effects": effect_result.get("applied", []),
             })
             profile["system_messages"] = system_messages
-            mgr.update_profile({
+            update_payload = {
                 "hackcoins": profile.get("hackcoins", 0),
                 "storage_capacity": profile.get("storage_capacity"),
                 "storage_used": profile.get("storage_used"),
                 "storage_unit": profile.get("storage_unit", "MB"),
                 "storage_soft_limit": True,
                 "storage_over_limit": profile.get("storage_over_limit", False),
-                "storage_upgrades": upgrades,
+                "storage_upgrades": profile.get("storage_upgrades", []),
+                "googleplex_products": purchases,
+                "curently_possition": profile.get("curently_possition"),
+                "current_city": profile.get("current_city"),
+                "map_zoom_bonus": profile.get("map_zoom_bonus", 0),
+                "scan_range_bonus": profile.get("scan_range_bonus", 0),
+                "bike_range_bonus": profile.get("bike_range_bonus", 0),
                 "system_messages": system_messages,
-            })
+            }
+            mgr.update_profile(update_payload)
             session["profile"] = sync_session_profile(rebuild_territory=False)
             return jsonify({
                 "status": "success",
-                "message": "Pojemnosc dysku zostala zwiekszona.",
+                "message": "Produkt zostal kupiony.",
                 "hackcoins": profile.get("hackcoins", 0),
                 "price": price,
                 "paid_to": payee_username if price > 0 else None,
@@ -11449,14 +11915,22 @@ def install_app():
                     "capacity": profile.get("storage_capacity"),
                     "used": profile.get("storage_used"),
                     "unit": profile.get("storage_unit", "MB"),
-                    "added": bonus,
+                    "added": next(
+                        (item.get("value") for item in effect_result.get("applied", []) if item.get("type") == "storage_capacity_bonus"),
+                        0,
+                    ),
                     "soft_limit": True,
                     "over_limit": profile.get("storage_over_limit", False),
                 },
+                "product": purchase_record,
+                "effects": effect_result.get("applied", []),
                 "storage_upgrade": {
                     "id": app_id,
                     "name": app_data.get("name"),
-                    "storage_capacity_bonus": bonus,
+                    "storage_capacity_bonus": next(
+                        (item.get("value") for item in effect_result.get("applied", []) if item.get("type") == "storage_capacity_bonus"),
+                        app_data.get("storage_capacity_bonus", 0),
+                    ),
                 },
                 "apps": profile.get("apps", apps),
                 "files": profile.get("files", {}),

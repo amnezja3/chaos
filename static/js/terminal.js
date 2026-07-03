@@ -2471,6 +2471,9 @@ function createBrowser() {
         item.type,
         item.category,
         item.app_level,
+        item.product_type,
+        item.travel_city,
+        ...googleplexList(item.effects).map(effect => `${effect?.type || ''} ${effect?.value || effect?.city || ''}`),
         ...googleplexList(item.map_actions),
         ...googleplexList(item.operation_types),
         ...googleplexList(item.resource_types),
@@ -2499,10 +2502,11 @@ function createBrowser() {
         matches.forEach(item => {
             const price = Number(item.price || 0);
             const installed = item.installed === true;
+            const isProduct = !!(item.product_type || (Array.isArray(item.effects) && item.effects.length));
             const canAfford = walletBalance >= price;
             const installBlockedReason = item.install_blocked_reason || "";
             const canInstall = !installed && canAfford && !installBlockedReason;
-            const buttonLabel = installed ? "Zainstalowane" : (canAfford ? "Zainstaluj" : "Brak \u015brodk\u00f3w");
+            const buttonLabel = installed ? (isProduct ? "Kupione" : "Zainstalowane") : (canAfford ? (isProduct ? "Kup" : "Zainstaluj") : "Brak \u015brodk\u00f3w");
             const hasInstallRequirements = item.type === "pro-system-tool" || item.category === "pro-system-tools" || item.category === "creators" || item.required_level || item.required_respect;
             const riskLevel = Math.max(0, Math.min(5, Number(item.risk_level || 0)));
             const riskStars = riskLevel ? "&#9733;".repeat(riskLevel) : "brak";
@@ -2513,6 +2517,17 @@ function createBrowser() {
             const creatorPower = Math.max(0, Math.min(100, Number(item.creator_power || 0)));
             const powerScore = Math.max(0, Math.min(100, Number(item.power_score || 0)));
             const priceHint = Number(item.price_hint || 0);
+            const effectsText = Array.isArray(item.effects)
+                ? item.effects.map(effect => {
+                    if (!effect || typeof effect !== 'object') return '';
+                    if (effect.type === 'travel_city') return `Miasto: ${effect.city || item.travel_city || '-'}`;
+                    if (effect.type === 'storage_capacity_bonus') return `Dysk +${formatStorageSize(effect.value || item.storage_capacity_bonus || 0)}`;
+                    if (effect.type === 'map_zoom_bonus') return `Zoom +${Number(effect.value || 0)}`;
+                    if (effect.type === 'scan_range_bonus') return `Skan +${Number(effect.value || 0)} m`;
+                    if (effect.type === 'bike_range_bonus') return `Rower +${Number(effect.value || 0)} m`;
+                    return `${effect.type || 'efekt'} ${effect.value || effect.city || ''}`.trim();
+                }).filter(Boolean).join(', ')
+                : '';
             const proMeta = hasInstallRequirements ? `
                 <div class="googolplex-card-requirements">
                     <span>LVL ${Number(item.required_level || 1)}</span>
@@ -2525,6 +2540,9 @@ function createBrowser() {
                     <span>Poziom: <b>${escapeHTML(item.app_level || 'Basic')}</b></span>
                     <span>Rodzina: <b>${escapeHTML(item.tool_family || item.type || 'tool')}</b></span>
                     <span>Tryb: <b>${escapeHTML(item.tool_mode || item.scanner_mode || 'desktop')}</b></span>
+                    ${isProduct ? `<span>Produkt: <b>${escapeHTML(item.product_type || '-')}</b></span>` : ''}
+                    ${isProduct ? `<span>Kategoria: <b>${escapeHTML(item.category || '-')}</b></span>` : ''}
+                    ${isProduct ? `<span>Efekt: <b>${escapeHTML(effectsText || '-')}</b></span>` : ''}
                     <span>Tier: <b>${escapeHTML(item.balance_tier || item.app_level || 'Basic')}</b></span>
                     <span>Map: <b>${escapeHTML(googleplexListText(item.map_actions))}</b></span>
                     <span>Ops: <b>${escapeHTML(googleplexListText(item.operation_types))}</b></span>
@@ -3181,10 +3199,11 @@ function showInstallAppProgress(app, onInstalled = null) {
             .then(data => {
                 if (data.status === "success") {
                     const storage = data.storage || {};
+                    const isProductPurchase = !!data.product;
                     const storageLine = storage.used
                         ? `<br><span style="color:#8fd6a4;">Dysk: ${escapeHTML(formatStorageSize(storage.used, storage.unit || 'MB'))} / ${escapeHTML(formatStorageSize(storage.capacity, storage.unit || 'MB'))}${storage.over_limit ? ' (ponad limit mi\u0119kki)' : ''}</span>`
                         : '';
-                    result.innerHTML = `<span style="color:#0f0;">\u2714 Aplikacja zainstalowana.</span>${storageLine}`;
+                    result.innerHTML = `<span style="color:#0f0;">\u2714 ${isProductPurchase ? 'Produkt kupiony.' : 'Aplikacja zainstalowana.'}</span>${storageLine}`;
                     if (Object.prototype.hasOwnProperty.call(data, "hackcoins")) {
                         setToolbarProfile({
                             ...toolbarProfile,
