@@ -3655,6 +3655,22 @@ def remove_market_batch_files(files, file_ids):
     return removed
 
 
+def market_entries_volume_mb(entries):
+    return sum(
+        clamp_storage_number(
+            item.get("file_size") or (item.get("metadata") or {}).get("file_size"),
+            default=estimate_runtime_file_size(item.get("file_category"), item),
+            minimum=1,
+        )
+        for item in entries
+        if isinstance(item, dict)
+    )
+
+
+def market_entries_record_count(entries):
+    return sum(runtime_file_record_count(item) for item in entries if isinstance(item, dict))
+
+
 def refresh_market_runtime(username, profile, now=None, persist=False):
     if not isinstance(profile, dict):
         return {"changed": False, "queued": 0, "listed": 0, "settled": 0, "sales": []}
@@ -3683,109 +3699,113 @@ def refresh_market_runtime(username, profile, now=None, persist=False):
     listed_count = 0
     sales = []
     for sector, entries in sector_entries.items():
-        pending_mb = sum(
-            clamp_storage_number(
-                item.get("file_size") or (item.get("metadata") or {}).get("file_size"),
-                default=estimate_runtime_file_size(item.get("file_category"), item),
-                minimum=1,
-            )
-            for item in entries
-        )
-        pending_records = sum(runtime_file_record_count(item) for item in entries)
-        if not market_sector_threshold_reached(sector, pending_mb, pending_records):
-            continue
-
-        batch_id = market_batch_id(username, sector, entries)
-        if market_batch_already_settled(profile, batch_id):
-            recovered = cleanup_already_settled_market_files(profile, files, batch_id, entries)
-            if recovered:
-                changed = True
-            continue
-
-        listed_at = None
+        listed_batches = {}
+        queued_entries = []
         for item in entries:
-            if item.get("batch_id") == batch_id and item.get("listed_at"):
-                listed_at = item.get("listed_at")
-                break
-        if not listed_at:
-            listed_at = now_iso
-            entry_ids = {str(item.get("id") or "") for item in entries if isinstance(item, dict)}
-            files = ensure_files_inventory(profile)
-            for item in entries:
-                item["market_status"] = "listed"
-                item["listed_at"] = listed_at
-                item["batch_id"] = batch_id
-                item["market_sector"] = sector
-            for folder in GHOST_EXCHANGE_FILE_CATEGORIES:
-                for item in files.get(folder, []):
-                    if isinstance(item, dict) and str(item.get("id") or "") in entry_ids:
-                        item["market_status"] = "listed"
-                        item["listed_at"] = listed_at
-                        item["batch_id"] = batch_id
-                        item["market_sector"] = sector
-            listed_count += len(entries)
+            batch_id = str(item.get("batch_id") or "").strip()
+            if item.get("market_status") == "listed" and batch_id:
+                listed_batches.setdefault(batch_id, []).append(item)
+            else:
+                queued_entries.append(item)
+
+        batches_to_process = list(listed_batches.items())
+        if queued_entries:
+            pending_mb = market_entries_volume_mb(queued_entries)
+            pending_records = market_entries_record_count(queued_entries)
+            if market_sector_threshold_reached(sector, pending_mb, pending_records):
+                batches_to_process.append((market_batch_id(username, sector, queued_entries), queued_entries))
+
+        for batch_id, batch_entries in batches_to_process:
+            if market_batch_already_settled(profile, batch_id):
+                recovered = cleanup_already_settled_market_files(profile, files, batch_id, batch_entries)
+                if recovered:
+                    changed = True
+                continue
+
+            listed_at = None
+            for item in batch_entries:
+                if item.get("batch_id") == batch_id and item.get("listed_at"):
+                    listed_at = item.get("listed_at")
+                    break
+            if not listed_at:
+                listed_at = now_iso
+                entry_ids = {str(item.get("id") or "") for item in batch_entries if isinstance(item, dict)}
+                files = ensure_files_inventory(profile)
+                for item in batch_entries:
+                    item["market_status"] = "listed"
+                    item["listed_at"] = listed_at
+                    item["batch_id"] = batch_id
+                    item["market_sector"] = sector
+                for folder in GHOST_EXCHANGE_FILE_CATEGORIES:
+                    for item in files.get(folder, []):
+                        if isinstance(item, dict) and str(item.get("id") or "") in entry_ids:
+                            item["market_status"] = "listed"
+                            item["listed_at"] = listed_at
+                            item["batch_id"] = batch_id
+                            item["market_sector"] = sector
+                listed_count += len(batch_entries)
+                changed = True
+                continue
+
+            listed_ts = parse_operation_timestamp(listed_at)
+            if listed_ts is None:
+                listed_ts = now_dt.timestamp()
+            dwell_seconds = MARKET_SECTOR_DWELL_SECONDS.get(sector, 5 * 60)
+            if now_dt.timestamp() - listed_ts < dwell_seconds:
+                continue
+
+            price = market_batch_price(batch_entries)
+            sold_at = now_iso
+            sale_record = build_ghost_exchange_batch_sale_record(username, sector, batch_id, batch_entries, price, sold_at)
+            file_ids = [item.get("id") for item in batch_entries]
+            removed = remove_market_batch_files(files, file_ids)
+            if not removed:
+                continue
+            files.setdefault("market", []).append(sale_record)
+            history_entry = {
+                "id": batch_id,
+                "batch_id": batch_id,
+                "market_sector": sector,
+                "market_category": sale_record["metadata"].get("market_category"),
+                "buyer_type": sale_record["metadata"].get("buyer_type"),
+                "price": price,
+                "currency": "HC",
+                "sold_at": sold_at,
+                "status": "sold",
+                "file_ids": file_ids,
+                "file_names": [item.get("name") or item.get("filename") for item in batch_entries],
+                "file_count": len(batch_entries),
+                "volume_mb": sale_record["metadata"].get("volume_mb"),
+                "record_count": sale_record["metadata"].get("record_count"),
+            }
+            profile.setdefault("market_history", []).append(history_entry)
+            profile["hackcoins"] = int(profile.get("hackcoins", 0) or 0) + price
+            profile.setdefault("system_messages", []).append({
+                "title": "Ghost Exchange",
+                "text": f"Sprzedano paczke danych {sector} za {price} HC.",
+                "type": "success",
+                "status": "new",
+                "created_at": sold_at,
+                "batch_id": batch_id,
+            })
+            add_cyberner_direct_notification(
+                username,
+                "Ghost Exchange",
+                "Ghost Exchange",
+                "Sprzedano paczke danych",
+                (
+                    f"Sektor: {sector}\n"
+                    f"Liczba plikow: {len(batch_entries)}\n"
+                    f"Wolumen: {sale_record['metadata'].get('volume_mb')} MB\n"
+                    f"Cena: {price} HC\n"
+                    f"Batch: {batch_id}\n"
+                    f"Czas: {sold_at}"
+                ),
+            )
+            normalize_files_inventory(profile)
+            normalize_profile_storage(profile)
+            sales.append(history_entry)
             changed = True
-            continue
-
-        listed_ts = parse_operation_timestamp(listed_at)
-        if listed_ts is None:
-            listed_ts = now_dt.timestamp()
-        dwell_seconds = MARKET_SECTOR_DWELL_SECONDS.get(sector, 5 * 60)
-        if now_dt.timestamp() - listed_ts < dwell_seconds:
-            continue
-
-        price = market_batch_price(entries)
-        sold_at = now_iso
-        sale_record = build_ghost_exchange_batch_sale_record(username, sector, batch_id, entries, price, sold_at)
-        file_ids = [item.get("id") for item in entries]
-        removed = remove_market_batch_files(files, file_ids)
-        if not removed:
-            continue
-        files.setdefault("market", []).append(sale_record)
-        history_entry = {
-            "id": batch_id,
-            "batch_id": batch_id,
-            "market_sector": sector,
-            "market_category": sale_record["metadata"].get("market_category"),
-            "buyer_type": sale_record["metadata"].get("buyer_type"),
-            "price": price,
-            "currency": "HC",
-            "sold_at": sold_at,
-            "status": "sold",
-            "file_ids": file_ids,
-            "file_names": [item.get("name") or item.get("filename") for item in entries],
-            "file_count": len(entries),
-            "volume_mb": sale_record["metadata"].get("volume_mb"),
-            "record_count": sale_record["metadata"].get("record_count"),
-        }
-        profile.setdefault("market_history", []).append(history_entry)
-        profile["hackcoins"] = int(profile.get("hackcoins", 0) or 0) + price
-        profile.setdefault("system_messages", []).append({
-            "title": "Ghost Exchange",
-            "text": f"Sprzedano paczke danych {sector} za {price} HC.",
-            "type": "success",
-            "status": "new",
-            "created_at": sold_at,
-            "batch_id": batch_id,
-        })
-        add_cyberner_direct_notification(
-            username,
-            "Ghost Exchange",
-            "Ghost Exchange",
-            "Sprzedano paczke danych",
-            (
-                f"Sektor: {sector}\n"
-                f"Liczba plikow: {len(entries)}\n"
-                f"Wolumen: {sale_record['metadata'].get('volume_mb')} MB\n"
-                f"Cena: {price} HC\n"
-                f"Batch: {batch_id}\n"
-                f"Czas: {sold_at}"
-            ),
-        )
-        normalize_files_inventory(profile)
-        normalize_profile_storage(profile)
-        sales.append(history_entry)
-        changed = True
 
     if persist and changed:
         UserProfileManager(username).update_profile({

@@ -3544,6 +3544,61 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(profile["files"].get("market", []), [])
         self.assertEqual(profile["storage_used"], 0)
 
+    def test_market_runtime_sells_listed_network_batch_without_queued_reset(self):
+        listed_entries = [
+            {
+                "id": f"network_listed_{index}",
+                "name": f"network_listed_{index}.net",
+                "file_category": "network",
+                "resource_types": ["wifi_networks"],
+                "file_size": 10,
+                "market_status": "listed",
+                "listed_at": "2026-07-03T10:00:00Z",
+                "market_sector": "network",
+                "sellable": True,
+            }
+            for index in range(3)
+        ]
+        listed_batch_id = run.market_batch_id("neo", "network", listed_entries)
+        for entry in listed_entries:
+            entry["batch_id"] = listed_batch_id
+        queued_entries = [
+            {
+                "id": f"network_queued_{index}",
+                "name": f"network_queued_{index}.net",
+                "file_category": "network",
+                "resource_types": ["wifi_networks"],
+                "file_size": 8,
+                "market_status": "queued_for_market",
+                "market_sector": "network",
+                "sellable": True,
+            }
+            for index in range(4)
+        ]
+        profile = {
+            "username": "neo",
+            "hackcoins": 100,
+            "storage_capacity": 256,
+            "storage_used": 62,
+            "storage_unit": "MB",
+            "files": {"network": listed_entries + queued_entries, "market": []},
+            "market_history": [],
+            "system_messages": [],
+        }
+
+        with patch.object(run.mail_store, "add_direct_notification") as mail_mock:
+            result = refresh_market_runtime("neo", profile, now=datetime(2026, 7, 3, 10, 6, tzinfo=timezone.utc))
+
+        remaining_network_ids = {item["id"] for item in profile["files"]["network"]}
+        self.assertEqual(result["settled"], 1)
+        self.assertEqual(profile["market_history"][0]["batch_id"], listed_batch_id)
+        self.assertFalse(any(item["id"] in remaining_network_ids for item in listed_entries))
+        self.assertTrue(all(item["id"] in remaining_network_ids for item in queued_entries))
+        self.assertTrue(all(item["market_status"] == "listed" for item in profile["files"]["network"]))
+        self.assertTrue(all(item["batch_id"] != listed_batch_id for item in profile["files"]["network"]))
+        self.assertGreater(profile["hackcoins"], 100)
+        mail_mock.assert_called_once()
+
     def test_ghost_exchange_prices_richer_device_package_higher(self):
         profile = {
             "files": {
