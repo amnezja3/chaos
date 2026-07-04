@@ -1641,6 +1641,49 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(profile["storage_upgrades"][0]["id"], product["id"])
         self.assertEqual(data["storage"]["added"], product["storage_capacity_bonus"])
 
+    def test_googleplex_legacy_storage_upgrade_without_effects_increases_capacity(self):
+        profile = {
+            "username": "neo",
+            "nick": "Neo",
+            "hackcoins": 5000,
+            "level": 10,
+            "respect": 100,
+            "apps": [],
+            "files": {"tools": []},
+            "storage_capacity": 512,
+            "storage_used": 0,
+            "system_messages": [],
+        }
+        product = dict(next(item for item in run.storage_upgrade_products_catalog() if item["id"] == "storage_ghost_vault_basic"))
+        product.pop("effects", None)
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "neo"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run, "get_app_catalog", return_value=[product]), \
+                patch.object(run, "ensure_purchase_account_profile", return_value={"username": "admin", "hackcoins": 0}), \
+                patch.object(run.user_store, "save_profile", return_value=None), \
+                patch.object(run.mail_store, "add_direct_notification", return_value=None):
+            response = client.post("/install-app", json={"app_id": product["id"]})
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data["status"], "success")
+        self.assertEqual(profile["storage_capacity"], 512 + product["storage_capacity_bonus"])
+        self.assertEqual(data["storage"]["added"], product["storage_capacity_bonus"])
+        self.assertEqual(profile["apps"], [])
+        self.assertEqual(profile["files"]["tools"], [])
+
     def test_googleplex_storage_upgrade_requires_hackcoins(self):
         profile = {
             "username": "neo",

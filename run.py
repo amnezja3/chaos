@@ -3734,7 +3734,7 @@ def refresh_market_runtime(username, profile, now=None, persist=False):
             "created_at": sold_at,
             "batch_id": batch_id,
         })
-        mail_store.add_direct_notification(
+        add_cyberner_direct_notification(
             username,
             "Ghost Exchange",
             "Ghost Exchange",
@@ -6138,6 +6138,96 @@ def add_system_message_to_user(username, msg_type, title, text):
     return True
 
 
+def cyberner_notification_source(scope, peer_name, sender):
+    if scope == "group":
+        return "world"
+    if scope == "channel":
+        peer = str(peer_name or "")
+        if peer == "friends":
+            return "friends"
+        if peer.startswith("clan:"):
+            return "clan"
+        return "unknown"
+
+    normalized = str(sender or peer_name or "").strip().lower()
+    if normalized in {"ai central", "ai"} or "ai central" in normalized:
+        return "ai"
+    if normalized == "ghost exchange" or "ghost exchange" in normalized:
+        return "ghost_exchange"
+    if normalized in {"system", "ghost system"} or "system" in normalized:
+        return "system"
+    if "misje" in normalized or "mission" in normalized:
+        return "mission"
+    if "marketplace" in normalized:
+        return "marketplace"
+    if "blacknet" in normalized:
+        return "blacknet"
+    return "player"
+
+
+def cyberner_notification_title(source, scope, peer_name, sender):
+    if source == "world":
+        return "WORLD"
+    if source == "friends":
+        return "ZNAJOMI"
+    if source == "clan":
+        return "KLAN"
+    if source == "ai":
+        return "AI Central"
+    if source == "ghost_exchange":
+        return "Ghost Exchange"
+    if source == "system":
+        return "System"
+    if source == "mission":
+        return "Misje"
+    if source == "marketplace":
+        return "Marketplace"
+    if source == "blacknet":
+        return "BlackNet"
+    return str(sender or peer_name or "Cyberner")
+
+
+def cyberner_notification_text(source):
+    if source == "world":
+        return "Nowa aktywnosc."
+    return "Nowa wiadomosc."
+
+
+def add_cyberner_notification_to_user(username, scope, peer_name, sender):
+    if not username:
+        return False
+    profile = user_store.get_profile(username)
+    if not profile:
+        return False
+
+    source = cyberner_notification_source(scope, peer_name, sender)
+    title = cyberner_notification_title(source, scope, peer_name, sender)
+    messages = profile.get("system_messages", [])
+    if not isinstance(messages, list):
+        messages = []
+    new_id = max([m.get("id", 0) for m in messages if isinstance(m, dict)], default=0) + 1
+    messages.append({
+        "id": new_id,
+        "type": "info",
+        "notification_type": "cyberner",
+        "source": source,
+        "scope": scope,
+        "peer": "global" if scope == "group" else peer_name,
+        "sender": sender,
+        "title": title,
+        "text": cyberner_notification_text(source),
+        "status": "new",
+    })
+    profile["system_messages"] = messages
+    user_store.save_profile(profile)
+    return True
+
+
+def add_cyberner_direct_notification(username, peer_name, sender, subject, body):
+    mail_store.add_direct_notification(username, peer_name, sender, subject, body)
+    add_cyberner_notification_to_user(username, "direct", peer_name or sender, sender)
+
+
 def notify_area_intrusion(actor_username, lat, lng):
     area = find_foreign_area_for_point(actor_username, lat, lng)
     if not area:
@@ -6434,6 +6524,8 @@ def apply_googleplex_product_effect(profile, product):
     effects = product.get("effects")
     if not isinstance(effects, list):
         effects = []
+    if not effects and product.get("product_type") == "storage_upgrade" and product.get("storage_capacity_bonus"):
+        effects = [{"type": "storage_capacity_bonus", "value": product.get("storage_capacity_bonus")}]
     applied = []
     messages = []
 
@@ -9408,7 +9500,7 @@ def hack_action():
                 "Atak na punkt kolizyjny",
                 f"{attacker_name} uruchomil akcje {action} na twoim obiekcie {contested_target.get('label') or contested_target.get('name')}."
             )
-            mail_store.add_direct_notification(
+            add_cyberner_direct_notification(
                 owner_username,
                 "System",
                 "System",
@@ -9955,7 +10047,7 @@ def api_ghost_exchange_sell():
         f"Czas: {sale['sold_at']}\n"
         "Status pliku: sold / removed from data inventory"
     )
-    mail_store.add_direct_notification(
+    add_cyberner_direct_notification(
         username,
         "Ghost Exchange",
         "Ghost Exchange",
@@ -11604,9 +11696,10 @@ def ensure_mail_seed(profile=None):
     return username
 
 
-def build_cyberner_channels(profile, contacts, group_active_count):
+def build_cyberner_channels(profile, contacts, group_active_count, accepted_contacts=None):
     """Build singleton channel read model without storing channels as contacts."""
     contact_count = len(contacts or [])
+    accepted_count = len(accepted_contacts or [])
     channels = [
         {
             "source": "world",
@@ -11626,11 +11719,12 @@ def build_cyberner_channels(profile, contacts, group_active_count):
             "scope": "channel",
             "peer": "friends",
             "title": "ZNAJOMI",
-            "subtitle": "Kanal znajomych",
-            "preview": f"{contact_count} kontaktow gotowych do przyszlego kanalu",
-            "enabled": False,
-            "disabled_reason": "Runtime kanalu znajomych zostanie dodany po kontrakcie Sprintu 46.",
-            "meta": f"{contact_count} kontaktow",
+            "subtitle": "Kanal kontaktow gracza",
+            "preview": "Wspolny kanal zaakceptowanych kontaktow",
+            "enabled": True,
+            "meta": f"{accepted_count} znajomych",
+            "contacts_count": contact_count,
+            "accepted_contacts_count": accepted_count,
         },
     ]
 
@@ -11643,14 +11737,57 @@ def build_cyberner_channels(profile, contacts, group_active_count):
             "peer": f"clan:{clan}",
             "title": "KLAN",
             "subtitle": f"Kanal klanu {clan}",
-            "preview": "Punkt komunikacji klanowej przygotowany pod runtime.",
-            "enabled": False,
-            "disabled_reason": "Kanal klanowy czeka na runtime wiadomosci klanowych.",
+            "preview": "Wspolny kanal czlonkow klanu",
+            "enabled": True,
             "meta": clan,
             "clan": clan,
         })
 
     return channels
+
+
+def cyberner_channel_recipients(username, profile, peer_name):
+    """Resolve Cyberner channel recipients without storing channels as contacts."""
+    peer_name = str(peer_name or "").strip()
+    if peer_name == "friends":
+        return [
+            contact.get("name")
+            for contact in mail_store.list_accepted_contacts(username)
+            if contact.get("name")
+        ]
+
+    if peer_name.startswith("clan:"):
+        clan = get_profile_clan(profile or {})
+        requested_clan = peer_name.split(":", 1)[1].strip()
+        if not clan or requested_clan != clan:
+            raise ValueError("Kanal klanu jest niedostepny.")
+
+        recipients = []
+        for item in user_store.list_profiles():
+            other_username = item.get("username")
+            if not other_username or other_username == username:
+                continue
+            if get_profile_clan(item) == clan:
+                recipients.append(other_username)
+        return recipients
+
+    raise ValueError("Nieznany kanal Cybernera.")
+
+
+def cyberner_message_recipients(username, profile, scope, peer_name):
+    if scope == "group":
+        return [
+            contact.get("name")
+            for contact in mail_store.list_contacts(username)
+            if contact.get("name") and contact.get("name") != username
+        ]
+    if scope == "channel":
+        return cyberner_channel_recipients(username, profile, peer_name)
+    if scope == "direct":
+        peer_name = str(peer_name or "").strip()
+        if peer_name and peer_name != username and user_store.get_profile(peer_name):
+            return [peer_name]
+    return []
 
 
 @app.route("/api/mail/bootstrap")
@@ -11662,13 +11799,14 @@ def mail_bootstrap():
     username = ensure_mail_seed(profile)
     mail_store.touch_presence(username)
     contacts = mail_store.list_contacts(username)
+    accepted_contacts = mail_store.list_accepted_contacts(username)
     pending_threads = mail_store.list_pending_threads(username)
     group_messages = mail_store.list_messages(username, "group", "global")
     group_active_count = mail_store.group_active_count(username)
 
     return jsonify({
         "username": username,
-        "channels": build_cyberner_channels(profile, contacts, group_active_count),
+        "channels": build_cyberner_channels(profile, contacts, group_active_count, accepted_contacts),
         "contacts": contacts,
         "pending_threads": pending_threads,
         "group_messages": group_messages,
@@ -11744,7 +11882,7 @@ def request_player_contact():
 
     requester_profile = user_store.get_profile(username) or {}
     requester_nick = requester_profile.get("nick") or username
-    mail_store.add_direct_notification(
+    add_cyberner_direct_notification(
         target_username,
         username,
         requester_nick,
@@ -11773,11 +11911,14 @@ def chat_messages():
     if "user" not in session:
         return jsonify({"error": "Nie jesteś zalogowany"}), 401
 
-    username = ensure_mail_seed()
+    profile = sync_session_profile()
+    username = ensure_mail_seed(profile)
     scope = request.args.get("scope", "group")
     peer_name = request.args.get("peer", "global" if scope == "group" else "")
 
     try:
+        if scope == "channel":
+            cyberner_channel_recipients(username, profile, peer_name)
         messages = mail_store.list_messages(username, scope, peer_name)
         mail_store.mark_thread_read(username, scope, peer_name)
     except ValueError as e:
@@ -11794,13 +11935,18 @@ def send_chat_message():
     if "user" not in session:
         return jsonify({"error": "Nie jesteś zalogowany"}), 401
 
-    username = ensure_mail_seed()
+    profile = sync_session_profile()
+    username = ensure_mail_seed(profile)
     data = request.get_json() or {}
     scope = data.get("scope", "group")
     peer_name = data.get("peer", "global" if scope == "group" else "")
     body = data.get("body", "")
 
     try:
+        channel_recipients = None
+        notification_recipients = cyberner_message_recipients(username, profile, scope, peer_name)
+        if scope == "channel":
+            channel_recipients = notification_recipients
         auto_add_contact = scope == "direct" and not mail_store.is_contact(username, peer_name)
         mail_store.add_message(
             username,
@@ -11808,8 +11954,16 @@ def send_chat_message():
             peer_name,
             username,
             body,
-            auto_add_contact=auto_add_contact
+            auto_add_contact=auto_add_contact,
+            channel_recipients=channel_recipients,
         )
+        for recipient_name in notification_recipients:
+            add_cyberner_notification_to_user(
+                recipient_name,
+                scope,
+                "global" if scope == "group" else peer_name,
+                username,
+            )
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
@@ -11966,7 +12120,7 @@ def install_app():
             if payee_profile and payee_username != buyer_username:
                 payee_profile["hackcoins"] = int(payee_profile.get("hackcoins", 0) or 0) + price
                 user_store.save_profile(payee_profile)
-                mail_store.add_direct_notification(
+                add_cyberner_direct_notification(
                     payee_username,
                     "Googolplex",
                     "Googolplex",
@@ -12504,7 +12658,7 @@ def gonna_win():
                     f"{target_label} z twojego zgloszenia."
                 )
             )
-            mail_store.add_direct_notification(
+            add_cyberner_direct_notification(
                 vulnerability_report.get("reported_by_username"),
                 "System",
                 "System",
@@ -12551,7 +12705,7 @@ def gonna_win():
                 "Utrata punktu terytorium",
                 f"{attacker_name} przejal twoj obiekt {target_label}. Terytorium zostalo przebudowane."
             )
-            mail_store.add_direct_notification(
+            add_cyberner_direct_notification(
                 contest_owner_username,
                 "System",
                 "System",

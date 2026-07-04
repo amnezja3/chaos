@@ -377,3 +377,17 @@ Wdrożone kanały:
 Frontend renderuje kanały w osobnej sekcji nad prywatnymi rozmowami. Disabled
 placeholdery nie uruchamiają `/api/chats/messages`, nie tworzą kontaktu i nie
 generują pending request.
+
+## Decyzje implementacyjne Sprintu 48
+
+Sprint 48 aktywuje `ZNAJOMI` i `KLAN` bez tworzenia `channel_store`.
+
+* `WORLD` pozostaje legacy-kompatybilnym kanałem `scope = group`,
+  `peer = global`.
+* `ZNAJOMI` działa jako singleton `scope = channel`, `peer = friends`.
+* `KLAN` działa jako singleton `scope = channel`, `peer = clan:<clan_name>`.
+* Wiadomości `ZNAJOMI` trafiają wyłącznie do zaakceptowanych kontaktów.
+* Wiadomości `KLAN` trafiają wyłącznie do profili z tym samym klanem.
+* Kanały nie są zapisywane w `contacts`.
+* Pending request i prywatne rozmowy pozostają poza modelem kanałów.
+* Unread dla kanałów jest liczony per `scope = channel` oraz `peer_name`.

@@ -8,6 +8,8 @@ let desktopSaveTimer = null;
 let toolbarProfile = null;
 let toolbarTargetFeedbackState = { targetKey: "", dotSignature: "", progress: 0 };
 let desktopSessionActive = true;
+let desktopRenderedApps = [];
+let desktopLastSafeMode = null;
 let playerHackAccessState = null;
 let playerHackAccessTimer = null;
 
@@ -218,6 +220,24 @@ const CYBERNER_ICON_LIBRARY = {
     unknown: { icon: '\u2753', label: 'Nieznane zrodlo' }
 };
 
+const CYBERNER_NOTIFICATION_LIBRARY = {
+    world: { icon: '\u{1F310}', label: 'WORLD', text: 'Nowa aktywnosc.' },
+    friends: { icon: '\u{1F465}', label: 'ZNAJOMI', text: 'Nowa wiadomosc.' },
+    clan: { icon: '\u{1F6E1}\uFE0F', label: 'KLAN', text: 'Nowa wiadomosc.' },
+    player: { icon: '\u{1F464}', label: 'Cyberner', text: 'Nowa wiadomosc.' },
+    system: { icon: '\u26A0\uFE0F', label: 'System', text: 'Nowa wiadomosc.' },
+    ai: { icon: '\u{1F916}', label: 'AI Central', text: 'Nowa wiadomosc.' },
+    ghost_exchange: { icon: '\u{1F4B0}', label: 'Ghost Exchange', text: 'Nowa wiadomosc.' },
+    mission: { icon: '\u{1F3AF}', label: 'Misje', text: 'Nowa wiadomosc.' },
+    marketplace: { icon: '\u{1F4E6}', label: 'Marketplace', text: 'Nowa wiadomosc.' },
+    blacknet: { icon: '\u{1F4E1}', label: 'BlackNet', text: 'Nowa wiadomosc.' },
+    npc: { icon: '\u{1F464}', label: 'NPC', text: 'Nowa wiadomosc.' },
+    unknown: { icon: '\u2753', label: 'Cyberner', text: 'Nowa wiadomosc.' }
+};
+
+window.activeCybernerThread = window.activeCybernerThread || null;
+window.pendingCybernerThread = window.pendingCybernerThread || null;
+
 const desktopApps = [
     { icon: '\u{1F5A5}\uFE0F', label: 'Terminal', action: createTerminal },
     { icon: '\u{1F5FA}\uFE0F', label: 'Mapa', action: createMap },
@@ -239,6 +259,7 @@ const devBugReporterApp = {
 const desktop = document.getElementById('desktop-icons');
 const iconSpacing = 100; // odstęp w pionie
 const MOBILE_SAFE_MODE_QUERY = '(max-width: 900px), (max-height: 700px)';
+const MOBILE_DESKTOP_ICON_KEYS = new Set(['terminal', 'browser', 'mapa', 'profil', 'ustawienia', 'pliki', 'cyberner']);
 
 function isMobileSafeMode() {
     return window.matchMedia && window.matchMedia(MOBILE_SAFE_MODE_QUERY).matches;
@@ -302,6 +323,10 @@ function getDesktopIconKey(app) {
     return String(app.id || app.label || app.name || 'app').toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
 }
 
+function isMobileDesktopIcon(app) {
+    return MOBILE_DESKTOP_ICON_KEYS.has(getDesktopIconKey(app));
+}
+
 function applyDesktopSettings(settings = {}) {
     desktopSettings = {
         wallpaper: settings.wallpaper || "",
@@ -314,12 +339,15 @@ function applyDesktopSettings(settings = {}) {
 }
 
 function collectDesktopIconPositions() {
+    if (isMobileSafeMode()) {
+        return desktopSettings.icon_positions || {};
+    }
     const positions = {};
     document.querySelectorAll('#desktop-icons .icon[data-icon-key]').forEach(icon => {
-        positions[icon.dataset.iconKey] = {
-            left: Math.round(icon.offsetLeft),
-            top: Math.round(icon.offsetTop)
-        };
+        const left = Math.round(icon.offsetLeft);
+        const top = Math.round(icon.offsetTop);
+        if (!Number.isFinite(left) || !Number.isFinite(top)) return;
+        positions[icon.dataset.iconKey] = { left, top };
     });
     return positions;
 }
@@ -358,6 +386,7 @@ function saveDesktopSettings(partial = {}) {
 
 window.addEventListener('beforeunload', () => {
     if (!desktop || !desktopSessionActive) return;
+    if (isMobileSafeMode()) return;
     const settings = mergeDesktopSettings({ icon_positions: collectDesktopIconPositions() });
     const payload = JSON.stringify(settings);
     if (navigator.sendBeacon) {
@@ -367,6 +396,9 @@ window.addEventListener('beforeunload', () => {
 
 function renderDesktopIcons(apps, settings = desktopSettings) {
     if (!desktop) return;
+    if (Array.isArray(apps)) {
+        desktopRenderedApps = apps;
+    }
     desktop.innerHTML = '';
     const iconHeight = 100;
     const topOffset = 10;
@@ -375,8 +407,11 @@ function renderDesktopIcons(apps, settings = desktopSettings) {
     const windowHeight = window.innerHeight;
     const maxPerColumn = Math.max(1, Math.floor((windowHeight - topOffset) / iconHeight));
     const savedPositions = (settings && settings.icon_positions) || {};
+    const mobileMode = isMobileSafeMode();
+    desktopLastSafeMode = mobileMode;
+    const visibleApps = mobileMode ? apps.filter(isMobileDesktopIcon) : apps;
 
-    apps.forEach((app, index) => {
+    visibleApps.forEach((app, index) => {
         const icon = document.createElement('div');
         const key = getDesktopIconKey(app);
         icon.className = 'icon';
@@ -385,7 +420,7 @@ function renderDesktopIcons(apps, settings = desktopSettings) {
 
         const row = index % maxPerColumn;
         const col = Math.floor(index / maxPerColumn);
-        const saved = savedPositions[key];
+        const saved = mobileMode ? null : savedPositions[key];
         icon.style.top = `${Number.isFinite(Number(saved?.top)) ? Number(saved.top) : topOffset + row * iconHeight}px`;
         icon.style.left = `${Number.isFinite(Number(saved?.left)) ? Number(saved.left) : leftOffset + col * colSpacing}px`;
 
@@ -396,6 +431,7 @@ function renderDesktopIcons(apps, settings = desktopSettings) {
         let offsetY = 0;
 
         icon.addEventListener('mousedown', (e) => {
+            if (isMobileSafeMode()) return;
             isDragging = true;
             icon.style.zIndex = 999;
             offsetX = e.clientX - icon.offsetLeft;
@@ -414,12 +450,26 @@ function renderDesktopIcons(apps, settings = desktopSettings) {
             isDragging = false;
             icon.style.zIndex = '';
             document.body.style.userSelect = 'auto';
-            saveDesktopSettingsNow({ icon_positions: collectDesktopIconPositions() });
+            if (!isMobileSafeMode()) {
+                saveDesktopSettingsNow({ icon_positions: collectDesktopIconPositions() });
+            }
         });
 
         desktop.appendChild(icon);
     });
 }
+
+window.addEventListener('resize', () => {
+    applyMobileSafeModeToOpenWindows();
+    const mobileMode = isMobileSafeMode();
+    if (desktopLastSafeMode === null) {
+        desktopLastSafeMode = mobileMode;
+        return;
+    }
+    if (mobileMode !== desktopLastSafeMode && desktopRenderedApps.length) {
+        renderDesktopIcons(desktopRenderedApps, desktopSettings);
+    }
+});
 
 function ensureSystemToolbar() {
     let toolbar = document.getElementById('system-toolbar');
@@ -859,55 +909,15 @@ async function buildIconsFromJsonWithCommand(jsonData) {
         const name = app.name;
 
         try {
-            if (false) {
-                if (pending.action === "userdel") {
-                    const deleteRes = await fetch('/api/users/delete', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username: pending.username })
-                    });
-                    const deleteData = await deleteRes.json();
-                    content.innerHTML += `<br>${escapeHTML(deleteData.message || "Operacja zakończona.")}`;
-                    appendTerminalPrompt(content);
-                    return;
-                }
-            }
-
-            const res = await fetch('/command', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ input: name })
+            const action = () => launchApplicationEffect(app);
+            icons.push({
+                icon: app.icon || '\u2753',
+                label: name,
+                action
             });
 
-            const data = await res.json();
-
-            if (data.runApp && data.applicationEffect) {
-                const appData = data.applicationEffect;
-                const id = appData.id;
-                const levels = appData.levels;
-                const type = appData.interface;
-
-                // 👇 Zbuduj action dokładnie jak w terminalu, ale bez logów
-                const action = () => {
-                    if (runSystemLauncherApp(appData)) return;
-                    if (type === "window") app_window(id, levels);
-                    else if (type === "progressbar_random") app_progressbar_random(id, levels);
-                    else if (type === "terminal") app_terminal(id, levels);
-                    else if (type === "button_choices") app_button_choices(id, levels);
-                    else console.warn(`Nieznany interface: ${type}`);
-                };
-
-                icons.push({
-                    icon: app.icon || '\u2753',
-                    label: name,
-                    action
-                });
-            } else {
-                console.warn(`Brak applicationEffect dla: ${name}`);
-            }
-
         } catch (err) {
-            console.error(`Błąd przy pobieraniu ${name}:`, err);
+            console.error(`Błąd przy budowaniu ikony ${name}:`, err);
         }
     }
 
@@ -3265,15 +3275,26 @@ function showInstallAppProgress(app, onInstalled = null) {
                 if (data.status === "success") {
                     const storage = data.storage || {};
                     const isProductPurchase = !!data.product;
-                    const storageLine = storage.used
+                    const hasStorageInfo = storage && (
+                        Object.prototype.hasOwnProperty.call(storage, "used")
+                        || Object.prototype.hasOwnProperty.call(storage, "capacity")
+                    );
+                    const storageLine = hasStorageInfo
                         ? `<br><span style="color:#8fd6a4;">Dysk: ${escapeHTML(formatStorageSize(storage.used, storage.unit || 'MB'))} / ${escapeHTML(formatStorageSize(storage.capacity, storage.unit || 'MB'))}${storage.over_limit ? ' (ponad limit mi\u0119kki)' : ''}</span>`
                         : '';
                     result.innerHTML = `<span style="color:#0f0;">\u2714 ${isProductPurchase ? 'Produkt kupiony.' : 'Aplikacja zainstalowana.'}</span>${storageLine}`;
                     if (Object.prototype.hasOwnProperty.call(data, "hackcoins")) {
                         setToolbarProfile({
                             ...toolbarProfile,
-                            hackcoins: data.hackcoins
+                            hackcoins: data.hackcoins,
+                            storage_capacity: storage.capacity ?? toolbarProfile?.storage_capacity,
+                            storage_used: storage.used ?? toolbarProfile?.storage_used,
+                            storage_unit: storage.unit || toolbarProfile?.storage_unit || 'MB',
+                            storage_over_limit: storage.over_limit === true
                         });
+                    }
+                    if (typeof refreshToolbarProfile === "function") {
+                        refreshToolbarProfile();
                     }
 
                     // Zamykamy okno po 4 sekundach i przeładowujemy "pulpit"
@@ -6916,13 +6937,15 @@ function createEmailClient() {
     let channels = [];
     let contacts = [];
     let pendingThreads = [];
-    let unreadCounts = { group: 0, direct: {} };
+    let unreadCounts = { group: 0, direct: {}, channel: {} };
     let groupActiveCount = 0;
     let groupMessages = [];
     let currentChat = { scope: "group", peer: "global", source: "world", channel: "world", title: "WORLD" };
     let mailMobileView = "list";
     const requestedInitialPeer = window.pendingEmailPeer || "";
+    const requestedInitialThread = window.pendingCybernerThread;
     window.pendingEmailPeer = "";
+    window.pendingCybernerThread = null;
 
     const isKnownContact = (name) => contacts.some(contact => contact.name === name);
     const unreadFor = (name) => (unreadCounts.direct && unreadCounts.direct[name]) || 0;
@@ -6970,7 +6993,11 @@ function createEmailClient() {
     };
     const currentChannel = () => channels.find(item => item.channel === currentChat.channel)
         || (currentChat.channel === "world" ? defaultWorldChannel() : null);
-    const channelUnread = (channel) => channel && channel.channel === "world" ? unreadCounts.group : 0;
+    const channelUnread = (channel) => {
+        if (!channel) return 0;
+        if (channel.channel === "world") return unreadCounts.group || 0;
+        return (unreadCounts.channel && unreadCounts.channel[channel.peer]) || 0;
+    };
     const cybernerSourceKeyForName = (name) => {
         const normalized = String(name || "").trim().toLowerCase();
         if (!normalized) return "unknown";
@@ -7080,8 +7107,17 @@ function createEmailClient() {
         mailApp.dataset.mobileView = mailMobileView;
     };
     const shouldRefreshVisibleChat = () => !isMailNarrow() || mailMobileView === "chat";
+    const publishActiveCybernerThread = () => {
+        window.activeCybernerThread = {
+            scope: currentChat.scope || "group",
+            peer: currentChat.peer || "global",
+            channel: currentChat.channel || null,
+            source: currentChat.source || null
+        };
+    };
 
     const setActiveThread = () => {
+        publishActiveCybernerThread();
         term.querySelectorAll('.mail-thread').forEach(el => el.classList.remove('active'));
         if (currentChat.channel) {
             const channel = currentChannel();
@@ -7287,6 +7323,29 @@ function createEmailClient() {
         await loadMessages();
     };
 
+    const openCybernerThread = async (thread) => {
+        if (!thread || typeof thread !== "object") return;
+        if (thread.scope === "direct") {
+            await openDirectChat(thread.peer || thread.sender || thread.title);
+            return;
+        }
+        const scope = thread.scope || (thread.channel === "world" ? "group" : "channel");
+        const peer = thread.peer || (scope === "group" ? "global" : thread.channel);
+        const channel = thread.channel || (scope === "group" && peer === "global" ? "world" : null);
+        const source = thread.source || channel || "unknown";
+        currentChat = {
+            scope,
+            peer,
+            channel,
+            source,
+            title: thread.title || cybernerLabel(source),
+            subtitle: thread.subtitle || ""
+        };
+        setActiveThread();
+        openMailChatViewIfNarrow();
+        await loadMessages();
+    };
+
     const bootstrap = async () => {
         if (!document.body.contains(term)) return;
         const res = await fetch('/api/mail/bootstrap');
@@ -7301,6 +7360,10 @@ function createEmailClient() {
         renderContacts();
         if (requestedInitialPeer) {
             await openDirectChat(requestedInitialPeer);
+            return;
+        }
+        if (requestedInitialThread) {
+            await openCybernerThread(requestedInitialThread);
             return;
         }
         if (shouldRefreshVisibleChat()) {
@@ -7330,6 +7393,10 @@ function createEmailClient() {
 
     term.addEventListener('ghost-open-email-chat', (event) => {
         openDirectChat(event.detail && event.detail.peer);
+    });
+
+    term.addEventListener('ghost-open-cyberner-thread', (event) => {
+        openCybernerThread(event.detail || {});
     });
 
     contactForm.addEventListener('submit', async (e) => {
@@ -7427,6 +7494,7 @@ function createEmailClient() {
     const mailRefreshTimer = setInterval(refreshThreads, 3000);
     term.querySelector('.close-btn').addEventListener('click', () => {
         clearInterval(mailRefreshTimer);
+        window.activeCybernerThread = null;
         window.removeEventListener('resize', mailResizeHandler);
         if (mailResizeObserver) {
             mailResizeObserver.disconnect();
@@ -7441,6 +7509,23 @@ window.openEmailChatWith = function(peerName) {
     if (existing) {
         existing.dispatchEvent(new CustomEvent('ghost-open-email-chat', {
             detail: { peer: peerName }
+        }));
+        if (typeof bringToFront === "function") {
+            bringToFront(existing);
+        }
+        return true;
+    }
+    createEmailClient();
+    return true;
+};
+
+window.openCybernerThread = function(thread) {
+    if (!thread || typeof thread !== "object") return false;
+    window.pendingCybernerThread = thread;
+    const existing = document.querySelector(`.terminal[data-app="email"]`);
+    if (existing) {
+        existing.dispatchEvent(new CustomEvent('ghost-open-cyberner-thread', {
+            detail: thread
         }));
         if (typeof bringToFront === "function") {
             bringToFront(existing);
@@ -7486,6 +7571,30 @@ function formatStorageSize(value, unit = "MB") {
     return `${Math.round(number)} ${unit}`;
 }
 
+function normalizeCybernerNotificationThread(message) {
+    if (!message || typeof message !== "object") return null;
+    const scope = message.scope || (message.channel === "world" ? "group" : "direct");
+    const peer = message.peer || (scope === "group" ? "global" : message.sender || message.title);
+    const source = message.source || (scope === "group" ? "world" : "player");
+    const channel = scope === "group" && peer === "global"
+        ? "world"
+        : (scope === "channel" ? source : null);
+    return {
+        scope,
+        peer,
+        source,
+        channel,
+        title: message.title || (CYBERNER_NOTIFICATION_LIBRARY[source] || CYBERNER_NOTIFICATION_LIBRARY.unknown).label
+    };
+}
+
+function isCybernerThreadCurrentlyOpen(thread) {
+    const active = window.activeCybernerThread;
+    if (!thread || !active) return false;
+    return String(active.scope || "") === String(thread.scope || "")
+        && String(active.peer || "") === String(thread.peer || "");
+}
+
 document.querySelectorAll('.icon').forEach(icon => {
     let isDragging = false;
     let offsetX = 0;
@@ -7514,12 +7623,41 @@ document.querySelectorAll('.icon').forEach(icon => {
 
 function showSystemToast(message, type = 'success') {
     const container = document.getElementById("system-toast-container");
+    const isCyberner = message && message.notification_type === "cyberner";
+    const cybernerThread = isCyberner ? normalizeCybernerNotificationThread(message) : null;
+    if (isCyberner && isCybernerThreadCurrentlyOpen(cybernerThread)) {
+        return;
+    }
+    const notificationSource = (message && message.source) || "unknown";
+    const notificationConfig = CYBERNER_NOTIFICATION_LIBRARY[notificationSource] || CYBERNER_NOTIFICATION_LIBRARY.unknown;
     const div = document.createElement('div');
-    div.className = `system-toast ${type}`;
-    div.innerHTML = `
-        <h4>${message.title || 'Komunikat'}</h4>
-        <div>${message.text}</div>
-    `;
+    div.className = `system-toast ${type} ${isCyberner ? "cyberner-toast" : ""}`.trim();
+    if (isCyberner) {
+        div.setAttribute("role", "button");
+        div.tabIndex = 0;
+        div.innerHTML = `
+            <h4><span class="cyberner-toast-icon">${escapeHTML(notificationConfig.icon)}</span>${escapeHTML(message.title || notificationConfig.label)}</h4>
+            <div>${escapeHTML(message.text || notificationConfig.text)}</div>
+        `;
+        const openToastThread = () => {
+            if (cybernerThread && typeof window.openCybernerThread === "function") {
+                window.openCybernerThread(cybernerThread);
+            }
+            div.remove();
+        };
+        div.addEventListener('click', openToastThread);
+        div.addEventListener('keydown', (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openToastThread();
+            }
+        });
+    } else {
+        div.innerHTML = `
+            <h4>${escapeHTML(message.title || 'Komunikat')}</h4>
+            <div>${escapeHTML(message.text || "")}</div>
+        `;
+    }
     container.appendChild(div);
 
     setTimeout(() => {

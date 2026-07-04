@@ -226,3 +226,31 @@ Przyjęto:
 * Nazwa Cyberner jest warstwą świata, UX i dokumentacji.
 * Implementacja nazwy w UI powinna następować stopniowo, bez łamania legacy
   identyfikatorów aplikacji.
+
+## Aktywne kanały Sprintu 48
+
+W Sprincie 48 `ZNAJOMI` i `KLAN` stają się aktywnymi kanałami Cybernera.
+
+* `ZNAJOMI` używa `scope = channel`, `peer = friends` i rozsyła wiadomości do
+  zaakceptowanych kontaktów gracza.
+* `KLAN` używa `scope = channel`, `peer = clan:<clan_name>` i rozsyła wiadomości
+  do profili z tym samym klanem.
+* `KLAN` jest widoczny tylko wtedy, gdy profil ma klan.
+* Kanały nadal nie są kontaktami, nie trafiają do `/api/contacts` i nie tworzą
+  pending request.
+* `WORLD` pozostaje kompatybilnie oparty o `scope = group`, `peer = global`.
+
+## Notification Bridge Sprintu 49
+
+Cyberner korzysta z istniejacego `system_messages` jako mostu do toastow.
+
+Toast Cybernera:
+
+* jest tylko krotkim sygnalem,
+* nie pokazuje pelnej tresci rozmowy,
+* zawiera zrodlo, ikone i krotki komunikat,
+* po kliknieciu otwiera odpowiedni thread Cybernera,
+* nie pojawia sie, gdy gracz juz czyta dany thread.
+
+Most nie tworzy drugiego inboxa, drugiego toast systemu ani drugiego unread
+managera.

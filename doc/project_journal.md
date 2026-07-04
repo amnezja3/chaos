@@ -4291,3 +4291,110 @@ obsluguje.
 
 Sprint 47 zakonczony. Cyberner ma domkniety polish spoleczny po kanalach
 `WORLD`, `ZNAJOMI` i `KLAN`.
+
+---
+
+## 04.07.2026
+
+### Sprint
+
+Sprint 48 - Cyberner Active Social Channels.
+
+### Cel
+
+Aktywowac kanaly `ZNAJOMI` i `KLAN` jako realne kanaly Cybernera bez drugiego
+messengera, drugiego inboxa, `channel_store` ani drugiego contact flow.
+
+### Co zostalo wykonane
+
+* Rozszerzono `MailStore` o obsluge `scope = channel`.
+* Dodano unread counts dla kanalow po `peer_name`.
+* `ZNAJOMI` dziala jako singleton `scope = channel`, `peer = friends`.
+* `KLAN` dziala jako singleton `scope = channel`, `peer = clan:<clan_name>`,
+  jesli profil ma klan.
+* Wiadomosci `ZNAJOMI` sa rozsyłane do zaakceptowanych kontaktow.
+* Wiadomosci `KLAN` sa rozsyłane do profili z tym samym klanem.
+* Kanaly nie trafiaja do `contacts` i nie tworza pending request.
+* Frontend liczy unread kanalow osobno od `WORLD` i rozmow prywatnych.
+
+### Najwazniejsze decyzje
+
+* `WORLD` pozostaje kompatybilnie `scope = group`, `peer = global`.
+* `source` nadal wybiera ikone i tozsamosc zrodla.
+* `channel` nadal identyfikuje singleton kanalu.
+* Brak klanu oznacza brak aktywnego kanalu `KLAN` w read modelu.
+
+### Zmienione pliki
+
+* `database.py`
+* `run.py`
+* `static/js/terminal.js`
+* `doc/game_play_260626.md`
+* `doc/cyberner.md`
+* `doc/cyberner_channels_audit.md`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `node --check static/js/terminal.js` - OK.
+* `python -m py_compile run.py database.py profileManagment.py` - OK.
+* `git diff --check` - OK.
+* `python -m unittest tests.test_target_persistence` - FAIL na dwoch testach
+  map payload:
+  * `test_map_embeds_profile_as_json_literal`,
+  * `test_map_embeds_large_profile_payload_as_json_literal`.
+
+### Status
+
+Sprint 48 zaimplementowany. Walidacja funkcjonalna Cybernera jest gotowa do
+manualnego smoke, ale pelna suite `tests.test_target_persistence` wymaga osobnej
+naprawy `/map` JSON payload poza zakresem Sprintu 48.
+
+---
+
+## 04.07.2026
+
+### Sprint
+
+Sprint 49 - Cyberner Notification Bridge.
+
+### Cel
+
+Polaczyc nowe wiadomosci Cybernera z istniejacym `system_messages`, tak aby
+toast byl tylko sygnalem, a pelna rozmowa pozostawala w Cybernerze.
+
+### Co zostalo wykonane
+
+* Dodano backendowy most `mail_store -> system_messages` dla nowych wiadomosci
+  Cybernera.
+* Dodano `notification_type = cyberner` oraz minimalny payload `source/scope/peer`.
+* Dodano frontendowa `CYBERNER_NOTIFICATION_LIBRARY`.
+* Rozszerzono renderer toastow o cybernerowy wariant bez tworzenia drugiego
+  toast systemu.
+* Klik toasta otwiera Cybernera na odpowiednim threadzie.
+* Toast nie pokazuje sie, jesli ten thread jest aktualnie otwarty.
+* Kanaly `WORLD`, `ZNAJOMI` i `KLAN` korzystaja z tego samego mostu.
+
+### Zmienione pliki
+
+* `run.py`
+* `static/js/terminal.js`
+* `static/css/style.css`
+* `doc/game_play_260626.md`
+* `doc/cyberner.md`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `node --check static/js/terminal.js` - OK.
+* `python -m py_compile run.py database.py profileManagment.py` - OK.
+* `git diff --check` - OK.
+* `python -m unittest tests.test_target_persistence` - FAIL na znanych testach
+  `/map` JSON payload:
+  * `test_map_embeds_profile_as_json_literal`,
+  * `test_map_embeds_large_profile_payload_as_json_literal`.
+
+### Status
+
+Sprint 49 zaimplementowany. Pelna suite `tests.test_target_persistence` nadal
+wymaga osobnej naprawy `/map` JSON payload poza zakresem Cybernera.

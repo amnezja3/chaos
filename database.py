@@ -2262,11 +2262,27 @@ class MailStore:
                 """,
                 (username,),
             ).fetchall()
+            channel_rows = conn.execute(
+                """
+                SELECT peer_name, COUNT(*) AS count
+                FROM chat_messages
+                WHERE owner_username = ?
+                    AND scope = 'channel'
+                    AND read_at IS NULL
+                GROUP BY peer_name
+                """,
+                (username,),
+            ).fetchall()
             return {
                 "group": group_row["count"] if group_row else 0,
                 "direct": {
                     row["peer_name"]: row["count"]
                     for row in direct_rows
+                    if row["peer_name"]
+                },
+                "channel": {
+                    row["peer_name"]: row["count"]
+                    for row in channel_rows
                     if row["peer_name"]
                 },
             }
@@ -2402,15 +2418,15 @@ class MailStore:
             messages.reverse()
             return messages
 
-    def add_message(self, username, scope, peer_name, sender, body, subject="", auto_add_contact=False):
+    def add_message(self, username, scope, peer_name, sender, body, subject="", auto_add_contact=False, channel_recipients=None):
         body = (body or "").strip()
         if not body:
             raise ValueError("Message body is required.")
-        if scope not in {"group", "direct"}:
+        if scope not in {"group", "direct", "channel"}:
             raise ValueError("Unsupported chat scope.")
 
         peer_name = "global" if scope == "group" else (peer_name or "").strip()
-        if scope == "direct" and not peer_name:
+        if scope in {"direct", "channel"} and not peer_name:
             raise ValueError("Peer name is required.")
 
         with db_connect(self.db_path) as conn:
@@ -2463,6 +2479,32 @@ class MailStore:
                         VALUES (?, 'group', 'global', ?, ?, ?, ?, NULL)
                         """,
                         (recipient_name, sender, subject, body, utc_now()),
+                    )
+                return
+
+            if scope == "channel":
+                recipients = []
+                seen = {username}
+                for recipient_name in channel_recipients or []:
+                    recipient_name = (recipient_name or "").strip()
+                    if not recipient_name or recipient_name in seen:
+                        continue
+                    recipient = conn.execute(
+                        "SELECT username FROM users WHERE username = ?",
+                        (recipient_name,),
+                    ).fetchone()
+                    if not recipient:
+                        continue
+                    seen.add(recipient_name)
+                    recipients.append(recipient_name)
+                for recipient_name in recipients:
+                    conn.execute(
+                        """
+                        INSERT INTO chat_messages
+                            (owner_username, scope, peer_name, sender, subject, body, created_at, read_at)
+                        VALUES (?, 'channel', ?, ?, ?, ?, ?, NULL)
+                        """,
+                        (recipient_name, peer_name, sender, subject, body, utc_now()),
                     )
                 return
 

@@ -4109,6 +4109,126 @@ runtime.
 
 ---
 
+# Sprint 48 - Cyberner Active Social Channels
+
+## Cel gameplayowy
+
+Aktywowac kanaly `ZNAJOMI` i `KLAN` jako realne kanaly Cybernera, bez tworzenia
+drugiego messengera, drugiego inboxa, `channel_store` ani drugiego contact flow.
+
+## Architektura
+
+Kanaly sa singletonowym runtime/read modelem nad istniejacym `mail_store`.
+
+* `WORLD` pozostaje kompatybilnie `scope = group`, `peer = global`.
+* `ZNAJOMI` uzywa `scope = channel`, `peer = friends`.
+* `KLAN` uzywa `scope = channel`, `peer = clan:<clan_name>`.
+* Kanal nie jest kontaktem i nie trafia do `/api/contacts`.
+* Kontakt pozostaje prywatna rozmowa.
+* Pending request pozostaje osobnym contact flow.
+
+## Backend
+
+1. Rozszerzyc istniejacy `mail_store` o obsluge `scope = channel`.
+2. Nie dodawac endpointow.
+3. Nie tworzyc osobnego storage kanalow.
+4. Wiadomosc `ZNAJOMI` rozsyla sie do zaakceptowanych kontaktow gracza.
+5. Wiadomosc `KLAN` rozsyla sie do profili z tym samym klanem.
+6. Brak klanu oznacza brak aktywnego kanalu `KLAN` w read modelu.
+7. Unread kanalu liczy sie per `scope = channel` i `peer_name`.
+
+## Frontend
+
+1. Usunac placeholder `wkrotce` z aktywnego `ZNAJOMI`.
+2. Usunac placeholder `wkrotce` z `KLAN`, jesli profil ma klan.
+3. Composer dziala w aktywnych kanalach.
+4. Ikony nadal pochodza z `CYBERNER_ICON_LIBRARY` po `source` / `channel`.
+5. Mobile/narrow nadal dziala jako lista -> czat -> lista.
+
+## Kryteria akceptacji
+
+* `WORLD` dziala jak dotad.
+* `ZNAJOMI` otwiera aktywny kanal znajomych.
+* `KLAN` otwiera aktywny kanal, jesli profil ma klan.
+* Brak klanu nie wywala UI.
+* Kanaly nie pojawiaja sie w contacts.
+* Pending request nadal dziala osobno.
+* Prywatne rozmowy nadal dzialaja przez `openEmailChatWith(peer)`.
+* Nie powstal `channel_store`, drugi inbox ani drugi contact flow.
+
+---
+
+# Sprint 49 - Cyberner Notification Bridge
+
+## Cel gameplayowy
+
+Domknac komunikacje swiata gry przez most pomiedzy Cybernerem i istniejacym
+systemem `system_messages`.
+
+Nowe wiadomosci Cybernera moga generowac toast, ale toast jest tylko sygnalem.
+Pelna rozmowa zawsze znajduje sie w Cybernerze.
+
+## Architektura
+
+Nie tworzyc:
+
+* drugiego toast systemu,
+* drugiego notification center,
+* drugiego unread managera.
+
+Rozwijane systemy:
+
+* `mail_store`,
+* `system_messages`,
+* renderer toastow,
+* Cyberner.
+
+Przeplyw:
+
+```text
+mail_store
+↓
+system_messages
+↓
+toast
+↓
+Cyberner thread
+```
+
+## Backend
+
+1. Nowa wiadomosc Cybernera moze dopisac lekki `system_message`.
+2. `system_message` dostaje `notification_type = cyberner`.
+3. Payload zawiera tylko:
+   * `source`,
+   * `scope`,
+   * `peer`,
+   * `sender`,
+   * `title`,
+   * krotki `text`.
+4. Nie zapisywac pelnej tresci rozmowy w toascie.
+5. Nie dodawac nowych endpointow.
+
+## Frontend
+
+1. Dodac `CYBERNER_NOTIFICATION_LIBRARY` jako osobna biblioteke wygladu toastow.
+2. Renderer toastow rozroznia `notification_type = cyberner`.
+3. Cybernerowy toast ma wlasny delikatny styl.
+4. Klik toasta otwiera Cybernera i odpowiedni thread.
+5. Nie pokazywac toasta, jesli ten thread jest aktualnie otwarty.
+6. Zwykle systemowe toasty pozostaja bez zmiany.
+
+## Kryteria akceptacji
+
+* Cyberner korzysta z istniejacego `system_messages`.
+* Nie powstal drugi system toastow.
+* Toast otwiera wlasciwa rozmowe.
+* Toast nie pokazuje pelnej tresci rozmowy.
+* Kanaly `WORLD`, `ZNAJOMI` i `KLAN` korzystaja z tego samego mostu.
+* Backend pozostaje spojny z `mail_store`.
+
+---
+
 # Finalna architektura Fazy E
 
 Docelowy przepływ komunikacji:
