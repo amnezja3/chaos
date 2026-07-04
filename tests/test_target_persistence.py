@@ -3635,6 +3635,56 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertGreater(profile["hackcoins"], 100)
         mail_mock.assert_called_once()
 
+    def test_market_runtime_lists_and_sells_not_listed_network_batch_near_storage_limit(self):
+        entries = [
+            {
+                "id": f"network_pending_{index}",
+                "name": f"wifi_pending_{index}.net",
+                "file_category": "network",
+                "directory": "/data/network",
+                "resource_types": ["wifi_networks"],
+                "file_size": 13,
+                "market_status": "not_listed",
+                "sellable": True,
+                "metadata": {
+                    "record_count": 8,
+                    "network_count": 8,
+                    "quality_score": 90,
+                    "completeness_percent": 86,
+                },
+            }
+            for index in range(3)
+        ]
+        profile = {
+            "username": "neo",
+            "hackcoins": 45,
+            "storage_capacity": 512,
+            "storage_used": 503,
+            "storage_unit": "MB",
+            "files": {"network": entries, "market": []},
+            "market_history": [],
+            "system_messages": [],
+        }
+        now = datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc)
+
+        listed = refresh_market_runtime("neo", profile, now=now)
+        self.assertEqual(listed["settled"], 0)
+        self.assertGreaterEqual(listed["listed"], 3)
+        self.assertTrue(all(item["market_status"] == "listed" for item in profile["files"]["network"]))
+        self.assertTrue(all(item.get("batch_id") for item in profile["files"]["network"]))
+        self.assertTrue(all(item.get("listed_at") for item in profile["files"]["network"]))
+
+        with patch.object(run.mail_store, "add_direct_notification") as mail_mock:
+            settled = refresh_market_runtime("neo", profile, now=now + timedelta(minutes=6))
+
+        self.assertEqual(settled["settled"], 1)
+        self.assertEqual(profile["files"]["network"], [])
+        self.assertEqual(len(profile["market_history"]), 1)
+        self.assertEqual(profile["market_history"][0]["market_sector"], "network")
+        self.assertGreater(profile["hackcoins"], 45)
+        self.assertLess(profile["storage_used"], 503)
+        mail_mock.assert_called_once()
+
     def test_ghost_exchange_prices_richer_device_package_higher(self):
         profile = {
             "files": {
