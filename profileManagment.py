@@ -9,6 +9,7 @@ class UserProfileManager:
         self.users_path = users_path
         self.template_path = template_path
         self._locked_keys = {"username", "salt", "password"}
+        self._dynamic_profile_keys = {"googleplex_products", "product_purchases", "storage_upgrades"}
         self.store = UserStore(seed_path=users_path)
         self.resource_store = JsonResourceStore()
         self._load_all_users()
@@ -42,7 +43,7 @@ class UserProfileManager:
 
         keys_to_remove = [
             key for key in user_data
-            if key not in template_data and key not in self._locked_keys
+            if key not in template_data and key not in self._locked_keys and key not in self._dynamic_profile_keys
         ]
         for key in keys_to_remove:
             del user_data[key]

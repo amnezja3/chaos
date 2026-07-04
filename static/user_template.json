@@ -39,6 +39,9 @@
     "lng": 0.0
   },
   "inventory": [],
+  "googleplex_products": [],
+  "product_purchases": [],
+  "storage_upgrades": [],
   "files": {
     "download": [],
     "pictures": [],

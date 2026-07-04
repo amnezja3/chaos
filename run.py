@@ -6538,13 +6538,14 @@ def googleplex_product_is_purchased(profile, product_id):
     product_id = str(product_id or "").strip()
     if not product_id:
         return False
-    purchases = profile.get("googleplex_products", []) if isinstance(profile, dict) else []
-    if isinstance(purchases, list) and any(
-        str(item.get("id") or "").strip() == product_id
-        for item in purchases
-        if isinstance(item, dict)
-    ):
-        return True
+    for field_name in ("googleplex_products", "product_purchases"):
+        purchases = profile.get(field_name, []) if isinstance(profile, dict) else []
+        if isinstance(purchases, list) and any(
+            str(item.get("id") or "").strip() == product_id
+            for item in purchases
+            if isinstance(item, dict)
+        ):
+            return True
     return storage_product_is_purchased(profile, product_id)
 
 
@@ -12170,6 +12171,10 @@ def install_app():
             if not isinstance(purchases, list):
                 purchases = []
                 profile["googleplex_products"] = purchases
+            product_purchases = profile.setdefault("product_purchases", [])
+            if not isinstance(product_purchases, list):
+                product_purchases = []
+                profile["product_purchases"] = product_purchases
             purchase_record = {
                 "id": app_id,
                 "name": app_data.get("name"),
@@ -12181,6 +12186,7 @@ def install_app():
                 "purchased_at": runtime_file_now(),
             }
             purchases.append(purchase_record)
+            product_purchases.append(dict(purchase_record))
             if app_data.get("product_type") == "storage_upgrade":
                 upgrades = profile.setdefault("storage_upgrades", [])
                 if not isinstance(upgrades, list):
@@ -12219,6 +12225,7 @@ def install_app():
                 "storage_over_limit": profile.get("storage_over_limit", False),
                 "storage_upgrades": profile.get("storage_upgrades", []),
                 "googleplex_products": purchases,
+                "product_purchases": product_purchases,
                 "curently_possition": profile.get("curently_possition"),
                 "current_city": profile.get("current_city"),
                 "map_zoom_bonus": profile.get("map_zoom_bonus", 0),

@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import run
 from database import DevBugReportStore, JsonResourceStore, MailStore
+from profileManagment import UserProfileManager
 from run import (
     active_operations_from_operations,
     append_runtime_file_if_space,
@@ -1639,6 +1640,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(profile["apps"], [])
         self.assertEqual(profile["files"]["tools"], [])
         self.assertEqual(profile["storage_upgrades"][0]["id"], product["id"])
+        self.assertEqual(profile["product_purchases"][0]["id"], product["id"])
+        self.assertEqual(profile["product_purchases"][0]["product_type"], "storage_upgrade")
         self.assertEqual(data["storage"]["added"], product["storage_capacity_bonus"])
 
     def test_googleplex_legacy_storage_upgrade_without_effects_increases_capacity(self):
@@ -1683,6 +1686,71 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(data["storage"]["added"], product["storage_capacity_bonus"])
         self.assertEqual(profile["apps"], [])
         self.assertEqual(profile["files"]["tools"], [])
+        self.assertEqual(profile["storage_upgrades"][0]["id"], product["id"])
+        self.assertEqual(profile["product_purchases"][0]["id"], product["id"])
+
+    def test_googleplex_storage_upgrade_product_purchases_blocks_duplicate(self):
+        profile = {
+            "username": "neo",
+            "nick": "Neo",
+            "hackcoins": 5000,
+            "level": 10,
+            "respect": 100,
+            "apps": [],
+            "files": {"tools": []},
+            "storage_capacity": 512,
+            "storage_used": 0,
+            "product_purchases": [{"id": "storage_ghost_vault_basic", "product_type": "storage_upgrade"}],
+            "system_messages": [],
+        }
+        product = next(item for item in run.storage_upgrade_products_catalog() if item["id"] == "storage_ghost_vault_basic")
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "neo"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run, "get_app_catalog", return_value=[product]), \
+                patch.object(run, "ensure_purchase_account_profile", return_value={"username": "admin", "hackcoins": 0}):
+            response = client.post("/install-app", json={"app_id": product["id"]})
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(data["reason"], "already_purchased")
+        self.assertEqual(profile["storage_capacity"], 512)
+        self.assertEqual(profile["hackcoins"], 5000)
+        self.assertEqual(profile["apps"], [])
+        self.assertEqual(profile["files"]["tools"], [])
+
+    def test_profile_template_sync_preserves_googleplex_purchase_fields(self):
+        manager = UserProfileManager.__new__(UserProfileManager)
+        manager._locked_keys = {"username", "salt", "password"}
+        manager._dynamic_profile_keys = {"googleplex_products", "product_purchases", "storage_upgrades"}
+        profile = {
+            "username": "neo",
+            "hackcoins": 100,
+            "googleplex_products": [{"id": "storage_ghost_vault_basic"}],
+            "product_purchases": [{"id": "storage_ghost_vault_basic"}],
+            "storage_upgrades": [{"id": "storage_ghost_vault_basic"}],
+            "temporary_debug_field": True,
+        }
+        template = {"username": "", "hackcoins": 0}
+
+        changed = manager._recursive_sync(profile, template)
+
+        self.assertTrue(changed)
+        self.assertIn("googleplex_products", profile)
+        self.assertIn("product_purchases", profile)
+        self.assertIn("storage_upgrades", profile)
+        self.assertNotIn("temporary_debug_field", profile)
 
     def test_googleplex_storage_upgrade_requires_hackcoins(self):
         profile = {
