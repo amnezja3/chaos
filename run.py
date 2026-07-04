@@ -6549,6 +6549,121 @@ def googleplex_product_is_purchased(profile, product_id):
     return storage_product_is_purchased(profile, product_id)
 
 
+def googleplex_product_storage_bonus(product):
+    if not isinstance(product, dict):
+        return 0
+    for effect in product.get("effects") or []:
+        if isinstance(effect, dict) and str(effect.get("type") or "") == "storage_capacity_bonus":
+            return clamp_storage_number(effect.get("value") or product.get("storage_capacity_bonus"), default=0, minimum=0)
+    return clamp_storage_number(product.get("storage_capacity_bonus"), default=0, minimum=0)
+
+
+def reconcile_googleplex_storage_products(profile):
+    if not isinstance(profile, dict):
+        return False
+
+    storage_products = {
+        str(product.get("id") or ""): product
+        for product in storage_upgrade_products_catalog()
+        if isinstance(product, dict) and product.get("id")
+    }
+    purchased_ids = []
+    for field_name in ("googleplex_products", "product_purchases", "storage_upgrades"):
+        values = profile.get(field_name)
+        if not isinstance(values, list):
+            continue
+        for item in values:
+            if isinstance(item, dict):
+                product_id = str(item.get("id") or "").strip()
+                if product_id in storage_products and product_id not in purchased_ids:
+                    purchased_ids.append(product_id)
+
+    if not purchased_ids:
+        return False
+
+    changed = False
+    required_capacity = DEFAULT_STORAGE_CAPACITY_MB + sum(
+        googleplex_product_storage_bonus(storage_products[product_id])
+        for product_id in purchased_ids
+    )
+    current_capacity = clamp_storage_number(
+        profile.get("storage_capacity"),
+        default=DEFAULT_STORAGE_CAPACITY_MB,
+        minimum=64,
+    )
+    if current_capacity < required_capacity:
+        profile["storage_capacity"] = required_capacity
+        changed = True
+
+    product_purchases = profile.get("product_purchases")
+    if not isinstance(product_purchases, list):
+        product_purchases = []
+        profile["product_purchases"] = product_purchases
+        changed = True
+    googleplex_products = profile.get("googleplex_products")
+    if not isinstance(googleplex_products, list):
+        googleplex_products = []
+        profile["googleplex_products"] = googleplex_products
+        changed = True
+    storage_upgrades = profile.get("storage_upgrades")
+    if not isinstance(storage_upgrades, list):
+        storage_upgrades = []
+        profile["storage_upgrades"] = storage_upgrades
+        changed = True
+
+    existing_product_ids = {
+        str(item.get("id") or "").strip()
+        for item in product_purchases
+        if isinstance(item, dict)
+    }
+    existing_googleplex_ids = {
+        str(item.get("id") or "").strip()
+        for item in googleplex_products
+        if isinstance(item, dict)
+    }
+    existing_upgrade_ids = {
+        str(item.get("id") or "").strip()
+        for item in storage_upgrades
+        if isinstance(item, dict)
+    }
+
+    for product_id in purchased_ids:
+        product = storage_products[product_id]
+        bonus = googleplex_product_storage_bonus(product)
+        if product_id not in existing_product_ids:
+            product_purchases.append({
+                "id": product_id,
+                "name": product.get("name"),
+                "product_type": "storage_upgrade",
+                "category": product.get("category", "storage"),
+                "effects": [{"type": "storage_capacity_bonus", "value": bonus}],
+                "price": product.get("price", 0),
+                "consumable": False,
+            })
+            changed = True
+        if product_id not in existing_googleplex_ids:
+            googleplex_products.append({
+                "id": product_id,
+                "name": product.get("name"),
+                "product_type": "storage_upgrade",
+                "category": product.get("category", "storage"),
+                "effects": [{"type": "storage_capacity_bonus", "value": bonus}],
+                "price": product.get("price", 0),
+                "consumable": False,
+            })
+            changed = True
+        if product_id not in existing_upgrade_ids:
+            storage_upgrades.append({
+                "id": product_id,
+                "name": product.get("name"),
+                "storage_capacity_bonus": bonus,
+                "price": product.get("price", 0),
+            })
+            changed = True
+
+    return changed
+
+
 def is_googleplex_product(item):
     return isinstance(item, dict) and bool(item.get("product_type") or item.get("effects"))
 
@@ -8095,6 +8210,7 @@ def normalize_runtime_profile_defaults(profile):
     for key in ("own_places", "captured_targets", "territory", "areas"):
         if not isinstance(profile.get(key), list):
             profile[key] = []
+    reconcile_googleplex_storage_products(profile)
     normalize_profile_storage(profile)
     return profile
 
@@ -8152,6 +8268,16 @@ def sync_session_profile(rebuild_territory=True):
         profile["apps"] = normalize_app_contracts(profile.get("apps", []))
         normalize_files_inventory(profile)
         normalize_runtime_profile_defaults(profile)
+        UserProfileManager(username).update_profile({
+            "storage_capacity": profile.get("storage_capacity"),
+            "storage_used": profile.get("storage_used"),
+            "storage_unit": profile.get("storage_unit", "MB"),
+            "storage_soft_limit": True,
+            "storage_over_limit": profile.get("storage_over_limit", False),
+            "storage_upgrades": profile.get("storage_upgrades", []),
+            "googleplex_products": profile.get("googleplex_products", []),
+            "product_purchases": profile.get("product_purchases", []),
+        })
         session["profile"] = profile
         return profile
 
@@ -8187,6 +8313,14 @@ def sync_session_profile(rebuild_territory=True):
         "territory_stats": profile["territory_stats"],
         "exp": profile["exp"],
         "apps": profile.get("apps", []),
+        "storage_capacity": profile.get("storage_capacity"),
+        "storage_used": profile.get("storage_used"),
+        "storage_unit": profile.get("storage_unit", "MB"),
+        "storage_soft_limit": True,
+        "storage_over_limit": profile.get("storage_over_limit", False),
+        "storage_upgrades": profile.get("storage_upgrades", []),
+        "googleplex_products": profile.get("googleplex_products", []),
+        "product_purchases": profile.get("product_purchases", []),
     })
     notify_encircled_area_owners()
     session["profile"] = profile

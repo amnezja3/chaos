@@ -1752,6 +1752,26 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertIn("storage_upgrades", profile)
         self.assertNotIn("temporary_debug_field", profile)
 
+    def test_googleplex_storage_reconcile_repairs_purchased_upgrade_capacity(self):
+        product = next(item for item in run.storage_upgrade_products_catalog() if item["id"] == "storage_ghost_vault_basic")
+        profile = {
+            "username": "neo",
+            "hackcoins": 1000,
+            "storage_capacity": 512,
+            "storage_used": 511,
+            "googleplex_products": [{"id": product["id"], "product_type": "storage_upgrade"}],
+            "files": {"camera": [{"id": "camera_1", "file_size": 511}]},
+        }
+
+        changed = run.reconcile_googleplex_storage_products(profile)
+        normalize_profile_storage(profile)
+
+        self.assertTrue(changed)
+        self.assertEqual(profile["storage_capacity"], 512 + product["storage_capacity_bonus"])
+        self.assertEqual(profile["storage_upgrades"][0]["id"], product["id"])
+        self.assertEqual(profile["product_purchases"][0]["id"], product["id"])
+        self.assertFalse(profile["storage_over_limit"])
+
     def test_googleplex_storage_upgrade_requires_hackcoins(self):
         profile = {
             "username": "neo",
