@@ -3685,6 +3685,148 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertLess(profile["storage_used"], 503)
         mail_mock.assert_called_once()
 
+    def test_api_ghost_exchange_persists_network_listing_then_sells_after_dwell(self):
+        entries = [
+            {
+                "id": f"network_api_pending_{index}",
+                "name": f"wifi_api_pending_{index}.net",
+                "file_category": "network",
+                "directory": "/data/network",
+                "resource_types": ["wifi_networks"],
+                "file_size": 13,
+                "market_status": "not_listed",
+                "sellable": True,
+                "metadata": {
+                    "record_count": 8,
+                    "network_count": 8,
+                    "quality_score": 90,
+                    "completeness_percent": 86,
+                },
+            }
+            for index in range(3)
+        ]
+        profile = {
+            "username": "neo",
+            "hackcoins": 45,
+            "storage_capacity": 512,
+            "storage_used": 503,
+            "storage_unit": "MB",
+            "files": {"network": entries, "market": []},
+            "market_history": [],
+            "system_messages": [],
+        }
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "neo"
+
+        with patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run, "refresh_and_persist_operations", side_effect=lambda username, current: current), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run, "add_cyberner_direct_notification") as notify_mock, \
+                patch.object(run, "market_runtime_now", return_value=datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc)):
+            first_response = client.get("/api/ghost-exchange")
+            first_data = first_response.get_json()
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(first_data["market_runtime"]["queued"], 3)
+        self.assertEqual(first_data["market_runtime"]["listed"], 3)
+        self.assertEqual(first_data["market_runtime"]["settled"], 0)
+        self.assertTrue(all(item["market_status"] == "listed" for item in profile["files"]["network"]))
+
+        with patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run, "refresh_and_persist_operations", side_effect=lambda username, current: current), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run, "add_cyberner_direct_notification") as notify_mock, \
+                patch.object(run, "market_runtime_now", return_value=datetime(2026, 7, 3, 10, 6, tzinfo=timezone.utc)):
+            second_response = client.get("/api/ghost-exchange")
+            second_data = second_response.get_json()
+
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(second_data["market_runtime"]["settled"], 1)
+        self.assertEqual(profile["files"]["network"], [])
+        self.assertEqual(len(profile["market_history"]), 1)
+        self.assertEqual(profile["market_history"][0]["market_sector"], "network")
+        self.assertGreater(profile["hackcoins"], 45)
+        self.assertLess(profile["storage_used"], 503)
+        notify_mock.assert_called_once()
+
+    def test_api_ghost_exchange_sells_old_not_listed_network_backlog_on_first_refresh(self):
+        entries = [
+            {
+                "id": f"network_old_pending_{index}",
+                "name": f"wifi_old_pending_{index}.net",
+                "file_category": "network",
+                "directory": "/data/network",
+                "resource_types": ["wifi_networks"],
+                "file_size": 13,
+                "market_status": "not_listed",
+                "created_at": "2026-07-03T09:00:00Z",
+                "sellable": True,
+                "metadata": {
+                    "record_count": 8,
+                    "network_count": 8,
+                    "quality_score": 90,
+                    "completeness_percent": 86,
+                },
+            }
+            for index in range(3)
+        ]
+        profile = {
+            "username": "neo",
+            "hackcoins": 45,
+            "storage_capacity": 512,
+            "storage_used": 503,
+            "storage_unit": "MB",
+            "files": {"network": entries, "market": []},
+            "market_history": [],
+            "system_messages": [],
+        }
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "neo"
+        original_market_runtime_now = run.market_runtime_now
+
+        with patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run, "refresh_and_persist_operations", side_effect=lambda username, current: current), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run, "add_cyberner_direct_notification") as notify_mock, \
+                patch.object(
+                    run,
+                    "market_runtime_now",
+                    side_effect=lambda value=None: (
+                        datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc)
+                        if value is None
+                        else original_market_runtime_now(value)
+                    ),
+                ):
+            response = client.get("/api/ghost-exchange")
+            data = response.get_json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data["market_runtime"]["settled"], 1)
+        self.assertEqual(profile["files"]["network"], [])
+        self.assertEqual(len(profile["market_history"]), 1)
+        self.assertEqual(profile["market_history"][0]["market_sector"], "network")
+        self.assertGreater(profile["hackcoins"], 45)
+        self.assertLess(profile["storage_used"], 503)
+        notify_mock.assert_called_once()
+
     def test_ghost_exchange_prices_richer_device_package_higher(self):
         profile = {
             "files": {

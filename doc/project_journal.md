@@ -4479,3 +4479,37 @@ mobile.
 
 Sprint 50 zakonczony w zakresie runtime stabilization. Znany problem `/map` JSON
 payload pozostaje osobnym dlugiem technicznym poza zakresem tej stabilizacji.
+
+---
+
+## 04.07.2026
+
+### Hotfix
+
+Ghost Exchange - backlog danych sieciowych po Storage Gate.
+
+### Przyczyna
+
+Profil produkcyjny mial wiele plikow `/data/network` w stanie legacy
+`market_status: not_listed`. Pliki byly sprzedawalne i przekraczaly prog sektora,
+ale nigdy nie dostaly `queued_at`, `listed_at` ani `batch_id`.
+
+Runtime potrafil je wystawic, ale przy pierwszym listingu nadawal paczce
+`listed_at` z chwili wejscia do Ghost Exchange. Dla starych plikow backlogu
+oznaczalo to sztuczne rozpoczecie zegara rynku dopiero teraz, mimo ze pliki
+powstaly w operacjach wiele minut albo godzin wczesniej.
+
+### Poprawka
+
+Dodano wybor najstarszego sensownego czasu z `listed_at`, `queued_at` albo
+`created_at` paczki. Jesli timestamp nie jest z przyszlosci, runtime uzywa go
+jako czasu wejscia paczki na rynek. Swieze pliki nadal czekaja normalny dwell
+time, a stare backlogowe paczki moga zostac rozliczone przy pierwszym refreshu
+Ghost Exchange.
+
+### Walidacja
+
+* Dodano diagnostyczny skrypt dry-run `tools/diagnose_ghost_exchange_network.py`.
+* Dodano regresje API dla starego backlogu `network/not_listed`.
+* Dodano regresje API dla normalnej sciezki `not_listed -> listed -> sold`.
+* Punktowe testy Ghost Exchange network - OK.

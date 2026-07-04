@@ -3492,6 +3492,22 @@ def market_runtime_iso(now=None):
     return market_runtime_now(now).isoformat().replace("+00:00", "Z")
 
 
+def market_oldest_entry_time_iso(entries, now_dt):
+    now_dt = market_runtime_now(now_dt)
+    timestamps = []
+    for item in entries or []:
+        if not isinstance(item, dict):
+            continue
+        for value in (item.get("listed_at"), item.get("queued_at"), item.get("created_at")):
+            ts = parse_operation_timestamp(value)
+            if ts is not None and ts <= now_dt.timestamp():
+                timestamps.append(ts)
+                break
+    if not timestamps:
+        return None
+    return market_runtime_iso(min(timestamps))
+
+
 def market_batch_id(username, sector, file_entries):
     file_ids = sorted(
         str(item.get("id") or item.get("name") or item.get("filename") or "")
@@ -3734,22 +3750,7 @@ def refresh_market_runtime(username, profile, now=None, persist=False):
                     break
             already_listed = any(item.get("market_status") == "listed" for item in batch_entries)
             if not listed_at:
-                listed_candidates = [
-                    item.get("listed_at") or item.get("queued_at") or item.get("created_at")
-                    for item in batch_entries
-                    if isinstance(item, dict)
-                ]
-                listed_timestamps = [
-                    parse_operation_timestamp(value)
-                    for value in listed_candidates
-                    if value
-                ]
-                listed_timestamps = [value for value in listed_timestamps if value is not None]
-                listed_at = (
-                    market_runtime_iso(min(listed_timestamps))
-                    if already_listed and listed_timestamps
-                    else now_iso
-                )
+                listed_at = market_oldest_entry_time_iso(batch_entries, now_dt) or now_iso
                 entry_ids = {str(item.get("id") or "") for item in batch_entries if isinstance(item, dict)}
                 files = ensure_files_inventory(profile)
                 for item in batch_entries:
@@ -3766,8 +3767,6 @@ def refresh_market_runtime(username, profile, now=None, persist=False):
                             item["market_sector"] = sector
                 listed_count += len(batch_entries)
                 changed = True
-                if not already_listed:
-                    continue
 
             listed_ts = parse_operation_timestamp(listed_at)
             if listed_ts is None:
