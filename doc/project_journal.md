@@ -4398,3 +4398,84 @@ toast byl tylko sygnalem, a pelna rozmowa pozostawala w Cybernerze.
 
 Sprint 49 zaimplementowany. Pelna suite `tests.test_target_persistence` nadal
 wymaga osobnej naprawy `/map` JSON payload poza zakresem Cybernera.
+
+---
+
+## 04.07.2026
+
+### Sprint
+
+Sprint 50 - Runtime Stabilization Audit + Critical Fixes.
+
+### Cel
+
+Zatrzymac dokladanie nowych funkcji i ustabilizowac trzy krytyczne sciezki:
+Ghost Exchange auto-sale, Googleplex product effects oraz Cyberner composer na
+mobile.
+
+### Przyczyny regresji
+
+* Ghost Exchange: runtime dziala dwuetapowo (`queued/listed` -> dwell time ->
+  `sold`), ale profil mogl zawierac batch juz zapisany w `market_history` jako
+  sprzedany, podczas gdy jego pliki nadal lezaly w `profile.files`. Idempotencja
+  slusznie blokowala drugie naliczenie HC, ale sektor zostawal wiecznie gotowy
+  do sprzedazy i zajmowal storage.
+* Googleplex products: starsze wpisy katalogu storage moga miec
+  `storage_capacity_bonus` bez nowego pola `effects`. Runtime efektow wymagal
+  listy `effects`, wiec taki legacy product mogl nie zwiekszac
+  `storage_capacity`.
+* Cyberner: composer nie mial centralnego stanu aktywnosci. Przycisk `Wyslij`
+  mogl pozostac aktywny dla pustego inputu albo w trakcie wysylania, a mobile
+  nie uwzglednial klawiatury ekranowej przez `visualViewport`.
+
+### Co zostalo wykonane
+
+* Potwierdzono, ze `GET /api/ghost-exchange` wywoluje runtime rynku i dodano
+  regresje endpointowa: listed batch po dwell time sprzedaje sie raz, HC rosnie
+  raz, a drugi refresh nie dubluje sprzedazy.
+* Dodano recovery dla osieroconych plikow batcha, ktory jest juz rozliczony w
+  `market_history` albo `files.market`: runtime usuwa tylko pliki nalezace do
+  tego batcha, przelicza storage i nie nalicza HC drugi raz.
+* Dodano fallback `storage_capacity_bonus -> effects` dla legacy storage
+  products w `apply_googleplex_product_effect`.
+* Potwierdzono testami produkty Googleplexa:
+  * storage upgrade zwieksza `storage_capacity`,
+  * legacy storage upgrade bez `effects` zwieksza `storage_capacity`,
+  * travel ticket zmienia pozycje na miasto z katalogu,
+  * map zoom, scan range i bike range dopisuja bonusy,
+  * HC spada zgodnie z cena produktow.
+* Cyberner composer blokuje wysylanie, gdy:
+  * brak aktywnego threadu,
+  * kanal jest disabled,
+  * input jest pusty,
+  * request wysylania jest w toku.
+* Dodano minimalny `visualViewport` offset dla narrow/mobile, aby composer nie
+  wpadal pod klawiature ekranowa.
+
+### Zmienione pliki
+
+* `run.py`
+* `static/js/terminal.js`
+* `static/css/mobile_messenger.css`
+* `tests/test_target_persistence.py`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* Punktowe testy Ghost Exchange runtime - OK.
+* Punktowe testy Googleplex product effects - OK.
+* `node --check static/js/terminal.js` - OK.
+* `python -m py_compile run.py database.py profileManagment.py tools/smoke_admin_inventory.py` - OK.
+* `python -m unittest tests.test_app_catalog_cleanup` - OK.
+* `python tools/smoke_admin_inventory.py --no-seed --no-sale` - OK; Ghost
+  Exchange wyczyscil osierocony sprzedany batch bez recznego sell.
+* `git diff --check` - OK.
+* `python -m unittest tests.test_target_persistence` - FAIL na znanych testach
+  `/map` JSON payload:
+  * `test_map_embeds_profile_as_json_literal`,
+  * `test_map_embeds_large_profile_payload_as_json_literal`.
+
+### Status
+
+Sprint 50 zakonczony w zakresie runtime stabilization. Znany problem `/map` JSON
+payload pozostaje osobnym dlugiem technicznym poza zakresem tej stabilizacji.

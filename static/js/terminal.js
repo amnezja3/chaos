@@ -6923,7 +6923,7 @@ function createEmailClient() {
                 <div id="${terminalId}-messages" class="mail-messages"></div>
                 <form id="${terminalId}-message-form" class="mail-message-form mail-composer">
                     <input id="${terminalId}-message-input" type="text" placeholder="Napisz wiadomosc..." autocomplete="off">
-                    <button type="submit">Wyslij</button>
+                    <button type="submit" disabled>Wyslij</button>
                 </form>
             </div>
         </div>
@@ -6948,6 +6948,7 @@ function createEmailClient() {
     const contactInput = term.querySelector(`#${terminalId}-contact-input`);
     const messageForm = term.querySelector(`#${terminalId}-message-form`);
     const messageInput = term.querySelector(`#${terminalId}-message-input`);
+    const messageButton = messageForm.querySelector('button[type="submit"]');
 
     let currentUser = "";
     let channels = [];
@@ -6958,6 +6959,7 @@ function createEmailClient() {
     let groupMessages = [];
     let currentChat = { scope: "group", peer: "global", source: "world", channel: "world", title: "WORLD" };
     let mailMobileView = "list";
+    let mailSending = false;
     const requestedInitialPeer = window.pendingEmailPeer || "";
     const requestedInitialThread = window.pendingCybernerThread;
     window.pendingEmailPeer = "";
@@ -7117,10 +7119,35 @@ function createEmailClient() {
             setMailMobileView("chat");
         }
     };
+    const isCurrentChatSendable = () => {
+        if (!currentChat || !currentChat.scope || !currentChat.peer) return false;
+        if (currentChat.channel) {
+            const channel = currentChannel();
+            return !!channel && channel.enabled !== false;
+        }
+        return true;
+    };
+    const updateComposerState = () => {
+        const sendable = isCurrentChatSendable();
+        const hasBody = !!messageInput.value.trim();
+        messageInput.disabled = !sendable || mailSending;
+        messageButton.disabled = !sendable || !hasBody || mailSending;
+        messageForm.classList.toggle('is-disabled', !sendable);
+        messageForm.classList.toggle('is-sending', mailSending);
+        messageInput.placeholder = sendable ? "Napisz wiadomosc..." : "Ten kanal jest niedostepny.";
+    };
+    const updateMailViewportInset = () => {
+        let offset = 0;
+        if (window.visualViewport && isMailNarrow()) {
+            offset = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
+        }
+        mailApp.style.setProperty('--mail-keyboard-offset', `${Math.round(offset)}px`);
+    };
     const updateMailNarrowMode = () => {
         const rect = term.getBoundingClientRect();
         term.classList.toggle('mail-window-narrow', rect.width < 720 || rect.height < 520);
         mailApp.dataset.mobileView = mailMobileView;
+        updateMailViewportInset();
     };
     const shouldRefreshVisibleChat = () => !isMailNarrow() || mailMobileView === "chat";
     const publishActiveCybernerThread = () => {
@@ -7147,6 +7174,7 @@ function createEmailClient() {
             chatSubtitle.textContent = subtitle;
             acceptBtn.style.display = "none";
             removeBtn.style.display = "none";
+            updateComposerState();
             return;
         }
 
@@ -7160,6 +7188,7 @@ function createEmailClient() {
         chatSubtitle.textContent = worldSource ? cybernerLabel(sourceKey) : known ? "Czat indywidualny" : "Nieznany kontakt";
         acceptBtn.style.display = known || worldSource ? "none" : "inline-block";
         removeBtn.style.display = known && !worldSource ? "inline-block" : "none";
+        updateComposerState();
     };
 
     const renderChannels = () => {
@@ -7472,36 +7501,60 @@ function createEmailClient() {
     messageForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const body = messageInput.value.trim();
-        if (!body) return;
+        if (!body || mailSending || !isCurrentChatSendable()) {
+            updateComposerState();
+            return;
+        }
 
-        const res = await fetch('/api/chats/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                scope: currentChat.scope,
-                peer: currentChat.peer,
-                body
-            })
-        });
-        const data = await res.json();
-        if (data.messages) {
-            contacts = data.contacts || contacts;
-            pendingThreads = data.pending_threads || pendingThreads;
-            unreadCounts = data.unread_counts || unreadCounts;
-            groupActiveCount = data.group_active_count ?? groupActiveCount;
-            if (currentChat.scope === "group") {
-                groupMessages = data.messages || groupMessages;
+        mailSending = true;
+        updateComposerState();
+        try {
+            const res = await fetch('/api/chats/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scope: currentChat.scope,
+                    peer: currentChat.peer,
+                    body
+                })
+            });
+            const data = await res.json();
+            if (data.error) {
+                addSystemMessage("warning", "Cyberner", data.error);
+                return;
             }
-            messageInput.value = "";
-            renderContacts();
-            renderMessages(data.messages, true);
+            if (data.messages) {
+                contacts = data.contacts || contacts;
+                pendingThreads = data.pending_threads || pendingThreads;
+                unreadCounts = data.unread_counts || unreadCounts;
+                groupActiveCount = data.group_active_count ?? groupActiveCount;
+                if (currentChat.scope === "group") {
+                    groupMessages = data.messages || groupMessages;
+                }
+                messageInput.value = "";
+                renderContacts();
+                renderMessages(data.messages, true);
+            }
+        } catch (err) {
+            addSystemMessage("danger", "Cyberner", "Nie udalo sie wyslac wiadomosci.");
+        } finally {
+            mailSending = false;
+            updateComposerState();
         }
     });
+    messageInput.addEventListener('input', updateComposerState);
+    messageInput.addEventListener('focus', updateMailViewportInset);
+    messageInput.addEventListener('blur', () => setTimeout(updateMailViewportInset, 80));
 
     updateMailNarrowMode();
+    updateComposerState();
     bootstrap();
     const mailResizeHandler = () => updateMailNarrowMode();
     window.addEventListener('resize', mailResizeHandler);
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', updateMailViewportInset);
+        window.visualViewport.addEventListener('scroll', updateMailViewportInset);
+    }
     let mailResizeObserver = null;
     if (window.ResizeObserver) {
         mailResizeObserver = new ResizeObserver(updateMailNarrowMode);
@@ -7512,6 +7565,10 @@ function createEmailClient() {
         clearInterval(mailRefreshTimer);
         window.activeCybernerThread = null;
         window.removeEventListener('resize', mailResizeHandler);
+        if (window.visualViewport) {
+            window.visualViewport.removeEventListener('resize', updateMailViewportInset);
+            window.visualViewport.removeEventListener('scroll', updateMailViewportInset);
+        }
         if (mailResizeObserver) {
             mailResizeObserver.disconnect();
         }

@@ -3504,11 +3504,15 @@ def market_batch_id(username, sector, file_entries):
 
 
 def market_batch_already_settled(profile, batch_id):
+    return market_batch_settlement_record(profile, batch_id) is not None
+
+
+def market_batch_settlement_record(profile, batch_id):
     if not batch_id:
-        return False
+        return None
     for item in profile.get("market_history", []) or []:
         if isinstance(item, dict) and str(item.get("batch_id") or item.get("id") or "") == str(batch_id):
-            return True
+            return item
     files = ensure_files_inventory(profile)
     for item in files.get("market", []):
         if not isinstance(item, dict):
@@ -3516,8 +3520,35 @@ def market_batch_already_settled(profile, batch_id):
         metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
         sale = item.get("sale") if isinstance(item.get("sale"), dict) else {}
         if str(item.get("batch_id") or metadata.get("batch_id") or sale.get("batch_id") or "") == str(batch_id):
-            return True
-    return False
+            return item
+    return None
+
+
+def cleanup_already_settled_market_files(profile, files, batch_id, entries):
+    settlement = market_batch_settlement_record(profile, batch_id)
+    if not settlement:
+        return 0
+
+    current_ids = {str(item.get("id") or "") for item in entries if isinstance(item, dict) and item.get("id")}
+    if not current_ids:
+        return 0
+
+    settled_ids = set()
+    if isinstance(settlement.get("file_ids"), list):
+        settled_ids.update(str(item) for item in settlement.get("file_ids") if str(item).strip())
+    metadata = settlement.get("metadata") if isinstance(settlement.get("metadata"), dict) else {}
+    sale = settlement.get("sale") if isinstance(settlement.get("sale"), dict) else {}
+    for source in (metadata, sale):
+        if isinstance(source.get("file_ids"), list):
+            settled_ids.update(str(item) for item in source.get("file_ids") if str(item).strip())
+
+    if settled_ids and not current_ids.issubset(settled_ids):
+        return 0
+
+    removed = remove_market_batch_files(files, current_ids)
+    if removed:
+        normalize_profile_storage(profile)
+    return len(removed)
 
 
 def market_sector_threshold_reached(sector, pending_mb, pending_records):
@@ -3666,6 +3697,9 @@ def refresh_market_runtime(username, profile, now=None, persist=False):
 
         batch_id = market_batch_id(username, sector, entries)
         if market_batch_already_settled(profile, batch_id):
+            recovered = cleanup_already_settled_market_files(profile, files, batch_id, entries)
+            if recovered:
+                changed = True
             continue
 
         listed_at = None

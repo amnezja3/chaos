@@ -1807,6 +1807,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(profile["map_zoom_bonus"], 1)
         self.assertEqual(profile["scan_range_bonus"], 300)
         self.assertEqual(profile["bike_range_bonus"], 500)
+        self.assertEqual(profile["hackcoins"], 20000 - sum(int(product["price"]) for product in products))
         self.assertEqual(profile["apps"], [])
         self.assertEqual(profile["files"]["tools"], [])
 
@@ -3345,6 +3346,115 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(len(profile["system_messages"]), 1)
         self.assertEqual(profile["market_history"][0]["batch_id"], profile["files"]["market"][0]["batch_id"])
         mail_mock.assert_called_once()
+
+    def test_api_ghost_exchange_settles_listed_batch_once(self):
+        listed_at = "2026-07-03T10:00:00Z"
+        entries = [
+            {
+                "id": f"camera_api_sell_{index}",
+                "name": f"camera_api_sell_{index}.cam",
+                "file_category": "camera",
+                "resource_types": ["camera_dump"],
+                "file_size": 14,
+                "market_status": "listed",
+                "listed_at": listed_at,
+                "market_sector": "camera",
+                "sellable": True,
+            }
+            for index in range(4)
+        ]
+        batch_id = run.market_batch_id("neo", "camera", entries)
+        for entry in entries:
+            entry["batch_id"] = batch_id
+        profile = {
+            "username": "neo",
+            "hackcoins": 100,
+            "storage_capacity": 256,
+            "storage_used": 56,
+            "storage_unit": "MB",
+            "files": {"camera": entries, "market": []},
+            "market_history": [],
+            "system_messages": [],
+        }
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "neo"
+
+        with patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run, "refresh_and_persist_operations", side_effect=lambda username, current: current), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run, "add_cyberner_direct_notification") as notify_mock, \
+                patch.object(run, "market_runtime_now", return_value=datetime(2026, 7, 3, 10, 6, tzinfo=timezone.utc)):
+            first_response = client.get("/api/ghost-exchange")
+            first_data = first_response.get_json()
+            hc_after_sale = profile["hackcoins"]
+            second_response = client.get("/api/ghost-exchange")
+            second_data = second_response.get_json()
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertTrue(first_data["success"])
+        self.assertEqual(first_data["market_runtime"]["settled"], 1)
+        self.assertGreater(hc_after_sale, 100)
+        self.assertEqual(profile["hackcoins"], hc_after_sale)
+        self.assertEqual(len(profile["market_history"]), 1)
+        self.assertEqual(len(profile["files"]["market"]), 1)
+        self.assertEqual(profile["files"]["camera"], [])
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(second_data["market_runtime"]["settled"], 0)
+        self.assertEqual(profile["hackcoins"], hc_after_sale)
+        self.assertEqual(len(profile["market_history"]), 1)
+        notify_mock.assert_called_once()
+
+    def test_market_runtime_cleans_already_sold_orphan_files_without_hc(self):
+        entries = [
+            {
+                "id": f"gps_orphan_sold_{index}",
+                "name": f"gps_orphan_sold_{index}.gps",
+                "file_category": "gps",
+                "resource_types": ["gps_track"],
+                "file_size": 10,
+                "market_status": "queued_for_market",
+                "market_sector": "gps",
+                "sellable": True,
+            }
+            for index in range(3)
+        ]
+        batch_id = run.market_batch_id("neo", "gps", entries)
+        profile = {
+            "username": "neo",
+            "hackcoins": 500,
+            "storage_capacity": 256,
+            "storage_used": 30,
+            "storage_unit": "MB",
+            "files": {"gps": entries, "market": []},
+            "market_history": [{
+                "id": batch_id,
+                "batch_id": batch_id,
+                "market_sector": "gps",
+                "price": 777,
+                "status": "sold",
+                "file_ids": [item["id"] for item in entries],
+            }],
+            "system_messages": [],
+        }
+
+        result = refresh_market_runtime("neo", profile, now=datetime(2026, 7, 3, 10, 6, tzinfo=timezone.utc))
+
+        self.assertTrue(result["changed"])
+        self.assertEqual(result["settled"], 0)
+        self.assertEqual(profile["hackcoins"], 500)
+        self.assertEqual(profile["files"]["gps"], [])
+        self.assertEqual(len(profile["market_history"]), 1)
+        self.assertEqual(profile["files"].get("market", []), [])
+        self.assertEqual(profile["storage_used"], 0)
 
     def test_ghost_exchange_prices_richer_device_package_higher(self):
         profile = {
