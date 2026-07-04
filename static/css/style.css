@@ -3460,6 +3460,23 @@ form button:hover {
 .dev-bug-reporter {
   min-width: 760px;
   min-height: 520px;
+  resize: both;
+  overflow: hidden;
+}
+
+.dev-bug-reporter::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 15px;
+  height: 15px;
+  pointer-events: none;
+  border-right: 1px solid rgba(156, 255, 179, 0.65);
+  border-bottom: 1px solid rgba(156, 255, 179, 0.65);
+  background:
+    linear-gradient(135deg, transparent 0 46%, rgba(156, 255, 179, 0.45) 47% 52%, transparent 53% 100%);
+  opacity: 0.85;
 }
 
 .dev-bug-shell {
@@ -3716,8 +3733,7 @@ form button:hover {
 }
 
 @media (max-width: 760px), (max-height: 700px) {
-  .dev-bug-reporter,
-  .dev-bug-reporter.dev-bug-window-narrow {
+  .dev-bug-reporter {
     width: calc(100vw - 16px) !important;
     height: calc(100vh - 16px) !important;
     min-width: 0;
@@ -3812,6 +3828,10 @@ form button:hover {
 
   .dev-bug-context-json textarea {
     min-height: 140px;
+  }
+
+  .dev-bug-reporter::after {
+    display: none;
   }
 }
 
