@@ -259,7 +259,8 @@ const devBugReporterApp = {
 const desktop = document.getElementById('desktop-icons');
 const iconSpacing = 100; // odstęp w pionie
 const MOBILE_SAFE_MODE_QUERY = '(max-width: 900px), (max-height: 700px)';
-const MOBILE_DESKTOP_ICON_KEYS = new Set(['terminal', 'browser', 'mapa', 'profil', 'ustawienia', 'pliki', 'cyberner']);
+const MOBILE_DESKTOP_ICON_ORDER = ['wallet_hc', 'pliki', 'mapa', 'browser', 'ustawienia', 'cyberner', 'terminal', 'dev_bug_reporter', 'profil'];
+const MOBILE_DESKTOP_ICON_KEYS = new Set(MOBILE_DESKTOP_ICON_ORDER);
 
 function isMobileSafeMode() {
     return window.matchMedia && window.matchMedia(MOBILE_SAFE_MODE_QUERY).matches;
@@ -325,6 +326,19 @@ function getDesktopIconKey(app) {
 
 function isMobileDesktopIcon(app) {
     return MOBILE_DESKTOP_ICON_KEYS.has(getDesktopIconKey(app));
+}
+
+function mobileDesktopIconRank(app) {
+    const index = MOBILE_DESKTOP_ICON_ORDER.indexOf(getDesktopIconKey(app));
+    return index >= 0 ? index : MOBILE_DESKTOP_ICON_ORDER.length;
+}
+
+function getSystemDesktopApps(profile = null) {
+    const apps = [...desktopApps];
+    if ((profile && profile.dev_mode) || isMobileSafeMode()) {
+        apps.push(devBugReporterApp);
+    }
+    return apps;
 }
 
 function applyDesktopSettings(settings = {}) {
@@ -409,7 +423,9 @@ function renderDesktopIcons(apps, settings = desktopSettings) {
     const savedPositions = (settings && settings.icon_positions) || {};
     const mobileMode = isMobileSafeMode();
     desktopLastSafeMode = mobileMode;
-    const visibleApps = mobileMode ? apps.filter(isMobileDesktopIcon) : apps;
+    const visibleApps = mobileMode
+        ? apps.filter(isMobileDesktopIcon).sort((a, b) => mobileDesktopIconRank(a) - mobileDesktopIconRank(b))
+        : apps;
 
     visibleApps.forEach((app, index) => {
         const icon = document.createElement('div');
@@ -944,7 +960,7 @@ async function buildIconsFromJsonWithCommand(jsonData) {
 
         setBootProgress(58, `Indeksowanie aplikacji: ${jsonApps.length}`);
         const generatedIcons = await buildIconsFromJsonWithCommand(jsonApps);
-        const systemApps = profileData.dev_mode ? [...desktopApps, devBugReporterApp] : desktopApps;
+        const systemApps = getSystemDesktopApps(profileData);
         const allApps = [...generatedIcons, ...systemApps]; // dodajesz własne z kodu
         setBootProgress(76, "Montowanie paska systemowego...");
         setToolbarLaunchers(allApps, profileData);
@@ -3358,7 +3374,7 @@ async function refreshDesktop(closeWindows = true) {
     const generatedIcons = await buildIconsFromJsonWithCommand(jsonApps);
 
     // Połącz własne i systemowe aplikacje
-    const allApps = [...generatedIcons, ...desktopApps];
+    const allApps = [...generatedIcons, ...getSystemDesktopApps(profileData)];
     setToolbarLaunchers(allApps, profileData);
     applyDesktopSettings(profileData.desktop_settings || {});
     renderDesktopIcons(allApps, desktopSettings);

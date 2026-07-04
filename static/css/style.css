@@ -4002,7 +4002,38 @@ form button:hover {
   }
 
   #desktop-icons {
-    display: none;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(74px, 1fr));
+    gap: clamp(18px, 5vw, 30px) clamp(18px, 6vw, 34px);
+    align-content: start;
+    justify-content: center;
+    width: min(360px, calc(100vw - 34px));
+    max-height: calc(100vh - 76px);
+    top: clamp(22px, 6vh, 48px);
+    left: 50%;
+    transform: translateX(-50%);
+    overflow: hidden;
+    z-index: 11;
+    box-sizing: border-box;
+  }
+
+  #desktop-icons .icon {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    width: 74px;
+    height: 82px;
+    padding: 4px;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.2;
+    box-sizing: border-box;
+  }
+
+  #desktop-icons .icon span {
+    font-size: 2.95rem !important;
+    line-height: 1;
   }
 
   .terminal,
