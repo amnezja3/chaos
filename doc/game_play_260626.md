@@ -3345,6 +3345,453 @@ Zasady integracji:
 * Frontend Ghost Exchange jest dashboardem read modelu, nie źródłem prawdy.
 * Auto-sale jest kontrolowanym refreshem, nie realtime loopem.
 
+---
+
+# Faza E — Cyberner / Messenger
+
+Faza E zmienia istniejącą Skrzynkę mailową w Cybernera: komunikator świata gry.
+
+Cyberner jest nową nazwą użytkową i diegetyczną aplikacji znanej wcześniej jako
+Email / Skrzynka mailowa. Techniczne identyfikatory legacy mogą pozostać bez
+zmian, jeśli ich zmiana byłaby ryzykowna dla runtime.
+
+Filozofia nazwy jest opisana w:
+
+* `doc/cyberner.md`.
+
+Nie powstaje drugi system wiadomości, drugi contact flow ani osobny backend
+messengera. Wszystkie zmiany rozwijają istniejące:
+
+* `mail_store`,
+* `/api/mail/bootstrap`,
+* `/api/chats/messages`,
+* `/api/contacts`,
+* `system_messages`,
+* kontakty i pending threads,
+* desktopową aplikację Cyberner.
+
+Nowy kierunek UX:
+
+```text
+lista rozmów
+↓
+wybrany czat
+↓
+odpowiedź
+↓
+powrót do listy
+```
+
+Decision:
+
+* Przyjęto: Cyberner na mobile/narrow działa jak klasyczny komunikator.
+* Przyjęto: widoczna nazwa aplikacji i komunikatora przechodzi z Email /
+  Skrzynka mailowa na Cyberner.
+* Przyjęto: desktop zachowuje układ dwukolumnowy.
+* Przyjęto: mobile pokazuje tylko jeden ekran naraz: lista albo czat.
+* Przyjęto: backend wiadomości i model danych pozostają bez zmian w pierwszych
+  sprintach Fazy E.
+* Przyjęto: style messengera mieszkają w `static/css/mobile_messenger.css`, a
+  `style.css` może co najwyżej importować albo linkować ten plik.
+
+---
+
+# Sprint 40 — Cyberner Architecture Audit + UX Contract
+
+## Cel gameplayowy
+
+Ustalić, czym Cyberner jest w CHAOS-ie: komunikatorem gracza,
+powiadomieniami systemowymi i kanałem kontaktów, ale bez tworzenia nowego
+systemu wiadomości.
+
+## Architektura
+
+Sprint 40 jest audytem i kontraktem UX. Nie przebudowuje backendu.
+
+Sprawdzić:
+
+* `createEmailClient()`,
+* `createEmailClientLegacy()`,
+* widoczna nazwa Email / Skrzynka mailowa -> Cyberner,
+* `/api/mail/bootstrap`,
+* `/api/chats/messages`,
+* `/api/contacts`,
+* `system_messages`,
+* pending conversations,
+* unread counts,
+* integracje z mapą i player actors przez `openEmailChatWith()`.
+
+## UX
+
+Zdefiniować docelowe pojęcia:
+
+* rozmowa grupowa,
+* rozmowa indywidualna,
+* rozmowa oczekująca,
+* kontakt,
+* status online/offline,
+* unread badge,
+* system thread,
+* Ghost Exchange / system notifications jako nadawcy świata gry.
+* Cyberner jako diegetyczny nerw komunikacyjny Ghost Systemu.
+
+## Systemy
+
+* Mailbox frontend,
+* kontakty,
+* system messages,
+* player actors,
+* Ghost Exchange notifications,
+* desktop app runtime.
+
+## Backend
+
+Bez zmian. Audyt ma potwierdzić, które endpointy wystarczają dla Fazy E.
+
+## Frontend
+
+Ustalić minimalny kontrakt DOM:
+
+* `.mail-app`,
+* `.mail-sidebar`,
+* `.mail-chat`,
+* `.mail-conversation-list`,
+* `.mail-conversation-item`,
+* `.mail-chat-header`,
+* `.mail-back-button`,
+* `.mail-messages`,
+* `.mail-message`,
+* `.mail-composer`.
+
+## Testy
+
+* Desktop nadal otwiera Cybernera.
+* `openEmailChatWith(peer)` nadal otwiera wybraną rozmowę.
+* Bootstrap zwraca kontakty, pending threads i unread counts.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/game_play_260626.md`,
+* `doc/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Istnieje spis obecnych przepływów mail/contact.
+* Wiadomo, które dane są potrzebne do layoutu messengera.
+* Wiadomo, czego nie zmieniamy w backendzie.
+* Istnieje plan Sprintów 41-44.
+
+---
+
+# Sprint 41 — Cyberner Layout v1
+
+## Cel gameplayowy
+
+Cyberner na mobile/narrow zaczyna działać jak komunikator:
+gracz widzi listę rozmów, wybiera czat i może wrócić do listy.
+
+## Architektura
+
+Nie zmieniać backendu wiadomości ani modelu danych.
+
+Frontend utrzymuje tylko stan widoku:
+
+```text
+mailMobileView = "list" | "chat"
+```
+
+Na `.mail-app` ustawiać:
+
+```text
+data-mobile-view="list"
+data-mobile-view="chat"
+```
+
+## Desktop
+
+Desktop zostaje dwukolumnowy:
+
+* kontakty/rozmowy po lewej,
+* wybrany czat po prawej.
+
+## Mobile / Narrow
+
+* startowo lista rozmów,
+* kliknięcie rozmowy przełącza na czat,
+* czat pokazuje przycisk powrotu,
+* input wiadomości jest na dole,
+* brak poziomego scrolla.
+
+## Frontend
+
+1. Przebudować markup `createEmailClient()` pod klasy `mail-*`.
+2. Dodać `mailMobileView`.
+3. Dodać `mail-back-button`.
+4. Dodać detekcję narrow po rozmiarze okna aplikacji i viewportu.
+5. Po resize desktop pokazuje oba panele, mobile zachowuje aktualny stan
+   `list/chat`.
+
+## CSS
+
+Style trzymać w:
+
+* `static/css/mobile_messenger.css`.
+
+Nie wrzucać layoutu messengera do `style.css` poza linkiem/importem.
+
+## Testy
+
+* `node --check static/js/terminal.js`.
+* `git diff --check`.
+* Manual desktop: dwa panele.
+* Manual mobile/narrow: jeden ekran naraz.
+* Manual: klik rozmowy otwiera czat.
+* Manual: back wraca do listy.
+* Manual: input jest dostępny.
+
+## Kryteria akceptacji
+
+* Desktop nie traci starego flow.
+* Mobile nie pokazuje listy i czatu naraz.
+* Back działa bez reloadu aplikacji.
+* Nie zmieniono backendu.
+
+---
+
+# Sprint 42 — Conversation List Polish + Thread States
+
+## Cel gameplayowy
+
+Lista rozmów zaczyna wyglądać jak centrum komunikacji świata gry, a nie lista
+technicznych przycisków.
+
+## UX
+
+Każda rozmowa pokazuje:
+
+* avatar albo symbol nadawcy,
+* nazwę,
+* status online/offline/system,
+* unread badge,
+* wyróżnienie aktywnej rozmowy,
+* stan pending/request,
+* krótki opis albo ostatni sygnał, jeśli backend już go dostarcza.
+
+## Architektura
+
+Nie dodawać nowego endpointu, jeśli obecny bootstrap wystarcza.
+
+Jeśli brakuje danych preview, użyć defensywnych fallbacków w UI zamiast
+rozszerzać model danych na siłę.
+
+## Frontend
+
+1. Uporządkować rendering `contacts`, `pending_threads` i `group`.
+2. Dodać spójne klasy dla aktywnej rozmowy, unread i pending.
+3. Rozdzielić sekcje:
+   * kontakty,
+   * oczekujące,
+   * system/group.
+4. Zachować `openEmailChatWith(peer)`.
+
+## CSS
+
+1. Dopasować aktywny item do klimatu CHAOS.
+2. Unikać poziomego scrolla.
+3. Przy długich nickach używać ellipsis.
+4. Badge unread nie może rozpychać listy.
+
+## Testy
+
+* Kontakt online/offline renderuje status.
+* Pending thread jest widoczny w sekcji oczekujących.
+* Unread badge nie znika po samym refreshu listy.
+* Aktywna rozmowa pozostaje aktywna po `refreshThreads()`.
+
+## Kryteria akceptacji
+
+* Lista rozmów jest czytelna na desktop i mobile.
+* Pending conversations nie mieszają się z kontaktami.
+* Nie powstał drugi contact system.
+
+---
+
+# Sprint 43 — Chat View Polish + Composer UX
+
+## Cel gameplayowy
+
+Widok czatu staje się czytelny i szybki w użyciu: wiadomości mają rytm
+komunikatora, a composer zawsze jest dostępny.
+
+## UX
+
+Czat pokazuje:
+
+* nagłówek z nazwą rozmowy,
+* status rozmowy,
+* akcje po prawej jako małe kontrolki,
+* wiadomości z nadawcą i czasem,
+* wiadomości własne po prawej,
+* wiadomości systemowe jako osobny ton,
+* composer przy dolnej krawędzi.
+
+## Frontend
+
+1. Uporządkować markup pojedynczej wiadomości.
+2. Dodać klasy:
+   * own,
+   * system,
+   * pending/unknown sender, jeśli istnieje.
+3. Po wysłaniu wiadomości zachować aktualny czat.
+4. Po refreshu nie przewijać agresywnie, jeśli użytkownik czyta starsze
+   wiadomości, chyba że jest na dole.
+
+## CSS
+
+* Długie wiadomości zawijają się bez poziomego scrolla.
+* Composer nie nachodzi na wiadomości.
+* Mobile zachowuje wysokość inputa i przycisku wysyłania.
+
+## Backend
+
+Bez zmian, chyba że istniejący endpoint nie zwraca wymaganej informacji o
+nadawcy/czasie. Wtedy przerwać i zgłosić decyzję.
+
+## Testy
+
+* Wysłanie wiadomości odświeża czat.
+* Długa wiadomość nie rozpycha okna.
+* Własna wiadomość ma osobny styl.
+* System message ma osobny styl, jeśli występuje w tym flow.
+
+## Kryteria akceptacji
+
+* Czat jest używalny na desktop i mobile.
+* Composer jest zawsze dostępny.
+* Nie zmieniono modelu wiadomości.
+
+---
+
+# Sprint 44 — Cyberner Integration + World Communication
+
+## Cel gameplayowy
+
+Cyberner staje się jednym miejscem komunikacji ze światem gry: kontakty,
+system, Ghost Exchange, AI, mapa, player actors i przyszłe źródła świata
+korzystają z jednego mail/contact flow.
+
+Cyberner nie jest już tylko aplikacją pocztową. Jest warstwą komunikacji świata.
+
+## Architektura
+
+Nie tworzyć drugiego systemu notyfikacji.
+
+Integracje mają używać istniejących:
+
+* `mail_store`,
+* `system_messages`,
+* `openEmailChatWith()`,
+* `/api/mail/bootstrap`,
+* `/api/chats/messages`.
+
+Nie myśleć o folderach. Myśleć o źródłach komunikacji.
+
+Podstawowe źródła:
+
+* `# grupa` — globalny czat online graczy,
+* gracze / znajomi / nieznajomi,
+* AI Central,
+* Ghost Exchange,
+* System,
+* Misje,
+* przyszłe NPC,
+* przyszłe frakcje,
+* przyszły Marketplace,
+* przyszłe usługi świata.
+
+Frontend nadaje rozmowom tożsamość źródła, ale backend pozostaje ten sam.
+
+## Zakres
+
+1. Sprawdzić wejścia do messengera z mapy/player actors.
+2. Sprawdzić wiadomości Ghost Exchange i systemowe.
+3. Uporządkować unread counts.
+4. Upewnić się, że odczyt rozmowy nie kasuje niepowiązanych alertów.
+5. Upewnić się, że pending request nie tworzy duplikatu kontaktu.
+6. Dodać `CYBERNER_ICON_LIBRARY` jako centralne źródło ikon komunikatora.
+7. Renderer Cybernera ma korzystać z `CYBERNER_ICON_LIBRARY`, nie z
+   `SYSTEM_ICON_LIBRARY` i nie z ikon wpisanych na sztywno.
+8. Nieznany typ rozmowy używa ikony `unknown`.
+
+## Frontend
+
+* Ikony/akcje w headerze czatu mogą być tylko UI, jeśli backend nie ma jeszcze
+  funkcji.
+* Nie pokazywać niedziałających akcji jako aktywnych komend.
+* Source identity jest warstwą prezentacji:
+  * Ghost Exchange wygląda jak rozmowa Ghost Exchange,
+  * System wygląda jak rozmowa System,
+  * AI Central wygląda jak rozmowa AI,
+  * player actors nadal otwierają rozmowy przez `openEmailChatWith(peer)`.
+
+## Testy
+
+* `openEmailChatWith(peer)` otwiera istniejące okno maila albo tworzy nowe.
+* Player actor może otworzyć rozmowę bez duplikowania kontaktu.
+* Pending conversation pozostaje pending do akcji użytkownika.
+* System/Ghost Exchange messages nie mieszają się z prywatnym czatem.
+* Ukryty czat na mobile nie oznacza rozmowy jako przeczytanej samym refreshem
+  listy.
+* Renderer korzysta z `CYBERNER_ICON_LIBRARY`.
+
+## Kryteria akceptacji
+
+* Messenger jest spójny z istniejącymi kontaktami.
+* Nie ma drugiego inboxa.
+* Nie ma drugiego systemu powiadomień.
+* Mobile/narrow nadal działa jako lista -> czat -> lista.
+* Cyberner jest traktowany jako jedyny komunikator świata gry.
+
+---
+
+# Finalna architektura Fazy E
+
+Docelowy przepływ komunikacji:
+
+```text
+zdarzenie gry / gracz / system
+↓
+mail_store albo system_messages
+↓
+/api/mail/bootstrap
+↓
+lista rozmów
+↓
+/api/chats/messages
+↓
+widok czatu
+↓
+odpowiedź / akcja kontaktu
+↓
+ten sam contact/mail flow
+```
+
+Zasady integracji:
+
+* Cyberner jest jedynym messengerem gracza.
+* Kontakty i pending threads korzystają z istniejącego contact flow.
+* Mobile/narrow to zmiana prezentacji, nie osobny runtime.
+* `mailMobileView` jest stanem UI, nie stanem gameplayowym.
+* Backend wiadomości pozostaje źródłem prawdy.
+* Frontend nie tworzy wiadomości ani kontaktów poza istniejącymi endpointami.
+* System/Ghost Exchange/player messages mają trafiać do istniejących kanałów,
+  nie do nowego inboxa.
+* Cyberner pokazuje źródła rozmów, nie foldery poczty.
+* `CYBERNER_ICON_LIBRARY` jest centralnym źródłem ikon dla rozmów i źródeł
+  komunikacji.
+
 Decision:
 
 * Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.
@@ -3355,6 +3802,7 @@ Decision:
 * Przyjęto: Sprint 31 domyka zasady bezpiecznej aktualizacji bazy na serwerze przez idempotentne migracje.
 * Przyjęto: Sprinty 32–33 rozwijają subtelny feedback celu wyłącznie na belce CEL, bez nowego panelu i bez zmiany warunku hackowania.
 * Przyjęto: Sprinty 35–39 zmieniają Ghost Exchange z ręcznego panelu sprzedaży plików w automatyczny rynek danych oparty o kolejkę, sektory i idempotentne rozliczenia.
+* Przyjęto: Sprinty 40–44 rozwijają Skrzynkę mailową w Cybernera / Messenger CHAOS bez tworzenia drugiego systemu wiadomości, kontaktów ani powiadomień.
 
 ---
 

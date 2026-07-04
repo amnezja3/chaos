@@ -3667,3 +3667,385 @@ Hotfix jest gotowy kodowo. Do analizy produkcyjnej mozna uruchomic read-only:
 ```text
 python tools/diagnose_territory_state.py --username <login>
 ```
+
+---
+
+## 04.07.2026
+
+### Sprint
+
+Faza E - Messenger / Skrzynka mailowa, plan Sprintow 40-44.
+
+### Cel
+
+Rozpisac nowa serie sprintow dla przebudowy Skrzynki mailowej w komunikator
+CHAOS, bez tworzenia drugiego backendu wiadomosci, drugiego contact flow ani
+osobnego systemu powiadomien.
+
+### Co zostalo wykonane
+
+* Dodano do `doc/game_play_260626.md` nowa Faze E.
+* Rozpisano Sprint 40 - Mailbox Architecture Audit + UX Contract.
+* Rozpisano Sprint 41 - Messenger Layout v1.
+* Rozpisano Sprint 42 - Conversation List Polish + Thread States.
+* Rozpisano Sprint 43 - Chat View Polish + Composer UX.
+* Rozpisano Sprint 44 - Messenger Integration + Notification Hygiene.
+* Dopisano finalna architekture Fazy E:
+  * `mail_store`,
+  * `/api/mail/bootstrap`,
+  * `/api/chats/messages`,
+  * `/api/contacts`,
+  * `system_messages`,
+  * `openEmailChatWith()`.
+
+### Najwazniejsze decyzje
+
+* Skrzynka mailowa jest jedynym messengerem gracza.
+* Mobile/narrow to zmiana prezentacji: lista rozmow -> czat -> lista.
+* `mailMobileView` jest stanem UI, nie gameplayu.
+* Backend wiadomosci pozostaje zrodlem prawdy.
+* Nie powstaje drugi inbox, drugi system kontaktow ani drugi system notyfikacji.
+
+### Zmienione pliki
+
+* `doc/game_play_260626.md`
+* `doc/project_journal.md`
+
+### Status
+
+Plan Fazy E jest gotowy do implementacji sprint po sprincie.
+
+---
+
+## 04.07.2026
+
+### Sprint
+
+Faza E - decyzja namingowa Cyberner.
+
+### Cel
+
+Ustalic filozofie nazwy komunikatora CHAOS i odejsc od widocznej nazwy
+Email/Skrzynka mailowa na rzecz nazwy Cyberner.
+
+### Co zostalo wykonane
+
+* Dodano dokument `doc/cyberner.md`.
+* Opisano inspiracje neologizmem Stanislawa Lema z Cyberiady.
+* Zaadaptowano Cybernera jako komunikator Ghost Systemu:
+  * nie zwykla poczte,
+  * nie tylko czat,
+  * nerw komunikacyjny swiata gry.
+* Zaktualizowano Faze E w `doc/game_play_260626.md`.
+* Ustalono, ze techniczne identyfikatory legacy moga zostac, jesli zmiana app-id
+  bylaby ryzykowna, ale widoczna nazwa UI przechodzi na Cyberner.
+
+### Najwazniejsze decyzje
+
+* Email / Skrzynka mailowa zmienia nazwe uzytkowa na Cyberner.
+* Cyberner jest warstwa swiata, UX i dokumentacji.
+* Backend mailowy pozostaje zrodlem prawdy.
+* Implementacja nazwy w UI ma nastepowac stopniowo, bez lamania legacy runtime.
+
+### Zmienione pliki
+
+* `doc/cyberner.md`
+* `doc/game_play_260626.md`
+* `doc/project_journal.md`
+
+### Status
+
+Decyzja namingowa jest udokumentowana i gotowa do wdrozenia w UI Sprintow Fazy E.
+
+---
+
+## 04.07.2026
+
+### Sprint
+
+Sprint 41 - Cyberner Layout v1.
+
+### Cel
+
+Przebudowac istniejaca aplikacje Email/Skrzynka mailowa wizualnie w Cybernera:
+komunikator swiata CHAOS, bez zmian backendu wiadomosci, endpointow, modelu
+danych, kontaktow ani profilu gracza.
+
+### Co zostalo wykonane
+
+* Podpieto `static/css/mobile_messenger.css` w szablonach desktopu.
+* Zmieniono widoczna nazwe launchera i okienka z Email/Skrzynka mailowa na
+  `Cyberner`.
+* Przebudowano markup `createEmailClient()` pod klasy messengerowe:
+  `mail-app`, `mail-sidebar`, `mail-conversation-list`, `mail-chat`,
+  `mail-chat-header`, `mail-messages`, `mail-message`, `mail-composer`.
+* Dodano stan UI `mailMobileView` oraz `data-mobile-view="list/chat"` na
+  kontenerze `.mail-app`.
+* Desktop zachowuje uklad dwupanelowy: lista rozmow + czat.
+* Mobile/narrow przechodzi w model komunikatora: lista rozmow -> czat -> lista.
+* Dodano przycisk powrotu w naglowku czatu.
+* `openEmailChatWith(peer)` nadal korzysta z istniejacego flow i otwiera czat
+  bez tworzenia drugiego inboxa.
+* Globalny `# grupa` zostal opisany w UI jako globalny czat online graczy.
+
+### Najwazniejsze decyzje
+
+* Techniczne identyfikatory `email/mail` zostaja jako legacy runtime.
+* Cyberner jest widoczna nazwa UI i warstwa klimatu.
+* `mailMobileView` jest stanem prezentacji, nie stanem gameplayu.
+* Sprint 41 nie implementuje jeszcze realnych avatarow, pelnych unread countow,
+  online/offline logic ani nowych typow wiadomosci.
+
+### Problemy
+
+Brak blokera. Manualna walidacja desktop/mobile pozostaje wymagana w
+przegladarce, bo sprint dotyczy ukladu okna.
+
+### Zmienione pliki
+
+* `static/js/terminal.js`
+* `static/css/mobile_messenger.css`
+* `templates/index.html`
+* `templates/linux.html`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `node --check static/js/terminal.js` - OK.
+* `git diff --check` - OK, tylko ostrzezenia Git o przyszlej normalizacji CRLF
+  w szablonach HTML.
+
+### Status
+
+Sprint 41 jest gotowy do walidacji.
+
+### Nastepny sprint
+
+Sprint 42 - Conversation List Polish + Thread States.
+
+---
+
+## 04.07.2026
+
+### Sprint
+
+Sprint 42 - Conversation List Polish + Thread States.
+
+### Cel
+
+Uporzadkowac liste rozmow Cybernera tak, zeby wygladala jak centrum
+komunikacji swiata gry, a nie techniczna lista kontaktow, bez zmian backendu
+wiadomosci, endpointow i modelu danych.
+
+### Co zostalo wykonane
+
+* Uporzadkowano rendering glownego kanalu `# grupa`, kontaktow i watkow
+  oczekujacych.
+* `# grupa` zostala oznaczona jako globalny/publiczny kanal online graczy.
+* Kazdy item rozmowy dostal strukture pod:
+  * avatar/symbol,
+  * nazwe,
+  * preview/fallback,
+  * status,
+  * unread badge,
+  * aktywny stan.
+* Dodano defensywne fallbacki UI:
+  * `Czat indywidualny` dla kontaktow bez preview,
+  * `Oczekuje na kontakt` dla pending threads,
+  * `Publiczny kanal online graczy` dla globalnego kanalu bez ostatniej
+    wiadomosci.
+* Przygotowano klasy stanu:
+  * `is-friend`,
+  * `is-stranger`,
+  * `is-system`,
+  * `is-pending`,
+  * `mail-status-pending`.
+* Unread badge zostal przeniesiony do stalego miejsca w itemie i nie powinien
+  rozpychac listy.
+* Aktywna rozmowa pozostaje aktywna po `refreshThreads()`, a `mailMobileView`
+  nie jest resetowany przez odswiezenie listy.
+
+### Najwazniejsze decyzje
+
+* Nie dodano endpointow ani nowych pol do backendu.
+* Klasy `is-friend` / `is-stranger` sa uzywane tylko wtedy, gdy obecny payload
+  faktycznie dostarcza taka informacje albo gdy watek jest pending.
+* Preview jest warstwa prezentacji, nie nowym modelem danych.
+
+### Problemy
+
+Brak blokera. Pelna walidacja wizualna wymaga sprawdzenia w oknie desktop oraz
+mobile/narrow.
+
+### Zmienione pliki
+
+* `static/js/terminal.js`
+* `static/css/mobile_messenger.css`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `node --check static/js/terminal.js` - OK.
+* `git diff --check` - OK, tylko ostrzezenia Git o przyszlej normalizacji CRLF
+  w szablonach HTML.
+
+### Status
+
+Sprint 42 jest gotowy do walidacji manualnej.
+
+### Nastepny sprint
+
+Sprint 43 - Chat View Polish + Composer UX.
+
+---
+
+## 04.07.2026
+
+### Sprint
+
+Sprint 43 - Chat View Polish + Composer UX.
+
+### Cel
+
+Dopolerowac widok czatu Cybernera: wiadomosci maja miec rytm komunikatora,
+wlasne/systemowe wpisy osobny ton, composer ma zostac zawsze na dole, a
+mobile/narrow ma pozostac wygodne.
+
+### Co zostalo wykonane
+
+* Uporzadkowano markup pojedynczej wiadomosci:
+  * avatar/symbol nadawcy,
+  * sender,
+  * czas,
+  * opcjonalny subject/highlight,
+  * tresc.
+* Utrzymano i rozwinieto klasy:
+  * `mail-message`,
+  * `mail-message-meta`,
+  * `mail-message-body`,
+  * `own` / `is-own`,
+  * `system` / `is-system`,
+  * `unknown`.
+* Wiadomosci wlasne sa wyróżnione i ustawione po prawej.
+* Wiadomosci systemowe dostaly osobny ton i avatar `SYS`.
+* Dlugie wiadomosci zawijaja sie przez `overflow-wrap` / `word-break`, bez
+  poziomego scrolla.
+* Composer zostal dopasowany do dolnej krawedzi czatu i mobile/narrow:
+  * stabilny grid,
+  * kompaktowy przycisk,
+  * input bez rozpychania okna.
+* Scroll wiadomosci stal sie mniej agresywny:
+  * jesli gracz jest na dole, nowe wiadomosci przewijaja do dolu,
+  * jesli czyta starsze wpisy, refresh nie zrywa pozycji,
+  * po wyslaniu wiadomosci aktywny czat przewija do dolu.
+* Drobny cleanup po Sprincie 42:
+  * status/unread listy rozmow przeniesiono do osobnego prawego slotu,
+  * nazwa i preview maja ellipsis,
+  * pending threads nie powinny rozpychac kart data/czasem.
+
+### Najwazniejsze decyzje
+
+* Nie zmieniono backendu, endpointow ani modelu wiadomosci.
+* `unknown` jest tylko defensywna klasa UI dla nadawcow spoza znanych kontaktow.
+* Scroll pozostaje frontendowym zachowaniem prezentacji, nie stanem gameplayu.
+
+### Problemy
+
+Brak blokera. Manualnie trzeba jeszcze obejrzec dlugie wiadomosci, wlasne
+wiadomosci, system message i composer na mobile/narrow.
+
+### Zmienione pliki
+
+* `static/js/terminal.js`
+* `static/css/mobile_messenger.css`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `node --check static/js/terminal.js` - OK.
+* `git diff --check` - OK, tylko ostrzezenia Git o przyszlej normalizacji CRLF
+  w szablonach HTML.
+
+### Status
+
+Sprint 43 jest gotowy do walidacji manualnej.
+
+### Nastepny sprint
+
+Sprint 44 - Messenger Integration + Notification Hygiene.
+
+---
+
+## 04.07.2026
+
+### Sprint
+
+Sprint 44 - Cyberner Integration + World Communication.
+
+### Cel
+
+Domknac Faze E: Cyberner przestaje byc tylko aplikacja mailowa i staje sie
+wspolna warstwa komunikacji swiata gry, nadal oparta o istniejace `mail_store`,
+`system_messages`, endpointy mail/contact i `openEmailChatWith()`.
+
+### Co zostalo wykonane
+
+* Dodano `CYBERNER_ICON_LIBRARY` jako osobna biblioteke ikon komunikatora.
+* Renderer Cybernera przestal korzystac z ikon wpisanych lokalnie w watkach i
+  wiadomosciach.
+* Dodano identyfikacje zrodel rozmow po obecnym payloadzie/nazwie:
+  * `# grupa`,
+  * gracze/kontakty,
+  * pending request,
+  * AI Central,
+  * Ghost Exchange,
+  * System,
+  * Misje,
+  * przyszle NPC/frakcje/Marketplace/BlackNet/dron/motocykl.
+* Watki Ghost Exchange, System i AI Central sa traktowane jako zrodla swiata,
+  a nie zwykle kontakty do akceptacji.
+* Ukryty czat na mobile/narrow nie jest odswiezany przez `loadMessages()`,
+  dzieki czemu refresh listy nie oznacza ukrytej rozmowy jako przeczytanej.
+* Player actors nadal korzystaja z istniejacego `openEmailChatWith(peer)`.
+* Sekcje listy rozmow przeszly z jezyka poczty na jezyk komunikatora:
+  `Rozmowy` i `Nowe`.
+* Zaktualizowano dokumentacje Fazy E i `doc/cyberner.md` o filozofie zrodel
+  komunikacji.
+
+### Najwazniejsze decyzje
+
+* Nie powstal drugi backend wiadomosci.
+* Nie powstal drugi inbox.
+* Nie powstal drugi contact flow.
+* Nie powstal drugi system powiadomien.
+* Cyberner jest jedynym komunikatorem swiata gry; frontend nadaje rozmowom
+  tozsamosc, ale backend pozostaje zrodlem prawdy.
+
+### Problemy
+
+Podczas walidacji jedna komenda `rg` zostala uruchomiona z blednym znakiem
+przekierowania i wyzerowala `static/js/terminal.js`. Plik zostal natychmiast
+przywrocony z `HEAD`, a zmiany Cybernera nalozono ponownie kontrolowanym
+patchem. `node --check` potwierdzil poprawna skladnie po naprawie.
+
+### Zmienione pliki
+
+* `static/js/terminal.js`
+* `doc/game_play_260626.md`
+* `doc/cyberner.md`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `node --check static/js/terminal.js` - OK.
+* `git diff --check` - OK, tylko ostrzezenia Git o przyszlej normalizacji CRLF
+  w plikach roboczych.
+
+### Status
+
+Sprint 44 zamyka Faze E od strony implementacyjnej i dokumentacyjnej.
+
+### Nastepny sprint
+
+Do decyzji: kolejne prace powinny traktowac Cybernera jako wspolny kanal
+komunikacji systemow gry, nie jako osobna skrzynke mailowa.

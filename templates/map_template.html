@@ -724,11 +724,17 @@
     {{ map_html|safe }}
   </div>
   <div id="active-operations-panel" class="active-operations-panel is-empty" aria-live="polite"></div>
-    <script>
-        window.profileData = {{ profile | tojson }};
-    </script>
+  <script id="profile-data" type="application/json">
+    {{ profile | tojson }}
+  </script>
 
-  {{ folium_js|safe }}
+  <script>
+    window.profileData = JSON.parse(
+      document.getElementById("profile-data").textContent
+    );
+  </script>
+
+{{ folium_js|safe }}
 
     <script>
         const map = window[Object.keys(window).find(k => k.startsWith("map_"))];
