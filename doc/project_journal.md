@@ -4049,3 +4049,245 @@ Sprint 44 zamyka Faze E od strony implementacyjnej i dokumentacyjnej.
 
 Do decyzji: kolejne prace powinny traktowac Cybernera jako wspolny kanal
 komunikacji systemow gry, nie jako osobna skrzynke mailowa.
+
+---
+
+## 04.07.2026
+
+### Sprint
+
+Plan Sprintow 45-47 - Cyberner Channels.
+
+### Cel
+
+Przygotowac kolejny etap Fazy E: Cyberner ma przejsc od komunikatora
+watkow/kontaktow do kanalowej warstwy komunikacji swiata gry, nadal bez
+drugiego `mail_store`, drugiego inboxa i drugiego contact flow.
+
+### Co zostalo wykonane
+
+* Dopisano Sprint 45 - Cyberner Channels Audit + UX Contract.
+* Dopisano Sprint 46 - Cyberner Channels Runtime.
+* Dopisano Sprint 47 - Cyberner Social Polish.
+* Ustalono, ze docelowy kanal publiczny nie powinien nazywac sie `# grupa`,
+  tylko `WORLD` z ikona z `CYBERNER_ICON_LIBRARY.world`.
+* Dopisano znaczenie gameplayowe Sprintow 45-47: Cyberner rozpoczyna spoleczna
+  galaz CHAOS i jest pierwszym systemem, ktory ma uzyc przynaleznosci klanowej
+  w realnym runtime komunikacji.
+* Ustalono rozroznienie:
+  * kanal komunikacji,
+  * prywatna rozmowa,
+  * thread systemowy,
+  * pending request.
+* Dopisano zasade, ze lista Cybernera jest lista kanalow i rozmow, a nie lista
+  folderow poczty.
+* Dopisano zasade, ze kanaly `WORLD`, `ZNAJOMI`, `KLAN` i przyszle kanaly
+  typu `WOJNA`, `FRAKCJA`, `OPERACJA`, `RAID` korzystaja z modelu
+  `CYBERNER_ICON_LIBRARY + label`, bez ikon wpisywanych na sztywno w rendererze.
+
+### Najwazniejsze decyzje
+
+* Sprint 45 jest audytem i kontraktem UX, bez implementacji runtime kanalow.
+* Sprint 46 moze dodac minimalne pole `channel` albo `source` tylko jesli audyt
+  pokaze taka potrzebe.
+* Kanal `KLAN` jest pierwszym krokiem multiplayera gameplayowego: klan przestaje
+  byc tylko informacja w profilu i zaczyna wplywac na komunikacje swiata gry.
+* Sprint 47 jest polish sprintem: avatary, online, typing, favorite, mute i
+  animacje nie zmieniaja architektury wiadomosci.
+* Wszystko nadal ma isc przez istniejace `mail_store`, `system_messages`,
+  `/api/mail/bootstrap`, `/api/chats/messages` i `openEmailChatWith()`.
+
+### Zmienione pliki
+
+* `doc/game_play_260626.md`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+Nie uruchamiano testow runtime. Zmiana dotyczyla wylacznie dokumentacji
+roadmapy.
+
+### Status
+
+Plan Sprintow 45-47 jest dopisany i gotowy jako nastepny etap prac nad
+Cybernerem.
+
+---
+
+## 04.07.2026
+
+### Sprint
+
+Sprint 45 - Cyberner Channels Audit + UX Contract.
+
+### Cel
+
+Przygotowac architekture Cybernera pod kanaly komunikacyjne swiata gry bez
+implementowania runtime kanalow, bez nowych endpointow i bez drugiego
+`mail_store`.
+
+### Co zostalo wykonane
+
+* Przeprowadzono audyt `MailStore`, `chat_messages`, `contacts`,
+  `/api/mail/bootstrap`, `/api/chats/messages` i `openEmailChatWith()`.
+* Utworzono `doc/cyberner_channels_audit.md` jako kontrakt architektoniczny
+  Sprintu 45.
+* Zaktualizowano `doc/game_play_260626.md`:
+  * docelowy kanal publiczny to `WORLD`, nie techniczne `GLOBAL`,
+  * kanaly nie sa kontaktami,
+  * ikony sa wybierane po `source` / `channel`, nie po nazwie rozmowy,
+  * `WORLD`, `ZNAJOMI`, `KLAN` sa projektowane jako singletony.
+* Zaktualizowano `doc/cyberner.md` o kanaly, singletony i znaczenie klanow.
+
+### Wnioski audytu
+
+* Obecny `scope = group`, `peer_name = global` wystarcza jako baza dla kanalu
+  `WORLD`.
+* Prywatne rozmowy i pending requests juz dzialaja przez `scope = direct`,
+  `contacts` i `pending_threads`.
+* System/Ghost Exchange/AI Central moga korzystac z obecnego direct flow, ale
+  potrzebuja jawniejszego `source` w read modelu, zeby renderer nie zgadywal po
+  nazwie.
+* `ZNAJOMI` i `KLAN` nie powinny byc kontaktami. Jesli beda aktywne w Sprincie
+  46, potrzebuja minimalnego `channel` / `source` jako singletonowy read/runtime
+  model nad istniejacym `mail_store`.
+
+### Najwazniejsze decyzje
+
+* `source` opisuje typ zrodla i wybor ikony.
+* `channel` opisuje singletonowy kanal komunikacji.
+* Kanaly nie trafiaja do `contacts`.
+* Sprint 46 nie powinien tworzyc `channel_store`.
+* `KLAN` jest pierwszym krokiem multiplayera gameplayowego: przynaleznosc
+  klanowa zaczyna miec znaczenie komunikacyjne.
+
+### Zmienione pliki
+
+* `doc/game_play_260626.md`
+* `doc/cyberner.md`
+* `doc/cyberner_channels_audit.md`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `node --check static/js/terminal.js` - OK.
+* `git diff --check` - OK.
+
+### Status
+
+Sprint 45 zakonczony jako audyt i kontrakt architektoniczny. Architektura jest
+gotowa do implementacji Sprintu 46 bez drugiego systemu wiadomosci.
+
+---
+
+## 04.07.2026
+
+### Sprint
+
+Sprint 46 - Cyberner Channels Runtime.
+
+### Cel
+
+Dodac minimalny runtime kanalow Cybernera jako singletonowy read model nad
+istniejacym `mail_store`, bez drugiego systemu wiadomosci, bez `channel_store`
+i bez zapisywania kanalow jako kontaktow.
+
+### Co zostalo wykonane
+
+* Rozszerzono `/api/mail/bootstrap` o pole `channels`.
+* Dodano helper `build_cyberner_channels()` w `run.py`.
+* Dodano klucze `world`, `friends`, `clan` do `CYBERNER_ICON_LIBRARY`.
+* Zmieniono publiczny kanal UI z `# grupa` na `WORLD`.
+* Dodano osobna sekcje kanalow nad prywatnymi rozmowami w Cybernerze.
+* `WORLD` mapuje sie na istniejacy thread `scope = group`, `peer = global`.
+* `ZNAJOMI` jest disabled placeholderem opartym o liczbe istniejacych kontaktow.
+* `KLAN` jest disabled placeholderem widocznym tylko przy profilu z `clan`.
+* Dodano style kanalow w `static/css/mobile_messenger.css`.
+* Zaktualizowano dokumentacje Sprintu 46 i kontrakt audytu.
+
+### Najwazniejsze decyzje
+
+* `source` wybiera tozsamosc i ikone z `CYBERNER_ICON_LIBRARY`.
+* `channel` identyfikuje singleton kanalu.
+* Kanaly nie trafiaja do `contacts`.
+* Disabled placeholder kanalu nie wywoluje `/api/chats/messages`, nie tworzy
+  pending request i nie zapisuje kontaktu.
+* Backend zostal rozszerzony tylko o read model bootstrapu.
+
+### Zmienione pliki
+
+* `run.py`
+* `static/js/terminal.js`
+* `static/css/mobile_messenger.css`
+* `doc/game_play_260626.md`
+* `doc/cyberner.md`
+* `doc/cyberner_channels_audit.md`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `node --check static/js/terminal.js` - OK.
+* `python -m py_compile run.py` - OK.
+* `git diff --check` - OK.
+
+### Status
+
+Sprint 46 zakonczony. Cyberner ma minimalny runtime kanalow `WORLD`, `ZNAJOMI`
+i `KLAN` bez drugiego systemu wiadomosci. Sprint 47 moze zajac sie social
+polishem.
+
+---
+
+## 04.07.2026
+
+### Sprint
+
+Sprint 47 - Cyberner Social Polish.
+
+### Cel
+
+Dopolerowac Cybernera jako spoleczne centrum gry po dodaniu kanalow, bez zmiany
+architektury wiadomosci i bez udawania funkcji, ktorych backend jeszcze nie
+obsluguje.
+
+### Co zostalo wykonane
+
+* Dopolerowano liste rozmow i kanalow w `static/css/mobile_messenger.css`.
+* Dodano wizualne rozroznienie:
+  * kanal,
+  * placeholder,
+  * prywatne,
+  * nowe,
+  * zrodlo.
+* Wzmocniono aktywny stan rozmowy i kanalow.
+* Poprawiono hover/focus, unread badges, status dots i ellipsis dla dlugich
+  nazw oraz preview.
+* Disabled kanaly `ZNAJOMI` i `KLAN` pozostaja nieaktywne i nie uruchamiaja
+  runtime wiadomosci.
+* Mobile/narrow zachowuje model lista -> czat -> lista.
+* Zaktualizowano dokumentacje o zasade: placeholder nie jest aktywna funkcja.
+
+### Najwazniejsze decyzje
+
+* Nie dodano aktywnego `typing`, `last seen`, `pin`, `favorite` ani `mute`,
+  poniewaz nie maja jeszcze backendowego zrodla prawdy.
+* Polish dotyczy tylko prezentacji istniejacych stanow.
+* Backend i endpointy pozostaly nietkniete w tym sprincie.
+
+### Zmienione pliki
+
+* `static/js/terminal.js`
+* `static/css/mobile_messenger.css`
+* `doc/game_play_260626.md`
+* `doc/cyberner.md`
+* `doc/project_journal.md`
+
+### Wynik testow
+
+* `node --check static/js/terminal.js` - OK.
+* `git diff --check` - OK.
+
+### Status
+
+Sprint 47 zakonczony. Cyberner ma domkniety polish spoleczny po kanalach
+`WORLD`, `ZNAJOMI` i `KLAN`.

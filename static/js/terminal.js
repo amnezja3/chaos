@@ -195,7 +195,10 @@ const SYSTEM_ICON_LIBRARY = [
 ];
 
 const CYBERNER_ICON_LIBRARY = {
-    group: { icon: '\u{1F310}', label: 'Globalny kanal' },
+    world: { icon: '\u{1F310}', label: 'WORLD' },
+    group: { icon: '\u{1F310}', label: 'WORLD' },
+    friends: { icon: '\u{1F465}', label: 'ZNAJOMI' },
+    clan: { icon: '\u{1F6E1}\uFE0F', label: 'KLAN' },
     contact: { icon: '\u{1F464}', label: 'Kontakt' },
     friend: { icon: '\u{1F465}', label: 'Znajomy' },
     stranger: { icon: '\u{1F575}\uFE0F', label: 'Nieznany kontakt' },
@@ -6855,22 +6858,13 @@ function createEmailClient() {
         <div class="mail-app" data-mobile-view="list">
             <div class="mail-sidebar">
                 <div class="mail-sidebar-title">Cyberner</div>
+                <div class="mail-section-title">Kanały</div>
+                <div id="${terminalId}-channels" class="mail-channel-list mail-conversation-list"></div>
                 <div class="mail-section-title">Rozmowy</div>
                 <form id="${terminalId}-contact-form" class="mail-contact-form mail-add-contact">
                     <input id="${terminalId}-contact-input" type="text" placeholder="Nick znajomego" autocomplete="off">
                     <button type="submit">Dodaj</button>
                 </form>
-                <button id="${terminalId}-group-btn" class="mail-thread mail-conversation-item mail-global-channel is-system active" type="button">
-                    <span class="mail-avatar mail-avatar-global">${CYBERNER_ICON_LIBRARY.group.icon}</span>
-                    <span class="mail-conversation-content">
-                        <span class="mail-conversation-name"># grupa</span>
-                        <span id="${terminalId}-group-preview" class="mail-conversation-preview">Publiczny kanal online graczy</span>
-                    </span>
-                    <span class="mail-conversation-side">
-                        <span id="${terminalId}-group-dot" class="mail-unread-badge" style="display:none;">0</span>
-                        <small class="mail-conversation-meta mail-status-online"><span>global</span><span id="${terminalId}-group-meta">0 online</span></small>
-                    </span>
-                </button>
                 <div id="${terminalId}-contacts" class="mail-contact-list mail-conversation-list"></div>
                 <div id="${terminalId}-pending-wrap" class="mail-pending-wrap" style="display:none;">
                     <div class="mail-section-title">Nowe</div>
@@ -6881,8 +6875,8 @@ function createEmailClient() {
                 <div class="mail-header mail-chat-header">
                     <button id="${terminalId}-back" type="button" class="mail-back-button" aria-label="Wroc do listy">&larr;</button>
                     <div>
-                        <div id="${terminalId}-chat-title" class="mail-chat-title"># grupa</div>
-                        <div id="${terminalId}-chat-subtitle" class="mail-chat-subtitle">Globalny czat online graczy</div>
+                        <div id="${terminalId}-chat-title" class="mail-chat-title">WORLD</div>
+                        <div id="${terminalId}-chat-subtitle" class="mail-chat-subtitle">Publiczny kanal swiata gry</div>
                     </div>
                     <div class="mail-header-actions">
                         <button id="${terminalId}-accept-contact" type="button" style="display:none;">Dodaj kontakt</button>
@@ -6902,6 +6896,7 @@ function createEmailClient() {
     makeDraggable(term);
     term.querySelector('.close-btn').addEventListener('click', () => term.remove());
 
+    const channelsBox = term.querySelector(`#${terminalId}-channels`);
     const contactsBox = term.querySelector(`#${terminalId}-contacts`);
     const mailApp = term.querySelector('.mail-app');
     const pendingWrap = term.querySelector(`#${terminalId}-pending-wrap`);
@@ -6909,10 +6904,6 @@ function createEmailClient() {
     const messagesBox = term.querySelector(`#${terminalId}-messages`);
     const chatTitle = term.querySelector(`#${terminalId}-chat-title`);
     const chatSubtitle = term.querySelector(`#${terminalId}-chat-subtitle`);
-    const groupBtn = term.querySelector(`#${terminalId}-group-btn`);
-    const groupDot = term.querySelector(`#${terminalId}-group-dot`);
-    const groupMeta = term.querySelector(`#${terminalId}-group-meta`);
-    const groupPreview = term.querySelector(`#${terminalId}-group-preview`);
     const acceptBtn = term.querySelector(`#${terminalId}-accept-contact`);
     const removeBtn = term.querySelector(`#${terminalId}-remove-contact`);
     const backBtn = term.querySelector(`#${terminalId}-back`);
@@ -6922,12 +6913,13 @@ function createEmailClient() {
     const messageInput = term.querySelector(`#${terminalId}-message-input`);
 
     let currentUser = "";
+    let channels = [];
     let contacts = [];
     let pendingThreads = [];
     let unreadCounts = { group: 0, direct: {} };
     let groupActiveCount = 0;
     let groupMessages = [];
-    let currentChat = { scope: "group", peer: "global" };
+    let currentChat = { scope: "group", peer: "global", source: "world", channel: "world", title: "WORLD" };
     let mailMobileView = "list";
     const requestedInitialPeer = window.pendingEmailPeer || "";
     window.pendingEmailPeer = "";
@@ -6936,6 +6928,49 @@ function createEmailClient() {
     const unreadFor = (name) => (unreadCounts.direct && unreadCounts.direct[name]) || 0;
     const cybernerIcon = (key) => (CYBERNER_ICON_LIBRARY[key] || CYBERNER_ICON_LIBRARY.unknown).icon;
     const cybernerLabel = (key) => (CYBERNER_ICON_LIBRARY[key] || CYBERNER_ICON_LIBRARY.unknown).label;
+    const defaultWorldChannel = () => ({
+        source: "world",
+        channel: "world",
+        scope: "group",
+        peer: "global",
+        title: "WORLD",
+        subtitle: "Publiczny kanal swiata gry",
+        preview: "Publiczny kanal online graczy",
+        enabled: true,
+        meta: `${groupActiveCount} online`
+    });
+    const normalizeCybernerChannels = (items) => {
+        const seen = new Set();
+        const normalized = [];
+        const list = Array.isArray(items) && items.length ? items : [defaultWorldChannel()];
+        list.forEach(item => {
+            if (!item || typeof item !== "object") return;
+            const channel = item.channel || item.source || "";
+            if (!channel || seen.has(channel)) return;
+            seen.add(channel);
+            normalized.push({
+                source: item.source || channel || "unknown",
+                channel,
+                scope: item.scope || (channel === "world" ? "group" : "channel"),
+                peer: item.peer || (channel === "world" ? "global" : channel),
+                title: item.title || cybernerLabel(item.source || channel || "unknown"),
+                subtitle: item.subtitle || cybernerLabel(item.source || channel || "unknown"),
+                preview: item.preview || "",
+                enabled: item.enabled !== false,
+                disabled_reason: item.disabled_reason || "",
+                meta: item.meta || "",
+                active_count: item.active_count,
+                clan: item.clan || ""
+            });
+        });
+        if (!seen.has("world")) {
+            normalized.unshift(defaultWorldChannel());
+        }
+        return normalized;
+    };
+    const currentChannel = () => channels.find(item => item.channel === currentChat.channel)
+        || (currentChat.channel === "world" ? defaultWorldChannel() : null);
+    const channelUnread = (channel) => channel && channel.channel === "world" ? unreadCounts.group : 0;
     const cybernerSourceKeyForName = (name) => {
         const normalized = String(name || "").trim().toLowerCase();
         if (!normalized) return "unknown";
@@ -6953,6 +6988,8 @@ function createEmailClient() {
     const isWorldSourceKey = (key) => !["unknown", "contact", "friend", "stranger", "request", "own"].includes(key);
     const cybernerSourceForThread = (thread, fallbackKey = "contact") => {
         if (thread && typeof thread === "object") {
+            if (thread.source && CYBERNER_ICON_LIBRARY[thread.source]) return thread.source;
+            if (thread.channel && CYBERNER_ICON_LIBRARY[thread.channel]) return thread.channel;
             if (thread.source_type && CYBERNER_ICON_LIBRARY[thread.source_type]) return thread.source_type;
             if (thread.type && CYBERNER_ICON_LIBRARY[thread.type]) return thread.type;
             if (thread.is_system) return "system";
@@ -6989,12 +7026,16 @@ function createEmailClient() {
         if (thread.is_friend === false) return "is-stranger";
         return fallback;
     };
-    const renderThreadItemContent = ({ iconKey = "unknown", name, preview, meta, unread = 0, avatarClass = "", metaClass = "" }) => {
+    const renderThreadItemContent = ({ iconKey = "unknown", name, preview, meta, unread = 0, avatarClass = "", metaClass = "", kind = "" }) => {
         const unreadLabel = formatUnread(unread);
+        const kindMarkup = kind ? `<span class="mail-conversation-kind">${escapeHTML(kind)}</span>` : "";
         return `
             <span class="mail-avatar ${avatarClass}">${cybernerIcon(iconKey)}</span>
             <span class="mail-conversation-content">
-                <span class="mail-conversation-name">${escapeHTML(name || "Nieznany")}</span>
+                <span class="mail-conversation-title-row">
+                    <span class="mail-conversation-name">${escapeHTML(name || "Nieznany")}</span>
+                    ${kindMarkup}
+                </span>
                 <span class="mail-conversation-preview">${escapeHTML(preview || "")}</span>
             </span>
             <span class="mail-conversation-side">
@@ -7008,6 +7049,8 @@ function createEmailClient() {
     const cybernerSourceKeyForMessage = (msg, own = false) => {
         if (own) return "own";
         if (msg && typeof msg === "object") {
+            if (msg.source && CYBERNER_ICON_LIBRARY[msg.source]) return msg.source;
+            if (msg.channel && CYBERNER_ICON_LIBRARY[msg.channel]) return msg.channel;
             if (msg.source_type && CYBERNER_ICON_LIBRARY[msg.source_type]) return msg.source_type;
             if (msg.type && CYBERNER_ICON_LIBRARY[msg.type]) return msg.type;
         }
@@ -7040,15 +7083,16 @@ function createEmailClient() {
 
     const setActiveThread = () => {
         term.querySelectorAll('.mail-thread').forEach(el => el.classList.remove('active'));
-        const groupUnreadLabel = formatUnread(unreadCounts.group);
-        groupDot.textContent = groupUnreadLabel;
-        groupDot.style.display = groupUnreadLabel ? "inline-flex" : "none";
-        groupMeta.textContent = `${groupActiveCount} online`;
-        groupPreview.textContent = latestGroupPreview();
-        if (currentChat.scope === "group") {
-            groupBtn.classList.add('active');
-            chatTitle.textContent = "# grupa";
-            chatSubtitle.textContent = `Globalny czat online graczy - ${groupActiveCount} online`;
+        if (currentChat.channel) {
+            const channel = currentChannel();
+            const btn = Array.from(term.querySelectorAll('.mail-thread'))
+                .find(el => el.dataset.channel === currentChat.channel);
+            if (btn) btn.classList.add('active');
+            chatTitle.textContent = (channel && channel.title) || currentChat.title || "WORLD";
+            const subtitle = channel && channel.channel === "world"
+                ? `${channel.subtitle || "Publiczny kanal swiata gry"} - ${groupActiveCount} online`
+                : (channel && (channel.disabled_reason || channel.subtitle)) || currentChat.subtitle || "";
+            chatSubtitle.textContent = subtitle;
             acceptBtn.style.display = "none";
             removeBtn.style.display = "none";
             return;
@@ -7066,7 +7110,57 @@ function createEmailClient() {
         removeBtn.style.display = known && !worldSource ? "inline-block" : "none";
     };
 
+    const renderChannels = () => {
+        channelsBox.innerHTML = "";
+        normalizeCybernerChannels(channels).forEach(channel => {
+            const btn = document.createElement('button');
+            btn.type = "button";
+            btn.className = `mail-thread mail-conversation-item mail-channel-item mail-channel-${channel.channel || "unknown"} ${channel.enabled ? "" : "is-disabled"}`.trim();
+            btn.dataset.channel = channel.channel || "";
+            btn.dataset.source = channel.source || "";
+            btn.dataset.scope = channel.scope || "";
+            btn.dataset.peer = channel.peer || "";
+            btn.setAttribute("aria-disabled", channel.enabled ? "false" : "true");
+            if (!channel.enabled) {
+                btn.disabled = true;
+                btn.title = channel.disabled_reason || "Kanal czeka na runtime.";
+            }
+            const unread = channelUnread(channel);
+            const preview = channel.channel === "world" ? latestGroupPreview() : channel.preview;
+            const meta = channel.channel === "world"
+                ? `<span>world</span><span>${escapeHTML(`${groupActiveCount} online`)}</span>`
+                : `<span>${escapeHTML(channel.enabled ? (channel.meta || channel.subtitle || "") : "wkrótce")}</span>`;
+            btn.innerHTML = renderThreadItemContent({
+                iconKey: channel.source || channel.channel || "unknown",
+                name: channel.title || cybernerLabel(channel.source || channel.channel || "unknown"),
+                preview: preview || channel.disabled_reason || "",
+                meta,
+                unread,
+                avatarClass: `mail-avatar-${channel.source || channel.channel || "unknown"}`,
+                metaClass: channel.enabled ? "mail-status-system" : "mail-status-disabled",
+                kind: channel.enabled ? "kanał" : "placeholder"
+            });
+            if (channel.enabled) {
+                btn.addEventListener('click', () => {
+                    currentChat = {
+                        scope: channel.scope || "group",
+                        peer: channel.peer || "global",
+                        source: channel.source || "world",
+                        channel: channel.channel || "world",
+                        title: channel.title || "WORLD",
+                        subtitle: channel.subtitle || ""
+                    };
+                    setActiveThread();
+                    openMailChatViewIfNarrow();
+                    loadMessages();
+                });
+            }
+            channelsBox.appendChild(btn);
+        });
+    };
+
     const renderContacts = () => {
+        renderChannels();
         contactsBox.innerHTML = "";
         contacts.forEach(contact => {
             const contactName = contact.name || "Nieznany";
@@ -7085,7 +7179,8 @@ function createEmailClient() {
                 meta: `<span>${escapeHTML(isWorldSourceKey(sourceKey) ? cybernerLabel(sourceKey) : contact.status || "offline")}</span>`,
                 unread,
                 avatarClass: isWorldSourceKey(sourceKey) ? `mail-avatar-${sourceKey}` : "mail-avatar-contact",
-                metaClass: `${statusClass} ${mailStatusClass}`
+                metaClass: `${statusClass} ${mailStatusClass}`,
+                kind: isWorldSourceKey(sourceKey) ? "źródło" : "prywatne"
             });
             btn.addEventListener('click', () => {
                 currentChat = { scope: "direct", peer: contactName };
@@ -7117,7 +7212,8 @@ function createEmailClient() {
                 meta: pendingMeta,
                 unread,
                 avatarClass: worldSource ? `mail-avatar-${sourceKey}` : "mail-avatar-pending",
-                metaClass: worldSource ? "mail-status-system" : "pending mail-status-pending"
+                metaClass: worldSource ? "mail-status-system" : "pending mail-status-pending",
+                kind: worldSource ? "źródło" : "nowe"
             });
             btn.addEventListener('click', () => {
                 currentChat = { scope: "direct", peer: threadName };
@@ -7196,6 +7292,7 @@ function createEmailClient() {
         const res = await fetch('/api/mail/bootstrap');
         const data = await res.json();
         currentUser = data.username || "";
+        channels = normalizeCybernerChannels(data.channels);
         contacts = data.contacts || [];
         pendingThreads = data.pending_threads || [];
         unreadCounts = data.unread_counts || unreadCounts;
@@ -7215,6 +7312,7 @@ function createEmailClient() {
         if (!document.body.contains(term)) return;
         const res = await fetch('/api/mail/bootstrap');
         const data = await res.json();
+        channels = normalizeCybernerChannels(data.channels);
         contacts = data.contacts || [];
         pendingThreads = data.pending_threads || [];
         unreadCounts = data.unread_counts || unreadCounts;
@@ -7225,13 +7323,6 @@ function createEmailClient() {
             await loadMessages();
         }
     };
-
-    groupBtn.addEventListener('click', () => {
-        currentChat = { scope: "group", peer: "global" };
-        setActiveThread();
-        openMailChatViewIfNarrow();
-        loadMessages();
-    });
 
     backBtn.addEventListener('click', () => {
         setMailMobileView("list");
@@ -7290,7 +7381,7 @@ function createEmailClient() {
         const res = await fetch(`/api/contacts/${encodeURIComponent(name)}`, { method: 'DELETE' });
         const data = await res.json();
         contacts = data.contacts || contacts.filter(c => c.name !== name);
-        currentChat = { scope: "group", peer: "global" };
+        currentChat = { scope: "group", peer: "global", source: "world", channel: "world", title: "WORLD" };
         renderContacts();
         loadMessages();
     });

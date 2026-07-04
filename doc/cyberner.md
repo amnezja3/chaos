@@ -98,7 +98,9 @@ Cyberner nie myśli folderami.
 
 Cyberner pokazuje źródła komunikacji świata:
 
-* `# grupa` — globalny czat online graczy,
+* `WORLD` — publiczny kanał świata gry,
+* `ZNAJOMI` — kanał znajomych, jeśli runtime go udostępnia,
+* `KLAN` — kanał klanu, jeśli profil ma przynależność klanową,
 * gracze, znajomi i nieznajomi,
 * AI Central,
 * Ghost Exchange,
@@ -113,6 +115,15 @@ Każde źródło jest rozmową. Backend może nadal używać `mail_store` i
 `system_messages`, ale UI nie powinno rozbijać świata na osobne inboxy ani
 osobne centra powiadomień.
 
+Kanały nie są kontaktami.
+
+Kanał jest trwałym źródłem komunikacji świata. Kontakt jest prywatną rozmową z
+graczem. Thread systemowy jest rozmową prowadzoną przez system gry albo źródło
+świata.
+
+Kanały `WORLD`, `ZNAJOMI` i `KLAN` powinny być traktowane jako singletony:
+w jednym profilu może istnieć tylko jedna rozmowa danego typu kanału.
+
 Ikony źródeł Cybernera są osobną biblioteką frontendową:
 
 ```text
@@ -121,6 +132,54 @@ CYBERNER_ICON_LIBRARY
 
 Nie korzystają z globalnej biblioteki ikon systemowych. Dzięki temu komunikator
 może mieć własny język wizualny i nadal pozostać zgodny z istniejącym runtime.
+
+Ikona identyfikuje typ źródła, a nie nazwę rozmowy. Renderer powinien wybierać
+ikonę po `source` albo `channel`, np. `source = clan` używa
+`CYBERNER_ICON_LIBRARY.clan`. Nie powinien rozpoznawać ikony przez warunek typu
+`title == "KLAN"`.
+
+Docelowo kanał publiczny nazywa się `WORLD`. Techniczny identyfikator legacy
+`group/global` może pozostać pod spodem, jeśli zmiana runtime byłaby ryzykowna.
+
+W Sprintcie 46 `WORLD` jest aktywnym kanałem opartym o istniejący techniczny
+thread `scope = group`, `peer = global`.
+
+`ZNAJOMI` i `KLAN` mogą istnieć jako singletonowe placeholdery źródeł
+komunikacji, jeśli backend nie ma jeszcze runtime wiadomości dla tych kanałów.
+Placeholder kanału nie jest kontaktem i nie powinien uruchamiać contact flow.
+
+## Polish społeczny
+
+Cyberner może pokazywać społeczne sygnały tylko wtedy, gdy istnieje dla nich
+źródło prawdy.
+
+Dozwolone są:
+
+* defensywne fallbacki,
+* disabled placeholdery,
+* wizualne rozróżnienie kanałów, kontaktów, pending i źródeł świata,
+* kompaktowe unread badges,
+* subtelne animacje aktywnego wątku.
+
+Nie należy udawać aktywnych funkcji, których backend jeszcze nie obsługuje:
+
+* typing,
+* last seen,
+* pin/favorite,
+* mute,
+* realny status online poza danymi dostarczanymi przez runtime.
+
+## Kanały i klany
+
+Cyberner rozpoczyna społeczną gałąź CHAOS.
+
+Do tej pory przynależność do klanu była głównie informacją w profilu i wejściem
+do wybranych mechanik mapy. Kanał `KLAN` jest pierwszym krokiem, w którym klan
+zaczyna wpływać na komunikację świata gry.
+
+Przyszłe systemy, takie jak wojny klanów, operacje grupowe, wspólne terytoria,
+wydarzenia frakcyjne i misje klanowe, powinny korzystać z istniejącego Cybernera
+oraz kanału `KLAN`, zamiast budować własne komunikatory.
 
 ## Zasady integracji
 

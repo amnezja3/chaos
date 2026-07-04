@@ -11603,6 +11603,56 @@ def ensure_mail_seed(profile=None):
     mail_store.remove_contacts_without_users(username)
     return username
 
+
+def build_cyberner_channels(profile, contacts, group_active_count):
+    """Build singleton channel read model without storing channels as contacts."""
+    contact_count = len(contacts or [])
+    channels = [
+        {
+            "source": "world",
+            "channel": "world",
+            "scope": "group",
+            "peer": "global",
+            "title": "WORLD",
+            "subtitle": "Publiczny kanal swiata gry",
+            "preview": "Publiczny kanal online graczy",
+            "enabled": True,
+            "active_count": int(group_active_count or 0),
+            "meta": f"{int(group_active_count or 0)} online",
+        },
+        {
+            "source": "friends",
+            "channel": "friends",
+            "scope": "channel",
+            "peer": "friends",
+            "title": "ZNAJOMI",
+            "subtitle": "Kanal znajomych",
+            "preview": f"{contact_count} kontaktow gotowych do przyszlego kanalu",
+            "enabled": False,
+            "disabled_reason": "Runtime kanalu znajomych zostanie dodany po kontrakcie Sprintu 46.",
+            "meta": f"{contact_count} kontaktow",
+        },
+    ]
+
+    clan = get_profile_clan(profile or {})
+    if clan:
+        channels.append({
+            "source": "clan",
+            "channel": "clan",
+            "scope": "channel",
+            "peer": f"clan:{clan}",
+            "title": "KLAN",
+            "subtitle": f"Kanal klanu {clan}",
+            "preview": "Punkt komunikacji klanowej przygotowany pod runtime.",
+            "enabled": False,
+            "disabled_reason": "Kanal klanowy czeka na runtime wiadomosci klanowych.",
+            "meta": clan,
+            "clan": clan,
+        })
+
+    return channels
+
+
 @app.route("/api/mail/bootstrap")
 def mail_bootstrap():
     if "user" not in session:
@@ -11614,14 +11664,16 @@ def mail_bootstrap():
     contacts = mail_store.list_contacts(username)
     pending_threads = mail_store.list_pending_threads(username)
     group_messages = mail_store.list_messages(username, "group", "global")
+    group_active_count = mail_store.group_active_count(username)
 
     return jsonify({
         "username": username,
+        "channels": build_cyberner_channels(profile, contacts, group_active_count),
         "contacts": contacts,
         "pending_threads": pending_threads,
         "group_messages": group_messages,
         "unread_counts": mail_store.unread_counts(username),
-        "group_active_count": mail_store.group_active_count(username)
+        "group_active_count": group_active_count
     })
 
 @app.route("/api/contacts", methods=["POST"])

@@ -3756,6 +3756,359 @@ Frontend nadaje rozmowom tożsamość źródła, ale backend pozostaje ten sam.
 
 ---
 
+# Sprint 45 — Cyberner Channels Audit + UX Contract
+
+## Cel gameplayowy
+
+Ustalić finalny model kanałów komunikacji w Cybernerze bez zmiany backendu i bez
+implementacji runtime kanałów.
+
+Sprint 45 jest audytem i kontraktem UX. Nie dodaje jeszcze `# global`,
+`# znajomi` ani `# klan` jako nowych kanałów runtime.
+
+## Filozofia
+
+Cyberner nie pokazuje folderów poczty.
+
+Cyberner pokazuje źródła komunikacji świata:
+
+```text
+CYBERNER_ICON_LIBRARY.world   WORLD
+CYBERNER_ICON_LIBRARY.friends ZNAJOMI
+CYBERNER_ICON_LIBRARY.clan    KLAN
+AI Central
+Ghost Exchange
+System
+Misje
+Marketplace
+BlackNet
+NPC
+gracze prywatni
+```
+
+Kanał jest wspólnym źródłem rozmowy. Prywatna rozmowa jest threadem z graczem
+albo kontaktem. Thread systemowy jest rozmową prowadzoną przez system gry.
+
+## Znaczenie gameplayowe
+
+Sprinty 45–47 rozpoczynają społeczną gałąź projektu CHAOS.
+
+Do tej pory przynależność do klanu była przygotowana głównie jako dane profilu.
+Po zakończeniu Fazy E klan zaczyna mieć realne znaczenie gameplayowe.
+
+Cyberner staje się pierwszym systemem korzystającym z przynależności klanowej.
+
+To początek przyszłych mechanik:
+
+* komunikacji klanowej,
+* współpracy podczas operacji,
+* wymiany informacji,
+* koordynacji działań,
+* przyszłych wojen klanów,
+* przyszłych terytoriów klanowych,
+* przyszłych wydarzeń i misji frakcyjnych.
+
+Sprinty 45–47 nie implementują jeszcze tych mechanik.
+
+Ich celem jest przygotowanie architektury komunikacji tak, aby kolejne systemy
+mogły korzystać z istniejącego Cybernera zamiast budować własne kanały.
+
+## Pytania do audytu
+
+Sprawdzić, które źródła istnieją już w danych albo UI:
+
+* `WORLD` — publiczny czat online całej gry,
+* `ZNAJOMI` — kanał znajomych online,
+* `KLAN` — kanał klanu,
+* AI Central,
+* Ghost Exchange,
+* System,
+* Misje,
+* Marketplace,
+* BlackNet,
+* NPC,
+* prywatne rozmowy z graczami.
+
+## Audyt backendu
+
+Sprawdzić istniejące:
+
+* `mail_store`,
+* `system_messages`,
+* `contacts`,
+* pending requests,
+* `/api/mail/bootstrap`,
+* `/api/chats/messages`,
+* `openEmailChatWith()`.
+
+Odpowiedzieć:
+
+* czy obecna architektura pozwala zrobić kanały bez drugiego systemu wiadomości,
+* czy wystarczy pole prezentacyjne `channel` / `source`,
+* które kanały mogą być tylko frontendową tożsamością istniejącego threadu,
+* gdzie grozi duplikacja contact flow,
+* czego nie ruszać w backendzie.
+
+## UX
+
+Lista rozmów nie jest listą kontaktów. Jest listą kanałów i rozmów.
+
+Docelowy porządek:
+
+```text
+ROZMOWY
+
+CYBERNER_ICON_LIBRARY.world   WORLD
+183 online
+
+CYBERNER_ICON_LIBRARY.friends ZNAJOMI
+7 online
+
+CYBERNER_ICON_LIBRARY.clan    KLAN
+2 online
+
+Ghost Exchange
+System
+AI Central
+Misje
+
+Jan
+Adam
+Piotr
+```
+
+Nie używać nazwy `# grupa` jako docelowej nazwy kanału publicznego. Docelowo
+kanał świata nazywa się `WORLD`, a jego ikonę dostarcza
+`CYBERNER_ICON_LIBRARY.world`.
+
+Kanały nie są kontaktami. Kanał jest trwałym źródłem komunikacji świata.
+Kontakt jest prywatną rozmową z graczem. Thread systemowy jest rozmową
+prowadzoną przez system gry. Nie wolno mieszać tych pojęć w UI ani w przyszłym
+read modelu.
+
+Nie wpisywać ikon kanałów na sztywno w rendererze. `WORLD`, `ZNAJOMI`, `KLAN`
+i przyszłe kanały typu `WOJNA`, `FRAKCJA`, `OPERACJA`, `RAID` mają korzystać z
+tego samego modelu `CYBERNER_ICON_LIBRARY + label`.
+
+Ikona nie identyfikuje konkretnej rozmowy. Ikona identyfikuje typ źródła.
+Renderer powinien wybierać ikonę po `source` / `channel`, np.
+`source = clan -> CYBERNER_ICON_LIBRARY.clan`, a nie po nazwie rozmowy.
+
+## Zakres
+
+1. Zrobić mapę istniejących threadów do typów:
+   * kanał,
+   * prywatna rozmowa,
+   * thread systemowy,
+   * pending request.
+2. Opisać minimalny read model dla kanału.
+3. Opisać fallback dla danych, których backend jeszcze nie dostarcza.
+4. Nie implementować runtime kanałów.
+5. Nie dodawać endpointów.
+6. Nie tworzyć drugiego inboxa.
+
+## Kryteria akceptacji
+
+* Wiadomo, co jest kanałem.
+* Wiadomo, co jest prywatną rozmową.
+* Wiadomo, co jest threadem systemowym.
+* Wiadomo, czego backend już potrafi użyć.
+* Wiadomo, czy Sprint 46 wymaga minimalnego pola `channel` / `source`.
+* Nie zmieniono backendu, endpointów ani modelu wiadomości.
+
+---
+
+# Sprint 46 — Cyberner Channels Runtime
+
+## Cel gameplayowy
+
+Dodać podstawowe kanały Cybernera jako część istniejącego mail/contact flow:
+
+```text
+CYBERNER_ICON_LIBRARY.world   WORLD
+CYBERNER_ICON_LIBRARY.friends ZNAJOMI
+CYBERNER_ICON_LIBRARY.clan    KLAN
+```
+
+Kanały mają działać przez jeden `mail_store` i jeden Cyberner, bez osobnego
+systemu czatów.
+
+## Architektura
+
+Nie tworzyć drugiego backendu wiadomości.
+
+Jeżeli Sprint 45 pokaże, że backend potrzebuje minimalnego rozszerzenia, dodać
+tylko jedno pole read/runtime, np.:
+
+```text
+channel
+```
+
+albo:
+
+```text
+source
+```
+
+Pole ma klasyfikować thread, nie tworzyć osobnego magazynu.
+
+## Najważniejsze decyzje
+
+Kanały Cybernera są pierwszym runtime wykorzystującym przynależność do klanu.
+
+Od tego momentu klan przestaje być wyłącznie informacją w profilu.
+
+Przynależność klanowa staje się elementem wpływającym na komunikację świata gry.
+
+Kolejne systemy, takie jak wojny klanów, operacje grupowe, wspólne terytoria i
+wydarzenia, powinny korzystać z istniejącego kanału `KLAN`, a nie tworzyć
+własnych systemów komunikacji.
+
+## Systemy
+
+* `mail_store`,
+* `system_messages`,
+* `/api/mail/bootstrap`,
+* `/api/chats/messages`,
+* `openEmailChatWith()`,
+* `CYBERNER_ICON_LIBRARY`,
+* Cyberner conversation list.
+
+## Flow danych
+
+```text
+channel event / player message
+↓
+mail_store albo system_messages
+↓
+bootstrap threads
+↓
+Cyberner conversation list
+↓
+chat view
+```
+
+## Backend
+
+1. Użyć istniejących endpointów.
+2. Dodać minimalną klasyfikację kanału tylko jeśli audyt Sprintu 45 tego wymaga.
+3. Nie dodawać osobnego `channel_store`.
+4. Nie dodawać drugiego pending/contact flow.
+5. Nie duplikować wiadomości między kanałem a prywatną rozmową.
+6. Kanały `WORLD`, `ZNAJOMI` i `KLAN` traktować jako singletony w profilu:
+   jeden profil nie może mieć dwóch rozmów tego samego typu kanału.
+
+## Frontend
+
+1. Zmienić widoczną nazwę publicznego kanału z `# grupa` na `WORLD`.
+2. Dodać sekcję kanałów nad prywatnymi rozmowami.
+3. Pokazać `ZNAJOMI` i `KLAN` tylko wtedy, gdy istnieją dane albo bezpieczny
+   fallback UX z audytu.
+4. Wszystkie wejścia do rozmów nadal używają `openEmailChatWith()`.
+5. Ikony kanałów pobierać z `CYBERNER_ICON_LIBRARY`.
+
+## Testy
+
+* `WORLD` otwiera istniejący globalny thread.
+* Prywatna rozmowa nadal otwiera się przez `openEmailChatWith(peer)`.
+* Pending request nie tworzy drugiego kontaktu.
+* Kanał nie duplikuje wiadomości w prywatnym threadzie.
+* Mobile/narrow nadal działa jako lista -> czat -> lista.
+
+## Kryteria akceptacji
+
+* Cyberner ma kanał `WORLD` zamiast docelowej nazwy `# grupa`.
+* Kanały korzystają z istniejącego mail/contact flow.
+* Kanał `KLAN` korzysta z przynależności klanowej, jeśli profil ją posiada.
+* Kanały `WORLD`, `ZNAJOMI` i `KLAN` są projektowane jako singletony.
+* Nie powstał drugi system wiadomości.
+* Nie powstał drugi inbox.
+* Backend został rozszerzony tylko minimalnie, jeśli było to konieczne.
+
+## Decyzje implementacyjne
+
+* `WORLD` jest aktywnym kanałem i mapuje się na istniejące `scope = group`,
+  `peer = global`.
+* `ZNAJOMI` jest singletonowym placeholderem opartym o istniejące kontakty.
+  Nie zapisuje się jako kontakt i nie uruchamia jeszcze osobnego runtime
+  wiadomości.
+* `KLAN` jest singletonowym placeholderem widocznym tylko przy profilu z klanem.
+  Nie implementuje jeszcze mechaniki klanowej.
+* `/api/mail/bootstrap` zwraca minimalny read model `channels`.
+* Nie dodano nowego endpointu, `channel_store`, inboxa ani contact flow.
+
+---
+
+# Sprint 47 — Cyberner Social Polish
+
+## Cel gameplayowy
+
+Dopolerować Cybernera jako społeczne centrum gry po tym, jak kanały mają już
+ustalony model i podstawowy runtime.
+
+Sprint 47 jest polish sprintem. Nie zmienia architektury wiadomości.
+
+## UX
+
+Dodać albo dopracować:
+
+* avatary / symbole rozmów,
+* status online,
+* typing indicator,
+* `ostatnio widziany`,
+* przypięte rozmowy,
+* favorite,
+* mute,
+* rozwijanie i zwijanie sekcji,
+* subtelne animacje przejść,
+* lepsze unread badges.
+
+## Architektura
+
+Polish korzysta z danych istniejących po Sprintach 45–46.
+
+Jeśli jakiejś informacji nie ma w backendzie, UI nie udaje jej jako aktywnej
+funkcji. Może pokazać defensywny fallback albo zostawić miejsce pod przyszły
+runtime.
+
+## Frontend
+
+1. Uporządkować sekcje:
+   * `ROZMOWY`,
+   * `NOWE`,
+   * opcjonalnie `ARCHIWUM`, jeśli istnieje realny stan.
+2. Zastąpić urzędowe `Oczekujące` lżejszą nazwą UX, jeśli nie psuje flow.
+3. Dodać animacje tylko tam, gdzie nie powodują utraty czytelności.
+4. Nie rozpychać listy rozmów na mobile.
+
+## Testy
+
+* Unread badge nie znika po zwykłym refreshu.
+* Przypięte/favorite rozmowy nie duplikują threadów.
+* Mobile nadal nie pokazuje listy i czatu naraz.
+* Długie nicki, statusy i preview mają ellipsis.
+
+## Kryteria akceptacji
+
+* Cyberner wygląda jak żywy komunikator świata gry.
+* Kanały, system i prywatne rozmowy są czytelne.
+* Polish nie tworzy nowych źródeł prawdy.
+* Nie zmieniono mail/contact flow.
+
+## Decyzje implementacyjne
+
+* Sprint 47 dopolerowuje wizualnie istniejące stany: kanał, placeholder,
+  rozmowa prywatna, pending i źródło świata.
+* `WORLD`, `ZNAJOMI` i `KLAN` są wizualnie odróżnione od prywatnych kontaktów.
+* Placeholdery `ZNAJOMI` i `KLAN` pozostają disabled, dopóki backend nie ma
+  runtime wiadomości tych kanałów.
+* Nie dodano aktywnych funkcji `typing`, `last seen`, `pin`, `favorite` ani
+  `mute`, bo nie mają jeszcze źródła prawdy w backendzie.
+* Unread badge, długie nazwy, preview i statusy mają być kompaktowe i nie
+  rozpychać listy rozmów.
+
+---
+
 # Finalna architektura Fazy E
 
 Docelowy przepływ komunikacji:
@@ -3803,6 +4156,7 @@ Decision:
 * Przyjęto: Sprinty 32–33 rozwijają subtelny feedback celu wyłącznie na belce CEL, bez nowego panelu i bez zmiany warunku hackowania.
 * Przyjęto: Sprinty 35–39 zmieniają Ghost Exchange z ręcznego panelu sprzedaży plików w automatyczny rynek danych oparty o kolejkę, sektory i idempotentne rozliczenia.
 * Przyjęto: Sprinty 40–44 rozwijają Skrzynkę mailową w Cybernera / Messenger CHAOS bez tworzenia drugiego systemu wiadomości, kontaktów ani powiadomień.
+* Przyjęto: Sprinty 45–47 rozwijają Cybernera z komunikatora w kanałową warstwę komunikacji świata: audyt kanałów, minimalny runtime i social polish bez drugiego `mail_store`.
 
 ---
 
