@@ -3499,7 +3499,8 @@ form button:hover {
 }
 
 .dev-bug-toolbar button,
-.dev-bug-card button {
+.dev-bug-card button,
+.dev-bug-back {
   background: #072313;
   color: #9cffb3;
   border: 1px solid #28b96a;
@@ -3509,8 +3510,14 @@ form button:hover {
 }
 
 .dev-bug-toolbar button:hover,
-.dev-bug-card button:hover {
+.dev-bug-card button:hover,
+.dev-bug-back:hover {
   background: #0d3a20;
+}
+
+.dev-bug-back {
+  display: none;
+  margin: 0 0 10px;
 }
 
 .dev-bug-message {
@@ -3706,6 +3713,143 @@ form button:hover {
     width: calc(100vw - 24px) !important;
     min-width: 0;
   }
+}
+
+@media (max-width: 760px), (max-height: 700px) {
+  .dev-bug-reporter,
+  .dev-bug-reporter.dev-bug-window-narrow {
+    width: calc(100vw - 16px) !important;
+    height: calc(100vh - 16px) !important;
+    min-width: 0;
+    min-height: 0;
+    left: 8px !important;
+    top: 8px !important;
+  }
+
+  .dev-bug-shell {
+    gap: 8px;
+  }
+
+  .dev-bug-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .dev-bug-toolbar input,
+  .dev-bug-toolbar select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .dev-bug-toolbar select {
+    grid-column: span 2;
+  }
+
+  .dev-bug-toolbar button {
+    padding: 7px 8px;
+  }
+
+  .dev-bug-message {
+    font-size: 12px;
+  }
+
+  .dev-bug-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    overflow: hidden;
+  }
+
+  .dev-bug-list,
+  .dev-bug-detail {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+    height: 100%;
+  }
+
+  .dev-bug-detail {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .dev-bug-shell[data-dev-bug-view="list"] .dev-bug-detail,
+  .dev-bug-shell[data-dev-bug-view="form"] .dev-bug-list,
+  .dev-bug-shell[data-dev-bug-view="detail"] .dev-bug-list {
+    display: none;
+  }
+
+  .dev-bug-shell[data-dev-bug-view="form"] [data-bug-detail],
+  .dev-bug-shell[data-dev-bug-view="detail"] [data-bug-form-card] {
+    display: none;
+  }
+
+  .dev-bug-shell[data-dev-bug-view="form"] [data-bug-form-card],
+  .dev-bug-shell[data-dev-bug-view="detail"] [data-bug-detail] {
+    display: block;
+    overflow: auto;
+  }
+
+  .dev-bug-back {
+    display: inline-flex;
+  }
+
+  .dev-bug-card {
+    margin: 0;
+  }
+
+  .dev-bug-detail-head {
+    align-items: stretch;
+  }
+
+  .dev-bug-detail-head h3 {
+    max-width: 100%;
+  }
+
+  .dev-bug-context {
+    grid-template-columns: 1fr;
+  }
+
+  .dev-bug-context-json textarea {
+    min-height: 140px;
+  }
+}
+
+.browser-window.browser-narrow .dev-bug-layout,
+.dev-bug-reporter.dev-bug-window-narrow .dev-bug-layout {
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.browser-window.browser-narrow .dev-bug-list,
+.browser-window.browser-narrow .dev-bug-detail,
+.dev-bug-reporter.dev-bug-window-narrow .dev-bug-list,
+.dev-bug-reporter.dev-bug-window-narrow .dev-bug-detail {
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  height: 100%;
+}
+
+.browser-window.browser-narrow .dev-bug-shell[data-dev-bug-view="list"] .dev-bug-detail,
+.dev-bug-reporter.dev-bug-window-narrow .dev-bug-shell[data-dev-bug-view="list"] .dev-bug-detail,
+.browser-window.browser-narrow .dev-bug-shell[data-dev-bug-view="form"] .dev-bug-list,
+.dev-bug-reporter.dev-bug-window-narrow .dev-bug-shell[data-dev-bug-view="form"] .dev-bug-list,
+.browser-window.browser-narrow .dev-bug-shell[data-dev-bug-view="detail"] .dev-bug-list,
+.dev-bug-reporter.dev-bug-window-narrow .dev-bug-shell[data-dev-bug-view="detail"] .dev-bug-list {
+  display: none;
+}
+
+.browser-window.browser-narrow .dev-bug-shell[data-dev-bug-view="form"] [data-bug-detail],
+.dev-bug-reporter.dev-bug-window-narrow .dev-bug-shell[data-dev-bug-view="form"] [data-bug-detail],
+.browser-window.browser-narrow .dev-bug-shell[data-dev-bug-view="detail"] [data-bug-form-card],
+.dev-bug-reporter.dev-bug-window-narrow .dev-bug-shell[data-dev-bug-view="detail"] [data-bug-form-card] {
+  display: none;
+}
+
+.browser-window.browser-narrow .dev-bug-back,
+.dev-bug-reporter.dev-bug-window-narrow .dev-bug-back {
+  display: inline-flex;
 }
 
 @media (max-width: 900px), (max-height: 700px) {

@@ -1730,7 +1730,7 @@ function createDevBugReporterApp() {
     app.style.height = '620px';
     app.innerHTML = `
         <div class="title-bar">Dev Bug Reporter <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
-        <div class="app-content dev-bug-shell">
+        <div class="app-content dev-bug-shell" data-dev-bug-view="list">
             <div class="dev-bug-toolbar">
                 <input type="search" data-bug-search placeholder="Szukaj zgłoszeń..." />
                 <select data-bug-category-filter>
@@ -1741,6 +1741,7 @@ function createDevBugReporterApp() {
                     <option value="">Wszystkie statusy</option>
                     ${DEV_BUG_STATUSES.map(status => `<option value="${status}">${status}</option>`).join('')}
                 </select>
+                <button type="button" data-bug-show-form>Dodaj zgłoszenie</button>
                 <button type="button" data-bug-refresh>Odśwież</button>
             </div>
             <div class="dev-bug-message" data-bug-message></div>
@@ -1750,10 +1751,12 @@ function createDevBugReporterApp() {
                 </aside>
                 <main class="dev-bug-detail">
                     <section class="dev-bug-card" data-bug-detail>
+                        <button type="button" class="dev-bug-back" data-bug-back>← Lista zgłoszeń</button>
                         <h3>Wybierz zgłoszenie</h3>
                         <p>Lista jest wspólna dla testerów dev/staging.</p>
                     </section>
-                    <section class="dev-bug-card">
+                    <section class="dev-bug-card dev-bug-form-card" data-bug-form-card>
+                        <button type="button" class="dev-bug-back" data-bug-back>← Lista zgłoszeń</button>
                         <h3>Nowe zgłoszenie</h3>
                         <form data-bug-form>
                             <label>Tytuł
@@ -1792,6 +1795,21 @@ function createDevBugReporterApp() {
         reports: [],
         selectedId: null,
         appVersion: '',
+        mobileView: 'list',
+    };
+    const shell = app.querySelector('.dev-bug-shell');
+
+    const isDevBugNarrow = () => app.classList.contains('dev-bug-window-narrow')
+        || app.classList.contains('browser-narrow')
+        || window.matchMedia('(max-width: 760px), (max-height: 700px)').matches;
+    const setDevBugView = (view) => {
+        state.mobileView = ["list", "form", "detail"].includes(view) ? view : "list";
+        if (shell) shell.dataset.devBugView = state.mobileView;
+    };
+    const updateDevBugNarrowMode = () => {
+        const rect = app.getBoundingClientRect();
+        app.classList.toggle('dev-bug-window-narrow', rect.width < 760 || rect.height < 620);
+        if (shell) shell.dataset.devBugView = state.mobileView;
     };
 
     const setMessage = (message, type = 'info') => {
@@ -1806,12 +1824,15 @@ function createDevBugReporterApp() {
         if (!detail) return;
         if (!report) {
             detail.innerHTML = `
+                <button type="button" class="dev-bug-back" data-bug-back>← Lista zgłoszeń</button>
                 <h3>Wybierz zgłoszenie</h3>
                 <p>Lista jest wspólna dla testerów dev/staging.</p>
             `;
+            detail.querySelector('[data-bug-back]')?.addEventListener('click', () => setDevBugView('list'));
             return;
         }
         detail.innerHTML = `
+            <button type="button" class="dev-bug-back" data-bug-back>← Lista zgłoszeń</button>
             <div class="dev-bug-detail-head">
                 <h3>#${report.id} ${escapeHTML(report.title)}</h3>
                 <select data-bug-status-update>
@@ -1839,6 +1860,7 @@ function createDevBugReporterApp() {
                 <textarea readonly>${escapeHTML(JSON.stringify(report.context || {}, null, 2))}</textarea>
             </details>
         `;
+        detail.querySelector('[data-bug-back]')?.addEventListener('click', () => setDevBugView('list'));
         detail.querySelector('[data-bug-status-update]')?.addEventListener('change', async (event) => {
             await updateBugReportStatus(report.id, event.target.value);
         });
@@ -1866,6 +1888,7 @@ function createDevBugReporterApp() {
             button.addEventListener('click', () => {
                 state.selectedId = Number(button.dataset.reportId);
                 renderList();
+                setDevBugView('detail');
             });
         });
         renderDetail(state.reports.find(item => item.id === state.selectedId));
@@ -1986,6 +2009,7 @@ function createDevBugReporterApp() {
             state.selectedId = data.report?.id || null;
             setMessage(data.message || 'Zgłoszenie zapisane.', 'success');
             await loadReports();
+            setDevBugView('detail');
         } catch (err) {
             console.error('Dev Bug Reporter create failed:', err);
             setMessage('Błąd zapisu zgłoszenia.', 'error');
@@ -1993,12 +2017,29 @@ function createDevBugReporterApp() {
     });
 
     app.querySelector('[data-bug-refresh]')?.addEventListener('click', loadReports);
+    app.querySelector('[data-bug-show-form]')?.addEventListener('click', () => setDevBugView('form'));
+    app.querySelectorAll('[data-bug-back]').forEach(button => {
+        button.addEventListener('click', () => setDevBugView('list'));
+    });
     app.querySelector('[data-bug-search]')?.addEventListener('input', () => {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(loadReports, 250);
     });
     app.querySelector('[data-bug-category-filter]')?.addEventListener('change', loadReports);
     app.querySelector('[data-bug-status-filter]')?.addEventListener('change', loadReports);
+
+    updateDevBugNarrowMode();
+    const devBugResizeHandler = () => updateDevBugNarrowMode();
+    window.addEventListener('resize', devBugResizeHandler);
+    let devBugResizeObserver = null;
+    if (window.ResizeObserver) {
+        devBugResizeObserver = new ResizeObserver(updateDevBugNarrowMode);
+        devBugResizeObserver.observe(app);
+    }
+    app.querySelector('.close-btn')?.addEventListener('click', () => {
+        window.removeEventListener('resize', devBugResizeHandler);
+        if (devBugResizeObserver) devBugResizeObserver.disconnect();
+    }, { once: true });
 
     loadReports();
 }
