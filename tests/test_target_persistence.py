@@ -271,6 +271,40 @@ class LightweightPollingEndpointTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), [])
 
+    def test_mail_bootstrap_uses_readonly_profile_without_full_sync(self):
+        profile = {
+            "username": "tester",
+            "nick": "Tester",
+            "apps": [],
+            "files": {},
+            "contacts": [],
+            "system_messages": [],
+            "storage_capacity": 512,
+            "storage_used": 0,
+        }
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "tester"
+
+        with patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")), \
+                patch.object(run.mail_store, "ensure_seeded", return_value=None), \
+                patch.object(run.mail_store, "remove_contacts_without_users", return_value=None), \
+                patch.object(run.mail_store, "touch_presence", return_value=None), \
+                patch.object(run.mail_store, "list_contacts", return_value=[]), \
+                patch.object(run.mail_store, "list_accepted_contacts", return_value=[]), \
+                patch.object(run.mail_store, "list_pending_threads", return_value=[]), \
+                patch.object(run.mail_store, "list_messages", return_value=[]), \
+                patch.object(run.mail_store, "group_active_count", return_value=0), \
+                patch.object(run.mail_store, "unread_counts", return_value={}):
+            response = client.get("/api/mail/bootstrap")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["username"], "tester")
+        self.assertIn("channels", data)
+        self.assertEqual(data["contacts"], [])
+
 
 class MissingProfileAndSessionSafetyTest(unittest.TestCase):
     def test_map_without_profile_redirects_to_login_instead_of_500(self):
@@ -3997,6 +4031,128 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(result["result"]["status"], "already_sold")
         self.assertEqual(profile["files"]["gps"], [])
         self.assertEqual(profile["storage_used"], 0)
+
+    def test_append_runtime_file_skips_already_sold_files_for_all_market_sectors(self):
+        sector_resources = {
+            "camera": ["camera_dump"],
+            "atm": ["atm_dump"],
+            "gps": ["gps_logs"],
+            "device": ["device_logs"],
+            "personal": ["personal_records"],
+            "credentials": ["credentials"],
+            "financial": ["financial_records"],
+            "network": ["wifi_networks"],
+            "audio": ["audio_transcript"],
+            "vehicle": ["vehicle_diagnostics"],
+        }
+
+        for sector, resources in sector_resources.items():
+            with self.subTest(sector=sector):
+                file_entry = {
+                    "name": f"{sector}_already_sold.dat",
+                    "file_category": sector,
+                    "directory": f"/data/{sector}",
+                    "resource_types": resources,
+                    "file_size": 12,
+                    "operation_id": f"op_sold_{sector}",
+                    "source_operation_id": f"op_sold_{sector}",
+                    "market_status": "not_listed",
+                    "sellable": True,
+                    "metadata": {
+                        "operation_id": f"op_sold_{sector}",
+                        "record_count": 4,
+                        "quality_score": 80,
+                    },
+                }
+                normalized = run.normalize_runtime_file_entry(file_entry, sector)
+                profile = {
+                    "username": "neo",
+                    "storage_capacity": 768,
+                    "storage_used": 0,
+                    "storage_unit": "MB",
+                    "files": {sector: [], "market": []},
+                    "market_history": [{
+                        "id": f"batch_sold_{sector}",
+                        "batch_id": f"batch_sold_{sector}",
+                        "market_sector": sector,
+                        "status": "sold",
+                        "file_ids": [normalized["id"]],
+                        "price": 123,
+                    }],
+                }
+                operation = {
+                    "operation_id": f"op_sold_{sector}",
+                    "operation_type": "sector_regression",
+                    "resource_buffer": {},
+                }
+
+                result = append_runtime_file_if_space(profile, operation, sector, file_entry)
+
+                self.assertFalse(result["stored"])
+                self.assertEqual(result["result"]["status"], "already_sold")
+                self.assertEqual(profile["files"][sector], [])
+                self.assertEqual(profile["storage_used"], 0)
+
+    def test_ghost_exchange_shows_raw_not_listed_pending_files_for_all_market_sectors(self):
+        sector_fixtures = {
+            "camera": (["camera_dump"], 14, {"record_count": 1}),
+            "atm": (["atm_dump"], 12, {"record_count": 4}),
+            "gps": (["gps_logs"], 11, {"checkpoint_count": 4}),
+            "device": (["device_logs"], 13, {"record_count": 4}),
+            "personal": (["personal_records"], 12, {"record_count": 4}),
+            "credentials": (["credentials"], 8, {"credential_count": 2}),
+            "financial": (["financial_records"], 12, {"record_count": 4, "transactions_count": 4}),
+            "network": (["wifi_networks"], 13, {"network_count": 4}),
+            "audio": (["audio_transcript"], 12, {"record_count": 4}),
+            "vehicle": (["vehicle_diagnostics"], 14, {"systems_count": 4}),
+        }
+
+        for sector, (resources, size_mb, metadata) in sector_fixtures.items():
+            with self.subTest(sector=sector):
+                profile = {
+                    "username": "neo",
+                    "hackcoins": 45,
+                    "storage_capacity": 512,
+                    "storage_used": size_mb,
+                    "storage_unit": "MB",
+                    "files": {
+                        sector: [{
+                            "id": f"{sector}_raw_pending",
+                            "name": f"{sector}_raw_pending.dat",
+                            "file_category": sector,
+                            "directory": f"/data/{sector}",
+                            "resource_types": resources,
+                            "file_size": size_mb,
+                            "market_status": "not_listed",
+                            "created_at": "2026-07-03T09:00:00Z",
+                            "sellable": True,
+                            "metadata": {
+                                **metadata,
+                                "quality_score": 80,
+                                "completeness_percent": 70,
+                            },
+                        }],
+                        "market": [],
+                    },
+                    "market_history": [],
+                    "system_messages": [],
+                }
+
+                result = refresh_market_runtime(
+                    "neo",
+                    profile,
+                    now=datetime(2026, 7, 3, 9, 5, tzinfo=timezone.utc),
+                )
+                sectors = {
+                    item["sector"]: item
+                    for item in run.build_ghost_exchange_sector_payload(profile)
+                }
+
+                self.assertEqual(result["settled"], 0)
+                self.assertIn(profile["files"][sector][0]["market_status"], {"queued_for_market", "listed"})
+                self.assertEqual(sectors[sector]["pending_files"], 1)
+                self.assertEqual(sectors[sector]["pending_mb"], size_mb)
+                self.assertGreater(sectors[sector]["progress_percent"], 0)
 
     def test_api_ghost_exchange_sells_old_not_listed_network_backlog_on_first_refresh(self):
         entries = [

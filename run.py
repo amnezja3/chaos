@@ -12053,7 +12053,12 @@ def mail_bootstrap():
     if "user" not in session:
         return jsonify({"error": "Brak danych użytkownika"}), 401
 
-    profile = sync_session_profile()
+    username = session.get("user")
+    profile = load_profile_readonly(username, strip_sensitive=True)
+    if not profile:
+        session.pop("user", None)
+        session.pop("profile", None)
+        return jsonify({"ok": False, "error": "profile_not_found"}), 401
     username = ensure_mail_seed(profile)
     mail_store.touch_presence(username)
     contacts = mail_store.list_contacts(username)
@@ -12169,7 +12174,12 @@ def chat_messages():
     if "user" not in session:
         return jsonify({"error": "Nie jesteś zalogowany"}), 401
 
-    profile = sync_session_profile()
+    username = session.get("user")
+    profile = load_profile_readonly(username, strip_sensitive=True)
+    if not profile:
+        session.pop("user", None)
+        session.pop("profile", None)
+        return jsonify({"error": "profile_not_found"}), 401
     username = ensure_mail_seed(profile)
     scope = request.args.get("scope", "group")
     peer_name = request.args.get("peer", "global" if scope == "group" else "")
@@ -12193,7 +12203,12 @@ def send_chat_message():
     if "user" not in session:
         return jsonify({"error": "Nie jesteś zalogowany"}), 401
 
-    profile = sync_session_profile()
+    username = session.get("user")
+    profile = load_profile_readonly(username, strip_sensitive=True)
+    if not profile:
+        session.pop("user", None)
+        session.pop("profile", None)
+        return jsonify({"error": "profile_not_found"}), 401
     username = ensure_mail_seed(profile)
     data = request.get_json() or {}
     scope = data.get("scope", "group")

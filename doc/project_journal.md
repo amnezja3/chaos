@@ -4513,3 +4513,243 @@ Ghost Exchange.
 * Dodano regresje API dla starego backlogu `network/not_listed`.
 * Dodano regresje API dla normalnej sciezki `not_listed -> listed -> sold`.
 * Punktowe testy Ghost Exchange network - OK.
+
+---
+
+## 05.07.2026
+
+### Hotfix
+
+Ghost Exchange - orphan files, storage cleanup i odrastanie sprzedanych plikow.
+
+### Kontekst
+
+Po uruchomieniu automatycznego rynku danych Ghost Exchange sprzedawal paczki i
+naliczal HC, ale czesc plikow pozostawala widoczna w File Managerze w katalogach
+`/gps`, `/device` i `/camera`. Powodowalo to trzy mylace objawy:
+
+* dysk pozostawal zapchany mimo wpisow sprzedazy w `market_history`,
+* Ghost Exchange pokazywal brak nowych pending danych, bo pliki byly juz
+  rozliczone,
+* File Manager nadal pokazywal stare looty jako `not_listed / sellable: tak`.
+
+### Ustalenia
+
+Diagnostyka `tools/diagnose_ghost_exchange_network.py main --sector all`
+pokazala, ze pliki w katalogach danych mialy `id` obecne juz w
+`market_history.file_ids` sprzedanych batchy:
+
+* `camera`: 18 plikow / 252 MB,
+* `device`: 15 plikow / 195 MB,
+* `gps`: 5 plikow / 55 MB.
+
+Byly to wiec orphan files po sprzedanych paczkach, a nie nowe dane oczekujace na
+sprzedaz. Runtime poprawnie blokowal drugie naliczenie HC, ale storage nadal
+liczyl pozostawione pliki.
+
+Po pierwszym cleanupie wyszlo drugie zjawisko: stare zakonczone operacje
+potrafily odtworzyc te same pliki ponownie. Finalizery generuja pliki
+deterministycznie, a wspolny helper zapisu nie sprawdzal jeszcze, czy dany
+`file_id` byl juz sprzedany.
+
+### Poprawka
+
+* Dodano skrypt `tools/repair_ghost_exchange_orphans.py`.
+* Skrypt dziala domyslnie jako dry-run.
+* Tryb `--apply`:
+  * robi backup profilu do `data/backups`,
+  * usuwa tylko pliki, ktorych `id` jest juz w `market_history` albo
+    `files.market`,
+  * przelicza `storage_used`,
+  * nie nalicza HC,
+  * nie dodaje nowych transakcji,
+  * nie usuwa nowych/pending danych.
+* Dodano helper `sold_market_file_ids(profile)`.
+* `append_runtime_file_if_space()` blokuje teraz ponowny zapis pliku, ktory
+  zostal juz sprzedany przez Ghost Exchange.
+* Taki przypadek zwraca kontrolowany wynik `already_sold`, nie zapisuje pliku i
+  nie zwieksza storage.
+
+### Wynik produkcyjnego cleanupu profilu `main`
+
+Dry-run wykryl:
+
+```text
+storage_before: 768 / 768 MB
+orphan_files: 38
+orphan_mb: 502
+```
+
+Po `--apply`:
+
+```text
+removed_files: 38
+storage_after: 266 / 768 MB
+backup: data/backups/ghost_exchange_orphans_main_20260705_073932.json
+```
+
+Po dodaniu blokady `already_sold` finalizery przestaly odtwarzac sprzedane
+pliki. Kolejny smoke pokazal, ze:
+
+* File Manager i Ghost Exchange znowu pokazuja ten sam stan danych,
+* nowe dane trafiaja do File Managera,
+* GX widzi je w odpowiednim sektorze jako pending,
+* po osiagnieciu progu i dwell time batch sprzedaje sie,
+* `storage_used` spada po cleanupie/sprzedazy,
+* HC rosnie tylko przy realnej nowej sprzedazy.
+
+### Zasada runtime po hotfixie
+
+File Manager jest miejscem podgladu lootow zapisanych w `profile.files`.
+
+Ghost Exchange jest read/runtime modelem tych samych plikow:
+
+```text
+profile.files
+↓
+sellable + market_status
+↓
+sector payload Ghost Exchange
+↓
+batch sale
+↓
+market_history
+↓
+usuniecie plikow z /data/*
+↓
+storage_used recalculated
+```
+
+Jezeli plik jest juz w `market_history.file_ids`, nie moze zostac ponownie
+zapisany przez finalizer i nie moze drugi raz naliczyc HC.
+
+### Dodatkowe obserwacje
+
+* Pliki w `/system` sa niesprzedawalne i nadal zajmuja storage.
+* To wymaga osobnego, swiadomego narzedzia maintenance/cleanup kupowanego w
+  Googleplexie, zamiast automatycznego usuwania danych systemowych.
+* Otwarte okno File Managera moze trzymac stary snapshot profilu. Klikniecie
+  ikony `Pliki` powinno odswiezyc okno i pobrac nowy `/api/profile`.
+
+### Walidacja
+
+* `python -m unittest` dla punktowych testow Ghost Exchange/orphan cleanup - OK.
+* `python -m unittest` dla market/storage/queue - OK.
+* `python -m py_compile run.py database.py profileManagment.py
+  tools/repair_ghost_exchange_orphans.py
+  tools/diagnose_ghost_exchange_network.py` - OK.
+* `node --check static/js/terminal.js` - OK.
+* `git diff --check` - OK.
+
+### Status
+
+Ghost Exchange, File Manager i Storage Economy sa ponownie spojne dla danych
+sprzedawalnych. Pozostaje zaplanowac osobny flow czyszczenia plikow
+niesprzedawalnych, zwlaszcza `/system`.
+
+---
+
+## 05.07.2026
+
+### Audyt
+
+Ghost Exchange - pelna petla sektorow rynku danych.
+
+### Cel
+
+Upewnic sie, ze poprawka po orphan files nie dziala tylko dla ostatnich
+przypadkow produkcyjnych (`network`, `gps`, `device`, `camera`), ale dla calej
+petli rynku danych:
+
+```text
+profile.files
+↓
+storage_used
+↓
+queue_market_eligible_files()
+↓
+sector payload Ghost Exchange
+↓
+refresh_market_runtime()
+↓
+listed / dwell time
+↓
+sold
+↓
+files.market + market_history
+↓
+storage recalculated
+```
+
+### Sprawdzone sektory
+
+Audyt i testy objely wszystkie sektory sprzedawalne Ghost Exchange:
+
+* `camera`,
+* `atm`,
+* `gps`,
+* `device`,
+* `personal`,
+* `credentials`,
+* `financial`,
+* `network`,
+* `audio`,
+* `vehicle`.
+
+Katalog `system` pozostaje swiadomie poza Ghost Exchange, bo jego pliki sa
+wewnetrznym stanem operacji (`internal_recon_state`) i maja `sellable: false`.
+Nie powinny byc automatycznie sprzedawane. Ich czyszczenie wymaga osobnego,
+swiadomego narzedzia maintenance.
+
+### Ustalenia
+
+* Wszystkie sprzedawalne katalogi danych maja mapowanie
+  `file_category -> market_sector`.
+* Wszystkie sektory maja prog sprzedazy w `MARKET_SECTOR_THRESHOLDS`.
+* Wszystkie finalizery zapisujace dane przechodza przez wspolny helper
+  `append_runtime_file_if_space()`.
+* `queue_market_eligible_files()` konwertuje surowe pliki `not_listed` na
+  `queued_for_market`, bez tworzenia osobnej kolejki.
+* `build_ghost_exchange_sector_payload()` liczy tylko pliki
+  `queued_for_market` i `listed`, wiec wejscie przez `GET /api/ghost-exchange`
+  albo `refresh_market_runtime()` jest wymagane do synchronizacji File Managera
+  z GX.
+* `refresh_market_runtime()` potrafi sprzedac stary backlog `not_listed` po
+  wszystkich sektorach, jesli prog sektora i dwell time sa spelnione.
+* `append_runtime_file_if_space()` blokuje ponowne zapisanie sprzedanego
+  `file_id` po wszystkich sektorach.
+
+### Testy dodane
+
+* `test_ghost_exchange_shows_raw_not_listed_pending_files_for_all_market_sectors`
+  sprawdza, ze surowy plik widoczny w File Managerze jako `not_listed` zostaje
+  po runtime refreshu pokazany w Ghost Exchange jako pending dla kazdego
+  sektora.
+* `test_append_runtime_file_skips_already_sold_files_for_all_market_sectors`
+  sprawdza, ze deterministyczne finalizery nie odtworza juz sprzedanych plikow
+  w zadnym katalogu danych.
+* Istniejacy test
+  `test_market_runtime_sells_old_not_listed_backlog_for_all_market_sectors`
+  potwierdza sprzedaz batcha, zapis historii, wzrost HC i spadek storage dla
+  kazdego sektora.
+
+### Wynik
+
+Petla Ghost Exchange jest pokryta testami dla wszystkich sprzedawalnych typow
+plikow. Jesli plik jest `sellable: true`, ma poprawna kategorie i nie byl juz
+sprzedany, GX powinien go zobaczyc, skolejkowac, pokazac w sektorze i sprzedac
+po spelnieniu progu oraz dwell time.
+
+### Walidacja
+
+* Punktowe testy sektorowe Ghost Exchange - OK.
+* `python -m py_compile run.py database.py profileManagment.py
+  tools/repair_ghost_exchange_orphans.py
+  tools/diagnose_ghost_exchange_network.py` - OK.
+* `node --check static/js/terminal.js` - OK.
+* `git diff --check` - OK.
+
+Pelny `python -m unittest tests.test_target_persistence` ujawnia niezalezna
+regresje w testach `/map` JSON payload (`test_map_embeds_profile_as_json_literal`
+i `test_map_embeds_large_profile_payload_as_json_literal`). Nie dotyczy ona
+Ghost Exchange i wymaga osobnego fixu map template/test matcher.
