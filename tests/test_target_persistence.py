@@ -3758,6 +3758,63 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertLess(profile["storage_used"], 503)
         notify_mock.assert_called_once()
 
+    def test_api_ghost_exchange_counts_raw_not_listed_sellable_files_as_pending(self):
+        entries = [
+            {
+                "id": f"gps_raw_pending_{index}",
+                "name": f"trace_raw_pending_{index}.log",
+                "file_category": "gps",
+                "directory": "/data/gps",
+                "resource_types": ["location_history"],
+                "file_size": 11,
+                "market_status": "not_listed",
+                "sellable": True,
+                "metadata": {
+                    "record_count": 4,
+                    "checkpoint_count": 4,
+                    "quality_score": 86,
+                    "completeness_percent": 94,
+                },
+            }
+            for index in range(2)
+        ]
+        profile = {
+            "username": "neo",
+            "hackcoins": 45,
+            "storage_capacity": 512,
+            "storage_used": 22,
+            "storage_unit": "MB",
+            "files": {"gps": entries, "market": []},
+            "market_history": [],
+            "system_messages": [],
+        }
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "neo"
+
+        with patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run, "refresh_and_persist_operations", side_effect=lambda username, current: current), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run, "market_runtime_now", return_value=datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc)):
+            response = client.get("/api/ghost-exchange")
+            data = response.get_json()
+
+        self.assertEqual(response.status_code, 200)
+        gps_sector = next(item for item in data["sectors"] if item["sector"] == "gps")
+        self.assertEqual(gps_sector["pending_files"], 2)
+        self.assertEqual(gps_sector["pending_mb"], 22)
+        self.assertEqual(gps_sector["missing_mb"], 3)
+        self.assertEqual(gps_sector["status"], "collecting")
+        self.assertEqual(data["market_runtime"]["settled"], 0)
+
     def test_api_ghost_exchange_sells_old_not_listed_network_backlog_on_first_refresh(self):
         entries = [
             {
@@ -3826,6 +3883,72 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertGreater(profile["hackcoins"], 45)
         self.assertLess(profile["storage_used"], 503)
         notify_mock.assert_called_once()
+
+    def test_market_runtime_sells_old_not_listed_backlog_for_all_market_sectors(self):
+        sector_resources = {
+            "camera": ["camera_dump"],
+            "atm": ["atm_dump"],
+            "gps": ["gps_logs"],
+            "device": ["device_logs"],
+            "personal": ["personal_records"],
+            "credentials": ["credentials"],
+            "financial": ["financial_records"],
+            "network": ["wifi_networks"],
+            "audio": ["audio_transcript"],
+            "vehicle": ["vehicle_diagnostics"],
+        }
+
+        for sector, resources in sector_resources.items():
+            with self.subTest(sector=sector):
+                entries = [
+                    {
+                        "id": f"{sector}_old_pending_{index}",
+                        "name": f"{sector}_old_pending_{index}.dat",
+                        "file_category": sector,
+                        "directory": f"/data/{sector}",
+                        "resource_types": resources,
+                        "file_size": 20,
+                        "market_status": "not_listed",
+                        "created_at": "2026-07-03T09:00:00Z",
+                        "sellable": True,
+                        "metadata": {
+                            "record_count": 8,
+                            "checkpoint_count": 8,
+                            "collected_count": 8,
+                            "credential_count": 8,
+                            "network_count": 8,
+                            "systems_count": 8,
+                            "quality_score": 90,
+                            "completeness_percent": 86,
+                        },
+                    }
+                    for index in range(3)
+                ]
+                profile = {
+                    "username": "neo",
+                    "hackcoins": 45,
+                    "storage_capacity": 512,
+                    "storage_used": 503,
+                    "storage_unit": "MB",
+                    "files": {sector: entries, "market": []},
+                    "market_history": [],
+                    "system_messages": [],
+                }
+
+                with patch.object(run.mail_store, "add_direct_notification") as mail_mock:
+                    result = refresh_market_runtime(
+                        "neo",
+                        profile,
+                        now=datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc),
+                    )
+
+                self.assertEqual(result["settled"], 1)
+                self.assertEqual(profile["files"][sector], [])
+                self.assertEqual(len(profile["market_history"]), 1)
+                self.assertEqual(profile["market_history"][0]["market_sector"], sector)
+                self.assertGreater(profile["hackcoins"], 45)
+                self.assertLess(profile["storage_used"], 503)
+                mail_mock.assert_called_once()
 
     def test_ghost_exchange_prices_richer_device_package_higher(self):
         profile = {

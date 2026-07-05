@@ -3705,7 +3705,8 @@ def refresh_market_runtime(username, profile, now=None, persist=False):
         for file_entry in files.get(folder, []):
             if not isinstance(file_entry, dict):
                 continue
-            if file_entry.get("market_status") not in {"queued_for_market", "listed"}:
+            market_status = normalize_file_market_status(file_entry)
+            if market_status not in {"queued_for_market", "listed"}:
                 continue
             if not is_market_eligible_file(file_entry):
                 continue
@@ -3881,7 +3882,8 @@ def build_ghost_exchange_sector_payload(profile):
         for file_entry in files.get(folder, []):
             if not isinstance(file_entry, dict):
                 continue
-            if file_entry.get("market_status") not in {"queued_for_market", "listed"}:
+            market_status = normalize_file_market_status(file_entry)
+            if market_status not in {"queued_for_market", "listed"}:
                 continue
             if not is_market_eligible_file(file_entry):
                 continue
@@ -3911,7 +3913,7 @@ def build_ghost_exchange_sector_payload(profile):
             sectors[sector]["pending_files"] += 1
             sectors[sector]["pending_mb"] += volume
             sectors[sector]["pending_records"] += runtime_file_record_count(file_entry)
-            if file_entry.get("market_status") == "listed":
+            if market_status == "listed":
                 sectors[sector]["status"] = "trading"
                 sectors[sector]["listed_at"] = sectors[sector]["listed_at"] or file_entry.get("listed_at")
                 sectors[sector]["batch_id"] = sectors[sector]["batch_id"] or file_entry.get("batch_id")
