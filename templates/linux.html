@@ -6,6 +6,7 @@
   <title>Fake Linux Terminals</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile_messenger.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ghost_radio.css') }}">
 </head>
 <body>
   <div id="boot-preloader" class="boot-preloader" aria-live="polite">
@@ -40,6 +41,7 @@
     });
   </script>
 
+  <script src="{{ url_for('static', filename='js/ghost_radio.js') }}"></script>
   <script src="{{ url_for('static', filename='js/terminal.js') }}"></script>
 </body>
 </html>

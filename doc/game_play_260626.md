@@ -1,4 +1,4 @@
-# CHAOS — Gameplay Implementation Roadmap
+﻿# CHAOS — Gameplay Implementation Roadmap
 
 Dokument po Sprincie 0.
 
@@ -40,7 +40,6 @@ To jest plan implementacyjny oparty o kontrakty:
 | `risk_events.md` | Ryzyko, eventy i konsekwencje. |
 | `gameplay_loop.md` | Pełna pętla gameplayu. |
 | `sprint0_summary.md` | Zamknięcie Sprintu 0. |
-
 Decision:
 
 * Przyjęto: ten dokument jest roadmapą Sprintu 1+.
@@ -4265,6 +4264,384 @@ Zasady integracji:
 * `CYBERNER_ICON_LIBRARY` jest centralnym źródłem ikon dla rozmów i źródeł
   komunikacji.
 
+
+---
+
+# Faza F - Ghost Hack Radio / Audio Narrative Layer
+
+Faza F dodaje do CHAOS prosty lokalny system radia MP3 jako warstwe klimatu i
+przyszlej narracji BlackNet.
+
+Radio nie jest drugim komunikatorem, drugim Cybernerem ani systemem misji. Jest
+lokalnym playerem audio opartym o jawny kontrakt kanalu `meta.channel`.
+
+Docelowy kierunek:
+
+```text
+static/mp3/radio/channel/{id}/meta.channel
+↓
+playlist tracks
+↓
+Ghost Hack Radio player
+↓
+audio atmosphere / BlackNet narrative
+```
+
+Podstawowa struktura katalogow:
+
+```text
+static/mp3/radio/
+└── channel/
+    └── ghost_streem_1/
+        ├── meta.channel
+        ├── 001_intro.mp3
+        ├── 002_loop.mp3
+        └── 003_noise.mp3
+```
+
+`meta.channel` jest kontraktem kanalu. Aplikacja nie skanuje katalogu na slepo.
+Czyta plik opisowy, buduje playliste i odtwarza pliki z tego samego folderu.
+
+Przykladowy kontrakt:
+
+```json
+{
+  "schema": 1,
+  "id": "ghost_streem_1",
+  "name": "Ghost Hack Radio",
+  "slug": "ghost-streem-1",
+  "description": "Pierwszy piracki kanal systemowy GhostNet.",
+  "autoplay": true,
+  "loop": true,
+  "tracks": [
+    {"title": "Ghost Signal Intro", "file": "001_intro.mp3"},
+    {"title": "Dark Terminal Loop", "file": "002_loop.mp3"},
+    {"title": "Static Noise Break", "file": "003_noise.mp3"}
+  ]
+}
+```
+
+Architektura frontendowa:
+
+```javascript
+const RADIO_BASE_PATH = "/static/mp3/radio/channel";
+const DEFAULT_CHANNEL = "ghost_streem_1";
+```
+
+Flow:
+
+```text
+loadChannel("ghost_streem_1")
+↓
+fetch /static/mp3/radio/channel/ghost_streem_1/meta.channel
+↓
+parse JSON
+↓
+track.url = /static/mp3/radio/channel/ghost_streem_1/{file}
+↓
+play current track
+↓
+ended -> next track
+↓
+last track -> first track, jesli loop = true
+```
+
+Autoplay jest lokalnym ustawieniem gracza:
+
+```javascript
+localStorage.setItem("ghost_radio_autoplay", "0");
+localStorage.setItem("ghost_radio_autoplay", "1");
+```
+
+Domyslnie radio moze startowac automatycznie, ale gracz musi miec prosta opcje
+wylaczenia autoplay bez zmiany kodu.
+
+---
+
+# Sprint 50 - Ghost Hack Radio Foundation
+
+## Cel gameplayowy
+
+Przygotowac fundament pod Ghost Hack Radio bez implementacji playera audio.
+
+Sprint konczy sie gotowa struktura aplikacji i kontraktem danych, aby Sprint 51
+mogl skupic sie wylacznie na odtwarzaniu muzyki.
+
+## Zakres
+
+1. Utworzyc strukture katalogow:
+   * `static/mp3/radio/`,
+   * `static/mp3/radio/channel/`.
+2. Przygotowac pierwszy kanal:
+   * `static/mp3/radio/channel/ghost_streem_1/`.
+3. Dodac pierwszy kontrakt:
+   * `meta.channel`.
+4. Zdefiniowac schema kontraktu:
+   * `schema: 1`.
+5. Dodac podstawowe pola:
+   * `id`,
+   * `name`,
+   * `slug`,
+   * `description`,
+   * `autoplay`,
+   * `loop`,
+   * `tracks[]`.
+6. Nie skanowac katalogow z MP3.
+7. Playlista ma powstawac wylacznie z `meta.channel`.
+8. Przygotowac miejsce na przyszla aplikacje desktopowa `Ghost Hack Radio`.
+9. Dodac podstawowa ikone aplikacji albo placeholder.
+10. Przygotowac strukture JS:
+    * `static/js/ghost_radio.js`,
+    * bez logiki odtwarzania.
+11. Przygotowac strukture CSS:
+    * `static/css/ghost_radio.css`,
+    * bez finalnego wygladu.
+12. Udokumentowac kontrakt `meta.channel` jako jedyne zrodlo prawdy playlisty.
+
+## Poza zakresem
+
+* Brak odtwarzania MP3.
+* Brak HTML playera.
+* Brak Audio API.
+* Brak play/pause.
+* Brak progress.
+* Brak volume.
+* Brak autoplay runtime.
+* Brak backendu.
+
+## Kryteria akceptacji
+
+* Istnieje katalog radio.
+* Istnieje pierwszy kanal.
+* Istnieje `meta.channel`.
+* Kontrakt posiada `schema = 1`.
+* Struktura JS zostala utworzona.
+* Struktura CSS zostala utworzona.
+* Aplikacja Ghost Hack Radio ma przygotowane miejsce w desktopie.
+* Brak regresji desktopu.
+* Brak backendu.
+
+---
+
+# Sprint 51 - Ghost Hack Radio v0.1
+
+## Cel gameplayowy
+
+Dodac pierwszy prosty lokalny player MP3, ktory wnosi do desktopu CHAOS zywy
+sygnal audio i przygotowuje fundament pod przyszle kanaly BlackNet.
+
+## Zakres
+
+1. Uzyc struktury i kontraktu przygotowanego w Sprincie 50.
+2. Player czyta `meta.channel`, nie skanuje katalogu.
+3. Zbudowac playliste z `tracks[]`.
+4. Odtwarzac pierwszy utwor.
+5. Po `ended` przechodzic do kolejnego tracka.
+6. Po ostatnim tracku wracac do pierwszego, jesli `loop = true`.
+7. Dodac `play/pause`.
+8. Dodac pasek postepu.
+9. Dodac volume.
+10. Dodac lokalne ustawienie autoplay:
+    * `ghost_radio_autoplay = "1"` domyslnie,
+    * `ghost_radio_autoplay = "0"` wylacza start automatyczny.
+
+## UX
+
+Player ma byc stylizowany na stary Winamp, ale w klimacie CHAOS:
+
+* nazwa kanalu,
+* tytul aktualnego tracka,
+* status `SIGNAL ONLINE`,
+* play/pause,
+* progress,
+* volume,
+* prosty fake equalizer,
+* przelacznik autoplay.
+
+## Architektura
+
+Nie tworzyc backendu.
+
+Nie dodawac endpointow.
+
+Nie laczyc jeszcze z Cybernerem, BlackNet ani misjami.
+
+To jest lokalny player oparty o statyczny manifest kanalu.
+
+## Kryteria akceptacji
+
+* Radio laduje kanal `ghost_streem_1` przez `meta.channel`.
+* Playlista powstaje z jawnego kontraktu.
+* Play/pause dziala.
+* Tracki przechodza jeden po drugim.
+* Loop dziala po calej playliscie.
+* Autoplay mozna wylaczyc przez localStorage/UI.
+* Jesli autoplay zostanie zablokowany przez przegladarke, UI pokazuje gotowy
+  player i pozwala uruchomic radio pierwszym kliknieciem.
+* Brak regresji desktopu i mobile.
+
+---
+
+# Sprint 52 - Ghost Hack Radio Desktop App
+
+## Cel gameplayowy
+
+Dodac Ghost Hack Radio jako pelnoprawna aplikacje desktopowa CHAOS
+wykorzystujaca istniejaca architekture okien systemowych.
+
+Player ze Sprintu 51 zostaje osadzony w oknie aplikacji. Radio dziala jako
+usluga w tle: zamkniecie okna nie zatrzymuje muzyki, a ponowne otwarcie pokazuje
+aktualny stan playera.
+
+## Zakres
+
+1. Dodac aplikacje `Ghost Hack Radio` do desktopu.
+2. Dodac ikone aplikacji:
+   * na desktopie,
+   * w menu Start,
+   * na desktopie mobilnym.
+3. Otwierac radio w standardowym oknie systemowym CHAOS.
+4. Osadzic istniejacy modul `GhostRadio` w oknie.
+5. Pokazac:
+   * nazwe kanalu,
+   * aktualny utwor,
+   * status `SIGNAL ONLINE`,
+   * Play / Pause,
+   * Previous / Next,
+   * Mute,
+   * pasek postepu,
+   * regulator glosnosci,
+   * prosty fake equalizer bez analizy dzwieku.
+6. Ponowne otwarcie okna nie moze resetowac playlisty ani stanu audio.
+7. Przycisk Mute dziala natychmiast i zachowuje poprzedni poziom glosnosci.
+8. Nie dodawac nowych kanalow, ustawien, backendu, streamingu ani BlackNet.
+
+## Poza zakresem
+
+* wybor kanalow,
+* ustawienia,
+* autoplay,
+* backend,
+* streaming,
+* BlackNet,
+* dynamiczne komunikaty.
+
+## Kryteria akceptacji
+
+* Ghost Hack Radio jest widoczne jako aplikacja desktopowa.
+* Ghost Hack Radio jest widoczne w menu Start.
+* Ghost Hack Radio jest widoczne w stalym zestawie ikon mobile.
+* Radio otwiera sie w standardowym oknie systemowym CHAOS.
+* Zamkniecie okna nie zatrzymuje muzyki.
+* Ponowne otwarcie pokazuje aktualny kanal, utwor, czas i stan play/pause.
+* Mute i volume dzialaja bez nowej logiki odtwarzania.
+* Fake equalizer jest tylko wizualizacja UI.
+* Nie powstal backend radia.
+
+---
+
+# Sprint 53 - Radio Channel Contract for Future BlackNet
+
+## Cel gameplayowy
+
+Wyprowadzic kontrakt kanalow Ghost Hack Radio pod przyszly BlackNet, bez
+zakladania, ze BlackNet istnieje juz fizycznie w runtime.
+
+Sprint 53 nie integruje radia z BlackNet. Sprint 53 definiuje pierwszy kontrakt,
+ktory pozwoli przyszlemu BlackNet dokladac kanaly audio bez przebudowy playera.
+
+## Zakres
+
+1. Doprecyzowac `meta.channel` jako kontrakt kanalu audio.
+2. Przygotowac zasady katalogow kanalow:
+   * kanal ma wlasny katalog,
+   * kanal ma wlasny `meta.channel`,
+   * pliki audio leza w tym samym katalogu co kontrakt.
+3. Przygotowac minimalny model przyszlego kanalu BlackNet:
+   * `id`,
+   * `slug`,
+   * `name`,
+   * `description`,
+   * `source`,
+   * `tracks[]`.
+4. Przyszly BlackNet bedzie mogl dodawac kanaly jako:
+   * `meta.channel`,
+   * pliki audio w katalogu kanalu.
+5. Radio nadal czyta tylko kontrakt kanalu.
+6. Nie skanowac katalogow na slepo.
+7. Nie robic dynamicznego generowania audio w runtime.
+8. Nie dodawac backendu BlackNet.
+9. Nie mieszac radia z Cybernerem:
+   * Cyberner jest rozmowa,
+   * radio jest sygnalem audio.
+10. Opcjonalnie opisac przyszle eventy UI, ale ich nie implementowac:
+   * nowy kanal wykryty,
+   * zaklocenia,
+   * `SIGNAL LOST`,
+   * `BLACKNET SIGNAL`.
+11. Udokumentowac kontrakt w `doc/radio_channel_contract.md`.
+12. Ustawic jawne `source` w pierwszym kanale `ghost_streem_1`.
+
+## Poza zakresem
+
+* implementacja BlackNet,
+* endpointy kanalow,
+* automatyczne wykrywanie kanalow,
+* dynamiczny download MP3,
+* system misji audio,
+* laczenie radia z Cybernerem.
+
+## Kryteria akceptacji
+
+* Istnieje jasny kontrakt kanalu audio dla przyszlego BlackNet.
+* BlackNet nie jest traktowany jako istniejacy runtime.
+* Przyszly BlackNet bedzie mogl dodac kanal bez zmiany kodu playera.
+* Pierwszy kanal ma jawne `source`.
+* Radio nie zna logiki misji.
+* `meta.channel` pozostaje jedynym kontraktem playlisty.
+* System jest gotowy pod narracje audio, ale nie wymaga backendu.
+
+---
+
+# Sprint 54 - Ghost Hack Radio UX Lift + First Interaction Autostart
+
+## Cel gameplayowy
+
+Dopolerowac UI Ghost Hack Radio i podpiac start audio pod pierwsza interakcje
+gracza z runtime gry.
+
+Radio ma pozostac lokalnym playerem klientowym. Sprint 54 nie dodaje backendu,
+BlackNet, streamingu ani zmian kontraktu `meta.channel`.
+
+## Zakres
+
+1. Okno radia po resize wypelnia dostepna przestrzen.
+2. Glowny panel playera rozciaga sie na wysokosc okna.
+3. Sekcja source/playlist nie zostawia duzej pustej martwej przestrzeni.
+4. Status, equalizer, progress, controls i volume wygladaja jak jeden spojny
+   modul systemowy CHAOS.
+5. Mobile nie dostaje regresji layoutu.
+6. Radio uzbraja autostart po pierwszej interakcji gracza:
+   * `pointerdown`,
+   * `keydown`.
+7. `ghost_radio_autoplay = "0"` twardo wylacza autostart.
+8. Jesli browser zablokuje autoplay:
+   * player zostaje gotowy,
+   * UI pokazuje `CLICK TO START`,
+   * radio startuje po kliknieciu Play.
+9. Nie dodawac backendu, BlackNet ani nowych kanalow.
+
+## Kryteria akceptacji
+
+* Resize okna nie zostawia playera jako malego panelu przyklejonego do gory.
+* Player zachowuje czytelnosc w malym i duzym oknie.
+* First interaction autostart dziala tylko, jesli lokalne ustawienie go nie
+  wylaczylo.
+* `ghost_radio_autoplay = "0"` blokuje autostart.
+* Play / Pause / Mute / Volume / Next / Previous nadal dzialaja.
+* Brak regresji desktopu mobilnego.
+* Brak backendu i brak BlackNet.
+
 Decision:
 
 * Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.
@@ -4277,6 +4654,9 @@ Decision:
 * Przyjęto: Sprinty 35–39 zmieniają Ghost Exchange z ręcznego panelu sprzedaży plików w automatyczny rynek danych oparty o kolejkę, sektory i idempotentne rozliczenia.
 * Przyjęto: Sprinty 40–44 rozwijają Skrzynkę mailową w Cybernera / Messenger CHAOS bez tworzenia drugiego systemu wiadomości, kontaktów ani powiadomień.
 * Przyjęto: Sprinty 45–47 rozwijają Cybernera z komunikatora w kanałową warstwę komunikacji świata: audyt kanałów, minimalny runtime i social polish bez drugiego `mail_store`.
+* Przyjeto: Sprinty 51-53 rozwijaja Ghost Hack Radio jako lokalna warstwe audio
+  oparta o `meta.channel`, bez backendu, bez nowego systemu misji i bez
+  przebudowy Cybernera.
 
 ---
 

@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "id": "ghost_streem_1",
+  "name": "Ghost Hack Radio",
+  "slug": "ghost-streem-1",
+  "description": "Pierwszy piracki kanal systemowy GhostNet.",
+  "source": "ghost_radio",
+  "autoplay": true,
+  "loop": true,
+  "tracks": [
+    {
+      "title": "Ghost System",
+      "file": "Ghost System.mp3"
+    },
+    {
+      "title": "Digital Senses",
+      "file": "Digital Senses.mp3"
+    },
+    {
+      "title": "Cyberpunk Chaos",
+      "file": "Cyberpunk Chaos.mp3"
+    },
+    {
+      "title": "Another Protocol",
+      "file": "Another Protocol.mp3"
+    },
+    {
+      "title": "Unknown Territory",
+      "file": "Unknown Territory.mp3"
+    }
+  ]
+}

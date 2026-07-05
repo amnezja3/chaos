@@ -5,6 +5,7 @@
     <title>Terminal gry</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile_messenger.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ghost_radio.css') }}">
 </head>
 <body>
     <div class="terminal">
@@ -13,6 +14,7 @@
         <input type="text" id="terminal-input" autofocus />
     </div>
 
+    <script src="{{ url_for('static', filename='js/ghost_radio.js') }}"></script>
     <script src="{{ url_for('static', filename='js/terminal.js') }}"></script>
 </body>
 </html>

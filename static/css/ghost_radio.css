@@ -1,0 +1,282 @@
+.ghost-radio-window {
+  display: flex;
+  flex-direction: column;
+  width: min(620px, calc(100vw - 24px));
+  height: min(480px, calc(100vh - 32px));
+  min-width: 340px;
+  min-height: 360px;
+  overflow: hidden;
+}
+
+.ghost-radio-shell {
+  display: grid;
+  grid-template-rows: auto auto minmax(74px, 1fr) auto auto auto;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 18px;
+  color: #00ff66;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(214, 255, 106, 0.13), transparent 34%),
+    linear-gradient(90deg, rgba(0, 255, 102, 0.05), transparent 45%, rgba(0, 255, 102, 0.06)),
+    linear-gradient(180deg, rgba(0, 255, 102, 0.08), rgba(0, 18, 9, 0.16)),
+    #020806;
+  border: 1px solid rgba(0, 255, 102, 0.35);
+  box-shadow: inset 0 0 24px rgba(0, 255, 102, 0.08);
+  overflow: hidden;
+}
+
+.ghost-radio-window .title-bar {
+  flex: 0 0 auto;
+}
+
+.ghost-radio-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ghost-radio-display {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(0, 255, 102, 0.22);
+  background: rgba(0, 10, 6, 0.58);
+  box-shadow: inset 0 0 18px rgba(0, 255, 102, 0.06);
+}
+
+.ghost-radio-display h2 {
+  margin: 0;
+  font-size: clamp(1.15rem, 2.2vw, 1.65rem);
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ghost-radio-shell p {
+  margin: 0;
+}
+
+.ghost-radio-shell code {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #a8ffd0;
+}
+
+.ghost-radio-status {
+  padding: 3px 8px;
+  border: 1px solid rgba(0, 255, 102, 0.45);
+  color: #b7ffd8;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.ghost-radio-count,
+.ghost-radio-time {
+  color: #88ffbb;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.ghost-radio-track {
+  min-height: 1.4rem;
+  color: #ffffff;
+  font-size: clamp(0.95rem, 1.2vw, 1.12rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ghost-radio-eq-wrap {
+  display: grid;
+  min-height: 0;
+  padding: 10px;
+  border: 1px solid rgba(0, 255, 102, 0.18);
+  background:
+    linear-gradient(180deg, rgba(0, 255, 102, 0.07), transparent),
+    rgba(0, 12, 6, 0.68);
+}
+
+.ghost-radio-eq {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(4px, 1fr));
+  align-items: end;
+  gap: 4px;
+  height: 100%;
+  min-height: 52px;
+  padding: 6px;
+  border: 1px solid rgba(0, 255, 102, 0.24);
+  background: rgba(0, 18, 9, 0.72);
+  overflow: hidden;
+}
+
+.ghost-radio-eq span {
+  display: block;
+  min-height: 5px;
+  height: 18%;
+  background: linear-gradient(180deg, #d6ff6a, #00ff66 55%, #00a944);
+  box-shadow: 0 0 8px rgba(0, 255, 102, 0.5);
+  opacity: 0.48;
+  transform-origin: bottom;
+}
+
+.ghost-radio-shell.is-playing .ghost-radio-eq span {
+  animation: ghost-radio-bars 900ms ease-in-out infinite alternate;
+  opacity: 0.95;
+}
+
+.ghost-radio-shell.is-muted .ghost-radio-eq span {
+  animation-play-state: paused;
+  opacity: 0.28;
+}
+
+.ghost-radio-eq span:nth-child(2n) { animation-duration: 740ms; }
+.ghost-radio-eq span:nth-child(3n) { animation-duration: 1060ms; }
+.ghost-radio-eq span:nth-child(4n) { animation-delay: 140ms; }
+.ghost-radio-eq span:nth-child(5n) { animation-delay: 260ms; }
+
+@keyframes ghost-radio-bars {
+  0% { height: 18%; }
+  35% { height: 72%; }
+  70% { height: 42%; }
+  100% { height: 94%; }
+}
+
+.ghost-radio-progress {
+  height: 10px;
+  border: 1px solid rgba(0, 255, 102, 0.45);
+  background: rgba(0, 40, 18, 0.8);
+  overflow: hidden;
+}
+
+.ghost-radio-progress span {
+  display: block;
+  width: 0%;
+  height: 100%;
+  background: #00ff66;
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.65);
+}
+
+.ghost-radio-controls {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(0, 255, 102, 0.18);
+  background: rgba(0, 20, 10, 0.62);
+}
+
+.ghost-radio-controls button {
+  min-width: 0;
+  padding: 8px 6px;
+  border: 1px solid rgba(0, 255, 102, 0.55);
+  color: #00ff66;
+  background: rgba(0, 30, 14, 0.88);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ghost-radio-controls button:hover:not(:disabled),
+.ghost-radio-controls button:focus-visible:not(:disabled) {
+  background: rgba(0, 255, 102, 0.16);
+}
+
+.ghost-radio-controls button.is-active {
+  color: #050c08;
+  background: #00ff66;
+}
+
+.ghost-radio-controls button:disabled {
+  color: rgba(145, 180, 155, 0.65);
+  border-color: rgba(145, 180, 155, 0.25);
+  cursor: not-allowed;
+}
+
+.ghost-radio-volume {
+  display: grid;
+  grid-template-columns: auto minmax(90px, 1fr) 44px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(0, 255, 102, 0.18);
+  background: rgba(0, 20, 10, 0.45);
+  color: #a8ffd0;
+  font-size: 0.82rem;
+}
+
+.ghost-radio-volume input {
+  width: 100%;
+  min-width: 0;
+  accent-color: #00ff66;
+}
+
+.ghost-radio-volume b {
+  text-align: right;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.ghost-radio-note {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 2px;
+  color: #8bd8aa;
+  font-size: 0.76rem;
+  opacity: 0.86;
+}
+
+@media (max-width: 560px), (max-height: 700px) {
+  .ghost-radio-window {
+    width: calc(100vw - 16px);
+    height: calc(100vh - 16px);
+    min-width: 280px;
+    min-height: 320px;
+  }
+
+  .ghost-radio-shell {
+    grid-template-rows: auto auto minmax(42px, 1fr) auto auto auto;
+    gap: 9px;
+    padding: 14px;
+  }
+
+  .ghost-radio-display {
+    padding: 10px;
+  }
+
+  .ghost-radio-eq-wrap {
+    padding: 7px;
+  }
+
+  .ghost-radio-eq {
+    min-height: 34px;
+  }
+
+  .ghost-radio-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ghost-radio-volume {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .ghost-radio-volume b {
+    text-align: left;
+  }
+
+  .ghost-radio-note {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}

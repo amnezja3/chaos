@@ -246,6 +246,7 @@ const desktopApps = [
     { icon: '\u{1F464}', label: 'Profil', action: createProfile },
     { icon: '\u{1F4C1}', label: 'Pliki', action: createFileManager },
     { icon: '\u{1F4E8}', label: 'Cyberner', action: createEmailClient },
+    { id: 'ghost_hack_radio', icon: '\u{1F4FB}', label: 'Ghost Hack Radio', action: () => window.createGhostHackRadioApp && window.createGhostHackRadioApp() },
     { icon: '\u{1F4B0}', label: 'Wallet HC', action: openWalletApp }
 ];
 
@@ -259,7 +260,7 @@ const devBugReporterApp = {
 const desktop = document.getElementById('desktop-icons');
 const iconSpacing = 100; // odstęp w pionie
 const MOBILE_SAFE_MODE_QUERY = '(max-width: 900px), (max-height: 700px)';
-const MOBILE_DESKTOP_ICON_ORDER = ['wallet_hc', 'pliki', 'mapa', 'browser', 'ustawienia', 'cyberner', 'terminal', 'dev_bug_reporter', 'profil'];
+const MOBILE_DESKTOP_ICON_ORDER = ['wallet_hc', 'pliki', 'mapa', 'browser', 'ghost_hack_radio', 'ustawienia', 'cyberner', 'terminal', 'dev_bug_reporter', 'profil'];
 const MOBILE_DESKTOP_ICON_KEYS = new Set(MOBILE_DESKTOP_ICON_ORDER);
 
 function isMobileSafeMode() {
