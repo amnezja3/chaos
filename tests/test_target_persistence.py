@@ -3815,6 +3815,81 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(gps_sector["status"], "collecting")
         self.assertEqual(data["market_runtime"]["settled"], 0)
 
+    def test_api_ghost_exchange_counts_raw_pending_files_when_storage_is_full(self):
+        profile = {
+            "username": "neo",
+            "hackcoins": 45,
+            "storage_capacity": 768,
+            "storage_used": 768,
+            "storage_unit": "MB",
+            "files": {
+                "gps": [{
+                    "id": "gps_full_pending",
+                    "name": "trace_full_pending.log",
+                    "file_category": "gps",
+                    "directory": "/data/gps",
+                    "resource_types": ["location_history"],
+                    "file_size": 11,
+                    "market_status": "not_listed",
+                    "sellable": True,
+                    "metadata": {"record_count": 4, "checkpoint_count": 4},
+                }],
+                "device": [{
+                    "id": "device_full_pending",
+                    "name": "device_full_pending.log",
+                    "file_category": "device",
+                    "directory": "/data/device",
+                    "resource_types": ["device_logs"],
+                    "file_size": 13,
+                    "market_status": "not_listed",
+                    "sellable": True,
+                    "metadata": {"record_count": 4, "systems_count": 4},
+                }],
+                "camera": [{
+                    "id": "camera_full_pending",
+                    "name": "camera_full_pending.cam",
+                    "file_category": "camera",
+                    "directory": "/data/camera",
+                    "resource_types": ["camera_dump"],
+                    "file_size": 14,
+                    "market_status": "not_listed",
+                    "sellable": True,
+                    "metadata": {"record_count": 4},
+                }],
+                "market": [],
+            },
+            "market_history": [],
+            "system_messages": [],
+        }
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "neo"
+
+        with patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run, "refresh_and_persist_operations", side_effect=lambda username, current: current), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run, "market_runtime_now", return_value=datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc)):
+            response = client.get("/api/ghost-exchange")
+            data = response.get_json()
+
+        self.assertEqual(response.status_code, 200)
+        sectors = {item["sector"]: item for item in data["sectors"]}
+        self.assertEqual(sectors["gps"]["pending_files"], 1)
+        self.assertEqual(sectors["gps"]["pending_mb"], 11)
+        self.assertEqual(sectors["device"]["pending_files"], 1)
+        self.assertEqual(sectors["device"]["pending_mb"], 13)
+        self.assertEqual(sectors["camera"]["pending_files"], 1)
+        self.assertEqual(sectors["camera"]["pending_mb"], 14)
+        self.assertEqual(data["market_runtime"]["settled"], 0)
+
     def test_api_ghost_exchange_sells_old_not_listed_network_backlog_on_first_refresh(self):
         entries = [
             {
