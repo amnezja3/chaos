@@ -3890,6 +3890,72 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(sectors["camera"]["pending_mb"], 14)
         self.assertEqual(data["market_runtime"]["settled"], 0)
 
+    def test_api_ghost_exchange_cleans_already_sold_orphan_files_without_double_sale(self):
+        entries = [
+            {
+                "id": f"camera_orphan_{index}",
+                "name": f"camera_orphan_{index}.cam",
+                "file_category": "camera",
+                "directory": "/data/camera",
+                "resource_types": ["camera_dump"],
+                "file_size": 14,
+                "market_status": "not_listed",
+                "created_at": "2026-07-03T09:00:00Z",
+                "sellable": True,
+                "metadata": {"record_count": 1},
+            }
+            for index in range(4)
+        ]
+        batch_id = run.market_batch_id("neo", "camera", entries)
+        profile = {
+            "username": "neo",
+            "hackcoins": 500,
+            "storage_capacity": 768,
+            "storage_used": 56,
+            "storage_unit": "MB",
+            "files": {"camera": entries, "market": []},
+            "market_history": [{
+                "id": batch_id,
+                "batch_id": batch_id,
+                "market_sector": "camera",
+                "status": "sold",
+                "file_ids": [item["id"] for item in entries],
+                "file_count": len(entries),
+                "volume_mb": 56,
+                "price": 123,
+                "sold_at": "2026-07-03T10:00:00Z",
+            }],
+            "system_messages": [],
+        }
+
+        class FakeManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, data):
+                profile.update(data)
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "neo"
+
+        with patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run, "refresh_and_persist_operations", side_effect=lambda username, current: current), \
+                patch.object(run, "UserProfileManager", FakeManager), \
+                patch.object(run, "market_runtime_now", return_value=datetime(2026, 7, 3, 11, 0, tzinfo=timezone.utc)):
+            response = client.get("/api/ghost-exchange")
+            data = response.get_json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data["market_runtime"]["settled"], 0)
+        self.assertEqual(profile["hackcoins"], 500)
+        self.assertEqual(profile["files"]["camera"], [])
+        self.assertEqual(profile["storage_used"], 0)
+        camera_sector = next(item for item in data["sectors"] if item["sector"] == "camera")
+        self.assertEqual(camera_sector["pending_files"], 0)
+        self.assertEqual(camera_sector["pending_mb"], 0)
+        self.assertEqual(len(profile["market_history"]), 1)
+
     def test_api_ghost_exchange_sells_old_not_listed_network_backlog_on_first_refresh(self):
         entries = [
             {
