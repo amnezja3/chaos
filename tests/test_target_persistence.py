@@ -3956,6 +3956,48 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(camera_sector["pending_mb"], 0)
         self.assertEqual(len(profile["market_history"]), 1)
 
+    def test_append_runtime_file_skips_file_already_sold_in_market_history(self):
+        file_entry = {
+            "name": "trace_old_sold.log",
+            "file_category": "gps",
+            "directory": "/data/gps",
+            "resource_types": ["location_history"],
+            "file_size": 11,
+            "operation_id": "op_sold_trace",
+            "source_operation_id": "op_sold_trace",
+            "market_status": "not_listed",
+            "sellable": True,
+            "metadata": {"operation_id": "op_sold_trace", "record_count": 4},
+        }
+        normalized = run.normalize_runtime_file_entry(file_entry, "gps")
+        profile = {
+            "username": "neo",
+            "storage_capacity": 768,
+            "storage_used": 0,
+            "storage_unit": "MB",
+            "files": {"gps": [], "market": []},
+            "market_history": [{
+                "id": "batch_sold_trace",
+                "batch_id": "batch_sold_trace",
+                "market_sector": "gps",
+                "status": "sold",
+                "file_ids": [normalized["id"]],
+                "price": 123,
+            }],
+        }
+        operation = {
+            "operation_id": "op_sold_trace",
+            "operation_type": "generic_trace",
+            "resource_buffer": {},
+        }
+
+        result = append_runtime_file_if_space(profile, operation, "gps", file_entry)
+
+        self.assertFalse(result["stored"])
+        self.assertEqual(result["result"]["status"], "already_sold")
+        self.assertEqual(profile["files"]["gps"], [])
+        self.assertEqual(profile["storage_used"], 0)
+
     def test_api_ghost_exchange_sells_old_not_listed_network_backlog_on_first_refresh(self):
         entries = [
             {

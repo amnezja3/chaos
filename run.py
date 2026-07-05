@@ -3373,6 +3373,18 @@ def append_runtime_file_if_space(profile, operation, folder, file_entry):
     if not folder:
         folder = "system"
     candidate = normalize_runtime_file_entry(dict(file_entry or {}), folder)
+    candidate_id = str(candidate.get("id") or "")
+    if candidate_id and candidate_id in sold_market_file_ids(profile):
+        return {
+            "stored": False,
+            "file": None,
+            "result": {
+                "status": "already_sold",
+                "file_id": candidate_id,
+                "file_name": candidate.get("name") or candidate.get("filename"),
+            },
+            "changed": False,
+        }
     if can_store_runtime_file(profile, candidate):
         files = ensure_files_inventory(profile)
         files.setdefault(folder, [])
@@ -3538,6 +3550,40 @@ def market_batch_settlement_record(profile, batch_id):
         if str(item.get("batch_id") or metadata.get("batch_id") or sale.get("batch_id") or "") == str(batch_id):
             return item
     return None
+
+
+def sold_market_file_ids(profile):
+    sold_ids = set()
+    if not isinstance(profile, dict):
+        return sold_ids
+
+    for item in profile.get("market_history", []) or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get("file_id"):
+            sold_ids.add(str(item.get("file_id")))
+        if isinstance(item.get("file_ids"), list):
+            sold_ids.update(str(value) for value in item.get("file_ids") if str(value).strip())
+        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        sale = item.get("sale") if isinstance(item.get("sale"), dict) else {}
+        for source in (metadata, sale):
+            if source.get("file_id"):
+                sold_ids.add(str(source.get("file_id")))
+            if isinstance(source.get("file_ids"), list):
+                sold_ids.update(str(value) for value in source.get("file_ids") if str(value).strip())
+
+    files = ensure_files_inventory(profile)
+    for item in files.get("market", []) or []:
+        if not isinstance(item, dict):
+            continue
+        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        sale = item.get("sale") if isinstance(item.get("sale"), dict) else {}
+        for source in (metadata, sale):
+            if source.get("file_id"):
+                sold_ids.add(str(source.get("file_id")))
+            if isinstance(source.get("file_ids"), list):
+                sold_ids.update(str(value) for value in source.get("file_ids") if str(value).strip())
+    return sold_ids
 
 
 def cleanup_already_settled_market_files(profile, files, batch_id, entries):
