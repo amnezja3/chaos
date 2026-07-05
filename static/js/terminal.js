@@ -6066,15 +6066,11 @@ async function createFileManager(options = {}) {
     // Jeden FileManager na raz
     const existing = document.querySelector(`.terminal[data-app="files"]`);
     if (existing) {
-        bringWindowToFront(existing);
-        if (options.toolSelection) {
-            window.activeToolSelection = normalizeToolSelectionPayload(options.toolSelection);
-            const managerId = existing.dataset.fileManagerId || window.fileManagerTerminalId;
-            if (managerId && typeof window.openFolderInManager === "function") {
-                window.openFolderInManager(managerId, "tools");
-            }
+        if (existing._fileManagerObserver && typeof existing._fileManagerObserver.disconnect === "function") {
+            existing._fileManagerObserver.disconnect();
         }
-        return existing;
+        existing.remove();
+        return createFileManager(options);
     }
 
     const term = document.createElement('div');
@@ -6236,6 +6232,7 @@ async function createFileManager(options = {}) {
     if (fileManagerClose) fileManagerClose.textContent = 'x';
     const fileManagerContent = document.getElementById(`${terminalId}-content`);
     const fileManagerObserver = new MutationObserver(() => polishFileManagerText(fileManagerContent));
+    term._fileManagerObserver = fileManagerObserver;
     if (fileManagerContent) {
         fileManagerObserver.observe(fileManagerContent, { childList: true, subtree: true, characterData: true });
         polishFileManagerText(fileManagerContent);
