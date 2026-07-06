@@ -21,7 +21,7 @@ from flask_session import Session
 from poiFetchClass import POIFetcher
 import Haversine
 from profileManagment import UserProfileManager, authenticate_user
-from database import JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore
+from database import JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus
 import requests
 
 app = Flask(__name__)
@@ -37,6 +37,7 @@ vulnerability_store = VulnerabilityStore()
 wallet_store = WalletStore()
 player_hack_access_store = PlayerHackAccessStore()
 dev_bug_report_store = DevBugReportStore()
+delta_bus = GameStateDeltaBus()
 
 APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
 _GIT_COMMIT_HASH = None
@@ -8845,6 +8846,24 @@ def api_dev_state():
     if not require_dev_admin():
         return jsonify({"success": False, "message": "Dev state wymaga logowania jako admin."}), 403
     return jsonify({"success": True, "state": build_dev_state()})
+
+
+@app.route("/api/state/changes")
+def api_state_changes():
+    username = session.get("user")
+    if not username:
+        return jsonify({
+            "current_version": 0,
+            "changes": [],
+            "recovery_required": True,
+            "reason": "not_logged_in",
+        }), 401
+
+    return jsonify(delta_bus.get_changes_since(
+        username,
+        request.args.get("since", 0),
+        request.args.get("limit", GameStateDeltaBus.DEFAULT_QUERY_LIMIT),
+    ))
 
 
 @app.route("/api/admin/dashboard")

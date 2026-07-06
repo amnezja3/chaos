@@ -4642,6 +4642,638 @@ BlackNet, streamingu ani zmian kontraktu `meta.channel`.
 * Brak regresji desktopu mobilnego.
 * Brak backendu i brak BlackNet.
 
+---
+
+# Faza G - State Snapshot + Delta Feed
+
+Faza G porzadkuje odswiezanie runtime CHAOS. Celem nie jest zastapienie wszystkich
+endpointow jednym monolitem, tylko przejscie z agresywnego pollingu pelnych
+snapshotow na model:
+
+```text
+snapshot na start / recovery
+↓
+lekki delta feed dla zmian
+↓
+applyDelta() po stronie frontendu
+```
+
+Snapshot endpointy zostaja jako bezpieczna sciezka startowa i awaryjna.
+Delta endpoint ma sluzyc do biezacego odswiezania malych zmian.
+
+Najwazniejsza zasada Fazy G:
+
+```text
+Najpierw audyt i kontrakt.
+Potem backend rownolegle do starego flow.
+Potem pojedyncze male scope'y.
+Mapa dopiero na koncu.
+```
+
+Nie zaczynamy od WebSocketow. Najpierw powstaje model wersji, schema eventow i
+delta bus. WebSocket moze w przyszlosci uzyc tego samego kontraktu jako innego
+transportu.
+
+## Zasady bezpieczenstwa Fazy G
+
+Zrodlem prawdy nadal pozostaja obecne modele runtime:
+
+* profil gracza,
+* `profile.files`,
+* modele mapy,
+* `mail_store`,
+* `system_messages`,
+* Ghost Exchange,
+* Googleplex,
+* istniejace snapshot endpointy.
+
+Delta bus nie liczy stanu gry.
+
+Delta bus jest tylko dziennikiem powiadomien o zmianach, ktore juz zaszly w
+zrodlach prawdy.
+
+Frontend moze uzyc delty do aktualizacji widoku, ale przy rozjezdzie musi wrocic
+do snapshotu danego scope.
+
+Delta eventy musza byc idempotentne. Zastosowanie tego samego eventu drugi raz
+nie moze zepsuc UI ani podwoic efektu.
+
+Delta log musi miec retencje. Nie moze rosnac bez konca.
+
+## Checkpointy testowe Fazy G
+
+Faza G idzie sprintami. Nie dopisujemy kolejnych warstw planu przed rozpoczeciem
+implementacji. Po wiekszych krokach robimy live checkpoint i porownujemy
+zalozenia z realnym zachowaniem gry.
+
+Checkpointy:
+
+* Po Sprincie 55:
+  * baseline live,
+  * request count,
+  * najwolniejsze endpointy,
+  * subiektywne lagi i szarpniecia UI.
+* Po Sprincie 59:
+  * read-only delta endpoint,
+  * czy eventy wygladaja poprawnie,
+  * czy delta endpoint nie obciaza runtime.
+* Po Sprincie 61:
+  * pierwsza realna delta wallet,
+  * czy saldo zmienia sie bez pelnego profilu,
+  * czy event wallet jest idempotentny.
+* Po Sprincie 62:
+  * storage delta,
+  * czy Ghost Exchange i File Manager widza spojny storage,
+  * czy `storage_used` i `storage_capacity` nie rozjezdzaja sie po akcjach.
+* Po Sprincie 64:
+  * mail / Ghost Exchange summary,
+  * czy spadla liczba odswiezen,
+  * czy spadly payloady,
+  * czy unread i GX summary nadal sa aktualne.
+* Po Sprincie 65:
+  * recovery,
+  * czy rozjazdy naprawiaja sie per scope,
+  * czy frontend nie robi panic reloadu.
+* Po Sprincie 67:
+  * map actors,
+  * czy mapa przestala szarpac przy markerach,
+  * czy ruch aktorow nie wymusza rerenderu calej mapy.
+* Po Sprincie 69:
+  * final before/after,
+  * request count przed i po,
+  * najwolniejsze endpointy przed i po,
+  * subiektywne lagi przed i po,
+  * liczba recovery po migracji.
+
+---
+
+# Sprint 55 - Runtime Synchronization Audit
+
+## Cel gameplayowy
+
+Zrobic techniczny audyt synchronizacji runtime bez przebudowy gry.
+
+Sprint 55 nie zmienia endpointow, nie wylacza pollerow i nie dodaje delta feedu.
+Ma dac mape przeplywu danych od backendu do ekranu: co wywoluje zmiane, kto ja
+zapisuje, kto ja dzis wykrywa, kto ja renderuje i czy naprawde trzeba
+odswiezac caly obiekt.
+
+Audyt nie dotyczy samego pollingu. Dotyczy calego cyklu zycia danych.
+
+## Zakres
+
+1. Spisac wszystkie frontendowe pollery.
+2. Spisac endpointy odpytywane cyklicznie.
+3. Zmierzyc czestotliwosc odpytywania.
+4. Wskazac endpointy wywolujace ciezkie funkcje, np. pelny sync profilu.
+5. Wskazac miejsca pelnego rerenderu UI.
+6. Dla kazdego odswiezanego scope przygotowac karte:
+   * scope,
+   * snapshot endpoint,
+   * polling / trigger odswiezania,
+   * ciezkie operacje backendowe,
+   * render frontendowy,
+   * kandydat na delte.
+7. Dla kazdego scope odpowiedziec:
+   * co wywoluje zmiane,
+   * kto zapisuje zmiane,
+   * kto dzis ja wykrywa,
+   * kto ja renderuje,
+   * czy naprawde trzeba odswiezyc caly obiekt.
+8. Oznaczyc scope'y:
+   * map,
+   * profile,
+   * wallet,
+   * storage,
+   * apps,
+   * mail,
+   * Ghost Exchange,
+   * operations,
+   * terminal.
+9. Oszacowac spodziewane oszczednosci:
+   * request count,
+   * payload size,
+   * CPU,
+   * render cost.
+10. Wskazac pollery, ktore mozna usunac albo ograniczyc jeszcze przed delta
+    feedem, bo odswiezanie moze wynikac z konkretnej akcji uzytkownika albo
+    zdarzenia gry.
+11. Nie zmieniac runtime.
+
+## Kryteria akceptacji
+
+* Istnieje lista pollerow i endpointow.
+* Wiadomo, ktore requesty sa najciezsze.
+* Wiadomo, ktore elementy UI robia pelny rerender.
+* Istnieje tabela przeplywu danych per scope.
+* Dla kazdego scope wiadomo: trigger, writer, detector, renderer i potrzeba
+  snapshotu.
+* Istnieje szacunek expected savings per scope.
+* Wiadomo, ktore pollery sa potencjalnie zbedne nawet przed delta-feedem.
+* Wiadomo, ktore scope'y nadaja sie na pierwsze delty.
+* Nie zmieniono zachowania gry.
+
+---
+
+# Sprint 56 - State Version Contract
+
+## Cel gameplayowy
+
+Wprowadzic kontrakt wersji stanu bez migracji UI na delty.
+
+## Zakres
+
+1. Zdefiniowac `state_version`.
+2. Zdefiniowac wersje per scope, np.:
+   * `wallet_version`,
+   * `profile_version`,
+   * `storage_version`,
+   * `apps_version`,
+   * `mail_version`,
+   * `ghost_exchange_version`,
+   * `operations_version`,
+   * `map_version`.
+3. Opisac, gdzie wersje sa zwracane:
+   * w snapshotach,
+   * albo w lekkim read modelu wersji.
+4. Nie wymuszac jeszcze dzialania na deltach.
+5. Nie wylaczac starych endpointow.
+6. Dopisac zasade, ze wersje opisuja snapshoty obecnych modeli, a nie nowy
+   magazyn stanu.
+
+## Kryteria akceptacji
+
+* Istnieje kontrakt wersjonowania stanu.
+* Wiadomo, ktory scope ma ktora wersje.
+* Snapshoty moga zwrocic wersje bez zmiany znaczenia payloadu.
+* Frontend nie musi jeszcze korzystac z delt.
+* Zrodlem prawdy pozostaja dotychczasowe modele i snapshoty.
+* Wersje nie sa nowym magazynem stanu i nie sa liczone z delta busa.
+
+---
+
+# Sprint 57 - Delta Event Schema
+
+## Cel gameplayowy
+
+Ustalic format eventow zmian v0, zanim powstanie backendowy delta bus.
+
+## Zakres
+
+1. Zdefiniowac event:
+
+```json
+{
+  "version": 1845,
+  "scope": "wallet",
+  "type": "wallet.balance_changed",
+  "entity_id": "wallet",
+  "dedupe_key": "wallet:balance:root:1845",
+  "payload": {},
+  "created_at": "2026-07-06T12:00:00Z"
+}
+```
+
+2. Ustalic pola:
+   * `version`,
+   * `scope`,
+   * `type`,
+   * `entity_id`,
+   * `dedupe_key`,
+   * `payload`,
+   * `created_at`.
+3. Ustalic nazewnictwo typow:
+   * `wallet.balance_changed`,
+   * `storage.used_changed`,
+   * `storage.capacity_changed`,
+   * `apps.app_installed`,
+   * `mail.unread_changed`,
+   * `ghost_exchange.summary_changed`,
+   * `ghost_exchange.transaction_added`,
+   * `operations.operation_updated`,
+   * `map.player_moved`.
+4. Ustalic minimalne payloady v0 dla pierwszych scope'ow.
+5. Dopisac zasade idempotencji:
+   * `dedupe_key` identyfikuje event,
+   * ponowne zastosowanie tego samego eventu nie zmienia stanu UI drugi raz.
+6. Dopisac zasade, ze `payload` nie jest pelnym snapshotem profilu, mapy,
+   poczty ani Ghost Exchange.
+7. Nie implementowac jeszcze zapisu eventow.
+
+## Kryteria akceptacji
+
+* Istnieje schema eventu delta.
+* Istnieje lista typow v0.
+* Eventy sa scope'owane.
+* Eventy maja `entity_id` do aktualizacji konkretnego obiektu.
+* Eventy maja `dedupe_key` do idempotencji.
+* Payload nie jest pelnym profilem.
+* Istnieje opis minimalnych payloadow v0.
+* Nie powstal jeszcze `GameStateDeltaBus`.
+
+---
+
+# Sprint 58 - Backend Delta Bus v0
+
+## Cel gameplayowy
+
+Dodac backendowy dziennik zmian rownolegle do starego systemu.
+
+## Zakres
+
+1. Dodac `GameStateDeltaBus`.
+2. Dodac helper:
+
+```text
+record_change(scope, change_type, payload)
+```
+
+3. Dodac helper:
+
+```text
+get_changes_since(user_id, since_version)
+```
+
+4. Zapisywac delty bez wplywu na frontend.
+5. Nie wylaczac starych endpointow.
+6. Nie wymagac WebSocketow.
+7. Ustalic retencje delta logu:
+   * limit liczby eventow, np. 500-2000,
+   * albo limit czasu, np. ostatnie X minut.
+8. Nie liczyc stanu gry na podstawie delta busa.
+
+## Kryteria akceptacji
+
+* Backend potrafi zapisac event delta.
+* Eventy maja wersje rosnaca monotonicznie.
+* Stary runtime gry dziala bez zmian.
+* Delta bus nie jest drugim systemem profilu.
+* Delta bus nie jest drugim magazynem stanu.
+* Istnieje retencja eventow.
+
+---
+
+# Sprint 59 - Read-only Delta Endpoint
+
+## Cel gameplayowy
+
+Udostepnic delty do podgladu i testow bez podpinania UI.
+
+## Zakres
+
+1. Dodac endpoint:
+
+```text
+GET /api/state/changes?since=1842&limit=100
+```
+
+2. Endpoint zwraca:
+   * `current_version`,
+   * `changes`,
+   * `recovery_required`,
+   * `reason`.
+3. Endpoint jest read-only.
+4. Frontend produkcyjny moze jeszcze go nie uzywac.
+5. Endpoint ma limit eventow.
+6. Jesli liczba eventow przekracza limit albo wersja jest poza retencja,
+   backend zwraca `recovery_required`.
+7. Endpoint nie liczy stanu gry.
+8. Endpoint nie odpala snapshotow.
+
+## Kryteria akceptacji
+
+* Endpoint zwraca delty od wersji.
+* Endpoint nie przebudowuje profilu ani mapy.
+* Endpoint nie uruchamia snapshotow.
+* Brak delty zwraca pusta liste, nie blad.
+* Stary polling nadal dziala.
+* Endpoint nie zwraca nieograniczonej historii eventow.
+* Za stary `since` prowadzi do recovery, nie do wielkiego payloadu.
+
+---
+
+# Sprint 60 - Delta Diagnostics Panel
+
+## Cel gameplayowy
+
+Dac narzedzie diagnostyczne do obserwacji delt, wersji i rozjazdow.
+
+## Zakres
+
+1. Dodac debug panel albo lekki log dev.
+2. Pokazac:
+   * ostatnia wersje,
+   * ostatnie eventy,
+   * scope,
+   * typ eventu,
+   * liczbe zgubionych/recovery.
+3. Pokazac metryki:
+   * `delta_events_per_minute`,
+   * `delta_payload_size`,
+   * `recovery_count`,
+   * `pollers_active_count`,
+   * `snapshot_recovery_count`.
+4. Nie zmieniac runtime gracza.
+5. Panel moze byc dostepny tylko w dev/admin mode.
+
+## Kryteria akceptacji
+
+* Developer widzi ostatnie delty.
+* Widac rozjazdy wersji.
+* Widac, czy backend generuje eventy.
+* Widac metryki pozwalajace porownac stary polling i delta feed.
+* Debug nie jest czescia zwyklego UI gracza.
+
+---
+
+# Sprint 61 - First Safe Delta: Wallet
+
+## Cel gameplayowy
+
+Pierwsza realna migracja jednego malego elementu UI na delty: saldo HC.
+
+## Zakres
+
+1. Backend zapisuje `wallet.balance_changed`.
+2. Frontend odbiera delte.
+3. `applyDelta()` aktualizuje tylko saldo.
+4. Snapshot wallet zostaje jako recovery.
+5. Nie migrowac jeszcze mapy, maila ani aplikacji.
+6. Dodac test idempotencji eventu wallet.
+
+## Kryteria akceptacji
+
+* Zmiana HC generuje event.
+* Frontend aktualizuje saldo bez pelnego rerenderu.
+* Zgubiona wersja odpala snapshot recovery wallet.
+* Stary flow HC nie jest zepsuty.
+* Ten sam event zastosowany dwa razy nie psuje salda.
+
+---
+
+# Sprint 62 - Storage Delta
+
+## Cel gameplayowy
+
+Przeniesc zmiany storage na delty po sprawdzeniu prostego flow wallet.
+
+## Zakres
+
+1. Dodac eventy:
+   * `storage.used_changed`,
+   * `storage.capacity_changed`.
+2. Aktualizowac File Manager storage bar przez delte.
+3. Pokryc:
+   * zapis pliku,
+   * auto-sale,
+   * install aplikacji,
+   * uninstall aplikacji,
+   * storage upgrade.
+4. Snapshot storage zostaje jako recovery.
+5. Dodac test idempotencji eventow storage.
+
+## Kryteria akceptacji
+
+* `storage_used` aktualizuje sie bez pelnego bootstrapu.
+* `storage_capacity` aktualizuje sie po produkcie Googleplex.
+* Recovery snapshot naprawia rozjazd.
+* Ghost Exchange i File Manager widza spojny storage.
+* Ten sam event storage zastosowany dwa razy nie psuje paska dysku.
+
+---
+
+# Sprint 63 - Apps Delta
+
+## Cel gameplayowy
+
+Przeniesc male zmiany aplikacji na delty bez przebudowy katalogu Googleplex.
+
+## Zakres
+
+1. Dodac eventy:
+   * `apps.app_installed`,
+   * `apps.app_uninstalled`,
+   * `apps.cooldown_changed`,
+   * `apps.status_changed`.
+2. Aktualizowac ikony, menu Start i File Manager `/tools`.
+3. Snapshot apps zostaje jako recovery.
+4. Nie zmieniac kontraktu aplikacji.
+5. Dodac test idempotencji eventow apps.
+
+## Kryteria akceptacji
+
+* Install/uninstall odswieza UI bez pelnego reloadu.
+* `profile.apps` pozostaje zrodlem prawdy.
+* `files.tools` pozostaje spojne.
+* Brak duplikacji app cache.
+* Ten sam event apps zastosowany dwa razy nie tworzy duplikatu ikony/aplikacji.
+
+---
+
+# Sprint 64 - Mail / Ghost Exchange Summary Delta
+
+## Cel gameplayowy
+
+Zmniejszyc polling maila i Ghost Exchange przez migracje licznikow oraz summary.
+
+## Zakres
+
+1. Dodac eventy:
+   * `mail.unread_changed`,
+   * `mail.thread_updated`,
+   * `ghost_exchange.summary_changed`,
+   * `ghost_exchange.transaction_added`.
+2. Nie migrowac jeszcze pelnego bootstrapu maila.
+3. Nie migrowac calego dashboardu GX.
+4. Aktualizowac tylko liczniki, badge, summary i ostatnie transakcje.
+5. Dodac test idempotencji eventow mail/GX.
+
+## Kryteria akceptacji
+
+* Unread badge aktualizuje sie z delty.
+* GX summary aktualizuje sie z delty.
+* Pelny mail bootstrap zostaje jako recovery.
+* Pelny `/api/ghost-exchange` zostaje jako recovery.
+* Ten sam event unread/GX zastosowany dwa razy nie dubluje badge ani transakcji.
+
+---
+
+# Sprint 65 - Delta Recovery
+
+## Cel gameplayowy
+
+Dac twarde mechanizmy naprawy rozjazdu wersji.
+
+## Zakres
+
+1. Frontend wykrywa brakujace albo zbyt stare wersje.
+2. Backend moze zwrocic `recovery_required`.
+3. Frontend odpala snapshot konkretnego scope, np.:
+   * wallet,
+   * storage,
+   * apps,
+   * mail,
+   * ghost_exchange.
+4. Nie robic globalnego reloadu strony jako domyslnej reakcji.
+
+## Kryteria akceptacji
+
+* Zgubiona delta nie psuje UI.
+* Recovery dotyka tylko potrzebnego scope.
+* Frontend zapisuje nowa wersje po recovery.
+* Brak panic reloadu.
+
+---
+
+# Sprint 66 - Map Delta Audit
+
+## Cel gameplayowy
+
+Przygotowac mape pod delty bez migracji mapy.
+
+## Zakres
+
+1. Spisac typy zmian mapy:
+   * ruch graczy,
+   * aktorzy graczy,
+   * targety,
+   * przejecia,
+   * obszary,
+   * filary,
+   * statusy konfliktow.
+2. Okreslic zrodla prawdy dla kazdego typu.
+3. Okreslic, ktore warstwy mapy mozna latac punktowo.
+4. Nie migrowac mapy w tym sprincie.
+
+## Kryteria akceptacji
+
+* Wiadomo, jakie map events sa potrzebne.
+* Wiadomo, ktore warstwy mapy moga dostac applyDelta.
+* Wiadomo, gdzie nadal wymagany jest snapshot.
+* Nie zmieniono runtime mapy.
+
+---
+
+# Sprint 67 - Map Actor Delta v0
+
+## Cel gameplayowy
+
+Pierwsza bezpieczna migracja mapy: tylko player actors.
+
+## Zakres
+
+1. Dodac eventy:
+   * `map.player_moved`,
+   * `map.player_actor_updated`,
+   * `map.player_actor_removed`.
+2. Aktualizowac konkretne markery graczy.
+3. Nie ruszac targetow, terenow ani warstw konfliktu.
+4. Snapshot player actors zostaje jako recovery.
+
+## Kryteria akceptacji
+
+* Ruch gracza aktualizuje marker bez rerenderu calej mapy.
+* Znikniecie gracza usuwa tylko jego marker.
+* Recovery przywraca liste actors.
+* Targety i obszary pozostaja poza zakresem.
+
+---
+
+# Sprint 68 - Map Target Delta
+
+## Cel gameplayowy
+
+Rozszerzyc delty mapy na targety i przejecia po ustabilizowaniu player actors.
+
+## Zakres
+
+1. Dodac eventy:
+   * `map.target_updated`,
+   * `map.target_captured`,
+   * `map.target_removed`,
+   * `map.area_claimed`,
+   * `map.area_contested`.
+2. Aktualizowac konkretne targety i obszary.
+3. Nie przebudowywac calej mapy przy pojedynczej zmianie.
+4. Snapshot map target/areas zostaje jako recovery.
+
+## Kryteria akceptacji
+
+* Przejecie celu aktualizuje tylko ten cel.
+* Zmiana obszaru aktualizuje tylko relevantna warstwe.
+* Wlasciciel nadal widzi swoje terytoria.
+* Recovery mapy dziala per scope.
+
+---
+
+# Sprint 69 - Poller Retirement
+
+## Cel gameplayowy
+
+Wylaczac stare agresywne pollery dopiero po potwierdzeniu stabilnosci delt.
+
+## Zakres
+
+1. Spisac pollery zastapione deltami.
+2. Wylaczac je po jednym.
+3. Zostawic snapshoty jako start/recovery.
+4. Monitorowac liczbe requestow i czasy odpowiedzi.
+5. Nie usuwac endpointow snapshotowych.
+6. Udokumentowac porownanie przed/po:
+   * request count przed,
+   * request count po,
+   * sredni czas odpowiedzi przed,
+   * sredni czas odpowiedzi po,
+   * liczba recovery.
+
+## Kryteria akceptacji
+
+* Liczba cyklicznych requestow spada.
+* UI nadal aktualizuje wallet, storage, apps, mail/GX i mape.
+* Snapshot recovery nadal dziala.
+* Nie ma globalnego reloadu jako normalnej sciezki odswiezania.
+* Istnieje raport przed/po pokazujacy realny zysk albo brak zysku.
+
 Decision:
 
 * Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.

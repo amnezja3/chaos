@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
 import run
-from database import DevBugReportStore, JsonResourceStore, MailStore
+from database import DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore
 from profileManagment import UserProfileManager
 from run import (
     active_operations_from_operations,
@@ -236,6 +236,227 @@ class MailStoreFriendshipStatusTest(unittest.TestCase):
                         os.remove(candidate)
                     except PermissionError:
                         pass
+
+
+class GameStateDeltaBusTest(unittest.TestCase):
+    def _temp_path(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        return path
+
+    def _cleanup(self, path):
+        for suffix in ("", "-wal", "-shm"):
+            candidate = f"{path}{suffix}"
+            if os.path.exists(candidate):
+                try:
+                    os.remove(candidate)
+                except PermissionError:
+                    pass
+
+    def test_record_change_creates_delta_event_contract(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            event = bus.record_change(
+                "alice",
+                "wallet",
+                "wallet.balance_changed",
+                {"balance": 120, "currency": "HC"},
+                entity_id="wallet",
+                dedupe_key="wallet:balance:alice:1",
+            )
+
+            self.assertEqual(event["version"], 1)
+            self.assertEqual(event["scope"], "wallet")
+            self.assertEqual(event["type"], "wallet.balance_changed")
+            self.assertEqual(event["entity_id"], "wallet")
+            self.assertEqual(event["dedupe_key"], "wallet:balance:alice:1")
+            self.assertEqual(event["payload"]["balance"], 120)
+            self.assertTrue(event["created_at"])
+        finally:
+            self._cleanup(path)
+
+    def test_dedupe_key_makes_record_change_idempotent(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            first = bus.record_change(
+                "alice",
+                "storage",
+                "storage.used_changed",
+                {"used": 128, "capacity": 512},
+                entity_id="storage",
+                dedupe_key="storage:used:alice:1",
+            )
+            second = bus.record_change(
+                "alice",
+                "storage",
+                "storage.used_changed",
+                {"used": 256, "capacity": 512},
+                entity_id="storage",
+                dedupe_key="storage:used:alice:1",
+            )
+            changes = bus.get_changes_since("alice", 0)["changes"]
+
+            self.assertEqual(first, second)
+            self.assertEqual(len(changes), 1)
+            self.assertEqual(changes[0]["payload"]["used"], 128)
+        finally:
+            self._cleanup(path)
+
+    def test_get_changes_since_returns_ordered_events(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            bus.record_change("alice", "wallet", "wallet.balance_changed", {"balance": 1})
+            bus.record_change("alice", "storage", "storage.used_changed", {"used": 2})
+            bus.record_change("alice", "apps", "apps.app_installed", {"app_id": "xmapper"})
+
+            result = bus.get_changes_since("alice", 1)
+
+            self.assertFalse(result["recovery_required"])
+            self.assertEqual(result["current_version"], 3)
+            self.assertEqual([event["version"] for event in result["changes"]], [2, 3])
+            self.assertEqual(result["changes"][0]["scope"], "storage")
+        finally:
+            self._cleanup(path)
+
+    def test_get_changes_since_requires_recovery_when_limit_exceeded(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            bus.record_change("alice", "wallet", "wallet.balance_changed", {"balance": 1})
+            bus.record_change("alice", "storage", "storage.used_changed", {"used": 2})
+            bus.record_change("alice", "apps", "apps.app_installed", {"app_id": "xmapper"})
+
+            result = bus.get_changes_since("alice", 0, limit=2)
+
+            self.assertTrue(result["recovery_required"])
+            self.assertEqual(result["reason"], "limit_exceeded")
+            self.assertEqual(result["available_count"], 3)
+        finally:
+            self._cleanup(path)
+
+    def test_retention_marks_old_since_as_recovery(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path, retention_limit=2)
+            bus.record_change("alice", "wallet", "wallet.balance_changed", {"balance": 1})
+            bus.record_change("alice", "storage", "storage.used_changed", {"used": 2})
+            bus.record_change("alice", "apps", "apps.app_installed", {"app_id": "xmapper"})
+
+            result = bus.get_changes_since("alice", 0)
+
+            self.assertTrue(result["recovery_required"])
+            self.assertEqual(result["reason"], "outside_retention")
+            self.assertEqual(result["oldest_version"], 2)
+        finally:
+            self._cleanup(path)
+
+
+class StateChangesEndpointTest(unittest.TestCase):
+    def _temp_path(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        return path
+
+    def _cleanup(self, path):
+        for suffix in ("", "-wal", "-shm"):
+            candidate = f"{path}{suffix}"
+            if os.path.exists(candidate):
+                try:
+                    os.remove(candidate)
+                except PermissionError:
+                    pass
+
+    def _client_with_user(self, username="alice"):
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = username
+        return client
+
+    def test_state_changes_returns_empty_list_without_snapshot(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            client = self._client_with_user()
+            with patch.object(run, "delta_bus", bus), \
+                    patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")):
+                response = client.get("/api/state/changes?since=0&limit=100")
+
+            data = response.get_json()
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(data["current_version"], 0)
+            self.assertEqual(data["changes"], [])
+            self.assertFalse(data["recovery_required"])
+        finally:
+            self._cleanup(path)
+
+    def test_state_changes_returns_events_since_version(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            bus.record_change("alice", "wallet", "wallet.balance_changed", {"balance": 10})
+            bus.record_change("alice", "storage", "storage.used_changed", {"used": 20})
+            client = self._client_with_user()
+            with patch.object(run, "delta_bus", bus):
+                response = client.get("/api/state/changes?since=1&limit=100")
+
+            data = response.get_json()
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(data["recovery_required"])
+            self.assertEqual(data["current_version"], 2)
+            self.assertEqual(len(data["changes"]), 1)
+            self.assertEqual(data["changes"][0]["type"], "storage.used_changed")
+        finally:
+            self._cleanup(path)
+
+    def test_state_changes_requires_recovery_when_limit_exceeded(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            bus.record_change("alice", "wallet", "wallet.balance_changed", {"balance": 1})
+            bus.record_change("alice", "storage", "storage.used_changed", {"used": 2})
+            bus.record_change("alice", "apps", "apps.app_installed", {"app_id": "xmapper"})
+            client = self._client_with_user()
+            with patch.object(run, "delta_bus", bus):
+                response = client.get("/api/state/changes?since=0&limit=2")
+
+            data = response.get_json()
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(data["recovery_required"])
+            self.assertEqual(data["reason"], "limit_exceeded")
+            self.assertEqual(data["changes"], [])
+        finally:
+            self._cleanup(path)
+
+    def test_state_changes_requires_recovery_when_since_outside_retention(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path, retention_limit=2)
+            bus.record_change("alice", "wallet", "wallet.balance_changed", {"balance": 1})
+            bus.record_change("alice", "storage", "storage.used_changed", {"used": 2})
+            bus.record_change("alice", "apps", "apps.app_installed", {"app_id": "xmapper"})
+            client = self._client_with_user()
+            with patch.object(run, "delta_bus", bus):
+                response = client.get("/api/state/changes?since=0&limit=100")
+
+            data = response.get_json()
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(data["recovery_required"])
+            self.assertEqual(data["reason"], "outside_retention")
+            self.assertEqual(data["changes"], [])
+        finally:
+            self._cleanup(path)
+
+    def test_state_changes_requires_login(self):
+        response = run.app.test_client().get("/api/state/changes?since=0")
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 401)
+        self.assertTrue(data["recovery_required"])
+        self.assertEqual(data["reason"], "not_logged_in")
+        self.assertEqual(data["changes"], [])
 
 
 class LightweightPollingEndpointTest(unittest.TestCase):

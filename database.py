@@ -296,6 +296,22 @@ def init_db(db_path=DB_PATH):
             """
         )
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS game_state_deltas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                scope TEXT NOT NULL,
+                type TEXT NOT NULL,
+                entity_id TEXT NOT NULL DEFAULT '',
+                dedupe_key TEXT NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                UNIQUE(username, dedupe_key)
+            )
+            """
+        )
+        conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_captured_targets_owner ON captured_targets(owner_username)"
         )
         conn.execute(
@@ -324,6 +340,12 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_dev_bug_reports_status ON dev_bug_reports(status, category, updated_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_game_state_deltas_user_version ON game_state_deltas(username, version)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_game_state_deltas_created_at ON game_state_deltas(created_at)"
         )
 
 
@@ -2563,3 +2585,234 @@ class MailStore:
                     utc_now(),
                 ),
             )
+
+
+class GameStateDeltaBus:
+    DEFAULT_RETENTION_LIMIT = 1000
+    DEFAULT_QUERY_LIMIT = 100
+
+    def __init__(self, db_path=DB_PATH, retention_limit=DEFAULT_RETENTION_LIMIT):
+        self.db_path = db_path
+        self.retention_limit = max(1, int(retention_limit or self.DEFAULT_RETENTION_LIMIT))
+        init_db(self.db_path)
+
+    @staticmethod
+    def _clean_text(value, default=""):
+        text = str(value or "").strip()
+        return text or default
+
+    @classmethod
+    def _default_entity_id(cls, scope, change_type, payload):
+        if isinstance(payload, dict):
+            for key in (
+                "entity_id",
+                "id",
+                "app_id",
+                "operation_id",
+                "transaction_id",
+                "player_id",
+                "target_id",
+                "area_id",
+            ):
+                value = payload.get(key)
+                if value not in (None, ""):
+                    return cls._clean_text(value)
+        if scope:
+            return cls._clean_text(scope)
+        return cls._clean_text(change_type, "event")
+
+    @classmethod
+    def _event_from_row(cls, row):
+        if not row:
+            return None
+        return {
+            "version": int(row["version"]),
+            "scope": row["scope"],
+            "type": row["type"],
+            "entity_id": row["entity_id"],
+            "dedupe_key": row["dedupe_key"],
+            "payload": loads_json(row["payload_json"], {}),
+            "created_at": row["created_at"],
+        }
+
+    def _trim_retention(self, conn, username):
+        conn.execute(
+            """
+            DELETE FROM game_state_deltas
+            WHERE username = ?
+                AND id NOT IN (
+                    SELECT id
+                    FROM game_state_deltas
+                    WHERE username = ?
+                    ORDER BY version DESC
+                    LIMIT ?
+                )
+            """,
+            (username, username, self.retention_limit),
+        )
+
+    def current_version(self, username):
+        username = self._clean_text(username)
+        if not username:
+            return 0
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) AS version FROM game_state_deltas WHERE username = ?",
+                (username,),
+            ).fetchone()
+            return int(row["version"] if row else 0)
+
+    def record_change(self, username, scope, change_type, payload=None, entity_id=None, dedupe_key=None, created_at=None):
+        username = self._clean_text(username)
+        scope = self._clean_text(scope)
+        change_type = self._clean_text(change_type)
+        if not username:
+            raise ValueError("Delta event requires username.")
+        if not scope:
+            raise ValueError("Delta event requires scope.")
+        if not change_type:
+            raise ValueError("Delta event requires type.")
+        if payload is None:
+            payload = {}
+        if not isinstance(payload, dict):
+            raise ValueError("Delta event payload must be an object.")
+
+        entity_id = self._clean_text(entity_id or self._default_entity_id(scope, change_type, payload))
+        created_at = self._clean_text(created_at or utc_now())
+
+        with db_connect(self.db_path) as conn:
+            if dedupe_key:
+                dedupe_key = self._clean_text(dedupe_key)
+            else:
+                next_version_row = conn.execute(
+                    "SELECT COALESCE(MAX(version), 0) + 1 AS version FROM game_state_deltas WHERE username = ?",
+                    (username,),
+                ).fetchone()
+                next_version = int(next_version_row["version"] if next_version_row else 1)
+                dedupe_key = f"{scope}:{change_type}:{entity_id}:{next_version}"
+
+            existing = conn.execute(
+                """
+                SELECT version, scope, type, entity_id, dedupe_key, payload_json, created_at
+                FROM game_state_deltas
+                WHERE username = ? AND dedupe_key = ?
+                """,
+                (username, dedupe_key),
+            ).fetchone()
+            if existing:
+                return self._event_from_row(existing)
+
+            version_row = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) + 1 AS version FROM game_state_deltas WHERE username = ?",
+                (username,),
+            ).fetchone()
+            version = int(version_row["version"] if version_row else 1)
+            conn.execute(
+                """
+                INSERT INTO game_state_deltas
+                    (username, version, scope, type, entity_id, dedupe_key, payload_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    username,
+                    version,
+                    scope,
+                    change_type,
+                    entity_id,
+                    dedupe_key,
+                    dumps_json(payload),
+                    created_at,
+                ),
+            )
+            self._trim_retention(conn, username)
+            return {
+                "version": version,
+                "scope": scope,
+                "type": change_type,
+                "entity_id": entity_id,
+                "dedupe_key": dedupe_key,
+                "payload": copy.deepcopy(payload),
+                "created_at": created_at,
+            }
+
+    def get_changes_since(self, username, since_version=0, limit=DEFAULT_QUERY_LIMIT):
+        username = self._clean_text(username)
+        if not username:
+            return {
+                "current_version": 0,
+                "changes": [],
+                "recovery_required": True,
+                "reason": "missing_username",
+            }
+        try:
+            since_version = int(since_version or 0)
+        except (TypeError, ValueError):
+            since_version = -1
+        limit = max(1, min(int(limit or self.DEFAULT_QUERY_LIMIT), self.retention_limit))
+
+        with db_connect(self.db_path) as conn:
+            version_row = conn.execute(
+                """
+                SELECT
+                    COALESCE(MIN(version), 0) AS oldest_version,
+                    COALESCE(MAX(version), 0) AS current_version,
+                    COUNT(*) AS count
+                FROM game_state_deltas
+                WHERE username = ?
+                """,
+                (username,),
+            ).fetchone()
+            oldest_version = int(version_row["oldest_version"] if version_row else 0)
+            current_version = int(version_row["current_version"] if version_row else 0)
+            count = int(version_row["count"] if version_row else 0)
+
+            if since_version < 0:
+                return {
+                    "current_version": current_version,
+                    "changes": [],
+                    "recovery_required": True,
+                    "reason": "invalid_since",
+                }
+            if count and since_version < oldest_version - 1:
+                return {
+                    "current_version": current_version,
+                    "changes": [],
+                    "recovery_required": True,
+                    "reason": "outside_retention",
+                    "oldest_version": oldest_version,
+                }
+
+            total_row = conn.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM game_state_deltas
+                WHERE username = ? AND version > ?
+                """,
+                (username, since_version),
+            ).fetchone()
+            available_count = int(total_row["count"] if total_row else 0)
+            if available_count > limit:
+                return {
+                    "current_version": current_version,
+                    "changes": [],
+                    "recovery_required": True,
+                    "reason": "limit_exceeded",
+                    "available_count": available_count,
+                    "limit": limit,
+                }
+
+            rows = conn.execute(
+                """
+                SELECT version, scope, type, entity_id, dedupe_key, payload_json, created_at
+                FROM game_state_deltas
+                WHERE username = ? AND version > ?
+                ORDER BY version ASC
+                LIMIT ?
+                """,
+                (username, since_version, limit),
+            ).fetchall()
+            return {
+                "current_version": current_version,
+                "changes": [self._event_from_row(row) for row in rows],
+                "recovery_required": False,
+            }

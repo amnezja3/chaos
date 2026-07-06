@@ -5122,3 +5122,308 @@ gracza z runtime gry, bez backendu, BlackNet i zmian kontraktu `meta.channel`.
 
 Sprint 54 zamkniety jako UX lift i first-interaction autostart. Nie dodano
 backendu, BlackNet ani nowych kanalow.
+
+---
+
+## 06.07.2026
+
+### Etap
+
+Faza G - State Snapshot + Delta Feed.
+
+### Cel
+
+Zamknac kierunek migracji runtime z agresywnego pollingu snapshotow na model
+snapshot start/recovery + lekki delta feed.
+
+### Najwazniejsze decyzje
+
+Dopisano zabezpieczenia architektury delta-feed:
+
+* zrodlo prawdy zostaje w obecnych modelach i snapshotach,
+* delta bus dziala wylacznie jako dziennik zmian,
+* delta bus nie liczy stanu gry,
+* eventy sa idempotentne,
+* eventy maja `entity_id` i `dedupe_key`,
+* delta log ma retencje,
+* endpoint zmian ma limit pobierania,
+* za stary `since` albo przekroczony limit zwraca `recovery_required`,
+* diagnostics ma pokazywac metryki przed/po dla wygaszania pollerow.
+
+### Status
+
+Faza G jest rozpisana jako bezpieczna seria Sprintow 55-69: audyt, kontrakt,
+backend rownolegle do starego flow, pierwsze male scope'y, recovery, mapa na
+koncu i dopiero potem wygaszanie pollerow.
+
+### Doprecyzowanie Sprintu 55
+
+Sprint 55 zmieniono z prostego `Polling Audit` na `Runtime Synchronization
+Audit`.
+
+Audyt ma mapowac caly cykl zycia danych per scope:
+
+* co wywoluje zmiane,
+* kto zapisuje zmiane,
+* kto dzis ja wykrywa,
+* kto ja renderuje,
+* czy potrzebny jest pelny snapshot.
+
+Dodano wymog tabeli przeplywu danych oraz szacowania spodziewanych oszczednosci
+per scope: request count, payload, CPU i render cost.
+
+Decyzja: przed budowa delta-feed trzeba najpierw sprawdzic, czy czesc pollerow
+da sie ograniczyc albo usunac juz przez lepsze triggerowanie odswiezania po
+akcjach gracza i zdarzeniach gry.
+
+---
+
+## 06.07.2026
+
+### Etap
+
+Sprint 55 - Runtime Synchronization Audit.
+
+### Cel
+
+Rozpoczac audyt synchronizacji runtime bez przebudowy endpointow, pollerow ani
+renderow.
+
+### Co zostalo wykonane
+
+* Utworzono `doc/runtime_synchronization_audit.md`.
+* Zebrano pierwsza inwentaryzacje scope'ow:
+  * toolbar / wallet / profile,
+  * desktop / apps,
+  * storage / File Manager,
+  * Googleplex,
+  * Ghost Exchange,
+  * Cyberner,
+  * system messages,
+  * launch queue,
+  * operations,
+  * map player actors,
+  * map player areas,
+  * map clan vulnerabilities.
+* Dodano karty per scope z pytaniami:
+  * co wywoluje zmiane,
+  * kto zapisuje zmiane,
+  * kto ja dzis wykrywa,
+  * kto ja renderuje,
+  * czy potrzebny jest pelny snapshot.
+* Dodano ranking kosztow v0 dla backendu, frontendu, payloadu i czestotliwosci.
+
+### Najwazniejsze obserwacje
+
+* `/api/profile` jest wspolnym ciezkim snapshotem dla wielu niezaleznych
+  widokow: toolbar, wallet, storage, apps, File Manager i profil.
+* Cyberner uzywa juz lekkiego readonly profilu, ale odswieza liste rozmow co
+  3000 ms.
+* Mapa ma osobne pollery dla aktorow, terytoriow, podatnosci klanowych i
+  operacji.
+* `refreshPlayerAreas()` po stronie frontendu czysci i renderuje wiele warstw
+  Leaflet od nowa.
+* Ghost Exchange jest kontrolowanym refresh runtime rynku, nie tylko prostym
+  odczytem dashboardu.
+
+### Status
+
+Sprint 55 trwa. Na tym etapie nie wprowadzono zmian runtime ani optymalizacji.
+
+---
+
+## 06.07.2026
+
+### Etap
+
+Sprint 56 - State Version Contract.
+
+### Cel
+
+Opisac wersjonowanie obecnych modeli stanu bez tworzenia nowego magazynu stanu,
+bez delta busa i bez migracji frontendu.
+
+### Co zostalo wykonane
+
+* Utworzono `doc/state_version_contract.md`.
+* Zdefiniowano globalne `state_version`.
+* Zdefiniowano wersje per scope:
+  * `wallet_version`,
+  * `profile_version`,
+  * `storage_version`,
+  * `apps_version`,
+  * `mail_version`,
+  * `ghost_exchange_version`,
+  * `operations_version`,
+  * `map_version`.
+* Dopisano do planu Sprintu 56 brakujace scope'y `operations_version` i
+  `map_version`.
+* Opisano, ktore snapshot endpointy moga w przyszlosci zwracac wersje.
+
+### Najwazniejsze decyzje
+
+* Wersje opisuja istniejace modele i snapshoty.
+* Wersje nie tworza nowego zrodla prawdy.
+* Wersje nie sa liczone z delta busa.
+* `state_version` jest globalna informacja, ze cos w runtime moglo sie zmienic.
+* Wersje per scope sluza do pozniejszego recovery i selektywnego odswiezania.
+
+### Status
+
+Sprint 56 zamkniety jako kontrakt dokumentacyjny. Nie zmieniono zachowania
+frontendu, nie wylaczono pollerow i nie dodano nowego endpointu.
+
+---
+
+## 06.07.2026
+
+### Etap
+
+Sprint 57 - Delta Event Schema.
+
+### Cel
+
+Zdefiniowac stabilny format eventow delta v0 przed implementacja
+`GameStateDeltaBus`.
+
+### Co zostalo wykonane
+
+* Utworzono `doc/delta_event_schema.md`.
+* Opisano wspolna strukture eventu:
+  * `version`,
+  * `scope`,
+  * `type`,
+  * `entity_id`,
+  * `dedupe_key`,
+  * `payload`,
+  * `created_at`.
+* Ustalono nazewnictwo typow w formacie `scope.action`.
+* Opisano minimalne payloady v0 dla:
+  * wallet,
+  * storage,
+  * apps,
+  * mail,
+  * Ghost Exchange,
+  * operations,
+  * map.
+* Dopisano zasade idempotencji przez `dedupe_key`.
+* Dopisano zasade, ze `payload` nie jest pelnym snapshotem.
+
+### Najwazniejsze decyzje
+
+* Event delta opisuje zmiane, ktora juz zaszla w istniejacym zrodle prawdy.
+* Event delta nie jest zrodlem prawdy.
+* Event delta nie przechowuje pelnego profilu, mapy, maila ani dashboardu GX.
+* Snapshoty pozostaja sciezka startu i recovery.
+
+### Status
+
+Sprint 57 zamkniety jako kontrakt dokumentacyjny. Nie powstal jeszcze
+`GameStateDeltaBus`, nie dodano endpointu delt i nie zmieniono frontendu.
+
+---
+
+## 06.07.2026
+
+### Etap
+
+Sprint 58 - Backend Delta Bus v0.
+
+### Cel
+
+Dodac backendowy dziennik zmian rownolegle do starego runtime, bez podpinania
+frontendu i bez tworzenia nowego magazynu stanu gry.
+
+### Co zostalo wykonane
+
+* Dodano tabele `game_state_deltas`.
+* Dodano `GameStateDeltaBus` w `database.py`.
+* Dodano instancje `delta_bus` w `run.py` obok istniejacych store'ow.
+* Dodano zapis eventu przez:
+  * `record_change(username, scope, change_type, payload, entity_id, dedupe_key)`.
+* Dodano odczyt eventow przez:
+  * `get_changes_since(username, since_version, limit)`.
+* Dodano retencje po liczbie eventow.
+* Dodano idempotencje przez `dedupe_key`.
+* Dodano sygnal `recovery_required` dla:
+  * niepoprawnego `since`,
+  * wersji poza retencja,
+  * przekroczonego limitu odczytu.
+
+### Najwazniejsze decyzje
+
+* Delta bus jest dziennikiem powiadomien o zmianach.
+* Delta bus nie liczy stanu gry.
+* Delta bus nie zastapil profilu, mapy, maila, Ghost Exchange ani snapshotow.
+* Stary runtime dziala bez zmian, bo zaden endpoint nie zostal przepiety na
+  delty.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`,
+  OK.
+* `python -m unittest tests.test_target_persistence.GameStateDeltaBusTest`,
+  OK.
+* `python -m unittest tests.test_app_catalog_cleanup`,
+  OK.
+* `git diff --check`,
+  OK; ostrzezenie CRLF/LF dotyczy istniejacego stylu pliku `run.py`.
+* `python -m unittest tests.test_target_persistence`,
+  FAIL na znanych testach `/map` JSON payload:
+  * `test_map_embeds_profile_as_json_literal`,
+  * `test_map_embeds_large_profile_payload_as_json_literal`.
+
+Te regresje byly juz oznaczone w journalu jako osobny dlug techniczny map
+payload i nie wynikaja z `GameStateDeltaBus`.
+
+### Status
+
+Sprint 58 zamkniety jako backendowy fundament delta bus v0. Nie dodano jeszcze
+`/api/state/changes`, nie zmieniono frontendu i nie wylaczono pollerow.
+
+---
+
+## 06.07.2026
+
+### Etap
+
+Sprint 59 - Read-only Delta Endpoint.
+
+### Cel
+
+Udostepnic delty do podgladu i testow bez podpinania UI produkcyjnego.
+
+### Co zostalo wykonane
+
+* Dodano endpoint `GET /api/state/changes?since=...&limit=...`.
+* Endpoint korzysta wylacznie z `delta_bus.get_changes_since(...)`.
+* Endpoint zwraca:
+  * `current_version`,
+  * `changes`,
+  * `recovery_required`,
+  * `reason`.
+* Brak zmian zwraca pusta liste `changes`, nie blad.
+* Przekroczony limit zwraca `recovery_required`.
+* Wersja poza retencja zwraca `recovery_required`.
+* Brak sesji zwraca `401` oraz `reason = not_logged_in`.
+
+### Najwazniejsze decyzje
+
+* Endpoint jest read-only.
+* Endpoint nie liczy stanu gry.
+* Endpoint nie odpala snapshotow.
+* Endpoint nie wywoluje `sync_session_profile()`.
+* Frontend produkcyjny nadal nie korzysta z delta endpointu.
+* Stare pollery pozostaja wlaczone.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`,
+  OK.
+* `python -m unittest tests.test_target_persistence.GameStateDeltaBusTest tests.test_target_persistence.StateChangesEndpointTest`,
+  OK.
+
+### Status
+
+Sprint 59 zamkniety jako read-only endpoint do podgladu delt. Nie podlaczono UI,
+nie dodano `applyDelta()` i nie wylaczono zadnego pollera.
