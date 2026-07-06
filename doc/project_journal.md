@@ -5427,3 +5427,72 @@ Udostepnic delty do podgladu i testow bez podpinania UI produkcyjnego.
 
 Sprint 59 zamkniety jako read-only endpoint do podgladu delt. Nie podlaczono UI,
 nie dodano `applyDelta()` i nie wylaczono zadnego pollera.
+
+### Checkpoint 59 live
+
+Baseline potwierdza ranking kosztow v0.
+
+Najwiekszy koszt generuja:
+
+* map player actors,
+* map player areas,
+* clan vulnerabilities,
+* operations summary.
+
+Lekkie endpointy `system-messages` i `launch-queue` bywaja opoznione
+prawdopodobnie przez kolejke za ciezkimi requestami mapy.
+
+Sprint 59 nie zmienil runtime UI, wiec brak poprawy wydajnosci jest oczekiwany.
+
+---
+
+## 06.07.2026
+
+### Etap
+
+Sprint 60 - Delta Diagnostics Panel.
+
+### Cel
+
+Dodac dev/admin podglad delt, wersji i recovery przed podpieciem
+`applyDelta()`.
+
+### Co zostalo wykonane
+
+* Dodano endpoint `GET /api/dev/delta-diagnostics`.
+* Endpoint jest dostepny tylko dla admina/dev.
+* Endpoint zwraca:
+  * `current_version`,
+  * ostatnie eventy,
+  * `scope`,
+  * `type`,
+  * `entity_id`,
+  * `dedupe_key`,
+  * `payload_size`,
+  * `recovery_count`,
+  * `delta_events_per_minute`,
+  * `delta_payload_size`,
+  * `snapshot_recovery_count`,
+  * `pollers_active_count`.
+* Dodano metody diagnostyczne w `GameStateDeltaBus`.
+* Dodano testy admin-only i braku pelnego sync profilu.
+
+### Najwazniejsze decyzje
+
+* Diagnostyka jest obserwacyjna.
+* Endpoint nie odpala `sync_session_profile()`.
+* Endpoint nie robi recovery w UI.
+* Endpoint nie podpina `applyDelta()`.
+* Runtime zwyklego gracza pozostaje bez zmian.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`,
+  OK.
+* `python -m unittest tests.test_target_persistence.GameStateDeltaBusTest tests.test_target_persistence.StateChangesEndpointTest tests.test_target_persistence.DeltaDiagnosticsEndpointTest`,
+  OK.
+
+### Status
+
+Sprint 60 zamkniety jako dev/admin diagnostyka delta feed. Nie podlaczono
+frontendu produkcyjnego, nie wylaczono pollerow i nie dodano recovery UI.

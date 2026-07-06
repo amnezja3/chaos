@@ -5000,12 +5000,20 @@ Dac narzedzie diagnostyczne do obserwacji delt, wersji i rozjazdow.
 
 ## Zakres
 
-1. Dodac debug panel albo lekki log dev.
+1. Dodac debug panel albo lekki log dev, np.:
+
+```text
+GET /api/dev/delta-diagnostics
+```
+
 2. Pokazac:
    * ostatnia wersje,
    * ostatnie eventy,
    * scope,
    * typ eventu,
+   * `entity_id`,
+   * `dedupe_key`,
+   * `payload_size`,
    * liczbe zgubionych/recovery.
 3. Pokazac metryki:
    * `delta_events_per_minute`,
@@ -5015,6 +5023,9 @@ Dac narzedzie diagnostyczne do obserwacji delt, wersji i rozjazdow.
    * `snapshot_recovery_count`.
 4. Nie zmieniac runtime gracza.
 5. Panel moze byc dostepny tylko w dev/admin mode.
+6. Endpoint/panel nie moze wywolywac `sync_session_profile()`.
+7. Nie podpinac `applyDelta()`.
+8. Nie robic recovery w UI.
 
 ## Kryteria akceptacji
 
@@ -5023,6 +5034,8 @@ Dac narzedzie diagnostyczne do obserwacji delt, wersji i rozjazdow.
 * Widac, czy backend generuje eventy.
 * Widac metryki pozwalajace porownac stary polling i delta feed.
 * Debug nie jest czescia zwyklego UI gracza.
+* Zwykly gracz nie widzi diagnostyki.
+* Stary runtime dziala bez zmian.
 
 ---
 

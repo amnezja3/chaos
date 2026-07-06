@@ -459,6 +459,74 @@ class StateChangesEndpointTest(unittest.TestCase):
         self.assertEqual(data["changes"], [])
 
 
+class DeltaDiagnosticsEndpointTest(unittest.TestCase):
+    def _temp_path(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        return path
+
+    def _cleanup(self, path):
+        for suffix in ("", "-wal", "-shm"):
+            candidate = f"{path}{suffix}"
+            if os.path.exists(candidate):
+                try:
+                    os.remove(candidate)
+                except PermissionError:
+                    pass
+
+    def _client_with_user(self, username="admin"):
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = username
+        return client
+
+    def test_delta_diagnostics_requires_admin(self):
+        response = self._client_with_user("alice").get("/api/dev/delta-diagnostics")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_delta_diagnostics_returns_recent_events_and_metrics_without_sync(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            bus.record_change(
+                "admin",
+                "wallet",
+                "wallet.balance_changed",
+                {"balance": 120, "currency": "HC"},
+                entity_id="wallet",
+                dedupe_key="wallet:balance:admin:1",
+            )
+            bus.record_change(
+                "admin",
+                "ghost_exchange",
+                "ghost_exchange.transaction_added",
+                {"transaction_id": "batch-1", "hc": 50},
+                entity_id="batch-1",
+                dedupe_key="gx:tx:batch-1:2",
+            )
+            client = self._client_with_user("admin")
+            with patch.object(run, "delta_bus", bus), \
+                    patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")):
+                response = client.get("/api/dev/delta-diagnostics?limit=10&pollers_active_count=4&snapshot_recovery_count=1")
+
+            data = response.get_json()
+            diagnostics = data["diagnostics"]
+            metrics = diagnostics["metrics"]
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(data["success"])
+            self.assertEqual(diagnostics["current_version"], 2)
+            self.assertEqual(len(diagnostics["events"]), 2)
+            self.assertEqual(diagnostics["events"][0]["type"], "ghost_exchange.transaction_added")
+            self.assertIn("payload_size", diagnostics["events"][0])
+            self.assertEqual(metrics["pollers_active_count"], 4)
+            self.assertEqual(metrics["snapshot_recovery_count"], 1)
+            self.assertGreaterEqual(metrics["delta_events_per_minute"], 2)
+            self.assertGreater(metrics["delta_payload_size"], 0)
+        finally:
+            self._cleanup(path)
+
+
 class LightweightPollingEndpointTest(unittest.TestCase):
     def test_empty_launch_queue_does_not_write_profile(self):
         profile = {"username": "tester", "launch_queue": [], "system_messages": []}

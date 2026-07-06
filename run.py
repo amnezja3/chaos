@@ -8866,6 +8866,23 @@ def api_state_changes():
     ))
 
 
+@app.route("/api/dev/delta-diagnostics")
+def api_dev_delta_diagnostics():
+    if not require_dev_admin():
+        return jsonify({"success": False, "message": "Delta diagnostics wymaga konta admin."}), 403
+
+    username = session.get("user") or ""
+    return jsonify({
+        "success": True,
+        "diagnostics": delta_bus.diagnostics(
+            username,
+            limit=request.args.get("limit", 25),
+            pollers_active_count=request.args.get("pollers_active_count", 0),
+            snapshot_recovery_count=request.args.get("snapshot_recovery_count", 0),
+        )
+    })
+
+
 @app.route("/api/admin/dashboard")
 def api_admin_dashboard():
     if not require_dev_admin():

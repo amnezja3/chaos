@@ -2590,6 +2590,7 @@ class MailStore:
 class GameStateDeltaBus:
     DEFAULT_RETENTION_LIMIT = 1000
     DEFAULT_QUERY_LIMIT = 100
+    RECOVERY_REASONS = {"invalid_since", "outside_retention", "limit_exceeded", "missing_username"}
 
     def __init__(self, db_path=DB_PATH, retention_limit=DEFAULT_RETENTION_LIMIT):
         self.db_path = db_path
@@ -2634,6 +2635,17 @@ class GameStateDeltaBus:
             "payload": loads_json(row["payload_json"], {}),
             "created_at": row["created_at"],
         }
+
+    @staticmethod
+    def _payload_size(payload):
+        return len(dumps_json(payload if isinstance(payload, dict) else {}))
+
+    @classmethod
+    def _diagnostic_event_from_row(cls, row):
+        event = cls._event_from_row(row)
+        payload = event.get("payload") if isinstance(event, dict) else {}
+        event["payload_size"] = cls._payload_size(payload)
+        return event
 
     def _trim_retention(self, conn, username):
         conn.execute(
@@ -2815,4 +2827,65 @@ class GameStateDeltaBus:
                 "current_version": current_version,
                 "changes": [self._event_from_row(row) for row in rows],
                 "recovery_required": False,
+            }
+
+    def diagnostics(self, username, limit=25, pollers_active_count=0, snapshot_recovery_count=0):
+        username = self._clean_text(username)
+        limit = max(1, min(int(limit or 25), 100))
+        if not username:
+            return {
+                "current_version": 0,
+                "events": [],
+                "metrics": {
+                    "delta_events_per_minute": 0,
+                    "delta_payload_size": 0,
+                    "recovery_count": 0,
+                    "snapshot_recovery_count": int(snapshot_recovery_count or 0),
+                    "pollers_active_count": int(pollers_active_count or 0),
+                },
+            }
+
+        threshold = (datetime.utcnow() - timedelta(minutes=1)).isoformat(timespec="seconds")
+        with db_connect(self.db_path) as conn:
+            current_row = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) AS version FROM game_state_deltas WHERE username = ?",
+                (username,),
+            ).fetchone()
+            current_version = int(current_row["version"] if current_row else 0)
+            rows = conn.execute(
+                """
+                SELECT version, scope, type, entity_id, dedupe_key, payload_json, created_at
+                FROM game_state_deltas
+                WHERE username = ?
+                ORDER BY version DESC
+                LIMIT ?
+                """,
+                (username, limit),
+            ).fetchall()
+            events = [self._diagnostic_event_from_row(row) for row in rows]
+            minute_row = conn.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM game_state_deltas
+                WHERE username = ? AND created_at >= ?
+                """,
+                (username, threshold),
+            ).fetchone()
+            payload_size = sum(event.get("payload_size", 0) for event in events)
+            recovery_count = sum(
+                1
+                for event in events
+                if event.get("type") == "state.recovery_required"
+                or event.get("payload", {}).get("reason") in self.RECOVERY_REASONS
+            )
+            return {
+                "current_version": current_version,
+                "events": events,
+                "metrics": {
+                    "delta_events_per_minute": int(minute_row["count"] if minute_row else 0),
+                    "delta_payload_size": payload_size,
+                    "recovery_count": recovery_count,
+                    "snapshot_recovery_count": int(snapshot_recovery_count or 0),
+                    "pollers_active_count": int(pollers_active_count or 0),
+                },
             }
