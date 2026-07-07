@@ -342,6 +342,105 @@ class GameStateDeltaBusTest(unittest.TestCase):
         finally:
             self._cleanup(path)
 
+    def test_record_storage_delta_emits_used_and_capacity_events_idempotently(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            profile = {
+                "storage_used": 80,
+                "storage_capacity": 768,
+                "storage_unit": "MB",
+                "storage_soft_limit": True,
+                "storage_over_limit": False,
+            }
+            previous = {
+                "used": 64,
+                "capacity": 512,
+                "unit": "MB",
+                "soft_limit": True,
+                "over_limit": False,
+            }
+
+            with patch.object(run, "delta_bus", bus):
+                first = run.record_storage_delta(
+                    "alice",
+                    profile,
+                    reason="unit_test",
+                    previous=previous,
+                    dedupe_key_prefix="storage:alice:test",
+                )
+                second = run.record_storage_delta(
+                    "alice",
+                    profile,
+                    reason="unit_test",
+                    previous=previous,
+                    dedupe_key_prefix="storage:alice:test",
+                )
+
+            changes = bus.get_changes_since("alice", 0)["changes"]
+            self.assertEqual(len(first), 2)
+            self.assertEqual(len(second), 2)
+            self.assertEqual(len(changes), 2)
+            self.assertEqual([item["type"] for item in changes], [
+                "storage.used_changed",
+                "storage.capacity_changed",
+            ])
+            self.assertEqual(changes[0]["payload"]["used"], 80)
+            self.assertEqual(changes[1]["payload"]["capacity"], 768)
+        finally:
+            self._cleanup(path)
+
+    def test_record_apps_delta_emits_apps_snapshot_idempotently(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            app = normalize_app_contract({
+                "id": "xmapper",
+                "name": "xmapper",
+                "interface": "terminal",
+            })
+            profile = {
+                "apps": [app],
+                "files": {
+                    "tools": ["xmapper.sh"],
+                    "gps": [],
+                },
+            }
+
+            with patch.object(run, "delta_bus", bus):
+                first = run.record_apps_delta(
+                    "alice",
+                    profile,
+                    "apps.app_installed",
+                    app=app,
+                    app_id="xmapper",
+                    reason="unit_test",
+                    dedupe_key="apps:installed:alice:xmapper",
+                )
+                second = run.record_apps_delta(
+                    "alice",
+                    profile,
+                    "apps.app_installed",
+                    app=app,
+                    app_id="xmapper",
+                    reason="unit_test",
+                    dedupe_key="apps:installed:alice:xmapper",
+                )
+
+            changes = bus.get_changes_since("alice", 0)["changes"]
+            self.assertEqual(first, second)
+            self.assertEqual(len(changes), 1)
+            event = changes[0]
+            self.assertEqual(event["scope"], "apps")
+            self.assertEqual(event["type"], "apps.app_installed")
+            self.assertEqual(event["entity_id"], "xmapper")
+            self.assertEqual(event["payload"]["app_id"], "xmapper")
+            self.assertEqual(event["payload"]["apps"][0]["id"], "xmapper")
+            self.assertEqual(event["payload"]["files"]["tools"], ["xmapper.sh"])
+            self.assertEqual(event["payload"]["reason"], "unit_test")
+        finally:
+            self._cleanup(path)
+
     def test_get_changes_since_requires_recovery_when_limit_exceeded(self):
         path = self._temp_path()
         try:
@@ -2043,13 +2142,30 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         with client.session_transaction() as sess:
             sess["user"] = "neo"
 
-        with patch.object(run, "sync_session_profile", return_value=profile), \
-                patch.object(run, "UserProfileManager", FakeManager), \
-                patch.object(run, "get_app_catalog", return_value=[product]), \
-                patch.object(run, "ensure_purchase_account_profile", return_value={"username": "admin", "hackcoins": 0}), \
-                patch.object(run.user_store, "save_profile", return_value=None), \
-                patch.object(run.mail_store, "add_direct_notification", return_value=None):
-            response = client.post("/install-app", json={"app_id": product["id"]})
+        fd, delta_db_path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            delta_bus = GameStateDeltaBus(db_path=delta_db_path)
+            with patch.object(run, "delta_bus", delta_bus), \
+                    patch.object(run, "sync_session_profile", return_value=profile), \
+                    patch.object(run, "UserProfileManager", FakeManager), \
+                    patch.object(run, "get_app_catalog", return_value=[product]), \
+                    patch.object(run, "ensure_purchase_account_profile", return_value={"username": "admin", "hackcoins": 0}), \
+                    patch.object(run.user_store, "save_profile", return_value=None), \
+                    patch.object(run.mail_store, "add_direct_notification", return_value=None):
+                response = client.post("/install-app", json={"app_id": product["id"]})
+            storage_changes = [
+                event for event in delta_bus.get_changes_since("neo", 0)["changes"]
+                if event["scope"] == "storage"
+            ]
+        finally:
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{delta_db_path}{suffix}"
+                if os.path.exists(candidate):
+                    try:
+                        os.remove(candidate)
+                    except PermissionError:
+                        pass
 
         data = response.get_json()
         self.assertEqual(response.status_code, 200)
@@ -2061,6 +2177,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(profile["product_purchases"][0]["id"], product["id"])
         self.assertEqual(profile["product_purchases"][0]["product_type"], "storage_upgrade")
         self.assertEqual(data["storage"]["added"], product["storage_capacity_bonus"])
+        self.assertIn("storage.capacity_changed", [event["type"] for event in storage_changes])
 
     def test_googleplex_legacy_storage_upgrade_without_effects_increases_capacity(self):
         profile = {
@@ -2381,6 +2498,9 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
             "system_messages": [],
         }
         store = [dict(app)]
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        bus = GameStateDeltaBus(db_path=path)
 
         class FakeManager:
             def __init__(self, username):
@@ -2389,30 +2509,54 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
             def update_profile(self, data):
                 profile.update(data)
 
-        client = run.app.test_client()
-        with client.session_transaction() as sess:
-            sess["user"] = "tester"
-        with patch.object(run, "sync_session_profile", return_value=profile), \
-                patch.object(run, "UserProfileManager", FakeManager), \
-                patch.object(run.resources_store, "get", return_value=store), \
-                patch.object(run.resources_store, "set", side_effect=lambda key, value: store[:] == value), \
-                patch.object(run, "get_app_catalog", return_value=store):
-            install_response = client.post("/install-app", json={"app_id": app["id"]})
-            install_data = install_response.get_json()
-            self.assertEqual(install_response.status_code, 200)
-            self.assertEqual(install_data["status"], "success")
-            self.assertTrue(any(item.get("id") == app["id"] for item in profile["apps"]))
-            self.assertIn(f"{app['name']}.sh", profile["files"]["tools"])
-            uninstall_response = client.post("/api/apps/uninstall", json={
-                "app_id": app["id"],
-                "tool_file": f"{app['name']}.sh",
-            })
+        try:
+            client = run.app.test_client()
+            with client.session_transaction() as sess:
+                sess["user"] = "tester"
+            with patch.object(run, "delta_bus", bus), \
+                    patch.object(run, "sync_session_profile", return_value=profile), \
+                    patch.object(run, "UserProfileManager", FakeManager), \
+                    patch.object(run.resources_store, "get", return_value=store), \
+                    patch.object(run.resources_store, "set", side_effect=lambda key, value: store[:] == value), \
+                    patch.object(run, "get_app_catalog", return_value=store):
+                install_response = client.post("/install-app", json={"app_id": app["id"]})
+                install_data = install_response.get_json()
+                self.assertEqual(install_response.status_code, 200)
+                self.assertEqual(install_data["status"], "success")
+                self.assertTrue(any(item.get("id") == app["id"] for item in profile["apps"]))
+                self.assertIn(f"{app['name']}.sh", profile["files"]["tools"])
+                self.assertTrue(any(item.get("id") == app["id"] for item in install_data["apps"]))
+                self.assertIn(f"{app['name']}.sh", install_data["files"]["tools"])
+                uninstall_response = client.post("/api/apps/uninstall", json={
+                    "app_id": app["id"],
+                    "tool_file": f"{app['name']}.sh",
+                })
 
-        uninstall_data = uninstall_response.get_json()
-        self.assertEqual(uninstall_response.status_code, 200)
-        self.assertEqual(uninstall_data["status"], "success")
-        self.assertFalse(any(item.get("id") == app["id"] for item in uninstall_data["apps"]))
-        self.assertNotIn(f"{app['name']}.sh", uninstall_data["files"]["tools"])
+            uninstall_data = uninstall_response.get_json()
+            self.assertEqual(uninstall_response.status_code, 200)
+            self.assertEqual(uninstall_data["status"], "success")
+            self.assertFalse(any(item.get("id") == app["id"] for item in uninstall_data["apps"]))
+            self.assertNotIn(f"{app['name']}.sh", uninstall_data["files"]["tools"])
+
+            app_events = [
+                item for item in bus.get_changes_since("tester", 0)["changes"]
+                if item["scope"] == "apps"
+            ]
+            self.assertEqual([item["type"] for item in app_events], [
+                "apps.app_installed",
+                "apps.app_uninstalled",
+            ])
+            self.assertEqual(app_events[0]["payload"]["app_id"], app["id"])
+            self.assertIn(f"{app['name']}.sh", app_events[0]["payload"]["files"]["tools"])
+            self.assertNotIn(f"{app['name']}.sh", app_events[1]["payload"]["files"]["tools"])
+        finally:
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{path}{suffix}"
+                if os.path.exists(candidate):
+                    try:
+                        os.remove(candidate)
+                    except PermissionError:
+                        pass
 
     def test_create_operation_for_app_action_adds_runtime_operation(self):
         profile = {"operations": []}

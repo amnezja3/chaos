@@ -9,6 +9,7 @@ let toolbarProfile = null;
 let toolbarTargetFeedbackState = { targetKey: "", dotSignature: "", progress: 0 };
 let desktopSessionActive = true;
 let desktopRenderedApps = [];
+const fileManagerInstances = new Map();
 let desktopLastSafeMode = null;
 let playerHackAccessState = null;
 let playerHackAccessTimer = null;
@@ -3315,9 +3316,6 @@ function showInstallAppProgress(app, onInstalled = null) {
                             storage_over_limit: storage.over_limit === true
                         });
                     }
-                    if (typeof refreshToolbarProfile === "function") {
-                        refreshToolbarProfile();
-                    }
 
                     // Zamykamy okno po 4 sekundach i przeładowujemy "pulpit"
                     setTimeout(async () => {
@@ -3328,15 +3326,14 @@ function showInstallAppProgress(app, onInstalled = null) {
                             await onInstalled(data);
                         }
 
-                        // Odśwież całość przez przeładowanie strony (najprościej)
-                        // location.reload();
-
-                        // Lub lepiej: przebuduj ikony, menedżer plików itd. bez reloadu:
-                        if (typeof refreshDesktop === "function") {
-                            refreshDesktop(false);
-                        } else {
-                            // fallback: przeładuj całość
-                            location.reload();
+                        if (!isProductPurchase && (Array.isArray(data.apps) || data.files)) {
+                            await updateAppsView({
+                                apps: data.apps || [],
+                                files: data.files || {},
+                                app: data.app || null,
+                                app_id: app.id,
+                                reason: "install_response"
+                            });
                         }
                     }, 4000);
                 } else {
@@ -3668,7 +3665,110 @@ function updateWalletBalanceView(balance, currency = "HC") {
     });
 }
 
-function applyDelta(event) {
+function normalizeStorageDeltaPayload(payload = {}) {
+    return {
+        used: Number(payload.used || 0),
+        capacity: Number(payload.capacity || 0),
+        unit: payload.unit || 'MB',
+        overLimit: payload.over_limit === true,
+        softLimit: payload.soft_limit !== false
+    };
+}
+
+function renderStorageMeterInner(summary) {
+    const capacity = Math.max(1, Number(summary.capacity || 1));
+    const used = Math.max(0, Number(summary.used || 0));
+    const percent = Math.max(0, Math.min(100, Math.round((used / capacity) * 100)));
+    const warning = summary.overLimit ? '<span class="file-manager-storage-warning">ponad limit miękki</span>' : '';
+    return `
+        <div class="file-manager-storage-top">
+            <span>Dysk</span>
+            <b data-storage-label>${escapeHTML(formatStorageSize(used, summary.unit))} / ${escapeHTML(formatStorageSize(summary.capacity, summary.unit))}</b>
+        </div>
+        <div class="file-manager-storage-bar"><span data-storage-fill style="width:${percent}%"></span></div>
+        ${warning}
+    `;
+}
+
+function updateStorageView(payload = {}) {
+    const summary = normalizeStorageDeltaPayload(payload);
+    setToolbarProfile({
+        ...(toolbarProfile || {}),
+        storage_capacity: summary.capacity,
+        storage_used: summary.used,
+        storage_unit: summary.unit,
+        storage_over_limit: summary.overLimit,
+        storage_soft_limit: summary.softLimit
+    });
+
+    document.querySelectorAll('.file-manager-storage[data-storage-meter]').forEach(node => {
+        node.dataset.storageUsed = String(summary.used);
+        node.dataset.storageCapacity = String(summary.capacity);
+        node.dataset.storageUnit = summary.unit;
+        node.dataset.storageOverLimit = summary.overLimit ? "1" : "0";
+        node.innerHTML = renderStorageMeterInner(summary);
+    });
+}
+
+async function rebuildDesktopAppsFromProfile(profilePatch = {}) {
+    const baseProfile = {
+        ...(toolbarProfile || {}),
+        ...profilePatch
+    };
+    const jsonApps = Array.isArray(baseProfile.apps) ? baseProfile.apps : [];
+    const generatedIcons = await buildIconsFromJsonWithCommand(jsonApps);
+    const allApps = [...generatedIcons, ...getSystemDesktopApps(baseProfile)];
+    setToolbarLaunchers(allApps, baseProfile);
+    renderDesktopIcons(allApps, desktopSettings);
+    return allApps;
+}
+
+function refreshOpenFileManagersForApps(payload = {}) {
+    const filesPayload = payload.files && typeof payload.files === "object" ? payload.files : {};
+    const tools = Array.isArray(filesPayload.tools) ? filesPayload.tools : null;
+    const apps = Array.isArray(payload.apps) ? payload.apps : null;
+
+    fileManagerInstances.forEach((state, terminalId) => {
+        const container = document.getElementById(`${terminalId}-content`);
+        if (!container) {
+            fileManagerInstances.delete(terminalId);
+            return;
+        }
+        if (tools) state.files.tools = tools;
+        if (apps) {
+            state.apps = apps;
+            state.installedToolAppsByFile.clear();
+            apps.forEach(app => {
+                if (!app || typeof app !== "object") return;
+                const appName = String(app.name || app.id || "").trim();
+                const filename = String(app.file_name || app.project_file || (appName ? `${appName}.sh` : "")).trim();
+                if (filename) state.installedToolAppsByFile.set(filename, app);
+            });
+        }
+        if (state.currentFolder === "tools" && typeof window.openFolderInManager === "function") {
+            window.openFolderInManager(terminalId, "tools");
+        }
+    });
+}
+
+async function updateAppsView(payload = {}) {
+    const filesPayload = payload.files && typeof payload.files === "object" ? payload.files : null;
+    const nextProfile = {
+        ...(toolbarProfile || {})
+    };
+    if (Array.isArray(payload.apps)) nextProfile.apps = payload.apps;
+    if (filesPayload) {
+        nextProfile.files = {
+            ...((toolbarProfile || {}).files || {}),
+            ...filesPayload
+        };
+    }
+    setToolbarProfile(nextProfile);
+    await rebuildDesktopAppsFromProfile(nextProfile);
+    refreshOpenFileManagersForApps(payload);
+}
+
+async function applyDelta(event) {
     if (!event || typeof event !== "object") return false;
     const dedupeKey = event.dedupe_key || `${event.type || 'event'}:${event.version || ''}`;
     if (rememberProcessedDelta(dedupeKey)) return false;
@@ -3678,13 +3778,34 @@ function applyDelta(event) {
         updateWalletBalanceView(payload.balance, payload.currency || "HC");
         return true;
     }
+    if (event.type === "storage.used_changed" || event.type === "storage.capacity_changed" || event.scope === "storage") {
+        updateStorageView(event.payload || {});
+        return true;
+    }
+    if (event.scope === "apps" || String(event.type || "").startsWith("apps.")) {
+        await updateAppsView(event.payload || {});
+        return true;
+    }
     return false;
 }
 
-async function recoverWalletDeltaSnapshot(currentVersion = null) {
+async function recoverDeltaSnapshot(currentVersion = null) {
     const profile = await getUserProfile();
     if (profile) {
         updateWalletBalanceView(profile.hackcoins, "HC");
+        updateStorageView({
+            used: profile.storage_used,
+            capacity: profile.storage_capacity,
+            unit: profile.storage_unit || "MB",
+            over_limit: profile.storage_over_limit === true,
+            soft_limit: profile.storage_soft_limit !== false
+        });
+        await updateAppsView({
+            apps: profile.apps || [],
+            files: {
+                tools: ((profile.files || {}).tools || [])
+            }
+        });
     }
     if (Number.isFinite(Number(currentVersion))) {
         stateDeltaVersion = Math.max(stateDeltaVersion, Number(currentVersion));
@@ -3708,16 +3829,16 @@ async function pollStateChanges() {
         if (!res.ok) return;
         const data = await res.json();
         if (data.recovery_required) {
-            await recoverWalletDeltaSnapshot(data.current_version);
+            await recoverDeltaSnapshot(data.current_version);
             return;
         }
         const changes = Array.isArray(data.changes) ? data.changes : [];
-        changes.forEach(change => {
-            applyDelta(change);
+        for (const change of changes) {
+            await applyDelta(change);
             if (Number.isFinite(Number(change.version))) {
                 stateDeltaVersion = Math.max(stateDeltaVersion, Number(change.version));
             }
-        });
+        }
         if (Number.isFinite(Number(data.current_version))) {
             stateDeltaVersion = Math.max(stateDeltaVersion, Number(data.current_version));
         }
@@ -6161,6 +6282,9 @@ async function createFileManager(options = {}) {
         if (existing._fileManagerObserver && typeof existing._fileManagerObserver.disconnect === "function") {
             existing._fileManagerObserver.disconnect();
         }
+        if (existing.dataset.fileManagerId) {
+            fileManagerInstances.delete(existing.dataset.fileManagerId);
+        }
         existing.remove();
         return createFileManager(options);
     }
@@ -6353,18 +6477,9 @@ async function createFileManager(options = {}) {
         softLimit: profileData.storage_soft_limit !== false
     };
     const storageMeterHTML = () => {
-        const capacity = Math.max(1, storageSummary.capacity || 1);
-        const used = Math.max(0, storageSummary.used || 0);
-        const percent = Math.max(0, Math.min(100, Math.round((used / capacity) * 100)));
-        const warning = storageSummary.overLimit ? '<span class="file-manager-storage-warning">ponad limit miękki</span>' : '';
         return `
-            <div class="file-manager-storage">
-                <div class="file-manager-storage-top">
-                    <span>Dysk</span>
-                    <b>${escapeHTML(formatStorageSize(used, storageSummary.unit))} / ${escapeHTML(formatStorageSize(storageSummary.capacity, storageSummary.unit))}</b>
-                </div>
-                <div class="file-manager-storage-bar"><span style="width:${percent}%"></span></div>
-                ${warning}
+            <div class="file-manager-storage" data-storage-meter data-storage-used="${storageSummary.used}" data-storage-capacity="${storageSummary.capacity}" data-storage-unit="${escapeHTML(storageSummary.unit)}" data-storage-over-limit="${storageSummary.overLimit ? '1' : '0'}">
+                ${renderStorageMeterInner(storageSummary)}
             </div>
         `;
     };
@@ -6374,6 +6489,12 @@ async function createFileManager(options = {}) {
         const appName = String(app.name || app.id || '').trim();
         const filename = String(app.file_name || app.project_file || (appName ? `${appName}.sh` : '')).trim();
         if (filename) installedToolAppsByFile.set(filename, app);
+    });
+    fileManagerInstances.set(terminalId, {
+        files,
+        apps: Array.isArray(profileData.apps) ? profileData.apps : [],
+        installedToolAppsByFile,
+        currentFolder: null
     });
     if (fileManagerContent) {
         fileManagerContent.innerHTML = `
@@ -6400,6 +6521,8 @@ async function createFileManager(options = {}) {
 
     window.openFolderInManager = (id, folderName) => {
         const container = document.getElementById(`${id}-content`);
+        const state = fileManagerInstances.get(id);
+        if (state) state.currentFolder = folderName;
         const fileList = files[folderName] || [];
         const renderedToolAppIds = new Set();
 
@@ -6565,6 +6688,8 @@ async function createFileManager(options = {}) {
 
     window.renderFoldersRoot = (id) => {
         const container = document.getElementById(`${id}-content`);
+        const state = fileManagerInstances.get(id);
+        if (state) state.currentFolder = null;
         container.innerHTML = `
             ${storageMeterHTML()}
             <h3>Katalogi:</h3>
@@ -6847,10 +6972,13 @@ async function createFileManager(options = {}) {
                 fileManagerContent.insertAdjacentHTML('afterbegin', storageMeterHTML());
             }
             window.openFolderInManager(terminalId, "tools");
-            if (typeof refreshDesktop === "function") {
-                await refreshDesktop(false);
+            if (Array.isArray(data.apps) || data.files) {
+                await updateAppsView({
+                    apps: data.apps || [],
+                    files: data.files || {},
+                    reason: "uninstall_response"
+                });
             }
-            await refreshToolbarProfile().catch(() => null);
             addSystemMessage("warning", "Deinstalacja", data.message || `Odinstalowano ${appName}`);
         } catch (err) {
             addSystemMessage("danger", "Deinstalacja", err.message || "Nie uda\u0142o si\u0119 odinstalowa\u0107 aplikacji.");

@@ -5653,3 +5653,120 @@ Pierwsza realna migracja malego elementu UI na delta-feed: saldo HC.
 
 Sprint 61 zamkniety jako pierwsza bezpieczna delta wallet. Snapshot profilu
 pozostaje sciezka recovery.
+
+---
+
+## 07.07.2026
+
+### Etap
+
+Sprint 62 - Storage Delta.
+
+### Cel
+
+Przeniesc podstawowe zmiany storage na delta-feed, zeby File Manager i toolbar
+mogly widziec aktualny stan dysku bez pelnego `/api/profile`.
+
+### Co zostalo wykonane
+
+* Dodano helper `record_storage_delta(...)`.
+* Backend emituje:
+  * `storage.used_changed`,
+  * `storage.capacity_changed`.
+* Eventy storage powstaja po:
+  * finalizacji operacji zapisujacej pliki przez `refresh_and_persist_operations`,
+  * Ghost Exchange auto-sale po zapisaniu profilu,
+  * legacy Ghost Exchange manual sell,
+  * Googleplex storage/product purchase,
+  * instalacji aplikacji,
+  * uninstall aplikacji.
+* Frontend `applyDelta()` obsluguje scope `storage`.
+* Otwarty File Manager aktualizuje pasek dysku bez przebudowy listy plikow.
+* Toolbar profile dostaje aktualne `storage_used`, `storage_capacity`,
+  `storage_unit` i `storage_over_limit`.
+* Snapshot `/api/profile` zostaje sciezka recovery dla rozjazdu delta feed.
+
+### Najwazniejsze decyzje
+
+* Nie migrowano apps.
+* Nie migrowano Ghost Exchange dashboardu.
+* Nie ruszano mapy.
+* `append_runtime_file_if_space()` nie emituje eventu samodzielnie, bo nie zna
+  username ani nie zapisuje profilu. Event powstaje dopiero w sciezce persist.
+* `refresh_market_runtime()` nie emituje eventu podczas symulacji. Event storage
+  powstaje dopiero po endpointowym zapisie profilu.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`,
+  OK.
+* `node --check static/js/terminal.js`,
+  OK.
+* `python -m unittest tests.test_target_persistence.GameStateDeltaBusTest tests.test_target_persistence.StateChangesEndpointTest tests.test_target_persistence.WalletDeltaEndpointTest`,
+  OK.
+* `python -m unittest tests.test_target_persistence.TargetPersistenceHelpersTest.test_googleplex_storage_upgrade_increases_capacity_without_app_or_tool`,
+  OK.
+
+### Status
+
+Sprint 62 zamkniety jako storage delta v0. File Manager aktualizuje pasek dysku z
+delta-feed, a pelny profil pozostaje recovery.
+
+---
+
+## 07.07.2026
+
+### Etap
+
+Sprint 63 - Apps Delta.
+
+### Cel
+
+Aktualizowac stan aplikacji przez delta-feed po install/uninstall/status change,
+bez pelnego odswiezania desktopu z `/api/profile`.
+
+### Co zostalo wykonane
+
+* Dodano helper `record_apps_delta(...)`.
+* Backend obsluguje eventy:
+  * `apps.app_installed`,
+  * `apps.app_uninstalled`,
+  * `apps.status_changed`,
+  * `apps.cooldown_changed`.
+* Eventy aplikacji powstaja po:
+  * instalacji aplikacji z Googleplex,
+  * uninstall aplikacji.
+* Nie znaleziono osobnego runtime status/cooldown aplikacji do podpiecia w tym
+  sprincie. Helper jest gotowy na te typy, ale nie generuje sztucznych eventow.
+* Payload aplikacji niesie aktualne:
+  * `apps`,
+  * `files.tools`.
+* Frontend `applyDelta()` obsluguje scope `apps`.
+* Desktop i menu Start przebudowuja launchery z payloadu delta, bez
+  `refreshDesktop(false)` po install/uninstall.
+* Otwarty File Manager odswieza folder `/tools`, jesli jest aktualnie otwarty.
+* `/api/profile` zostaje sciezka recovery dla rozjazdu delta feed.
+
+### Najwazniejsze decyzje
+
+* `profile.apps` pozostaje zrodlem prawdy.
+* `files.tools` pozostaje zrodlem prawdy dla folderu narzedzi.
+* Delta apps jest powiadomieniem i payloadem do odswiezenia widoku, nie drugim
+  cache aplikacji.
+* Nie migrowano katalogu Googleplex.
+* Nie ruszano mapy.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`,
+  OK.
+* `node --check static/js/terminal.js`,
+  OK.
+* `python -m unittest tests.test_target_persistence.GameStateDeltaBusTest tests.test_target_persistence.TargetPersistenceHelpersTest.test_generated_app_install_tools_uninstall_lifecycle`,
+  OK.
+
+### Status
+
+Sprint 63 zamkniety jako apps delta v0. Install/uninstall aplikacji emituja
+eventy `apps.*`, a desktop, menu Start i File Manager `/tools` moga odswiezyc
+widok bez pelnego `/api/profile`.

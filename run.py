@@ -65,6 +65,102 @@ def record_wallet_balance_delta(username, balance, reason="", entity_id="wallet"
         return None
 
 
+def storage_delta_snapshot(profile):
+    if not isinstance(profile, dict):
+        profile = {}
+    return {
+        "used": profile.get("storage_used"),
+        "capacity": profile.get("storage_capacity"),
+        "unit": profile.get("storage_unit", "MB"),
+        "soft_limit": profile.get("storage_soft_limit") is not False,
+        "over_limit": profile.get("storage_over_limit", False) is True,
+    }
+
+
+def record_storage_delta(username, profile, reason="", previous=None, dedupe_key_prefix=None):
+    current = storage_delta_snapshot(profile)
+    previous = previous if isinstance(previous, dict) else {}
+    reason = str(reason or "storage_changed")
+    dedupe_key_prefix = str(dedupe_key_prefix or f"storage:{username}:{reason}:{utc_now()}")
+    events = []
+
+    def emit(change_type, entity_id, value_key):
+        payload = {
+            **current,
+            "reason": reason,
+        }
+        try:
+            event = delta_bus.record_change(
+                username,
+                "storage",
+                change_type,
+                payload,
+                entity_id=entity_id,
+                dedupe_key=f"{dedupe_key_prefix}:{value_key}:{current.get(value_key)}",
+            )
+            events.append(event)
+        except Exception as exc:
+            print(f"[DELTA] {change_type} failed for {username}: {exc}")
+
+    if previous.get("used") != current.get("used"):
+        emit("storage.used_changed", "storage", "used")
+    if previous.get("capacity") != current.get("capacity"):
+        emit("storage.capacity_changed", "storage", "capacity")
+    return events
+
+
+def apps_delta_snapshot(profile):
+    if not isinstance(profile, dict):
+        profile = {}
+    files = profile.get("files", {})
+    if not isinstance(files, dict):
+        files = {}
+    tools = files.get("tools", [])
+    if not isinstance(tools, list):
+        tools = []
+    return {
+        "apps": normalize_app_contracts(profile.get("apps", [])),
+        "files": {
+            "tools": list(tools),
+        },
+    }
+
+
+def record_apps_delta(username, profile, change_type, app=None, app_id=None, reason="", dedupe_key=None, extra=None):
+    if change_type not in {
+        "apps.app_installed",
+        "apps.app_uninstalled",
+        "apps.status_changed",
+        "apps.cooldown_changed",
+    }:
+        return None
+
+    payload = apps_delta_snapshot(profile)
+    if app is not None:
+        payload["app"] = normalize_app_contract(app)
+    if app_id:
+        payload["app_id"] = str(app_id)
+    if reason:
+        payload["reason"] = str(reason)
+    if isinstance(extra, dict):
+        payload.update(extra)
+
+    entity_id = str(app_id or payload.get("app_id") or "apps")
+    dedupe_key = dedupe_key or f"apps:{change_type}:{username}:{entity_id}:{utc_now()}"
+    try:
+        return delta_bus.record_change(
+            username,
+            "apps",
+            change_type,
+            payload,
+            entity_id=entity_id,
+            dedupe_key=dedupe_key,
+        )
+    except Exception as exc:
+        print(f"[DELTA] {change_type} failed for {username}: {exc}")
+        return None
+
+
 APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
 _GIT_COMMIT_HASH = None
 _GIT_BUILD_TAG = None
@@ -5980,6 +6076,7 @@ def refresh_and_persist_operations(username, profile):
     if not username or not isinstance(profile, dict):
         return profile
 
+    previous_storage = storage_delta_snapshot(profile)
     operations, changed = refresh_operations_runtime(profile, persist_timeouts=True)
     if not changed:
         return profile
@@ -5996,6 +6093,13 @@ def refresh_and_persist_operations(username, profile):
         "storage_soft_limit": True,
         "storage_over_limit": profile.get("storage_over_limit", False),
     })
+    record_storage_delta(
+        username,
+        profile,
+        reason="operation_runtime",
+        previous=previous_storage,
+        dedupe_key_prefix=f"storage:{username}:operation_runtime:{utc_now()}",
+    )
     fresh_profile = user_store.get_profile(username) or profile
     fresh_profile = dict(fresh_profile)
     fresh_profile.pop("password", None)
@@ -10274,6 +10378,7 @@ def api_ghost_exchange():
     username = session["user"]
     profile = user_store.get_profile(username) or sync_session_profile()
     profile = refresh_and_persist_operations(username, profile)
+    previous_storage = storage_delta_snapshot(profile)
     market_runtime = refresh_market_runtime(username, profile)
     if market_runtime.get("changed"):
         UserProfileManager(username).update_profile({
@@ -10287,6 +10392,13 @@ def api_ghost_exchange():
             "storage_soft_limit": True,
             "storage_over_limit": profile.get("storage_over_limit", False),
         })
+        record_storage_delta(
+            username,
+            profile,
+            reason="ghost_exchange_auto_sale",
+            previous=previous_storage,
+            dedupe_key_prefix=f"storage:{username}:ghost_exchange:{market_runtime.get('sales', [{}])[0].get('batch_id') if market_runtime.get('sales') else utc_now()}",
+        )
         for sale in market_runtime.get("sales", []):
             record_wallet_balance_delta(
                 username,
@@ -10360,6 +10472,7 @@ def api_ghost_exchange_sell():
     username = session["user"]
     profile = user_store.get_profile(username) or sync_session_profile()
     profile = refresh_and_persist_operations(username, profile)
+    previous_storage = storage_delta_snapshot(profile)
     sale = sell_ghost_exchange_file(profile, username, file_id)
     if not sale:
         return jsonify({"success": False, "message": "Plik nie jest dostepny do sprzedazy albo zostal juz sprzedany."}), 404
@@ -10406,6 +10519,13 @@ def api_ghost_exchange_sell():
         "storage_soft_limit": True,
         "storage_over_limit": profile.get("storage_over_limit", False),
     })
+    record_storage_delta(
+        username,
+        profile,
+        reason="ghost_exchange_manual_sale",
+        previous=previous_storage,
+        dedupe_key_prefix=f"storage:{username}:ghost_exchange_manual:{file_id}",
+    )
     session["profile"] = profile
 
     return jsonify({
@@ -12453,6 +12573,7 @@ def install_app():
 
         # --- Pobierz i zsynchronizuj aktualny profil ---
         profile = sync_session_profile()
+        previous_storage = storage_delta_snapshot(profile)
         mgr = UserProfileManager(session["user"])
         apps = profile.get("apps", [])
         is_product = is_googleplex_product(app_data)
@@ -12587,6 +12708,13 @@ def install_app():
                 "system_messages": system_messages,
             }
             mgr.update_profile(update_payload)
+            record_storage_delta(
+                buyer_username,
+                profile,
+                reason="googleplex_product_purchase",
+                previous=previous_storage,
+                dedupe_key_prefix=f"storage:{buyer_username}:googleplex_product:{app_id}:{purchase_record.get('purchased_at')}",
+            )
             record_wallet_balance_delta(
                 buyer_username,
                 profile.get("hackcoins", 0),
@@ -12665,6 +12793,22 @@ def install_app():
             "storage_soft_limit": True,
             "storage_over_limit": profile.get("storage_over_limit", False),
         })
+        record_storage_delta(
+            buyer_username,
+            profile,
+            reason="googleplex_app_install",
+            previous=previous_storage,
+            dedupe_key_prefix=f"storage:{buyer_username}:googleplex_app:{app_id}",
+        )
+        record_apps_delta(
+            buyer_username,
+            profile,
+            "apps.app_installed",
+            app=app_data,
+            app_id=app_id,
+            reason="googleplex_app_install",
+            dedupe_key=f"apps:installed:{buyer_username}:{app_id}",
+        )
         record_wallet_balance_delta(
             buyer_username,
             profile.get("hackcoins", 0),
@@ -12707,7 +12851,10 @@ def install_app():
                 "added": app_data.get("disk_usage") or app_data.get("install_size") or app_data.get("file_size") or 0,
                 "soft_limit": True,
                 "over_limit": profile.get("storage_over_limit", False),
-            }
+            },
+            "app": normalize_app_contract(app_data),
+            "apps": profile.get("apps", apps),
+            "files": profile.get("files", {}),
         })
 
     except Exception as e:
@@ -12728,6 +12875,7 @@ def uninstall_app():
     if not profile:
         return jsonify({"status": "error", "message": "Brak danych profilu."}), 404
 
+    previous_storage = storage_delta_snapshot(profile)
     apps = normalize_app_contracts(profile.get("apps", []))
     normalize_files_inventory(profile)
     files = profile.get("files", {})
@@ -12780,6 +12928,23 @@ def uninstall_app():
         "storage_soft_limit": True,
         "storage_over_limit": profile.get("storage_over_limit", False),
     })
+    record_storage_delta(
+        session["user"],
+        profile,
+        reason="app_uninstall",
+        previous=previous_storage,
+        dedupe_key_prefix=f"storage:{session['user']}:app_uninstall:{app_id or tool_file or app_name or utc_now()}",
+    )
+    if removed_app or removed_tool:
+        record_apps_delta(
+            session["user"],
+            profile,
+            "apps.app_uninstalled",
+            app=matched_app,
+            app_id=(matched_app or {}).get("id") or app_id or tool_file or app_name,
+            reason="app_uninstall",
+            dedupe_key=f"apps:uninstalled:{session['user']}:{(matched_app or {}).get('id') or app_id or tool_file or app_name}",
+        )
     session["profile"] = profile
 
     status = "success" if removed_app or removed_tool else "noop"
