@@ -84,6 +84,79 @@
       flex: 0 0 auto;
     }
 
+    .chaos-map-boot-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 15000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at 50% 30%, rgba(25, 255, 115, 0.10), transparent 34%),
+        rgba(0, 0, 0, 0.82);
+      color: #d8ffd8;
+      font-family: monospace;
+      pointer-events: auto;
+    }
+
+    .chaos-map-boot-overlay.is-visible {
+      display: flex;
+    }
+
+    .chaos-map-boot-panel {
+      width: min(560px, calc(100vw - 32px));
+      border: 1px solid rgba(38, 255, 106, 0.78);
+      border-radius: 4px;
+      background: rgba(2, 11, 5, 0.94);
+      box-shadow: 0 0 32px rgba(38, 255, 106, 0.20);
+      padding: 18px;
+    }
+
+    .chaos-map-boot-title {
+      color: #26ff6a;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    .chaos-map-boot-progress {
+      height: 10px;
+      border: 1px solid rgba(38, 255, 106, 0.62);
+      background: rgba(0, 0, 0, 0.62);
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .chaos-map-boot-progress span {
+      display: block;
+      width: var(--map-boot-progress, 0%);
+      height: 100%;
+      background: linear-gradient(90deg, #26ff6a, #b8ff28);
+      box-shadow: 0 0 14px rgba(38, 255, 106, 0.72);
+      transition: width 180ms ease;
+    }
+
+    .chaos-map-boot-step {
+      min-height: 18px;
+      color: #b8ffb8;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .chaos-map-boot-note {
+      margin-top: 10px;
+      color: #7adf90;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .chaos-map-boot-overlay.is-failed .chaos-map-boot-title {
+      color: #ffdd66;
+    }
+
     @keyframes chaos-sync-spin {
       to { transform: rotate(360deg); }
     }
@@ -95,6 +168,14 @@
         max-width: calc(100vw - 16px);
         padding: 6px 9px;
         font-size: 11px;
+      }
+
+      .chaos-map-boot-panel {
+        padding: 14px;
+      }
+
+      .chaos-map-boot-title {
+        font-size: 15px;
       }
     }
 
@@ -723,6 +804,14 @@
   <div style="height: 100%; width: 100%;">
     {{ map_html|safe }}
   </div>
+  <div id="chaos-map-boot-overlay" class="chaos-map-boot-overlay" aria-live="polite">
+    <div class="chaos-map-boot-panel">
+      <div class="chaos-map-boot-title">Ladowanie mapy CHAOS...</div>
+      <div class="chaos-map-boot-progress"><span></span></div>
+      <div class="chaos-map-boot-step">Inicjalizacja mapy...</div>
+      <div class="chaos-map-boot-note">Mapa synchronizuje stan swiata. Akcje beda dostepne po zakonczeniu ladowania.</div>
+    </div>
+  </div>
   <div id="active-operations-panel" class="active-operations-panel is-empty" aria-live="polite"></div>
   <script id="profile-data" type="application/json">
     {{ profile | tojson }}
@@ -751,6 +840,78 @@
         let programmaticMapMove = false;
         window.activeOperationLayers = [];
         window.latestActiveOperations = [];
+        window.mapBootState = window.mapBootState || {
+            loading: false,
+            ready: false,
+            failed: false,
+            loadedScopes: new Set()
+        };
+
+        function normalizeBootLoadedScopes() {
+            if (!(window.mapBootState.loadedScopes instanceof Set)) {
+                window.mapBootState.loadedScopes = new Set(window.mapBootState.loadedScopes || []);
+            }
+            return window.mapBootState.loadedScopes;
+        }
+
+        function mapGameplayBlocked() {
+            return !window.mapBootState || window.mapBootState.ready !== true;
+        }
+
+        function mapBootOverlay() {
+            return document.getElementById('chaos-map-boot-overlay');
+        }
+
+        function updateMapBootOverlay(label = 'Synchronizacja mapy...', progress = 0, failed = false) {
+            const overlay = mapBootOverlay();
+            if (!overlay) return;
+            overlay.classList.toggle('is-failed', Boolean(failed));
+            const fill = overlay.querySelector('.chaos-map-boot-progress span');
+            const step = overlay.querySelector('.chaos-map-boot-step');
+            if (fill) {
+                fill.style.setProperty('--map-boot-progress', `${Math.max(0, Math.min(100, Math.round(progress)))}%`);
+            }
+            if (step) {
+                step.textContent = label || 'Synchronizacja mapy...';
+            }
+        }
+
+        function showMapPreloader(label = 'Inicjalizacja mapy...', progress = 0) {
+            const overlay = mapBootOverlay();
+            if (!overlay) return;
+            overlay.classList.add('is-visible');
+            updateMapBootOverlay(label, progress);
+        }
+
+        function hideMapPreloader() {
+            const overlay = mapBootOverlay();
+            if (!overlay) return;
+            overlay.classList.remove('is-visible', 'is-failed');
+        }
+
+        function disableMapGameplay() {
+            window.mapBootState.loading = true;
+            window.mapBootState.ready = false;
+            document.body.dataset.mapGameplayBlocked = '1';
+        }
+
+        function enableMapGameplay() {
+            window.mapBootState.loading = false;
+            window.mapBootState.ready = true;
+            delete document.body.dataset.mapGameplayBlocked;
+        }
+
+        function notifyMapBootBlocked() {
+            updateMapBootOverlay('Mapa synchronizuje stan swiata. Akcje beda dostepne po zakonczeniu ladowania.', 95);
+            window.updateMapLoadingStatus?.('Mapa synchronizuje stan swiata...');
+        }
+
+        function guardMapGameplayAction() {
+            if (!mapGameplayBlocked()) return false;
+            closeMenus?.();
+            notifyMapBootBlocked();
+            return true;
+        }
 
         function clearZoomReturn() {
             if (zoomReturnTimer) {
@@ -1459,6 +1620,10 @@
             if (e.originalEvent?.preventDefault) {
                 e.originalEvent.preventDefault();
             }
+            if (guardMapGameplayAction()) {
+                consumeMapContextEvent(e);
+                return;
+            }
             console.warn('[map] MAP CONTEXTMENU FIRED', {
                 targetClass: e.originalEvent?.target?.className,
                 containerPoint: e.containerPoint,
@@ -1480,6 +1645,7 @@
         function showContextMenu(x, y, lat, lng, forceMapMenu = false) {
             console.warn('[map-menu] showContextMenu CALLED', { x, y, lat, lng, forceMapMenu });
             console.trace();
+            if (guardMapGameplayAction()) return;
             if (!forceMapMenu && lastContextWasMarker) {
                 lastContextWasMarker = false; // 👈 resetuj
                 return;
@@ -1508,6 +1674,7 @@
 
 
         function showMarkerContextMenu(x, y, obj, iconEmoji, label, source = 'marker') {
+            if (guardMapGameplayAction()) return;
             const menuObj = normalizeMapMenuTarget(obj || {});
             warnSuspiciousAdminMenuRoute('markerContext', menuObj, source);
             const vulnerability = findClanVulnerabilityForTarget(menuObj);
@@ -1597,6 +1764,7 @@
         }
 
         function showHackingMenuForMarker(x, y, obj, iconEmoji, label, source = 'marker') {
+            if (guardMapGameplayAction()) return;
             const menuTarget = normalizeMapMenuTarget(obj || {});
             warnSuspiciousAdminMenuRoute('hackingMenu', menuTarget, source);
             closeMenus();
@@ -1725,6 +1893,7 @@
         // }
 
         function showMenuForHacked(x, y, obj, iconEmoji, label) {
+            if (guardMapGameplayAction()) return;
             const menuObj = normalizeMapMenuTarget(obj || {});
             closeMenus();
             setupGlobalCloseListener();
@@ -1836,6 +2005,7 @@
 
 
         function hackingAction(action, lat, lng, label, icon, source_type = "manual", name = label, generated = false, vulnerability_id = null, target_mode = null, contest_owner_username = null, foreign_area_id = null, target_username = null) {
+            if (guardMapGameplayAction()) return;
             closeMenus();
 
             fetch('/hack-action', {
@@ -2116,6 +2286,7 @@
 
 
         async function markerMenuAction(action, lat, lng, label, icon, sourceType = "manual", name = label, generated = false) {
+            if (guardMapGameplayAction()) return;
             closeMenus();
             await mapAction(action, lat, lng, label, icon, sourceType, name, generated);
 
@@ -2129,6 +2300,7 @@
         
         async function mapAction(action, lat, lng, label = "Oznaczony cel", icon = "🎯", sourceType = "manual", name = label, generated = false) {
             try {
+                if (guardMapGameplayAction()) return;
                 const res = await fetch('/map-action', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2874,15 +3046,90 @@
                 state.visible = false;
             };
 
+            window.bootStep = async function(label, scope, fn, options = {}) {
+                const state = window.mapBootState;
+                const scopes = normalizeBootLoadedScopes();
+                const total = Math.max(1, Number(options.total || 1));
+                const index = Math.max(0, Number(options.index || 0));
+                updateMapBootOverlay(label, Math.round((index / total) * 100));
+                try {
+                    if (typeof fn === 'function') {
+                        const result = await fn();
+                        if (result === false && options.critical) {
+                            throw new Error(`Critical map scope failed: ${scope || label}`);
+                        }
+                    }
+                    if (scope) {
+                        scopes.add(scope);
+                    }
+                    updateMapBootOverlay(label, Math.round(((index + 1) / total) * 100));
+                    return true;
+                } catch (err) {
+                    console.warn('[map boot] step failed', scope || label, err);
+                    if (options.critical) {
+                        state.failed = true;
+                        updateMapBootOverlay(`Blad ladowania: ${label}`, Math.round((index / total) * 100), true);
+                        throw err;
+                    }
+                    return false;
+                }
+            };
+
+            window.startMapSnapshotRefreshTimers = function() {
+                window.stopMapRefreshTimers();
+                window.mapRefreshTimers.push(setInterval(window.refreshPlayerActors, MAP_PLAYER_ACTORS_SNAPSHOT_INTERVAL_MS));
+                window.mapRefreshTimers.push(setInterval(window.refreshPlayerAreas, MAP_PLAYER_AREAS_SNAPSHOT_INTERVAL_MS));
+                window.mapRefreshTimers.push(setInterval(window.refreshClanVulnerabilities, MAP_CLAN_VULNERABILITIES_SNAPSHOT_INTERVAL_MS));
+                window.mapRefreshTimers.push(setInterval(window.refreshActiveOperations, MAP_ACTIVE_OPERATIONS_SNAPSHOT_INTERVAL_MS));
+            };
+
+            window.bootMapOptionalScopes = function() {
+                Promise.allSettled([
+                    window.bootStep('Podatnosci klanow', 'clan_vulnerabilities', window.refreshClanVulnerabilities, { total: 1, index: 0 }),
+                    window.bootStep('Aktywne operacje', 'active_operations', window.refreshActiveOperations, { total: 1, index: 0 }),
+                    window.bootStep('Gracze na mapie', 'player_actors', window.refreshPlayerActors, { total: 1, index: 0 })
+                ]).then(() => {
+                    normalizeBootLoadedScopes().add('delta_feed_ready');
+                });
+            };
+
+            window.bootMapInitialState = async function() {
+                if (window.mapBootState.ready || window.mapBootState.loading) return;
+                window.mapBootState.failed = false;
+                normalizeBootLoadedScopes().clear();
+                disableMapGameplay();
+                showMapPreloader('Inicjalizacja mapy...', 0);
+                const criticalTotal = 5;
+                try {
+                    await window.bootStep('Inicjalizacja mapy', 'base_map', null, { critical: true, total: criticalTotal, index: 0 });
+                    await window.bootStep('Pozycja gracza', 'player_position', null, { critical: true, total: criticalTotal, index: 1 });
+                    await window.bootStep('Oznaczone cele', 'target_snapshot', null, { critical: true, total: criticalTotal, index: 2 });
+                    scheduleLegacyPlayerAreaCleanup();
+                    await window.bootStep('Terytoria graczy', 'player_areas', window.refreshPlayerAreas, { critical: true, total: criticalTotal, index: 3 });
+                    normalizeBootLoadedScopes().add('captured_targets');
+                    await window.bootStep('Przejete cele', 'captured_targets', null, { critical: true, total: criticalTotal, index: 4 });
+                    enableMapGameplay();
+                    updateMapBootOverlay('Mapa gotowa.', 100);
+                    setTimeout(hideMapPreloader, 220);
+                    window.startMapSnapshotRefreshTimers();
+                    window.bootMapOptionalScopes();
+                } catch (err) {
+                    window.mapBootState.loading = false;
+                    window.mapBootState.ready = false;
+                    document.body.dataset.mapGameplayBlocked = '1';
+                    console.warn('[map boot] critical boot failed', err);
+                }
+            };
+
             window.refreshActiveOperations = async function() {
                 const loadingToken = window.beginMapLoading('Aktualizacja operacji...');
                 try {
                     const res = await fetch('/api/operations?summary=1');
                     if (res.status === 401) {
                         stopMapRefreshTimers();
-                        return;
+                        return false;
                     }
-                    if (!res.ok) return;
+                    if (!res.ok) return false;
                     const data = await res.json();
                     const active = data.active_operations || [];
                     const keepCenter = map.getCenter();
@@ -2897,8 +3144,10 @@
                     setTimeout(() => {
                         programmaticMapMove = false;
                     }, 0);
+                    return true;
                 } catch (err) {
                     console.warn('Active operations refresh failed', err);
+                    return false;
                 } finally {
                     window.endMapLoading(loadingToken);
                 }
@@ -3456,9 +3705,9 @@
                     const res = await fetch('/api/map/player-actors');
                     if (res.status === 401) {
                         stopMapRefreshTimers();
-                        return;
+                        return false;
                     }
-                    if (!res.ok) return;
+                    if (!res.ok) return false;
                     const data = await res.json();
                     const keepCenter = map.getCenter();
                     const keepZoom = map.getZoom();
@@ -3470,8 +3719,10 @@
                     setTimeout(() => {
                         programmaticMapMove = false;
                     }, 0);
+                    return true;
                 } catch (err) {
                     console.warn('Player actor refresh failed', err);
+                    return false;
                 } finally {
                     window.endMapLoading(loadingToken);
                 }
@@ -3562,9 +3813,9 @@
                     const res = await fetch('/api/map/clan-vulnerabilities');
                     if (res.status === 401) {
                         stopMapRefreshTimers();
-                        return;
+                        return false;
                     }
-                    if (!res.ok) return;
+                    if (!res.ok) return false;
                     const data = await res.json();
                     const keepCenter = map.getCenter();
                     const keepZoom = map.getZoom();
@@ -3630,8 +3881,10 @@
                     setTimeout(() => {
                         programmaticMapMove = false;
                     }, 0);
+                    return true;
                 } catch (err) {
                     console.warn('Clan vulnerabilities refresh failed', err);
+                    return false;
                 }
             };
 
@@ -3642,11 +3895,11 @@
                     const res = await fetch('/api/map/player-areas');
                     if (res.status === 401) {
                         stopMapRefreshTimers();
-                        return;
+                        return false;
                     }
-                    if (!res.ok) return;
+                    if (!res.ok) return false;
                     const data = await res.json();
-                    if (refreshSeq !== window.playerAreaRefreshSeq) return;
+                    if (refreshSeq !== window.playerAreaRefreshSeq) return false;
                     const keepCenter = map.getCenter();
                     const keepZoom = map.getZoom();
 
@@ -3804,8 +4057,10 @@
                     setTimeout(() => {
                         programmaticMapMove = false;
                     }, 0);
+                    return true;
                 } catch (err) {
                     console.warn('Player area refresh failed', err);
+                    return false;
                 } finally {
                     window.endMapLoading(loadingToken);
                 }
@@ -3815,17 +4070,6 @@
             const MAP_PLAYER_AREAS_SNAPSHOT_INTERVAL_MS = 10000;
             const MAP_CLAN_VULNERABILITIES_SNAPSHOT_INTERVAL_MS = 10000;
             const MAP_ACTIVE_OPERATIONS_SNAPSHOT_INTERVAL_MS = 10000;
-
-            window.refreshPlayerActors();
-            scheduleLegacyPlayerAreaCleanup();
-            window.refreshPlayerAreas();
-            window.refreshClanVulnerabilities();
-            window.refreshActiveOperations();
-            window.stopMapRefreshTimers();
-            window.mapRefreshTimers.push(setInterval(window.refreshPlayerActors, MAP_PLAYER_ACTORS_SNAPSHOT_INTERVAL_MS));
-            window.mapRefreshTimers.push(setInterval(window.refreshPlayerAreas, MAP_PLAYER_AREAS_SNAPSHOT_INTERVAL_MS));
-            window.mapRefreshTimers.push(setInterval(window.refreshClanVulnerabilities, MAP_CLAN_VULNERABILITIES_SNAPSHOT_INTERVAL_MS));
-            window.mapRefreshTimers.push(setInterval(window.refreshActiveOperations, MAP_ACTIVE_OPERATIONS_SNAPSHOT_INTERVAL_MS));
         }
 
 
@@ -3897,6 +4141,12 @@
         });
     });
 
+
+
+
+    if (typeof window.bootMapInitialState === 'function') {
+        window.bootMapInitialState();
+    }
 
 
 

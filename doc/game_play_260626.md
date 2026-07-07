@@ -5492,6 +5492,182 @@ delta-feed.
 * Stare endpointy nie zostaly przypadkiem usuniete.
 * Dokumentacja zgadza sie z runtime.
 
+---
+
+# Sprint 71 - Map Initial Load Gate
+
+## Cel gameplayowy
+
+Dodac jawna bramke pierwszego ladowania mapy, zanim gracz zacznie klikac cele i
+odpalac akcje.
+
+Sprint 71 nie przyspiesza jeszcze samej mapy. Jego celem jest kontrolowane
+wejscie na mape: gracz nie powinien grac na niepelnym stanie swiata.
+
+## Glowna zasada
+
+Mapa nie jest gotowa, dopoki krytyczne warstwy nie zglosza `loaded`.
+
+Leaflet widoczny na ekranie nie oznacza jeszcze gotowej mapy gameplayowej.
+Mapa jest gotowa dopiero wtedy, gdy zaladowaly sie warstwy potrzebne do
+poprawnej gry.
+
+Preloader mapy nie jest ozdoba. Jest czescia kontraktu runtime: dopoki critical
+map scopes nie sa `loaded`, interakcje gameplayowe mapy sa zablokowane.
+
+## UX
+
+Przy pierwszym wejsciu na mape pokazac overlay:
+
+```text
+Ladowanie mapy CHAOS...
+
+[████████░░░░░░] 58%
+
+Ladowanie terytoriow graczy...
+```
+
+Overlay ma jasno komunikowac, ze mapa sklada ciezki stan swiata, a nie zawiesila
+sie.
+
+Podczas bootu akcje mapowe sa zablokowane komunikatem:
+
+```text
+Mapa synchronizuje stan swiata.
+Akcje beda dostepne po zakonczeniu ladowania.
+```
+
+## Architektura
+
+Dodac stan bootu mapy po stronie map template:
+
+```javascript
+const mapBootState = {
+  loading: false,
+  ready: false,
+  failed: false,
+  loadedScopes: new Set()
+};
+```
+
+Boot ma miec jawne kroki, np.:
+
+```javascript
+async function bootMapInitialState() {
+  showMapPreloader();
+  disableMapGameplay();
+
+  await bootStep("Pozycja gracza", refreshOwnPlayerPosition);
+  await bootStep("Oznaczone cele", refreshMapTargetSnapshot);
+  await bootStep("Terytoria graczy", refreshPlayerAreas);
+  await bootStep("Podatnosci klanow", refreshClanVulnerabilities);
+  await bootStep("Aktywne operacje", refreshActiveOperations);
+  await bootStep("Gracze na mapie", refreshPlayerActors);
+
+  enableMapGameplay();
+  hideMapPreloader();
+}
+```
+
+Implementacja moze ladowac czesc krokow sekwencyjnie albo kontrolowana paczka,
+ale stan bootu musi byc jawny.
+
+## Critical scopes
+
+Critical scopes blokuja interakcje gameplayowe mapy:
+
+* mapa bazowa,
+* pozycja gracza,
+* target snapshot,
+* terytoria graczy,
+* przejete cele.
+
+## Optional scopes
+
+Optional scopes moga dosynchronizowac sie po zdjeciu glownej bramki:
+
+* gracze online,
+* podatnosci klanow,
+* aktywne operacje,
+* live delta status.
+
+Optional scope nie powinien blokowac calej mapy, jesli ma chwilowy blad.
+
+## Systemy
+
+* `templates/map_template.html`,
+* Leaflet map runtime,
+* `refreshPlayerAreas()`,
+* `refreshPlayerActors()`,
+* `refreshClanVulnerabilities()`,
+* `refreshActiveOperations()`,
+* target registry / target snapshot,
+* map delta recovery.
+
+## Flow danych
+
+```text
+open map
+↓
+show map preloader
+↓
+load critical scopes
+↓
+block map gameplay actions
+↓
+critical scopes loaded
+↓
+enable map gameplay
+↓
+load optional scopes / start pollers / delta-feed
+```
+
+## Frontend
+
+1. Dodac overlay pierwszego ladowania mapy.
+2. Dodac `mapBootState`.
+3. Dodac helper `bootStep(label, fn, options)`.
+4. Dodac `disableMapGameplay()` i `enableMapGameplay()`.
+5. W czasie bootu blokowac:
+   * context menu akcji,
+   * hack actions,
+   * territory/capture actions,
+   * akcje zalezne od target/area layers.
+6. Po critical boot wlaczyc gameplay.
+7. Optional scopes moga pokazywac status "dosynchronizowanie".
+8. Przy recovery mapy mozna pokazac krotki overlay synchronizacji.
+9. Nie robic globalnego reloadu strony.
+
+## Backend
+
+Bez nowego backendu.
+
+Sprint 71 korzysta z istniejacych endpointow snapshot/recovery i istniejacych
+funkcji map template.
+
+## Testy
+
+* Preloader pojawia sie przy pierwszym wejsciu na mape.
+* Preloader pokazuje aktualny scope.
+* `mapBootState.ready` jest `false` przed critical boot.
+* Akcje mapowe sa zablokowane przed critical boot.
+* Terytoria sa widoczne przed rozpoczeciem gry na mapie.
+* Przejete cele sa widoczne przed rozpoczeciem gry na mapie.
+* Optional scope failure nie blokuje calej mapy.
+* Recovery mapy moze pokazac krotki overlay synchronizacji.
+* Brak globalnego reloadu strony.
+
+## Kryteria akceptacji
+
+* Przy pierwszym wejsciu na mape pojawia sie preloader.
+* Preloader pokazuje aktualnie ladowany scope.
+* Mapa nie pozwala klikac akcji przed zakonczeniem critical boot.
+* Terytoria sa widoczne przed rozpoczeciem gry na mapie.
+* Przejete cele sa widoczne przed rozpoczeciem gry na mapie.
+* Gracze/podatnosci/operacje moga doladowac sie jako optional.
+* Po recovery mapy mozna ponownie pokazac krotki overlay synchronizacji.
+* Nie ma globalnego reloadu strony jako normalnej sciezki bootu.
+
 Decision:
 
 * Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.

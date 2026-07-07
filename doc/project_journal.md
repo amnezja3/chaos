@@ -6334,3 +6334,129 @@ refreshy i ukrytego legacy.
 Sprint 70 zamyka audyt integralnosci refactoru delta-feed. Wykryte niespojnosci
 zostaly naprawione minimalnie, bez dodawania nowych endpointow i bez usuwania
 snapshotow.
+
+---
+
+## 07.07.2026
+
+### Etap
+
+Plan Sprintu 71 - Map Initial Load Gate.
+
+### Cel
+
+Przygotowac kolejny sprint mapowy jako bramke pierwszego ladowania mapy.
+
+Sprint 71 nie ma jeszcze przyspieszac mapy. Ma zagwarantowac, ze gracz nie
+zaczyna gry na niepelnym stanie swiata.
+
+### Najwazniejsza decyzja
+
+Mapa nie jest gotowa, dopoki krytyczne warstwy nie zglosza `loaded`.
+
+Leaflet widoczny na ekranie nie oznacza gotowej mapy gameplayowej.
+
+### Critical scopes
+
+Critical scopes blokuja interakcje mapowe:
+
+* mapa bazowa,
+* pozycja gracza,
+* target snapshot,
+* terytoria graczy,
+* przejete cele.
+
+### Optional scopes
+
+Optional scopes moga dosynchronizowac sie po zdjeciu glownej bramki:
+
+* gracze online,
+* podatnosci klanow,
+* aktywne operacje,
+* live delta status.
+
+### Zasada UX/runtime
+
+Preloader mapy nie jest ozdoba. Jest czescia kontraktu runtime. Dopoki critical
+map scopes nie sa `loaded`, interakcje gameplayowe mapy sa zablokowane.
+
+### Status
+
+Sprint 71 zostal rozpisany w `doc/game_play_260626.md`. Implementacja jeszcze
+nie zostala rozpoczeta.
+
+---
+
+## 07.07.2026
+
+### Etap
+
+Sprint 71 - Map Initial Load Gate.
+
+### Cel
+
+Dodac jawna bramke pierwszego ladowania mapy, zeby gracz nie mogl odpalac
+akcji mapowych na niepelnym stanie swiata.
+
+### Co zostalo wykonane
+
+* Dodano overlay `chaos-map-boot-overlay`.
+* Dodano `window.mapBootState`:
+  * `loading`,
+  * `ready`,
+  * `failed`,
+  * `loadedScopes`.
+* Dodano helpery bootu:
+  * `showMapPreloader(...)`,
+  * `hideMapPreloader()`,
+  * `disableMapGameplay()`,
+  * `enableMapGameplay()`,
+  * `bootStep(...)`,
+  * `bootMapInitialState()`.
+* Przeniesiono pierwszy start refreshy mapy za critical boot.
+* Timery snapshotow startuja dopiero po zakonczeniu critical boot.
+* Critical boot obejmuje:
+  * inicjalizacje mapy,
+  * pozycje gracza,
+  * target snapshot,
+  * terytoria graczy,
+  * przejete cele.
+* Optional scopes laduja sie po zdjeciu glownej bramki:
+  * podatnosci klanow,
+  * aktywne operacje,
+  * gracze na mapie.
+* Zablokowano akcje mapowe przed `mapBootState.ready=true`:
+  * context menu mapy,
+  * menu markerow,
+  * menu hackowania,
+  * `hackingAction(...)`,
+  * `mapAction(...)`,
+  * `markerMenuAction(...)`.
+* Funkcje refresh mapy zwracaja teraz `true/false`, aby boot mogl rozpoznac
+  realnie zaladowany critical scope.
+
+### Najwazniejsza decyzja
+
+Preloader mapy jest czescia kontraktu runtime, nie ozdoba. Dopoki critical map
+scopes nie sa zaladowane, interakcje gameplayowe mapy pozostaja zablokowane.
+
+### Ograniczenia
+
+* Sprint 71 nie przyspiesza jeszcze endpointow mapy.
+* Target snapshot na pierwszym bootcie korzysta z pierwszego renderu HTML/Folium
+  i target registry, bez nowego backendu.
+* Optional scopes moga dosynchronizowac sie chwile pozniej.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`,
+  OK.
+* `python -c "from run import app; c=app.test_client(); c.post('/', data={'username':'admin','password':'1234'}); r=c.get('/map'); print(r.status_code); print(len(r.get_data()))"`,
+  OK, `/map` zwrocilo `200`.
+* `git diff --check`,
+  OK.
+
+### Status
+
+Sprint 71 zaimplementowany. Mapa ma teraz critical boot gate i blokade akcji do
+czasu zaladowania krytycznych scope'ow.
