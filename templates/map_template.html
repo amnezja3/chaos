@@ -804,7 +804,7 @@
   <div style="height: 100%; width: 100%;">
     {{ map_html|safe }}
   </div>
-  <div id="chaos-map-boot-overlay" class="chaos-map-boot-overlay" aria-live="polite">
+  <div id="chaos-map-boot-overlay" class="chaos-map-boot-overlay is-visible" aria-live="polite">
     <div class="chaos-map-boot-panel">
       <div class="chaos-map-boot-title">Ladowanie mapy CHAOS...</div>
       <div class="chaos-map-boot-progress"><span></span></div>
@@ -3049,9 +3049,12 @@
             window.bootStep = async function(label, scope, fn, options = {}) {
                 const state = window.mapBootState;
                 const scopes = normalizeBootLoadedScopes();
+                const silent = Boolean(options.silent);
                 const total = Math.max(1, Number(options.total || 1));
                 const index = Math.max(0, Number(options.index || 0));
-                updateMapBootOverlay(label, Math.round((index / total) * 100));
+                if (!silent) {
+                    updateMapBootOverlay(label, Math.round((index / total) * 100));
+                }
                 try {
                     if (typeof fn === 'function') {
                         const result = await fn();
@@ -3062,7 +3065,9 @@
                     if (scope) {
                         scopes.add(scope);
                     }
-                    updateMapBootOverlay(label, Math.round(((index + 1) / total) * 100));
+                    if (!silent) {
+                        updateMapBootOverlay(label, Math.round(((index + 1) / total) * 100));
+                    }
                     return true;
                 } catch (err) {
                     console.warn('[map boot] step failed', scope || label, err);
@@ -3085,9 +3090,9 @@
 
             window.bootMapOptionalScopes = function() {
                 Promise.allSettled([
-                    window.bootStep('Podatnosci klanow', 'clan_vulnerabilities', window.refreshClanVulnerabilities, { total: 1, index: 0 }),
-                    window.bootStep('Aktywne operacje', 'active_operations', window.refreshActiveOperations, { total: 1, index: 0 }),
-                    window.bootStep('Gracze na mapie', 'player_actors', window.refreshPlayerActors, { total: 1, index: 0 })
+                    window.bootStep('Podatnosci klanow', 'clan_vulnerabilities', window.refreshClanVulnerabilities, { total: 1, index: 0, silent: true }),
+                    window.bootStep('Aktywne operacje', 'active_operations', window.refreshActiveOperations, { total: 1, index: 0, silent: true }),
+                    window.bootStep('Gracze na mapie', 'player_actors', window.refreshPlayerActors, { total: 1, index: 0, silent: true })
                 ]).then(() => {
                     normalizeBootLoadedScopes().add('delta_feed_ready');
                 });
