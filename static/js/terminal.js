@@ -3000,9 +3000,6 @@ function createBrowser() {
                         hackcoins: walletBalance
                     });
                 }
-                if (typeof refreshToolbarProfile === "function") {
-                    await refreshToolbarProfile().catch(() => null);
-                }
             }
             renderExchange();
         } catch (err) {
@@ -3054,9 +3051,6 @@ function createBrowser() {
                     ...(toolbarProfile || {}),
                     hackcoins: walletBalance
                 });
-            }
-            if (typeof refreshToolbarProfile === "function") {
-                await refreshToolbarProfile().catch(() => null);
             }
             addSystemMessage("success", "Ghost Exchange", data.message || "Pakiet danych sprzedany.");
             renderExchange();
@@ -3273,9 +3267,7 @@ async function submitWalletTransfer(container = document.querySelector('.termina
         container.querySelector('[data-wallet-balance]').textContent = `Saldo: ${Number(data.balance || 0)} ${data.currency || 'HC'}`;
         renderWalletHistory(container, data.transactions || (data.transaction ? [data.transaction] : []));
         setWalletMessage(container, "success", "Przelew wykonany.");
-        if (typeof refreshToolbarProfile === "function") {
-            refreshToolbarProfile();
-        }
+        updateWalletBalanceView(data.balance, data.currency || "HC");
     } catch (err) {
         console.warn('Wallet transfer failed', err);
         setWalletMessage(container, "error", "Brak polaczenia z portfelem.");
@@ -3951,7 +3943,7 @@ async function recoverGhostExchangeDeltaScope() {
     return data;
 }
 
-async function recoverMapPlayerActorsDeltaScope() {
+async function recoverMapDeltaScope() {
     let recovered = false;
     document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
         try {
@@ -3959,7 +3951,6 @@ async function recoverMapPlayerActorsDeltaScope() {
             if (mapWindow && typeof mapWindow.refreshMapTargetSnapshot === "function") {
                 mapWindow.refreshMapTargetSnapshot();
                 recovered = true;
-                return;
             }
             if (mapWindow && typeof mapWindow.refreshPlayerActors === "function") {
                 mapWindow.refreshPlayerActors();
@@ -3998,8 +3989,8 @@ async function recoverDeltaScopes(recoveryScopes = [], currentVersion = null) {
         }));
     }
     if (scopes.has("map")) {
-        recoveryTasks.push(recoverMapPlayerActorsDeltaScope().catch(err => {
-            console.warn("Map player actors delta recovery failed", err);
+        recoveryTasks.push(recoverMapDeltaScope().catch(err => {
+            console.warn("Map delta recovery failed", err);
             return null;
         }));
     }

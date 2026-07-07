@@ -6241,3 +6241,96 @@ Zmiana dotyczy tylko:
 
 Sprint 69 zamkniety jako poller thinning v0. Liczba cyklicznych requestow spada
 w obszarach objetych delta-feed, a snapshoty zostaja jako start/recovery.
+
+---
+
+## 07.07.2026
+
+### Etap
+
+Sprint 70 - Delta Refactor Integrity Audit.
+
+### Cel
+
+Przejsc jeszcze raz miejsca zmienione w Fazie G i potwierdzic, ze delta-feed,
+recovery, snapshoty oraz stare pollery sa spojne, bez protez, podwojnych
+refreshy i ukrytego legacy.
+
+### Co zostalo sprawdzone
+
+* Helpery:
+  * `record_wallet_balance_delta(...)`,
+  * `record_storage_delta(...)`,
+  * `record_apps_delta(...)`,
+  * `record_mail_delta(...)`,
+  * `record_ghost_exchange_delta(...)`,
+  * `record_map_player_actor_delta(...)`,
+  * `record_map_target_delta(...)`.
+* Kontrakt eventow:
+  * `scope`,
+  * `type`,
+  * `entity_id`,
+  * `dedupe_key`,
+  * `payload`,
+  * `created_at`.
+* Frontend:
+  * `applyDelta()`,
+  * `processedDeltaKeys`,
+  * recovery per scope,
+  * update wallet/storage/apps/mail/GX/map actors/map targets.
+* Snapshoty:
+  * `/api/profile`,
+  * `/api/mail/bootstrap`,
+  * `/api/ghost-exchange`,
+  * `/api/map/player-actors`.
+* Dokumentacja Fazy G.
+
+### Poprawki runtime
+
+* Poprawiono recovery mapy:
+  * bylo `recoverMapPlayerActorsDeltaScope()`,
+  * jest `recoverMapDeltaScope()`.
+* Recovery scope `map` probuje teraz odswiezyc:
+  * target snapshot,
+  * player actors snapshot.
+* Usunieto zbedne pelne refreshy `/api/profile` z:
+  * `loadExchange()` po otrzymaniu `balance`,
+  * legacy `sellGhostExchangeFile(...)` po otrzymaniu `balance`,
+  * wallet transfer po otrzymaniu `balance`.
+* Wallet transfer aktualizuje teraz saldo przez `updateWalletBalanceView(...)`.
+
+### Wynik audytu
+
+* Delta bus pozostaje dziennikiem zmian, nie drugim magazynem stanu.
+* Eventy maja spojny kontrakt.
+* `applyDelta()` aktualizuje punktowo.
+* Recovery jest per scope.
+* Snapshot endpointy nadal istnieja.
+* Stare ciezkie pollery nie zostaly usuniete bez replacement.
+* Dodano raport `doc/delta_refactor_integrity_audit.md`.
+
+### Ograniczenia
+
+* `refreshMapTargetSnapshot()` nadal jest snapshotem iframe mapy jako recovery,
+  nie lekkim dedykowanym endpointem targetow.
+* `map player areas`, `clan vulnerabilities` i `operations summary` nadal sa
+  poza delta replacement.
+* Czesc akcji narzedzi/operacji nadal moze korzystac z pelnego profilu, bo nie
+  zostala jeszcze objeta migracja delta-feed.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`,
+  OK.
+* `node --check static/js/terminal.js`,
+  OK.
+* `python -m unittest tests.test_target_persistence.GameStateDeltaBusTest tests.test_target_persistence.StateChangesEndpointTest tests.test_target_persistence.WalletDeltaEndpointTest tests.test_target_persistence.DeltaDiagnosticsEndpointTest`,
+  OK, 20 testow.
+* `git diff --check`,
+  OK.
+
+### Status
+
+Sprint 70 zamyka audyt integralnosci refactoru delta-feed. Wykryte niespojnosci
+zostaly naprawione minimalnie, bez dodawania nowych endpointow i bez usuwania
+snapshotow.

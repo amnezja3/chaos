@@ -5456,6 +5456,42 @@ bezpiecznie z delta-feed/recovery.
 * Nie ma globalnego reloadu jako normalnej sciezki odswiezania.
 * Istnieje raport przed/po pokazujacy realny zysk albo brak zysku.
 
+---
+
+# Sprint 70 - Delta Refactor Integrity Audit
+
+## Cel gameplayowy
+
+Przejsc jeszcze raz wszystkie miejsca zmienione w Fazie G i potwierdzic, ze
+delta-feed, recovery, snapshoty i stare pollery sa spojne.
+
+Sprint 70 nie dodaje nowych funkcji. To audyt integralnosci po migracji
+wallet/storage/apps/mail/Ghost Exchange/player actors/target registry na
+delta-feed.
+
+## Zakres
+
+1. Przejrzec wszystkie helpery `record_*_delta`.
+2. Przejrzec wszystkie `event type`.
+3. Przejrzec `applyDelta()`.
+4. Sprawdzic recovery per scope.
+5. Sprawdzic, czy `/api/profile` nie jest wolane po akcji, ktora ma juz delte.
+6. Sprawdzic, czy snapshoty sa tylko start/recovery.
+7. Sprawdzic, czy nie ma podwojnych aktualizacji UI.
+8. Sprawdzic, czy stare pollery nie dubluja delta-feed.
+9. Sprawdzic testy wallet/storage/apps/mail/GX/map actors/targets.
+10. Porownac dokumentacje z kodem.
+
+## Kryteria akceptacji
+
+* Nie ma ukrytych pelnych refreshy po akcjach objetych deltami.
+* Eventy maja spojne `scope`, `type`, `entity_id`, `dedupe_key`.
+* `applyDelta()` nie robi pelnych rerenderow bez potrzeby.
+* Recovery dziala per scope.
+* Snapshot endpointy nadal dzialaja.
+* Stare endpointy nie zostaly przypadkiem usuniete.
+* Dokumentacja zgadza sie z runtime.
+
 Decision:
 
 * Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.
