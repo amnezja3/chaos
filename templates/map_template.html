@@ -913,6 +913,12 @@
             return true;
         }
 
+        function waitForMapBootPaint() {
+            return new Promise(resolve => {
+                requestAnimationFrame(() => requestAnimationFrame(resolve));
+            });
+        }
+
         function clearZoomReturn() {
             if (zoomReturnTimer) {
                 clearTimeout(zoomReturnTimer);
@@ -3054,6 +3060,7 @@
                 const index = Math.max(0, Number(options.index || 0));
                 if (!silent) {
                     updateMapBootOverlay(label, Math.round((index / total) * 100));
+                    await waitForMapBootPaint();
                 }
                 try {
                     if (typeof fn === 'function') {
@@ -3067,6 +3074,7 @@
                     }
                     if (!silent) {
                         updateMapBootOverlay(label, Math.round(((index + 1) / total) * 100));
+                        await waitForMapBootPaint();
                     }
                     return true;
                 } catch (err) {
@@ -3104,6 +3112,7 @@
                 normalizeBootLoadedScopes().clear();
                 disableMapGameplay();
                 showMapPreloader('Inicjalizacja mapy...', 0);
+                await waitForMapBootPaint();
                 const criticalTotal = 5;
                 try {
                     await window.bootStep('Inicjalizacja mapy', 'base_map', null, { critical: true, total: criticalTotal, index: 0 });
