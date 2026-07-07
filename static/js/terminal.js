@@ -2455,7 +2455,11 @@ function normalizeButtonChoiceOption(option, index = 0) {
 }
 
 function createMap() {
-    if (document.querySelector(`.terminal[data-app="map"]`)) return;
+    const existing = document.querySelector(`.terminal[data-app="map"]`);
+    if (existing) {
+        bringWindowToFront(existing);
+        return;
+    }
     const term = document.createElement('div');
     term.className = 'terminal map-window';
     term.dataset.app = "map";
@@ -2470,10 +2474,28 @@ function createMap() {
             Mapa
             <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
-        <iframe src="/map" width="100%" height="100%" style="border:none;"></iframe>
+        <div class="map-frame-host">
+            <div class="map-window-loader" role="status" aria-live="polite">
+                <div class="map-window-loader__title">Ladowanie mapy CHAOS...</div>
+                <div class="map-window-loader__bar"><span></span></div>
+                <div class="map-window-loader__text">Pobieranie snapshotu swiata...</div>
+            </div>
+            <iframe class="map-frame" title="Mapa CHAOS" width="100%" height="100%" style="border:none;"></iframe>
+        </div>
     `;
 
     document.body.appendChild(term);
+    const frame = term.querySelector('iframe');
+    frame?.addEventListener('load', () => {
+        term.classList.add('map-frame-loaded');
+    }, { once: true });
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            if (frame && term.isConnected && !frame.src) {
+                frame.src = "/map";
+            }
+        });
+    });
     makeDraggable(term);
     term.querySelector('.close-btn')?.addEventListener('click', () => term.remove());
 }
