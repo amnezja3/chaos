@@ -39,8 +39,28 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         return `${channelPath(channelId)}/${encodeURIComponent(String(fileName || ""))}`;
     }
 
+    function radioManifestUrl(channelId) {
+        return `/api/radio/channel/${encodeURIComponent(String(channelId || state.defaultChannel))}`;
+    }
+
     function currentTrack() {
         return state.playlist[state.currentIndex] || null;
+    }
+
+    function shuffleTracks(tracks) {
+        const shuffled = tracks.slice();
+        for (let index = shuffled.length - 1; index > 0; index -= 1) {
+            const swapIndex = Math.floor(Math.random() * (index + 1));
+            [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+        }
+        return shuffled;
+    }
+
+    function streamStartIndex(length, channel = {}) {
+        if (!length) return 0;
+        return String(channel.mode || "").toLowerCase() === "random"
+            ? Math.floor(Math.random() * length)
+            : 0;
     }
 
     function setStatus(text) {
@@ -66,8 +86,8 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         }
         if (state.elements.playButton) state.elements.playButton.disabled = !track || isPlaying;
         if (state.elements.pauseButton) state.elements.pauseButton.disabled = !track || !isPlaying;
-        if (state.elements.nextButton) state.elements.nextButton.disabled = state.playlist.length < 2;
-        if (state.elements.previousButton) state.elements.previousButton.disabled = state.playlist.length < 2;
+        if (state.elements.nextButton) state.elements.nextButton.disabled = true;
+        if (state.elements.previousButton) state.elements.previousButton.disabled = true;
         updateVolumeView();
     }
 
@@ -128,7 +148,9 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             state.elements.volumeValue.textContent = `${Math.round((state.volume || 0) * 100)}%`;
         }
         if (state.elements.muteButton) {
-            state.elements.muteButton.textContent = state.muted ? "Unmute" : "Mute";
+            state.elements.muteButton.textContent = state.muted ? "\u{1F50A}" : "\u{1F507}";
+            state.elements.muteButton.title = state.muted ? "Unmute" : "Mute";
+            state.elements.muteButton.setAttribute("aria-label", state.muted ? "Unmute" : "Mute");
             state.elements.muteButton.classList.toggle("is-active", state.muted);
         }
     }
@@ -181,8 +203,8 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
 
         if (state.elements.playButton) state.elements.playButton.addEventListener("click", () => GhostRadio.play());
         if (state.elements.pauseButton) state.elements.pauseButton.addEventListener("click", () => GhostRadio.pause());
-        if (state.elements.nextButton) state.elements.nextButton.addEventListener("click", () => GhostRadio.next());
-        if (state.elements.previousButton) state.elements.previousButton.addEventListener("click", () => GhostRadio.previous());
+        if (state.elements.nextButton) state.elements.nextButton.addEventListener("click", () => GhostRadio.nextChannel());
+        if (state.elements.previousButton) state.elements.previousButton.addEventListener("click", () => GhostRadio.previousChannel());
         if (state.elements.muteButton) state.elements.muteButton.addEventListener("click", () => GhostRadio.mute());
         if (state.elements.volumeInput) {
             state.elements.volumeInput.addEventListener("input", (event) => {
@@ -217,28 +239,32 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         async loadChannel(id = state.defaultChannel) {
             const channelId = String(id || state.defaultChannel);
             setStatus("SIGNAL LOADING");
-            const response = await fetch(`${channelPath(channelId)}/meta.channel`, { cache: "no-store" });
+            const response = await fetch(radioManifestUrl(channelId), { cache: "no-store" });
             if (!response.ok) {
                 setStatus("SIGNAL LOST");
                 throw new Error(`Ghost Radio channel load failed: ${response.status}`);
             }
-            const channel = await response.json();
+            const manifest = await response.json();
+            const channel = manifest.channel || {};
             if (Number(channel.schema) !== 1) {
                 setStatus("BAD SCHEMA");
                 throw new Error("Unsupported Ghost Radio channel schema.");
             }
-            const tracks = Array.isArray(channel.tracks) ? channel.tracks : [];
+            const tracks = Array.isArray(manifest.tracks) ? manifest.tracks : [];
+            const playlistSource = String(channel.mode || "").toLowerCase() === "random"
+                ? shuffleTracks(tracks)
+                : tracks;
             state.channel = channel;
             state.channelId = channelId;
-            state.playlist = tracks
+            state.playlist = playlistSource
                 .filter(track => track && track.file)
                 .map((track, index) => ({
                     title: track.title || `Track ${index + 1}`,
                     file: track.file,
                     url: trackUrl(channelId, track.file)
                 }));
-            state.currentIndex = 0;
-            setAudioSource(0);
+            state.currentIndex = streamStartIndex(state.playlist.length, channel);
+            setAudioSource(state.currentIndex);
             setStatus(state.playlist.length ? "SIGNAL READY" : "NO TRACKS");
             updateTrackView();
             syncAudioSettings();
@@ -354,6 +380,18 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             }
         },
 
+        nextChannel() {
+            setStatus("ONE CHANNEL");
+            updatePlaybackView();
+            return false;
+        },
+
+        previousChannel() {
+            setStatus("ONE CHANNEL");
+            updatePlaybackView();
+            return false;
+        },
+
         getState() {
             return {
                 channel: state.channel,
@@ -414,11 +452,11 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
                 </div>
                 <div class="ghost-radio-time" data-radio-time>0:00 / --:--</div>
                 <div class="ghost-radio-controls">
-                    <button type="button" data-radio-action="previous">Prev</button>
-                    <button type="button" data-radio-action="play">Play</button>
-                    <button type="button" data-radio-action="pause" disabled>Pause</button>
-                    <button type="button" data-radio-action="next">Next</button>
-                    <button type="button" data-radio-action="mute">Mute</button>
+                    <button type="button" data-radio-action="previous" title="Poprzedni kanal" aria-label="Poprzedni kanal">\u23EE</button>
+                    <button type="button" data-radio-action="play" title="Play" aria-label="Play">\u25B6</button>
+                    <button type="button" data-radio-action="pause" title="Pause" aria-label="Pause" disabled>\u23F8</button>
+                    <button type="button" data-radio-action="next" title="Nastepny kanal" aria-label="Nastepny kanal">\u23ED</button>
+                    <button type="button" data-radio-action="mute" title="Mute" aria-label="Mute">\u{1F507}</button>
                 </div>
                 <label class="ghost-radio-volume">
                     <span>Volume</span>

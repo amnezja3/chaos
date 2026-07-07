@@ -7,14 +7,14 @@ ze BlackNet istnieje juz fizycznie w runtime.
 
 ## Zasada glowna
 
-`meta.channel` jest jedynym zrodlem prawdy dla playlisty kanalu.
+`meta.channel` jest jedynym zrodlem prawdy dla zasad streamu kanalu.
 
 Player:
 
-* nie skanuje katalogu na slepo,
-* nie zgaduje kolejnosci plikow,
-* nie pobiera listy MP3 z backendu,
-* buduje playliste wylacznie z `tracks[]`.
+* nie trzyma recznej playlisty w UI,
+* pobiera katalog MP3 przez lekki resolver kanalu,
+* stosuje `mode`, `sort` i `exclude` z `meta.channel`,
+* buduje kolejke odtwarzania z plikow MP3 lezacych w katalogu kanalu.
 
 ## Struktura katalogu
 
@@ -40,12 +40,9 @@ Kazdy kanal ma wlasny katalog. Pliki audio musza lezec w tym samym katalogu co
   "source": "ghost_radio",
   "autoplay": true,
   "loop": true,
-  "tracks": [
-    {
-      "title": "Ghost System",
-      "file": "Ghost System.mp3"
-    }
-  ]
+  "mode": "random",
+  "sort": "name",
+  "exclude": []
 }
 ```
 
@@ -61,16 +58,24 @@ Kazdy kanal ma wlasny katalog. Pliki audio musza lezec w tym samym katalogu co
 | `source` | string | tak | Typ zrodla kanalu, np. `ghost_radio` albo przyszle `blacknet`. |
 | `autoplay` | boolean | nie | Preferencja kanalu, nie wymuszenie autoplay w przegladarce. |
 | `loop` | boolean | nie | Czy po ostatnim utworze wracac do pierwszego. |
-| `tracks` | array | tak | Jawna playlista kanalu. |
+| `mode` | string | nie | Tryb kolejki, np. `random` albo `ordered`. |
+| `sort` | string | nie | Sortowanie katalogu przed zbudowaniem kolejki, np. `name`. |
+| `exclude` | array | nie | Nazwy plikow MP3, ktorych nie odtwarzac. |
 
-## Tracks
+## Kolejka odtwarzania
 
-Kazdy wpis `tracks[]` ma minimalnie:
+Resolver kanalu czyta pliki `.mp3` z katalogu:
 
-| Pole | Typ | Wymagane | Znaczenie |
-| --- | --- | --- | --- |
-| `title` | string | tak | Tytul utworu w UI. |
-| `file` | string | tak | Nazwa pliku MP3 w katalogu kanalu. |
+```text
+static/mp3/radio/channel/{channel_id}/
+```
+
+Nastepnie:
+
+* pomija pliki z `exclude`,
+* sortuje zgodnie z `sort`,
+* dla `mode: "random"` miesza kolejke i wybiera losowy start,
+* zwraca read model dla `GhostRadio`.
 
 Player tworzy URL pliku jako:
 
@@ -113,5 +118,5 @@ Przyszly BlackNet ma dokladac kanaly przez:
 meta.channel + pliki audio w katalogu kanalu
 ```
 
-Nie powinien wymagac przebudowy `GhostRadio`, jesli zachowa `schema = 1` i jawne
-`tracks[]`.
+Nie powinien wymagac przebudowy `GhostRadio`, jesli zachowa `schema = 1` oraz
+zasady `mode`, `sort` i `exclude`.

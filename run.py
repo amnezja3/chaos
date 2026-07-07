@@ -12101,6 +12101,52 @@ def resources():
     return jsonify(catalog)
 
 
+@app.route("/api/radio/channel/<channel_id>")
+def radio_channel_manifest(channel_id):
+    safe_channel_id = re.sub(r"[^a-zA-Z0-9_\-]", "", str(channel_id or ""))
+    if not safe_channel_id or safe_channel_id != channel_id:
+        return jsonify({"success": False, "message": "Nieprawidlowy kanal radia."}), 400
+
+    radio_root = os.path.abspath(os.path.join(app.static_folder, "mp3", "radio", "channel"))
+    channel_dir = os.path.abspath(os.path.join(radio_root, safe_channel_id))
+    if not channel_dir.startswith(radio_root + os.sep):
+        return jsonify({"success": False, "message": "Nieprawidlowy kanal radia."}), 400
+
+    meta_path = os.path.join(channel_dir, "meta.channel")
+    if not os.path.isfile(meta_path):
+        return jsonify({"success": False, "message": "Nie znaleziono kontraktu kanalu."}), 404
+
+    try:
+        with open(meta_path, "r", encoding="utf-8") as handle:
+            channel = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return jsonify({"success": False, "message": "Nie udalo sie odczytac kontraktu kanalu."}), 500
+
+    excluded = {str(item).casefold() for item in channel.get("exclude", []) if item}
+    tracks = []
+    try:
+        for filename in os.listdir(channel_dir):
+            if not filename.lower().endswith(".mp3"):
+                continue
+            if filename.casefold() in excluded:
+                continue
+            title = os.path.splitext(filename)[0].replace("_", " ").strip() or filename
+            tracks.append({"title": title, "file": filename})
+    except OSError:
+        return jsonify({"success": False, "message": "Nie udalo sie odczytac katalogu kanalu."}), 500
+
+    sort_mode = str(channel.get("sort") or "name").lower()
+    if sort_mode in ("name", "filename", "title"):
+        tracks.sort(key=lambda item: str(item["file"]).casefold())
+
+    return jsonify({
+        "success": True,
+        "channel": channel,
+        "tracks": tracks,
+        "track_count": len(tracks),
+    })
+
+
 @app.route("/api/ghostlab/projects")
 def ghostlab_projects():
     if "user" not in session:

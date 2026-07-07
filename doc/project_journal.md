@@ -6460,3 +6460,48 @@ scopes nie sa zaladowane, interakcje gameplayowe mapy pozostaja zablokowane.
 
 Sprint 71 zaimplementowany. Mapa ma teraz critical boot gate i blokade akcji do
 czasu zaladowania krytycznych scope'ow.
+
+---
+
+## 07.07.2026
+
+### Etap
+
+Ghost Hack Radio - stream contract correction.
+
+### Cel
+
+Zmienic `ghost_streem_1` z recznej playlisty na radiowy stream budowany z plikow
+MP3 lezacych w katalogu kanalu.
+
+### Co zostalo wykonane
+
+* `meta.channel` pierwszego kanalu nie trzyma juz `tracks[]`.
+* Dodano pola:
+  * `mode: "random"`,
+  * `sort: "name"`,
+  * `exclude: []`.
+* Dodano lekki resolver:
+  * `GET /api/radio/channel/<channel_id>`.
+* Resolver:
+  * czyta `meta.channel`,
+  * listuje lokalne pliki `.mp3` z katalogu kanalu,
+  * pomija pliki z `exclude`,
+  * sortuje wedlug `sort`,
+  * zwraca read model dla frontendu.
+* `GhostRadio.loadChannel(...)` korzysta z resolvera, a nie z recznego
+  `tracks[]`.
+* Dla `mode = random` kolejka jest mieszana, a startowy utwor wybierany losowo.
+* Przyciski playera zostaly zmienione na ikony.
+* Przyciski poprzedni/nastepny sa traktowane jako przyszle przelaczanie kanalow,
+  a nie jako reczne skipowanie piosenek.
+
+### Najwazniejsza decyzja
+
+Ghost Hack Radio nie jest klasycznym playerem playlisty. `ghost_streem_1` dziala
+jak stream radiowy: kanal definiuje zasady, a utwory pochodza z katalogu kanalu.
+
+### Status
+
+Hotfix kontraktu radia gotowy. Kolejne kanaly moga korzystac z tego samego
+modelu `meta.channel + katalog MP3`.

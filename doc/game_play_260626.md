@@ -4299,8 +4299,9 @@ static/mp3/radio/
         └── 003_noise.mp3
 ```
 
-`meta.channel` jest kontraktem kanalu. Aplikacja nie skanuje katalogu na slepo.
-Czyta plik opisowy, buduje playliste i odtwarza pliki z tego samego folderu.
+`meta.channel` jest kontraktem kanalu. Dla `ghost_streem_1` nie trzyma recznej
+playlisty. Opisuje zasady streamu, a runtime buduje kolejke z plikow MP3
+lezacych w katalogu kanalu.
 
 Przykladowy kontrakt:
 
@@ -4313,11 +4314,9 @@ Przykladowy kontrakt:
   "description": "Pierwszy piracki kanal systemowy GhostNet.",
   "autoplay": true,
   "loop": true,
-  "tracks": [
-    {"title": "Ghost Signal Intro", "file": "001_intro.mp3"},
-    {"title": "Dark Terminal Loop", "file": "002_loop.mp3"},
-    {"title": "Static Noise Break", "file": "003_noise.mp3"}
-  ]
+  "mode": "random",
+  "sort": "name",
+  "exclude": []
 }
 ```
 
@@ -4333,13 +4332,13 @@ Flow:
 ```text
 loadChannel("ghost_streem_1")
 ↓
-fetch /static/mp3/radio/channel/ghost_streem_1/meta.channel
+fetch /api/radio/channel/ghost_streem_1
 ↓
-parse JSON
+parse meta.channel + resolved mp3 list
 ↓
 track.url = /static/mp3/radio/channel/ghost_streem_1/{file}
 ↓
-play current track
+play losowy track z kolejki, jesli mode = random
 ↓
 ended -> next track
 ↓
@@ -4385,9 +4384,12 @@ mogl skupic sie wylacznie na odtwarzaniu muzyki.
    * `description`,
    * `autoplay`,
    * `loop`,
-   * `tracks[]`.
-6. Nie skanowac katalogow z MP3.
-7. Playlista ma powstawac wylacznie z `meta.channel`.
+   * `mode`,
+   * `sort`,
+   * `exclude`.
+6. Nie trzymac recznej playlisty `ghost_streem_1` w `meta.channel`.
+7. Kolejka ma powstawac z plikow MP3 katalogu kanalu wedlug zasad
+   `meta.channel`.
 8. Przygotowac miejsce na przyszla aplikacje desktopowa `Ghost Hack Radio`.
 9. Dodac podstawowa ikone aplikacji albo placeholder.
 10. Przygotowac strukture JS:
@@ -4396,7 +4398,8 @@ mogl skupic sie wylacznie na odtwarzaniu muzyki.
 11. Przygotowac strukture CSS:
     * `static/css/ghost_radio.css`,
     * bez finalnego wygladu.
-12. Udokumentowac kontrakt `meta.channel` jako jedyne zrodlo prawdy playlisty.
+12. Udokumentowac kontrakt `meta.channel` jako jedyne zrodlo prawdy zasad
+    streamu.
 
 ## Poza zakresem
 
@@ -4433,11 +4436,11 @@ sygnal audio i przygotowuje fundament pod przyszle kanaly BlackNet.
 ## Zakres
 
 1. Uzyc struktury i kontraktu przygotowanego w Sprincie 50.
-2. Player czyta `meta.channel`, nie skanuje katalogu.
-3. Zbudowac playliste z `tracks[]`.
-4. Odtwarzac pierwszy utwor.
-5. Po `ended` przechodzic do kolejnego tracka.
-6. Po ostatnim tracku wracac do pierwszego, jesli `loop = true`.
+2. Player czyta resolver kanalu oparty o `meta.channel`.
+3. Zbudowac kolejke z plikow MP3 katalogu kanalu.
+4. Dla `mode = random` startowac z losowego utworu.
+5. Po `ended` przechodzic do kolejnego utworu w kolejce streamu.
+6. Po ostatnim utworze wracac do poczatku kolejki, jesli `loop = true`.
 7. Dodac `play/pause`.
 8. Dodac pasek postepu.
 9. Dodac volume.
@@ -4460,9 +4463,10 @@ Player ma byc stylizowany na stary Winamp, ale w klimacie CHAOS:
 
 ## Architektura
 
-Nie tworzyc backendu.
+Nie tworzyc backendu streamingu.
 
-Nie dodawac endpointow.
+Lekki resolver kanalu moze zwracac read model plikow MP3 z katalogu, ale nie
+moze odtwarzac, streamowac ani zapisywac stanu radia.
 
 Nie laczyc jeszcze z Cybernerem, BlackNet ani misjami.
 
@@ -4471,10 +4475,10 @@ To jest lokalny player oparty o statyczny manifest kanalu.
 ## Kryteria akceptacji
 
 * Radio laduje kanal `ghost_streem_1` przez `meta.channel`.
-* Playlista powstaje z jawnego kontraktu.
+* Kolejka streamu powstaje z katalogu kanalu wedlug `mode/sort/exclude`.
 * Play/pause dziala.
-* Tracki przechodza jeden po drugim.
-* Loop dziala po calej playliscie.
+* Radio nie odpala zawsze tego samego utworu po wejsciu do gry.
+* Loop dziala po calej kolejce streamu.
 * Autoplay mozna wylaczyc przez localStorage/UI.
 * Jesli autoplay zostanie zablokowany przez przegladarke, UI pokazuje gotowy
   player i pozwala uruchomic radio pierwszym kliknieciem.
@@ -4563,12 +4567,14 @@ ktory pozwoli przyszlemu BlackNet dokladac kanaly audio bez przebudowy playera.
    * `name`,
    * `description`,
    * `source`,
-   * `tracks[]`.
+   * `mode`,
+   * `sort`,
+   * `exclude`.
 4. Przyszly BlackNet bedzie mogl dodawac kanaly jako:
    * `meta.channel`,
    * pliki audio w katalogu kanalu.
-5. Radio nadal czyta tylko kontrakt kanalu.
-6. Nie skanowac katalogow na slepo.
+5. Radio nadal czyta tylko kontrakt kanalu i read model resolvera katalogu.
+6. Nie trzymac recznej playlisty w UI.
 7. Nie robic dynamicznego generowania audio w runtime.
 8. Nie dodawac backendu BlackNet.
 9. Nie mieszac radia z Cybernerem:
@@ -4585,7 +4591,7 @@ ktory pozwoli przyszlemu BlackNet dokladac kanaly audio bez przebudowy playera.
 ## Poza zakresem
 
 * implementacja BlackNet,
-* endpointy kanalow,
+* endpointy BlackNet,
 * automatyczne wykrywanie kanalow,
 * dynamiczny download MP3,
 * system misji audio,
@@ -4598,8 +4604,8 @@ ktory pozwoli przyszlemu BlackNet dokladac kanaly audio bez przebudowy playera.
 * Przyszly BlackNet bedzie mogl dodac kanal bez zmiany kodu playera.
 * Pierwszy kanal ma jawne `source`.
 * Radio nie zna logiki misji.
-* `meta.channel` pozostaje jedynym kontraktem playlisty.
-* System jest gotowy pod narracje audio, ale nie wymaga backendu.
+* `meta.channel` pozostaje jedynym kontraktem zasad streamu.
+* System jest gotowy pod narracje audio, ale nie wymaga backendu streamingu.
 
 ---
 
