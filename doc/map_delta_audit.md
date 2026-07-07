@@ -95,6 +95,52 @@ jednego potwierdzonego registry po `target_id`. Eventy `map.target_*` sa
 potrzebne w kontrakcie, ale ich runtime powinien wejsc dopiero po audycie
 target registry. Do tego czasu snapshot mapy pozostaje bezpieczna sciezka.
 
+## Sprint 68 - Target registry prep
+
+Przygotowanie targetow do przyszlych delt powinno uzyc jednego registry:
+
+```text
+targetMarkers[target_id]
+```
+
+`target_id` dla targetow bazowych:
+
+* `player:<username>` dla targetu gracza,
+* `vulnerability:<id>` dla podatnosci,
+* `territory_contest:<area_id>:<lat>:<lng>` dla targetu konfliktowego,
+* `osm:<osm_id>` albo `node:<node_id>` dla targetow z danych OSM,
+* `target:<id>` dla targetow z natywnym id,
+* `map:<lat>:<lng>:<source>:<hash>` jako fallback dla targetow generowanych.
+
+Registry dotyczy target markerow. Nie obejmuje:
+
+* `playerAreaLayers`,
+* `conflictAreaLayers`,
+* `contestedTargetLayers`,
+* `capturedConflictPillarLayers`.
+
+Te warstwy nadal sa snapshot/recovery i nie powinny byc migrowane razem z
+target marker registry.
+
+## Sprint 68.5 - Target delta v0
+
+Po przygotowaniu `targetMarkers[target_id]` pierwsze delty targetow moga objac
+tylko markery obecne w registry:
+
+* `map.target_updated`,
+* `map.target_captured`,
+* `map.target_removed`.
+
+Zasady:
+
+* `entity_id` eventu to `target_id`,
+* delta nie tworzy drugiego stanu targetow,
+* delta nie dotyka `playerAreaLayers`,
+* delta nie dotyka `conflictAreaLayers`,
+* delta nie dotyka `contestedTargetLayers`,
+* delta nie dotyka `capturedConflictPillarLayers`,
+* brak wpisu w `targetMarkers[target_id]` oznacza snapshot/recovery.
+
 ## Rekomendacja dla Sprintu 67
 
 Sprint 67 powinien objac tylko:

@@ -6035,3 +6035,133 @@ area layers, konfliktow, vulnerabilities i `friendMarkers`.
 
 Sprint 67 zamkniety jako Map Actor Delta v0. Pierwsza warstwa mapy korzysta z
 delta-feed, a `/api/map/player-actors` zostaje snapshot/recovery.
+
+### Checkpoint 67
+
+Map actor delta v0 dziala poprawnie. Markery graczy moga byc aktualizowane
+punktowo przez delta-feed, a snapshot `/api/map/player-actors` pozostaje
+recovery.
+
+Brak widocznego przyspieszenia calej mapy jest oczekiwany, poniewaz glowne
+obciazenie nadal generuja map player areas, clan vulnerabilities oraz operations
+summary.
+
+---
+
+## 07.07.2026
+
+### Etap
+
+Sprint 68 - Map Target Registry / Delta Prep.
+
+### Cel
+
+Przygotowac targety pod przyszle delty przez stabilny registry po `target_id`,
+bez migracji pelnych warstw mapy.
+
+### Co zostalo wykonane
+
+* Dodano stabilny helper JS `targetStableId(...)`.
+* `normalizeMapMenuTarget(...)` uzupelnia `target_id`.
+* Dodano registry:
+
+```text
+window.targetMarkers[target_id]
+```
+
+* Dodano helpery:
+  * `registerTargetMarker(...)`,
+  * `unregisterTargetMarker(...)`.
+* Markery bazowe renderowane przez Folium dostaja `data-target-id` z
+  `build_operation_target_id(...)`.
+* Rejestrowane sa target markery:
+  * DOM `.marker-label`,
+  * interaktywne targety,
+  * scan target markers,
+  * legacy scan target markers,
+  * hacked target markers tworzone runtime.
+* Przy ukrywaniu DOM targetu registry usuwa nieaktualny wpis.
+* Uaktualniono `doc/map_delta_audit.md` o kontrakt `targetMarkers[target_id]`.
+
+### Najwazniejsze decyzje
+
+* Sprint 68 nie wlacza jeszcze `map.target_*` w delta-feed.
+* Nie ruszano `playerAreaLayers`.
+* Nie ruszano `conflictAreaLayers`.
+* Nie ruszano `contestedTargetLayers`.
+* Nie ruszano `capturedConflictPillarLayers`.
+* Snapshoty mapy pozostaja aktywne.
+* `.marker-hacked` DOM pozostaje legacy/snapshotowo; runtime hacked targety
+  tworzone przez JS sa rejestrowane w `targetMarkers`.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`,
+  OK.
+* `node --check static/js/terminal.js`,
+  OK.
+* `git diff --check`,
+  OK.
+
+### Status
+
+Sprint 68 zamkniety jako target registry prep. Targety maja przygotowany
+stabilny registry pod przyszle `map.target_*`, ale runtime delt targetow nie
+zostal jeszcze wlaczony.
+
+---
+
+## 07.07.2026
+
+### Etap
+
+Sprint 68.5 - Map Target Delta v0.
+
+### Cel
+
+Aktualizowac konkretne target markery po `target_id` przez delta-feed, dopiero
+po przygotowaniu `targetMarkers[target_id]`.
+
+### Co zostalo wykonane
+
+* Dodano backendowy helper `record_map_target_delta(...)`.
+* Backend emituje:
+  * `map.target_updated` po ustawieniu/aktualizacji targetu przez
+    `/hack-action`,
+  * `map.target_captured` po udanym przejeciu targetu,
+  * `map.target_removed` jest obslugiwany kontraktowo przez helper i frontend.
+* `entity_id` eventu targetu to stabilny `target_id` z
+  `build_operation_target_id(...)`.
+* Frontend `applyDelta()` rozpoznaje target delty mapy.
+* Desktopowy delta poller przekazuje target delty do otwartych iframe mapy.
+* `map_template.html` obsluguje `applyMapTargetDelta(...)` tylko przez
+  `targetMarkers[target_id]`.
+* Target recovery dla mapy korzysta ze snapshotu mapy przez reload iframe.
+
+### Najwazniejsze decyzje
+
+* Nie ruszano `playerAreaLayers`.
+* Nie ruszano `conflictAreaLayers`.
+* Nie ruszano `area_claimed` / `area_contested`.
+* Nie ruszano contested/captured pillar layers.
+* Jesli targetu nie ma w `targetMarkers[target_id]`, delta nie zgaduje stanu i
+  zostawia recovery snapshotowi.
+* Przy okazji poprawiono most map delta tak, aby wolal funkcje w iframe mapy,
+  a nie w oknie desktopu.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`,
+  OK.
+* `node --check static/js/terminal.js`,
+  OK.
+* `python -m unittest tests.test_target_persistence.GameStateDeltaBusTest tests.test_target_persistence.StateChangesEndpointTest`,
+  OK.
+* `git diff --check`,
+  OK.
+
+### Status
+
+Sprint 68.5 zamkniety jako Map Target Delta v0. Target delty dzialaja tylko po
+registry `targetMarkers[target_id]`, a warstwy obszarow i konfliktow pozostaja
+snapshotowe.

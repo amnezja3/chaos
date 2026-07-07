@@ -3826,11 +3826,35 @@ function updateGhostExchangeDeltaViews(payload = {}) {
 }
 
 function updateMapPlayerActorDeltaView(event = {}) {
-    if (typeof window.applyMapPlayerActorDelta === "function") {
-        window.applyMapPlayerActorDelta(event);
-        return true;
-    }
-    return false;
+    let applied = false;
+    document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
+        try {
+            const mapWindow = frame.contentWindow;
+            if (mapWindow && typeof mapWindow.applyMapPlayerActorDelta === "function") {
+                mapWindow.applyMapPlayerActorDelta(event);
+                applied = true;
+            }
+        } catch (err) {
+            console.warn("Map player actor delta failed", err);
+        }
+    });
+    return applied;
+}
+
+function updateMapTargetDeltaView(event = {}) {
+    let applied = false;
+    document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
+        try {
+            const mapWindow = frame.contentWindow;
+            if (mapWindow && typeof mapWindow.applyMapTargetDelta === "function") {
+                mapWindow.applyMapTargetDelta(event);
+                applied = true;
+            }
+        } catch (err) {
+            console.warn("Map target delta failed", err);
+        }
+    });
+    return applied;
 }
 
 async function applyDelta(event) {
@@ -3859,8 +3883,17 @@ async function applyDelta(event) {
         updateGhostExchangeDeltaViews(event.payload || {});
         return true;
     }
-    if (event.scope === "map" || String(event.type || "").startsWith("map.player_")) {
+    if (String(event.type || "").startsWith("map.player_")) {
         updateMapPlayerActorDeltaView(event);
+        return true;
+    }
+    if (["map.target_updated", "map.target_captured", "map.target_removed"].includes(String(event.type || ""))) {
+        updateMapTargetDeltaView(event);
+        return true;
+    }
+    if (event.scope === "map") {
+        updateMapPlayerActorDeltaView(event);
+        updateMapTargetDeltaView(event);
         return true;
     }
     return false;
@@ -3918,11 +3951,24 @@ async function recoverGhostExchangeDeltaScope() {
 }
 
 async function recoverMapPlayerActorsDeltaScope() {
-    if (typeof window.refreshPlayerActors === "function") {
-        await window.refreshPlayerActors();
-        return true;
-    }
-    return null;
+    let recovered = false;
+    document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
+        try {
+            const mapWindow = frame.contentWindow;
+            if (mapWindow && typeof mapWindow.refreshMapTargetSnapshot === "function") {
+                mapWindow.refreshMapTargetSnapshot();
+                recovered = true;
+                return;
+            }
+            if (mapWindow && typeof mapWindow.refreshPlayerActors === "function") {
+                mapWindow.refreshPlayerActors();
+                recovered = true;
+            }
+        } catch (err) {
+            console.warn("Map delta recovery failed", err);
+        }
+    });
+    return recovered || null;
 }
 
 async function recoverDeltaScopes(recoveryScopes = [], currentVersion = null) {

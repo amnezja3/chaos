@@ -5339,30 +5339,85 @@ zakresem.
 
 ---
 
-# Sprint 68 - Map Target Delta
+# Sprint 68 - Map Target Registry / Delta Prep
 
 ## Cel gameplayowy
 
-Rozszerzyc delty mapy na targety i przejecia po ustabilizowaniu player actors.
+Przygotowac targety pod przyszle delty przez stabilny registry po `target_id`,
+bez migracji pelnych warstw mapy.
+
+Sprint 68 nie wlacza jeszcze `map.target_*` w delta-feed. To sprint
+przygotowawczy: targety bazowe dostaja stabilny identyfikator i centralny
+registry, ale snapshoty nadal zostaja aktywne.
 
 ## Zakres
 
-1. Dodac eventy:
-   * `map.target_updated`,
-   * `map.target_captured`,
-   * `map.target_removed`,
-   * `map.area_claimed`,
-   * `map.area_contested`.
-2. Aktualizowac konkretne targety i obszary.
-3. Nie przebudowywac calej mapy przy pojedynczej zmianie.
-4. Snapshot map target/areas zostaje jako recovery.
+1. Ustalic stabilne `target_id` dla targetow bazowych.
+2. Opisac i przygotowac registry:
+
+```text
+targetMarkers[target_id]
+```
+
+3. Rozdzielic target marker od warstw:
+   * `playerAreaLayers`,
+   * `conflictAreaLayers`,
+   * `contestedTargetLayers`,
+   * `capturedConflictPillarLayers`.
+4. Nie ruszac `playerAreaLayers`.
+5. Nie ruszac `conflictAreaLayers`.
+6. Nie ruszac contested/captured pillar layers.
+7. Nie wylaczac snapshotow.
+8. Nie wlaczac jeszcze `map.target_updated`, `map.target_captured` ani
+   `map.target_removed` w runtime delta-feed.
 
 ## Kryteria akceptacji
 
-* Przejecie celu aktualizuje tylko ten cel.
-* Zmiana obszaru aktualizuje tylko relevantna warstwe.
-* Wlasciciel nadal widzi swoje terytoria.
-* Recovery mapy dziala per scope.
+* Target bazowy ma stabilny `target_id`.
+* Istnieje registry `targetMarkers[target_id]`.
+* Registry obejmuje target markery, nie area/conflict layers.
+* Snapshoty mapy nadal dzialaja.
+* Target delta runtime nie zostal jeszcze wlaczony.
+* Warstwy terytoriow i konfliktow pozostaja bez zmian.
+
+---
+
+# Sprint 68.5 - Map Target Delta v0
+
+## Cel gameplayowy
+
+Dopiero po registry aktualizowac konkretne targety po `target_id` przez
+delta-feed.
+
+Sprint 68.5 wlacza tylko target markery obecne w `targetMarkers[target_id]`.
+Nie migruje obszarow, konfliktow ani contested/captured pillar layers.
+
+## Zakres
+
+1. Backend emituje:
+   * `map.target_updated`,
+   * `map.target_captured`,
+   * `map.target_removed`.
+2. `entity_id` eventu to stabilny `target_id`.
+3. Frontend `applyDelta()` obsluguje target delty tylko przez
+   `targetMarkers[target_id]`.
+4. Jesli target marker istnieje:
+   * `map.target_updated` aktualizuje pozycje/snapshot/tooltip,
+   * `map.target_captured` aktualizuje marker jako przejety,
+   * `map.target_removed` usuwa marker z registry.
+5. Jesli target marker nie istnieje, recovery pozostaje snapshot mapy.
+6. Nie ruszac `playerAreaLayers`.
+7. Nie ruszac `conflictAreaLayers`.
+8. Nie ruszac `area_claimed` / `area_contested`.
+9. Nie ruszac contested/captured pillar layers.
+
+## Kryteria akceptacji
+
+* Target delta dziala tylko dla `targetMarkers[target_id]`.
+* Capture targetu nie przebudowuje warstw obszarow.
+* Snapshot targetow pozostaje recovery.
+* `area_claimed` i `area_contested` nadal sa poza zakresem.
+* Target delta runtime nie tworzy drugiego stanu mapy.
 
 ---
 

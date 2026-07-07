@@ -38,6 +38,7 @@ from run import (
     profile_template_payload,
     queue_market_eligible_files,
     record_map_player_actor_delta,
+    record_map_target_delta,
     refresh_market_runtime,
     refresh_operation_runtime,
     refresh_operations_runtime,
@@ -405,6 +406,35 @@ class GameStateDeltaBusTest(unittest.TestCase):
             self.assertEqual(event["payload"]["actor"]["context"]["is_friend"], True)
             changes = bus.get_changes_since("viewer", 0)["changes"]
             self.assertEqual(len(changes), 1)
+        finally:
+            self._cleanup(path)
+
+    def test_record_map_target_delta_uses_target_id_contract(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            target = {
+                "lat": 52.123456,
+                "lng": 21.123456,
+                "label": "Camera Node",
+                "source_type": "camera",
+            }
+            with patch.object(run, "delta_bus", bus):
+                event = record_map_target_delta(
+                    "alice",
+                    target,
+                    change_type="map.target_updated",
+                    reason="unit_test",
+                    dedupe_key="map:target:alice:test",
+                )
+
+            expected_target_id = run.build_operation_target_id(target)
+            self.assertEqual(event["scope"], "map")
+            self.assertEqual(event["type"], "map.target_updated")
+            self.assertEqual(event["entity_id"], expected_target_id)
+            self.assertEqual(event["payload"]["target_id"], expected_target_id)
+            self.assertEqual(event["payload"]["target"]["label"], "Camera Node")
+            self.assertEqual(event["payload"]["reason"], "unit_test")
         finally:
             self._cleanup(path)
 

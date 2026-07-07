@@ -440,6 +440,34 @@ def record_map_player_actor_delta(actor_username, actor_profile=None, change_typ
     return events
 
 
+def record_map_target_delta(username, target, change_type="map.target_updated", reason="", dedupe_key=None):
+    username = str(username or "").strip()
+    if not username or not isinstance(target, dict):
+        return None
+    target_id = build_operation_target_id(target)
+    payload = {
+        "target_id": target_id,
+        "target": dict(target),
+        "reason": reason or "target_changed",
+    }
+    if change_type == "map.target_captured":
+        payload["captured"] = True
+    if change_type == "map.target_removed":
+        payload["removed"] = True
+    try:
+        return delta_bus.record_change(
+            username,
+            "map",
+            change_type,
+            payload,
+            entity_id=target_id,
+            dedupe_key=dedupe_key or f"map:target:{username}:{change_type}:{target_id}:{runtime_file_now()}",
+        )
+    except Exception as exc:
+        print(f"[DELTA] {change_type} failed for {username}/{target_id}: {exc}")
+        return None
+
+
 APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
 _GIT_COMMIT_HASH = None
 _GIT_BUILD_TAG = None
@@ -9743,6 +9771,7 @@ def map_view():
         name = display_target_label(t)
         source_type = t.get("source_type", "manual")
         generated = str(t.get("generated", False)).lower()
+        target_id = html.escape(build_operation_target_id(t))
 
         folium.Marker(
             location=[t["lat"], t["lng"]],
@@ -9757,6 +9786,7 @@ def map_view():
                         data-name="{name}" 
                         data-source-type="{source_type}" 
                         data-generated="{generated}"
+                        data-target-id="{target_id}"
                         data-icon="{text_icon}" 
                         data-lat="{t["lat"]}" 
                         data-lng="{t["lng"]}"
@@ -9776,6 +9806,7 @@ def map_view():
         source_type = h.get("source_type", "hacked")
         generated = str(h.get("generated", False)).lower()
         h_lng = h.get("lng", h.get("lon"))
+        target_id = html.escape(build_operation_target_id(h))
 
         folium.Marker(
             location=[h["lat"], h_lng],
@@ -9790,6 +9821,7 @@ def map_view():
                         data-name="{name}" 
                         data-source-type="{source_type}" 
                         data-generated="{generated}"
+                        data-target-id="{target_id}"
                         data-icon="{text_icon}" 
                         data-lat="{h["lat"]}" 
                         data-lng="{h_lng}"
@@ -9813,6 +9845,7 @@ def map_view():
         target_mode = html.escape(str(profile_aimed_target.get("target_mode") or "standard"))
         target_username = html.escape(str(profile_aimed_target.get("target_username") or ""))
         target_relation = html.escape(str(profile_aimed_target.get("relation") or ""))
+        target_id = html.escape(build_operation_target_id(profile_aimed_target))
 
         folium.Marker(
             location=[profile_aimed_target["lat"], profile_aimed_target["lng"]],
@@ -9827,6 +9860,7 @@ def map_view():
                         data-name="{name}" 
                         data-source-type="{source_type}" 
                         data-generated="{generated}"
+                        data-target-id="{target_id}"
                         data-target-mode="{target_mode}"
                         data-target-username="{target_username}"
                         data-relation="{target_relation}"
@@ -10483,6 +10517,12 @@ def hack_action():
         "risk_events": profile.get("risk_events", []),
         "system_messages": profile.get("system_messages", []),
     })
+    record_map_target_delta(
+        session["user"],
+        profile.get("aimed_target") or {},
+        change_type="map.target_updated",
+        reason="hack_action_target_set",
+    )
 
     return jsonify({
         "status": f"🎯 Cel ustawiony: {display_target_label(profile.get('aimed_target') or {})}",
@@ -13666,6 +13706,12 @@ def gonna_win():
             "territory_stats": profile["territory_stats"],
             "system_messages": profile["system_messages"]
         })
+        record_map_target_delta(
+            session["user"],
+            captured_target_response or captured_target,
+            change_type="map.target_captured",
+            reason="gonna_win_capture",
+        )
     else:
         mgr.update_profile({
             "aimed_target": profile["aimed_target"]

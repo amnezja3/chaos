@@ -744,6 +744,7 @@
         let aimedTargetMenuSnapshot = null;
         let scanResultLayers = [];
         const clanVulnerabilityRegistry = new Map();
+        window.targetMarkers = window.targetMarkers || {};
         const baseZoom = map.getZoom();
         let zoomReturnTimer = null;
         let zoomReturnInterval = null;
@@ -880,6 +881,7 @@
             }
             snapshot.label = mapTargetDisplayLabel(snapshot, snapshot.target_mode === 'player' ? 'SUBJECT' : null);
             snapshot.name = isMissingTargetDisplayName(snapshot.name) ? snapshot.label : snapshot.name;
+            snapshot.target_id = targetStableId(snapshot);
             return freezeMapMenuPayload(snapshot);
         }
 
@@ -1083,6 +1085,7 @@
                 const elLng = Number(el.dataset.lng).toFixed(6);
                 const labelMatches = !label || !el.dataset.label || el.dataset.label === label;
                 if (elLat === wantedLat && elLng === wantedLng && labelMatches) {
+                    unregisterTargetMarker(el.dataset.targetId || (el._chaosTargetSnapshot || {}));
                     const markerEl = el.closest('.leaflet-marker-icon');
                     if (markerEl) markerEl.style.display = 'none';
                 }
@@ -1133,6 +1136,127 @@
             }
             return `${fallbackPrefix || targetDisplayPrefix(obj)}-${targetDisplayCode(obj)}`;
         }
+
+        function targetStableId(obj = {}) {
+            if (obj.target_id) return String(obj.target_id);
+            if (obj.target_mode === 'player' && obj.target_username) return `player:${obj.target_username}`;
+            if (obj.vulnerability_id) return `vulnerability:${obj.vulnerability_id}`;
+            const coordKey = value => {
+                const number = Number(value);
+                return Number.isFinite(number)
+                    ? String(Math.round(number * 100000) / 100000)
+                    : 'unknown';
+            };
+            if (obj.foreign_area_id) {
+                return `territory_contest:${obj.foreign_area_id}:${coordKey(obj.lat)}:${coordKey(obj.lng !== undefined ? obj.lng : obj.lon)}`;
+            }
+            const label = mapTargetDisplayLabel(obj, 'TARGET');
+            return `map:${coordKey(obj.lat)}:${coordKey(obj.lng !== undefined ? obj.lng : obj.lon)}:${label}`;
+        }
+
+        function registerTargetMarker(target, marker, options = {}) {
+            const normalized = normalizeMapMenuTarget(target || {});
+            const targetId = normalized.target_id || targetStableId(normalized);
+            if (!targetId) return normalized;
+            window.targetMarkers[targetId] = {
+                target_id: targetId,
+                target: normalized,
+                marker: marker || null,
+                element: options.element || null,
+                source: options.source || 'target',
+                layer_type: options.layer_type || 'target_marker'
+            };
+            if (marker) {
+                marker._chaosTargetId = targetId;
+                marker._chaosTargetSnapshot = normalized;
+            }
+            if (options.element) {
+                options.element.dataset.targetId = targetId;
+                options.element._chaosTargetSnapshot = normalized;
+            }
+            return normalized;
+        }
+
+        function unregisterTargetMarker(targetOrId) {
+            const targetId = typeof targetOrId === 'string'
+                ? targetOrId
+                : targetStableId(targetOrId || {});
+            if (targetId && window.targetMarkers[targetId]) {
+                delete window.targetMarkers[targetId];
+            }
+        }
+
+        function targetDeltaIcon(target, captured = false) {
+            const icon = target.icon || (captured ? '📦' : '🎯');
+            const className = captured ? 'target-hacked' : 'custom-text-icon scan-target-marker-root';
+            const html = captured
+                ? `<div style="font-size:3rem;line-height:2rem;">${window.escapeMapText(icon)}</div>`
+                : `<div class="scan-target-marker-hitbox" style="width:80px;height:40px;max-width:80px;max-height:40px;font-size:2.5rem;line-height:40px;"><div>${window.escapeMapText(icon)}</div></div>`;
+            return L.divIcon({
+                className,
+                html,
+                iconSize: captured ? [32, 42] : [80, 40],
+                iconAnchor: captured ? [16, 42] : [40, 20]
+            });
+        }
+
+        window.applyMapTargetDelta = function(event) {
+            const payload = (event && event.payload) || event || {};
+            const type = (event && event.type) || payload.type || "";
+            const target = normalizeMapMenuTarget(payload.target || payload);
+            const targetId = payload.target_id || (event && event.entity_id) || target.target_id;
+            if (!targetId) return false;
+
+            const entry = window.targetMarkers[targetId];
+            if (!entry) return false;
+
+            if (type === "map.target_removed" || payload.removed) {
+                if (entry.marker) {
+                    removeMapLayerSafe(entry.marker);
+                }
+                if (entry.element) {
+                    const markerEl = entry.element.closest('.leaflet-marker-icon');
+                    if (markerEl) markerEl.style.display = 'none';
+                    entry.element.style.display = 'none';
+                }
+                unregisterTargetMarker(targetId);
+                return true;
+            }
+
+            const lat = Number(target.lat);
+            const lng = Number(target.lng !== undefined ? target.lng : target.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+
+            const captured = type === "map.target_captured" || payload.captured || target.captured;
+            const label = mapTargetDisplayLabel(target, "TARGET");
+
+            if (entry.marker && typeof entry.marker.setLatLng === 'function') {
+                entry.marker.setLatLng([lat, lng]);
+                entry.marker.setIcon(targetDeltaIcon(target, captured));
+                if (typeof entry.marker.bindTooltip === 'function') {
+                    entry.marker.bindTooltip(label, { permanent: false, direction: 'top' });
+                }
+                entry.marker._chaosTargetSnapshot = target;
+            }
+            if (entry.element) {
+                entry.element.dataset.label = label;
+                entry.element.dataset.lat = String(lat);
+                entry.element.dataset.lng = String(lng);
+                entry.element.dataset.targetId = targetId;
+                entry.element._chaosTargetSnapshot = target;
+            }
+            window.targetMarkers[targetId] = {
+                ...entry,
+                target,
+                target_id: targetId,
+                source: captured ? 'targetDeltaCaptured' : (entry.source || 'targetDeltaUpdated')
+            };
+            return true;
+        };
+
+        window.refreshMapTargetSnapshot = function() {
+            window.location.reload();
+        };
 
         function isContextEventInsideMarkerHitbox(marker, e, targetSnapshot = {}, source = 'marker') {
             const element = marker && typeof marker.getElement === 'function'
@@ -1223,6 +1347,10 @@
                 icon,
                 label
             };
+            registerTargetMarker(markerObj, marker, {
+                source: 'interactiveTargetMarker',
+                layer_type: 'target_marker'
+            });
             aimedTargetLayer = rememberTargetLayer(markerObj.lat, markerObj.lon, label, marker);
             return aimedTargetLayer;
         }
@@ -1269,6 +1397,10 @@
             marker.on('contextmenu', function(e) {
                 consumeMapContextEvent(e);
                 showMenuForHacked(e.containerPoint.x, e.containerPoint.y, menuTarget, icon, label);
+            });
+            registerTargetMarker(menuTarget, marker, {
+                source: 'hackedTargetMarker',
+                layer_type: 'target_marker'
             });
             return rememberTargetLayer(lat, lng, label, marker);
         }
@@ -2079,6 +2211,10 @@
 
                         marker._scanTarget = menuTarget;
                         rememberScanResultLayer(marker);
+                        registerTargetMarker(menuTarget, marker, {
+                            source: 'scanTargetMarker',
+                            layer_type: 'target_marker'
+                        });
                         marker.bindTooltip(menuTarget.label, { permanent: false, direction: 'top' });
 
                         marker.on('contextmenu', function(e) {
@@ -2213,6 +2349,10 @@
                             })
                         }).addTo(map);
 
+                        registerTargetMarker(menuTarget, marker, {
+                            source: 'legacyScanTargetMarker',
+                            layer_type: 'target_marker'
+                        });
                         marker.bindTooltip(label, { permanent: false, direction: 'top' });
 
                         marker.on('contextmenu', function(e) {
@@ -3705,10 +3845,12 @@
         const name = labelEl.dataset.name || label;
         const source_type = labelEl.dataset.sourceType || "manual";
         const generated = labelEl.dataset.generated === "true";
+        const target_id = labelEl.dataset.targetId || "";
         const target_mode = labelEl.dataset.targetMode || null;
         const target_username = labelEl.dataset.targetUsername || "";
         const relation = labelEl.dataset.relation || "";
         const menuTarget = normalizeMapMenuTarget({
+            target_id,
             lat,
             lon: lng,
             lng,
@@ -3720,6 +3862,11 @@
             target_mode,
             target_username,
             relation
+        });
+        registerTargetMarker(menuTarget, null, {
+            source: 'domTargetMarker',
+            layer_type: 'dom_target',
+            element: labelEl
         });
 
         labelEl.addEventListener('contextmenu', e => {
