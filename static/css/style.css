@@ -2725,6 +2725,199 @@ form button:hover {
     height: 100%;
     background: linear-gradient(90deg, #0f0, #9cffc2);
 }
+
+.map-tool-picker-window {
+    background: #050805;
+    color: #00ff66;
+    border: 1px solid rgba(0, 255, 102, 0.6);
+    box-shadow: 0 0 18px rgba(0, 255, 102, 0.18), 0 10px 34px rgba(0, 0, 0, 0.72);
+    overflow: hidden;
+}
+
+.map-tool-picker-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    max-height: min(520px, calc(100vh - 96px));
+    overflow: hidden;
+}
+
+.map-tool-picker-head {
+    border: 1px solid rgba(0, 255, 102, 0.28);
+    background: rgba(0, 40, 16, 0.36);
+    padding: 10px;
+    min-width: 0;
+}
+
+.map-tool-picker-kicker {
+    display: block;
+    color: #8fd6a4;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+}
+
+.map-tool-picker-head h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.2;
+    color: #39ff75;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.map-tool-picker-head p {
+    margin: 4px 0 0;
+    color: #baffc6;
+    font-size: 0.78rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.map-tool-picker-list {
+    display: grid;
+    gap: 8px;
+    overflow: auto;
+    padding-right: 2px;
+}
+
+.map-tool-picker-card {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    gap: 9px;
+    align-items: center;
+    border: 1px solid rgba(0, 255, 102, 0.32);
+    background: rgba(0, 20, 8, 0.72);
+    padding: 8px;
+    min-width: 0;
+}
+
+.map-tool-picker-card__icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(0, 255, 102, 0.34);
+    background: rgba(0, 255, 102, 0.08);
+    font-size: 1.25rem;
+}
+
+.map-tool-picker-card__body {
+    min-width: 0;
+}
+
+.map-tool-picker-card__title,
+.map-tool-picker-card__file {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.map-tool-picker-card__title {
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.map-tool-picker-card__file {
+    color: #8cff9c;
+    font-size: 0.72rem;
+    margin-top: 2px;
+}
+
+.map-tool-picker-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin-top: 5px;
+    color: #7bc78c;
+    font-size: 0.68rem;
+}
+
+.map-tool-picker-use,
+.map-tool-picker-files {
+    border: 1px solid #28ff68;
+    background: #052b13;
+    color: #baffc6;
+    font-family: monospace;
+    cursor: pointer;
+}
+
+.map-tool-picker-use {
+    padding: 6px 12px;
+    min-width: 76px;
+}
+
+.map-tool-picker-use:hover,
+.map-tool-picker-files:hover {
+    background: #0b4a21;
+    color: #ffffff;
+}
+
+.map-tool-picker-use:disabled,
+.map-tool-picker-files:disabled {
+    opacity: 0.55;
+    cursor: wait;
+}
+
+.map-tool-picker-footer {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    color: #8fd6a4;
+    font-size: 0.72rem;
+    border-top: 1px solid rgba(0, 255, 102, 0.22);
+    padding-top: 8px;
+    min-width: 0;
+}
+
+.map-tool-picker-footer span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.map-tool-picker-files {
+    flex: 0 0 auto;
+    padding: 5px 9px;
+    font-size: 0.72rem;
+}
+
+@media (max-width: 900px), (max-height: 700px) {
+    .map-tool-picker-window {
+        width: calc(100vw - 16px) !important;
+        max-width: calc(100vw - 16px) !important;
+    }
+
+    .map-tool-picker-shell {
+        max-height: calc(100vh - 72px);
+        padding: 10px;
+    }
+
+    .map-tool-picker-card {
+        grid-template-columns: 34px minmax(0, 1fr);
+    }
+
+    .map-tool-picker-use {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+
+    .map-tool-picker-footer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .map-tool-picker-footer span {
+        white-space: normal;
+    }
+}
 .file-manager-storage-warning,
 .file-manager-tool-meta {
     display: block;

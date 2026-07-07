@@ -6505,3 +6505,64 @@ jak stream radiowy: kanal definiuje zasady, a utwory pochodza z katalogu kanalu.
 
 Hotfix kontraktu radia gotowy. Kolejne kanaly moga korzystac z tego samego
 modelu `meta.channel + katalog MP3`.
+
+---
+
+## 07.07.2026
+
+### Etap
+
+Sprint 72 - Hack Action Flow Lifting.
+
+### Cel
+
+Skrocic sciezke:
+
+```text
+klik na mapie
+↓
+wybor narzedzia
+↓
+Uzyj
+↓
+wynik
+```
+
+bez przebudowy backendu i bez ruszania algorytmu `/hack-action`.
+
+### Przyczyna
+
+Audyt pokazal, ze przy wielu pasujacych aplikacjach backend juz zwraca
+`matching_apps`, ale frontend otwieral pelny File Manager. To powodowalo
+dodatkowy pelny `/api/profile`, `sync_session_profile()`, render katalogu
+`/tools` i dopiero potem klik `Uzyj`.
+
+### Co zostalo wykonane
+
+* Dodano lekki picker narzedzia dla `tool_selection_required`.
+* `openToolSelectionForMapAction(...)` korzysta teraz z pickera opartego o
+  `matching_apps`, a nie z domyslnego `createFileManager(...)`.
+* File Manager zostal zachowany jako opcja pomocnicza `Pokaz w plikach`.
+* `Uzyj` nadal wysyla istniejacy `/hack-action` z `selected_app_id`.
+* Klik `Uzyj` blokuje przyciski na czas requestu, zeby uniknac double-click.
+* Po sukcesie target bar jest aktualizowany z payloadu `target`, bez
+  wymuszonego pelnego `refreshToolbarProfile()`.
+* Dodano style `map-tool-picker-*` dla desktopu i mobile/narrow.
+
+### Najwazniejsza decyzja
+
+File Manager pozostaje miejscem przegladania plikow, ale nie jest juz domyslnym
+pickerem narzedzia dla akcji mapowej. Jesli backend zwrocil `matching_apps`,
+frontend ma wystarczajacy read model do szybkiego wyboru narzedzia.
+
+### Testy
+
+* `node --check static/js/terminal.js`,
+  OK.
+* `git diff --check`,
+  OK, tylko ostrzezenia CRLF/LF dla edytowanych plikow.
+
+### Status
+
+Sprint 72 zaimplementowany. Domyslna sciezka wyboru narzedzia nie powinna juz
+czekac na pelny File Manager ani pelny profil.

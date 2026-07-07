@@ -5674,6 +5674,152 @@ funkcji map template.
 * Po recovery mapy mozna ponownie pokazac krotki overlay synchronizacji.
 * Nie ma globalnego reloadu strony jako normalnej sciezki bootu.
 
+---
+
+# Sprint 72 - Hack Action Flow Lifting
+
+## Cel gameplayowy
+
+Skrocic najgoretsza sciezke klikniecia na mapie:
+
+```text
+klik na mapie
+↓
+wybor narzedzia
+↓
+Uzyj
+↓
+wynik
+```
+
+Sprint 72 nie przebudowuje duzej architektury backendu. Celem jest usuniecie
+najdrozszego objazdu przez pelny File Manager, pelny `/api/profile` i pelny
+render katalogu `/tools`, gdy backend juz zwrocil gotowy `matching_apps`.
+
+## Problem
+
+Obecnie przy wielu pasujacych aplikacjach `/hack-action` zwraca:
+
+```text
+tool_selection_required
+matching_apps
+pending_action
+```
+
+Frontend zamiast pokazac lekki wybor narzedzia otwiera pelny File Manager.
+To powoduje dodatkowy pelny odczyt profilu i render katalogu plikow tylko po to,
+zeby gracz kliknal `Uzyj`.
+
+## Zasada
+
+File Manager pozostaje miejscem przegladania plikow i narzedzi.
+
+File Manager nie jest domyslnym pickerem narzedzia dla akcji mapowej.
+
+Jesli backend zwrocil `matching_apps`, frontend ma wystarczajace dane, zeby
+pokazac szybki picker narzedzia bez pobierania calego profilu.
+
+## Zakres
+
+1. Dodac lekki picker narzedzia dla `tool_selection_required`.
+2. Picker korzysta wylacznie z:
+   * `matching_apps`,
+   * `pending_action`,
+   * `map_action_id`,
+   * `canonical_action`.
+3. Nie otwierac pelnego File Managera jako domyslnej sciezki wyboru narzedzia.
+4. File Manager moze zostac jako opcja pomocnicza, np. `Pokaz w plikach`.
+5. Klikniecie `Uzyj` nadal korzysta z istniejacego `/hack-action`.
+6. Po kliknieciu `Uzyj` nie wolac pelnego `/api/profile`, jesli odpowiedz
+   `/hack-action` albo delta-feed wystarcza do aktualizacji UI.
+7. Ograniczyc zbedne `refreshToolbarProfile()` po uzyciu narzedzia.
+8. Nie odpalac pelnego renderu `/tools`, jesli gracz nie otworzyl File Managera
+   swiadomie.
+9. Nie dodawac jeszcze duzego cache File Managera.
+10. Nie przebudowywac DOM polish File Managera w tym sprincie.
+
+## Systemy
+
+* `templates/map_template.html`,
+* `openToolSelectionForMapAction()`,
+* `selectMapActionTool()`,
+* `/hack-action`,
+* toolbar / target status,
+* delta-feed wallet/storage/apps/map target, jesli dostarcza wystarczajacy
+  update.
+
+## Flow danych
+
+```text
+/hack-action
+↓
+tool_selection_required + matching_apps
+↓
+lekki picker narzedzia
+↓
+Uzyj
+↓
+/hack-action selected_app_id
+↓
+wynik + delty / lokalny update
+↓
+bez pelnego File Managera i bez pelnego /api/profile
+```
+
+## Frontend
+
+1. `openToolSelectionForMapAction(payload)` pokazuje lekki picker zamiast
+   `createFileManager({ toolSelection })`.
+2. Picker pokazuje tylko pasujace aplikacje.
+3. Picker ma jasny tytul akcji i krotkie parametry narzedzia.
+4. `Uzyj` blokuje sie na czas requestu, zeby uniknac double-click.
+5. Po sukcesie picker sie zamyka albo pokazuje wynik.
+6. Mobile/narrow pokazuje picker na wierzchu i bez poziomego scrolla.
+7. File Manager zostaje dostepny jako osobna aplikacja.
+
+## Backend
+
+Bez przebudowy backendu.
+
+Sprint 72 korzysta z istniejacego kontraktu `/hack-action`:
+
+* `tool_selection_required`,
+* `matching_apps`,
+* `pending_action`,
+* `selected_app_id`.
+
+Backend moze zostac bez zmian, o ile odpowiedz `/hack-action` wystarcza do
+aktualizacji target/toolbar przez istniejace delty albo lokalny payload.
+
+## Poza zakresem
+
+* duzy cache File Managera,
+* przebudowa File Managera,
+* przebudowa `/api/profile`,
+* zmiana algorytmu wyboru aplikacji,
+* zmiana ekonomii operacji,
+* zmiana map target/area runtime.
+
+## Testy
+
+* Przy wielu pasujacych aplikacjach pojawia sie szybki picker, nie File Manager.
+* Picker pokazuje wszystkie `matching_apps`.
+* `Uzyj` wysyla `selected_app_id`.
+* Double-click `Uzyj` nie dubluje requestu.
+* Po sukcesie toolbar/target status aktualizuje sie bez pelnego `/api/profile`,
+  jesli delta/payload wystarcza.
+* File Manager nadal otwiera sie normalnie jako osobna aplikacja.
+* Mobile/narrow picker jest na wierzchu.
+
+## Kryteria akceptacji
+
+* Przy wielu pasujacych apkach gracz widzi szybki picker narzedzia.
+* Domyslna sciezka wyboru narzedzia nie pobiera pelnego profilu.
+* Domyslna sciezka wyboru narzedzia nie renderuje pelnego katalogu `/tools`.
+* Klik `Uzyj` pozostaje zgodny z istniejacym `/hack-action`.
+* Brak regresji File Managera.
+* Brak regresji map action flow.
+
 Decision:
 
 * Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.

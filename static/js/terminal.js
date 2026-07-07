@@ -6453,6 +6453,9 @@ async function selectMapActionTool(appId) {
         addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", "Brak aktywnej akcji mapy.");
         return;
     }
+    if (selection.in_flight) {
+        return;
+    }
 
     const app = selection.matching_apps.find(item => String(item.id || "") === String(appId || ""));
     if (!app) {
@@ -6461,6 +6464,8 @@ async function selectMapActionTool(appId) {
     }
 
     try {
+        selection.in_flight = true;
+        updateMapToolPickerBusyState(true, app.id);
         const res = await fetch('/hack-action', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -6472,24 +6477,140 @@ async function selectMapActionTool(appId) {
         const data = await res.json();
         if (!res.ok || data.blocked) {
             addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", data.status || "Nie uda\u0142o si\u0119 uruchomi\u0107 narz\u0119dzia.");
+            selection.in_flight = false;
+            updateMapToolPickerBusyState(false);
             return;
         }
 
         window.activeToolSelection = null;
+        closeMapToolPicker(false);
+        if (data.target) {
+            setToolbarProfile({
+                ...(toolbarProfile || {}),
+                aimed_target: data.target
+            });
+        }
         addSystemMessage("success", "\u{1F6E0}\uFE0F Narz\u0119dzie", data.status || `Uruchomiono ${app.name || app.id}.`);
-        if (typeof refreshToolbarProfile === "function") refreshToolbarProfile();
         if (typeof notifyOpenMapsOperationsChanged === "function") notifyOpenMapsOperationsChanged();
     } catch (err) {
         console.error("Błąd wyboru narzędzia:", err);
         addSystemMessage("danger", "\u{1F6E0}\uFE0F Narz\u0119dzia", "B\u0142\u0105d po\u0142\u0105czenia podczas wyboru narz\u0119dzia.");
+        if (selection) {
+            selection.in_flight = false;
+            updateMapToolPickerBusyState(false);
+        }
     }
+}
+
+function closeMapToolPicker(clearSelection = true) {
+    const existing = document.querySelector('.terminal[data-app="map-tool-picker"]');
+    if (existing) existing.remove();
+    if (clearSelection) {
+        window.activeToolSelection = null;
+    }
+}
+
+function updateMapToolPickerBusyState(isBusy, activeAppId = "") {
+    const picker = document.querySelector('.terminal[data-app="map-tool-picker"]');
+    if (!picker) return;
+    picker.dataset.busy = isBusy ? "1" : "0";
+    picker.querySelectorAll('[data-map-tool-use]').forEach(button => {
+        const isActive = String(button.dataset.appId || "") === String(activeAppId || "");
+        button.disabled = Boolean(isBusy);
+        button.textContent = isBusy && isActive ? "Uruchamiam..." : "U\u017cyj";
+    });
+    picker.querySelectorAll('[data-map-tool-open-files]').forEach(button => {
+        button.disabled = Boolean(isBusy);
+    });
+}
+
+function renderMapToolPickerApp(app) {
+    const appId = String(app.id || app.name || "");
+    const title = app.name || app.id || "Narzedzie";
+    const toolFile = app.tool_file || app.file_name || app.project_file || `${title}.sh`;
+    const family = app.tool_family || app.type || app.category || "tool";
+    const mode = app.tool_mode || app.scanner_mode || app.operation_mode || "runtime";
+    const quality = app.quality_score ?? app.quality ?? "-";
+    const power = app.power_score ?? app.power ?? "-";
+    const diskUsage = app.disk_usage || app.install_size || app.file_size || 0;
+    const diskLine = Number(diskUsage) ? `<span>Dysk ${escapeHTML(formatStorageSize(diskUsage))}</span>` : "";
+    return `
+        <article class="map-tool-picker-card">
+            <div class="map-tool-picker-card__icon">${escapeHTML(app.icon || "\u{1F6E0}\uFE0F")}</div>
+            <div class="map-tool-picker-card__body">
+                <div class="map-tool-picker-card__title" title="${escapeHTML(title)}">${escapeHTML(title)}</div>
+                <div class="map-tool-picker-card__file" title="${escapeHTML(toolFile)}">${escapeHTML(toolFile)}</div>
+                <div class="map-tool-picker-card__meta">
+                    <span>${escapeHTML(family)}</span>
+                    <span>${escapeHTML(mode)}</span>
+                    <span>Q ${escapeHTML(String(quality))}</span>
+                    <span>P ${escapeHTML(String(power))}</span>
+                    ${diskLine}
+                </div>
+            </div>
+            <button class="map-tool-picker-use" data-map-tool-use data-app-id="${escapeHTML(appId)}" type="button">
+                U\u017cyj
+            </button>
+        </article>
+    `;
+}
+
+function createMapToolPicker(selection) {
+    closeMapToolPicker(false);
+    const apps = Array.isArray(selection?.matching_apps) ? selection.matching_apps : [];
+    if (!apps.length) {
+        return createFileManager({ toolSelection: selection });
+    }
+
+    const position = findAvailablePosition(520, 420);
+    const term = document.createElement('div');
+    term.className = 'terminal map-tool-picker-window';
+    term.dataset.app = "map-tool-picker";
+    term.style.top = `${position.top}px`;
+    term.style.left = `${position.left}px`;
+    term.style.width = `520px`;
+    term.style.maxWidth = `calc(100vw - 24px)`;
+    term.style.minHeight = `260px`;
+
+    const title = selection.map_action_id || selection.canonical_action || "akcja";
+    const label = (selection.pending_action || {}).label || (selection.pending_action || {}).name || "";
+    term.innerHTML = `
+        <div class="title-bar">Wyb\u00f3r narz\u0119dzia <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
+        <div class="map-tool-picker-shell">
+            <div class="map-tool-picker-head">
+                <span class="map-tool-picker-kicker">Akcja mapy</span>
+                <h3>${escapeHTML(title)}</h3>
+                ${label ? `<p title="${escapeHTML(label)}">${escapeHTML(label)}</p>` : ''}
+            </div>
+            <div class="map-tool-picker-list">
+                ${apps.map(renderMapToolPickerApp).join('')}
+            </div>
+            <div class="map-tool-picker-footer">
+                <span>Pokazano tylko pasuj\u0105ce narz\u0119dzia. Pe\u0142ny katalog pozostaje w Plikach.</span>
+                <button class="map-tool-picker-files" data-map-tool-open-files type="button">Poka\u017c w plikach</button>
+            </div>
+        </div>
+    `;
+
+    term.querySelector('.close-btn')?.addEventListener('click', () => closeMapToolPicker(true));
+    term.querySelectorAll('[data-map-tool-use]').forEach(button => {
+        button.addEventListener('click', () => window.selectMapActionTool(button.dataset.appId || ""));
+    });
+    term.querySelector('[data-map-tool-open-files]')?.addEventListener('click', async () => {
+        closeMapToolPicker(false);
+        await createFileManager({ toolSelection: window.activeToolSelection });
+    });
+    document.body.appendChild(term);
+    makeDraggable(term);
+    bringWindowToFront(term);
+    return term;
 }
 
 window.openToolSelectionForMapAction = async function(payload) {
     window.activeToolSelection = normalizeToolSelectionPayload(payload || {});
     const title = window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || "akcja";
     addSystemMessage("info", "\u{1F6E0}\uFE0F Wyb\u00f3r narz\u0119dzia", `Wybierz narz\u0119dzie dla: ${title}`);
-    await createFileManager({ toolSelection: window.activeToolSelection });
+    createMapToolPicker(window.activeToolSelection);
 };
 
 async function createFileManager(options = {}) {
