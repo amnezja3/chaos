@@ -81,7 +81,7 @@ def record_storage_delta(username, profile, reason="", previous=None, dedupe_key
     current = storage_delta_snapshot(profile)
     previous = previous if isinstance(previous, dict) else {}
     reason = str(reason or "storage_changed")
-    dedupe_key_prefix = str(dedupe_key_prefix or f"storage:{username}:{reason}:{utc_now()}")
+    dedupe_key_prefix = str(dedupe_key_prefix or f"storage:{username}:{reason}:{runtime_file_now()}")
     events = []
 
     def emit(change_type, entity_id, value_key):
@@ -146,7 +146,7 @@ def record_apps_delta(username, profile, change_type, app=None, app_id=None, rea
         payload.update(extra)
 
     entity_id = str(app_id or payload.get("app_id") or "apps")
-    dedupe_key = dedupe_key or f"apps:{change_type}:{username}:{entity_id}:{utc_now()}"
+    dedupe_key = dedupe_key or f"apps:{change_type}:{username}:{entity_id}:{runtime_file_now()}"
     try:
         return delta_bus.record_change(
             username,
@@ -6098,7 +6098,7 @@ def refresh_and_persist_operations(username, profile):
         profile,
         reason="operation_runtime",
         previous=previous_storage,
-        dedupe_key_prefix=f"storage:{username}:operation_runtime:{utc_now()}",
+        dedupe_key_prefix=f"storage:{username}:operation_runtime:{runtime_file_now()}",
     )
     fresh_profile = user_store.get_profile(username) or profile
     fresh_profile = dict(fresh_profile)
@@ -10397,7 +10397,7 @@ def api_ghost_exchange():
             profile,
             reason="ghost_exchange_auto_sale",
             previous=previous_storage,
-            dedupe_key_prefix=f"storage:{username}:ghost_exchange:{market_runtime.get('sales', [{}])[0].get('batch_id') if market_runtime.get('sales') else utc_now()}",
+            dedupe_key_prefix=f"storage:{username}:ghost_exchange:{market_runtime.get('sales', [{}])[0].get('batch_id') if market_runtime.get('sales') else runtime_file_now()}",
         )
         for sale in market_runtime.get("sales", []):
             record_wallet_balance_delta(
@@ -12933,7 +12933,7 @@ def uninstall_app():
         profile,
         reason="app_uninstall",
         previous=previous_storage,
-        dedupe_key_prefix=f"storage:{session['user']}:app_uninstall:{app_id or tool_file or app_name or utc_now()}",
+        dedupe_key_prefix=f"storage:{session['user']}:app_uninstall:{app_id or tool_file or app_name or runtime_file_now()}",
     )
     if removed_app or removed_tool:
         record_apps_delta(
