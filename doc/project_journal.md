@@ -5496,3 +5496,160 @@ Dodac dev/admin podglad delt, wersji i recovery przed podpieciem
 
 Sprint 60 zamkniety jako dev/admin diagnostyka delta feed. Nie podlaczono
 frontendu produkcyjnego, nie wylaczono pollerow i nie dodano recovery UI.
+
+### Doprecyzowanie po Sprincie 60
+
+Do planu Fazy G dopisano dwa sprinty pomostowe:
+
+* Sprint 60.5 - Async Operation Runner Audit,
+* Sprint 60.6 - Async Operation Runner v0.
+
+Decyzja: zanim pierwsze ciezkie akcje zaczna korzystac z pracy w tle, trzeba
+najpierw wskazac endpointy trwajace dluzej niz 1000 ms i rozdzielic akcje, ktore
+musza zwracac natychmiastowy payload, od akcji, ktore moga zwrocic tylko
+`operation_id`.
+
+Pierwotnie runner v0 mial objac jedna bezpieczna akcje, statusy
+`queued/running/done/failed` i wynik przez system message albo delta event. Nie
+ma przerabiac calego runtime ani tworzyc drugiego systemu operacji.
+
+---
+
+## 06.07.2026
+
+### Etap
+
+Sprint 60.5 - Async Operation Runner Audit.
+
+### Cel
+
+Wskazac akcje runtime, ktore moga szybko zwracac `operation_id`, a wlasciwa
+praca moze konczyc sie w tle.
+
+### Co zostalo wykonane
+
+* Dodano dokument `doc/async_operation_runner_audit.md`.
+* Przejrzano ciezkie endpointy mapy, operacji, Ghost Exchange, Googleplex,
+  GhostLab i generatora aplikacji.
+* Rozdzielono ciezkie odczyty od akcji nadajacych sie do runnera.
+* Potwierdzono, ze map player actors, map player areas, clan vulnerabilities,
+  operations summary i Ghost Exchange sa problemem synchronizacji/delta-feed,
+  a nie kandydatem do Async Runnera.
+* Przejrzano akcje:
+  * `/map-action`,
+  * `/hack-action`,
+  * `/api/operations/cancel`,
+  * `/install-app`,
+  * `/api/apps/uninstall`,
+  * `/api/apps/generate`,
+  * `/api/ghostlab/projects/<project_id>/compile`.
+
+### Najwazniejsze decyzje
+
+* Async Runner nie ma obslugiwac ciezkich snapshotow ani polling endpointow.
+* `/hack-action`, `/map-action`, `/install-app` i uninstall aplikacji nie sa
+  dobrym kandydatem v0, bo potrzebuja natychmiastowego payloadu albo dotykaja
+  ekonomii/storage.
+* Najbezpieczniejszy kandydat na Sprint 60.6 to compile projektu GhostLab:
+  `POST /api/ghostlab/projects/<project_id>/compile`.
+* Kandydat zapasowy to `/api/apps/generate`, ale ma wieksze ryzyko, bo dotyka
+  katalogu Googleplex i plikow projektu.
+
+### Testy
+
+* Sprint 60.5 byl audytem dokumentacyjnym.
+* Nie zmieniono kodu runtime.
+
+### Status
+
+Sprint 60.5 zamkniety jako audyt. Audyt wskazal GhostLab compile project jako
+najbezpieczniejszego kandydata technicznego, ale decyzja planistyczna po audycie
+wstrzymala implementacje runnera na tym etapie.
+
+---
+
+## 06.07.2026
+
+### Etap
+
+Sprint 60.6 - Async Operation Runner Decision.
+
+### Status
+
+Cancelled / postponed.
+
+### Decyzja
+
+Po audycie Sprintu 60.5 zrezygnowano z implementacji Async Operation Runner v0
+na obecnym etapie.
+
+### Powod
+
+Jedynym bezpiecznym kandydatem v0 okazal sie
+`POST /api/ghostlab/projects/<project_id>/compile`.
+
+Dla jednej samodzielnej akcji koszt dodania runnera, statusow, deduplikacji,
+obslugi bledow i utrzymania osobnego przeplywu async jest wiekszy niz aktualny
+zysk runtime.
+
+### Wnioski
+
+* Ciezkie endpointy odczytu pozostaja tematem snapshot + delta-feed.
+* `/hack-action`, `/map-action`, install/uninstall, Ghost Exchange i polling
+  mapy nie sa kandydatami do runnera v0.
+* Temat runnera mozna wznowic, gdy pojawi sie wiecej akcji typu queued job.
+* Runtime pozostaje bez zmian.
+* Faza G kontynuuje glowna sciezke od Sprintu 61 - First Safe Delta: Wallet.
+
+---
+
+## 06.07.2026
+
+### Etap
+
+Sprint 61 - First Safe Delta: Wallet.
+
+### Cel
+
+Pierwsza realna migracja malego elementu UI na delta-feed: saldo HC.
+
+### Co zostalo wykonane
+
+* Dodano helper `record_wallet_balance_delta(...)`.
+* Backend emituje `wallet.balance_changed` po realnych zmianach HC w:
+  * Ghost Exchange auto-sale po zapisaniu profilu,
+  * legacy Ghost Exchange manual sell,
+  * Wallet transfer,
+  * Financial Sniffer technical transfer,
+  * Googleplex product purchase,
+  * Googleplex app install.
+* `/api/state/changes` zwraca eventy wallet przez istniejacy delta bus.
+* Frontend dostal lekki delta poller oparty o `/api/state/changes`.
+* `applyDelta()` obsluguje tylko `wallet.balance_changed`.
+* Saldo aktualizuje sie w toolbarze, Wallet HC i widocznym panelu Googleplex.
+* `/api/profile` zostaje recovery tylko dla rozjazdu delta feed.
+
+### Najwazniejsze decyzje
+
+* Nie migrowano mapy, maila, apps ani Ghost Exchange dashboardu.
+* `refresh_market_runtime()` nie emituje delty podczas samej symulacji.
+  Delta wallet powstaje dopiero po sciezce, ktora zapisuje profil.
+* Delta nie liczy salda. Zawiera tylko saldo zapisane juz w zrodle prawdy.
+* Ten sam event jest idempotentny po `dedupe_key`.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`,
+  OK.
+* `node --check static/js/terminal.js`,
+  OK.
+* `python -m unittest tests.test_target_persistence.GameStateDeltaBusTest tests.test_target_persistence.StateChangesEndpointTest tests.test_target_persistence.WalletDeltaEndpointTest`,
+  OK.
+* `python -m unittest tests.test_target_persistence`,
+  uruchomiony; zatrzymal sie na dwoch istniejacych testach map template JSON
+  embed (`MissingProfileAndSessionSafetyTest`), poza zakresem Sprintu 61.
+
+### Status
+
+Sprint 61 zamkniety jako pierwsza bezpieczna delta wallet. Snapshot profilu
+pozostaje sciezka recovery.

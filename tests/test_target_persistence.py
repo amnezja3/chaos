@@ -321,6 +321,27 @@ class GameStateDeltaBusTest(unittest.TestCase):
         finally:
             self._cleanup(path)
 
+    def test_record_wallet_balance_delta_uses_wallet_contract(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            with patch.object(run, "delta_bus", bus):
+                event = run.record_wallet_balance_delta(
+                    "alice",
+                    777,
+                    reason="unit_test",
+                    dedupe_key="wallet:balance:alice:test",
+                )
+
+            self.assertEqual(event["scope"], "wallet")
+            self.assertEqual(event["type"], "wallet.balance_changed")
+            self.assertEqual(event["entity_id"], "wallet")
+            self.assertEqual(event["payload"]["balance"], 777)
+            self.assertEqual(event["payload"]["currency"], "HC")
+            self.assertEqual(event["payload"]["reason"], "unit_test")
+        finally:
+            self._cleanup(path)
+
     def test_get_changes_since_requires_recovery_when_limit_exceeded(self):
         path = self._temp_path()
         try:
@@ -457,6 +478,80 @@ class StateChangesEndpointTest(unittest.TestCase):
         self.assertTrue(data["recovery_required"])
         self.assertEqual(data["reason"], "not_logged_in")
         self.assertEqual(data["changes"], [])
+
+
+class WalletDeltaEndpointTest(unittest.TestCase):
+    def _temp_path(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        return path
+
+    def _cleanup(self, path):
+        for suffix in ("", "-wal", "-shm"):
+            candidate = f"{path}{suffix}"
+            if os.path.exists(candidate):
+                try:
+                    os.remove(candidate)
+                except PermissionError:
+                    pass
+
+    def test_wallet_transfer_records_balance_delta_for_sender_and_recipient(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            client = run.app.test_client()
+            with client.session_transaction() as sess:
+                sess["user"] = "alice"
+
+            transfer_result = {
+                "balance": 900,
+                "currency": "HC",
+                "transaction": {
+                    "id": 42,
+                    "type": "outgoing",
+                    "peer": "bob",
+                    "amount": 100,
+                    "created_at": "2026-07-06T12:00:00Z",
+                    "note": "test",
+                },
+            }
+            wallet_after = {
+                "balance": 900,
+                "currency": "HC",
+                "transactions": [transfer_result["transaction"]],
+            }
+            recipient_wallet = {
+                "balance": 1100,
+                "currency": "HC",
+                "transactions": [],
+            }
+
+            def fake_get_wallet(username, limit=20):
+                return recipient_wallet if username == "bob" else wallet_after
+
+            with patch.object(run, "delta_bus", bus), \
+                    patch.object(run.wallet_store, "transfer", return_value=transfer_result), \
+                    patch.object(run.wallet_store, "get_wallet", side_effect=fake_get_wallet), \
+                    patch.object(run, "sync_session_profile", return_value={"username": "alice", "hackcoins": 900}):
+                response = client.post("/api/wallet/transfer", json={
+                    "to": "bob",
+                    "amount": 100,
+                    "note": "test",
+                })
+
+            self.assertEqual(response.status_code, 200)
+            data = response.get_json()
+            self.assertTrue(data["success"])
+
+            changes_alice = bus.get_changes_since("alice", 0)["changes"]
+            changes_bob = bus.get_changes_since("bob", 0)["changes"]
+            self.assertEqual(len(changes_alice), 1)
+            self.assertEqual(len(changes_bob), 1)
+            self.assertEqual(changes_alice[0]["type"], "wallet.balance_changed")
+            self.assertEqual(changes_alice[0]["payload"]["balance"], 900)
+            self.assertEqual(changes_bob[0]["payload"]["balance"], 1100)
+        finally:
+            self._cleanup(path)
 
 
 class DeltaDiagnosticsEndpointTest(unittest.TestCase):

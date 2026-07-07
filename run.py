@@ -39,6 +39,32 @@ player_hack_access_store = PlayerHackAccessStore()
 dev_bug_report_store = DevBugReportStore()
 delta_bus = GameStateDeltaBus()
 
+
+def record_wallet_balance_delta(username, balance, reason="", entity_id="wallet", dedupe_key=None):
+    try:
+        balance = int(balance or 0)
+    except (TypeError, ValueError):
+        balance = 0
+    payload = {
+        "balance": balance,
+        "currency": "HC",
+    }
+    if reason:
+        payload["reason"] = str(reason)
+    try:
+        return delta_bus.record_change(
+            username,
+            "wallet",
+            "wallet.balance_changed",
+            payload,
+            entity_id=entity_id,
+            dedupe_key=dedupe_key,
+        )
+    except Exception as exc:
+        print(f"[DELTA] wallet.balance_changed failed for {username}: {exc}")
+        return None
+
+
 APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
 _GIT_COMMIT_HASH = None
 _GIT_BUILD_TAG = None
@@ -3888,6 +3914,13 @@ def refresh_market_runtime(username, profile, now=None, persist=False):
             "storage_soft_limit": True,
             "storage_over_limit": profile.get("storage_over_limit", False),
         })
+        for sale in sales:
+            record_wallet_balance_delta(
+                username,
+                profile.get("hackcoins", 0),
+                reason="ghost_exchange_auto_sale",
+                dedupe_key=f"wallet:balance:{username}:ghost_exchange:{sale.get('batch_id') or sale.get('id')}",
+            )
 
     return {
         "changed": changed,
@@ -10254,6 +10287,13 @@ def api_ghost_exchange():
             "storage_soft_limit": True,
             "storage_over_limit": profile.get("storage_over_limit", False),
         })
+        for sale in market_runtime.get("sales", []):
+            record_wallet_balance_delta(
+                username,
+                profile.get("hackcoins", 0),
+                reason="ghost_exchange_auto_sale",
+                dedupe_key=f"wallet:balance:{username}:ghost_exchange:{sale.get('batch_id') or sale.get('id')}",
+            )
         session["profile"] = profile
     sectors = build_ghost_exchange_sector_payload(profile)
     dashboard = build_ghost_exchange_dashboard_payload(profile, sectors=sectors)
@@ -10331,6 +10371,12 @@ def api_ghost_exchange_sell():
         current_hc = 0
     new_balance = current_hc + int(sale["price"])
     profile["hackcoins"] = new_balance
+    record_wallet_balance_delta(
+        username,
+        profile.get("hackcoins", 0),
+        reason="ghost_exchange_manual_sale",
+        dedupe_key=f"wallet:balance:{username}:ghost_exchange_manual:{file_id}",
+    )
 
     sold_file_name = sale["file"].get("name") or sale["file"].get("filename") or "data_package"
     mail_body = (
@@ -10482,6 +10528,26 @@ def api_wallet_transfer():
         )
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
+
+    transaction_id = (result.get("transaction") or {}).get("id")
+    record_wallet_balance_delta(
+        session["user"],
+        result.get("balance", 0),
+        reason="wallet_transfer_outgoing",
+        dedupe_key=f"wallet:balance:{session['user']}:transfer:{transaction_id}:outgoing",
+    )
+    recipient = str(data.get("to") or "").strip()
+    if recipient:
+        try:
+            recipient_wallet = wallet_store.get_wallet(recipient, limit=1)
+            record_wallet_balance_delta(
+                recipient,
+                recipient_wallet.get("balance", 0),
+                reason="wallet_transfer_incoming",
+                dedupe_key=f"wallet:balance:{recipient}:transfer:{transaction_id}:incoming",
+            )
+        except Exception as exc:
+            print(f"[DELTA] recipient wallet delta failed for {recipient}: {exc}")
 
     session["profile"] = sync_session_profile(rebuild_territory=False)
     wallet = wallet_store.get_wallet(session["user"])
@@ -10637,6 +10703,19 @@ def api_player_hack_tool_use():
             final_amount,
             note="financialSniffer",
         )
+        if final_amount > 0:
+            record_wallet_balance_delta(
+                victim_username,
+                transfer_result.get("source_balance", 0),
+                reason="financial_sniffer_outgoing",
+                dedupe_key=f"wallet:balance:{victim_username}:financial_sniffer:{transfer_result.get('transaction_id')}:outgoing",
+            )
+            record_wallet_balance_delta(
+                session["user"],
+                transfer_result.get("target_balance", 0),
+                reason="financial_sniffer_incoming",
+                dedupe_key=f"wallet:balance:{session['user']}:financial_sniffer:{transfer_result.get('transaction_id')}:incoming",
+            )
         player_hack_access_store.record_tool_usage(
             access,
             session["user"],
@@ -12508,6 +12587,19 @@ def install_app():
                 "system_messages": system_messages,
             }
             mgr.update_profile(update_payload)
+            record_wallet_balance_delta(
+                buyer_username,
+                profile.get("hackcoins", 0),
+                reason="googleplex_product_purchase",
+                dedupe_key=f"wallet:balance:{buyer_username}:googleplex_product:{app_id}:{purchase_record.get('purchased_at')}",
+            )
+            if payee_profile and payee_username != buyer_username:
+                record_wallet_balance_delta(
+                    payee_username,
+                    payee_profile.get("hackcoins", 0),
+                    reason="googleplex_product_sale",
+                    dedupe_key=f"wallet:balance:{payee_username}:googleplex_product_sale:{buyer_username}:{app_id}:{purchase_record.get('purchased_at')}",
+                )
             session["profile"] = sync_session_profile(rebuild_territory=False)
             return jsonify({
                 "status": "success",
@@ -12573,6 +12665,19 @@ def install_app():
             "storage_soft_limit": True,
             "storage_over_limit": profile.get("storage_over_limit", False),
         })
+        record_wallet_balance_delta(
+            buyer_username,
+            profile.get("hackcoins", 0),
+            reason="googleplex_app_install",
+            dedupe_key=f"wallet:balance:{buyer_username}:googleplex_app:{app_id}",
+        )
+        if payee_profile and payee_username != buyer_username:
+            record_wallet_balance_delta(
+                payee_username,
+                payee_profile.get("hackcoins", 0),
+                reason="googleplex_app_sale",
+                dedupe_key=f"wallet:balance:{payee_username}:googleplex_app_sale:{buyer_username}:{app_id}",
+            )
 
         # --- SYSTEM MESSAGE zapisane do profilu ---
         new_message = {

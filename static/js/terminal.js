@@ -12,6 +12,11 @@ let desktopRenderedApps = [];
 let desktopLastSafeMode = null;
 let playerHackAccessState = null;
 let playerHackAccessTimer = null;
+let stateDeltaVersion = 0;
+let stateDeltaPollInFlight = false;
+const processedDeltaKeys = new Set();
+const STATE_DELTA_POLL_INTERVAL_MS = 4000;
+const STATE_DELTA_LIMIT = 100;
 
 const bootLoader = {
     overlay: document.getElementById('boot-preloader'),
@@ -3634,6 +3639,92 @@ async function getUserProfile() {
     } catch (err) {
         console.error("❌ Błąd pobierania profilu użytkownika:", err);
         return null;
+    }
+}
+
+function rememberProcessedDelta(key) {
+    if (!key) return false;
+    if (processedDeltaKeys.has(key)) return true;
+    processedDeltaKeys.add(key);
+    if (processedDeltaKeys.size > 500) {
+        const first = processedDeltaKeys.values().next().value;
+        processedDeltaKeys.delete(first);
+    }
+    return false;
+}
+
+function updateWalletBalanceView(balance, currency = "HC") {
+    const normalizedBalance = Number(balance || 0);
+    setToolbarProfile({
+        ...(toolbarProfile || {}),
+        hackcoins: normalizedBalance
+    });
+
+    document.querySelectorAll('[data-wallet-balance]').forEach(node => {
+        node.textContent = `Saldo: ${normalizedBalance} ${currency || 'HC'}`;
+    });
+    document.querySelectorAll('.googolplex-wallet').forEach(node => {
+        node.textContent = `HackCoiny: ${normalizedBalance}`;
+    });
+}
+
+function applyDelta(event) {
+    if (!event || typeof event !== "object") return false;
+    const dedupeKey = event.dedupe_key || `${event.type || 'event'}:${event.version || ''}`;
+    if (rememberProcessedDelta(dedupeKey)) return false;
+
+    if (event.type === "wallet.balance_changed" || (event.scope === "wallet" && event.entity_id === "wallet")) {
+        const payload = event.payload || {};
+        updateWalletBalanceView(payload.balance, payload.currency || "HC");
+        return true;
+    }
+    return false;
+}
+
+async function recoverWalletDeltaSnapshot(currentVersion = null) {
+    const profile = await getUserProfile();
+    if (profile) {
+        updateWalletBalanceView(profile.hackcoins, "HC");
+    }
+    if (Number.isFinite(Number(currentVersion))) {
+        stateDeltaVersion = Math.max(stateDeltaVersion, Number(currentVersion));
+    }
+    return profile;
+}
+
+async function pollStateChanges() {
+    if (!desktopSessionActive || stateDeltaPollInFlight) return;
+    stateDeltaPollInFlight = true;
+    try {
+        const params = new URLSearchParams({
+            since: String(stateDeltaVersion || 0),
+            limit: String(STATE_DELTA_LIMIT)
+        });
+        const res = await fetch(`/api/state/changes?${params.toString()}`);
+        if (res.status === 401) {
+            desktopSessionActive = false;
+            return;
+        }
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.recovery_required) {
+            await recoverWalletDeltaSnapshot(data.current_version);
+            return;
+        }
+        const changes = Array.isArray(data.changes) ? data.changes : [];
+        changes.forEach(change => {
+            applyDelta(change);
+            if (Number.isFinite(Number(change.version))) {
+                stateDeltaVersion = Math.max(stateDeltaVersion, Number(change.version));
+            }
+        });
+        if (Number.isFinite(Number(data.current_version))) {
+            stateDeltaVersion = Math.max(stateDeltaVersion, Number(data.current_version));
+        }
+    } catch (err) {
+        console.warn("Delta feed poll failed", err);
+    } finally {
+        stateDeltaPollInFlight = false;
     }
 }
 
@@ -7755,6 +7846,8 @@ async function pollSystemMessages() {
 
 // 🔁 Co 10 sekund sprawdzaj nowe
 setInterval(pollSystemMessages, 10000);
+setTimeout(pollStateChanges, 1000);
+setInterval(pollStateChanges, STATE_DELTA_POLL_INTERVAL_MS);
 
 async function pollLaunchQueue() {
     const loadingToken = beginDesktopLoading('Sprawdzam system...');

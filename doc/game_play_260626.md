@@ -5039,6 +5039,86 @@ GET /api/dev/delta-diagnostics
 
 ---
 
+# Sprint 60.5 - Async Operation Runner Audit
+
+## Cel gameplayowy
+
+Wskazac akcje runtime, ktore moga szybko zwracac `operation_id`, a wlasciwa
+praca moze konczyc sie w tle.
+
+Sprint 60.5 jest audytem. Nie przerabia jeszcze calego runtime.
+
+## Zakres
+
+1. Spisac endpointy akcji trwajace dluzej niz 1000 ms.
+2. Dla kazdej akcji oznaczyc, czy potrzebuje natychmiastowego payloadu.
+3. Dla kazdej akcji oznaczyc, czy moze dzialac jako queued operation.
+4. Wskazac akcje ryzykowne dla UX przez blokowanie requestu.
+5. Wskazac akcje ryzykowne dla backendu przez dlugie trzymanie requestu.
+6. Nie dodawac jeszcze workera.
+7. Nie przerabiac endpointow na async w tym sprincie.
+8. Nie zmieniac gameplayu.
+
+## Kryteria akceptacji
+
+* Istnieje lista ciezkich endpointow akcji.
+* Wiadomo, ktore akcje musza zwracac natychmiastowy wynik.
+* Wiadomo, ktore akcje moga zwrocic tylko `operation_id`.
+* Wiadomo, ktora akcja jest najlepszym kandydatem na v0.
+* Nie zmieniono runtime.
+
+---
+
+# Sprint 60.6 - Async Operation Runner v0
+
+## Cel gameplayowy
+
+Status: cancelled / postponed.
+
+Po audycie Sprintu 60.5 zrezygnowano z implementacji Async Operation Runner v0
+na tym etapie.
+
+## Powod
+
+Jedynym bezpiecznym kandydatem v0 okazal sie:
+
+```text
+POST /api/ghostlab/projects/<project_id>/compile
+```
+
+Dla jednej samodzielnej akcji koszt dodania runnera, statusow, deduplikacji,
+obslugi bledow i utrzymania osobnego przeplywu async jest wiekszy niz aktualny
+zysk runtime.
+
+## Decyzja
+
+Nie wdrazac Async Operation Runnera w Fazie G na obecnym etapie.
+
+Kontynuowac zgodnie z planem od Sprintu 61:
+
+```text
+First Safe Delta - Wallet
+```
+
+## Wnioski
+
+* Ciezkie endpointy odczytu pozostaja tematem snapshot + delta-feed.
+* `/hack-action`, `/map-action`, install/uninstall, Ghost Exchange i polling
+  mapy nie sa kandydatami do runnera v0.
+* Temat runnera mozna wznowic, gdy pojawi sie wiecej akcji typu queued job.
+* Runtime pozostaje bez zmian.
+
+## Kryteria akceptacji
+
+* Runner nie zostal wdrozony.
+* Nie dodano `ThreadPoolExecutor`.
+* Nie dodano nowych statusow async.
+* Nie dodano nowego przeplywu operacji.
+* Runtime pozostaje bez zmian.
+* Faza G wraca do glownej sciezki delta-feed od Sprintu 61.
+
+---
+
 # Sprint 61 - First Safe Delta: Wallet
 
 ## Cel gameplayowy
