@@ -60,6 +60,39 @@ Etykieta nie jest decyzja implementacyjna. Jest wynikiem audytu.
 
 ---
 
+## Sprint 69 - Poller thinning update
+
+Po Sprintach 61-68.5 rozrzedzono tylko pollery, ktore maja juz bezpieczny
+delta-feed/recovery:
+
+| Scope | Endpoint | Przed | Po | Status |
+| --- | --- | --- | --- | --- |
+| Cyberner list | `/api/mail/bootstrap` | 3000 ms | 10000 ms | delta dla unread/thread summary, snapshot recovery zostaje |
+| Map player actors | `/api/map/player-actors` | 5000 ms | 30000 ms | delta dla `map.player_*`, snapshot recovery zostaje |
+
+Nie zmieniono:
+
+* `/api/map/player-areas`,
+* `/api/map/clan-vulnerabilities`,
+* `/api/operations?summary=1`,
+* `/system-messages`,
+* `/launch-queue`.
+
+Szacunek statyczny dla jednego okna mapy i jednego Cybernera:
+
+```text
+68 requestow / min -> 44 requesty / min
+```
+
+Live checkpoint po wdrozeniu powinien dopisac realne:
+
+* sredni czas odpowiedzi przed/po,
+* max czas odpowiedzi przed/po,
+* recovery_count,
+* subiektywne lagi mapy/Cybernera.
+
+---
+
 ## Dowody kodowe
 
 ### Profil jako ciezki snapshot
@@ -407,4 +440,3 @@ Kandydat: ACTION / DELTA
 4. Jaki jest realny czas renderu `refreshPlayerAreas()` w przegladarce?
 5. Czy `/api/ghost-exchange` powinien byc klasyfikowany jako refresh read modelu,
    czy jako kontrolowany runtime tick rynku?
-

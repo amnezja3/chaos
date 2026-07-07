@@ -3811,16 +3811,21 @@
                 }
             };
 
+            const MAP_PLAYER_ACTORS_SNAPSHOT_INTERVAL_MS = 30000;
+            const MAP_PLAYER_AREAS_SNAPSHOT_INTERVAL_MS = 10000;
+            const MAP_CLAN_VULNERABILITIES_SNAPSHOT_INTERVAL_MS = 10000;
+            const MAP_ACTIVE_OPERATIONS_SNAPSHOT_INTERVAL_MS = 10000;
+
             window.refreshPlayerActors();
             scheduleLegacyPlayerAreaCleanup();
             window.refreshPlayerAreas();
             window.refreshClanVulnerabilities();
             window.refreshActiveOperations();
             window.stopMapRefreshTimers();
-            window.mapRefreshTimers.push(setInterval(window.refreshPlayerActors, 5000));
-            window.mapRefreshTimers.push(setInterval(window.refreshPlayerAreas, 10000));
-            window.mapRefreshTimers.push(setInterval(window.refreshClanVulnerabilities, 10000));
-            window.mapRefreshTimers.push(setInterval(window.refreshActiveOperations, 10000));
+            window.mapRefreshTimers.push(setInterval(window.refreshPlayerActors, MAP_PLAYER_ACTORS_SNAPSHOT_INTERVAL_MS));
+            window.mapRefreshTimers.push(setInterval(window.refreshPlayerAreas, MAP_PLAYER_AREAS_SNAPSHOT_INTERVAL_MS));
+            window.mapRefreshTimers.push(setInterval(window.refreshClanVulnerabilities, MAP_CLAN_VULNERABILITIES_SNAPSHOT_INTERVAL_MS));
+            window.mapRefreshTimers.push(setInterval(window.refreshActiveOperations, MAP_ACTIVE_OPERATIONS_SNAPSHOT_INTERVAL_MS));
         }
 
 

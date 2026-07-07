@@ -21,6 +21,7 @@ const processedDeltaKeys = new Set();
 const STATE_DELTA_POLL_INTERVAL_MS = 4000;
 const STATE_DELTA_LIMIT = 100;
 const STATE_DELTA_DEFAULT_RECOVERY_SCOPES = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map"];
+const CYBERNER_THREAD_REFRESH_INTERVAL_MS = 10000;
 
 const bootLoader = {
     overlay: document.getElementById('boot-preloader'),
@@ -8035,7 +8036,7 @@ function createEmailClient() {
         mailResizeObserver = new ResizeObserver(updateMailNarrowMode);
         mailResizeObserver.observe(term);
     }
-    const mailRefreshTimer = setInterval(refreshThreads, 3000);
+    const mailRefreshTimer = setInterval(refreshThreads, CYBERNER_THREAD_REFRESH_INTERVAL_MS);
     term.querySelector('.close-btn').addEventListener('click', () => {
         clearInterval(mailRefreshTimer);
         window.activeCybernerThread = null;

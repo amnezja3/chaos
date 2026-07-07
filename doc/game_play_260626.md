@@ -5421,24 +5421,31 @@ Nie migruje obszarow, konfliktow ani contested/captured pillar layers.
 
 ---
 
-# Sprint 69 - Poller Retirement
+# Sprint 69 - Poller Thinning / Retirement
 
 ## Cel gameplayowy
 
-Wylaczac stare agresywne pollery dopiero po potwierdzeniu stabilnosci delt.
+Zmniejszyc liczbe cyklicznych requestow po potwierdzeniu, ze wallet, storage,
+apps, mail/Ghost Exchange summary, player actors i target registry dzialaja
+bezpiecznie z delta-feed/recovery.
 
 ## Zakres
 
 1. Spisac pollery zastapione deltami.
-2. Wylaczac je po jednym.
+2. Ograniczac albo wylaczac je po jednym.
 3. Zostawic snapshoty jako start/recovery.
-4. Monitorowac liczbe requestow i czasy odpowiedzi.
-5. Nie usuwac endpointow snapshotowych.
-6. Udokumentowac porownanie przed/po:
+4. Nie usuwac endpointow snapshotowych.
+5. Nie robic globalnego reloadu jako normalnej sciezki.
+6. Mierzyc request count przed/po.
+7. Mierzyc srednie i maksymalne czasy odpowiedzi przed/po.
+8. Mierzyc `recovery_count`.
+9. Udokumentowac porownanie przed/po:
    * request count przed,
    * request count po,
    * sredni czas odpowiedzi przed,
    * sredni czas odpowiedzi po,
+   * max czas odpowiedzi przed,
+   * max czas odpowiedzi po,
    * liczba recovery.
 
 ## Kryteria akceptacji

@@ -6165,3 +6165,79 @@ po przygotowaniu `targetMarkers[target_id]`.
 Sprint 68.5 zamkniety jako Map Target Delta v0. Target delty dzialaja tylko po
 registry `targetMarkers[target_id]`, a warstwy obszarow i konfliktow pozostaja
 snapshotowe.
+
+---
+
+## 07.07.2026
+
+### Etap
+
+Sprint 69 - Poller Thinning / Retirement.
+
+### Cel
+
+Zmniejszyc liczbe cyklicznych requestow po potwierdzeniu, ze wallet, storage,
+apps, mail/Ghost Exchange summary, player actors i target registry dzialaja
+bezpiecznie z delta-feed/recovery.
+
+### Co zostalo wykonane
+
+* Dodano raport `doc/poller_retirement_report.md`.
+* Rozrzedzono Cyberner bootstrap:
+  * bylo `3000 ms`,
+  * jest `10000 ms`.
+* Rozrzedzono snapshot map player actors:
+  * bylo `5000 ms`,
+  * jest `30000 ms`.
+* Snapshoty pozostaja:
+  * `/api/mail/bootstrap`,
+  * `/api/map/player-actors`.
+* Endpointy snapshotowe nie zostaly usuniete.
+* Recovery mapy i maila pozostaje dostepne.
+
+### Pollery zostawione bez zmian
+
+* `/api/map/player-areas` - nadal bez area delta.
+* `/api/map/clan-vulnerabilities` - vulnerability layers nadal bez delt.
+* `/api/operations?summary=1` - operations summary nadal bez delt.
+* `/system-messages` - notification bridge nie zastapil jeszcze pollera.
+* `/launch-queue` - pozostaje action/snapshot flow.
+* `/api/state/changes` - glowny lekki delta feed.
+
+### Request count przed/po
+
+Szacunek statyczny dla jednego otwartego okna mapy i jednego otwartego
+Cybernera:
+
+```text
+przed: 68 requestow / min
+po:    44 requesty / min
+```
+
+Zmiana dotyczy tylko:
+
+* `/api/mail/bootstrap`: 20/min -> 6/min,
+* `/api/map/player-actors`: 12/min -> 2/min.
+
+### Najwazniejsze decyzje
+
+* Nie wylaczono jeszcze ciezkich pollerow map player areas, clan vulnerabilities
+  ani operations summary, bo nadal nie maja bezpiecznego delta replacement.
+* Nie ma globalnego reloadu jako normalnej sciezki.
+* Sprint 69 jest thinning v0, nie koncowe usuniecie pollingu.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`,
+  OK.
+* `node --check static/js/terminal.js`,
+  OK.
+* `python -m unittest tests.test_target_persistence.GameStateDeltaBusTest tests.test_target_persistence.StateChangesEndpointTest`,
+  OK.
+* `git diff --check`,
+  OK.
+
+### Status
+
+Sprint 69 zamkniety jako poller thinning v0. Liczba cyklicznych requestow spada
+w obszarach objetych delta-feed, a snapshoty zostaja jako start/recovery.
