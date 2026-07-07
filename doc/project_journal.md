@@ -5840,3 +5840,198 @@ rynku.
 Sprint 64 zamkniety jako mail/Ghost Exchange summary delta v0. Male liczniki i
 summary moga odswiezac sie przez delta-feed, a pelne snapshoty pozostaja
 recovery.
+
+---
+
+## 07.07.2026
+
+### Etap
+
+Sprint 65 - Delta Recovery.
+
+### Cel
+
+Utwardzic recovery delta-feed przed wejsciem w mape.
+
+### Co zostalo wykonane
+
+* `/api/state/changes` zwraca `recovery_scopes`, gdy `recovery_required=true`.
+* Frontend rozdziela recovery per scope:
+  * wallet/profile przez `/api/profile`,
+  * storage przez `/api/profile`,
+  * apps przez `/api/profile`,
+  * mail przez `/api/mail/bootstrap`,
+  * Ghost Exchange przez `/api/ghost-exchange`.
+* Recovery aktualizuje tylko istniejace widoki i dane runtime.
+* Po recovery frontend zapisuje `stateDeltaVersion` z `current_version`.
+* Brak panic reloadu strony.
+
+### Najwazniejsze decyzje
+
+* Przy `limit_exceeded` i `outside_retention` endpoint zwraca wspolny zestaw
+  scope'ow recovery dla dotychczas zmigrowanych modulow, bo po utracie eventow
+  nie wolno zgadywac, ktory scope faktycznie wypadl z retencji.
+* Snapshoty pozostaja zrodlem recovery, nie drugim delta systemem.
+* Nie ruszano mapy.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`,
+  OK.
+* `node --check static/js/terminal.js`,
+  OK.
+* `python -m unittest tests.test_target_persistence.GameStateDeltaBusTest tests.test_target_persistence.StateChangesEndpointTest`,
+  OK.
+
+### Status
+
+Sprint 65 zamkniety. Delta-feed ma scope'owane recovery dla dotychczas
+zmigrowanych modulow i nie wymaga globalnego reloadu.
+
+---
+
+## 07.07.2026
+
+### Etap
+
+Sprint 66 - Map Delta Audit.
+
+### Cel
+
+Przygotowac mape pod delty bez migracji runtime mapy.
+
+### Co zostalo wykonane
+
+* Dodano dokument audytu `doc/map_delta_audit.md`.
+* Spisano wymagane eventy mapy:
+  * `map.player_moved`,
+  * `map.player_actor_updated`,
+  * `map.player_actor_removed`,
+  * `map.target_updated`,
+  * `map.target_captured`,
+  * `map.target_removed`,
+  * `map.area_claimed`,
+  * `map.area_contested`,
+  * `map.vulnerability_added`,
+  * `map.vulnerability_removed`.
+* Przypisano zrodla prawdy:
+  * profil,
+  * `mail_store`,
+  * territory store,
+  * territory conflict store,
+  * target store,
+  * vulnerability store,
+  * operations runtime.
+* Sprawdzono obecne endpointy mapy:
+  * `/api/map/player-actors`,
+  * `/api/map/friends`,
+  * `/api/map/player-areas`,
+  * `/api/map/clan-vulnerabilities`.
+* Sprawdzono obecne warstwy Leaflet:
+  * `playerActorMarkers`,
+  * `friendMarkers`,
+  * `clanVulnerabilityLayers`,
+  * `playerAreaLayers`,
+  * `conflictAreaLayers`,
+  * `contestedTargetLayers`,
+  * `capturedConflictPillarLayers`.
+
+### Najwazniejsze wnioski
+
+* `playerActorMarkers` sa najlepszym pierwszym kandydatem na delty, bo sa juz
+  kluczowane po uzytkowniku i aktualizowane punktowo przez `setLatLng` oraz
+  `setIcon`.
+* `friendMarkers` tez sa technicznie punktowe, ale moga dublowac informacje z
+  `player-actors`; przed migracja trzeba zdecydowac, czy zostaja osobna warstwa.
+* `clanVulnerabilityLayers` maja pomocniczy registry, ale obecny refresh nadal
+  czysci cala warstwe. Delty sa mozliwe po ustaleniu stabilnego `entity_id`.
+* `playerAreaLayers`, `conflictAreaLayers`, `contestedTargetLayers` i
+  `capturedConflictPillarLayers` sa dzis czyszczone i renderowane od zera.
+  Zostaja snapshot/recovery do czasu wprowadzenia stabilnych kluczy polygonow i
+  konfliktow.
+* Targety bazowe wymagaja osobnego registry po `target_id`, zanim wejda do
+  `map.target_*`.
+
+### Decyzje
+
+* Sprint 66 nie zmienil runtime mapy.
+* Nie podpieto `applyDelta()` dla mapy.
+* Nie wylaczono zadnego pollera mapy.
+* Sprint 67 powinien zaczac tylko od:
+  * `map.player_moved`,
+  * `map.player_actor_updated`,
+  * `map.player_actor_removed`.
+
+### Testy
+
+* `git diff --check`,
+  OK.
+
+### Status
+
+Sprint 66 zamkniety jako audyt. Mapa ma kontrakt delt i znane granice migracji,
+ale nadal dziala po staremu.
+
+---
+
+## 07.07.2026
+
+### Etap
+
+Sprint 67 - Map Actor Delta v0.
+
+### Cel
+
+Aktualizowac wylacznie markery graczy przez delta-feed, bez ruszania targetow,
+area layers, konfliktow, vulnerabilities i `friendMarkers`.
+
+### Co zostalo wykonane
+
+* Dodano helpery backendowe:
+  * `build_map_player_actor_delta_payload(...)`,
+  * `record_map_player_actor_delta(...)`.
+* Backend emituje eventy scope `map` dla player actors:
+  * `map.player_moved`,
+  * `map.player_actor_updated`,
+  * `map.player_actor_removed`.
+* `entity_id` dla eventu map actor to `username` aktora.
+* Eventy sa emitowane per viewer:
+  * zaakceptowane kontakty aktora,
+  * wlasciciel pola, jesli ruch gracza tworzy intruder context.
+* Akcja `travel` emituje `map.player_moved`.
+* Travel ticket Googleplex emituje `map.player_moved`.
+* `/api/state/changes` uwzglednia scope `map` w recovery.
+* Frontend `applyDelta()` rozpoznaje scope `map`.
+* Dodano recovery mapy przez istniejace `refreshPlayerActors()`.
+* W `map_template.html` wyciagnieto punktowy renderer:
+  * `upsertPlayerActorMarker(...)`,
+  * `removePlayerActorMarker(...)`,
+  * `applyMapPlayerActorDelta(...)`.
+* Snapshotowy `renderPlayerActors(...)` nadal dziala po staremu, ale korzysta z
+  tego samego punktowego upsert/remove.
+
+### Najwazniejsze decyzje
+
+* Nie ruszano `friendMarkers`.
+* Nie ruszano targetow.
+* Nie ruszano area layers.
+* Nie ruszano konfliktow.
+* Nie ruszano vulnerability layers.
+* Delta bus nie jest zrodlem prawdy mapy; tylko powiadamia widzow o zmianie
+  aktora.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`,
+  OK.
+* `node --check static/js/terminal.js`,
+  OK.
+* `python -m unittest tests.test_target_persistence.GameStateDeltaBusTest tests.test_target_persistence.StateChangesEndpointTest`,
+  OK.
+* `git diff --check`,
+  OK.
+
+### Status
+
+Sprint 67 zamkniety jako Map Actor Delta v0. Pierwsza warstwa mapy korzysta z
+delta-feed, a `/api/map/player-actors` zostaje snapshot/recovery.

@@ -293,6 +293,153 @@ def record_ghost_exchange_delta(username, profile, sales=None, reason=""):
     return events
 
 
+def build_map_player_actor_delta_payload(viewer_username, actor_profile, context=None, lat=None, lng=None):
+    if not viewer_username or not isinstance(actor_profile, dict):
+        return None
+    actor_username = actor_profile.get("username")
+    if not actor_username or actor_username == viewer_username:
+        return None
+
+    position = actor_profile.get("curently_possition", {}) or {}
+    lat = position.get("lat") if lat is None else lat
+    lng = position.get("lng") if lng is None else lng
+    if lat in (None, 0, 0.0) or lng in (None, 0, 0.0):
+        return None
+
+    viewer_profile = user_store.get_profile(viewer_username) or {}
+    context = dict(context or {})
+    aimed_target = viewer_profile.get("aimed_target") or {}
+    if aimed_target.get("target_mode") == "player" and aimed_target.get("target_username") == actor_username:
+        context["is_marked_target"] = True
+        context["target_status"] = "aimed"
+
+    actor_clan = get_profile_clan(actor_profile)
+    if actor_clan:
+        context["clan"] = actor_clan
+    context["level"] = actor_profile.get("level", context.get("level"))
+
+    try:
+        territory_count = 0
+        for area in territory_store.list_player_areas():
+            owner_username = area.get("owner_username") or area.get("login")
+            if owner_username == actor_username:
+                territory_count += 1
+        context["territory_count"] = territory_count
+    except Exception as exc:
+        print(f"Nie udalo sie policzyc terytoriow player_actor delta: {exc}")
+
+    profession = (
+        actor_profile.get("profession")
+        or actor_profile.get("role")
+        or (actor_profile.get("fraction") or {}).get("role")
+        or (actor_profile.get("operator") or {}).get("profession")
+        or ""
+    )
+    if profession:
+        context["profession"] = profession
+
+    actor_data = {
+        "username": actor_username,
+        "nick": actor_profile.get("nick") or actor_username,
+        "avatar": actor_profile.get("avatar", ""),
+        "lat": lat,
+        "lng": lng,
+        "status": context.get("contact_status", ""),
+        "clan": context.get("clan", ""),
+        "level": context.get("level"),
+        "profession": context.get("profession", ""),
+        "territory_count": context.get("territory_count", 0),
+        "is_pending_contact": context.get("is_pending_contact", False),
+        "is_marked_target": context.get("is_marked_target", False),
+        "target_status": context.get("target_status", ""),
+    }
+    relation = resolve_player_actor_relation(viewer_profile, actor_profile, context)
+    return build_player_actor(
+        viewer_username,
+        actor_data,
+        relation=relation,
+        context=context,
+    )
+
+
+def record_map_player_actor_delta(actor_username, actor_profile=None, change_type="map.player_moved",
+                                  reason="", intrusion_area=None, viewer_contexts=None,
+                                  dedupe_key_prefix=None):
+    actor_username = str(actor_username or "").strip()
+    if not actor_username:
+        return []
+    actor_profile = actor_profile if isinstance(actor_profile, dict) else (user_store.get_profile(actor_username) or {})
+    if not actor_profile:
+        return []
+
+    viewer_contexts = dict(viewer_contexts or {})
+    for contact in mail_store.list_accepted_contacts(actor_username):
+        viewer_username = str(contact.get("name") or "").strip()
+        if not viewer_username or viewer_username == actor_username:
+            continue
+        viewer_contexts.setdefault(viewer_username, {})
+        viewer_contexts[viewer_username].update({
+            "is_friend": True,
+            "contact_status": contact.get("status", "offline"),
+        })
+
+    if isinstance(intrusion_area, dict):
+        owner_username = str(intrusion_area.get("owner_username") or "").strip()
+        if owner_username and owner_username != actor_username:
+            viewer_contexts.setdefault(owner_username, {})
+            viewer_contexts[owner_username].update({
+                "is_intruder": True,
+                "area_id": intrusion_area.get("id"),
+            })
+
+    if not viewer_contexts:
+        return []
+
+    position = actor_profile.get("curently_possition", {}) or {}
+    lat = position.get("lat")
+    lng = position.get("lng")
+    reason = str(reason or "player_actor_changed")
+    dedupe_key_prefix = str(
+        dedupe_key_prefix
+        or f"map:player_actor:{actor_username}:{change_type}:{lat}:{lng}:{runtime_file_now()}"
+    )
+    events = []
+
+    for viewer_username, context in viewer_contexts.items():
+        actor_payload = build_map_player_actor_delta_payload(
+            viewer_username,
+            actor_profile,
+            context=context,
+            lat=lat,
+            lng=lng,
+        )
+        if not actor_payload and change_type != "map.player_actor_removed":
+            continue
+        payload = {
+            "username": actor_username,
+            "reason": reason,
+        }
+        if actor_payload:
+            payload["actor"] = actor_payload
+            payload["lat"] = actor_payload.get("lat")
+            payload["lng"] = actor_payload.get("lng")
+        if change_type == "map.player_actor_removed":
+            payload["removed"] = True
+        try:
+            events.append(delta_bus.record_change(
+                viewer_username,
+                "map",
+                change_type,
+                payload,
+                entity_id=actor_username,
+                dedupe_key=f"{dedupe_key_prefix}:{viewer_username}",
+            ))
+        except Exception as exc:
+            print(f"[DELTA] {change_type} failed for {viewer_username}/{actor_username}: {exc}")
+
+    return events
+
+
 APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
 _GIT_COMMIT_HASH = None
 _GIT_BUILD_TAG = None
@@ -9126,6 +9273,7 @@ def api_dev_state():
 
 @app.route("/api/state/changes")
 def api_state_changes():
+    recovery_scopes = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map"]
     username = session.get("user")
     if not username:
         return jsonify({
@@ -9133,13 +9281,17 @@ def api_state_changes():
             "changes": [],
             "recovery_required": True,
             "reason": "not_logged_in",
+            "recovery_scopes": recovery_scopes,
         }), 401
 
-    return jsonify(delta_bus.get_changes_since(
+    result = delta_bus.get_changes_since(
         username,
         request.args.get("since", 0),
         request.args.get("limit", GameStateDeltaBus.DEFAULT_QUERY_LIMIT),
-    ))
+    )
+    if result.get("recovery_required"):
+        result["recovery_scopes"] = recovery_scopes
+    return jsonify(result)
 
 
 @app.route("/api/dev/delta-diagnostics")
@@ -9993,6 +10145,13 @@ def map_action():
             }
         })
         intrusion_area = notify_area_intrusion(session["user"], lat, lng)
+        record_map_player_actor_delta(
+            session["user"],
+            profile,
+            change_type="map.player_moved",
+            reason="travel",
+            intrusion_area=intrusion_area,
+        )
 
         return jsonify({
             "status": f"🎯 Cel osiągnięty: ({lat}, {lng})",
@@ -12897,6 +13056,14 @@ def install_app():
                 reason="googleplex_product_purchase",
                 dedupe_key=f"wallet:balance:{buyer_username}:googleplex_product:{app_id}:{purchase_record.get('purchased_at')}",
             )
+            if any(item.get("type") == "travel_city" for item in effect_result.get("applied", [])):
+                record_map_player_actor_delta(
+                    buyer_username,
+                    profile,
+                    change_type="map.player_moved",
+                    reason="googleplex_travel_product",
+                    dedupe_key_prefix=f"map:player_actor:{buyer_username}:googleplex_travel:{app_id}:{purchase_record.get('purchased_at')}",
+                )
             if payee_profile and payee_username != buyer_username:
                 record_wallet_balance_delta(
                     payee_username,

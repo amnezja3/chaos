@@ -5267,20 +5267,32 @@ Przygotowac mape pod delty bez migracji mapy.
 ## Zakres
 
 1. Spisac typy zmian mapy:
-   * ruch graczy,
-   * aktorzy graczy,
-   * targety,
-   * przejecia,
-   * obszary,
-   * filary,
-   * statusy konfliktow.
+   * `map.player_moved`,
+   * `map.player_actor_updated`,
+   * `map.player_actor_removed`,
+   * `map.target_updated`,
+   * `map.target_captured`,
+   * `map.target_removed`,
+   * `map.area_claimed`,
+   * `map.area_contested`,
+   * `map.vulnerability_added`,
+   * `map.vulnerability_removed`.
 2. Okreslic zrodla prawdy dla kazdego typu.
-3. Okreslic, ktore warstwy mapy mozna latac punktowo.
-4. Nie migrowac mapy w tym sprincie.
+3. Przypisac zrodla prawdy:
+   * profil,
+   * territory store,
+   * target store,
+   * vulnerability store,
+   * operations runtime.
+4. Okreslic, ktore warstwy Leaflet mozna latac punktowo.
+5. Okreslic, ktore warstwy dzis sa czyszczone i renderowane od zera.
+6. Nie migrowac mapy w tym sprincie.
+7. Nie podpinac `applyDelta()` dla mapy.
 
 ## Kryteria akceptacji
 
 * Wiadomo, jakie map events sa potrzebne.
+* Wiadomo, ktore zrodlo prawdy emituje dany typ zdarzenia.
 * Wiadomo, ktore warstwy mapy moga dostac applyDelta.
 * Wiadomo, gdzie nadal wymagany jest snapshot.
 * Nie zmieniono runtime mapy.
@@ -5293,15 +5305,29 @@ Przygotowac mape pod delty bez migracji mapy.
 
 Pierwsza bezpieczna migracja mapy: tylko player actors.
 
+Delta-feed aktualizuje w tym sprincie wylacznie markery graczy. Targety,
+terytoria, konflikty, vulnerability layers i friendMarkers zostaja poza
+zakresem.
+
 ## Zakres
 
 1. Dodac eventy:
    * `map.player_moved`,
    * `map.player_actor_updated`,
    * `map.player_actor_removed`.
-2. Aktualizowac konkretne markery graczy.
-3. Nie ruszac targetow, terenow ani warstw konfliktu.
-4. Snapshot player actors zostaje jako recovery.
+2. Backend emituje delty tylko dla player actors.
+3. `entity_id` eventu mapy to `username` aktora.
+4. Frontend `applyDelta()` aktualizuje tylko `playerActorMarkers`.
+5. Jesli marker istnieje:
+   * zaktualizowac pozycje,
+   * zaktualizowac status/ikone/snapshot menu.
+6. Jesli marker nie istnieje:
+   * dodac marker gracza.
+7. Jesli event to `map.player_actor_removed`:
+   * usunac marker gracza.
+8. Snapshot `/api/map/player-actors` zostaje jako recovery.
+9. `friendMarkers` zostaja poza zakresem v0.
+10. Targety, area layers, konflikty i vulnerabilities pozostaja poza zakresem.
 
 ## Kryteria akceptacji
 
@@ -5309,6 +5335,7 @@ Pierwsza bezpieczna migracja mapy: tylko player actors.
 * Znikniecie gracza usuwa tylko jego marker.
 * Recovery przywraca liste actors.
 * Targety i obszary pozostaja poza zakresem.
+* `friendMarkers` nie sa migrowane w tym sprincie.
 
 ---
 

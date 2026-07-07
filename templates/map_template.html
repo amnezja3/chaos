@@ -3178,118 +3178,134 @@
                 });
             };
 
+            window.clearPlayerActorMarkerTooltip = function(marker) {
+                if (!marker) return;
+                if (typeof marker.closePopup === 'function') marker.closePopup();
+                if (typeof marker.unbindPopup === 'function') marker.unbindPopup();
+                if (typeof marker.closeTooltip === 'function') marker.closeTooltip();
+                if (typeof marker.unbindTooltip === 'function') marker.unbindTooltip();
+            };
+
+            window.auditPlayerActorMarkerBounds = function(marker, actor) {
+                if (!marker || typeof marker.getElement !== 'function') return;
+                setTimeout(() => {
+                    const element = marker.getElement();
+                    if (!element || typeof element.getBoundingClientRect !== 'function') return;
+                    const rect = element.getBoundingClientRect();
+                    if (rect.width > 90 || rect.height > 96) {
+                        console.warn('[map] Player actor marker oversized hitbox', {
+                            username: actor && actor.username,
+                            nick: actor && actor.nick,
+                            width: rect.width,
+                            height: rect.height,
+                            className: element.className
+                        });
+                    }
+                }, 0);
+            };
+
+            window.isPlayerActorContextEventInsideMarker = function(marker, e, actorSnapshot) {
+                const element = marker && typeof marker.getElement === 'function'
+                    ? marker.getElement()
+                    : null;
+                const rect = element && typeof element.getBoundingClientRect === 'function'
+                    ? element.getBoundingClientRect()
+                    : null;
+                const originalEvent = e && e.originalEvent;
+
+                if (!rect || !originalEvent
+                    || originalEvent.clientX < rect.left
+                    || originalEvent.clientX > rect.right
+                    || originalEvent.clientY < rect.top
+                    || originalEvent.clientY > rect.bottom) {
+                    console.warn('[map] Ignoruje player actor contextmenu poza hitboxem', {
+                        username: actorSnapshot && actorSnapshot.username,
+                        clientX: originalEvent && originalEvent.clientX,
+                        clientY: originalEvent && originalEvent.clientY,
+                        rect
+                    });
+                    return false;
+                }
+
+                return true;
+            };
+
+            window.bindPlayerActorMarkerContextMenu = function(marker, menuActor, key) {
+                if (!marker) return;
+                marker.off('contextmenu');
+                marker.on('contextmenu', function(e) {
+                    const actorSnapshot = marker._playerActorSnapshot || menuActor;
+                    if (!window.isPlayerActorContextEventInsideMarker(marker, e, actorSnapshot)) {
+                        showMapMenuFromOriginalContextEvent(e);
+                        return;
+                    }
+                    consumeMapContextEvent(e);
+                    if (actorSnapshot.target_status || (actorSnapshot.context && actorSnapshot.context.is_marked_target)) {
+                        window.showPlayerActorHackMenu(actorSnapshot, null, e.containerPoint.x, e.containerPoint.y);
+                        return;
+                    }
+                    window.showPlayerActorMenu(actorSnapshot, e.containerPoint.x, e.containerPoint.y, 'playerActorMarker');
+                });
+            };
+
+            window.upsertPlayerActorMarker = function(actor) {
+                const menuActor = freezeMapMenuPayload(actor || {});
+                const key = menuActor.username || menuActor.nick;
+                const lat = parseFloat(menuActor.lat);
+                const lng = parseFloat(menuActor.lng);
+                if (!key || Number.isNaN(lat) || Number.isNaN(lng)) return null;
+
+                if (!window.playerActorMarkers[key]) {
+                    const marker = L.marker([lat, lng], { icon: window.buildPlayerActorIcon(menuActor) }).addTo(map);
+                    window.clearPlayerActorMarkerTooltip(marker);
+                    marker._playerActorSnapshot = menuActor;
+                    window.bindPlayerActorMarkerContextMenu(marker, menuActor, key);
+                    window.playerActorMarkers[key] = marker;
+                    window.auditPlayerActorMarkerBounds(marker, menuActor);
+                    return key;
+                }
+
+                const marker = window.playerActorMarkers[key];
+                marker.setLatLng([lat, lng]);
+                marker.setIcon(window.buildPlayerActorIcon(menuActor));
+                window.clearPlayerActorMarkerTooltip(marker);
+                marker._playerActorSnapshot = menuActor;
+                window.bindPlayerActorMarkerContextMenu(marker, menuActor, key);
+                window.auditPlayerActorMarkerBounds(marker, menuActor);
+                return key;
+            };
+
+            window.removePlayerActorMarker = function(key) {
+                if (!key || !window.playerActorMarkers[key]) return false;
+                if (map.hasLayer(window.playerActorMarkers[key])) {
+                    removeMapLayerSafe(window.playerActorMarkers[key]);
+                }
+                delete window.playerActorMarkers[key];
+                return true;
+            };
+
+            window.applyMapPlayerActorDelta = function(event) {
+                const payload = (event && event.payload) || event || {};
+                const type = (event && event.type) || payload.type || "";
+                const actor = payload.actor || payload;
+                const key = payload.username || payload.entity_id || actor.username || actor.nick;
+                if (type === "map.player_actor_removed" || payload.removed) {
+                    return window.removePlayerActorMarker(key);
+                }
+                return Boolean(window.upsertPlayerActorMarker(actor));
+            };
+
             window.renderPlayerActors = function(actors) {
                 const visible = new Set();
 
-                function clearPlayerActorMarkerTooltip(marker) {
-                    if (!marker) return;
-                    if (typeof marker.closePopup === 'function') marker.closePopup();
-                    if (typeof marker.unbindPopup === 'function') marker.unbindPopup();
-                    if (typeof marker.closeTooltip === 'function') marker.closeTooltip();
-                    if (typeof marker.unbindTooltip === 'function') marker.unbindTooltip();
-                }
-
-                function auditPlayerActorMarkerBounds(marker, actor) {
-                    if (!marker || typeof marker.getElement !== 'function') return;
-                    setTimeout(() => {
-                        const element = marker.getElement();
-                        if (!element || typeof element.getBoundingClientRect !== 'function') return;
-                        const rect = element.getBoundingClientRect();
-                        if (rect.width > 90 || rect.height > 96) {
-                            console.warn('[map] Player actor marker oversized hitbox', {
-                                username: actor && actor.username,
-                                nick: actor && actor.nick,
-                                width: rect.width,
-                                height: rect.height,
-                                className: element.className
-                            });
-                        }
-                    }, 0);
-                }
-
-                function isPlayerActorContextEventInsideMarker(marker, e, actorSnapshot) {
-                    const element = marker && typeof marker.getElement === 'function'
-                        ? marker.getElement()
-                        : null;
-                    const rect = element && typeof element.getBoundingClientRect === 'function'
-                        ? element.getBoundingClientRect()
-                        : null;
-                    const originalEvent = e && e.originalEvent;
-
-                    if (!rect || !originalEvent
-                        || originalEvent.clientX < rect.left
-                        || originalEvent.clientX > rect.right
-                        || originalEvent.clientY < rect.top
-                        || originalEvent.clientY > rect.bottom) {
-                        console.warn('[map] Ignoruje player actor contextmenu poza hitboxem', {
-                            username: actorSnapshot && actorSnapshot.username,
-                            clientX: originalEvent && originalEvent.clientX,
-                            clientY: originalEvent && originalEvent.clientY,
-                            rect
-                        });
-                        return false;
-                    }
-
-                    return true;
-                }
-
                 (actors || []).forEach(actor => {
-                    const menuActor = freezeMapMenuPayload(actor || {});
-                    const key = menuActor.username || menuActor.nick;
-                    const lat = parseFloat(menuActor.lat);
-                    const lng = parseFloat(menuActor.lng);
-                    if (!key || Number.isNaN(lat) || Number.isNaN(lng)) return;
-
-                    visible.add(key);
-
-                    if (!window.playerActorMarkers[key]) {
-                        const marker = L.marker([lat, lng], { icon: window.buildPlayerActorIcon(menuActor) }).addTo(map);
-                        clearPlayerActorMarkerTooltip(marker);
-                        marker._playerActorSnapshot = menuActor;
-                        marker.on('contextmenu', function(e) {
-                            const actorSnapshot = marker._playerActorSnapshot || menuActor;
-                            if (!isPlayerActorContextEventInsideMarker(marker, e, actorSnapshot)) {
-                                showMapMenuFromOriginalContextEvent(e);
-                                return;
-                            }
-                            consumeMapContextEvent(e);
-                            if (actorSnapshot.target_status || (actorSnapshot.context && actorSnapshot.context.is_marked_target)) {
-                                window.showPlayerActorHackMenu(actorSnapshot, null, e.containerPoint.x, e.containerPoint.y);
-                                return;
-                            }
-                            window.showPlayerActorMenu(actorSnapshot, e.containerPoint.x, e.containerPoint.y, 'playerActorMarker');
-                        });
-                        window.playerActorMarkers[key] = marker;
-                        auditPlayerActorMarkerBounds(marker, menuActor);
-                    } else {
-                        window.playerActorMarkers[key].setLatLng([lat, lng]);
-                        window.playerActorMarkers[key].setIcon(window.buildPlayerActorIcon(menuActor));
-                        clearPlayerActorMarkerTooltip(window.playerActorMarkers[key]);
-                        window.playerActorMarkers[key]._playerActorSnapshot = menuActor;
-                        window.playerActorMarkers[key].off('contextmenu');
-                        window.playerActorMarkers[key].on('contextmenu', function(e) {
-                            const actorSnapshot = window.playerActorMarkers[key]._playerActorSnapshot || menuActor;
-                            if (!isPlayerActorContextEventInsideMarker(window.playerActorMarkers[key], e, actorSnapshot)) {
-                                showMapMenuFromOriginalContextEvent(e);
-                                return;
-                            }
-                            consumeMapContextEvent(e);
-                            if (actorSnapshot.target_status || (actorSnapshot.context && actorSnapshot.context.is_marked_target)) {
-                                window.showPlayerActorHackMenu(actorSnapshot, null, e.containerPoint.x, e.containerPoint.y);
-                                return;
-                            }
-                            window.showPlayerActorMenu(actorSnapshot, e.containerPoint.x, e.containerPoint.y, 'playerActorMarker');
-                        });
-                        auditPlayerActorMarkerBounds(window.playerActorMarkers[key], menuActor);
-                    }
+                    const key = window.upsertPlayerActorMarker(actor);
+                    if (key) visible.add(key);
                 });
 
                 Object.keys(window.playerActorMarkers).forEach(key => {
                     if (!visible.has(key)) {
-                        if (map.hasLayer(window.playerActorMarkers[key])) {
-                            removeMapLayerSafe(window.playerActorMarkers[key]);
-                        }
-                        delete window.playerActorMarkers[key];
+                        window.removePlayerActorMarker(key);
                     }
                 });
             };

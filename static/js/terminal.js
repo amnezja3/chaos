@@ -20,6 +20,7 @@ let stateDeltaPollInFlight = false;
 const processedDeltaKeys = new Set();
 const STATE_DELTA_POLL_INTERVAL_MS = 4000;
 const STATE_DELTA_LIMIT = 100;
+const STATE_DELTA_DEFAULT_RECOVERY_SCOPES = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map"];
 
 const bootLoader = {
     overlay: document.getElementById('boot-preloader'),
@@ -2936,6 +2937,12 @@ function createBrowser() {
                     ...payload.summary
                 };
             }
+            if (Array.isArray(payload.sectors)) {
+                exchangeDashboard.sectors = payload.sectors;
+            }
+            if (Array.isArray(payload.history_7d)) {
+                exchangeDashboard.history_7d = payload.history_7d;
+            }
             if (Array.isArray(payload.recent_transactions)) {
                 exchangeDashboard.recent_transactions = payload.recent_transactions;
             } else if (payload.transaction && typeof payload.transaction === "object") {
@@ -3818,6 +3825,14 @@ function updateGhostExchangeDeltaViews(payload = {}) {
     });
 }
 
+function updateMapPlayerActorDeltaView(event = {}) {
+    if (typeof window.applyMapPlayerActorDelta === "function") {
+        window.applyMapPlayerActorDelta(event);
+        return true;
+    }
+    return false;
+}
+
 async function applyDelta(event) {
     if (!event || typeof event !== "object") return false;
     const dedupeKey = event.dedupe_key || `${event.type || 'event'}:${event.version || ''}`;
@@ -3844,13 +3859,22 @@ async function applyDelta(event) {
         updateGhostExchangeDeltaViews(event.payload || {});
         return true;
     }
+    if (event.scope === "map" || String(event.type || "").startsWith("map.player_")) {
+        updateMapPlayerActorDeltaView(event);
+        return true;
+    }
     return false;
 }
 
-async function recoverDeltaSnapshot(currentVersion = null) {
+async function recoverProfileDeltaScopes(scopes) {
+    const needsProfile = ["wallet", "profile", "storage", "apps"].some(scope => scopes.has(scope));
+    if (!needsProfile) return null;
     const profile = await getUserProfile();
-    if (profile) {
+    if (!profile) return null;
+    if (scopes.has("wallet") || scopes.has("profile")) {
         updateWalletBalanceView(profile.hackcoins, "HC");
+    }
+    if (scopes.has("storage") || scopes.has("profile")) {
         updateStorageView({
             used: profile.storage_used,
             capacity: profile.storage_capacity,
@@ -3858,6 +3882,8 @@ async function recoverDeltaSnapshot(currentVersion = null) {
             over_limit: profile.storage_over_limit === true,
             soft_limit: profile.storage_soft_limit !== false
         });
+    }
+    if (scopes.has("apps") || scopes.has("profile")) {
         await updateAppsView({
             apps: profile.apps || [],
             files: {
@@ -3865,10 +3891,76 @@ async function recoverDeltaSnapshot(currentVersion = null) {
             }
         });
     }
+    return profile;
+}
+
+async function recoverMailDeltaScope() {
+    const res = await fetch('/api/mail/bootstrap');
+    if (!res.ok) return null;
+    const data = await res.json();
+    updateCybernerDeltaViews(data || {});
+    return data;
+}
+
+async function recoverGhostExchangeDeltaScope() {
+    const res = await fetch('/api/ghost-exchange');
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && data.success !== false) {
+        updateGhostExchangeDeltaViews({
+            summary: data.summary || {},
+            sectors: data.sectors || [],
+            recent_transactions: data.recent_transactions || [],
+            history_7d: data.history_7d || []
+        });
+    }
+    return data;
+}
+
+async function recoverMapPlayerActorsDeltaScope() {
+    if (typeof window.refreshPlayerActors === "function") {
+        await window.refreshPlayerActors();
+        return true;
+    }
+    return null;
+}
+
+async function recoverDeltaScopes(recoveryScopes = [], currentVersion = null) {
+    const normalizedScopes = Array.isArray(recoveryScopes) && recoveryScopes.length
+        ? recoveryScopes
+        : STATE_DELTA_DEFAULT_RECOVERY_SCOPES;
+    const scopes = new Set(normalizedScopes.map(scope => String(scope || "").trim()).filter(Boolean));
+
+    const recoveryTasks = [];
+    recoveryTasks.push(
+        recoverProfileDeltaScopes(scopes).catch(err => {
+            console.warn("Profile delta recovery failed", err);
+            return null;
+        })
+    );
+    if (scopes.has("mail")) {
+        recoveryTasks.push(recoverMailDeltaScope().catch(err => {
+            console.warn("Mail delta recovery failed", err);
+            return null;
+        }));
+    }
+    if (scopes.has("ghost_exchange")) {
+        recoveryTasks.push(recoverGhostExchangeDeltaScope().catch(err => {
+            console.warn("Ghost Exchange delta recovery failed", err);
+            return null;
+        }));
+    }
+    if (scopes.has("map")) {
+        recoveryTasks.push(recoverMapPlayerActorsDeltaScope().catch(err => {
+            console.warn("Map player actors delta recovery failed", err);
+            return null;
+        }));
+    }
+    await Promise.all(recoveryTasks);
     if (Number.isFinite(Number(currentVersion))) {
         stateDeltaVersion = Math.max(stateDeltaVersion, Number(currentVersion));
     }
-    return profile;
+    return true;
 }
 
 async function pollStateChanges() {
@@ -3887,7 +3979,7 @@ async function pollStateChanges() {
         if (!res.ok) return;
         const data = await res.json();
         if (data.recovery_required) {
-            await recoverDeltaSnapshot(data.current_version);
+            await recoverDeltaScopes(data.recovery_scopes || [], data.current_version);
             return;
         }
         const changes = Array.isArray(data.changes) ? data.changes : [];
@@ -7588,6 +7680,21 @@ function createEmailClient() {
     };
 
     const applyMailDeltaPayload = (payload = {}) => {
+        if (Array.isArray(payload.channels)) {
+            channels = normalizeCybernerChannels(payload.channels);
+        }
+        if (Array.isArray(payload.contacts)) {
+            contacts = payload.contacts;
+        }
+        if (Array.isArray(payload.pending_threads)) {
+            pendingThreads = payload.pending_threads;
+        }
+        if (Array.isArray(payload.group_messages)) {
+            groupMessages = payload.group_messages;
+        }
+        if (Object.prototype.hasOwnProperty.call(payload, "group_active_count")) {
+            groupActiveCount = payload.group_active_count ?? groupActiveCount;
+        }
         if (payload.unread_counts && typeof payload.unread_counts === "object") {
             unreadCounts = payload.unread_counts;
         }

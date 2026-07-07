@@ -37,6 +37,7 @@ from run import (
     operation_history_from_operations,
     profile_template_payload,
     queue_market_eligible_files,
+    record_map_player_actor_delta,
     refresh_market_runtime,
     refresh_operation_runtime,
     refresh_operations_runtime,
@@ -342,6 +343,71 @@ class GameStateDeltaBusTest(unittest.TestCase):
         finally:
             self._cleanup(path)
 
+    def test_record_map_player_actor_delta_targets_accepted_contact(self):
+        class DummyMailStore:
+            def list_accepted_contacts(self, username):
+                if username != "runner":
+                    raise AssertionError(username)
+                return [{"name": "viewer", "status": "online"}]
+
+        class DummyUserStore:
+            def get_profile(self, username):
+                profiles = {
+                    "viewer": {
+                        "username": "viewer",
+                        "nick": "Viewer",
+                        "aimed_target": {},
+                    },
+                    "runner": {
+                        "username": "runner",
+                        "nick": "Runner",
+                        "avatar": "",
+                        "curently_possition": {"lat": 52.1, "lng": 21.2},
+                        "level": 4,
+                    },
+                }
+                return profiles.get(username)
+
+        class DummyTerritoryStore:
+            def list_player_areas(self):
+                return []
+
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            actor_profile = {
+                "username": "runner",
+                "nick": "Runner",
+                "avatar": "",
+                "curently_possition": {"lat": 52.1, "lng": 21.2},
+                "level": 4,
+            }
+            with patch.object(run, "delta_bus", bus), \
+                    patch.object(run, "mail_store", DummyMailStore()), \
+                    patch.object(run, "user_store", DummyUserStore()), \
+                    patch.object(run, "territory_store", DummyTerritoryStore()):
+                events = record_map_player_actor_delta(
+                    "runner",
+                    actor_profile,
+                    change_type="map.player_moved",
+                    reason="unit_test",
+                    dedupe_key_prefix="map:runner:test",
+                )
+
+            self.assertEqual(len(events), 1)
+            event = events[0]
+            self.assertEqual(event["scope"], "map")
+            self.assertEqual(event["type"], "map.player_moved")
+            self.assertEqual(event["entity_id"], "runner")
+            self.assertEqual(event["payload"]["username"], "runner")
+            self.assertEqual(event["payload"]["actor"]["username"], "runner")
+            self.assertEqual(event["payload"]["actor"]["lat"], 52.1)
+            self.assertEqual(event["payload"]["actor"]["context"]["is_friend"], True)
+            changes = bus.get_changes_since("viewer", 0)["changes"]
+            self.assertEqual(len(changes), 1)
+        finally:
+            self._cleanup(path)
+
     def test_record_storage_delta_emits_used_and_capacity_events_idempotently(self):
         path = self._temp_path()
         try:
@@ -626,6 +692,14 @@ class StateChangesEndpointTest(unittest.TestCase):
             self.assertTrue(data["recovery_required"])
             self.assertEqual(data["reason"], "limit_exceeded")
             self.assertEqual(data["changes"], [])
+            self.assertEqual(data["recovery_scopes"], [
+                "wallet",
+                "storage",
+                "apps",
+                "mail",
+                "ghost_exchange",
+                "map",
+            ])
         finally:
             self._cleanup(path)
 
@@ -645,6 +719,9 @@ class StateChangesEndpointTest(unittest.TestCase):
             self.assertTrue(data["recovery_required"])
             self.assertEqual(data["reason"], "outside_retention")
             self.assertEqual(data["changes"], [])
+            self.assertIn("mail", data["recovery_scopes"])
+            self.assertIn("ghost_exchange", data["recovery_scopes"])
+            self.assertIn("map", data["recovery_scopes"])
         finally:
             self._cleanup(path)
 
@@ -656,6 +733,8 @@ class StateChangesEndpointTest(unittest.TestCase):
         self.assertTrue(data["recovery_required"])
         self.assertEqual(data["reason"], "not_logged_in")
         self.assertEqual(data["changes"], [])
+        self.assertIn("wallet", data["recovery_scopes"])
+        self.assertIn("map", data["recovery_scopes"])
 
 
 class WalletDeltaEndpointTest(unittest.TestCase):
