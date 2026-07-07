@@ -272,6 +272,49 @@ body {
   100% { transform: translateX(330%); }
 }
 
+.app-load-panel {
+  display: flex;
+  min-height: 180px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 22px;
+  color: #d8ffd8;
+  font-family: monospace;
+  text-align: center;
+}
+
+.app-load-panel__title {
+  color: #26ff6a;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.app-load-panel__bar {
+  width: min(340px, 78%);
+  height: 8px;
+  border: 1px solid rgba(38, 255, 106, 0.62);
+  background: rgba(0, 0, 0, 0.56);
+  overflow: hidden;
+}
+
+.app-load-panel__bar span {
+  display: block;
+  width: 34%;
+  height: 100%;
+  background: linear-gradient(90deg, #26ff6a, #b8ff28);
+  box-shadow: 0 0 14px rgba(38, 255, 106, 0.64);
+  animation: map-window-loader-scan 1200ms ease-in-out infinite;
+}
+
+.app-load-panel__text {
+  color: #8aff9e;
+  font-size: 12px;
+}
+
 .content {
   color: #0f0;
   font-family: monospace;

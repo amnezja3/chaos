@@ -294,6 +294,7 @@ function makeDraggable(el) {
 
     registerWindowInTaskbar(el);
     applyMobileSafeModeToWindow(el);
+    bringWindowToFront(el);
 
     const titleBar = el.querySelector('.title-bar') || el;
     let isDragging = false;
@@ -2542,7 +2543,13 @@ function createBrowser() {
             <button type="button" class="browser-tab" data-browser-tab="exchange">Ghost Exchange</button>
         </div>
         <input type="text" id="${terminalId}-search" placeholder="Wyszukaj aplikacj\u0119..." class="googolplex-search">
-        <div id="${terminalId}-results" class="googolplex-grid"></div>
+        <div id="${terminalId}-results" class="googolplex-grid">
+            <div class="app-load-panel">
+                <div class="app-load-panel__title">Ladowanie WebDragons...</div>
+                <div class="app-load-panel__bar"><span></span></div>
+                <div class="app-load-panel__text">Synchronizacja katalogu Googolplex...</div>
+            </div>
+        </div>
     </div>
     `;
 
@@ -6645,8 +6652,11 @@ async function createFileManager(options = {}) {
             <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
         <div style="padding: 10px; background: #111; color: #0f0; flex:1; overflow-y:auto; font-family: monospace;" id="${terminalId}-content">
-            <h3>Katalogi:</h3>
-            <div id="${terminalId}-folders"></div>
+            <div class="app-load-panel">
+                <div class="app-load-panel__title">Ladowanie plikow...</div>
+                <div class="app-load-panel__bar"><span></span></div>
+                <div class="app-load-panel__text">Pobieranie profilu i modelu plikow...</div>
+            </div>
         </div>
     `;
 
