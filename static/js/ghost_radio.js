@@ -39,6 +39,10 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         return `${channelPath(channelId)}/${encodeURIComponent(String(fileName || ""))}`;
     }
 
+    function isPlayableMp3Track(track) {
+        return Boolean(track && typeof track.file === "string" && /\.mp3$/i.test(track.file.trim()));
+    }
+
     function radioManifestUrl(channelId) {
         return `/api/radio/channel/${encodeURIComponent(String(channelId || state.defaultChannel))}`;
     }
@@ -61,6 +65,12 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         return String(channel.mode || "").toLowerCase() === "random"
             ? Math.floor(Math.random() * length)
             : 0;
+    }
+
+    function displayTrackTitle(track, fallbackIndex = 0) {
+        const source = String(track?.title || track?.file || `Track ${fallbackIndex + 1}`);
+        const filename = source.split(/[\\/]/).pop() || source;
+        return filename.replace(/\.mp3$/i, "").replace(/[_-]+/g, " ").trim() || `Track ${fallbackIndex + 1}`;
     }
 
     function setStatus(text) {
@@ -250,21 +260,28 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
                 setStatus("BAD SCHEMA");
                 throw new Error("Unsupported Ghost Radio channel schema.");
             }
-            const tracks = Array.isArray(manifest.tracks) ? manifest.tracks : [];
+            const tracks = Array.isArray(manifest.tracks)
+                ? manifest.tracks.filter(isPlayableMp3Track)
+                : [];
             const playlistSource = String(channel.mode || "").toLowerCase() === "random"
                 ? shuffleTracks(tracks)
                 : tracks;
             state.channel = channel;
             state.channelId = channelId;
             state.playlist = playlistSource
-                .filter(track => track && track.file)
+                .filter(isPlayableMp3Track)
                 .map((track, index) => ({
-                    title: track.title || `Track ${index + 1}`,
-                    file: track.file,
-                    url: trackUrl(channelId, track.file)
+                    title: displayTrackTitle(track, index),
+                    file: track.file.trim(),
+                    url: trackUrl(channelId, track.file.trim())
                 }));
             state.currentIndex = streamStartIndex(state.playlist.length, channel);
-            setAudioSource(state.currentIndex);
+            if (state.playlist.length) {
+                setAudioSource(state.currentIndex);
+            } else if (state.audio) {
+                state.audio.removeAttribute("src");
+                state.audio.load();
+            }
             setStatus(state.playlist.length ? "SIGNAL READY" : "NO TRACKS");
             updateTrackView();
             syncAudioSettings();
@@ -463,7 +480,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
                     <input type="range" min="0" max="100" value="80" step="1" data-radio-volume>
                     <b data-radio-volume-value>80%</b>
                 </label>
-                <p class="ghost-radio-note"><span>Source</span><code>/static/mp3/radio/channel/${escapeRadioHTML(DEFAULT_RADIO_CHANNEL)}/meta.channel</code></p>
+                <p class="ghost-radio-note"><span>MP3</span><code>/static/mp3/radio/channel/${escapeRadioHTML(DEFAULT_RADIO_CHANNEL)}/</code></p>
             </div>
         `;
         document.body.appendChild(term);
