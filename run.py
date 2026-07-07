@@ -161,6 +161,138 @@ def record_apps_delta(username, profile, change_type, app=None, app_id=None, rea
         return None
 
 
+def mail_delta_thread_key(scope, peer_name):
+    scope = str(scope or "group")
+    peer_name = "global" if scope == "group" else str(peer_name or "")
+    return f"{scope}:{peer_name}"
+
+
+def mail_delta_payload(username, scope=None, peer_name=None, message=None, reason=""):
+    unread_counts = mail_store.unread_counts(username)
+    payload = {
+        "unread_counts": unread_counts,
+    }
+    if scope:
+        payload["scope"] = str(scope)
+    if peer_name:
+        payload["peer"] = "global" if scope == "group" else str(peer_name)
+    if reason:
+        payload["reason"] = str(reason)
+    if isinstance(message, dict):
+        payload["thread"] = {
+            "scope": payload.get("scope") or message.get("scope"),
+            "peer": payload.get("peer") or message.get("peer_name") or message.get("peer"),
+            "sender": message.get("sender"),
+            "subject": message.get("subject"),
+            "preview": message.get("body") or message.get("preview") or message.get("subject") or "",
+            "created_at": message.get("created_at"),
+        }
+    return payload
+
+
+def record_mail_delta(username, change_type, scope=None, peer_name=None, message=None, reason="", dedupe_key=None):
+    if change_type not in {"mail.unread_changed", "mail.thread_updated"}:
+        return None
+    payload = mail_delta_payload(username, scope=scope, peer_name=peer_name, message=message, reason=reason)
+    entity_id = mail_delta_thread_key(payload.get("scope") or scope, payload.get("peer") or peer_name)
+    dedupe_key = dedupe_key or f"mail:{change_type}:{username}:{entity_id}:{runtime_file_now()}"
+    try:
+        return delta_bus.record_change(
+            username,
+            "mail",
+            change_type,
+            payload,
+            entity_id=entity_id,
+            dedupe_key=dedupe_key,
+        )
+    except Exception as exc:
+        print(f"[DELTA] {change_type} failed for {username}: {exc}")
+        return None
+
+
+def record_mail_thread_update(username, scope, peer_name, message=None, reason=""):
+    message_key = ""
+    if isinstance(message, dict):
+        message_key = str(message.get("id") or message.get("created_at") or "")
+    entity_id = mail_delta_thread_key(scope, peer_name)
+    return [
+        record_mail_delta(
+            username,
+            "mail.thread_updated",
+            scope=scope,
+            peer_name=peer_name,
+            message=message,
+            reason=reason,
+            dedupe_key=f"mail:thread:{username}:{entity_id}:{message_key or runtime_file_now()}",
+        ),
+        record_mail_delta(
+            username,
+            "mail.unread_changed",
+            scope=scope,
+            peer_name=peer_name,
+            reason=reason,
+            dedupe_key=f"mail:unread:{username}:{entity_id}:{message_key or runtime_file_now()}",
+        ),
+    ]
+
+
+def latest_mail_message(username, scope, peer_name):
+    try:
+        messages = mail_store.list_messages(username, scope, "global" if scope == "group" else peer_name)
+    except Exception:
+        return None
+    if not messages:
+        return None
+    return messages[-1]
+
+
+def record_ghost_exchange_delta(username, profile, sales=None, reason=""):
+    dashboard = build_ghost_exchange_dashboard_payload(profile)
+    events = []
+    summary = dashboard.get("summary", {})
+    summary_signature = hashlib.sha1(
+        json.dumps(summary, sort_keys=True, ensure_ascii=True).encode("utf-8")
+    ).hexdigest()[:16]
+    summary_payload = {
+        "summary": summary,
+        "recent_transactions": dashboard.get("recent_transactions", [])[:8],
+        "reason": reason or "ghost_exchange_changed",
+    }
+    try:
+        events.append(delta_bus.record_change(
+            username,
+            "ghost_exchange",
+            "ghost_exchange.summary_changed",
+            summary_payload,
+            entity_id="ghost_exchange",
+            dedupe_key=f"ghost_exchange:summary:{username}:{summary_signature}",
+        ))
+    except Exception as exc:
+        print(f"[DELTA] ghost_exchange.summary_changed failed for {username}: {exc}")
+
+    for sale in sales or []:
+        sale_id = str(sale.get("batch_id") or sale.get("id") or "")
+        if not sale_id:
+            continue
+        try:
+            events.append(delta_bus.record_change(
+                username,
+                "ghost_exchange",
+                "ghost_exchange.transaction_added",
+                {
+                    "transaction": normalize_ghost_exchange_transaction(sale) or sale,
+                    "summary": dashboard.get("summary", {}),
+                    "recent_transactions": dashboard.get("recent_transactions", [])[:8],
+                    "reason": reason or "ghost_exchange_transaction",
+                },
+                entity_id=sale_id,
+                dedupe_key=f"ghost_exchange:transaction:{username}:{sale_id}",
+            ))
+        except Exception as exc:
+            print(f"[DELTA] ghost_exchange.transaction_added failed for {username}: {exc}")
+    return events
+
+
 APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
 _GIT_COMMIT_HASH = None
 _GIT_BUILD_TAG = None
@@ -6487,6 +6619,13 @@ def add_cyberner_notification_to_user(username, scope, peer_name, sender):
 def add_cyberner_direct_notification(username, peer_name, sender, subject, body):
     mail_store.add_direct_notification(username, peer_name, sender, subject, body)
     add_cyberner_notification_to_user(username, "direct", peer_name or sender, sender)
+    record_mail_thread_update(
+        username,
+        "direct",
+        peer_name or sender,
+        message=latest_mail_message(username, "direct", peer_name or sender),
+        reason="cyberner_direct_notification",
+    )
 
 
 def notify_area_intrusion(actor_username, lat, lng):
@@ -10406,6 +10545,12 @@ def api_ghost_exchange():
                 reason="ghost_exchange_auto_sale",
                 dedupe_key=f"wallet:balance:{username}:ghost_exchange:{sale.get('batch_id') or sale.get('id')}",
             )
+        record_ghost_exchange_delta(
+            username,
+            profile,
+            sales=market_runtime.get("sales", []),
+            reason="ghost_exchange_auto_sale",
+        )
         session["profile"] = profile
     sectors = build_ghost_exchange_sector_payload(profile)
     dashboard = build_ghost_exchange_dashboard_payload(profile, sectors=sectors)
@@ -10525,6 +10670,12 @@ def api_ghost_exchange_sell():
         reason="ghost_exchange_manual_sale",
         previous=previous_storage,
         dedupe_key_prefix=f"storage:{username}:ghost_exchange_manual:{file_id}",
+    )
+    record_ghost_exchange_delta(
+        username,
+        profile,
+        sales=[profile.get("market_history", [])[-1]] if profile.get("market_history") else [],
+        reason="ghost_exchange_manual_sale",
     )
     session["profile"] = profile
 
@@ -12424,6 +12575,14 @@ def chat_messages():
             cyberner_channel_recipients(username, profile, peer_name)
         messages = mail_store.list_messages(username, scope, peer_name)
         mail_store.mark_thread_read(username, scope, peer_name)
+        record_mail_delta(
+            username,
+            "mail.unread_changed",
+            scope=scope,
+            peer_name=peer_name,
+            reason="thread_read",
+            dedupe_key=f"mail:unread_read:{username}:{mail_delta_thread_key(scope, peer_name)}:{runtime_file_now()}",
+        )
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
@@ -12465,12 +12624,29 @@ def send_chat_message():
             auto_add_contact=auto_add_contact,
             channel_recipients=channel_recipients,
         )
+        sender_message = latest_mail_message(username, scope, "global" if scope == "group" else peer_name)
+        record_mail_thread_update(
+            username,
+            scope,
+            "global" if scope == "group" else peer_name,
+            message=sender_message,
+            reason="message_sent",
+        )
         for recipient_name in notification_recipients:
             add_cyberner_notification_to_user(
                 recipient_name,
                 scope,
                 "global" if scope == "group" else peer_name,
                 username,
+            )
+            recipient_peer = "global" if scope == "group" else (username if scope == "direct" else peer_name)
+            recipient_message = latest_mail_message(recipient_name, scope, recipient_peer)
+            record_mail_thread_update(
+                recipient_name,
+                scope,
+                recipient_peer,
+                message=recipient_message,
+                reason="message_received",
             )
     except ValueError as e:
         return jsonify({"error": str(e)}), 400

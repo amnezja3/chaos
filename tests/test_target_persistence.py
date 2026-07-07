@@ -441,6 +441,85 @@ class GameStateDeltaBusTest(unittest.TestCase):
         finally:
             self._cleanup(path)
 
+    def test_record_mail_delta_emits_unread_and_thread_summary(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            message = {
+                "id": 7,
+                "scope": "direct",
+                "peer": "Ghost Exchange",
+                "sender": "Ghost Exchange",
+                "subject": "Sprzedano pakiet",
+                "body": "Nowa transakcja.",
+                "created_at": "2026-07-07T07:00:00Z",
+            }
+            with patch.object(run, "delta_bus", bus), \
+                    patch.object(run.mail_store, "unread_counts", return_value={
+                        "group": 0,
+                        "direct": {"Ghost Exchange": 1},
+                        "channel": {},
+                    }):
+                run.record_mail_thread_update(
+                    "alice",
+                    "direct",
+                    "Ghost Exchange",
+                    message=message,
+                    reason="unit_test",
+                )
+
+            changes = bus.get_changes_since("alice", 0)["changes"]
+            self.assertEqual([item["type"] for item in changes], [
+                "mail.thread_updated",
+                "mail.unread_changed",
+            ])
+            self.assertEqual(changes[0]["scope"], "mail")
+            self.assertEqual(changes[0]["entity_id"], "direct:Ghost Exchange")
+            self.assertEqual(changes[0]["payload"]["thread"]["preview"], "Nowa transakcja.")
+            self.assertEqual(changes[1]["payload"]["unread_counts"]["direct"]["Ghost Exchange"], 1)
+        finally:
+            self._cleanup(path)
+
+    def test_record_ghost_exchange_delta_emits_summary_and_transaction(self):
+        path = self._temp_path()
+        try:
+            bus = GameStateDeltaBus(db_path=path)
+            sale = {
+                "id": "batch-1",
+                "batch_id": "batch-1",
+                "market_sector": "gps",
+                "price": 123,
+                "currency": "HC",
+                "sold_at": "2026-07-07T07:00:00Z",
+                "status": "sold",
+                "file_count": 3,
+                "volume_mb": 42,
+            }
+            profile = {
+                "files": {"gps": [], "market": []},
+                "market_history": [sale],
+            }
+            with patch.object(run, "delta_bus", bus):
+                run.record_ghost_exchange_delta(
+                    "alice",
+                    profile,
+                    sales=[sale],
+                    reason="unit_test",
+                )
+
+            changes = bus.get_changes_since("alice", 0)["changes"]
+            self.assertEqual([item["type"] for item in changes], [
+                "ghost_exchange.summary_changed",
+                "ghost_exchange.transaction_added",
+            ])
+            self.assertEqual(changes[0]["scope"], "ghost_exchange")
+            self.assertEqual(changes[0]["payload"]["summary"]["hc_total"], 123)
+            self.assertEqual(changes[1]["entity_id"], "batch-1")
+            self.assertEqual(changes[1]["payload"]["transaction"]["batch_id"], "batch-1")
+            self.assertEqual(changes[1]["payload"]["transaction"]["price"], 123)
+        finally:
+            self._cleanup(path)
+
     def test_get_changes_since_requires_recovery_when_limit_exceeded(self):
         path = self._temp_path()
         try:

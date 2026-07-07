@@ -5765,8 +5765,78 @@ bez pelnego odswiezania desktopu z `/api/profile`.
 * `python -m unittest tests.test_target_persistence.GameStateDeltaBusTest tests.test_target_persistence.TargetPersistenceHelpersTest.test_generated_app_install_tools_uninstall_lifecycle`,
   OK.
 
+### Checkpoint 63
+
+Install/uninstall aplikacji dziala wyraznie szybciej po przeniesieniu
+wallet/storage/apps na delta-feed. Log instalacji pokazuje szybkie wykonanie
+akcji i brak serii ciezkich `/api/profile` po instalacji.
+
+Nadal widoczny jest pojedynczy wolniejszy `/system-messages`, ale wyglada to
+bardziej jak efekt kolejki/runtime niz koszt samego install flow.
+
 ### Status
 
 Sprint 63 zamkniety jako apps delta v0. Install/uninstall aplikacji emituja
 eventy `apps.*`, a desktop, menu Start i File Manager `/tools` moga odswiezyc
 widok bez pelnego `/api/profile`.
+
+---
+
+## 07.07.2026
+
+### Etap
+
+Sprint 64 - Mail / Ghost Exchange Summary Delta.
+
+### Cel
+
+Aktualizowac male elementy Cybernera i Ghost Exchange przez delta-feed, bez
+pelnych bootstrapow tam, gdzie wystarczy licznik, thread summary albo summary
+rynku.
+
+### Co zostalo wykonane
+
+* Dodano helpery:
+  * `record_mail_delta(...)`,
+  * `record_mail_thread_update(...)`,
+  * `record_ghost_exchange_delta(...)`.
+* Backend emituje:
+  * `mail.unread_changed`,
+  * `mail.thread_updated`,
+  * `ghost_exchange.summary_changed`,
+  * `ghost_exchange.transaction_added`.
+* Eventy mail powstaja po:
+  * odczycie aktywnego watku,
+  * wyslaniu wiadomosci,
+  * otrzymaniu wiadomosci przez odbiorcow,
+  * systemowym/direct powiadomieniu Cybernera.
+* Eventy Ghost Exchange powstaja po:
+  * auto-sale,
+  * legacy manual sale.
+* Frontend `applyDelta()` obsluguje scope `mail` i `ghost_exchange`.
+* Otwarty Cyberner aktualizuje unread badge i podstawowy preview watku z delty.
+* Otwarty Ghost Exchange aktualizuje summary i ostatnie transakcje z delty.
+
+### Najwazniejsze decyzje
+
+* `/api/mail/bootstrap` pozostaje snapshot/recovery.
+* `/api/chats/messages` pozostaje zrodlem dla aktywnego watku.
+* `/api/ghost-exchange` pozostaje snapshot/recovery dashboardu.
+* Nie migrowano pelnej listy maili.
+* Nie migrowano pelnego dashboardu Ghost Exchange.
+* Nie ruszano mapy.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`,
+  OK.
+* `node --check static/js/terminal.js`,
+  OK.
+* `python -m unittest tests.test_target_persistence.GameStateDeltaBusTest tests.test_target_persistence.TargetPersistenceHelpersTest.test_generated_app_install_tools_uninstall_lifecycle`,
+  OK.
+
+### Status
+
+Sprint 64 zamkniety jako mail/Ghost Exchange summary delta v0. Male liczniki i
+summary moga odswiezac sie przez delta-feed, a pelne snapshoty pozostaja
+recovery.

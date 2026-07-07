@@ -10,6 +10,8 @@ let toolbarTargetFeedbackState = { targetKey: "", dotSignature: "", progress: 0 
 let desktopSessionActive = true;
 let desktopRenderedApps = [];
 const fileManagerInstances = new Map();
+const cybernerDeltaClients = new Set();
+const ghostExchangeDeltaViews = new Set();
 let desktopLastSafeMode = null;
 let playerHackAccessState = null;
 let playerHackAccessTimer = null;
@@ -2925,6 +2927,34 @@ function createBrowser() {
         updateBrowserNarrowMode();
     };
 
+    ghostExchangeDeltaViews.add({
+        isConnected: () => document.body.contains(term),
+        update: (payload = {}) => {
+            if (payload.summary && typeof payload.summary === "object") {
+                exchangeDashboard.summary = {
+                    ...(exchangeDashboard.summary || {}),
+                    ...payload.summary
+                };
+            }
+            if (Array.isArray(payload.recent_transactions)) {
+                exchangeDashboard.recent_transactions = payload.recent_transactions;
+            } else if (payload.transaction && typeof payload.transaction === "object") {
+                const tx = payload.transaction;
+                const txId = String(tx.batch_id || tx.id || "");
+                const current = Array.isArray(exchangeDashboard.recent_transactions)
+                    ? exchangeDashboard.recent_transactions
+                    : [];
+                const withoutDuplicate = txId
+                    ? current.filter(item => String(item.batch_id || item.id || "") !== txId)
+                    : current;
+                exchangeDashboard.recent_transactions = [tx, ...withoutDuplicate].slice(0, 8);
+            }
+            if (activeBrowserTab === "exchange") {
+                renderExchange();
+            }
+        }
+    });
+
     async function loadCatalog() {
         const [profileRes, resourcesRes] = await Promise.all([
             fetch('/api/profile'),
@@ -3768,6 +3798,26 @@ async function updateAppsView(payload = {}) {
     refreshOpenFileManagersForApps(payload);
 }
 
+function updateCybernerDeltaViews(payload = {}) {
+    cybernerDeltaClients.forEach(client => {
+        if (!client || typeof client.update !== "function" || (typeof client.isConnected === "function" && !client.isConnected())) {
+            cybernerDeltaClients.delete(client);
+            return;
+        }
+        client.update(payload);
+    });
+}
+
+function updateGhostExchangeDeltaViews(payload = {}) {
+    ghostExchangeDeltaViews.forEach(view => {
+        if (!view || typeof view.update !== "function" || (typeof view.isConnected === "function" && !view.isConnected())) {
+            ghostExchangeDeltaViews.delete(view);
+            return;
+        }
+        view.update(payload);
+    });
+}
+
 async function applyDelta(event) {
     if (!event || typeof event !== "object") return false;
     const dedupeKey = event.dedupe_key || `${event.type || 'event'}:${event.version || ''}`;
@@ -3784,6 +3834,14 @@ async function applyDelta(event) {
     }
     if (event.scope === "apps" || String(event.type || "").startsWith("apps.")) {
         await updateAppsView(event.payload || {});
+        return true;
+    }
+    if (event.scope === "mail" || String(event.type || "").startsWith("mail.")) {
+        updateCybernerDeltaViews(event.payload || {});
+        return true;
+    }
+    if (event.scope === "ghost_exchange" || String(event.type || "").startsWith("ghost_exchange.")) {
+        updateGhostExchangeDeltaViews(event.payload || {});
         return true;
     }
     return false;
@@ -7174,6 +7232,7 @@ function createEmailClient() {
     let unreadCounts = { group: 0, direct: {}, channel: {} };
     let groupActiveCount = 0;
     let groupMessages = [];
+    const threadSummaries = new Map();
     let currentChat = { scope: "group", peer: "global", source: "world", channel: "world", title: "WORLD" };
     let mailMobileView = "list";
     let mailSending = false;
@@ -7270,7 +7329,11 @@ function createEmailClient() {
     };
     const threadPreview = (thread, fallback) => {
         if (!thread || typeof thread !== "object") return fallback;
-        const preview = thread.preview || thread.last_message || thread.last_body || thread.body || thread.subject || thread.last_subject || thread.message;
+        const summaryKey = thread.scope && (thread.peer || thread.name)
+            ? `${thread.scope}:${thread.peer || thread.name}`
+            : "";
+        const summary = summaryKey ? threadSummaries.get(summaryKey) : null;
+        const preview = thread.preview || thread.last_message || thread.last_body || thread.body || thread.subject || thread.last_subject || thread.message || summary?.preview || summary?.subject;
         return preview ? String(preview) : fallback;
     };
     const latestGroupPreview = () => {
@@ -7523,6 +7586,48 @@ function createEmailClient() {
         });
         setActiveThread();
     };
+
+    const applyMailDeltaPayload = (payload = {}) => {
+        if (payload.unread_counts && typeof payload.unread_counts === "object") {
+            unreadCounts = payload.unread_counts;
+        }
+        const thread = payload.thread && typeof payload.thread === "object" ? payload.thread : null;
+        if (thread) {
+            const scope = thread.scope || payload.scope || "direct";
+            const peer = thread.peer || payload.peer || (scope === "group" ? "global" : "");
+            const key = `${scope}:${peer}`;
+            threadSummaries.set(key, thread);
+            if (scope === "group") {
+                groupMessages = [thread];
+            } else if (scope === "channel") {
+                channels = normalizeCybernerChannels(channels).map(channel => {
+                    if (String(channel.peer || "") !== String(peer || "")) return channel;
+                    return {
+                        ...channel,
+                        preview: thread.preview || thread.subject || channel.preview || "",
+                        meta: channel.meta || thread.created_at || ""
+                    };
+                });
+            } else if (scope === "direct") {
+                const applyThread = item => {
+                    if (!item || String(item.name || item.peer || "") !== String(peer || "")) return item;
+                    return {
+                        ...item,
+                        preview: thread.preview || thread.subject || item.preview || "",
+                        last_at: thread.created_at || item.last_at
+                    };
+                };
+                contacts = contacts.map(applyThread);
+                pendingThreads = pendingThreads.map(applyThread);
+            }
+        }
+        renderContacts();
+    };
+
+    cybernerDeltaClients.add({
+        isConnected: () => document.body.contains(term),
+        update: applyMailDeltaPayload
+    });
 
     const renderMessages = (messages, forceScroll = false) => {
         const shouldStickToBottom = forceScroll || isNearMessageBottom();
