@@ -18,6 +18,9 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         firstInteractionBound: false,
         firstInteractionAttempted: false,
         autostartBlocked: false,
+        suppressPauseStatus: false,
+        resumeAfterSourceChange: false,
+        errorSkips: 0,
         elements: {}
     };
 
@@ -137,10 +140,52 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         if (!state.audio || !state.playlist.length) return;
         state.currentIndex = Math.max(0, Math.min(index, state.playlist.length - 1));
         const track = currentTrack();
+        state.suppressPauseStatus = true;
+        state.audio.pause();
+        setTimeout(() => {
+            state.suppressPauseStatus = false;
+        }, 0);
+        state.isPlaying = false;
+        setStatus("SIGNAL TUNING");
         state.audio.src = track.url;
         state.audio.load();
         updateTrackView();
         updateProgress();
+    }
+
+    function playWhenTrackCanStart() {
+        const audio = state.audio;
+        if (!audio || !currentTrack()) return Promise.resolve(false);
+        setStatus("SIGNAL TUNING");
+        if (audio.readyState >= 2) {
+            return GhostRadio.play();
+        }
+        return new Promise(resolve => {
+            let settled = false;
+            let timer = null;
+            const cleanup = () => {
+                audio.removeEventListener("canplay", onCanPlay);
+                audio.removeEventListener("loadeddata", onCanPlay);
+                audio.removeEventListener("error", onError);
+                if (timer) clearTimeout(timer);
+            };
+            const finish = (value) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                resolve(value);
+            };
+            const onCanPlay = () => {
+                GhostRadio.play().then(finish);
+            };
+            const onError = () => finish(false);
+            audio.addEventListener("canplay", onCanPlay);
+            audio.addEventListener("loadeddata", onCanPlay);
+            audio.addEventListener("error", onError);
+            timer = setTimeout(() => {
+                GhostRadio.play().then(finish);
+            }, 1800);
+        });
     }
 
     function syncAudioSettings() {
@@ -175,16 +220,30 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         state.audio.addEventListener("loadedmetadata", updateProgress);
         state.audio.addEventListener("play", () => {
             state.isPlaying = true;
+            state.resumeAfterSourceChange = false;
+            state.errorSkips = 0;
             setStatus("SIGNAL ONLINE");
             updatePlaybackView();
         });
         state.audio.addEventListener("pause", () => {
+            if (state.suppressPauseStatus) {
+                updatePlaybackView();
+                return;
+            }
             state.isPlaying = false;
             setStatus("SIGNAL PAUSED");
             updatePlaybackView();
         });
         state.audio.addEventListener("error", () => {
+            if (state.resumeAfterSourceChange && state.playlist.length && state.errorSkips < state.playlist.length) {
+                state.errorSkips += 1;
+                setStatus("SIGNAL SEARCH");
+                setTimeout(() => GhostRadio.next({ fromEnded: true, skipError: true }), 250);
+                return;
+            }
+            state.resumeAfterSourceChange = false;
             setStatus("SIGNAL ERROR");
+            updatePlaybackView();
         });
         state.audio.addEventListener("volumechange", () => {
             state.muted = Boolean(state.audio.muted);
@@ -383,7 +442,8 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             const nextIndex = atEnd ? 0 : state.currentIndex + 1;
             setAudioSource(nextIndex);
             if (wasPlaying) {
-                this.play();
+                state.resumeAfterSourceChange = true;
+                playWhenTrackCanStart();
             }
         },
 
@@ -393,7 +453,8 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             const previousIndex = state.currentIndex <= 0 ? state.playlist.length - 1 : state.currentIndex - 1;
             setAudioSource(previousIndex);
             if (wasPlaying) {
-                this.play();
+                state.resumeAfterSourceChange = true;
+                playWhenTrackCanStart();
             }
         },
 
