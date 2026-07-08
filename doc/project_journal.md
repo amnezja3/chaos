@@ -6759,3 +6759,35 @@ realna responsywnosc.
 Checkpoint potwierdza, ze kierunek refactoru byl wlasciwy. Dalsze optymalizacje
 mapy i pollerow maja juz sens, bo system stal sie wystarczajaco uporzadkowany,
 zeby zyski byly widoczne w live gameplayu.
+
+---
+
+## 08.07.2026
+
+### Etap
+
+Sprint 73.2 - Map Scan Overlay.
+
+### Powod
+
+Po przyspieszeniu map action i dodaniu spinnerow hack-action brakowalo jeszcze
+czytelnego, ale subtelnego feedbacku dla zwyklego skanu mapy. Gracz po kliknieciu
+`Skanuj` powinien widziec, ze mapa czeka na odpowiedz `/map-action` i zaraz
+wyrenderuje markery.
+
+### Implementacja
+
+Dodano lekki overlay skanowania mapy:
+
+* overlay startuje tylko dla `mapAction('scan')`,
+* efekt uzywa delikatnej siatki i cienkiego przechodzacego gradientu,
+* overlay ma `pointer-events: none`, wiec nie blokuje mapy,
+* wygaszenie jest opoznione do kolejnych klatek renderu, zeby markery skanu
+  zdazyly pojawic sie przed zniknieciem efektu,
+* nie zmieniono backendu, algorytmu skanu ani markerow aktywnych operacji.
+
+### Status
+
+Sprint 73.2 gotowy do walidacji live. Test reczny: kliknac `Skanuj`, sprawdzic
+czy overlay pojawia sie podczas requestu i znika dopiero po pojawieniu sie
+markerow skanu.

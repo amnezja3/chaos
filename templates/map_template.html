@@ -157,6 +157,58 @@
       color: #ffdd66;
     }
 
+    .chaos-map-scan-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 720;
+      display: none;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, rgba(38, 255, 106, 0.06), transparent 22%, transparent 78%, rgba(38, 255, 106, 0.05)),
+        repeating-linear-gradient(0deg, rgba(38, 255, 106, 0.055) 0 1px, transparent 1px 18px),
+        repeating-linear-gradient(90deg, rgba(38, 255, 106, 0.04) 0 1px, transparent 1px 22px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease;
+    }
+
+    .chaos-map-scan-overlay.is-visible {
+      display: block;
+      opacity: 1;
+    }
+
+    .chaos-map-scan-overlay::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -18%;
+      width: 18%;
+      background: linear-gradient(90deg, transparent, rgba(38, 255, 106, 0.18), rgba(184, 255, 40, 0.12), transparent);
+      filter: blur(1px);
+      animation: chaos-map-scan-sweep 1.25s linear infinite;
+    }
+
+    .chaos-map-scan-overlay::after {
+      content: attr(data-label);
+      position: absolute;
+      right: 14px;
+      bottom: 14px;
+      padding: 4px 7px;
+      border: 1px solid rgba(38, 255, 106, 0.45);
+      background: rgba(3, 10, 6, 0.72);
+      color: rgba(184, 255, 184, 0.82);
+      font-family: monospace;
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    @keyframes chaos-map-scan-sweep {
+      from { transform: translateX(0); }
+      to { transform: translateX(660%); }
+    }
+
     @keyframes chaos-sync-spin {
       to { transform: rotate(360deg); }
     }
@@ -875,6 +927,72 @@
             failed: false,
             loadedScopes: new Set()
         };
+        window.mapScanEffectState = window.mapScanEffectState || {
+            active: 0,
+            element: null,
+            hideTimer: null,
+            startedAt: 0
+        };
+
+        function ensureMapScanOverlay() {
+            const state = window.mapScanEffectState;
+            if (state.element && state.element.isConnected) {
+                return state.element;
+            }
+
+            const container = map && typeof map.getContainer === 'function'
+                ? map.getContainer()
+                : document.querySelector('.leaflet-container');
+            if (!container) return null;
+
+            const computedPosition = window.getComputedStyle(container).position;
+            if (!computedPosition || computedPosition === 'static') {
+                container.style.position = 'relative';
+            }
+
+            const overlay = document.createElement('div');
+            overlay.className = 'chaos-map-scan-overlay';
+            overlay.dataset.label = 'Skanowanie mapy';
+            overlay.setAttribute('aria-hidden', 'true');
+            container.appendChild(overlay);
+            state.element = overlay;
+            return overlay;
+        }
+
+        function beginMapScanEffect(label = 'Skanowanie mapy') {
+            const state = window.mapScanEffectState;
+            const overlay = ensureMapScanOverlay();
+            if (!overlay) return null;
+
+            state.active += 1;
+            state.startedAt = performance.now();
+            window.clearTimeout(state.hideTimer);
+            overlay.dataset.label = label;
+            overlay.classList.add('is-visible');
+
+            let finished = false;
+            return function finishMapScanEffect() {
+                if (finished) return;
+                finished = true;
+                state.active = Math.max(0, state.active - 1);
+                if (state.active > 0) return;
+
+                const elapsed = performance.now() - state.startedAt;
+                const delay = Math.max(0, 420 - elapsed);
+                state.hideTimer = window.setTimeout(() => {
+                    if (state.active === 0 && state.element) {
+                        state.element.classList.remove('is-visible');
+                    }
+                }, delay);
+            };
+        }
+
+        function finishMapScanEffectAfterPaint(finish) {
+            if (typeof finish !== 'function') return;
+            window.requestAnimationFrame(() => {
+                window.requestAnimationFrame(finish);
+            });
+        }
 
         function normalizeBootLoadedScopes() {
             if (!(window.mapBootState.loadedScopes instanceof Set)) {
@@ -2305,6 +2423,9 @@
         
         
         async function mapAction(action, lat, lng, label = "Oznaczony cel", icon = "🎯", sourceType = "manual", name = label, generated = false) {
+            const finishScanEffect = action === 'scan'
+                ? beginMapScanEffect('Skanowanie mapy')
+                : null;
             try {
                 if (guardMapGameplayAction()) return;
                 const res = await fetch('/map-action', {
@@ -2465,6 +2586,8 @@
             } catch (err) {
                 addSystemMessage("danger", "🖥️ Połączenie", "❌ Błąd połączenia");
                 console.error(err);
+            } finally {
+                finishMapScanEffectAfterPaint(finishScanEffect);
             }
         }
 

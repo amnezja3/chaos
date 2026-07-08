@@ -2636,6 +2636,40 @@ form button:hover {
     color: #0f0;
     border: 1px solid #0f0;
     padding: 5px 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 30px;
+    cursor: pointer;
+    transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, color 140ms ease, opacity 140ms ease;
+}
+.button-row button:hover:not(:disabled) {
+    background: rgba(0, 255, 80, 0.12);
+    border-color: #66ff8a;
+    box-shadow: 0 0 10px rgba(0, 255, 80, 0.22);
+    color: #d8ffd8;
+}
+.button-row button:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+}
+.button-row button.is-loading {
+    opacity: 0.86;
+    color: #d8ffd8;
+    border-color: #66ff8a;
+}
+.app-button-spinner {
+    width: 11px;
+    height: 11px;
+    border: 2px solid rgba(216, 255, 216, 0.28);
+    border-top-color: #66ff8a;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    animation: app-button-spin 780ms linear infinite;
+}
+@keyframes app-button-spin {
+    to { transform: rotate(360deg); }
 }
 .file-manager-row {
     display: flex;

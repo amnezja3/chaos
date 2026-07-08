@@ -6101,6 +6101,52 @@ spinner znika
 * Markery aktywnych operacji pozostaja bez zmian.
 * Nie powstal drugi system operacji ani drugi stan mapy.
 
+---
+
+# Sprint 73.2 - Map Scan Overlay
+
+## Cel gameplayowy
+
+Pokazac subtelny efekt skanowania mapy od momentu klikniecia `Skanuj` do chwili,
+gdy backend zwroci wynik, a markery skanu zostana wyrenderowane na mapie.
+
+## Zasada
+
+Efekt skanowania nie jest boot preloaderem mapy i nie jest spinnerem hack-action.
+
+To lekki overlay UX dla krotkiego przeplywu:
+
+```text
+Skanuj
+↓
+/map-action
+↓
+scan overlay
+↓
+render markerow scanResultLayers
+↓
+overlay znika
+```
+
+## Zakres
+
+1. Dodac delikatna warstwe skanowania nad mapa.
+2. Warstwa ma uzywac subtelnej siatki i cienkiego przechodzacego gradientu.
+3. Overlay ma miec `pointer-events: none`, zeby nie blokowal mapy.
+4. Overlay startuje tylko dla `mapAction('scan')`.
+5. Overlay konczy sie dopiero po wyrenderowaniu markerow skanu.
+6. Nie dodawac endpointow.
+7. Nie zmieniac algorytmu skanu.
+8. Nie ruszac aktywnych operacji ani markerow hack-action.
+
+## Kryteria akceptacji
+
+* Klikniecie `Skanuj` pokazuje efekt skanowania mapy.
+* Efekt trwa podczas oczekiwania na `/map-action`.
+* Efekt nie znika przed wyrenderowaniem markerow skanu.
+* Efekt jest subtelny i nie zaslania mapy agresywnie.
+* Efekt nie blokuje klikow i nie zmienia stanu gry.
+
 Decision:
 
 * Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.

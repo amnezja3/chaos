@@ -1205,6 +1205,36 @@ function addSystemMessage(type, title, text) {
     });
 }
 
+function setAppButtonGroupPending(buttons, activeButton, pending, pendingText = "Poczekaj chwilę...") {
+    const list = Array.from(buttons || []);
+    list.forEach(button => {
+        if (!button) return;
+        if (pending) {
+            if (button.dataset.originalDisabled === undefined) {
+                button.dataset.originalDisabled = button.disabled ? "1" : "0";
+            }
+            if (button === activeButton && button.dataset.originalHtml === undefined) {
+                button.dataset.originalHtml = button.innerHTML;
+            }
+            button.disabled = true;
+            if (button === activeButton) {
+                button.classList.add("is-loading");
+                button.innerHTML = `<span class="app-button-spinner" aria-hidden="true"></span><span>${escapeHTML(pendingText)}</span>`;
+            }
+            return;
+        }
+
+        const wasDisabled = button.dataset.originalDisabled === "1";
+        button.disabled = wasDisabled;
+        delete button.dataset.originalDisabled;
+        if (button.dataset.originalHtml !== undefined) {
+            button.innerHTML = button.dataset.originalHtml;
+            delete button.dataset.originalHtml;
+        }
+        button.classList.remove("is-loading");
+    });
+}
+
 function formatHackAccessTime(seconds) {
     const safeSeconds = Math.max(0, Number(seconds) || 0);
     const mins = Math.floor(safeSeconds / 60);
@@ -2155,14 +2185,20 @@ function app_window(id, levels) {
 
     buttons.forEach(btn => {
         btn.addEventListener('click', async () => {
+            if (btn.disabled || btn.classList.contains("is-loading")) return;
             const action = btn.dataset.action;
             const label = btn.dataset.label;
-            const response = await sendGonnaWinRequest(id, action);
-            const success = response.success === true;
+            setAppButtonGroupPending(buttons, btn, true);
+            try {
+                const response = await sendGonnaWinRequest(id, action);
+                const success = response.success === true;
 
-            addSystemMessage('info', '\u25B6 Akcja', `Akcja: ${label} | Wynik: ${success ? "\u2714" : "\u2716"}`);
-            resultBox.textContent = success ? "\u2714 Sukces!" : "\u2716 Niepowodzenie.";
-            resultBox.style.color = success ? "#0f0" : "#f33";
+                addSystemMessage('info', '\u25B6 Akcja', `Akcja: ${label} | Wynik: ${success ? "\u2714" : "\u2716"}`);
+                resultBox.textContent = success ? "\u2714 Sukces!" : "\u2716 Niepowodzenie.";
+                resultBox.style.color = success ? "#0f0" : "#f33";
+            } finally {
+                setAppButtonGroupPending(buttons, btn, false);
+            }
         });
     });
 }
@@ -2420,14 +2456,20 @@ function app_button_choices(id, levels) {
 
     buttons.forEach(btn => {
         btn.addEventListener('click', async () => {
+            if (btn.disabled || btn.classList.contains("is-loading")) return;
             const optId = btn.dataset.optId;
             const choiceLabel = btn.textContent.trim();
-            const response = await sendGonnaWinRequest(id, optId);
-            const success = response.success === true;
+            setAppButtonGroupPending(buttons, btn, true);
+            try {
+                const response = await sendGonnaWinRequest(id, optId);
+                const success = response.success === true;
 
-            addSystemMessage('info', '\u2699 Efekt', `Wybrano: ${choiceLabel} | Wynik: ${success ? "\u2714 SUKCES" : "\u2716 PORA\u017bKA"}`);
-            resultBox.textContent = success ? "\u2714 Uda\u0142o si\u0119!" : "\u2716 Niestety nie tym razem.";
-            resultBox.style.color = success ? "#0f0" : "#f33";
+                addSystemMessage('info', '\u2699 Efekt', `Wybrano: ${choiceLabel} | Wynik: ${success ? "\u2714 SUKCES" : "\u2716 PORA\u017bKA"}`);
+                resultBox.textContent = success ? "\u2714 Uda\u0142o si\u0119!" : "\u2716 Niestety nie tym razem.";
+                resultBox.style.color = success ? "#0f0" : "#f33";
+            } finally {
+                setAppButtonGroupPending(buttons, btn, false);
+            }
         });
     });
 }
