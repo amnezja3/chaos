@@ -6491,6 +6491,15 @@ function resumeOpenMapOptionalRefresh(delayMs = 1200) {
     });
 }
 
+function notifyOpenMapsOperationStarted(createdOperations = []) {
+    if (!Array.isArray(createdOperations) || !createdOperations.length) return;
+    forEachOpenMapWindow(mapWindow => {
+        if (typeof mapWindow.addCreatedOperationSpinners === "function") {
+            mapWindow.addCreatedOperationSpinners(createdOperations);
+        }
+    });
+}
+
 async function selectMapActionTool(appId) {
     const selection = window.activeToolSelection;
     if (!selection || !selection.pending_action) {
@@ -6537,6 +6546,7 @@ async function selectMapActionTool(appId) {
 
         window.activeToolSelection = null;
         closeMapToolPicker(false);
+        notifyOpenMapsOperationStarted(data.created_operations || []);
         if (data.target) {
             setToolbarProfile({
                 ...(toolbarProfile || {}),

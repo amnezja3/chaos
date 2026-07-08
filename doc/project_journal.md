@@ -6693,3 +6693,43 @@ jeszcze trwa.
 Sprint 73 gotowy do walidacji live. Kolejny checkpoint powinien sprawdzic, czy
 podczas klikniecia akcji mapowej w logach nie pojawia sie nowa fala ciezkich
 snapshotow startujaca rownolegle z `/hack-action`.
+
+---
+
+## 08.07.2026
+
+### Etap
+
+Sprint 73.1 - Map Operation Presence Spinners.
+
+### Powod
+
+Po przyspieszeniu sciezki map action brakowalo malego, natychmiastowego sygnalu
+wizualnego na samym obiekcie. Gracz widzial wynik w panelu operacji, ale marker
+celu nie pokazywal, ze konkretne narzedzie nadal pracuje.
+
+### Implementacja
+
+Dodano lekka warstwe spinnerow operacji przy targetach mapy:
+
+* po sukcesie `/hack-action` mapa pokazuje spinner dla `created_operations`,
+* po sukcesie `Uzyj` z pickera desktop przekazuje `created_operations` do
+  otwartej mapy,
+* `renderActiveOperationMarkers(...)` przelicza spinnery z aktualnych
+  `active_operations`,
+* wiele operacji na jednym celu rozklada sie jako wiele malych spinnerow wokol
+  markera,
+* spinnery sa usuwane i przeliczane przy refreshu aktywnych operacji.
+
+### Decyzja
+
+Spinner nie jest nowym systemem operacji. To tylko wizualne odbicie istniejacych
+`created_operations` i `active_operations`. Zrodlem prawdy pozostaje runtime
+operacji.
+
+### Status
+
+Sprint 73.1 gotowy do walidacji live. Test reczny powinien obejmowac kilka
+akcji na jednym markerze, np. `scan`, `exploit`, `sniff`, `trace`, i sprawdzic,
+czy kazda aktywna operacja ma osobny spinner oraz czy spinner znika po
+zakonczeniu operacji.

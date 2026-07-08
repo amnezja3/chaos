@@ -6049,6 +6049,55 @@ Snapshoty mapy pozostaja potrzebne jako start/recovery, ale nie powinny:
 * Mapa nadal aktualizuje terytoria, podatnosci, operacje i graczy.
 * Nie powstal nowy endpoint ani drugi system map state.
 
+---
+
+# Sprint 73.1 - Map Operation Presence Spinners
+
+## Cel gameplayowy
+
+Pokazac na mapie, ze narzedzie faktycznie pracuje na konkretnym obiekcie.
+
+Po uruchomieniu akcji, np. `scan`, `exploit`, `sniff` albo `trace`, przy
+markerze celu ma pojawic sie maly spinner operacji. Jesli gracz uruchomi kilka
+akcji na tym samym obiekcie, kazda akcja dostaje osobny spinner.
+
+## Zasada
+
+Spinner nie jest nowym systemem operacji.
+
+Spinner jest wizualnym odbiciem istniejacych aktywnych operacji:
+
+```text
+created_operations / active_operations
+↓
+target operation spinner layer
+↓
+znika po zakonczeniu operacji
+```
+
+## Zakres
+
+1. Po sukcesie `/hack-action` pokazac spinner przy target markerze dla kazdej
+   utworzonej operacji.
+2. Po sukcesie `Uzyj` z pickera narzedzia pokazac te same spinnery w otwartej
+   mapie.
+3. `renderActiveOperationMarkers(...)` ma przeliczac spinnery z aktualnych
+   aktywnych operacji.
+4. Wiele operacji na tym samym celu pokazuje wiele malych spinnerow wokol
+   markera.
+5. Po zakonczeniu operacji spinner znika przy kolejnym refreshu aktywnych
+   operacji.
+6. Nie dodawac endpointow.
+7. Nie zmieniac modelu operacji.
+
+## Kryteria akceptacji
+
+* Uruchomienie narzedzia na markerze pokazuje spinner przy tym markerze.
+* Kilka akcji na jednym markerze pokazuje kilka spinnerow.
+* Spinner znika, gdy operacja nie jest juz aktywna.
+* Spinner korzysta z `created_operations` i `active_operations`.
+* Nie powstal drugi system operacji ani drugi stan mapy.
+
 Decision:
 
 * Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.
