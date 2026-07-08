@@ -2765,6 +2765,19 @@ function createBrowser() {
         unknown: "\u25a1"
     };
 
+    const gxHistorySeries = [
+        { sector: "camera", className: "gx-series-camera" },
+        { sector: "atm", className: "gx-series-atm" },
+        { sector: "gps", className: "gx-series-gps" },
+        { sector: "device", className: "gx-series-device" },
+        { sector: "credentials", className: "gx-series-credentials" },
+        { sector: "personal", className: "gx-series-personal" },
+        { sector: "financial", className: "gx-series-financial" },
+        { sector: "network", className: "gx-series-network" },
+        { sector: "audio", className: "gx-series-audio" },
+        { sector: "vehicle", className: "gx-series-vehicle" }
+    ];
+
     const gxNumber = value => {
         const number = Number(value || 0);
         if (!Number.isFinite(number)) return 0;
@@ -2802,22 +2815,40 @@ function createBrowser() {
         if (!rows.length) {
             return '<div class="gx-chart-empty">Historia sprzedazy zostanie widoczna po pierwszych transakcjach.</div>';
         }
-        const values = rows.map(item => gxNumber(item.hc));
         const labels = rows.map(item => item.label || item.date || "");
         const width = 640;
         const height = 210;
         const padding = 24;
-        const max = Math.max(...values, 1);
-        const step = values.length > 1 ? (width - padding * 2) / (values.length - 1) : width - padding * 2;
-        const points = values.map((value, index) => {
-            const x = padding + index * step;
-            const y = height - padding - ((value / max) * (height - padding * 2));
-            return `${x.toFixed(1)},${y.toFixed(1)}`;
-        }).join(" ");
-        const circles = values.map((value, index) => {
-            const x = padding + index * step;
-            const y = height - padding - ((value / max) * (height - padding * 2));
-            return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3"><title>${escapeHTML(labels[index])}: ${gxFormatHc(value)}</title></circle>`;
+        const activeSeries = gxHistorySeries.map(series => ({
+            ...series,
+            label: gxSectorLabels[series.sector] || series.sector,
+            values: rows.map(item => gxNumber(item?.sectors?.[series.sector]))
+        })).filter(series => series.values.some(value => value > 0));
+        const fallbackSeries = [{
+            sector: "total",
+            className: "gx-series-camera",
+            label: "Razem",
+            values: rows.map(item => gxNumber(item.hc))
+        }];
+        const chartSeries = activeSeries.length ? activeSeries : fallbackSeries;
+        const max = Math.max(...chartSeries.flatMap(series => series.values), 1);
+        const step = rows.length > 1 ? (width - padding * 2) / (rows.length - 1) : width - padding * 2;
+        const seriesMarkup = chartSeries.map(series => {
+            const points = series.values.map((value, index) => {
+                const x = padding + index * step;
+                const y = height - padding - ((value / max) * (height - padding * 2));
+                return `${x.toFixed(1)},${y.toFixed(1)}`;
+            }).join(" ");
+            const circles = series.values.map((value, index) => {
+                if (value <= 0) return "";
+                const x = padding + index * step;
+                const y = height - padding - ((value / max) * (height - padding * 2));
+                return `<circle class="${series.className}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3"><title>${escapeHTML(labels[index])} / ${escapeHTML(series.label)}: ${gxFormatHc(value)}</title></circle>`;
+            }).join("");
+            return `
+                <polyline class="${series.className}" points="${points}"></polyline>
+                ${circles}
+            `;
         }).join("");
         const axis = labels.map((label, index) => {
             const x = padding + index * step;
@@ -2826,8 +2857,7 @@ function createBrowser() {
         return `
             <svg class="gx-sparkline gx-history-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Historia sprzedazy Ghost Exchange">
                 <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="rgba(0,255,102,.22)" />
-                <polyline points="${points}"></polyline>
-                ${circles}
+                ${seriesMarkup}
                 <g class="gx-history-axis">${axis}</g>
             </svg>
         `;
@@ -2940,11 +2970,9 @@ function createBrowser() {
                         <span class="gx-chart-subtitle">fallback SVG / uPlot-ready</span>
                     </div>
                     <div class="gx-chart-legend">
-                        <span class="gx-chart-legend-item gx-series-camera">Kamery</span>
-                        <span class="gx-chart-legend-item gx-series-atm">Bankomaty</span>
-                        <span class="gx-chart-legend-item gx-series-gps">GPS</span>
-                        <span class="gx-chart-legend-item gx-series-personal">Dane osobowe</span>
-                        <span class="gx-chart-legend-item gx-series-financial">Finansowe</span>
+                        ${gxHistorySeries.map(series => `
+                            <span class="gx-chart-legend-item ${series.className}">${escapeHTML(gxSectorLabels[series.sector] || series.sector)}</span>
+                        `).join("")}
                     </div>
                     <div class="gx-chart-body">
                         <div class="gx-chart-uplot">${gxHistoryChartSvg(history)}</div>

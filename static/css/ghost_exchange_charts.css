@@ -175,14 +175,14 @@
 .gx-sparkline path,
 .gx-sparkline polyline {
   fill: none;
-  stroke: #00ff66;
+  stroke: currentColor;
   stroke-width: 1.6;
   vector-effect: non-scaling-stroke;
   filter: drop-shadow(0 0 3px rgba(0, 255, 102, 0.65));
 }
 
 .gx-sparkline circle {
-  fill: #00ff66;
+  fill: currentColor;
   filter: drop-shadow(0 0 3px rgba(0, 255, 102, 0.7));
 }
 
@@ -379,6 +379,9 @@
 .gx-series-personal { color: #d55cff; }
 .gx-series-credentials { color: #ff4f86; }
 .gx-series-financial { color: #ffb84d; }
+.gx-series-network { color: #63ff8a; }
+.gx-series-audio { color: #b7ff5c; }
+.gx-series-vehicle { color: #7aa8ff; }
 
 .gx-chart-tooltip {
   position: fixed;
