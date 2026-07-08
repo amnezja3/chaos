@@ -2267,16 +2267,18 @@ function notifyOpenMapsTargetHacked(target) {
 }
 
 function notifyOpenMapsOperationsChanged() {
+    const refreshes = [];
     document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
         try {
             const mapWindow = frame.contentWindow;
             if (mapWindow && typeof mapWindow.refreshActiveOperations === 'function') {
-                mapWindow.refreshActiveOperations();
+                refreshes.push(Promise.resolve(mapWindow.refreshActiveOperations()));
             }
         } catch (err) {
             console.warn("Nie udalo sie odswiezyc operacji mapy:", err);
         }
     });
+    return Promise.allSettled(refreshes);
 }
 
 async function sendGonnaWinRequest(appId, choiceId = null) {
@@ -5570,7 +5572,7 @@ function renderGhostLabTab(tabName, root) {
                             <span>${escapeHTML(item.description)}</span>
                             <div class="ghostlab-template-meta">
                                 <b>LVL ${escapeHTML(String(item.recommended_level))}</b>
-                                <b>Risk ${"â…".repeat(item.risk_level)}${"â†".repeat(Math.max(0, 5 - item.risk_level))}</b>
+                                <b>Risk ${"★".repeat(item.risk_level)}${"☆".repeat(Math.max(0, 5 - item.risk_level))}</b>
                             </div>
                             <button type="button" data-ghostlab-create-template="${escapeHTML(item.id)}" title="Create a draft project from this template.">Create Project</button>
                         </article>
@@ -6566,7 +6568,9 @@ async function selectMapActionTool(appId) {
             });
         }
         addSystemMessage("success", "\u{1F6E0}\uFE0F Narz\u0119dzie", data.status || `Uruchomiono ${app.name || app.id}.`);
-        if (typeof notifyOpenMapsOperationsChanged === "function") notifyOpenMapsOperationsChanged();
+        if (typeof notifyOpenMapsOperationsChanged === "function") {
+            await notifyOpenMapsOperationsChanged();
+        }
         logHackFlow(selection, "use_done");
     } catch (err) {
         console.error("Błąd wyboru narzędzia:", err);

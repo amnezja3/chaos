@@ -10326,7 +10326,7 @@ def hack_action():
             return jsonify({
                 "success": False,
                 "blocked": True,
-                "status": f"â›” Target znajduje siÄ™ na kontrolowanym terenie gracza {preflight_foreign_area['owner_nick']}.",
+                "status": f"⛔ Target znajduje się na kontrolowanym terenie gracza {preflight_foreign_area['owner_nick']}.",
                 "area": {
                     "id": preflight_foreign_area.get("id"),
                     "owner_username": preflight_foreign_area.get("owner_username"),
@@ -10351,7 +10351,7 @@ def hack_action():
                 "success": False,
                 "blocked": True,
                 "reason": "no_app",
-                "status": "Brak aplikacji obsĹ‚ugujÄ…cej tÄ™ akcjÄ™.",
+                "status": "Brak aplikacji obsługującej tę akcję.",
                 "map_action_id": action,
                 "canonical_action": canonical_action
             }), 409
@@ -10361,7 +10361,7 @@ def hack_action():
             return jsonify({
                 "success": True,
                 "tool_selection_required": True,
-                "status": "Wybierz narzÄ™dzie z katalogu /tools.",
+                "status": "Wybierz narzędzie z katalogu /tools.",
                 "map_action_id": action,
                 "canonical_action": canonical_action,
                 "app_match_source": preflight_match_source,
@@ -10371,7 +10371,7 @@ def hack_action():
                     "lat": lat,
                     "lng": lng,
                     "label": label,
-                    "icon": data.get("icon", "đź“¶"),
+                    "icon": data.get("icon", "📶"),
                     "source_type": data.get("source_type", "manual"),
                     "name": data.get("name", label),
                     "generated": data.get("generated", False),
