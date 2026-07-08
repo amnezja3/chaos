@@ -2015,12 +2015,13 @@
             closeMenus();
             const hackFlowId = `hf-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
             const hackFlowStartedAt = performance.now();
-            const hackFlowLog = (step, extra = {}) => {
+            const hackFlowLog = (step, extra) => {
                 const elapsed = Math.round(performance.now() - hackFlowStartedAt);
+                const details = extra || {};
                 console.log(`[HACK_FLOW ${hackFlowId}] map ${step} +${elapsed}ms`, {
                     action,
                     label,
-                    ...extra
+                    ...details
                 });
             };
             hackFlowLog("click");

@@ -10236,6 +10236,155 @@ def hack_action():
     print(f"[HACK] {action} on {lat}, {lng} ({label})")
     log_hack_flow("start")
 
+    if not selected_app_id:
+        readonly_profile = load_profile_readonly(
+            session.get("user"),
+            strip_sensitive=True,
+            normalize_apps=True,
+            normalize_files=False,
+        )
+        log_hack_flow(
+            "readonly_profile",
+            apps=len((readonly_profile or {}).get("apps", []) or []),
+        )
+        if not readonly_profile:
+            log_hack_flow("return_profile_not_found")
+            return jsonify({
+                "success": False,
+                "blocked": True,
+                "reason": "profile_not_found",
+                "status": "Brak danych profilu."
+            }), 401
+
+        preflight_player_target_username = player_target_username
+        preflight_vulnerability_report = None
+        if vulnerability_id:
+            try:
+                preflight_vulnerability_report = vulnerability_store.get(int(vulnerability_id))
+            except (TypeError, ValueError):
+                preflight_vulnerability_report = None
+            if not preflight_vulnerability_report or preflight_vulnerability_report.get("status") != "active":
+                log_hack_flow("preflight_return_invalid_vulnerability")
+                return jsonify({
+                    "success": False,
+                    "blocked": True,
+                    "status": "Ta podatnosc nie jest juz aktywna."
+                }), 404
+            if preflight_vulnerability_report.get("reported_by_username") == session["user"]:
+                log_hack_flow("preflight_return_own_vulnerability")
+                return jsonify({
+                    "success": False,
+                    "blocked": True,
+                    "status": "Nie mozesz hackowac wlasnego zgloszenia podatnosci."
+                }), 403
+
+        preflight_contested_target = find_contested_target(session["user"], lat, lng, label)
+        log_hack_flow(
+            "preflight_contest_check",
+            contested=bool(preflight_contested_target),
+            vulnerability=bool(preflight_vulnerability_report),
+        )
+
+        if requested_target_mode == "player":
+            if not preflight_player_target_username:
+                aimed_player = (readonly_profile.get("aimed_target") or {}).get("target_username")
+                preflight_player_target_username = str(aimed_player or "").strip()
+            preflight_player_profile = user_store.get_profile(preflight_player_target_username)
+            if not preflight_player_profile:
+                log_hack_flow("preflight_return_missing_player")
+                return jsonify({
+                    "success": False,
+                    "blocked": True,
+                    "status": "Ten gracz nie istnieje."
+                }), 404
+            active_access = player_hack_access_store.get_active_access(session["user"], preflight_player_target_username)
+            cooldown = player_hack_access_store.get_cooldown(session["user"], preflight_player_target_username)
+            if cooldown and not active_access:
+                minutes_left = max(1, math.ceil((cooldown.get("cooldown_seconds_left") or 0) / 60))
+                log_hack_flow("preflight_return_player_cooldown", minutes_left=minutes_left)
+                return jsonify({
+                    "success": False,
+                    "blocked": True,
+                    "status": f"Cooldown aktywny. Ponowny hack gracza mozliwy za ok. {minutes_left} min.",
+                    "cooldown_seconds_left": cooldown.get("cooldown_seconds_left", 0),
+                    "cooldown_until": cooldown.get("cooldown_until")
+                }), 429
+
+        preflight_foreign_area = find_foreign_area_for_point(session["user"], float(lat), float(lng))
+        log_hack_flow(
+            "preflight_area_access_check",
+            foreign_area=bool(preflight_foreign_area),
+            target_mode=requested_target_mode or "-",
+        )
+        if (
+            preflight_foreign_area
+            and not preflight_vulnerability_report
+            and not preflight_contested_target
+            and requested_target_mode != "player"
+        ):
+            log_hack_flow("preflight_return_foreign_area")
+            return jsonify({
+                "success": False,
+                "blocked": True,
+                "status": f"â›” Target znajduje siÄ™ na kontrolowanym terenie gracza {preflight_foreign_area['owner_nick']}.",
+                "area": {
+                    "id": preflight_foreign_area.get("id"),
+                    "owner_username": preflight_foreign_area.get("owner_username"),
+                    "owner_nick": preflight_foreign_area.get("owner_nick"),
+                    "status": preflight_foreign_area.get("status")
+                }
+            }), 403
+
+        preflight_apps = normalize_app_contracts(readonly_profile.get("apps", []))
+        preflight_matched_apps, preflight_match_source = get_apps_for_map_action(preflight_apps, action)
+        if not preflight_matched_apps and canonical_action != action:
+            preflight_matched_apps, preflight_match_source = get_apps_for_map_action(preflight_apps, canonical_action)
+        log_hack_flow(
+            "preflight_app_match",
+            matched=len(preflight_matched_apps),
+            source=preflight_match_source,
+        )
+
+        if not preflight_matched_apps:
+            log_hack_flow("preflight_return_no_app")
+            return jsonify({
+                "success": False,
+                "blocked": True,
+                "reason": "no_app",
+                "status": "Brak aplikacji obsĹ‚ugujÄ…cej tÄ™ akcjÄ™.",
+                "map_action_id": action,
+                "canonical_action": canonical_action
+            }), 409
+
+        if len(preflight_matched_apps) > 1:
+            log_hack_flow("preflight_return_tool_selection", matched=len(preflight_matched_apps))
+            return jsonify({
+                "success": True,
+                "tool_selection_required": True,
+                "status": "Wybierz narzÄ™dzie z katalogu /tools.",
+                "map_action_id": action,
+                "canonical_action": canonical_action,
+                "app_match_source": preflight_match_source,
+                "matching_apps": [serialize_tool_selection_app(app) for app in preflight_matched_apps],
+                "pending_action": {
+                    "action": action,
+                    "lat": lat,
+                    "lng": lng,
+                    "label": label,
+                    "icon": data.get("icon", "đź“¶"),
+                    "source_type": data.get("source_type", "manual"),
+                    "name": data.get("name", label),
+                    "generated": data.get("generated", False),
+                    "vulnerability_id": vulnerability_id,
+                    "target_mode": requested_target_mode,
+                    "contest_owner_username": data.get("contest_owner_username"),
+                    "foreign_area_id": data.get("foreign_area_id"),
+                    "target_username": preflight_player_target_username or data.get("target_username"),
+                    "_debug_flow_id": debug_flow_id,
+                }
+            })
+        log_hack_flow("preflight_single_app_fallback")
+
     profile = sync_session_profile()
     log_hack_flow(
         "sync_session_profile",

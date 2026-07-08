@@ -5820,6 +5820,148 @@ aktualizacji target/toolbar przez istniejace delty albo lokalny payload.
 * Brak regresji File Managera.
 * Brak regresji map action flow.
 
+---
+
+# Sprint 72.1 - Hack Action Lightweight Preflight
+
+## Cel gameplayowy
+
+Skrocic pierwszy request `/hack-action`, ktory sluzy tylko do wyboru narzedzia.
+
+Sprint 72 pokazal, ze picker frontendowy jest szybki, ale pierwszy request nadal
+traci kilka sekund na pelnym `sync_session_profile()`, mimo ze w przypadku
+`tool_selection_required` backend nie musi jeszcze tworzyc operacji ani zapisywac
+profilu.
+
+## Problem z pomiarow
+
+Dla akcji mapowej z wieloma pasujacymi aplikacjami log pokazuje:
+
+```text
+/hack-action selected=False
+↓
+sync_session_profile ~4-5 s
+↓
+app_match ~1 ms
+↓
+return_tool_selection
+```
+
+Czyli koszt pierwszego kroku nie wynika z matchowania aplikacji ani z pickera,
+tylko z pelnego syncu profilu przed read-only odpowiedzia.
+
+## Zasada
+
+Ten sam endpoint `/hack-action` moze miec dwie wewnetrzne sciezki:
+
+```text
+bez selected_app_id
+↓
+lightweight preflight / wybor narzedzia
+```
+
+oraz:
+
+```text
+z selected_app_id
+↓
+real action / zapis profilu / operacja
+```
+
+Nie tworzymy nowego endpointu.
+
+Nie zmieniamy kontraktu frontendu.
+
+## Zakres
+
+1. W `/hack-action` wykryc sciezke preflight:
+   * brak `selected_app_id`,
+   * akcja mapowa moze wymagac wyboru narzedzia.
+2. Dla preflight uzyc lekkiego odczytu profilu, jesli wystarcza:
+   * `load_profile_readonly(username, strip_sensitive=True)`,
+   * albo inny istniejacy readonly helper.
+3. Preflight ma odczytac tylko dane potrzebne do wyboru narzedzia:
+   * `apps`,
+   * minimalny kontekst celu,
+   * minimalne blokady wymagane przed pokazaniem pickera.
+4. Jesli `matched_apps > 1`, zwrocic:
+   * `tool_selection_required`,
+   * `matching_apps`,
+   * `pending_action`.
+5. Preflight nie moze:
+   * tworzyc operacji,
+   * dopisywac `launch_queue`,
+   * zapisywac profilu,
+   * odpalac `refresh_and_persist_operations()`,
+   * robic pelnego rebuild/session sync, jesli nie jest konieczny.
+6. Sciezka z `selected_app_id` pozostaje realnym wykonaniem akcji i nadal moze
+   uzyc pelniejszego profilu oraz zapisu.
+7. Zachowac debug logi `HACK_FLOW`, aby porownac przed/po.
+
+## Systemy
+
+* `/hack-action`,
+* `load_profile_readonly(...)`,
+* `get_apps_for_map_action(...)`,
+* `serialize_tool_selection_app(...)`,
+* lightweight picker Sprintu 72.
+
+## Flow danych
+
+```text
+klik akcji mapy
+↓
+/hack-action bez selected_app_id
+↓
+readonly profile/apps
+↓
+matched_apps > 1
+↓
+tool_selection_required
+↓
+picker Sprintu 72
+```
+
+Po wyborze:
+
+```text
+Uzyj
+↓
+/hack-action z selected_app_id
+↓
+real action
+↓
+profile update / operations / delty
+```
+
+## Poza zakresem
+
+* nowy endpoint,
+* zmiana algorytmu map action,
+* przebudowa `sync_session_profile()`,
+* optymalizacja map pollerow,
+* delta dla warstw mapy,
+* zmiana File Managera.
+
+## Testy
+
+* Preflight z wieloma aplikacjami zwraca `tool_selection_required`.
+* Preflight nie zapisuje profilu.
+* Preflight nie tworzy operacji.
+* Preflight nie dodaje `launch_queue`.
+* Real action z `selected_app_id` nadal tworzy operacje.
+* Debug `HACK_FLOW` pokazuje nizszy czas pierwszego requestu.
+* Brak regresji pickera Sprintu 72.
+
+## Kryteria akceptacji
+
+* Pierwszy `/hack-action` dla wyboru narzedzia nie wykonuje pelnego kosztownego
+  syncu, jesli nie jest konieczny.
+* Picker pojawia sie szybciej niz przed sprintem.
+* Realne uzycie narzedzia nadal dziala jak przed sprintem.
+* Nie powstal nowy endpoint.
+* Nie powstala druga sciezka map action poza `/hack-action`.
+
 Decision:
 
 * Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.

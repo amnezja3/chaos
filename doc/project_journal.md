@@ -6566,3 +6566,74 @@ frontend ma wystarczajacy read model do szybkiego wyboru narzedzia.
 
 Sprint 72 zaimplementowany. Domyslna sciezka wyboru narzedzia nie powinna juz
 czekac na pelny File Manager ani pelny profil.
+
+---
+
+## 08.07.2026
+
+### Etap
+
+Plan Sprintu 72.1 - Hack Action Lightweight Preflight.
+
+### Powod
+
+Pomiary `HACK_FLOW` pokazaly, ze frontendowy picker Sprintu 72 renderuje sie w
+kilka milisekund, ale pierwszy `/hack-action` nadal traci ok. 4-5 sekund na
+`sync_session_profile()`, mimo ze przy `tool_selection_required` endpoint ma
+tylko zwrocic liste `matching_apps`.
+
+Po zmianie Gunicorna z 1 na 3 workery zniknal najwiekszy korek requestow, ale
+pozostal koszt samego read-only preflightu.
+
+### Decyzja
+
+Dopisano Sprint 72.1 jako maly sprint optymalizacyjny:
+
+* bez nowego endpointu,
+* bez zmiany kontraktu frontendu,
+* bez przebudowy backendu,
+* z lekkim readonly preflightem dla `/hack-action` bez `selected_app_id`,
+* z pelna sciezka wykonania zachowana dla `/hack-action` z `selected_app_id`.
+
+### Oczekiwany efekt
+
+Pierwszy request pokazujacy picker narzedzi ma omijac kosztowny pelny sync, jesli
+nie jest potrzebny do samego wyboru narzedzia.
+
+### Implementacja
+
+Sprint 72.1 zostal zaimplementowany w `/hack-action`.
+
+Dodano readonly preflight dla requestu bez `selected_app_id`:
+
+* uzywa `load_profile_readonly(..., normalize_files=False)`,
+* sprawdza podstawowe blokady celu,
+* matchuje aplikacje przez `get_apps_for_map_action(...)`,
+* przy wielu aplikacjach zwraca `tool_selection_required` bez
+  `sync_session_profile()`,
+* nie tworzy operacji,
+* nie dopisuje `launch_queue`,
+* nie zapisuje profilu.
+
+Sciezka z `selected_app_id` pozostaje realnym wykonaniem akcji i nadal zapisuje
+profil/operacje jak dotychczas.
+
+### Testy
+
+* Dodano test regresyjny `test_hack_action_tool_selection_uses_readonly_preflight`.
+* Test potwierdza, ze preflight:
+  * zwraca `tool_selection_required`,
+  * uzywa readonly profilu,
+  * nie wywoluje `sync_session_profile()`,
+  * nie tworzy operacji.
+* `python -m unittest tests.test_target_persistence.TargetPersistenceHelpersTest.test_hack_action_tool_selection_uses_readonly_preflight ...`,
+  OK.
+* `python -m py_compile run.py`,
+  OK.
+* `git diff --check`,
+  OK, tylko ostrzezenie CRLF/LF dla `run.py`.
+
+### Status
+
+Sprint 72.1 gotowy. Pierwszy request wyboru narzedzia powinien teraz pokazywac
+picker bez pelnego kosztownego syncu profilu.
