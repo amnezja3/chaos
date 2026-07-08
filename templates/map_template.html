@@ -2013,6 +2013,17 @@
         function hackingAction(action, lat, lng, label, icon, source_type = "manual", name = label, generated = false, vulnerability_id = null, target_mode = null, contest_owner_username = null, foreign_area_id = null, target_username = null) {
             if (guardMapGameplayAction()) return;
             closeMenus();
+            const hackFlowId = `hf-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+            const hackFlowStartedAt = performance.now();
+            const hackFlowLog = (step, extra = {}) => {
+                const elapsed = Math.round(performance.now() - hackFlowStartedAt);
+                console.log(`[HACK_FLOW ${hackFlowId}] map ${step} +${elapsed}ms`, {
+                    action,
+                    label,
+                    ...extra
+                });
+            };
+            hackFlowLog("click");
 
             fetch('/hack-action', {
                 method: 'POST',
@@ -2030,11 +2041,17 @@
                     target_mode,
                     contest_owner_username,
                     foreign_area_id,
-                    target_username
+                    target_username,
+                    _debug_flow_id: hackFlowId
                 })
             })
             .then(async res => {
                 const data = await res.json();
+                hackFlowLog("response", {
+                    status: res.status,
+                    tool_selection_required: Boolean(data && data.tool_selection_required),
+                    matching_apps: Array.isArray(data && data.matching_apps) ? data.matching_apps.length : 0
+                });
                 if (!res.ok || data.blocked) {
                     addSystemMessage("warning", `⛔ ${action}`, data.status || "Akcja zablokowana.");
                     return null;
@@ -2048,6 +2065,7 @@
                         ? window.parent.openToolSelectionForMapAction
                         : window.openToolSelectionForMapAction;
                     if (typeof opener === 'function') {
+                        hackFlowLog("open_picker");
                         opener(data);
                     } else {
                         addSystemMessage("warning", "🛠️ Narzędzia", "Otwórz Pliki i wybierz narzędzie z /tools.");

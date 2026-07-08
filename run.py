@@ -10203,6 +10203,8 @@ def map_action():
 
 @app.route('/hack-action', methods=['POST'])
 def hack_action():
+    flow_started_at = time.perf_counter()
+    flow_last_at = flow_started_at
     data = request.get_json() or {}
     action = data['action']
     canonical_action = HACK_ACTION_STEP_ALIASES.get(action, action)
@@ -10214,12 +10216,32 @@ def hack_action():
     player_target_profile = None
     player_target_username = str(data.get("target_username") or "").strip()
     selected_app_id = str(data.get("selected_app_id") or "").strip()
+    debug_flow_id = str(data.get("_debug_flow_id") or "-")[:96]
     vulnerability_report = None
     contested_target = None
 
+    def log_hack_flow(step, **extra):
+        nonlocal flow_last_at
+        now = time.perf_counter()
+        delta_ms = int(round((now - flow_last_at) * 1000))
+        total_ms = int(round((now - flow_started_at) * 1000))
+        flow_last_at = now
+        details = " ".join(f"{key}={value}" for key, value in extra.items())
+        suffix = f" {details}" if details else ""
+        print(
+            f"[HACK_FLOW {debug_flow_id}] action={action} selected={bool(selected_app_id)} "
+            f"step={step} +{delta_ms}ms total={total_ms}ms{suffix}"
+        )
+
     print(f"[HACK] {action} on {lat}, {lng} ({label})")
+    log_hack_flow("start")
 
     profile = sync_session_profile()
+    log_hack_flow(
+        "sync_session_profile",
+        apps=len(profile.get("apps", []) or []),
+        files=sum(len(value) for value in (profile.get("files") or {}).values() if isinstance(value, list)),
+    )
     if vulnerability_id:
         try:
             vulnerability_report = vulnerability_store.get(int(vulnerability_id))
@@ -10253,6 +10275,7 @@ def hack_action():
             )
 
     contested_target = find_contested_target(session["user"], lat, lng, label)
+    log_hack_flow("contest_check", contested=bool(contested_target), vulnerability=bool(vulnerability_report))
     if contested_target:
         owner_username = contested_target.get("owner_username")
         attacker_name = profile.get("nick") or session["user"]
@@ -10300,6 +10323,7 @@ def hack_action():
             }), 429
 
     foreign_area = find_foreign_area_for_point(session["user"], float(lat), float(lng))
+    log_hack_flow("area_access_check", foreign_area=bool(foreign_area), target_mode=requested_target_mode or "-")
     if foreign_area and not vulnerability_report and not contested_target and requested_target_mode != "player":
         return jsonify({
             "success": False,
@@ -10318,8 +10342,10 @@ def hack_action():
     matched_apps, match_source = get_apps_for_map_action(installed_apps, action)
     if not matched_apps and canonical_action != action:
         matched_apps, match_source = get_apps_for_map_action(installed_apps, canonical_action)
+    log_hack_flow("app_match", matched=len(matched_apps), source=match_source)
 
     if not matched_apps:
+        log_hack_flow("return_no_app")
         return jsonify({
             "success": False,
             "blocked": True,
@@ -10339,6 +10365,7 @@ def hack_action():
             None
         )
         if not selected_app:
+            log_hack_flow("return_invalid_tool", selected_app_id=selected_app_id)
             return jsonify({
                 "success": False,
                 "blocked": True,
@@ -10349,6 +10376,7 @@ def hack_action():
             }), 400
         matched_apps = [selected_app]
     elif len(matched_apps) > 1:
+        log_hack_flow("return_tool_selection", matched=len(matched_apps))
         return jsonify({
             "success": True,
             "tool_selection_required": True,
@@ -10371,6 +10399,7 @@ def hack_action():
                 "contest_owner_username": data.get("contest_owner_username"),
                 "foreign_area_id": data.get("foreign_area_id"),
                 "target_username": player_target_username or data.get("target_username"),
+                "_debug_flow_id": debug_flow_id,
             }
         })
 
@@ -10378,6 +10407,7 @@ def hack_action():
         profile["launch_queue"] = []
     new_apps = [app["name"] for app in matched_apps if app["name"] not in profile["launch_queue"]]
     profile["launch_queue"].extend(new_apps)
+    log_hack_flow("launch_queue", new_apps=len(new_apps))
 
     security_template = resources_store.get(
         "user_security",
@@ -10483,6 +10513,7 @@ def hack_action():
 
         profile["aimed_target"] = aimed_target
 
+    log_hack_flow("target_state", same_target=bool(same_target))
     created_operations = create_operations_for_app_action(
         profile,
         session["user"],
@@ -10490,6 +10521,7 @@ def hack_action():
         action,
         profile["aimed_target"]
     )
+    log_hack_flow("create_operations", created=len(created_operations or []))
 
     if action == "scan_ports":
         append_risk_event(
@@ -10507,6 +10539,7 @@ def hack_action():
             action=action,
             dedupe_key=risk_scan_action_dedupe_key(session["user"], action, lat, lng),
         )
+        log_hack_flow("risk_event")
 
     # Zapisz
     session["profile"] = profile
@@ -10517,13 +10550,16 @@ def hack_action():
         "risk_events": profile.get("risk_events", []),
         "system_messages": profile.get("system_messages", []),
     })
+    log_hack_flow("update_profile")
     record_map_target_delta(
         session["user"],
         profile.get("aimed_target") or {},
         change_type="map.target_updated",
         reason="hack_action_target_set",
     )
+    log_hack_flow("record_map_target_delta")
 
+    log_hack_flow("return_success")
     return jsonify({
         "status": f"🎯 Cel ustawiony: {display_target_label(profile.get('aimed_target') or {})}",
         "target": profile["aimed_target"],
