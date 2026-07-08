@@ -1,0 +1,124 @@
+import os
+
+
+def env_bool(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return bool(default)
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_int(name, default):
+    value = os.environ.get(name)
+    if value is None:
+        return int(default)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return int(default)
+
+
+APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
+
+
+FLASK_SESSION_CONFIG = {
+    "SESSION_TYPE": os.environ.get("CHAOS_SESSION_TYPE", "filesystem"),
+    "SESSION_PERMANENT": env_bool("CHAOS_SESSION_PERMANENT", False),
+    "SESSION_USE_SIGNER": env_bool("CHAOS_SESSION_USE_SIGNER", True),
+    "SESSION_KEY_PREFIX": os.environ.get("CHAOS_SESSION_KEY_PREFIX", "haos_"),
+    "SECRET_KEY": os.environ.get("CHAOS_SECRET_KEY", "bardzo-tajny-klucz-123"),
+}
+
+
+PERF_LOG_ENDPOINTS = {
+    "/api/operations",
+    "/api/map/player-areas",
+    "/api/map/player-actors",
+    "/api/map/clan-vulnerabilities",
+    "/launch-queue",
+    "/system-messages",
+    "/command",
+    "/gonna-win",
+}
+PERF_LOG_MIN_MS = env_int("CHAOS_PERF_LOG_MIN_MS", 100)
+PERF_LOG_MIN_SIZE = env_int("CHAOS_PERF_LOG_MIN_SIZE", 20 * 1024)
+
+
+VULNERABILITY_MAX_ENABLED_SECURITY = env_int("CHAOS_VULNERABILITY_MAX_ENABLED_SECURITY", 5)
+VULNERABILITY_REPORT_THRESHOLD = float(os.environ.get("CHAOS_VULNERABILITY_REPORT_THRESHOLD", "0.30") or 0.30)
+
+PLAYER_HACK_ACCESS_MINUTES = env_int("CHAOS_PLAYER_HACK_ACCESS_MINUTES", 5)
+PLAYER_HACK_COOLDOWN_HOURS = env_int("CHAOS_PLAYER_HACK_COOLDOWN_HOURS", 3)
+
+
+DEFAULT_STORAGE_CAPACITY_MB = env_int("CHAOS_DEFAULT_STORAGE_CAPACITY_MB", 512)
+DEFAULT_APP_FILE_SIZE_MB = env_int("CHAOS_DEFAULT_APP_FILE_SIZE_MB", 8)
+DEFAULT_APP_DISK_USAGE_MB = env_int("CHAOS_DEFAULT_APP_DISK_USAGE_MB", 12)
+DEFAULT_APP_QUALITY_SCORE = env_int("CHAOS_DEFAULT_APP_QUALITY_SCORE", 55)
+DEFAULT_APP_RELIABILITY = env_int("CHAOS_DEFAULT_APP_RELIABILITY", 65)
+DEFAULT_CREATOR_POWER = env_int("CHAOS_DEFAULT_CREATOR_POWER", 35)
+DEFAULT_APP_PRICE_HINT_HC = env_int("CHAOS_DEFAULT_APP_PRICE_HINT_HC", 120)
+
+
+"""
+Kandydaci:
+
+1. Runtime / wydajność
+TERRITORY_REBUILD_CACHE_SECONDS
+map snapshot interwały z map_template.html:MAP_PLAYER_ACTORS_SNAPSHOT_INTERVAL_MS
+MAP_PLAYER_AREAS_SNAPSHOT_INTERVAL_MS
+MAP_CLAN_VULNERABILITIES_SNAPSHOT_INTERVAL_MS
+MAP_ACTIVE_OPERATIONS_SNAPSHOT_INTERVAL_MS
+
+frontend delta:STATE_DELTA_POLL_INTERVAL_MS
+STATE_DELTA_LIMIT
+CYBERNER_THREAD_REFRESH_INTERVAL_MS
+
+2. Operacje
+DEFAULT_OPERATION_DURATIONS_SECONDS
+VEHICLE_TRACKING_CHECKPOINT_INTERVAL_SECONDS
+CAMERA_STREAM_FRAGMENT_INTERVAL_SECONDS
+OPERATION_ACTIVE_STATUSES
+OPERATION_TERMINAL_STATUSES
+OPERATION_FINALIZABLE_STATUSES
+
+3. Ghost Exchange balance
+MARKET_SECTOR_THRESHOLDS
+MARKET_SECTOR_DWELL_SECONDS
+MARKET_CATEGORY_BASE_VALUE
+QUALITY_SCORE_BY_LABEL
+GHOST_EXCHANGE_BLOCKED_RESOURCES
+
+4. Storage / file model
+FILE_CATEGORY_SIZE_HINTS_MB
+FILE_CATEGORY_DEFAULTS
+GAMEPLAY_FILE_FOLDERS
+DATA_FILE_FOLDERS
+LEGACY_FILE_FOLDERS
+
+5. Map/action mapping
+HACK_ACTION_STEP_ALIASES
+MAP_ACTION_OPERATION_TYPES
+SOURCE_TYPE_TARGET_TYPES
+SECURITY_CONFLICTS
+LEGACY_MAP_ACTION_SOURCES
+
+6. Product/runtime catalogs
+TRAVEL_CITIES
+STORAGE_UPGRADE_PRODUCTS
+GOOGLEPLEX_EFFECT_PRODUCTS
+LEGACY_STORAGE_UPGRADE_PRODUCTS
+Tu bym się zastanowił, czy nie lepiej później przenieść je do JSON/resources zamiast config.py, bo to bardziej katalog gry niż konfiguracja runtime.
+
+7. Tools / system apps
+PRO_SYSTEM_TOOLS
+CREATOR_SYSTEM_APPS
+PROTECTED_APP_NAMES
+CREATOR_EXPLICIT_TOOL_FAMILIES
+
+8. Risk / gameplay tuning
+RISK_EVENT_BASE_SCORES
+RISK_EVENT_MESSAGES
+UNNAMED_TARGET_VALUES
+VULNERABILITY_REPORT_THRESHOLD już przeniesione, ale wokół tego są kolejne parametry balansu.
+"""

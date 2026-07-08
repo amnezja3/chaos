@@ -23,6 +23,24 @@ import Haversine
 from profileManagment import UserProfileManager, authenticate_user
 from database import JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus
 import requests
+from config import (
+    APP_VERSION,
+    DEFAULT_APP_DISK_USAGE_MB,
+    DEFAULT_APP_FILE_SIZE_MB,
+    DEFAULT_APP_PRICE_HINT_HC,
+    DEFAULT_APP_QUALITY_SCORE,
+    DEFAULT_APP_RELIABILITY,
+    DEFAULT_CREATOR_POWER,
+    DEFAULT_STORAGE_CAPACITY_MB,
+    FLASK_SESSION_CONFIG,
+    PERF_LOG_ENDPOINTS,
+    PERF_LOG_MIN_MS,
+    PERF_LOG_MIN_SIZE,
+    PLAYER_HACK_ACCESS_MINUTES,
+    PLAYER_HACK_COOLDOWN_HOURS,
+    VULNERABILITY_MAX_ENABLED_SECURITY,
+    VULNERABILITY_REPORT_THRESHOLD,
+)
 
 app = Flask(__name__)
 
@@ -468,21 +486,8 @@ def record_map_target_delta(username, target, change_type="map.target_updated", 
         return None
 
 
-APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
 _GIT_COMMIT_HASH = None
 _GIT_BUILD_TAG = None
-PERF_LOG_ENDPOINTS = {
-    "/api/operations",
-    "/api/map/player-areas",
-    "/api/map/player-actors",
-    "/api/map/clan-vulnerabilities",
-    "/launch-queue",
-    "/system-messages",
-    "/command",
-    "/gonna-win",
-}
-PERF_LOG_MIN_MS = 100
-PERF_LOG_MIN_SIZE = 20 * 1024
 
 
 def is_perf_log_enabled():
@@ -632,12 +637,6 @@ def build_dev_bug_server_context(username, client_context=None):
             "lng": aimed_target.get("lng"),
         } if aimed_target else {},
     }
-
-VULNERABILITY_MAX_ENABLED_SECURITY = 5
-VULNERABILITY_REPORT_THRESHOLD = 0.30
-
-PLAYER_HACK_ACCESS_MINUTES = 5
-PLAYER_HACK_COOLDOWN_HOURS = 3
 
 PRO_SYSTEM_TOOLS = [
     {
@@ -2450,13 +2449,6 @@ FILE_CATEGORY_DEFAULTS = {
     },
 }
 
-DEFAULT_STORAGE_CAPACITY_MB = 512
-DEFAULT_APP_FILE_SIZE_MB = 8
-DEFAULT_APP_DISK_USAGE_MB = 12
-DEFAULT_APP_QUALITY_SCORE = 55
-DEFAULT_APP_RELIABILITY = 65
-DEFAULT_CREATOR_POWER = 35
-DEFAULT_APP_PRICE_HINT_HC = 120
 TRAVEL_CITIES = {
     "Warszawa": {"name": "Warszawa", "country": "Polska", "lat": 52.2297, "lng": 21.0122},
     "Krakow": {"name": "Krakow", "country": "Polska", "lat": 50.0647, "lng": 19.9450},
@@ -8730,16 +8722,7 @@ ensure_profile_template_projects_folder()
 
 
 
-# Konfiguracja Flask-Session z Redis
-app.config['SESSION_TYPE'] = 'filesystem'
-# app.config["SESSION_REDIS"] = redis.from_url('redis://localhost:6379')  # zakłada Redis lokalnie
-app.config["SESSION_PERMANENT"] = False
-app.config["SESSION_USE_SIGNER"] = True
-app.config["SESSION_KEY_PREFIX"] = "haos_"
-
-# Ustaw klucz do podpisu cookies
-app.config['SECRET_KEY'] = 'bardzo-tajny-klucz-123' 
-
+app.config.update(FLASK_SESSION_CONFIG)
 
 Session(app)
 
