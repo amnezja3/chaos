@@ -966,7 +966,6 @@ async function buildIconsFromJsonWithCommand(jsonData) {
         const res = profileData.apps;
         
         setBootProgress(34, `Profil aktywny: ${profileData.nick || profileData.username || "operator"}`);
-        console.log(profileData);
         // const jsonApps = await res.json();
         const jsonApps = profileData.apps || []; 
 
@@ -1197,9 +1196,7 @@ function addSystemMessage(type, title, text) {
     })
     .then(res => res.json())
     .then(res => {
-        if (res.status === "success") {
-            console.log("✅ Wiadomość systemowa dodana");
-        } else {
+        if (res.status !== "success") {
             console.warn("⚠️ Błąd dodawania wiadomości:", res.message || res.error);
         }
     })
@@ -6479,19 +6476,12 @@ function getToolSelectionAppForFile(filename) {
 
 function getHackFlowId(selection = window.activeToolSelection) {
     const pending = selection?.pending_action || {};
-    if (pending._debug_flow_id) return String(pending._debug_flow_id);
+    if (pending._flow_id) return String(pending._flow_id);
     const generated = `hf-fe-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
     if (selection && selection.pending_action) {
-        selection.pending_action._debug_flow_id = generated;
+        selection.pending_action._flow_id = generated;
     }
     return generated;
-}
-
-function logHackFlow(selection, step, extra = {}) {
-    const flowId = getHackFlowId(selection);
-    const startedAt = Number(selection?.debug_started_at || 0);
-    const elapsed = startedAt ? Math.round(performance.now() - startedAt) : 0;
-    console.log(`[HACK_FLOW ${flowId}] desktop ${step} +${elapsed}ms`, extra);
 }
 
 function forEachOpenMapWindow(callback) {
@@ -6555,7 +6545,6 @@ async function selectMapActionTool(appId) {
 
     try {
         selection.in_flight = true;
-        logHackFlow(selection, "use_click", { app_id: app.id, app_name: app.name });
         const flowId = getHackFlowId(selection);
         notifyOpenMapsHackActionStarted(flowId, {
             ...selection.pending_action,
@@ -6564,7 +6553,6 @@ async function selectMapActionTool(appId) {
         });
         pauseOpenMapOptionalRefresh("hack_action_tool_use");
         updateMapToolPickerBusyState(true, app.id);
-        const requestStartedAt = performance.now();
         const res = await fetch('/hack-action', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -6574,12 +6562,6 @@ async function selectMapActionTool(appId) {
             })
         });
         const data = await res.json();
-        logHackFlow(selection, "use_response", {
-            status: res.status,
-            elapsed_ms: Math.round(performance.now() - requestStartedAt),
-            created_operations: Array.isArray(data?.created_operations) ? data.created_operations.length : 0,
-            blocked: Boolean(data?.blocked)
-        });
         if (!res.ok || data.blocked) {
             addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", data.status || "Nie uda\u0142o si\u0119 uruchomi\u0107 narz\u0119dzia.");
             selection.in_flight = false;
@@ -6599,14 +6581,12 @@ async function selectMapActionTool(appId) {
         if (typeof notifyOpenMapsOperationsChanged === "function") {
             await notifyOpenMapsOperationsChanged();
         }
-        logHackFlow(selection, "use_done");
     } catch (err) {
         console.error("Błąd wyboru narzędzia:", err);
         addSystemMessage("danger", "\u{1F6E0}\uFE0F Narz\u0119dzia", "B\u0142\u0105d po\u0142\u0105czenia podczas wyboru narz\u0119dzia.");
         if (selection) {
             selection.in_flight = false;
             updateMapToolPickerBusyState(false);
-            logHackFlow(selection, "use_error", { error: err?.message || String(err) });
         }
     } finally {
         notifyOpenMapsHackActionStopped(getHackFlowId(selection));
@@ -6669,15 +6649,8 @@ function renderMapToolPickerApp(app) {
 
 function createMapToolPicker(selection) {
     closeMapToolPicker(false);
-    if (selection) {
-        selection.debug_started_at = performance.now();
-        logHackFlow(selection, "picker_start", {
-            matching_apps: Array.isArray(selection.matching_apps) ? selection.matching_apps.length : 0
-        });
-    }
     const apps = Array.isArray(selection?.matching_apps) ? selection.matching_apps : [];
     if (!apps.length) {
-        logHackFlow(selection, "picker_fallback_file_manager");
         return createFileManager({ toolSelection: selection });
     }
 
@@ -6722,7 +6695,6 @@ function createMapToolPicker(selection) {
     document.body.appendChild(term);
     makeDraggable(term);
     bringWindowToFront(term);
-    logHackFlow(selection, "picker_rendered", { cards: apps.length });
     return term;
 }
 
@@ -7161,7 +7133,6 @@ async function createFileManager(options = {}) {
 
     // Klik w dowolny plik — symulacja otwarcia/uruchomienia
     window.runFile = (folderName, filename) => {
-        console.log(`[RUN] Plik uruchomiony: ${folderName}/${filename}`);
         const fileList = files[folderName] || [];
         const fileEntry = fileList.find(item => {
             const itemName = typeof item === "string" ? item : String(item.name || item.filename || "");
@@ -7394,7 +7365,6 @@ async function createFileManager(options = {}) {
     };
     window.selectMapActionTool = selectMapActionTool;
     window.uninstallApp = async (appName, appId = "") => {
-        console.log(`[UNINSTALL] Żądanie odinstalowania: ${appName}`);
         try {
             const response = await fetch('/api/apps/uninstall', {
                 method: 'POST',

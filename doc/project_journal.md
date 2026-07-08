@@ -6736,3 +6736,26 @@ Sprint 73.1 gotowy do walidacji live. Test reczny powinien obejmowac klikniecie
 akcji bez pickera oraz `Uzyj` z pickera. Spinner powinien pojawic sie na czas
 requestu i zniknac, gdy gracz dostanie wynik `Udalo sie`, blad albo ekran wyboru
 narzedzia.
+
+---
+
+## 08.07.2026
+
+### Etap
+
+Checkpoint refactoru wydajnosciowego po 23 sprintach.
+
+### Obserwacja
+
+Po 23 sprintach refactoryzacji pojawil sie pierwszy wyraznie odczuwalny efekt
+wydajnosciowy w gameplayu.
+
+Gra reaguje szybciej, mapa mniej blokuje akcje gracza, a wczesniejsze
+porzadkowanie backendu, endpointow i synchronizacji zaczelo przekladac sie na
+realna responsywnosc.
+
+### Wniosek
+
+Checkpoint potwierdza, ze kierunek refactoru byl wlasciwy. Dalsze optymalizacje
+mapy i pollerow maja juz sens, bo system stal sie wystarczajaco uporzadkowany,
+zeby zyski byly widoczne w live gameplayu.

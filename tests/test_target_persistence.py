@@ -1488,14 +1488,14 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
                 "lng": 21.2,
                 "label": "Target",
                 "icon": "X",
-                "_debug_flow_id": "test-flow",
+                "_flow_id": "test-flow",
             })
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertTrue(payload["tool_selection_required"])
         self.assertEqual([app["id"] for app in payload["matching_apps"]], ["sniff_a", "sniff_b"])
-        self.assertEqual(payload["pending_action"]["_debug_flow_id"], "test-flow")
+        self.assertEqual(payload["pending_action"]["_flow_id"], "test-flow")
         readonly.assert_called_once()
 
     def test_legacy_trace_gps_app_gets_operation_type(self):

@@ -1082,20 +1082,6 @@
             return freezeMapMenuPayload(snapshot);
         }
 
-        function warnSuspiciousAdminMenuRoute(kind, payload, source) {
-            const username = String(
-                (payload && (payload.target_username || payload.username || payload.owner_username || payload.contest_owner_username))
-                || ''
-            ).toLowerCase();
-            if (username === 'admin' && source !== 'playerActorMarker') {
-                console.warn('[map] Podejrzany routing menu admina', {
-                    kind,
-                    source,
-                    payload: cloneMapMenuPayload(payload)
-                });
-            }
-        }
-
         function removeMapLayerSafe(layer) {
             if (!layer) return;
             if (typeof layer.closePopup === 'function') layer.closePopup();
@@ -1469,13 +1455,6 @@
                 || originalEvent.clientX > rect.right
                 || originalEvent.clientY < rect.top
                 || originalEvent.clientY > rect.bottom) {
-                console.warn('[map] Ignoruje contextmenu markera poza hitboxem', {
-                    source,
-                    label: targetSnapshot && (targetSnapshot.label || targetSnapshot.name),
-                    clientX: originalEvent && originalEvent.clientX,
-                    clientY: originalEvent && originalEvent.clientY,
-                    rect
-                });
                 return false;
             }
 
@@ -1612,8 +1591,6 @@
 
         // Blokuj menu przeglądarki
         function closeAllMapMenus() {
-            console.warn('[map-menu] closeAllMapMenus CALLED');
-            console.trace();
             document.querySelectorAll('.context-menu, .context-menu-clean').forEach(el => el.remove());
             window.removeEventListener('mousedown', closeMenus, true);
             window.removeEventListener('click', closeMenus, true);
@@ -1652,14 +1629,6 @@
                 consumeMapContextEvent(e);
                 return;
             }
-            console.warn('[map] MAP CONTEXTMENU FIRED', {
-                targetClass: e.originalEvent?.target?.className,
-                containerPoint: e.containerPoint,
-                latlng: e.latlng,
-                defaultPrevented: e.originalEvent?.defaultPrevented,
-                menuBefore: document.querySelector('#markerContextMenu, .marker-context-menu, .player-actor-menu, .context-menu, .context-menu-clean')?.textContent
-            });
-
             if (showAimedTargetMenuNearPoint(e.containerPoint)) {
                 return;
             }
@@ -1671,8 +1640,6 @@
 
 
         function showContextMenu(x, y, lat, lng, forceMapMenu = false) {
-            console.warn('[map-menu] showContextMenu CALLED', { x, y, lat, lng, forceMapMenu });
-            console.trace();
             if (guardMapGameplayAction()) return;
             if (!forceMapMenu && lastContextWasMarker) {
                 lastContextWasMarker = false; // 👈 resetuj
@@ -1704,7 +1671,6 @@
         function showMarkerContextMenu(x, y, obj, iconEmoji, label, source = 'marker') {
             if (guardMapGameplayAction()) return;
             const menuObj = normalizeMapMenuTarget(obj || {});
-            warnSuspiciousAdminMenuRoute('markerContext', menuObj, source);
             const vulnerability = findClanVulnerabilityForTarget(menuObj);
             if (vulnerability) {
                 if (vulnerability.is_reporter) {
@@ -1794,7 +1760,6 @@
         function showHackingMenuForMarker(x, y, obj, iconEmoji, label, source = 'marker') {
             if (guardMapGameplayAction()) return;
             const menuTarget = normalizeMapMenuTarget(obj || {});
-            warnSuspiciousAdminMenuRoute('hackingMenu', menuTarget, source);
             closeMenus();
             setupGlobalCloseListener();
 
@@ -1905,8 +1870,6 @@
         //     menu.className = 'context-menu';
         //     menu.style.top = `${y}px`;
         //     menu.style.left = `${x}px`;
-        //     console.log("💻 Wyświetlam menu hackowania", { x, y, label });
-
         //     menu.innerHTML = `
         //         <div><strong>${iconEmoji} ${label}</strong></div>
         //         <hr style="margin:4px 0;">
@@ -2036,17 +1999,6 @@
             if (guardMapGameplayAction()) return;
             closeMenus();
             const hackFlowId = `hf-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-            const hackFlowStartedAt = performance.now();
-            const hackFlowLog = (step, extra) => {
-                const elapsed = Math.round(performance.now() - hackFlowStartedAt);
-                const details = extra || {};
-                console.log(`[HACK_FLOW ${hackFlowId}] map ${step} +${elapsed}ms`, {
-                    action,
-                    label,
-                    ...details
-                });
-            };
-            hackFlowLog("click");
             if (typeof window.startHackActionSpinner === 'function') {
                 window.startHackActionSpinner(hackFlowId, { action, lat, lng, label });
             }
@@ -2071,16 +2023,11 @@
                     contest_owner_username,
                     foreign_area_id,
                     target_username,
-                    _debug_flow_id: hackFlowId
+                    _flow_id: hackFlowId
                 })
             })
             .then(async res => {
                 const data = await res.json();
-                hackFlowLog("response", {
-                    status: res.status,
-                    tool_selection_required: Boolean(data && data.tool_selection_required),
-                    matching_apps: Array.isArray(data && data.matching_apps) ? data.matching_apps.length : 0
-                });
                 if (!res.ok || data.blocked) {
                     addSystemMessage("warning", `⛔ ${action}`, data.status || "Akcja zablokowana.");
                     return null;
@@ -2097,7 +2044,6 @@
                         ? window.parent.openToolSelectionForMapAction
                         : window.openToolSelectionForMapAction;
                     if (typeof opener === 'function') {
-                        hackFlowLog("open_picker");
                         opener(data);
                     } else {
                         addSystemMessage("warning", "🛠️ Narzędzia", "Otwórz Pliki i wybierz narzędzie z /tools.");
@@ -2128,7 +2074,6 @@
                 addSystemMessage("success", `✅ ${action}`, data.status);
             })
             .catch(err => {
-                hackFlowLog("error", { error: err?.message || String(err) });
                 addSystemMessage("danger", "❌ Hackowanie", "Błąd operacji hackowania");
             })
             .finally(() => {
@@ -2220,12 +2165,6 @@
         }
 
         function closeMenus(e) {
-            console.warn('[map-menu] closeMenus CALLED', {
-                eventType: e && e.type,
-                targetClass: e && e.target && e.target.className
-            });
-            console.trace();
-
             const clickedInsideMenu = e && e.target && e.target.closest && e.target.closest('.context-menu, .context-menu-clean');
             
             if (clickedInsideMenu) {
@@ -3062,7 +3001,6 @@
                 } catch (err) {
                     console.warn('Operation toast bridge failed', err);
                 }
-                console.log(`[OPERACJE] ${message}`);
             };
 
             window.cancelActiveOperation = async function(operationId) {
@@ -3630,16 +3568,7 @@
             };
 
             window.showPlayerActorMenu = function(actor, x, y, source = 'unknown') {
-                console.warn('[map-menu] showPlayerActorMenu CALLED', {
-                    source,
-                    username: actor && actor.username,
-                    nick: actor && actor.nick,
-                    x,
-                    y
-                });
-                console.trace();
                 const menuActor = freezeMapMenuPayload(actor || {});
-                warnSuspiciousAdminMenuRoute('playerActorMenu', menuActor, source);
                 closeMenus();
                 setupGlobalCloseListener();
 
@@ -3726,13 +3655,7 @@
                     if (!element || typeof element.getBoundingClientRect !== 'function') return;
                     const rect = element.getBoundingClientRect();
                     if (rect.width > 90 || rect.height > 96) {
-                        console.warn('[map] Player actor marker oversized hitbox', {
-                            username: actor && actor.username,
-                            nick: actor && actor.nick,
-                            width: rect.width,
-                            height: rect.height,
-                            className: element.className
-                        });
+                        element.classList.add('player-actor-marker-oversized');
                     }
                 }, 0);
             };
@@ -3751,12 +3674,6 @@
                     || originalEvent.clientX > rect.right
                     || originalEvent.clientY < rect.top
                     || originalEvent.clientY > rect.bottom) {
-                    console.warn('[map] Ignoruje player actor contextmenu poza hitboxem', {
-                        username: actorSnapshot && actorSnapshot.username,
-                        clientX: originalEvent && originalEvent.clientX,
-                        clientY: originalEvent && originalEvent.clientY,
-                        rect
-                    });
                     return false;
                 }
 

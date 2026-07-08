@@ -9070,7 +9070,6 @@ def api_register_finalize():
     city = start_location["city"]
     lat = start_location["lat"]
     lng = start_location["lng"]
-    print(f"[REGISTER] Start location: {city} ({lat}, {lng}) source={start_location.get('source')} ip={ip or 'none'}")
     avatar_path = f"/static/images/avatar-frakcja-{faction}-player-{role}.png"
     faction_name = FACTION_NAMES.get(str(faction), str(faction))
 
@@ -9701,7 +9700,6 @@ def map_view():
     ava_lng = profile.get("curently_possition", {}).get("lng", 21.0122)
     zoom = get_player_map_zoom(profile)
     min_zoom = get_player_min_map_zoom(profile)
-    print(ava_lat, ava_lng)
     m = folium.Map(location=[ava_lat, ava_lng], zoom_start=zoom, min_zoom=min_zoom, max_zoom=zoom)
 
     # # Dodaj różne style
@@ -9882,8 +9880,6 @@ def map_action():
     ava_lng = profile.get("curently_possition", {}).get("lng", 21.0122)
     action_range = get_player_action_range(profile)
 
-    print(f"🛰️ Otrzymano: {action} dla ({lat}, {lng})")
-
     def assign_icon_and_type(tags: dict) -> tuple[str, str]:
         """
         {
@@ -9997,7 +9993,6 @@ def map_action():
             })
 
         for fetched in [fetched_results]:
-            # print("fetched", fetched)
             for obj in fetched:
                 key = (obj["lat"], obj["lon"])
                 if key in existing_targets:
@@ -10186,8 +10181,6 @@ def map_action():
 
 @app.route('/hack-action', methods=['POST'])
 def hack_action():
-    flow_started_at = time.perf_counter()
-    flow_last_at = flow_started_at
     data = request.get_json() or {}
     action = data['action']
     canonical_action = HACK_ACTION_STEP_ALIASES.get(action, action)
@@ -10199,25 +10192,9 @@ def hack_action():
     player_target_profile = None
     player_target_username = str(data.get("target_username") or "").strip()
     selected_app_id = str(data.get("selected_app_id") or "").strip()
-    debug_flow_id = str(data.get("_debug_flow_id") or "-")[:96]
+    flow_id = str(data.get("_flow_id") or "")[:96]
     vulnerability_report = None
     contested_target = None
-
-    def log_hack_flow(step, **extra):
-        nonlocal flow_last_at
-        now = time.perf_counter()
-        delta_ms = int(round((now - flow_last_at) * 1000))
-        total_ms = int(round((now - flow_started_at) * 1000))
-        flow_last_at = now
-        details = " ".join(f"{key}={value}" for key, value in extra.items())
-        suffix = f" {details}" if details else ""
-        print(
-            f"[HACK_FLOW {debug_flow_id}] action={action} selected={bool(selected_app_id)} "
-            f"step={step} +{delta_ms}ms total={total_ms}ms{suffix}"
-        )
-
-    print(f"[HACK] {action} on {lat}, {lng} ({label})")
-    log_hack_flow("start")
 
     if not selected_app_id:
         readonly_profile = load_profile_readonly(
@@ -10226,12 +10203,7 @@ def hack_action():
             normalize_apps=True,
             normalize_files=False,
         )
-        log_hack_flow(
-            "readonly_profile",
-            apps=len((readonly_profile or {}).get("apps", []) or []),
-        )
         if not readonly_profile:
-            log_hack_flow("return_profile_not_found")
             return jsonify({
                 "success": False,
                 "blocked": True,
@@ -10247,14 +10219,12 @@ def hack_action():
             except (TypeError, ValueError):
                 preflight_vulnerability_report = None
             if not preflight_vulnerability_report or preflight_vulnerability_report.get("status") != "active":
-                log_hack_flow("preflight_return_invalid_vulnerability")
                 return jsonify({
                     "success": False,
                     "blocked": True,
                     "status": "Ta podatnosc nie jest juz aktywna."
                 }), 404
             if preflight_vulnerability_report.get("reported_by_username") == session["user"]:
-                log_hack_flow("preflight_return_own_vulnerability")
                 return jsonify({
                     "success": False,
                     "blocked": True,
@@ -10262,11 +10232,6 @@ def hack_action():
                 }), 403
 
         preflight_contested_target = find_contested_target(session["user"], lat, lng, label)
-        log_hack_flow(
-            "preflight_contest_check",
-            contested=bool(preflight_contested_target),
-            vulnerability=bool(preflight_vulnerability_report),
-        )
 
         if requested_target_mode == "player":
             if not preflight_player_target_username:
@@ -10274,7 +10239,6 @@ def hack_action():
                 preflight_player_target_username = str(aimed_player or "").strip()
             preflight_player_profile = user_store.get_profile(preflight_player_target_username)
             if not preflight_player_profile:
-                log_hack_flow("preflight_return_missing_player")
                 return jsonify({
                     "success": False,
                     "blocked": True,
@@ -10284,7 +10248,6 @@ def hack_action():
             cooldown = player_hack_access_store.get_cooldown(session["user"], preflight_player_target_username)
             if cooldown and not active_access:
                 minutes_left = max(1, math.ceil((cooldown.get("cooldown_seconds_left") or 0) / 60))
-                log_hack_flow("preflight_return_player_cooldown", minutes_left=minutes_left)
                 return jsonify({
                     "success": False,
                     "blocked": True,
@@ -10294,18 +10257,12 @@ def hack_action():
                 }), 429
 
         preflight_foreign_area = find_foreign_area_for_point(session["user"], float(lat), float(lng))
-        log_hack_flow(
-            "preflight_area_access_check",
-            foreign_area=bool(preflight_foreign_area),
-            target_mode=requested_target_mode or "-",
-        )
         if (
             preflight_foreign_area
             and not preflight_vulnerability_report
             and not preflight_contested_target
             and requested_target_mode != "player"
         ):
-            log_hack_flow("preflight_return_foreign_area")
             return jsonify({
                 "success": False,
                 "blocked": True,
@@ -10322,14 +10279,8 @@ def hack_action():
         preflight_matched_apps, preflight_match_source = get_apps_for_map_action(preflight_apps, action)
         if not preflight_matched_apps and canonical_action != action:
             preflight_matched_apps, preflight_match_source = get_apps_for_map_action(preflight_apps, canonical_action)
-        log_hack_flow(
-            "preflight_app_match",
-            matched=len(preflight_matched_apps),
-            source=preflight_match_source,
-        )
 
         if not preflight_matched_apps:
-            log_hack_flow("preflight_return_no_app")
             return jsonify({
                 "success": False,
                 "blocked": True,
@@ -10340,7 +10291,6 @@ def hack_action():
             }), 409
 
         if len(preflight_matched_apps) > 1:
-            log_hack_flow("preflight_return_tool_selection", matched=len(preflight_matched_apps))
             return jsonify({
                 "success": True,
                 "tool_selection_required": True,
@@ -10363,17 +10313,11 @@ def hack_action():
                     "contest_owner_username": data.get("contest_owner_username"),
                     "foreign_area_id": data.get("foreign_area_id"),
                     "target_username": preflight_player_target_username or data.get("target_username"),
-                    "_debug_flow_id": debug_flow_id,
+                    "_flow_id": flow_id,
                 }
             })
-        log_hack_flow("preflight_single_app_fallback")
 
     profile = sync_session_profile()
-    log_hack_flow(
-        "sync_session_profile",
-        apps=len(profile.get("apps", []) or []),
-        files=sum(len(value) for value in (profile.get("files") or {}).values() if isinstance(value, list)),
-    )
     if vulnerability_id:
         try:
             vulnerability_report = vulnerability_store.get(int(vulnerability_id))
@@ -10407,7 +10351,6 @@ def hack_action():
             )
 
     contested_target = find_contested_target(session["user"], lat, lng, label)
-    log_hack_flow("contest_check", contested=bool(contested_target), vulnerability=bool(vulnerability_report))
     if contested_target:
         owner_username = contested_target.get("owner_username")
         attacker_name = profile.get("nick") or session["user"]
@@ -10455,7 +10398,6 @@ def hack_action():
             }), 429
 
     foreign_area = find_foreign_area_for_point(session["user"], float(lat), float(lng))
-    log_hack_flow("area_access_check", foreign_area=bool(foreign_area), target_mode=requested_target_mode or "-")
     if foreign_area and not vulnerability_report and not contested_target and requested_target_mode != "player":
         return jsonify({
             "success": False,
@@ -10474,10 +10416,8 @@ def hack_action():
     matched_apps, match_source = get_apps_for_map_action(installed_apps, action)
     if not matched_apps and canonical_action != action:
         matched_apps, match_source = get_apps_for_map_action(installed_apps, canonical_action)
-    log_hack_flow("app_match", matched=len(matched_apps), source=match_source)
 
     if not matched_apps:
-        log_hack_flow("return_no_app")
         return jsonify({
             "success": False,
             "blocked": True,
@@ -10497,7 +10437,6 @@ def hack_action():
             None
         )
         if not selected_app:
-            log_hack_flow("return_invalid_tool", selected_app_id=selected_app_id)
             return jsonify({
                 "success": False,
                 "blocked": True,
@@ -10508,7 +10447,6 @@ def hack_action():
             }), 400
         matched_apps = [selected_app]
     elif len(matched_apps) > 1:
-        log_hack_flow("return_tool_selection", matched=len(matched_apps))
         return jsonify({
             "success": True,
             "tool_selection_required": True,
@@ -10531,7 +10469,7 @@ def hack_action():
                 "contest_owner_username": data.get("contest_owner_username"),
                 "foreign_area_id": data.get("foreign_area_id"),
                 "target_username": player_target_username or data.get("target_username"),
-                "_debug_flow_id": debug_flow_id,
+                "_flow_id": flow_id,
             }
         })
 
@@ -10539,8 +10477,6 @@ def hack_action():
         profile["launch_queue"] = []
     new_apps = [app["name"] for app in matched_apps if app["name"] not in profile["launch_queue"]]
     profile["launch_queue"].extend(new_apps)
-    log_hack_flow("launch_queue", new_apps=len(new_apps))
-
     security_template = resources_store.get(
         "user_security",
         default={}
@@ -10567,7 +10503,6 @@ def hack_action():
 
     mgr = UserProfileManager(session["user"])
     if same_target:
-        print("[TARGET] Existing target - updating target state")
         if "actions_allowed" not in previous_target:
             previous_target["actions_allowed"] = {}
 
@@ -10590,8 +10525,6 @@ def hack_action():
         profile["aimed_target"] = previous_target
 
     else:
-        print("[TARGET] New target - creating from scratch")
-
         mgr.remove_from_list_by_coords("targets", lat, lng, label=label)
 
         aimed_target = {
@@ -10645,7 +10578,6 @@ def hack_action():
 
         profile["aimed_target"] = aimed_target
 
-    log_hack_flow("target_state", same_target=bool(same_target))
     created_operations = create_operations_for_app_action(
         profile,
         session["user"],
@@ -10653,7 +10585,6 @@ def hack_action():
         action,
         profile["aimed_target"]
     )
-    log_hack_flow("create_operations", created=len(created_operations or []))
 
     if action == "scan_ports":
         append_risk_event(
@@ -10671,7 +10602,6 @@ def hack_action():
             action=action,
             dedupe_key=risk_scan_action_dedupe_key(session["user"], action, lat, lng),
         )
-        log_hack_flow("risk_event")
 
     # Zapisz
     session["profile"] = profile
@@ -10682,16 +10612,13 @@ def hack_action():
         "risk_events": profile.get("risk_events", []),
         "system_messages": profile.get("system_messages", []),
     })
-    log_hack_flow("update_profile")
     record_map_target_delta(
         session["user"],
         profile.get("aimed_target") or {},
         change_type="map.target_updated",
         reason="hack_action_target_set",
     )
-    log_hack_flow("record_map_target_delta")
 
-    log_hack_flow("return_success")
     return jsonify({
         "status": f"🎯 Cel ustawiony: {display_target_label(profile.get('aimed_target') or {})}",
         "target": profile["aimed_target"],
@@ -10714,7 +10641,6 @@ def api_profile():
     profile = refresh_and_persist_operations(session["user"], profile)
     profile["dev_mode"] = is_dev_mode_enabled()
     profile["app_version"] = APP_VERSION
-    # print(profile)
     return jsonify(profile)
 
 
@@ -13147,8 +13073,6 @@ def install_app():
 
         data = request.get_json() or {}
         app_id = data.get("app_id")
-        print(f"[INSTALL] Żądanie instalacji aplikacji: {app_id}")
-
         store = resources_store.get(
             "app_config",
             default=[]
@@ -13433,8 +13357,6 @@ def install_app():
 
         mgr.update_profile({"system_messages": system_messages})
 
-
-        print(f"[SUCCESS] Zainstalowano {app_data['name']}")
         return jsonify({
             "status": "success",
             "message": "Aplikacja została zainstalowana.",
