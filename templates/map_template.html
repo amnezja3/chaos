@@ -2878,64 +2878,82 @@
                 return target.label || target.name || operation.target_id || 'Cel operacji';
             };
 
+            window.OPERATION_ICON_LIBRARY = {
+                vehicle_tracking: '🛰️',
+                device_tracking: '📱',
+                camera_stream: '📹',
+                camera_shutdown: '⛔',
+                atm_log_extraction: '🏧',
+                persistent_sniffer: '🐛',
+                generic_trace: '📍',
+                wifi_scanner: '🛜',
+                audio_interference: '🎙️',
+                vehicle_ecu: '🚗',
+                unknown: '⚙️'
+            };
+
+            window.operationIconForType = function(operationType) {
+                return window.OPERATION_ICON_LIBRARY[operationType] || window.OPERATION_ICON_LIBRARY.unknown;
+            };
+
             window.OPERATION_CENTER_TYPES = {
                 vehicle_tracking: {
                     name: 'Śledzenie GPS',
-                    icon: '+',
+                    icon: window.operationIconForType('vehicle_tracking'),
                     css: 'active-operation-pin--tracking',
                     markerLabel: 'ŚLEDZENIE GPS'
                 },
                 device_tracking: {
                     name: 'Śledzenie urządzenia',
-                    icon: '*',
+                    icon: window.operationIconForType('device_tracking'),
                     css: 'active-operation-pin--tracking',
                     markerLabel: 'ŚLEDZENIE URZĄDZENIA'
                 },
                 camera_stream: {
                     name: 'Monitoring kamery',
-                    icon: '@',
+                    icon: window.operationIconForType('camera_stream'),
                     css: 'active-operation-pin--camera',
                     markerLabel: 'MONITORING'
                 },
                 camera_shutdown: {
                     name: 'Wyłączenie kamery',
-                    icon: '-',
+                    icon: window.operationIconForType('camera_shutdown'),
                     css: 'active-operation-pin--shutdown',
                     markerLabel: 'KAMERA OFF'
                 },
                 atm_log_extraction: {
                     name: 'Odczyt logów ATM',
-                    icon: '%',
+                    icon: window.operationIconForType('atm_log_extraction'),
                     css: 'active-operation-pin--atm',
                     markerLabel: 'LOGI ATM'
                 },
                 persistent_sniffer: {
                     name: 'Implant sieciowy',
-                    icon: '#',
+                    icon: window.operationIconForType('persistent_sniffer'),
                     css: 'active-operation-pin--implant',
                     markerLabel: 'IMPLANT'
                 },
                 generic_trace: {
                     name: 'Śledzenie celu',
-                    icon: '>',
+                    icon: window.operationIconForType('generic_trace'),
                     css: 'active-operation-pin--tracking',
                     markerLabel: 'ŚLEDZENIE'
                 },
                 wifi_scanner: {
                     name: 'Skanowanie hotspotów',
-                    icon: '=',
+                    icon: window.operationIconForType('wifi_scanner'),
                     css: 'active-operation-pin--network',
                     markerLabel: 'HOTSPOTY'
                 },
                 audio_interference: {
                     name: 'Audio Hack',
-                    icon: '~',
+                    icon: window.operationIconForType('audio_interference'),
                     css: 'active-operation-pin--audio',
                     markerLabel: 'AUDIO HACK'
                 },
                 vehicle_ecu: {
                     name: 'Hakowanie ECU',
-                    icon: '!',
+                    icon: window.operationIconForType('vehicle_ecu'),
                     css: 'active-operation-pin--vehicle',
                     markerLabel: 'ECU'
                 }
@@ -2945,7 +2963,7 @@
                 const type = operation.operation_type || '';
                 const meta = window.OPERATION_CENTER_TYPES[type] || {};
                 return {
-                    icon: meta.icon || '?',
+                    icon: meta.icon || window.operationIconForType(type),
                     css: meta.css || '',
                     label: meta.markerLabel || meta.name || 'OPERACJA',
                     name: meta.name || type || 'Operacja'
