@@ -6637,3 +6637,59 @@ profil/operacje jak dotychczas.
 
 Sprint 72.1 gotowy. Pierwszy request wyboru narzedzia powinien teraz pokazywac
 picker bez pelnego kosztownego syncu profilu.
+
+---
+
+## 08.07.2026
+
+### Etap
+
+Sprint 73 - Map Poller Guard + Hack Action Priority.
+
+### Powod
+
+Po optymalizacji `/hack-action` i przejsciu produkcji na wiecej workerow nadal
+widac bylo, ze ciezkie snapshoty mapy potrafia wejsc w kolejke w tym samym
+momencie co akcja gracza:
+
+* `/api/map/player-areas`,
+* `/api/map/clan-vulnerabilities`,
+* `/api/operations?summary=1`,
+* `/api/map/player-actors`.
+
+To nie byl juz problem samego pickera, tylko synchronizacji runtime mapy:
+pollery mogly nakladac sie na siebie i na klikniecie akcji.
+
+### Implementacja
+
+Dodano lekka warstwe kontroli snapshotow mapy po stronie frontendu:
+
+* wspolny `mapRefreshState` z `inFlight`, `controllers`, `paused`,
+  `pauseReason`,
+* `fetchMapSnapshot(...)` z guardem przed rownoleglym requestem tego samego
+  scope,
+* timeout/abort dla opcjonalnych snapshotow,
+* `pauseMapOptionalRefresh(...)` i `resumeMapOptionalRefresh(...)`,
+* staggerowany start pollerow po boot mapy,
+* pauze opcjonalnych snapshotow podczas pierwszego `/hack-action`,
+* pauze opcjonalnych snapshotow podczas `Uzyj` z lekkiego pickera narzedzia.
+
+Zmieniono tez interwaly najciezszych snapshotow:
+
+* player actors: 30 s,
+* player areas: 20 s,
+* clan vulnerabilities: 20 s,
+* active operations: 15 s.
+
+### Decyzja
+
+Sprint 73 nie migruje `player areas`, `clan vulnerabilities` ani `operations`
+na delty. Snapshoty zostaja jako start/recovery. Zmiana dotyczy tylko tego, aby
+snapshoty nie blokowaly akcji gracza i nie dublowaly sie, gdy poprzedni request
+jeszcze trwa.
+
+### Status
+
+Sprint 73 gotowy do walidacji live. Kolejny checkpoint powinien sprawdzic, czy
+podczas klikniecia akcji mapowej w logach nie pojawia sie nowa fala ciezkich
+snapshotow startujaca rownolegle z `/hack-action`.

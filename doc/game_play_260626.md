@@ -5962,6 +5962,93 @@ profile update / operations / delty
 * Nie powstal nowy endpoint.
 * Nie powstala druga sciezka map action poza `/hack-action`.
 
+---
+
+# Sprint 73 - Map Poller Guard + Hack Action Priority
+
+## Cel gameplayowy
+
+Zmniejszyc zatory mapy podczas akcji gracza bez migracji kolejnych warstw mapy
+na delty.
+
+Sprint 73 nie zmienia algorytmow mapy, nie przebudowuje backendu i nie usuwa
+snapshotow. Celem jest uporzadkowanie runtime odswiezania mapy tak, aby ciezkie
+snapshoty opcjonalne nie blokowaly klikniecia akcji i wyboru narzedzia.
+
+## Problem z pomiarow
+
+Po zwiekszeniu liczby workerow Gunicorna sciezka `/hack-action` wyraznie
+przyspieszyla, ale logi nadal pokazuja, ze w tym samym czasie w kolejce dzialaja
+ciezkie snapshoty:
+
+* `/api/map/player-areas`,
+* `/api/map/clan-vulnerabilities`,
+* `/api/operations?summary=1`,
+* `/api/map/player-actors`.
+
+Najwiekszy problem nie jest juz tylko w samym `/hack-action`, ale w tym, ze
+pollery mapy moga nakladac sie na siebie i na akcje gracza.
+
+## Zasada
+
+Akcja gracza na mapie ma priorytet nad opcjonalna synchronizacja mapy.
+
+Snapshoty mapy pozostaja potrzebne jako start/recovery, ale nie powinny:
+
+* uruchamiac drugiego requestu tego samego scope, gdy poprzedni jeszcze trwa,
+* startowac wszystkie naraz po boot mapy,
+* blokowac `/hack-action`,
+* wisiec bez limitu czasu,
+* wymuszac pelnego refreshu w trakcie wyboru narzedzia.
+
+## Zakres
+
+1. Dodac in-flight guard dla snapshotow mapy:
+   * player actors,
+   * player areas,
+   * clan vulnerabilities,
+   * active operations.
+2. Staggerowac start pollerow po boot mapy, zamiast odpalac wszystkie w tej
+   samej sekundzie.
+3. Pauzowac opcjonalne snapshoty na czas `/hack-action`:
+   * pierwszy request wyboru narzedzia,
+   * drugi request po kliknieciu `Uzyj`.
+4. Po zakonczeniu akcji wznowic snapshoty z krotkim opoznieniem.
+5. Dodac timeout/abort dla opcjonalnych snapshotow mapy.
+6. Nie zmieniac endpointow snapshotowych.
+7. Nie migrowac player areas / clan vulnerabilities / operations na delty w tym
+   sprincie.
+8. Nie usuwac recovery snapshotow.
+
+## Systemy
+
+* `templates/map_template.html`,
+* `static/js/terminal.js`,
+* map snapshot timers,
+* `/hack-action`,
+* lightweight picker Sprintu 72.
+
+## Testy
+
+* Dwa ticki tego samego pollera nie tworza rownoleglych requestow tego samego
+  scope.
+* Podczas `/hack-action` opcjonalne snapshoty mapy sa pauzowane.
+* Po `/hack-action` snapshoty mapy wracaja.
+* Boot mapy nadal laduje critical scopes.
+* Player actors nadal maja snapshot recovery.
+* Player areas nadal maja snapshot recovery.
+* Clan vulnerabilities nadal maja snapshot recovery.
+* Active operations nadal maja snapshot recovery.
+* Brak globalnego reloadu strony.
+
+## Kryteria akceptacji
+
+* Akcja mapowa nie startuje w tej samej kolejce co nowa fala ciezkich pollerow.
+* Snapshoty mapy nie dubluja sie, jesli poprzedni request jeszcze trwa.
+* Optional snapshot timeout nie blokuje stale mapy.
+* Mapa nadal aktualizuje terytoria, podatnosci, operacje i graczy.
+* Nie powstal nowy endpoint ani drugi system map state.
+
 Decision:
 
 * Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.

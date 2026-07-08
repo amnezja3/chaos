@@ -2025,6 +2025,9 @@
                 });
             };
             hackFlowLog("click");
+            if (typeof window.pauseMapOptionalRefresh === 'function') {
+                window.pauseMapOptionalRefresh('hack_action');
+            }
 
             fetch('/hack-action', {
                 method: 'POST',
@@ -2096,7 +2099,15 @@
                 }
                 addSystemMessage("success", `✅ ${action}`, data.status);
             })
-            .catch(() => addSystemMessage("danger", "❌ Hackowanie", "Błąd operacji hackowania"));
+            .catch(err => {
+                hackFlowLog("error", { error: err?.message || String(err) });
+                addSystemMessage("danger", "❌ Hackowanie", "Błąd operacji hackowania");
+            })
+            .finally(() => {
+                if (typeof window.resumeMapOptionalRefresh === 'function') {
+                    window.resumeMapOptionalRefresh(1200);
+                }
+            });
         }
 
 
@@ -3109,10 +3120,15 @@
 
             window.startMapSnapshotRefreshTimers = function() {
                 window.stopMapRefreshTimers();
-                window.mapRefreshTimers.push(setInterval(window.refreshPlayerActors, MAP_PLAYER_ACTORS_SNAPSHOT_INTERVAL_MS));
-                window.mapRefreshTimers.push(setInterval(window.refreshPlayerAreas, MAP_PLAYER_AREAS_SNAPSHOT_INTERVAL_MS));
-                window.mapRefreshTimers.push(setInterval(window.refreshClanVulnerabilities, MAP_CLAN_VULNERABILITIES_SNAPSHOT_INTERVAL_MS));
-                window.mapRefreshTimers.push(setInterval(window.refreshActiveOperations, MAP_ACTIVE_OPERATIONS_SNAPSHOT_INTERVAL_MS));
+                const scheduleSnapshot = window.scheduleMapSnapshotRefresh || function(fn, intervalMs) {
+                    const timer = setInterval(fn, intervalMs);
+                    window.mapRefreshTimers.push(timer);
+                    return timer;
+                };
+                scheduleSnapshot(window.refreshPlayerActors, MAP_PLAYER_ACTORS_SNAPSHOT_INTERVAL_MS, 500);
+                scheduleSnapshot(window.refreshPlayerAreas, MAP_PLAYER_AREAS_SNAPSHOT_INTERVAL_MS, 2600);
+                scheduleSnapshot(window.refreshClanVulnerabilities, MAP_CLAN_VULNERABILITIES_SNAPSHOT_INTERVAL_MS, 5600);
+                scheduleSnapshot(window.refreshActiveOperations, MAP_ACTIVE_OPERATIONS_SNAPSHOT_INTERVAL_MS, 8200);
             };
 
             window.bootMapOptionalScopes = function() {
@@ -3157,7 +3173,9 @@
             window.refreshActiveOperations = async function() {
                 const loadingToken = window.beginMapLoading('Aktualizacja operacji...');
                 try {
-                    const res = await fetch('/api/operations?summary=1');
+                    const snapshot = await window.fetchMapSnapshot('active_operations', '/api/operations?summary=1', { timeoutMs: 12000 });
+                    if (snapshot.skipped || snapshot.aborted) return false;
+                    const res = snapshot.res;
                     if (res.status === 401) {
                         stopMapRefreshTimers();
                         return false;
@@ -3735,7 +3753,9 @@
             window.refreshPlayerActors = async function() {
                 const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
                 try {
-                    const res = await fetch('/api/map/player-actors');
+                    const snapshot = await window.fetchMapSnapshot('player_actors', '/api/map/player-actors', { timeoutMs: 10000 });
+                    if (snapshot.skipped || snapshot.aborted) return false;
+                    const res = snapshot.res;
                     if (res.status === 401) {
                         stopMapRefreshTimers();
                         return false;
@@ -3815,10 +3835,100 @@
             window.conflictAreaLayers = [];
             window.capturedConflictPillarLayers = [];
             window.mapRefreshTimers = window.mapRefreshTimers || [];
+            window.mapRefreshState = window.mapRefreshState || {
+                inFlight: {},
+                controllers: {},
+                paused: false,
+                pauseReason: '',
+                resumeTimer: null
+            };
             window.playerAreaRefreshSeq = 0;
             window.stopMapRefreshTimers = function() {
-                window.mapRefreshTimers.forEach(timer => clearInterval(timer));
+                window.mapRefreshTimers.forEach(timer => {
+                    clearInterval(timer);
+                    clearTimeout(timer);
+                });
                 window.mapRefreshTimers = [];
+            };
+
+            window.scheduleMapSnapshotRefresh = function(fn, intervalMs, initialDelayMs = 0) {
+                const startTimer = setTimeout(() => {
+                    if (typeof fn === 'function') fn();
+                    const intervalTimer = setInterval(fn, intervalMs);
+                    window.mapRefreshTimers.push(intervalTimer);
+                }, Math.max(0, Number(initialDelayMs || 0)));
+                window.mapRefreshTimers.push(startTimer);
+                return startTimer;
+            };
+
+            window.abortMapOptionalRefreshes = function(reason = '') {
+                const state = window.mapRefreshState || {};
+                Object.entries(state.controllers || {}).forEach(([scope, controller]) => {
+                    if (controller && typeof controller.abort === 'function') {
+                        try {
+                            controller.abort();
+                        } catch (err) {
+                            console.warn('[map refresh] abort failed', scope, err);
+                        }
+                    }
+                });
+            };
+
+            window.pauseMapOptionalRefresh = function(reason = 'map_action') {
+                const state = window.mapRefreshState;
+                if (!state) return;
+                state.paused = true;
+                state.pauseReason = reason;
+                if (state.resumeTimer) {
+                    clearTimeout(state.resumeTimer);
+                    state.resumeTimer = null;
+                }
+                window.abortMapOptionalRefreshes(reason);
+            };
+
+            window.resumeMapOptionalRefresh = function(delayMs = 1200) {
+                const state = window.mapRefreshState;
+                if (!state) return;
+                if (state.resumeTimer) clearTimeout(state.resumeTimer);
+                state.resumeTimer = setTimeout(() => {
+                    state.paused = false;
+                    state.pauseReason = '';
+                    state.resumeTimer = null;
+                }, Math.max(0, Number(delayMs || 0)));
+            };
+
+            window.fetchMapSnapshot = async function(scope, url, options = {}) {
+                const state = window.mapRefreshState;
+                const scopeKey = String(scope || 'map');
+                const isCriticalBoot = Boolean(options.critical || (window.mapBootState && window.mapBootState.loading && !window.mapBootState.ready));
+                if (!isCriticalBoot && state.paused) {
+                    return { skipped: true, reason: state.pauseReason || 'paused' };
+                }
+                if (state.inFlight[scopeKey]) {
+                    return { skipped: true, reason: 'in_flight' };
+                }
+
+                const controller = new AbortController();
+                const timeoutMs = Math.max(1000, Number(options.timeoutMs || 12000));
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                state.inFlight[scopeKey] = true;
+                state.controllers[scopeKey] = controller;
+
+                try {
+                    const res = await fetch(url, { signal: controller.signal });
+                    return { res };
+                } catch (err) {
+                    if (err && err.name === 'AbortError') {
+                        return { aborted: true, reason: state.pauseReason || 'aborted' };
+                    }
+                    throw err;
+                } finally {
+                    clearTimeout(timeoutId);
+                    delete state.inFlight[scopeKey];
+                    if (state.controllers[scopeKey] === controller) {
+                        delete state.controllers[scopeKey];
+                    }
+                }
             };
 
             window.buildClanVulnerabilityIcon = function(report) {
@@ -3843,7 +3953,9 @@
 
             window.refreshClanVulnerabilities = async function() {
                 try {
-                    const res = await fetch('/api/map/clan-vulnerabilities');
+                    const snapshot = await window.fetchMapSnapshot('clan_vulnerabilities', '/api/map/clan-vulnerabilities', { timeoutMs: 12000 });
+                    if (snapshot.skipped || snapshot.aborted) return false;
+                    const res = snapshot.res;
                     if (res.status === 401) {
                         stopMapRefreshTimers();
                         return false;
@@ -3925,7 +4037,9 @@
                 const refreshSeq = ++window.playerAreaRefreshSeq;
                 const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
                 try {
-                    const res = await fetch('/api/map/player-areas');
+                    const snapshot = await window.fetchMapSnapshot('player_areas', '/api/map/player-areas', { timeoutMs: 15000 });
+                    if (snapshot.skipped || snapshot.aborted) return false;
+                    const res = snapshot.res;
                     if (res.status === 401) {
                         stopMapRefreshTimers();
                         return false;
@@ -4100,9 +4214,9 @@
             };
 
             const MAP_PLAYER_ACTORS_SNAPSHOT_INTERVAL_MS = 30000;
-            const MAP_PLAYER_AREAS_SNAPSHOT_INTERVAL_MS = 10000;
-            const MAP_CLAN_VULNERABILITIES_SNAPSHOT_INTERVAL_MS = 10000;
-            const MAP_ACTIVE_OPERATIONS_SNAPSHOT_INTERVAL_MS = 10000;
+            const MAP_PLAYER_AREAS_SNAPSHOT_INTERVAL_MS = 20000;
+            const MAP_CLAN_VULNERABILITIES_SNAPSHOT_INTERVAL_MS = 20000;
+            const MAP_ACTIVE_OPERATIONS_SNAPSHOT_INTERVAL_MS = 15000;
         }
 
 

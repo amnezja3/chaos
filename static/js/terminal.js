@@ -6464,6 +6464,33 @@ function logHackFlow(selection, step, extra = {}) {
     console.log(`[HACK_FLOW ${flowId}] desktop ${step} +${elapsed}ms`, extra);
 }
 
+function forEachOpenMapWindow(callback) {
+    document.querySelectorAll('.terminal[data-app="map"] iframe').forEach(frame => {
+        try {
+            const mapWindow = frame.contentWindow;
+            if (mapWindow) callback(mapWindow);
+        } catch (err) {
+            console.warn("Nie udało się zsynchronizować okna mapy:", err);
+        }
+    });
+}
+
+function pauseOpenMapOptionalRefresh(reason = "map_tool_picker") {
+    forEachOpenMapWindow(mapWindow => {
+        if (typeof mapWindow.pauseMapOptionalRefresh === "function") {
+            mapWindow.pauseMapOptionalRefresh(reason);
+        }
+    });
+}
+
+function resumeOpenMapOptionalRefresh(delayMs = 1200) {
+    forEachOpenMapWindow(mapWindow => {
+        if (typeof mapWindow.resumeMapOptionalRefresh === "function") {
+            mapWindow.resumeMapOptionalRefresh(delayMs);
+        }
+    });
+}
+
 async function selectMapActionTool(appId) {
     const selection = window.activeToolSelection;
     if (!selection || !selection.pending_action) {
@@ -6483,6 +6510,7 @@ async function selectMapActionTool(appId) {
     try {
         selection.in_flight = true;
         logHackFlow(selection, "use_click", { app_id: app.id, app_name: app.name });
+        pauseOpenMapOptionalRefresh("hack_action_tool_use");
         updateMapToolPickerBusyState(true, app.id);
         const requestStartedAt = performance.now();
         const res = await fetch('/hack-action', {
@@ -6526,6 +6554,8 @@ async function selectMapActionTool(appId) {
             updateMapToolPickerBusyState(false);
             logHackFlow(selection, "use_error", { error: err?.message || String(err) });
         }
+    } finally {
+        resumeOpenMapOptionalRefresh(1200);
     }
 }
 
