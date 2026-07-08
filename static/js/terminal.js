@@ -1182,6 +1182,49 @@ function appendTerminalPrompt(content) {
     content.scrollTop = content.scrollHeight;
 }
 
+function setupSystemTerminalKeyboardGuard(term) {
+    if (!term || term.dataset.keyboardGuardBound === "1") return;
+    term.dataset.keyboardGuardBound = "1";
+
+    const updateOffset = () => {
+        let offset = 0;
+        if (isMobileSafeMode() && window.visualViewport) {
+            offset = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
+        }
+        term.style.setProperty('--terminal-keyboard-offset', `${Math.round(offset)}px`);
+
+        const content = term.querySelector('.content');
+        const input = term.querySelector('.terminal-input');
+        if (content && input && document.activeElement === input) {
+            window.requestAnimationFrame(() => {
+                content.scrollTop = content.scrollHeight;
+                input.scrollIntoView({ block: "nearest", inline: "nearest" });
+            });
+        }
+    };
+
+    const scheduleUpdate = () => window.requestAnimationFrame(updateOffset);
+    term.addEventListener('focusin', scheduleUpdate);
+    term.addEventListener('focusout', () => {
+        window.setTimeout(scheduleUpdate, 120);
+    });
+    window.addEventListener('resize', scheduleUpdate);
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', scheduleUpdate);
+        window.visualViewport.addEventListener('scroll', scheduleUpdate);
+    }
+
+    term.querySelector('.close-btn')?.addEventListener('click', () => {
+        window.removeEventListener('resize', scheduleUpdate);
+        if (window.visualViewport) {
+            window.visualViewport.removeEventListener('resize', scheduleUpdate);
+            window.visualViewport.removeEventListener('scroll', scheduleUpdate);
+        }
+    }, { once: true });
+
+    updateOffset();
+}
+
 function addSystemMessage(type, title, text) {
     fetch('/add-system-message', {
         method: 'POST',
@@ -2116,7 +2159,8 @@ function createDevBugReporterApp() {
 function createTerminal() {
     terminalCount++;
     const term = document.createElement('div');
-    term.className = 'terminal';
+    term.className = 'terminal system-terminal-window';
+    term.dataset.app = "system-terminal";
     const position = findAvailablePosition();
     term.style.top = `${position.top}px`;
     term.style.left = `${position.left}px`;
@@ -2145,6 +2189,7 @@ function createTerminal() {
     setTimeout(() => input.focus(), 10);
 
     attachTerminalInputHandler(input, content);
+    setupSystemTerminalKeyboardGuard(term);
 }
 
 function app_window(id, levels) {

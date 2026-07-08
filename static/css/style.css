@@ -350,6 +350,10 @@ body {
   font-style: italic;
 }
 
+.system-terminal-window {
+  --terminal-keyboard-offset: 0px;
+}
+
 .browser-nav {
   padding: 5px;
   background: #111;
@@ -4427,6 +4431,46 @@ form button:hover {
     max-height: none;
     overflow: auto;
     box-sizing: border-box;
+  }
+
+  .terminal.system-terminal-window {
+    height: calc(100vh - 46px - var(--terminal-keyboard-offset, 0px)) !important;
+  }
+
+  .terminal.system-terminal-window .terminal-body {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overscroll-behavior: contain;
+  }
+
+  .terminal.system-terminal-window .content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 10px;
+    padding-bottom: calc(12px + var(--terminal-keyboard-offset, 0px));
+    box-sizing: border-box;
+  }
+
+  .terminal.system-terminal-window .terminal-line:last-child {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    margin: 6px -2px 0;
+    border: 1px solid rgba(0, 255, 0, 0.36);
+    background: rgba(0, 0, 0, 0.94);
+    box-shadow: 0 -8px 16px rgba(0, 0, 0, 0.55);
+  }
+
+  .terminal.system-terminal-window .terminal-label {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .terminal.system-terminal-window .terminal-input {
+    min-width: 0;
+    font-size: 16px;
   }
 
   .browser-window .browser-nav {
