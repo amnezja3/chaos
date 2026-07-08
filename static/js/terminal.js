@@ -2400,8 +2400,8 @@ function app_terminal(id, levels) {
     app.style.left = `${position.left}px`;
     app.innerHTML = `
         <div class="title-bar">${escapeHTML(id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
-        <div class="app-content" style="background: black; color: #0f0; font-family: monospace; padding: 10px;">
-            <div class="terminal-log" style="min-height: 200px;"></div>
+        <div class="app-content app-terminal-content">
+            <div class="terminal-log app-terminal-log"></div>
         </div>
     `;
     document.body.appendChild(app);
@@ -2411,16 +2411,42 @@ function app_terminal(id, levels) {
     const log = app.querySelector('.terminal-log');
     let commandIndex = 0;
 
+    function scrollLogToBottom() {
+        const content = app.querySelector('.app-terminal-content');
+        if (content) content.scrollTop = content.scrollHeight;
+    }
+
+    function showTerminalProcessing(callback) {
+        const wait = document.createElement('div');
+        wait.className = 'app-terminal-wait';
+        wait.innerHTML = `
+            <span class="app-terminal-spinner" aria-hidden="true"></span>
+            <span>przetwarzanie...</span>
+        `;
+        log.appendChild(wait);
+        scrollLogToBottom();
+
+        const delay = 650 + Math.floor(Math.random() * 1150);
+        window.setTimeout(() => {
+            wait.remove();
+            callback();
+        }, delay);
+    }
+
     function simulateTyping(command, callback) {
         const safeCommand = String(command || '');
+        const hasNext = commandIndex < commands.length;
         const line = document.createElement('div');
-        line.className = 'terminal-line';
+        line.className = 'terminal-line app-terminal-line';
         const label = document.createElement('span');
+        label.className = 'app-terminal-prompt';
         label.textContent = 'remote@host:~$ ';
         const typingSpan = document.createElement('span');
+        typingSpan.className = 'app-terminal-command is-typing';
         line.appendChild(label);
         line.appendChild(typingSpan);
         log.appendChild(line);
+        scrollLogToBottom();
 
         let charIndex = 0;
         const typingInterval = setInterval(() => {
@@ -2428,30 +2454,17 @@ function app_terminal(id, levels) {
             charIndex++;
             if (charIndex >= safeCommand.length) {
                 clearInterval(typingInterval);
+                typingSpan.classList.remove('is-typing');
                 setTimeout(() => {
-                    line.textContent = `> ${safeCommand}`;
-                    if (/scan|check|report/i.test(safeCommand)) {
-                        const progress = document.createElement('div');
-                        progress.style.cssText = `
-                            background: #0f0;
-                            height: 2px;
-                            width: 0%;
-                            margin: 4px 0;
-                            transition: width 0.5s;
-                        `;
-                        log.appendChild(progress);
-                        let percent = 0;
-                        const barInterval = setInterval(() => {
-                            percent += Math.random() * 20;
-                            progress.style.width = `${Math.min(percent, 100)}%`;
-                            if (percent >= 100) clearInterval(barInterval);
-                        }, 200);
+                    if (hasNext) {
+                        showTerminalProcessing(callback);
+                    } else {
+                        callback();
                     }
-                    callback();
-                    log.scrollTop = log.scrollHeight;
-                }, 500);
+                    scrollLogToBottom();
+                }, 260 + Math.floor(Math.random() * 320));
             }
-        }, 50);
+        }, 34 + Math.floor(Math.random() * 28));
     }
 
     function runNextCommand() {

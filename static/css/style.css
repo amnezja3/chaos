@@ -350,6 +350,78 @@ body {
   font-style: italic;
 }
 
+.app-terminal-content {
+  background: #000;
+  color: #0f0;
+  font-family: monospace;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.app-terminal-log {
+  min-height: 200px;
+}
+
+.app-terminal-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  font-family: monospace;
+  line-height: 1.35;
+}
+
+.app-terminal-prompt {
+  flex: 0 0 auto;
+  color: #65ff78;
+  white-space: nowrap;
+}
+
+.app-terminal-command {
+  min-width: 0;
+  color: #0f0;
+  overflow-wrap: anywhere;
+}
+
+.app-terminal-command.is-typing::after {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  margin-left: 2px;
+  background: #0f0;
+  vertical-align: -0.12em;
+  animation: app-terminal-cursor 780ms steps(1, end) infinite;
+}
+
+.app-terminal-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 3px 0 5px 18px;
+  color: rgba(128, 255, 150, 0.82);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.app-terminal-spinner {
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(128, 255, 150, 0.24);
+  border-top-color: #65ff78;
+  border-radius: 50%;
+  animation: app-terminal-spin 820ms linear infinite;
+}
+
+@keyframes app-terminal-cursor {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@keyframes app-terminal-spin {
+  to { transform: rotate(360deg); }
+}
+
 .system-terminal-window {
   --terminal-keyboard-offset: 0px;
 }
