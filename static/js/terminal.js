@@ -6491,11 +6491,18 @@ function resumeOpenMapOptionalRefresh(delayMs = 1200) {
     });
 }
 
-function notifyOpenMapsOperationStarted(createdOperations = []) {
-    if (!Array.isArray(createdOperations) || !createdOperations.length) return;
+function notifyOpenMapsHackActionStarted(flowId, payload = {}) {
     forEachOpenMapWindow(mapWindow => {
-        if (typeof mapWindow.addCreatedOperationSpinners === "function") {
-            mapWindow.addCreatedOperationSpinners(createdOperations);
+        if (typeof mapWindow.startHackActionSpinner === "function") {
+            mapWindow.startHackActionSpinner(flowId, payload);
+        }
+    });
+}
+
+function notifyOpenMapsHackActionStopped(flowId) {
+    forEachOpenMapWindow(mapWindow => {
+        if (typeof mapWindow.stopHackActionSpinner === "function") {
+            mapWindow.stopHackActionSpinner(flowId);
         }
     });
 }
@@ -6519,6 +6526,12 @@ async function selectMapActionTool(appId) {
     try {
         selection.in_flight = true;
         logHackFlow(selection, "use_click", { app_id: app.id, app_name: app.name });
+        const flowId = getHackFlowId(selection);
+        notifyOpenMapsHackActionStarted(flowId, {
+            ...selection.pending_action,
+            selected_app_id: app.id,
+            selected_app_name: app.name
+        });
         pauseOpenMapOptionalRefresh("hack_action_tool_use");
         updateMapToolPickerBusyState(true, app.id);
         const requestStartedAt = performance.now();
@@ -6546,7 +6559,6 @@ async function selectMapActionTool(appId) {
 
         window.activeToolSelection = null;
         closeMapToolPicker(false);
-        notifyOpenMapsOperationStarted(data.created_operations || []);
         if (data.target) {
             setToolbarProfile({
                 ...(toolbarProfile || {}),
@@ -6565,6 +6577,7 @@ async function selectMapActionTool(appId) {
             logHackFlow(selection, "use_error", { error: err?.message || String(err) });
         }
     } finally {
+        notifyOpenMapsHackActionStopped(getHackFlowId(selection));
         resumeOpenMapOptionalRefresh(1200);
     }
 }

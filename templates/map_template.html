@@ -698,20 +698,20 @@
       pointer-events: auto;
     }
 
-    .target-operation-spinner-marker {
+    .hack-action-spinner-marker {
       pointer-events: none;
       z-index: 940 !important;
     }
 
-    .target-operation-spinner {
+    .hack-action-spinner {
       position: absolute;
       width: 20px;
       height: 20px;
-      transform: translate(var(--op-x, 22px), var(--op-y, -24px));
+      transform: translate(var(--hack-x, 22px), var(--hack-y, -24px));
       filter: drop-shadow(0 0 8px rgba(38, 255, 106, 0.9));
     }
 
-    .target-operation-spinner__ring {
+    .hack-action-spinner__ring {
       position: absolute;
       inset: 0;
       border-radius: 50%;
@@ -721,19 +721,6 @@
       animation: target-operation-spin 0.75s linear infinite;
       background: rgba(0, 16, 7, 0.82);
       box-shadow: 0 0 0 1px rgba(38, 255, 106, 0.22), 0 0 12px rgba(38, 255, 106, 0.42);
-    }
-
-    .target-operation-spinner__icon {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #d6ffe2;
-      font-size: 10px;
-      line-height: 1;
-      font-family: monospace;
-      text-shadow: 0 0 4px #000;
     }
 
     @keyframes target-operation-spin {
@@ -2067,6 +2054,9 @@
                 });
             };
             hackFlowLog("click");
+            if (typeof window.startHackActionSpinner === 'function') {
+                window.startHackActionSpinner(hackFlowId, { action, lat, lng, label });
+            }
             if (typeof window.pauseMapOptionalRefresh === 'function') {
                 window.pauseMapOptionalRefresh('hack_action');
             }
@@ -2107,6 +2097,9 @@
             .then(data => {
                 if (!data) return;
                 if (data.tool_selection_required) {
+                    if (typeof window.stopHackActionSpinner === 'function') {
+                        window.stopHackActionSpinner(hackFlowId);
+                    }
                     const opener = window.parent && window.parent !== window
                         ? window.parent.openToolSelectionForMapAction
                         : window.openToolSelectionForMapAction;
@@ -2118,9 +2111,6 @@
                     }
                     addSystemMessage("info", `🛠️ ${action}`, data.status || "Wybierz narzędzie.");
                     return;
-                }
-                if (Array.isArray(data.created_operations) && data.created_operations.length && typeof window.addCreatedOperationSpinners === 'function') {
-                    window.addCreatedOperationSpinners(data.created_operations);
                 }
                 refreshParentToolbarProfile();
                 if (window.refreshActiveOperations) {
@@ -2149,6 +2139,9 @@
                 addSystemMessage("danger", "❌ Hackowanie", "Błąd operacji hackowania");
             })
             .finally(() => {
+                if (typeof window.stopHackActionSpinner === 'function') {
+                    window.stopHackActionSpinner(hackFlowId);
+                }
                 if (typeof window.resumeMapOptionalRefresh === 'function') {
                     window.resumeMapOptionalRefresh(1200);
                 }
@@ -2969,90 +2962,66 @@
                 window.activeOperationLayers = [];
             };
 
-            window.clearTargetOperationSpinners = function() {
-                (window.targetOperationSpinnerLayers || []).forEach(layer => {
-                    removeMapLayerSafe(layer);
-                });
-                window.targetOperationSpinnerLayers = [];
+            window.hackActionSpinnerKey = function(payload = {}) {
+                const lat = Number(payload.lat || (payload.target || {}).lat);
+                const lng = Number(
+                    payload.lng !== undefined
+                        ? payload.lng
+                        : (payload.lon !== undefined ? payload.lon : (payload.target || {}).lng || (payload.target || {}).lon)
+                );
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '';
+                return `${Math.round(lat * 100000)}:${Math.round(lng * 100000)}`;
             };
 
-            window.operationTargetSpinnerKey = function(operation) {
-                if (!operation || typeof operation !== 'object') return '';
-                const target = operation.target || {};
-                return String(operation.target_id || target.target_id || targetStableId(target) || '').trim();
+            window.startHackActionSpinner = function(flowId, payload = {}) {
+                const key = String(flowId || '').trim();
+                if (!key) return false;
+                window.stopHackActionSpinner(key);
+
+                const lat = Number(payload.lat || (payload.target || {}).lat);
+                const lng = Number(
+                    payload.lng !== undefined
+                        ? payload.lng
+                        : (payload.lon !== undefined ? payload.lon : (payload.target || {}).lng || (payload.target || {}).lon)
+                );
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+
+                const coordKey = window.hackActionSpinnerKey({ lat, lng });
+                const activeAtTarget = Object.values(window.hackActionSpinnerLayers || {})
+                    .filter(entry => entry && entry.coordKey === coordKey)
+                    .length;
+                const angle = (activeAtTarget % 8) * (Math.PI / 4) - (Math.PI / 2);
+                const radius = 28 + Math.floor(activeAtTarget / 8) * 12;
+                const x = Math.round(Math.cos(angle) * radius);
+                const y = Math.round(Math.sin(angle) * radius);
+                const title = window.escapeMapText(payload.action || payload.map_action_id || 'hack-action');
+                const marker = L.marker([lat, lng], {
+                    zIndexOffset: 990 + activeAtTarget,
+                    interactive: false,
+                    icon: L.divIcon({
+                        className: 'hack-action-spinner-marker',
+                        html: `
+                            <div class="hack-action-spinner" style="--hack-x:${x}px;--hack-y:${y}px;" title="${title}">
+                                <span class="hack-action-spinner__ring"></span>
+                            </div>
+                        `,
+                        iconSize: [1, 1],
+                        iconAnchor: [0, 0]
+                    })
+                }).addTo(map);
+
+                window.hackActionSpinnerLayers[key] = { marker, coordKey };
+                return true;
             };
 
-            window.operationTargetSpinnerPosition = function(operation) {
-                const target = (operation && operation.target) || {};
-                const lat = Number(target.lat);
-                const lng = Number(target.lng !== undefined ? target.lng : target.lon);
-                if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-                return { lat, lng };
-            };
-
-            window.mergeOperationsById = function(baseOperations = [], incomingOperations = []) {
-                const merged = new Map();
-                [...(baseOperations || []), ...(incomingOperations || [])].forEach(operation => {
-                    if (!operation || typeof operation !== 'object') return;
-                    const operationId = String(operation.operation_id || '').trim();
-                    const fallbackKey = `${operation.operation_type || 'operation'}:${window.operationTargetSpinnerKey(operation)}:${operation.started_at || ''}`;
-                    merged.set(operationId || fallbackKey, operation);
-                });
-                return Array.from(merged.values());
-            };
-
-            window.renderTargetOperationSpinners = function(operations) {
-                window.clearTargetOperationSpinners();
-                const active = (operations || []).filter(operation => {
-                    const status = String(operation.status || 'active');
-                    return !['completed', 'timeout', 'cancelled', 'failed', 'sold'].includes(status);
-                });
-                const grouped = new Map();
-
-                active.forEach(operation => {
-                    const position = window.operationTargetSpinnerPosition(operation);
-                    if (!position) return;
-                    const key = window.operationTargetSpinnerKey(operation)
-                        || `${Math.round(position.lat * 100000)}:${Math.round(position.lng * 100000)}`;
-                    if (!grouped.has(key)) grouped.set(key, []);
-                    grouped.get(key).push({ operation, position });
-                });
-
-                grouped.forEach(items => {
-                    items.forEach((item, index) => {
-                        const operation = item.operation;
-                        const position = item.position;
-                        const meta = window.operationMarkerMeta(operation);
-                        const angle = (index % 8) * (Math.PI / 4) - (Math.PI / 2);
-                        const radius = 26 + Math.floor(index / 8) * 12;
-                        const x = Math.round(Math.cos(angle) * radius);
-                        const y = Math.round(Math.sin(angle) * radius);
-                        const title = window.escapeMapText(`${meta.name || 'Operacja'}: ${window.operationLabel(operation)}`);
-                        const marker = L.marker([position.lat, position.lng], {
-                            zIndexOffset: 970 + index,
-                            interactive: false,
-                            icon: L.divIcon({
-                                className: 'target-operation-spinner-marker',
-                                html: `
-                                    <div class="target-operation-spinner" style="--op-x:${x}px;--op-y:${y}px;" title="${title}">
-                                        <span class="target-operation-spinner__ring"></span>
-                                        <span class="target-operation-spinner__icon">${window.escapeMapText(meta.icon || '*')}</span>
-                                    </div>
-                                `,
-                                iconSize: [1, 1],
-                                iconAnchor: [0, 0]
-                            })
-                        }).addTo(map);
-                        window.targetOperationSpinnerLayers.push(marker);
-                    });
-                });
-            };
-
-            window.addCreatedOperationSpinners = function(createdOperations) {
-                if (!Array.isArray(createdOperations) || !createdOperations.length) return;
-                const merged = window.mergeOperationsById(window.latestActiveOperations || [], createdOperations);
-                window.latestActiveOperations = merged;
-                window.renderTargetOperationSpinners(merged);
+            window.stopHackActionSpinner = function(flowId) {
+                const key = String(flowId || '').trim();
+                if (!key || !window.hackActionSpinnerLayers) return false;
+                const entry = window.hackActionSpinnerLayers[key];
+                if (!entry) return false;
+                removeMapLayerSafe(entry.marker);
+                delete window.hackActionSpinnerLayers[key];
+                return true;
             };
 
             window.renderActiveOperationMarkers = function(operations) {
@@ -3089,7 +3058,6 @@
                     });
                     window.activeOperationLayers.push(marker);
                 });
-                window.renderTargetOperationSpinners(operations || []);
             };
 
             window.notifyOperationLifecycle = function(message, type = 'info') {
@@ -3966,7 +3934,7 @@
             window.contestedTargetLayers = [];
             window.conflictAreaLayers = [];
             window.capturedConflictPillarLayers = [];
-            window.targetOperationSpinnerLayers = window.targetOperationSpinnerLayers || [];
+            window.hackActionSpinnerLayers = window.hackActionSpinnerLayers || {};
             window.mapRefreshTimers = window.mapRefreshTimers || [];
             window.mapRefreshState = window.mapRefreshState || {
                 inFlight: {},

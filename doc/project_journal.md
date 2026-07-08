@@ -6700,36 +6700,39 @@ snapshotow startujaca rownolegle z `/hack-action`.
 
 ### Etap
 
-Sprint 73.1 - Map Operation Presence Spinners.
+Sprint 73.1 - Map Hack Action Spinner.
 
 ### Powod
 
 Po przyspieszeniu sciezki map action brakowalo malego, natychmiastowego sygnalu
-wizualnego na samym obiekcie. Gracz widzial wynik w panelu operacji, ale marker
-celu nie pokazywal, ze konkretne narzedzie nadal pracuje.
+wizualnego na samym obiekcie w czasie uruchamiania narzedzia. Aktywne operacje
+maja juz wlasne dobre markery z ikona, glow i czasem, wiec spinner nie powinien
+byc podpinany do lifecycle operacji.
 
 ### Implementacja
 
-Dodano lekka warstwe spinnerow operacji przy targetach mapy:
+Dodano lekka warstwe spinnerow hack-action przy targetach mapy:
 
-* po sukcesie `/hack-action` mapa pokazuje spinner dla `created_operations`,
-* po sukcesie `Uzyj` z pickera desktop przekazuje `created_operations` do
-  otwartej mapy,
-* `renderActiveOperationMarkers(...)` przelicza spinnery z aktualnych
-  `active_operations`,
-* wiele operacji na jednym celu rozklada sie jako wiele malych spinnerow wokol
+* przy starcie `/hack-action` mapa pokazuje spinner przy markerze celu,
+* przy `Uzyj` z pickera desktop przekazuje do mapy start spinnera dla tego
+  samego flow,
+* spinner znika w `finally` requestu `/hack-action`,
+* jesli backend zwroci `tool_selection_required`, spinner znika przed pokazaniem
+  pickera,
+* kilka rownoleglych requestow na jednym celu rozklada sie jako kilka malych
+  spinnerow wokol
   markera,
-* spinnery sa usuwane i przeliczane przy refreshu aktywnych operacji.
+* markery aktywnych operacji nie dostaja dodatkowych spinnerow.
 
 ### Decyzja
 
-Spinner nie jest nowym systemem operacji. To tylko wizualne odbicie istniejacych
-`created_operations` i `active_operations`. Zrodlem prawdy pozostaje runtime
-operacji.
+Spinner nie jest nowym systemem operacji i nie jest wizualizacja
+`active_operations`. To tylko krotki sygnal UX: request narzedzia jest w toku.
+Zrodlem prawdy dla dlugich operacji pozostaja istniejace markery operacji.
 
 ### Status
 
-Sprint 73.1 gotowy do walidacji live. Test reczny powinien obejmowac kilka
-akcji na jednym markerze, np. `scan`, `exploit`, `sniff`, `trace`, i sprawdzic,
-czy kazda aktywna operacja ma osobny spinner oraz czy spinner znika po
-zakonczeniu operacji.
+Sprint 73.1 gotowy do walidacji live. Test reczny powinien obejmowac klikniecie
+akcji bez pickera oraz `Uzyj` z pickera. Spinner powinien pojawic sie na czas
+requestu i zniknac, gdy gracz dostanie wynik `Udalo sie`, blad albo ekran wyboru
+narzedzia.
