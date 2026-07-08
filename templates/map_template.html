@@ -1502,10 +1502,6 @@
             label = mapTargetDisplayLabel(displayObj);
             removeScanResultAt(lat, lng);
             hideDomTargetMarkers(lat, lng, label);
-            if (aimedTargetLayer) {
-                removeMapLayerSafe(aimedTargetLayer);
-                aimedTargetLayer = null;
-            }
             const markerObj = normalizeMapMenuTarget({
                 ...obj,
                 lat: Number(lat),
@@ -1575,10 +1571,6 @@
             removeScanResultAt(lat, lng);
             removeContestedTargetAt(lat, lng);
             hideDomTargetMarkers(lat, lng);
-            if (aimedTargetLayer) {
-                removeMapLayerSafe(aimedTargetLayer);
-                aimedTargetLayer = null;
-            }
             aimedTargetMenuSnapshot = null;
             const marker = L.marker([lat, lng], {
                 zIndexOffset: 1000,
