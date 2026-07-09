@@ -1208,6 +1208,26 @@ function appendSystemTerminalOutput(content, html, className = "") {
     content.scrollTop = content.scrollHeight;
 }
 
+function appendSystemTerminalLoader(content) {
+    const frames = ['.', '..', '...', '..'];
+    let index = 0;
+    const line = document.createElement('div');
+    line.className = 'system-terminal-output system-terminal-loader';
+    line.textContent = frames[index];
+    content.appendChild(line);
+    content.scrollTop = content.scrollHeight;
+
+    const timer = window.setInterval(() => {
+        index = (index + 1) % frames.length;
+        line.textContent = frames[index];
+    }, 220);
+
+    return () => {
+        window.clearInterval(timer);
+        line.remove();
+    };
+}
+
 function attachSystemTerminalInputHandler(input, content) {
     const form = input.closest('.system-terminal-composer');
     if (!form || form.dataset.systemTerminalBound === "1") return;
@@ -1221,6 +1241,7 @@ function attachSystemTerminalInputHandler(input, content) {
         appendSystemTerminalCommand(content, value);
         input.value = '';
         input.disabled = true;
+        const stopLoader = appendSystemTerminalLoader(content);
 
         try {
             if (content.pendingConfirm) {
@@ -1306,6 +1327,7 @@ function attachSystemTerminalInputHandler(input, content) {
         } catch (err) {
             appendSystemTerminalOutput(content, '<span style="color:red;">Blad komunikacji z serwerem</span>');
         } finally {
+            stopLoader();
             input.disabled = false;
             window.requestAnimationFrame(() => {
                 input.focus();

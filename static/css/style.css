@@ -461,6 +461,12 @@ body {
   overflow-wrap: anywhere;
 }
 
+.system-terminal-loader {
+  color: #8cff9c;
+  min-width: 3ch;
+  opacity: 0.88;
+}
+
 .system-terminal-entry-command {
   display: block;
   font-size: var(--system-terminal-font-size);
