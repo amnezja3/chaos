@@ -511,33 +511,187 @@
     }
 
     @media (max-width: 980px) {
+      html,
+      body {
+        font-size: 14px;
+      }
+
       body { overflow: auto; }
       #installer { min-height: 100vh; height: auto; overflow: visible; }
-      #form-box { height: auto; min-height: 100vh; padding: 20px; }
+      #form-box { height: auto; min-height: 100vh; padding: 14px; }
       .onboarding-step {
         width: 100%;
         height: auto;
         grid-template-columns: 1fr;
-        margin: 24px 0 76px;
+        gap: 12px;
+        margin: 12px 0 68px;
       }
       .onboarding-step.has-identity-panel {
         width: 100%;
         grid-template-columns: 1fr;
-        margin-top: 24px;
+        gap: 12px;
+        margin-top: 12px;
       }
-      .story-image-wrap { min-height: 260px; }
+      .onboarding-story,
+      .onboarding-console,
+      .identity-panel {
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
+      }
+      .story-image-wrap {
+        min-height: 150px;
+        max-height: 32vh;
+        padding: 10px;
+      }
+      .story-copy {
+        min-height: 0;
+        padding: 12px 14px 14px;
+      }
+      #prelog-text {
+        font-size: 0.78rem;
+        line-height: 1.38;
+      }
+      .console-topline {
+        padding: 10px 12px;
+        font-size: 0.72rem;
+      }
+      .console-body {
+        padding: 14px;
+        gap: 12px;
+      }
+      .ghost-field {
+        gap: 6px;
+      }
+      .ghost-field span {
+        font-size: 0.68rem;
+        letter-spacing: 0.08em;
+      }
+      input {
+        padding: 9px 10px;
+        font-size: 0.88rem;
+      }
+      .field-hint,
+      .empty-state {
+        font-size: 0.8rem;
+        line-height: 1.38;
+      }
       .identity-preview {
         grid-template-rows: auto auto;
+        gap: 10px;
+        padding: 12px;
       }
       .avatar-box {
-        min-height: 320px;
+        min-height: 210px;
+        max-height: 34vh;
       }
       .avatar-box.faction-preview {
-        min-height: 260px;
+        min-height: 150px;
+        max-height: 28vh;
       }
-      .choice-grid { grid-template-columns: 1fr; }
-      #progress-bar { left: 20px; right: 20px; }
-      #progress-label { right: 20px; }
+      .avatar-info {
+        font-size: 0.95rem;
+        line-height: 1.3;
+      }
+      .choice-grid {
+        grid-template-columns: 1fr;
+        gap: 9px;
+      }
+      .choice-card {
+        min-height: 0;
+        padding: 10px;
+        gap: 4px;
+      }
+      .choice-card:hover,
+      .choice-card.selected {
+        transform: none;
+      }
+      .choice-card strong {
+        font-size: 0.92rem;
+        line-height: 1.22;
+      }
+      .choice-card small {
+        font-size: 0.76rem;
+        line-height: 1.28;
+      }
+      .choice-code {
+        font-size: 0.64rem;
+        padding: 2px 5px;
+      }
+      .summary-card {
+        grid-template-columns: 72px minmax(0, 1fr);
+        gap: 10px;
+        padding: 10px;
+        font-size: 0.82rem;
+      }
+      .summary-card img {
+        width: 72px;
+        height: 88px;
+      }
+      .summary-card b {
+        min-width: 72px;
+      }
+      .step-nav {
+        gap: 8px;
+        margin-top: 10px;
+        padding: 10px 0 0;
+      }
+      .ghost-btn {
+        min-width: 92px;
+        padding: 9px 11px;
+        font-size: 0.78rem;
+      }
+      #progress-bar {
+        left: 14px;
+        right: 14px;
+        bottom: 18px;
+        height: 7px;
+      }
+      #progress-label {
+        right: 14px;
+        bottom: 30px;
+        font-size: 0.66rem;
+      }
+      #error-msg {
+        bottom: 38px;
+        max-width: calc(100vw - 28px);
+        padding: 6px 9px;
+        font-size: 0.76rem;
+        line-height: 1.3;
+      }
+    }
+
+    @media (max-width: 420px) {
+      #form-box { padding: 10px; }
+      .onboarding-step,
+      .onboarding-step.has-identity-panel {
+        margin-top: 6px;
+        gap: 10px;
+      }
+      .story-image-wrap {
+        min-height: 112px;
+        max-height: 24vh;
+      }
+      .story-copy {
+        padding: 10px;
+      }
+      #prelog-text {
+        font-size: 0.72rem;
+        line-height: 1.32;
+      }
+      .console-body {
+        padding: 11px;
+      }
+      .choice-card small {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .avatar-box {
+        min-height: 170px;
+      }
+      .avatar-box.faction-preview {
+        min-height: 124px;
+      }
     }
 
     @media (max-height: 760px) and (min-width: 981px) {

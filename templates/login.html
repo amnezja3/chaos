@@ -218,13 +218,75 @@
       }
 
       .login-signal {
-        min-height: 44vh;
+        min-height: 0;
+        padding: 22px 18px 18px;
+        gap: 16px;
+      }
+
+      .login-brand {
+        gap: 8px;
+      }
+
+      .login-kicker {
+        font-size: 0.64rem;
+        letter-spacing: 0.1em;
+      }
+
+      .login-brand h1 {
+        font-size: clamp(2.25rem, 16vw, 3.9rem);
+        line-height: 0.95;
+      }
+
+      .login-brand p {
+        font-size: 0.86rem;
+        line-height: 1.42;
+      }
+
+      .login-status {
+        grid-template-columns: 1fr;
+        gap: 6px;
+        font-size: 0.74rem;
+      }
+
+      .login-status span::before {
+        width: 6px;
+        height: 6px;
       }
 
       .login-panel {
         border-left: 0;
         border-top: 1px solid rgba(57, 255, 128, 0.24);
         align-items: flex-start;
+        padding: 18px;
+      }
+
+      .login-form {
+        gap: 11px;
+      }
+
+      .login-form h2 {
+        font-size: 1rem;
+      }
+
+      .login-form label {
+        font-size: 0.68rem;
+        letter-spacing: 0.06em;
+      }
+
+      .login-form input {
+        min-height: 40px;
+        padding: 8px 10px;
+        font-size: 0.9rem;
+      }
+
+      .login-form button {
+        min-height: 42px;
+        font-size: 0.9rem;
+      }
+
+      .login-link,
+      .login-error {
+        font-size: 0.8rem;
       }
     }
   </style>
