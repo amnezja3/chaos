@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import hashlib
 import posixpath
 import shlex
 
@@ -65,6 +66,26 @@ def _username(profile):
     )
 
 
+def _stable_number(seed, minimum=1, maximum=254):
+    digest = hashlib.sha1(str(seed).encode("utf-8")).hexdigest()
+    span = max(1, maximum - minimum + 1)
+    return minimum + (int(digest[:8], 16) % span)
+
+
+def _pseudo_ip(seed, private=True):
+    if private:
+        return "10.{}.{}.{}".format(
+            _stable_number(f"{seed}:a", 13, 42),
+            _stable_number(f"{seed}:b", 1, 254),
+            _stable_number(f"{seed}:c", 2, 240),
+        )
+    return "77.{}.{}.{}".format(
+        _stable_number(f"{seed}:a", 10, 240),
+        _stable_number(f"{seed}:b", 1, 254),
+        _stable_number(f"{seed}:c", 2, 240),
+    )
+
+
 def _normalize_path(path):
     if not path or path == ".":
         return CHAOS_CWD
@@ -100,8 +121,17 @@ def _format_help():
         "  log [system|ghost|market] show recent logs",
         "  apps                 list installed apps",
         "",
+        "Network:",
+        "  ip / ipa / ip a      show pseudo interface state",
+        "  ifconfig             show pseudo interface state",
+        "  ping <host>          simulated latency probe",
+        "  traceroute <host>    simulated route",
+        "  nslookup <host>      simulated DNS lookup",
+        "  netstat              simulated socket table",
+        "",
         "Session:",
-        "  exit / logout        end session",
+        "  exit                 close terminal window",
+        "  logout               logout from game",
         "",
         "Tip: run an installed app by typing its name or id.",
     ])
@@ -193,6 +223,91 @@ def _log(name):
     return _cat_file(path)
 
 
+def _ip_addr(profile):
+    username = _username(profile)
+    ip = _pseudo_ip(username)
+    public_ip = _pseudo_ip(f"{username}:wan", private=False)
+    return "\n".join([
+        "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536",
+        "    inet 127.0.0.1/8 scope host lo",
+        "2: ghost0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500",
+        f"    inet {ip}/24 scope global ghost0",
+        f"    inet6 fd13:37::{_stable_number(username, 100, 999)}/64 scope ghost",
+        "3: tunnel0: <POINTOPOINT,UP,LOWER_UP> mtu 1380",
+        f"    inet {public_ip}/32 scope ghost tunnel0",
+    ])
+
+
+def _ifconfig(profile):
+    username = _username(profile)
+    return "\n".join([
+        "ghost0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST> mtu 1500",
+        f"        inet {_pseudo_ip(username)} netmask 255.255.255.0 broadcast 10.42.255.255",
+        f"        ether 02:13:37:{_stable_number(username, 10, 99):02d}:{_stable_number(username + ':x', 10, 99):02d}:{_stable_number(username + ':y', 10, 99):02d}",
+        "tunnel0: flags=4305<UP,POINTOPOINT,RUNNING,NOARP> mtu 1380",
+        f"        inet {_pseudo_ip(username + ':wan', private=False)} netmask 255.255.255.255",
+    ])
+
+
+def _ping(target):
+    host = target or CHAOS_HOST
+    ip = _pseudo_ip(host, private=False)
+    header = f"PING {host} ({ip}) 56(84) bytes of data."
+    lines = [header]
+    for seq in range(1, 5):
+        sample = f"64 bytes from {ip}: icmp_seq={seq} ttl={_stable_number(host + ':ttl', 48, 63)}"
+        latency = (len(header) + len(sample) + _stable_number(f"{host}:{seq}", 1, 80)) / 10
+        lines.append(f"{sample} time={latency:.1f} ms")
+    avg = sum((len(line) + _stable_number(f"{host}:avg:{idx}", 1, 40)) / 10 for idx, line in enumerate(lines[1:], 1)) / 4
+    lines.extend([
+        "",
+        f"--- {host} ping statistics ---",
+        "4 packets transmitted, 4 received, 0% packet loss",
+        f"rtt min/avg/max = {max(1.0, avg - 2.1):.1f}/{avg:.1f}/{avg + 3.4:.1f} ms",
+    ])
+    return "\n".join(lines)
+
+
+def _traceroute(target):
+    host = target or CHAOS_HOST
+    hops = [
+        ("ghost-gw.local", _pseudo_ip("gateway")),
+        ("relay.blacknet", _pseudo_ip("blacknet", private=False)),
+        ("edge.ghost.exchange", _pseudo_ip("ghost-exchange", private=False)),
+        (host, _pseudo_ip(host, private=False)),
+    ]
+    lines = [f"traceroute to {host} ({hops[-1][1]}), 30 hops max"]
+    for index, (name, ip) in enumerate(hops, 1):
+        t1 = (_stable_number(f"{host}:{index}:1", 5, 120) + len(name)) / 10
+        t2 = t1 + (_stable_number(f"{host}:{index}:2", 1, 20) / 10)
+        t3 = t2 + (_stable_number(f"{host}:{index}:3", 1, 20) / 10)
+        lines.append(f"{index:2d}  {name} ({ip})  {t1:.1f} ms  {t2:.1f} ms  {t3:.1f} ms")
+    return "\n".join(lines)
+
+
+def _nslookup(target):
+    host = target or CHAOS_HOST
+    return "\n".join([
+        "Server:  chaos.resolver",
+        f"Address: {_pseudo_ip('resolver')}",
+        "",
+        f"Name:    {host}",
+        f"Address: {_pseudo_ip(host, private=False)}",
+    ])
+
+
+def _netstat(profile):
+    username = _username(profile)
+    local_ip = _pseudo_ip(username)
+    return "\n".join([
+        "Proto Local Address          Foreign Address        State",
+        f"tcp   {local_ip}:22          {_pseudo_ip('admin', private=False)}:53118 ESTABLISHED",
+        f"tcp   {local_ip}:443         {_pseudo_ip('ghost-exchange', private=False)}:443 ESTABLISHED",
+        f"udp   {local_ip}:5353        224.0.0.251:5353      LISTEN",
+        "tcp   127.0.0.1:6666         127.0.0.1:0          LISTEN",
+    ])
+
+
 def _builtin_command(tokens, original_text, profile):
     if not tokens:
         return {"response": ""}
@@ -200,7 +315,9 @@ def _builtin_command(tokens, original_text, profile):
     cmd = tokens[0].lower()
     arg = tokens[1] if len(tokens) > 1 else ""
 
-    if cmd in {"exit", "logout"}:
+    if cmd == "exit":
+        return {"close_terminal": True, "response": "Zamykanie terminala..."}
+    if cmd == "logout":
         return {"logout": True}
     if cmd == "clear":
         return {"clear": True}
@@ -238,6 +355,22 @@ def _builtin_command(tokens, original_text, profile):
         return {"response": _log(arg or "system")}
     if cmd == "apps":
         return {"response": _apps_list(profile)}
+    if cmd in {"ip", "ipa"}:
+        if cmd == "ip" and len(tokens) > 1 and tokens[1].lower() not in {"a", "addr", "address"}:
+            return {"response": "usage: ip a"}
+        return {"response": _ip_addr(profile)}
+    if cmd == "ifconfig":
+        return {"response": _ifconfig(profile)}
+    if cmd == "hostname":
+        return {"response": CHAOS_HOST}
+    if cmd == "ping":
+        return {"response": _ping(arg)}
+    if cmd in {"traceroute", "tracepath"}:
+        return {"response": _traceroute(arg)}
+    if cmd in {"nslookup", "dig"}:
+        return {"response": _nslookup(arg)}
+    if cmd in {"netstat", "ss"}:
+        return {"response": _netstat(profile)}
     if cmd in {"unlock", "su", "daemon", "lore"}:
         return {"response": f"{cmd}: channel locked. Future story runtime will attach here."}
 

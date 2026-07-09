@@ -6791,3 +6791,28 @@ Dodano lekki overlay skanowania mapy:
 Sprint 73.2 gotowy do walidacji live. Test reczny: kliknac `Skanuj`, sprawdzic
 czy overlay pojawia sie podczas requestu i znika dopiero po pojawieniu sie
 markerow skanu.
+
+---
+
+## 09.07.2026
+
+### Etap
+
+CHAOS Terminal - system terminal polish.
+
+### Implementacja
+
+Dostosowano terminal systemowy do poziomu CHAOS:
+
+* terminal mobile ma dolny composer podnoszony nad klawiature ekranowa,
+* klikniecie w okno terminala ustawia fokus w inputcie,
+* komendy maja jednolity font i poprawne zawijanie dlugiego tekstu,
+* dodano animowany loader odpowiedzi terminala,
+* dodano podstawowy zestaw komend systemowych i sieciowych,
+* `exit` zamyka aktywne okno terminala,
+* `logout` wylogowuje z gry.
+
+### Status
+
+Temat terminala systemowego zamkniety na obecny etap. Terminal jest teraz
+narzedziem gameplayowym, a nie tylko launcherem aplikacji.

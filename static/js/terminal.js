@@ -1127,6 +1127,13 @@ function attachTerminalInputHandler(input, content) {
                 content.innerHTML += `<br>${data.response.replace(/\n/g, "<br>")}`;
             }
 
+            if (data.closeTerminal) {
+                setTimeout(() => {
+                    content.closest('.terminal')?.remove();
+                }, 180);
+                return;
+            }
+
             if (data.logout) {
                 setTimeout(() => {
                     window.location.href = '/logout';
@@ -1297,6 +1304,13 @@ function attachSystemTerminalInputHandler(input, content) {
 
             if (data.response) {
                 appendSystemTerminalOutput(content, data.response.replace(/\n/g, "<br>"));
+            }
+
+            if (data.closeTerminal) {
+                setTimeout(() => {
+                    content.closest('.terminal')?.remove();
+                }, 180);
+                return;
             }
 
             if (data.logout) {
@@ -3834,7 +3848,7 @@ async function createProfile() {
     if (document.querySelector(`.terminal[data-app="profile"]`)) return;
 
     const term = document.createElement('div');
-    term.className = 'terminal';
+    term.className = 'terminal profile-window';
     term.dataset.app = "profile";
     const position = findAvailablePosition();
     term.style.top = `${position.top}px`;
@@ -3844,9 +3858,29 @@ async function createProfile() {
     term.style.display = 'flex';
     term.style.flexDirection = 'column';
 
+    term.innerHTML = `
+        <div class="title-bar">
+            Profil gracza
+            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
+        </div>
+        <div class="profile-content">
+            <div class="app-load-panel profile-load-panel">
+                <div class="app-load-panel__title">Ladowanie profilu...</div>
+                <div class="app-load-panel__bar"><span></span></div>
+                <div class="app-load-panel__text">Synchronizuje profil, terytorium i zabezpieczenia.</div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(term);
+    makeDraggable(term);
+    term.querySelector('.close-btn').addEventListener('click', () => term.remove());
+
+    const content = term.querySelector('.profile-content');
     const profileData = await getUserProfile();
     if (!profileData) {
-            addSystemMessage("danger", "\u{1F4C1} Profil", "\u2716 Brak danych profilu");
+        content.innerHTML = `<div class="profile-error">Brak danych profilu.</div>`;
+        addSystemMessage("danger", "\u{1F4C1} Profil", "\u2716 Brak danych profilu");
         return;
     }
 
@@ -3854,17 +3888,14 @@ async function createProfile() {
         .filter(([, value]) => typeof value === 'boolean');
     const securityControls = booleanSecurityEntries
         .map(([key, value]) => `
-            <label class="profile-security-row" title="${escapeHTML(key)}">
-                <span class="profile-security-name">${escapeHTML(key)}</span>
+            <label class="profile-security-tile ${value ? 'is-on' : 'is-off'}" title="${escapeHTML(key)}">
                 <input class="profile-security-toggle" type="checkbox" data-security-key="${escapeHTML(key)}" ${value ? 'checked' : ''}>
+                <span class="profile-security-name">${escapeHTML(key)}</span>
                 <span class="profile-security-state">${value ? 'ON' : 'OFF'}</span>
             </label>
         `)
         .join("");
 
-    const securityList = Object.entries(profileData.security || {})
-        .map(([key, value]) => `🔐 ${key}: <b>${value ? 'ON' : 'OFF'}</b>`)
-        .join("<br>");
     const territoryStats = profileData.territory_stats || {};
     const totalArea = Math.round(Number(territoryStats.total_area || 0));
     const effectiveArea = Math.round(Number(territoryStats.effective_area || totalArea));
@@ -3882,59 +3913,54 @@ async function createProfile() {
     const rawPlayerClan = profileData.clan || (profileData.fraction && profileData.fraction.name) || "brak";
     const playerClan = factionNames[String(rawPlayerClan)] || rawPlayerClan;
     profileData.clan = playerClan;
+    const appsCount = Array.isArray(profileData.apps)
+        ? profileData.apps.length
+        : (Array.isArray(profileData.inventory) ? profileData.inventory.length : 0);
+    const currentPosition = profileData.curently_possition || profileData.current_position || {};
+    const densityLabel = densityMultiplier > 0 && spanDensity > 0
+        ? `x${densityMultiplier.toFixed(2)} (${spanDensity.toFixed(2)} przesel / 100 m)`
+        : "brak danych / przeliczane";
+    const nextLevelLabel = areaToNext > 0
+        ? `${areaToNext} m2`
+        : "brak aktywnego progu";
     const territoryDetailsHtml = `
-            <p>Efektywna kontrola: <b>${effectiveArea} m²</b></p>
-            <p>Gęstość siatki: <b>x${densityMultiplier.toFixed(2)}</b> (${spanDensity.toFixed(2)} przęseł / 100 m)</p>
+            <p>Efektywna kontrola: <b>${effectiveArea} m2</b></p>
+            <p>Gestosc siatki: <b>${densityLabel}</b></p>
     `;
 
-    term.innerHTML = `
-        <div class="title-bar">
-            Profil gracza
-            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
-        </div>
-        <div style="padding: 10px; background: #111; color: #0f0; flex:1; font-family: monospace; overflow-y:auto;">
-            <div style="text-align: center;">
-                <img src="${profileData.avatar}" alt="Avatar" style="width:100px;height:100px;border-radius:50%;margin-bottom:10px;">
-                <h2 style="margin:0;">${profileData.nick}</h2>
-                <p style="margin:0;">Poziom: <b>${profileData.level}</b></p>
+    content.innerHTML = `
+            <div class="profile-hero">
+                <img class="profile-avatar" src="${escapeHTML(profileData.avatar || '')}" alt="Avatar">
+                <h2>${escapeHTML(profileData.nick || profileData.username || 'Ghost')}</h2>
+                <p>Poziom: <b>${profileData.level}</b></p>
             </div>
 
-            <hr style="border: 1px solid #0f0; margin: 15px 0;">
+            <hr>
 
             <p>💰 HackCoiny: <b>${profileData.hackcoins}</b></p>
-            <p>🧠 Doświadczenie: <b>${profileData.exp}</b></p>
             <p>🔥 Respect: <b>${profileData.respect}</b> pkt</p>
-            <p>👥 Klan: <b>${profileData.clan}</b></p>
+            <p>👥 Klan: <b>${escapeHTML(profileData.clan)}</b></p>
 
-            <hr style="border: 1px solid #0f0; margin: 15px 0;">
+            <hr>
             <h4>Terytorium:</h4>
             ${territoryDetailsHtml}
             <p>🟩 Klastry: <b>${territoryStats.clusters_count || 0}</b></p>
-            <p>📐 Powierzchnia: <b>${totalArea} m²</b></p>
-            <p>⬆ Do następnego levela: <b>${areaToNext} m²</b></p>
-            <p>🏍️ Zasięg motocykla: <b>${actionRange} m</b></p>
-            
-            <hr style="border: 1px solid #0f0; margin: 15px 0;">
+            <p>📐 Powierzchnia: <b>${totalArea} m2</b></p>
+            <p>⬆ Do nastepnego levela: <b>${nextLevelLabel}</b></p>
+            <p>🏍️ Zasieg motocykla: <b>${actionRange} m</b></p>
 
-            <p>📦 Inventory: <b>${profileData.inventory.length}</b> aplikacji</p>
-            <p>📍 Pozycja: <b>lat: ${profileData.curently_possition.lat}, lng: ${profileData.curently_possition.lng}</b></p>
+            <hr>
 
-            <hr style="border: 1px solid #0f0; margin: 15px 0;">
-            <h4>Zabezpieczenia:</h4>
-            <div class="profile-security-status"></div>
-            <div class="profile-security-list">${securityControls}</div>
+            <p>📦 Aplikacje: <b>${appsCount}</b></p>
+            <p>📍 Pozycja: <b>lat: ${currentPosition.lat ?? '-'}, lng: ${currentPosition.lng ?? '-'}</b></p>
 
-            <hr style="border: 1px solid #0f0; margin: 15px 0;">
-            <button class="profile-logout-btn" type="button">Logout</button>
-        </div>
+            <hr>
+            <details class="profile-security-collapse">
+                <summary>Zabezpieczenia</summary>
+                <div class="profile-security-status"></div>
+                <div class="profile-security-list">${securityControls || '<span class="profile-security-empty">Brak boolean security.</span>'}</div>
+            </details>
     `;
-
-    document.body.appendChild(term);
-    makeDraggable(term);
-    term.querySelector('.close-btn').addEventListener('click', () => term.remove());
-    term.querySelector('.profile-logout-btn').addEventListener('click', () => {
-        window.location.href = '/logout';
-    });
 
     term.querySelectorAll('.profile-security-toggle').forEach(toggle => {
         toggle.addEventListener('change', async () => {
@@ -3959,8 +3985,10 @@ async function createProfile() {
                     const itemKey = item.dataset.securityKey;
                     if (typeof data.security[itemKey] === 'boolean') {
                         item.checked = data.security[itemKey];
-                        const row = item.closest('.profile-security-row');
+                        const row = item.closest('.profile-security-tile');
                         row.querySelector('.profile-security-state').textContent = item.checked ? 'ON' : 'OFF';
+                        row.classList.toggle('is-on', item.checked);
+                        row.classList.toggle('is-off', !item.checked);
                     }
                 });
 

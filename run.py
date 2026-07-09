@@ -9415,6 +9415,12 @@ def command():
     if result.get("logout"):
         return jsonify({"logout": True, "response": "Wylogowywanie..."})
 
+    if result.get("close_terminal"):
+        return jsonify({
+            "closeTerminal": True,
+            "response": result.get("response", "Zamykanie terminala...")
+        })
+
     if result.get("clear"):
         return jsonify({"clear": True})
 

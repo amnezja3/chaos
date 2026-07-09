@@ -3575,46 +3575,107 @@ form button:hover {
   font-style: normal;
 }
 
-.profile-logout-btn {
-  width: 100%;
-  background: #2a1111;
-  color: #ffb3b3;
-  border: 1px solid #7f3333;
-  padding: 9px 10px;
-  cursor: pointer;
+.profile-window .profile-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  background: #111;
+  color: #0f0;
   font-family: monospace;
-  font-weight: bold;
+  box-sizing: border-box;
 }
 
-.profile-logout-btn:hover {
-  background: #451818;
-  color: #fff;
+.profile-window hr {
+  border: 0;
+  border-top: 2px solid #0f0;
+  margin: 15px 0;
+}
+
+.profile-hero {
+  text-align: center;
+}
+
+.profile-hero h2 {
+  margin: 0;
+}
+
+.profile-hero p {
+  margin: 0;
+}
+
+.profile-avatar {
+  width: 124px;
+  height: 124px;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center;
+  margin-bottom: 10px;
+  box-shadow: 0 0 22px rgba(0, 255, 0, 0.56);
+}
+
+.profile-error {
+  padding: 18px;
+  color: #ff8f8f;
+}
+
+.profile-security-collapse {
+  border: 1px solid rgba(0, 255, 0, 0.34);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.profile-security-collapse summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  color: #d7ffe1;
+  font-weight: bold;
+  user-select: none;
+}
+
+.profile-security-collapse[open] summary {
+  border-bottom: 1px solid rgba(0, 255, 0, 0.28);
 }
 
 .profile-security-status {
   min-height: 18px;
-  margin-bottom: 8px;
+  margin: 8px 10px;
   color: #9cffb0;
   font-size: 12px;
 }
 
 .profile-security-list {
   display: grid;
-  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+  padding: 10px;
   font-size: 12px;
 }
 
-.profile-security-row {
+.profile-security-tile {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 34px 32px;
+  grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 8px;
+  gap: 5px 7px;
   border: 1px solid #1d3424;
   background: #07100b;
-  padding: 6px 8px;
+  padding: 7px 8px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.profile-security-tile.is-on {
+  border-color: rgba(0, 255, 0, 0.58);
+  background: rgba(0, 80, 28, 0.28);
+}
+
+.profile-security-tile.is-off {
+  opacity: 0.72;
 }
 
 .profile-security-name {
+  grid-column: 1 / -1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3623,15 +3684,17 @@ form button:hover {
 .profile-security-toggle {
   width: 18px;
   height: 18px;
-  justify-self: center;
   accent-color: #00d15a;
   cursor: pointer;
 }
 
 .profile-security-state {
   color: #d7ffe1;
-  text-align: right;
   font-weight: bold;
+}
+
+.profile-security-empty {
+  color: #7c9f86;
 }
 
 .appforge-form {
