@@ -9421,6 +9421,12 @@ def command():
             "response": result.get("response", "Zamykanie terminala...")
         })
 
+    if result.get("openSystemApp"):
+        return jsonify({
+            "openSystemApp": result.get("openSystemApp"),
+            "response": result.get("response", "Otwieram...")
+        })
+
     if result.get("clear"):
         return jsonify({"clear": True})
 

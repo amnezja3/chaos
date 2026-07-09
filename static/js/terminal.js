@@ -1134,6 +1134,10 @@ function attachTerminalInputHandler(input, content) {
                 return;
             }
 
+            if (data.openSystemApp) {
+                openSystemAppFromTerminal(data.openSystemApp);
+            }
+
             if (data.logout) {
                 setTimeout(() => {
                     window.location.href = '/logout';
@@ -1193,6 +1197,48 @@ function appendTerminalPrompt(content) {
     setTimeout(() => newInput.focus(), 10);
     attachTerminalInputHandler(newInput, content);
     content.scrollTop = content.scrollHeight;
+}
+
+function openSystemAppFromTerminal(appKey) {
+    const normalized = String(appKey || '').toLowerCase();
+    const existingByKey = {
+        map: '.terminal[data-app="map"]',
+        browser: '.terminal[data-app="browser"]',
+        wallet: '.terminal[data-app="wallet"]',
+        radio: '.terminal[data-app="ghost-radio"]',
+        cyberner: '.terminal[data-app="email"]',
+        files: '.terminal[data-app="files"]',
+        profile: '.terminal[data-app="profile"]',
+        settings: '.terminal[data-app="settings"]',
+        devbugs: '.app-window[data-app="dev-bug-reporter"]'
+    };
+    const existingSelector = existingByKey[normalized];
+    const existing = existingSelector ? document.querySelector(existingSelector) : null;
+    if (existing) {
+        bringWindowToFront(existing);
+        return true;
+    }
+
+    const launchers = {
+        map: createMap,
+        browser: createBrowser,
+        wallet: openWalletApp,
+        radio: () => window.createGhostHackRadioApp && window.createGhostHackRadioApp(),
+        cyberner: createEmailClient,
+        files: () => createFileManager(),
+        profile: createProfile,
+        settings: createSettings,
+        devbugs: createDevBugReporterApp
+    };
+    const launcher = launchers[normalized];
+    if (typeof launcher !== "function") return false;
+
+    launcher();
+    window.setTimeout(() => {
+        const opened = existingSelector ? document.querySelector(existingSelector) : null;
+        if (opened) bringWindowToFront(opened);
+    }, 0);
+    return true;
 }
 
 function appendSystemTerminalCommand(content, value) {
@@ -1311,6 +1357,10 @@ function attachSystemTerminalInputHandler(input, content) {
                     content.closest('.terminal')?.remove();
                 }, 180);
                 return;
+            }
+
+            if (data.openSystemApp) {
+                openSystemAppFromTerminal(data.openSystemApp);
             }
 
             if (data.logout) {

@@ -43,6 +43,91 @@ CHAOS_FILES = {
     "/net/ghost_exchange.link": "gx://market/dashboard\n",
 }
 
+SYSTEM_APP_ALIASES = {
+    "mapa": "map",
+    "map": "map",
+    "operation": "map",
+    "operations": "map",
+    "oprations": "map",
+    "motobike": "map",
+    "hack": "map",
+    "hacking": "map",
+    "game": "map",
+    "start": "map",
+    "internet": "browser",
+    "web": "browser",
+    "www": "browser",
+    "browser": "browser",
+    "googleplex": "browser",
+    "gp": "browser",
+    "ghostexchange": "browser",
+    "gx": "browser",
+    "sell": "browser",
+    "sellfiles": "browser",
+    "market": "browser",
+    "stockmarket": "browser",
+    "stock": "browser",
+    "wallet": "wallet",
+    "hackcont": "wallet",
+    "hackcoin": "wallet",
+    "con": "wallet",
+    "coins": "wallet",
+    "money": "wallet",
+    "tranfer": "wallet",
+    "transfer": "wallet",
+    "sendmoney": "wallet",
+    "sendhc": "wallet",
+    "sendhackcoin": "wallet",
+    "portfel": "wallet",
+    "muzyka": "radio",
+    "radio": "radio",
+    "music": "radio",
+    "ghosradio": "radio",
+    "ghostradio": "radio",
+    "poczta": "cyberner",
+    "komunikator": "cyberner",
+    "mail": "cyberner",
+    "mailbox": "cyberner",
+    "cyberner": "cyberner",
+    "friends": "cyberner",
+    "world": "cyberner",
+    "clan": "cyberner",
+    "crew": "cyberner",
+    "message": "cyberner",
+    "files": "files",
+    "pliki": "files",
+    "folder": "files",
+    "storage": "files",
+    "dysk": "files",
+    "profil": "profile",
+    "profile": "profile",
+    "about": "profile",
+    "mychaos": "profile",
+    "chaos": "profile",
+    "ustawienia": "settings",
+    "settings": "settings",
+    "devbugs": "devbugs",
+    "bugs": "devbugs",
+    "reporter": "devbugs",
+    "bugreporter": "devbugs",
+    "error": "devbugs",
+    "dev": "devbugs",
+    "blad": "devbugs",
+    "zglos": "devbugs",
+}
+
+SYSTEM_APP_LABELS = {
+    "map": "mape",
+    "browser": "Browser",
+    "wallet": "Wallet HC",
+    "radio": "Ghost Hack Radio",
+    "cyberner": "Cyberner",
+    "files": "Pliki",
+    "profile": "Profil",
+    "settings": "Ustawienia",
+    "devbugs": "Dev Bug Reporter",
+}
+
 
 def _as_profile(value):
     if isinstance(value, dict):
@@ -120,6 +205,7 @@ def _format_help():
         "  scan                 surface diagnostics",
         "  log [system|ghost|market] show recent logs",
         "  apps                 list installed apps",
+        "  map/browser/files/profile/settings open system apps",
         "",
         "Network:",
         "  ip / ipa / ip a      show pseudo interface state",
@@ -355,6 +441,13 @@ def _builtin_command(tokens, original_text, profile):
         return {"response": _log(arg or "system")}
     if cmd == "apps":
         return {"response": _apps_list(profile)}
+    if cmd in SYSTEM_APP_ALIASES:
+        app_key = SYSTEM_APP_ALIASES[cmd]
+        label = SYSTEM_APP_LABELS.get(app_key, app_key)
+        return {
+            "openSystemApp": app_key,
+            "response": f"Otwieram {label}..."
+        }
     if cmd in {"ip", "ipa"}:
         if cmd == "ip" and len(tokens) > 1 and tokens[1].lower() not in {"a", "addr", "address"}:
             return {"response": "usage: ip a"}
