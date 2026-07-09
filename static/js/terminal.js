@@ -7098,7 +7098,8 @@ async function createFileManager(options = {}) {
         'projects',
         'download',
         'pictures',
-        'social-media'
+        'social-media',
+        'about'
     ];
     const folderLabels = {
         tools: 'Tools',
@@ -7117,7 +7118,8 @@ async function createFileManager(options = {}) {
         projects: 'Projekty',
         download: 'Download',
         pictures: 'Obrazy',
-        'social-media': 'Social'
+        'social-media': 'Social',
+        about: 'About'
     };
     const operationTypeLabels = {
         vehicle_tracking: 'sledzenie pojazdu',
@@ -7156,10 +7158,92 @@ async function createFileManager(options = {}) {
         projects: 'PRJ',
         pictures: 'IMG',
         download: 'DL',
-        'social-media': 'SOC'
+        'social-media': 'SOC',
+        about: 'PTK'
+    };
+    const fileManagerStaticDocs = {
+        about: [
+            {
+                name: 'chaos.ptk',
+                title: 'ABOUT CHAOS',
+                source: '/static/files/about/chaos.ptk',
+                format: 'markdown'
+            }
+        ]
     };
     const getFolderLabel = (folderName) => folderLabels[folderName] || folderName;
     const getFolderIcon = (folderName) => folderIcons[folderName] || fileManagerUiIcons.file;
+    const getStaticDocFile = (folderName, filename) => {
+        const docs = fileManagerStaticDocs[folderName] || [];
+        return docs.find(item => String(item.name || '') === String(filename || '')) || null;
+    };
+    const renderMarkdownInline = (text) => {
+        return escapeHTML(text)
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>');
+    };
+    const renderFileManagerMarkdown = (markdown) => {
+        const lines = String(markdown || '').replace(/\r\n/g, '\n').split('\n');
+        let html = '';
+        let listOpen = false;
+        let codeOpen = false;
+        const closeList = () => {
+            if (listOpen) {
+                html += '</ul>';
+                listOpen = false;
+            }
+        };
+        const closeCode = () => {
+            if (codeOpen) {
+                html += '</code></pre>';
+                codeOpen = false;
+            }
+        };
+
+        lines.forEach(rawLine => {
+            const line = rawLine || '';
+            const trimmed = line.trim();
+            if (trimmed.startsWith('```')) {
+                closeList();
+                if (codeOpen) closeCode();
+                else {
+                    html += '<pre><code>';
+                    codeOpen = true;
+                }
+                return;
+            }
+            if (codeOpen) {
+                html += `${escapeHTML(line)}\n`;
+                return;
+            }
+            if (!trimmed) {
+                closeList();
+                return;
+            }
+            const heading = trimmed.match(/^(#{1,4})\s+(.+)$/);
+            if (heading) {
+                closeList();
+                const level = Math.min(4, heading[1].length + 1);
+                html += `<h${level}>${renderMarkdownInline(heading[2])}</h${level}>`;
+                return;
+            }
+            const bullet = trimmed.match(/^[-*]\s+(.+)$/);
+            if (bullet) {
+                if (!listOpen) {
+                    html += '<ul>';
+                    listOpen = true;
+                }
+                html += `<li>${renderMarkdownInline(bullet[1])}</li>`;
+                return;
+            }
+            closeList();
+            html += `<p>${renderMarkdownInline(trimmed)}</p>`;
+        });
+
+        closeList();
+        closeCode();
+        return html;
+    };
     const getFileOperationType = (fileEntry) => {
         if (!fileEntry || typeof fileEntry !== 'object') return '';
         const metadata = fileEntry.metadata || {};
@@ -7305,6 +7389,18 @@ async function createFileManager(options = {}) {
         const renderedToolAppIds = new Set();
 
         let list = "";
+        const staticDocs = fileManagerStaticDocs[folderName] || [];
+        staticDocs.forEach(docFile => {
+            list += `
+                <div class="file-manager-row file-manager-row-dark">
+                    <div class="file-manager-file" onclick="window.runFile('${folderName}','${escapeHTML(docFile.name)}')">
+                        <span class="file-manager-icon">PTK</span>
+                        <span class="file-manager-name">${escapeHTML(docFile.name)}</span>
+                        <span class="file-manager-name" style="display:block;color:#6fbf89;font-size:10px;">${escapeHTML(docFile.title || 'Dokument')} | ${escapeHTML(docFile.format || 'text')} | ${escapeHTML(docFile.source || '')}</span>
+                    </div>
+                </div>
+            `;
+        });
         fileList.forEach(fileEntry => {
             const filename = typeof fileEntry === "string" ? fileEntry : String(fileEntry.name || fileEntry.filename || "plik");
             const matchingTool = folderName === "tools" ? getToolSelectionAppForFile(filename) : null;
@@ -7477,7 +7573,56 @@ async function createFileManager(options = {}) {
     };
 
     // Klik w dowolny plik — symulacja otwarcia/uruchomienia
-    window.runFile = (folderName, filename) => {
+    window.runFile = async (folderName, filename) => {
+        const staticDoc = getStaticDocFile(folderName, filename);
+        if (staticDoc) {
+            const container = document.getElementById(`${terminalId}-content`);
+            container.innerHTML = `
+                <div class="file-manager-header">
+                    <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                    <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(staticDoc.name)}</span>
+                </div>
+                <div class="file-manager-row file-manager-row-dark" style="display:block;">
+                    <div class="app-load-panel">
+                        <div class="app-load-panel__title">Ladowanie dokumentu...</div>
+                        <div class="app-load-panel__bar"><span></span></div>
+                        <div class="app-load-panel__text">${escapeHTML(staticDoc.source)}</div>
+                    </div>
+                </div>
+            `;
+            try {
+                const response = await fetch(staticDoc.source, { cache: 'no-cache' });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const markdown = await response.text();
+                container.innerHTML = `
+                    <div class="file-manager-header">
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                        <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(staticDoc.name)}</span>
+                    </div>
+                    <div class="file-manager-row file-manager-row-dark file-manager-document-shell">
+                        <div class="file-manager-document-meta">
+                            Source: <span>${escapeHTML(staticDoc.source)}</span>
+                        </div>
+                        <article class="file-manager-markdown">
+                            ${renderFileManagerMarkdown(markdown)}
+                        </article>
+                    </div>
+                `;
+            } catch (err) {
+                container.innerHTML = `
+                    <div class="file-manager-header">
+                        <button class="file-manager-back-btn" onclick="window.openFolderInManager('${terminalId}', '${folderName}')">${fileManagerUiIcons.back} Wr\u00f3\u0107</button>
+                        <span class="file-manager-folder-title">${fileManagerUiIcons.file} ${escapeHTML(staticDoc.name)}</span>
+                    </div>
+                    <div class="file-manager-row file-manager-row-dark" style="display:block;">
+                        <h3>Nie udalo sie wczytac dokumentu</h3>
+                        <p>${escapeHTML(err.message || 'Nieznany blad')}</p>
+                        <p>Source: <b>${escapeHTML(staticDoc.source)}</b></p>
+                    </div>
+                `;
+            }
+            return;
+        }
         const fileList = files[folderName] || [];
         const fileEntry = fileList.find(item => {
             const itemName = typeof item === "string" ? item : String(item.name || item.filename || "");

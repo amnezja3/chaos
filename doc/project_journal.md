@@ -6816,3 +6816,29 @@ Dostosowano terminal systemowy do poziomu CHAOS:
 
 Temat terminala systemowego zamkniety na obecny etap. Terminal jest teraz
 narzedziem gameplayowym, a nie tylko launcherem aplikacji.
+
+---
+
+## 09.07.2026
+
+### Etap
+
+ABOUT CHAOS - opis gry w File Managerze.
+
+### Implementacja
+
+Podpieto opis gry jako aktualizowalny dokument czytany bezposrednio z pliku:
+
+* dodano statyczny plik `static/files/about/chaos.ptk`,
+* File Manager pokazuje katalog `/about`,
+* katalog `/about` zawiera dokument `chaos.ptk`,
+* dokument jest ladowany z pliku przez frontend,
+* zawartosc Markdown renderuje sie w grze jako naglowki, listy, pogrubienia i
+  bloki kodu,
+* backend pozostal bez zmian.
+
+### Status
+
+Opis CHAOS moze byc aktualizowany przez podmiane pliku
+`static/files/about/chaos.ptk`. Po odswiezeniu gry File Manager renderuje nowa
+wersje dokumentu.

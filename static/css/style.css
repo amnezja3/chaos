@@ -3189,6 +3189,87 @@ form button:hover {
 .file-manager-preview li {
     overflow-wrap: anywhere;
 }
+.file-manager-document-shell {
+    display: block;
+    padding: 18px;
+    border-color: rgba(56, 255, 128, 0.42);
+    background:
+        linear-gradient(180deg, rgba(4, 28, 13, 0.86), rgba(1, 7, 4, 0.94)),
+        #020802;
+}
+.file-manager-document-meta {
+    color: #6fbf89;
+    font-size: 0.72rem;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(56, 255, 128, 0.22);
+    overflow-wrap: anywhere;
+}
+.file-manager-document-meta span {
+    color: #b8ffd0;
+}
+.file-manager-markdown {
+    color: #d8ffe0;
+    line-height: 1.58;
+    max-width: 900px;
+}
+.file-manager-markdown h2,
+.file-manager-markdown h3,
+.file-manager-markdown h4,
+.file-manager-markdown h5 {
+    color: #38ff80;
+    margin: 20px 0 8px;
+    line-height: 1.2;
+    letter-spacing: 0;
+}
+.file-manager-markdown h2 {
+    font-size: 1.42rem;
+    border-bottom: 1px solid rgba(56, 255, 128, 0.45);
+    padding-bottom: 8px;
+}
+.file-manager-markdown h3 {
+    font-size: 1.08rem;
+}
+.file-manager-markdown h4,
+.file-manager-markdown h5 {
+    font-size: 0.95rem;
+}
+.file-manager-markdown p {
+    margin: 0 0 12px;
+    overflow-wrap: anywhere;
+}
+.file-manager-markdown strong {
+    color: #ffffff;
+    font-weight: 700;
+}
+.file-manager-markdown ul {
+    margin: 0 0 14px 18px;
+    padding: 0;
+}
+.file-manager-markdown li {
+    margin: 4px 0;
+    padding-left: 2px;
+    overflow-wrap: anywhere;
+}
+.file-manager-markdown code {
+    color: #f4df7b;
+    background: rgba(244, 223, 123, 0.1);
+    border: 1px solid rgba(244, 223, 123, 0.18);
+    padding: 1px 4px;
+}
+.file-manager-markdown pre {
+    overflow-x: auto;
+    border: 1px solid rgba(56, 255, 128, 0.26);
+    background: rgba(0, 0, 0, 0.36);
+    padding: 10px;
+    margin: 10px 0 14px;
+}
+.file-manager-markdown pre code {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    white-space: pre;
+}
 .file-manager-uninstall-btn {
     margin-left: 6px;
     background: linear-gradient(90deg, #1f1f1f 20%, #313131 100%);
