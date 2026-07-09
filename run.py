@@ -9410,10 +9410,13 @@ def command():
     profile = sync_session_profile()
     user_apps = profile.get('apps', [])
 
-    result = interpret_command(user_input, user_apps)
+    result = interpret_command(user_input, profile)
 
     if result.get("logout"):
         return jsonify({"logout": True, "response": "Wylogowywanie..."})
+
+    if result.get("clear"):
+        return jsonify({"clear": True})
 
     if result.get("confirm_userdel"):
         username_to_delete = result["confirm_userdel"]

@@ -1110,6 +1110,12 @@ function attachTerminalInputHandler(input, content) {
 
             const data = await res.json();
 
+            if (data.clear) {
+                content.innerHTML = '';
+                appendTerminalPrompt(content);
+                return;
+            }
+
             if (data.confirm) {
                 content.pendingConfirm = data.confirm;
                 content.innerHTML += `<br>${escapeHTML(data.confirm.prompt)}`;
@@ -1256,6 +1262,11 @@ function attachSystemTerminalInputHandler(input, content) {
                 body: JSON.stringify({ input: value })
             });
             const data = await res.json();
+
+            if (data.clear) {
+                content.innerHTML = '';
+                return;
+            }
 
             if (data.confirm) {
                 content.pendingConfirm = data.confirm;
@@ -2314,6 +2325,13 @@ function createTerminal() {
     const content = term.querySelector(`#${terminalId}-content`);
     const input = term.querySelector(`#${terminalId}-input`);
     setTimeout(() => input.focus(), 10);
+
+    term.addEventListener('pointerdown', (event) => {
+        if (event.target.closest('.close-btn, input, button, a, select, textarea')) return;
+        const selection = window.getSelection?.();
+        if (selection && selection.type === "Range") return;
+        window.requestAnimationFrame(() => input.focus());
+    });
 
     attachSystemTerminalInputHandler(input, content);
     setupSystemTerminalKeyboardGuard(term);
