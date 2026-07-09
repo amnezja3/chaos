@@ -5,6 +5,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
     const state = {
         basePath: RADIO_BASE_PATH,
         defaultChannel: DEFAULT_RADIO_CHANNEL,
+        channels: [],
         channel: null,
         playlist: [],
         currentIndex: 0,
@@ -48,6 +49,10 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
 
     function radioManifestUrl(channelId) {
         return `/api/radio/channel/${encodeURIComponent(String(channelId || state.defaultChannel))}`;
+    }
+
+    function radioChannelsUrl() {
+        return "/api/radio/channels";
     }
 
     function currentTrack() {
@@ -99,8 +104,9 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         }
         if (state.elements.playButton) state.elements.playButton.disabled = !track || isPlaying;
         if (state.elements.pauseButton) state.elements.pauseButton.disabled = !track || !isPlaying;
-        if (state.elements.nextButton) state.elements.nextButton.disabled = true;
-        if (state.elements.previousButton) state.elements.previousButton.disabled = true;
+        const hasChannelSwitch = state.channels.length > 1;
+        if (state.elements.nextButton) state.elements.nextButton.disabled = !hasChannelSwitch;
+        if (state.elements.previousButton) state.elements.previousButton.disabled = !hasChannelSwitch;
         updateVolumeView();
     }
 
@@ -113,6 +119,9 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         if (state.elements.channelName) state.elements.channelName.textContent = channelName;
         if (state.elements.trackTitle) state.elements.trackTitle.textContent = trackTitle;
         if (state.elements.trackCount) state.elements.trackCount.textContent = position;
+        if (state.elements.sourcePath) {
+            state.elements.sourcePath.textContent = `${channelPath(state.channelId || state.defaultChannel)}/`;
+        }
         updatePlaybackView();
     }
 
@@ -232,7 +241,8 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             previousButton: root.querySelector("[data-radio-action='previous']"),
             muteButton: root.querySelector("[data-radio-action='mute']"),
             volumeInput: root.querySelector("[data-radio-volume]"),
-            volumeValue: root.querySelector("[data-radio-volume-value]")
+            volumeValue: root.querySelector("[data-radio-volume-value]"),
+            sourcePath: root.querySelector("[data-radio-source]")
         };
 
         if (state.elements.playButton) state.elements.playButton.addEventListener("click", () => GhostRadio.play());
@@ -248,6 +258,30 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
     }
 
     const GhostRadio = {
+        async loadChannels() {
+            try {
+                const response = await fetch(radioChannelsUrl(), { cache: "no-store" });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const payload = await response.json();
+                const channels = Array.isArray(payload.channels) ? payload.channels : [];
+                state.channels = channels
+                    .filter(channel => channel && channel.id)
+                    .map(channel => ({
+                        ...channel,
+                        id: String(channel.id)
+                    }));
+                if (payload.default_channel) {
+                    state.defaultChannel = String(payload.default_channel);
+                }
+            } catch (error) {
+                state.channels = [{ id: state.defaultChannel, name: "Ghost Hack Radio" }];
+            }
+            if (!state.channels.some(channel => channel.id === state.defaultChannel)) {
+                state.channels.unshift({ id: state.defaultChannel, name: "Ghost Hack Radio" });
+            }
+            return state.channels.slice();
+        },
+
         init(root = document) {
             if (!state.audio) {
                 state.audio = new Audio();
@@ -267,7 +301,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
                 syncAudioSettings();
                 return Promise.resolve(state.channel);
             }
-            return this.loadChannel(state.defaultChannel);
+            return this.loadChannels().then(() => this.loadChannel(state.channelId || state.defaultChannel));
         },
 
         async loadChannel(id = state.defaultChannel) {
@@ -428,21 +462,42 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         },
 
         nextChannel() {
-            setStatus("ONE CHANNEL");
-            updatePlaybackView();
-            return false;
+            if (state.channels.length <= 1) {
+                setStatus("ONE CHANNEL");
+                updatePlaybackView();
+                return false;
+            }
+            const current = state.channelId || state.defaultChannel;
+            const index = Math.max(0, state.channels.findIndex(channel => channel.id === current));
+            const next = state.channels[(index + 1) % state.channels.length];
+            const shouldResume = state.isPlaying;
+            return this.loadChannel(next.id).then(() => {
+                if (shouldResume) return this.play();
+                return true;
+            });
         },
 
         previousChannel() {
-            setStatus("ONE CHANNEL");
-            updatePlaybackView();
-            return false;
+            if (state.channels.length <= 1) {
+                setStatus("ONE CHANNEL");
+                updatePlaybackView();
+                return false;
+            }
+            const current = state.channelId || state.defaultChannel;
+            const index = Math.max(0, state.channels.findIndex(channel => channel.id === current));
+            const previous = state.channels[(index - 1 + state.channels.length) % state.channels.length];
+            const shouldResume = state.isPlaying;
+            return this.loadChannel(previous.id).then(() => {
+                if (shouldResume) return this.play();
+                return true;
+            });
         },
 
         getState() {
             return {
                 channel: state.channel,
                 playlist: state.playlist.slice(),
+                channels: state.channels.slice(),
                 currentIndex: state.currentIndex,
                 isPlaying: state.isPlaying,
                 volume: state.volume,
@@ -510,7 +565,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
                     <input type="range" min="0" max="100" value="80" step="1" data-radio-volume>
                     <b data-radio-volume-value>80%</b>
                 </label>
-                <p class="ghost-radio-note"><span>MP3</span><code>/static/mp3/radio/channel/${escapeRadioHTML(DEFAULT_RADIO_CHANNEL)}/</code></p>
+                <p class="ghost-radio-note"><span>MP3</span><code data-radio-source>/static/mp3/radio/channel/${escapeRadioHTML(DEFAULT_RADIO_CHANNEL)}/</code></p>
             </div>
         `;
         document.body.appendChild(term);

@@ -12314,6 +12314,55 @@ def radio_channel_manifest(channel_id):
     })
 
 
+@app.route("/api/radio/channels")
+def radio_channels_manifest():
+    radio_root = os.path.abspath(os.path.join(app.static_folder, "mp3", "radio", "channel"))
+    channels = []
+
+    try:
+        channel_ids = sorted(
+            name for name in os.listdir(radio_root)
+            if re.match(r"^[a-zA-Z0-9_\-]+$", name)
+            and os.path.isdir(os.path.join(radio_root, name))
+        )
+    except OSError:
+        return jsonify({"success": False, "message": "Nie udalo sie odczytac katalogu radia."}), 500
+
+    for channel_id in channel_ids:
+        meta_path = os.path.join(radio_root, channel_id, "meta.channel")
+        if not os.path.isfile(meta_path):
+            continue
+        try:
+            with open(meta_path, "r", encoding="utf-8") as handle:
+                channel = json.load(handle)
+        except (OSError, json.JSONDecodeError):
+            continue
+        try:
+            schema = int(channel.get("schema") or 0)
+        except (TypeError, ValueError):
+            schema = 0
+        if schema != 1:
+            continue
+        channels.append({
+            "id": channel.get("id") or channel_id,
+            "name": channel.get("name") or channel_id,
+            "slug": channel.get("slug") or channel_id,
+            "description": channel.get("description") or "",
+            "source": channel.get("source") or "unknown",
+            "autoplay": channel.get("autoplay", True),
+            "loop": channel.get("loop", True),
+            "mode": channel.get("mode") or "ordered",
+            "sort": channel.get("sort") or "name",
+        })
+
+    return jsonify({
+        "success": True,
+        "channels": channels,
+        "default_channel": "ghost_streem_1",
+        "count": len(channels),
+    })
+
+
 @app.route("/api/ghostlab/projects")
 def ghostlab_projects():
     if "user" not in session:

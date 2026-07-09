@@ -1,9 +1,9 @@
 {
-  "schema": 2,
+  "schema": 1,
   "id": "blacknet_radio_2",
-  "name": "Rozmowy z cyfrowego podziemia",
+  "name": "BlackNet Radio",
   "slug": "blacknet-radio-2",
-  "description": "Audycje dla operatorów CHAOS.",
+  "description": "Rozmowy z cyfrowego podziemia. Audycje dla operatorow CHAOS.",
   "source": "blacknet_radio",
   "autoplay": true,
   "loop": true,
