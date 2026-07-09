@@ -1182,6 +1182,128 @@ function appendTerminalPrompt(content) {
     content.scrollTop = content.scrollHeight;
 }
 
+function appendSystemTerminalCommand(content, value) {
+    const line = document.createElement('div');
+    line.className = 'terminal-line system-terminal-entry system-terminal-entry-command';
+    line.innerHTML = `
+        <span class="terminal-label">user@hostname:~$</span>
+        <span class="system-terminal-command-text"></span>
+    `;
+    line.querySelector('.system-terminal-command-text').textContent = value;
+    content.appendChild(line);
+    content.scrollTop = content.scrollHeight;
+}
+
+function appendSystemTerminalOutput(content, html, className = "") {
+    const line = document.createElement('div');
+    line.className = `system-terminal-output ${className}`.trim();
+    line.innerHTML = html;
+    content.appendChild(line);
+    content.scrollTop = content.scrollHeight;
+}
+
+function attachSystemTerminalInputHandler(input, content) {
+    const form = input.closest('.system-terminal-composer');
+    if (!form || form.dataset.systemTerminalBound === "1") return;
+    form.dataset.systemTerminalBound = "1";
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const value = input.value.trim();
+        if (!value) return;
+
+        appendSystemTerminalCommand(content, value);
+        input.value = '';
+        input.disabled = true;
+
+        try {
+            if (content.pendingConfirm) {
+                const answer = value.toLowerCase();
+                const pending = content.pendingConfirm;
+
+                if (!["y", "yes", "n", "no"].includes(answer)) {
+                    appendSystemTerminalOutput(content, "Wpisz Y albo N.");
+                    return;
+                }
+
+                content.pendingConfirm = null;
+
+                if (answer === "n" || answer === "no") {
+                    appendSystemTerminalOutput(content, "Anulowano.");
+                    return;
+                }
+
+                if (pending.action === "userdel") {
+                    const deleteRes = await fetch('/api/users/delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: pending.username })
+                    });
+                    const deleteData = await deleteRes.json();
+                    appendSystemTerminalOutput(content, escapeHTML(deleteData.message || "Operacja zakonczona."));
+                    if (deleteData.logout) {
+                        setTimeout(() => {
+                            window.location.href = deleteData.redirect || '/';
+                        }, 500);
+                    }
+                    return;
+                }
+            }
+
+            const res = await fetch('/command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ input: value })
+            });
+            const data = await res.json();
+
+            if (data.confirm) {
+                content.pendingConfirm = data.confirm;
+                appendSystemTerminalOutput(content, escapeHTML(data.confirm.prompt));
+                return;
+            }
+
+            if (data.response) {
+                appendSystemTerminalOutput(content, data.response.replace(/\n/g, "<br>"));
+            }
+
+            if (data.logout) {
+                setTimeout(() => {
+                    window.location.href = '/logout';
+                }, 350);
+                return;
+            }
+
+            if (data.runApp && data.applicationEffect) {
+                const app = data.applicationEffect;
+                const consoleEffect = data.consoleEffect || '';
+                const id = app.id;
+                const levels = app.levels;
+                const type = app.interface;
+
+                if (consoleEffect) {
+                    appendSystemTerminalOutput(content, consoleEffect.replace(/\n/g, "<br>"), "system-terminal-console-effect");
+                }
+
+                if (!runSystemLauncherApp(app)) {
+                    if (type === "window") app_window(id, levels);
+                    if (type === "progressbar_random") app_progressbar_random(id, levels);
+                    if (type === "terminal") app_terminal(id, levels);
+                    if (type === "button_choices") app_button_choices(id, levels);
+                }
+            }
+        } catch (err) {
+            appendSystemTerminalOutput(content, '<span style="color:red;">Blad komunikacji z serwerem</span>');
+        } finally {
+            input.disabled = false;
+            window.requestAnimationFrame(() => {
+                input.focus();
+                content.scrollTop = content.scrollHeight;
+            });
+        }
+    });
+}
+
 function setupSystemTerminalKeyboardGuard(term) {
     if (!term || term.dataset.keyboardGuardBound === "1") return;
     term.dataset.keyboardGuardBound = "1";
@@ -1194,7 +1316,7 @@ function setupSystemTerminalKeyboardGuard(term) {
         term.style.setProperty('--terminal-keyboard-offset', `${Math.round(offset)}px`);
 
         const content = term.querySelector('.content');
-        const input = term.querySelector('.terminal-input');
+        const input = term.querySelector('.system-terminal-input');
         if (content && input && document.activeElement === input) {
             window.requestAnimationFrame(() => {
                 content.scrollTop = content.scrollHeight;
@@ -2172,11 +2294,16 @@ function createTerminal() {
         <div class="title-bar">Terminal <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="terminal-body">
             <div class="content" id="${terminalId}-content">
-                <div class="terminal-line">
-                    <label class="terminal-label">user@hostname:~$</label>
-                    <input type="text" class="terminal-input" autocomplete="off" />
+                <div class="system-terminal-boot-log">
+                    <div>CHAOS Terminal Runtime [v7.09]</div>
+                    <div>Copyright Ghost System operators. All routes monitored.</div>
+                    <div>Profile loaded. Type <b>help</b> to list commands.</div>
                 </div>
             </div>
+            <form class="system-terminal-composer">
+                <label class="terminal-label" for="${terminalId}-input">user@hostname:~$</label>
+                <input id="${terminalId}-input" type="text" class="terminal-input system-terminal-input" autocomplete="off" autocapitalize="off" spellcheck="false" />
+            </form>
         </div>
     `;
     document.body.appendChild(term);
@@ -2185,10 +2312,10 @@ function createTerminal() {
     term.querySelector('.close-btn').addEventListener('click', () => term.remove());
 
     const content = term.querySelector(`#${terminalId}-content`);
-    const input = content.querySelector('input');
+    const input = term.querySelector(`#${terminalId}-input`);
     setTimeout(() => input.focus(), 10);
 
-    attachTerminalInputHandler(input, content);
+    attachSystemTerminalInputHandler(input, content);
     setupSystemTerminalKeyboardGuard(term);
 }
 
