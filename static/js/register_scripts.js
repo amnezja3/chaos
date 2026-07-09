@@ -113,7 +113,7 @@ function renderStoryPanel(step) {
   return `
     <section class="onboarding-story">
       <div class="story-image-wrap">
-        <img id="prelog-image" src="${content.image}" alt="">
+        <img id="prelog-image" src="${content.image}" alt="" loading="eager">
       </div>
       <div class="story-copy">
         <div class="story-kicker">ghost_init / ${String(step + 1).padStart(2, "0")}</div>
