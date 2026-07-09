@@ -363,21 +363,23 @@ body {
 }
 
 .app-terminal-line {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  display: block;
   padding: 4px 0;
   font-family: monospace;
   line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .app-terminal-prompt {
-  flex: 0 0 auto;
+  display: inline;
   color: #65ff78;
-  white-space: nowrap;
+  white-space: normal;
+  margin-right: 5px;
 }
 
 .app-terminal-command {
+  display: inline;
   min-width: 0;
   color: #0f0;
   overflow-wrap: anywhere;
