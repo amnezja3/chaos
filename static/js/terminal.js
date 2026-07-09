@@ -22,6 +22,10 @@ const STATE_DELTA_POLL_INTERVAL_MS = 4000;
 const STATE_DELTA_LIMIT = 100;
 const STATE_DELTA_DEFAULT_RECOVERY_SCOPES = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map"];
 const CYBERNER_THREAD_REFRESH_INTERVAL_MS = 10000;
+const DESKTOP_WALLPAPER_CLASSES = [
+    "wall-1", "wall-2", "wall-3",
+    "wall-chaos-green", "wall-chaos-blue", "wall-chaos-red", "wall-chaos-amber", "wall-chaos-violet"
+];
 
 const bootLoader = {
     overlay: document.getElementById('boot-preloader'),
@@ -358,7 +362,7 @@ function applyDesktopSettings(settings = {}) {
         wallpaper: settings.wallpaper || "",
         icon_positions: settings.icon_positions || {}
     };
-    document.body.classList.remove('wall-1', 'wall-2', 'wall-3');
+    document.body.classList.remove(...DESKTOP_WALLPAPER_CLASSES);
     if (desktopSettings.wallpaper) {
         document.body.classList.add(desktopSettings.wallpaper);
     }
@@ -409,6 +413,49 @@ function saveDesktopSettings(partial = {}) {
         saveDesktopSettingsNow();
     }, 350);
 }
+
+function isGhostRadioAutoplayEnabled() {
+    try {
+        return window.localStorage?.getItem("ghost_radio_autoplay") !== "0";
+    } catch (err) {
+        return true;
+    }
+}
+
+function setGhostRadioAutoplayEnabled(enabled) {
+    try {
+        window.localStorage?.setItem("ghost_radio_autoplay", enabled ? "1" : "0");
+    } catch (err) {
+        console.warn("Nie udalo sie zapisac ustawienia radia:", err);
+    }
+}
+
+function isAutoFullscreenEnabled() {
+    try {
+        return window.localStorage?.getItem("chaos_auto_fullscreen") === "1";
+    } catch (err) {
+        return false;
+    }
+}
+
+function setAutoFullscreenEnabled(enabled) {
+    try {
+        window.localStorage?.setItem("chaos_auto_fullscreen", enabled ? "1" : "0");
+    } catch (err) {
+        console.warn("Nie udalo sie zapisac ustawienia fullscreen:", err);
+    }
+}
+
+function requestChaosFullscreen() {
+    if (!isAutoFullscreenEnabled() || document.fullscreenElement) return;
+    const root = document.documentElement;
+    if (!root || typeof root.requestFullscreen !== "function") return;
+    root.requestFullscreen().catch(() => {});
+}
+
+["pointerdown", "keydown", "touchstart"].forEach(eventName => {
+    window.addEventListener(eventName, requestChaosFullscreen, { once: false, passive: true });
+});
 
 window.addEventListener('beforeunload', () => {
     if (!desktop || !desktopSessionActive) return;
@@ -3850,47 +3897,194 @@ async function refreshDesktop(closeWindows = true) {
 
 
 function createSettings() {
-    if (document.querySelector(`.terminal[data-app="settings"]`)) return;
+    const existing = document.querySelector(`.terminal[data-app="settings"]`);
+    if (existing) {
+        bringWindowToFront(existing);
+        return;
+    }
     const term = document.createElement('div');
     term.className = 'terminal';
     term.dataset.app = "settings";
     const position = findAvailablePosition();
     term.style.top = `${position.top}px`;
     term.style.left = `${position.left}px`;
-    term.style.width = `400px`;
-    term.style.height = `300px`;
+    term.style.width = `560px`;
+    term.style.height = `620px`;
+    term.style.maxWidth = `calc(100vw - 24px)`;
+    term.style.maxHeight = `calc(100vh - 24px)`;
     term.style.display = 'flex';
     term.style.flexDirection = 'column';
 
-    const terminalId = `settings-${Date.now()}`;
+    const wallpaperOptions = [
+        { id: "wall-chaos-green", label: "Toxic Green", color: "#26ff6a" },
+        { id: "wall-chaos-blue", label: "Blue Grid", color: "#35d7ff" },
+        { id: "wall-chaos-red", label: "Red Alert", color: "#ff3b57" },
+        { id: "wall-chaos-amber", label: "Amber Net", color: "#ffd34d" },
+        { id: "wall-chaos-violet", label: "Violet Trace", color: "#b56cff" },
+        { id: "wall-1", label: "Obraz 1", color: "#7dff3c" },
+        { id: "wall-2", label: "Obraz 2", color: "#59d6ff" },
+        { id: "wall-3", label: "Obraz 3", color: "#d18cff" },
+    ];
+    const currentWallpaper = desktopSettings.wallpaper || "";
 
     term.innerHTML = `
         <div class="title-bar">
             Ustawienia
             <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
-        <div style="padding: 10px; background: #111; color: #0f0; flex:1;">
-            <h3>Tapeta</h3>
-            <button class="wall-btn" data-wall="wall-1">🌅 Tapeta 1</button>
-            <button class="wall-btn" data-wall="wall-2">🏙️ Tapeta 2</button>
-            <button class="wall-btn" data-wall="wall-3">🌌 Tapeta 3</button>
+        <div class="settings-shell">
+            <div class="settings-status" data-settings-status></div>
+
+            <section class="settings-section">
+                <div class="settings-section__header">
+                    <h3>Ekran</h3>
+                    <span>Tapeta pulpitu</span>
+                </div>
+                <div class="settings-wallpaper-grid">
+                    <button type="button" class="settings-wallpaper is-none ${currentWallpaper ? '' : 'is-active'}" data-wall="">
+                        <span class="settings-wallpaper__swatch"></span>
+                        <b>Brak</b>
+                    </button>
+                    ${wallpaperOptions.map(option => `
+                        <button type="button" class="settings-wallpaper ${currentWallpaper === option.id ? 'is-active' : ''}" data-wall="${escapeHTML(option.id)}">
+                            <span class="settings-wallpaper__swatch" style="--wall-color:${escapeHTML(option.color)}"></span>
+                            <b>${escapeHTML(option.label)}</b>
+                        </button>
+                    `).join("")}
+                </div>
+            </section>
+
+            <section class="settings-section">
+                <div class="settings-section__header">
+                    <h3>Konto</h3>
+                    <span>Haslo i adres e-mail</span>
+                </div>
+                <form class="settings-form" data-settings-password-form>
+                    <label>
+                        <span>Aktualne haslo</span>
+                        <input type="password" autocomplete="current-password" data-current-password>
+                    </label>
+                    <label>
+                        <span>Nowe haslo</span>
+                        <input type="password" autocomplete="new-password" data-new-password placeholder="min. 8 znakow, litera i cyfra">
+                    </label>
+                    <button type="submit">Zmien haslo</button>
+                </form>
+                <form class="settings-form" data-settings-email-form>
+                    <label>
+                        <span>Adres e-mail</span>
+                        <input type="email" autocomplete="email" data-settings-email placeholder="operator@chaos.net">
+                    </label>
+                    <button type="submit">Zapisz e-mail</button>
+                </form>
+            </section>
+
+            <section class="settings-section">
+                <div class="settings-section__header">
+                    <h3>Radio</h3>
+                    <span>Ghost Hack Radio</span>
+                </div>
+                <label class="settings-toggle">
+                    <input type="checkbox" data-settings-radio-autoplay ${isGhostRadioAutoplayEnabled() ? 'checked' : ''}>
+                    <span>Autostart radia po pierwszej interakcji</span>
+                </label>
+            </section>
+
+            <section class="settings-section">
+                <div class="settings-section__header">
+                    <h3>Tryb ekranu</h3>
+                    <span>Runtime gry</span>
+                </div>
+                <label class="settings-toggle">
+                    <input type="checkbox" data-settings-auto-fullscreen ${isAutoFullscreenEnabled() ? 'checked' : ''}>
+                    <span>Auto fullscreen po kliknieciu/tapnieciu w gre</span>
+                </label>
+            </section>
         </div>
     `;
 
     document.body.appendChild(term);
     makeDraggable(term);
     term.querySelector('.close-btn').addEventListener('click', () => term.remove());
+    bringWindowToFront(term);
 
-    // Obsługa zmiany tapety
-    term.querySelectorAll('.wall-btn').forEach(btn => {
+    const status = term.querySelector('[data-settings-status]');
+    const setStatus = (message, type = "") => {
+        if (!status) return;
+        status.textContent = message || "";
+        status.className = `settings-status ${type ? `is-${type}` : ''}`;
+    };
+
+    term.querySelectorAll('[data-wall]').forEach(btn => {
         btn.addEventListener('click', () => {
-            const wall = btn.dataset.wall;
+            const wall = btn.dataset.wall || "";
             applyDesktopSettings({
                 ...desktopSettings,
                 wallpaper: wall
             });
-            saveDesktopSettings({ wallpaper: wall });
+            saveDesktopSettingsNow({ wallpaper: wall });
+            term.querySelectorAll('[data-wall]').forEach(item => item.classList.toggle('is-active', item === btn));
+            setStatus("Tapeta zapisana.", "success");
         });
+    });
+
+    term.querySelector('[data-settings-radio-autoplay]')?.addEventListener('change', event => {
+        setGhostRadioAutoplayEnabled(event.target.checked);
+        setStatus(event.target.checked ? "Autostart radia wlaczony." : "Autostart radia wylaczony.", "success");
+    });
+
+    term.querySelector('[data-settings-auto-fullscreen]')?.addEventListener('change', event => {
+        setAutoFullscreenEnabled(event.target.checked);
+        setStatus(event.target.checked ? "Auto fullscreen wlaczony. Kliknij w gre, aby aktywowac." : "Auto fullscreen wylaczony.", "success");
+        if (event.target.checked) requestChaosFullscreen();
+    });
+
+    term.querySelector('[data-settings-password-form]')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        const currentPassword = term.querySelector('[data-current-password]')?.value || "";
+        const newPassword = term.querySelector('[data-new-password]')?.value || "";
+        setStatus("Zapisuje haslo...", "loading");
+        try {
+            const res = await fetch('/api/profile/account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword
+                })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.success === false) throw new Error(data.error || "Nie udalo sie zmienic hasla.");
+            term.querySelector('[data-current-password]').value = "";
+            term.querySelector('[data-new-password]').value = "";
+            setStatus("Haslo zmienione.", "success");
+        } catch (err) {
+            setStatus(err.message || "Nie udalo sie zmienic hasla.", "error");
+        }
+    });
+
+    term.querySelector('[data-settings-email-form]')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        const email = term.querySelector('[data-settings-email]')?.value || "";
+        setStatus("Zapisuje e-mail...", "loading");
+        try {
+            const res = await fetch('/api/profile/account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.success === false) throw new Error(data.error || "Nie udalo sie zapisac e-maila.");
+            setStatus("E-mail zapisany.", "success");
+        } catch (err) {
+            setStatus(err.message || "Nie udalo sie zapisac e-maila.", "error");
+        }
+    });
+
+    getUserProfile().then(profile => {
+        if (!profile) return;
+        const input = term.querySelector('[data-settings-email]');
+        if (input) input.value = profile.email || "";
     });
 }
 

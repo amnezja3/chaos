@@ -1294,6 +1294,184 @@ body.wall-3 {
     background: url('/static/images/wallpaper3.jpg') no-repeat center center fixed;
     background-size: cover;
 }
+
+body.wall-chaos-green {
+    background:
+        radial-gradient(circle at 78% 18%, rgba(38, 255, 106, 0.20), transparent 30%),
+        linear-gradient(135deg, #020503 0%, #06190b 48%, #010201 100%);
+}
+
+body.wall-chaos-blue {
+    background:
+        radial-gradient(circle at 20% 24%, rgba(53, 215, 255, 0.22), transparent 28%),
+        linear-gradient(135deg, #020507 0%, #071728 55%, #010204 100%);
+}
+
+body.wall-chaos-red {
+    background:
+        radial-gradient(circle at 80% 72%, rgba(255, 59, 87, 0.24), transparent 30%),
+        linear-gradient(135deg, #070202 0%, #28060a 58%, #030101 100%);
+}
+
+body.wall-chaos-amber {
+    background:
+        radial-gradient(circle at 74% 22%, rgba(255, 211, 77, 0.20), transparent 30%),
+        linear-gradient(135deg, #050402 0%, #211806 54%, #020201 100%);
+}
+
+body.wall-chaos-violet {
+    background:
+        radial-gradient(circle at 28% 18%, rgba(181, 108, 255, 0.22), transparent 32%),
+        linear-gradient(135deg, #040205 0%, #170a28 55%, #010102 100%);
+}
+
+.settings-shell {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  background: #050805;
+  color: #9cff9c;
+  font-family: monospace;
+}
+
+.settings-section {
+  border: 1px solid rgba(38, 255, 106, 0.36);
+  background: rgba(0, 18, 7, 0.58);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.settings-section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(38, 255, 106, 0.2);
+  padding-bottom: 7px;
+}
+
+.settings-section__header h3 {
+  margin: 0;
+  color: #39ff80;
+  font-size: 15px;
+  text-transform: uppercase;
+}
+
+.settings-section__header span {
+  color: #7adf90;
+  font-size: 11px;
+}
+
+.settings-status {
+  min-height: 18px;
+  margin-bottom: 8px;
+  color: #7adf90;
+  font-size: 12px;
+}
+
+.settings-status.is-success {
+  color: #b7ff33;
+}
+
+.settings-status.is-error {
+  color: #ff6b6b;
+}
+
+.settings-status.is-loading {
+  color: #69fff2;
+}
+
+.settings-wallpaper-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-wallpaper {
+  min-height: 62px;
+  border: 1px solid rgba(38, 255, 106, 0.34);
+  background: rgba(0, 0, 0, 0.32);
+  color: #d8ffd8;
+  font-family: monospace;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.settings-wallpaper.is-active {
+  border-color: #b7ff33;
+  box-shadow: 0 0 12px rgba(38, 255, 106, 0.34);
+}
+
+.settings-wallpaper__swatch {
+  display: block;
+  height: 24px;
+  margin-bottom: 5px;
+  background:
+    radial-gradient(circle at 72% 30%, color-mix(in srgb, var(--wall-color, #26ff6a) 65%, transparent), transparent 45%),
+    linear-gradient(135deg, #020503, color-mix(in srgb, var(--wall-color, #26ff6a) 35%, #061006));
+  border-bottom: 1px solid rgba(38, 255, 106, 0.22);
+}
+
+.settings-wallpaper.is-none .settings-wallpaper__swatch {
+  background: repeating-linear-gradient(135deg, #050805 0 8px, #101510 8px 16px);
+}
+
+.settings-form {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.settings-form label {
+  display: grid;
+  gap: 4px;
+  color: #9cff9c;
+  font-size: 11px;
+}
+
+.settings-form input {
+  min-width: 0;
+  border: 1px solid rgba(38, 255, 106, 0.48);
+  background: #020503;
+  color: #d8ffd8;
+  font-family: monospace;
+  padding: 8px;
+}
+
+.settings-form button,
+.settings-toggle {
+  border: 1px solid rgba(38, 255, 106, 0.48);
+  background: rgba(0, 30, 10, 0.42);
+  color: #d8ffd8;
+  font-family: monospace;
+  padding: 8px 10px;
+}
+
+.settings-form button {
+  cursor: pointer;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: #39ff80;
+}
+
+@media (max-width: 640px) {
+  .settings-wallpaper-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .terminal img {
     box-shadow: 0 0 10px #0f0;
 }

@@ -11133,7 +11133,12 @@ def update_profile_desktop():
 
     if "wallpaper" in data:
         wallpaper = str(data.get("wallpaper") or "").strip()
-        if wallpaper not in ["", "wall-1", "wall-2", "wall-3"]:
+        if wallpaper not in [
+            "",
+            "wall-1", "wall-2", "wall-3",
+            "wall-chaos-green", "wall-chaos-blue", "wall-chaos-red",
+            "wall-chaos-amber", "wall-chaos-violet",
+        ]:
             return jsonify({"error": "Nieprawidlowa tapeta."}), 400
         settings["wallpaper"] = wallpaper
 
@@ -11158,6 +11163,64 @@ def update_profile_desktop():
     profile["desktop_settings"] = settings
     session["profile"] = profile
     return jsonify({"success": True, "desktop_settings": settings})
+
+
+@app.route("/api/profile/account", methods=["POST"])
+def update_profile_account():
+    if "user" not in session:
+        return jsonify({"error": "Brak danych uzytkownika"}), 401
+
+    data = request.get_json(silent=True) or {}
+    username = session["user"]
+    profile = user_store.get_profile(username)
+    if not profile:
+        session.clear()
+        return jsonify({"error": "Brak danych uzytkownika"}), 401
+
+    updates = {}
+
+    if "email" in data:
+        email, email_error = validate_registration_email(data.get("email"))
+        if email_error:
+            return jsonify({"success": False, "error": email_error}), 400
+        useremails = {
+            str(item.get("email", "")).strip().lower()
+            for item in user_store.list_profiles()
+            if str(item.get("username") or "") != username
+        }
+        if email in useremails:
+            return jsonify({"success": False, "error": "Ten adres e-mail jest juz zarejestrowany."}), 409
+        profile["email"] = email
+        updates["email"] = email
+
+    if "new_password" in data:
+        current_password = str(data.get("current_password") or "")
+        new_password = str(data.get("new_password") or "")
+        password_error = validate_registration_password(new_password)
+        if password_error:
+            return jsonify({"success": False, "error": password_error}), 400
+        if not authenticate_user(username, current_password):
+            return jsonify({"success": False, "error": "Aktualne haslo jest nieprawidlowe."}), 403
+        profile["password"] = new_password
+        profile.pop("salt", None)
+        updates["password_changed"] = True
+
+    if not updates:
+        return jsonify({"success": False, "error": "Brak zmian do zapisania."}), 400
+
+    user_store.save_profile(profile)
+    profile = user_store.get_profile(username) or profile
+    profile.pop("password", None)
+    profile.pop("salt", None)
+    session["profile"] = profile
+
+    return jsonify({
+        "success": True,
+        "profile": {
+            "email": profile.get("email", ""),
+        },
+        **updates,
+    })
 
 
 @app.route("/api/wallet")
