@@ -584,7 +584,7 @@
       right: 12px;
       width: min(340px, calc(100vw - 24px));
       max-height: min(48vh, 420px);
-      overflow: auto;
+      overflow: hidden;
       z-index: 9500;
       border: 1px solid rgba(60, 255, 120, 0.76);
       border-radius: 6px;
@@ -593,6 +593,23 @@
       font-family: monospace;
       box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
       backdrop-filter: blur(3px);
+    }
+
+    .active-operations-panel.is-minimized {
+      max-height: 38px;
+    }
+
+    .active-operations-panel.is-minimized .active-operations-panel__tabs,
+    .active-operations-panel.is-minimized .active-operations-panel__body {
+      display: none;
+    }
+
+    .active-operations-panel.is-expanded {
+      top: 12px;
+      bottom: 12px;
+      max-height: none;
+      display: flex;
+      flex-direction: column;
     }
 
     .active-operations-panel.is-empty {
@@ -611,6 +628,8 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.5px;
+      cursor: pointer;
+      user-select: none;
     }
 
     .active-operations-panel__title {
@@ -623,6 +642,7 @@
       color: #c8ffd2;
       font-size: 10px;
       font-weight: 400;
+      white-space: nowrap;
     }
 
     .active-operations-panel__tabs {
@@ -643,6 +663,8 @@
       padding: 6px 8px;
       text-align: center;
       text-transform: uppercase;
+      cursor: pointer;
+      user-select: none;
     }
 
     .active-operations-panel__tab.is-active {
@@ -656,6 +678,12 @@
       padding: 8px;
       display: grid;
       gap: 7px;
+      overflow: auto;
+      min-height: 0;
+    }
+
+    .active-operations-panel.is-expanded .active-operations-panel__body {
+      flex: 1 1 auto;
     }
 
     .active-operation-card {
@@ -722,6 +750,60 @@
     .active-operation-card__risk {
       margin-top: 3px;
       color: #ffd36b;
+    }
+
+    .active-operation-card--history {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 7px;
+    }
+
+    .active-operation-card--history .active-operation-card__icon {
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      font-size: 10px;
+    }
+
+    .active-operation-history__main {
+      min-width: 0;
+    }
+
+    .active-operation-history__type {
+      color: #e8ffe8;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .active-operation-history__meta {
+      color: #8edc9c;
+      font-size: 9px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .active-operation-history__size {
+      color: #69fff2;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .active-operation-card--history.status-timeout {
+      border-color: rgba(255, 211, 107, 0.34);
+    }
+
+    .active-operation-card--history.status-cancelled {
+      border-color: rgba(255, 98, 98, 0.42);
+      opacity: 0.82;
+    }
+
+    .active-operation-card--history.status-completed {
+      border-color: rgba(94, 255, 139, 0.32);
     }
 
     .active-operation-card__actions {
@@ -871,6 +953,12 @@
         width: min(320px, calc(100vw - 16px));
         max-height: 34vh;
       }
+
+      .active-operations-panel.is-expanded {
+        top: 8px;
+        bottom: 8px;
+        max-height: none;
+      }
     }
 
 
@@ -922,6 +1010,9 @@
         let programmaticMapMove = false;
         window.activeOperationLayers = [];
         window.latestActiveOperations = [];
+        window.latestOperationHistory = [];
+        window.operationCenterState = window.operationCenterState || 'preview';
+        window.operationCenterTab = window.operationCenterTab || 'active';
         window.mapBootState = window.mapBootState || {
             loading: false,
             ready: false,
@@ -3029,6 +3120,102 @@
                 `;
             };
 
+            window.nextOperationCenterState = function(state) {
+                if (state === 'minimized') return 'preview';
+                if (state === 'preview') return 'expanded';
+                return 'minimized';
+            };
+
+            window.operationStatusClass = function(status) {
+                return `status-${String(status || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase() || 'unknown'}`;
+            };
+
+            window.renderOperationHistoryCard = function(operation) {
+                const meta = window.operationMarkerMeta(operation);
+                const label = window.escapeMapText(window.operationLabel(operation));
+                const type = window.escapeMapText(meta.name);
+                const status = window.escapeMapText(operation.status || 'unknown');
+                const icon = window.escapeMapText(meta.icon);
+                const ended = window.escapeMapText(window.formatOperationDate(operation.ended_at || operation.expires_at || operation.started_at));
+                const outputMb = Number(operation.output_mb || operation.market_volume_mb || operation.file_size || 0);
+                const sizeLabel = outputMb > 0 ? `${Math.round(outputMb)} MB` : '-';
+                return `
+                    <div class="active-operation-card active-operation-card--history ${window.operationStatusClass(operation.status)}">
+                        <span class="active-operation-card__icon">${icon}</span>
+                        <span class="active-operation-history__main">
+                            <span class="active-operation-history__type">${type}</span>
+                            <span class="active-operation-history__meta">${status} | ${ended} | ${label}</span>
+                        </span>
+                        <span class="active-operation-history__size">${window.escapeMapText(sizeLabel)}</span>
+                    </div>
+                `;
+            };
+
+            window.renderActiveOperationsPanel = function(operations, history) {
+                const panel = document.getElementById('active-operations-panel');
+                if (!panel) return;
+                const active = operations || [];
+                const operationHistory = history || window.latestOperationHistory || [];
+                const activeTab = window.operationCenterTab === 'history' ? 'history' : 'active';
+                const state = ['minimized', 'preview', 'expanded'].includes(window.operationCenterState)
+                    ? window.operationCenterState
+                    : 'preview';
+                panel.classList.toggle('is-empty', active.length === 0);
+                panel.classList.toggle('is-minimized', state === 'minimized');
+                panel.classList.toggle('is-expanded', state === 'expanded');
+                panel.classList.toggle('is-preview', state === 'preview');
+
+                const cards = active.map(operation => {
+                    const meta = window.operationMarkerMeta(operation);
+                    const label = window.escapeMapText(window.operationLabel(operation));
+                    const type = window.escapeMapText(meta.name);
+                    const status = window.escapeMapText(operation.status || 'unknown');
+                    const started = window.escapeMapText(window.formatOperationDate(operation.started_at));
+                    const expires = window.escapeMapText(window.formatOperationDate(operation.expires_at));
+                    const remaining = window.escapeMapText(window.formatRemainingTime(operation.expires_at));
+                    const risk = window.escapeMapText(window.operationRiskLabel(operation));
+                    const icon = window.escapeMapText(meta.icon);
+                    const operationId = window.escapeMapText(operation.operation_id || '');
+                    return `
+                        <div class="active-operation-card">
+                            <div class="active-operation-card__title">
+                                <span class="active-operation-card__name">
+                                    <span class="active-operation-card__icon">${icon}</span>
+                                    <span>${type}</span>
+                                </span>
+                                <span class="active-operation-card__status">${status}</span>
+                            </div>
+                            <div class="active-operation-card__type">Target: ${label}</div>
+                            <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>
+                            <div class="active-operation-card__remaining">Pozostalo: ${remaining}</div>
+                            <div class="active-operation-card__risk">Ryzyko: ${risk}</div>
+                            ${operationId ? `<div class="active-operation-card__actions"><button type="button" class="active-operation-card__cancel" data-operation-cancel="${operationId}">Anuluj</button></div>` : ''}
+                        </div>
+                    `;
+                }).join('');
+                const historyCards = operationHistory.slice().reverse().map(window.renderOperationHistoryCard).join('');
+                const body = activeTab === 'history'
+                    ? (historyCards || '<div class="active-operation-card"><div class="active-operation-card__meta">Brak zakonczonych operacji.</div></div>')
+                    : (cards || '<div class="active-operation-card"><div class="active-operation-card__meta">Brak aktywnych operacji.</div></div>');
+                const countLabel = activeTab === 'history'
+                    ? `${active.length} / ${operationHistory.length}`
+                    : `${active.length}`;
+
+                panel.innerHTML = `
+                    <div class="active-operations-panel__header" data-operation-center-toggle="1" title="Kliknij, aby zmienic wysokosc panelu">
+                        <span class="active-operations-panel__title">Centrum Operacji</span>
+                        <span class="active-operations-panel__count">${window.escapeMapText(countLabel)}</span>
+                    </div>
+                    <div class="active-operations-panel__tabs">
+                        <button type="button" class="active-operations-panel__tab ${activeTab === 'active' ? 'is-active' : ''}" data-operation-center-tab="active">Aktywne</button>
+                        <button type="button" class="active-operations-panel__tab ${activeTab === 'history' ? 'is-active' : ''}" data-operation-center-tab="history">Historia</button>
+                    </div>
+                    <div class="active-operations-panel__body">
+                        ${body}
+                    </div>
+                `;
+            };
+
             window.clearActiveOperationLayers = function() {
                 (window.activeOperationLayers || []).forEach(layer => {
                     removeMapLayerSafe(layer);
@@ -3168,6 +3355,22 @@
 
             if (!window.activeOperationCancelHandlerBound) {
                 document.addEventListener('click', event => {
+                    const tab = event.target.closest('[data-operation-center-tab]');
+                    if (tab) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        window.operationCenterTab = tab.getAttribute('data-operation-center-tab') === 'history' ? 'history' : 'active';
+                        window.renderActiveOperationsPanel(window.latestActiveOperations || [], window.latestOperationHistory || []);
+                        return;
+                    }
+                    const toggle = event.target.closest('[data-operation-center-toggle]');
+                    if (toggle) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        window.operationCenterState = window.nextOperationCenterState(window.operationCenterState || 'preview');
+                        window.renderActiveOperationsPanel(window.latestActiveOperations || [], window.latestOperationHistory || []);
+                        return;
+                    }
                     const button = event.target.closest('[data-operation-cancel]');
                     if (!button) return;
                     event.preventDefault();
@@ -3356,11 +3559,13 @@
                     if (!res.ok) return false;
                     const data = await res.json();
                     const active = data.active_operations || [];
+                    const history = data.operation_history || [];
                     const keepCenter = map.getCenter();
                     const keepZoom = map.getZoom();
 
                     window.latestActiveOperations = active;
-                    window.renderActiveOperationsPanel(active);
+                    window.latestOperationHistory = history;
+                    window.renderActiveOperationsPanel(active, history);
                     window.renderActiveOperationMarkers(active);
 
                     programmaticMapMove = true;

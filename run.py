@@ -6443,6 +6443,20 @@ def operation_history_from_operations(operations):
     ]
 
 
+def operation_output_size_mb(operation):
+    resource_buffer = operation.get("resource_buffer") if isinstance(operation.get("resource_buffer"), dict) else {}
+    total = 0
+    for item in resource_buffer.get("files", []) or []:
+        if not isinstance(item, dict):
+            continue
+        total += clamp_storage_number(
+            item.get("file_size") or (item.get("metadata") or {}).get("file_size"),
+            default=0,
+            minimum=0,
+        )
+    return total
+
+
 def summarize_operation_for_client(operation):
     target = operation.get("target") if isinstance(operation.get("target"), dict) else {}
     current_position = operation.get("current_position")
@@ -6473,6 +6487,7 @@ def summarize_operation_for_client(operation):
         "ended_at": operation.get("ended_at"),
         "remaining_seconds": operation.get("remaining_seconds"),
         "expired": operation.get("expired"),
+        "output_mb": operation_output_size_mb(operation),
         "current_position": {
             "lat": current_position.get("lat"),
             "lng": current_position.get("lng", current_position.get("lon")),
@@ -10811,6 +10826,7 @@ def api_operations():
     profile = refresh_and_persist_operations(session["user"], profile)
     operations, _ = refresh_operations_runtime(profile, persist_timeouts=False)
     active_operations = active_operations_from_operations(operations)
+    operation_history = operation_history_from_operations(operations)
 
     if summary_mode:
         return jsonify({
@@ -10819,14 +10835,19 @@ def api_operations():
                 summarize_operation_for_client(operation)
                 for operation in active_operations
             ],
+            "operation_history": [
+                summarize_operation_for_client(operation)
+                for operation in operation_history[-25:]
+            ],
             "active_count": len(active_operations),
+            "history_count": len(operation_history),
         })
 
     return jsonify({
         "success": True,
         "operations": operations,
         "active_operations": active_operations,
-        "operation_history": operation_history_from_operations(operations),
+        "operation_history": operation_history,
     })
 
 
