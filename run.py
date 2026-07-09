@@ -9031,21 +9031,65 @@ def index():
 def register_page():
     return render_template("register.html")
 
+
+USERNAME_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{2,23}$")
+EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,}$")
+
+
+def validate_registration_username(username):
+    username = str(username or "").strip()
+    if not USERNAME_RE.match(username):
+        return None, "Login musi miec 3-24 znaki i moze zawierac litery, cyfry, _, . albo -."
+    return username, ""
+
+
+def validate_registration_email(email):
+    email = str(email or "").strip().lower()
+    if len(email) > 254 or not EMAIL_RE.match(email):
+        return None, "Podaj poprawny adres e-mail."
+    return email, ""
+
+
+def validate_registration_password(password):
+    password = str(password or "")
+    if len(password) < 8:
+        return "Haslo musi miec co najmniej 8 znakow."
+    if len(password) > 128:
+        return "Haslo jest zbyt dlugie."
+    if not re.search(r"[A-Za-z]", password):
+        return "Haslo musi zawierac przynajmniej jedna litere."
+    if not re.search(r"\d", password):
+        return "Haslo musi zawierac przynajmniej jedna cyfre."
+    return ""
+
+
+def validate_registration_nick(nick):
+    nick = str(nick or "").strip()
+    if len(nick) < 2 or len(nick) > 32:
+        return None, "Nick musi miec 2-32 znaki."
+    return nick, ""
+
+
 @app.route("/api/register-check", methods=["POST"])
 def register_check_username():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     username = data.get("checking_username")
     type_data = data.get("type_data")
 
-    mgr = UserProfileManager("admin")
-
     if type_data == "user":
-        usernames = {u["username"] for u in mgr.all_users}
-        return jsonify(success=username not in usernames)
+        username, error = validate_registration_username(username)
+        if error:
+            return jsonify(success=False, error=error)
+        exists = user_store.username_exists(username)
+        return jsonify(success=not exists, error="Login jest juz zajety." if exists else "")
 
     elif type_data == "email":
-        useremails = {u["email"] for u in mgr.all_users}
-        return jsonify(success=username not in useremails)
+        email, error = validate_registration_email(username)
+        if error:
+            return jsonify(success=False, error=error)
+        useremails = {str(u.get("email", "")).strip().lower() for u in user_store.list_profiles()}
+        exists = email in useremails
+        return jsonify(success=not exists, error="Ten adres e-mail jest juz zarejestrowany." if exists else "")
 
     return jsonify(success=False)
 
@@ -9053,17 +9097,31 @@ def register_check_username():
 @app.route("/api/register-finalize", methods=["POST"])
 def api_register_finalize():
 
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
 
-    username = data.get("username")
-    password = data.get("password")
+    username, username_error = validate_registration_username(data.get("username"))
+    password = str(data.get("password") or "")
+    password_error = validate_registration_password(password)
     faction = data.get("faction")
     role = data.get("role")
-    nick = data.get("nick")
-    email = data.get("email")
+    nick, nick_error = validate_registration_nick(data.get("nick"))
+    email, email_error = validate_registration_email(data.get("email"))
 
     if not all([username, password, faction, role, nick, email]):
         return jsonify(success=False, error="Brakuje danych."), 400
+    if username_error:
+        return jsonify(success=False, error=username_error), 400
+    if password_error:
+        return jsonify(success=False, error=password_error), 400
+    if nick_error:
+        return jsonify(success=False, error=nick_error), 400
+    if email_error:
+        return jsonify(success=False, error=email_error), 400
+    if user_store.username_exists(username):
+        return jsonify(success=False, error="Login jest juz zajety."), 409
+    useremails = {str(u.get("email", "")).strip().lower() for u in user_store.list_profiles()}
+    if email in useremails:
+        return jsonify(success=False, error="Ten adres e-mail jest juz zarejestrowany."), 409
 
     ip = get_request_ip()
     start_location = get_start_location_by_ip(ip)

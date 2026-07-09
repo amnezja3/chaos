@@ -1,8 +1,11 @@
 import copy
+import hashlib
+import hmac
 from itertools import combinations
 import json
 import math
 import os
+import secrets
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -28,6 +31,57 @@ def loads_json(value, default=None):
         return json.loads(value)
     except json.JSONDecodeError:
         return copy.deepcopy(default)
+
+
+PASSWORD_HASH_PREFIX = "pbkdf2_sha256"
+PASSWORD_HASH_ITERATIONS = 240000
+
+
+def is_password_hash(value):
+    return isinstance(value, str) and value.startswith(f"{PASSWORD_HASH_PREFIX}$")
+
+
+def hash_password(password, salt=None):
+    password = str(password or "")
+    salt = str(salt or secrets.token_hex(16))
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt.encode("utf-8"),
+        PASSWORD_HASH_ITERATIONS,
+    ).hex()
+    return f"{PASSWORD_HASH_PREFIX}${PASSWORD_HASH_ITERATIONS}${salt}${digest}", salt
+
+
+def verify_password(password, stored_password):
+    if not is_password_hash(stored_password):
+        return hmac.compare_digest(str(stored_password or ""), str(password or ""))
+
+    try:
+        prefix, iterations, salt, stored_digest = str(stored_password).split("$", 3)
+        if prefix != PASSWORD_HASH_PREFIX:
+            return False
+        digest = hashlib.pbkdf2_hmac(
+            "sha256",
+            str(password or "").encode("utf-8"),
+            salt.encode("utf-8"),
+            int(iterations),
+        ).hex()
+        return hmac.compare_digest(digest, stored_digest)
+    except (TypeError, ValueError):
+        return False
+
+
+def ensure_password_hash(profile):
+    if not isinstance(profile, dict):
+        return profile
+    password = str(profile.get("password") or "")
+    if not password or is_password_hash(password):
+        return profile
+    hashed_password, salt = hash_password(password)
+    profile["password"] = hashed_password
+    profile["salt"] = salt
+    return profile
 
 
 @contextmanager
@@ -370,6 +424,7 @@ class UserStore:
                 username = profile.get("username")
                 if not username:
                     continue
+                ensure_password_hash(profile)
                 conn.execute(
                     """
                     INSERT OR IGNORE INTO users
@@ -406,6 +461,7 @@ class UserStore:
         if not username:
             raise ValueError("Profile must contain username.")
 
+        ensure_password_hash(profile)
         now = utc_now()
         with db_connect(self.db_path) as conn:
             conn.execute(
@@ -440,10 +496,33 @@ class UserStore:
     def authenticate(self, username, password):
         with db_connect(self.db_path) as conn:
             row = conn.execute(
-                "SELECT password FROM users WHERE username = ?",
+                "SELECT password, profile_json FROM users WHERE username = ?",
                 (username,),
             ).fetchone()
-            return bool(row and row["password"] == password)
+            if not row:
+                return False
+            stored_password = row["password"] or ""
+            if not verify_password(password, stored_password):
+                return False
+            if not is_password_hash(stored_password):
+                profile = loads_json(row["profile_json"], {})
+                profile["password"] = str(password or "")
+                ensure_password_hash(profile)
+                conn.execute(
+                    """
+                    UPDATE users
+                    SET password = ?, salt = ?, profile_json = ?, updated_at = ?
+                    WHERE username = ?
+                    """,
+                    (
+                        profile.get("password", ""),
+                        profile.get("salt", ""),
+                        dumps_json(profile),
+                        utc_now(),
+                        username,
+                    ),
+                )
+            return True
 
     def delete_user(self, username):
         with db_connect(self.db_path) as conn:

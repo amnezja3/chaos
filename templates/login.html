@@ -2,23 +2,264 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8">
-  <title>Logowanie</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHAOS - Ghost Gate</title>
+  <link rel="icon" href="{{ url_for('static', filename='images/chaos_favicon.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <style>
-    body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #111; color: #0f0; }
-    form { display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1px solid #0f0; border-radius: 8px; }
-    input { padding: 8px; background: #000; color: #0f0; border: 1px solid #0f0; }
-    button { padding: 8px; background: #0f0; color: #000; font-weight: bold; cursor: pointer; }
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+      background: #030504;
+      color: #d7ffe0;
+      font-family: "Courier New", monospace;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      padding: 24px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(57, 255, 128, 0.16), transparent 26%),
+        radial-gradient(circle at 82% 72%, rgba(244, 223, 123, 0.1), transparent 28%),
+        linear-gradient(135deg, #030504 0%, #07140d 48%, #010301 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.13;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.08),
+        rgba(255, 255, 255, 0.08) 1px,
+        transparent 1px,
+        transparent 5px
+      );
+    }
+
+    .login-gate {
+      width: min(980px, 100%);
+      min-height: min(620px, calc(100vh - 48px));
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.75fr);
+      border: 1px solid rgba(57, 255, 128, 0.44);
+      background: rgba(0, 8, 4, 0.78);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.62), 0 0 38px rgba(57, 255, 128, 0.1);
+      position: relative;
+      z-index: 1;
+      overflow: hidden;
+    }
+
+    .login-signal {
+      padding: clamp(24px, 4vw, 52px);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-width: 0;
+      background:
+        linear-gradient(120deg, rgba(57, 255, 128, 0.08), transparent 48%),
+        rgba(0, 0, 0, 0.28);
+    }
+
+    .login-brand {
+      display: grid;
+      gap: 12px;
+    }
+
+    .login-kicker {
+      color: #f4df7b;
+      font-size: 0.78rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .login-brand h1 {
+      margin: 0;
+      color: #39ff80;
+      font-size: clamp(2.6rem, 8vw, 6.8rem);
+      line-height: 0.9;
+      letter-spacing: 0;
+      text-shadow: 0 0 18px rgba(57, 255, 128, 0.28);
+    }
+
+    .login-brand p {
+      max-width: 58ch;
+      margin: 0;
+      color: #b8ffd0;
+      line-height: 1.55;
+    }
+
+    .login-status {
+      display: grid;
+      gap: 10px;
+      color: #8fd6a4;
+      font-size: 0.88rem;
+    }
+
+    .login-status span {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .login-status span::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #39ff80;
+      box-shadow: 0 0 12px rgba(57, 255, 128, 0.9);
+    }
+
+    .login-panel {
+      display: flex;
+      align-items: center;
+      padding: clamp(20px, 3vw, 40px);
+      border-left: 1px solid rgba(57, 255, 128, 0.24);
+      background: rgba(0, 0, 0, 0.42);
+    }
+
+    .login-form {
+      width: 100%;
+      display: grid;
+      gap: 14px;
+    }
+
+    .login-form h2 {
+      margin: 0 0 4px;
+      color: #ffffff;
+      font-size: 1.2rem;
+      letter-spacing: 0;
+    }
+
+    .login-form label {
+      display: grid;
+      gap: 6px;
+      color: #8fd6a4;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .login-form input {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 12px;
+      border: 1px solid rgba(57, 255, 128, 0.44);
+      background: rgba(0, 0, 0, 0.72);
+      color: #d7ffe0;
+      font: inherit;
+      outline: none;
+    }
+
+    .login-form input:focus {
+      border-color: #39ff80;
+      box-shadow: 0 0 0 2px rgba(57, 255, 128, 0.14);
+    }
+
+    .login-form button {
+      min-height: 46px;
+      border: 1px solid #39ff80;
+      background: #39ff80;
+      color: #020802;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .login-form button:hover {
+      filter: brightness(1.08);
+    }
+
+    .login-link {
+      color: #8fd6a4;
+      line-height: 1.45;
+      font-size: 0.9rem;
+    }
+
+    .login-link a {
+      color: #f4df7b;
+      text-decoration: none;
+    }
+
+    .login-link a:hover {
+      text-decoration: underline;
+    }
+
+    .login-error {
+      color: #ff7b7b;
+      border: 1px solid rgba(255, 80, 80, 0.34);
+      background: rgba(80, 0, 0, 0.22);
+      padding: 10px;
+      line-height: 1.35;
+    }
+
+    @media (max-width: 760px) {
+      body {
+        padding: 0;
+        overflow: auto;
+      }
+
+      .login-gate {
+        min-height: 100vh;
+        grid-template-columns: 1fr;
+        border-left: 0;
+        border-right: 0;
+      }
+
+      .login-signal {
+        min-height: 44vh;
+      }
+
+      .login-panel {
+        border-left: 0;
+        border-top: 1px solid rgba(57, 255, 128, 0.24);
+        align-items: flex-start;
+      }
+    }
   </style>
 </head>
 <body>
-  <form method="POST">
-    <h2>🔐 Logowanie</h2>
-    <input type="text" name="username" placeholder="Nazwa użytkownika" required>
-    <input type="password" name="password" placeholder="Hasło" required>
-    <button type="submit">Zaloguj się</button>
-    <p>Nie masz konta? <a href="/register">Zarejestruj się tutaj</a></p>
-    {% if error %}<div style="color: red;">{{ error }}</div>{% endif %}
-  </form>
+  <main class="login-gate" aria-label="CHAOS login gate">
+    <section class="login-signal">
+      <div class="login-brand">
+        <div class="login-kicker">Ghost System / secure entry</div>
+        <h1>CHAOS</h1>
+        <p>Cyber Hacking Adventure Of Senses. Wejdz do pulpitu operatora, wybierz cel, uruchom narzedzia i pozwol, zeby mapa zaczela mowic danymi.</p>
+      </div>
+      <div class="login-status" aria-label="System status">
+        <span>Signal online</span>
+        <span>Ghost Gate armed</span>
+        <span>Cyberner standby</span>
+      </div>
+    </section>
+
+    <section class="login-panel">
+      <form class="login-form" method="POST" autocomplete="on">
+        <h2>Autoryzacja operatora</h2>
+        <label>
+          Login
+          <input type="text" name="username" placeholder="operator" autocomplete="username" required>
+        </label>
+        <label>
+          Haslo
+          <input type="password" name="password" placeholder="klucz dostepu" autocomplete="current-password" required>
+        </label>
+        <button type="submit">Zaloguj</button>
+        <p class="login-link">Nie masz konta? <a href="/register">Zainicjuj profil operatora</a></p>
+        {% if error %}<div class="login-error">{{ error }}</div>{% endif %}
+      </form>
+    </section>
+  </main>
 </body>
 </html>

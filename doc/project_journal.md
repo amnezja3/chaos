@@ -6842,3 +6842,29 @@ Podpieto opis gry jako aktualizowalny dokument czytany bezposrednio z pliku:
 Opis CHAOS moze byc aktualizowany przez podmiane pliku
 `static/files/about/chaos.ptk`. Po odswiezeniu gry File Manager renderuje nowa
 wersje dokumentu.
+
+---
+
+## 09.07.2026
+
+### Etap
+
+Login/Register polish + password hardening.
+
+### Implementacja
+
+Wykonano ogolny lifting wejscia do gry:
+
+* dodano favicon CHAOS,
+* odswiezono tytuly stron wejscia, mapy i terminala,
+* przebudowano bramke logowania na responsywny widok Ghost Gate,
+* dodano backendowa walidacje loginu, e-maila, nicku i hasla,
+* zsynchronizowano frontendowa walidacje rejestracji z backendem,
+* nowe hasla sa zapisywane jako `pbkdf2_sha256` z per-user salt,
+* stare plaintext hasla pozostaja kompatybilne i sa migrowane do hasha przy
+  pierwszym poprawnym logowaniu.
+
+### Status
+
+Wejscie do gry jest czytelniejsze na desktop/mobile, a nowe konta nie zapisuja
+juz hasel jako surowego tekstu.

@@ -209,13 +209,13 @@ const steps = [
   () => renderShell(3, `
     <label class="ghost-field">
       <span>Haslo</span>
-      <input type="password" id="password" placeholder="Minimum 7 znakow i cyfra" autocomplete="new-password">
+      <input type="password" id="password" placeholder="Minimum 8 znakow, litera i cyfra" autocomplete="new-password">
     </label>
     <label class="ghost-field">
       <span>Powtorz haslo</span>
       <input type="password" id="confirm_password" placeholder="Potwierdz klucz" autocomplete="new-password">
     </label>
-    <div class="field-hint">System wymaga minimum 7 znakow i jednej cyfry.</div>
+    <div class="field-hint">System wymaga minimum 8 znakow, jednej litery i jednej cyfry.</div>
   `),
 
   () => renderShell(4, `
@@ -341,6 +341,23 @@ function setError(message) {
   document.getElementById("error-msg").innerText = message || "";
 }
 
+function isValidUsername(value) {
+  return /^[A-Za-z0-9_][A-Za-z0-9_.-]{2,23}$/.test(String(value || "").trim());
+}
+
+function isValidEmail(value) {
+  return /^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,}$/.test(String(value || "").trim());
+}
+
+function validatePassword(value) {
+  const password = String(value || "");
+  if (password.length < 8) return "Haslo musi miec co najmniej 8 znakow.";
+  if (password.length > 128) return "Haslo jest zbyt dlugie.";
+  if (!/[A-Za-z]/.test(password)) return "Haslo musi zawierac przynajmniej jedna litere.";
+  if (!/\d/.test(password)) return "Haslo musi zawierac przynajmniej jedna cyfre.";
+  return "";
+}
+
 function initOnboardingMusic() {
   const audio = document.getElementById("onboarding-music");
   if (!audio) return;
@@ -377,6 +394,10 @@ async function validateStep() {
   }
 
   if (currentStep === 0) {
+    if (!isValidUsername(formData.username)) {
+      setError("Login: 3-24 znaki, litery/cyfry oraz _, . albo -.");
+      return false;
+    }
     const response = await fetch("/api/register-check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -384,7 +405,7 @@ async function validateStep() {
     });
     const data = await response.json();
     if (!data.success) {
-      setError("Ta nazwa uzytkownika jest juz zajeta.");
+      setError(data.error || "Ta nazwa uzytkownika jest juz zajeta.");
       return false;
     }
   }
@@ -400,12 +421,9 @@ async function validateStep() {
   }
 
   if (currentStep === 3) {
-    if (!formData.password || formData.password.length < 7) {
-      setError("Haslo musi miec co najmniej 7 znakow.");
-      return false;
-    }
-    if (!/\d/.test(formData.password)) {
-      setError("Haslo musi zawierac przynajmniej jedna cyfre.");
+    const passwordError = validatePassword(formData.password);
+    if (passwordError) {
+      setError(passwordError);
       return false;
     }
     if (formData.password !== formData.confirm_password) {
@@ -415,6 +433,10 @@ async function validateStep() {
   }
 
   if (currentStep === 4) {
+    if (!isValidEmail(formData.email)) {
+      setError("Podaj poprawny adres e-mail.");
+      return false;
+    }
     const response = await fetch("/api/register-check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -422,7 +444,7 @@ async function validateStep() {
     });
     const data = await response.json();
     if (!data.success) {
-      setError("Ten adres e-mail jest juz zarejestrowany.");
+      setError(data.error || "Ten adres e-mail jest juz zarejestrowany.");
       return false;
     }
   }
