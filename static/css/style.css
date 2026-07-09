@@ -8,6 +8,58 @@ body {
     overflow: hidden;
 }
 
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(38, 255, 106, 0.78) rgba(0, 12, 5, 0.82);
+}
+
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+    background:
+        linear-gradient(180deg, rgba(0, 18, 7, 0.95), rgba(0, 5, 2, 0.98));
+    border-left: 1px solid rgba(38, 255, 106, 0.16);
+    border-top: 1px solid rgba(38, 255, 106, 0.12);
+}
+
+*::-webkit-scrollbar-thumb {
+    min-height: 36px;
+    border: 2px solid rgba(0, 10, 4, 0.96);
+    border-radius: 0;
+    background:
+        linear-gradient(180deg, #b7ff33 0%, #26ff6a 44%, #00b84e 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(224, 255, 185, 0.42),
+        0 0 8px rgba(38, 255, 106, 0.42);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background:
+        linear-gradient(180deg, #e2ff75 0%, #4dff86 42%, #00db63 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 220, 0.58),
+        0 0 12px rgba(38, 255, 106, 0.68);
+}
+
+*::-webkit-scrollbar-corner {
+    background: rgba(0, 8, 3, 0.98);
+}
+
+::selection {
+    background: #b7ff33;
+    color: #001a07;
+    text-shadow: none;
+}
+
+::-moz-selection {
+    background: #b7ff33;
+    color: #001a07;
+    text-shadow: none;
+}
+
 .boot-preloader {
   position: fixed;
   inset: 0;
