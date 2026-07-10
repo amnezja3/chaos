@@ -26,6 +26,7 @@ const DESKTOP_WALLPAPER_CLASSES = [
     "wall-1", "wall-2", "wall-3",
     "wall-chaos-green", "wall-chaos-blue", "wall-chaos-red", "wall-chaos-amber", "wall-chaos-violet"
 ];
+let chaosFullscreenListenersBound = false;
 
 const bootLoader = {
     overlay: document.getElementById('boot-preloader'),
@@ -453,9 +454,31 @@ function requestChaosFullscreen() {
     root.requestFullscreen().catch(() => {});
 }
 
-["pointerdown", "keydown", "touchstart"].forEach(eventName => {
-    window.addEventListener(eventName, requestChaosFullscreen, { once: false, passive: true });
-});
+function bindChaosFullscreenListeners() {
+    if (chaosFullscreenListenersBound) return;
+    window.addEventListener("pointerdown", requestChaosFullscreen, { passive: true });
+    window.addEventListener("touchstart", requestChaosFullscreen, { passive: true });
+    window.addEventListener("keydown", requestChaosFullscreen);
+    chaosFullscreenListenersBound = true;
+}
+
+function unbindChaosFullscreenListeners() {
+    if (!chaosFullscreenListenersBound) return;
+    window.removeEventListener("pointerdown", requestChaosFullscreen);
+    window.removeEventListener("touchstart", requestChaosFullscreen);
+    window.removeEventListener("keydown", requestChaosFullscreen);
+    chaosFullscreenListenersBound = false;
+}
+
+function syncChaosFullscreenRuntime() {
+    if (isAutoFullscreenEnabled()) {
+        bindChaosFullscreenListeners();
+    } else {
+        unbindChaosFullscreenListeners();
+    }
+}
+
+syncChaosFullscreenRuntime();
 
 window.addEventListener('beforeunload', () => {
     if (!desktop || !desktopSessionActive) return;
@@ -4035,8 +4058,13 @@ function createSettings() {
 
     term.querySelector('[data-settings-auto-fullscreen]')?.addEventListener('change', event => {
         setAutoFullscreenEnabled(event.target.checked);
+        syncChaosFullscreenRuntime();
         setStatus(event.target.checked ? "Auto fullscreen wlaczony. Kliknij w gre, aby aktywowac." : "Auto fullscreen wylaczony.", "success");
-        if (event.target.checked) requestChaosFullscreen();
+        if (event.target.checked) {
+            requestChaosFullscreen();
+        } else if (document.fullscreenElement && typeof document.exitFullscreen === "function") {
+            document.exitFullscreen().catch(() => {});
+        }
     });
 
     term.querySelector('[data-settings-password-form]')?.addEventListener('submit', async event => {
