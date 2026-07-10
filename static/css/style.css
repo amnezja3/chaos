@@ -5147,18 +5147,18 @@ form button:hover {
   }
 
   #system-start-button {
-    width: 72px;
-    min-width: 72px;
-    grid-template-columns: 40px 18px;
-    gap: 4px;
-    padding: 2px 8px 2px 4px;
+    width: 92px;
+    min-width: 92px;
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 2px;
+    padding-right: 7px;
   }
 
   #system-start-button img {
-    width: 34px;
-    height: 34px;
-    margin-left: 0;
-    margin-top: -3px;
+    width: 42px;
+    height: 42px;
+    margin-left: -6px;
+    margin-top: -10px;
   }
 
   #system-start-button span {
@@ -5170,7 +5170,7 @@ form button:hover {
 
   #system-start-button span::before {
     content: "\2630";
-    font-size: 1.15rem;
+    font-size: 1.05rem;
     line-height: 1;
     color: #b7ff38;
     text-shadow: 0 0 7px rgba(98, 255, 38, 0.64);
