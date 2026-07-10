@@ -5213,21 +5213,6 @@ form button:hover {
 }
 
 @media (max-width: 560px) {
-  #system-start-button span {
-    justify-content: center;
-    padding-left: 0;
-    font-size: 0;
-    letter-spacing: 0;
-  }
-
-  #system-start-button span::before {
-    content: "\2630";
-    font-size: 1.05rem;
-    line-height: 1;
-    color: #b7ff38;
-    text-shadow: 0 0 7px rgba(98, 255, 38, 0.64);
-  }
-
   .browser-nav {
     gap: 4px;
   }
@@ -5262,6 +5247,11 @@ form button:hover {
     overflow: hidden;
   }
 
+  #system-start-button span {
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+  }
+
   #system-status-strip span:nth-child(4) {
     display: none;
   }
@@ -5290,7 +5280,18 @@ form button:hover {
   }
 
   #system-start-button span {
+    justify-content: center;
+    padding-left: 0;
     font-size: 0;
+    letter-spacing: 0;
+  }
+
+  #system-start-button span::before {
+    content: "\2630";
+    font-size: 1.05rem;
+    line-height: 1;
+    color: #b7ff38;
+    text-shadow: 0 0 7px rgba(98, 255, 38, 0.64);
   }
 }
 
