@@ -9064,6 +9064,50 @@ function escapeHTML(value) {
     });
 }
 
+function sanitizeToastHTML(value) {
+    let str = "";
+    if (value === null || value === undefined) {
+        str = "";
+    } else if (typeof value === "object") {
+        const label = value.label ?? value.name ?? value.text ?? value.title ?? value.value;
+        str = label !== null && label !== undefined ? String(label) : "";
+    } else {
+        str = String(value);
+    }
+
+    const allowedTags = new Set(["B", "STRONG", "I", "EM", "BR", "CODE", "SPAN"]);
+    const droppedTags = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "LINK", "META"]);
+    const template = document.createElement("template");
+    template.innerHTML = str;
+
+    const cleanNode = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+            return document.createTextNode(node.textContent || "");
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+            return document.createDocumentFragment();
+        }
+        if (droppedTags.has(node.tagName)) {
+            return document.createDocumentFragment();
+        }
+
+        const target = allowedTags.has(node.tagName)
+            ? document.createElement(node.tagName.toLowerCase())
+            : document.createDocumentFragment();
+
+        Array.from(node.childNodes || []).forEach(child => {
+            target.appendChild(cleanNode(child));
+        });
+        return target;
+    };
+
+    const result = document.createElement("div");
+    Array.from(template.content.childNodes || []).forEach(node => {
+        result.appendChild(cleanNode(node));
+    });
+    return result.innerHTML;
+}
+
 function formatStorageSize(value, unit = "MB") {
     const number = Number(value || 0);
     if (!Number.isFinite(number) || number <= 0) return `0 ${unit}`;
@@ -9136,7 +9180,7 @@ function showSystemToast(message, type = 'success') {
         div.tabIndex = 0;
         div.innerHTML = `
             <h4><span class="cyberner-toast-icon">${escapeHTML(notificationConfig.icon)}</span>${escapeHTML(message.title || notificationConfig.label)}</h4>
-            <div>${escapeHTML(message.text || notificationConfig.text)}</div>
+            <div>${sanitizeToastHTML(message.text || notificationConfig.text)}</div>
         `;
         const openToastThread = () => {
             if (cybernerThread && typeof window.openCybernerThread === "function") {
@@ -9154,7 +9198,7 @@ function showSystemToast(message, type = 'success') {
     } else {
         div.innerHTML = `
             <h4>${escapeHTML(message.title || 'Komunikat')}</h4>
-            <div>${escapeHTML(message.text || "")}</div>
+            <div>${sanitizeToastHTML(message.text || "")}</div>
         `;
     }
     container.appendChild(div);
