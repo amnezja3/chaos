@@ -3,7 +3,7 @@ let topZIndex = 1000;
 let windowSequence = 0;
 let toolbarLauncherApps = [];
 const runningWindows = new Map();
-let desktopSettings = { wallpaper: "", icon_positions: {} };
+let desktopSettings = { wallpaper: "", icon_positions: {}, auto_fullscreen: false };
 let desktopSaveTimer = null;
 let toolbarProfile = null;
 let toolbarTargetFeedbackState = { targetKey: "", dotSignature: "", progress: 0 };
@@ -361,8 +361,13 @@ function getSystemDesktopApps(profile = null) {
 function applyDesktopSettings(settings = {}) {
     desktopSettings = {
         wallpaper: settings.wallpaper || "",
-        icon_positions: settings.icon_positions || {}
+        icon_positions: settings.icon_positions || {},
+        auto_fullscreen: settings.auto_fullscreen === true
     };
+    setAutoFullscreenEnabled(desktopSettings.auto_fullscreen);
+    if (typeof syncChaosFullscreenRuntime === "function") {
+        syncChaosFullscreenRuntime();
+    }
     document.body.classList.remove(...DESKTOP_WALLPAPER_CLASSES);
     if (desktopSettings.wallpaper) {
         document.body.classList.add(desktopSettings.wallpaper);
@@ -432,16 +437,13 @@ function setGhostRadioAutoplayEnabled(enabled) {
 }
 
 function isAutoFullscreenEnabled() {
-    try {
-        return window.localStorage?.getItem("chaos_auto_fullscreen") === "1";
-    } catch (err) {
-        return false;
-    }
+    return desktopSettings.auto_fullscreen === true;
 }
 
 function setAutoFullscreenEnabled(enabled) {
+    desktopSettings.auto_fullscreen = enabled === true;
     try {
-        window.localStorage?.setItem("chaos_auto_fullscreen", enabled ? "1" : "0");
+        window.localStorage?.setItem("chaos_auto_fullscreen", desktopSettings.auto_fullscreen ? "1" : "0");
     } catch (err) {
         console.warn("Nie udalo sie zapisac ustawienia fullscreen:", err);
     }
@@ -4058,6 +4060,7 @@ function createSettings() {
 
     term.querySelector('[data-settings-auto-fullscreen]')?.addEventListener('change', event => {
         setAutoFullscreenEnabled(event.target.checked);
+        saveDesktopSettingsNow({ auto_fullscreen: event.target.checked });
         syncChaosFullscreenRuntime();
         setStatus(event.target.checked ? "Auto fullscreen wlaczony. Kliknij w gre, aby aktywowac." : "Auto fullscreen wylaczony.", "success");
         if (event.target.checked) {

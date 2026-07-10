@@ -6938,7 +6938,8 @@ def ensure_profile_template_projects_folder():
     if "desktop_settings" not in template:
         template["desktop_settings"] = {
             "wallpaper": "",
-            "icon_positions": {}
+            "icon_positions": {},
+            "auto_fullscreen": False
         }
         changed = True
     if changed:
@@ -7596,7 +7597,7 @@ def ensure_purchase_account_profile(username):
         "apps": [],
         "files": {"tools": [], "projects": []},
         "system_messages": [],
-        "desktop_settings": {"wallpaper": "", "icon_positions": {}},
+        "desktop_settings": {"wallpaper": "", "icon_positions": {}, "auto_fullscreen": False},
     }
     user_store.save_profile(profile)
     return profile
@@ -11157,6 +11158,9 @@ def update_profile_desktop():
                 "top": max(0, top)
             }
         settings["icon_positions"] = cleaned
+
+    if "auto_fullscreen" in data:
+        settings["auto_fullscreen"] = data.get("auto_fullscreen") is True
 
     mgr = UserProfileManager(session["user"])
     mgr.update_profile({"desktop_settings": settings})

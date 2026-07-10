@@ -20,27 +20,6 @@
   <div id="desktop-icons"></div>
   <div id="system-toast-container"></div>
 
-  <script>
-    // Spróbuj wejść w tryb fullscreen po interakcji
-    window.addEventListener('load', () => {
-      const elem = document.documentElement;
-      const enterFull = () => {
-        if (elem.requestFullscreen) {
-          elem.requestFullscreen();
-        } else if (elem.webkitRequestFullscreen) {
-          elem.webkitRequestFullscreen();
-        } else if (elem.msRequestFullscreen) {
-          elem.msRequestFullscreen();
-        }
-      };
-
-      // Wymagana interakcja użytkownika – np. kliknięcie
-      document.addEventListener('click', () => {
-        enterFull();
-      }, { once: true });
-    });
-  </script>
-
   <script src="{{ url_for('static', filename='js/ghost_radio.js') }}?v=radio-stream-4"></script>
   <script src="{{ url_for('static', filename='js/terminal.js') }}"></script>
 </body>

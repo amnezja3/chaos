@@ -17,7 +17,8 @@
   "email": "",
   "desktop_settings": {
     "wallpaper": "",
-    "icon_positions": {}
+    "icon_positions": {},
+    "auto_fullscreen": false
   },
   "territory_stats": {
     "total_area": 0,
