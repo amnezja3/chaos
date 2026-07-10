@@ -1,5 +1,130 @@
 # Backlog — Blacknet AI Ecosystem (Sprint 21+)
 
+## Sprint 74 - Prototype Audit + Contract
+
+Status: complete as documentation / contract.
+
+Artefakt audytu:
+
+* `doc/blacknet_prototype_audit.md`
+
+Decyzje:
+
+* BlackNet v0 jest signal bus swiata CHAOS, nie drugi system misji.
+* Prototyp `bn_page.tsx` + `globals.css` nie bedzie wklejany jako osobny
+  Next/React runtime.
+* Docelowy renderer ma korzystac z natywnej architektury CHAOS.
+* Dane sygnalu opisuje kontrakt `blacknet_signal`.
+* CTA BlackNetu prowadza do istniejacych systemow: mapa, Ghost Exchange,
+  Googleplex, Cyberner, Ghost Hack Radio.
+* AI generowanie tresci pozostaje poza zakresem pierwszego runtime BlackNet.
+
+Minimalny kontrakt:
+
+```text
+blacknet_signal
+schema
+id
+source
+channel
+title
+label
+value
+stat
+timer
+tone
+layout
+radar
+cta
+```
+
+---
+
+## Sprint 75 - Static App Shell
+
+Status: complete as native CHAOS shell.
+
+Implementacja:
+
+* BlackNet zostal dodany jako trzeci tab WebDragons obok Googleplex i Ghost
+  Exchange.
+* Shell jest napisany w natywnym HTML/CSS/JS `terminal.js`, bez Next/React,
+  Tailwinda i bez osobnego runtime.
+* Widok uzywa statycznych sygnalow hardcoded w rendererze Sprintu 75.
+* CTA sa widoczne jako element kontraktu, ale pozostaja nieaktywne do Sprintu
+  77 - BlackNet CTA Bridge v0.
+* CSS jest scopingowany klasami `blacknet-*` i nie nadpisuje globalnych
+  selektorow.
+
+Poza zakresem Sprintu 75:
+
+* backend BlackNet,
+* lokalne zrodlo danych,
+* AI,
+* carousel/polish Sprintu 76,
+* aktywne CTA Sprintu 77.
+
+---
+
+## Sprint 76 - Signal UI v0
+
+Status: complete as frontend-only signal carousel.
+
+Implementacja:
+
+* BlackNet pokazuje aktywny sygnal jako hero panel oraz liste sygnalow.
+* Dodano przechodzenie miedzy sygnalami:
+  * strzalkami w UI,
+  * klawiatura `ArrowLeft` / `ArrowRight`,
+  * pointer swipe / drag.
+* Aktywna karta sygnalu ma osobny stan wizualny.
+* Radar dostal subtelny sweep i pulsujace node'y.
+* Dodano pasek `signal strength`.
+* Search w WebDragons filtruje sygnaly, bez requestow backendowych.
+
+Poza zakresem Sprintu 76:
+
+* aktywne CTA,
+* lokalny plik danych,
+* backend,
+* AI,
+* drugi runtime.
+
+---
+
+## Sprint 76.1 - Prototype Mechanics Alignment
+
+Status: complete as native prototype-aligned signal roll.
+
+Decyzja: prototyp `bn_page.tsx` jest zrodlem prawdy dla zachowania BlackNetu.
+
+Implementacja:
+
+* BlackNet dziala jak signal roll, a nie lista kart.
+* Aktywny jest jeden sygnal na ekranie.
+* Nawigacja dziala w cztery strony:
+  * gora,
+  * dol,
+  * lewo,
+  * prawo.
+* Swipe / drag dziala w pionie i poziomie.
+* Klawiatura obsluguje WASD i strzalki.
+* Radar i layouty sygnalow zostaly przepisane z prototypu na natywny JS/CSS
+  CHAOS.
+* CTA oznacza lokalne przechwycenie sygnalu.
+* W WebDragons dla BlackNetu ukryto stary header, wallet, taby i wyszukiwarke.
+* Male przyciski `GGPL` i `GX` zostaly przeniesione pod logo BlackNetu.
+
+Poza zakresem Sprintu 76.1:
+
+* aktywne mosty CTA,
+* backend,
+* AI,
+* drugi Googleplex,
+* drugi Ghost Exchange.
+
+---
+
 ## Status
 
 Backlog / Future Feature

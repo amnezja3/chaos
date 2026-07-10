@@ -111,3 +111,18 @@ Decision:
 * Przyjęto: Tool Laboratory v1 nie zmienia map action matrix. Zamyka cykl
   aplikacji wokół istniejących `map_actions`, `operation_types` i
   `resource_types`.
+
+## BlackNet signal UI v0
+
+Sprint 76 dodaje BlackNet jako frontendowy signal carousel w WebDragons.
+
+BlackNet nie zmienia map actions, operation types ani resource types.
+
+Decision:
+
+* Przyjeto: BlackNet jest signal bus / informacyjnym frontem swiata.
+* Przyjeto: sygnaly sa na razie lokalne w rendererze i nie sa zrodlem prawdy
+  gameplayu.
+* Przyjeto: CTA sa widoczne, ale disabled do Sprintu 77.
+* Przyjeto: BlackNet moze prowadzic do istniejacych systemow, ale nie tworzy
+  nowych operacji, misji ani rynku.

@@ -6868,3 +6868,176 @@ Wykonano ogolny lifting wejscia do gry:
 
 Wejscie do gry jest czytelniejsze na desktop/mobile, a nowe konta nie zapisuja
 juz hasel jako surowego tekstu.
+
+---
+
+## 10.07.2026
+
+### Etap
+
+Faza H - BlackNet Prototype Runtime plan.
+
+### Dokumentacja
+
+Rozpisano plan Sprintow 74-80 w `doc/game_play_260626.md` na podstawie
+prototypu:
+
+* `static/js/bn_page.tsx`,
+* `static/css/globals.css`.
+
+Plan zaklada, ze BlackNet powstaje jako warstwa sygnalow swiata CHAOS, a nie
+jako drugi system misji, drugi market, drugi feed powiadomien ani osobny frontend
+runtime.
+
+### Decyzje
+
+* Prototyp trzeba przepisac do architektury CHAOS, nie wklejac jako obcy
+  Next/React runtime.
+* Najpierw powstaje audyt i kontrakt `blacknet_signal`.
+* Dopiero pozniej shell aplikacji, signal UI, CTA bridge, lokalne zrodlo danych,
+  read model swiata i polish.
+* Kazdy sprint Fazy H ma obowiazkowa aktualizacje dokumentacji.
+
+### Status
+
+Faza H jest gotowa do rozpoczecia od Sprintu 74.
+
+---
+
+## 10.07.2026
+
+### Etap
+
+Sprint 74 - BlackNet Prototype Audit + Contract.
+
+### Dokumentacja
+
+Wykonano audyt prototypu BlackNet:
+
+* `static/js/bn_page.tsx`,
+* `static/css/globals.css`.
+
+Dodano artefakt:
+
+* `doc/blacknet_prototype_audit.md`.
+
+Zaktualizowano:
+
+* `doc/blacknet.md`,
+* `doc/game_play_260626.md`,
+* `doc/project_journal.md`.
+
+### Ustalenia
+
+* BlackNet v0 jest signal bus, nie forum, nie drugi market i nie drugi system
+  misji.
+* Prototyp trzeba przepisac do natywnej architektury CHAOS zamiast wklejac
+  Next/React runtime.
+* Dane opisuje kontrakt `blacknet_signal`.
+* CTA moga prowadzic tylko do istniejacych systemow: mapa, Ghost Exchange,
+  Googleplex, Cyberner i Ghost Hack Radio.
+* W prototypie wykryto mojibake w copy, globalny CSS oraz hardcoded signals.
+
+### Status
+
+Sprint 74 zakonczony dokumentacyjnie. Runtime BlackNet nie zostal wdrozony.
+Kolejny krok: Sprint 75 - BlackNet Static App Shell.
+
+---
+
+## 10.07.2026
+
+### Etap
+
+Sprint 75 - BlackNet Static App Shell.
+
+### Zmiany
+
+Dodano pierwszy fizyczny shell BlackNetu w runtime gry:
+
+* BlackNet jest trzecim tabem WebDragons obok Googleplex i Ghost Exchange.
+* Widok jest statyczny, oparty o natywny HTML/CSS/JS CHAOS.
+* Zachowano elementy prototypu: radar, signal cards, timer, stat/value i CTA.
+* CTA pozostaja nieaktywne do Sprintu 77.
+* CSS zostal scopingowany klasami `blacknet-*`.
+
+### Decyzje
+
+Nie dodano osobnej aplikacji desktopowej ani wpisu do `app_contract.md`.
+Na tym etapie najbezpieczniejszym miejscem wejscia jest WebDragons.
+
+Nie dodano backendu, endpointow, AI, lokalnego zrodla danych ani drugiego
+frontend runtime.
+
+### Status
+
+Sprint 75 zakonczony. BlackNet ma miejsce w WebDragons i moze byc rozwijany w
+Sprint 76 jako signal UI v0.
+
+---
+
+## 10.07.2026
+
+### Etap
+
+Sprint 76 - BlackNet Signal UI v0.
+
+### Zmiany
+
+Dopolerowano BlackNet jako frontendowy signal carousel:
+
+* dodano aktywny sygnal w hero panelu,
+* dodano nawigacje strzalkami w UI,
+* dodano obsluge `ArrowLeft` / `ArrowRight`,
+* dodano pointer swipe / drag,
+* aktywna karta sygnalu ma wyrozniony stan,
+* radar ma subtelny sweep i pulsujace node'y,
+* dodano signal strength,
+* search filtruje lokalne sygnaly bez requestow backendowych.
+
+### Decyzje
+
+CTA pozostaja widoczne, ale disabled. Aktywne przejscia do mapy, Ghost
+Exchange, Googleplex, Cybernera i radia zostaja dla Sprintu 77.
+
+Nie dodano backendu, AI, lokalnego zrodla danych ani osobnego runtime.
+
+### Status
+
+Sprint 76 zakonczony. BlackNet ma pierwszy czytelny signal UI w WebDragons.
+
+---
+
+## 10.07.2026
+
+### Etap
+
+Sprint 76.1 - BlackNet Prototype Mechanics Alignment.
+
+### Zmiany
+
+Skorygowano BlackNet zgodnie z prototypem:
+
+* widok dziala jak signal roll, a nie lista kart,
+* sygnaly przesuwaja sie w cztery strony,
+* dziala swipe / drag we wszystkich kierunkach,
+* dziala klawiatura WASD i strzalki,
+* radar, layouty i CTA zostaly przepisane na natywny JS/CSS CHAOS wedlug
+  prototypu.
+* usunieto wyszukiwarke z widoku Ghost Exchange,
+* BlackNet ukrywa stary header WebDragons, wallet, taby i search,
+* przejscia do Googleplexa i Ghost Exchange sa teraz malymi przyciskami pod
+  logo BlackNetu.
+
+### Decyzje
+
+BlackNet nie jest drugim Googleplexem, drugim Ghost Exchange ani katalogiem
+ofert. Na tym etapie jest frontendowym signal bus z lokalnymi sygnalami.
+
+CTA tylko oznacza lokalne przechwycenie sygnalu. Mosty do mapy, Ghost Exchange,
+Googleplexa, Cybernera i radia zostaja w Sprincie 77.
+
+### Status
+
+Sprint 76.1 zakonczony. Runtime zostal dopasowany do prototypu bez zmian
+backendu.

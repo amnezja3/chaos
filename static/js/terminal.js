@@ -2943,6 +2943,7 @@ function createBrowser() {
         <div class="browser-tabs">
             <button type="button" class="browser-tab is-active" data-browser-tab="googleplex">Googleplex</button>
             <button type="button" class="browser-tab" data-browser-tab="exchange">Ghost Exchange</button>
+            <button type="button" class="browser-tab" data-browser-tab="blacknet">BlackNet</button>
         </div>
         <input type="text" id="${terminalId}-search" placeholder="Wyszukaj aplikacj\u0119..." class="googolplex-search">
         <div id="${terminalId}-results" class="googolplex-grid">
@@ -2967,11 +2968,33 @@ function createBrowser() {
     const search = term.querySelector(`#${terminalId}-search`);
     const results = term.querySelector(`#${terminalId}-results`);
     const wallet = term.querySelector(`#${terminalId}-wallet`);
+    const browserHeader = term.querySelector('.googolplex-header');
+    const browserTabs = term.querySelector('.browser-tabs');
     let catalog = [];
     let exchangeFiles = [];
     let exchangeDashboard = { summary: {}, sectors: [], recent_transactions: [], history_7d: [] };
     let walletBalance = 0;
     let activeBrowserTab = "googleplex";
+    let activeBlacknetSignalId = "hotspot-mokotow";
+    let blacknetPointerStartX = null;
+    const renderBrowserWallet = () => {
+        wallet.textContent = activeBrowserTab === "blacknet"
+            ? "SIGNAL BUS v0"
+            : `HackCoiny: ${Number.isFinite(walletBalance) ? walletBalance : "..."}`;
+    };
+
+    const updateBrowserChrome = () => {
+        term.classList.toggle('is-browser-googleplex', activeBrowserTab === "googleplex");
+        term.classList.toggle('is-browser-exchange', activeBrowserTab === "exchange");
+        term.classList.toggle('is-browser-blacknet', activeBrowserTab === "blacknet");
+        if (browserHeader) {
+            browserHeader.hidden = activeBrowserTab === "blacknet";
+        }
+        if (browserTabs) {
+            browserTabs.hidden = activeBrowserTab === "blacknet";
+        }
+        search.hidden = activeBrowserTab !== "googleplex";
+    };
 
     const updateBrowserNarrowMode = () => {
         const shell = term.querySelector('.googolplex-shell');
@@ -3012,6 +3035,277 @@ function createBrowser() {
         ...googleplexList(item.resource_types),
         ...googleplexList(item.target_types)
     ].join(' ').toLowerCase();
+
+    const blacknetSignals = [
+        {
+            id: "hotspot-mokotow",
+            channel: "PRZECHWYCONY KANAL",
+            title: "HOTSPOT / MOKOTOW",
+            label: "WZROST RUCHU",
+            value: "240%",
+            stat: "17 AKTYWNYCH OPERACJI",
+            timer: "04:32",
+            cta: "PRZECHWYC TELEPORT",
+            tone: "lime",
+            layout: 1,
+            radarSides: 0,
+            nodes: [[22, 26, 3], [34, 43, 2], [66, 27, 3], [78, 51, 4], [63, 72, 3], [31, 69, 2]]
+        },
+        {
+            id: "market-gps",
+            channel: "GHOST MARKET WATCH",
+            title: "GPS LOGS / WARSZAWA",
+            label: "POTENCJAL CENY",
+            value: "+34%",
+            stat: "62 PAKIETY W RUCHU",
+            timer: "08:18",
+            cta: "OTWORZ GHOST EXCHANGE",
+            tone: "cyan",
+            layout: 2,
+            radarSides: 4,
+            nodes: [[19, 57, 2], [31, 31, 4], [46, 62, 2], [61, 38, 3], [75, 66, 4], [82, 29, 2]]
+        },
+        {
+            id: "tool-drop",
+            channel: "NIEZWERYFIKOWANY DROP",
+            title: "SILENTSNIFF / ZERO TRACE",
+            label: "RABAT KANALOWY",
+            value: "-41%",
+            stat: "9 KOPII POZOSTALO",
+            timer: "02:06",
+            cta: "SPRAWDZ W GOOGLEPLEX",
+            tone: "amber",
+            layout: 3,
+            radarSides: 5,
+            nodes: [[18, 34, 3], [38, 21, 2], [43, 50, 4], [68, 35, 2], [76, 74, 3], [28, 76, 2]]
+        },
+        {
+            id: "pvp-praga",
+            channel: "SYGNAL WYSOKIEGO RYZYKA",
+            title: "KONFLIKT / PRAGA POLNOC",
+            label: "AKTYWNOSC PVP",
+            value: "7x",
+            stat: "3 CELE BEZ OSLONY",
+            timer: "01:47",
+            cta: "WEJDZ W STREFE",
+            tone: "red",
+            layout: 4,
+            radarSides: 6,
+            nodes: [[16, 48, 2], [29, 24, 3], [41, 67, 3], [57, 21, 2], [70, 55, 4], [83, 39, 3]]
+        },
+        {
+            id: "leak-zoliborz",
+            channel: "GHOST INTELLIGENCE",
+            title: "PRZECIEK / ZOLIBORZ",
+            label: "WIARYGODNOSC",
+            value: "83%",
+            stat: "11 WEZLOW POWIAZANYCH",
+            timer: "06:24",
+            cta: "OTWORZ DOSSIER",
+            tone: "lime",
+            layout: 5,
+            radarSides: 7,
+            nodes: [[14, 33, 2], [29, 61, 3], [43, 23, 2], [58, 57, 4], [72, 31, 2], [86, 69, 3]]
+        },
+        {
+            id: "atm-srodmiescie",
+            channel: "ALERT SYSTEMOWY",
+            title: "ATM BURST / SRODMIESCIE",
+            label: "OKNO OPERACJI",
+            value: "90s",
+            stat: "8 TERMINALI BEZ OSLONY",
+            timer: "00:58",
+            cta: "NAMIERZ TERMINALE",
+            tone: "cyan",
+            layout: 6,
+            radarSides: 8,
+            nodes: [[17, 71, 3], [27, 38, 2], [46, 17, 3], [59, 46, 2], [71, 76, 4], [85, 28, 2]]
+        }
+    ];
+
+    const blacknetCapturedSignals = new Set();
+    let activeBlacknetDirection = "right";
+
+    const blacknetVisibleSignals = () => {
+        return blacknetSignals;
+    };
+
+    const stepBlacknetSignal = (delta, direction = "right") => {
+        const visibleSignals = blacknetVisibleSignals();
+        if (!visibleSignals.length) return;
+        const currentIndex = Math.max(0, visibleSignals.findIndex(signal => signal.id === activeBlacknetSignalId));
+        const nextIndex = (currentIndex + delta + visibleSignals.length) % visibleSignals.length;
+        activeBlacknetDirection = direction;
+        activeBlacknetSignalId = visibleSignals[nextIndex].id;
+        renderBlackNet();
+    };
+
+    const blacknetPolygonPoints = (sides, radius, rotation = -90) => {
+        return Array.from({ length: sides }, (_, index) => {
+            const angle = ((rotation + index * 360 / sides) * Math.PI) / 180;
+            return `${(50 + Math.cos(angle) * radius).toFixed(2)},${(50 + Math.sin(angle) * radius).toFixed(2)}`;
+        }).join(" ");
+    };
+
+    const blacknetRadarSvg = signal => {
+        const nodes = Array.isArray(signal.nodes) ? signal.nodes : [];
+        const sides = Number(signal.radarSides || 0);
+        const rotation = sides === 4 ? -45 : -90;
+        const frame = radius => sides
+            ? `<polygon points="${blacknetPolygonPoints(sides, radius, rotation)}"></polygon>`
+            : `<circle cx="50" cy="50" r="${radius}"></circle>`;
+        const grid = [12, 23, 34, 45].map(radius => frame(radius)).join("");
+        const spokes = Array.from({ length: 12 }, (_, index) => index * 30)
+            .map(angle => `<line x1="50" y1="50" x2="50" y2="4" transform="rotate(${angle} 50 50)"></line>`)
+            .join("");
+        const links = nodes.slice(1).map((node, index) => {
+            const prev = nodes[index] || node;
+            return `<line x1="${prev[0]}" y1="${prev[1]}" x2="${node[0]}" y2="${node[1]}"></line>`;
+        }).join("");
+        const satellites = nodes.flatMap(([x, y], index) => [
+            [Math.max(8, x - 7 + (index % 3) * 2), Math.min(92, y + 8), 0.45],
+            [Math.min(92, x + 6), Math.max(8, y - 5 + (index % 2) * 3), 0.3]
+        ]);
+        const nodeMarkup = nodes.map(([x, y, r], index) => `
+            <g class="bn-radar-node" style="animation-delay:${index * 170}ms">
+                <circle class="bn-pulse-ring bn-pulse-ring-a" cx="${x}" cy="${y}" r="${r * 1.45}"></circle>
+                <circle class="bn-pulse-ring bn-pulse-ring-b" cx="${x}" cy="${y}" r="${r * 2.25}"></circle>
+                <circle cx="${x}" cy="${y}" r="${r / 1.9}"></circle>
+                ${index % 2 === 0 ? `<path d="M${x - 2.5} ${y - 4} h5 v5 l-2.5 3 -2.5-3z"></path>` : ""}
+            </g>
+        `).join("");
+        const satelliteMarkup = satellites.map(([x, y, r], index) => `
+            <circle cx="${x}" cy="${y}" r="${r}" style="animation-delay:${(index % 6) * 130}ms"></circle>
+        `).join("");
+        return `
+            <svg class="bn-radar" viewBox="0 0 100 100" role="img" aria-label="Radar BlackNet ${escapeHTML(signal.title || '')}">
+                <g class="bn-radar-grid">
+                    ${grid}
+                    ${spokes}
+                    <path d="M1 42 C20 30 29 55 42 37 S66 24 99 45 M3 66 C27 79 36 58 52 70 S72 80 97 62 M10 18 L31 31 L42 19 L57 35 L90 12"></path>
+                </g>
+                <g class="bn-radar-frame">${frame(46)}</g>
+                <g class="bn-radar-accent">${frame(39)}</g>
+                <g class="bn-radar-links">${links}</g>
+                ${nodeMarkup}
+                <g class="bn-radar-satellites">${satelliteMarkup}</g>
+                <g class="bn-radar-core"><circle cx="50" cy="50" r="8"></circle><circle cx="50" cy="50" r="4.5"></circle><circle cx="50" cy="50" r="1.3"></circle></g>
+                <path class="bn-radar-sweep" d="M50 50 L50 0 L92 4 Z"></path>
+            </svg>
+        `;
+    };
+
+    const fitBlacknetStage = (stage) => {
+        if (!stage) return;
+        const rect = stage.getBoundingClientRect();
+        const width = Math.max(1, rect.width || stage.clientWidth || 1);
+        const height = Math.max(1, rect.height || stage.clientHeight || 1);
+        const baseWidth = 1450;
+        const baseHeight = 900;
+        const fit = Math.min(1, width / baseWidth, height / baseHeight);
+        const readableFit = width < 560
+            ? Math.max(0.54, Math.min(0.78, fit * 1.55))
+            : Math.max(0.72, fit);
+        stage.style.setProperty('--bn-fit', readableFit.toFixed(3));
+    };
+
+    const renderBlackNet = () => {
+        if (activeBrowserTab !== "blacknet") return;
+        updateBrowserNarrowMode();
+        const visibleSignals = blacknetVisibleSignals();
+        const activeIndex = Math.max(0, visibleSignals.findIndex(signal => signal.id === activeBlacknetSignalId));
+        const featured = visibleSignals[activeIndex] || visibleSignals[0] || null;
+        if (featured?.id) {
+            activeBlacknetSignalId = featured.id;
+        }
+        results.innerHTML = `
+            <main class="blacknet-stage tone-${escapeHTML(featured?.tone || "lime")}">
+                <div class="bn-noise"></div>
+                <header class="bn-brand">
+                    <div class="bn-brand-mark">BLACKNET</div>
+                    <div class="bn-mode-links" aria-label="WebDragons">
+                        <button type="button" data-blacknet-open-tab="googleplex">GGPL</button>
+                        <button type="button" data-blacknet-open-tab="exchange">GX</button>
+                    </div>
+                    <div class="bn-channel"><span>&gt;</span> ${escapeHTML(featured?.channel || "BRAK SYGNALU")}</div>
+                </header>
+                <div class="bn-signal-strength" aria-label="Sila sygnalu: mocna">
+                    <div class="bn-bars"><i></i><i></i><i></i><i></i><i></i></div>
+                    <span>SYGNAL: MOCNY</span>
+                </div>
+                <button class="bn-nav bn-nav-up" type="button" data-blacknet-nav="-1:up" aria-label="Poprzedni sygnal">⌃<span>PRZESUN W GORE</span></button>
+                <button class="bn-nav bn-nav-down" type="button" data-blacknet-nav="1:down" aria-label="Nastepny sygnal">⌄<span>PRZESUN W DOL</span></button>
+                <button class="bn-nav bn-nav-left" type="button" data-blacknet-nav="-1:left" aria-label="Poprzedni sygnal">‹<span>PRZESUN W LEWO</span></button>
+                <button class="bn-nav bn-nav-right" type="button" data-blacknet-nav="1:right" aria-label="Nastepny sygnal">›<span>PRZESUN W PRAWO</span></button>
+                ${featured ? `
+                    <section class="bn-signal bn-layout-${Number(featured.layout || 1)} bn-enter-${escapeHTML(activeBlacknetDirection)}">
+                        <div class="bn-signal-inner">
+                            <div class="bn-copy">
+                                <h2>${escapeHTML(featured.title)}</h2>
+                                <div class="bn-stat"><span class="bn-target-icon">⊕</span>${escapeHTML(featured.stat)}</div>
+                                <div class="bn-metric-label">${escapeHTML(featured.label)}</div>
+                                <div class="bn-metric">${escapeHTML(featured.value)}</div>
+                            </div>
+                            <div class="bn-visual">${blacknetRadarSvg(featured)}</div>
+                            <div class="bn-timer"><span class="bn-hourglass">⌛</span><small>SYGNAL WAZNY</small><strong>${escapeHTML(featured.timer)}</strong></div>
+                            <button class="bn-cta ${blacknetCapturedSignals.has(featured.id) ? "captured" : ""}" type="button" data-blacknet-capture="${escapeHTML(featured.id)}">
+                                <span>⊕</span>${blacknetCapturedSignals.has(featured.id) ? "SYGNAL PRZECHWYCONY" : escapeHTML(featured.cta)}
+                            </button>
+                        </div>
+                    </section>
+                ` : '<div class="bn-empty">Brak sygnalow dla tego filtra.</div>'}
+                <footer class="bn-footer">
+                    <span>${String(visibleSignals.length ? activeIndex + 1 : 0).padStart(2, "0")} / ${String(visibleSignals.length).padStart(2, "0")}</span>
+                    <span>SWIPE · WASD · STRZALKI</span>
+                    <span>BLACKNET SIGNAL BUS</span>
+                </footer>
+            </main>
+        `;
+        const blacknetStage = results.querySelector('.blacknet-stage');
+        fitBlacknetStage(blacknetStage);
+        requestAnimationFrame(() => fitBlacknetStage(blacknetStage));
+        results.querySelectorAll('[data-blacknet-nav]').forEach(button => {
+            button.addEventListener('click', event => {
+                event.stopPropagation();
+                const [delta, direction] = String(button.dataset.blacknetNav || "1:right").split(":");
+                stepBlacknetSignal(Number(delta || 1), direction || "right");
+            });
+        });
+        results.querySelectorAll('[data-blacknet-open-tab]').forEach(button => {
+            button.addEventListener('click', event => {
+                event.stopPropagation();
+                switchBrowserTab(button.dataset.blacknetOpenTab || "googleplex");
+            });
+        });
+        results.querySelector('[data-blacknet-capture]')?.addEventListener('click', event => {
+            event.stopPropagation();
+            const signalId = event.currentTarget.dataset.blacknetCapture;
+            if (signalId) {
+                blacknetCapturedSignals.add(signalId);
+                renderBlackNet();
+            }
+        });
+        blacknetStage?.addEventListener('pointerdown', event => {
+            blacknetPointerStartX = [event.clientX, event.clientY];
+            if (blacknetStage.setPointerCapture) {
+                blacknetStage.setPointerCapture(event.pointerId);
+            }
+        });
+        blacknetStage?.addEventListener('pointerup', event => {
+            if (blacknetPointerStartX === null) return;
+            const [startX, startY] = blacknetPointerStartX;
+            const dx = event.clientX - startX;
+            const dy = event.clientY - startY;
+            blacknetPointerStartX = null;
+            if (Math.max(Math.abs(dx), Math.abs(dy)) < 44) return;
+            if (Math.abs(dx) > Math.abs(dy)) {
+                stepBlacknetSignal(dx < 0 ? 1 : -1, dx < 0 ? "right" : "left");
+            } else {
+                stepBlacknetSignal(dy < 0 ? 1 : -1, dy < 0 ? "down" : "up");
+            }
+        });
+        updateBrowserNarrowMode();
+    };
 
     const renderCatalog = () => {
         if (activeBrowserTab !== "googleplex") return;
@@ -3430,7 +3724,7 @@ function createBrowser() {
         const profile = await profileRes.json();
         catalog = await resourcesRes.json();
         walletBalance = Number(profile.hackcoins || 0);
-        wallet.textContent = `HackCoiny: ${walletBalance}`;
+        renderBrowserWallet();
         renderCatalog();
     }
 
@@ -3452,7 +3746,7 @@ function createBrowser() {
             };
             if (Object.prototype.hasOwnProperty.call(data, "balance")) {
                 walletBalance = Number(data.balance || 0);
-                wallet.textContent = `HackCoiny: ${walletBalance}`;
+                renderBrowserWallet();
                 if (typeof setToolbarProfile === "function") {
                     setToolbarProfile({
                         ...(toolbarProfile || {}),
@@ -3504,7 +3798,7 @@ function createBrowser() {
             }
             exchangeFiles = data.files || exchangeFiles.filter(item => item.id !== fileId);
             walletBalance = Number(Object.prototype.hasOwnProperty.call(data, "balance") ? data.balance : (walletBalance || 0));
-            wallet.textContent = `HackCoiny: ${walletBalance}`;
+            renderBrowserWallet();
             if (typeof setToolbarProfile === "function") {
                 setToolbarProfile({
                     ...(toolbarProfile || {}),
@@ -3521,6 +3815,7 @@ function createBrowser() {
 
     function switchBrowserTab(tabName) {
         activeBrowserTab = tabName;
+        updateBrowserChrome();
         updateBrowserNarrowMode();
         term.querySelectorAll('.browser-tab').forEach(button => {
             button.classList.toggle('is-active', button.dataset.browserTab === tabName);
@@ -3530,8 +3825,14 @@ function createBrowser() {
             title.textContent = "Ghost Exchange";
             search.placeholder = "Szukaj danych, kategorii rynku, zasobow...";
             loadExchange();
+        } else if (tabName === "blacknet") {
+            title.textContent = "BlackNet";
+            renderBrowserWallet();
+            search.placeholder = "Szukaj sygnalow, zrodel, ryzyka...";
+            renderBlackNet();
         } else {
             title.textContent = "Googolplex";
+            renderBrowserWallet();
             search.placeholder = "Wyszukaj aplikacje...";
             renderCatalog();
         }
@@ -3540,11 +3841,31 @@ function createBrowser() {
     term.querySelectorAll('.browser-tab').forEach(button => {
         button.addEventListener('click', () => switchBrowserTab(button.dataset.browserTab || "googleplex"));
     });
+    updateBrowserChrome();
     search.addEventListener('input', () => {
         if (activeBrowserTab === "exchange") {
             renderExchange();
+        } else if (activeBrowserTab === "blacknet") {
+            renderBlackNet();
         } else {
             renderCatalog();
+        }
+    });
+    term.addEventListener('keydown', event => {
+        if (activeBrowserTab !== "blacknet") return;
+        if (event.target === search) return;
+        if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") {
+            event.preventDefault();
+            stepBlacknetSignal(-1, "left");
+        } else if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") {
+            event.preventDefault();
+            stepBlacknetSignal(1, "right");
+        } else if (event.key === "ArrowUp" || event.key.toLowerCase() === "w") {
+            event.preventDefault();
+            stepBlacknetSignal(-1, "up");
+        } else if (event.key === "ArrowDown" || event.key.toLowerCase() === "s") {
+            event.preventDefault();
+            stepBlacknetSignal(1, "down");
         }
     });
     loadCatalog().catch(() => {

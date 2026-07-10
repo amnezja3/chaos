@@ -6147,6 +6147,392 @@ overlay znika
 * Efekt jest subtelny i nie zaslania mapy agresywnie.
 * Efekt nie blokuje klikow i nie zmienia stanu gry.
 
+---
+
+# Faza H - BlackNet Prototype Runtime
+
+Faza H uruchamia pierwszy fizyczny prototyp BlackNetu jako warstwe sygnalow
+swiata CHAOS.
+
+Punktem wyjscia sa prototypowe pliki:
+
+* `static/js/bn_page.tsx`,
+* `static/css/globals.css`.
+
+Prototyp pokazuje BlackNet jako signal bus:
+
+```text
+sygnal swiata
+↓
+radar / status / timer / CTA
+↓
+inspiracja gameplayowa
+↓
+przejscie do istniejacych systemow CHAOS
+```
+
+BlackNet nie jest jeszcze drugim internetem, drugim systemem misji ani drugim
+marketem. Ma byc frontem informacyjnym swiata, ktory prowadzi gracza do
+istniejacych systemow: mapy, Ghost Exchange, Googleplex, Cybernera, radia i
+operacji.
+
+## Zasady Fazy H
+
+* Nie tworzyc drugiego systemu misji.
+* Nie tworzyc drugiego marketu.
+* Nie tworzyc drugiego feedu powiadomien.
+* Nie duplikowac Cybernera.
+* Nie zakladac jeszcze AI generatorow tresci.
+* Nie integrowac jeszcze BlackNet z pelnym backendiem, dopoki read model nie jest
+  opisany.
+* Prototyp ma zostac przepisany do architektury CHAOS, nie wklejony jako obcy
+  Next/React runtime.
+
+---
+
+# Sprint 74 - BlackNet Prototype Audit + Contract
+
+## Cel gameplayowy
+
+Zrozumiec prototyp BlackNetu i zamienic go w kontrakt implementacyjny CHAOS bez
+podpinania runtime.
+
+Sprint 74 nie implementuje BlackNetu w grze.
+
+## Zakres
+
+1. Przeanalizowac `bn_page.tsx`:
+   * model `Signal`,
+   * tony kolorystyczne,
+   * layouty,
+   * radar,
+   * nawigacje,
+   * CTA.
+2. Przeanalizowac `globals.css`:
+   * klasy widoku,
+   * animacje,
+   * mobile layout,
+   * elementy do przeniesienia do stylu CHAOS.
+3. Opisac minimalny kontrakt `blacknet_signal`.
+4. Zidentyfikowac mojibake / problemy encodingu w copy prototypu.
+5. Ustalic, ktore elementy zostaja frontend-only.
+6. Ustalic, ktore elementy wymagaja read modelu w przyszlosci.
+7. Nie dodawac endpointow.
+8. Nie ruszac Ghost Exchange, Cybernera, mapy ani Googleplexa.
+
+## Dokumentacja
+
+Zaktualizowac:
+
+* `doc/blacknet.md`,
+* `doc/game_play_260626.md`,
+* `doc/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Wiadomo, co z prototypu jest UI, a co kontraktem danych.
+* Istnieje opis `blacknet_signal`.
+* Wiadomo, ktore CTA prowadza do istniejacych systemow gry.
+* Nie wdrozono runtime BlackNet.
+
+## Wynik Sprintu 74
+
+Artefakt:
+
+* `doc/blacknet_prototype_audit.md`.
+
+Decyzje:
+
+* BlackNet v0 jest signal bus swiata CHAOS.
+* `blacknet_signal` jest kontraktem danych, nie komponentem UI.
+* Prototyp zostanie przepisany do natywnego runtime CHAOS.
+* CSS BlackNetu musi byc scopingowany i nie moze nadpisywac globalnie `body`,
+  `button` ani `h1`.
+* Hardcoded sygnaly przejda w kolejnych sprintach do lokalnego zrodla danych.
+
+---
+
+# Sprint 75 - BlackNet Static App Shell
+
+## Cel gameplayowy
+
+Dac BlackNetowi miejsce w desktopie CHAOS jako aplikacji / stronie WebDragons,
+bez jeszcze dynamicznych danych.
+
+## Zakres
+
+1. Dodac shell BlackNetu w istniejacej architekturze okien.
+2. Nie uzywac Next/React jako osobnego runtime.
+3. Przeniesc prototyp do natywnego HTML/CSS/JS CHAOS.
+4. Zachowac klimat:
+   * radar,
+   * signal cards,
+   * signal strength,
+   * timer,
+   * CTA.
+5. Dodac wejscie do BlackNetu:
+   * przez WebDragons,
+   * opcjonalnie przez desktop/start menu, jesli pasuje do obecnego app modelu.
+6. Nie dodawac backendu.
+7. Nie dodawac AI generatorow.
+
+## Dokumentacja
+
+Zaktualizowac:
+
+* `doc/blacknet.md`,
+* `doc/app_contract.md`, jesli BlackNet dostaje entry jako aplikacja,
+* `doc/project_journal.md`.
+
+## Kryteria akceptacji
+
+* BlackNet otwiera sie jako okno/strona CHAOS.
+* Widok jest statyczny, ale dziala w runtime gry.
+* Mobile nie dostaje regresji.
+* Nie powstal drugi frontend runtime.
+
+## Wynik Sprintu 75
+
+* BlackNet zostal osadzony jako natywny tab WebDragons.
+* Nie dodano backendu, endpointow, AI ani osobnego frontendu.
+* CTA sa widoczne jako element kontraktu, ale aktywacja zostaje dla Sprintu 77.
+* BlackNet nie dostal jeszcze osobnego entry w app contract, wiec
+  `doc/app_contract.md` pozostaje bez zmian.
+
+---
+
+# Sprint 76 - BlackNet Signal UI v0
+
+## Cel gameplayowy
+
+Dopolerowac frontendowy signal carousel BlackNetu jako pierwszy czytelny widok
+gracza.
+
+## Zakres
+
+1. Zbudowac liste sygnalow na podstawie lokalnego read modelu.
+2. Dodac nawigacje:
+   * strzalki,
+   * klawiatura,
+   * swipe / pointer drag.
+3. Dostosowac radar do stylu CHAOS.
+4. Naprawic copy i encoding prototypu.
+5. Dostosowac mobile layout.
+6. CTA maja byc widoczne, ale moga jeszcze byc disabled albo mockowane.
+7. Nie integrowac jeszcze z prawdziwymi akcjami gry.
+
+## Dokumentacja
+
+Zaktualizowac:
+
+* `doc/blacknet.md`,
+* `doc/gameplay_matrix.md`,
+* `doc/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Signal carousel dziala.
+* Radar i animacje sa subtelne, nie obciazaja UI.
+* Teksty nie maja mojibake.
+* Mobile jest czytelne.
+
+## Wynik Sprintu 76
+
+* BlackNet ma frontendowy carousel sygnalow.
+* Nawigacja dziala przez przyciski, klawiature i pointer swipe.
+* Aktywny sygnal jest wyrozniony jako hero panel i karta na liscie.
+* Dodano subtelny radar sweep, pulse node'ow i signal strength.
+* Search filtruje sygnaly lokalnie.
+* CTA pozostaja disabled do Sprintu 77.
+
+## Sprint 76.1 - Prototype Mechanics Alignment
+
+BlackNet zostal dostosowany do prototypu jako signal roll sterowany w cztery
+strony, a nie jako kolejny katalog kart podobny do Googleplexa albo Ghost
+Exchange.
+
+Zakres 76.1:
+
+* jeden aktywny sygnal na ekranie,
+* nawigacja gora / dol / lewo / prawo,
+* swipe / drag we wszystkie strony,
+* klawiatura WASD i strzalki,
+* layouty sygnalow 1-6 zgodne z prototypem,
+* radar oparty o warianty geometryczne prototypu,
+* CTA jako lokalny stan przechwycenia sygnalu.
+* Ghost Exchange nie pokazuje wyszukiwarki w WebDragons.
+* BlackNet ukrywa stary header WebDragons, wallet, taby i search.
+* Przejscia do Googleplexa i Ghost Exchange sa male i siedza pod logo
+  BlackNetu.
+
+Nie dodano backendu, endpointow, drugiego marketu ani drugiego Googleplexa.
+Aktywne mosty CTA do systemow gry zostaja w Sprincie 77.
+
+---
+
+# Sprint 77 - BlackNet CTA Bridge v0
+
+## Cel gameplayowy
+
+Podpiac przyciski BlackNetu do istniejacych systemow gry bez tworzenia nowych
+systemow.
+
+## Zakres
+
+1. CTA `Ghost Exchange` otwiera istniejacy Ghost Exchange.
+2. CTA `Googleplex` otwiera istniejacy Googleplex.
+3. CTA mapowe otwiera mape albo wskazuje obszar/typ aktywnosci, jesli istnieje
+   bezpieczne wejscie.
+4. CTA Cybernera otwiera istniejacy Cyberner/thread, jesli kontrakt pozwala.
+5. CTA radia moze otworzyc Ghost Hack Radio / kanal BlackNet radio, jesli kanal
+   istnieje.
+6. Nie tworzyc nowych endpointow.
+7. Nie tworzyc misji ani zadan.
+8. Jesli CTA nie ma bezpiecznego targetu, pokazac disabled state.
+
+## Dokumentacja
+
+Zaktualizowac:
+
+* `doc/blacknet.md`,
+* `doc/gameplay_matrix.md`,
+* `doc/project_journal.md`.
+
+## Kryteria akceptacji
+
+* BlackNet prowadzi do istniejacych systemow.
+* Disabled CTA nie udaja aktywnej funkcji.
+* Nie powstal drugi system zadan.
+* Nie powstal drugi notification flow.
+
+---
+
+# Sprint 78 - BlackNet Local Signal Source
+
+## Cel gameplayowy
+
+Zastapic hardcoded prototyp lokalnym zrodlem danych sygnalow, nadal bez AI i bez
+ciezkiego backendu.
+
+## Zakres
+
+1. Dodac lokalny katalog / kontrakt sygnalow, np. JSON.
+2. Zdefiniowac pola:
+   * `id`,
+   * `source`,
+   * `title`,
+   * `label`,
+   * `value`,
+   * `stat`,
+   * `timer`,
+   * `tone`,
+   * `layout`,
+   * `cta`.
+3. BlackNet czyta sygnaly z jednego zrodla prawdy.
+4. Nie skanowac katalogow na slepo.
+5. Nie generowac jeszcze tresci przez AI.
+6. Przygotowac bezpieczny fallback, gdy signal source sie nie wczyta.
+
+## Dokumentacja
+
+Zaktualizowac:
+
+* `doc/blacknet.md`,
+* `doc/resource_architecture.md`, jesli powstaje nowy typ zasobu lokalnego,
+* `doc/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Sygnaly nie sa zakodowane w rendererze.
+* BlackNet ma lokalny kontrakt danych.
+* Brak danych nie wywala okna.
+* Nadal brak backendu AI.
+
+---
+
+# Sprint 79 - BlackNet World Read Model Prep
+
+## Cel gameplayowy
+
+Przygotowac BlackNet do przyszlego korzystania z realnych statystyk swiata bez
+uruchamiania generatorow AI.
+
+## Zakres
+
+1. Opisac read model `blacknet_world_digest`.
+2. Wskazac potencjalne zrodla:
+   * Ghost Exchange summary,
+   * operacje,
+   * mapa / regiony,
+   * aktywnosc PvP,
+   * Cyberner/System messages,
+   * radio channels.
+3. Nie liczyc ciezkich statystyk w requestcie BlackNetu.
+4. Nie robic pollera BlackNetu.
+5. Ustalic, czy read model ma byc snapshotem, delta-feedem czy cache.
+6. Nie implementowac jeszcze AI content generation.
+
+## Dokumentacja
+
+Zaktualizowac:
+
+* `doc/blacknet.md`,
+* `doc/runtime_synchronization_audit.md`, jesli BlackNet dostaje przyszly scope,
+* `doc/gameplay_matrix.md`,
+* `doc/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Wiadomo, skad BlackNet moze brac fakty ze swiata.
+* Wiadomo, czego nie liczyc w requestcie.
+* Wiadomo, jak uniknac nowego ciezkiego pollera.
+* AI pozostaje poza zakresem.
+
+---
+
+# Sprint 80 - BlackNet Polish + Readiness Check
+
+## Cel gameplayowy
+
+Domknac pierwszy etap BlackNetu jako stabilny, statyczno-lokalny front
+informacyjny gotowy pod przyszle dane swiata.
+
+## Zakres
+
+1. Przejsc responsive:
+   * desktop,
+   * tablet,
+   * mobile,
+   * browser narrow.
+2. Sprawdzic animacje i koszt renderu.
+3. Sprawdzic CTA bridge.
+4. Sprawdzic fallback braku danych.
+5. Sprawdzic spojnosc z WebDragons i Ghost Hack Radio.
+6. Sprawdzic brak duplikacji Cybernera / misji / marketu.
+7. Przygotowac liste przyszlych mini-sprintow:
+   * BlackNet AI Digest — automatyczne tworzenie krótkich podsumowań najważniejszych wydarzeń, trendów i aktywności ze świata CHAOS.
+   * BlackNet Radio Hooks — łączenie sygnałów BlackNetu z audycjami i podcastami Ghost Hack Radio oraz automatyczny powrót do wcześniej odtwarzanego kanału.
+   * BlackNet Cyberner Thread — tworzenie powiązanych wątków Cybernera, w których gracze i systemowe postacie mogą komentować sygnały, plotki oraz wydarzenia z BlackNetu.
+   * BlackNet Market Rumors — publikowanie prawdziwych, częściowo prawdziwych i fałszywych plotek o cenach, popycie oraz okazjach w Ghost Exchange i Googleplexie.
+
+
+## Dokumentacja
+
+Zaktualizowac:
+
+* `doc/blacknet.md`,
+* `doc/game_play_260626.md`,
+* `doc/gameplay_matrix.md`,
+* `doc/project_journal.md`.
+
+## Kryteria akceptacji
+
+* BlackNet v0 jest stabilnym frontem informacyjnym.
+* Nie tworzy drugiego systemu misji.
+* Nie tworzy drugiego marketu.
+* Nie dodaje ciezkiego pollingu.
+* Dokumentacja zgadza sie z runtime.
+
 Decision:
 
 * Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.
