@@ -858,6 +858,25 @@
       box-shadow: 0 0 3px rgba(38, 255, 106, 0.35);
     }
 
+    @media (max-width: 900px), (max-height: 700px) {
+      .chaos-map-sync-status__spinner {
+        width: 6px;
+        height: 6px;
+        border-width: 1px;
+      }
+
+      .hack-action-spinner {
+        width: 5px;
+        height: 5px;
+        filter: drop-shadow(0 0 1px rgba(38, 255, 106, 0.45));
+      }
+
+      .hack-action-spinner__ring {
+        border-width: 1px;
+        box-shadow: 0 0 1px rgba(38, 255, 106, 0.28);
+      }
+    }
+
     @keyframes target-operation-spin {
       to { transform: rotate(360deg); }
     }

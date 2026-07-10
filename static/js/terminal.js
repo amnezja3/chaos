@@ -8641,7 +8641,8 @@ function createEmailClient() {
         });
 
         pendingBox.innerHTML = "";
-        pendingWrap.style.display = pendingThreads.length ? "block" : "none";
+        pendingWrap.style.display = pendingThreads.length ? "grid" : "none";
+        pendingWrap.classList.toggle("is-visible", pendingThreads.length > 0);
         pendingThreads.forEach(thread => {
             const threadName = thread.name || "Nieznany";
             const btn = document.createElement('button');

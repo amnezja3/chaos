@@ -33,7 +33,14 @@
   box-shadow: inset -10px 0 22px rgba(0, 255, 102, 0.035);
   padding: 10px;
   display: grid;
-  grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows:
+    auto
+    auto
+    minmax(142px, 0.55fr)
+    auto
+    auto
+    minmax(118px, 0.55fr)
+    minmax(142px, 0.7fr);
   gap: 10px;
   overflow: hidden;
 }
@@ -139,6 +146,26 @@
   gap: 7px;
   overflow-y: auto;
   padding-right: 4px;
+}
+
+.mail-channel-list {
+  min-height: 142px;
+}
+
+.mail-contact-list {
+  min-height: 118px;
+}
+
+.mail-pending-wrap {
+  min-height: 142px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mail-pending-wrap.is-visible {
+  display: grid !important;
+  grid-template-rows: auto minmax(112px, 1fr);
+  gap: 8px;
 }
 
 .mail-conversation-item,
@@ -740,6 +767,14 @@
     border-right: 0;
     padding: 8px;
     gap: 8px;
+    grid-template-rows:
+      auto
+      auto
+      minmax(116px, 0.5fr)
+      auto
+      auto
+      minmax(106px, 0.5fr)
+      minmax(116px, 0.6fr);
   }
 
   .mail-chat-header {

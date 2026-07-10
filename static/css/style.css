@@ -1570,7 +1570,8 @@ form button:hover {
   #system-toast-container {
     right: 10px;
     bottom: 76px;
-    width: min(300px, calc(100vw - 20px));
+    width: min(240px, 54vw);
+    max-width: calc(100vw - 20px);
     gap: 8px;
   }
 
@@ -1583,6 +1584,14 @@ form button:hover {
   .system-toast h4 {
     margin-bottom: 4px;
     font-size: 0.58rem;
+  }
+
+  .desktop-sync-status__spinner,
+  .app-terminal-spinner,
+  .app-button-spinner {
+    width: 6px;
+    height: 6px;
+    border-width: 1px;
   }
 }
 
@@ -5138,22 +5147,33 @@ form button:hover {
   }
 
   #system-start-button {
-    width: 92px;
-    min-width: 92px;
-    grid-template-columns: 38px minmax(0, 1fr);
-    padding-right: 7px;
+    width: 72px;
+    min-width: 72px;
+    grid-template-columns: 40px 18px;
+    gap: 4px;
+    padding: 2px 8px 2px 4px;
   }
 
   #system-start-button img {
-    width: 42px;
-    height: 42px;
-    margin-left: -6px;
-    margin-top: -10px;
+    width: 34px;
+    height: 34px;
+    margin-left: 0;
+    margin-top: -3px;
   }
 
   #system-start-button span {
-    font-size: 0.86rem;
-    letter-spacing: 0.03em;
+    justify-content: center;
+    padding-left: 0;
+    font-size: 0;
+    letter-spacing: 0;
+  }
+
+  #system-start-button span::before {
+    content: "\2630";
+    font-size: 1.15rem;
+    line-height: 1;
+    color: #b7ff38;
+    text-shadow: 0 0 7px rgba(98, 255, 38, 0.64);
   }
 
   #system-start-menu {
