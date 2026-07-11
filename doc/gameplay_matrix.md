@@ -123,6 +123,17 @@ Decision:
 * Przyjeto: BlackNet jest signal bus / informacyjnym frontem swiata.
 * Przyjeto: sygnaly sa na razie lokalne w rendererze i nie sa zrodlem prawdy
   gameplayu.
-* Przyjeto: CTA sa widoczne, ale disabled do Sprintu 77.
+* Przyjeto: CTA po Sprincie 77 dzialaja jako lekki most do istniejacych
+  systemow gry.
+* Przyjeto: CTA wybiera akcje po `cta_action`, nie po tekscie przycisku.
 * Przyjeto: BlackNet moze prowadzic do istniejacych systemow, ale nie tworzy
   nowych operacji, misji ani rynku.
+* Przyjeto: od Sprintu 78 lokalne sygnaly sa czytane z
+  `static/blacknet_signals.json`, a renderer tylko normalizuje kontrakt.
+* Przyjeto: Sprint 79 definiuje przyszly `blacknet_world_digest` jako read
+  model nad istniejacymi faktami swiata. Digest moze zasilac lokalny kontrakt
+  `blacknet_signal`, ale nie jest zrodlem prawdy, nie liczy stanu i nie odpala
+  ciezkich endpointow mapy/profilu.
+* Przyjeto: Sprint 80 zamyka BlackNet v0 jako lokalny front informacyjny.
+  Aktywne style `.blacknet-stage` i `.bn-*` pozostaja w `blacknet.css`, a
+  legacy `.blacknet-*` shell/carousel zostal usuniety ze `style.css`.

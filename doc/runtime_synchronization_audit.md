@@ -93,6 +93,36 @@ Live checkpoint po wdrozeniu powinien dopisac realne:
 
 ---
 
+## BlackNet future scope
+
+Sprint 79 dodaje tylko kontrakt przyszlego read modelu
+`blacknet_world_digest`.
+
+BlackNet nie dostaje w Fazie G nowego pollera i nie powinien wolac ciezkich
+snapshotow tylko po to, zeby wyrenderowac sygnaly.
+
+Bezpieczna sciezka przyszlosci:
+
+```text
+istniejace snapshoty / cache / delta-feed
+↓
+blacknet_world_digest
+↓
+static/local blacknet_signal contract
+↓
+renderBlackNet()
+```
+
+Zasady:
+
+* digest nie jest zrodlem prawdy,
+* digest nie liczy stanu gry w requestcie BlackNetu,
+* digest nie odpala `sync_session_profile()`,
+* brak albo stary digest wraca do lokalnego `static/blacknet_signals.json`,
+* AI generation pozostaje osobnym przyszlym krokiem.
+
+---
+
 ## Dowody kodowe
 
 ### Profil jako ciezki snapshot

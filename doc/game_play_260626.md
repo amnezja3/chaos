@@ -6364,6 +6364,12 @@ Zakres 76.1:
 * BlackNet ukrywa stary header WebDragons, wallet, taby i search.
 * Przejscia do Googleplexa i Ghost Exchange sa male i siedza pod logo
   BlackNetu.
+* Aktywne style `.blacknet-stage` i `.bn-*` sa wydzielone do
+  `static/css/blacknet.css`.
+* `style.css` nie jest juz zrodlem layoutu BlackNetu.
+* BlackNet nie uzywa juz `fitBlacknetStage`, `--bn-fit` ani inline scale.
+* Breakpointy i mobile/narrow layout sa obslugiwane przez CSS container queries.
+* CTA i timer sa skalowane w ramach silnika BlackNetu, bez przebudowy markup.
 
 Nie dodano backendu, endpointow, drugiego marketu ani drugiego Googleplexa.
 Aktywne mosty CTA do systemow gry zostaja w Sprincie 77.
@@ -6374,21 +6380,41 @@ Aktywne mosty CTA do systemow gry zostaja w Sprincie 77.
 
 ## Cel gameplayowy
 
-Podpiac przyciski BlackNetu do istniejacych systemow gry bez tworzenia nowych
-systemow.
+Podpiac CTA aktywnego sygnalu BlackNetu do istniejacych systemow gry bez
+tworzenia nowych systemow, endpointow ani drugiego flow zadan.
+
+Sprint 77 pracuje na aktualnym silniku 76.1:
+
+```text
+renderBlackNet()
+↓
+blacknet_signal
+↓
+signal roll / radar / timer / CTA
+↓
+istniejacy system CHAOS
+```
+
+Nie wracac do listy kart, katalogu, wyszukiwarki ani starego headera
+WebDragons.
 
 ## Zakres
 
-1. CTA `Ghost Exchange` otwiera istniejacy Ghost Exchange.
-2. CTA `Googleplex` otwiera istniejacy Googleplex.
-3. CTA mapowe otwiera mape albo wskazuje obszar/typ aktywnosci, jesli istnieje
+1. Dodac lekki router CTA oparty o typ akcji w sygnale, nie o tekst przycisku.
+2. CTA `open_googleplex` otwiera istniejacy Googleplex.
+3. CTA `open_ghost_exchange` otwiera istniejacy Ghost Exchange.
+4. CTA mapowe otwiera mape albo wskazuje obszar/typ aktywnosci, jesli istnieje
    bezpieczne wejscie.
-4. CTA Cybernera otwiera istniejacy Cyberner/thread, jesli kontrakt pozwala.
-5. CTA radia moze otworzyc Ghost Hack Radio / kanal BlackNet radio, jesli kanal
+5. CTA Cybernera otwiera istniejacy Cyberner/thread, jesli kontrakt pozwala.
+6. CTA radia moze otworzyc Ghost Hack Radio / kanal BlackNet radio, jesli kanal
    istnieje.
-6. Nie tworzyc nowych endpointow.
-7. Nie tworzyc misji ani zadan.
-8. Jesli CTA nie ma bezpiecznego targetu, pokazac disabled state.
+7. Male linki `GGPL` i `GX` pod logo pozostaja szybkim przejsciem do tabow
+   WebDragons.
+8. Nie tworzyc nowych endpointow.
+9. Nie tworzyc misji ani zadan.
+10. Jesli CTA nie ma bezpiecznego targetu, pokazac disabled state.
+11. Klikniecie CTA nie moze kolidowac ze swipe / pointer drag signal rolla.
+12. Hover/focus przyciskow ma uzywac stylu BlackNetu, bez czarnego pustego tla.
 
 ## Dokumentacja
 
@@ -6401,9 +6427,27 @@ Zaktualizowac:
 ## Kryteria akceptacji
 
 * BlackNet prowadzi do istniejacych systemow.
+* CTA wybiera akcje po typie kontraktu, nie po labelu.
 * Disabled CTA nie udaja aktywnej funkcji.
+* Male linki GGPL/GX nadal dzialaja.
+* Swipe w cztery strony nadal dziala.
+* Hover/focus przyciskow jest czytelny w tonie aktualnego sygnalu.
 * Nie powstal drugi system zadan.
 * Nie powstal drugi notification flow.
+
+## Wynik Sprintu 77
+
+* CTA aktywnego sygnalu korzysta z pola `cta_action`.
+* Obslugiwane mosty v0:
+  * `open_googleplex`,
+  * `open_ghost_exchange`,
+  * `open_map`,
+  * `open_cyberner`,
+  * `open_radio`.
+* Googleplex i Ghost Exchange otwieraja istniejace taby WebDragons.
+* Mapa, Cyberner i radio otwieraja istniejace aplikacje systemowe.
+* Sygnal bez bezpiecznego mostu nie udaje aktywnej funkcji.
+* Nie dodano backendu, endpointow, misji, zadan ani drugiego flow BlackNetu.
 
 ---
 
@@ -6411,12 +6455,29 @@ Zaktualizowac:
 
 ## Cel gameplayowy
 
-Zastapic hardcoded prototyp lokalnym zrodlem danych sygnalow, nadal bez AI i bez
-ciezkiego backendu.
+Zastapic hardcoded sygnaly w `terminal.js` lokalnym zrodlem danych, nadal bez AI,
+bez ciezkiego backendu i bez nowego pollera.
+
+Sprint 78 nie zmienia silnika layoutu BlackNetu. `renderBlackNet()` dalej
+renderuje obecna strukture:
+
+```text
+.blacknet-stage
+.bn-signal
+.bn-signal-inner
+.bn-copy
+.bn-stat
+.bn-metric
+.bn-visual
+.bn-timer
+.bn-cta
+```
+
+Zmienia sie tylko zrodlo danych sygnalow.
 
 ## Zakres
 
-1. Dodac lokalny katalog / kontrakt sygnalow, np. JSON.
+1. Dodac lokalny katalog / kontrakt sygnalow, np. JSON albo statyczny zasob.
 2. Zdefiniowac pola:
    * `id`,
    * `source`,
@@ -6427,11 +6488,17 @@ ciezkiego backendu.
    * `timer`,
    * `tone`,
    * `layout`,
-   * `cta`.
+   * `cta`,
+   * `cta_action`,
+   * `cta_target`,
+   * opcjonalnie `channel`.
 3. BlackNet czyta sygnaly z jednego zrodla prawdy.
 4. Nie skanowac katalogow na slepo.
 5. Nie generowac jeszcze tresci przez AI.
 6. Przygotowac bezpieczny fallback, gdy signal source sie nie wczyta.
+7. Nie przenosic stylow z `blacknet.css` z powrotem do `style.css`.
+8. Nie dodawac wyszukiwarki, listy kart ani starego headera.
+9. Zachowac lokalny signal roll jako glowny sposob przegladania sygnalow.
 
 ## Dokumentacja
 
@@ -6445,8 +6512,23 @@ Zaktualizowac:
 
 * Sygnaly nie sa zakodowane w rendererze.
 * BlackNet ma lokalny kontrakt danych.
+* `cta_action` jest gotowe dla Sprintu 77/79 bez parsowania labeli.
 * Brak danych nie wywala okna.
+* `blacknet.css` pozostaje jedynym zrodlem aktywnych styli `.bn-*`.
 * Nadal brak backendu AI.
+
+## Wynik Sprintu 78
+
+* Dodano lokalne zrodlo sygnalow:
+  * `static/blacknet_signals.json`.
+* `terminal.js` nie przechowuje juz listy sygnalow.
+* `renderBlackNet()` korzysta z danych po wczytaniu i normalizacji kontraktu.
+* JSON ma `schema: 1` oraz `signals[]`.
+* Radar zostal opisany w danych przez:
+  * `radar.sides`,
+  * `radar.nodes`.
+* Brak albo blad zrodla pokazuje pusty/fallback state, nie wywala WebDragons.
+* Nie dodano backendu, AI, endpointu, pollera ani nowego runtime.
 
 ---
 
@@ -6456,6 +6538,20 @@ Zaktualizowac:
 
 Przygotowac BlackNet do przyszlego korzystania z realnych statystyk swiata bez
 uruchamiania generatorow AI.
+
+Sprint 79 nie podpina jeszcze BlackNetu do ciezkich endpointow mapy ani
+operacji. Celem jest opis read modelu i bezpiecznej sciezki danych zgodnej z
+Faza G:
+
+```text
+snapshot / cache / delta-feed
+↓
+blacknet_world_digest
+↓
+lokalne blacknet_signal
+↓
+renderBlackNet()
+```
 
 ## Zakres
 
@@ -6471,6 +6567,12 @@ uruchamiania generatorow AI.
 4. Nie robic pollera BlackNetu.
 5. Ustalic, czy read model ma byc snapshotem, delta-feedem czy cache.
 6. Nie implementowac jeszcze AI content generation.
+7. Ustalic mapowanie:
+   * digest fact -> `blacknet_signal`,
+   * source -> ton / ikona / CTA,
+   * severity -> priorytet w signal rollu.
+8. Ustalic retencje i fallback, gdy digest jest pusty albo stary.
+9. Nie podpinac BlackNetu bezposrednio pod `sync_session_profile`.
 
 ## Dokumentacja
 
@@ -6486,7 +6588,24 @@ Zaktualizowac:
 * Wiadomo, skad BlackNet moze brac fakty ze swiata.
 * Wiadomo, czego nie liczyc w requestcie.
 * Wiadomo, jak uniknac nowego ciezkiego pollera.
+* Wiadomo, jak read model zasila obecny signal roll 76.1.
+* Wiadomo, ktore pola lokalnego `blacknet_signal` moga pochodzic z digestu.
 * AI pozostaje poza zakresem.
+
+## Wynik Sprintu 79
+
+* Dodano kontrakt `blacknet_world_digest` w
+  `doc/blacknet_world_read_model.md`.
+* Ustalono, ze digest jest read modelem nad istniejacymi zrodlami prawdy, a nie
+  nowym magazynem stanu.
+* Potencjalne zrodla faktow to Ghost Exchange, operacje, mapa/regiony, PvP,
+  Cyberner/System Messages i radio channels.
+* Digest fact mapuje sie do obecnego `blacknet_signal`, bez zmiany silnika
+  layoutu 76.1.
+* `source` wybiera ton / CTA, a `severity` przyszly priorytet w signal rollu.
+* Brak, pusty albo stary digest ma fallback do `static/blacknet_signals.json`.
+* BlackNet nie dostal endpointu, pollera, AI ani wywolania
+  `sync_session_profile()`.
 
 ---
 
@@ -6499,17 +6618,31 @@ informacyjny gotowy pod przyszle dane swiata.
 
 ## Zakres
 
-1. Przejsc responsive:
+1. Przejsc responsive obecnego silnika 76.1:
    * desktop,
    * tablet,
    * mobile,
    * browser narrow.
-2. Sprawdzic animacje i koszt renderu.
-3. Sprawdzic CTA bridge.
-4. Sprawdzic fallback braku danych.
-5. Sprawdzic spojnosc z WebDragons i Ghost Hack Radio.
-6. Sprawdzic brak duplikacji Cybernera / misji / marketu.
-7. Przygotowac liste przyszlych mini-sprintow:
+2. Sprawdzic krytyczne szerokosci okna WebDragons:
+   * 1200 px,
+   * 1000 px,
+   * 904 px,
+   * 900 px,
+   * 860 px,
+   * 700 px,
+   * 520 px,
+   * 430 px.
+3. Sprawdzic animacje i koszt renderu.
+4. Sprawdzic CTA bridge.
+5. Sprawdzic fallback braku danych.
+6. Sprawdzic spojnosc z WebDragons i Ghost Hack Radio.
+7. Sprawdzic brak duplikacji Cybernera / misji / marketu.
+8. Sprawdzic, ze:
+   * `.bn-*` aktywnie zyje tylko w `blacknet.css`,
+   * BlackNet nie uzywa inline scale,
+   * BlackNet nie przywraca searcha ani starego headera WebDragons,
+   * signal roll dziala w cztery strony.
+9. Przygotowac liste przyszlych mini-sprintow:
    * BlackNet AI Digest — automatyczne tworzenie krótkich podsumowań najważniejszych wydarzeń, trendów i aktywności ze świata CHAOS.
    * BlackNet Radio Hooks — łączenie sygnałów BlackNetu z audycjami i podcastami Ghost Hack Radio oraz automatyczny powrót do wcześniej odtwarzanego kanału.
    * BlackNet Cyberner Thread — tworzenie powiązanych wątków Cybernera, w których gracze i systemowe postacie mogą komentować sygnały, plotki oraz wydarzenia z BlackNetu.
@@ -6528,10 +6661,38 @@ Zaktualizowac:
 ## Kryteria akceptacji
 
 * BlackNet v0 jest stabilnym frontem informacyjnym.
+* Obecny silnik 76.1 jest utrzymany i nie cofa sie do katalogu kart.
+* `blacknet.css` pozostaje jedynym aktywnym zrodlem styli `.bn-*`.
+* Krytyczne szerokosci WebDragons nie daja pustego ekranu ani uciekania CTA.
 * Nie tworzy drugiego systemu misji.
 * Nie tworzy drugiego marketu.
 * Nie dodaje ciezkiego pollingu.
 * Dokumentacja zgadza sie z runtime.
+
+## Wynik Sprintu 80
+
+* Dodano `doc/blacknet_readiness_check.md`.
+* Potwierdzono obecny przeplyw:
+
+```text
+static/blacknet_signals.json
+↓
+normalizeBlacknetSignal()
+↓
+renderBlackNet()
+↓
+CTA bridge
+```
+
+* Usunieto martwy blok starego `.blacknet-*` shell/carousel ze `style.css`.
+* Aktywne klasy `.blacknet-stage` i `.bn-*` pozostaja w `blacknet.css`.
+* `style.css` zachowuje tylko wrappery WebDragons dla aktywnego taba BlackNet.
+* BlackNet nadal nie ma backendu, endpointu, pollera, AI, misji ani rynku.
+* Spisano przyszle mini-sprinty:
+  * BlackNet AI Digest,
+  * BlackNet Radio Hooks,
+  * BlackNet Cyberner Thread,
+  * BlackNet Market Rumors.
 
 Decision:
 
@@ -6548,6 +6709,74 @@ Decision:
 * Przyjeto: Sprinty 51-53 rozwijaja Ghost Hack Radio jako lokalna warstwe audio
   oparta o `meta.channel`, bez backendu, bez nowego systemu misji i bez
   przebudowy Cybernera.
+* Przyjeto: Sprint 54 dopolerowuje Ghost Hack Radio jako lokalna usluge audio
+  dzialajaca po pierwszej interakcji gracza, bez backendu, streamingu i
+  BlackNet runtime.
+* Przyjeto: Sprint 55 zmienia zwykly polling audit w Runtime Synchronization
+  Audit, czyli badanie calego cyklu danych od triggera przez endpoint do
+  renderu UI.
+* Przyjeto: Sprint 56 wprowadza kontrakt wersji stanu, ale zrodlem prawdy nadal
+  pozostaja dotychczasowe modele i snapshoty.
+* Przyjeto: Sprint 57 definiuje `delta event` jako idempotentny komunikat o
+  zmianie, z `entity_id` i `dedupe_key`, a nie jako nowy snapshot profilu.
+* Przyjeto: Sprint 58 dodaje `GameStateDeltaBus` jako dziennik zmian, nie jako
+  drugi magazyn stanu gry.
+* Przyjeto: Sprint 59 udostepnia read-only endpoint delt do testow, bez
+  podpinania produkcyjnego UI i bez liczenia stanu gry.
+* Przyjeto: Sprint 60 dodaje diagnostyke delt i recovery tylko dla dev/admin,
+  bez zmiany runtime zwyklego gracza.
+* Przyjeto: Sprint 60.5 audytuje potencjalny Async Operation Runner, ale nie
+  przebudowuje jeszcze zadnych akcji.
+* Przyjeto: Sprint 60.6 zostaje anulowany / odlozony, bo koszt runnera dla
+  jednego bezpiecznego kandydata byl wiekszy niz zysk runtime.
+* Przyjeto: Sprint 61 przenosi pierwszy maly scope na delta-feed: wallet / HC,
+  zostawiajac `/api/profile` jako recovery.
+* Przyjeto: Sprint 62 rozszerza delta-feed na storage, tak aby File Manager,
+  toolbar i Ghost Exchange widzialy spojny stan dysku bez pelnego profilu.
+* Przyjeto: Sprint 63 rozszerza delta-feed na apps, bez drugiego app cache i
+  bez przebudowy katalogu Googleplex.
+* Przyjeto: Sprint 64 ogranicza odswiezanie Mail/Cyberner i Ghost Exchange do
+  malych delt summary, unread i transakcji, zostawiajac pelne bootstrapy jako
+  recovery.
+* Przyjeto: Sprint 65 utwardza recovery per scope i zakazuje panic reloadu jako
+  zwyklej sciezki naprawy delt.
+* Przyjeto: Sprint 66 audytuje mape pod delty bez migracji mapy i rozdziela
+  player actors, targety, area layers, konflikty oraz vulnerabilities.
+* Przyjeto: Sprint 67 wprowadza pierwsza delte mapy tylko dla player actors,
+  bez ruszania targetow, obszarow, konfliktow i vulnerabilities.
+* Przyjeto: Sprint 68 przygotowuje target registry po stabilnym `target_id`,
+  bez migracji area/conflict layers.
+* Przyjeto: Sprint 68.5 dodaje target delta v0 tylko dla markerow targetow,
+  zostawiajac obszary i contested/captured layers poza zakresem.
+* Przyjeto: Sprint 69 rozrzedza / wygasza pollery dopiero po potwierdzeniu
+  delta-feed i recovery, bez usuwania snapshot endpointow.
+* Przyjeto: Sprint 70 jest audytem integralnosci refactoru delt: sprawdza
+  helpery, typy eventow, `applyDelta()`, recovery, snapshoty i ukryte legacy.
+* Przyjeto: Sprint 71 wprowadza Map Initial Load Gate: mapa nie jest gotowa,
+  dopoki krytyczne warstwy nie zglosza loaded, a akcje mapowe sa blokowane w
+  trakcie bootu.
+* Przyjeto: Sprint 72 skraca sciezke hack action na mapie przez lekki picker
+  narzedzia, bez domyslnego otwierania pelnego File Managera.
+* Przyjeto: Sprint 73 optymalizuje i porzadkuje map runtime po liftingu akcji:
+  poprawia responsywnosc, feedback hackowania i usuwa najgorsze opoznienia bez
+  przebudowy backendu.
+* Przyjeto: Sprint 74 uruchamia Faze H od audytu prototypu BlackNet i kontraktu
+  `blacknet_signal`, bez runtime w grze.
+* Przyjeto: Sprint 75 osadza BlackNet jako natywny tab WebDragons, bez React /
+  Next runtime i bez backendu.
+* Przyjeto: Sprint 76 oraz 76.1 dopasowuja BlackNet do prototypu jako
+  czterokierunkowy signal roll, a nie katalog kart, drugi Googleplex ani drugi
+  Ghost Exchange.
+* Przyjeto: Sprint 77 podpina CTA BlackNetu do istniejacych systemow przez
+  `cta_action`, bez tworzenia misji, rynku, endpointow i drugiego flow.
+* Przyjeto: Sprint 78 przenosi sygnaly BlackNetu do lokalnego kontraktu
+  `static/blacknet_signals.json`, a renderer tylko je laduje i normalizuje.
+* Przyjeto: Sprint 79 definiuje przyszly `blacknet_world_digest` jako read
+  model nad faktami swiata, bez pollera, AI i wywolywania
+  `sync_session_profile()`.
+* Przyjeto: Sprint 80 zamyka BlackNet v0 jako stabilny lokalny front
+  informacyjny; aktywne style `.blacknet-stage` i `.bn-*` pozostaja w
+  `blacknet.css`, a martwy legacy shell zostal usuniety ze `style.css`.
 
 ---
 

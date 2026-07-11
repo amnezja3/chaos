@@ -2975,7 +2975,7 @@ function createBrowser() {
     let exchangeDashboard = { summary: {}, sectors: [], recent_transactions: [], history_7d: [] };
     let walletBalance = 0;
     let activeBrowserTab = "googleplex";
-    let activeBlacknetSignalId = "hotspot-mokotow";
+    let activeBlacknetSignalId = "";
     let blacknetPointerStartX = null;
     const renderBrowserWallet = () => {
         wallet.textContent = activeBrowserTab === "blacknet"
@@ -3036,95 +3036,80 @@ function createBrowser() {
         ...googleplexList(item.target_types)
     ].join(' ').toLowerCase();
 
-    const blacknetSignals = [
-        {
-            id: "hotspot-mokotow",
-            channel: "PRZECHWYCONY KANAL",
-            title: "HOTSPOT / MOKOTOW",
-            label: "WZROST RUCHU",
-            value: "240%",
-            stat: "17 AKTYWNYCH OPERACJI",
-            timer: "04:32",
-            cta: "PRZECHWYC TELEPORT",
-            tone: "lime",
-            layout: 1,
-            radarSides: 0,
-            nodes: [[22, 26, 3], [34, 43, 2], [66, 27, 3], [78, 51, 4], [63, 72, 3], [31, 69, 2]]
-        },
-        {
-            id: "market-gps",
-            channel: "GHOST MARKET WATCH",
-            title: "GPS LOGS / WARSZAWA",
-            label: "POTENCJAL CENY",
-            value: "+34%",
-            stat: "62 PAKIETY W RUCHU",
-            timer: "08:18",
-            cta: "OTWORZ GHOST EXCHANGE",
-            tone: "cyan",
-            layout: 2,
-            radarSides: 4,
-            nodes: [[19, 57, 2], [31, 31, 4], [46, 62, 2], [61, 38, 3], [75, 66, 4], [82, 29, 2]]
-        },
-        {
-            id: "tool-drop",
-            channel: "NIEZWERYFIKOWANY DROP",
-            title: "SILENTSNIFF / ZERO TRACE",
-            label: "RABAT KANALOWY",
-            value: "-41%",
-            stat: "9 KOPII POZOSTALO",
-            timer: "02:06",
-            cta: "SPRAWDZ W GOOGLEPLEX",
-            tone: "amber",
-            layout: 3,
-            radarSides: 5,
-            nodes: [[18, 34, 3], [38, 21, 2], [43, 50, 4], [68, 35, 2], [76, 74, 3], [28, 76, 2]]
-        },
-        {
-            id: "pvp-praga",
-            channel: "SYGNAL WYSOKIEGO RYZYKA",
-            title: "KONFLIKT / PRAGA POLNOC",
-            label: "AKTYWNOSC PVP",
-            value: "7x",
-            stat: "3 CELE BEZ OSLONY",
-            timer: "01:47",
-            cta: "WEJDZ W STREFE",
-            tone: "red",
-            layout: 4,
-            radarSides: 6,
-            nodes: [[16, 48, 2], [29, 24, 3], [41, 67, 3], [57, 21, 2], [70, 55, 4], [83, 39, 3]]
-        },
-        {
-            id: "leak-zoliborz",
-            channel: "GHOST INTELLIGENCE",
-            title: "PRZECIEK / ZOLIBORZ",
-            label: "WIARYGODNOSC",
-            value: "83%",
-            stat: "11 WEZLOW POWIAZANYCH",
-            timer: "06:24",
-            cta: "OTWORZ DOSSIER",
-            tone: "lime",
-            layout: 5,
-            radarSides: 7,
-            nodes: [[14, 33, 2], [29, 61, 3], [43, 23, 2], [58, 57, 4], [72, 31, 2], [86, 69, 3]]
-        },
-        {
-            id: "atm-srodmiescie",
-            channel: "ALERT SYSTEMOWY",
-            title: "ATM BURST / SRODMIESCIE",
-            label: "OKNO OPERACJI",
-            value: "90s",
-            stat: "8 TERMINALI BEZ OSLONY",
-            timer: "00:58",
-            cta: "NAMIERZ TERMINALE",
-            tone: "cyan",
-            layout: 6,
-            radarSides: 8,
-            nodes: [[17, 71, 3], [27, 38, 2], [46, 17, 3], [59, 46, 2], [71, 76, 4], [85, 28, 2]]
-        }
-    ];
+    const BLACKNET_SIGNAL_SOURCE = "/static/blacknet_signals.json";
+    let blacknetSignals = [];
+    let blacknetSignalsLoaded = false;
+    let blacknetSignalsLoading = null;
+    let blacknetSignalsError = "";
 
     const blacknetCapturedSignals = new Set();
     let activeBlacknetDirection = "right";
+
+    const normalizeBlacknetSignal = (signal, index) => {
+        if (!signal || typeof signal !== "object") return null;
+        const id = String(signal.id || `signal-${index + 1}`).trim();
+        if (!id) return null;
+        const radar = signal.radar && typeof signal.radar === "object" ? signal.radar : {};
+        const rawNodes = Array.isArray(radar.nodes) ? radar.nodes : (Array.isArray(signal.nodes) ? signal.nodes : []);
+        const nodes = rawNodes
+            .map(node => Array.isArray(node) ? node.map(Number).slice(0, 3) : null)
+            .filter(node => node && node.length >= 2 && node.every(value => Number.isFinite(value)));
+        return {
+            id,
+            source: String(signal.source || "unknown").trim() || "unknown",
+            channel: String(signal.channel || "BLACKNET SIGNAL").trim() || "BLACKNET SIGNAL",
+            title: String(signal.title || "NIEZNANY SYGNAL").trim() || "NIEZNANY SYGNAL",
+            label: String(signal.label || "STATUS").trim() || "STATUS",
+            value: String(signal.value || "-").trim() || "-",
+            stat: String(signal.stat || "BRAK DANYCH").trim() || "BRAK DANYCH",
+            timer: String(signal.timer || "--:--").trim() || "--:--",
+            cta: String(signal.cta || "BRAK MOSTU").trim() || "BRAK MOSTU",
+            cta_action: String(signal.cta_action || "").trim(),
+            cta_target: String(signal.cta_target || "").trim(),
+            tone: ["lime", "cyan", "amber", "red"].includes(String(signal.tone || "").trim())
+                ? String(signal.tone).trim()
+                : "lime",
+            layout: Math.max(1, Math.min(6, Number(signal.layout || 1))),
+            radarSides: Math.max(0, Math.min(12, Number(radar.sides ?? signal.radarSides ?? 0))),
+            nodes
+        };
+    };
+
+    const loadBlacknetSignals = async () => {
+        if (blacknetSignalsLoaded) return blacknetSignals;
+        if (blacknetSignalsLoading) return blacknetSignalsLoading;
+        blacknetSignalsError = "";
+        blacknetSignalsLoading = fetch(BLACKNET_SIGNAL_SOURCE, { cache: "no-cache" })
+            .then(async response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const payload = await response.json();
+                const sourceSignals = Array.isArray(payload) ? payload : payload.signals;
+                blacknetSignals = Array.isArray(sourceSignals)
+                    ? sourceSignals.map(normalizeBlacknetSignal).filter(Boolean)
+                    : [];
+                blacknetSignalsLoaded = true;
+                if (!blacknetSignals.some(signal => signal.id === activeBlacknetSignalId)) {
+                    activeBlacknetSignalId = blacknetSignals[0]?.id || "";
+                }
+                return blacknetSignals;
+            })
+            .catch(error => {
+                console.warn("BlackNet signal source failed", error);
+                blacknetSignalsError = "Nie udalo sie wczytac lokalnego zrodla sygnalow.";
+                blacknetSignals = [];
+                blacknetSignalsLoaded = true;
+                return blacknetSignals;
+            })
+            .finally(() => {
+                blacknetSignalsLoading = null;
+                if (activeBrowserTab === "blacknet") {
+                    renderBlackNet();
+                }
+            });
+        return blacknetSignalsLoading;
+    };
 
     const blacknetVisibleSignals = () => {
         return blacknetSignals;
@@ -3195,15 +3180,50 @@ function createBrowser() {
         `;
     };
 
+    const runBlacknetCta = signal => {
+        const action = String(signal?.cta_action || "").trim().toLowerCase();
+        if (!action) return false;
+        if (action === "open_googleplex") {
+            switchBrowserTab("googleplex");
+            return true;
+        }
+        if (action === "open_ghost_exchange") {
+            switchBrowserTab("exchange");
+            return true;
+        }
+        if (action === "open_map") {
+            return openSystemAppFromTerminal("map");
+        }
+        if (action === "open_cyberner") {
+            return openSystemAppFromTerminal("cyberner");
+        }
+        if (action === "open_radio") {
+            return openSystemAppFromTerminal("radio");
+        }
+        return false;
+    };
+
     const renderBlackNet = () => {
         if (activeBrowserTab !== "blacknet") return;
         updateBrowserNarrowMode();
+        if (!blacknetSignalsLoaded) {
+            results.innerHTML = `
+                <main class="blacknet-stage tone-lime">
+                    <div class="bn-noise"></div>
+                    <div class="bn-empty">Synchronizacja lokalnych sygnalow BlackNet...</div>
+                </main>
+            `;
+            loadBlacknetSignals();
+            return;
+        }
         const visibleSignals = blacknetVisibleSignals();
         const activeIndex = Math.max(0, visibleSignals.findIndex(signal => signal.id === activeBlacknetSignalId));
         const featured = visibleSignals[activeIndex] || visibleSignals[0] || null;
         if (featured?.id) {
             activeBlacknetSignalId = featured.id;
         }
+        const featuredCtaAction = String(featured?.cta_action || "").trim();
+        const featuredCtaEnabled = Boolean(featuredCtaAction);
         results.innerHTML = `
             <main class="blacknet-stage tone-${escapeHTML(featured?.tone || "lime")}">
                 <div class="bn-noise"></div>
@@ -3234,12 +3254,12 @@ function createBrowser() {
                             </div>
                             <div class="bn-visual">${blacknetRadarSvg(featured)}</div>
                             <div class="bn-timer"><span class="bn-hourglass">⌛</span><small>SYGNAL WAZNY</small><strong>${escapeHTML(featured.timer)}</strong></div>
-                            <button class="bn-cta ${blacknetCapturedSignals.has(featured.id) ? "captured" : ""}" type="button" data-blacknet-capture="${escapeHTML(featured.id)}">
+                            <button class="bn-cta ${blacknetCapturedSignals.has(featured.id) ? "captured" : ""}" type="button" data-blacknet-capture="${escapeHTML(featured.id)}" data-blacknet-cta-action="${escapeHTML(featuredCtaAction)}" ${featuredCtaEnabled ? "" : "disabled"}>
                                 <span>⊕</span>${blacknetCapturedSignals.has(featured.id) ? "SYGNAL PRZECHWYCONY" : escapeHTML(featured.cta)}
                             </button>
                         </div>
                     </section>
-                ` : '<div class="bn-empty">Brak sygnalow dla tego filtra.</div>'}
+                ` : `<div class="bn-empty">${escapeHTML(blacknetSignalsError || "Brak sygnalow w lokalnym zrodle BlackNet.")}</div>`}
                 <footer class="bn-footer">
                     <span>${String(visibleSignals.length ? activeIndex + 1 : 0).padStart(2, "0")} / ${String(visibleSignals.length).padStart(2, "0")}</span>
                     <span>SWIPE · WASD · STRZALKI</span>
@@ -3270,9 +3290,15 @@ function createBrowser() {
         results.querySelector('[data-blacknet-capture]')?.addEventListener('click', event => {
             event.stopPropagation();
             const signalId = event.currentTarget.dataset.blacknetCapture;
-            if (signalId) {
+            const signal = blacknetVisibleSignals().find(item => item.id === signalId);
+            const launched = runBlacknetCta(signal);
+            if (launched && signalId) {
                 blacknetCapturedSignals.add(signalId);
-                renderBlackNet();
+                if (activeBrowserTab === "blacknet") {
+                    renderBlackNet();
+                }
+            } else if (!launched) {
+                addSystemMessage("warning", "BlackNet", "Ten sygnal nie ma jeszcze aktywnego mostu.");
             }
         });
         blacknetStage?.addEventListener('pointerdown', event => {

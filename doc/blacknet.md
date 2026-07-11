@@ -36,6 +36,8 @@ tone
 layout
 radar
 cta
+cta_action
+cta_target
 ```
 
 ---
@@ -122,6 +124,131 @@ Poza zakresem Sprintu 76.1:
 * AI,
 * drugi Googleplex,
 * drugi Ghost Exchange.
+
+---
+
+## Sprint 77 - CTA Bridge v0
+
+Status: complete as frontend bridge to existing systems.
+
+Decyzje:
+
+* CTA BlackNetu nie tworzy misji, zadan ani nowych endpointow.
+* CTA wybiera akcje po polu kontraktu `cta_action`, nie po tekscie przycisku.
+* Obslugiwane akcje v0:
+  * `open_googleplex`,
+  * `open_ghost_exchange`,
+  * `open_map`,
+  * `open_cyberner`,
+  * `open_radio`.
+* Jesli sygnal nie ma aktywnego mostu, UI pokazuje disabled/warning state
+  zamiast udawac dzialanie.
+* Male przyciski `GGPL` i `GX` pod logo pozostaja szybkim przejsciem do tabow
+  WebDragons.
+
+Implementacja:
+
+* `renderBlackNet()` przekazuje do CTA `data-blacknet-cta-action`.
+* Router CTA korzysta z istniejacych funkcji:
+  * `switchBrowserTab(...)`,
+  * `openSystemAppFromTerminal(...)`.
+* Swipe / pointer drag signal rolla nie przechwytuje klikniec przyciskow.
+
+---
+
+## Sprint 78 - Local Signal Source
+
+Status: complete as local static signal contract.
+
+Decyzje:
+
+* `terminal.js` nie trzyma juz listy sygnalow BlackNetu.
+* Jedynym lokalnym zrodlem sygnalow v0 jest:
+  * `static/blacknet_signals.json`.
+* Plik ma `schema: 1` i liste `signals`.
+* Renderer normalizuje dane do kontraktu `blacknet_signal`.
+* `radar` jest czescia kontraktu danych:
+  * `radar.sides`,
+  * `radar.nodes`.
+* Brak albo blad lokalnego zrodla pokazuje bezpieczny pusty stan, a nie psuje
+  okna WebDragons.
+
+Implementacja:
+
+* BlackNet laduje lokalny JSON tylko przy wejsciu w tab BlackNet.
+* Nie ma pollera BlackNetu.
+* Nie ma endpointu BlackNetu.
+* Nie ma AI generatora.
+* Silnik layoutu 76.1 i CTA bridge 77 pozostaja bez zmian.
+
+---
+
+## Sprint 79 - World Read Model Prep
+
+Status: complete as documentation / contract.
+
+Artefakt:
+
+* `doc/blacknet_world_read_model.md`
+
+Decyzje:
+
+* Przyszly `blacknet_world_digest` jest read modelem, nie zrodlem prawdy.
+* Digest moze podsumowywac fakty z istniejacych systemow:
+  * Ghost Exchange,
+  * operacje,
+  * mapa / regiony,
+  * PvP / konflikty,
+  * Cyberner / System Messages,
+  * radio channels.
+* BlackNet nie liczy statystyk w requestcie UI.
+* BlackNet nie odpala `sync_session_profile()`.
+* BlackNet nie dostaje pollera.
+* Brak albo stary digest ma fallback do lokalnego
+  `static/blacknet_signals.json`.
+* AI content generation zostaje poza zakresem.
+
+Mapowanie:
+
+```text
+digest fact
+↓
+blacknet_signal
+↓
+renderBlackNet()
+```
+
+`source` wybiera ton i CTA, a `severity` wybiera przyszly priorytet w signal
+rollu.
+
+---
+
+## Sprint 80 - Polish + Readiness Check
+
+Status: complete as readiness check / cleanup.
+
+Artefakt:
+
+* `doc/blacknet_readiness_check.md`
+
+Decyzje:
+
+* BlackNet v0 zostaje stabilnym lokalnym frontem informacyjnym.
+* Aktywny runtime korzysta z `static/blacknet_signals.json`,
+  `renderBlackNet()` i CTA bridge.
+* `blacknet.css` jest jedynym aktywnym arkuszem dla `.blacknet-stage` oraz
+  `.bn-*`.
+* Martwy blok starego `.blacknet-*` shell/carousel zostal usuniety ze
+  `style.css`.
+* `style.css` moze zawierac tylko wrappery WebDragons dla aktywnego taba
+  BlackNet, np. ukrycie starego headera/searcha/tabow.
+
+Przyszle mini-sprinty:
+
+* BlackNet AI Digest,
+* BlackNet Radio Hooks,
+* BlackNet Cyberner Thread,
+* BlackNet Market Rumors.
 
 ---
 

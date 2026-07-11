@@ -7041,3 +7041,129 @@ Googleplexa, Cybernera i radia zostaja w Sprincie 77.
 
 Sprint 76.1 zakonczony. Runtime zostal dopasowany do prototypu bez zmian
 backendu.
+
+---
+
+## 11.07.2026
+
+### Etap
+
+Sprint 77 - BlackNet CTA Bridge v0.
+
+### Zmiany
+
+Podpieto CTA aktywnego sygnalu BlackNetu do istniejacych systemow gry:
+
+* sygnaly dostaly pole `cta_action`,
+* `open_googleplex` przelacza na istniejacy tab Googleplex,
+* `open_ghost_exchange` przelacza na istniejacy tab Ghost Exchange,
+* `open_map`, `open_cyberner` i `open_radio` korzystaja z istniejacego
+  launchera aplikacji systemowych,
+* male przyciski `GGPL` i `GX` pod logo nadal dzialaja jako szybkie przejscia
+  w WebDragons,
+* CTA bez bezpiecznego targetu pokazuje warning/disabled state zamiast udawac
+  aktywna funkcje.
+
+### Decyzje
+
+CTA wybiera akcje po kontraktowym `cta_action`, nie po tekscie przycisku.
+BlackNet nadal nie tworzy misji, zadan, endpointow, drugiego rynku ani drugiego
+notification flow.
+
+### Status
+
+Sprint 77 zakonczony. BlackNet potrafi prowadzic do istniejacych systemow CHAOS,
+ale pozostaje signal bus, a nie osobnym systemem gameplayu.
+
+---
+
+## 11.07.2026
+
+### Etap
+
+Sprint 78 - BlackNet Local Signal Source.
+
+### Zmiany
+
+Przeniesiono sygnaly BlackNetu z `terminal.js` do lokalnego kontraktu:
+
+* dodano `static/blacknet_signals.json`,
+* plik ma `schema: 1` i liste `signals[]`,
+* sygnal zawiera `cta_action`, `cta_target`, `tone`, `layout` oraz `radar`,
+* `radar.sides` i `radar.nodes` zastepuja dane radarowe zaszyte w rendererze,
+* `terminal.js` laduje i normalizuje lokalne zrodlo przy wejsciu w tab BlackNet,
+* blad wczytania pokazuje pusty stan BlackNetu zamiast rozbijac WebDragons.
+
+### Decyzje
+
+BlackNet nadal nie ma backendu, AI, endpointu ani pollera. Sprint 78 zmienia
+tylko zrodlo danych sygnalow, nie silnik layoutu 76.1 i nie CTA bridge 77.
+
+### Status
+
+Sprint 78 zakonczony. BlackNet ma lokalny kontrakt danych gotowy pod przyszly
+read model Sprintu 79.
+
+---
+
+## 11.07.2026
+
+### Etap
+
+Sprint 79 - BlackNet World Read Model Prep.
+
+### Zmiany
+
+Opisano przyszly read model `blacknet_world_digest`:
+
+* dodano `doc/blacknet_world_read_model.md`,
+* wskazano zrodla faktow: Ghost Exchange, operacje, mapa/regiony, PvP,
+  Cyberner/System Messages i radio channels,
+* opisano kontrakt `digest fact`,
+* opisano mapowanie `digest fact -> blacknet_signal`,
+* opisano mapowanie `source -> tone/CTA` oraz `severity -> priority`,
+* dopisano zasady retencji i fallback do lokalnego
+  `static/blacknet_signals.json`.
+
+### Decyzje
+
+`blacknet_world_digest` jest read modelem, nie zrodlem prawdy i nie drugim
+magazynem stanu. BlackNet nie liczy statystyk swiata w requestcie, nie odpala
+`sync_session_profile()`, nie dostaje pollera i nie generuje tresci AI w tym
+sprincie.
+
+### Status
+
+Sprint 79 zakonczony dokumentacyjnie. BlackNet jest gotowy koncepcyjnie na
+przyszle zasilanie faktami swiata bez psucia stabilnego silnika 76.1-78.
+
+---
+
+## 11.07.2026
+
+### Etap
+
+Sprint 80 - BlackNet Polish + Readiness Check.
+
+### Zmiany
+
+Domknieto pierwszy etap BlackNetu jako stabilny lokalny front informacyjny:
+
+* dodano `doc/blacknet_readiness_check.md`,
+* opisano aktualny przeplyw lokalnych sygnalow,
+* opisano checkpointy responsive dla WebDragons,
+* opisano zasady CTA bridge i fallbackow,
+* usunieto martwy blok starego `.blacknet-*` shell/carousel ze `style.css`,
+* zostawiono `blacknet.css` jako jedyne aktywne zrodlo styli `.blacknet-stage`
+  i `.bn-*`.
+
+### Decyzje
+
+BlackNet v0 nie jest misjami, drugim marketem, drugim Googleplexem ani drugim
+Ghost Exchange. Jest lokalnym signal frontem, ktory w przyszlosci moze dostac
+fakty swiata przez digest/cache/delta-feed.
+
+### Status
+
+Sprint 80 zakonczony. Faza H ma stabilny BlackNet v0 gotowy pod przyszle
+mini-sprinty: AI Digest, Radio Hooks, Cyberner Thread i Market Rumors.

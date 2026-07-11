@@ -343,6 +343,12 @@
   transform: translateY(-2px);
 }
 
+.bn-cta:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+  filter: grayscale(.45);
+}
+
 /* Różnorodność bez łamania gridu. */
 .bn-layout-2 .bn-visual { transform: rotate(6deg) scale(.94); }
 .bn-layout-3 .bn-visual { transform: rotate(-7deg) scale(.9); }

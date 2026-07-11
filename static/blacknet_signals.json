@@ -1,0 +1,120 @@
+{
+  "schema": 1,
+  "updated_at": "2026-07-11T00:00:00Z",
+  "signals": [
+    {
+      "id": "hotspot-mokotow",
+      "source": "world",
+      "channel": "PRZECHWYCONY KANAL",
+      "title": "HOTSPOT / MOKOTOW",
+      "label": "WZROST RUCHU",
+      "value": "240%",
+      "stat": "17 AKTYWNYCH OPERACJI",
+      "timer": "04:32",
+      "tone": "lime",
+      "layout": 1,
+      "cta": "PRZECHWYC TELEPORT",
+      "cta_action": "open_map",
+      "cta_target": "map",
+      "radar": {
+        "sides": 0,
+        "nodes": [[22, 26, 3], [34, 43, 2], [66, 27, 3], [78, 51, 4], [63, 72, 3], [31, 69, 2]]
+      }
+    },
+    {
+      "id": "market-gps",
+      "source": "ghost_exchange",
+      "channel": "GHOST MARKET WATCH",
+      "title": "GPS LOGS / WARSZAWA",
+      "label": "POTENCJAL CENY",
+      "value": "+34%",
+      "stat": "62 PAKIETY W RUCHU",
+      "timer": "08:18",
+      "tone": "cyan",
+      "layout": 2,
+      "cta": "OTWORZ GHOST EXCHANGE",
+      "cta_action": "open_ghost_exchange",
+      "cta_target": "ghost_exchange",
+      "radar": {
+        "sides": 4,
+        "nodes": [[19, 57, 2], [31, 31, 4], [46, 62, 2], [61, 38, 3], [75, 66, 4], [82, 29, 2]]
+      }
+    },
+    {
+      "id": "tool-drop",
+      "source": "googleplex",
+      "channel": "NIEZWERYFIKOWANY DROP",
+      "title": "SILENTSNIFF / ZERO TRACE",
+      "label": "RABAT KANALOWY",
+      "value": "-41%",
+      "stat": "9 KOPII POZOSTALO",
+      "timer": "02:06",
+      "tone": "amber",
+      "layout": 3,
+      "cta": "SPRAWDZ W GOOGLEPLEX",
+      "cta_action": "open_googleplex",
+      "cta_target": "googleplex",
+      "radar": {
+        "sides": 5,
+        "nodes": [[18, 34, 3], [38, 21, 2], [43, 50, 4], [68, 35, 2], [76, 74, 3], [28, 76, 2]]
+      }
+    },
+    {
+      "id": "pvp-praga",
+      "source": "map",
+      "channel": "SYGNAL WYSOKIEGO RYZYKA",
+      "title": "KONFLIKT / PRAGA POLNOC",
+      "label": "AKTYWNOSC PVP",
+      "value": "7x",
+      "stat": "3 CELE BEZ OSLONY",
+      "timer": "01:47",
+      "tone": "red",
+      "layout": 4,
+      "cta": "WEJDZ W STREFE",
+      "cta_action": "open_map",
+      "cta_target": "map",
+      "radar": {
+        "sides": 6,
+        "nodes": [[16, 48, 2], [29, 24, 3], [41, 67, 3], [57, 21, 2], [70, 55, 4], [83, 39, 3]]
+      }
+    },
+    {
+      "id": "leak-zoliborz",
+      "source": "cyberner",
+      "channel": "GHOST INTELLIGENCE",
+      "title": "PRZECIEK / ZOLIBORZ",
+      "label": "WIARYGODNOSC",
+      "value": "83%",
+      "stat": "11 WEZLOW POWIAZANYCH",
+      "timer": "06:24",
+      "tone": "lime",
+      "layout": 5,
+      "cta": "OTWORZ DOSSIER",
+      "cta_action": "open_cyberner",
+      "cta_target": "cyberner",
+      "radar": {
+        "sides": 7,
+        "nodes": [[14, 33, 2], [29, 61, 3], [43, 23, 2], [58, 57, 4], [72, 31, 2], [86, 69, 3]]
+      }
+    },
+    {
+      "id": "atm-srodmiescie",
+      "source": "map",
+      "channel": "ALERT SYSTEMOWY",
+      "title": "ATM BURST / SRODMIESCIE",
+      "label": "OKNO OPERACJI",
+      "value": "90s",
+      "stat": "8 TERMINALI BEZ OSLONY",
+      "timer": "00:58",
+      "tone": "cyan",
+      "layout": 6,
+      "cta": "NAMIERZ TERMINALE",
+      "cta_action": "open_map",
+      "cta_target": "map",
+      "radar": {
+        "sides": 8,
+        "nodes": [[17, 71, 3], [27, 38, 2], [46, 17, 3], [59, 46, 2], [71, 76, 4], [85, 28, 2]]
+      }
+    }
+  ]
+}
