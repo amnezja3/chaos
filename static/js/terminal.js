@@ -3195,20 +3195,6 @@ function createBrowser() {
         `;
     };
 
-    const fitBlacknetStage = (stage) => {
-        if (!stage) return;
-        const rect = stage.getBoundingClientRect();
-        const width = Math.max(1, rect.width || stage.clientWidth || 1);
-        const height = Math.max(1, rect.height || stage.clientHeight || 1);
-        const baseWidth = 1450;
-        const baseHeight = 900;
-        const fit = Math.min(1, width / baseWidth, height / baseHeight);
-        const readableFit = width < 560
-            ? Math.max(0.54, Math.min(0.78, fit * 1.55))
-            : Math.max(0.72, fit);
-        stage.style.setProperty('--bn-fit', readableFit.toFixed(3));
-    };
-
     const renderBlackNet = () => {
         if (activeBrowserTab !== "blacknet") return;
         updateBrowserNarrowMode();
@@ -3262,8 +3248,6 @@ function createBrowser() {
             </main>
         `;
         const blacknetStage = results.querySelector('.blacknet-stage');
-        fitBlacknetStage(blacknetStage);
-        requestAnimationFrame(() => fitBlacknetStage(blacknetStage));
         results.querySelectorAll('[data-blacknet-nav]').forEach(button => {
             button.addEventListener('click', event => {
                 event.stopPropagation();
@@ -3272,9 +3256,15 @@ function createBrowser() {
             });
         });
         results.querySelectorAll('[data-blacknet-open-tab]').forEach(button => {
+            button.addEventListener('pointerdown', event => {
+                event.stopPropagation();
+            });
             button.addEventListener('click', event => {
                 event.stopPropagation();
-                switchBrowserTab(button.dataset.blacknetOpenTab || "googleplex");
+                const tabName = button.dataset.blacknetOpenTab || "googleplex";
+                if (["googleplex", "exchange", "blacknet"].includes(tabName)) {
+                    switchBrowserTab(tabName);
+                }
             });
         });
         results.querySelector('[data-blacknet-capture]')?.addEventListener('click', event => {
@@ -3286,6 +3276,7 @@ function createBrowser() {
             }
         });
         blacknetStage?.addEventListener('pointerdown', event => {
+            if (event.target?.closest?.('button, a, input, textarea, select')) return;
             blacknetPointerStartX = [event.clientX, event.clientY];
             if (blacknetStage.setPointerCapture) {
                 blacknetStage.setPointerCapture(event.pointerId);
