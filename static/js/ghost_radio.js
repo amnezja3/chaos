@@ -75,6 +75,23 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             : 0;
     }
 
+    function requestedTrackIndex(playlist, options = {}) {
+        if (!Array.isArray(playlist) || !playlist.length || !options || typeof options !== "object") {
+            return null;
+        }
+        const requestedFile = String(options.trackFile || options.file || "").trim().toLowerCase();
+        if (requestedFile) {
+            const matchIndex = playlist.findIndex(track => String(track.file || "").trim().toLowerCase() === requestedFile);
+            if (matchIndex >= 0) return matchIndex;
+        }
+        const rawIndex = Number(options.trackIndex ?? options.index);
+        if (Number.isFinite(rawIndex)) {
+            const zeroBased = rawIndex > 0 ? rawIndex - 1 : rawIndex;
+            return Math.max(0, Math.min(Math.floor(zeroBased), playlist.length - 1));
+        }
+        return null;
+    }
+
     function displayTrackTitle(track, fallbackIndex = 0) {
         const source = String(track?.title || track?.file || `Track ${fallbackIndex + 1}`);
         const filename = source.split(/[\\/]/).pop() || source;
@@ -304,7 +321,7 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             return this.loadChannels().then(() => this.loadChannel(state.channelId || state.defaultChannel));
         },
 
-        async loadChannel(id = state.defaultChannel) {
+        async loadChannel(id = state.defaultChannel, options = {}) {
             const channelId = String(id || state.defaultChannel);
             setStatus("SIGNAL LOADING");
             const response = await fetch(radioManifestUrl(channelId), { cache: "no-store" });
@@ -333,7 +350,10 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
                     file: track.file.trim(),
                     url: trackUrl(channelId, track.file.trim())
                 }));
-            state.currentIndex = streamStartIndex(state.playlist.length, channel);
+            const explicitIndex = requestedTrackIndex(state.playlist, options);
+            state.currentIndex = explicitIndex === null
+                ? streamStartIndex(state.playlist.length, channel)
+                : explicitIndex;
             if (state.playlist.length) {
                 setAudioSource(state.currentIndex);
             } else if (state.audio) {
@@ -344,6 +364,12 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             updateTrackView();
             syncAudioSettings();
             return state.channel;
+        },
+
+        async playTrack(channelId, options = {}) {
+            await this.init();
+            await this.loadChannel(channelId || state.defaultChannel, options);
+            return this.play();
         },
 
         async play() {

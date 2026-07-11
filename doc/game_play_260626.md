@@ -7732,6 +7732,18 @@ Dopuszczalne:
 * Błędne mappingi nie publikują fałszywych sygnałów.
 * Dokumentacja i journal opisują kontrakty encji.
 
+## Stan po Sprincie 82.8
+
+BlackNet ma poprawione mosty encji:
+
+* radio generuje sygnał dla konkretnego `channel_id` i `track_file`,
+* Googleplex generuje sygnał dla realnego produktu z katalogu,
+* Ghost Exchange publikuje sektor tylko wtedy, gdy istnieje w kontrakcie rynku,
+* Cyberner otwiera kanał `WORLD` przez `open_cyberner_thread`, a nie kontakt
+  `cyberner`,
+* frontendowe CTA używają istniejących aplikacji CHAOS i nie budują drugiego
+  systemu akcji.
+
 ---
 
 # Sprint 82.9 — BlackNet Real Signal Cutover + Mock Retirement
@@ -7814,6 +7826,21 @@ Każda rodzina musi mieć:
 * CTA prowadzą do realnych encji.
 * BlackNet jest gotowy na Sprint 83 i kontrakt Ollamy.
 * Dokumentacja i journal opisują cutover.
+
+## Stan po Sprincie 82.9
+
+BlackNet w normalnym runtime ładuje wyłącznie:
+
+```text
+/api/blacknet/world-signals
+```
+
+Lokalny plik `static/blacknet_signals.json` jest tylko fixture dev/demo i wymaga
+jawnej flagi. Brak feedu albo brak realnych danych daje `OUT OF SIGNAL`, a nie
+plakatowy fallback.
+
+Każdy wygenerowany sygnał posiada stabilne `entity_id` pochodzące z realnej
+encji gry: targetu, produktu, kanału radia, sektora GX albo kanału Cybernera.
 
 ---
 

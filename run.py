@@ -421,7 +421,7 @@ BLACKNET_SIGNAL_RULES = {
         "value_suffix": " HC",
         "stat_template": "{file_count} PLIKOW / {volume_mb} MB",
         "cta": "OTWORZ GHOST EXCHANGE",
-        "cta_action": "open_ghost_exchange",
+        "cta_action": "open_exchange_market",
         "cta_target": "ghost_exchange",
         "tone": "cyan",
         "layout": 2,
@@ -436,7 +436,7 @@ BLACKNET_SIGNAL_RULES = {
         "value_suffix": " HC",
         "stat_template": "{volume_mb} MB W RUCHU",
         "cta": "OTWORZ GHOST EXCHANGE",
-        "cta_action": "open_ghost_exchange",
+        "cta_action": "open_exchange_category",
         "cta_target": "ghost_exchange",
         "tone": "cyan",
         "layout": 6,
@@ -446,11 +446,11 @@ BLACKNET_SIGNAL_RULES = {
         "threshold": 1,
         "channel": "NIEZWERYFIKOWANY DROP",
         "title": "GOOGLEPLEX / KATALOG",
-        "label": "DOSTEPNE PRODUKTY",
-        "value_suffix": "",
+        "label": "CENA",
+        "value_suffix": " HC",
         "stat_template": "{products} SYSTEM PRODUCT",
         "cta": "SPRAWDZ W GOOGLEPLEX",
-        "cta_action": "open_googleplex",
+        "cta_action": "open_googleplex_search",
         "cta_target": "googleplex",
         "tone": "amber",
         "layout": 3,
@@ -464,7 +464,7 @@ BLACKNET_SIGNAL_RULES = {
         "value_suffix": "",
         "stat_template": "{tracks_total} TRACKOW W ETERZE",
         "cta": "WLACZ RADIO",
-        "cta_action": "open_radio",
+        "cta_action": "play_radio_podcast",
         "cta_target": "radio",
         "tone": "lime",
         "layout": 5,
@@ -478,8 +478,8 @@ BLACKNET_SIGNAL_RULES = {
         "value_suffix": "",
         "stat_template": "{value} KOMUNIKATOW",
         "cta": "OTWORZ CYBERNER",
-        "cta_action": "open_cyberner",
-        "cta_target": "cyberner",
+        "cta_action": "open_cyberner_thread",
+        "cta_target": "world",
         "tone": "red",
         "layout": 4,
     },
@@ -536,6 +536,18 @@ BLACKNET_HOTSPOTS = {
         "lng": 20.9860,
         "risk": "medium",
     },
+}
+BLACKNET_MARKET_SECTOR_LABELS = {
+    "atm": "Bankomaty",
+    "audio": "Audio",
+    "camera": "Kamery",
+    "credentials": "Dane logowania",
+    "device": "Dane urzadzen",
+    "financial": "Dane finansowe",
+    "gps": "GPS",
+    "network": "Sieci",
+    "personal": "Dane osobowe",
+    "vehicle": "Pojazdy",
 }
 
 
@@ -852,6 +864,8 @@ def build_blacknet_operations_facts(profiles, now_dt):
 def build_blacknet_ghost_exchange_facts(profiles, now_dt):
     sector_hc = {}
     sector_volume = {}
+    sector_files = {}
+    sector_transactions = {}
     total_hc = 0
     total_files = 0
     total_volume = 0
@@ -871,6 +885,8 @@ def build_blacknet_ghost_exchange_facts(profiles, now_dt):
             files = int(transaction.get("file_count") or 0)
             sector_hc[sector] = sector_hc.get(sector, 0) + price
             sector_volume[sector] = sector_volume.get(sector, 0) + volume
+            sector_files[sector] = sector_files.get(sector, 0) + files
+            sector_transactions[sector] = sector_transactions.get(sector, 0) + 1
             total_hc += price
             total_volume += volume
             total_files += files
@@ -891,22 +907,41 @@ def build_blacknet_ghost_exchange_facts(profiles, now_dt):
                 "volume_mb": total_volume,
                 "sector_hc": sector_hc,
                 "sector_volume_mb": sector_volume,
+                "cta_target_id": "market",
             },
         )
     ]
     if sector_hc:
-        top_sector, top_hc = sorted(sector_hc.items(), key=lambda item: item[1], reverse=True)[0]
-        facts.append(build_blacknet_fact(
-            "market_top_sector_7d",
-            "ghost_exchange",
-            top_sector,
-            top_hc,
-            now_dt,
-            importance="high" if top_hc >= 1000 else "medium",
-            confidence=0.9,
-            subject_id=top_sector,
-            metadata={"volume_mb": sector_volume.get(top_sector, 0)},
-        ))
+        known_sectors = set(MARKET_SECTOR_THRESHOLDS.keys())
+        ranked_sectors = [
+            item for item in sorted(sector_hc.items(), key=lambda item: item[1], reverse=True)
+            if item[0] in known_sectors
+        ]
+        if ranked_sectors:
+            top_sector, top_hc = ranked_sectors[0]
+            transaction_total = max(1, int(sector_transactions.get(top_sector) or 0))
+            facts.append(build_blacknet_fact(
+                "market_top_sector_7d",
+                "ghost_exchange",
+                top_sector,
+                top_hc,
+                now_dt,
+                importance="high" if top_hc >= 1000 else "medium",
+                confidence=0.9,
+                subject_id=top_sector,
+                metadata={
+                    "sector": top_sector,
+                    "sector_id": top_sector,
+                    "sector_key": top_sector,
+                    "sector_label": BLACKNET_MARKET_SECTOR_LABELS.get(top_sector, top_sector),
+                    "market_category": top_sector,
+                    "volume_mb": sector_volume.get(top_sector, 0),
+                    "sold_today": sector_files.get(top_sector, 0),
+                    "average_price": int(round(top_hc / transaction_total)),
+                    "cta_target_id": top_sector,
+                    "cta_query": top_sector,
+                },
+            ))
     return facts
 
 
@@ -934,23 +969,35 @@ def build_blacknet_googleplex_facts(now_dt):
         or featured_product.get("product_type")
         or ""
     ).strip() if isinstance(featured_product, dict) else ""
+    featured_price = 0
+    featured_type = ""
+    if isinstance(featured_product, dict) and featured_product:
+        try:
+            featured_price = int(featured_product.get("price") or 0)
+        except (TypeError, ValueError):
+            featured_price = 0
+        featured_type = str(featured_product.get("product_type") or "app").strip() or "app"
     return [
         build_blacknet_fact(
             "googleplex_catalog_size",
             "googleplex",
-            "catalog",
-            len(catalog),
+            featured_name or "catalog",
+            featured_price if featured_id else len(catalog),
             now_dt,
             importance="medium",
             confidence=0.95,
             metadata={
+                "catalog_count": len(catalog),
                 "apps": len(apps),
                 "products": len(products),
                 "average_price": average_price,
                 "categories": categories,
                 "product_id": featured_id,
                 "product_name": featured_name,
+                "product_type": featured_type,
+                "price": featured_price,
                 "category": featured_category,
+                "cta_target_id": featured_id,
                 "cta_query": featured_name or featured_id,
             },
         )
@@ -976,10 +1023,15 @@ def build_blacknet_radio_facts(now_dt):
         try:
             with open(meta_path, "r", encoding="utf-8") as handle:
                 channel = json.load(handle)
-            track_count = len([
+            excluded = {
+                str(item or "").strip()
+                for item in (channel.get("exclude") if isinstance(channel.get("exclude"), list) else [])
+            }
+            tracks = sorted([
                 filename for filename in os.listdir(os.path.join(radio_root, channel_id))
-                if filename.lower().endswith(".mp3")
+                if filename.lower().endswith(".mp3") and filename not in excluded
             ])
+            track_count = len(tracks)
         except (OSError, json.JSONDecodeError):
             continue
         channels.append({
@@ -988,27 +1040,40 @@ def build_blacknet_radio_facts(now_dt):
             "name": channel.get("name") or channel_id,
             "source": channel.get("source") or "unknown",
             "tracks": track_count,
+            "track_files": tracks[:24],
         })
         tracks_total += track_count
     preferred_channel = next(
         (item for item in channels if str(item.get("source") or "").lower().startswith("blacknet")),
         None,
     ) or (channels[0] if channels else {})
+    preferred_tracks = preferred_channel.get("track_files") if isinstance(preferred_channel.get("track_files"), list) else []
+    track_count = len(preferred_tracks)
+    track_index = 0
+    if track_count:
+        track_index = int(now_dt.strftime("%j%H")) % track_count
+    track_file = preferred_tracks[track_index] if track_count else ""
+    track_title = re.sub(r"\.mp3$", "", track_file, flags=re.IGNORECASE).replace("_", " ").replace("-", " ").strip()
     return [
         build_blacknet_fact(
             "radio_channels_available",
             "radio",
-            "radio",
-            len(channels),
+            track_title or "radio",
+            track_index + 1 if track_count else 0,
             now_dt,
             importance="low" if channels else "medium",
             confidence=0.9,
             metadata={
-                "channels": channels[:10],
+                "channel_ids": [str(item.get("id") or "") for item in channels[:10] if item.get("id")],
                 "tracks_total": tracks_total,
                 "channel_id": preferred_channel.get("id") or "",
                 "channel_name": preferred_channel.get("name") or "",
+                "track_file": track_file,
+                "track_title": track_title,
+                "track_index": track_index + 1 if track_count else 0,
+                "track_count": track_count,
                 "cta_target_id": preferred_channel.get("id") or "",
+                "cta_query": track_title or preferred_channel.get("name") or preferred_channel.get("id") or "",
             },
         )
     ]
@@ -1039,7 +1104,15 @@ def build_blacknet_system_facts(profiles, now_dt):
             now_dt,
             importance="medium" if total_messages else "low",
             confidence=0.8,
-            metadata={"top_titles": sorted(title_counts.items(), key=lambda item: item[1], reverse=True)[:5]},
+            metadata={
+                "top_titles": sorted(title_counts.items(), key=lambda item: item[1], reverse=True)[:5],
+                "thread_scope": "group",
+                "thread_peer": "global",
+                "thread_channel": "world",
+                "thread_title": "WORLD",
+                "cta_target_id": "global",
+                "cta_query": "WORLD",
+            },
         )
     ]
 
@@ -1421,6 +1494,16 @@ def blacknet_signal_from_fact(fact, now_dt):
         "signal_type": signal_type,
         "fact_id": fact.get("fact_id"),
         "world_version": fact.get("world_version"),
+        "entity_id": str(
+            metadata.get("entity_id")
+            or metadata.get("cta_target_id")
+            or metadata.get("target_id")
+            or metadata.get("product_id")
+            or metadata.get("channel_id")
+            or metadata.get("sector_key")
+            or fact.get("subject_id")
+            or ""
+        ),
         "channel": str(rule.get("channel") or "BLACKNET SIGNAL"),
         "title": title[:48],
         "label": str(rule.get("label") or "STATUS")[:32],
@@ -1539,7 +1622,8 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
             "published": len(selected),
             "rejected": len(rejected),
             "out_of_signal": out_of_signal,
-            "local_static_allowed": not out_of_signal,
+            "local_static_allowed": False,
+            "local_static_policy": "dev_flag_only",
             "ollama_used": False,
         },
     }

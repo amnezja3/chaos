@@ -64,7 +64,7 @@ Generated signals keep the same frontend shape as local static BlackNet signals:
   "tone": "cyan",
   "layout": 2,
   "cta": "OTWORZ GHOST EXCHANGE",
-  "cta_action": "open_ghost_exchange",
+  "cta_action": "open_exchange_market",
   "cta_target": "ghost_exchange",
   "radar": {
     "sides": 2,
@@ -98,6 +98,11 @@ Generated signals may only use approved `cta_action` values:
 * `open_googleplex`
 * `open_cyberner`
 * `open_radio`
+* `open_exchange_market`
+* `open_exchange_category`
+* `open_googleplex_search`
+* `open_cyberner_thread`
+* `play_radio_podcast`
 
 CTA is selected by rule, not by button text.
 
@@ -139,12 +144,14 @@ no facts at all, the publisher returns one neutral BlackNet signal:
 This is intentional. BlackNet must not fill an empty world feed with mock
 hotspots such as `HOTSPOT / MOKOTOW`.
 
-Frontend rule:
+Frontend rule after Sprint 82.9:
 
 * if `out_of_signal` is present in `world_generated`, local static signals are
   not merged into the visible signal roll;
-* if the world endpoint fails completely, local static signals may still be used
-  as a compatibility fallback until Sprint 82.9 retires production mocks.
+* if the world endpoint fails completely, the UI shows a local client-side
+  `OUT OF SIGNAL` state;
+* local static signals may be loaded only when a dev/demo flag is explicitly
+  enabled.
 
 New generated signal:
 
@@ -184,6 +191,100 @@ because it represents conflict activity without a safe individual target.
 
 These rules keep BlackNet inside the existing map runtime. They do not create a
 second target registry, second map store or synthetic district catalog.
+
+## Sprint 82.8 Update
+
+Entity CTA families no longer point to mock text.
+
+Radio signals use:
+
+```text
+cta_action = play_radio_podcast
+metadata.channel_id
+metadata.track_file
+metadata.track_index
+metadata.track_title
+metadata.track_count
+```
+
+The frontend opens Ghost Hack Radio and asks the existing `GhostRadio` module to
+load the indicated channel and MP3 track.
+
+Googleplex signals use:
+
+```text
+cta_action = open_googleplex_search
+metadata.product_id
+metadata.product_name
+metadata.product_type
+metadata.price
+metadata.category
+```
+
+The frontend opens the existing Googleplex tab and searches for the real product
+name from the catalog.
+
+Ghost Exchange signals use:
+
+```text
+cta_action = open_exchange_market
+cta_action = open_exchange_category
+metadata.sector_key
+metadata.sector_label
+metadata.market_category
+```
+
+The top-sector signal is published only when the sector exists in the current
+Ghost Exchange sector contract. Invalid sector mappings are skipped instead of
+creating a broken filter.
+
+Cyberner system signals use:
+
+```text
+cta_action = open_cyberner_thread
+metadata.thread_scope = group
+metadata.thread_peer = global
+metadata.thread_channel = world
+```
+
+The frontend opens the existing WORLD channel, not a private contact named
+`cyberner`.
+
+## Sprint 82.9 Update
+
+BlackNet production runtime now uses the real feed only:
+
+```text
+/api/blacknet/world-signals
+```
+
+The static file:
+
+```text
+static/blacknet_signals.json
+```
+
+is no longer loaded by default. It is a dev/demo fixture only and must be
+enabled explicitly on the frontend by one of:
+
+```text
+?blacknet_demo=1
+?blacknet_static=1
+localStorage.blacknet_static_signals = "1"
+window.BLACKNET_STATIC_SIGNAL_FIXTURE = true
+```
+
+If the real feed is empty, invalid or temporarily unavailable, the frontend must
+show `OUT OF SIGNAL` instead of merging local posters into the roll.
+
+All generated signals expose a stable:
+
+```text
+entity_id
+```
+
+derived from the real target/product/channel/sector/thread entity. `entity_id`
+is not a display label and should not be inferred from the rendered title.
 
 ## Out Of Scope
 

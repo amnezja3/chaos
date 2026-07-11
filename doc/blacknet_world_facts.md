@@ -201,3 +201,49 @@ Safety rule:
 * BlackNet must not call an external geocoder.
 * A missing conflict target produces an area-level signal or no signal, not a
   fake hotspot.
+
+## Sprint 82.8 Update
+
+Entity-oriented facts now carry enough metadata for CTA bridges to open existing
+CHAOS systems without guessing.
+
+Ghost Exchange top-sector facts include:
+
+* `sector_id`,
+* `sector_key`,
+* `sector_label`,
+* `market_category`,
+* `volume_mb`,
+* `sold_today`,
+* `average_price`,
+* `cta_target_id`.
+
+The top-sector fact is emitted only for sectors known to the Ghost Exchange
+sector contract.
+
+Googleplex facts include the featured real catalog entity:
+
+* `product_id`,
+* `product_name`,
+* `product_type`,
+* `price`,
+* `category`,
+* `cta_query`.
+
+Radio facts include a concrete BlackNet radio track:
+
+* `channel_id`,
+* `channel_name`,
+* `track_file`,
+* `track_title`,
+* `track_index`,
+* `track_count`.
+
+System-message facts include the Cyberner WORLD thread target:
+
+* `thread_scope = group`,
+* `thread_peer = global`,
+* `thread_channel = world`.
+
+If a source cannot provide a real entity for a family, that family should not
+publish a fake signal. The publisher can fall back to `out_of_signal`.

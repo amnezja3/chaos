@@ -7519,3 +7519,118 @@ albo `open_map`, jesli nie ma bezpiecznego konkretnego targetu.
 
 Sprint 82.7 zakonczony. BlackNet ma realne generatory map/conflict v0. Poprawki
 CTA dla Radio, Googleplex, Ghost Exchange i Cybernera zostaja w Sprincie 82.8.
+
+---
+
+## 11.07.2026
+
+### Etap
+
+Sprint 82.8 - BlackNet Entity CTA Fixes: Radio, Googleplex, GX, Cyberner.
+
+### Zmiany
+
+Poprawiono rodziny CTA, ktore po Sprintach 81-82 nadal dzialaly zbyt blisko
+mockowych tytulow sygnalow.
+
+Radio BlackNet wskazuje teraz konkretne:
+
+```text
+channel_id
+track_file
+track_index
+track_title
+track_count
+```
+
+Googleplex wskazuje realny produkt z katalogu:
+
+```text
+product_id
+product_name
+product_type
+price
+category
+```
+
+Ghost Exchange wskazuje realny sektor rynku i publikuje top-sector tylko dla
+sektorow znanych w kontrakcie GX.
+
+Cyberner otwiera kanal `WORLD` przez `open_cyberner_thread`, zamiast tworzyc
+albo otwierac kontakt `cyberner`.
+
+### Decyzje
+
+Mockowy tytul sygnalu nie moze byc parametrem akcji. CTA BlackNetu musi miec
+konkretna encje runtime albo nie powinno byc publikowane.
+
+Radio korzysta z istniejacego `GhostRadio`, Googleplex z istniejacej
+wyszukiwarki katalogu, Ghost Exchange z istniejacego dashboardu sektorow, a
+Cyberner z istniejacego kanalu WORLD.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`
+* `node --check static/js/terminal.js static/js/ghost_radio.js`
+* `python -m unittest tests.test_target_persistence.BlackNetWorldFactsSnapshotTest tests.test_target_persistence.BlackNetWorldSignalPublisherTest`
+* `git diff --check`
+
+### Status
+
+Sprint 82.8 zakonczony. BlackNet ma gotowe mosty CTA dla encji Radio,
+Googleplex, Ghost Exchange i Cyberner. Sprint 82.9 moze zajac sie real signal
+cutover i emerytura mockow.
+
+---
+
+## 11.07.2026
+
+### Etap
+
+Sprint 82.9 - BlackNet Real Signal Cutover + Mock Retirement.
+
+### Zmiany
+
+Przelaczono normalny runtime BlackNetu na realny feed:
+
+```text
+/api/blacknet/world-signals
+```
+
+Frontend nie pobiera juz domyslnie `static/blacknet_signals.json`.
+
+Lokalny plik sygnalow pozostaje tylko jako fixture dev/demo i wymaga jawnej
+flagi:
+
+```text
+?blacknet_demo=1
+?blacknet_static=1
+localStorage.blacknet_static_signals = "1"
+window.BLACKNET_STATIC_SIGNAL_FIXTURE = true
+```
+
+Jezeli world feed jest pusty, niedostepny albo nie zawiera poprawnych sygnalow,
+UI pokazuje `OUT OF SIGNAL`, zamiast mieszac plakatowe mocki z realnym runtime.
+
+### Decyzje
+
+Mocki nie sa juz produkcyjnym zrodlem sygnalow BlackNetu.
+
+Kazdy realny sygnal dostaje `entity_id`, ktore opisuje konkretna encje runtime:
+target, produkt, kanal radia, sektor Ghost Exchange albo kanal Cybernera.
+
+`entity_id` nie jest tytulem wizualnym i nie moze byc zgadywane z naglowka
+sygnalu.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`
+* `node --check static/js/terminal.js`
+* `node --check static/js/ghost_radio.js`
+* `python -m unittest tests.test_target_persistence.BlackNetWorldFactsSnapshotTest tests.test_target_persistence.BlackNetWorldSignalPublisherTest`
+* `git diff --check`
+
+### Status
+
+Sprint 82.9 zakonczony. BlackNet jest gotowy na Sprint 83 jako realny,
+deterministyczny feed sygnalow dla przyszlego kontraktu Ollamy.

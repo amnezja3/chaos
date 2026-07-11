@@ -965,10 +965,16 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         self.assertEqual(snapshot["source_versions"]["profiles"], 1)
         self.assertGreaterEqual(len(snapshot["facts"]), 4)
         fact_keys = {(fact["source_system"], fact["fact_type"]) for fact in snapshot["facts"]}
+        by_type = {fact["fact_type"]: fact for fact in snapshot["facts"]}
         self.assertIn(("operations", "operations_active_count"), fact_keys)
         self.assertIn(("operations", "operation_hotspot_activity"), fact_keys)
         self.assertIn(("ghost_exchange", "market_sales_7d"), fact_keys)
+        self.assertIn(("ghost_exchange", "market_top_sector_7d"), fact_keys)
         self.assertIn(("googleplex", "googleplex_catalog_size"), fact_keys)
+        self.assertEqual(by_type["market_top_sector_7d"]["metadata"]["sector_key"], "gps")
+        self.assertEqual(by_type["market_top_sector_7d"]["metadata"]["cta_target_id"], "gps")
+        self.assertEqual(by_type["googleplex_catalog_size"]["metadata"]["product_id"], "vault")
+        self.assertEqual(by_type["googleplex_catalog_size"]["metadata"]["price"], 250)
         serialized = json.dumps(snapshot, ensure_ascii=False)
         self.assertNotIn("secret", serialized)
         self.assertNotIn("salt", serialized)
@@ -1019,6 +1025,37 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(data["success"])
         self.assertEqual(data["snapshot"]["snapshot_type"], "blacknet_world_facts")
+
+    def test_blacknet_radio_facts_point_to_concrete_blacknet_track(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            channel_root = os.path.join(temp_dir, "mp3", "radio", "channel", "blacknet_radio_2")
+            os.makedirs(channel_root)
+            with open(os.path.join(channel_root, "meta.channel"), "w", encoding="utf-8") as handle:
+                json.dump({
+                    "schema": 1,
+                    "id": "blacknet_radio_2",
+                    "name": "BlackNet Radio",
+                    "source": "blacknet_radio",
+                    "mode": "sort",
+                    "exclude": ["ignore.mp3"],
+                }, handle)
+            for filename in ("001_intro.mp3", "002_signal.mp3", "ignore.mp3"):
+                with open(os.path.join(channel_root, filename), "wb") as handle:
+                    handle.write(b"")
+            original_static = run.app.static_folder
+            run.app.static_folder = temp_dir
+            try:
+                facts = run.build_blacknet_radio_facts(now)
+            finally:
+                run.app.static_folder = original_static
+
+        self.assertEqual(len(facts), 1)
+        metadata = facts[0]["metadata"]
+        self.assertEqual(metadata["channel_id"], "blacknet_radio_2")
+        self.assertEqual(metadata["track_count"], 2)
+        self.assertIn(metadata["track_file"], {"001_intro.mp3", "002_signal.mp3"})
+        self.assertTrue(metadata["track_title"])
 
     def test_blacknet_world_facts_snapshot_builds_real_operation_hotspot(self):
         now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
@@ -1151,7 +1188,11 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
                 "observed_at": "2026-07-11T11:00:00Z",
                 "expires_at": "2026-07-11T12:10:00Z",
                 "source_system": "ghost_exchange",
-                "metadata": {"volume_mb": 42},
+                "metadata": {
+                    "volume_mb": 42,
+                    "sector_key": "gps",
+                    "cta_target_id": "gps",
+                },
             }],
         }
 
@@ -1159,12 +1200,16 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
 
         self.assertEqual(snapshot["snapshot_type"], "blacknet_world_signals")
         self.assertEqual(snapshot["source"], "world_generated")
+        self.assertFalse(snapshot["diagnostics"]["local_static_allowed"])
+        self.assertEqual(snapshot["diagnostics"]["local_static_policy"], "dev_flag_only")
         self.assertEqual(len(snapshot["signals"]), 1)
         signal = snapshot["signals"][0]
         self.assertEqual(signal["source"], "world_generated")
         self.assertEqual(signal["fact_id"], "fact-market-gps")
         self.assertEqual(signal["signal_type"], "data_demand")
-        self.assertEqual(signal["cta_action"], "open_ghost_exchange")
+        self.assertEqual(signal["cta_action"], "open_exchange_category")
+        self.assertEqual(signal["cta_target_id"], "gps")
+        self.assertEqual(signal["entity_id"], "gps")
         self.assertEqual(signal["world_version"], "facts-1")
         self.assertIn("radar", signal)
 
@@ -1283,6 +1328,7 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertEqual(signal["stat"], "Piekarnia Putka")
         self.assertEqual(signal["cta_action"], "focus_map_target")
         self.assertEqual(signal["cta_target_id"], "poi-putka")
+        self.assertEqual(signal["entity_id"], "poi-putka")
 
     def test_blacknet_world_signal_publisher_converts_conflict_target(self):
         now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
@@ -1325,6 +1371,7 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertEqual(signal["tone"], "red")
         self.assertEqual(signal["cta_action"], "focus_map_target")
         self.assertEqual(signal["cta_target_id"], "poi-putka")
+        self.assertEqual(signal["entity_id"], "poi-putka")
 
     def test_blacknet_world_signals_endpoint_is_readonly_and_requires_login(self):
         response = run.app.test_client().get("/api/blacknet/world-signals")
@@ -1446,6 +1493,8 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
                     "metadata": {
                         "product_id": "storage_ghost_vault_basic",
                         "product_name": "Ghost Vault Basic",
+                        "product_type": "storage_upgrade",
+                        "price": 256,
                         "cta_query": "Ghost Vault Basic",
                     },
                 },
@@ -1467,6 +1516,56 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
                         "tracks_total": 9,
                         "channel_id": "blacknet_radio_2",
                         "channel_name": "BlackNet Radio",
+                        "track_file": "002_signal.mp3",
+                        "track_index": 2,
+                        "track_title": "Signal",
+                    },
+                },
+                {
+                    "fact_id": "fact-market-sector",
+                    "fact_type": "market_top_sector_7d",
+                    "category": "network",
+                    "region_id": "global",
+                    "subject_id": "network",
+                    "value": 1200,
+                    "previous_value": None,
+                    "change_percent": 0,
+                    "importance": 80,
+                    "confidence": 0.9,
+                    "observed_at": "2026-07-11T11:00:00Z",
+                    "expires_at": "2026-07-11T12:10:00Z",
+                    "source_system": "ghost_exchange",
+                    "metadata": {
+                        "sector_id": "network",
+                        "sector_key": "network",
+                        "sector_label": "Sieci",
+                        "market_category": "network",
+                        "volume_mb": 300,
+                        "average_price": 120,
+                        "cta_target_id": "network",
+                        "cta_query": "network",
+                    },
+                },
+                {
+                    "fact_id": "fact-world",
+                    "fact_type": "system_messages_24h",
+                    "category": "system",
+                    "region_id": "global",
+                    "subject_id": "system",
+                    "value": 3,
+                    "previous_value": None,
+                    "change_percent": 0,
+                    "importance": 70,
+                    "confidence": 0.9,
+                    "observed_at": "2026-07-11T11:00:00Z",
+                    "expires_at": "2026-07-11T12:10:00Z",
+                    "source_system": "system",
+                    "metadata": {
+                        "thread_scope": "group",
+                        "thread_peer": "global",
+                        "thread_channel": "world",
+                        "cta_target_id": "global",
+                        "cta_query": "WORLD",
                     },
                 },
             ],
@@ -1475,13 +1574,24 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         snapshot = build_blacknet_world_signals(facts, now=now)
         by_fact = {signal["fact_id"]: signal for signal in snapshot["signals"]}
 
-        self.assertEqual(by_fact["fact-googleplex"]["cta_action"], "open_googleplex")
+        self.assertEqual(by_fact["fact-googleplex"]["cta_action"], "open_googleplex_search")
         self.assertEqual(by_fact["fact-googleplex"]["cta_target_id"], "storage_ghost_vault_basic")
+        self.assertEqual(by_fact["fact-googleplex"]["entity_id"], "storage_ghost_vault_basic")
         self.assertEqual(by_fact["fact-googleplex"]["cta_query"], "Ghost Vault Basic")
         self.assertEqual(by_fact["fact-googleplex"]["metadata"]["product_name"], "Ghost Vault Basic")
-        self.assertEqual(by_fact["fact-radio"]["cta_action"], "open_radio")
+        self.assertEqual(by_fact["fact-radio"]["cta_action"], "play_radio_podcast")
         self.assertEqual(by_fact["fact-radio"]["cta_target_id"], "blacknet_radio_2")
+        self.assertEqual(by_fact["fact-radio"]["entity_id"], "blacknet_radio_2")
         self.assertEqual(by_fact["fact-radio"]["metadata"]["channel_id"], "blacknet_radio_2")
+        self.assertEqual(by_fact["fact-radio"]["metadata"]["track_file"], "002_signal.mp3")
+        self.assertEqual(by_fact["fact-market-sector"]["cta_action"], "open_exchange_category")
+        self.assertEqual(by_fact["fact-market-sector"]["cta_target_id"], "network")
+        self.assertEqual(by_fact["fact-market-sector"]["entity_id"], "network")
+        self.assertEqual(by_fact["fact-market-sector"]["metadata"]["sector_key"], "network")
+        self.assertEqual(by_fact["fact-world"]["cta_action"], "open_cyberner_thread")
+        self.assertEqual(by_fact["fact-world"]["cta_target"], "world")
+        self.assertEqual(by_fact["fact-world"]["entity_id"], "global")
+        self.assertEqual(by_fact["fact-world"]["metadata"]["thread_peer"], "global")
 
     def test_blacknet_teleport_bridge_moves_to_whitelisted_hotspot(self):
         client = self._client_with_user("alice")
