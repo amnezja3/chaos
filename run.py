@@ -313,8 +313,13 @@ def record_ghost_exchange_delta(username, profile, sales=None, reason=""):
 
 BLACKNET_WORLD_FACTS_SCHEMA = 1
 BLACKNET_WORLD_FACTS_TTL_SECONDS = 10 * 60
+BLACKNET_WORLD_FACTS_CACHE_SECONDS = 60
 BLACKNET_WORLD_SIGNALS_SCHEMA = 1
 BLACKNET_WORLD_SIGNALS_LIMIT = 8
+BLACKNET_WORLD_FACTS_CACHE = {
+    "snapshot": None,
+    "cached_at": 0.0,
+}
 BLACKNET_FACT_IMPORTANCE = {
     "low": 25,
     "medium": 50,
@@ -349,6 +354,62 @@ BLACKNET_SIGNAL_RULES = {
         "cta_target": "map",
         "tone": "cyan",
         "layout": 4,
+    },
+    "operation_hotspot_activity": {
+        "signal_type": "operation_hotspot_activity",
+        "threshold": 1,
+        "channel": "PRZECHWYCONY KANAL",
+        "title_template": "OPERACJE / {category}",
+        "label": "AKTYWNY TARGET",
+        "value_suffix": "x",
+        "stat_template": "{target_label}",
+        "cta": "POKAZ NA MAPIE",
+        "cta_action": "focus_map_target",
+        "cta_target": "map_target",
+        "tone": "lime",
+        "layout": 1,
+    },
+    "target_operation_burst": {
+        "signal_type": "target_operation_burst",
+        "threshold": 2,
+        "channel": "RUCH OPERACYJNY",
+        "title_template": "HOTSPOT / {category}",
+        "label": "WZROST RUCHU",
+        "value_suffix": "x",
+        "stat_template": "{target_label}",
+        "cta": "POKAZ TARGET",
+        "cta_action": "focus_map_target",
+        "cta_target": "map_target",
+        "tone": "cyan",
+        "layout": 5,
+    },
+    "conflict_target_alert": {
+        "signal_type": "conflict_target_alert",
+        "threshold": 1,
+        "channel": "KONFLIKT TERYTORIALNY",
+        "title_template": "CONFLICT / {category}",
+        "label": "TARGET SPORNY",
+        "value_suffix": "x",
+        "stat_template": "{target_label}",
+        "cta": "POKAZ KONFLIKT",
+        "cta_action": "focus_map_target",
+        "cta_target": "map_target",
+        "tone": "red",
+        "layout": 4,
+    },
+    "contested_area_alert": {
+        "signal_type": "contested_area_alert",
+        "threshold": 1,
+        "channel": "CONTESTED AREA",
+        "title": "CONFLICT / OBSZAR",
+        "label": "OBSZAR SPORNY",
+        "value_suffix": "x",
+        "stat_template": "{value} KONFLIKTOW",
+        "cta": "OTWORZ MAPE",
+        "cta_action": "open_map",
+        "cta_target": "map",
+        "tone": "red",
+        "layout": 3,
     },
     "market_sales_7d": {
         "signal_type": "market_watch",
@@ -575,13 +636,79 @@ def build_blacknet_fact(fact_type, source_system, category, value, now_dt,
     return fact
 
 
+def blacknet_target_coordinates(target):
+    if not isinstance(target, dict):
+        return None
+    try:
+        lat = float(target.get("lat"))
+        lng = float(target.get("lng", target.get("lon")))
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(lat) or not math.isfinite(lng):
+        return None
+    return {
+        "lat": lat,
+        "lng": lng,
+        "label": f"({lat:.5f}, {lng:.5f})",
+    }
+
+
+def blacknet_operation_target_snapshot(operation):
+    if not isinstance(operation, dict):
+        return None
+    target = operation.get("target") if isinstance(operation.get("target"), dict) else {}
+    if not target:
+        return None
+    target_id = str(operation.get("target_id") or build_operation_target_id(target) or "").strip()
+    label = display_target_label(target, fallback_prefix="Target")
+    if not label:
+        label = target_id or "Target"
+    coords = blacknet_target_coordinates(target)
+    subject_id = target_id or hashlib.sha1(label.encode("utf-8")).hexdigest()[:12]
+    return {
+        "target_id": target_id,
+        "label": label,
+        "coords": coords,
+        "subject_id": subject_id,
+        "target_type": target.get("target_type") or target.get("source_type") or operation.get("target_type") or "",
+        "target_mode": target.get("target_mode") or operation.get("target_mode") or "",
+    }
+
+
+def blacknet_conflict_target_snapshot(conflict, target):
+    if not isinstance(conflict, dict) or not isinstance(target, dict):
+        return None
+    target_id = str(target.get("target_id") or target.get("id") or build_operation_target_id(target) or "").strip()
+    label = display_target_label(target, fallback_prefix="Conflict")
+    if not label:
+        label = target_id or str(conflict.get("conflict_key") or conflict.get("id") or "Conflict")
+    coords = blacknet_target_coordinates(target)
+    subject_id = target_id or hashlib.sha1(label.encode("utf-8")).hexdigest()[:12]
+    participants = conflict.get("participant_usernames") or conflict.get("participants") or []
+    if not isinstance(participants, list):
+        participants = []
+    return {
+        "target_id": target_id,
+        "label": label,
+        "coords": coords,
+        "subject_id": subject_id,
+        "target_type": target.get("target_type") or target.get("source_type") or "",
+        "status": target.get("status") or conflict.get("status") or "",
+        "conflict_id": conflict.get("id") or "",
+        "conflict_key": conflict.get("conflict_key") or conflict.get("id") or "",
+        "participants": [str(item) for item in participants[:8] if item],
+    }
+
+
 def build_blacknet_operations_facts(profiles, now_dt):
     active_count = 0
     completed_count = 0
     failed_count = 0
     operation_types = {}
     target_labels = {}
+    target_activity = {}
     output_mb = 0
+    now_ts = now_dt.timestamp() if isinstance(now_dt, datetime) else None
 
     for profile in profiles:
         if not isinstance(profile, dict):
@@ -598,8 +725,26 @@ def build_blacknet_operations_facts(profiles, now_dt):
                 target_labels[label] = target_labels.get(label, 0) + 1
             output_mb += operation_output_size_mb(operation)
             status = str(operation.get("status") or "").lower()
-            if operation_is_active(operation):
+            if operation_is_active(operation, now_ts=now_ts):
                 active_count += 1
+                target_snapshot = blacknet_operation_target_snapshot(operation)
+                if target_snapshot:
+                    key = target_snapshot["subject_id"]
+                    bucket = target_activity.setdefault(key, {
+                        "count": 0,
+                        "target": target_snapshot,
+                        "operation_types": {},
+                        "owners": set(),
+                        "operation_ids": [],
+                    })
+                    bucket["count"] += 1
+                    bucket["operation_types"][op_type] = bucket["operation_types"].get(op_type, 0) + 1
+                    owner = str(operation.get("owner_username") or "").strip()
+                    if owner:
+                        bucket["owners"].add(owner)
+                    operation_id = str(operation.get("operation_id") or "").strip()
+                    if operation_id:
+                        bucket["operation_ids"].append(operation_id)
             elif status in {"completed", "done", "success"}:
                 completed_count += 1
             elif status in {"failed", "timeout", "cancelled", "canceled"}:
@@ -636,6 +781,71 @@ def build_blacknet_operations_facts(profiles, now_dt):
             subject_id=top_type,
             metadata={"operation_type": top_type},
         ))
+    if target_activity:
+        top_target = sorted(
+            target_activity.values(),
+            key=lambda item: (
+                -int(item.get("count") or 0),
+                str((item.get("target") or {}).get("label") or ""),
+            ),
+        )[0]
+        target = top_target.get("target") or {}
+        coords = target.get("coords") if isinstance(target.get("coords"), dict) else None
+        operation_type_counts = top_target.get("operation_types") or {}
+        top_operation_type = ""
+        if operation_type_counts:
+            top_operation_type = sorted(operation_type_counts.items(), key=lambda item: item[1], reverse=True)[0][0]
+        facts.append(build_blacknet_fact(
+            "operation_hotspot_activity",
+            "operations",
+            target.get("label") or "target",
+            top_target.get("count") or 0,
+            now_dt,
+            importance="high" if int(top_target.get("count") or 0) >= 3 else "medium",
+            confidence=0.9,
+            region_id=target.get("subject_id") or "target",
+            subject_id=target.get("subject_id") or target.get("target_id") or target.get("label"),
+            metadata={
+                "target_id": target.get("target_id"),
+                "target_label": target.get("label"),
+                "target_type": target.get("target_type"),
+                "target_mode": target.get("target_mode"),
+                "lat": coords.get("lat") if coords else None,
+                "lng": coords.get("lng") if coords else None,
+                "coordinates": coords.get("label") if coords else "",
+                "operation_count": top_target.get("count") or 0,
+                "operation_type": top_operation_type,
+                "operation_ids": top_target.get("operation_ids", [])[:8],
+                "owners_count": len(top_target.get("owners") or []),
+                "cta_target_id": target.get("target_id") or target.get("subject_id"),
+            },
+        ))
+        if int(top_target.get("count") or 0) >= 2:
+            facts.append(build_blacknet_fact(
+                "target_operation_burst",
+                "operations",
+                target.get("label") or "target",
+                top_target.get("count") or 0,
+                now_dt,
+                importance="high" if int(top_target.get("count") or 0) >= 4 else "medium",
+                confidence=0.88,
+                region_id=target.get("subject_id") or "target",
+                subject_id=target.get("subject_id") or target.get("target_id") or target.get("label"),
+                metadata={
+                    "target_id": target.get("target_id"),
+                    "target_label": target.get("label"),
+                    "target_type": target.get("target_type"),
+                    "target_mode": target.get("target_mode"),
+                    "lat": coords.get("lat") if coords else None,
+                    "lng": coords.get("lng") if coords else None,
+                    "coordinates": coords.get("label") if coords else "",
+                    "operation_count": top_target.get("count") or 0,
+                    "operation_type": top_operation_type,
+                    "operation_ids": top_target.get("operation_ids", [])[:8],
+                    "owners_count": len(top_target.get("owners") or []),
+                    "cta_target_id": target.get("target_id") or target.get("subject_id"),
+                },
+            ))
     return facts
 
 
@@ -834,7 +1044,142 @@ def build_blacknet_system_facts(profiles, now_dt):
     ]
 
 
-def build_blacknet_world_facts_snapshot(now=None):
+def build_blacknet_conflict_activity_facts(now_dt):
+    try:
+        conflicts = territory_conflict_store.list_active()
+        if not isinstance(conflicts, list):
+            conflicts = []
+    except Exception:
+        raise
+
+    active_conflicts = [item for item in conflicts if isinstance(item, dict)]
+    target_activity = {}
+    target_count = sum(
+        len([target for target in (conflict.get("targets") or []) if isinstance(target, dict)])
+        for conflict in active_conflicts
+    )
+    for conflict in active_conflicts:
+        targets = conflict.get("targets") or []
+        if not isinstance(targets, list):
+            continue
+        for target in targets:
+            if not isinstance(target, dict):
+                continue
+            target_snapshot = blacknet_conflict_target_snapshot(conflict, target)
+            if not target_snapshot:
+                continue
+            key = target_snapshot["subject_id"]
+            bucket = target_activity.setdefault(key, {
+                "count": 0,
+                "target": target_snapshot,
+                "conflict_keys": set(),
+                "statuses": {},
+                "participants": set(),
+            })
+            bucket["count"] += 1
+            conflict_key = str(target_snapshot.get("conflict_key") or "").strip()
+            if conflict_key:
+                bucket["conflict_keys"].add(conflict_key)
+            status = str(target_snapshot.get("status") or "active").strip() or "active"
+            bucket["statuses"][status] = bucket["statuses"].get(status, 0) + 1
+            for participant in target_snapshot.get("participants") or []:
+                bucket["participants"].add(participant)
+    if not active_conflicts:
+        return []
+    facts = [
+        build_blacknet_fact(
+            "conflicts_active_count",
+            "conflicts",
+            "conflicts",
+            len(active_conflicts),
+            now_dt,
+            importance="high",
+            confidence=0.85,
+            metadata={
+                "conflict_count": len(active_conflicts),
+                "target_count": target_count,
+                "conflict_keys": [
+                    str(conflict.get("conflict_key") or conflict.get("id") or "")
+                    for conflict in active_conflicts[:8]
+                ],
+            },
+        )
+    ]
+    if target_activity:
+        top_target = sorted(
+            target_activity.values(),
+            key=lambda item: (
+                -int(item.get("count") or 0),
+                str((item.get("target") or {}).get("label") or ""),
+            ),
+        )[0]
+        target = top_target.get("target") or {}
+        coords = target.get("coords") if isinstance(target.get("coords"), dict) else None
+        status_counts = top_target.get("statuses") or {}
+        top_status = ""
+        if status_counts:
+            top_status = sorted(status_counts.items(), key=lambda item: item[1], reverse=True)[0][0]
+        facts.append(build_blacknet_fact(
+            "conflict_target_alert",
+            "conflicts",
+            target.get("label") or "target",
+            top_target.get("count") or 0,
+            now_dt,
+            importance="critical" if int(top_target.get("count") or 0) >= 3 else "high",
+            confidence=0.86,
+            region_id=target.get("subject_id") or "conflict",
+            subject_id=target.get("subject_id") or target.get("target_id") or target.get("label"),
+            metadata={
+                "target_id": target.get("target_id"),
+                "target_label": target.get("label"),
+                "target_type": target.get("target_type"),
+                "lat": coords.get("lat") if coords else None,
+                "lng": coords.get("lng") if coords else None,
+                "coordinates": coords.get("label") if coords else "",
+                "conflict_target_count": top_target.get("count") or 0,
+                "conflict_keys": sorted(top_target.get("conflict_keys") or [])[:8],
+                "participants": sorted(top_target.get("participants") or [])[:8],
+                "participants_count": len(top_target.get("participants") or []),
+                "status": top_status,
+                "cta_target_id": target.get("target_id") or target.get("subject_id"),
+            },
+        ))
+    else:
+        facts.append(build_blacknet_fact(
+            "contested_area_alert",
+            "conflicts",
+            "conflicts",
+            len(active_conflicts),
+            now_dt,
+            importance="high",
+            confidence=0.78,
+            subject_id="conflicts",
+            metadata={
+                "conflict_count": len(active_conflicts),
+                "target_count": target_count,
+                "conflict_keys": [
+                    str(conflict.get("conflict_key") or conflict.get("id") or "")
+                    for conflict in active_conflicts[:8]
+                ],
+            },
+        ))
+    return facts
+
+
+def build_blacknet_world_facts_snapshot(now=None, use_cache=True):
+    if now is None and use_cache:
+        cached = BLACKNET_WORLD_FACTS_CACHE.get("snapshot")
+        cached_at = float(BLACKNET_WORLD_FACTS_CACHE.get("cached_at") or 0.0)
+        if isinstance(cached, dict) and time.time() - cached_at < BLACKNET_WORLD_FACTS_CACHE_SECONDS:
+            snapshot = copy.deepcopy(cached)
+            diagnostics = snapshot.setdefault("diagnostics", {})
+            diagnostics["cache"] = {
+                "hit": True,
+                "ttl_seconds": BLACKNET_WORLD_FACTS_CACHE_SECONDS,
+                "age_ms": int(round((time.time() - cached_at) * 1000)),
+            }
+            return snapshot
+
     started = time.perf_counter()
     now_dt = now if isinstance(now, datetime) else blacknet_utc_now()
     if now_dt.tzinfo is None:
@@ -862,6 +1207,7 @@ def build_blacknet_world_facts_snapshot(now=None):
         ("googleplex", lambda: build_blacknet_googleplex_facts(now_dt)),
         ("radio", lambda: build_blacknet_radio_facts(now_dt)),
         ("system", lambda: build_blacknet_system_facts(profiles, now_dt)),
+        ("conflicts", lambda: build_blacknet_conflict_activity_facts(now_dt)),
     ]
     for source_name, aggregator in aggregators:
         source_started = time.perf_counter()
@@ -909,14 +1255,22 @@ def build_blacknet_world_facts_snapshot(now=None):
             "googleplex": sum(1 for item in facts if item.get("source_system") == "googleplex"),
             "radio": sum(1 for item in facts if item.get("source_system") == "radio"),
             "system": sum(1 for item in facts if item.get("source_system") == "system"),
+            "conflicts": sum(1 for item in facts if item.get("source_system") == "conflicts"),
         },
         "facts": facts,
         "diagnostics": {
             "duration_ms": int(round((time.perf_counter() - started) * 1000)),
             "sources": sources,
             "fact_count": len(facts),
+            "cache": {
+                "hit": False,
+                "ttl_seconds": BLACKNET_WORLD_FACTS_CACHE_SECONDS,
+            },
         },
     }
+    if now is None and use_cache:
+        BLACKNET_WORLD_FACTS_CACHE["snapshot"] = copy.deepcopy(snapshot)
+        BLACKNET_WORLD_FACTS_CACHE["cached_at"] = time.time()
     print(f"[BLACKNET_FACTS] version={version} facts={len(facts)} ms={snapshot['diagnostics']['duration_ms']}")
     return snapshot
 
@@ -966,6 +1320,7 @@ def blacknet_format_signal_stat(rule, fact, value):
     template_values = {
         "value": value,
         "category": blacknet_format_category(fact.get("category")),
+        "target_label": str(metadata.get("target_label") or blacknet_format_category(fact.get("category"))),
         "file_count": int(metadata.get("file_count") or 0),
         "volume_mb": int(metadata.get("volume_mb") or 0),
         "products": int(metadata.get("products") or 0),
@@ -1001,6 +1356,40 @@ def blacknet_radar_from_seed(seed, sides=0):
     return {
         "sides": max(0, min(12, int(sides or 0))),
         "nodes": nodes,
+    }
+
+
+def blacknet_out_of_signal(now_dt, world_version="", reason="no_real_facts"):
+    return {
+        "id": f"world-out-of-signal-{world_version or 'none'}",
+        "source": "world_generated",
+        "signal_type": "out_of_signal",
+        "fact_id": "",
+        "world_version": world_version or "",
+        "channel": "BLACKNET SIGNAL BUS",
+        "title": "OUT OF SIGNAL",
+        "label": "BRAK RUCHU",
+        "value": "0",
+        "stat": "OCZEKIWANIE NA RUCH SWIATA",
+        "timer": "00:00",
+        "tone": "lime",
+        "layout": 1,
+        "cta": "SYGNAL WYCISZONY",
+        "cta_action": "none",
+        "cta_target": "",
+        "cta_target_id": "",
+        "cta_query": "",
+        "radar": blacknet_radar_from_seed(f"out_of_signal:{world_version}", sides=1),
+        "importance": 0,
+        "generated_at": blacknet_iso(now_dt),
+        "valid_until": blacknet_iso(now_dt + timedelta(seconds=BLACKNET_WORLD_FACTS_CACHE_SECONDS)),
+        "observed_at": blacknet_iso(now_dt),
+        "category": "out_of_signal",
+        "region_id": "global",
+        "metadata": {
+            "reason": reason,
+            "out_of_signal": True,
+        },
     }
 
 
@@ -1113,6 +1502,15 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
         if len(selected) >= int(limit or BLACKNET_WORLD_SIGNALS_LIMIT):
             break
 
+    out_of_signal = False
+    if not selected:
+        out_of_signal = True
+        selected.append(blacknet_out_of_signal(
+            now_dt,
+            world_version=str(snapshot.get("version") or ""),
+            reason="no_publishable_real_facts" if facts else "empty_world_facts",
+        ))
+
     version_payload = [
         {
             "id": signal.get("id"),
@@ -1140,7 +1538,8 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
             "candidates": len(candidates),
             "published": len(selected),
             "rejected": len(rejected),
-            "local_static_allowed": True,
+            "out_of_signal": out_of_signal,
+            "local_static_allowed": not out_of_signal,
             "ollama_used": False,
         },
     }

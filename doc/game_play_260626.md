@@ -7406,6 +7406,417 @@ Sprintu 83.
 
 ---
 
+# Sprint 82.6 — BlackNet Real Activity Snapshot + Out Of Signal Gate
+
+## Cel gameplayowy
+
+Zastąpić mockowe hotspoty pierwszym kontrolowanym snapshotem realnej aktywności
+świata, bez zewnętrznych API i bez ręcznego katalogu dzielnic.
+
+BlackNet ma przestać wymyślać miejsca typu `MOKOTOW` / `PRAGA`, jeżeli nie
+wynikają one z istniejących danych gry.
+
+Źródłem opisu miejsca ma być realny obiekt CHAOS:
+
+```text
+OPERACJE / Piekarnia Putka
+CONFLICT / target_id
+HOTSPOT / Kamera sklepu
+```
+
+Jeżeli da się bezpiecznie pokazać współrzędne, sygnał może dodać krótki zapis:
+
+```text
+(52.22, 21.01)
+```
+
+Nie tworzyć geokodera, katalogu dzielnic ani integracji z zewnętrznym API.
+
+## Architektura
+
+Dodać albo doprecyzować moduł systemowy BlackNet runtime, który działa jak
+lekki daemon pobudzany ruchem w aplikacji, ale w kontrolowanym cyklu.
+
+Daemon:
+
+* czyta istniejące źródła prawdy,
+* buduje mały snapshot aktywności świata,
+* cache'uje wynik przez krótki TTL,
+* nie liczy ciężkich statystyk w każdym requestcie BlackNetu,
+* nie zapisuje nowego stanu gry,
+* nie jest drugim map store.
+
+Przykładowy przepływ:
+
+```text
+ruch w aplikacji / tick runtime
+↓
+BlackNet activity daemon
+↓
+aktywny snapshot operacji, konfliktów, rynku i źródeł świata
+↓
+deterministic publisher
+↓
+BlackNet signal roll
+```
+
+## Źródła danych
+
+Czytać tylko istniejące modele:
+
+* aktywne operacje ze wszystkich profili,
+* targety / obiekty, które emitują operacje,
+* konflikty i contested areas z obecnych store'ów,
+* Ghost Exchange runtime,
+* Googleplex catalog,
+* Ghost Hack Radio `meta.channel`,
+* Cyberner channels.
+
+Nie czytać pełnych profili przez `sync_session_profile`.
+
+Nie budować drugiego magazynu aktywności.
+
+## Out Of Signal
+
+Jeżeli nie ma realnych danych dla danej rodziny sygnałów, BlackNet nie podstawia
+mocka.
+
+Zamiast tego pokazuje kontrolowany stan:
+
+```text
+OUT OF SIGNAL
+Oczekiwanie na ruch świata.
+```
+
+Lokalny fallback może zostać tylko jako dev/demo fixture, nie jako produkcyjne
+źródło udające runtime.
+
+## Testy
+
+* Snapshot aktywności powstaje z realnych operacji.
+* Brak operacji daje `out_of_signal`, nie `HOTSPOT / MOKOTOW`.
+* Snapshot nie odpala `sync_session_profile`.
+* Snapshot ma TTL i nie liczy wszystkiego przy każdym wejściu w BlackNet.
+* Sygnał pokazuje nazwę realnego targetu albo bezpieczne `target_id`.
+
+## Kryteria akceptacji
+
+* BlackNet ma realny read model aktywności świata.
+* Nie ma zewnętrznego API geolokalizacji.
+* Nie ma ręcznego katalogu dzielnic.
+* Brak danych nie tworzy mockowego sygnału.
+* `out_of_signal` jest normalnym stanem runtime.
+* Dokumentacja i journal opisują decyzję.
+
+## Stan po Sprincie 82.6
+
+BlackNet ma pierwszy realny snapshot aktywności targetów:
+
+* `operation_hotspot_activity` powstaje z aktywnych operacji przypiętych do
+  istniejącego targetu,
+* sygnał używa nazwy targetu i współrzędnych z danych gry,
+* world facts korzystają z krótkiego cache TTL zamiast przeliczać wszystko przy
+  każdym wejściu w BlackNet,
+* brak publikowalnych realnych faktów zwraca `out_of_signal`,
+* frontend nie miesza lokalnego mockowego fallbacku, gdy world feed świadomie
+  zwrócił `out_of_signal`.
+
+---
+
+# Sprint 82.7 — BlackNet Map + Conflict Signal Generators
+
+## Cel gameplayowy
+
+Zbudować generatory sygnałów mapowych na podstawie realnych operacji i
+konfliktów, zamiast lokalnych plakatów.
+
+Teleporty, hotspoty, konflikty i alerty mapowe mają powstawać z aktywności na
+mapie.
+
+## Rodziny sygnałów
+
+Wprowadzić albo doprecyzować rodziny:
+
+```text
+operation_hotspot_activity
+target_operation_burst
+conflict_target_alert
+contested_area_alert
+map_activity_spike
+```
+
+Przykłady tytułów:
+
+```text
+OPERACJE / Piekarnia Putka
+CONFLICT / POI-6CDBD0
+HOTSPOT / Kamera sklepu
+```
+
+Nie używać nazw dzielnic, jeśli nie pochodzą z realnego obiektu gry.
+
+## Dane sygnału
+
+Wartości muszą wynikać z faktów:
+
+* liczba aktywnych operacji,
+* liczba targetów w ruchu,
+* poziom ryzyka,
+* czas ważności sygnału,
+* target type,
+* conflict / contested status,
+* współrzędne targetu, jeśli są dostępne.
+
+Nie używać statycznych wartości typu `240%`, `17 aktywnych operacji` albo
+`04:32`, jeśli nie wynikają z snapshotu.
+
+## CTA mapowe
+
+CTA może:
+
+* otworzyć mapę,
+* wskazać target,
+* wyróżnić obiekt,
+* zaproponować teleport tylko wtedy, gdy backend ma bezpieczne współrzędne i
+  gracz potwierdzi `OK / ANULUJ`.
+
+Teleport nie może:
+
+* korzystać z fallbackowego `mokotow`,
+* działać bez potwierdzenia,
+* zmieniać pozycji tylko po stronie frontendu,
+* zgadywać celu z tekstu sygnału.
+
+## Testy
+
+* Aktywna operacja generuje sygnał z realnym targetem.
+* Konflikt generuje sygnał `conflict_target_alert`.
+* Brak aktywności mapy daje `out_of_signal`.
+* CTA mapowe znajduje target po stabilnym ID.
+* Teleport wymaga potwierdzenia i działa tylko dla realnego targetu.
+
+## Kryteria akceptacji
+
+* Sygnały mapowe pochodzą z operacji i konfliktów.
+* Nie ma mockowych dzielnic w produkcyjnym runtime.
+* Target label / coordinates pochodzą z istniejących danych.
+* BlackNet nie tworzy drugiego map runtime.
+* Dokumentacja i journal opisują źródła sygnałów mapowych.
+
+## Stan po Sprincie 82.7
+
+BlackNet ma realne generatory map/conflict v0:
+
+* `target_operation_burst` powstaje z wielu aktywnych operacji na tym samym
+  targetcie,
+* `conflict_target_alert` powstaje z aktywnych konfliktów posiadających
+  konkretny target,
+* `contested_area_alert` jest fallbackiem dla aktywnego konfliktu bez
+  bezpiecznego targetu,
+* wszystkie mapowe CTA używają istniejących akcji mapy i stabilnego
+  `target_id`,
+* brak targetu nie tworzy mockowej dzielnicy ani zmyślonych współrzędnych.
+
+Sprint 82.7 nie implementuje jeszcze poprawek encji Radio / Googleplex /
+Ghost Exchange / Cyberner. To zostaje w Sprincie 82.8.
+
+---
+
+# Sprint 82.8 — BlackNet Entity CTA Fixes: Radio, Googleplex, GX, Cyberner
+
+## Cel gameplayowy
+
+Naprawić rodziny sygnałów, które otwierają istniejące systemy, tak aby zawsze
+prowadziły do konkretnej realnej encji, a nie do mockowego hasła.
+
+## Radio
+
+Sygnał radiowy ma wskazywać konkretny plik MP3 z kanału BlackNet Radio.
+
+Dane:
+
+* `channel_id`,
+* `track_file`,
+* `track_index`,
+* `track_title`,
+* `track_count`.
+
+Tytuł sygnału może powstać z nazwy pliku albo tytułu w `meta.channel`.
+
+Liczba na sygnale może oznaczać numer tracka albo liczbę dostępnych nagrań.
+
+CTA ma uruchamiać wskazany kanał i wskazany track. Jeżeli track nie istnieje,
+pokazać kontrolowany błąd i nie udawać odtwarzania.
+
+## Googleplex
+
+Sygnał Googleplex ma wskazywać realny produkt z katalogu.
+
+Dane:
+
+* `product_id`,
+* `product_name`,
+* `product_type`,
+* `price`,
+* `category`.
+
+Wartość sygnału może być ceną HC.
+
+CTA wpisuje do wyszukiwarki realną nazwę produktu albo stabilny query z
+katalogu. Nie używać plakatowego tytułu sygnału jako wyszukiwanej frazy.
+
+## Ghost Exchange
+
+Sygnał Ghost Exchange ma wskazywać poprawny sektor / kategorię rynku z runtime.
+
+Dane:
+
+* `sector_id`,
+* `sector_key`,
+* `sector_label`,
+* `market_category`,
+* `volume_mb`,
+* `sold_today`,
+* `average_price`.
+
+CTA nie może prowadzić do stanu:
+
+```text
+Brak sektorow rynku dla tego filtra.
+```
+
+Jeżeli sektor nie istnieje albo mapping jest niepoprawny, sygnał nie powinien
+zostać opublikowany.
+
+## Cyberner
+
+Sygnały świata mają otwierać istniejący kanał:
+
+```text
+WORLD
+```
+
+Nie otwierać nieistniejącego kontaktu `cyberner`.
+
+Jeżeli sygnał ma własny komentarz albo przeciek, może:
+
+* otworzyć `WORLD`,
+* pokazać szczegóły wewnątrz BlackNetu,
+* dodać systemową wiadomość tylko przez istniejący flow, jeśli taki kontrakt
+  jest jawnie dostępny.
+
+## Leak / dossier
+
+Jeżeli nie ma jeszcze realnego źródła dla leak/dossier, nie publikować mocka jako
+pełnego sygnału.
+
+Dopuszczalne:
+
+* `out_of_signal`,
+* `open_blacknet_detail` z lokalnym opisem faktu,
+* system message tylko wtedy, gdy pochodzi z istniejącego `system_messages`.
+
+## Testy
+
+* Radio CTA otwiera konkretny track.
+* Googleplex CTA wyszukuje realny produkt.
+* Ghost Exchange CTA otwiera istniejący sektor.
+* Cyberner CTA otwiera `WORLD`, nie kontakt `cyberner`.
+* Brak realnej encji blokuje publikację sygnału albo daje `out_of_signal`.
+
+## Kryteria akceptacji
+
+* Każdy CTA wskazuje konkretną encję runtime.
+* Nie ma CTA opartych o mockowy tytuł.
+* Radio, Googleplex, GX i Cyberner używają istniejących systemów.
+* Błędne mappingi nie publikują fałszywych sygnałów.
+* Dokumentacja i journal opisują kontrakty encji.
+
+---
+
+# Sprint 82.9 — BlackNet Real Signal Cutover + Mock Retirement
+
+## Cel gameplayowy
+
+Przełączyć BlackNet na realne generatory sygnałów i zdegradować lokalne mocki do
+trybu dev/demo.
+
+Po tym sprincie BlackNet ma być gotowy na Sprint 83: Ollama dostaje realny
+strumień faktów i sygnałów, a nie plakatowe placeholdery.
+
+## Zasada produkcyjna
+
+Normalny runtime używa:
+
+```text
+world facts snapshot
+↓
+deterministic publisher
+↓
+real BlackNet signals
+```
+
+Lokalne `static/blacknet_signals.json` może działać tylko jako:
+
+* dev fixture,
+* demo fallback jawnie włączony flagą,
+* narzędzie testowe layoutu.
+
+Nie może udawać danych świata, jeśli produkcyjny snapshot nie ma faktów.
+
+## Out Of Signal UI
+
+Gdy nie ma realnych sygnałów:
+
+* signal roll pokazuje `OUT OF SIGNAL`,
+* CTA jest neutralne albo ukryte,
+* BlackNet informuje, że czeka na ruch świata,
+* nie podstawia `HOTSPOT / MOKOTOW`, `PRAGA`, `240%` ani innych stałych
+  plakatowych wartości.
+
+## Walidacja rodzin
+
+Sprawdzić pełną macierz:
+
+* map / operation hotspot,
+* conflict,
+* Ghost Exchange,
+* Googleplex,
+* radio,
+* Cyberner WORLD,
+* leak/dossier,
+* out_of_signal.
+
+Każda rodzina musi mieć:
+
+* źródło faktu,
+* stabilny `signal_type`,
+* stabilne `entity_id`,
+* poprawny `cta_action`,
+* poprawny `cta_target_id` albo jawny brak CTA,
+* kontrolowany błąd dla brakujących danych.
+
+## Testy
+
+* Brak faktów daje `out_of_signal`.
+* Dev fallback działa tylko pod flagą.
+* Produkcyjny runtime nie publikuje mockowych hotspotów.
+* Wszystkie realne rodziny sygnałów przechodzą walidację kontraktu.
+* `node --check static/js/terminal.js`.
+* `python -m py_compile run.py database.py profileManagment.py`.
+* `git diff --check`.
+
+## Kryteria akceptacji
+
+* BlackNet generuje sygnały z realnych danych gry.
+* Mocki nie są produkcyjnym źródłem sygnałów.
+* Brak danych jest obsłużony przez `out_of_signal`.
+* CTA prowadzą do realnych encji.
+* BlackNet jest gotowy na Sprint 83 i kontrakt Ollamy.
+* Dokumentacja i journal opisują cutover.
+
+---
+
 # Sprint 83 — Ollama Digest Outbox Contract
 
 ## Cel gameplayowy

@@ -7322,3 +7322,200 @@ Poprawiono kontrakt CTA:
 
 Sprint 82.5 domyka bezpieczne przejscie z sygnalu BlackNetu do istniejacych
 systemow CHAOS przed rozpoczeciem kontraktow Ollamy ze Sprintu 83.
+
+---
+
+## 11.07.2026
+
+### Etap
+
+BlackNet - Signal Generation Audit.
+
+### Zmiany
+
+Dodano dokument:
+
+```text
+doc/blacknet_signal_generation_audit.md
+```
+
+Audyt opisuje, jak obecnie powstaja sygnaly BlackNetu:
+
+* lokalny fallback `static/blacknet_signals.json`,
+* runtime facts `blacknet_world_facts`,
+* deterministic publisher `blacknet_world_signals`,
+* mapowanie rodzin sygnalow,
+* pochodzenie `title`, `label`, `value`, `stat`, `timer`, `radar`, `cta`,
+* roznice miedzy statycznym `HOTSPOT / MOKOTOW` a sygnalami runtime.
+
+### Decyzje
+
+`HOTSPOT / MOKOTOW` ze screena jest obecnie sygnalem fallbackowym. Jego wartosci
+`240%`, `17 AKTYWNYCH OPERACJI` i `04:32` sa wpisane w statycznym kontrakcie,
+nie liczone jeszcze z regionalnego runtime.
+
+Runtime ma juz globalne rodziny operacji, rynku, Googleplexa, radia i system
+messages, ale nie ma jeszcze modelu `regional_hotspot_activity`.
+
+### Status
+
+Dokument wskazuje kolejny naturalny krok: dodac runtime read model regionalnych
+hotspotow, zeby BlackNet mogl generowac `HOTSPOT / MOKOTOW` z realnych danych
+zamiast lokalnego fallbacku.
+
+---
+
+## 11.07.2026
+
+### Etap
+
+BlackNet - Sprinty 82.6-82.9 real signal cutover plan.
+
+### Zmiany
+
+Uzupełniono `doc/game_play_260626.md` o cztery minisprinty pomiędzy Sprintem
+82.5 a Sprintem 83:
+
+* Sprint 82.6 - BlackNet Real Activity Snapshot + Out Of Signal Gate,
+* Sprint 82.7 - BlackNet Map + Conflict Signal Generators,
+* Sprint 82.8 - BlackNet Entity CTA Fixes: Radio, Googleplex, GX, Cyberner,
+* Sprint 82.9 - BlackNet Real Signal Cutover + Mock Retirement.
+
+### Decyzje
+
+BlackNet nie powinien już produkować sygnałów z mockowych dzielnic, stałych
+procentów ani plakatowych wartości, jeśli brak realnych danych gry.
+
+Zamiast mapować ręcznie miasta i dzielnice albo używać zewnętrznego API,
+sygnały mapowe mają korzystać z istniejących obiektów CHAOS:
+
+* aktywnych operacji,
+* targetów / filarów emitujących operacje,
+* konfliktów,
+* contested areas,
+* realnych współrzędnych targetu, jeśli są dostępne.
+
+Jeżeli rodzina sygnałów nie ma realnych faktów, BlackNet ma pokazać
+`out_of_signal` i czekać na ruch świata zamiast podstawiać lokalny mock.
+
+CTA po Sprintach 82.6-82.9 mają prowadzić do realnych encji:
+
+* radio - konkretny kanał i konkretny MP3,
+* Googleplex - realny produkt z katalogu i jego cenę,
+* Ghost Exchange - poprawny sektor rynku,
+* Cyberner - kanał `WORLD`, nie fikcyjny kontakt `cyberner`.
+
+### Status
+
+Sprint 83 z kontraktem Ollamy powinien startować dopiero po domknięciu realnych
+generatorów i odcięciu produkcyjnych mocków. Ollama ma dostać realny feed
+świata, a nie statyczne plakaty z `static/blacknet_signals.json`.
+
+---
+
+## 11.07.2026
+
+### Etap
+
+Sprint 82.6 - BlackNet Real Activity Snapshot + Out Of Signal Gate.
+
+### Zmiany
+
+Dodano pierwszy realny fakt aktywności targetów dla BlackNetu:
+
+```text
+operation_hotspot_activity
+```
+
+Fakt powstaje z aktywnych operacji przypiętych do realnego targetu mapy. Używa
+nazwy targetu, `target_id`, współrzędnych oraz liczby aktywnych operacji.
+
+Dodano krótki cache TTL dla `blacknet_world_facts`, dzięki czemu BlackNet działa
+jak lekki daemon/read model pobudzany ruchem, a nie jak ciężki rebuild przy
+każdym otwarciu taba.
+
+Publisher `blacknet_world_signals` dostał jawny stan:
+
+```text
+out_of_signal
+```
+
+Jeżeli nie ma publikowalnych realnych faktów, BlackNet pokazuje brak sygnału
+zamiast mieszać lokalne mocki.
+
+Frontend nie dokleja `static/blacknet_signals.json`, gdy world feed świadomie
+zwróci `out_of_signal`.
+
+### Decyzje
+
+Mockowe dzielnice typu `MOKOTOW` nie są już kierunkiem dla nowych sygnałów
+runtime. BlackNet ma opisywać realne obiekty CHAOS: targety, operacje,
+konflikty i istniejące encje świata.
+
+Stary whitelistowany teleport do `BLACKNET_HOTSPOTS` pozostaje kompatybilnie do
+czasu Sprintów 82.7-82.8, ale nowe fakty 82.6 nie korzystają z tych mockowych
+hotspotów.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`
+* `node --check static/js/terminal.js`
+* `python -m unittest tests.test_target_persistence.BlackNetWorldFactsSnapshotTest tests.test_target_persistence.BlackNetWorldSignalPublisherTest`
+
+### Status
+
+Sprint 82.6 zakończony. BlackNet ma realny fundament aktywności operacyjnej i
+kontrolowany stan braku sygnału. Sprint 82.7 może budować na tym pełne generatory
+map/conflict bez dokładania mockowych regionów.
+
+---
+
+## 11.07.2026
+
+### Etap
+
+Sprint 82.7 - BlackNet Map + Conflict Signal Generators.
+
+### Zmiany
+
+Dodano mapowe rodziny faktow i sygnalow BlackNetu:
+
+```text
+target_operation_burst
+conflict_target_alert
+contested_area_alert
+```
+
+`target_operation_burst` powstaje z wielu aktywnych operacji przypietych do tego
+samego realnego targetu mapy.
+
+`conflict_target_alert` powstaje z aktywnych konfliktow w
+`territory_conflict_store`, jesli konflikt ma bezpieczny konkretny target.
+
+`contested_area_alert` jest fallbackiem dla aktywnego konfliktu bez targetu i
+nie zgaduje wspolrzednych.
+
+### Decyzje
+
+BlackNet nie tworzy katalogu dzielnic, nie odpytuje zewnetrznych API i nie
+generuje lokalizacji z tekstu. Target label, `target_id` i wspolrzedne pochodza
+z istniejacych danych gry.
+
+Mapowe CTA uzywaja istniejacej akcji:
+
+```text
+focus_map_target
+```
+
+albo `open_map`, jesli nie ma bezpiecznego konkretnego targetu.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`
+* `node --check static/js/terminal.js`
+* `python -m unittest tests.test_target_persistence.BlackNetWorldFactsSnapshotTest tests.test_target_persistence.BlackNetWorldSignalPublisherTest`
+
+### Status
+
+Sprint 82.7 zakonczony. BlackNet ma realne generatory map/conflict v0. Poprawki
+CTA dla Radio, Googleplex, Ghost Exchange i Cybernera zostaja w Sprincie 82.8.

@@ -3119,7 +3119,8 @@ function createBrowser() {
                 const worldSignals = Array.isArray(worldPayload?.snapshot?.signals)
                     ? worldPayload.snapshot.signals
                     : (Array.isArray(worldPayload?.signals) ? worldPayload.signals : []);
-                const mergedSignals = [...worldSignals, ...localSignals];
+                const worldOutOfSignal = worldSignals.some(signal => String(signal?.signal_type || "") === "out_of_signal");
+                const mergedSignals = worldOutOfSignal ? worldSignals : [...worldSignals, ...localSignals];
                 const dedupedSignals = [];
                 const seenIds = new Set();
                 mergedSignals.forEach((signal, index) => {

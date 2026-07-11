@@ -117,6 +117,74 @@ signals remain the fallback.
 
 There is no BlackNet poller in Sprint 82.
 
+## Sprint 82.6 Update
+
+The publisher now has an explicit empty-world state:
+
+```text
+out_of_signal
+```
+
+If world facts exist but none of them can produce a real signal, or if there are
+no facts at all, the publisher returns one neutral BlackNet signal:
+
+```json
+{
+  "signal_type": "out_of_signal",
+  "title": "OUT OF SIGNAL",
+  "cta_action": "none"
+}
+```
+
+This is intentional. BlackNet must not fill an empty world feed with mock
+hotspots such as `HOTSPOT / MOKOTOW`.
+
+Frontend rule:
+
+* if `out_of_signal` is present in `world_generated`, local static signals are
+  not merged into the visible signal roll;
+* if the world endpoint fails completely, local static signals may still be used
+  as a compatibility fallback until Sprint 82.9 retires production mocks.
+
+New generated signal:
+
+```text
+operation_hotspot_activity
+```
+
+It is created from `operation_hotspot_activity` facts and points to an existing
+map target through `focus_map_target`.
+
+## Sprint 82.7 Update
+
+The deterministic publisher now understands map/conflict signal families:
+
+```text
+target_operation_burst
+conflict_target_alert
+contested_area_alert
+```
+
+`target_operation_burst` and `conflict_target_alert` both use:
+
+```text
+cta_action = focus_map_target
+```
+
+and rely on `cta_target_id` from the fact metadata. The publisher does not infer
+targets from rendered text.
+
+`contested_area_alert` uses:
+
+```text
+cta_action = open_map
+```
+
+because it represents conflict activity without a safe individual target.
+
+These rules keep BlackNet inside the existing map runtime. They do not create a
+second target registry, second map store or synthetic district catalog.
+
 ## Out Of Scope
 
 Sprint 82 does not:

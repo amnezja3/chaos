@@ -956,6 +956,7 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
                     {"id": "xmapper", "name": "xmapper", "price": 100, "category": "tools"},
                     {"id": "vault", "name": "Vault", "price": 250, "product_type": "storage_upgrade"},
                 ]), \
+                patch.object(run.territory_conflict_store, "list_active", return_value=[]), \
                 patch.object(run.os.path, "isdir", return_value=False):
             snapshot = build_blacknet_world_facts_snapshot(now=now)
 
@@ -965,6 +966,7 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         self.assertGreaterEqual(len(snapshot["facts"]), 4)
         fact_keys = {(fact["source_system"], fact["fact_type"]) for fact in snapshot["facts"]}
         self.assertIn(("operations", "operations_active_count"), fact_keys)
+        self.assertIn(("operations", "operation_hotspot_activity"), fact_keys)
         self.assertIn(("ghost_exchange", "market_sales_7d"), fact_keys)
         self.assertIn(("googleplex", "googleplex_catalog_size"), fact_keys)
         serialized = json.dumps(snapshot, ensure_ascii=False)
@@ -993,6 +995,7 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
     def test_blacknet_world_facts_snapshot_survives_failed_source(self):
         with patch.object(run.user_store, "list_profiles", side_effect=RuntimeError("db offline")), \
                 patch.object(run, "get_app_catalog", return_value=[]), \
+                patch.object(run.territory_conflict_store, "list_active", return_value=[]), \
                 patch.object(run.os.path, "isdir", return_value=False):
             snapshot = build_blacknet_world_facts_snapshot(now=datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc))
 
@@ -1007,6 +1010,7 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         client = self._client_with_user()
         with patch.object(run.user_store, "list_profiles", return_value=[]), \
                 patch.object(run, "get_app_catalog", return_value=[]), \
+                patch.object(run.territory_conflict_store, "list_active", return_value=[]), \
                 patch.object(run.os.path, "isdir", return_value=False), \
                 patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")):
             response = client.get("/api/blacknet/world-facts")
@@ -1015,6 +1019,111 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(data["success"])
         self.assertEqual(data["snapshot"]["snapshot_type"], "blacknet_world_facts")
+
+    def test_blacknet_world_facts_snapshot_builds_real_operation_hotspot(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        profiles = [{
+            "username": "alice",
+            "operations": [
+                {
+                    "operation_id": "op-hotspot-1",
+                    "operation_type": "sniff",
+                    "status": "running",
+                    "started_at": "2026-07-11T11:55:00+00:00",
+                    "expires_at": "2026-07-11T12:55:00+00:00",
+                    "target_id": "poi-putka",
+                    "target": {
+                        "name": "Piekarnia Putka",
+                        "label": "Piekarnia Putka",
+                        "lat": 52.22001,
+                        "lng": 21.01002,
+                        "target_type": "shop",
+                    },
+                },
+                {
+                    "operation_id": "op-hotspot-2",
+                    "operation_type": "trace",
+                    "status": "running",
+                    "started_at": "2026-07-11T11:56:00+00:00",
+                    "expires_at": "2026-07-11T12:56:00+00:00",
+                    "target_id": "poi-putka",
+                    "target": {
+                        "name": "Piekarnia Putka",
+                        "label": "Piekarnia Putka",
+                        "lat": 52.22001,
+                        "lng": 21.01002,
+                        "target_type": "shop",
+                    },
+                },
+            ],
+            "market_history": [],
+            "files": {"market": []},
+            "system_messages": [],
+        }]
+
+        with patch.object(run.user_store, "list_profiles", return_value=profiles), \
+                patch.object(run, "get_app_catalog", return_value=[]), \
+                patch.object(run.territory_conflict_store, "list_active", return_value=[]), \
+                patch.object(run.os.path, "isdir", return_value=False):
+            snapshot = build_blacknet_world_facts_snapshot(now=now)
+
+        hotspots = [
+            fact for fact in snapshot["facts"]
+            if fact["fact_type"] == "operation_hotspot_activity"
+        ]
+        bursts = [
+            fact for fact in snapshot["facts"]
+            if fact["fact_type"] == "target_operation_burst"
+        ]
+        self.assertEqual(len(hotspots), 1)
+        self.assertEqual(len(bursts), 1)
+        hotspot = hotspots[0]
+        self.assertEqual(hotspot["value"], 2)
+        self.assertEqual(hotspot["metadata"]["target_label"], "Piekarnia Putka")
+        self.assertEqual(hotspot["metadata"]["target_id"], "poi-putka")
+        self.assertAlmostEqual(hotspot["metadata"]["lat"], 52.22001)
+        self.assertAlmostEqual(hotspot["metadata"]["lng"], 21.01002)
+        self.assertEqual(bursts[0]["metadata"]["cta_target_id"], "poi-putka")
+
+    def test_blacknet_world_facts_snapshot_builds_real_conflict_target(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        conflicts = [{
+            "id": 7,
+            "conflict_key": "conflict:alice:bob",
+            "participants": ["alice", "bob"],
+            "status": "active",
+            "targets": [{
+                "target_id": "poi-putka",
+                "name": "Piekarnia Putka",
+                "label": "Piekarnia Putka",
+                "lat": 52.22001,
+                "lng": 21.01002,
+                "target_type": "shop",
+                "status": "contested",
+            }],
+        }]
+
+        with patch.object(run.user_store, "list_profiles", return_value=[]), \
+                patch.object(run, "get_app_catalog", return_value=[]), \
+                patch.object(run.territory_conflict_store, "list_active", return_value=conflicts), \
+                patch.object(run.os.path, "isdir", return_value=False):
+            snapshot = build_blacknet_world_facts_snapshot(now=now)
+
+        conflict_facts = [
+            fact for fact in snapshot["facts"]
+            if fact["fact_type"] == "conflict_target_alert"
+        ]
+        self.assertEqual(len(conflict_facts), 1)
+        fact = conflict_facts[0]
+        self.assertEqual(fact["category"], "Piekarnia Putka")
+        self.assertEqual(fact["value"], 1)
+        self.assertEqual(fact["metadata"]["target_id"], "poi-putka")
+        self.assertEqual(fact["metadata"]["target_label"], "Piekarnia Putka")
+        self.assertEqual(fact["metadata"]["status"], "contested")
+        self.assertEqual(fact["metadata"]["participants_count"], 2)
+        self.assertEqual(fact["metadata"]["cta_target_id"], "poi-putka")
+        self.assertAlmostEqual(fact["metadata"]["lat"], 52.22001)
+        self.assertAlmostEqual(fact["metadata"]["lng"], 21.01002)
 
 
 class BlackNetWorldSignalPublisherTest(unittest.TestCase):
@@ -1131,8 +1240,91 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
 
         snapshot = build_blacknet_world_signals(facts, now=now)
 
-        self.assertEqual(snapshot["signals"], [])
-        self.assertEqual(snapshot["diagnostics"]["published"], 0)
+        self.assertEqual(len(snapshot["signals"]), 1)
+        self.assertEqual(snapshot["signals"][0]["signal_type"], "out_of_signal")
+        self.assertTrue(snapshot["diagnostics"]["out_of_signal"])
+        self.assertFalse(snapshot["diagnostics"]["local_static_allowed"])
+
+    def test_blacknet_world_signal_publisher_converts_operation_hotspot(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        facts = {
+            "version": "facts-hotspot",
+            "facts": [{
+                "fact_id": "fact-hotspot-putka",
+                "fact_type": "operation_hotspot_activity",
+                "category": "Piekarnia Putka",
+                "region_id": "poi-putka",
+                "subject_id": "poi-putka",
+                "value": 2,
+                "previous_value": None,
+                "change_percent": 0,
+                "importance": 80,
+                "confidence": 0.9,
+                "observed_at": "2026-07-11T11:00:00Z",
+                "expires_at": "2026-07-11T12:10:00Z",
+                "source_system": "operations",
+                "metadata": {
+                    "target_id": "poi-putka",
+                    "target_label": "Piekarnia Putka",
+                    "lat": 52.22001,
+                    "lng": 21.01002,
+                    "operation_count": 2,
+                    "cta_target_id": "poi-putka",
+                },
+            }],
+        }
+
+        snapshot = build_blacknet_world_signals(facts, now=now)
+
+        self.assertEqual(len(snapshot["signals"]), 1)
+        signal = snapshot["signals"][0]
+        self.assertEqual(signal["signal_type"], "operation_hotspot_activity")
+        self.assertEqual(signal["title"], "OPERACJE / PIEKARNIA PUTKA")
+        self.assertEqual(signal["stat"], "Piekarnia Putka")
+        self.assertEqual(signal["cta_action"], "focus_map_target")
+        self.assertEqual(signal["cta_target_id"], "poi-putka")
+
+    def test_blacknet_world_signal_publisher_converts_conflict_target(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        facts = {
+            "version": "facts-conflict",
+            "facts": [{
+                "fact_id": "fact-conflict-putka",
+                "fact_type": "conflict_target_alert",
+                "category": "Piekarnia Putka",
+                "region_id": "poi-putka",
+                "subject_id": "poi-putka",
+                "value": 1,
+                "previous_value": None,
+                "change_percent": 0,
+                "importance": 90,
+                "confidence": 0.86,
+                "observed_at": "2026-07-11T11:00:00Z",
+                "expires_at": "2026-07-11T12:10:00Z",
+                "source_system": "conflicts",
+                "metadata": {
+                    "target_id": "poi-putka",
+                    "target_label": "Piekarnia Putka",
+                    "lat": 52.22001,
+                    "lng": 21.01002,
+                    "conflict_keys": ["conflict:alice:bob"],
+                    "participants_count": 2,
+                    "status": "contested",
+                    "cta_target_id": "poi-putka",
+                },
+            }],
+        }
+
+        snapshot = build_blacknet_world_signals(facts, now=now)
+
+        self.assertEqual(len(snapshot["signals"]), 1)
+        signal = snapshot["signals"][0]
+        self.assertEqual(signal["signal_type"], "conflict_target_alert")
+        self.assertEqual(signal["title"], "CONFLICT / PIEKARNIA PUTKA")
+        self.assertEqual(signal["stat"], "Piekarnia Putka")
+        self.assertEqual(signal["tone"], "red")
+        self.assertEqual(signal["cta_action"], "focus_map_target")
+        self.assertEqual(signal["cta_target_id"], "poi-putka")
 
     def test_blacknet_world_signals_endpoint_is_readonly_and_requires_login(self):
         response = run.app.test_client().get("/api/blacknet/world-signals")
@@ -1213,6 +1405,10 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
                 for fact_type in (
                     "operations_active_count",
                     "operations_top_type",
+                    "operation_hotspot_activity",
+                    "target_operation_burst",
+                    "conflict_target_alert",
+                    "contested_area_alert",
                     "market_sales_7d",
                     "market_top_sector_7d",
                     "googleplex_catalog_size",
