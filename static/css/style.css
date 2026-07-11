@@ -1587,6 +1587,184 @@ form button:hover {
   text-transform: uppercase;
 }
 
+.blacknet-decision-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(0, 255, 80, 0.1), rgba(0, 0, 0, 0.74) 45%, rgba(0, 0, 0, 0.88)),
+    repeating-linear-gradient(0deg, rgba(0, 255, 80, 0.04) 0 1px, transparent 1px 5px);
+  font-family: monospace;
+}
+
+.blacknet-decision {
+  position: relative;
+  width: min(520px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid #00ff66;
+  background:
+    linear-gradient(135deg, rgba(0, 35, 12, 0.96), rgba(0, 5, 3, 0.98)),
+    #020503;
+  box-shadow:
+    0 0 0 1px rgba(150, 255, 150, 0.16) inset,
+    0 0 34px rgba(0, 255, 90, 0.32),
+    0 18px 55px rgba(0, 0, 0, 0.62);
+  color: #caffce;
+}
+
+.blacknet-decision__scanline {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 0%, rgba(120, 255, 120, 0.15) 50%, transparent 100%);
+  transform: translateY(-100%);
+  animation: blacknetDecisionScan 2.4s linear infinite;
+  opacity: 0.75;
+}
+
+.blacknet-decision__header,
+.blacknet-decision__body,
+.blacknet-decision__actions {
+  position: relative;
+  z-index: 1;
+}
+
+.blacknet-decision__header {
+  display: grid;
+  gap: 8px;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid rgba(0, 255, 90, 0.35);
+}
+
+.blacknet-decision__badge {
+  width: fit-content;
+  padding: 4px 8px;
+  border: 1px solid rgba(0, 255, 90, 0.55);
+  background: rgba(0, 255, 90, 0.08);
+  color: #8dff9f;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .18em;
+}
+
+.blacknet-decision h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1.1;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(0, 255, 90, 0.8);
+}
+
+.blacknet-decision__body {
+  padding: 18px 20px 8px;
+}
+
+.blacknet-decision__body p {
+  margin: 0 0 12px;
+  color: #d8ffdc;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.blacknet-decision__details {
+  color: #86ffa0 !important;
+  opacity: .9;
+}
+
+.blacknet-decision__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px 20px;
+}
+
+.blacknet-decision__button {
+  min-width: 118px;
+  border: 1px solid #00ff66;
+  padding: 10px 14px;
+  background: rgba(0, 20, 8, 0.9);
+  color: #dfffdf;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.blacknet-decision__button:hover,
+.blacknet-decision__button:focus-visible {
+  outline: none;
+  background: #00ff66;
+  color: #001505;
+  box-shadow: 0 0 18px rgba(0, 255, 90, 0.7);
+}
+
+.blacknet-decision__button.is-cancel {
+  border-color: rgba(170, 255, 180, 0.45);
+  color: #9fffb0;
+}
+
+.blacknet-decision__button.is-cancel:hover,
+.blacknet-decision__button.is-cancel:focus-visible {
+  background: rgba(140, 255, 150, 0.16);
+  color: #fff;
+}
+
+.blacknet-decision-backdrop.tone-red .blacknet-decision,
+.blacknet-decision-backdrop.tone-red .blacknet-decision__button {
+  border-color: #ff4a3d;
+}
+
+.blacknet-decision-backdrop.tone-red .blacknet-decision {
+  box-shadow: 0 0 34px rgba(255, 60, 50, 0.28), 0 18px 55px rgba(0, 0, 0, 0.62);
+}
+
+.blacknet-decision-backdrop.tone-amber .blacknet-decision,
+.blacknet-decision-backdrop.tone-amber .blacknet-decision__button {
+  border-color: #ffc400;
+}
+
+@keyframes blacknetDecisionScan {
+  to { transform: translateY(100%); }
+}
+
+@media (max-width: 560px) {
+  .blacknet-decision-backdrop {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .blacknet-decision {
+    width: 100%;
+  }
+
+  .blacknet-decision h2 {
+    font-size: 18px;
+  }
+
+  .blacknet-decision__body p {
+    font-size: 14px;
+  }
+
+  .blacknet-decision__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .blacknet-decision__button {
+    min-width: 0;
+    padding: 11px 8px;
+    font-size: 12px;
+  }
+}
+
 @media (max-width: 900px), (max-height: 700px) {
   #system-toast-container {
     right: 10px;

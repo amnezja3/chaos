@@ -3238,6 +3238,74 @@ function createBrowser() {
 
     const blacknetCtaResult = (ok, message = "", extra = {}) => ({ ok: Boolean(ok), message, ...extra });
 
+    const blacknetDecisionDialog = ({
+        title = "BLACKNET",
+        message = "",
+        details = "",
+        confirmLabel = "OK",
+        cancelLabel = "ANULUJ",
+        tone = "lime"
+    } = {}) => new Promise(resolve => {
+        const existing = document.querySelector(".blacknet-decision-backdrop");
+        if (existing) {
+            existing.remove();
+        }
+
+        const backdrop = document.createElement("div");
+        backdrop.className = `blacknet-decision-backdrop tone-${String(tone || "lime").toLowerCase()}`;
+        backdrop.innerHTML = `
+            <section class="blacknet-decision" role="dialog" aria-modal="true" aria-labelledby="blacknet-decision-title">
+                <div class="blacknet-decision__scanline"></div>
+                <header class="blacknet-decision__header">
+                    <span class="blacknet-decision__badge">GHOST SYSTEM</span>
+                    <h2 id="blacknet-decision-title">${escapeHTML(title)}</h2>
+                </header>
+                <div class="blacknet-decision__body">
+                    <p>${escapeHTML(message)}</p>
+                    ${details ? `<p class="blacknet-decision__details">${escapeHTML(details)}</p>` : ""}
+                </div>
+                <footer class="blacknet-decision__actions">
+                    <button type="button" class="blacknet-decision__button is-cancel" data-choice="cancel">${escapeHTML(cancelLabel)}</button>
+                    <button type="button" class="blacknet-decision__button is-confirm" data-choice="confirm">${escapeHTML(confirmLabel)}</button>
+                </footer>
+            </section>
+        `;
+
+        let settled = false;
+        const finish = accepted => {
+            if (settled) return;
+            settled = true;
+            document.removeEventListener("keydown", handleKeydown, true);
+            backdrop.remove();
+            resolve(Boolean(accepted));
+        };
+        const handleKeydown = event => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                finish(false);
+            }
+            if (event.key === "Enter") {
+                event.preventDefault();
+                finish(true);
+            }
+        };
+
+        backdrop.addEventListener("click", event => {
+            const button = event.target.closest("[data-choice]");
+            if (!button) {
+                if (event.target === backdrop) finish(false);
+                return;
+            }
+            finish(button.dataset.choice === "confirm");
+        });
+        document.addEventListener("keydown", handleKeydown, true);
+        document.body.appendChild(backdrop);
+        const confirmButton = backdrop.querySelector(".blacknet-decision__button.is-confirm");
+        if (confirmButton) {
+            requestAnimationFrame(() => confirmButton.focus());
+        }
+    });
+
     const blacknetSignalExpired = signal => {
         const expiresAt = String(signal?.valid_until || signal?.metadata?.expires_at || "").trim();
         if (!expiresAt) return false;
@@ -3345,9 +3413,14 @@ function createBrowser() {
         if (!hotspotId) {
             return blacknetCtaResult(false, "Sygnal BlackNet nie zawiera konkretnego hotspotu.");
         }
-        const accepted = window.confirm(
-            `BlackNet proponuje teleport do hotspotu: ${label}.\n\nOK - wykonaj teleport\nANULUJ - zostan w obecnej pozycji`
-        );
+        const accepted = await blacknetDecisionDialog({
+            title: "BLACKNET TELEPORT",
+            message: `Przechwycono hotspot: ${label}.`,
+            details: "Potwierdz wykonanie teleportu. Anulowanie zostawi operatora w obecnej pozycji.",
+            confirmLabel: "WYKONAJ",
+            cancelLabel: "ANULUJ",
+            tone: signal?.tone || "lime"
+        });
         if (!accepted) {
             return blacknetCtaResult(false, "Teleport BlackNet anulowany.", { cancelled: true });
         }
@@ -3396,8 +3469,15 @@ function createBrowser() {
         return blacknetCtaResult(false, "Podcast wymaga istniejacego mostu GhostRadio.playPodcast().");
     };
 
-    const blacknetConfirmControlled = (signal, prompt, blockedMessage) => {
-        const accepted = window.confirm(prompt);
+    const blacknetConfirmControlled = async (signal, prompt, blockedMessage) => {
+        const accepted = await blacknetDecisionDialog({
+            title: "BLACKNET DECISION",
+            message: prompt,
+            details: "Ta akcja wymaga decyzji operatora.",
+            confirmLabel: "OK",
+            cancelLabel: "ANULUJ",
+            tone: signal?.tone || "lime"
+        });
         if (!accepted) {
             return blacknetCtaResult(false, "Akcja BlackNet anulowana.", { cancelled: true });
         }
