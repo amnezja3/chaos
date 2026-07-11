@@ -137,3 +137,15 @@ Decision:
 * Przyjeto: Sprint 80 zamyka BlackNet v0 jako lokalny front informacyjny.
   Aktywne style `.blacknet-stage` i `.bn-*` pozostaja w `blacknet.css`, a
   legacy `.blacknet-*` shell/carousel zostal usuniety ze `style.css`.
+* Przyjeto: Sprint 81 dodaje `blacknet_world_facts` jako read-only snapshot
+  faktow swiata. Snapshot moze korzystac z istniejacych operacji, Ghost
+  Exchange, Googleplexa, radia i system messages, ale nie generuje sygnalow, nie
+  zmienia map actions, operation types ani resource types.
+* Przyjeto: Sprint 82 dodaje `blacknet_world_signals` jako deterministyczny
+  publisher faktow swiata do sygnalow BlackNetu. UI moze mieszac sygnaly
+  `world_generated` z lokalnym fallbackiem bez pollera, Ollamy i nowego store.
+* Przyjeto: Sprint 82.5 dodaje centralny BlackNet CTA Router. CTA korzysta z
+  `cta_action` i istniejacych mechanizmow CHAOS. BlackNet nie tworzy drugiego
+  rynku, mapy, radia, Cybernera ani Operation Core. Akcje mutujace stan swiata
+  wymagaja potwierdzenia i bez istniejacego bezpiecznego mostu koncza sie
+  kontrolowanym komunikatem.

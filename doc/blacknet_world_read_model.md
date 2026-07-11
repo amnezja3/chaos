@@ -11,6 +11,25 @@ static/local signals
 renderBlackNet()
 ```
 
+Sprint 81 implements the first concrete runtime form of this idea as:
+
+```text
+existing profile/catalog/radio facts
+↓
+blacknet_world_facts
+↓
+future publisher
+```
+
+Artifact:
+
+```text
+GET /api/blacknet/world-facts
+doc/blacknet_world_facts.md
+```
+
+The endpoint is read-only and is not consumed by the BlackNet UI yet.
+
 Future BlackNet should become:
 
 ```text
@@ -178,3 +197,42 @@ When generation is added in a future sprint:
 * never use BlackNet UI load as a reason to rebuild map/profile,
 * AI can summarize digest facts later, but AI is not part of Sprint 79.
 
+## Sprint 81 Update
+
+`blacknet_world_facts` is the first versioned snapshot of aggregated world facts.
+
+It currently reads:
+
+* operations from stored profiles,
+* Ghost Exchange sales from market history,
+* Googleplex catalog statistics,
+* Ghost Hack Radio channel metadata,
+* lightweight system-message counts.
+
+It does not generate signals and does not replace `static/blacknet_signals.json`.
+
+## Sprint 82 Update
+
+`blacknet_world_signals` is the first deterministic publisher output built from
+`blacknet_world_facts`.
+
+The read path is now:
+
+```text
+existing runtime models
+↓
+blacknet_world_facts
+↓
+deterministic publisher rules
+↓
+blacknet_world_signals
+↓
+renderBlackNet()
+```
+
+The publisher uses thresholds, deterministic ids, CTA validation and current
+fact expiry. It does not store generated signals as a new source of truth.
+
+The BlackNet frontend loads generated world signals and local static signals
+together. Local static signals remain the fallback when generated signals are
+empty or unavailable.

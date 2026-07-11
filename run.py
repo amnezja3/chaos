@@ -311,6 +311,841 @@ def record_ghost_exchange_delta(username, profile, sales=None, reason=""):
     return events
 
 
+BLACKNET_WORLD_FACTS_SCHEMA = 1
+BLACKNET_WORLD_FACTS_TTL_SECONDS = 10 * 60
+BLACKNET_WORLD_SIGNALS_SCHEMA = 1
+BLACKNET_WORLD_SIGNALS_LIMIT = 8
+BLACKNET_FACT_IMPORTANCE = {
+    "low": 25,
+    "medium": 50,
+    "high": 75,
+    "critical": 100,
+}
+BLACKNET_SIGNAL_RULES = {
+    "operations_active_count": {
+        "signal_type": "operation_activity",
+        "threshold": 1,
+        "channel": "PRZECHWYCONY KANAL",
+        "title": "HOTSPOT / OPERACJE",
+        "label": "AKTYWNE OPERACJE",
+        "value_suffix": "x",
+        "stat_template": "{value} OPERACJI W TOKU",
+        "cta": "OTWORZ MAPE",
+        "cta_action": "open_map",
+        "cta_target": "map",
+        "tone": "lime",
+        "layout": 1,
+    },
+    "operations_top_type": {
+        "signal_type": "regional_activity",
+        "threshold": 1,
+        "channel": "RUCH OPERACYJNY",
+        "title_template": "AKTYWNOSC / {category}",
+        "label": "NAJCZESTSZY TYP",
+        "value_suffix": "x",
+        "stat_template": "{category}",
+        "cta": "SPRAWDZ MAPE",
+        "cta_action": "open_map",
+        "cta_target": "map",
+        "tone": "cyan",
+        "layout": 4,
+    },
+    "market_sales_7d": {
+        "signal_type": "market_watch",
+        "threshold": 100,
+        "channel": "GHOST MARKET WATCH",
+        "title": "RYNEK DANYCH / 7D",
+        "label": "OBROT HC",
+        "value_prefix": "+",
+        "value_suffix": " HC",
+        "stat_template": "{file_count} PLIKOW / {volume_mb} MB",
+        "cta": "OTWORZ GHOST EXCHANGE",
+        "cta_action": "open_ghost_exchange",
+        "cta_target": "ghost_exchange",
+        "tone": "cyan",
+        "layout": 2,
+    },
+    "market_top_sector_7d": {
+        "signal_type": "data_demand",
+        "threshold": 100,
+        "channel": "GHOST MARKET WATCH",
+        "title_template": "{category} / POPYT",
+        "label": "TOP SEKTOR",
+        "value_prefix": "+",
+        "value_suffix": " HC",
+        "stat_template": "{volume_mb} MB W RUCHU",
+        "cta": "OTWORZ GHOST EXCHANGE",
+        "cta_action": "open_ghost_exchange",
+        "cta_target": "ghost_exchange",
+        "tone": "cyan",
+        "layout": 6,
+    },
+    "googleplex_catalog_size": {
+        "signal_type": "product_opportunity",
+        "threshold": 1,
+        "channel": "NIEZWERYFIKOWANY DROP",
+        "title": "GOOGLEPLEX / KATALOG",
+        "label": "DOSTEPNE PRODUKTY",
+        "value_suffix": "",
+        "stat_template": "{products} SYSTEM PRODUCT",
+        "cta": "SPRAWDZ W GOOGLEPLEX",
+        "cta_action": "open_googleplex",
+        "cta_target": "googleplex",
+        "tone": "amber",
+        "layout": 3,
+    },
+    "radio_channels_available": {
+        "signal_type": "radio_promotion",
+        "threshold": 1,
+        "channel": "BLACKNET AUDIO",
+        "title": "GHOST HACK RADIO",
+        "label": "KANALY ONLINE",
+        "value_suffix": "",
+        "stat_template": "{tracks_total} TRACKOW W ETERZE",
+        "cta": "WLACZ RADIO",
+        "cta_action": "open_radio",
+        "cta_target": "radio",
+        "tone": "lime",
+        "layout": 5,
+    },
+    "system_messages_24h": {
+        "signal_type": "system_incident",
+        "threshold": 1,
+        "channel": "ALERT SYSTEMOWY",
+        "title": "SYSTEM / 24H",
+        "label": "ZDARZENIA",
+        "value_suffix": "",
+        "stat_template": "{value} KOMUNIKATOW",
+        "cta": "OTWORZ CYBERNER",
+        "cta_action": "open_cyberner",
+        "cta_target": "cyberner",
+        "tone": "red",
+        "layout": 4,
+    },
+}
+BLACKNET_ALLOWED_CTA_ACTIONS = {
+    "accept_blacknet_job",
+    "focus_map_target",
+    "none",
+    "open_blacknet_detail",
+    "open_blacknet_dossier",
+    "open_blacknet_report",
+    "open_cyberner_thread",
+    "open_exchange_category",
+    "open_exchange_market",
+    "open_googleplex_search",
+    "open_map_region",
+    "open_operation",
+    "open_map",
+    "open_ghost_exchange",
+    "open_googleplex",
+    "open_cyberner",
+    "open_radio",
+    "play_radio_podcast",
+    "show_hotspot",
+    "start_operation",
+    "teleport_to_hotspot",
+}
+BLACKNET_HOTSPOTS = {
+    "mokotow": {
+        "id": "mokotow",
+        "label": "Mokotow",
+        "lat": 52.1934,
+        "lng": 21.0348,
+        "risk": "high",
+    },
+    "praga_polnoc": {
+        "id": "praga_polnoc",
+        "label": "Praga Polnoc",
+        "lat": 52.2544,
+        "lng": 21.0347,
+        "risk": "high",
+    },
+    "srodmiescie": {
+        "id": "srodmiescie",
+        "label": "Srodmiescie",
+        "lat": 52.2297,
+        "lng": 21.0122,
+        "risk": "medium",
+    },
+    "zoliborz": {
+        "id": "zoliborz",
+        "label": "Zoliborz",
+        "lat": 52.2680,
+        "lng": 20.9860,
+        "risk": "medium",
+    },
+}
+
+
+def blacknet_utc_now():
+    return datetime.now(timezone.utc)
+
+
+def blacknet_iso(dt):
+    if not isinstance(dt, datetime):
+        dt = blacknet_utc_now()
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def blacknet_safe_metadata(metadata):
+    if not isinstance(metadata, dict):
+        return {}
+    safe = {}
+    for key, value in metadata.items():
+        key = str(key or "").strip()
+        if not key:
+            continue
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            safe[key] = value
+        elif isinstance(value, list):
+            safe[key] = [
+                item for item in value[:12]
+                if isinstance(item, (str, int, float, bool)) or item is None
+            ]
+        elif isinstance(value, dict):
+            safe[key] = blacknet_safe_metadata(value)
+    return safe
+
+
+def blacknet_profile_projection(profile):
+    if not isinstance(profile, dict):
+        return {}
+    files = profile.get("files", {})
+    if not isinstance(files, dict):
+        files = {}
+    market_files = files.get("market", [])
+    if not isinstance(market_files, list):
+        market_files = []
+    operations = profile.get("operations", [])
+    if not isinstance(operations, list):
+        operations = []
+    market_history = profile.get("market_history", [])
+    if not isinstance(market_history, list):
+        market_history = []
+    system_messages = []
+    for message in profile.get("system_messages", []) or []:
+        if not isinstance(message, dict):
+            continue
+        system_messages.append({
+            "title": message.get("title"),
+            "type": message.get("type"),
+            "created_at": message.get("created_at") or message.get("timestamp"),
+        })
+    return {
+        "operations": [item for item in operations if isinstance(item, dict)],
+        "market_history": [item for item in market_history if isinstance(item, dict)],
+        "files": {
+            "market": [item for item in market_files if isinstance(item, dict)],
+        },
+        "system_messages": system_messages,
+    }
+
+
+def blacknet_fact_id(source_system, fact_type, category="", subject_id="", region_id="global"):
+    raw = "|".join(str(item or "") for item in (source_system, fact_type, category, region_id, subject_id))
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+    return f"bnf:{source_system}:{fact_type}:{digest}"
+
+
+def build_blacknet_fact(fact_type, source_system, category, value, now_dt,
+                        previous_value=None, change_percent=0, importance="medium",
+                        confidence=1.0, region_id="global", subject_id=None,
+                        ttl_seconds=BLACKNET_WORLD_FACTS_TTL_SECONDS, metadata=None):
+    importance_key = str(importance or "medium").lower()
+    fact = {
+        "fact_id": blacknet_fact_id(source_system, fact_type, category, subject_id, region_id),
+        "fact_type": str(fact_type or "unknown"),
+        "category": str(category or "general"),
+        "region_id": str(region_id or "global"),
+        "subject_id": str(subject_id or category or fact_type or "world"),
+        "value": value,
+        "previous_value": previous_value,
+        "change_percent": int(round(float(change_percent or 0))),
+        "importance": BLACKNET_FACT_IMPORTANCE.get(importance_key, BLACKNET_FACT_IMPORTANCE["medium"]),
+        "importance_label": importance_key if importance_key in BLACKNET_FACT_IMPORTANCE else "medium",
+        "confidence": max(0.0, min(1.0, float(confidence or 0.0))),
+        "observed_at": blacknet_iso(now_dt),
+        "expires_at": blacknet_iso(now_dt + timedelta(seconds=int(ttl_seconds or BLACKNET_WORLD_FACTS_TTL_SECONDS))),
+        "source_system": str(source_system or "unknown"),
+        "metadata": blacknet_safe_metadata(metadata),
+    }
+    return fact
+
+
+def build_blacknet_operations_facts(profiles, now_dt):
+    active_count = 0
+    completed_count = 0
+    failed_count = 0
+    operation_types = {}
+    target_labels = {}
+    output_mb = 0
+
+    for profile in profiles:
+        if not isinstance(profile, dict):
+            continue
+        operations = profile.get("operations") or []
+        for operation in operations:
+            if not isinstance(operation, dict):
+                continue
+            op_type = str(operation.get("operation_type") or operation.get("map_action_id") or "unknown")
+            operation_types[op_type] = operation_types.get(op_type, 0) + 1
+            target = operation.get("target") if isinstance(operation.get("target"), dict) else {}
+            label = str(target.get("label") or target.get("name") or operation.get("target_id") or "").strip()
+            if label:
+                target_labels[label] = target_labels.get(label, 0) + 1
+            output_mb += operation_output_size_mb(operation)
+            status = str(operation.get("status") or "").lower()
+            if operation_is_active(operation):
+                active_count += 1
+            elif status in {"completed", "done", "success"}:
+                completed_count += 1
+            elif status in {"failed", "timeout", "cancelled", "canceled"}:
+                failed_count += 1
+
+    facts = [
+        build_blacknet_fact(
+            "operations_active_count",
+            "operations",
+            "operations",
+            active_count,
+            now_dt,
+            importance="high" if active_count >= 10 else "medium",
+            confidence=0.95,
+            metadata={
+                "completed_count": completed_count,
+                "failed_count": failed_count,
+                "output_mb": output_mb,
+                "top_operation_types": sorted(operation_types.items(), key=lambda item: item[1], reverse=True)[:5],
+                "top_targets": sorted(target_labels.items(), key=lambda item: item[1], reverse=True)[:5],
+            },
+        )
+    ]
+    if operation_types:
+        top_type, top_count = sorted(operation_types.items(), key=lambda item: item[1], reverse=True)[0]
+        facts.append(build_blacknet_fact(
+            "operations_top_type",
+            "operations",
+            top_type,
+            top_count,
+            now_dt,
+            importance="medium",
+            confidence=0.9,
+            subject_id=top_type,
+            metadata={"operation_type": top_type},
+        ))
+    return facts
+
+
+def build_blacknet_ghost_exchange_facts(profiles, now_dt):
+    sector_hc = {}
+    sector_volume = {}
+    total_hc = 0
+    total_files = 0
+    total_volume = 0
+    transaction_count = 0
+    cutoff_ts = (now_dt - timedelta(days=7)).timestamp()
+
+    for profile in profiles:
+        if not isinstance(profile, dict):
+            continue
+        for transaction in collect_ghost_exchange_transactions(profile):
+            sold_ts = parse_operation_timestamp(transaction.get("sold_at")) or 0
+            if sold_ts and sold_ts < cutoff_ts:
+                continue
+            sector = str(transaction.get("market_sector") or "unknown")
+            price = int(transaction.get("price") or 0)
+            volume = clamp_storage_number(transaction.get("volume_mb"), default=0, minimum=0)
+            files = int(transaction.get("file_count") or 0)
+            sector_hc[sector] = sector_hc.get(sector, 0) + price
+            sector_volume[sector] = sector_volume.get(sector, 0) + volume
+            total_hc += price
+            total_volume += volume
+            total_files += files
+            transaction_count += 1
+
+    facts = [
+        build_blacknet_fact(
+            "market_sales_7d",
+            "ghost_exchange",
+            "market",
+            total_hc,
+            now_dt,
+            importance="high" if total_hc >= 1000 else "medium",
+            confidence=0.9,
+            metadata={
+                "transaction_count": transaction_count,
+                "file_count": total_files,
+                "volume_mb": total_volume,
+                "sector_hc": sector_hc,
+                "sector_volume_mb": sector_volume,
+            },
+        )
+    ]
+    if sector_hc:
+        top_sector, top_hc = sorted(sector_hc.items(), key=lambda item: item[1], reverse=True)[0]
+        facts.append(build_blacknet_fact(
+            "market_top_sector_7d",
+            "ghost_exchange",
+            top_sector,
+            top_hc,
+            now_dt,
+            importance="high" if top_hc >= 1000 else "medium",
+            confidence=0.9,
+            subject_id=top_sector,
+            metadata={"volume_mb": sector_volume.get(top_sector, 0)},
+        ))
+    return facts
+
+
+def build_blacknet_googleplex_facts(now_dt):
+    catalog = get_app_catalog()
+    products = [item for item in catalog if isinstance(item, dict) and item.get("product_type")]
+    apps = [item for item in catalog if isinstance(item, dict) and not item.get("product_type")]
+    categories = {}
+    prices = []
+    for item in catalog:
+        if not isinstance(item, dict):
+            continue
+        category = str(item.get("category") or item.get("product_type") or "unknown")
+        categories[category] = categories.get(category, 0) + 1
+        try:
+            prices.append(int(item.get("price") or 0))
+        except (TypeError, ValueError):
+            pass
+    average_price = int(round(sum(prices) / len(prices))) if prices else 0
+    featured_product = products[0] if products else (apps[0] if apps else {})
+    featured_id = str(featured_product.get("id") or "").strip() if isinstance(featured_product, dict) else ""
+    featured_name = str(featured_product.get("name") or featured_id).strip() if isinstance(featured_product, dict) else ""
+    featured_category = str(
+        featured_product.get("category")
+        or featured_product.get("product_type")
+        or ""
+    ).strip() if isinstance(featured_product, dict) else ""
+    return [
+        build_blacknet_fact(
+            "googleplex_catalog_size",
+            "googleplex",
+            "catalog",
+            len(catalog),
+            now_dt,
+            importance="medium",
+            confidence=0.95,
+            metadata={
+                "apps": len(apps),
+                "products": len(products),
+                "average_price": average_price,
+                "categories": categories,
+                "product_id": featured_id,
+                "product_name": featured_name,
+                "category": featured_category,
+                "cta_query": featured_name or featured_id,
+            },
+        )
+    ]
+
+
+def build_blacknet_radio_facts(now_dt):
+    radio_root = os.path.abspath(os.path.join(app.static_folder, "mp3", "radio", "channel"))
+    channels = []
+    tracks_total = 0
+    try:
+        channel_ids = sorted(
+            name for name in os.listdir(radio_root)
+            if re.match(r"^[a-zA-Z0-9_\-]+$", name)
+            and os.path.isdir(os.path.join(radio_root, name))
+        )
+    except OSError:
+        channel_ids = []
+    for channel_id in channel_ids:
+        meta_path = os.path.join(radio_root, channel_id, "meta.channel")
+        if not os.path.isfile(meta_path):
+            continue
+        try:
+            with open(meta_path, "r", encoding="utf-8") as handle:
+                channel = json.load(handle)
+            track_count = len([
+                filename for filename in os.listdir(os.path.join(radio_root, channel_id))
+                if filename.lower().endswith(".mp3")
+            ])
+        except (OSError, json.JSONDecodeError):
+            continue
+        channels.append({
+            "id": channel.get("id") or channel_id,
+            "slug": channel.get("slug") or channel_id,
+            "name": channel.get("name") or channel_id,
+            "source": channel.get("source") or "unknown",
+            "tracks": track_count,
+        })
+        tracks_total += track_count
+    preferred_channel = next(
+        (item for item in channels if str(item.get("source") or "").lower().startswith("blacknet")),
+        None,
+    ) or (channels[0] if channels else {})
+    return [
+        build_blacknet_fact(
+            "radio_channels_available",
+            "radio",
+            "radio",
+            len(channels),
+            now_dt,
+            importance="low" if channels else "medium",
+            confidence=0.9,
+            metadata={
+                "channels": channels[:10],
+                "tracks_total": tracks_total,
+                "channel_id": preferred_channel.get("id") or "",
+                "channel_name": preferred_channel.get("name") or "",
+                "cta_target_id": preferred_channel.get("id") or "",
+            },
+        )
+    ]
+
+
+def build_blacknet_system_facts(profiles, now_dt):
+    total_messages = 0
+    title_counts = {}
+    cutoff_ts = (now_dt - timedelta(days=1)).timestamp()
+    for profile in profiles:
+        if not isinstance(profile, dict):
+            continue
+        for message in profile.get("system_messages", []) or []:
+            if not isinstance(message, dict):
+                continue
+            ts = parse_operation_timestamp(message.get("created_at") or message.get("timestamp")) or now_dt.timestamp()
+            if ts < cutoff_ts:
+                continue
+            total_messages += 1
+            title = str(message.get("title") or message.get("type") or "System").strip()[:60]
+            title_counts[title] = title_counts.get(title, 0) + 1
+    return [
+        build_blacknet_fact(
+            "system_messages_24h",
+            "system",
+            "system",
+            total_messages,
+            now_dt,
+            importance="medium" if total_messages else "low",
+            confidence=0.8,
+            metadata={"top_titles": sorted(title_counts.items(), key=lambda item: item[1], reverse=True)[:5]},
+        )
+    ]
+
+
+def build_blacknet_world_facts_snapshot(now=None):
+    started = time.perf_counter()
+    now_dt = now if isinstance(now, datetime) else blacknet_utc_now()
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
+    sources = {}
+    facts = []
+
+    try:
+        raw_profiles = user_store.list_profiles()
+        if not isinstance(raw_profiles, list):
+            raw_profiles = []
+        profiles = [
+            blacknet_profile_projection(profile)
+            for profile in raw_profiles
+            if isinstance(profile, dict)
+        ]
+        sources["profiles"] = {"ok": True, "count": len(profiles)}
+    except Exception as exc:
+        profiles = []
+        sources["profiles"] = {"ok": False, "error": str(exc)}
+
+    aggregators = [
+        ("operations", lambda: build_blacknet_operations_facts(profiles, now_dt)),
+        ("ghost_exchange", lambda: build_blacknet_ghost_exchange_facts(profiles, now_dt)),
+        ("googleplex", lambda: build_blacknet_googleplex_facts(now_dt)),
+        ("radio", lambda: build_blacknet_radio_facts(now_dt)),
+        ("system", lambda: build_blacknet_system_facts(profiles, now_dt)),
+    ]
+    for source_name, aggregator in aggregators:
+        source_started = time.perf_counter()
+        try:
+            source_facts = aggregator()
+            if not isinstance(source_facts, list):
+                source_facts = []
+            facts.extend(source_facts)
+            sources[source_name] = {
+                "ok": True,
+                "facts": len(source_facts),
+                "duration_ms": int(round((time.perf_counter() - source_started) * 1000)),
+            }
+        except Exception as exc:
+            sources[source_name] = {
+                "ok": False,
+                "error": str(exc),
+                "duration_ms": int(round((time.perf_counter() - source_started) * 1000)),
+            }
+
+    facts.sort(key=lambda item: (item.get("source_system", ""), item.get("fact_type", ""), item.get("subject_id", "")))
+    version_payload = [
+        {
+            "fact_id": item.get("fact_id"),
+            "value": item.get("value"),
+            "previous_value": item.get("previous_value"),
+            "change_percent": item.get("change_percent"),
+            "source_system": item.get("source_system"),
+        }
+        for item in facts
+    ]
+    version = hashlib.sha1(
+        json.dumps(version_payload, sort_keys=True, ensure_ascii=True).encode("utf-8")
+    ).hexdigest()[:16]
+    snapshot = {
+        "schema": BLACKNET_WORLD_FACTS_SCHEMA,
+        "snapshot_type": "blacknet_world_facts",
+        "version": version,
+        "generated_at": blacknet_iso(now_dt),
+        "expires_at": blacknet_iso(now_dt + timedelta(seconds=BLACKNET_WORLD_FACTS_TTL_SECONDS)),
+        "source_versions": {
+            "profiles": sources.get("profiles", {}).get("count", 0),
+            "operations": sum(1 for item in facts if item.get("source_system") == "operations"),
+            "ghost_exchange": sum(1 for item in facts if item.get("source_system") == "ghost_exchange"),
+            "googleplex": sum(1 for item in facts if item.get("source_system") == "googleplex"),
+            "radio": sum(1 for item in facts if item.get("source_system") == "radio"),
+            "system": sum(1 for item in facts if item.get("source_system") == "system"),
+        },
+        "facts": facts,
+        "diagnostics": {
+            "duration_ms": int(round((time.perf_counter() - started) * 1000)),
+            "sources": sources,
+            "fact_count": len(facts),
+        },
+    }
+    print(f"[BLACKNET_FACTS] version={version} facts={len(facts)} ms={snapshot['diagnostics']['duration_ms']}")
+    return snapshot
+
+
+def blacknet_fact_number(fact):
+    if not isinstance(fact, dict):
+        return 0
+    try:
+        return int(round(float(fact.get("value") or 0)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def blacknet_minutes_until(expires_at, now_dt):
+    expires_ts = parse_operation_timestamp(expires_at)
+    now_ts = now_dt.timestamp() if isinstance(now_dt, datetime) else blacknet_utc_now().timestamp()
+    if not expires_ts:
+        return 0
+    return max(0, int(round((expires_ts - now_ts) / 60)))
+
+
+def blacknet_timer_text(fact, now_dt):
+    minutes = blacknet_minutes_until(fact.get("expires_at"), now_dt)
+    if minutes <= 0:
+        return "00:00"
+    minutes = min(minutes, 99 * 60 + 59)
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
+def blacknet_format_category(category):
+    label = str(category or "world").replace("_", " ").replace("-", " ").strip()
+    return re.sub(r"\s+", " ", label).upper()[:32] or "WORLD"
+
+
+def blacknet_format_signal_value(value, rule):
+    prefix = str(rule.get("value_prefix") or "")
+    suffix = str(rule.get("value_suffix") or "")
+    try:
+        number = int(round(float(value or 0)))
+    except (TypeError, ValueError):
+        number = 0
+    return f"{prefix}{number}{suffix}"
+
+
+def blacknet_format_signal_stat(rule, fact, value):
+    metadata = fact.get("metadata") if isinstance(fact.get("metadata"), dict) else {}
+    template_values = {
+        "value": value,
+        "category": blacknet_format_category(fact.get("category")),
+        "file_count": int(metadata.get("file_count") or 0),
+        "volume_mb": int(metadata.get("volume_mb") or 0),
+        "products": int(metadata.get("products") or 0),
+        "tracks_total": int(metadata.get("tracks_total") or 0),
+    }
+    template = str(rule.get("stat_template") or "{value}")
+    try:
+        return template.format(**template_values)[:48]
+    except (KeyError, ValueError):
+        return str(value)[:48]
+
+
+def blacknet_signal_id(fact, rule):
+    raw = "|".join([
+        str(rule.get("signal_type") or "world_alert"),
+        str(fact.get("fact_id") or ""),
+        str(fact.get("category") or ""),
+        str(fact.get("region_id") or "global"),
+    ])
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+    return f"world-{digest}"
+
+
+def blacknet_radar_from_seed(seed, sides=0):
+    digest = hashlib.sha1(str(seed or "blacknet").encode("utf-8")).hexdigest()
+    nodes = []
+    for index in range(6):
+        base = index * 6
+        x = 14 + (int(digest[base:base + 2], 16) % 72)
+        y = 16 + (int(digest[base + 2:base + 4], 16) % 68)
+        r = 2 + (int(digest[base + 4:base + 6], 16) % 3)
+        nodes.append([x, y, r])
+    return {
+        "sides": max(0, min(12, int(sides or 0))),
+        "nodes": nodes,
+    }
+
+
+def blacknet_signal_from_fact(fact, now_dt):
+    if not isinstance(fact, dict):
+        return None
+    rule = BLACKNET_SIGNAL_RULES.get(str(fact.get("fact_type") or ""))
+    if not rule:
+        return None
+    value = blacknet_fact_number(fact)
+    if value < int(rule.get("threshold") or 0):
+        return None
+    if blacknet_minutes_until(fact.get("expires_at"), now_dt) <= 0:
+        return None
+
+    metadata = fact.get("metadata") if isinstance(fact.get("metadata"), dict) else {}
+    cta_action = str(rule.get("cta_action") or "").strip()
+    if cta_action not in BLACKNET_ALLOWED_CTA_ACTIONS:
+        return None
+    category_label = blacknet_format_category(fact.get("category"))
+    title = str(rule.get("title_template") or rule.get("title") or "WORLD SIGNAL").format(
+        category=category_label,
+        value=value,
+    )
+    signal_type = str(rule.get("signal_type") or "world_alert")
+    signal = {
+        "id": blacknet_signal_id(fact, rule),
+        "source": "world_generated",
+        "signal_type": signal_type,
+        "fact_id": fact.get("fact_id"),
+        "world_version": fact.get("world_version"),
+        "channel": str(rule.get("channel") or "BLACKNET SIGNAL"),
+        "title": title[:48],
+        "label": str(rule.get("label") or "STATUS")[:32],
+        "value": blacknet_format_signal_value(value, rule)[:24],
+        "stat": blacknet_format_signal_stat(rule, fact, value),
+        "timer": blacknet_timer_text(fact, now_dt),
+        "tone": str(rule.get("tone") or "lime"),
+        "layout": int(rule.get("layout") or 1),
+        "cta": str(rule.get("cta") or "OTWORZ")[:40],
+        "cta_action": cta_action,
+        "cta_target": str(rule.get("cta_target") or ""),
+        "cta_target_id": str(
+            metadata.get("cta_target_id")
+            or metadata.get("product_id")
+            or metadata.get("channel_id")
+            or metadata.get("sector")
+            or metadata.get("hotspot_id")
+            or fact.get("subject_id")
+            or ""
+        ),
+        "cta_query": str(metadata.get("cta_query") or metadata.get("product_name") or ""),
+        "radar": blacknet_radar_from_seed(fact.get("fact_id"), sides=rule.get("layout")),
+        "importance": int(fact.get("importance") or 0),
+        "generated_at": blacknet_iso(now_dt),
+        "valid_until": fact.get("expires_at"),
+        "observed_at": fact.get("observed_at"),
+        "category": str(fact.get("category") or "general"),
+        "region_id": str(fact.get("region_id") or "global"),
+        "metadata": blacknet_safe_metadata(metadata),
+    }
+    return signal
+
+
+def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_SIGNALS_LIMIT):
+    started = time.perf_counter()
+    now_dt = now if isinstance(now, datetime) else blacknet_utc_now()
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
+    if not isinstance(snapshot, dict):
+        snapshot = build_blacknet_world_facts_snapshot(now=now_dt)
+    facts = snapshot.get("facts") if isinstance(snapshot.get("facts"), list) else []
+    candidates = []
+    rejected = []
+    for fact in facts:
+        signal = blacknet_signal_from_fact(fact, now_dt)
+        if signal:
+            signal["world_version"] = snapshot.get("version")
+            candidates.append(signal)
+        else:
+            rejected.append({
+                "fact_id": fact.get("fact_id") if isinstance(fact, dict) else None,
+                "fact_type": fact.get("fact_type") if isinstance(fact, dict) else None,
+            })
+
+    candidates.sort(key=lambda item: (
+        -int(item.get("importance") or 0),
+        str(item.get("signal_type") or ""),
+        str(item.get("fact_id") or ""),
+    ))
+    selected = []
+    seen_signal_ids = set()
+    seen_combinations = set()
+    for signal in candidates:
+        if signal["id"] in seen_signal_ids:
+            continue
+        combination = (
+            signal.get("signal_type"),
+            signal.get("layout"),
+            signal.get("tone"),
+            signal.get("cta_action"),
+            signal.get("region_id"),
+            signal.get("category"),
+        )
+        if combination in seen_combinations:
+            continue
+        seen_signal_ids.add(signal["id"])
+        seen_combinations.add(combination)
+        selected.append(signal)
+        if len(selected) >= int(limit or BLACKNET_WORLD_SIGNALS_LIMIT):
+            break
+
+    version_payload = [
+        {
+            "id": signal.get("id"),
+            "fact_id": signal.get("fact_id"),
+            "value": signal.get("value"),
+            "timer": signal.get("timer"),
+            "cta_action": signal.get("cta_action"),
+        }
+        for signal in selected
+    ]
+    version = hashlib.sha1(
+        json.dumps(version_payload, sort_keys=True, ensure_ascii=True).encode("utf-8")
+    ).hexdigest()[:16]
+    return {
+        "schema": BLACKNET_WORLD_SIGNALS_SCHEMA,
+        "snapshot_type": "blacknet_world_signals",
+        "source": "world_generated",
+        "version": version,
+        "world_facts_version": snapshot.get("version"),
+        "generated_at": blacknet_iso(now_dt),
+        "signals": selected,
+        "diagnostics": {
+            "duration_ms": int(round((time.perf_counter() - started) * 1000)),
+            "facts_seen": len(facts),
+            "candidates": len(candidates),
+            "published": len(selected),
+            "rejected": len(rejected),
+            "local_static_allowed": True,
+            "ollama_used": False,
+        },
+    }
+
+
 def build_map_player_actor_delta_payload(viewer_username, actor_profile, context=None, lat=None, lng=None):
     if not viewer_username or not isinstance(actor_profile, dict):
         return None
@@ -9392,6 +10227,109 @@ def api_dev_delta_diagnostics():
             pollers_active_count=request.args.get("pollers_active_count", 0),
             snapshot_recovery_count=request.args.get("snapshot_recovery_count", 0),
         )
+    })
+
+
+@app.route("/api/blacknet/world-facts")
+def api_blacknet_world_facts():
+    if not session.get("user"):
+        return jsonify({
+            "success": False,
+            "message": "BlackNet world facts wymagaja aktywnej sesji.",
+            "snapshot": None,
+        }), 401
+    snapshot = build_blacknet_world_facts_snapshot()
+    return jsonify({
+        "success": True,
+        "snapshot": snapshot,
+    })
+
+
+@app.route("/api/blacknet/world-signals")
+def api_blacknet_world_signals():
+    if not session.get("user"):
+        return jsonify({
+            "success": False,
+            "message": "BlackNet world signals wymagaja aktywnej sesji.",
+            "snapshot": None,
+        }), 401
+    facts_snapshot = build_blacknet_world_facts_snapshot()
+    signal_snapshot = build_blacknet_world_signals(facts_snapshot)
+    return jsonify({
+        "success": True,
+        "snapshot": signal_snapshot,
+    })
+
+
+@app.route("/api/blacknet/cta/teleport", methods=["POST"])
+def api_blacknet_cta_teleport():
+    username = session.get("user")
+    if not username:
+        return jsonify({
+            "success": False,
+            "message": "Teleport BlackNet wymaga aktywnej sesji.",
+            "error": "not_logged_in",
+        }), 401
+
+    payload = request.get_json(silent=True) or {}
+    hotspot_id = str(
+        payload.get("hotspot_id")
+        or payload.get("cta_target_id")
+        or payload.get("target_id")
+        or ""
+    ).strip()
+    hotspot = BLACKNET_HOTSPOTS.get(hotspot_id)
+    if not hotspot:
+        return jsonify({
+            "success": False,
+            "message": "Hotspot BlackNet wygasl albo nie istnieje.",
+            "error": "unknown_hotspot",
+        }), 404
+
+    profile = load_profile_readonly(username, strip_sensitive=False)
+    if not isinstance(profile, dict):
+        session.pop("user", None)
+        session.pop("profile", None)
+        return jsonify({
+            "success": False,
+            "message": "Profil nie istnieje.",
+            "error": "profile_not_found",
+        }), 401
+
+    position = {
+        "lat": float(hotspot["lat"]),
+        "lng": float(hotspot["lng"]),
+    }
+    profile["curently_possition"] = position
+
+    mgr = UserProfileManager(username)
+    mgr.update_profile({"curently_possition": position})
+    session["profile"] = profile
+
+    intrusion_area = notify_area_intrusion(username, position["lat"], position["lng"])
+    record_map_player_actor_delta(
+        username,
+        profile,
+        change_type="map.player_moved",
+        reason="blacknet_teleport",
+        intrusion_area=intrusion_area,
+    )
+
+    return jsonify({
+        "success": True,
+        "message": f"Teleport BlackNet wykonany: {hotspot['label']}.",
+        "hotspot": {
+            "id": hotspot["id"],
+            "label": hotspot["label"],
+            "risk": hotspot.get("risk", ""),
+        },
+        "curently_possition": position,
+        "intrusion": bool(intrusion_area),
+        "intrusion_area": {
+            "id": intrusion_area.get("id"),
+            "owner_username": intrusion_area.get("owner_username"),
+            "owner_nick": intrusion_area.get("owner_nick"),
+        } if intrusion_area else None,
     })
 
 

@@ -7167,3 +7167,158 @@ fakty swiata przez digest/cache/delta-feed.
 
 Sprint 80 zakonczony. Faza H ma stabilny BlackNet v0 gotowy pod przyszle
 mini-sprinty: AI Digest, Radio Hooks, Cyberner Thread i Market Rumors.
+
+---
+
+## 11.07.2026
+
+### Etap
+
+Sprint 81 - BlackNet World Facts Snapshot.
+
+### Zmiany
+
+Dodano pierwszy runtime read model faktow swiata dla BlackNetu:
+
+* endpoint `GET /api/blacknet/world-facts`,
+* builder `build_blacknet_world_facts_snapshot()`,
+* kontrakt `blacknet_world_facts` z `schema`, `version`, `generated_at`,
+  `expires_at`, `source_versions`, `facts[]` i `diagnostics`,
+* osobny dokument `doc/blacknet_world_facts.md`,
+* testy regresyjne kontraktu, odpornosci na awarie zrodla i braku
+  `sync_session_profile()` w endpointzie.
+
+Snapshot agreguje lekkie fakty z:
+
+* zapisanych operacji profili,
+* historii sprzedazy Ghost Exchange,
+* katalogu Googleplex,
+* lokalnych kontraktow Ghost Hack Radio,
+* licznikow system messages.
+
+### Decyzje
+
+`blacknet_world_facts` jest read-only snapshotem i nie jest zrodlem prawdy.
+
+Nie generuje sygnalow BlackNetu, nie uruchamia Ollamy, nie odpala settlementu
+Ghost Exchange, nie finalizuje operacji, nie przebudowuje mapy i nie czyta
+pelnych prywatnych danych graczy do payloadu.
+
+Awaria jednego zrodla trafia do `diagnostics.sources`, ale nie blokuje calego
+snapshotu.
+
+### Status
+
+Sprint 81 zakonczony jako fundament pod Sprint 82. BlackNet UI nadal korzysta z
+lokalnego `static/blacknet_signals.json`; nowy snapshot faktow jest gotowy dla
+przyszlego deterministycznego publishera.
+
+---
+
+## 11.07.2026
+
+### Etap
+
+Sprint 82 - Deterministic World Signal Publisher.
+
+### Zmiany
+
+Dodano deterministyczny publisher sygnalow BlackNetu:
+
+* endpoint `GET /api/blacknet/world-signals`,
+* builder `build_blacknet_world_signals()`,
+* reguly `fact_type -> signal_type`,
+* progi publikacji,
+* ranking po waznosci,
+* deduplikacje w ramach snapshotu,
+* wygaszanie faktow po `expires_at`,
+* bezpieczne CTA przez allowliste `cta_action`,
+* `source: world_generated` dla sygnalow z faktow swiata,
+* merge `world_generated + static/blacknet_signals.json` w rendererze BlackNetu.
+
+### Decyzje
+
+Publisher nie jest nowym store i nie jest zrodlem prawdy. Czyta snapshot
+`blacknet_world_facts` ze Sprintu 81 i generuje prezentacyjny kontrakt
+`blacknet_world_signals`.
+
+Nie uzyto Ollamy, nie dodano outboxa, nie utworzono misji, nie zmieniono
+Ghost Exchange, Googleplexa ani mapy.
+
+Brak faktow powyzej progu nie generuje sztucznego ruchu. W takim przypadku UI
+dalej dziala na lokalnych sygnalach statycznych.
+
+### Status
+
+Sprint 82 zakonczony jako pierwszy moment, w ktorym BlackNet moze opisywac
+rzeczywisty stan swiata gry deterministycznymi sygnalami.
+
+---
+
+## 11.07.2026
+
+### Etap
+
+Sprint 82.5 - BlackNet CTA Triggers + Gameplay Bridges.
+
+### Zmiany
+
+Dodano centralny router CTA dla sygnalow BlackNetu:
+
+* routing po `cta_action`, bez parsowania tekstu przycisku,
+* rozszerzona allowlista `BLACKNET_ALLOWED_CTA_ACTIONS`,
+* diagnostyka CTA w konsoli z `signal_id`, `source`, `cta_action`,
+  `cta_target`, walidacja, potwierdzeniem i czasem obslugi,
+* most do Googleplexa z wypelnieniem wyszukiwarki,
+* most do Ghost Exchange,
+* most do mapy z lekkim hintem fokusu,
+* most do Cybernera przez istniejace `openEmailChatWith(peer)`,
+* most do Ghost Hack Radio,
+* kontrolowane szczegoly wewnetrzne BlackNetu przez istniejace system messages,
+* kontrolowane potwierdzenia dla teleportu, startu operacji i przyjecia joba.
+
+Dodano dokument:
+
+```text
+doc/blacknet_cta_bridges.md
+```
+
+### Decyzje
+
+BlackNet nie tworzy drugiego routera zakupow, rynku, operacji, mapy, Cybernera
+ani audio.
+
+Akcje mutujace stan swiata wymagaja potwierdzenia. Jezeli obecny runtime nie ma
+bezpiecznego backendowego mostu, akcja konczy sie kontrolowanym komunikatem i nie
+zmienia swiata.
+
+`play_radio_podcast` uzywa `GhostRadio.playPodcast()` tylko wtedy, gdy taki
+istniejacy most bedzie dostepny. W przeciwnym razie otwiera radio i zwraca
+kontrolowany komunikat.
+
+### Hotfix po walidacji
+
+Po pierwszej walidacji CTA okazalo sie, ze czesc akcji nadal korzystala z
+ogolnych targetow albo fallbackowych hasel sygnalu:
+
+* radio traktowalo `cta_target=radio` jak identyfikator kanalu,
+* Googleplex mogl szukac plakatowego tytulu sygnalu zamiast realnej nazwy
+  produktu,
+* teleport otwieral mape bez potwierdzenia i bez zmiany pozycji,
+* lokalny fallback `static/blacknet_signals.json` mial jeszcze mockowe akcje
+  typu `open_map`.
+
+Poprawiono kontrakt CTA:
+
+* publisher dodaje `cta_target_id`, `cta_query` i bezpieczne `metadata`,
+* fakty Googleplexa niosa realny `product_id` / `product_name`,
+* fakty radia niosa realny `channel_id`,
+* lokalny fallback dostal konkretne targety,
+* dodano whitelistowany most `POST /api/blacknet/cta/teleport`, ktory po
+  potwierdzeniu aktualizuje istniejace `profile.curently_possition` i emituje
+  istniejacy delta event map actor.
+
+### Status
+
+Sprint 82.5 domyka bezpieczne przejscie z sygnalu BlackNetu do istniejacych
+systemow CHAOS przed rozpoczeciem kontraktow Ollamy ze Sprintu 83.

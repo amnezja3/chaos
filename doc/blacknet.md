@@ -252,6 +252,49 @@ Przyszle mini-sprinty:
 
 ---
 
+## Sprint 81 - BlackNet World Facts Snapshot
+
+Status: complete as runtime read model v0.
+
+Artefakt:
+
+* `doc/blacknet_world_facts.md`
+* `GET /api/blacknet/world-facts`
+
+Decyzje:
+
+* BlackNet ma pierwszy lekki snapshot faktow swiata:
+  `blacknet_world_facts`.
+* Snapshot agreguje dane z istniejacych systemow:
+  operacje, Ghost Exchange, Googleplex, radio i system messages.
+* Snapshot nie generuje gotowych sygnalow BlackNetu. To zostaje zakresem
+  Sprintu 82.
+* Snapshot nie odpala `sync_session_profile()`, finalizerow operacji, settlementu
+  Ghost Exchange, rebuildow mapy ani AI.
+* Kazde zrodlo jest izolowane diagnostycznie. Awaria jednego zrodla nie blokuje
+  calego snapshotu.
+* Lokalny fallback `static/blacknet_signals.json` pozostaje aktywny dla UI.
+
+## Sprint 82 - Deterministic World Signal Publisher
+
+Sprint 82 dodal deterministyczny publisher:
+
+* `GET /api/blacknet/world-signals`,
+* `build_blacknet_world_signals()`,
+* reguly `fact_type -> signal_type`,
+* bezpieczne CTA przez `cta_action`,
+* oznaczenie sygnalow jako `source: world_generated`,
+* merge z lokalnym `static/blacknet_signals.json` po stronie UI.
+
+Publisher nie uzywa AI, nie tworzy misji, nie dodaje store sygnalow i nie jest
+zrodlem prawdy. Czyta `blacknet_world_facts` ze Sprintu 81 i zamienia wybrane
+fakty na gotowy kontrakt renderera BlackNetu.
+
+Jesli endpoint wygenerowanych sygnalow jest niedostepny albo nie ma faktow
+powyzej progu, UI nadal dziala na lokalnych sygnalach statycznych.
+
+---
+
 ## Status
 
 Backlog / Future Feature
@@ -654,3 +697,29 @@ I moim zdaniem to jest coś, czego jeszcze nie widziałem w żadnej grze hakersk
 Nie dlatego, że AI pisze posty.
 
 Tylko dlatego, że **AI opisuje świat, który naprawdę żyje**, a nie wymyśla losowe historyjki. To jest ta różnica, która może sprawić, że Blacknet stanie się miejscem, do którego gracze będą zaglądać z ciekawości, a nie z obowiązku. To jest właśnie "żyjący internet" świata CHAOS.
+
+## Sprint 82.5 - CTA Bridges
+
+Sprint 82.5 adds a central CTA router for BlackNet signals.
+
+The router reads `cta_action` and signal metadata. It does not parse button
+labels and does not create parallel gameplay systems.
+
+Active bridges open existing CHAOS systems:
+
+* Googleplex,
+* Ghost Exchange,
+* map,
+* Cyberner,
+* Ghost Hack Radio,
+* existing operation context.
+
+Guarded actions such as teleport, starting an operation or accepting a BlackNet
+job require confirmation and return a controlled message unless a safe existing
+backend bridge is available.
+
+Detailed contract:
+
+```text
+doc/blacknet_cta_bridges.md
+```

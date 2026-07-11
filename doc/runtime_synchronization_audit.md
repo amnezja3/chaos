@@ -470,3 +470,57 @@ Kandydat: ACTION / DELTA
 4. Jaki jest realny czas renderu `refreshPlayerAreas()` w przegladarce?
 5. Czy `/api/ghost-exchange` powinien byc klasyfikowany jako refresh read modelu,
    czy jako kontrolowany runtime tick rynku?
+
+## BlackNet World Facts - Sprint 81
+
+Dodano lekki read model:
+
+```text
+GET /api/blacknet/world-facts
+```
+
+Charakter synchronizacji:
+
+* endpoint wymaga sesji,
+* nie odpala `sync_session_profile()`,
+* nie odpala finalizerow operacji,
+* nie odpala settlementu Ghost Exchange,
+* nie przebudowuje mapy,
+* nie jest podlaczony jako poller UI.
+
+Zrodla v0:
+
+* `user_store.list_profiles()` jako odczyt istniejacych profili,
+* `profile.operations` jako stored operation state,
+* `profile.market_history` i `files.market` jako historia sprzedazy,
+* `get_app_catalog()` jako katalog Googleplex,
+* lokalne `meta.channel` jako kontrakt radia,
+* lekkie zliczenia `system_messages`.
+
+Kandydat:
+
+* KEEP as read-only snapshot,
+* DELTA / cache later, jezeli BlackNet zacznie byc odswiezany cyklicznie.
+
+## BlackNet World Signals - Sprint 82
+
+Dodano deterministyczny publisher:
+
+```text
+GET /api/blacknet/world-signals
+```
+
+Charakter synchronizacji:
+
+* endpoint wymaga sesji,
+* korzysta z `blacknet_world_facts`,
+* nie odpala `sync_session_profile()` bezposrednio,
+* nie uruchamia settlementu, mapy ani operacji,
+* nie tworzy pollera UI,
+* frontend laduje go razem z lokalnym `static/blacknet_signals.json`.
+
+Kandydat:
+
+* KEEP as read-only generated snapshot,
+* cache later, jezeli BlackNet zacznie odswiezac sygnaly cyklicznie,
+* nie migrowac do delta-feed przed decyzja o czestotliwosci publikacji.

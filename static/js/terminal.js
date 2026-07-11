@@ -3037,6 +3037,7 @@ function createBrowser() {
     ].join(' ').toLowerCase();
 
     const BLACKNET_SIGNAL_SOURCE = "/static/blacknet_signals.json";
+    const BLACKNET_WORLD_SIGNAL_SOURCE = "/api/blacknet/world-signals";
     let blacknetSignals = [];
     let blacknetSignalsLoaded = false;
     let blacknetSignalsLoading = null;
@@ -3057,6 +3058,9 @@ function createBrowser() {
         return {
             id,
             source: String(signal.source || "unknown").trim() || "unknown",
+            signal_type: String(signal.signal_type || signal.type || "").trim(),
+            fact_id: String(signal.fact_id || "").trim(),
+            world_version: String(signal.world_version || "").trim(),
             channel: String(signal.channel || "BLACKNET SIGNAL").trim() || "BLACKNET SIGNAL",
             title: String(signal.title || "NIEZNANY SYGNAL").trim() || "NIEZNANY SYGNAL",
             label: String(signal.label || "STATUS").trim() || "STATUS",
@@ -3066,6 +3070,17 @@ function createBrowser() {
             cta: String(signal.cta || "BRAK MOSTU").trim() || "BRAK MOSTU",
             cta_action: String(signal.cta_action || "").trim(),
             cta_target: String(signal.cta_target || "").trim(),
+            cta_target_id: String(signal.cta_target_id || signal.target_id || signal.product_id || signal.operation_id || "").trim(),
+            cta_query: String(signal.cta_query || signal.query || signal.search || "").trim(),
+            target_id: String(signal.target_id || "").trim(),
+            region_id: String(signal.region_id || "").trim(),
+            category: String(signal.category || "").trim(),
+            product_id: String(signal.product_id || "").trim(),
+            podcast: String(signal.podcast || signal.podcast_id || "").trim(),
+            operation_id: String(signal.operation_id || "").trim(),
+            thread_peer: String(signal.thread_peer || signal.peer || "").trim(),
+            valid_until: String(signal.valid_until || signal.expires_at || "").trim(),
+            metadata: signal.metadata && typeof signal.metadata === "object" ? signal.metadata : {},
             tone: ["lime", "cyan", "amber", "red"].includes(String(signal.tone || "").trim())
                 ? String(signal.tone).trim()
                 : "lime",
@@ -3079,16 +3094,41 @@ function createBrowser() {
         if (blacknetSignalsLoaded) return blacknetSignals;
         if (blacknetSignalsLoading) return blacknetSignalsLoading;
         blacknetSignalsError = "";
-        blacknetSignalsLoading = fetch(BLACKNET_SIGNAL_SOURCE, { cache: "no-cache" })
-            .then(async response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+        blacknetSignalsLoading = Promise.allSettled([
+            fetch(BLACKNET_SIGNAL_SOURCE, { cache: "no-cache" }).then(async response => {
+                if (!response.ok) throw new Error(`local HTTP ${response.status}`);
+                return response.json();
+            }),
+            fetch(BLACKNET_WORLD_SIGNAL_SOURCE, { cache: "no-cache" }).then(async response => {
+                if (!response.ok) throw new Error(`world HTTP ${response.status}`);
+                return response.json();
+            })
+        ])
+            .then(results => {
+                const localPayload = results[0].status === "fulfilled" ? results[0].value : null;
+                const worldPayload = results[1].status === "fulfilled" ? results[1].value : null;
+                if (results[0].status === "rejected") {
+                    console.warn("BlackNet local signal source failed", results[0].reason);
                 }
-                const payload = await response.json();
-                const sourceSignals = Array.isArray(payload) ? payload : payload.signals;
-                blacknetSignals = Array.isArray(sourceSignals)
-                    ? sourceSignals.map(normalizeBlacknetSignal).filter(Boolean)
-                    : [];
+                if (results[1].status === "rejected") {
+                    console.warn("BlackNet world signal source failed", results[1].reason);
+                }
+                const localSignals = Array.isArray(localPayload)
+                    ? localPayload
+                    : (Array.isArray(localPayload?.signals) ? localPayload.signals : []);
+                const worldSignals = Array.isArray(worldPayload?.snapshot?.signals)
+                    ? worldPayload.snapshot.signals
+                    : (Array.isArray(worldPayload?.signals) ? worldPayload.signals : []);
+                const mergedSignals = [...worldSignals, ...localSignals];
+                const dedupedSignals = [];
+                const seenIds = new Set();
+                mergedSignals.forEach((signal, index) => {
+                    const normalized = normalizeBlacknetSignal(signal, index);
+                    if (!normalized || seenIds.has(normalized.id)) return;
+                    seenIds.add(normalized.id);
+                    dedupedSignals.push(normalized);
+                });
+                blacknetSignals = dedupedSignals;
                 blacknetSignalsLoaded = true;
                 if (!blacknetSignals.some(signal => signal.id === activeBlacknetSignalId)) {
                     activeBlacknetSignalId = blacknetSignals[0]?.id || "";
@@ -3097,7 +3137,7 @@ function createBrowser() {
             })
             .catch(error => {
                 console.warn("BlackNet signal source failed", error);
-                blacknetSignalsError = "Nie udalo sie wczytac lokalnego zrodla sygnalow.";
+                blacknetSignalsError = "Nie udalo sie wczytac zrodla sygnalow.";
                 blacknetSignals = [];
                 blacknetSignalsLoaded = true;
                 return blacknetSignals;
@@ -3180,27 +3220,275 @@ function createBrowser() {
         `;
     };
 
-    const runBlacknetCta = signal => {
+    const blacknetCtaDiagnostic = (signal, stage, data = {}) => {
+        try {
+            console.info("[BLACKNET_CTA]", {
+                stage,
+                signal_id: signal?.id || "",
+                source: signal?.source || "",
+                cta_action: signal?.cta_action || "",
+                cta_target: signal?.cta_target || "",
+                cta_target_id: signal?.cta_target_id || "",
+                ...data
+            });
+        } catch (error) {
+            // Diagnostics must never block the CTA bridge.
+        }
+    };
+
+    const blacknetCtaResult = (ok, message = "", extra = {}) => ({ ok: Boolean(ok), message, ...extra });
+
+    const blacknetSignalExpired = signal => {
+        const expiresAt = String(signal?.valid_until || signal?.metadata?.expires_at || "").trim();
+        if (!expiresAt) return false;
+        const expiresMs = Date.parse(expiresAt);
+        return Number.isFinite(expiresMs) && expiresMs <= Date.now();
+    };
+
+    const blacknetCtaQuery = signal => {
+        return String(
+            signal?.cta_query
+            || signal?.metadata?.cta_query
+            || signal?.metadata?.product_name
+            || signal?.metadata?.product_id
+            || signal?.product_id
+            || signal?.cta_target_id
+            || signal?.metadata?.query
+            || ""
+        ).trim();
+    };
+
+    const blacknetOpenGoogleplex = signal => {
+        switchBrowserTab("googleplex");
+        const query = blacknetCtaQuery(signal);
+        if (query) {
+            search.value = query;
+            renderCatalog();
+        }
+        addSystemMessage("info", "BlackNet", query
+            ? `Googolplex filtruje sygnal: ${escapeHTML(query)}.`
+            : "Googolplex otwarty przez most BlackNet.");
+        return blacknetCtaResult(true);
+    };
+
+    const blacknetOpenExchange = signal => {
+        switchBrowserTab("exchange");
+        const sector = String(signal?.category || signal?.metadata?.category || signal?.cta_target || "").trim();
+        addSystemMessage("info", "BlackNet", sector
+            ? `Ghost Exchange otwarty dla sygnalu sektora: ${escapeHTML(sector)}.`
+            : "Ghost Exchange otwarty przez most BlackNet.");
+        return blacknetCtaResult(true);
+    };
+
+    const blacknetOpenMap = (signal, mode = "open") => {
+        const opened = openSystemAppFromTerminal("map");
+        const focus = String(signal?.target_id || signal?.region_id || signal?.cta_target_id || signal?.cta_target || "").trim();
+        if (focus) {
+            window.__blacknetMapFocus = {
+                mode,
+                signal_id: signal?.id || "",
+                target_id: signal?.target_id || signal?.cta_target_id || "",
+                region_id: signal?.region_id || "",
+                label: signal?.title || ""
+            };
+            addSystemMessage("info", "BlackNet", `Mapa otwarta. Fokus sygnalu: ${escapeHTML(focus)}.`);
+        }
+        return blacknetCtaResult(opened);
+    };
+
+    const blacknetOpenCybernerThread = signal => {
+        const opened = openSystemAppFromTerminal("cyberner");
+        const peer = String(signal?.thread_peer || signal?.metadata?.thread_peer || signal?.cta_target || "").trim();
+        if (peer && typeof window.openEmailChatWith === "function") {
+            setTimeout(() => window.openEmailChatWith(peer), 0);
+            return blacknetCtaResult(true);
+        }
+        if (peer) {
+            return blacknetCtaResult(false, `Cyberner nie znalazl aktywnego threadu: ${escapeHTML(peer)}.`);
+        }
+        return blacknetCtaResult(opened);
+    };
+
+    const blacknetOpenRadio = async signal => {
+        const opened = openSystemAppFromTerminal("radio");
+        const radio = window.GhostRadio;
+        let channelId = String(
+            signal?.metadata?.channel_id
+            || signal?.metadata?.cta_target_id
+            || signal?.cta_target_id
+            || ""
+        ).trim();
+        if (channelId.toLowerCase() === "radio") {
+            channelId = "";
+        }
+        if (radio && channelId && typeof radio.loadChannel === "function") {
+            try {
+                await radio.init();
+                await radio.loadChannel(channelId);
+                await radio.play();
+                return blacknetCtaResult(true);
+            } catch (error) {
+                console.warn("BlackNet radio bridge failed", error);
+                return blacknetCtaResult(false, "Radio nie moglo zaladowac wskazanego kanalu BlackNet.");
+            }
+        }
+        return blacknetCtaResult(opened);
+    };
+
+    const blacknetTeleportToHotspot = async signal => {
+        const hotspotId = String(
+            signal?.metadata?.hotspot_id
+            || signal?.cta_target_id
+            || ""
+        ).trim();
+        const label = String(signal?.metadata?.label || signal?.title || hotspotId || "hotspot").trim();
+        if (!hotspotId) {
+            return blacknetCtaResult(false, "Sygnal BlackNet nie zawiera konkretnego hotspotu.");
+        }
+        const accepted = window.confirm(
+            `BlackNet proponuje teleport do hotspotu: ${label}.\n\nOK - wykonaj teleport\nANULUJ - zostan w obecnej pozycji`
+        );
+        if (!accepted) {
+            return blacknetCtaResult(false, "Teleport BlackNet anulowany.", { cancelled: true });
+        }
+        try {
+            const response = await fetch("/api/blacknet/cta/teleport", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    hotspot_id: hotspotId,
+                    signal_id: signal?.id || ""
+                })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || data?.success === false) {
+                return blacknetCtaResult(false, data?.message || "Teleport BlackNet nie zostal wykonany.");
+            }
+            openSystemAppFromTerminal("map");
+            addSystemMessage("success", "BlackNet", data?.message || `Teleport BlackNet wykonany: ${escapeHTML(label)}.`);
+            return blacknetCtaResult(true, "", {
+                confirmed: true,
+                hotspot_id: hotspotId,
+                position: data?.curently_possition || null
+            });
+        } catch (error) {
+            console.warn("BlackNet teleport bridge failed", error);
+            return blacknetCtaResult(false, "Most teleportu BlackNet jest chwilowo niedostepny.");
+        }
+    };
+
+    const blacknetPlayPodcast = async signal => {
+        const podcast = String(signal?.podcast || signal?.metadata?.podcast || signal?.cta_target_id || "").trim();
+        if (!podcast) {
+            return blacknetOpenRadio(signal);
+        }
+        if (window.GhostRadio && typeof window.GhostRadio.playPodcast === "function") {
+            try {
+                openSystemAppFromTerminal("radio");
+                await window.GhostRadio.playPodcast(podcast);
+                return blacknetCtaResult(true);
+            } catch (error) {
+                console.warn("BlackNet podcast bridge failed", error);
+                return blacknetCtaResult(false, "Podcast BlackNet nie zostal odtworzony.");
+            }
+        }
+        openSystemAppFromTerminal("radio");
+        return blacknetCtaResult(false, "Podcast wymaga istniejacego mostu GhostRadio.playPodcast().");
+    };
+
+    const blacknetConfirmControlled = (signal, prompt, blockedMessage) => {
+        const accepted = window.confirm(prompt);
+        if (!accepted) {
+            return blacknetCtaResult(false, "Akcja BlackNet anulowana.", { cancelled: true });
+        }
+        return blacknetCtaResult(false, blockedMessage, { confirmed: true, controlled_block: true });
+    };
+
+    const blacknetOpenOperation = (signal, mode = "open") => {
+        openSystemAppFromTerminal("map");
+        const operationId = String(signal?.operation_id || signal?.cta_target_id || signal?.metadata?.operation_id || "").trim();
+        if (operationId) {
+            window.__blacknetOperationFocus = { mode, operation_id: operationId, signal_id: signal?.id || "" };
+            addSystemMessage("info", "BlackNet", `Centrum Operacji: ${escapeHTML(operationId)}.`);
+            return blacknetCtaResult(true);
+        }
+        if (mode === "open") {
+            addSystemMessage("info", "BlackNet", "Centrum Operacji otwarte przez BlackNet.");
+            return blacknetCtaResult(true);
+        }
+        return blacknetConfirmControlled(
+            signal,
+            "BlackNet chce uruchomic akcje operacyjna. Potwierdzic?",
+            "Start operacji wymaga istniejacego kontraktu Operation Core."
+        );
+    };
+
+    const blacknetInternalDetail = (signal, kind) => {
+        const title = signal?.title || "BlackNet";
+        const stat = signal?.stat || "";
+        const value = signal?.value || "";
+        addSystemMessage("info", "BlackNet", `${escapeHTML(kind)}: ${escapeHTML(title)} | ${escapeHTML(stat)} | ${escapeHTML(value)}`);
+        return blacknetCtaResult(true);
+    };
+
+    const BLACKNET_CTA_HANDLERS = {
+        open_googleplex: signal => blacknetOpenGoogleplex(signal),
+        open_googleplex_search: signal => blacknetOpenGoogleplex(signal),
+        open_ghost_exchange: signal => blacknetOpenExchange(signal),
+        open_exchange_market: signal => blacknetOpenExchange(signal),
+        open_exchange_category: signal => blacknetOpenExchange(signal),
+        open_map: signal => blacknetOpenMap(signal),
+        open_map_region: signal => blacknetOpenMap(signal, "region"),
+        focus_map_target: signal => blacknetOpenMap(signal, "target"),
+        show_hotspot: signal => blacknetOpenMap(signal, "hotspot"),
+        open_cyberner: signal => blacknetOpenCybernerThread(signal),
+        open_cyberner_thread: signal => blacknetOpenCybernerThread(signal),
+        open_radio: signal => blacknetOpenRadio(signal),
+        play_radio_podcast: signal => blacknetPlayPodcast(signal),
+        open_operation: signal => blacknetOpenOperation(signal, "open"),
+        start_operation: signal => blacknetOpenOperation(signal, "start"),
+        accept_blacknet_job: signal => blacknetOpenOperation(signal, "accept"),
+        teleport_to_hotspot: signal => blacknetTeleportToHotspot(signal),
+        open_blacknet_detail: signal => blacknetInternalDetail(signal, "DETAIL"),
+        open_blacknet_dossier: signal => blacknetInternalDetail(signal, "DOSSIER"),
+        open_blacknet_report: signal => blacknetInternalDetail(signal, "REPORT"),
+        none: () => blacknetCtaResult(false, "Ten sygnal jest informacyjny.", { noCapture: true })
+    };
+
+    const runBlacknetCta = async signal => {
         const action = String(signal?.cta_action || "").trim().toLowerCase();
-        if (!action) return false;
-        if (action === "open_googleplex") {
-            switchBrowserTab("googleplex");
-            return true;
+        const startedAt = performance.now();
+        blacknetCtaDiagnostic(signal, "start", { validation: "pending" });
+        if (!action) {
+            blacknetCtaDiagnostic(signal, "error", { error: "missing_cta_action", duration_ms: 0 });
+            return blacknetCtaResult(false, "Sygnal nie posiada cta_action.");
         }
-        if (action === "open_ghost_exchange") {
-            switchBrowserTab("exchange");
-            return true;
+        if (blacknetSignalExpired(signal)) {
+            blacknetCtaDiagnostic(signal, "error", { error: "expired_signal", duration_ms: Math.round(performance.now() - startedAt) });
+            return blacknetCtaResult(false, "Sygnal BlackNet wygasl.");
         }
-        if (action === "open_map") {
-            return openSystemAppFromTerminal("map");
+        const handler = BLACKNET_CTA_HANDLERS[action];
+        if (typeof handler !== "function") {
+            blacknetCtaDiagnostic(signal, "error", { error: "unknown_cta_action", duration_ms: Math.round(performance.now() - startedAt) });
+            return blacknetCtaResult(false, `Nieznany most BlackNet: ${escapeHTML(action)}.`);
         }
-        if (action === "open_cyberner") {
-            return openSystemAppFromTerminal("cyberner");
+        try {
+            const result = await handler(signal);
+            blacknetCtaDiagnostic(signal, result.ok ? "success" : "controlled", {
+                validation: result.ok ? "ok" : "blocked",
+                confirmation: Boolean(result.confirmed),
+                cancelled: Boolean(result.cancelled),
+                duration_ms: Math.round(performance.now() - startedAt)
+            });
+            return result;
+        } catch (error) {
+            console.warn("BlackNet CTA bridge failed", error);
+            blacknetCtaDiagnostic(signal, "error", {
+                error: String(error?.message || error),
+                duration_ms: Math.round(performance.now() - startedAt)
+            });
+            return blacknetCtaResult(false, "Most BlackNet zakonczyl sie bledem kontrolowanym.");
         }
-        if (action === "open_radio") {
-            return openSystemAppFromTerminal("radio");
-        }
-        return false;
     };
 
     const renderBlackNet = () => {
@@ -3287,18 +3575,25 @@ function createBrowser() {
                 }
             });
         });
-        results.querySelector('[data-blacknet-capture]')?.addEventListener('click', event => {
+        results.querySelector('[data-blacknet-capture]')?.addEventListener('click', async event => {
             event.stopPropagation();
+            const button = event.currentTarget;
+            button.disabled = true;
             const signalId = event.currentTarget.dataset.blacknetCapture;
             const signal = blacknetVisibleSignals().find(item => item.id === signalId);
-            const launched = runBlacknetCta(signal);
-            if (launched && signalId) {
+            const result = await runBlacknetCta(signal);
+            if (result?.ok && signalId && !result.noCapture) {
                 blacknetCapturedSignals.add(signalId);
                 if (activeBrowserTab === "blacknet") {
                     renderBlackNet();
                 }
-            } else if (!launched) {
-                addSystemMessage("warning", "BlackNet", "Ten sygnal nie ma jeszcze aktywnego mostu.");
+            } else {
+                button.disabled = false;
+                if (result?.message) {
+                    addSystemMessage(result.cancelled || result.noCapture ? "info" : "warning", "BlackNet", result.message);
+                } else {
+                    addSystemMessage("warning", "BlackNet", "Ten sygnal nie ma jeszcze aktywnego mostu.");
+                }
             }
         });
         blacknetStage?.addEventListener('pointerdown', event => {

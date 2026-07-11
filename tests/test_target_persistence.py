@@ -17,6 +17,9 @@ from run import (
     build_generated_app,
     build_ghost_exchange_dashboard_payload,
     build_ghost_exchange_sector_payload,
+    build_blacknet_world_facts_snapshot,
+    build_blacknet_world_signals,
+    BLACKNET_ALLOWED_CTA_ACTIONS,
     build_storage_full_result,
     build_player_actor,
     can_store_runtime_file,
@@ -907,6 +910,417 @@ class DeltaDiagnosticsEndpointTest(unittest.TestCase):
             self.assertGreater(metrics["delta_payload_size"], 0)
         finally:
             self._cleanup(path)
+
+
+class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
+    def _client_with_user(self, username="alice"):
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = username
+        return client
+
+    def test_blacknet_world_facts_snapshot_uses_real_aggregates_without_private_fields(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        profiles = [
+            {
+                "username": "alice",
+                "password": "secret",
+                "salt": "salt",
+                "operations": [{
+                    "operation_id": "op1",
+                    "operation_type": "sniff",
+                    "status": "running",
+                    "started_at": "2026-07-11T11:55:00+00:00",
+                    "expires_at": "2026-07-11T12:55:00+00:00",
+                    "target": {"label": "Zabka", "lat": 52.1, "lng": 21.1},
+                }],
+                "market_history": [{
+                    "batch_id": "batch-gps-1",
+                    "market_sector": "gps",
+                    "price": 340,
+                    "file_count": 2,
+                    "volume_mb": 42,
+                    "sold_at": "2026-07-11T11:00:00Z",
+                }],
+                "files": {"market": []},
+                "system_messages": [{
+                    "title": "Cel osiagniety",
+                    "created_at": "2026-07-11T11:30:00Z",
+                    "body": "private body should stay out of metadata",
+                }],
+            }
+        ]
+
+        with patch.object(run.user_store, "list_profiles", return_value=profiles), \
+                patch.object(run, "get_app_catalog", return_value=[
+                    {"id": "xmapper", "name": "xmapper", "price": 100, "category": "tools"},
+                    {"id": "vault", "name": "Vault", "price": 250, "product_type": "storage_upgrade"},
+                ]), \
+                patch.object(run.os.path, "isdir", return_value=False):
+            snapshot = build_blacknet_world_facts_snapshot(now=now)
+
+        self.assertEqual(snapshot["schema"], 1)
+        self.assertEqual(snapshot["snapshot_type"], "blacknet_world_facts")
+        self.assertEqual(snapshot["source_versions"]["profiles"], 1)
+        self.assertGreaterEqual(len(snapshot["facts"]), 4)
+        fact_keys = {(fact["source_system"], fact["fact_type"]) for fact in snapshot["facts"]}
+        self.assertIn(("operations", "operations_active_count"), fact_keys)
+        self.assertIn(("ghost_exchange", "market_sales_7d"), fact_keys)
+        self.assertIn(("googleplex", "googleplex_catalog_size"), fact_keys)
+        serialized = json.dumps(snapshot, ensure_ascii=False)
+        self.assertNotIn("secret", serialized)
+        self.assertNotIn("salt", serialized)
+        self.assertNotIn("private body should stay out of metadata", serialized)
+        for fact in snapshot["facts"]:
+            for required in (
+                "fact_id",
+                "fact_type",
+                "category",
+                "region_id",
+                "subject_id",
+                "value",
+                "previous_value",
+                "change_percent",
+                "importance",
+                "confidence",
+                "observed_at",
+                "expires_at",
+                "source_system",
+                "metadata",
+            ):
+                self.assertIn(required, fact)
+
+    def test_blacknet_world_facts_snapshot_survives_failed_source(self):
+        with patch.object(run.user_store, "list_profiles", side_effect=RuntimeError("db offline")), \
+                patch.object(run, "get_app_catalog", return_value=[]), \
+                patch.object(run.os.path, "isdir", return_value=False):
+            snapshot = build_blacknet_world_facts_snapshot(now=datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc))
+
+        self.assertFalse(snapshot["diagnostics"]["sources"]["profiles"]["ok"])
+        self.assertTrue(snapshot["diagnostics"]["sources"]["googleplex"]["ok"])
+        self.assertIsInstance(snapshot["facts"], list)
+
+    def test_blacknet_world_facts_endpoint_is_readonly_and_requires_login(self):
+        response = run.app.test_client().get("/api/blacknet/world-facts")
+        self.assertEqual(response.status_code, 401)
+
+        client = self._client_with_user()
+        with patch.object(run.user_store, "list_profiles", return_value=[]), \
+                patch.object(run, "get_app_catalog", return_value=[]), \
+                patch.object(run.os.path, "isdir", return_value=False), \
+                patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")):
+            response = client.get("/api/blacknet/world-facts")
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["snapshot"]["snapshot_type"], "blacknet_world_facts")
+
+
+class BlackNetWorldSignalPublisherTest(unittest.TestCase):
+    def _client_with_user(self, username="alice"):
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = username
+        return client
+
+    def test_blacknet_world_signal_publisher_converts_fact_to_signal(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        facts = {
+            "version": "facts-1",
+            "facts": [{
+                "fact_id": "fact-market-gps",
+                "fact_type": "market_top_sector_7d",
+                "category": "gps",
+                "region_id": "global",
+                "subject_id": "gps",
+                "value": 340,
+                "previous_value": None,
+                "change_percent": 0,
+                "importance": 80,
+                "confidence": 0.9,
+                "observed_at": "2026-07-11T11:00:00Z",
+                "expires_at": "2026-07-11T12:10:00Z",
+                "source_system": "ghost_exchange",
+                "metadata": {"volume_mb": 42},
+            }],
+        }
+
+        snapshot = build_blacknet_world_signals(facts, now=now)
+
+        self.assertEqual(snapshot["snapshot_type"], "blacknet_world_signals")
+        self.assertEqual(snapshot["source"], "world_generated")
+        self.assertEqual(len(snapshot["signals"]), 1)
+        signal = snapshot["signals"][0]
+        self.assertEqual(signal["source"], "world_generated")
+        self.assertEqual(signal["fact_id"], "fact-market-gps")
+        self.assertEqual(signal["signal_type"], "data_demand")
+        self.assertEqual(signal["cta_action"], "open_ghost_exchange")
+        self.assertEqual(signal["world_version"], "facts-1")
+        self.assertIn("radar", signal)
+
+    def test_blacknet_world_signal_publisher_skips_below_threshold_and_is_deterministic(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        facts = {
+            "version": "facts-2",
+            "facts": [
+                {
+                    "fact_id": "fact-market-small",
+                    "fact_type": "market_sales_7d",
+                    "category": "market",
+                    "region_id": "global",
+                    "subject_id": "market",
+                    "value": 50,
+                    "previous_value": None,
+                    "change_percent": 0,
+                    "importance": 50,
+                    "confidence": 0.9,
+                    "observed_at": "2026-07-11T11:00:00Z",
+                    "expires_at": "2026-07-11T12:10:00Z",
+                    "source_system": "ghost_exchange",
+                    "metadata": {},
+                },
+                {
+                    "fact_id": "fact-ops",
+                    "fact_type": "operations_active_count",
+                    "category": "operations",
+                    "region_id": "global",
+                    "subject_id": "operations",
+                    "value": 3,
+                    "previous_value": None,
+                    "change_percent": 0,
+                    "importance": 70,
+                    "confidence": 0.9,
+                    "observed_at": "2026-07-11T11:00:00Z",
+                    "expires_at": "2026-07-11T12:10:00Z",
+                    "source_system": "operations",
+                    "metadata": {},
+                },
+            ],
+        }
+
+        first = build_blacknet_world_signals(facts, now=now)
+        second = build_blacknet_world_signals(facts, now=now)
+
+        self.assertEqual(len(first["signals"]), 1)
+        self.assertEqual(first["signals"][0]["fact_id"], "fact-ops")
+        self.assertEqual(first["signals"], second["signals"])
+        self.assertEqual(first["version"], second["version"])
+
+    def test_blacknet_world_signal_publisher_expires_old_fact(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        facts = {
+            "version": "facts-3",
+            "facts": [{
+                "fact_id": "fact-expired",
+                "fact_type": "operations_active_count",
+                "category": "operations",
+                "region_id": "global",
+                "subject_id": "operations",
+                "value": 12,
+                "previous_value": None,
+                "change_percent": 0,
+                "importance": 80,
+                "confidence": 0.9,
+                "observed_at": "2026-07-11T10:00:00Z",
+                "expires_at": "2026-07-11T11:59:00Z",
+                "source_system": "operations",
+                "metadata": {},
+            }],
+        }
+
+        snapshot = build_blacknet_world_signals(facts, now=now)
+
+        self.assertEqual(snapshot["signals"], [])
+        self.assertEqual(snapshot["diagnostics"]["published"], 0)
+
+    def test_blacknet_world_signals_endpoint_is_readonly_and_requires_login(self):
+        response = run.app.test_client().get("/api/blacknet/world-signals")
+        self.assertEqual(response.status_code, 401)
+
+        client = self._client_with_user()
+        fake_facts = {
+            "version": "facts-endpoint",
+            "facts": [{
+                "fact_id": "fact-ops-endpoint",
+                "fact_type": "operations_active_count",
+                "category": "operations",
+                "region_id": "global",
+                "subject_id": "operations",
+                "value": 2,
+                "previous_value": None,
+                "change_percent": 0,
+                "importance": 70,
+                "confidence": 0.9,
+                "observed_at": "2026-07-11T11:00:00Z",
+                "expires_at": "2999-07-11T12:10:00Z",
+                "source_system": "operations",
+                "metadata": {},
+            }],
+        }
+        with patch.object(run, "build_blacknet_world_facts_snapshot", return_value=fake_facts), \
+                patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")):
+            response = client.get("/api/blacknet/world-signals")
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["snapshot"]["snapshot_type"], "blacknet_world_signals")
+        self.assertEqual(data["snapshot"]["signals"][0]["fact_id"], "fact-ops-endpoint")
+
+    def test_blacknet_cta_action_contract_covers_bridge_families(self):
+        required_actions = {
+            "teleport_to_hotspot",
+            "open_googleplex_search",
+            "open_exchange_market",
+            "open_exchange_category",
+            "play_radio_podcast",
+            "open_map_region",
+            "focus_map_target",
+            "show_hotspot",
+            "open_operation",
+            "start_operation",
+            "accept_blacknet_job",
+            "open_cyberner_thread",
+            "open_blacknet_detail",
+            "open_blacknet_dossier",
+            "open_blacknet_report",
+            "none",
+        }
+        self.assertTrue(required_actions.issubset(BLACKNET_ALLOWED_CTA_ACTIONS))
+
+    def test_blacknet_publisher_emits_only_allowed_cta_actions(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        facts = {
+            "version": "facts-cta",
+            "facts": [
+                {
+                    "fact_id": f"fact-{fact_type}",
+                    "fact_type": fact_type,
+                    "category": "gps",
+                    "region_id": "global",
+                    "subject_id": "gps",
+                    "value": 500,
+                    "previous_value": None,
+                    "change_percent": 0,
+                    "importance": 90,
+                    "confidence": 0.9,
+                    "observed_at": "2026-07-11T11:00:00Z",
+                    "expires_at": "2026-07-11T12:10:00Z",
+                    "source_system": "test",
+                    "metadata": {"volume_mb": 42, "file_count": 3, "products": 2, "tracks_total": 5},
+                }
+                for fact_type in (
+                    "operations_active_count",
+                    "operations_top_type",
+                    "market_sales_7d",
+                    "market_top_sector_7d",
+                    "googleplex_catalog_size",
+                    "radio_channels_available",
+                    "system_messages_24h",
+                )
+            ],
+        }
+
+        snapshot = build_blacknet_world_signals(facts, now=now)
+
+        self.assertGreaterEqual(len(snapshot["signals"]), 1)
+        for signal in snapshot["signals"]:
+            self.assertIn(signal["cta_action"], BLACKNET_ALLOWED_CTA_ACTIONS)
+
+    def test_blacknet_publisher_carries_real_cta_targets(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        facts = {
+            "version": "facts-targets",
+            "facts": [
+                {
+                    "fact_id": "fact-googleplex",
+                    "fact_type": "googleplex_catalog_size",
+                    "category": "googleplex",
+                    "region_id": "global",
+                    "subject_id": "catalog",
+                    "value": 7,
+                    "previous_value": None,
+                    "change_percent": 0,
+                    "importance": 60,
+                    "confidence": 0.9,
+                    "observed_at": "2026-07-11T11:00:00Z",
+                    "expires_at": "2026-07-11T12:10:00Z",
+                    "source_system": "googleplex",
+                    "metadata": {
+                        "product_id": "storage_ghost_vault_basic",
+                        "product_name": "Ghost Vault Basic",
+                        "cta_query": "Ghost Vault Basic",
+                    },
+                },
+                {
+                    "fact_id": "fact-radio",
+                    "fact_type": "radio_channels_available",
+                    "category": "radio",
+                    "region_id": "global",
+                    "subject_id": "radio",
+                    "value": 2,
+                    "previous_value": None,
+                    "change_percent": 0,
+                    "importance": 30,
+                    "confidence": 0.9,
+                    "observed_at": "2026-07-11T11:00:00Z",
+                    "expires_at": "2026-07-11T12:10:00Z",
+                    "source_system": "radio",
+                    "metadata": {
+                        "tracks_total": 9,
+                        "channel_id": "blacknet_radio_2",
+                        "channel_name": "BlackNet Radio",
+                    },
+                },
+            ],
+        }
+
+        snapshot = build_blacknet_world_signals(facts, now=now)
+        by_fact = {signal["fact_id"]: signal for signal in snapshot["signals"]}
+
+        self.assertEqual(by_fact["fact-googleplex"]["cta_action"], "open_googleplex")
+        self.assertEqual(by_fact["fact-googleplex"]["cta_target_id"], "storage_ghost_vault_basic")
+        self.assertEqual(by_fact["fact-googleplex"]["cta_query"], "Ghost Vault Basic")
+        self.assertEqual(by_fact["fact-googleplex"]["metadata"]["product_name"], "Ghost Vault Basic")
+        self.assertEqual(by_fact["fact-radio"]["cta_action"], "open_radio")
+        self.assertEqual(by_fact["fact-radio"]["cta_target_id"], "blacknet_radio_2")
+        self.assertEqual(by_fact["fact-radio"]["metadata"]["channel_id"], "blacknet_radio_2")
+
+    def test_blacknet_teleport_bridge_moves_to_whitelisted_hotspot(self):
+        client = self._client_with_user("alice")
+        profile = {
+            "username": "alice",
+            "curently_possition": {"lat": 52.1, "lng": 21.1},
+        }
+
+        with patch.object(run, "load_profile_readonly", return_value=profile), \
+                patch.object(run, "UserProfileManager") as manager_class, \
+                patch.object(run, "notify_area_intrusion", return_value=None), \
+                patch.object(run, "record_map_player_actor_delta") as record_delta:
+            manager = manager_class.return_value
+            response = client.post("/api/blacknet/cta/teleport", json={"hotspot_id": "mokotow"})
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["hotspot"]["id"], "mokotow")
+        self.assertAlmostEqual(data["curently_possition"]["lat"], 52.1934)
+        self.assertAlmostEqual(data["curently_possition"]["lng"], 21.0348)
+        manager.update_profile.assert_called_once_with({
+            "curently_possition": {"lat": 52.1934, "lng": 21.0348}
+        })
+        record_delta.assert_called_once()
+
+    def test_blacknet_teleport_bridge_rejects_unknown_hotspot(self):
+        client = self._client_with_user("alice")
+        with patch.object(run, "load_profile_readonly", side_effect=AssertionError("profile should not load")):
+            response = client.post("/api/blacknet/cta/teleport", json={"hotspot_id": "unknown"})
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(data["success"])
+        self.assertEqual(data["error"], "unknown_hotspot")
 
 
 class LightweightPollingEndpointTest(unittest.TestCase):

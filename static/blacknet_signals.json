@@ -14,8 +14,14 @@
       "tone": "lime",
       "layout": 1,
       "cta": "PRZECHWYC TELEPORT",
-      "cta_action": "open_map",
-      "cta_target": "map",
+      "cta_action": "teleport_to_hotspot",
+      "cta_target": "hotspot",
+      "cta_target_id": "mokotow",
+      "metadata": {
+        "hotspot_id": "mokotow",
+        "label": "Mokotow",
+        "risk": "high"
+      },
       "radar": {
         "sides": 0,
         "nodes": [[22, 26, 3], [34, 43, 2], [66, 27, 3], [78, 51, 4], [63, 72, 3], [31, 69, 2]]
@@ -33,8 +39,14 @@
       "tone": "cyan",
       "layout": 2,
       "cta": "OTWORZ GHOST EXCHANGE",
-      "cta_action": "open_ghost_exchange",
+      "cta_action": "open_exchange_category",
       "cta_target": "ghost_exchange",
+      "cta_target_id": "gps",
+      "category": "gps",
+      "metadata": {
+        "category": "gps",
+        "sector": "gps"
+      },
       "radar": {
         "sides": 4,
         "nodes": [[19, 57, 2], [31, 31, 4], [46, 62, 2], [61, 38, 3], [75, 66, 4], [82, 29, 2]]
@@ -52,8 +64,16 @@
       "tone": "amber",
       "layout": 3,
       "cta": "SPRAWDZ W GOOGLEPLEX",
-      "cta_action": "open_googleplex",
+      "cta_action": "open_googleplex_search",
       "cta_target": "googleplex",
+      "cta_target_id": "storage_ghost_vault_basic",
+      "cta_query": "Ghost Vault Basic",
+      "product_id": "storage_ghost_vault_basic",
+      "metadata": {
+        "product_id": "storage_ghost_vault_basic",
+        "product_name": "Ghost Vault Basic",
+        "cta_query": "Ghost Vault Basic"
+      },
       "radar": {
         "sides": 5,
         "nodes": [[18, 34, 3], [38, 21, 2], [43, 50, 4], [68, 35, 2], [76, 74, 3], [28, 76, 2]]
@@ -71,8 +91,14 @@
       "tone": "red",
       "layout": 4,
       "cta": "WEJDZ W STREFE",
-      "cta_action": "open_map",
-      "cta_target": "map",
+      "cta_action": "show_hotspot",
+      "cta_target": "hotspot",
+      "cta_target_id": "praga_polnoc",
+      "metadata": {
+        "hotspot_id": "praga_polnoc",
+        "label": "Praga Polnoc",
+        "risk": "high"
+      },
       "radar": {
         "sides": 6,
         "nodes": [[16, 48, 2], [29, 24, 3], [41, 67, 3], [57, 21, 2], [70, 55, 4], [83, 39, 3]]
@@ -90,8 +116,13 @@
       "tone": "lime",
       "layout": 5,
       "cta": "OTWORZ DOSSIER",
-      "cta_action": "open_cyberner",
-      "cta_target": "cyberner",
+      "cta_action": "open_blacknet_dossier",
+      "cta_target": "blacknet",
+      "cta_target_id": "zoliborz",
+      "metadata": {
+        "hotspot_id": "zoliborz",
+        "label": "Zoliborz"
+      },
       "radar": {
         "sides": 7,
         "nodes": [[14, 33, 2], [29, 61, 3], [43, 23, 2], [58, 57, 4], [72, 31, 2], [86, 69, 3]]
@@ -109,8 +140,14 @@
       "tone": "cyan",
       "layout": 6,
       "cta": "NAMIERZ TERMINALE",
-      "cta_action": "open_map",
-      "cta_target": "map",
+      "cta_action": "show_hotspot",
+      "cta_target": "hotspot",
+      "cta_target_id": "srodmiescie",
+      "metadata": {
+        "hotspot_id": "srodmiescie",
+        "label": "Srodmiescie",
+        "risk": "medium"
+      },
       "radar": {
         "sides": 8,
         "nodes": [[17, 71, 3], [27, 38, 2], [46, 17, 3], [59, 46, 2], [71, 76, 4], [85, 28, 2]]

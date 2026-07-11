@@ -6694,6 +6694,1037 @@ CTA bridge
   * BlackNet Cyberner Thread,
   * BlackNet Market Rumors.
 
+
+# Sprint 81 — BlackNet World Facts Snapshot
+
+## Cel gameplayowy
+
+Podłączyć BlackNet do rzeczywistych, zagregowanych danych świata CHAOS bez generowania jeszcze gotowych sygnałów.
+
+Sprint tworzy lekką warstwę faktów, z której będą korzystać zarówno automatyczny publisher BlackNetu, jak i przyszła Ollama.
+
+## Założenie
+
+BlackNet nie czyta pełnych profili graczy i nie uruchamia ciężkiej synchronizacji sesji. Korzysta wyłącznie z przygotowanych statystyk i zdarzeń świata.
+
+## Wejście po Sprincie 80
+
+Sprint 81 korzysta z kontraktów domkniętych w Sprintach 79-80:
+
+* `doc/blacknet_world_read_model.md`,
+* `doc/blacknet_readiness_check.md`,
+* lokalny `Signal Contract`,
+* aktualny renderer BlackNetu po 76.1.
+
+Nie dodawać osobnego Sprintu 80.5, jeżeli readiness check nie wykaże rozjazdu
+między lokalnym signal contract a docelowym snapshotem faktów świata.
+
+## Źródła danych
+
+Pierwszy zakres może obejmować:
+
+* aktywne operacje,
+* operacje zakończone i nieudane,
+* aktywność regionów,
+* liczbę hacków według kategorii,
+* popularność targetów,
+* ruch PvP,
+* ceny i popyt Ghost Exchange,
+* wolumen sprzedanych danych,
+* popularność kategorii danych,
+* oferty i zakupy Googleplexa,
+* aktywne kanały oraz materiały BlackNet Radio,
+* ważne zdarzenia systemowe.
+
+## Przepływ danych
+
+```text
+systemy gameplayowe
+↓
+lekkie agregaty
+↓
+blacknet_world_facts
+↓
+snapshot z wersją i czasem utworzenia
+```
+
+Ten przepływ zbiera wyłącznie fakty potrzebne BlackNetowi i zapisuje je w stabilnej, niezależnej strukturze.
+
+## Model faktu
+
+Każdy fakt powinien zawierać przynajmniej:
+
+* `fact_id`,
+* `fact_type`,
+* `category`,
+* `region_id`,
+* `subject_id`,
+* `value`,
+* `previous_value`,
+* `change_percent`,
+* `importance`,
+* `confidence`,
+* `observed_at`,
+* `expires_at`,
+* `source_system`,
+* bezpieczne `metadata`.
+
+## Zakres implementacyjny
+
+* `blacknet_world_facts` jako read-only snapshot,
+* agregatory dla wybranych systemów,
+* wersjonowanie snapshotu,
+* czas ważności danych,
+* stabilne identyfikatory faktów,
+* normalizacja wartości,
+* diagnostyka czasu wykonania,
+* obsługa częściowo niedostępnych źródeł.
+
+## Ograniczenia
+
+* bez `sync_session_profile`,
+* bez pełnych profili graczy,
+* bez ujawniania prywatnych danych,
+* bez ciężkiego pollera,
+* bez realtime,
+* bez generowania tekstów,
+* bez Ollamy,
+* bez bezpośredniego wpływu na gameplay.
+
+## Kryteria akceptacji
+
+* Snapshot powstaje z rzeczywistych danych gry.
+* Każdy fakt ma źródło i czas obserwacji.
+* Brak jednego źródła nie blokuje całego snapshotu.
+* Snapshot nie zawiera danych wrażliwych graczy.
+* Generowanie nie uruchamia pełnej synchronizacji profilu.
+* Czas wykonania jest kontrolowany i logowany.
+* Ten sam stan świata daje zgodną strukturę faktów.
+* BlackNet nadal działa na lokalnych sygnałach, gdy snapshot jest niedostępny.
+
+## Dokumentacja
+
+Po sprincie zaktualizować:
+
+* `doc/blacknet.md`,
+* `doc/blacknet_world_read_model.md`,
+* `doc/runtime_synchronization_audit.md`,
+* `doc/gameplay_matrix.md`,
+* `doc/project_journal.md`.
+
+Jeżeli powstanie osobny kontrakt faktów, dodać albo zaktualizować
+`doc/blacknet_world_facts.md`.
+
+---
+
+# Sprint 82 — Deterministic World Signal Publisher
+
+## Cel gameplayowy
+
+Automatycznie zamieniać fakty ze Sprintu 81 w gotowe sygnały BlackNetu bez używania AI.
+
+Po tym sprincie BlackNet zaczyna naprawdę opisywać świat gry.
+
+## Założenie
+
+Publisher działa deterministycznie:
+
+```text
+fakt świata
++
+reguła publikacji
++
+rodzina treści
++
+CTA
++
+czas ważności
+=
+gotowy sygnał BlackNetu
+```
+
+## Przykłady
+
+Wzrost popytu na GPS:
+
+```text
+fact_type: market_demand_change
+category: gps
+change_percent: 34
+```
+
+może wygenerować:
+
+```text
+GHOST MARKET WATCH
+GPS LOGS / WARSZAWA
+POTENCJAŁ CENY +34%
+OTWÓRZ GHOST EXCHANGE
+```
+
+Wzrost aktywności regionu może wygenerować:
+
+```text
+HOTSPOT / MOKOTÓW
+17 AKTYWNYCH OPERACJI
+WZROST RUCHU 240%
+PRZECHWYĆ TELEPORT
+```
+
+## Typy automatycznych sygnałów
+
+* `world_alert`,
+* `market_watch`,
+* `hotspot`,
+* `operation_activity`,
+* `pvp_warning`,
+* `product_opportunity`,
+* `data_demand`,
+* `system_incident`,
+* `radio_promotion`,
+* `regional_activity`.
+
+## Przepływ danych
+
+```text
+blacknet_world_facts
+↓
+reguły kwalifikacji
+↓
+ranking znaczenia
+↓
+deduplikacja
+↓
+generator sygnału
+↓
+walidacja CTA
+↓
+blacknet generated signals
+```
+
+Publisher wybiera tylko fakty warte pokazania, pilnuje powtórzeń i przypisuje bezpieczną akcję przez `cta_action`.
+
+## Zakres implementacyjny
+
+* katalog reguł `fact_type → signal_type`,
+* progi publikacji,
+* priorytety sygnałów,
+* czas życia sygnału,
+* cooldown publikacji,
+* deduplikacja,
+* aktualizacja istniejącego sygnału,
+* wygaszanie nieaktualnych publikacji,
+* przypisywanie tonu,
+* przypisywanie rodziny layoutu,
+* przypisywanie radaru,
+* bezpieczny `cta_action`,
+* oznaczenie źródła jako `world_generated`.
+
+## Zasada różnorodności
+
+Publisher przechowuje historię ostatnich kombinacji:
+
+* typu sygnału,
+* layoutu,
+* radaru,
+* tonu,
+* nagłówka,
+* CTA,
+* regionu,
+* kategorii.
+
+Nie powinien publikować kilku niemal identycznych kompozycji pod rząd.
+
+## Kryteria akceptacji
+
+* Rzeczywisty fakt może zostać zamieniony w sygnał.
+* Sygnał zawiera odniesienie do `fact_id`.
+* CTA bazuje na `cta_action`, nie na treści przycisku.
+* Publisher nie publikuje sygnału poniżej ustalonego progu.
+* Powtarzający się fakt aktualizuje lub pomija istniejący sygnał.
+* Wygasły fakt powoduje wygaszenie sygnału.
+* Lokalne mocki i sygnały świata mogą działać jednocześnie.
+* Brak nowych faktów nie generuje sztucznego ruchu.
+* System działa bez Ollamy.
+
+## Dokumentacja
+
+Po sprincie zaktualizować:
+
+* `doc/blacknet.md`,
+* `doc/blacknet_world_read_model.md`,
+* `doc/gameplay_matrix.md`,
+* `doc/project_journal.md`.
+
+Jeżeli powstanie osobny opis publishera, dodać albo zaktualizować
+`doc/blacknet_signal_publisher.md`.
+
+## Wynik Sprintu 82
+
+Zaimplementowano `blacknet_world_signals` jako deterministyczny publisher nad
+`blacknet_world_facts`.
+
+Aktywny runtime:
+
+```text
+blacknet_world_facts
+↓
+build_blacknet_world_signals()
+↓
+GET /api/blacknet/world-signals
+↓
+renderBlackNet()
+```
+
+Decyzje:
+
+* publisher nie jest nowym store,
+* publisher nie jest zrodlem prawdy,
+* `source: world_generated` oznacza sygnaly z faktow swiata,
+* UI miesza `world_generated` z lokalnym `static/blacknet_signals.json`,
+* lokalne sygnaly pozostaja fallbackiem,
+* CTA korzysta z allowlisty `cta_action`,
+* brak faktow powyzej progu nie generuje sztucznego ruchu,
+* Ollama, digest outbox i walidacja AI pozostaja zakresem Sprintow 83-84.
+
+---
+
+# Sprint 82.5 — BlackNet CTA Triggers + Gameplay Bridges
+
+## Cel gameplayowy
+
+Domknąć wszystkie akcje uruchamiane z sygnałów BlackNetu, aby deterministyczne sygnały ze Sprintu 82 prowadziły do realnych miejsc i działań w grze przed rozpoczęciem kontraktów Ollamy.
+
+Akcje muszą być obsługiwane przez `cta_action` i dane sygnału, nigdy przez tekst wyświetlany na przycisku.
+
+---
+
+## Główna zasada
+
+```text
+BlackNet signal
+↓
+cta_action + cta_target
+↓
+BlackNet CTA Router
+↓
+walidacja
+↓
+potwierdzenie, jeżeli akcja zmienia stan
+↓
+istniejący system CHAOS
+```
+
+BlackNet nie tworzy drugiego systemu teleportów, wyszukiwania, radia, operacji ani rynku. Przekazuje sterowanie do istniejących mechanizmów.
+
+---
+
+## Rodziny CTA
+
+### 1. Teleport do hotspotu
+
+Przykładowa akcja:
+
+```text
+cta_action: teleport_to_hotspot
+```
+
+Kliknięcie otwiera potwierdzenie:
+
+```text
+Teleport zmieni Twoją aktualną pozycję na mapie.
+
+Cel: Mokotów
+Ryzyko: wysokie
+
+OK / ANULUJ
+```
+
+Po wybraniu `OK`:
+
+* backend ponownie sprawdza ważność hotspotu,
+* sprawdza, czy gracz może użyć teleportu,
+* wyznacza bezpieczną pozycję w strefie,
+* zmienia pozycję gracza,
+* zapisuje zmianę,
+* publikuje właściwą deltę mapy,
+* odświeża położenie gracza,
+* opcjonalnie otwiera mapę.
+
+Po wybraniu `ANULUJ` nic się nie zmienia.
+
+Teleport nie może:
+
+* działać po wygaśnięciu sygnału,
+* przenosić dokładnie na pozycję innego gracza,
+* korzystać ze współrzędnych dostarczonych wyłącznie przez frontend,
+* zmieniać pozycji bez potwierdzenia.
+
+---
+
+### 2. Googleplex Search Bridge
+
+Przykładowa akcja:
+
+```text
+cta_action: open_googleplex_search
+```
+
+Sygnał wskazuje produkt lub narzędzie przez stabilny identyfikator i bezpieczny tytuł wyszukiwania.
+
+Po kliknięciu:
+
+* otwiera się karta Googleplex,
+* pole wyszukiwarki zostaje wypełnione tytułem produktu,
+* uruchamia się istniejące filtrowanie,
+* właściwe narzędzie lub produkt pojawia się w wynikach,
+* produkt może zostać wyróżniony.
+
+BlackNet nie kupuje produktu automatycznie.
+
+Brak produktu powinien zakończyć się czytelnym komunikatem, a nie pustym ekranem Googleplexa.
+
+---
+
+### 3. Ghost Exchange Bridge
+
+Przykładowe akcje:
+
+```text
+cta_action: open_exchange_market
+cta_action: open_exchange_category
+```
+
+Po kliknięciu:
+
+* otwiera się Ghost Exchange,
+* wybierany jest wskazany sektor lub rodzaj danych,
+* dashboard pokazuje właściwy rynek,
+* filtr wynika z kontraktu sygnału,
+* nie dochodzi do automatycznej sprzedaży ani zakupu.
+
+---
+
+### 4. BlackNet Radio Podcast
+
+Przykładowa akcja:
+
+```text
+cta_action: play_radio_podcast
+```
+
+Po kliknięciu system:
+
+1. Zapamiętuje aktywny kanał radiowy i jego stan.
+2. Zatrzymuje lub pauzuje obecne radio.
+3. Uruchamia wskazany plik podcastu.
+4. Pokazuje stan odtwarzania podcastu.
+5. Po zakończeniu podcastu przywraca poprzedni kanał.
+6. Wznawia radio zgodnie z jego wcześniejszym trybem.
+
+Radio powinno wrócić również po:
+
+* ręcznym zatrzymaniu podcastu,
+* zamknięciu BlackNetu,
+* błędzie pliku MP3,
+* przerwaniu odtwarzania,
+* wygaśnięciu sygnału podczas odsłuchu.
+
+Nie mogą jednocześnie grać podcast i poprzedni kanał.
+
+BlackNet korzysta z obecnego silnika Ghost Hack Radio, bez tworzenia drugiego globalnego odtwarzacza.
+
+---
+
+### 5. Mapa i lokalizacja
+
+Przykładowe akcje:
+
+```text
+cta_action: open_map_region
+cta_action: focus_map_target
+cta_action: show_hotspot
+```
+
+Po kliknięciu:
+
+* otwiera się istniejąca mapa,
+* wskazany region lub target zostaje odnaleziony po stabilnym ID,
+* mapa ustawia widok,
+* cel może zostać krótkotrwale wyróżniony,
+* samo otwarcie mapy nie uruchamia operacji.
+
+---
+
+### 6. Operacje i zlecenia
+
+Przykładowe akcje:
+
+```text
+cta_action: open_operation
+cta_action: start_operation
+cta_action: accept_blacknet_job
+```
+
+`open_operation` może bezpiecznie otworzyć szczegóły istniejącej operacji.
+
+Akcje tworzące nową operację lub przyjmujące zlecenie muszą:
+
+* przejść przez potwierdzenie,
+* ponownie zweryfikować sygnał na backendzie,
+* korzystać z istniejącego Operation Core,
+* zwrócić `operation_id`,
+* nie tworzyć drugiego modelu operacji.
+
+---
+
+### 7. Cyberner Thread
+
+Przykładowa akcja:
+
+```text
+cta_action: open_cyberner_thread
+```
+
+Po kliknięciu:
+
+* otwiera się Cyberner,
+* wybierany jest istniejący wątek powiązany z sygnałem,
+* jeżeli wątek nie istnieje, system pokazuje kontrolowany komunikat,
+* BlackNet nie tworzy automatycznie fikcyjnego wątku bez kontraktu.
+
+---
+
+### 8. Szczegóły wewnątrz BlackNetu
+
+Przykładowe akcje:
+
+```text
+cta_action: open_blacknet_detail
+cta_action: open_blacknet_dossier
+cta_action: open_blacknet_report
+```
+
+Akcje otwierają rozwinięcie sygnału wewnątrz BlackNetu:
+
+* wiadomość,
+* dossier,
+* raport,
+* opis incydentu,
+* szczegóły hotspotu,
+* metadane podcastu.
+
+Powrót zachowuje aktualną pozycję w signal rollu.
+
+---
+
+### 9. Akcja informacyjna
+
+Przykładowa akcja:
+
+```text
+cta_action: none
+```
+
+Nie każdy sygnał musi coś uruchamiać.
+
+Sygnał bez akcji:
+
+* nie pokazuje fałszywego CTA albo pokazuje neutralne rozwinięcie,
+* nie próbuje zgadywać zachowania z tekstu,
+* pozostaje elementem informacyjnym feedu.
+
+---
+
+## BlackNet CTA Router
+
+Powinien istnieć jeden centralny router obsługujący wszystkie rodziny `cta_action`.
+
+Router odpowiada za:
+
+* rozpoznanie akcji,
+* sprawdzenie wymaganych pól,
+* sprawdzenie ważności sygnału,
+* rozwiązanie `target_id`,
+* wybór potwierdzenia,
+* przekazanie sterowania do istniejącego systemu,
+* obsługę sukcesu,
+* obsługę błędu,
+* diagnostykę.
+
+Nie tworzymy osobnych listenerów zawierających logikę gameplayową dla każdego przycisku.
+
+---
+
+## Poziomy bezpieczeństwa CTA
+
+### Akcje bez potwierdzenia
+
+* otwarcie Googleplexa,
+* otwarcie Ghost Exchange,
+* otwarcie mapy,
+* pokazanie targetu,
+* otwarcie Cybernera,
+* otwarcie szczegółów,
+* uruchomienie podcastu.
+
+### Akcje wymagające potwierdzenia
+
+* teleport,
+* rozpoczęcie operacji,
+* przyjęcie zlecenia,
+* zakup,
+* sprzedaż,
+* każda akcja zmieniająca pozycję, zasoby lub gameplay.
+
+Potwierdzenie musi jasno opisywać skutek.
+
+---
+
+## Obsługa błędów
+
+Każda akcja powinna mieć kontrolowany komunikat dla sytuacji:
+
+* sygnał wygasł,
+* target nie istnieje,
+* produkt został usunięty,
+* hotspot nie jest już aktywny,
+* podcast nie istnieje,
+* operacja nie może zostać uruchomiona,
+* gracz nie ma uprawnień lub zasobów,
+* nieznany `cta_action`,
+* brak wymaganych danych.
+
+Nieznana akcja nie może powodować wyjątku ani wykonywać fallbacku po tekście przycisku.
+
+---
+
+## Diagnostyka
+
+Logować:
+
+* `signal_id`,
+* `signal_source`,
+* `cta_action`,
+* `cta_target_id`,
+* wynik walidacji,
+* potwierdzenie lub anulowanie,
+* sukces albo kontrolowany błąd,
+* czas obsługi.
+
+Nie logować pełnego profilu ani danych wrażliwych.
+
+---
+
+## Testy
+
+Dodać testy obejmujące:
+
+1. Routing każdej rodziny `cta_action`.
+2. Brak routingu na podstawie tekstu przycisku.
+3. Teleport wymaga potwierdzenia.
+4. `ANULUJ` nie zmienia pozycji.
+5. `OK` zmienia pozycję przez istniejący system mapy.
+6. Wygasły hotspot blokuje teleport.
+7. Googleplex otrzymuje tytuł wyszukiwania i pokazuje produkt.
+8. Ghost Exchange otwiera właściwy sektor.
+9. Podcast zatrzymuje aktywne radio.
+10. Po zakończeniu podcastu poprzedni kanał wraca.
+11. Błąd MP3 przywraca poprzednie radio.
+12. Mapa otwiera właściwy region lub target.
+13. Operacja korzysta z istniejącego Operation Core.
+14. Cyberner otwiera właściwy wątek.
+15. Nieznana akcja zwraca kontrolowany błąd.
+16. `cta_action: none` nie wykonuje działania.
+17. Klik CTA nie uruchamia jednocześnie swipe sygnału.
+18. Brak regresji obecnego signal rolla.
+
+---
+
+## Kryteria akceptacji
+
+* Wszystkie używane rodziny CTA mają działający bridge.
+* Akcje są wybierane przez `cta_action`.
+* Teleport wymaga `OK/ANULUJ`.
+* Anulowanie teleportu nie zmienia świata.
+* Googleplex wypełnia wyszukiwarkę tytułem produktu.
+* Ghost Exchange otwiera właściwy rynek.
+* Podcast przejmuje radio i po zakończeniu przywraca poprzedni kanał.
+* Mapa ustawia właściwy region lub target.
+* Akcje gameplayowe korzystają z istniejących systemów.
+* Nieznana akcja nie powoduje wyjątku.
+* BlackNet nie ma drugiego routera zakupów, operacji, mapy ani audio.
+* Signal roll i responsywny layout pozostają bez zmian.
+
+---
+
+## Świadomie poza Sprintem 82.5
+
+* Ollama,
+* outbox i inbox JSON,
+* mixed feed,
+* generowanie tekstów AI,
+* nowe źródła world facts,
+* przebudowa publishera Sprintu 82,
+* nowe layouty i radary,
+* rozbudowa Cybernera,
+* zmiana ekonomii,
+* automatyczne wykonywanie akcji bez decyzji gracza.
+
+## Stan po Sprincie 82.5
+
+BlackNet nie tylko pokazuje sygnały oparte na danych świata, ale również
+bezpiecznie prowadzi gracza do istniejących systemów CHAOS.
+
+Zaimplementowano centralny frontendowy `BlackNet CTA Router`, który obsługuje
+akcje po `cta_action`, a nie po tekście przycisku.
+
+Akcje otwierające istniejące systemy korzystają z obecnych mechanizmów CHAOS:
+
+* Googleplex,
+* Ghost Exchange,
+* mapa,
+* Cyberner,
+* Ghost Hack Radio,
+* Centrum Operacji jako istniejący kontekst mapy.
+
+Akcje zmieniające stan świata, takie jak teleport, start operacji i przyjęcie
+zlecenia, zostały zabezpieczone potwierdzeniem oraz kontrolowanym komunikatem,
+jeżeli nie istnieje jeszcze bezpieczny backendowy most w obecnym runtime.
+
+Dodano dokument:
+
+```text
+doc/blacknet_cta_bridges.md
+```
+
+Backendowa allowlista `BLACKNET_ALLOWED_CTA_ACTIONS` została rozszerzona o
+rodziny CTA opisane w kontrakcie, bez przebudowy publishera Sprintu 82.
+
+Dopiero po domknięciu tych bridge’ów można rozpocząć kontrakty Ollamy ze
+Sprintu 83.
+
+---
+
+# Sprint 83 — Ollama Digest Outbox Contract
+
+## Cel gameplayowy
+
+Przygotować bezpieczny JSON z faktami świata i kontekstem redakcyjnym, który może zostać przekazany do Ollamy.
+
+Sprint nie musi jeszcze uruchamiać modelu. Jego wynikiem jest gotowy, walidowany kontrakt wyjściowy.
+
+## Założenie
+
+Ollama nie dostaje bazy danych, pełnego profilu ani bezpośredniego dostępu do systemów gry. Dostaje zamknięty pakiet redakcyjny.
+
+## Przepływ danych
+
+```text
+blacknet_world_facts
++
+wybrane sygnały automatyczne
++
+kontekst redakcyjny
+↓
+blacknet_ollama_outbox.json
+↓
+walidacja schematu
+↓
+gotowy pakiet dla Ollamy
+```
+
+## Zawartość JSON
+
+Pakiet powinien zawierać:
+
+* `schema_version`,
+* `digest_id`,
+* `world_version`,
+* `generated_at`,
+* `valid_until`,
+* listę bezpiecznych faktów,
+* aktualne trendy,
+* ważne regiony,
+* dostępne produkty i rynki,
+* dozwolone typy sygnałów,
+* dozwolone `cta_action`,
+* istniejące identyfikatory celów,
+* dostępne osobowości autorów,
+* limity długości tekstu,
+* wymagany język,
+* ton świata,
+* listę zakazanych twierdzeń,
+* historię ostatnich publikacji.
+
+## Przykładowa struktura
+
+```json
+{
+  "schema_version": "1.0",
+  "digest_id": "digest_20260711_1800",
+  "generated_at": "2026-07-11T18:00:00Z",
+  "valid_until": "2026-07-11T19:00:00Z",
+  "facts": [],
+  "allowed_signal_types": [],
+  "allowed_actions": [],
+  "editorial_rules": {},
+  "recent_publications": []
+}
+```
+
+Ten plik przekazuje modelowi wyłącznie zatwierdzone fakty i instrukcje, na podstawie których może stworzyć narracyjną wersję sygnałów.
+
+## Outbox
+
+Pakiety mogą otrzymywać statusy:
+
+* `created`,
+* `ready`,
+* `processing`,
+* `processed`,
+* `failed`,
+* `expired`,
+* `archived`.
+
+## Zakres implementacyjny
+
+* wersjonowany JSON Schema,
+* builder pakietu,
+* walidator,
+* limity wielkości,
+* sanityzacja tekstów,
+* usuwanie danych prywatnych,
+* zapis atomowy,
+* identyfikator korelacyjny,
+* status pakietu,
+* diagnostyka,
+* możliwość ręcznego wygenerowania pakietu testowego.
+
+## Ograniczenia
+
+Ollama nie może otrzymać prawa do:
+
+* tworzenia cen,
+* zmiany wartości faktów,
+* wymyślania identyfikatorów,
+* dodawania dowolnych URL,
+* wykonywania CTA,
+* uruchamiania operacji,
+* przyznawania teleportów,
+* zmieniania świata gry.
+
+## Kryteria akceptacji
+
+* System tworzy poprawny `blacknet_ollama_outbox.json`.
+* JSON przechodzi walidację schematu.
+* Każdy fakt zachowuje swoje `fact_id`.
+* Każda dozwolona akcja wskazuje istniejący obiekt.
+* Pakiet nie zawiera prywatnych danych graczy.
+* Historia publikacji ogranicza powtarzalność odpowiedzi modelu.
+* Niepoprawny pakiet nie otrzymuje statusu `ready`.
+* BlackNet działa normalnie bez uruchomionej Ollamy.
+
+## Dokumentacja
+
+Po sprincie zaktualizować:
+
+* `doc/blacknet.md`,
+* `doc/blacknet_world_read_model.md`,
+* `doc/project_journal.md`.
+
+Jeżeli powstanie kontrakt pakietu dla Ollamy, dodać albo zaktualizować
+`doc/blacknet_ollama_outbox.md`.
+
+---
+
+# Sprint 84 — Ollama Enriched Signal Ingest + Mixed Feed
+
+## Cel gameplayowy
+
+Przyjmować JSON przetworzony przez Ollamę, walidować go i publikować poprawne treści jako dodatkowe źródło sygnałów BlackNetu.
+
+Sygnały AI mają przeplatać się z sygnałami generowanymi bezpośrednio z danych gry.
+
+## Źródła strumienia
+
+Po tym sprincie BlackNet korzysta z trzech źródeł:
+
+1. `local_static` — lokalne sygnały i treści kontrolne.
+2. `world_generated` — automatyczne sygnały tworzone z faktów gry.
+3. `ollama_enriched` — narracyjnie rozwinięte sygnały przygotowane przez model.
+
+## Przepływ danych
+
+```text
+blacknet_ollama_outbox.json
+↓
+Ollama
+↓
+blacknet_ollama_inbox.json
+↓
+walidacja techniczna
+↓
+walidacja faktów i CTA
+↓
+normalizacja do Signal Contract
+↓
+mixed signal feed
+```
+
+## Kontrakt odpowiedzi Ollamy
+
+Każdy sygnał powinien zawierać:
+
+* `candidate_id`,
+* `digest_id`,
+* `source_fact_ids`,
+* `signal_type`,
+* `author_persona`,
+* `channel`,
+* `title`,
+* `stat`,
+* `label`,
+* `value`,
+* `body`,
+* `tone`,
+* sugerowany `layout_family`,
+* sugerowany `radar_variant`,
+* `cta_action`,
+* `cta_target_id`,
+* `expires_at`,
+* `confidence`.
+
+## Zasada zaufania
+
+Ollama może proponować:
+
+* tytuł,
+* opis,
+* styl wypowiedzi,
+* osobowość autora,
+* komentarz,
+* plotkę,
+* reklamową narrację,
+* wariant layoutu i radaru.
+
+Backend zawsze ponownie ustala lub sprawdza:
+
+* wartość liczbową,
+* cenę,
+* target,
+* region,
+* czas ważności,
+* `cta_action`,
+* `cta_target_id`,
+* istnienie powiązanego faktu,
+* możliwość publikacji.
+
+## Ingest pipeline
+
+Każdy kandydat otrzymuje status:
+
+* `received`,
+* `validated`,
+* `rejected`,
+* `normalized`,
+* `published`,
+* `expired`,
+* `archived`.
+
+Powód odrzucenia powinien być zapisany diagnostycznie.
+
+## Mieszanie strumienia
+
+Feed powinien pilnować proporcji i różnorodności, na przykład:
+
+```text
+2 × world_generated
+1 × ollama_enriched
+1 × local_static lub specjalny sygnał
+```
+
+Nie musi to być sztywna kolejność. Mixer powinien uwzględniać:
+
+* priorytet,
+* świeżość,
+* ważność,
+* region gracza,
+* historię ostatnich sygnałów,
+* rodzaj treści,
+* źródło,
+* cooldown,
+* dostępność CTA.
+
+## Bezpieczny fallback
+
+Jeżeli Ollama:
+
+* nie działa,
+* zwróci błędny JSON,
+* przekroczy czas,
+* użyje nieistniejącego ID,
+* zmieni wartość faktu,
+* wygeneruje niedozwoloną akcję,
+
+kandydat zostaje odrzucony, a BlackNet nadal działa na `local_static` i `world_generated`.
+
+## Kryteria akceptacji
+
+* Poprawny inbox przechodzi walidację.
+* Niepoprawny JSON nie trafia do feedu.
+* Sygnał AI zachowuje powiązanie z faktami źródłowymi.
+* Ollama nie może zmienić mechanicznej prawdy świata.
+* CTA jest ponownie budowane po stronie backendu.
+* Sygnały AI przeplatają się z automatycznymi.
+* Feed nie pokazuje kilku podobnych treści pod rząd.
+* Brak Ollamy nie blokuje BlackNetu.
+* Każdy sygnał pokazuje wewnętrznie swoje źródło.
+* System można wyłączyć jednym przełącznikiem bez zmiany frontendu.
+
+## Dokumentacja
+
+Po sprincie zaktualizować:
+
+* `doc/blacknet.md`,
+* `doc/blacknet_world_read_model.md`,
+* `doc/gameplay_matrix.md`,
+* `doc/project_journal.md`.
+
+Jeżeli powstanie kontrakt ingestu albo feedu mieszanego, dodać albo
+zaktualizować `doc/blacknet_mixed_feed.md`.
+
+# Stan po Sprincie 84
+
+```text
+realne dane gry
+↓
+BlackNet World Facts
+↓
+deterministyczne sygnały
+↓
+Ollama Digest Outbox
+↓
+Ollama
+↓
+walidowany Inbox
+↓
+Mixed Signal Feed
+↓
+BlackNet
+```
+
+Po Sprincie 84 BlackNet będzie działającym systemem informacyjnym świata CHAOS:
+
+* opisującym rzeczywiste zdarzenia,
+* działającym również bez AI,
+* przygotowującym bezpieczne dane dla Ollamy,
+* przyjmującym narracyjnie wzbogacone treści,
+* mieszającym sygnały automatyczne i AI,
+* zachowującym pełną kontrolę backendu nad gameplayem.
+
+
+
 Decision:
 
 * Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.
