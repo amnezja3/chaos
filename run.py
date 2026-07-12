@@ -737,11 +737,20 @@ def blacknet_operation_target_snapshot(operation):
     target = blacknet_operation_target_payload(operation)
     if not target:
         return None
-    target_id = str(operation.get("target_id") or build_operation_target_id(target) or "").strip()
     label = display_target_label(target, fallback_prefix="Target")
     if not label:
-        label = target_id or "Target"
+        label = "Target"
     coords = blacknet_target_coordinates(target)
+    explicit_target_id = str(
+        operation.get("target_id")
+        or target.get("target_id")
+        or target.get("id")
+        or ""
+    ).strip()
+    generated_target_id = build_operation_target_id(target) if coords else ""
+    target_id = str(explicit_target_id or generated_target_id or "").strip()
+    if not target_id:
+        return None
     subject_id = target_id or hashlib.sha1(label.encode("utf-8")).hexdigest()[:12]
     return {
         "target_id": target_id,
@@ -760,11 +769,15 @@ def blacknet_conflict_target_snapshot(conflict, target):
         **conflict,
         "target": target,
     })
-    target_id = str(target.get("target_id") or target.get("id") or build_operation_target_id(target) or "").strip()
     label = display_target_label(target, fallback_prefix="Conflict")
     if not label:
-        label = target_id or str(conflict.get("conflict_key") or conflict.get("id") or "Conflict")
+        label = str(conflict.get("conflict_key") or conflict.get("id") or "Conflict")
     coords = blacknet_target_coordinates(target)
+    explicit_target_id = str(target.get("target_id") or target.get("id") or "").strip()
+    generated_target_id = build_operation_target_id(target) if coords else ""
+    target_id = str(explicit_target_id or generated_target_id or "").strip()
+    if not target_id:
+        return None
     subject_id = target_id or hashlib.sha1(label.encode("utf-8")).hexdigest()[:12]
     participants = conflict.get("participant_usernames") or conflict.get("participants") or []
     if not isinstance(participants, list):
@@ -1803,10 +1816,13 @@ def blacknet_ollama_safe_signal(signal):
         "timer": blacknet_ollama_text(signal.get("timer"), 16),
         "tone": blacknet_ollama_text(signal.get("tone"), 16),
         "layout": signal.get("layout"),
+        "world_version": blacknet_ollama_text(signal.get("world_version"), 96),
         "cta_action": blacknet_ollama_text(signal.get("cta_action"), 64),
         "cta_target": blacknet_ollama_text(signal.get("cta_target"), 80),
         "cta_target_id": blacknet_ollama_text(signal.get("cta_target_id"), 96),
+        "cta_query": blacknet_ollama_text(signal.get("cta_query"), 96),
         "entity_id": blacknet_ollama_text(signal.get("entity_id"), 96),
+        "metadata": blacknet_ollama_public_metadata(signal.get("metadata"), max_items=16),
     }
     return {key: value for key, value in safe.items() if value not in (None, "", {})}
 

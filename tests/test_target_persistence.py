@@ -1227,6 +1227,35 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         self.assertAlmostEqual(fact["metadata"]["lat"], 52.280897)
         self.assertAlmostEqual(fact["metadata"]["lng"], 20.997489)
 
+    def test_blacknet_conflict_without_coordinates_does_not_emit_unknown_map_target(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        conflicts = [{
+            "id": 9,
+            "conflict_key": "conflict:unknown",
+            "participants": ["alice", "bob"],
+            "status": "active",
+            "targets": [{
+                "label": "Conflict-00B7D7",
+                "status": "contested",
+            }],
+        }]
+
+        with patch.object(run.user_store, "list_profiles", return_value=[]), \
+                patch.object(run, "get_app_catalog", return_value=[]), \
+                patch.object(run.territory_conflict_store, "list_active", return_value=conflicts), \
+                patch.object(run.os.path, "isdir", return_value=False):
+            snapshot = build_blacknet_world_facts_snapshot(now=now)
+
+        target_alerts = [
+            fact for fact in snapshot["facts"]
+            if fact["fact_type"] == "conflict_target_alert"
+        ]
+        self.assertEqual(target_alerts, [])
+        area_alert = next(item for item in snapshot["facts"] if item["fact_type"] == "contested_area_alert")
+        self.assertEqual(area_alert["metadata"]["target_count"], 1)
+        serialized = json.dumps(snapshot, sort_keys=True)
+        self.assertNotIn("unknown:unknown", serialized)
+
 
 class BlackNetWorldSignalPublisherTest(unittest.TestCase):
     def _client_with_user(self, username="alice"):
@@ -1657,6 +1686,18 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertEqual(by_fact["fact-world"]["cta_target"], "world")
         self.assertEqual(by_fact["fact-world"]["entity_id"], "global")
         self.assertEqual(by_fact["fact-world"]["metadata"]["thread_peer"], "global")
+
+        package = build_blacknet_ollama_outbox(facts, snapshot, now=now)
+        outbox_by_fact = {signal["fact_id"]: signal for signal in package["selected_signals"]}
+
+        self.assertEqual(outbox_by_fact["fact-googleplex"]["cta_query"], "/all")
+        self.assertEqual(outbox_by_fact["fact-googleplex"]["metadata"]["product_name"], "Ghost Vault Basic")
+        self.assertEqual(outbox_by_fact["fact-radio"]["cta_target_id"], "blacknet_radio_2")
+        self.assertEqual(outbox_by_fact["fact-radio"]["metadata"]["track_file"], "002_signal.mp3")
+        self.assertEqual(outbox_by_fact["fact-market-sector"]["cta_query"], "network")
+        self.assertEqual(outbox_by_fact["fact-market-sector"]["metadata"]["sector_key"], "network")
+        self.assertEqual(outbox_by_fact["fact-world"]["cta_target"], "world")
+        self.assertEqual(outbox_by_fact["fact-world"]["metadata"]["thread_channel"], "world")
 
     def test_blacknet_signal_families_keep_cta_targets_semantic(self):
         now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)

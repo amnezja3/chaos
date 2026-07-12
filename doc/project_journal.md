@@ -7781,3 +7781,20 @@ doc/blacknet_ollama_outbox.md
 
 Sprint 83 zamkniety jako kontrakt wyjsciowy. Sprint 84 moze budowac inbox i
 walidacje odpowiedzi modelu bez zmiany zrodel prawdy BlackNetu.
+
+### Hotfix - BlackNet unknown map targets
+
+Sprawdzono zrodlo `map:unknown:unknown:*` w outboxie Ollamy.
+
+Przyczyna: rekord konfliktu mogl zawierac target bez `lat/lng` i bez stabilnego
+`target_id`. BlackNet probowal mimo to zbudowac punktowy `conflict_target_alert`
+i fallback `build_operation_target_id()` skladal techniczne
+`map:unknown:unknown:<label>`.
+
+Poprawka: BlackNet nie tworzy juz punktowych target snapshotow dla operacji ani
+konfliktow, jezeli nie ma ani jawnego `target_id`, ani wspolrzednych pozwalajacych
+bezpiecznie zbudowac mapowy identyfikator. Taki konflikt zostaje widoczny jako
+ogolny `contested_area_alert`, ale nie dostaje klikalnego fokusu mapy.
+
+Dodano test regresyjny potwierdzajacy, ze konflikt bez wspolrzednych nie emituje
+`unknown:unknown` do snapshotu faktow.
