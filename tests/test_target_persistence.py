@@ -1652,6 +1652,54 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertEqual(by_fact["fact-world"]["entity_id"], "global")
         self.assertEqual(by_fact["fact-world"]["metadata"]["thread_peer"], "global")
 
+    def test_blacknet_signal_families_keep_cta_targets_semantic(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        base = {
+            "previous_value": None,
+            "change_percent": 0,
+            "importance": 80,
+            "confidence": 0.9,
+            "observed_at": "2026-07-11T11:00:00Z",
+            "expires_at": "2026-07-11T12:10:00Z",
+        }
+        facts = {"version": "facts-all-families", "facts": [
+            {**base, "fact_id": "ops-active", "fact_type": "operations_active_count", "category": "operations", "region_id": "global", "subject_id": "operations", "value": 3, "source_system": "operations", "metadata": {}},
+            {**base, "fact_id": "ops-top", "fact_type": "operations_top_type", "category": "persistent_sniffer", "region_id": "global", "subject_id": "persistent_sniffer", "value": 262, "source_system": "operations", "metadata": {"operation_type": "persistent_sniffer"}},
+            {**base, "fact_id": "ops-hotspot", "fact_type": "operation_hotspot_activity", "category": "Piekarnia Putka", "region_id": "poi-putka", "subject_id": "poi-putka", "value": 2, "source_system": "operations", "metadata": {"target_id": "poi-putka", "target_label": "Piekarnia Putka", "lat": 52.22, "lng": 21.01, "cta_target_id": "poi-putka"}},
+            {**base, "fact_id": "ops-burst", "fact_type": "target_operation_burst", "category": "Zabka", "region_id": "poi-zabka", "subject_id": "poi-zabka", "value": 4, "source_system": "operations", "metadata": {"target_id": "poi-zabka", "target_label": "Zabka", "lat": 52.23, "lng": 21.02, "cta_target_id": "poi-zabka"}},
+            {**base, "fact_id": "conflict-target", "fact_type": "conflict_target_alert", "category": "Conflict-00B7D7", "region_id": "poi-conflict", "subject_id": "poi-conflict", "value": 1, "source_system": "conflicts", "metadata": {"target_id": "poi-conflict", "target_label": "Conflict-00B7D7", "lat": 52.24, "lng": 21.03, "cta_target_id": "poi-conflict"}},
+            {**base, "fact_id": "conflict-area", "fact_type": "contested_area_alert", "category": "conflicts", "region_id": "global", "subject_id": "conflicts", "value": 2, "source_system": "conflicts", "metadata": {}},
+            {**base, "fact_id": "market-all", "fact_type": "market_sales_7d", "category": "market", "region_id": "global", "subject_id": "market", "value": 500, "source_system": "ghost_exchange", "metadata": {"file_count": 5, "volume_mb": 40}},
+            {**base, "fact_id": "market-sector", "fact_type": "market_top_sector_7d", "category": "network", "region_id": "global", "subject_id": "network", "value": 1200, "source_system": "ghost_exchange", "metadata": {"sector_key": "network", "volume_mb": 300, "cta_target_id": "network"}},
+            {**base, "fact_id": "googleplex", "fact_type": "googleplex_catalog_size", "category": "googleplex", "region_id": "global", "subject_id": "catalog", "value": 650, "source_system": "googleplex", "metadata": {"product_id": "storage_ghost_vault_basic", "product_name": "Ghost Vault Basic", "products": 22, "cta_query": "/all"}},
+            {**base, "fact_id": "radio", "fact_type": "radio_channels_available", "category": "radio", "region_id": "global", "subject_id": "radio", "value": 2, "source_system": "radio", "metadata": {"tracks_total": 25, "channel_id": "blacknet_radio_2", "track_file": "002_signal.mp3"}},
+            {**base, "fact_id": "world", "fact_type": "system_messages_24h", "category": "system", "region_id": "global", "subject_id": "system", "value": 3, "source_system": "system", "metadata": {"thread_scope": "group", "thread_peer": "global", "thread_channel": "world"}},
+        ]}
+
+        snapshot = build_blacknet_world_signals(facts, now=now, limit=20)
+        by_fact = {signal["fact_id"]: signal for signal in snapshot["signals"]}
+
+        self.assertEqual(set(by_fact), {fact["fact_id"] for fact in facts["facts"]})
+        self.assertEqual(by_fact["ops-active"]["cta_action"], "open_map")
+        self.assertEqual(by_fact["ops-active"]["cta_target_id"], "")
+        self.assertEqual(by_fact["ops-top"]["cta_action"], "open_map")
+        self.assertEqual(by_fact["ops-top"]["cta_target_id"], "")
+        for fact_id in ("ops-hotspot", "ops-burst", "conflict-target"):
+            self.assertEqual(by_fact[fact_id]["cta_action"], "focus_map_target")
+            self.assertTrue(by_fact[fact_id]["cta_target_id"])
+            self.assertIsNotNone(by_fact[fact_id]["metadata"].get("lat"))
+            self.assertIsNotNone(by_fact[fact_id]["metadata"].get("lng"))
+        self.assertEqual(by_fact["conflict-area"]["cta_action"], "open_map")
+        self.assertEqual(by_fact["conflict-area"]["cta_target_id"], "")
+        self.assertEqual(by_fact["market-all"]["cta_action"], "open_exchange_market")
+        self.assertEqual(by_fact["market-sector"]["cta_action"], "open_exchange_category")
+        self.assertEqual(by_fact["market-sector"]["cta_target_id"], "network")
+        self.assertEqual(by_fact["googleplex"]["cta_action"], "open_googleplex_search")
+        self.assertEqual(by_fact["googleplex"]["cta_query"], "/all")
+        self.assertEqual(by_fact["radio"]["cta_action"], "play_radio_podcast")
+        self.assertEqual(by_fact["radio"]["cta_target_id"], "blacknet_radio_2")
+        self.assertEqual(by_fact["world"]["cta_action"], "open_cyberner_thread")
+
     def test_blacknet_teleport_bridge_moves_to_whitelisted_hotspot(self):
         client = self._client_with_user("alice")
         profile = {

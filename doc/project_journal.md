@@ -7716,3 +7716,22 @@ Poprawka:
   `global`,
 * Googleplex dostal kontrolowany filtr `/all`, ktory pokazuje pelny katalog bez
   wpisywania sztucznej nazwy produktu.
+
+### Hotfix 3
+
+Przejrzano wszystkie rodziny sygnalow BlackNetu i doprecyzowano kontrakt CTA.
+
+Najwazniejsza poprawka: sygnaly analityczne typu `operations_active_count`,
+`operations_top_type` i `contested_area_alert` otwieraja mape bez fokusu na
+encje. Nie wystawiaja juz technicznych wartosci typu `persistent_sniffer` jako
+`cta_target_id`.
+
+Sygnaly punktowe pozostaja bez zmian:
+
+* `operation_hotspot_activity`,
+* `target_operation_burst`,
+* `conflict_target_alert`.
+
+Te rodziny nadal wymagaja konkretnego targetu i wspolrzednych albo markera mapy.
+Dodano test kontraktu, ktory potwierdza, ze wszystkie glowne rodziny sygnalow
+maja szanse sie wygenerowac i posiadaja poprawne CTA.

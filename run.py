@@ -1523,6 +1523,20 @@ def blacknet_signal_from_fact(fact, now_dt):
         value=value,
     )
     signal_type = str(rule.get("signal_type") or "world_alert")
+    cta_target_id = str(
+        metadata.get("cta_target_id")
+        or metadata.get("product_id")
+        or metadata.get("channel_id")
+        or metadata.get("sector")
+        or metadata.get("hotspot_id")
+        or fact.get("subject_id")
+        or ""
+    )
+    if cta_action == "open_map" and not any(
+        metadata.get(key) not in (None, "")
+        for key in ("target_id", "cta_target_id", "lat", "lng", "lon", "latitude", "longitude", "hotspot_id")
+    ):
+        cta_target_id = ""
     signal = {
         "id": blacknet_signal_id(fact, rule),
         "source": "world_generated",
@@ -1550,15 +1564,7 @@ def blacknet_signal_from_fact(fact, now_dt):
         "cta": str(rule.get("cta") or "OTWORZ")[:40],
         "cta_action": cta_action,
         "cta_target": str(rule.get("cta_target") or ""),
-        "cta_target_id": str(
-            metadata.get("cta_target_id")
-            or metadata.get("product_id")
-            or metadata.get("channel_id")
-            or metadata.get("sector")
-            or metadata.get("hotspot_id")
-            or fact.get("subject_id")
-            or ""
-        ),
+        "cta_target_id": cta_target_id,
         "cta_query": str(metadata.get("cta_query") or metadata.get("product_name") or ""),
         "radar": blacknet_radar_from_seed(fact.get("fact_id"), sides=rule.get("layout")),
         "importance": int(fact.get("importance") or 0),

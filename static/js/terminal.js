@@ -3458,12 +3458,16 @@ function createBrowser() {
     const blacknetOpenMap = (signal, mode = "open") => {
         const opened = openSystemAppFromTerminal("map");
         const metadata = signal?.metadata || {};
+        const lat = readBlacknetCoordinate(metadata.lat, metadata.latitude, signal?.lat);
+        const lng = readBlacknetCoordinate(metadata.lng, metadata.lon, metadata.longitude, signal?.lng, signal?.lon);
+        const hasCoordinates = Number.isFinite(lat) && Number.isFinite(lng);
+        const canUseEntityFocus = mode !== "open" || hasCoordinates;
         const rawTarget = String(
             metadata.target_id
             || signal?.target_id
             || metadata.cta_target_id
             || signal?.cta_target_id
-            || signal?.entity_id
+            || (canUseEntityFocus ? signal?.entity_id : "")
             || ""
         ).trim();
         const rawRegion = String(metadata.region_id || signal?.region_id || "").trim();
@@ -3471,9 +3475,6 @@ function createBrowser() {
         const focus = !genericFocusValues.has(rawTarget)
             ? rawTarget
             : (!genericFocusValues.has(rawRegion) ? rawRegion : "");
-        const lat = readBlacknetCoordinate(metadata.lat, metadata.latitude, signal?.lat);
-        const lng = readBlacknetCoordinate(metadata.lng, metadata.lon, metadata.longitude, signal?.lng, signal?.lon);
-        const hasCoordinates = Number.isFinite(lat) && Number.isFinite(lng);
         if (focus || hasCoordinates) {
             window.__blacknetMapFocus = {
                 mode,
