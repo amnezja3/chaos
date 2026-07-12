@@ -2662,6 +2662,34 @@ function notifyOpenMapsOperationsChanged() {
     return Promise.allSettled(refreshes);
 }
 
+function notifyOpenMapsBlacknetFocus(focus = {}) {
+    document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
+        try {
+            const payload = {
+                type: 'blacknet-map-focus',
+                focus
+            };
+            const mapWindow = frame.contentWindow;
+            if (mapWindow && typeof mapWindow.focusBlacknetMapSignal === 'function') {
+                mapWindow.focusBlacknetMapSignal(focus);
+            } else if (mapWindow && typeof mapWindow.postMessage === 'function') {
+                mapWindow.postMessage(payload, window.location.origin);
+            }
+            frame.addEventListener('load', () => {
+                try {
+                    if (frame.contentWindow && typeof frame.contentWindow.postMessage === 'function') {
+                        frame.contentWindow.postMessage(payload, window.location.origin);
+                    }
+                } catch (err) {
+                    console.warn("Nie udalo sie przekazac fokus BlackNet po ladowaniu mapy:", err);
+                }
+            }, { once: true });
+        } catch (err) {
+            console.warn("Nie udalo sie przekazac fokus BlackNet do mapy:", err);
+        }
+    });
+}
+
 async function sendGonnaWinRequest(appId, choiceId = null) {
     try {
         const response = await fetch('/gonna-win', {
@@ -2977,6 +3005,7 @@ function createBrowser() {
     let activeBrowserTab = "googleplex";
     let activeBlacknetSignalId = "";
     let blacknetPointerStartX = null;
+    let pendingGoogleplexSearch = "";
     const renderBrowserWallet = () => {
         wallet.textContent = activeBrowserTab === "blacknet"
             ? "SIGNAL BUS v0"
@@ -3379,8 +3408,12 @@ function createBrowser() {
     };
 
     const blacknetOpenGoogleplex = signal => {
-        switchBrowserTab("googleplex");
         const query = blacknetCtaQuery(signal);
+        pendingGoogleplexSearch = query;
+        if (query) {
+            search.value = query;
+        }
+        switchBrowserTab("googleplex");
         if (query) {
             search.value = query;
             renderCatalog();
@@ -3415,15 +3448,22 @@ function createBrowser() {
 
     const blacknetOpenMap = (signal, mode = "open") => {
         const opened = openSystemAppFromTerminal("map");
+        const metadata = signal?.metadata || {};
         const focus = String(signal?.target_id || signal?.region_id || signal?.cta_target_id || signal?.cta_target || "").trim();
+        const lat = Number(metadata.lat ?? metadata.latitude ?? signal?.lat);
+        const lng = Number(metadata.lng ?? metadata.lon ?? metadata.longitude ?? signal?.lng ?? signal?.lon);
         if (focus) {
             window.__blacknetMapFocus = {
                 mode,
                 signal_id: signal?.id || "",
                 target_id: signal?.target_id || signal?.cta_target_id || "",
+                entity_id: signal?.entity_id || "",
                 region_id: signal?.region_id || "",
-                label: signal?.title || ""
+                lat: Number.isFinite(lat) ? lat : null,
+                lng: Number.isFinite(lng) ? lng : null,
+                label: metadata.target_label || signal?.title || ""
             };
+            setTimeout(() => notifyOpenMapsBlacknetFocus(window.__blacknetMapFocus), 50);
             addSystemMessage("info", "BlackNet", `Mapa otwarta. Fokus sygnalu: ${escapeHTML(focus)}.`);
         }
         return blacknetCtaResult(opened);
@@ -3473,6 +3513,8 @@ function createBrowser() {
         const radio = window.GhostRadio;
         let channelId = String(
             signal?.metadata?.channel_id
+            || signal?.metadata?.channel_path_id
+            || signal?.metadata?.channel_meta_id
             || signal?.metadata?.cta_target_id
             || signal?.cta_target_id
             || ""
@@ -3503,18 +3545,21 @@ function createBrowser() {
     };
 
     const blacknetTeleportToHotspot = async signal => {
+        const metadata = signal?.metadata || {};
         const hotspotId = String(
-            signal?.metadata?.hotspot_id
+            metadata.hotspot_id
             || signal?.cta_target_id
             || ""
         ).trim();
-        const label = String(signal?.metadata?.label || signal?.title || hotspotId || "hotspot").trim();
-        if (!hotspotId) {
-            return blacknetCtaResult(false, "Sygnal BlackNet nie zawiera konkretnego hotspotu.");
+        const lat = Number(metadata.lat ?? metadata.latitude ?? signal?.lat);
+        const lng = Number(metadata.lng ?? metadata.lon ?? metadata.longitude ?? signal?.lng ?? signal?.lon);
+        const label = String(metadata.target_label || metadata.label || signal?.title || hotspotId || "target").trim();
+        if (!hotspotId && (!Number.isFinite(lat) || !Number.isFinite(lng))) {
+            return blacknetCtaResult(false, "Sygnal BlackNet nie zawiera konkretnego celu teleportu.");
         }
         const accepted = await blacknetDecisionDialog({
             title: "BLACKNET TELEPORT",
-            message: `Przechwycono hotspot: ${label}.`,
+            message: `Przechwycono cel: ${label}.`,
             details: "Potwierdz wykonanie teleportu. Anulowanie zostawi operatora w obecnej pozycji.",
             confirmLabel: "WYKONAJ",
             cancelLabel: "ANULUJ",
@@ -3529,6 +3574,9 @@ function createBrowser() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     hotspot_id: hotspotId,
+                    lat: Number.isFinite(lat) ? lat : null,
+                    lng: Number.isFinite(lng) ? lng : null,
+                    label,
                     signal_id: signal?.id || ""
                 })
             });
@@ -3537,6 +3585,16 @@ function createBrowser() {
                 return blacknetCtaResult(false, data?.message || "Teleport BlackNet nie zostal wykonany.");
             }
             openSystemAppFromTerminal("map");
+            window.__blacknetMapFocus = {
+                mode: "teleport",
+                signal_id: signal?.id || "",
+                target_id: signal?.target_id || signal?.cta_target_id || "",
+                entity_id: signal?.entity_id || "",
+                lat: Number(data?.curently_possition?.lat ?? lat),
+                lng: Number(data?.curently_possition?.lng ?? lng),
+                label
+            };
+            setTimeout(() => notifyOpenMapsBlacknetFocus(window.__blacknetMapFocus), 50);
             addSystemMessage("success", "BlackNet", data?.message || `Teleport BlackNet wykonany: ${escapeHTML(label)}.`);
             return blacknetCtaResult(true, "", {
                 confirmed: true,
@@ -3550,7 +3608,13 @@ function createBrowser() {
     };
 
     const blacknetPlayPodcast = async signal => {
-        const channelId = String(signal?.metadata?.channel_id || signal?.cta_target_id || "").trim();
+        const channelId = String(
+            signal?.metadata?.channel_id
+            || signal?.metadata?.channel_path_id
+            || signal?.metadata?.channel_meta_id
+            || signal?.cta_target_id
+            || ""
+        ).trim();
         const trackFile = String(signal?.metadata?.track_file || signal?.podcast || signal?.metadata?.podcast || "").trim();
         if (!channelId && !trackFile) {
             return blacknetOpenRadio(signal);
@@ -4220,6 +4284,9 @@ function createBrowser() {
         catalog = await resourcesRes.json();
         walletBalance = Number(profile.hackcoins || 0);
         renderBrowserWallet();
+        if (pendingGoogleplexSearch) {
+            search.value = pendingGoogleplexSearch;
+        }
         renderCatalog();
     }
 

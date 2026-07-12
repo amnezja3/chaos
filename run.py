@@ -1036,6 +1036,7 @@ def build_blacknet_radio_facts(now_dt):
             continue
         channels.append({
             "id": channel.get("id") or channel_id,
+            "path_id": channel_id,
             "slug": channel.get("slug") or channel_id,
             "name": channel.get("name") or channel_id,
             "source": channel.get("source") or "unknown",
@@ -1066,13 +1067,15 @@ def build_blacknet_radio_facts(now_dt):
             metadata={
                 "channel_ids": [str(item.get("id") or "") for item in channels[:10] if item.get("id")],
                 "tracks_total": tracks_total,
-                "channel_id": preferred_channel.get("id") or "",
+                "channel_id": preferred_channel.get("path_id") or preferred_channel.get("id") or "",
+                "channel_path_id": preferred_channel.get("path_id") or preferred_channel.get("id") or "",
+                "channel_meta_id": preferred_channel.get("id") or "",
                 "channel_name": preferred_channel.get("name") or "",
                 "track_file": track_file,
                 "track_title": track_title,
                 "track_index": track_index + 1 if track_count else 0,
                 "track_count": track_count,
-                "cta_target_id": preferred_channel.get("id") or "",
+                "cta_target_id": preferred_channel.get("path_id") or preferred_channel.get("id") or "",
                 "cta_query": track_title or preferred_channel.get("name") or preferred_channel.get("id") or "",
             },
         )
@@ -10761,12 +10764,44 @@ def api_blacknet_cta_teleport():
         or payload.get("target_id")
         or ""
     ).strip()
+    label = str(payload.get("label") or payload.get("target_label") or "").strip()
+    try:
+        payload_lat = float(payload.get("lat"))
+        payload_lng = float(payload.get("lng"))
+    except (TypeError, ValueError):
+        payload_lat = None
+        payload_lng = None
     hotspot = BLACKNET_HOTSPOTS.get(hotspot_id)
-    if not hotspot:
+    has_payload_position = (
+        payload_lat is not None
+        and payload_lng is not None
+        and -90 <= payload_lat <= 90
+        and -180 <= payload_lng <= 180
+    )
+    if hotspot:
+        position = {
+            "lat": float(hotspot["lat"]),
+            "lng": float(hotspot["lng"]),
+        }
+        target_label = hotspot.get("label") or hotspot_id or label or "target"
+        hotspot_payload = {
+            "id": hotspot["id"],
+            "label": hotspot["label"],
+            "risk": hotspot.get("risk", ""),
+        }
+    elif has_payload_position:
+        position = {
+            "lat": payload_lat,
+            "lng": payload_lng,
+        }
+        target_label = label or "target"
+        hotspot_payload = None
+    else:
+        error_code = "unknown_hotspot" if hotspot_id else "unknown_target"
         return jsonify({
             "success": False,
-            "message": "Hotspot BlackNet wygasl albo nie istnieje.",
-            "error": "unknown_hotspot",
+            "message": "Cel teleportu BlackNet wygasl albo nie posiada wspolrzednych.",
+            "error": error_code,
         }), 404
 
     profile = load_profile_readonly(username, strip_sensitive=False)
@@ -10779,10 +10814,6 @@ def api_blacknet_cta_teleport():
             "error": "profile_not_found",
         }), 401
 
-    position = {
-        "lat": float(hotspot["lat"]),
-        "lng": float(hotspot["lng"]),
-    }
     profile["curently_possition"] = position
 
     mgr = UserProfileManager(username)
@@ -10800,12 +10831,8 @@ def api_blacknet_cta_teleport():
 
     return jsonify({
         "success": True,
-        "message": f"Teleport BlackNet wykonany: {hotspot['label']}.",
-        "hotspot": {
-            "id": hotspot["id"],
-            "label": hotspot["label"],
-            "risk": hotspot.get("risk", ""),
-        },
+        "message": f"Teleport BlackNet wykonany: {target_label}.",
+        "hotspot": hotspot_payload,
         "curently_possition": position,
         "intrusion": bool(intrusion_area),
         "intrusion_area": {
@@ -13853,7 +13880,8 @@ def radio_channels_manifest():
         if schema != 1:
             continue
         channels.append({
-            "id": channel.get("id") or channel_id,
+            "id": channel_id,
+            "meta_id": channel.get("id") or channel_id,
             "name": channel.get("name") or channel_id,
             "slug": channel.get("slug") or channel_id,
             "description": channel.get("description") or "",

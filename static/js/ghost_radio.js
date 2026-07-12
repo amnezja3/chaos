@@ -367,7 +367,16 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         },
 
         async playTrack(channelId, options = {}) {
-            await this.init();
+            if (!state.audio) {
+                state.audio = new Audio();
+                state.audio.preload = "metadata";
+                bindAudioEvents();
+                syncAudioSettings();
+            }
+            if (!state.initialized) {
+                await this.loadChannels();
+                state.initialized = true;
+            }
             await this.loadChannel(channelId || state.defaultChannel, options);
             return this.play();
         },

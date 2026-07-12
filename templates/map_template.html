@@ -1667,6 +1667,53 @@
             return true;
         };
 
+        window.focusBlacknetMapSignal = function(focus = {}) {
+            const ids = [
+                focus.target_id,
+                focus.entity_id,
+                focus.region_id
+            ].map(value => String(value || '').trim()).filter(Boolean);
+            let entry = null;
+            for (const id of ids) {
+                if (window.targetMarkers && window.targetMarkers[id]) {
+                    entry = window.targetMarkers[id];
+                    break;
+                }
+            }
+
+            let lat = Number(focus.lat);
+            let lng = Number(focus.lng);
+            if ((!Number.isFinite(lat) || !Number.isFinite(lng)) && entry) {
+                const target = entry.target || {};
+                lat = Number(target.lat);
+                lng = Number(target.lng !== undefined ? target.lng : target.lon);
+                if ((!Number.isFinite(lat) || !Number.isFinite(lng)) && entry.marker && typeof entry.marker.getLatLng === 'function') {
+                    const markerLatLng = entry.marker.getLatLng();
+                    lat = Number(markerLatLng.lat);
+                    lng = Number(markerLatLng.lng);
+                }
+            }
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                return false;
+            }
+
+            const currentZoom = typeof map.getZoom === 'function' ? map.getZoom() : 16;
+            const nextZoom = Math.max(currentZoom, focus.mode === 'teleport' ? 17 : 16);
+            map.setView([lat, lng], nextZoom, { animate: true });
+            if (entry && entry.marker && typeof entry.marker.openTooltip === 'function') {
+                setTimeout(() => entry.marker.openTooltip(), 250);
+            }
+            return true;
+        };
+
+        window.addEventListener('message', event => {
+            if (event.origin !== window.location.origin) return;
+            const payload = event.data || {};
+            if (payload && payload.type === 'blacknet-map-focus') {
+                window.focusBlacknetMapSignal(payload.focus || {});
+            }
+        });
+
         window.refreshMapTargetSnapshot = function() {
             window.location.reload();
         };

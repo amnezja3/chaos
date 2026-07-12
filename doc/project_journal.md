@@ -7634,3 +7634,51 @@ sygnalu.
 
 Sprint 82.9 zakonczony. BlackNet jest gotowy na Sprint 83 jako realny,
 deterministyczny feed sygnalow dla przyszlego kontraktu Ollamy.
+
+---
+
+## 11.07.2026
+
+### Etap
+
+Audyt fix po Sprintach 82.6-82.9 - BlackNet CTA bridge integrity.
+
+### Zmiany
+
+Domknieto rozjazdy miedzy realnym feedem BlackNetu a starymi mockowymi mostami
+CTA:
+
+* radio laduje wskazany kanal i konkretny plik MP3 bez posredniego startu
+  domyslnego kanalu,
+* kanal radia w sygnale uzywa stabilnego identyfikatora katalogu, a `meta_id`
+  pozostaje informacja kontraktowa,
+* Googleplex dostaje query przed przelaczeniem zakladki i ponownie po
+  doczytaniu katalogu,
+* `POKAZ NA MAPIE` przekazuje fokus do iframe mapy i centruje mape po
+  `target_id` albo po wspolrzednych z metadanych,
+* teleport BlackNetu nadal obsluguje stare whitelistowane hotspoty, ale moze
+  tez pracowac na realnych wspolrzednych z sygnalu.
+
+### Decyzje
+
+CTA BlackNetu nie moze zakladac, ze encja jest lokalnym mockiem. Mosty musza
+akceptowac realne metadane `blacknet_world_facts`: `target_id`, `lat/lng`,
+`product_name`, `sector_key`, `channel_id` i `track_file`.
+
+`POKAZ NA MAPIE` nie zmienia pozycji gracza. Tylko centruje widok mapy.
+
+Teleport zmienia pozycje profilu dopiero po potwierdzeniu w oknie decyzyjnym i
+korzysta z istniejacego endpointu `/api/blacknet/cta/teleport`.
+
+### Testy
+
+* `python -m py_compile run.py database.py profileManagment.py`
+* `node --check static/js/terminal.js`
+* `node --check static/js/ghost_radio.js`
+* `python -m unittest tests.test_target_persistence.BlackNetWorldFactsSnapshotTest tests.test_target_persistence.BlackNetWorldSignalPublisherTest`
+* `git diff --check`
+
+### Status
+
+Audyt fix zakonczony. Mosty CTA sa spojne z realnym feedem 82.6-82.9 i gotowe
+do dalszego etapu BlackNetu bez powrotu do produkcyjnych mockow.

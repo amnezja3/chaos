@@ -1618,6 +1618,35 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         })
         record_delta.assert_called_once()
 
+    def test_blacknet_teleport_bridge_moves_to_signal_coordinates(self):
+        client = self._client_with_user("alice")
+        profile = {
+            "username": "alice",
+            "curently_possition": {"lat": 52.1, "lng": 21.1},
+        }
+
+        with patch.object(run, "load_profile_readonly", return_value=profile), \
+                patch.object(run, "UserProfileManager") as manager_class, \
+                patch.object(run, "notify_area_intrusion", return_value=None), \
+                patch.object(run, "record_map_player_actor_delta") as record_delta:
+            manager = manager_class.return_value
+            response = client.post("/api/blacknet/cta/teleport", json={
+                "lat": 52.2809,
+                "lng": 20.9974,
+                "label": "POI test",
+            })
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["success"])
+        self.assertIsNone(data["hotspot"])
+        self.assertAlmostEqual(data["curently_possition"]["lat"], 52.2809)
+        self.assertAlmostEqual(data["curently_possition"]["lng"], 20.9974)
+        manager.update_profile.assert_called_once_with({
+            "curently_possition": {"lat": 52.2809, "lng": 20.9974}
+        })
+        record_delta.assert_called_once()
+
     def test_blacknet_teleport_bridge_rejects_unknown_hotspot(self):
         client = self._client_with_user("alice")
         with patch.object(run, "load_profile_readonly", side_effect=AssertionError("profile should not load")):
