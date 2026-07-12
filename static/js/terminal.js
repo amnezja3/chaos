@@ -22,6 +22,7 @@ const STATE_DELTA_POLL_INTERVAL_MS = 4000;
 const STATE_DELTA_LIMIT = 100;
 const STATE_DELTA_DEFAULT_RECOVERY_SCOPES = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map"];
 const CYBERNER_THREAD_REFRESH_INTERVAL_MS = 10000;
+const APP_TERMINAL_AUTO_CLOSE_MS = 30000;
 const DESKTOP_WALLPAPER_CLASSES = [
     "wall-1", "wall-2", "wall-3",
     "wall-chaos-green", "wall-chaos-blue", "wall-chaos-red", "wall-chaos-amber", "wall-chaos-violet"
@@ -1030,6 +1031,27 @@ function launchApplicationEffect(appData) {
     else if (type === "button_choices") app_button_choices(id, levels);
     else if (type === "system_launcher") console.warn(`Brak system_launcher dla: ${appData.name || id}`);
     else console.warn(`Nieznany interface: ${type}`);
+}
+
+function scheduleOperationalAppAutoClose(appWindow) {
+    if (!appWindow || !appWindow.isConnected || appWindow.dataset.autoCloseScheduled === "1") return;
+    appWindow.dataset.autoCloseScheduled = "1";
+
+    const content = appWindow.querySelector('.app-content');
+    if (content && !content.querySelector('.app-auto-close-notice')) {
+        const notice = document.createElement('div');
+        notice.className = 'app-auto-close-notice';
+        notice.textContent = 'Okno zamknie sie automatycznie za 30 sekund.';
+        content.appendChild(notice);
+    }
+
+    window.setTimeout(() => {
+        if (!appWindow.isConnected) return;
+        appWindow.remove();
+        if (typeof renderRunningApps === "function") {
+            renderRunningApps();
+        }
+    }, APP_TERMINAL_AUTO_CLOSE_MS);
 }
 
 async function buildIconsFromJsonWithCommand(jsonData) {
@@ -2574,6 +2596,9 @@ function app_window(id, levels) {
                 addSystemMessage('info', '\u25B6 Akcja', `Akcja: ${label} | Wynik: ${success ? "\u2714" : "\u2716"}`);
                 resultBox.textContent = success ? "\u2714 Sukces!" : "\u2716 Niepowodzenie.";
                 resultBox.style.color = success ? "#0f0" : "#f33";
+                if (success) {
+                    scheduleOperationalAppAutoClose(app);
+                }
             } finally {
                 setAppButtonGroupPending(buttons, btn, false);
             }
@@ -2622,6 +2647,9 @@ async function app_progressbar_random(id, levels) {
             notifyGonnaWin(id).then(success => {
                 result.textContent = success ? (level.result_success || "Operacja zako\u0144czona.") : (level.result_failure || "Operacja nie powiod\u0142a si\u0119.");
                 result.style.color = success ? "#0f0" : "#f33";
+                if (success) {
+                    scheduleOperationalAppAutoClose(app);
+                }
             }).catch(() => {
                 result.textContent = "\u2716 B\u0142\u0105d po\u0142\u0105czenia z serwerem.";
                 result.style.color = "#f33";
@@ -2829,7 +2857,10 @@ function app_terminal(id, levels) {
     }
 
     function runNextCommand() {
-        if (commandIndex >= commands.length) return;
+        if (commandIndex >= commands.length) {
+            scheduleOperationalAppAutoClose(app);
+            return;
+        }
         const current = commands[commandIndex];
         commandIndex++;
         simulateTyping(current, runNextCommand);
@@ -2886,6 +2917,9 @@ function app_button_choices(id, levels) {
                 addSystemMessage('info', '\u2699 Efekt', `Wybrano: ${choiceLabel} | Wynik: ${success ? "\u2714 SUKCES" : "\u2716 PORA\u017bKA"}`);
                 resultBox.textContent = success ? "\u2714 Uda\u0142o si\u0119!" : "\u2716 Niestety nie tym razem.";
                 resultBox.style.color = success ? "#0f0" : "#f33";
+                if (success) {
+                    scheduleOperationalAppAutoClose(app);
+                }
             } finally {
                 setAppButtonGroupPending(buttons, btn, false);
             }

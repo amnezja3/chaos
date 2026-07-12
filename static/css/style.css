@@ -467,6 +467,16 @@ body {
   animation: app-terminal-spin 820ms linear infinite;
 }
 
+.app-auto-close-notice {
+  margin-top: 12px;
+  padding: 7px 9px;
+  border: 1px solid rgba(101, 255, 120, 0.42);
+  background: rgba(0, 40, 14, 0.48);
+  color: rgba(180, 255, 190, 0.86);
+  font-family: monospace;
+  font-size: 12px;
+}
+
 @keyframes app-terminal-cursor {
   0%, 49% { opacity: 1; }
   50%, 100% { opacity: 0; }
