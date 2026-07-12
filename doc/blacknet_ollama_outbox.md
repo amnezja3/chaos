@@ -19,7 +19,7 @@ blacknet_ollama_outbox
 ↓
 Ollama worker
 ↓
-Sprint 84 inbox
+future validated inbox
 ```
 
 ## Endpointy
@@ -127,4 +127,22 @@ Poza zakresem:
 * mieszanie feedu AI z deterministic publisher,
 * publikacja kandydatow w BlackNecie.
 
-Te elementy naleza do Sprintu 84.
+Te elementy nie startuja automatycznie po Sprincie 83.
+
+## Decyzja po Sprincie 83
+
+Sprint 84 zostaje zamrozony do czasu domkniecia stabilnego kontraktu odpowiedzi
+Ollamy i daemonowego feedback loop.
+
+Kolejny etap powinien najpierw opisac:
+
+* kanoniczny rejestr `signal_type`,
+* format kandydatow zwracanych przez model,
+* statusy walidacji kandydatow,
+* zasady insertu zaakceptowanych kandydatow do strumienia BlackNet,
+* kwarantanne dla kandydatow odrzuconych,
+* diagnostyke powodow odrzucenia.
+
+Outbox pozostaje jednostronnym, bezpiecznym kontraktem wyjsciowym. Dopoki ingest
+nie jest gotowy, BlackNet dziala na `world_generated`, realnych generatorach i
+`out_of_signal`.

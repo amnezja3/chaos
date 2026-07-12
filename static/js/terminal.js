@@ -358,13 +358,34 @@ function getSystemDesktopApps(profile = null) {
     return apps;
 }
 
+function readStoredAutoFullscreenSetting() {
+    try {
+        const stored = window.localStorage?.getItem("chaos_auto_fullscreen");
+        if (stored === "1") return true;
+        if (stored === "0") return false;
+    } catch (err) {
+        console.warn("Nie udalo sie odczytac ustawienia fullscreen:", err);
+    }
+    return null;
+}
+
+function resolveAutoFullscreenSetting(settings = {}) {
+    const stored = readStoredAutoFullscreenSetting();
+    if (stored !== null) return stored;
+    return settings.auto_fullscreen === true;
+}
+
 function applyDesktopSettings(settings = {}) {
+    const autoFullscreen = resolveAutoFullscreenSetting(settings);
     desktopSettings = {
         wallpaper: settings.wallpaper || "",
         icon_positions: settings.icon_positions || {},
-        auto_fullscreen: settings.auto_fullscreen === true
+        auto_fullscreen: autoFullscreen
     };
     setAutoFullscreenEnabled(desktopSettings.auto_fullscreen);
+    if (settings.auto_fullscreen !== desktopSettings.auto_fullscreen && desktopSessionActive) {
+        postDesktopSettings({ auto_fullscreen: desktopSettings.auto_fullscreen });
+    }
     if (typeof syncChaosFullscreenRuntime === "function") {
         syncChaosFullscreenRuntime();
     }
@@ -407,6 +428,18 @@ function postDesktopSettings(settings) {
     }).catch(err => console.warn("Nie udało się zapisać pulpitu:", err));
 }
 
+function sendDesktopSettingsBeacon(partial = {}) {
+    if (!desktopSessionActive || !navigator.sendBeacon) return false;
+    const settings = { ...desktopSettings, ...partial };
+    try {
+        const payload = JSON.stringify(settings);
+        return navigator.sendBeacon('/api/profile/desktop', new Blob([payload], { type: 'application/json' }));
+    } catch (err) {
+        console.warn("Nie udało się zapisać pulpitu beaconem:", err);
+        return false;
+    }
+}
+
 function saveDesktopSettingsNow(partial = {}) {
     clearTimeout(desktopSaveTimer);
     return postDesktopSettings(mergeDesktopSettings(partial));
@@ -437,7 +470,7 @@ function setGhostRadioAutoplayEnabled(enabled) {
 }
 
 function isAutoFullscreenEnabled() {
-    return desktopSettings.auto_fullscreen === true;
+    return resolveAutoFullscreenSetting(desktopSettings) === true;
 }
 
 function setAutoFullscreenEnabled(enabled) {
@@ -486,10 +519,7 @@ window.addEventListener('beforeunload', () => {
     if (!desktop || !desktopSessionActive) return;
     if (isMobileSafeMode()) return;
     const settings = mergeDesktopSettings({ icon_positions: collectDesktopIconPositions() });
-    const payload = JSON.stringify(settings);
-    if (navigator.sendBeacon) {
-        navigator.sendBeacon('/api/profile/desktop', new Blob([payload], { type: 'application/json' }));
-    }
+    sendDesktopSettingsBeacon(settings);
 });
 
 function renderDesktopIcons(apps, settings = desktopSettings) {
@@ -5041,6 +5071,7 @@ function createSettings() {
     term.querySelector('[data-settings-auto-fullscreen]')?.addEventListener('change', event => {
         setAutoFullscreenEnabled(event.target.checked);
         saveDesktopSettingsNow({ auto_fullscreen: event.target.checked });
+        sendDesktopSettingsBeacon({ auto_fullscreen: event.target.checked });
         syncChaosFullscreenRuntime();
         setStatus(event.target.checked ? "Auto fullscreen wlaczony. Kliknij w gre, aby aktywowac." : "Auto fullscreen wylaczony.", "success");
         if (event.target.checked) {

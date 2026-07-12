@@ -7779,8 +7779,9 @@ Dokument kontraktu:
 doc/blacknet_ollama_outbox.md
 ```
 
-Sprint 83 zamkniety jako kontrakt wyjsciowy. Sprint 84 moze budowac inbox i
-walidacje odpowiedzi modelu bez zmiany zrodel prawdy BlackNetu.
+Sprint 83 zamkniety jako kontrakt wyjsciowy. Sprint 84 nie startuje od razu:
+przed ingestem odpowiedzi modelu trzeba domknac kanoniczny rejestr rodzin
+sygnalow, stabilny kontrakt odpowiedzi Ollamy i daemonowy feedback loop.
 
 ### Hotfix - BlackNet unknown map targets
 
@@ -7845,3 +7846,26 @@ operation_hotspot_teleport -> teleport_hotspot
 Teleport nie wraca do mockowych dzielnic. Powstaje z aktywnego hotspotu operacji
 z realnymi wspolrzednymi targetu i korzysta z istniejacego mostu
 `teleport_to_hotspot`.
+
+### Decision - Sprint 84 frozen
+
+Sprint 83 zostaje zamkniety w obecnej formie jako bezpieczny outbox dla Ollamy.
+
+Sprint 84 zostaje zamrozony / odlozony. Powod: BlackNet ma juz realny feed i
+outbox, ale przed przyjeciem narracji modelu trzeba uporzadkowac kontrakt
+wejsciowy, zeby Ollama nie stala sie drugim ukrytym systemem sygnalow.
+
+Najpierw do zrobienia:
+
+* kanoniczny rejestr rodzin `signal_type`,
+* aliasowanie albo wygaszenie historycznych nazw rodzin,
+* stabilny kontrakt odpowiedzi Ollamy,
+* walidator kandydatow,
+* kwarantanna odrzuconych kandydatow,
+* daemon Ollamy pobierajacy outbox i oddajacy feedback,
+* insert zaakceptowanych kandydatow do strumienia BlackNet jako
+  `source: ollama_enriched`.
+
+Zasada pozostaje twarda: Ollama nie zmienia mapy, profilu, ekonomii, Googleplexa,
+Ghost Exchange ani Cybernera. Model moze proponowac narracje, ale tylko backend
+CHAOS waliduje kandydatow i decyduje, czy sygnal trafi do BlackNetu.

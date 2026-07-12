@@ -295,6 +295,461 @@ powyzej progu, UI nadal dziala na lokalnych sygnalach statycznych.
 
 ---
 
+## Sprinty 82.6-82.9 - Real Signal Cutover
+
+Status: complete as real feed hardening.
+
+Decyzje:
+
+* Produkcyjny BlackNet nie wraca do mockowych dzielnic, procentow i stalego
+  plakatu.
+* Zwykly runtime laduje realny feed z:
+  * `/api/blacknet/world-signals`.
+* Lokalny JSON moze pozostac tylko fixture dev/demo.
+* Brak danych oznacza `out_of_signal`, a nie podstawienie szablonu.
+* Googleplex publikuje osobne sygnaly produktowe dla realnych pozycji katalogu.
+* Ghost Exchange publikuje sygnaly z realnych sektorow i metryk rynku.
+* Radio publikuje sygnaly z realnych kanalow i plikow audio.
+* Map/conflict/operation signals musza miec realny target, wspolrzedne albo
+  jawnie ogolny tryb bez fokusu.
+* Feed jest uzupelniany po przechwyceniu albo wygasnieciu sygnalu; koniec
+  strumienia to tylko `out_of_signal`.
+
+---
+
+## Sprint 83 - Ollama Digest Outbox Contract
+
+Status: complete as controlled outbox.
+
+Artefakt:
+
+* `doc/blacknet_ollama_outbox.md`
+* `POST /api/blacknet/ollama/outbox/generate`
+* `GET /api/blacknet/ollama/outbox/latest`
+* `GET /api/blacknet/ollama/outbox/<digest_id>`
+* `POST /api/blacknet/ollama/outbox/<digest_id>/status`
+
+Decyzje:
+
+* Sprint 83 konczy sie na outboxie. Nie uruchamia Ollamy i nie przyjmuje jeszcze
+  odpowiedzi modelu do feedu.
+* Outbox jest zamknieta paczka redakcyjna dla procesu Ollamy.
+* Paczka zawiera tylko zatwierdzone fakty, dozwolone akcje, limity tekstu,
+  osobowosci autorow i reguly bezpieczenstwa.
+* Ollama nie dostaje bazy danych, pelnego profilu, pelnej mapy ani bezposrednich
+  uprawnien do systemow gry.
+* BlackNet dziala normalnie bez uruchomionej Ollamy.
+
+---
+
+## Sprint 84 - Frozen Before Ingest
+
+Status: frozen / postponed.
+
+Nie wdrazac jeszcze inboxu i mixed feedu.
+
+Powod:
+
+* po Sprintach 82.6-82.9 widac, ze czesc rodzin sygnalow byla historycznie
+  przemianowana albo zdublowana,
+* ingest AI bez kanonicznego rejestru `signal_type` grozilby powstaniem drugiego
+  ukrytego systemu sygnalow,
+* Ollama musi najpierw dostac stabilny kontrakt odpowiedzi i bezpieczny daemon
+  feedback loop.
+
+Najpierw domknac:
+
+1. Kanoniczny rejestr rodzin sygnalow.
+2. Aliasowanie starszych nazw, np. `hotspot` vs `operation_hotspot_activity`.
+3. Kontrakt odpowiedzi Ollamy:
+   * `digest_id`,
+   * `candidate_id`,
+   * `source_fact_ids`,
+   * `signal_type`,
+   * `entity_id`,
+   * `dedupe_key`,
+   * `cta_action`,
+   * `cta_target_id`,
+   * `confidence`,
+   * `expires_at`.
+4. Walidator kandydatow:
+   * odrzuca wymyslone fakty,
+   * odrzuca nowe ceny, ID, URL i wspolrzedne,
+   * odrzuca CTA bez realnej encji,
+   * zapisuje powod odrzucenia.
+5. Daemon Ollamy:
+
+```text
+GET outbox
+↓
+local Ollama call
+↓
+POST candidates
+↓
+validate
+↓
+insert accepted signals into BlackNet stream
+```
+
+6. Insert do strumienia BlackNet:
+   * tylko po walidacji,
+   * z TTL,
+   * z `dedupe_key`,
+   * z `source: ollama_enriched`,
+   * bez bezposredniej mutacji mapy, profilu, GX, Googleplexa albo Cybernera.
+
+Kanoniczne rodziny do decyzji:
+
+* `world_alert`,
+* `market_watch`,
+* `market_rumor`,
+* `product_opportunity`,
+* `data_demand`,
+* `system_incident`,
+* `radio_promotion`,
+* `operation_hotspot_activity`,
+* `operation_hotspot_teleport`,
+* `target_operation_burst`,
+* `conflict_target_alert`,
+* `contested_area_alert`,
+* `map_activity_spike`,
+* `regional_activity`,
+* `job_opportunity`,
+* `operator_message`,
+* `live_signal`,
+* `cyberner_world_thread`,
+* `leak_dossier`,
+* `advertisement`,
+* `world_observation`,
+* `out_of_signal`.
+
+`out_of_signal` jest stanem technicznym, nie zwykla publikacja. Jesli rodzina
+nie ma realnego zrodla faktow, nie wolno podstawic mocka.
+
+---
+
+
+# Sprint 84 — Ollama Enriched Signal Ingest + Mixed Feed
+
+Status: frozen / postponed.
+
+Sprint 84 nie startuje bez dodatkowego domkniecia kontraktu BlackNet/Ollama.
+Sprint 83 zostaje zamkniety w obecnej formie jako bezpieczny outbox. Kolejny
+krok nie polega jeszcze na publikowaniu odpowiedzi modelu w feedzie, tylko na
+ustabilizowaniu:
+
+* kanonicznego rejestru rodzin sygnalow,
+* kontraktu odpowiedzi Ollamy,
+* walidacji kandydatow,
+* daemonowego feedback loop,
+* zasad insertu kandydatow do strumienia BlackNet.
+
+Ollama nie moze byc drugim zrodlem prawdy. Model moze przygotowac kandydatow
+narracyjnych, ale backend CHAOS musi je zwalidowac, powiazac z istniejacymi
+faktami i dopiero wtedy dopuscic jako dodatkowe sygnaly BlackNetu.
+
+## Warunki odmrozenia
+
+Przed rozpoczeciem implementacji Sprintu 84 trzeba doprecyzowac:
+
+1. Kanoniczny rejestr `signal_type`.
+2. Aliasowanie albo usuniecie starszych nazw rodzin sygnalow.
+3. Kontrakt odpowiedzi Ollamy:
+   * `digest_id`,
+   * `candidate_id`,
+   * `source_fact_ids`,
+   * `signal_type`,
+   * `entity_id`,
+   * `dedupe_key`,
+   * `cta_action`,
+   * `cta_target_id`,
+   * `confidence`,
+   * `expires_at`,
+   * teksty narracyjne.
+4. Zasade: brak realnego faktu = brak publikacji, nie mock.
+5. Daemon feedback:
+
+```text
+Ollama worker
+↓
+GET outbox
+↓
+model lokalny
+↓
+POST kandydatow
+↓
+walidator CHAOS
+↓
+insert do BlackNet signal stream
+```
+
+6. Kwarantanne dla kandydatow odrzuconych.
+7. Diagnostyke: dlaczego kandydat zostal opublikowany albo odrzucony.
+
+## Rejestr rodzin do domkniecia
+
+Przed ingestem AI trzeba ustalic, ktore rodziny sa oficjalne, a ktore sa aliasem
+albo historia implementacyjna:
+
+* `world_alert`,
+* `market_watch`,
+* `market_rumor`,
+* `product_opportunity`,
+* `data_demand`,
+* `system_incident`,
+* `radio_promotion`,
+* `operation_hotspot_activity`,
+* `operation_hotspot_teleport`,
+* `target_operation_burst`,
+* `conflict_target_alert`,
+* `contested_area_alert`,
+* `map_activity_spike`,
+* `regional_activity`,
+* `job_opportunity`,
+* `operator_message`,
+* `live_signal`,
+* `cyberner_world_thread`,
+* `leak_dossier`,
+* `advertisement`,
+* `world_observation`,
+* `out_of_signal`.
+
+`out_of_signal` pozostaje stanem technicznym feedu, nie zwykla publikacja
+narracyjna.
+
+## Cel gameplayowy
+
+Przyjmować JSON przetworzony przez Ollamę, walidować go i publikować poprawne treści jako dodatkowe źródło sygnałów BlackNetu.
+
+Sygnały AI mają przeplatać się z sygnałami generowanymi bezpośrednio z danych gry.
+
+## Źródła strumienia
+
+Po tym sprincie BlackNet korzysta z trzech źródeł:
+
+1. `local_static` — lokalne sygnały i treści kontrolne.
+2. `world_generated` — automatyczne sygnały tworzone z faktów gry.
+3. `ollama_enriched` — narracyjnie rozwinięte sygnały przygotowane przez model.
+
+## Przepływ danych
+
+```text
+blacknet_ollama_outbox.json
+↓
+Ollama
+↓
+blacknet_ollama_inbox.json
+↓
+walidacja techniczna
+↓
+walidacja faktów i CTA
+↓
+normalizacja do Signal Contract
+↓
+mixed signal feed
+```
+
+## Kontrakt odpowiedzi Ollamy
+
+Każdy sygnał powinien zawierać:
+
+* `candidate_id`,
+* `digest_id`,
+* `source_fact_ids`,
+* `signal_type`,
+* `author_persona`,
+* `channel`,
+* `title`,
+* `stat`,
+* `label`,
+* `value`,
+* `body`,
+* `tone`,
+* sugerowany `layout_family`,
+* sugerowany `radar_variant`,
+* `cta_action`,
+* `cta_target_id`,
+* `expires_at`,
+* `confidence`.
+
+## Zasada zaufania
+
+Ollama może proponować:
+
+* tytuł,
+* opis,
+* styl wypowiedzi,
+* osobowość autora,
+* komentarz,
+* plotkę,
+* reklamową narrację,
+* wariant layoutu i radaru.
+
+Backend zawsze ponownie ustala lub sprawdza:
+
+* wartość liczbową,
+* cenę,
+* target,
+* region,
+* czas ważności,
+* `cta_action`,
+* `cta_target_id`,
+* istnienie powiązanego faktu,
+* możliwość publikacji.
+
+## Ingest pipeline
+
+Każdy kandydat otrzymuje status:
+
+* `received`,
+* `validated`,
+* `rejected`,
+* `normalized`,
+* `published`,
+* `expired`,
+* `archived`.
+
+Powód odrzucenia powinien być zapisany diagnostycznie.
+
+## Endpointy inbox
+
+Sprint 84 ma dodac kontrolowane wejscie dla odpowiedzi Ollamy.
+
+Endpointy:
+
+```text
+POST /api/blacknet/ollama/inbox
+GET  /api/blacknet/ollama/inbox/<digest_id>
+GET  /api/blacknet/ollama/candidates
+POST /api/blacknet/ollama/candidates/<candidate_id>/status
+```
+
+Zasady:
+
+* `POST /api/blacknet/ollama/inbox` przyjmuje odpowiedz modelu dla konkretnego
+  `digest_id`,
+* odpowiedz musi wskazywac istniejacy outbox digest,
+* endpoint nie publikuje sygnalow bez walidacji,
+* endpoint waliduje `source_fact_ids`, `cta_action`, `cta_target_id`, limity
+  tekstu i dozwolone typy,
+* endpoint odrzuca kandydatow, ktorzy wymyslaja nowe fakty, ceny, ID, URL albo
+  akcje,
+* endpoint candidates sluzy do diagnostyki i podgladu statusow,
+* status kandydata moze przejsc tylko przez jawne stany pipeline:
+  `received -> validated -> normalized -> published`,
+* `rejected`, `expired` i `archived` sa stanami koncowymi albo diagnostycznymi,
+* brak odpowiedzi Ollamy nie zatrzymuje `world_generated`.
+
+Transport docelowy:
+
+```text
+Ollama worker
+↓
+POST /api/blacknet/ollama/inbox
+↓
+walidator CHAOS
+↓
+ollama_enriched candidates
+↓
+mixed signal feed
+```
+
+## Mieszanie strumienia
+
+Feed powinien pilnować proporcji i różnorodności, na przykład:
+
+```text
+2 × world_generated
+1 × ollama_enriched
+1 × local_static lub specjalny sygnał
+```
+
+Nie musi to być sztywna kolejność. Mixer powinien uwzględniać:
+
+* priorytet,
+* świeżość,
+* ważność,
+* region gracza,
+* historię ostatnich sygnałów,
+* rodzaj treści,
+* źródło,
+* cooldown,
+* dostępność CTA.
+
+## Bezpieczny fallback
+
+Jeżeli Ollama:
+
+* nie działa,
+* zwróci błędny JSON,
+* przekroczy czas,
+* użyje nieistniejącego ID,
+* zmieni wartość faktu,
+* wygeneruje niedozwoloną akcję,
+
+kandydat zostaje odrzucony, a BlackNet nadal działa na `local_static` i `world_generated`.
+
+## Kryteria akceptacji
+
+* Poprawny inbox przechodzi walidację.
+* Niepoprawny JSON nie trafia do feedu.
+* Odpowiedz Ollamy moze zostac oddana przez endpoint, bez recznego kopiowania
+  plikow.
+* Kandydaci maja endpoint diagnostyczny i jawny status.
+* Sygnał AI zachowuje powiązanie z faktami źródłowymi.
+* Ollama nie może zmienić mechanicznej prawdy świata.
+* CTA jest ponownie budowane po stronie backendu.
+* Sygnały AI przeplatają się z automatycznymi.
+* Feed nie pokazuje kilku podobnych treści pod rząd.
+* Brak Ollamy nie blokuje BlackNetu.
+* Każdy sygnał pokazuje wewnętrznie swoje źródło.
+* System można wyłączyć jednym przełącznikiem bez zmiany frontendu.
+
+## Dokumentacja
+
+Po sprincie zaktualizować:
+
+* `doc/blacknet.md`,
+* `doc/blacknet_world_read_model.md`,
+* `doc/gameplay_matrix.md`,
+* `doc/project_journal.md`.
+
+Jeżeli powstanie kontrakt ingestu albo feedu mieszanego, dodać albo
+zaktualizować `doc/blacknet_mixed_feed.md`.
+
+# Stan po Sprincie 84
+
+```text
+realne dane gry
+↓
+BlackNet World Facts
+↓
+deterministyczne sygnały
+↓
+Ollama Digest Outbox
+↓
+Ollama
+↓
+walidowany Inbox
+↓
+Mixed Signal Feed
+↓
+BlackNet
+```
+
+Po Sprincie 84 BlackNet będzie działającym systemem informacyjnym świata CHAOS:
+
+* opisującym rzeczywiste zdarzenia,
+* działającym również bez AI,
+* przygotowującym bezpieczne dane dla Ollamy,
+* przyjmującym narracyjnie wzbogacone treści,
+* mieszającym sygnały automatyczne i AI,
+* zachowującym pełną kontrolę backendu nad gameplayem.
+
+
+
+---
+
 ## Status
 
 Backlog / Future Feature

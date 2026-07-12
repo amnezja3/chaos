@@ -9528,6 +9528,23 @@ def ensure_purchase_account_profile(username):
     return profile
 
 
+def normalize_desktop_settings(settings):
+    source = settings if isinstance(settings, dict) else {}
+    normalized = {
+        "wallpaper": str(source.get("wallpaper") or "").strip(),
+        "icon_positions": source.get("icon_positions") if isinstance(source.get("icon_positions"), dict) else {},
+        "auto_fullscreen": source.get("auto_fullscreen") is True,
+    }
+    if normalized["wallpaper"] not in [
+        "",
+        "wall-1", "wall-2", "wall-3",
+        "wall-chaos-green", "wall-chaos-blue", "wall-chaos-red",
+        "wall-chaos-amber", "wall-chaos-violet",
+    ]:
+        normalized["wallpaper"] = ""
+    return normalized
+
+
 def ghostlab_project_slug(name):
     slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", str(name or "").strip().lower()).strip("_")
     return slug[:48] or "project"
@@ -12889,6 +12906,7 @@ def api_profile():
 
     profile = sync_session_profile()
     profile = refresh_and_persist_operations(session["user"], profile)
+    profile["desktop_settings"] = normalize_desktop_settings(profile.get("desktop_settings"))
     profile["dev_mode"] = is_dev_mode_enabled()
     profile["app_version"] = APP_VERSION
     return jsonify(profile)
@@ -13289,9 +13307,9 @@ def update_profile_desktop():
     if "user" not in session:
         return jsonify({"error": "Brak danych uzytkownika"}), 401
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     profile = sync_session_profile()
-    settings = dict(profile.get("desktop_settings") or {})
+    settings = normalize_desktop_settings(profile.get("desktop_settings"))
 
     if "wallpaper" in data:
         wallpaper = str(data.get("wallpaper") or "").strip()
