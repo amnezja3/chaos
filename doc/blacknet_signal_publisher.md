@@ -79,6 +79,7 @@ Sprint 82 maps only known fact types:
 
 * `operations_active_count` -> `operation_activity`
 * `operations_top_type` -> `regional_activity`
+* `operation_hotspot_teleport` -> `teleport_hotspot`
 * `market_sales_7d` -> `market_watch`
 * `market_top_sector_7d` -> `data_demand`
 * `googleplex_product_signal` -> `product_opportunity`
@@ -161,6 +162,20 @@ operation_hotspot_activity
 
 It is created from `operation_hotspot_activity` facts and points to an existing
 map target through `focus_map_target`.
+
+Hotspots with real coordinates may also emit:
+
+```text
+operation_hotspot_teleport
+```
+
+This is a separate signal family using `teleport_to_hotspot`. It uses the same
+real target coordinates as the map focus signal and does not recreate the old
+mock district catalog.
+
+The publisher keeps family diversity in the first batch. A large Googleplex
+catalog cannot hide radio, system, teleport or map/conflict signal families when
+those families have publishable real facts.
 
 ## Sprint 82.7 Update
 

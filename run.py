@@ -375,6 +375,20 @@ BLACKNET_SIGNAL_RULES = {
         "tone": "lime",
         "layout": 1,
     },
+    "operation_hotspot_teleport": {
+        "signal_type": "teleport_hotspot",
+        "threshold": 1,
+        "channel": "PRZECHWYCONY KANAL",
+        "title_template": "TELEPORT / {category}",
+        "label": "SKOK DO TARGETU",
+        "value_suffix": "x",
+        "stat_template": "{target_label}",
+        "cta": "PRZECHWYC TELEPORT",
+        "cta_action": "teleport_to_hotspot",
+        "cta_target": "map_target",
+        "tone": "lime",
+        "layout": 2,
+    },
     "target_operation_burst": {
         "signal_type": "target_operation_burst",
         "threshold": 2,
@@ -929,6 +943,32 @@ def build_blacknet_operations_facts(profiles, now_dt):
                 "cta_target_id": target.get("target_id") or target.get("subject_id"),
             },
         ))
+        if coords:
+            facts.append(build_blacknet_fact(
+                "operation_hotspot_teleport",
+                "operations",
+                target.get("label") or "target",
+                top_target.get("count") or 0,
+                now_dt,
+                importance="medium",
+                confidence=0.84,
+                region_id=target.get("subject_id") or "target",
+                subject_id=target.get("subject_id") or target.get("target_id") or target.get("label"),
+                metadata={
+                    "target_id": target.get("target_id"),
+                    "target_label": target.get("label"),
+                    "target_type": target.get("target_type"),
+                    "target_mode": target.get("target_mode"),
+                    "lat": coords.get("lat"),
+                    "lng": coords.get("lng"),
+                    "coordinates": coords.get("label"),
+                    "operation_count": top_target.get("count") or 0,
+                    "operation_type": top_operation_type,
+                    "operation_ids": top_target.get("operation_ids", [])[:8],
+                    "owners_count": len(top_target.get("owners") or []),
+                    "cta_target_id": target.get("target_id") or target.get("subject_id"),
+                },
+            ))
         if int(top_target.get("count") or 0) >= 2:
             facts.append(build_blacknet_fact(
                 "target_operation_burst",
@@ -1731,7 +1771,12 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
     selected = []
     seen_signal_ids = set()
     seen_combinations = set()
-    for signal in candidates:
+    seen_families = set()
+
+    def try_select_signal(signal, require_new_family=False):
+        signal_family = str(signal.get("signal_type") or "").strip()
+        if require_new_family and signal_family in seen_families:
+            return False
         signal_keys = {
             str(signal.get("id") or "").strip(),
             str(signal.get("fact_id") or "").strip(),
@@ -1741,9 +1786,9 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
         signal_keys.discard("")
         if exclude_set.intersection(signal_keys):
             excluded.append(signal.get("id"))
-            continue
+            return False
         if signal["id"] in seen_signal_ids:
-            continue
+            return False
         combination = (
             signal.get("signal_type"),
             signal.get("layout"),
@@ -1753,12 +1798,24 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
             signal.get("category"),
         )
         if combination in seen_combinations:
-            continue
+            return False
         seen_signal_ids.add(signal["id"])
         seen_combinations.add(combination)
+        if signal_family:
+            seen_families.add(signal_family)
         selected.append(signal)
+        return True
+
+    for signal in candidates:
+        try_select_signal(signal, require_new_family=True)
         if len(selected) >= int(limit or BLACKNET_WORLD_SIGNALS_LIMIT):
             break
+
+    if len(selected) < int(limit or BLACKNET_WORLD_SIGNALS_LIMIT):
+        for signal in candidates:
+            try_select_signal(signal, require_new_family=False)
+            if len(selected) >= int(limit or BLACKNET_WORLD_SIGNALS_LIMIT):
+                break
 
     out_of_signal = False
     if not selected:

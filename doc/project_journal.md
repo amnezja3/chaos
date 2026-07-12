@@ -7824,3 +7824,24 @@ buduja temperature/importance sygnalu.
 Travel tickets, storage products i pro-tools sa dzieki temu zwyklymi elementami
 niekonczacego sie feedu BlackNetu. CTA nadal korzysta z istniejacego Googleplexa
 i wpisuje realna nazwe pozycji do wyszukiwarki.
+
+### Hotfix - BlackNet signal family visibility
+
+Po rozbiciu Googleplexa na osobne sygnaly produktowe katalog mogl zdominowac
+pierwsza paczke `world-signals` i praktycznie schowac rodziny o nizszej wadze,
+np. radio, system albo teleport.
+
+Publisher wybiera teraz pierwsza paczke z zachowaniem roznorodnosci rodzin
+`signal_type`, a dopiero potem wypelnia pozostale miejsca rankingiem waznosci.
+Dzieki temu duza liczba pozycji Googleplexa nie ukrywa radia, teleportu,
+Cybernera/systemu ani map/conflict signals, jezeli maja realne fakty.
+
+Dodano tez osobna realna rodzine:
+
+```text
+operation_hotspot_teleport -> teleport_hotspot
+```
+
+Teleport nie wraca do mockowych dzielnic. Powstaje z aktywnego hotspotu operacji
+z realnymi wspolrzednymi targetu i korzysta z istniejacego mostu
+`teleport_to_hotspot`.

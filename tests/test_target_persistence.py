@@ -1121,8 +1121,13 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
             fact for fact in snapshot["facts"]
             if fact["fact_type"] == "target_operation_burst"
         ]
+        teleports = [
+            fact for fact in snapshot["facts"]
+            if fact["fact_type"] == "operation_hotspot_teleport"
+        ]
         self.assertEqual(len(hotspots), 1)
         self.assertEqual(len(bursts), 1)
+        self.assertEqual(len(teleports), 1)
         hotspot = hotspots[0]
         self.assertEqual(hotspot["value"], 2)
         self.assertEqual(hotspot["metadata"]["target_label"], "Piekarnia Putka")
@@ -1130,6 +1135,7 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         self.assertAlmostEqual(hotspot["metadata"]["lat"], 52.22001)
         self.assertAlmostEqual(hotspot["metadata"]["lng"], 21.01002)
         self.assertEqual(bursts[0]["metadata"]["cta_target_id"], "poi-putka")
+        self.assertEqual(teleports[0]["metadata"]["cta_target_id"], "poi-putka")
 
     def test_blacknet_operation_hotspot_uses_operation_coordinates_when_target_is_partial(self):
         now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
@@ -1156,11 +1162,15 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
 
         facts = run.build_blacknet_operations_facts(profiles, now)
         hotspot = next(fact for fact in facts if fact["fact_type"] == "operation_hotspot_activity")
+        teleport = next(fact for fact in facts if fact["fact_type"] == "operation_hotspot_teleport")
 
         self.assertEqual(hotspot["metadata"]["target_label"], "POI-00B7D7")
         self.assertAlmostEqual(hotspot["metadata"]["lat"], 52.280897)
         self.assertAlmostEqual(hotspot["metadata"]["lng"], 20.997489)
         self.assertNotIn("unknown:unknown", hotspot["metadata"]["cta_target_id"])
+        self.assertEqual(teleport["metadata"]["target_label"], "POI-00B7D7")
+        self.assertAlmostEqual(teleport["metadata"]["lat"], 52.280897)
+        self.assertAlmostEqual(teleport["metadata"]["lng"], 20.997489)
 
     def test_blacknet_world_facts_snapshot_builds_real_conflict_target(self):
         now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
@@ -1389,6 +1399,56 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertTrue(empty["diagnostics"]["out_of_signal"])
         self.assertGreaterEqual(empty["diagnostics"]["excluded"], len(all_ids))
 
+    def test_blacknet_world_signal_publisher_keeps_family_diversity_in_first_batch(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        base = {
+            "previous_value": None,
+            "change_percent": 0,
+            "importance": 90,
+            "confidence": 0.9,
+            "observed_at": "2026-07-11T11:00:00Z",
+            "expires_at": "2026-07-11T12:10:00Z",
+        }
+        googleplex_facts = [
+            {
+                **base,
+                "fact_id": f"googleplex-{index}",
+                "fact_type": "googleplex_product_signal",
+                "category": f"tool-{index}",
+                "region_id": "global",
+                "subject_id": f"tool-{index}",
+                "value": 650 + index,
+                "source_system": "googleplex",
+                "metadata": {
+                    "product_id": f"tool-{index}",
+                    "product_name": f"Tool {index}",
+                    "product_type": "system_tool",
+                    "price": 650 + index,
+                    "downloads": index,
+                    "temperature": 80,
+                    "cta_target_id": f"tool-{index}",
+                    "cta_query": f"Tool {index}",
+                },
+            }
+            for index in range(12)
+        ]
+        facts = {
+            "version": "facts-diverse",
+            "facts": googleplex_facts + [
+                {**base, "fact_id": "ops-teleport", "fact_type": "operation_hotspot_teleport", "category": "Piekarnia Putka", "region_id": "poi-putka", "subject_id": "poi-putka", "value": 2, "source_system": "operations", "metadata": {"target_id": "poi-putka", "target_label": "Piekarnia Putka", "lat": 52.22, "lng": 21.01, "cta_target_id": "poi-putka"}},
+                {**base, "fact_id": "radio", "fact_type": "radio_channels_available", "category": "radio", "region_id": "global", "subject_id": "radio", "value": 2, "source_system": "radio", "metadata": {"tracks_total": 25, "channel_id": "blacknet_radio_2", "track_file": "002_signal.mp3"}},
+                {**base, "fact_id": "world", "fact_type": "system_messages_24h", "category": "system", "region_id": "global", "subject_id": "system", "value": 3, "source_system": "system", "metadata": {"thread_scope": "group", "thread_peer": "global", "thread_channel": "world"}},
+            ],
+        }
+
+        snapshot = build_blacknet_world_signals(facts, now=now, limit=8)
+        signal_types = {signal["signal_type"] for signal in snapshot["signals"]}
+
+        self.assertIn("product_opportunity", signal_types)
+        self.assertIn("teleport_hotspot", signal_types)
+        self.assertIn("radio_promotion", signal_types)
+        self.assertIn("system_incident", signal_types)
+
     def test_blacknet_world_signal_publisher_expires_old_fact(self):
         now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
         facts = {
@@ -1581,6 +1641,7 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
                     "operations_active_count",
                     "operations_top_type",
                     "operation_hotspot_activity",
+                    "operation_hotspot_teleport",
                     "target_operation_burst",
                     "conflict_target_alert",
                     "contested_area_alert",
@@ -1750,6 +1811,7 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
             {**base, "fact_id": "ops-active", "fact_type": "operations_active_count", "category": "operations", "region_id": "global", "subject_id": "operations", "value": 3, "source_system": "operations", "metadata": {}},
             {**base, "fact_id": "ops-top", "fact_type": "operations_top_type", "category": "persistent_sniffer", "region_id": "global", "subject_id": "persistent_sniffer", "value": 262, "source_system": "operations", "metadata": {"operation_type": "persistent_sniffer"}},
             {**base, "fact_id": "ops-hotspot", "fact_type": "operation_hotspot_activity", "category": "Piekarnia Putka", "region_id": "poi-putka", "subject_id": "poi-putka", "value": 2, "source_system": "operations", "metadata": {"target_id": "poi-putka", "target_label": "Piekarnia Putka", "lat": 52.22, "lng": 21.01, "cta_target_id": "poi-putka"}},
+            {**base, "fact_id": "ops-teleport", "fact_type": "operation_hotspot_teleport", "category": "Piekarnia Putka", "region_id": "poi-putka", "subject_id": "poi-putka", "value": 2, "source_system": "operations", "metadata": {"target_id": "poi-putka", "target_label": "Piekarnia Putka", "lat": 52.22, "lng": 21.01, "cta_target_id": "poi-putka"}},
             {**base, "fact_id": "ops-burst", "fact_type": "target_operation_burst", "category": "Zabka", "region_id": "poi-zabka", "subject_id": "poi-zabka", "value": 4, "source_system": "operations", "metadata": {"target_id": "poi-zabka", "target_label": "Zabka", "lat": 52.23, "lng": 21.02, "cta_target_id": "poi-zabka"}},
             {**base, "fact_id": "conflict-target", "fact_type": "conflict_target_alert", "category": "Conflict-00B7D7", "region_id": "poi-conflict", "subject_id": "poi-conflict", "value": 1, "source_system": "conflicts", "metadata": {"target_id": "poi-conflict", "target_label": "Conflict-00B7D7", "lat": 52.24, "lng": 21.03, "cta_target_id": "poi-conflict"}},
             {**base, "fact_id": "conflict-area", "fact_type": "contested_area_alert", "category": "conflicts", "region_id": "global", "subject_id": "conflicts", "value": 2, "source_system": "conflicts", "metadata": {}},
@@ -1773,6 +1835,10 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
             self.assertTrue(by_fact[fact_id]["cta_target_id"])
             self.assertIsNotNone(by_fact[fact_id]["metadata"].get("lat"))
             self.assertIsNotNone(by_fact[fact_id]["metadata"].get("lng"))
+        self.assertEqual(by_fact["ops-teleport"]["cta_action"], "teleport_to_hotspot")
+        self.assertEqual(by_fact["ops-teleport"]["cta_target_id"], "poi-putka")
+        self.assertIsNotNone(by_fact["ops-teleport"]["metadata"].get("lat"))
+        self.assertIsNotNone(by_fact["ops-teleport"]["metadata"].get("lng"))
         self.assertEqual(by_fact["conflict-area"]["cta_action"], "open_map")
         self.assertEqual(by_fact["conflict-area"]["cta_target_id"], "")
         self.assertEqual(by_fact["market-all"]["cta_action"], "open_exchange_market")
