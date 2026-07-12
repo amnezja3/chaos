@@ -1122,6 +1122,37 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         self.assertAlmostEqual(hotspot["metadata"]["lng"], 21.01002)
         self.assertEqual(bursts[0]["metadata"]["cta_target_id"], "poi-putka")
 
+    def test_blacknet_operation_hotspot_uses_operation_coordinates_when_target_is_partial(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        operation = {
+            "operation_id": "op-partial-target",
+            "operation_type": "scan",
+            "status": "running",
+            "started_at": "2026-07-11T11:55:00+00:00",
+            "expires_at": "2026-07-11T12:55:00+00:00",
+            "lat": 52.280897,
+            "lng": 20.997489,
+            "target": {
+                "label": "POI-00B7D7",
+                "target_type": "poi",
+            },
+        }
+        profiles = [{
+            "username": "alice",
+            "operations": [operation],
+            "market_history": [],
+            "files": {"market": []},
+            "system_messages": [],
+        }]
+
+        facts = run.build_blacknet_operations_facts(profiles, now)
+        hotspot = next(fact for fact in facts if fact["fact_type"] == "operation_hotspot_activity")
+
+        self.assertEqual(hotspot["metadata"]["target_label"], "POI-00B7D7")
+        self.assertAlmostEqual(hotspot["metadata"]["lat"], 52.280897)
+        self.assertAlmostEqual(hotspot["metadata"]["lng"], 20.997489)
+        self.assertNotIn("unknown:unknown", hotspot["metadata"]["cta_target_id"])
+
     def test_blacknet_world_facts_snapshot_builds_real_conflict_target(self):
         now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
         conflicts = [{

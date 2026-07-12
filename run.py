@@ -665,10 +665,37 @@ def blacknet_target_coordinates(target):
     }
 
 
+def blacknet_operation_target_payload(operation):
+    if not isinstance(operation, dict):
+        return {}
+    target = operation.get("target") if isinstance(operation.get("target"), dict) else {}
+    merged = dict(target)
+    for source_key, target_key in (
+        ("lat", "lat"),
+        ("lng", "lng"),
+        ("lon", "lon"),
+        ("latitude", "lat"),
+        ("longitude", "lng"),
+        ("target_lat", "lat"),
+        ("target_lng", "lng"),
+        ("target_lon", "lon"),
+        ("target_label", "label"),
+        ("label", "label"),
+        ("name", "name"),
+        ("target_type", "target_type"),
+        ("target_mode", "target_mode"),
+    ):
+        if merged.get(target_key) in (None, "") and operation.get(source_key) not in (None, ""):
+            merged[target_key] = operation.get(source_key)
+    if merged.get("lng") in (None, "") and merged.get("lon") not in (None, ""):
+        merged["lng"] = merged.get("lon")
+    return merged
+
+
 def blacknet_operation_target_snapshot(operation):
     if not isinstance(operation, dict):
         return None
-    target = operation.get("target") if isinstance(operation.get("target"), dict) else {}
+    target = blacknet_operation_target_payload(operation)
     if not target:
         return None
     target_id = str(operation.get("target_id") or build_operation_target_id(target) or "").strip()

@@ -7682,3 +7682,17 @@ korzysta z istniejacego endpointu `/api/blacknet/cta/teleport`.
 
 Audyt fix zakonczony. Mosty CTA sa spojne z realnym feedem 82.6-82.9 i gotowe
 do dalszego etapu BlackNetu bez powrotu do produkcyjnych mockow.
+
+### Hotfix
+
+Naprawiono przypadek, w ktorym sygnal mapy BlackNetu mogl dostac
+`map:unknown:unknown:*` jako `cta_target_id`.
+
+Przyczyna: czesc operacji trzymala `lat/lng` na poziomie operacji, a nie w
+wewnetrznym `operation.target`. Generator BlackNetu budowal wtedy target id z
+niepelnego obiektu targetu.
+
+Poprawka: `blacknet_operation_target_snapshot()` scala teraz dane celu z
+operacji i uzywa wspolrzednych z operacji jako fallback. Link `POKAZ NA MAPIE`
+ma dzieki temu realne `lat/lng` w metadanych i moze wycentrowac iframe mapy na
+celu bez teleportu.
