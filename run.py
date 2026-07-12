@@ -461,6 +461,20 @@ BLACKNET_SIGNAL_RULES = {
         "tone": "amber",
         "layout": 3,
     },
+    "googleplex_product_signal": {
+        "signal_type": "product_opportunity",
+        "threshold": 0,
+        "channel": "NIEZWERYFIKOWANY DROP",
+        "title_template": "GOOGLEPLEX / {product_name}",
+        "label": "CENA",
+        "value_suffix": " HC",
+        "stat_template": "{temperature} TEMP / {downloads} POBRAN",
+        "cta": "SPRAWDZ W GOOGLEPLEX",
+        "cta_action": "open_googleplex_search",
+        "cta_target": "googleplex",
+        "tone": "amber",
+        "layout": 3,
+    },
     "radio_channels_available": {
         "signal_type": "radio_promotion",
         "threshold": 1,
@@ -1028,64 +1042,108 @@ def build_blacknet_ghost_exchange_facts(profiles, now_dt):
     return facts
 
 
+def blacknet_googleplex_item_temperature(item, now_dt):
+    item = item if isinstance(item, dict) else {}
+    try:
+        price = int(item.get("price") or 0)
+    except (TypeError, ValueError):
+        price = 0
+    try:
+        downloads = int(item.get("downloads") or 0)
+    except (TypeError, ValueError):
+        downloads = 0
+    product_type = str(item.get("product_type") or "").strip()
+    item_type = str(item.get("type") or "").strip()
+    freshness_score = 8
+    timestamp = (
+        item.get("published_at")
+        or item.get("updated_at")
+        or item.get("created_at")
+        or item.get("generated_at")
+    )
+    parsed_ts = parse_operation_timestamp(timestamp)
+    if parsed_ts:
+        age_seconds = max(0, int(now_dt.timestamp()) - int(parsed_ts))
+        if age_seconds <= 24 * 3600:
+            freshness_score = 30
+        elif age_seconds <= 7 * 24 * 3600:
+            freshness_score = 20
+        elif age_seconds <= 30 * 24 * 3600:
+            freshness_score = 12
+    elif product_type or item_type in {"pro-system-tool", "system_lab"}:
+        freshness_score = 18
+
+    class_score = 10
+    if product_type == "travel_ticket":
+        class_score = 26
+    elif product_type:
+        class_score = 22
+    elif item_type in {"pro-system-tool", "system_lab"}:
+        class_score = 24
+
+    return max(1, min(100, class_score + freshness_score + min(28, downloads * 2) + min(20, price // 500)))
+
+
+def blacknet_googleplex_importance(temperature):
+    try:
+        temperature = int(temperature or 0)
+    except (TypeError, ValueError):
+        temperature = 0
+    if temperature >= 70:
+        return "high"
+    if temperature >= 35:
+        return "medium"
+    return "low"
+
+
 def build_blacknet_googleplex_facts(now_dt):
     catalog = get_app_catalog()
-    products = [item for item in catalog if isinstance(item, dict) and item.get("product_type")]
-    apps = [item for item in catalog if isinstance(item, dict) and not item.get("product_type")]
-    categories = {}
-    prices = []
+    facts = []
     for item in catalog:
         if not isinstance(item, dict):
             continue
-        category = str(item.get("category") or item.get("product_type") or "unknown")
-        categories[category] = categories.get(category, 0) + 1
+        item_id = str(item.get("id") or "").strip()
+        item_name = str(item.get("name") or item_id).strip()
+        if not item_id or not item_name:
+            continue
+        if item.get("published") is False:
+            continue
+        product_type = str(item.get("product_type") or "").strip()
+        item_type = str(item.get("type") or "").strip()
+        category = str(item.get("category") or product_type or item_type or "googleplex").strip()
         try:
-            prices.append(int(item.get("price") or 0))
+            price = int(item.get("price") or 0)
         except (TypeError, ValueError):
-            pass
-    average_price = int(round(sum(prices) / len(prices))) if prices else 0
-    featured_product = products[0] if products else (apps[0] if apps else {})
-    featured_id = str(featured_product.get("id") or "").strip() if isinstance(featured_product, dict) else ""
-    featured_name = str(featured_product.get("name") or featured_id).strip() if isinstance(featured_product, dict) else ""
-    featured_category = str(
-        featured_product.get("category")
-        or featured_product.get("product_type")
-        or ""
-    ).strip() if isinstance(featured_product, dict) else ""
-    featured_price = 0
-    featured_type = ""
-    if isinstance(featured_product, dict) and featured_product:
+            price = 0
         try:
-            featured_price = int(featured_product.get("price") or 0)
+            downloads = int(item.get("downloads") or 0)
         except (TypeError, ValueError):
-            featured_price = 0
-        featured_type = str(featured_product.get("product_type") or "app").strip() or "app"
-    return [
-        build_blacknet_fact(
-            "googleplex_catalog_size",
+            downloads = 0
+        temperature = blacknet_googleplex_item_temperature(item, now_dt)
+        product_kind = product_type or item_type or "app"
+        facts.append(build_blacknet_fact(
+            "googleplex_product_signal",
             "googleplex",
-            featured_name or "catalog",
-            featured_price if featured_id else len(catalog),
+            category,
+            price,
             now_dt,
-            importance="medium",
+            importance=blacknet_googleplex_importance(temperature),
             confidence=0.95,
+            subject_id=item_id,
             metadata={
-                "catalog_count": len(catalog),
-                "apps": len(apps),
-                "products": len(products),
-                "average_price": average_price,
-                "categories": categories,
-                "product_id": featured_id,
-                "product_name": featured_name,
-                "product_type": featured_type,
-                "price": featured_price,
-                "category": featured_category,
-                "cta_target_id": featured_id,
-                "cta_query": "/all",
-                "featured_product_query": featured_name or featured_id,
+                "product_id": item_id,
+                "product_name": item_name,
+                "product_type": product_kind,
+                "price": price,
+                "downloads": downloads,
+                "temperature": temperature,
+                "category": category,
+                "travel_city": item.get("travel_city") or "",
+                "cta_target_id": item_id,
+                "cta_query": item_name,
             },
-        )
-    ]
+        ))
+    return facts
 
 
 def build_blacknet_radio_facts(now_dt):
@@ -1485,6 +1543,10 @@ def blacknet_format_signal_stat(rule, fact, value):
         "volume_mb": int(metadata.get("volume_mb") or 0),
         "products": int(metadata.get("products") or 0),
         "tracks_total": int(metadata.get("tracks_total") or 0),
+        "downloads": int(metadata.get("downloads") or 0),
+        "temperature": int(metadata.get("temperature") or 0),
+        "product_name": str(metadata.get("product_name") or blacknet_format_category(fact.get("category"))),
+        "product_type": str(metadata.get("product_type") or ""),
     }
     template = str(rule.get("stat_template") or "{value}")
     try:
@@ -1570,10 +1632,14 @@ def blacknet_signal_from_fact(fact, now_dt):
     if cta_action not in BLACKNET_ALLOWED_CTA_ACTIONS:
         return None
     category_label = blacknet_format_category(fact.get("category"))
-    title = str(rule.get("title_template") or rule.get("title") or "WORLD SIGNAL").format(
-        category=category_label,
-        value=value,
-    )
+    title_values = {
+        "category": category_label,
+        "value": value,
+        "product_name": str(metadata.get("product_name") or category_label),
+        "product_type": str(metadata.get("product_type") or ""),
+        "target_label": str(metadata.get("target_label") or category_label),
+    }
+    title = str(rule.get("title_template") or rule.get("title") or "WORLD SIGNAL").format(**title_values)
     signal_type = str(rule.get("signal_type") or "world_alert")
     cta_target_id = str(
         metadata.get("cta_target_id")
@@ -1630,16 +1696,22 @@ def blacknet_signal_from_fact(fact, now_dt):
     return signal
 
 
-def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_SIGNALS_LIMIT):
+def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_SIGNALS_LIMIT, exclude_ids=None):
     started = time.perf_counter()
     now_dt = now if isinstance(now, datetime) else blacknet_utc_now()
     if now_dt.tzinfo is None:
         now_dt = now_dt.replace(tzinfo=timezone.utc)
+    exclude_set = {
+        str(item).strip()
+        for item in (exclude_ids or [])
+        if str(item or "").strip()
+    }
     if not isinstance(snapshot, dict):
         snapshot = build_blacknet_world_facts_snapshot(now=now_dt)
     facts = snapshot.get("facts") if isinstance(snapshot.get("facts"), list) else []
     candidates = []
     rejected = []
+    excluded = []
     for fact in facts:
         signal = blacknet_signal_from_fact(fact, now_dt)
         if signal:
@@ -1660,6 +1732,16 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
     seen_signal_ids = set()
     seen_combinations = set()
     for signal in candidates:
+        signal_keys = {
+            str(signal.get("id") or "").strip(),
+            str(signal.get("fact_id") or "").strip(),
+            str(signal.get("entity_id") or "").strip(),
+            str(signal.get("cta_target_id") or "").strip(),
+        }
+        signal_keys.discard("")
+        if exclude_set.intersection(signal_keys):
+            excluded.append(signal.get("id"))
+            continue
         if signal["id"] in seen_signal_ids:
             continue
         combination = (
@@ -1714,6 +1796,7 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
             "candidates": len(candidates),
             "published": len(selected),
             "rejected": len(rejected),
+            "excluded": len(excluded),
             "out_of_signal": out_of_signal,
             "local_static_allowed": False,
             "local_static_policy": "dev_flag_only",
@@ -11203,8 +11286,18 @@ def api_blacknet_world_signals():
             "message": "BlackNet world signals wymagaja aktywnej sesji.",
             "snapshot": None,
         }), 401
+    try:
+        limit = int(request.args.get("limit") or BLACKNET_WORLD_SIGNALS_LIMIT)
+    except (TypeError, ValueError):
+        limit = BLACKNET_WORLD_SIGNALS_LIMIT
+    limit = max(1, min(32, limit))
+    exclude_ids = [
+        item.strip()
+        for item in str(request.args.get("exclude") or "").split(",")
+        if item.strip()
+    ]
     facts_snapshot = build_blacknet_world_facts_snapshot()
-    signal_snapshot = build_blacknet_world_signals(facts_snapshot)
+    signal_snapshot = build_blacknet_world_signals(facts_snapshot, limit=limit, exclude_ids=exclude_ids)
     return jsonify({
         "success": True,
         "snapshot": signal_snapshot,

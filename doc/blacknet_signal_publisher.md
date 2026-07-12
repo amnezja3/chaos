@@ -81,7 +81,7 @@ Sprint 82 maps only known fact types:
 * `operations_top_type` -> `regional_activity`
 * `market_sales_7d` -> `market_watch`
 * `market_top_sector_7d` -> `data_demand`
-* `googleplex_catalog_size` -> `product_opportunity`
+* `googleplex_product_signal` -> `product_opportunity`
 * `radio_channels_available` -> `radio_promotion`
 * `system_messages_24h` -> `system_incident`
 

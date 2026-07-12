@@ -3067,13 +3067,51 @@ function createBrowser() {
 
     const BLACKNET_SIGNAL_SOURCE = "/static/blacknet_signals.json";
     const BLACKNET_WORLD_SIGNAL_SOURCE = "/api/blacknet/world-signals";
+    const BLACKNET_SIGNAL_BATCH_LIMIT = 8;
+    const BLACKNET_SIGNAL_REFILL_THRESHOLD = 2;
     let blacknetSignals = [];
     let blacknetSignalsLoaded = false;
     let blacknetSignalsLoading = null;
     let blacknetSignalsError = "";
+    let blacknetSignalFeedExhausted = false;
 
     const blacknetCapturedSignals = new Set();
     let activeBlacknetDirection = "right";
+
+    const blacknetIsOutOfSignal = signal => {
+        return String(signal?.signal_type || "") === "out_of_signal"
+            || signal?.metadata?.out_of_signal === true;
+    };
+
+    const blacknetSignalIdentityKeys = signal => {
+        if (!signal || typeof signal !== "object") return [];
+        return [
+            signal.id,
+            signal.fact_id,
+            signal.entity_id,
+            signal.cta_target_id
+        ].map(value => String(value || "").trim()).filter(Boolean);
+    };
+
+    const blacknetExcludedSignalKeys = () => {
+        const keys = new Set(Array.from(blacknetCapturedSignals).map(value => String(value || "").trim()).filter(Boolean));
+        blacknetSignals.forEach(signal => {
+            blacknetSignalIdentityKeys(signal).forEach(key => keys.add(key));
+        });
+        return Array.from(keys);
+    };
+
+    const blacknetWorldSignalUrl = (append = false) => {
+        const params = new URLSearchParams();
+        params.set("limit", String(BLACKNET_SIGNAL_BATCH_LIMIT));
+        if (append) {
+            const excluded = blacknetExcludedSignalKeys();
+            if (excluded.length) {
+                params.set("exclude", excluded.join(","));
+            }
+        }
+        return `${BLACKNET_WORLD_SIGNAL_SOURCE}?${params.toString()}`;
+    };
 
     const isBlacknetStaticFallbackEnabled = () => {
         try {
@@ -3159,12 +3197,14 @@ function createBrowser() {
         };
     };
 
-    const loadBlacknetSignals = async () => {
-        if (blacknetSignalsLoaded) return blacknetSignals;
+    const loadBlacknetSignals = async (options = {}) => {
+        const append = options.append === true;
+        const force = options.force === true;
+        if (blacknetSignalsLoaded && !append && !force) return blacknetSignals;
         if (blacknetSignalsLoading) return blacknetSignalsLoading;
         blacknetSignalsError = "";
-        const allowStaticFallback = isBlacknetStaticFallbackEnabled();
-        const worldRequest = fetch(BLACKNET_WORLD_SIGNAL_SOURCE, { cache: "no-cache" }).then(async response => {
+        const allowStaticFallback = !append && isBlacknetStaticFallbackEnabled();
+        const worldRequest = fetch(blacknetWorldSignalUrl(append || force), { cache: "no-cache" }).then(async response => {
             if (!response.ok) throw new Error(`world HTTP ${response.status}`);
             return response.json();
         });
@@ -3191,7 +3231,8 @@ function createBrowser() {
                     ? worldPayload.snapshot.signals
                     : (Array.isArray(worldPayload?.signals) ? worldPayload.signals : []);
                 const worldOutOfSignal = worldSignals.some(signal => String(signal?.signal_type || "") === "out_of_signal");
-                let mergedSignals = worldSignals;
+                blacknetSignalFeedExhausted = worldOutOfSignal;
+                let mergedSignals = append ? [...blacknetSignals, ...worldSignals] : worldSignals;
                 if (!mergedSignals.length) {
                     mergedSignals = allowStaticFallback && localSignals.length
                         ? localSignals
@@ -3204,6 +3245,7 @@ function createBrowser() {
                 mergedSignals.forEach((signal, index) => {
                     const normalized = normalizeBlacknetSignal(signal, index);
                     if (!normalized || seenIds.has(normalized.id)) return;
+                    if (append && blacknetCapturedSignals.has(normalized.id) && !blacknetIsOutOfSignal(normalized)) return;
                     seenIds.add(normalized.id);
                     dedupedSignals.push(normalized);
                 });
@@ -3211,8 +3253,9 @@ function createBrowser() {
                     ? dedupedSignals
                     : [normalizeBlacknetSignal(blacknetClientOutOfSignal("no_valid_signal_payload"), 0)].filter(Boolean);
                 blacknetSignalsLoaded = true;
-                if (!blacknetSignals.some(signal => signal.id === activeBlacknetSignalId)) {
-                    activeBlacknetSignalId = blacknetSignals[0]?.id || "";
+                const visibleSignals = blacknetVisibleSignals();
+                if (!visibleSignals.some(signal => signal.id === activeBlacknetSignalId)) {
+                    activeBlacknetSignalId = visibleSignals[0]?.id || blacknetSignals[0]?.id || "";
                 }
                 return blacknetSignals;
             })
@@ -3233,7 +3276,30 @@ function createBrowser() {
     };
 
     const blacknetVisibleSignals = () => {
-        return blacknetSignals;
+        const visible = [];
+        const outOfSignals = [];
+        blacknetSignals.forEach(signal => {
+            if (!signal) return;
+            if (blacknetIsOutOfSignal(signal)) {
+                outOfSignals.push(signal);
+                return;
+            }
+            if (blacknetCapturedSignals.has(signal.id) || blacknetSignalExpired(signal)) {
+                blacknetSignalIdentityKeys(signal).forEach(key => blacknetCapturedSignals.add(key));
+                return;
+            }
+            visible.push(signal);
+        });
+        return visible.length ? visible : outOfSignals;
+    };
+
+    const maybeRefillBlacknetSignals = visibleSignals => {
+        if (!blacknetSignalsLoaded || blacknetSignalsLoading) return;
+        if (blacknetSignalFeedExhausted) return;
+        if (visibleSignals.some(blacknetIsOutOfSignal)) return;
+        const activeSignals = visibleSignals.filter(signal => !blacknetIsOutOfSignal(signal));
+        if (activeSignals.length > BLACKNET_SIGNAL_REFILL_THRESHOLD) return;
+        loadBlacknetSignals({ append: true, force: true });
     };
 
     const stepBlacknetSignal = (delta, direction = "right") => {
@@ -3777,6 +3843,7 @@ function createBrowser() {
             return;
         }
         const visibleSignals = blacknetVisibleSignals();
+        maybeRefillBlacknetSignals(visibleSignals);
         const activeIndex = Math.max(0, visibleSignals.findIndex(signal => signal.id === activeBlacknetSignalId));
         const featured = visibleSignals[activeIndex] || visibleSignals[0] || null;
         if (featured?.id) {
@@ -3856,9 +3923,10 @@ function createBrowser() {
             const result = await runBlacknetCta(signal);
             if (result?.ok && signalId && !result.noCapture) {
                 blacknetCapturedSignals.add(signalId);
-                if (activeBrowserTab === "blacknet") {
-                    renderBlackNet();
-                }
+                blacknetSignalIdentityKeys(signal).forEach(key => blacknetCapturedSignals.add(key));
+                activeBlacknetSignalId = "";
+                await loadBlacknetSignals({ append: true, force: true });
+                if (activeBrowserTab === "blacknet") renderBlackNet();
             } else {
                 button.disabled = false;
                 if (result?.message) {

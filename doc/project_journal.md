@@ -7798,3 +7798,29 @@ ogolny `contested_area_alert`, ale nie dostaje klikalnego fokusu mapy.
 
 Dodano test regresyjny potwierdzajacy, ze konflikt bez wspolrzednych nie emituje
 `unknown:unknown` do snapshotu faktow.
+
+### Hotfix - BlackNet infinite signal feed
+
+BlackNet nie zatrzymuje sie juz na jednorazowym buforze top 8 sygnalow.
+
+Endpoint `GET /api/blacknet/world-signals` przyjmuje teraz `limit` oraz
+`exclude`, dzieki czemu WebDragons moze dociagac kolejne realne sygnaly po
+przechwyceniu albo wygasnieciu aktualnych.
+
+Po stronie UI przechwycone i wygasle sygnaly wypadaja z widocznej kolejki, a
+BlackNet automatycznie uzupelnia bufor nastepna paczka. Jedynym poprawnym
+koncem strumienia jest sygnal `out_of_signal`.
+
+### Hotfix - BlackNet Googleplex product signals
+
+Googleplex w BlackNecie nie emituje juz pojedynczego syntetycznego sygnalu
+katalogu jako glownej sciezki runtime.
+
+`blacknet_world_facts` tworzy teraz osobny fakt `googleplex_product_signal` dla
+kazdej opublikowanej pozycji katalogu Googleplex/pro-tools/system products.
+Cena pozostaje glowna liczba sygnalu, a pobrania, swiezosc i typ produktu
+buduja temperature/importance sygnalu.
+
+Travel tickets, storage products i pro-tools sa dzieki temu zwyklymi elementami
+niekonczacego sie feedu BlackNetu. CTA nadal korzysta z istniejacego Googleplexa
+i wpisuje realna nazwe pozycji do wyszukiwarki.

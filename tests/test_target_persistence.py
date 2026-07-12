@@ -976,11 +976,14 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         self.assertIn(("operations", "operation_hotspot_activity"), fact_keys)
         self.assertIn(("ghost_exchange", "market_sales_7d"), fact_keys)
         self.assertIn(("ghost_exchange", "market_top_sector_7d"), fact_keys)
-        self.assertIn(("googleplex", "googleplex_catalog_size"), fact_keys)
+        self.assertIn(("googleplex", "googleplex_product_signal"), fact_keys)
         self.assertEqual(by_type["market_top_sector_7d"]["metadata"]["sector_key"], "gps")
         self.assertEqual(by_type["market_top_sector_7d"]["metadata"]["cta_target_id"], "gps")
-        self.assertEqual(by_type["googleplex_catalog_size"]["metadata"]["product_id"], "vault")
-        self.assertEqual(by_type["googleplex_catalog_size"]["metadata"]["price"], 250)
+        googleplex_facts = [fact for fact in snapshot["facts"] if fact["fact_type"] == "googleplex_product_signal"]
+        googleplex_by_product = {fact["metadata"]["product_id"]: fact for fact in googleplex_facts}
+        self.assertEqual(set(googleplex_by_product), {"xmapper", "vault"})
+        self.assertEqual(googleplex_by_product["vault"]["metadata"]["price"], 250)
+        self.assertEqual(googleplex_by_product["vault"]["metadata"]["cta_query"], "Vault")
         serialized = json.dumps(snapshot, ensure_ascii=False)
         self.assertNotIn("secret", serialized)
         self.assertNotIn("salt", serialized)
@@ -1355,6 +1358,37 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertEqual(first["signals"], second["signals"])
         self.assertEqual(first["version"], second["version"])
 
+    def test_blacknet_world_signal_publisher_can_page_until_out_of_signal(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        base = {
+            "previous_value": None,
+            "change_percent": 0,
+            "importance": 80,
+            "confidence": 0.9,
+            "observed_at": "2026-07-11T11:00:00Z",
+            "expires_at": "2026-07-11T12:10:00Z",
+        }
+        facts = {"version": "facts-paged", "facts": [
+            {**base, "fact_id": "ops-active", "fact_type": "operations_active_count", "category": "operations", "region_id": "global", "subject_id": "operations", "value": 3, "source_system": "operations", "metadata": {}},
+            {**base, "fact_id": "market-sector", "fact_type": "market_top_sector_7d", "category": "network", "region_id": "global", "subject_id": "network", "value": 1200, "source_system": "ghost_exchange", "metadata": {"sector_key": "network", "volume_mb": 300, "cta_target_id": "network"}},
+            {**base, "fact_id": "googleplex", "fact_type": "googleplex_product_signal", "category": "storage", "region_id": "global", "subject_id": "storage_ghost_vault_basic", "value": 650, "source_system": "googleplex", "metadata": {"product_id": "storage_ghost_vault_basic", "product_name": "Ghost Vault Basic", "product_type": "storage_upgrade", "price": 650, "downloads": 4, "temperature": 72, "cta_target_id": "storage_ghost_vault_basic", "cta_query": "Ghost Vault Basic"}},
+            {**base, "fact_id": "radio", "fact_type": "radio_channels_available", "category": "radio", "region_id": "global", "subject_id": "radio", "value": 2, "source_system": "radio", "metadata": {"tracks_total": 25, "channel_id": "blacknet_radio_2", "track_file": "002_signal.mp3"}},
+        ]}
+
+        first = build_blacknet_world_signals(facts, now=now, limit=2)
+        first_ids = {signal["id"] for signal in first["signals"]}
+        second = build_blacknet_world_signals(facts, now=now, limit=4, exclude_ids=first_ids)
+        second_ids = {signal["id"] for signal in second["signals"]}
+        all_ids = first_ids | second_ids
+        empty = build_blacknet_world_signals(facts, now=now, limit=4, exclude_ids=all_ids)
+
+        self.assertEqual(len(first["signals"]), 2)
+        self.assertTrue(second_ids)
+        self.assertFalse(first_ids.intersection(second_ids))
+        self.assertEqual(empty["signals"][0]["signal_type"], "out_of_signal")
+        self.assertTrue(empty["diagnostics"]["out_of_signal"])
+        self.assertGreaterEqual(empty["diagnostics"]["excluded"], len(all_ids))
+
     def test_blacknet_world_signal_publisher_expires_old_fact(self):
         now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
         facts = {
@@ -1552,7 +1586,7 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
                     "contested_area_alert",
                     "market_sales_7d",
                     "market_top_sector_7d",
-                    "googleplex_catalog_size",
+                    "googleplex_product_signal",
                     "radio_channels_available",
                     "system_messages_24h",
                 )
@@ -1572,11 +1606,11 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
             "facts": [
                 {
                     "fact_id": "fact-googleplex",
-                    "fact_type": "googleplex_catalog_size",
-                    "category": "googleplex",
+                    "fact_type": "googleplex_product_signal",
+                    "category": "storage",
                     "region_id": "global",
-                    "subject_id": "catalog",
-                    "value": 7,
+                    "subject_id": "storage_ghost_vault_basic",
+                    "value": 650,
                     "previous_value": None,
                     "change_percent": 0,
                     "importance": 60,
@@ -1588,8 +1622,11 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
                         "product_id": "storage_ghost_vault_basic",
                         "product_name": "Ghost Vault Basic",
                         "product_type": "storage_upgrade",
-                        "price": 256,
-                        "cta_query": "/all",
+                        "price": 650,
+                        "downloads": 4,
+                        "temperature": 72,
+                        "cta_target_id": "storage_ghost_vault_basic",
+                        "cta_query": "Ghost Vault Basic",
                     },
                 },
                 {
@@ -1671,7 +1708,7 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertEqual(by_fact["fact-googleplex"]["cta_action"], "open_googleplex_search")
         self.assertEqual(by_fact["fact-googleplex"]["cta_target_id"], "storage_ghost_vault_basic")
         self.assertEqual(by_fact["fact-googleplex"]["entity_id"], "storage_ghost_vault_basic")
-        self.assertEqual(by_fact["fact-googleplex"]["cta_query"], "/all")
+        self.assertEqual(by_fact["fact-googleplex"]["cta_query"], "Ghost Vault Basic")
         self.assertEqual(by_fact["fact-googleplex"]["metadata"]["product_name"], "Ghost Vault Basic")
         self.assertEqual(by_fact["fact-radio"]["cta_action"], "play_radio_podcast")
         self.assertEqual(by_fact["fact-radio"]["cta_target_id"], "blacknet_radio_2")
@@ -1690,7 +1727,7 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         package = build_blacknet_ollama_outbox(facts, snapshot, now=now)
         outbox_by_fact = {signal["fact_id"]: signal for signal in package["selected_signals"]}
 
-        self.assertEqual(outbox_by_fact["fact-googleplex"]["cta_query"], "/all")
+        self.assertEqual(outbox_by_fact["fact-googleplex"]["cta_query"], "Ghost Vault Basic")
         self.assertEqual(outbox_by_fact["fact-googleplex"]["metadata"]["product_name"], "Ghost Vault Basic")
         self.assertEqual(outbox_by_fact["fact-radio"]["cta_target_id"], "blacknet_radio_2")
         self.assertEqual(outbox_by_fact["fact-radio"]["metadata"]["track_file"], "002_signal.mp3")
@@ -1718,7 +1755,7 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
             {**base, "fact_id": "conflict-area", "fact_type": "contested_area_alert", "category": "conflicts", "region_id": "global", "subject_id": "conflicts", "value": 2, "source_system": "conflicts", "metadata": {}},
             {**base, "fact_id": "market-all", "fact_type": "market_sales_7d", "category": "market", "region_id": "global", "subject_id": "market", "value": 500, "source_system": "ghost_exchange", "metadata": {"file_count": 5, "volume_mb": 40}},
             {**base, "fact_id": "market-sector", "fact_type": "market_top_sector_7d", "category": "network", "region_id": "global", "subject_id": "network", "value": 1200, "source_system": "ghost_exchange", "metadata": {"sector_key": "network", "volume_mb": 300, "cta_target_id": "network"}},
-            {**base, "fact_id": "googleplex", "fact_type": "googleplex_catalog_size", "category": "googleplex", "region_id": "global", "subject_id": "catalog", "value": 650, "source_system": "googleplex", "metadata": {"product_id": "storage_ghost_vault_basic", "product_name": "Ghost Vault Basic", "products": 22, "cta_query": "/all"}},
+            {**base, "fact_id": "googleplex", "fact_type": "googleplex_product_signal", "category": "storage", "region_id": "global", "subject_id": "storage_ghost_vault_basic", "value": 650, "source_system": "googleplex", "metadata": {"product_id": "storage_ghost_vault_basic", "product_name": "Ghost Vault Basic", "product_type": "storage_upgrade", "price": 650, "downloads": 4, "temperature": 72, "cta_target_id": "storage_ghost_vault_basic", "cta_query": "Ghost Vault Basic"}},
             {**base, "fact_id": "radio", "fact_type": "radio_channels_available", "category": "radio", "region_id": "global", "subject_id": "radio", "value": 2, "source_system": "radio", "metadata": {"tracks_total": 25, "channel_id": "blacknet_radio_2", "track_file": "002_signal.mp3"}},
             {**base, "fact_id": "world", "fact_type": "system_messages_24h", "category": "system", "region_id": "global", "subject_id": "system", "value": 3, "source_system": "system", "metadata": {"thread_scope": "group", "thread_peer": "global", "thread_channel": "world"}},
         ]}
@@ -1742,7 +1779,7 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertEqual(by_fact["market-sector"]["cta_action"], "open_exchange_category")
         self.assertEqual(by_fact["market-sector"]["cta_target_id"], "network")
         self.assertEqual(by_fact["googleplex"]["cta_action"], "open_googleplex_search")
-        self.assertEqual(by_fact["googleplex"]["cta_query"], "/all")
+        self.assertEqual(by_fact["googleplex"]["cta_query"], "Ghost Vault Basic")
         self.assertEqual(by_fact["radio"]["cta_action"], "play_radio_podcast")
         self.assertEqual(by_fact["radio"]["cta_target_id"], "blacknet_radio_2")
         self.assertEqual(by_fact["world"]["cta_action"], "open_cyberner_thread")
