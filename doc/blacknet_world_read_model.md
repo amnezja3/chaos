@@ -236,3 +236,28 @@ fact expiry. It does not store generated signals as a new source of truth.
 The BlackNet frontend loads generated world signals and local static signals
 together. Local static signals remain the fallback when generated signals are
 empty or unavailable.
+
+## Sprint 83 Update
+
+`blacknet_ollama_outbox` is the controlled export package for the future Ollama
+worker.
+
+The read path is:
+
+```text
+blacknet_world_facts
+↓
+blacknet_world_signals
+↓
+blacknet_ollama_outbox
+```
+
+The outbox is not a new source of truth. It is a sanitized editorial package
+with fact ids, selected signals, allowed CTA actions, limits and forbidden
+claims.
+
+Details:
+
+```text
+doc/blacknet_ollama_outbox.md
+```

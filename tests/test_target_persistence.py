@@ -19,6 +19,7 @@ from run import (
     build_ghost_exchange_sector_payload,
     build_blacknet_world_facts_snapshot,
     build_blacknet_world_signals,
+    build_blacknet_ollama_outbox,
     BLACKNET_ALLOWED_CTA_ACTIONS,
     build_storage_full_result,
     build_player_actor,
@@ -48,6 +49,11 @@ from run import (
     resolve_player_actor_relation,
     target_position_key,
     targets_share_position,
+    latest_blacknet_ollama_outbox,
+    read_blacknet_ollama_outbox,
+    update_blacknet_ollama_outbox_status,
+    validate_blacknet_ollama_outbox,
+    write_blacknet_ollama_outbox,
 )
 
 
@@ -1763,6 +1769,154 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertFalse(data["success"])
         self.assertEqual(data["error"], "unknown_hotspot")
+
+    def test_blacknet_ollama_outbox_sanitizes_facts_and_validates_contract(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        facts = {
+            "version": "facts-outbox",
+            "facts": [{
+                "fact_id": "fact-hotspot-private",
+                "fact_type": "operation_hotspot_activity",
+                "category": "Piekarnia Putka",
+                "region_id": "poi-putka",
+                "subject_id": "poi-putka",
+                "value": 2,
+                "previous_value": None,
+                "change_percent": 0,
+                "importance": 90,
+                "confidence": 0.9,
+                "observed_at": "2026-07-11T11:00:00Z",
+                "expires_at": "2026-07-11T12:10:00Z",
+                "source_system": "operations",
+                "metadata": {
+                    "target_id": "poi-putka",
+                    "target_label": "Piekarnia Putka",
+                    "lat": 52.22001,
+                    "lng": 21.01002,
+                    "username": "alice",
+                    "participants": ["alice", "bob"],
+                    "email": "alice@example.test",
+                    "secret": "hidden",
+                    "cta_target_id": "poi-putka",
+                },
+            }],
+        }
+        signals = build_blacknet_world_signals(facts, now=now)
+
+        package = build_blacknet_ollama_outbox(facts, signals, now=now)
+
+        self.assertEqual(package["status"], "ready")
+        self.assertTrue(package["validation"]["ok"])
+        self.assertFalse(package["diagnostics"]["ollama_executed"])
+        self.assertEqual(package["facts"][0]["fact_id"], "fact-hotspot-private")
+        self.assertEqual(package["selected_signals"][0]["fact_id"], "fact-hotspot-private")
+        exported_metadata = package["facts"][0]["metadata"]
+        self.assertEqual(exported_metadata["target_id"], "poi-putka")
+        self.assertNotIn("username", exported_metadata)
+        self.assertNotIn("participants", exported_metadata)
+        self.assertNotIn("email", exported_metadata)
+        self.assertNotIn("secret", exported_metadata)
+        self.assertTrue(set(package["allowed_actions"]).issubset(BLACKNET_ALLOWED_CTA_ACTIONS))
+        self.assertIn("poi-putka", package["existing_identifiers"]["target_ids"])
+
+        invalid = {
+            "schema_version": package["schema_version"],
+            "digest_id": "empty",
+            "facts": [],
+            "allowed_actions": [],
+        }
+        self.assertIn("no_facts", validate_blacknet_ollama_outbox(invalid))
+
+    def test_blacknet_ollama_outbox_file_store_and_status_update(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        facts = {
+            "version": "facts-store",
+            "facts": [{
+                "fact_id": "fact-store-market",
+                "fact_type": "market_sales_7d",
+                "category": "market",
+                "region_id": "global",
+                "subject_id": "market",
+                "value": 500,
+                "previous_value": None,
+                "change_percent": 0,
+                "importance": 80,
+                "confidence": 0.9,
+                "observed_at": "2026-07-11T11:00:00Z",
+                "expires_at": "2026-07-11T12:10:00Z",
+                "source_system": "ghost_exchange",
+                "metadata": {"file_count": 5, "volume_mb": 40},
+            }],
+        }
+        package = build_blacknet_ollama_outbox(facts, build_blacknet_world_signals(facts, now=now), now=now)
+
+        with tempfile.TemporaryDirectory() as tmpdir, \
+                patch.object(run, "BLACKNET_OLLAMA_OUTBOX_DIR", tmpdir):
+            path = write_blacknet_ollama_outbox(package)
+            self.assertTrue(os.path.exists(path))
+            loaded = read_blacknet_ollama_outbox(package["digest_id"])
+            self.assertEqual(loaded["digest_id"], package["digest_id"])
+            latest = latest_blacknet_ollama_outbox()
+            self.assertEqual(latest["digest_id"], package["digest_id"])
+
+            updated, error = update_blacknet_ollama_outbox_status(
+                package["digest_id"],
+                "processing",
+                message="worker picked package",
+            )
+
+            self.assertEqual(error, "")
+            self.assertEqual(updated["status"], "processing")
+            self.assertIn("status_updated_at", updated)
+            self.assertEqual(read_blacknet_ollama_outbox(package["digest_id"])["status"], "processing")
+
+    def test_blacknet_ollama_outbox_endpoints_are_admin_only_and_readonly(self):
+        fake_facts = {
+            "version": "facts-endpoint",
+            "facts": [{
+                "fact_id": "fact-endpoint-ops",
+                "fact_type": "operations_active_count",
+                "category": "operations",
+                "region_id": "global",
+                "subject_id": "operations",
+                "value": 2,
+                "previous_value": None,
+                "change_percent": 0,
+                "importance": 70,
+                "confidence": 0.9,
+                "observed_at": "2026-07-11T11:00:00Z",
+                "expires_at": "2999-07-11T12:10:00Z",
+                "source_system": "operations",
+                "metadata": {},
+            }],
+        }
+        non_admin = self._client_with_user("alice")
+        self.assertEqual(non_admin.get("/api/blacknet/ollama/outbox/latest").status_code, 403)
+
+        client = self._client_with_user("admin")
+        with tempfile.TemporaryDirectory() as tmpdir, \
+                patch.object(run, "BLACKNET_OLLAMA_OUTBOX_DIR", tmpdir), \
+                patch.object(run, "build_blacknet_world_facts_snapshot", return_value=fake_facts), \
+                patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")):
+            generated = client.post("/api/blacknet/ollama/outbox/generate")
+            generated_data = generated.get_json()
+            digest_id = generated_data["digest_id"]
+            latest = client.get("/api/blacknet/ollama/outbox/latest")
+            fetched = client.get(f"/api/blacknet/ollama/outbox/{digest_id}")
+            updated = client.post(
+                f"/api/blacknet/ollama/outbox/{digest_id}/status",
+                json={"status": "processing", "message": "taken"},
+            )
+
+        self.assertEqual(generated.status_code, 200)
+        self.assertTrue(generated_data["success"])
+        self.assertTrue(generated_data["validation"]["ok"])
+        self.assertEqual(latest.status_code, 200)
+        self.assertEqual(latest.get_json()["outbox"]["digest_id"], digest_id)
+        self.assertEqual(fetched.status_code, 200)
+        self.assertEqual(fetched.get_json()["outbox"]["digest_id"], digest_id)
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.get_json()["status"], "processing")
 
 
 class LightweightPollingEndpointTest(unittest.TestCase):

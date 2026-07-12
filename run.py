@@ -316,6 +316,12 @@ BLACKNET_WORLD_FACTS_TTL_SECONDS = 10 * 60
 BLACKNET_WORLD_FACTS_CACHE_SECONDS = 60
 BLACKNET_WORLD_SIGNALS_SCHEMA = 1
 BLACKNET_WORLD_SIGNALS_LIMIT = 8
+BLACKNET_OLLAMA_OUTBOX_SCHEMA_VERSION = "1.0"
+BLACKNET_OLLAMA_OUTBOX_TTL_SECONDS = 60 * 60
+BLACKNET_OLLAMA_OUTBOX_MAX_FACTS = 32
+BLACKNET_OLLAMA_OUTBOX_MAX_SIGNALS = 16
+BLACKNET_OLLAMA_OUTBOX_MAX_BYTES = 96 * 1024
+BLACKNET_OLLAMA_OUTBOX_DIR = os.path.join(app.instance_path, "blacknet_ollama_outbox")
 BLACKNET_WORLD_FACTS_CACHE = {
     "snapshot": None,
     "cached_at": 0.0,
@@ -549,6 +555,39 @@ BLACKNET_MARKET_SECTOR_LABELS = {
     "personal": "Dane osobowe",
     "vehicle": "Pojazdy",
 }
+BLACKNET_OLLAMA_OUTBOX_STATUSES = {
+    "created",
+    "ready",
+    "processing",
+    "processed",
+    "failed",
+    "expired",
+    "archived",
+}
+BLACKNET_OLLAMA_AUTHOR_PERSONAS = [
+    {
+        "id": "ghost_anchor",
+        "name": "Ghost Anchor",
+        "tone": "zimny, informacyjny, bez obietnic nagrod",
+    },
+    {
+        "id": "market_shade",
+        "name": "Market Shade",
+        "tone": "rynkowy, podejrzliwy, syntetyczny",
+    },
+    {
+        "id": "signal_witch",
+        "name": "Signal Witch",
+        "tone": "mistyczny cyberpunk, ale oparty o fakty",
+    },
+]
+BLACKNET_OLLAMA_FORBIDDEN_CLAIMS = [
+    "nie wymyslaj cen, wartosci, targetow ani wspolrzednych",
+    "nie tworz nowych CTA ani nowych endpointow",
+    "nie obiecuj nagrod, teleportow ani zmian profilu",
+    "nie ujawniaj prywatnych danych graczy",
+    "nie dodawaj zewnetrznych URL",
+]
 
 
 def blacknet_utc_now():
@@ -1668,6 +1707,377 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
             "ollama_used": False,
         },
     }
+
+
+def blacknet_ollama_text(value, limit=160):
+    text = str(value or "").strip()
+    text = re.sub(r"\s+", " ", text)
+    if len(text) > limit:
+        return text[:max(0, limit - 3)].rstrip() + "..."
+    return text
+
+
+def blacknet_ollama_public_metadata(metadata, max_items=12):
+    if not isinstance(metadata, dict):
+        return {}
+    blocked_fragments = {
+        "username",
+        "user_name",
+        "player",
+        "owner",
+        "password",
+        "email",
+        "session",
+        "token",
+        "secret",
+        "participants",
+        "profile",
+    }
+    public = {}
+    for key, value in metadata.items():
+        key = str(key or "").strip()
+        if not key:
+            continue
+        lowered = key.lower()
+        if any(fragment in lowered for fragment in blocked_fragments):
+            continue
+        if isinstance(value, str):
+            public[key] = blacknet_ollama_text(value, 120)
+        elif isinstance(value, (int, float, bool)) or value is None:
+            public[key] = value
+        elif isinstance(value, list):
+            public[key] = [
+                blacknet_ollama_text(item, 80) if isinstance(item, str) else item
+                for item in value[:max_items]
+                if isinstance(item, (str, int, float, bool)) or item is None
+            ]
+        elif isinstance(value, dict):
+            nested = blacknet_ollama_public_metadata(value, max_items=max_items)
+            if nested:
+                public[key] = nested
+    return public
+
+
+def blacknet_ollama_safe_fact(fact):
+    if not isinstance(fact, dict):
+        return None
+    fact_id = blacknet_ollama_text(fact.get("fact_id"), 96)
+    if not fact_id:
+        return None
+    safe = {
+        "fact_id": fact_id,
+        "fact_type": blacknet_ollama_text(fact.get("fact_type"), 64),
+        "source_system": blacknet_ollama_text(fact.get("source_system"), 64),
+        "category": blacknet_ollama_text(fact.get("category"), 80),
+        "region_id": blacknet_ollama_text(fact.get("region_id"), 80),
+        "subject_id": blacknet_ollama_text(fact.get("subject_id"), 96),
+        "value": fact.get("value"),
+        "previous_value": fact.get("previous_value"),
+        "change_percent": fact.get("change_percent"),
+        "importance": fact.get("importance"),
+        "importance_label": blacknet_ollama_text(fact.get("importance_label"), 32),
+        "confidence": fact.get("confidence"),
+        "observed_at": blacknet_ollama_text(fact.get("observed_at"), 40),
+        "expires_at": blacknet_ollama_text(fact.get("expires_at"), 40),
+        "metadata": blacknet_ollama_public_metadata(fact.get("metadata")),
+    }
+    return {key: value for key, value in safe.items() if value not in (None, "", {})}
+
+
+def blacknet_ollama_safe_signal(signal):
+    if not isinstance(signal, dict):
+        return None
+    signal_id = blacknet_ollama_text(signal.get("id"), 96)
+    if not signal_id:
+        return None
+    safe = {
+        "id": signal_id,
+        "fact_id": blacknet_ollama_text(signal.get("fact_id"), 96),
+        "source": blacknet_ollama_text(signal.get("source"), 64),
+        "signal_type": blacknet_ollama_text(signal.get("signal_type"), 64),
+        "channel": blacknet_ollama_text(signal.get("channel"), 64),
+        "title": blacknet_ollama_text(signal.get("title"), 80),
+        "label": blacknet_ollama_text(signal.get("label"), 48),
+        "value": blacknet_ollama_text(signal.get("value"), 40),
+        "stat": blacknet_ollama_text(signal.get("stat"), 80),
+        "timer": blacknet_ollama_text(signal.get("timer"), 16),
+        "tone": blacknet_ollama_text(signal.get("tone"), 16),
+        "layout": signal.get("layout"),
+        "cta_action": blacknet_ollama_text(signal.get("cta_action"), 64),
+        "cta_target": blacknet_ollama_text(signal.get("cta_target"), 80),
+        "cta_target_id": blacknet_ollama_text(signal.get("cta_target_id"), 96),
+        "entity_id": blacknet_ollama_text(signal.get("entity_id"), 96),
+    }
+    return {key: value for key, value in safe.items() if value not in (None, "", {})}
+
+
+def blacknet_ollama_allowed_signal_types():
+    signal_types = {
+        str(rule.get("signal_type") or "").strip()
+        for rule in BLACKNET_SIGNAL_RULES.values()
+        if str(rule.get("signal_type") or "").strip()
+    }
+    signal_types.add("out_of_signal")
+    return sorted(signal_types)
+
+
+def blacknet_ollama_existing_identifiers(facts, signals):
+    identifiers = {
+        "fact_ids": [],
+        "target_ids": [],
+        "product_ids": [],
+        "market_sectors": [],
+        "radio_channels": [],
+        "cyberner_channels": ["world"],
+    }
+    for fact in facts:
+        identifiers["fact_ids"].append(fact.get("fact_id"))
+        metadata = fact.get("metadata") if isinstance(fact.get("metadata"), dict) else {}
+        for source_key, target_key in (
+            ("target_id", "target_ids"),
+            ("cta_target_id", "target_ids"),
+            ("product_id", "product_ids"),
+            ("sector_key", "market_sectors"),
+            ("market_category", "market_sectors"),
+            ("channel_id", "radio_channels"),
+            ("thread_channel", "cyberner_channels"),
+        ):
+            value = metadata.get(source_key)
+            if value:
+                identifiers[target_key].append(str(value))
+    for signal in signals:
+        if signal.get("cta_target_id"):
+            identifiers["target_ids"].append(str(signal.get("cta_target_id")))
+        if signal.get("entity_id"):
+            identifiers["target_ids"].append(str(signal.get("entity_id")))
+    return {
+        key: sorted({blacknet_ollama_text(item, 96) for item in values if item})
+        for key, values in identifiers.items()
+    }
+
+
+def blacknet_ollama_trends(facts):
+    source_counts = {}
+    top_facts = []
+    for fact in facts:
+        source = str(fact.get("source_system") or "unknown")
+        source_counts[source] = source_counts.get(source, 0) + 1
+        top_facts.append({
+            "fact_id": fact.get("fact_id"),
+            "fact_type": fact.get("fact_type"),
+            "source_system": source,
+            "category": fact.get("category"),
+            "value": fact.get("value"),
+            "importance": fact.get("importance", 0),
+        })
+    top_facts.sort(key=lambda item: (-int(item.get("importance") or 0), str(item.get("fact_id") or "")))
+    return {
+        "source_counts": source_counts,
+        "top_facts": top_facts[:8],
+    }
+
+
+def validate_blacknet_ollama_outbox(package):
+    errors = []
+    if not isinstance(package, dict):
+        return ["package_not_object"]
+    if package.get("schema_version") != BLACKNET_OLLAMA_OUTBOX_SCHEMA_VERSION:
+        errors.append("invalid_schema_version")
+    if not package.get("digest_id"):
+        errors.append("missing_digest_id")
+    facts = package.get("facts")
+    if not isinstance(facts, list):
+        errors.append("facts_not_list")
+        facts = []
+    if not facts:
+        errors.append("no_facts")
+    allowed_actions = set(package.get("allowed_actions") or [])
+    if not allowed_actions.issubset(BLACKNET_ALLOWED_CTA_ACTIONS):
+        errors.append("unknown_allowed_action")
+    for fact in facts:
+        if not isinstance(fact, dict) or not fact.get("fact_id"):
+            errors.append("fact_without_fact_id")
+            break
+    payload_size = len(json.dumps(package, ensure_ascii=False, sort_keys=True).encode("utf-8"))
+    if payload_size > BLACKNET_OLLAMA_OUTBOX_MAX_BYTES:
+        errors.append("payload_too_large")
+    return errors
+
+
+def build_blacknet_ollama_outbox(facts_snapshot=None, signal_snapshot=None, now=None, status=None):
+    now_dt = now if isinstance(now, datetime) else blacknet_utc_now()
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
+    if not isinstance(facts_snapshot, dict):
+        facts_snapshot = build_blacknet_world_facts_snapshot(now=now_dt)
+    if not isinstance(signal_snapshot, dict):
+        signal_snapshot = build_blacknet_world_signals(facts_snapshot, now=now_dt)
+
+    safe_facts = [
+        item for item in (
+            blacknet_ollama_safe_fact(fact)
+            for fact in (facts_snapshot.get("facts") or [])[:BLACKNET_OLLAMA_OUTBOX_MAX_FACTS]
+        )
+        if item
+    ]
+    safe_signals = [
+        item for item in (
+            blacknet_ollama_safe_signal(signal)
+            for signal in (signal_snapshot.get("signals") or [])[:BLACKNET_OLLAMA_OUTBOX_MAX_SIGNALS]
+        )
+        if item
+    ]
+    world_version = str(facts_snapshot.get("version") or "")
+    digest_seed = {
+        "world_version": world_version,
+        "generated_at": blacknet_iso(now_dt),
+        "facts": [fact.get("fact_id") for fact in safe_facts],
+    }
+    digest_hash = hashlib.sha1(
+        json.dumps(digest_seed, sort_keys=True, ensure_ascii=True).encode("utf-8")
+    ).hexdigest()[:12]
+    digest_id = f"digest_{now_dt.strftime('%Y%m%d_%H%M%S')}_{digest_hash}"
+    package = {
+        "schema_version": BLACKNET_OLLAMA_OUTBOX_SCHEMA_VERSION,
+        "digest_id": digest_id,
+        "status": "created",
+        "world_version": world_version,
+        "world_signals_version": signal_snapshot.get("version"),
+        "generated_at": blacknet_iso(now_dt),
+        "valid_until": blacknet_iso(now_dt + timedelta(seconds=BLACKNET_OLLAMA_OUTBOX_TTL_SECONDS)),
+        "facts": safe_facts,
+        "selected_signals": safe_signals,
+        "trends": blacknet_ollama_trends(safe_facts),
+        "important_regions": sorted({
+            fact.get("region_id") for fact in safe_facts
+            if fact.get("region_id") and fact.get("region_id") != "global"
+        })[:12],
+        "available_products_and_markets": {
+            "market_sectors": sorted(BLACKNET_MARKET_SECTOR_LABELS.keys()),
+            "products_from_facts": sorted({
+                fact.get("metadata", {}).get("product_id")
+                for fact in safe_facts
+                if isinstance(fact.get("metadata"), dict) and fact.get("metadata", {}).get("product_id")
+            })[:12],
+        },
+        "allowed_signal_types": blacknet_ollama_allowed_signal_types(),
+        "allowed_actions": sorted(BLACKNET_ALLOWED_CTA_ACTIONS),
+        "existing_identifiers": blacknet_ollama_existing_identifiers(safe_facts, safe_signals),
+        "author_personas": BLACKNET_OLLAMA_AUTHOR_PERSONAS,
+        "limits": {
+            "title_max_chars": 48,
+            "channel_max_chars": 64,
+            "label_max_chars": 32,
+            "stat_max_chars": 48,
+            "body_max_chars": 240,
+            "signals_max": 8,
+        },
+        "language": "pl",
+        "world_tone": "cyberpunkowy, nerwowy, rzeczowy, bez marketingowego lania wody",
+        "forbidden_claims": BLACKNET_OLLAMA_FORBIDDEN_CLAIMS,
+        "editorial_rules": {
+            "must_reference_fact_ids": True,
+            "must_keep_mechanical_values": True,
+            "must_use_allowed_actions_only": True,
+            "must_not_create_urls": True,
+            "must_not_create_new_entities": True,
+        },
+        "recent_publications": [],
+        "diagnostics": {
+            "facts_seen": len(facts_snapshot.get("facts") or []),
+            "facts_exported": len(safe_facts),
+            "signals_exported": len(safe_signals),
+            "source": "blacknet_world_facts",
+            "ollama_executed": False,
+        },
+    }
+    errors = validate_blacknet_ollama_outbox(package)
+    package["validation"] = {
+        "ok": not errors,
+        "errors": errors,
+    }
+    package["status"] = status if status in BLACKNET_OLLAMA_OUTBOX_STATUSES else ("ready" if not errors else "failed")
+    return package
+
+
+def blacknet_ollama_outbox_dir():
+    return BLACKNET_OLLAMA_OUTBOX_DIR
+
+
+def blacknet_ollama_outbox_path(digest_id):
+    safe_id = re.sub(r"[^A-Za-z0-9_.-]", "_", str(digest_id or ""))
+    if not safe_id:
+        safe_id = "digest"
+    return os.path.join(blacknet_ollama_outbox_dir(), f"{safe_id}.json")
+
+
+def write_blacknet_ollama_outbox(package):
+    if not isinstance(package, dict):
+        raise ValueError("outbox_package_not_object")
+    digest_id = package.get("digest_id")
+    if not digest_id:
+        raise ValueError("outbox_missing_digest_id")
+    os.makedirs(blacknet_ollama_outbox_dir(), exist_ok=True)
+    path = blacknet_ollama_outbox_path(digest_id)
+    tmp_path = f"{path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as handle:
+        json.dump(package, handle, ensure_ascii=False, indent=2, sort_keys=True)
+        handle.write("\n")
+    os.replace(tmp_path, path)
+    return path
+
+
+def read_blacknet_ollama_outbox(digest_id):
+    path = blacknet_ollama_outbox_path(digest_id)
+    if not os.path.exists(path):
+        return None
+    with open(path, "r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def list_blacknet_ollama_outboxes():
+    directory = blacknet_ollama_outbox_dir()
+    if not os.path.isdir(directory):
+        return []
+    packages = []
+    for filename in os.listdir(directory):
+        if not filename.endswith(".json"):
+            continue
+        path = os.path.join(directory, filename)
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                package = json.load(handle)
+            if isinstance(package, dict):
+                packages.append(package)
+        except Exception as exc:
+            print(f"[BLACKNET_OLLAMA] cannot read outbox {filename}: {exc}")
+    packages.sort(key=lambda item: str(item.get("generated_at") or ""), reverse=True)
+    return packages
+
+
+def latest_blacknet_ollama_outbox(status="ready"):
+    wanted_status = str(status or "ready")
+    for package in list_blacknet_ollama_outboxes():
+        if not wanted_status or package.get("status") == wanted_status:
+            return package
+    return None
+
+
+def update_blacknet_ollama_outbox_status(digest_id, status, message=""):
+    status = str(status or "").strip()
+    if status not in BLACKNET_OLLAMA_OUTBOX_STATUSES:
+        return None, "invalid_status"
+    package = read_blacknet_ollama_outbox(digest_id)
+    if not isinstance(package, dict):
+        return None, "not_found"
+    if status == "ready" and not package.get("validation", {}).get("ok"):
+        return None, "validation_failed"
+    package["status"] = status
+    package["status_updated_at"] = blacknet_iso(blacknet_utc_now())
+    if message:
+        package["status_message"] = blacknet_ollama_text(message, 240)
+    write_blacknet_ollama_outbox(package)
+    return package, ""
 
 
 def build_map_player_actor_delta_payload(viewer_username, actor_profile, context=None, lat=None, lng=None):
@@ -10782,6 +11192,105 @@ def api_blacknet_world_signals():
     return jsonify({
         "success": True,
         "snapshot": signal_snapshot,
+    })
+
+
+@app.route("/api/blacknet/ollama/outbox/generate", methods=["POST"])
+def api_blacknet_ollama_outbox_generate():
+    if not require_dev_admin():
+        return jsonify({
+            "success": False,
+            "message": "BlackNet Ollama outbox wymaga konta admin.",
+        }), 403
+    facts_snapshot = build_blacknet_world_facts_snapshot()
+    signal_snapshot = build_blacknet_world_signals(facts_snapshot)
+    package = build_blacknet_ollama_outbox(facts_snapshot, signal_snapshot)
+    path = write_blacknet_ollama_outbox(package)
+    return jsonify({
+        "success": True,
+        "digest_id": package.get("digest_id"),
+        "status": package.get("status"),
+        "validation": package.get("validation"),
+        "path": path,
+        "outbox": package,
+    })
+
+
+@app.route("/api/blacknet/ollama/outbox/latest")
+def api_blacknet_ollama_outbox_latest():
+    if not require_dev_admin():
+        return jsonify({
+            "success": False,
+            "message": "BlackNet Ollama outbox wymaga konta admin.",
+            "outbox": None,
+        }), 403
+    status = request.args.get("status", "ready")
+    package = latest_blacknet_ollama_outbox(status=status)
+    if not isinstance(package, dict):
+        return jsonify({
+            "success": False,
+            "message": "Brak paczki BlackNet Ollama outbox.",
+            "error": "outbox_not_found",
+            "outbox": None,
+        }), 404
+    return jsonify({
+        "success": True,
+        "outbox": package,
+    })
+
+
+@app.route("/api/blacknet/ollama/outbox/<digest_id>")
+def api_blacknet_ollama_outbox_get(digest_id):
+    if not require_dev_admin():
+        return jsonify({
+            "success": False,
+            "message": "BlackNet Ollama outbox wymaga konta admin.",
+            "outbox": None,
+        }), 403
+    package = read_blacknet_ollama_outbox(digest_id)
+    if not isinstance(package, dict):
+        return jsonify({
+            "success": False,
+            "message": "Paczka BlackNet Ollama outbox nie istnieje.",
+            "error": "outbox_not_found",
+            "outbox": None,
+        }), 404
+    return jsonify({
+        "success": True,
+        "outbox": package,
+    })
+
+
+@app.route("/api/blacknet/ollama/outbox/<digest_id>/status", methods=["POST"])
+def api_blacknet_ollama_outbox_status(digest_id):
+    if not require_dev_admin():
+        return jsonify({
+            "success": False,
+            "message": "Zmiana statusu BlackNet Ollama outbox wymaga konta admin.",
+        }), 403
+    payload = request.get_json(silent=True) or {}
+    package, error = update_blacknet_ollama_outbox_status(
+        digest_id,
+        payload.get("status"),
+        message=payload.get("message") or "",
+    )
+    if error == "not_found":
+        return jsonify({
+            "success": False,
+            "message": "Paczka BlackNet Ollama outbox nie istnieje.",
+            "error": error,
+        }), 404
+    if error:
+        return jsonify({
+            "success": False,
+            "message": "Nie mozna zmienic statusu paczki BlackNet Ollama.",
+            "error": error,
+        }), 400
+    return jsonify({
+        "success": True,
+        "digest_id": package.get("digest_id"),
+        "status": package.get("status"),
+        "outbox": package,
     })
 
 

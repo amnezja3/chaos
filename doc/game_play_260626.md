@@ -7925,6 +7925,46 @@ Pakiety mogą otrzymywać statusy:
 * `expired`,
 * `archived`.
 
+## Endpointy outbox
+
+Sprint 83 ma przygotowac minimalny, kontrolowany transport paczek dla procesu
+Ollamy, bez uruchamiania samego modelu.
+
+Endpointy:
+
+```text
+POST /api/blacknet/ollama/outbox/generate
+GET  /api/blacknet/ollama/outbox/latest
+GET  /api/blacknet/ollama/outbox/<digest_id>
+POST /api/blacknet/ollama/outbox/<digest_id>/status
+```
+
+Zasady:
+
+* endpoint `generate` tworzy nowa paczke testowa albo runtime paczke z
+  aktualnych `blacknet_world_facts`,
+* endpoint `latest` pozwala workerowi Ollamy pobrac najnowsza paczke ze
+  statusem `ready`,
+* endpoint po `digest_id` pozwala pobrac konkretna paczke bez szukania po
+  plikach,
+* endpoint statusu pozwala oznaczyc paczke jako `processing`, `processed`,
+  `failed`, `expired` albo `archived`,
+* endpointy nie uruchamiaja Ollamy,
+* endpointy nie odpalaja ciezkiego sync profilu, mapy ani settlementu rynku,
+* endpointy zwracaja tylko zatwierdzony outbox, nie pelny stan gry.
+
+To jest kontrakt transportowy dla osobnego procesu/worker taska:
+
+```text
+Ollama worker
+↓
+GET /api/blacknet/ollama/outbox/latest
+↓
+lokalne wywolanie modelu
+↓
+Sprint 84 inbox endpoint
+```
+
 ## Zakres implementacyjny
 
 * wersjonowany JSON Schema,
@@ -7938,6 +7978,7 @@ Pakiety mogą otrzymywać statusy:
 * status pakietu,
 * diagnostyka,
 * możliwość ręcznego wygenerowania pakietu testowego.
+* endpointy outbox dla pobrania paczki przez proces Ollamy.
 
 ## Ograniczenia
 
@@ -7961,6 +8002,9 @@ Ollama nie może otrzymać prawa do:
 * Pakiet nie zawiera prywatnych danych graczy.
 * Historia publikacji ogranicza powtarzalność odpowiedzi modelu.
 * Niepoprawny pakiet nie otrzymuje statusu `ready`.
+* Worker Ollamy moze pobrac paczke przez endpoint, bez dostepu do plikow
+  serwera.
+* Zmiana statusu paczki jest jawna i walidowana.
 * BlackNet działa normalnie bez uruchomionej Ollamy.
 
 ## Dokumentacja
@@ -8072,6 +8116,49 @@ Każdy kandydat otrzymuje status:
 
 Powód odrzucenia powinien być zapisany diagnostycznie.
 
+## Endpointy inbox
+
+Sprint 84 ma dodac kontrolowane wejscie dla odpowiedzi Ollamy.
+
+Endpointy:
+
+```text
+POST /api/blacknet/ollama/inbox
+GET  /api/blacknet/ollama/inbox/<digest_id>
+GET  /api/blacknet/ollama/candidates
+POST /api/blacknet/ollama/candidates/<candidate_id>/status
+```
+
+Zasady:
+
+* `POST /api/blacknet/ollama/inbox` przyjmuje odpowiedz modelu dla konkretnego
+  `digest_id`,
+* odpowiedz musi wskazywac istniejacy outbox digest,
+* endpoint nie publikuje sygnalow bez walidacji,
+* endpoint waliduje `source_fact_ids`, `cta_action`, `cta_target_id`, limity
+  tekstu i dozwolone typy,
+* endpoint odrzuca kandydatow, ktorzy wymyslaja nowe fakty, ceny, ID, URL albo
+  akcje,
+* endpoint candidates sluzy do diagnostyki i podgladu statusow,
+* status kandydata moze przejsc tylko przez jawne stany pipeline:
+  `received -> validated -> normalized -> published`,
+* `rejected`, `expired` i `archived` sa stanami koncowymi albo diagnostycznymi,
+* brak odpowiedzi Ollamy nie zatrzymuje `world_generated`.
+
+Transport docelowy:
+
+```text
+Ollama worker
+↓
+POST /api/blacknet/ollama/inbox
+↓
+walidator CHAOS
+↓
+ollama_enriched candidates
+↓
+mixed signal feed
+```
+
 ## Mieszanie strumienia
 
 Feed powinien pilnować proporcji i różnorodności, na przykład:
@@ -8111,6 +8198,9 @@ kandydat zostaje odrzucony, a BlackNet nadal działa na `local_static` i `world_
 
 * Poprawny inbox przechodzi walidację.
 * Niepoprawny JSON nie trafia do feedu.
+* Odpowiedz Ollamy moze zostac oddana przez endpoint, bez recznego kopiowania
+  plikow.
+* Kandydaci maja endpoint diagnostyczny i jawny status.
 * Sygnał AI zachowuje powiązanie z faktami źródłowymi.
 * Ollama nie może zmienić mechanicznej prawdy świata.
 * CTA jest ponownie budowane po stronie backendu.

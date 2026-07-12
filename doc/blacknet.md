@@ -723,3 +723,36 @@ Detailed contract:
 ```text
 doc/blacknet_cta_bridges.md
 ```
+
+## Sprint 83 - Ollama Outbox
+
+Sprint 83 adds a safe outbox package for the future local Ollama worker.
+
+The package is generated from existing BlackNet read models:
+
+```text
+blacknet_world_facts
+↓
+blacknet_world_signals
+↓
+blacknet_ollama_outbox
+```
+
+The outbox does not run Ollama and does not expose the database, full profile,
+map or gameplay systems. It contains only sanitized facts, selected generated
+signals, allowed CTA actions, editorial rules and validation diagnostics.
+
+Endpoint contract:
+
+```text
+POST /api/blacknet/ollama/outbox/generate
+GET  /api/blacknet/ollama/outbox/latest
+GET  /api/blacknet/ollama/outbox/<digest_id>
+POST /api/blacknet/ollama/outbox/<digest_id>/status
+```
+
+Detailed contract:
+
+```text
+doc/blacknet_ollama_outbox.md
+```

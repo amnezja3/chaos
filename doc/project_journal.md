@@ -7747,3 +7747,37 @@ i teleportu oraz co oznacza stan `OUT OF SIGNAL`.
 
 To domyka Sprint 82.9 od strony edukacji gracza: BlackNet ma teraz wbudowana
 krotka instrukcje obslugi w samym systemie plikow CHAOS.
+
+## Sprint 83 - Ollama Digest Outbox Contract
+
+Zaimplementowano kontrolowany outbox dla przyszlego procesu Ollamy.
+
+Dodano:
+
+* builder `build_blacknet_ollama_outbox()`,
+* walidator `validate_blacknet_ollama_outbox()`,
+* atomowy zapis paczek w katalogu instancji,
+* odczyt najnowszej paczki po statusie,
+* jawna zmiane statusu paczki,
+* endpointy:
+  * `POST /api/blacknet/ollama/outbox/generate`,
+  * `GET /api/blacknet/ollama/outbox/latest`,
+  * `GET /api/blacknet/ollama/outbox/<digest_id>`,
+  * `POST /api/blacknet/ollama/outbox/<digest_id>/status`.
+
+Outbox powstaje z `blacknet_world_facts` i `blacknet_world_signals`. Nie jest
+nowym zrodlem prawdy, nie uruchamia Ollamy i nie daje modelowi dostepu do bazy,
+profilu, mapy ani systemow gry.
+
+Paczka usuwa prywatne metadane, zachowuje `fact_id`, niesie whitelistowane
+`allowed_actions`, limity tekstu, osobowosci autorow, zakazane twierdzenia i
+diagnostyke walidacji.
+
+Dokument kontraktu:
+
+```text
+doc/blacknet_ollama_outbox.md
+```
+
+Sprint 83 zamkniety jako kontrakt wyjsciowy. Sprint 84 moze budowac inbox i
+walidacje odpowiedzi modelu bez zmiany zrodel prawdy BlackNetu.
