@@ -7735,3 +7735,15 @@ Sygnaly punktowe pozostaja bez zmian:
 Te rodziny nadal wymagaja konkretnego targetu i wspolrzednych albo markera mapy.
 Dodano test kontraktu, ktory potwierdza, ze wszystkie glowne rodziny sygnalow
 maja szanse sie wygenerowac i posiadaja poprawne CTA.
+
+### Tips&Tricks
+
+Dodano katalog `Tips&Tricks` w File Managerze, obok `About`, oparty o ten sam
+mechanizm statycznych dokumentow `.ptk` renderowanych jako Markdown.
+
+Pierwszy dokument `blacknet.ptk` opisuje, jak czytac sygnaly BlackNetu, czego
+spodziewac sie po rodzinach mapy, Ghost Exchange, Googleplexa, radia, Cybernera
+i teleportu oraz co oznacza stan `OUT OF SIGNAL`.
+
+To domyka Sprint 82.9 od strony edukacji gracza: BlackNet ma teraz wbudowana
+krotka instrukcje obslugi w samym systemie plikow CHAOS.

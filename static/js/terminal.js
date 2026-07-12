@@ -8236,7 +8236,8 @@ async function createFileManager(options = {}) {
         'download',
         'pictures',
         'social-media',
-        'about'
+        'about',
+        'tips-tricks'
     ];
     const folderLabels = {
         tools: 'Tools',
@@ -8256,7 +8257,8 @@ async function createFileManager(options = {}) {
         download: 'Download',
         pictures: 'Obrazy',
         'social-media': 'Social',
-        about: 'About'
+        about: 'About',
+        'tips-tricks': 'Tips&Tricks'
     };
     const operationTypeLabels = {
         vehicle_tracking: 'sledzenie pojazdu',
@@ -8296,7 +8298,8 @@ async function createFileManager(options = {}) {
         pictures: 'IMG',
         download: 'DL',
         'social-media': 'SOC',
-        about: 'PTK'
+        about: 'PTK',
+        'tips-tricks': 'TIP'
     };
     const fileManagerStaticDocs = {
         about: [
@@ -8304,6 +8307,14 @@ async function createFileManager(options = {}) {
                 name: 'chaos.ptk',
                 title: 'ABOUT CHAOS',
                 source: '/static/files/about/chaos.ptk',
+                format: 'markdown'
+            }
+        ],
+        'tips-tricks': [
+            {
+                name: 'blacknet.ptk',
+                title: 'BLACKNET SIGNALS',
+                source: '/static/files/tips-tricks/blacknet.ptk',
                 format: 'markdown'
             }
         ]
