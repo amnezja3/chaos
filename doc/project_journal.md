@@ -7696,3 +7696,23 @@ Poprawka: `blacknet_operation_target_snapshot()` scala teraz dane celu z
 operacji i uzywa wspolrzednych z operacji jako fallback. Link `POKAZ NA MAPIE`
 ma dzieki temu realne `lat/lng` w metadanych i moze wycentrowac iframe mapy na
 celu bez teleportu.
+
+### Hotfix 2
+
+Naprawiono drugi wariant problemu z fokusem mapy BlackNetu.
+
+Przyczyny:
+
+* sygnaly konfliktow mogly miec wspolrzedne na rekordzie konfliktu, ale nie w
+  skroconym wpisie targetu,
+* frontend traktowal `null` jako liczbe `0`, wiec brak `lat/lng` mogl
+  przypadkowo wysylac mape na `(0, 0)`,
+* sygnaly ogolne z `region_id=global` byly traktowane jak realny punkt fokusu.
+
+Poprawka:
+
+* target konfliktu dziedziczy teraz `lat/lng` z rekordu konfliktu,
+* most BlackNet -> mapa odrzuca `null`, puste wartosci i techniczne fokusy typu
+  `global`,
+* Googleplex dostal kontrolowany filtr `/all`, ktory pokazuje pelny katalog bez
+  wpisywania sztucznej nazwy produktu.

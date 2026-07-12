@@ -1193,6 +1193,34 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         self.assertAlmostEqual(fact["metadata"]["lat"], 52.22001)
         self.assertAlmostEqual(fact["metadata"]["lng"], 21.01002)
 
+    def test_blacknet_conflict_target_uses_conflict_coordinates_when_target_is_partial(self):
+        now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+        conflicts = [{
+            "id": 8,
+            "conflict_key": "conflict:partial",
+            "participants": ["alice", "bob"],
+            "status": "active",
+            "lat": 52.280897,
+            "lng": 20.997489,
+            "targets": [{
+                "target_id": "poi-00b7d7",
+                "label": "Conflict-00B7D7",
+                "status": "contested",
+            }],
+        }]
+
+        with patch.object(run.user_store, "list_profiles", return_value=[]), \
+                patch.object(run, "get_app_catalog", return_value=[]), \
+                patch.object(run.territory_conflict_store, "list_active", return_value=conflicts), \
+                patch.object(run.os.path, "isdir", return_value=False):
+            snapshot = build_blacknet_world_facts_snapshot(now=now)
+
+        fact = next(item for item in snapshot["facts"] if item["fact_type"] == "conflict_target_alert")
+        self.assertEqual(fact["metadata"]["target_label"], "Conflict-00B7D7")
+        self.assertEqual(fact["metadata"]["cta_target_id"], "poi-00b7d7")
+        self.assertAlmostEqual(fact["metadata"]["lat"], 52.280897)
+        self.assertAlmostEqual(fact["metadata"]["lng"], 20.997489)
+
 
 class BlackNetWorldSignalPublisherTest(unittest.TestCase):
     def _client_with_user(self, username="alice"):
@@ -1526,7 +1554,7 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
                         "product_name": "Ghost Vault Basic",
                         "product_type": "storage_upgrade",
                         "price": 256,
-                        "cta_query": "Ghost Vault Basic",
+                        "cta_query": "/all",
                     },
                 },
                 {
@@ -1608,7 +1636,7 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertEqual(by_fact["fact-googleplex"]["cta_action"], "open_googleplex_search")
         self.assertEqual(by_fact["fact-googleplex"]["cta_target_id"], "storage_ghost_vault_basic")
         self.assertEqual(by_fact["fact-googleplex"]["entity_id"], "storage_ghost_vault_basic")
-        self.assertEqual(by_fact["fact-googleplex"]["cta_query"], "Ghost Vault Basic")
+        self.assertEqual(by_fact["fact-googleplex"]["cta_query"], "/all")
         self.assertEqual(by_fact["fact-googleplex"]["metadata"]["product_name"], "Ghost Vault Basic")
         self.assertEqual(by_fact["fact-radio"]["cta_action"], "play_radio_podcast")
         self.assertEqual(by_fact["fact-radio"]["cta_target_id"], "blacknet_radio_2")

@@ -1667,6 +1667,12 @@
             return true;
         };
 
+        function readBlacknetFocusCoordinate(value) {
+            if (value === null || value === undefined || value === '') return NaN;
+            const number = Number(value);
+            return Number.isFinite(number) ? number : NaN;
+        }
+
         window.focusBlacknetMapSignal = function(focus = {}) {
             const ids = [
                 focus.target_id,
@@ -1681,8 +1687,8 @@
                 }
             }
 
-            let lat = Number(focus.lat);
-            let lng = Number(focus.lng);
+            let lat = readBlacknetFocusCoordinate(focus.lat);
+            let lng = readBlacknetFocusCoordinate(focus.lng);
             if ((!Number.isFinite(lat) || !Number.isFinite(lng)) && entry) {
                 const target = entry.target || {};
                 lat = Number(target.lat);

@@ -3446,25 +3446,49 @@ function createBrowser() {
         return blacknetCtaResult(true);
     };
 
+    const readBlacknetCoordinate = (...values) => {
+        for (const value of values) {
+            if (value === null || value === undefined || value === "") continue;
+            const number = Number(value);
+            if (Number.isFinite(number)) return number;
+        }
+        return NaN;
+    };
+
     const blacknetOpenMap = (signal, mode = "open") => {
         const opened = openSystemAppFromTerminal("map");
         const metadata = signal?.metadata || {};
-        const focus = String(signal?.target_id || signal?.region_id || signal?.cta_target_id || signal?.cta_target || "").trim();
-        const lat = Number(metadata.lat ?? metadata.latitude ?? signal?.lat);
-        const lng = Number(metadata.lng ?? metadata.lon ?? metadata.longitude ?? signal?.lng ?? signal?.lon);
-        if (focus) {
+        const rawTarget = String(
+            metadata.target_id
+            || signal?.target_id
+            || metadata.cta_target_id
+            || signal?.cta_target_id
+            || signal?.entity_id
+            || ""
+        ).trim();
+        const rawRegion = String(metadata.region_id || signal?.region_id || "").trim();
+        const genericFocusValues = new Set(["", "global", "world", "map", "open_map", "show_on_map"]);
+        const focus = !genericFocusValues.has(rawTarget)
+            ? rawTarget
+            : (!genericFocusValues.has(rawRegion) ? rawRegion : "");
+        const lat = readBlacknetCoordinate(metadata.lat, metadata.latitude, signal?.lat);
+        const lng = readBlacknetCoordinate(metadata.lng, metadata.lon, metadata.longitude, signal?.lng, signal?.lon);
+        const hasCoordinates = Number.isFinite(lat) && Number.isFinite(lng);
+        if (focus || hasCoordinates) {
             window.__blacknetMapFocus = {
                 mode,
                 signal_id: signal?.id || "",
-                target_id: signal?.target_id || signal?.cta_target_id || "",
+                target_id: focus || signal?.target_id || signal?.cta_target_id || "",
                 entity_id: signal?.entity_id || "",
-                region_id: signal?.region_id || "",
-                lat: Number.isFinite(lat) ? lat : null,
-                lng: Number.isFinite(lng) ? lng : null,
+                region_id: rawRegion || "",
+                lat: hasCoordinates ? lat : null,
+                lng: hasCoordinates ? lng : null,
                 label: metadata.target_label || signal?.title || ""
             };
             setTimeout(() => notifyOpenMapsBlacknetFocus(window.__blacknetMapFocus), 50);
-            addSystemMessage("info", "BlackNet", `Mapa otwarta. Fokus sygnalu: ${escapeHTML(focus)}.`);
+            addSystemMessage("info", "BlackNet", `Mapa otwarta. Fokus sygnalu: ${escapeHTML(focus || metadata.coordinates || signal?.title || "koordynaty")}.`);
+        } else {
+            addSystemMessage("info", "BlackNet", "Mapa otwarta. Ten sygnal nie ma punktu do ustawienia fokusu.");
         }
         return blacknetCtaResult(opened);
     };
@@ -3869,14 +3893,18 @@ function createBrowser() {
     const renderCatalog = () => {
         if (activeBrowserTab !== "googleplex") return;
         updateBrowserNarrowMode();
-        const query = search.value.toLowerCase().trim();
+        const rawQuery = search.value.trim();
+        const query = rawQuery.toLowerCase();
+        const showAll = query === "/all";
         if (!query) {
             results.innerHTML = "";
             updateBrowserNarrowMode();
             return;
         }
 
-        const matches = catalog.filter(item => googleplexSearchText(item).includes(query));
+        const matches = showAll
+            ? catalog.filter(item => item && typeof item === "object")
+            : catalog.filter(item => googleplexSearchText(item).includes(query));
 
         results.innerHTML = '';
         if (matches.length === 0) {

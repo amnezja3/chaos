@@ -717,6 +717,10 @@ def blacknet_operation_target_snapshot(operation):
 def blacknet_conflict_target_snapshot(conflict, target):
     if not isinstance(conflict, dict) or not isinstance(target, dict):
         return None
+    target = blacknet_operation_target_payload({
+        **conflict,
+        "target": target,
+    })
     target_id = str(target.get("target_id") or target.get("id") or build_operation_target_id(target) or "").strip()
     label = display_target_label(target, fallback_prefix="Conflict")
     if not label:
@@ -1025,7 +1029,8 @@ def build_blacknet_googleplex_facts(now_dt):
                 "price": featured_price,
                 "category": featured_category,
                 "cta_target_id": featured_id,
-                "cta_query": featured_name or featured_id,
+                "cta_query": "/all",
+                "featured_product_query": featured_name or featured_id,
             },
         )
     ]
