@@ -1516,6 +1516,9 @@ async function handleTerminalTeleport(content, teleport) {
     }
 
     appendSystemTerminalOutput(content, escapeHTML(data.message || `Teleport wykonany: ${label}.`));
+    if (typeof refreshToolbarProfile === "function") {
+        refreshToolbarProfile();
+    }
     openSystemAppFromTerminal("map");
     notifyOpenMapsBlacknetFocus({
         mode: "teleport",
@@ -3877,6 +3880,9 @@ function createBrowser() {
                 label
             };
             setTimeout(() => notifyOpenMapsBlacknetFocus(window.__blacknetMapFocus), 50);
+            if (typeof refreshToolbarProfile === "function") {
+                refreshToolbarProfile();
+            }
             addSystemMessage("success", "BlackNet", data?.message || `Teleport BlackNet wykonany: ${escapeHTML(label)}.`);
             return blacknetCtaResult(true, "", {
                 confirmed: true,

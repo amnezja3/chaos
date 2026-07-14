@@ -1705,6 +1705,23 @@
 
             const currentZoom = typeof map.getZoom === 'function' ? map.getZoom() : 16;
             const nextZoom = Math.max(currentZoom, focus.mode === 'teleport' ? 17 : 16);
+            if (focus.mode === 'teleport') {
+                const position = { lat, lng };
+                if (window.profileData && typeof window.profileData === 'object') {
+                    window.profileData.curently_possition = position;
+                    window.profileData.current_position = position;
+                }
+                if (window.avatarMarkerRef && typeof window.avatarMarkerRef.setLatLng === 'function') {
+                    const previous = window.avatarMarkerRef.getLatLng && window.avatarMarkerRef.getLatLng();
+                    if (previous && typeof getBikeDirection === 'function' && typeof buildBikeIcon === 'function') {
+                        window.avatarMarkerRef.setIcon(buildBikeIcon(getBikeDirection(
+                            { lat: previous.lat, lng: previous.lng },
+                            position
+                        )));
+                    }
+                    window.avatarMarkerRef.setLatLng([lat, lng]);
+                }
+            }
             map.setView([lat, lng], nextZoom, { animate: true });
             if (entry && entry.marker && typeof entry.marker.openTooltip === 'function') {
                 setTimeout(() => entry.marker.openTooltip(), 250);

@@ -1,7 +1,3 @@
-Dokładnie. Mamy już rdzeń mechaniki, więc teraz trzeba go zamienić w spójny opis gameplayu, a później osobno rozpisać cztery maszyny, 20 części i 20 profesji.
-
-Zrobiłbym z tego kilka powiązanych rozdziałów, aby można było je później wykorzystać zarówno w dokumentacji, jak i do tworzenia sprintów.
-
 # Rozgrywka klanowa i GhostSignal
 
 ## Cztery globalne klany
@@ -258,10 +254,6 @@ hakowanie obiektów
 → rozpoczęcie kolejnego cyklu
 ```
 
-Tak, to bardzo dobrze daje graczom trwały, wspólny postęp. Części znikają, terytoria pozostają, ale cały GhostSystem zapamiętuje wynik cyklu i ewoluuje.
-
-Dopisałbym taki rozdział:
-
 # Ewolucja GhostSystemu
 
 Każdy wysłany GhostSignal zmienia GhostSystem. Wyniki pracy czterech maszyn, przebieg walk o części oraz dane zebrane podczas synchronizacji zostają zapisane w jego rdzeniu.
@@ -315,7 +307,6 @@ Każda udana transmisja mówi graczom:
 
 ---
 
-Poniżej mamy pierwszą kompletną wersję czterech maszyn. Nazwy, funkcje i supermoce są konkretne, natomiast procenty, czasy działania i cooldowny zostawiamy do późniejszego balansu.
 
 # 1. VIREX ORACLE
 
@@ -704,40 +695,6 @@ SENTINEL AEGIS: jak dotrzeć bez podmiany?
 Każda aktywowana część daje profesji realną przewagę, ale jednocześnie ujawnia na mapie fragment większej konstrukcji. Po aktywacji wszystkich 20 modułów sieć zamyka się automatycznie, wysyła GhostSignal do 2108 roku, a GhostSystem ewoluuje do kolejnej wersji.
 
 ---
-
-Mamy już opisane najważniejsze fundamenty:
-
-* cztery globalne klany;
-* pięć profesji każdego klanu;
-* cztery maszyny;
-* 20 części;
-* supermoce profesji;
-* odkrywanie części w obiektach;
-* przypisywanie części do terytoriów;
-* aktywację przez właściwy klan;
-* automatyczne linie na mapie;
-* wysłanie GhostSignalu;
-* znikanie części po transmisji;
-* ewolucję GhostSystemu.
-
-`Do pełnego opisu zostało nam jeszcze kilka rzeczy.`
-
-```
-## 1. Kanon świata i oś czasu
-
-Trzeba ostatecznie opisać:
-
-* świat w 2026 roku;
-* powstanie MASA;
-* świat kontrolowany przez MASA w 2108;
-* powstanie GhostSystemu;
-* sposób przesyłania informacji pomiędzy 2026 i 2108;
-* kim jest ruch oporu;
-* czym dokładnie jest GhostSignal;
-* dlaczego trzeba wysyłać wiele sygnałów.
-
-To później stanie się podstawą nowego `ABOUT_CHAOS.md`.
-```
 
 # Kanon świata CHAOS
 
