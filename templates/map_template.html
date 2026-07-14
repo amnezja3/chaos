@@ -965,6 +965,49 @@
       box-shadow: 0 0 12px rgba(102, 217, 255, 0.58);
     }
 
+    .incident-hotspot {
+      pointer-events: auto;
+      filter: drop-shadow(0 0 10px rgba(255, 76, 76, 0.65));
+    }
+
+    .incident-hotspot__label {
+      min-width: 76px;
+      max-width: 132px;
+      padding: 3px 6px;
+      border: 1px solid #ff4242;
+      background: rgba(18, 0, 0, 0.88);
+      color: #ffdf80;
+      font: 700 10px/1.1 monospace;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      box-shadow: 0 0 10px rgba(255, 66, 66, 0.45);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .incident-hotspot__level {
+      color: #ff4242;
+    }
+
+    .incident-hotspot--level-1 .incident-hotspot__label {
+      border-color: #ffd34d;
+      color: #fff2aa;
+      box-shadow: 0 0 8px rgba(255, 211, 77, 0.36);
+    }
+
+    .incident-hotspot--level-2 .incident-hotspot__label {
+      border-color: #ff9f2f;
+      color: #ffd29a;
+    }
+
+    .incident-hotspot--level-3 .incident-hotspot__label,
+    .incident-hotspot--level-4 .incident-hotspot__label {
+      border-color: #ff4242;
+      color: #ffc3c3;
+    }
+
     @media (max-width: 720px) {
       .active-operations-panel {
         top: auto;
@@ -1029,6 +1072,7 @@
         let zoomReturnInterval = null;
         let programmaticMapMove = false;
         window.activeOperationLayers = [];
+        window.incidentHotspotLayers = window.incidentHotspotLayers || {};
         window.latestActiveOperations = [];
         window.latestOperationHistory = [];
         window.operationCenterState = window.operationCenterState || 'preview';
@@ -1216,6 +1260,9 @@
         map.createPane('territoryPane');
         map.getPane('territoryPane').style.zIndex = 250;
         map.getPane('territoryPane').style.pointerEvents = 'auto';
+        map.createPane('incidentPane');
+        map.getPane('incidentPane').style.zIndex = 640;
+        map.getPane('incidentPane').style.pointerEvents = 'auto';
 
         function targetLayerKey(lat, lng, label = "") {
             return `${Number(lat).toFixed(6)}:${Number(lng).toFixed(6)}:${label || ""}`;
@@ -3756,6 +3803,7 @@
 
             window.bootMapOptionalScopes = function() {
                 Promise.allSettled([
+                    window.bootStep('Incydenty publiczne', 'incidents', window.refreshIncidentHotspots, { total: 1, index: 0, silent: true }),
                     window.bootStep('Podatnosci klanow', 'clan_vulnerabilities', window.refreshClanVulnerabilities, { total: 1, index: 0, silent: true }),
                     window.bootStep('Aktywne operacje', 'active_operations', window.refreshActiveOperations, { total: 1, index: 0, silent: true }),
                     window.bootStep('Gracze na mapie', 'player_actors', window.refreshPlayerActors, { total: 1, index: 0, silent: true })
@@ -3791,6 +3839,135 @@
                     document.body.dataset.mapGameplayBlocked = '1';
                     console.warn('[map boot] critical boot failed', err);
                 }
+            };
+
+            window.removeIncidentHotspot = function(incidentId) {
+                const id = String(incidentId || '').trim();
+                if (!id || !window.incidentHotspotLayers || !window.incidentHotspotLayers[id]) return false;
+                const entry = window.incidentHotspotLayers[id];
+                (entry.layers || []).forEach(layer => removeMapLayerSafe(layer));
+                delete window.incidentHotspotLayers[id];
+                return true;
+            };
+
+            window.renderIncidentHotspot = function(incident) {
+                if (!incident || typeof incident !== 'object') return false;
+                const incidentId = String(incident.incident_id || incident.id || '').trim();
+                const center = incident.center || {};
+                const lat = parseFloat(center.lat);
+                const lng = parseFloat(center.lng ?? center.lon);
+                if (!incidentId || Number.isNaN(lat) || Number.isNaN(lng)) return false;
+
+                const existing = window.incidentHotspotLayers && window.incidentHotspotLayers[incidentId];
+                const nextVersion = Number(incident.version || 0);
+                if (existing && nextVersion && Number(existing.version || 0) > nextVersion) {
+                    return false;
+                }
+                window.removeIncidentHotspot(incidentId);
+
+                const level = Math.max(1, Math.min(4, Number(incident.level || 1)));
+                const radius = Math.max(60, Math.min(900, Number(incident.search_radius_m || 220)));
+                const status = window.escapeMapText(incident.status || 'active');
+                const label = `INCYDENT L${level}`;
+                const colorByLevel = {
+                    1: '#ffd34d',
+                    2: '#ff9f2f',
+                    3: '#ff4242',
+                    4: '#ff1f1f'
+                };
+                const color = colorByLevel[level] || '#ff4242';
+
+                const circle = L.circle([lat, lng], {
+                    pane: 'incidentPane',
+                    radius,
+                    color,
+                    fillColor: color,
+                    fillOpacity: level >= 3 ? 0.16 : 0.10,
+                    opacity: 0.78,
+                    weight: level >= 3 ? 3 : 2,
+                    dashArray: level >= 3 ? '6 5' : '3 6',
+                    interactive: true
+                }).addTo(map);
+
+                const marker = L.marker([lat, lng], {
+                    pane: 'incidentPane',
+                    zIndexOffset: 760 + level,
+                    icon: L.divIcon({
+                        className: `incident-hotspot incident-hotspot--level-${level}`,
+                        html: `
+                            <div class="incident-hotspot__label">
+                                <span>${label}</span>
+                                <span class="incident-hotspot__level"> ${status}</span>
+                            </div>
+                        `,
+                        iconSize: [124, 26],
+                        iconAnchor: [62, 13]
+                    })
+                }).addTo(map);
+
+                const tooltip = `Incydent publiczny<br>Poziom: ${level}<br>Status: ${status}<br>Promien: ${Math.round(radius)} m`;
+                circle.bindTooltip(tooltip, { sticky: true, opacity: 0.95 });
+                marker.bindTooltip(tooltip, { sticky: true, opacity: 0.95 });
+
+                window.incidentHotspotLayers[incidentId] = {
+                    id: incidentId,
+                    version: nextVersion,
+                    incident: { ...incident },
+                    layers: [circle, marker]
+                };
+                return true;
+            };
+
+            window.refreshIncidentHotspots = async function() {
+                const loadingToken = window.beginMapLoading('Synchronizacja incydentow...');
+                try {
+                    const snapshot = await window.fetchMapSnapshot('incidents', '/api/map/incidents', { timeoutMs: 10000 });
+                    if (snapshot.skipped || snapshot.aborted) return false;
+                    const res = snapshot.res;
+                    if (res.status === 401) {
+                        stopMapRefreshTimers();
+                        return false;
+                    }
+                    if (!res.ok) return false;
+                    const data = await res.json();
+                    const keepCenter = map.getCenter();
+                    const keepZoom = map.getZoom();
+                    Object.keys(window.incidentHotspotLayers || {}).forEach(id => window.removeIncidentHotspot(id));
+                    (data.incidents || []).forEach(incident => window.renderIncidentHotspot(incident));
+                    programmaticMapMove = true;
+                    map.setView(keepCenter, keepZoom, { animate: false });
+                    setTimeout(() => {
+                        programmaticMapMove = false;
+                    }, 0);
+                    return true;
+                } catch (err) {
+                    console.warn('Incident hotspot refresh failed', err);
+                    return false;
+                } finally {
+                    window.endMapLoading(loadingToken);
+                }
+            };
+
+            window.applyIncidentDelta = function(event) {
+                const payload = (event && event.payload) || {};
+                const type = String((event && event.type) || payload.type || '');
+                const incidentId = String(
+                    (event && event.entity_id)
+                    || payload.incident_id
+                    || payload.id
+                    || ''
+                ).trim();
+                if (!incidentId) return false;
+                if (type === 'incident.resolved' || payload.removed || payload.status === 'resolved') {
+                    return window.removeIncidentHotspot(incidentId);
+                }
+                if (type === 'incident.created' || type === 'incident.updated' || event.scope === 'incident') {
+                    return window.renderIncidentHotspot({
+                        ...payload,
+                        incident_id: payload.incident_id || incidentId
+                    });
+                }
+                return false;
             };
 
             window.refreshActiveOperations = async function() {

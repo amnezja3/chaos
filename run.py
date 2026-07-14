@@ -45,6 +45,9 @@ from response_network.foundation import (
     build_response_network_safety_snapshot,
     record_response_map_endpoint_measurement,
 )
+from response_network.incident_initializer import IncidentInitializer
+from response_network.incident_store import IncidentStore
+from response_network.operation_risk_meter import update_operation_risk_meter
 from response_network.territory_context_reader import TerritoryContextReader
 from response_network.territory_delta import TerritoryDeltaPublisher
 
@@ -64,6 +67,8 @@ dev_bug_report_store = DevBugReportStore()
 delta_bus = GameStateDeltaBus()
 territory_context_reader = TerritoryContextReader(territory_store, territory_conflict_store)
 territory_delta_publisher = TerritoryDeltaPublisher(delta_bus, territory_context_reader)
+incident_store = IncidentStore()
+incident_initializer = IncidentInitializer(incident_store, territory_context_reader)
 
 
 def record_wallet_balance_delta(username, balance, reason="", entity_id="wallet", dedupe_key=None):
@@ -2476,6 +2481,61 @@ def record_territory_conflict_delta(conflict, reason="territory_conflict"):
         return []
 
 
+def record_incident_delta(username, incident, change_type="incident.updated", reason="incident_changed"):
+    username = str(username or "").strip()
+    if not username or not isinstance(incident, dict):
+        return None
+    payload = IncidentStore.public_payload(incident)
+    incident_id = str(payload.get("incident_id") or "").strip()
+    if not incident_id:
+        return None
+    if change_type == "incident.resolved":
+        payload["removed"] = True
+        payload["status"] = "resolved"
+    payload["reason"] = reason or "incident_changed"
+    try:
+        return delta_bus.record_change(
+            username,
+            "incident",
+            change_type,
+            payload,
+            entity_id=incident_id,
+            dedupe_key=f"incident:{username}:{change_type}:{incident_id}:{payload.get('version')}",
+        )
+    except Exception as exc:
+        print(f"[DELTA] {change_type} failed for {username}/{incident_id}: {exc}", flush=True)
+        return None
+
+
+def publish_incident_actions(username, actions):
+    username = str(username or "").strip()
+    if not username:
+        return []
+    events = []
+    for action in actions or []:
+        if not isinstance(action, dict):
+            continue
+        action_type = str(action.get("action") or "").strip()
+        incident_id = str(action.get("incident_id") or "").strip()
+        if not incident_id:
+            continue
+        incident = incident_store.get(incident_id)
+        if not incident:
+            continue
+        if action_type == "created":
+            event_type = "incident.created"
+        elif action_type == "cancelled":
+            event_type = "incident.resolved"
+        elif action_type == "recalculated":
+            event_type = "incident.updated"
+        else:
+            continue
+        event = record_incident_delta(username, incident, event_type, reason=action_type)
+        if event:
+            events.append(event)
+    return events
+
+
 def rebuild_player_areas_with_territory_delta(username, player_level=1, reason="territory_rebuild"):
     areas = territory_store.rebuild_player_areas(username, player_level)
     record_territory_areas_delta(username, areas, reason=reason)
@@ -4164,7 +4224,7 @@ def build_operation_instance(username, app, map_action_id, operation_type, targe
     duration_seconds = operation_duration_seconds(operation_type)
     movement_model = movement_model_for_operation(operation_type, target_type)
     procedural_seed = stable_procedural_seed(operation_id, username, target_id, operation_type)
-    return {
+    operation = {
         "operation_id": operation_id,
         "operation_type": operation_type,
         "owner_username": username,
@@ -4198,6 +4258,8 @@ def build_operation_instance(username, app, map_action_id, operation_type, targe
         },
         "risk_state": initial_risk_state_for_operation(operation_type),
     }
+    update_operation_risk_meter(operation, tool=app or {}, target=target_snapshot, now_ts=now)
+    return operation
 
 
 def create_operations_for_app_action(profile, username, app, map_action_id, target):
@@ -4213,6 +4275,7 @@ def create_operations_for_app_action(profile, username, app, map_action_id, targ
     created = []
     for operation_type in operation_types:
         operation = build_operation_instance(username, app or {}, map_action_id, operation_type, target)
+        update_operation_risk_meter(operation, tool=app or {}, target=target)
         operations.append(operation)
         created.append(operation)
     return created
@@ -8320,10 +8383,11 @@ def refresh_operation_runtime(operation, now_ts=None):
     current_position = compute_operation_position(refreshed, now_ts)
     if current_position:
         refreshed["current_position"] = current_position
+    update_operation_risk_meter(refreshed, now_ts=now_ts)
     return refreshed
 
 
-def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None):
+def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None, username=None):
     now_ts = now_ts if now_ts is not None else datetime.now(timezone.utc).timestamp()
     operations = profile.get("operations") or []
     refreshed_operations = []
@@ -8337,6 +8401,9 @@ def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None):
         if ensure_camera_shutdown_state(operation, now_ts):
             changed = True
         refreshed = refresh_operation_runtime(operation, now_ts=now_ts)
+        if operation.get("operation_risk_meter") != refreshed.get("operation_risk_meter"):
+            operation["operation_risk_meter"] = refreshed.get("operation_risk_meter")
+            changed = True
         refreshed_operations.append(refreshed)
         if persist_timeouts and operation.get("status") != refreshed.get("status"):
             operation["status"] = refreshed.get("status")
@@ -8371,6 +8438,23 @@ def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None):
             if assess_operation_risk(profile, operation):
                 changed = True
 
+    try:
+        incident_result = incident_initializer.sync_operations(operations, now=operation_iso_from_ts(now_ts))
+        if incident_result.get("actions"):
+            publish_incident_actions(username or profile.get("username"), incident_result.get("actions"))
+            meters_by_operation_id = {
+                str(operation.get("operation_id") or ""): operation.get("operation_risk_meter")
+                for operation in operations
+                if isinstance(operation, dict)
+            }
+            for refreshed in refreshed_operations:
+                operation_id = str(refreshed.get("operation_id") or "")
+                if operation_id in meters_by_operation_id:
+                    refreshed["operation_risk_meter"] = meters_by_operation_id[operation_id]
+            changed = True
+    except Exception as exc:
+        print(f"[INCIDENT] initializer skipped: {exc}")
+
     if changed:
         normalize_files_inventory(profile)
         normalize_profile_storage(profile)
@@ -8383,7 +8467,7 @@ def refresh_and_persist_operations(username, profile):
         return profile
 
     previous_storage = storage_delta_snapshot(profile)
-    operations, changed = refresh_operations_runtime(profile, persist_timeouts=True)
+    operations, changed = refresh_operations_runtime(profile, persist_timeouts=True, username=username)
     if not changed:
         return profile
 
@@ -8470,6 +8554,7 @@ def summarize_operation_for_client(operation):
     if not isinstance(current_position, dict):
         current_position = {}
     risk_state = operation.get("risk_state") if isinstance(operation.get("risk_state"), dict) else {}
+    risk_meter = operation.get("operation_risk_meter") if isinstance(operation.get("operation_risk_meter"), dict) else {}
 
     return {
         "operation_id": operation.get("operation_id"),
@@ -8506,6 +8591,18 @@ def summarize_operation_for_client(operation):
             "hint": risk_state.get("hint"),
             "modifiers": risk_state.get("modifiers", []),
         },
+        "operation_risk_meter": {
+            "mode": risk_meter.get("mode"),
+            "risk_version": risk_meter.get("risk_version"),
+            "current_heat": risk_meter.get("current_heat"),
+            "active_contribution": risk_meter.get("active_contribution"),
+            "risk_level": risk_meter.get("risk_level"),
+            "warning_threshold": risk_meter.get("warning_threshold"),
+            "incident_threshold": risk_meter.get("incident_threshold"),
+            "warning_crossed": risk_meter.get("warning_crossed"),
+            "incident_crossed": risk_meter.get("incident_crossed"),
+            "cancelled": risk_meter.get("cancelled"),
+        } if risk_meter else {},
         "risk_level": operation.get("risk_level"),
     }
 
@@ -8536,6 +8633,7 @@ def cancel_profile_operation(profile, operation_id, cancelled_by="player", now_t
         resource_buffer["cancelled"] = True
         resource_buffer.setdefault("files", [])
         mark_operation_cleanup_state(operation, now_iso=now_iso)
+        update_operation_risk_meter(operation, now_ts=now_ts)
         assess_operation_risk(profile, operation)
         normalize_files_inventory(profile)
         return operation, "cancelled"
@@ -8543,7 +8641,8 @@ def cancel_profile_operation(profile, operation_id, cancelled_by="player", now_t
 
 
 def active_operations_from_profile(profile):
-    operations, _ = refresh_operations_runtime(profile)
+    username = (profile or {}).get("username")
+    operations, _ = refresh_operations_runtime(profile, username=username)
     return active_operations_from_operations(operations)
 
 
@@ -13157,7 +13256,7 @@ def api_operations():
     else:
         profile = sync_session_profile()
     profile = refresh_and_persist_operations(session["user"], profile)
-    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False)
+    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False, username=session["user"])
     active_operations = active_operations_from_operations(operations)
     operation_history = operation_history_from_operations(operations)
 
@@ -13217,7 +13316,7 @@ def api_cancel_operation():
     profile["risk_events"] = stored_profile.get("risk_events", [])
     profile["system_messages"] = stored_profile.get("system_messages", [])
     session["profile"] = profile
-    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False)
+    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False, username=session["user"])
 
     return jsonify({
         "success": True,
@@ -14519,6 +14618,18 @@ def map_player_areas():
             "map_zoom": get_player_map_zoom(profile),
             "min_map_zoom": get_player_min_map_zoom(profile)
         }
+    })
+
+
+@app.route("/api/map/incidents")
+def map_incidents():
+    if "user" not in session:
+        return jsonify({"error": "Nie jestes zalogowany"}), 401
+
+    return jsonify({
+        "success": True,
+        "scope": "incident",
+        "incidents": incident_store.list_public(),
     })
 
 

@@ -20,7 +20,7 @@ let stateDeltaPollInFlight = false;
 const processedDeltaKeys = new Set();
 const STATE_DELTA_POLL_INTERVAL_MS = 4000;
 const STATE_DELTA_LIMIT = 100;
-const STATE_DELTA_DEFAULT_RECOVERY_SCOPES = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map", "territory"];
+const STATE_DELTA_DEFAULT_RECOVERY_SCOPES = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map", "territory", "incident"];
 const CYBERNER_THREAD_REFRESH_INTERVAL_MS = 10000;
 const APP_TERMINAL_AUTO_CLOSE_MS = 30000;
 const DESKTOP_WALLPAPER_CLASSES = [
@@ -5693,6 +5693,21 @@ function updateTerritoryDeltaView(event = {}) {
     return applied;
 }
 
+function updateIncidentDeltaView(event = {}) {
+    let applied = false;
+    document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
+        try {
+            const mapWindow = frame.contentWindow;
+            if (mapWindow && typeof mapWindow.applyIncidentDelta === "function") {
+                applied = mapWindow.applyIncidentDelta(event) || applied;
+            }
+        } catch (err) {
+            console.warn("Incident delta failed", err);
+        }
+    });
+    return applied;
+}
+
 async function applyDelta(event) {
     if (!event || typeof event !== "object") return false;
     const dedupeKey = event.dedupe_key || `${event.type || 'event'}:${event.version || ''}`;
@@ -5729,6 +5744,10 @@ async function applyDelta(event) {
     }
     if (event.scope === "territory" || String(event.type || "").startsWith("territory.")) {
         updateTerritoryDeltaView(event);
+        return true;
+    }
+    if (event.scope === "incident" || String(event.type || "").startsWith("incident.")) {
+        updateIncidentDeltaView(event);
         return true;
     }
     if (event.scope === "map") {
@@ -5830,6 +5849,26 @@ async function recoverTerritoryDeltaScope() {
     return recovered || null;
 }
 
+async function recoverIncidentDeltaScope() {
+    let recovered = false;
+    const tasks = [];
+    document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
+        try {
+            const mapWindow = frame.contentWindow;
+            if (mapWindow && typeof mapWindow.refreshIncidentHotspots === "function") {
+                tasks.push(Promise.resolve(mapWindow.refreshIncidentHotspots({ recovery: true, reason: "delta_recovery" })));
+                recovered = true;
+            }
+        } catch (err) {
+            console.warn("Incident delta recovery failed", err);
+        }
+    });
+    if (tasks.length) {
+        await Promise.allSettled(tasks);
+    }
+    return recovered || null;
+}
+
 async function recoverDeltaScopes(recoveryScopes = [], currentVersion = null) {
     const normalizedScopes = Array.isArray(recoveryScopes) && recoveryScopes.length
         ? recoveryScopes
@@ -5864,6 +5903,12 @@ async function recoverDeltaScopes(recoveryScopes = [], currentVersion = null) {
     if (scopes.has("territory")) {
         recoveryTasks.push(recoverTerritoryDeltaScope().catch(err => {
             console.warn("Territory delta recovery failed", err);
+            return null;
+        }));
+    }
+    if (scopes.has("incident")) {
+        recoveryTasks.push(recoverIncidentDeltaScope().catch(err => {
+            console.warn("Incident delta recovery failed", err);
             return null;
         }));
     }

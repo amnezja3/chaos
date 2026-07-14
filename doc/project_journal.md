@@ -8028,3 +8028,150 @@ Pozostaje do kolejnych sprintow:
 * pelna delta geometrii konfliktow, jesli payload zostanie rozszerzony,
 * porownanie live `p95` i payloadow przed/po,
 * dalsze zdejmowanie ciezkich mapowych snapshotow przed incydentami.
+
+### Sprint 89 - Operation Risk Meter
+
+Przeczytano:
+
+* opis Sprintu 89 w `doc/game_play_260626.md`,
+* sekcje `operation_risk_meter` w
+  `doc/incidents_npc_technical_architecture.md`,
+* aktualny runtime operacji, finalizacji i anulowania w `run.py`.
+
+Wdrozono wersjonowany miernik ryzyka bezposrednio na operacji:
+
+* nowy modul `response_network.operation_risk_meter`;
+* `operation_risk_meter` dodawany przy tworzeniu operacji;
+* aktualizacja metera przy odswiezaniu runtime operacji;
+* podstawowe skladowe: `base_heat`, `time_heat`, `tool_modifier`,
+  `security_modifier`, `conflict_modifier`;
+* progi `warning_threshold` i `incident_threshold`;
+* idempotentne `warning_dedupe_key` i `incident_dedupe_key`;
+* `risk_version` zwiekszany tylko przy realnej zmianie stanu metera;
+* tryb `observe` bez publikowania incydentow, NPC, ostrzezen ani konsekwencji;
+* anulowanie operacji zeruje `current_heat` i `active_contribution` oraz oznacza
+  powiazany stan progow jako anulowany.
+
+Stary `risk_state` pozostaje jako legacy mechanizm finalizacji operacji. Nowy
+meter jest osobnym read model na operacji, nie drugim systemem incydentow.
+
+Sprawdzono:
+
+* naliczanie heat z czasu, narzedzia, zabezpieczen celu i konfliktu;
+* idempotencje przekroczenia progow;
+* anulowanie operacji i wyzerowanie aktywnego wkladu;
+* integracje tworzenia operacji;
+* selektywne testy starego flow operacji.
+
+Poza zakresem pozostaje:
+
+* publikacja warningow;
+* tworzenie incydentow;
+* NPC;
+* konsekwencje dla gracza;
+* BlackNet incident bridge.
+
+### Sprint 90 - Incident Initializer + Store
+
+Przeczytano:
+
+* opis Sprintu 90 w `doc/game_play_260626.md`,
+* sekcje incydentow w `doc/incidents_npc_technical_architecture.md`,
+* raport Sprintu 89 i aktualny miernik ryzyka operacji.
+
+Przed zmianami potwierdzono znany baseline awarii
+`tests.test_target_persistence`:
+
+* embedding profilu w mapie nadal ma legacy problem JSON,
+* generated app runtime nadal ma legacy brak `runApp`,
+* recovery scopes nadal roznia sie przez `territory`.
+
+Nie naprawiano tych problemow w Sprincie 90.
+
+Wdrozono niewidoczny runtime incydentow:
+
+* nowy `response_network.incident_store` jako magazyn incydentow i audytu;
+* nowy `response_network.incident_initializer` tworzacy incydenty z operacji,
+  ktore przekroczyly prog `incident`;
+* scalanie pobliskich operacji w jeden incydent;
+* wersjonowanie incydentu tylko przy realnej zmianie;
+* poziomy reakcji i eskalacje na podstawie lacznego heat;
+* `suspect_refs` z aktorow operacji;
+* lekkie `territory_refs` przez read-only territory context;
+* audit oraz replay zdarzen incydentu;
+* anulowanie incydentu, gdy nie ma juz aktywnych operacji;
+* przeliczanie incydentu laczonego po anulowaniu albo wygasnieciu jednej z
+  operacji.
+
+Incydenty pozostaja niewidoczne i nie publikuja niczego do gracza. Nie dodano
+NPC, kapsul, snikersow, warningow, toastow, Cybernera ani konsekwencji.
+
+Sprawdzono:
+
+* tworzenie incydentu po przekroczeniu progu;
+* scalanie pobliskich operacji;
+* idempotencje powtornego syncu;
+* anulowanie pustego incydentu;
+* replay audytu;
+* integracje `refresh_operations_runtime()` bez publikacji.
+
+Poza zakresem pozostaje:
+
+* publiczna mapa incydentow;
+* delty incydentow dla UI;
+* BlackNet incident bridge;
+* NPC i kapsuly zachowan;
+* konsekwencje oraz ostrzezenia graczy.
+
+### Sprint 91 - Public Incident Map
+
+Przeczytano:
+
+* opis Sprintu 91 w `doc/game_play_260626.md`,
+* architekture incydentow w `doc/incidents_npc_technical_architecture.md`,
+* raporty Sprintow 89-90,
+* aktualny runtime mapy, delt i recovery.
+
+Wdrozono publiczny, ograniczony widok incydentow:
+
+* endpoint `GET /api/map/incidents`;
+* publiczny payload incydentu z `incident_id`, `version`, `status`, `level`,
+  `center`, `search_radius_m`, `updated_at` i `expires_at`;
+* brak ujawniania `operation_ids`, `suspect_refs`, `territory_refs`,
+  `operation_refs` i prywatnych danych;
+* publikacje delt `incident.created`, `incident.updated` i
+  `incident.resolved`;
+* `incident.resolved` usuwa incydent z mapy po anulowaniu ostatniej operacji;
+* frontendowy handler `applyIncidentDelta()`;
+* recovery scope incydentow przez snapshot `/api/map/incidents`;
+* warstwe mapy pokazujaca centrum, promien, poziom i status incydentu;
+* aktualizacje punktowe tylko zmienionego incydentu.
+
+Nie wlaczono NPC, kapsul, snikersow, BlackNet bridge, wykrywania,
+ostrzezen ani konsekwencji.
+
+Sprawdzono:
+
+* `python -m py_compile run.py response_network\incident_store.py
+  response_network\incident_initializer.py response_network\operation_risk_meter.py`;
+* `node --check static/js/terminal.js`;
+* `python -m unittest tests.test_public_incident_map
+  tests.test_incident_initializer tests.test_operation_risk_meter`;
+* `python -m unittest tests.test_response_network_safety
+  tests.test_territory_context_reader tests.test_territory_delta
+  tests.test_target_persistence.GameStateDeltaBusTest`;
+* `git diff --check`.
+
+Znany baseline legacy `tests.test_target_persistence` pozostaje bez nowych
+awarii funkcjonalnych Sprintu 91:
+
+* embedding profilu w mapie nadal ma legacy problem JSON;
+* generated app runtime nadal ma legacy brak `runApp`;
+* recovery scopes nadal roznia sie przez `territory`.
+
+Poza zakresem pozostaje:
+
+* NPC i zachowania reakcji;
+* BlackNet incident bridge;
+* ostrzezenia do graczy;
+* konsekwencje i wykrywanie.
