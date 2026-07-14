@@ -1251,6 +1251,11 @@ function attachTerminalInputHandler(input, content) {
                 content.innerHTML += `<br>${data.response.replace(/\n/g, "<br>")}`;
             }
 
+            if (data.terminalTeleport) {
+                await handleTerminalTeleport(content, data.terminalTeleport);
+                return;
+            }
+
             if (data.closeTerminal) {
                 setTimeout(() => {
                     content.closest('.terminal')?.remove();
@@ -1405,6 +1410,122 @@ function appendSystemTerminalLoader(content) {
     };
 }
 
+function showGhostDecisionDialog({
+    title = "GHOST SYSTEM",
+    message = "",
+    details = "",
+    confirmLabel = "OK",
+    cancelLabel = "ANULUJ",
+    tone = "lime"
+} = {}) {
+    return new Promise(resolve => {
+        const existing = document.querySelector(".blacknet-decision-backdrop");
+        if (existing) existing.remove();
+
+        const backdrop = document.createElement("div");
+        backdrop.className = `blacknet-decision-backdrop tone-${String(tone || "lime").toLowerCase()}`;
+        backdrop.innerHTML = `
+            <section class="blacknet-decision" role="dialog" aria-modal="true" aria-labelledby="ghost-decision-title">
+                <div class="blacknet-decision__scanline"></div>
+                <header class="blacknet-decision__header">
+                    <span class="blacknet-decision__badge">GHOST SYSTEM</span>
+                    <h2 id="ghost-decision-title">${escapeHTML(title)}</h2>
+                </header>
+                <div class="blacknet-decision__body">
+                    <p>${escapeHTML(message)}</p>
+                    ${details ? `<p class="blacknet-decision__details">${escapeHTML(details)}</p>` : ""}
+                </div>
+                <footer class="blacknet-decision__actions">
+                    <button type="button" class="blacknet-decision__button is-cancel" data-choice="cancel">${escapeHTML(cancelLabel)}</button>
+                    <button type="button" class="blacknet-decision__button is-confirm" data-choice="confirm">${escapeHTML(confirmLabel)}</button>
+                </footer>
+            </section>
+        `;
+
+        let settled = false;
+        const finish = accepted => {
+            if (settled) return;
+            settled = true;
+            document.removeEventListener("keydown", handleKeydown, true);
+            backdrop.remove();
+            resolve(Boolean(accepted));
+        };
+        const handleKeydown = event => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                finish(false);
+            }
+            if (event.key === "Enter") {
+                event.preventDefault();
+                finish(true);
+            }
+        };
+
+        backdrop.addEventListener("click", event => {
+            const button = event.target.closest("[data-choice]");
+            if (!button) {
+                if (event.target === backdrop) finish(false);
+                return;
+            }
+            finish(button.dataset.choice === "confirm");
+        });
+        document.addEventListener("keydown", handleKeydown, true);
+        document.body.appendChild(backdrop);
+        const confirmButton = backdrop.querySelector(".blacknet-decision__button.is-confirm");
+        if (confirmButton) requestAnimationFrame(() => confirmButton.focus());
+    });
+}
+
+async function handleTerminalTeleport(content, teleport) {
+    const lat = Number(teleport?.lat);
+    const lng = Number(teleport?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        appendSystemTerminalOutput(content, "teleport: brak poprawnych wspolrzednych.");
+        return;
+    }
+
+    const label = teleport?.label || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    const accepted = await showGhostDecisionDialog({
+        title: "POTWIERDZENIE TELEPORTU",
+        message: `Wykonac teleport do: ${label}?`,
+        details: "OK zmieni pozycje operatora i odswiezy mape. ANULUJ zostawi obecna pozycje.",
+        confirmLabel: "OK",
+        cancelLabel: "ANULUJ",
+        tone: "lime"
+    });
+    if (!accepted) {
+        appendSystemTerminalOutput(content, "Teleport anulowany.");
+        return;
+    }
+
+    const response = await fetch("/api/blacknet/cta/teleport", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            source: "terminal",
+            lat,
+            lng,
+            label: "terminal",
+            target_label: label
+        })
+    });
+    const data = await response.json();
+    if (!response.ok || data.success === false) {
+        appendSystemTerminalOutput(content, escapeHTML(data.message || "Teleport odrzucony."));
+        return;
+    }
+
+    appendSystemTerminalOutput(content, escapeHTML(data.message || `Teleport wykonany: ${label}.`));
+    openSystemAppFromTerminal("map");
+    notifyOpenMapsBlacknetFocus({
+        mode: "teleport",
+        label,
+        lat: Number(data?.curently_possition?.lat ?? lat),
+        lng: Number(data?.curently_possition?.lng ?? lng),
+        source: "terminal"
+    });
+}
+
 function attachSystemTerminalInputHandler(input, content) {
     const form = input.closest('.system-terminal-composer');
     if (!form || form.dataset.systemTerminalBound === "1") return;
@@ -1474,6 +1595,12 @@ function attachSystemTerminalInputHandler(input, content) {
 
             if (data.response) {
                 appendSystemTerminalOutput(content, data.response.replace(/\n/g, "<br>"));
+            }
+
+            if (data.terminalTeleport) {
+                stopLoader();
+                await handleTerminalTeleport(content, data.terminalTeleport);
+                return;
             }
 
             if (data.closeTerminal) {
@@ -4050,6 +4177,11 @@ function createBrowser() {
             const price = Number(item.price || 0);
             const installed = item.installed === true;
             const isProduct = !!(item.product_type || (Array.isArray(item.effects) && item.effects.length));
+            const travelEffect = Array.isArray(item.effects)
+                ? item.effects.find(effect => effect && typeof effect === "object" && effect.type === "travel_city")
+                : null;
+            const isTravelTicket = item.product_type === "travel_ticket" || Boolean(travelEffect);
+            const travelDestination = String(travelEffect?.city || item.travel_city || "").trim();
             const canAfford = walletBalance >= price;
             const installBlockedReason = item.install_blocked_reason || "";
             const canInstall = !installed && canAfford && !installBlockedReason;
@@ -4126,8 +4258,24 @@ function createBrowser() {
                     <button type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button>
                 </div>
             `;
-            card.querySelector('button').addEventListener('click', () => {
+            card.querySelector('button').addEventListener('click', async () => {
                 if (!canInstall) return;
+                if (isTravelTicket) {
+                    const accepted = await blacknetDecisionDialog({
+                        title: "POTWIERDZENIE PODROZY",
+                        message: travelDestination
+                            ? `Kupic ticket i przeniesc operatora do: ${travelDestination}?`
+                            : "Kupic ticket i wykonac teleport do wskazanej lokalizacji?",
+                        details: `${item.name || "Travel Ticket"} kosztuje ${price} HC. Anulowanie nie pobierze HC i nie zmieni pozycji.`,
+                        confirmLabel: "OK",
+                        cancelLabel: "ANULUJ",
+                        tone: "lime"
+                    });
+                    if (!accepted) {
+                        addSystemMessage("info", "Googleplex", "Teleport anulowany. Ticket nie zostal kupiony.");
+                        return;
+                    }
+                }
                 showInstallAppProgress(item, async () => {
                     await loadCatalog();
                 });

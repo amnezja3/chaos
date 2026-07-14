@@ -11495,6 +11495,7 @@ def api_blacknet_cta_teleport():
         or ""
     ).strip()
     label = str(payload.get("label") or payload.get("target_label") or "").strip()
+    source = str(payload.get("source") or "blacknet").strip().lower()
     try:
         payload_lat = float(payload.get("lat"))
         payload_lng = float(payload.get("lng"))
@@ -11551,17 +11552,19 @@ def api_blacknet_cta_teleport():
     session["profile"] = profile
 
     intrusion_area = notify_area_intrusion(username, position["lat"], position["lng"])
+    teleport_reason = "terminal_teleport" if source == "terminal" else "blacknet_teleport"
     record_map_player_actor_delta(
         username,
         profile,
         change_type="map.player_moved",
-        reason="blacknet_teleport",
+        reason=teleport_reason,
         intrusion_area=intrusion_area,
     )
+    message_prefix = "Teleport wykonany" if source == "terminal" else "Teleport BlackNet wykonany"
 
     return jsonify({
         "success": True,
-        "message": f"Teleport BlackNet wykonany: {target_label}.",
+        "message": f"{message_prefix}: {target_label}.",
         "hotspot": hotspot_payload,
         "curently_possition": position,
         "intrusion": bool(intrusion_area),
@@ -11681,6 +11684,12 @@ def command():
 
     if result.get("clear"):
         return jsonify({"clear": True})
+
+    if result.get("terminalTeleport"):
+        return jsonify({
+            "response": result.get("response", "Przygotowano teleport."),
+            "terminalTeleport": result.get("terminalTeleport"),
+        })
 
     if result.get("confirm_userdel"):
         username_to_delete = result["confirm_userdel"]

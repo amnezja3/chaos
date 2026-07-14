@@ -1922,6 +1922,54 @@
 
 
 
+        function formatTeleportTerminalCommand(lat, lng) {
+            const latNum = Number(lat);
+            const lngNum = Number(lng);
+            if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+                return "";
+            }
+            return `teleport ${latNum.toFixed(6)}:${lngNum.toFixed(6)}`;
+        }
+
+        function copyTextToClipboard(text) {
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                return navigator.clipboard.writeText(text);
+            }
+            return new Promise((resolve, reject) => {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.setAttribute('readonly', 'readonly');
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                textarea.style.top = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    const copied = document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    copied ? resolve() : reject(new Error('copy_failed'));
+                } catch (err) {
+                    document.body.removeChild(textarea);
+                    reject(err);
+                }
+            });
+        }
+
+        function copyTeleportCommandFromMap(lat, lng) {
+            const command = formatTeleportTerminalCommand(lat, lng);
+            if (!command) {
+                addSystemMessage("warning", "Mapa", "Nieprawidlowe wspolrzedne teleportu.");
+                return;
+            }
+            copyTextToClipboard(command)
+                .then(() => {
+                    addSystemMessage("info", "Mapa", `Skopiowano komende terminala: ${command}`);
+                })
+                .catch(() => {
+                    addSystemMessage("warning", "Mapa", `Nie udalo sie skopiowac. Komenda: ${command}`);
+                });
+        }
+
         function showContextMenu(x, y, lat, lng, forceMapMenu = false) {
             if (guardMapGameplayAction()) return;
             if (!forceMapMenu && lastContextWasMarker) {
@@ -1946,6 +1994,7 @@
             html += canClearScan
                 ? `<div onclick="clearScanResultLayers(); closeMenus();">🧹 Wyczyść scan</div>`
                 : `<div class="disabled">🧹 Wyczyść scan</div>`;
+            html += `<div onclick="copyTeleportCommandFromMap(${lat}, ${lng}); closeMenus();">Pobierz teleport</div>`;
             menu.innerHTML = html;
             document.body.appendChild(menu);
         }

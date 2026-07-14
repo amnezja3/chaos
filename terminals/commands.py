@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import hashlib
 import posixpath
 import shlex
+import re
 
 from database import JsonResourceStore
 
@@ -10,6 +11,7 @@ resource_store = JsonResourceStore()
 
 CHAOS_HOST = "chaos.node"
 CHAOS_CWD = "/home/ghost"
+COORDINATE_PAIR_RE = re.compile(r"^\s*([+-]?\d+(?:[\.,]\d+)?)\s*[:;,]\s*([+-]?\d+(?:[\.,]\d+)?)\s*$")
 
 CHAOS_FS = {
     "/": ["home", "var", "etc", "data", "net", "readme.txt"],
@@ -441,6 +443,28 @@ def _builtin_command(tokens, original_text, profile):
         return {"response": _log(arg or "system")}
     if cmd == "apps":
         return {"response": _apps_list(profile)}
+    if cmd == "teleport":
+        coord_arg = original_text.partition(" ")[2].strip()
+        if not coord_arg:
+            return {"response": "usage: teleport <lat:lon>"}
+        match = COORDINATE_PAIR_RE.match(coord_arg)
+        if not match:
+            return {"response": "teleport: podaj wspolrzedne w formacie lat:lon, np. teleport 52.2297:21.0122"}
+        try:
+            lat = float(match.group(1).replace(",", "."))
+            lng = float(match.group(2).replace(",", "."))
+        except ValueError:
+            return {"response": "teleport: nieprawidlowe wspolrzedne."}
+        if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+            return {"response": "teleport: wspolrzedne poza zakresem."}
+        return {
+            "terminalTeleport": {
+                "lat": lat,
+                "lng": lng,
+                "label": f"{lat:.6f}, {lng:.6f}"
+            },
+            "response": f"Przygotowano teleport do: {lat:.6f}, {lng:.6f}"
+        }
     if cmd in SYSTEM_APP_ALIASES:
         app_key = SYSTEM_APP_ALIASES[cmd]
         label = SYSTEM_APP_LABELS.get(app_key, app_key)
