@@ -316,6 +316,7 @@ BLACKNET_WORLD_FACTS_TTL_SECONDS = 10 * 60
 BLACKNET_WORLD_FACTS_CACHE_SECONDS = 60
 BLACKNET_WORLD_SIGNALS_SCHEMA = 1
 BLACKNET_WORLD_SIGNALS_LIMIT = 8
+BLACKNET_WORLD_SIGNALS_CACHE_SECONDS = 20
 BLACKNET_OLLAMA_OUTBOX_SCHEMA_VERSION = "1.0"
 BLACKNET_OLLAMA_OUTBOX_TTL_SECONDS = 60 * 60
 BLACKNET_OLLAMA_OUTBOX_MAX_FACTS = 32
@@ -326,6 +327,7 @@ BLACKNET_WORLD_FACTS_CACHE = {
     "snapshot": None,
     "cached_at": 0.0,
 }
+BLACKNET_WORLD_SIGNALS_CACHE = {}
 BLACKNET_FACT_IMPORTANCE = {
     "low": 25,
     "medium": 50,
@@ -1738,6 +1740,32 @@ def blacknet_signal_from_fact(fact, now_dt):
 
 def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_SIGNALS_LIMIT, exclude_ids=None):
     started = time.perf_counter()
+    try:
+        requested_limit = int(limit or BLACKNET_WORLD_SIGNALS_LIMIT)
+    except (TypeError, ValueError):
+        requested_limit = BLACKNET_WORLD_SIGNALS_LIMIT
+    requested_limit = max(1, min(32, requested_limit))
+    exclude_key = tuple(sorted({
+        str(item).strip()
+        for item in (exclude_ids or [])
+        if str(item or "").strip()
+    }))
+    can_use_cache = snapshot is None and now is None
+    cache_key = (requested_limit, exclude_key)
+    if can_use_cache:
+        cached_entry = BLACKNET_WORLD_SIGNALS_CACHE.get(cache_key)
+        cached_at = float((cached_entry or {}).get("cached_at") or 0.0)
+        cached_snapshot = (cached_entry or {}).get("snapshot")
+        if isinstance(cached_snapshot, dict) and time.time() - cached_at < BLACKNET_WORLD_SIGNALS_CACHE_SECONDS:
+            result = copy.deepcopy(cached_snapshot)
+            diagnostics = result.setdefault("diagnostics", {})
+            diagnostics["cache"] = {
+                "hit": True,
+                "ttl_seconds": BLACKNET_WORLD_SIGNALS_CACHE_SECONDS,
+                "age_ms": int(round((time.time() - cached_at) * 1000)),
+            }
+            return result
+
     now_dt = now if isinstance(now, datetime) else blacknet_utc_now()
     if now_dt.tzinfo is None:
         now_dt = now_dt.replace(tzinfo=timezone.utc)
@@ -1747,7 +1775,7 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
         if str(item or "").strip()
     }
     if not isinstance(snapshot, dict):
-        snapshot = build_blacknet_world_facts_snapshot(now=now_dt)
+        snapshot = build_blacknet_world_facts_snapshot()
     facts = snapshot.get("facts") if isinstance(snapshot.get("facts"), list) else []
     candidates = []
     rejected = []
@@ -1808,13 +1836,13 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
 
     for signal in candidates:
         try_select_signal(signal, require_new_family=True)
-        if len(selected) >= int(limit or BLACKNET_WORLD_SIGNALS_LIMIT):
+        if len(selected) >= requested_limit:
             break
 
-    if len(selected) < int(limit or BLACKNET_WORLD_SIGNALS_LIMIT):
+    if len(selected) < requested_limit:
         for signal in candidates:
             try_select_signal(signal, require_new_family=False)
-            if len(selected) >= int(limit or BLACKNET_WORLD_SIGNALS_LIMIT):
+            if len(selected) >= requested_limit:
                 break
 
     out_of_signal = False
@@ -1839,7 +1867,7 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
     version = hashlib.sha1(
         json.dumps(version_payload, sort_keys=True, ensure_ascii=True).encode("utf-8")
     ).hexdigest()[:16]
-    return {
+    result = {
         "schema": BLACKNET_WORLD_SIGNALS_SCHEMA,
         "snapshot_type": "blacknet_world_signals",
         "source": "world_generated",
@@ -1858,8 +1886,20 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
             "local_static_allowed": False,
             "local_static_policy": "dev_flag_only",
             "ollama_used": False,
+            "cache": {
+                "hit": False,
+                "ttl_seconds": BLACKNET_WORLD_SIGNALS_CACHE_SECONDS,
+            },
         },
     }
+    if can_use_cache:
+        if len(BLACKNET_WORLD_SIGNALS_CACHE) > 64:
+            BLACKNET_WORLD_SIGNALS_CACHE.clear()
+        BLACKNET_WORLD_SIGNALS_CACHE[cache_key] = {
+            "snapshot": copy.deepcopy(result),
+            "cached_at": time.time(),
+        }
+    return result
 
 
 def blacknet_ollama_text(value, limit=160):
@@ -11370,8 +11410,7 @@ def api_blacknet_world_signals():
         for item in str(request.args.get("exclude") or "").split(",")
         if item.strip()
     ]
-    facts_snapshot = build_blacknet_world_facts_snapshot()
-    signal_snapshot = build_blacknet_world_signals(facts_snapshot, limit=limit, exclude_ids=exclude_ids)
+    signal_snapshot = build_blacknet_world_signals(limit=limit, exclude_ids=exclude_ids)
     return jsonify({
         "success": True,
         "snapshot": signal_snapshot,

@@ -1,313 +1,3 @@
-# Rozgrywka klanowa i GhostSignal
-
-## Cztery globalne klany
-
-Każdy operator podczas rejestracji wybiera jeden z czterech globalnych klanów:
-
-* VIREX
-* Echo Wolności
-* Siatka Widmo
-* Strażnicy Ładu
-
-Klan jest stałą przynależnością gracza i określa jego miejsce w globalnym konflikcie. Każdy klan posiada własną ideologię, pięć profesji oraz jedną maszynę GhostSystemu.
-
-Maszyny różnią się przeznaczeniem, lecz stanowią części większego systemu. Żadna z nich nie może samodzielnie wygenerować kompletnego GhostSignalu.
-
-## Profesje
-
-W każdym klanie dostępnych jest pięć profesji. Profesja określa specjalizację operatora i jego funkcję podczas operacji na mapie.
-
-Każda profesja otrzymuje:
-
-* podstawową zdolność dostępną od początku;
-* charakterystyczne narzędzie lub sposób działania;
-* przypisany moduł maszyny klanowej;
-* rozszerzoną supermoc uruchamianą po aktywacji tego modułu;
-* określoną funkcję podczas odkrywania, przejmowania albo obrony części.
-
-Dzięki temu profesja nie jest tylko nazwą i awatarem. Wpływa na sposób hakowania obiektów oraz wartość gracza dla całego klanu.
-
-## Cztery maszyny
-
-Każdy klan buduje własną, rozproszoną maszynę. Maszyna składa się z pięciu części odpowiadających pięciu profesjom.
-
-Łącznie w jednym cyklu GhostSystemu istnieje:
-
-* 4 maszyny;
-* 5 części każdej maszyny;
-* 20 strategicznych części na mapie.
-
-Maszyna nie znajduje się w jednym budynku. Jej części są rozrzucone po świecie i osadzone w różnych obiektach oraz terytoriach.
-
-Kontrolowanie części oznacza kontrolowanie fizycznego węzła rozproszonej maszyny.
-
-# Odkrywanie części
-
-## Część ukryta w obiekcie
-
-Na początku cyklu wszystkie części są ukryte w obiektach znajdujących się na mapie. Obiekt wygląda zwyczajnie i można go hakować w ramach podstawowej rozgrywki.
-
-Podczas operacji może pojawić się komunikat:
-
-> W strukturze celu wykryto komponent GhostSystemu.
-
-Od tego momentu część zostaje trwale powiązana z lokalizacją. Nie trafia do File Managera, magazynu ani ekwipunku gracza.
-
-## Ujawnienie części
-
-Po odkryciu część staje się widoczna na mapie. Gracze wiedzą, że w danym miejscu znajduje się komponent maszyny.
-
-Zakres ujawnionych informacji może zależeć od skanu i profesji. Początkowo nie musi być wiadomo:
-
-* do której maszyny należy część;
-* jaka profesja jest z nią powiązana;
-* jakie daje możliwości;
-* z którymi częściami się połączy;
-* kto powinien ją aktywować.
-
-Jeżeli odkrywca nie utworzy wokół obiektu terytorium, część pozostaje neutralna i jawnie dostępna. Każdy klan może rozpocząć walkę o jej otoczenie.
-
-# Terytorium i kontrola części
-
-## Otoczenie przez obcy klan
-
-Jeżeli część maszyny Siatki Widmo odkryje gracz VIREX, może otoczyć ją własnym terytorium.
-
-Część zostaje wtedy zabezpieczona, lecz pozostaje nieaktywna. VIREX nie może wykorzystać jej mocy, ponieważ komponent nie należy do jego maszyny.
-
-Może jednak:
-
-* blokować rozwój Siatki Widmo;
-* bronić terytorium;
-* wykorzystać informację jako kartę przetargową;
-* negocjować z innymi graczami;
-* ukrywać albo ujawniać znaczenie znaleziska.
-
-## Odbicie części
-
-Aby Siatka Widmo aktywowała swoją część, jej gracze muszą:
-
-1. Odnaleźć właściwe terytorium.
-2. Schakować jego zabezpieczenia.
-3. Rozbroić kontrolę przeciwnika.
-4. Otoczyć część własnym terytorium.
-5. Utrzymać nowy obszar.
-
-Samo schakowanie terytorium nie wystarcza. Część zaczyna działać dopiero po otoczeniu jej przez właściwy klan.
-
-## Aktywacja właściwego modułu
-
-Kiedy część znajdzie się na terytorium należącym do jej klanu:
-
-* otrzymuje status aktywnej;
-* uruchamia przypisaną funkcję maszyny;
-* wzmacnia graczy odpowiedniej profesji;
-* zaczyna wyszukiwać powiązane aktywne części;
-* staje się strategicznym celem dla innych klanów.
-
-Jeżeli terytorium zostanie utracone, część wyłącza się. Powiązana supermoc przestaje działać, a połączenia wychodzące z węzła znikają.
-
-# Sieć maszyn
-
-## Automatyczne połączenia
-
-Każda część posiada ukryte powiązania z innymi częściami. Po aktywacji węzeł automatycznie łączy się z aktywnymi elementami swojego schematu.
-
-Gracze nie wybierają połączeń i nie zatwierdzają synchronizacji.
-
-Mapa sama ujawnia kolejne elementy konstrukcji.
-
-## Linie wewnętrzne
-
-Części należące do jednej maszyny łączą się liniami w kolorze swojego klanu. Dzięki temu gracze widzą, jak pięć rozproszonych modułów zaczyna tworzyć jedną konstrukcję.
-
-Aktywacja kolejnych części stopniowo ujawnia kształt maszyny.
-
-## Linie Ghost
-
-Niektóre moduły łączą się z częściami maszyn innych klanów. Połączenia międzyklanowe otrzymują osobny kolor i efekt wizualny.
-
-To właśnie dzięki nim gracze odkrywają, że cztery maszyny nie są osobnymi projektami. Stanowią elementy jednego większego systemu.
-
-Gra nie musi od razu tłumaczyć tej zależności. Powinna pozwolić operatorom samodzielnie ją zauważyć.
-
-# Informacja jako element rozgrywki
-
-Żaden pojedynczy gracz nie posiada pełnej wiedzy o rozmieszczeniu części.
-
-Jeden operator może odkryć komponent. Inny rozpozna jego klan. Ktoś zobaczy nieaktywną część w innym mieście, a jeszcze ktoś zauważy niedomkniętą linię wychodzącą z własnego terytorium.
-
-Globalny kanał Cybernera służy do wymiany tych informacji.
-
-Gracze mogą:
-
-* zgłaszać odnalezione części;
-* ujawniać lokalizacje wrogich węzłów;
-* prosić o pomoc w odbiciu terytorium;
-* wymieniać informacje;
-* zawierać chwilowe sojusze;
-* wprowadzać innych w błąd;
-* negocjować dostęp do obszaru;
-* organizować wspólne operacje.
-
-Współpraca nie jest narzucona przez system. Wynika z obserwacji mapy oraz świadomości, że bez aktywacji wszystkich części sieć pozostanie niekompletna.
-
-# Domknięcie GhostNetwork
-
-Każda maszyna uzyskuje pełną sprawność po aktywacji pięciu swoich części. Nadal jednak nie może samodzielnie wysłać sygnału.
-
-GhostNetwork zostaje domknięty dopiero wtedy, gdy jednocześnie aktywne są:
-
-* wszystkie części VIREX;
-* wszystkie części Echa Wolności;
-* wszystkie części Siatki Widmo;
-* wszystkie części Strażników Ładu.
-
-Łącznie musi działać 20 węzłów rozproszonych po mapie.
-
-Nie istnieje przycisk końcowej aktywacji. Nie ma głosowania ani decyzji liderów.
-
-Aktywowanie ostatniej brakującej części automatycznie zamyka obwód.
-
-# Wysłanie GhostSignalu
-
-Po domknięciu sieci wszystkie linie zaczynają pulsować. Mapa przechodzi w tryb transmisji, a cztery maszyny łączą swoje wyniki w jeden pakiet.
-
-GhostSystem generuje kolejny GhostSignal i wysyła go do ruchu oporu w 2108 roku.
-
-Nie wiadomo, czy wiadomość:
-
-* dotrze do właściwego odbiorcy;
-* zostanie częściowo uszkodzona;
-* zostanie przechwycona przez MASA;
-* wywoła zmianę przyszłości;
-* sprowokuje odpowiedź;
-* pozostanie bez potwierdzenia.
-
-Los sygnału może zostać ujawniony później przez BlackNet, Radio, Cyberner albo kolejną transmisję z przyszłości.
-
-# Zakończenie cyklu
-
-Po wysłaniu GhostSignalu:
-
-* wszystkie 20 części zostaje zużytych;
-* części znikają z mapy;
-* połączenia pomiędzy nimi wygasają;
-* profesje tracą tymczasowe moce modułów;
-* terytoria pozostają własnością graczy;
-* dawne strategiczne terytoria wracają do zwykłego działania;
-* system zapisuje historię transmisji;
-* gracze i klany otrzymują nagrody.
-
-Po pewnym czasie rozpoczyna się kolejny cykl i w obiektach na mapie pojawia się nowy zestaw części.
-
-# Nagrody i reputacja
-
-Największe nagrody otrzymują gracze, którzy faktycznie uczestniczyli w powstaniu sieci.
-
-System powinien zapisywać:
-
-* odkrywcę części;
-* gracza, który pierwszy ją otoczył;
-* gracza, który aktywował moduł dla właściwego klanu;
-* kolejnych właścicieli terytorium;
-* czas utrzymania aktywnej części;
-* udane obrony;
-* udział w odbiciu terytorium;
-* właściciela węzła w chwili transmisji.
-
-Nagrodami mogą być:
-
-* reputacja osobista;
-* reputacja klanowa;
-* RSP;
-* HC;
-* osiągnięcia;
-* wpis w historii operatora;
-* odznaczenie konkretnego GhostSignalu;
-* czasowe premie w następnym cyklu.
-
-Terytorium, z którego wysłano część sygnału, może zachować subtelne oznaczenie historyczne:
-
-> WĘZEŁ GHOSTSIGNAL 0047
-> TRANSMISJA ZAKOŃCZONA
-
-W ten sposób mapa przechowuje historię działań graczy, nawet gdy właściwa część już zniknie.
-
-# Główna pętla strategiczna
-
-Całość można zamknąć w jednej pętli:
-
-```text
-hakowanie obiektów
-→ odkrywanie części
-→ otaczanie terytoriów
-→ rozpoznawanie modułów
-→ blokowanie obcych części
-→ odbijanie własnych części
-→ aktywowanie mocy profesji
-→ powstawanie linii na mapie
-→ wymiana informacji na Cybernerze
-→ domknięcie GhostNetwork
-→ wysłanie GhostSignalu
-→ nagrody i wygaśnięcie części
-→ rozpoczęcie kolejnego cyklu
-```
-
-# Ewolucja GhostSystemu
-
-Każdy wysłany GhostSignal zmienia GhostSystem. Wyniki pracy czterech maszyn, przebieg walk o części oraz dane zebrane podczas synchronizacji zostają zapisane w jego rdzeniu.
-
-Po zakończeniu transmisji system przechodzi do kolejnej wersji:
-
-```text
-GhostSystem 1.0 → GhostSignal 0001 → GhostSystem 1.1
-GhostSystem 1.1 → GhostSignal 0002 → GhostSystem 1.2
-GhostSystem 1.2 → GhostSignal 0003 → GhostSystem 1.3
-```
-
-Zmiana wersji jest trwałym, globalnym zapisem postępu całej społeczności. Nie zależy od tego, czy sygnał dotarł do ruchu oporu, został uszkodzony czy przechwycony przez MASA. Każda próba dostarcza GhostSystemowi nowych danych i pozwala mu lepiej przygotować kolejną transmisję.
-
-Nowa wersja może przynosić:
-
-* nowe rodzaje obiektów zawierających części;
-* trudniejsze zabezpieczenia;
-* nowe właściwości modułów;
-* kolejne zdolności profesji;
-* zmienione zasady połączeń;
-* lepsze narzędzia wykrywania części;
-* nowe reakcje MASA;
-* nowe komunikaty i fragmenty fabuły;
-* inne warunki kolejnego GhostSignalu;
-* rozwój BlackNetu, Cybernera i Radia.
-
-Ewolucja nie musi następować przy każdej transmisji o pełną dużą wersję. Możemy zastosować trzy poziomy:
-
-* `1.1`, `1.2`, `1.3` — kolejne wysłane sygnały i mniejsze zmiany;
-* `2.0`, `3.0` — duże przełomy fabularne albo technologiczne;
-* wydania specjalne, np. `2.4-GHOST`, gdy sygnał wywoła nietypową odpowiedź z 2108 roku.
-
-Po transmisji gracze mogą zobaczyć globalny komunikat:
-
-```text
-GHOSTSIGNAL // 0047 WYSŁANY
-INTEGRALNOŚĆ PAKIETU: 91%
-ODPOWIEDŹ Z 2108: OCZEKIWANIE
-
-GHOSTSYSTEM EVOLUTION
-VERSION 2.6 → 2.7
-NOWA WARSTWA SYSTEMU ZOSTAŁA ODBLOKOWANA
-```
-
-To oznacza, że gra nie wraca po cyklu do punktu wyjścia. Rozmieszczenie części zostaje zresetowane, ale świat, system i narracja przesuwają się naprzód.
-
-Każda udana transmisja mówi graczom:
-
-> Nie zakończyliście wojny. Sprawiliście, że GhostSystem jest lepiej przygotowany do następnej próby.
-
----
-
-
 # 1. VIREX ORACLE
 
 ## Przeznaczenie maszyny
@@ -437,20 +127,16 @@ W Cybernerze Socjotechnik może też publikować oznaczone komunikaty klanowe o 
 
 ## Część 3: Truth Lens
 
-**Profesja:** Odsłaniacz
+**Profesja:** Odsłaniacz  
 **Funkcja:** Identyfikacja ukrytych danych.
 
 ### Supermoc: Pełne Ujawnienie
 
-Odsłaniacz wykonuje specjalistyczny skan części maszyny. Może poznać:
+Odsłaniacz wykonuje specjalistyczny skan obiektu albo terytorium.
 
-* klan, do którego należy;
-* odpowiadającą jej profesję;
-* stan aktywacji;
-* historię poprzednich właścicieli terytorium;
-* kierunek nieaktywnych połączeń.
+Pełne Ujawnienie rozszerza analizę zabezpieczeń, historii właścicieli i aktywności operacyjnej, ale nie ujawnia tożsamości części ukrytej przez aktualne zasady widoczności.
 
-To główna profesja śledcza całej rozgrywki klanowej.
+To główna profesja śledcza Echa Wolności.
 
 ## Część 4: Resonance Beacon
 
@@ -940,20 +626,7 @@ Najkrótsze podsumowanie całego kanonu brzmi:
 
 > MASA przewidziała każdą przyszłość, którą potrafiła sama zasymulować. GhostSystem sięga więc do ludzi żyjących przed jej powstaniem i prosi ich, aby stworzyli przyszłość, której nie było w żadnym modelu.
 
-```
 ## 2. Dokładny schemat 20 części
-
-Mamy części i maszyny, ale nie ustaliliśmy jeszcze pełnej topologii:
-
-* która część łączy się z którą;
-* jakie linie są wewnątrz maszyny;
-* które moduły łączą różne klany;
-* jak wygląda niedomknięte połączenie;
-* co widzą gracze, gdy drugi koniec nie został aktywowany;
-* czy układ połączeń jest zawsze taki sam, czy zmienia się z wersją GhostSystemu.
-
-To jest najważniejsza brakująca rzecz w samej mechanice maszyn.
-```
 
 # Topologia GhostNetwork
 
@@ -1242,20 +915,7 @@ Gdy aktywowana zostanie ostatnia brakująca część:
 
 W ten sposób gracze nie muszą znać pełnego schematu na początku. Odkrywają go przez hakowanie, obserwowanie połówek linii, śledzenie mapy i wymianę informacji na Cybernerze.
 
-```
 ## 3. Cykl życia części
-
-Trzeba doprecyzować pełne reguły:
-
-* jak często części mogą wypadać;
-* czy zawsze istnieje dokładnie jeden zestaw 20 części;
-* czy część może wypaść ponownie, jeśli poprzednia nadal istnieje;
-* co się dzieje po usunięciu obiektu z mapy;
-* czy część można bezpowrotnie utracić;
-* jak długo neutralna część pozostaje widoczna;
-* co dokładnie wyłącza aktywny moduł;
-* co dzieje się podczas spornego terytorium.
-```
 
 # Cykl życia części GhostNetwork
 
@@ -1588,21 +1248,8 @@ AKTYWNA
 
 System nie tworzy kolejnej kopii części niezależnie od liczby zmian właściciela. Do końca cyklu jest to ten sam komponent, ta sama lokalizacja i ta sama historia.
 
-```
+
 ## 4. Informacja i widoczność
-
-Musimy ustalić poziomy wiedzy:
-
-* co widzi odkrywca;
-* co widzi właściciel terytorium;
-* co widzi właściwy klan;
-* co widzą pozostałe klany;
-* kiedy ujawniana jest nazwa części;
-* które profesje mogą ją rozpoznać;
-* czy lokalizację można ukryć, zamaskować albo ujawnić w BlackNecie.
-
-To będzie ważne, żeby mechanika rzeczywiście wymuszała rozmowy i dedukcję.
-```
 
 # Informacja i widoczność części
 
@@ -1855,8 +1502,6 @@ Czyli cała zasada mieści się w jednym zdaniu:
 
 > Neutralna część jest jawna, obcy klan ją ukrywa, a właściwy klan aktywuje i ujawnia wyłącznie swoim ludziom.
 
-```
-## 5. Przebieg transmisji
 
 Do opisania pozostaje właściwe wydarzenie na mapie:
 
@@ -1868,7 +1513,8 @@ Do opisania pozostaje właściwe wydarzenie na mapie:
 * znikanie części;
 * zmiana wersji GhostSystemu;
 * czas do rozpoczęcia kolejnego cyklu.
-```
+
+## 5. Przebieg transmisji
 
 # Przebieg transmisji GhostSignal
 
@@ -2288,7 +1934,6 @@ Nagrody są przyznawane za:
 
 Późniejsze przechwycenie, uszkodzenie albo brak odpowiedzi nie może odebrać graczom:
 
-* HC;
 * RSP;
 * reputacji;
 * osiągnięć;
@@ -3016,72 +2661,6 @@ Najważniejsza zasada brzmi:
 
 ## 8. Zabezpieczenia strategiczne
 
-GhostNetwork nie powinien automatycznie rozwiązywać problemów politycznych i strategicznych za graczy. Blokowanie części, nierównowaga liczby operatorów oraz długotrwałe konflikty są elementami rozgrywki, a nie błędami wymagającymi sztucznego resetu.
-
-System zabezpieczeń ma przede wszystkim zapewniać, że:
-
-* żadna część nie zostanie technicznie utracona;
-* każdą część można odzyskać przez gameplay;
-* żaden gracz nie może przekazać terytorium jednym przyciskiem;
-* nie można utworzyć drugiej kopii części;
-* konflikt zawsze można rozstrzygnąć przez przejęcie mapy;
-* części nie znikają z powodu nieaktywności właściciela.
-
-Nie wprowadzamy automatycznego wyrównywania sił pomiędzy klanami.
-
-# Nieaktywny właściciel części
-
-Jeżeli gracz:
-
-1. odkryje część;
-2. otoczy ją własnym terytorium;
-3. przestanie być aktywny,
-
-część pozostaje na jego terytorium.
-
-Nie wraca automatycznie do puli, nie zmienia lokalizacji i nie staje się neutralna tylko dlatego, że właściciel nie loguje się do gry.
-
-Jeżeli jest to część obcego klanu:
-
-* pozostaje zablokowana;
-* właściciel nadal widzi jej pełną tożsamość;
-* pozostali gracze widzą informację, że terytorium zawiera część;
-* właściwy klan może odnaleźć lokalizację;
-* terytorium można normalnie schakować i rozbić;
-* po utracie stabilnej kontroli część ponownie staje się publiczna;
-* właściwy klan może otoczyć ją swoim terytorium i aktywować.
-
-Nieaktywny gracz nie otrzymuje specjalnej ochrony. Jego nieobecność może wręcz ułatwić przeciwnikom przeprowadzenie operacji, ponieważ nie uczestniczy aktywnie w obronie.
-
-Część nie jest więc uwięziona w profilu. Nadal znajduje się na mapie i pozostaje dostępna przez zwykłą mechanikę terytorialną.
-
-# Nieaktywny właściciel aktywnego modułu
-
-Jeżeli właściciel terytorium należy do właściwego klanu, część pozostaje aktywna nawet po jego wylogowaniu.
-
-Aktywność modułu wynika z:
-
-* położenia części;
-* stabilnego terytorium;
-* zgodności klanu terytorium z klanem części.
-
-Nie wynika z aktywnej sesji właściciela.
-
-Dlatego moduł:
-
-* nie wyłącza się po kilku godzinach;
-* nie traci mocy po kilku dniach;
-* nie wymaga codziennego logowania;
-* nadal tworzy linie GhostNetwork;
-* nadal uruchamia supermoc właściwej profesji w klanie.
-
-Jednocześnie terytorium pozostaje możliwe do zaatakowania. Jeżeli inny klan rozbije obszar i przejmie stabilną kontrolę, moduł zostanie wyłączony zgodnie ze zwykłymi zasadami.
-
-Nie wprowadzamy automatycznego zaniku aktywności. Nieobecność właściciela wpływa na możliwość obrony, a nie na
-
-
-## 8. Zabezpieczenia strategiczne
-
 GhostNetwork nie powinien automatycznie rozwiązywać problemów politycznych i terytorialnych za graczy. Blokady, dysproporcje klanów oraz kontrolowanie cudzych części są częścią strategicznej rozgrywki.
 
 System ma gwarantować, że żadna część nie zostanie technicznie utracona ani zablokowana bez możliwości przejęcia. Nie powinien jednak automatycznie przenosić części, odbierać terytoriów ani wyrównywać siły klanów.
@@ -3574,7 +3153,7 @@ Ollama nie może:
 * aktywować ani wyłączać modułu;
 * tworzyć połączeń GhostNetwork;
 * kończyć konfliktu;
-* przyznawać RSP, LVL, HC ani reputacji;
+* przyznawać RSP, LVL ani reputacji;
 * ustalać zwycięzcy operacji;
 * wybierać rzeczywistego losu GhostSignalu;
 * zmieniać wersji GhostSystemu;

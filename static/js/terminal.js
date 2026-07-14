@@ -4122,7 +4122,10 @@ function createBrowser() {
                 blacknetCapturedSignals.add(signalId);
                 blacknetSignalIdentityKeys(signal).forEach(key => blacknetCapturedSignals.add(key));
                 activeBlacknetSignalId = "";
-                await loadBlacknetSignals({ append: true, force: true });
+                const remainingSignals = blacknetVisibleSignals().filter(item => !blacknetIsOutOfSignal(item));
+                if (remainingSignals.length <= BLACKNET_SIGNAL_REFILL_THRESHOLD && !blacknetSignalFeedExhausted) {
+                    loadBlacknetSignals({ append: true, force: true });
+                }
                 if (activeBrowserTab === "blacknet") renderBlackNet();
             } else {
                 button.disabled = false;
