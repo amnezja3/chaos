@@ -44,6 +44,26 @@ PERF_LOG_MIN_MS = env_int("CHAOS_PERF_LOG_MIN_MS", 100)
 PERF_LOG_MIN_SIZE = env_int("CHAOS_PERF_LOG_MIN_SIZE", 20 * 1024)
 
 
+RESPONSE_NETWORK_DEPLOYMENT_MODE = os.environ.get("CHAOS_RESPONSE_NETWORK_MODE", "disabled").strip().lower()
+RESPONSE_NETWORK_FLAGS = {
+    "response_network_enabled": env_bool("CHAOS_RESPONSE_NETWORK_ENABLED", False),
+    "response_risk_meter_enabled": env_bool("CHAOS_RESPONSE_RISK_METER_ENABLED", False),
+    "response_incidents_enabled": env_bool("CHAOS_RESPONSE_INCIDENTS_ENABLED", False),
+    "response_npc_capsules_enabled": env_bool("CHAOS_RESPONSE_NPC_CAPSULES_ENABLED", False),
+    "response_detection_enabled": env_bool("CHAOS_RESPONSE_DETECTION_ENABLED", False),
+    "response_consequences_enabled": env_bool("CHAOS_RESPONSE_CONSEQUENCES_ENABLED", False),
+    "response_map_publication_enabled": env_bool("CHAOS_RESPONSE_MAP_PUBLICATION_ENABLED", False),
+}
+RESPONSE_NETWORK_KILL_SWITCHES = {
+    "new_incidents": env_bool("CHAOS_RESPONSE_KILL_NEW_INCIDENTS", True),
+    "npc_capsules": env_bool("CHAOS_RESPONSE_KILL_NPC_CAPSULES", True),
+    "detection": env_bool("CHAOS_RESPONSE_KILL_DETECTION", True),
+    "consequences": env_bool("CHAOS_RESPONSE_KILL_CONSEQUENCES", True),
+    "map_publication": env_bool("CHAOS_RESPONSE_KILL_MAP_PUBLICATION", True),
+}
+RESPONSE_NETWORK_AUDIT_LIMIT = env_int("CHAOS_RESPONSE_AUDIT_LIMIT", 250)
+
+
 VULNERABILITY_MAX_ENABLED_SECURITY = env_int("CHAOS_VULNERABILITY_MAX_ENABLED_SECURITY", 5)
 VULNERABILITY_REPORT_THRESHOLD = float(os.environ.get("CHAOS_VULNERABILITY_REPORT_THRESHOLD", "0.30") or 0.30)
 

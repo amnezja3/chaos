@@ -8018,6 +8018,299 @@ Po sprincie zaktualizować:
 Jeżeli powstanie kontrakt pakietu dla Ollamy, dodać albo zaktualizować
 `doc/blacknet_ollama_outbox.md`.
 
+> Sprint 84 pozostaje zarezerwowany dla późniejszego ingestu z Ollamy.
+
+# Faza I — Response Network / Incydenty i NPC
+
+Sprinty 85–98 wdrażają Response Network jako fundament publicznych incydentów,
+służb NPC, heat operacji, hotspotów mapy i późniejszego GhostNetworku.
+
+## Kontrakt pracy dla Sprintów 85–98
+
+Przed rozpoczęciem każdego sprintu z tej sekwencji należy przeczytać aktualne
+artefakty:
+
+* `doc/incidents_npc_gameplay.md`,
+* `doc/incidents_npc_technical_architecture.md`,
+* `doc/runtime_slowdown_audit_blacknet.md`,
+* `doc/project_journal.md`,
+* `doc/game_play_260626.md`.
+
+Dodatkowo:
+
+* sprinty 86–88 muszą uwzględnić aktualny stan mapy, terytoriów i delt,
+* sprinty 91–94 muszą sprawdzić aktualny kontrakt mapy i warstw aktorów,
+* sprinty dotykające BlackNetu muszą sprawdzić `doc/blacknet.md` oraz aktualny
+  kontrakt `blacknet_world_facts` / `blacknet_world_signals`,
+* sprinty przygotowujące GhostNetwork muszą sprawdzić
+  `doc/ghostnetwork_architecture.md`.
+
+Po zakończeniu każdego sprintu należy zaktualizować:
+
+* `doc/project_journal.md`,
+* `doc/game_play_260626.md`, jeżeli zmienił się kontrakt lub kolejność prac,
+* właściwy dokument domenowy, jeżeli sprint doprecyzował architekturę:
+  * `doc/incidents_npc_gameplay.md`,
+  * `doc/incidents_npc_technical_architecture.md`,
+  * `doc/blacknet.md`,
+  * `doc/ghostnetwork_architecture.md`,
+  * dokumenty mapy/delt, jeżeli sprint dotknął synchronizacji.
+
+Każdy raport sprintu 85–98 musi jawnie odpowiedzieć:
+
+* które artefakty przeczytano przed implementacją,
+* które dokumenty zaktualizowano,
+* czy runtime mapy dostał nowy polling, snapshot albo deltę,
+* czy wprowadzono nowy endpoint albo tylko nowy kontrakt danych,
+* czy zachowano tryb bezpieczeństwa wymagany przez dany etap.
+
+## Sprint 85 — Response Network Safety Foundation
+
+**Cel:** przygotować bezpieczne środowisko wdrażania głównego mechanizmu rozgrywki.
+
+Zakres:
+
+* feature flagi i kill switche;
+* tryby `disabled`, `observe`, `shadow`, `visible_safe`, `limited_enforcement`, `full`;
+* wspólny zegar testowy;
+* fixture’y JSON;
+* podstawowy audit log;
+* pomiary obecnych endpointów mapy.
+
+Bez incydentów widocznych dla graczy.
+
+## Sprint 86 — Territory Read Model
+
+**Cel:** oddzielić od starego systemu lekki odczyt terytoriów potrzebny incydentom.
+
+Zakres:
+
+* `territory_context_reader`;
+* własność, klan, status i konflikt;
+* zapytania dla konkretnego punktu lub obszaru;
+* brak pełnego profilu gracza;
+* brak `sync_session_profile()`;
+* porównanie wyników ze starym systemem.
+
+Bez zmiany gameplayu terytoriów.
+
+## Sprint 87 — Territory Versioning + Delta
+
+**Cel:** przestać odświeżać pełny stan terytoriów przy każdej zmianie.
+
+Zakres:
+
+* wersjonowanie terytoriów;
+* delta własności i konfliktów;
+* kontrolowany recovery snapshot;
+* deduplikacja zmian;
+* diagnostyka recovery.
+
+Stary endpoint pozostaje awaryjnie dostępny.
+
+## Sprint 88 — Territory Map Migration
+
+**Cel:** przełączyć frontend mapy na lżejszy model terytoriów.
+
+Zakres:
+
+* snapshot startowy;
+* późniejsze delty;
+* aktualizacja pojedynczych terytoriów;
+* testy konfliktów i przejęć;
+* porównanie czasów `p95` i rozmiarów odpowiedzi;
+* usunięcie niepotrzebnych cyklicznych przeliczeń.
+
+To readiness check terytoriów przed incydentami.
+
+## Sprint 89 — Operation Risk Meter
+
+**Cel:** dodać miernik heat bezpośrednio do operacji.
+
+Zakres:
+
+* bazowy heat;
+* narastanie w czasie;
+* modyfikatory narzędzia, celu i konfliktu;
+* próg ostrzeżenia;
+* próg incydentu;
+* wersjonowanie miernika;
+* idempotentne przekraczanie progów;
+* tryb `observe`.
+
+anulowanie operacji
+→ usunięcie źródła heat
+→ anulowanie ostrzeżenia
+→ anulowanie powiązanego incydentu
+→ unieważnienie kapsuł NPC
+→ usunięcie NPC z mapy
+→ wygaszenie sygnału BlackNetu
+
+System niczego jeszcze nie publikuje i nie karze.
+
+## Sprint 90 — Incident Initializer + Store
+
+**Cel:** tworzyć prawdziwe incydenty na podstawie mierników operacji.
+
+Zakres:
+
+* `incident_initializer`;
+* `incident_store`;
+* stany incydentu;
+* łączenie pobliskich operacji;
+* poziomy reakcji;
+* podejrzani i powiązane terytoria;
+* eskalacja i wygaszanie;
+* audit oraz replay.
+
+Incydenty nadal mogą pozostać niewidoczne.
+
+## Sprint 91 — Public Incident Map
+
+**Cel:** pokazać bezpieczne hotspoty incydentów na mapie.
+
+Zakres:
+
+* publiczny snapshot incydentów;
+* delty inicjacji, aktualizacji i zakończenia;
+* centrum, poziom i promień incydentu;
+* brak ujawniania sprawców;
+* frontendowa warstwa hotspotów;
+* recovery tylko dla scope incydentów.
+
+Jeszcze bez NPC i konsekwencji.
+
+## Sprint 92 — BlackNet Incident Bridge
+
+**Cel:** wykorzystać incydenty jako realne źródło sygnałów BlackNetu.
+
+Zakres:
+
+* deterministyczne sygnały hotspotów;
+* poziom reakcji i trend aktywności;
+* czas ważności;
+* teleport po potwierdzeniu `OK/ANULUJ`;
+* bezpieczny punkt wejścia;
+* wygaszanie sygnału razem z incydentem.
+
+## Sprint 93 — NPC Behavior Capsules
+
+**Cel:** przygotować kompletną inicjację jednostek bez serwerowego prowadzenia ruchu.
+
+Zakres:
+
+* `response_dispatcher`;
+* `npc_capsule_factory`;
+* typ, poziom i rodzina jednostki;
+* spawn, wygaśnięcie i centrum patrolu;
+* prędkość i promienie;
+* `trajectory_seed`;
+* `behavior_version`;
+* `tracking_tokens`;
+* wspólna funkcja `position_at()` dla frontendu i backendu.
+
+Bez renderowania i wykrywania.
+
+## Sprint 94 — Response Actors on Snikers
+
+**Cel:** uruchomić NPC jako pełnoprawnych aktorów mapy.
+
+Zakres:
+
+* `actor_type: response_npc`;
+* wykorzystanie warstwy snikersów;
+* animacje ruchu, postoju, skanowania i pościgu;
+* rodziny wizualne służb;
+* frontendowa trajektoria;
+* odzyskanie pozycji po uśpieniu karty;
+* brak `npc.moved` i cyklicznych zapisów backendu.
+
+NPC są widoczne, ale jeszcze nikogo nie łapią.
+
+## Sprint 95 — Detection Feedback Shadow
+
+**Cel:** sprawdzić wykrywanie bez wpływania na graczy.
+
+Zakres:
+
+* `local_detection_probe`;
+* `detection_candidate`;
+* endpoint feedbacku;
+* backendowe odtworzenie trajektorii;
+* walidacja czasu, seeda i promienia;
+* ochrona własnego terytorium;
+* ochrona graczy biernych i offline;
+* deduplikacja zgłoszeń wielu obserwatorów;
+* pełny tryb `shadow`.
+
+Wyniki są tylko zapisywane.
+
+## Sprint 96 — Warning + Visible Safe
+
+**Cel:** uruchomić pełne doświadczenie incydentu bez konsekwencji.
+
+Zakres:
+
+* `response_warning_issued`;
+* komunikat przez `system-messages`;
+* odliczanie przyjazdu służb;
+* widoczne skanowanie;
+* sygnał wykrycia;
+* feedback zaakceptowany lub odrzucony;
+* telemetryczne porównanie zachowania systemu.
+
+Gracz widzi zagrożenie, ale nie traci operacji ani zasobów.
+
+## Sprint 97 — Limited Enforcement
+
+**Cel:** bezpiecznie włączyć pierwszą realną konsekwencję.
+
+Zakres:
+
+* `consequence_policy`;
+* `consequence_executor`;
+* atomowe i idempotentne wykonanie;
+* przerwanie wyłącznie wykrytej operacji;
+* usunięcie jej postępu;
+* brak nagrody za nieudaną operację;
+* kill switch działający bez restartu;
+* pełny zapis przyczyny decyzji.
+
+Bez konfiskaty narzędzi, HC i Judgment.
+
+## Sprint 98 — Full Response Network + Readiness
+
+**Cel:** domknąć pierwszy produkcyjny etap systemu służb.
+
+Zakres:
+
+* konfiskata użytego narzędzia;
+* zabezpieczenie przed softlockiem;
+* skalowana konfiskata HC;
+* status `Judgment`;
+* Radio i Cyberner hooks;
+* historia zakończonych incydentów;
+* limity liczby NPC;
+* limity liczby aktywnych i zakończonych incydentów;
+* testy wydajności;
+* replay przypadków produkcyjnych;
+* readiness check przed GhostNetworkiem.
+
+Najważniejsza granica:
+
+```text
+85–90: fundament i backend bez wpływu na graczy
+91–94: publiczna warstwa mapy i autonomiczne NPC
+95–96: wykrywanie bez konsekwencji
+97: pierwsza odwracalna konsekwencja
+98: pełny system
+```
+
+
+comming soon..
+GhostNetwork zaczynamy dopiero po przejściu Sprintu 98. Wtedy terytoria, incydenty, aktorzy NPC, BlackNet i system konsekwencji będą już gotową infrastrukturą, a nie elementami budowanymi równocześnie z częściami maszyn.
+
+
 ---
 
 

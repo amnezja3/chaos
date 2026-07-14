@@ -7869,3 +7869,162 @@ Najpierw do zrobienia:
 Zasada pozostaje twarda: Ollama nie zmienia mapy, profilu, ekonomii, Googleplexa,
 Ghost Exchange ani Cybernera. Model moze proponowac narracje, ale tylko backend
 CHAOS waliduje kandydatow i decyduje, czy sygnal trafi do BlackNetu.
+
+### Sprint 85 - Response Network Safety Foundation
+
+Przeczytano artefakty:
+
+* `doc/incidents_npc_technical_architecture.md`,
+* `doc/incidents_npc_gameplay.md`,
+* `doc/runtime_slowdown_audit_blacknet.md`.
+
+Wdrozono fundament bezpieczeństwa Response Network bez uruchamiania gameplayu
+incydentow:
+
+* tryb wdrozenia startuje jako `disabled`,
+* feature flagi Response Network sa domyslnie wylaczone,
+* kill switche incydentow, NPC, detekcji, konsekwencji i publikacji mapowej sa
+  domyslnie zamkniete,
+* dodano testowalny zegar `ResponseNetworkClock`,
+* dodano lekki audit log pod decyzje i pomiary Sprintu 85,
+* dodano fixture `sprint85_safety_foundation.json`,
+* pomiary krytycznych endpointow mapy sa rejestrowane pasywnie przez istniejacy
+  hook `PERF`, bez nowego pollingu.
+
+Dodano dev-only endpoint:
+
+```text
+GET /api/dev/response-network-safety
+```
+
+Endpoint wymaga konta `admin`, nie odpala `sync_session_profile()` i sluzy tylko
+do podgladu konfiguracji, kill switchy, fixture-ready clocka oraz metryk mapy.
+
+Pozostaje wylaczone:
+
+* tworzenie incydentow,
+* kapsuly NPC,
+* detekcja kandydatow,
+* konsekwencje dla graczy,
+* publikacja incydentow na mapie,
+* nowy polling mapy.
+
+### Sprint 86 - Territory Read Model
+
+Przeczytano:
+
+* opis Sprintu 86 w `doc/game_play_260626.md`,
+* kontrakt `territory_context_reader` w
+  `doc/incidents_npc_technical_architecture.md`,
+* aktualny audyt wydajnosci mapy w `doc/runtime_slowdown_audit_blacknet.md`.
+
+Wdrozono lekki, read-only `TerritoryContextReader` dla Response Network:
+
+* `for_point(lat, lng, actor_username)` zwraca terytoria zawierajace punkt,
+  wlasciciela, status, bbox i informacje o aktywnych konfliktach;
+* `for_bbox(min_lat, min_lng, max_lat, max_lng)` zwraca ograniczony zestaw
+  terytoriow przecinajacych podany obszar;
+* `compare_point_with_legacy_area(...)` pozwala porownac wynik read modelu ze
+  starym odczytem terytorium dla punktu.
+
+Reader korzysta z istniejacych snapshotow `TerritoryStore.list_player_areas()`
+oraz `TerritoryConflictStore.list_active()`. Nie wywoluje
+`sync_session_profile()`, nie pobiera pelnych profili i nie przebudowuje
+geometrii terytoriow.
+
+Zgodnosc potwierdzono testami:
+
+* punkt we wlasnym terytorium,
+* punkt w obcym terytorium,
+* aktywny konflikt podpiety po `area_id`,
+* ograniczony bbox bez zwracania pelnych `vertices`,
+* porownanie z legacy area dla tego samego punktu.
+
+Poza zakresem pozostaje:
+
+* wersjonowanie terytoriow,
+* delty territory,
+* migracja endpointu `/api/map/player-areas`,
+* publikacja incydentow,
+* NPC, detekcja i konsekwencje.
+
+### Sprint 87 - Territory Versioning + Delta
+
+Przeczytano:
+
+* opis Sprintu 87 w `doc/game_play_260626.md`,
+* sekcje territory/delta/recovery w
+  `doc/incidents_npc_technical_architecture.md`,
+* read model `TerritoryContextReader` wdrozony w Sprincie 86.
+
+Wdrozono wersjonowanie i delty terytoriow przez istniejacy
+`GameStateDeltaBus`, bez tworzenia osobnego feedu:
+
+* `territory.updated` dla przebudowanych obszarow gracza;
+* `territory.conflict_changed` dla aktywnych konfliktow terytorialnych;
+* deduplikacje przez `dedupe_key`;
+* minimalny payload bez pelnych `vertices`;
+* helper `rebuild_player_areas_with_territory_delta(...)`, ktory zachowuje stara
+  geometrie i tylko dopisuje event delta po istniejacym rebuildzie;
+* dev-only recovery snapshot:
+
+```text
+GET /api/dev/territory-context/recovery
+```
+
+Endpoint wymaga konta `admin`, obsluguje punkt albo bbox i nie wywoluje
+`sync_session_profile()`. Recovery jest per scope `territory`, a
+`/api/state/changes` ma teraz `territory` na liscie recovery scopes.
+
+Sprawdzono:
+
+* idempotencje `territory.updated`,
+* emisje `territory.conflict_changed` dla kazdego uczestnika konfliktu,
+* recovery snapshot przez `TerritoryContextReader`,
+* diagnostyke luki/recovery,
+* brak `sync_session_profile()` w dev endpointzie recovery.
+
+Poza zakresem pozostaje:
+
+* przelaczenie frontendu mapy na delty terytoriow,
+* migracja `/api/map/player-areas`,
+* delta geometrii area/conflict layers po stronie UI,
+* incydenty, NPC, detekcja i konsekwencje.
+
+### Sprint 88 - Territory Map Migration
+
+Przeczytano:
+
+* opis Sprintu 88 w `doc/game_play_260626.md`,
+* aktualny frontend mapy w `templates/map_template.html`,
+* istniejacy delta poller w `static/js/terminal.js`,
+* wyniki Sprintow 86-87.
+
+Wdrozono pierwsza migracje mapy terytoriow na model snapshot + delta:
+
+* startowy snapshot `/api/map/player-areas` zostaje i buduje warstwy mapy;
+* snapshot tworzy registry `territoryAreaLayers` po stabilnym `territory_id`;
+* `territory.updated` jest obslugiwane przez `applyTerritoryDelta()` i aktualizuje
+  istniejacy polygon bez czyszczenia calej warstwy;
+* `territory.conflict_changed` odpala throttlowany recovery snapshot
+  `refreshPlayerAreas()`, bo geometria konfliktu nie jest payloadem delty;
+* brakujacy polygon po delcie rowniez prowadzi do kontrolowanego recovery;
+* globalny `applyDelta()` obsluguje scope `territory` osobno od `map`;
+* recovery scope `territory` odswieza tylko terytoria, bez globalnego reloadu;
+* cykliczny poller `/api/map/player-areas` po boot mapy zostal wylaczony.
+
+Stary snapshot pozostaje sciezka startowa i awaryjna. Nie ruszano geometrii
+terytoriow, zasad przejec, incydentow, NPC ani konsekwencji.
+
+Sprawdzono:
+
+* skladnie `static/js/terminal.js`,
+* kompilacje Pythona dla `run.py`, `config.py` i modulow `response_network`,
+* testy safety/read model/territory delta/delta bus,
+* `git diff --check`.
+
+Pozostaje do kolejnych sprintow:
+
+* pelna delta geometrii konfliktow, jesli payload zostanie rozszerzony,
+* porownanie live `p95` i payloadow przed/po,
+* dalsze zdejmowanie ciezkich mapowych snapshotow przed incydentami.

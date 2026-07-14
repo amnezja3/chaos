@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "sprint": 85,
+  "name": "Response Network Safety Foundation",
+  "deployment_mode": "disabled",
+  "feature_flags": {
+    "response_network_enabled": false,
+    "response_risk_meter_enabled": false,
+    "response_incidents_enabled": false,
+    "response_npc_capsules_enabled": false,
+    "response_detection_enabled": false,
+    "response_consequences_enabled": false,
+    "response_map_publication_enabled": false
+  },
+  "kill_switches": {
+    "new_incidents": true,
+    "npc_capsules": true,
+    "detection": true,
+    "consequences": true,
+    "map_publication": true
+  },
+  "scenario": {
+    "description": "Quiet baseline: no incidents, NPC, detection or consequences are allowed.",
+    "operation_heat": 0,
+    "expected_incidents": 0,
+    "expected_npc_capsules": 0,
+    "expected_consequences": 0
+  },
+  "map_endpoint_baseline": [
+    "/api/map/player-areas",
+    "/api/map/clan-vulnerabilities",
+    "/api/operations",
+    "/api/map/player-actors"
+  ]
+}

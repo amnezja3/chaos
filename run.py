@@ -41,6 +41,12 @@ from config import (
     VULNERABILITY_MAX_ENABLED_SECURITY,
     VULNERABILITY_REPORT_THRESHOLD,
 )
+from response_network.foundation import (
+    build_response_network_safety_snapshot,
+    record_response_map_endpoint_measurement,
+)
+from response_network.territory_context_reader import TerritoryContextReader
+from response_network.territory_delta import TerritoryDeltaPublisher
 
 app = Flask(__name__)
 
@@ -56,6 +62,8 @@ wallet_store = WalletStore()
 player_hack_access_store = PlayerHackAccessStore()
 dev_bug_report_store = DevBugReportStore()
 delta_bus = GameStateDeltaBus()
+territory_context_reader = TerritoryContextReader(territory_store, territory_conflict_store)
+territory_delta_publisher = TerritoryDeltaPublisher(delta_bus, territory_context_reader)
 
 
 def record_wallet_balance_delta(username, balance, reason="", entity_id="wallet", dedupe_key=None):
@@ -2451,6 +2459,29 @@ def record_map_target_delta(username, target, change_type="map.target_updated", 
         return None
 
 
+def record_territory_areas_delta(username, areas, reason="territory_rebuild"):
+    try:
+        return territory_delta_publisher.record_areas_updated(username, areas, reason=reason)
+    except Exception as exc:
+        print(f"[DELTA] territory.updated failed for {username}: {exc}", flush=True)
+        return []
+
+
+def record_territory_conflict_delta(conflict, reason="territory_conflict"):
+    try:
+        return territory_delta_publisher.record_conflict_changed(conflict, reason=reason)
+    except Exception as exc:
+        conflict_key = (conflict or {}).get("conflict_key") if isinstance(conflict, dict) else "-"
+        print(f"[DELTA] territory.conflict_changed failed for {conflict_key}: {exc}", flush=True)
+        return []
+
+
+def rebuild_player_areas_with_territory_delta(username, player_level=1, reason="territory_rebuild"):
+    areas = territory_store.rebuild_player_areas(username, player_level)
+    record_territory_areas_delta(username, areas, reason=reason)
+    return areas
+
+
 _GIT_COMMIT_HASH = None
 _GIT_BUILD_TAG = None
 
@@ -2486,6 +2517,14 @@ def log_slow_or_large_response(response):
             f"status={response.status_code} ms={elapsed_ms} size={size} user={user}",
             flush=True,
         )
+
+    record_response_map_endpoint_measurement(
+        request.path,
+        elapsed_ms,
+        status_code=response.status_code,
+        payload_size=size,
+        method=request.method,
+    )
 
     return response
 
@@ -3401,6 +3440,7 @@ def detect_territory_conflicts(actor_username=None, source_event="territory_rebu
             "source_event": source_event,
         })
         conflicts.append(conflict)
+        record_territory_conflict_delta(conflict, reason=source_event)
 
     if touched_participants:
         territory_conflict_store.deactivate_stale_for_participants(
@@ -3457,9 +3497,10 @@ def rebuild_conflict_polygons(participants, actor_username=None, source_event="c
         participant_profile = user_store.get_profile(participant) or {}
         if not participant_profile:
             continue
-        rebuilt[participant] = territory_store.rebuild_player_areas(
+        rebuilt[participant] = rebuild_player_areas_with_territory_delta(
             participant,
-            participant_profile.get("level", 1)
+            participant_profile.get("level", 1),
+            reason=source_event,
         )
 
     all_areas = territory_store.list_player_areas()
@@ -3528,6 +3569,7 @@ def capture_conflict_pillar(captured_target, captured_by_username, previous_owne
             "status": "active",
         })
         affected_conflicts.append(updated_conflict)
+        record_territory_conflict_delta(updated_conflict, reason="pillar_captured")
 
     rebuild_conflict_polygons(
         affected_participants,
@@ -10489,7 +10531,11 @@ def refresh_stale_territory_polygons(areas):
             continue
 
         owner_profile = user_store.get_profile(owner) or {}
-        territory_store.rebuild_player_areas(owner, owner_profile.get("level", 1))
+        rebuild_player_areas_with_territory_delta(
+            owner,
+            owner_profile.get("level", 1),
+            reason="stale_territory_polygon_refresh",
+        )
         TERRITORY_REBUILD_CACHE[owner] = now
         refreshed = True
 
@@ -10825,7 +10871,11 @@ def sync_session_profile(rebuild_territory=True):
             profile["fraction"]["id"] = fraction_name
             profile["fraction"]["name"] = mapped_fraction_name
     merge_captured_targets_into_profile(username, profile)
-    areas = territory_store.rebuild_player_areas(username, profile.get("level", 1))
+    areas = rebuild_player_areas_with_territory_delta(
+        username,
+        profile.get("level", 1),
+        reason="sync_session_profile",
+    )
     refresh_territory_stats_snapshot(profile, areas)
     mgr.update_profile({
         "clan": profile.get("clan", ""),
@@ -11339,7 +11389,7 @@ def api_dev_state():
 
 @app.route("/api/state/changes")
 def api_state_changes():
-    recovery_scopes = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map"]
+    recovery_scopes = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map", "territory"]
     username = session.get("user")
     if not username:
         return jsonify({
@@ -11374,6 +11424,61 @@ def api_dev_delta_diagnostics():
             pollers_active_count=request.args.get("pollers_active_count", 0),
             snapshot_recovery_count=request.args.get("snapshot_recovery_count", 0),
         )
+    })
+
+
+@app.route("/api/dev/response-network-safety")
+def api_dev_response_network_safety():
+    if not require_dev_admin():
+        return jsonify({"success": False, "message": "Response Network safety wymaga konta admin."}), 403
+
+    return jsonify(build_response_network_safety_snapshot(
+        limit=request.args.get("limit", 25),
+    ))
+
+
+@app.route("/api/dev/territory-context/recovery")
+def api_dev_territory_context_recovery():
+    if not require_dev_admin():
+        return jsonify({"success": False, "message": "Territory recovery wymaga konta admin."}), 403
+
+    actor_username = request.args.get("actor_username") or session.get("user")
+    try:
+        if request.args.get("lat") is not None and request.args.get("lng") is not None:
+            snapshot = territory_delta_publisher.recovery_snapshot_for_point(
+                request.args.get("lat"),
+                request.args.get("lng"),
+                actor_username=actor_username,
+            )
+        elif all(request.args.get(name) is not None for name in ("min_lat", "min_lng", "max_lat", "max_lng")):
+            snapshot = territory_delta_publisher.recovery_snapshot_for_bbox(
+                request.args.get("min_lat"),
+                request.args.get("min_lng"),
+                request.args.get("max_lat"),
+                request.args.get("max_lng"),
+                actor_username=actor_username,
+                limit=request.args.get("limit", 50),
+            )
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Podaj lat/lng albo min_lat/min_lng/max_lat/max_lng.",
+            }), 400
+    except ValueError as exc:
+        return jsonify({"success": False, "message": str(exc)}), 400
+
+    delta_result = None
+    if request.args.get("since") is not None:
+        delta_result = delta_bus.get_changes_since(
+            actor_username,
+            request.args.get("since", 0),
+            request.args.get("delta_limit", GameStateDeltaBus.DEFAULT_QUERY_LIMIT),
+        )
+
+    return jsonify({
+        "success": True,
+        "territory_recovery": snapshot,
+        "delta_diagnostics": territory_delta_publisher.recovery_diagnostics(delta_result or {}),
     })
 
 
@@ -16216,7 +16321,11 @@ def gonna_win():
                     f"ID zgloszenia: {vulnerability_report.get('id')}"
                 )
             )
-        rebuilt_areas = territory_store.rebuild_player_areas(session["user"], profile.get("level", 1))
+        rebuilt_areas = rebuild_player_areas_with_territory_delta(
+            session["user"],
+            profile.get("level", 1),
+            reason="pillar_captured",
+        )
         all_areas_after_capture = territory_store.list_player_areas()
         detect_territory_conflicts(
             actor_username=session["user"],
@@ -16225,7 +16334,11 @@ def gonna_win():
         )
         if contest_owner_username and contest_owner_username != session["user"]:
             owner_profile = user_store.get_profile(contest_owner_username) or {}
-            owner_areas = territory_store.rebuild_player_areas(contest_owner_username, owner_profile.get("level", 1))
+            owner_areas = rebuild_player_areas_with_territory_delta(
+                contest_owner_username,
+                owner_profile.get("level", 1),
+                reason="pillar_lost",
+            )
             refresh_territory_stats_snapshot(owner_profile, owner_areas)
             user_store.save_profile(owner_profile)
             capture_conflict_pillar(
@@ -16257,12 +16370,20 @@ def gonna_win():
                     f"Pozycja: {captured_target.get('lat')}, {captured_target.get('lng')}"
                 )
             )
-            rebuilt_areas = territory_store.rebuild_player_areas(session["user"], profile.get("level", 1))
+            rebuilt_areas = rebuild_player_areas_with_territory_delta(
+                session["user"],
+                profile.get("level", 1),
+                reason="pillar_captured_owner_rebuild",
+            )
             profile["hacked"] = territory_store.list_captured_targets(session["user"])
             hacked_targets = profile["hacked"]
         progression = apply_territory_progression(profile, rebuilt_areas)
         if progression["levels_gained"]:
-            rebuilt_areas = territory_store.rebuild_player_areas(session["user"], profile.get("level", 1))
+            rebuilt_areas = rebuild_player_areas_with_territory_delta(
+                session["user"],
+                profile.get("level", 1),
+                reason="territory_progression",
+            )
         notify_encircled_area_owners()
 
         profile["aimed_target"] = {}

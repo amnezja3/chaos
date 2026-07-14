@@ -1,388 +1,7 @@
-# 1. VIREX ORACLE
 
-## Przeznaczenie maszyny
+# CHAOS — klany, maszyny i GhostNetwork
 
-VIREX ORACLE analizuje przepływy danych, zasobów i zachowań operatorów. Jego zadaniem podczas tworzenia GhostSignalu jest obliczenie chwili, trasy i wariantu transmisji dającego największą szansę dotarcia do 2108 roku.
-
-Oracle nie przełamuje MASA bezpośrednio. Przewiduje jej reakcję i wybiera moment, w którym sieć kontroli będzie najbardziej podatna.
-
-Niebezpieczna skrajność VIREX polega na tym, że system może zacząć traktować ludzi jak aktywa i optymalizować ich zachowania dokładnie tak samo jak MASA.
-
-## Część 1: Ledger Nexus
-
-**Profesja:** Broker
-**Funkcja:** Analiza rynku i przepływu zasobów.
-
-### Supermoc: Insider Feed
-
-Broker otrzymuje wyprzedzającą informację o zmianach popytu w Ghost Exchange. Widzi, które typy danych za chwilę zyskają na wartości oraz w których sektorach rośnie aktywność.
-
-Po aktywacji może okresowo oznaczyć jeden sektor rynku. Członkowie VIREX otrzymują premię za dane sprzedane w tym sektorze, dopóki moduł pozostaje aktywny.
-
-Broker widzi również przybliżoną wartość strategiczną odkrytej części, nawet jeśli nie zna jeszcze jej dokładnego przeznaczenia.
-
-## Część 2: Backdoor Forge
-
-**Profesja:** Architekt
-**Funkcja:** Projektowanie alternatywnych dróg wejścia.
-
-### Supermoc: Wejście Serwisowe
-
-Architekt może przygotować trwały backdoor w hakowanym obiekcie. Po jego założeniu członkowie VIREX potrzebują rozbroić mniejszą część zabezpieczeń, aby przejąć cel albo rozpocząć atak na terytorium.
-
-Backdoor pozostaje aktywny przez określony czas lub do wykrycia i usunięcia przez przeciwnika.
-
-To jest profesja pozwalająca VIREX szybciej odbijać terytoria zawierające części Oracle.
-
-## Część 3: Mimicry Engine
-
-**Profesja:** Manipulator
-**Funkcja:** Sterowanie informacją widoczną dla przeciwnika.
-
-### Supermoc: Fałszywy Obraz
-
-Manipulator może czasowo zmienić informacje wyświetlane przeciwnikom o wybranym terytorium VIREX.
-
-Może ukryć:
-
-* aktualny poziom aktywności;
-* liczbę ostatnich operacji;
-* przygotowania do obrony;
-* tożsamość operatora prowadzącego działanie.
-
-Nie może stworzyć prawdziwej części maszyny ani zmienić jej przynależności. Manipuluje wyłącznie informacją operacyjną widoczną dla innych graczy.
-
-## Część 4: Acquisition Drive
-
-**Profesja:** Egzekutor Zysku
-**Funkcja:** Finalizowanie przejęć.
-
-### Supermoc: Wrogie Przejęcie
-
-Jeżeli terytorium zostało już częściowo rozbrojone, Egzekutor może uruchomić krótkie okno przejęcia. W tym czasie jego działania szybciej usuwają pozostałe zabezpieczenia.
-
-Moc działa najmocniej na terytoria:
-
-* zawierające część maszyny;
-* wcześniej oznaczone przez Brokera;
-* posiadające backdoor Architekta.
-
-Egzekutor jest końcowym narzędziem ofensywnym VIREX, ale nie potrafi samodzielnie wykrywać ani analizować części.
-
-## Część 5: Probability Core
-
-**Profesja:** Kurator Algorytmu
-**Funkcja:** Analiza wzorców i przewidywanie ruchu.
-
-### Supermoc: Predykcja Operacyjna
-
-Kurator wskazuje na mapie obszary, w których rośnie prawdopodobieństwo:
-
-* odkrycia części;
-* ataku na terytorium VIREX;
-* powstania aktywnego hotspotu;
-* większego ruchu operatorów.
-
-Nie pokazuje dokładnego celu ani nazw graczy. Wyświetla strefy prawdopodobieństwa, dzięki czemu klan może wcześniej rozmieścić operatorów.
-
-## Pełna funkcja Oracle
-
-Po aktywacji wszystkich pięciu części VIREX ORACLE oblicza optymalne okno czasowe GhostSignalu i przekazuje je pozostałym maszynom.
-
----
-
-# 2. ECHO LIBERTAS
-
-## Przeznaczenie maszyny
-
-Echo Libertas wydobywa prawdę z kontrolowanego środowiska informacyjnego. Oczyszcza dane, tworzy z nich zrozumiały komunikat i odpowiada za właściwą transmisję GhostSignalu.
-
-To ona sprawia, że pakiet może zostać odczytany przez ruch oporu w 2108 roku.
-
-Niebezpieczną skrajnością Echa jest przekonanie, że każda informacja powinna zostać ujawniona bez względu na konsekwencje.
-
-## Część 1: Breach Voice
-
-**Profesja:** Haktywista
-**Funkcja:** Publiczne ujawnianie luk.
-
-### Supermoc: Expose
-
-Haktywista może ujawnić zabezpieczenia wybranego obiektu albo terytorium. Przez określony czas wszyscy członkowie Echa widzą jego słabe punkty i szybciej je rozbrajają.
-
-Ujawnienie jest widoczne również dla właściciela celu. Moc daje przewagę, ale jednocześnie ostrzega przeciwnika, że przygotowywana jest operacja.
-
-## Część 2: Influence Relay
-
-**Profesja:** Socjotechnik
-**Funkcja:** Wpływanie na reakcje systemów i operatorów.
-
-### Supermoc: Przejęcie Narracji
-
-Socjotechnik może zmienić sposób, w jaki system celu interpretuje pierwszą fazę ataku. Operacja przez krótki czas nie generuje pełnego alarmu i wygląda jak zwykły ruch albo błąd systemowy.
-
-Moc nie ukrywa całej operacji. Kupuje zespołowi czas potrzebny do rozpoczęcia właściwego włamania.
-
-W Cybernerze Socjotechnik może też publikować oznaczone komunikaty klanowe o większym zasięgu.
-
-## Część 3: Truth Lens
-
-**Profesja:** Odsłaniacz  
-**Funkcja:** Identyfikacja ukrytych danych.
-
-### Supermoc: Pełne Ujawnienie
-
-Odsłaniacz wykonuje specjalistyczny skan obiektu albo terytorium.
-
-Pełne Ujawnienie rozszerza analizę zabezpieczeń, historii właścicieli i aktywności operacyjnej, ale nie ujawnia tożsamości części ukrytej przez aktualne zasady widoczności.
-
-To główna profesja śledcza Echa Wolności.
-
-## Część 4: Resonance Beacon
-
-**Profesja:** Wizjoner
-**Funkcja:** Mobilizacja operatorów wokół wspólnego celu.
-
-### Supermoc: Sygnał Oporu
-
-Wizjoner oznacza wybrane terytorium jako cel operacji Echa. Członkowie klanu znajdujący się w jego pobliżu otrzymują premię do skanowania, hakowania albo obrony.
-
-Na Cybernerze pojawia się komunikat z lokalizacją i celem operacji. Moc działa najlepiej wtedy, gdy wielu operatorów odpowie na wezwanie.
-
-## Część 5: Spark Chamber
-
-**Profesja:** Zapalnik
-**Funkcja:** Rozpoczynanie reakcji łańcuchowych.
-
-### Supermoc: Efekt Domina
-
-Po skutecznym rozbrojeniu jednego elementu terytorium Zapalnik może osłabić sąsiedni element jego zabezpieczeń.
-
-Jeżeli kilka celów jest połączonych w jedną strukturę, udana akcja może otworzyć krótkie okno ataku na następny cel.
-
-Zapalnik nie jest najsilniejszy podczas długiego oblężenia. Jego przewagą jest nagłe rozpoczęcie większej operacji.
-
-## Pełna funkcja Libertas
-
-Po aktywacji wszystkich pięciu części Echo Libertas składa wyniki pozostałych maszyn w komunikat możliwy do przesłania i odczytania w 2108 roku.
-
----
-
-# 3. PHANTOM VEIL
-
-## Przeznaczenie maszyny
-
-Phantom Veil należy do Siatki Widmo. Jego zadaniem jest znalezienie drogi przez warstwy MASA, ukrycie transmisji i sprawienie, aby sygnał wyglądał jak nieistotne zakłócenie.
-
-Maszyna nie atakuje centralnej bramy. Tworzy trasę przebiegającą przez miejsca, których MASA nie uznaje za powiązane.
-
-Niebezpieczną skrajnością Siatki Widmo jest utrata granicy pomiędzy maskowaniem a całkowitym zniszczeniem prawdy.
-
-## Część 1: Mirage Projector
-
-**Profesja:** Iluzjonista
-**Funkcja:** Tworzenie fałszywego obrazu mapy.
-
-### Supermoc: Węzeł Widmo
-
-Iluzjonista może umieścić na mapie tymczasowy fałszywy ślad aktywności albo pozorny sygnał komponentu.
-
-Fałszywy węzeł:
-
-* nie jest prawdziwą częścią;
-* nie może wejść do GhostNetwork;
-* znika po dokładnym skanowaniu;
-* może odciągnąć przeciwników od właściwej operacji.
-
-System gry zawsze zna prawdziwy stan. Iluzja oddziałuje tylko na informacje prezentowane graczom.
-
-## Część 2: Glitch Reactor
-
-**Profesja:** Wirusolog
-**Funkcja:** Wprowadzanie trwałych zakłóceń.
-
-### Supermoc: Glitch Injection
-
-Wirusolog infekuje jeden element zabezpieczeń terytorium. Infekcja stopniowo obniża jego stabilność i utrudnia pełną rekonstrukcję.
-
-Właściciel może wykryć oraz usunąć infekcję, ale musi poświęcić na to czas albo wykorzystać zdolność Rekonstruktora Strażników.
-
-Glitch Injection przygotowuje cel do późniejszego ataku całej Siatki.
-
-## Część 3: Paranoia Loop
-
-**Profesja:** Paranoik
-**Funkcja:** Zaburzanie analizy aktywności.
-
-### Supermoc: Fałszywe Tropienie
-
-Paranoik generuje kilka pozornych śladów wychodzących z miejsca operacji. Przeciwnik widzi wiele możliwych kierunków ruchu i nie może łatwo ustalić, który operator naprawdę prowadził atak.
-
-Jednocześnie Paranoik otrzymuje ostrzeżenie, gdy ktoś intensywnie skanuje jego pozycję, terytorium albo aktywny moduł.
-
-## Część 4: Fracture Engine
-
-**Profesja:** Rozłamowiec
-**Funkcja:** Rozcinanie dużych struktur terytorialnych.
-
-### Supermoc: Pęknięcie Sieci
-
-Rozłamowiec wybiera połączenie pomiędzy dwoma elementami terytorium i czasowo je destabilizuje.
-
-Jeżeli właściciel nie naprawi połączenia:
-
-* część obszaru traci wsparcie sąsiednich filarów;
-* otwiera się droga do wewnętrznego celu;
-* aktywna część maszyny może zostać odizolowana od obrony.
-
-Rozłamowiec nie przejmuje terytorium natychmiast. Tworzy pęknięcie, które klan musi wykorzystać.
-
-## Część 5: Mirror Kernel
-
-**Profesja:** Lustrzany Sędzia
-**Funkcja:** Analiza i odwracanie działań przeciwnika.
-
-### Supermoc: Odbicie
-
-Po wykryciu wrogiego skanu albo próby infiltracji Lustrzany Sędzia może odwrócić kanał połączenia i uzyskać informacje o atakującym.
-
-W zależności od rodzaju operacji może ujawnić:
-
-* klan agresora;
-* użyte narzędzie;
-* przybliżoną lokalizację;
-* kolejny potencjalny cel przeciwnika.
-
-Odbicie nie zadaje automatycznie obrażeń. Zamienia atak przeciwnika w źródło danych dla Siatki Widmo.
-
-## Pełna funkcja Phantom Veil
-
-Po aktywacji wszystkich pięciu części Phantom Veil tworzy ukrytą trasę GhostSignalu przez warstwy percepcji MASA.
-
----
-
-# 4. SENTINEL AEGIS
-
-## Przeznaczenie maszyny
-
-Sentinel Aegis jest maszyną Strażników Ładu. Weryfikuje wyniki pozostałych konstrukcji, chroni integralność GhostSignalu i utrzymuje połączenia podczas transmisji.
-
-Bez Aegis pakiet mógłby zostać uszkodzony, podmieniony albo wykorzystany przez MASA.
-
-Niebezpieczną skrajnością Strażników jest przekonanie, że bezpieczeństwo usprawiedliwia pełną kontrolę nad systemem.
-
-## Część 1: Deep Sensor
-
-**Profesja:** Analizator
-**Funkcja:** Wykrywanie anomalii i zagrożeń.
-
-### Supermoc: Skan Integralny
-
-Analizator wykonuje rozszerzony skan terytorium. Widzi:
-
-* aktywne backdoory;
-* infekcje Wirusologa;
-* fałszywe węzły Iluzjonisty;
-* przygotowania do ataku;
-* przybliżony stan zabezpieczeń;
-* obecność części maszyny.
-
-Skan nie usuwa zagrożeń, lecz przekazuje Strażnikom pełny raport potrzebny do zaplanowania obrony.
-
-## Część 2: Bastion Matrix
-
-**Profesja:** Obrońca
-**Funkcja:** Ochrona kluczowych terytoriów.
-
-### Supermoc: Bastion
-
-Obrońca może objąć jeden element terytorium dodatkową warstwą ochronną. Atakujący musi najpierw przełamać Bastion, zanim zacznie rozbrajać właściwe zabezpieczenie.
-
-Moc jest szczególnie skuteczna na terytoriach zawierających aktywne części maszyn, ale Obrońca może utrzymywać tylko ograniczoną liczbę Bastionów.
-
-## Część 3: Restoration Engine
-
-**Profesja:** Rekonstruktor
-**Funkcja:** Naprawa uszkodzonych struktur.
-
-### Supermoc: Rollback
-
-Rekonstruktor może przywrócić część ostatnio utraconej integralności terytorium.
-
-Rollback:
-
-* odbudowuje fragment rozbrojonego zabezpieczenia;
-* usuwa Glitch Injection;
-* naprawia połączenie przecięte przez Rozłamowca;
-* stabilizuje aktywny moduł.
-
-Nie może odzyskać terytorium, które zostało już całkowicie przejęte. Musi zareagować podczas trwającej obrony.
-
-## Część 4: Accord Relay
-
-**Profesja:** Mediator
-**Funkcja:** Tworzenie kontrolowanych form współpracy.
-
-### Supermoc: Korytarz Zaufania
-
-Mediator może otworzyć czasowy dostęp do wybranego terytorium dla konkretnych operatorów innego klanu.
-
-Zaproszeni gracze mogą:
-
-* wejść w obszar bez wywołania konfliktu;
-* przeprowadzić uzgodniony skan;
-* pomóc przy wskazanej operacji;
-* potwierdzić obecność części.
-
-Nie otrzymują prawa do przejęcia terytorium. Korytarz może zostać natychmiast zamknięty przez Mediatora.
-
-To narzędzie bezpośrednio wspiera współpracę potrzebną do budowania GhostNetwork.
-
-## Część 5: Judgment Core
-
-**Profesja:** Egzekutor
-**Funkcja:** Izolowanie bezpośrednich zagrożeń.
-
-### Supermoc: Kwarantanna
-
-Po wykryciu aktywnego ataku Egzekutor może objąć jeden element terytorium krótką kwarantanną.
-
-W czasie kwarantanny:
-
-* zatrzymuje się dalszy postęp włamania;
-* nie można rozpocząć nowych operacji na tym elemencie;
-* obie strony otrzymują czas na przegrupowanie;
-* Analizator i Rekonstruktor mogą zbadać oraz naprawić cel.
-
-Kwarantanna nie cofa wykonanego ataku i nie może być używana bez końca. Jest awaryjnym hamulcem, a nie trwałą nietykalnością.
-
-## Pełna funkcja Aegis
-
-Po aktywacji wszystkich pięciu części Sentinel Aegis sprawdza integralność GhostSignalu, zabezpiecza połączenia i chroni pakiet przed podmianą przez MASA.
-
-# Wspólne działanie maszyn
-
-Cztery maszyny wykonują kolejne warstwy jednej operacji:
-
-1. **VIREX ORACLE** oblicza właściwy moment i wariant transmisji.
-2. **ECHO LIBERTAS** składa dane w komunikat oraz nadaje sygnał.
-3. **PHANTOM VEIL** tworzy niewidoczną drogę przez system MASA.
-4. **SENTINEL AEGIS** weryfikuje pakiet i chroni jego integralność.
-
-Ich zależność można skrócić do czterech pytań:
-
-```text
-ORACLE: kiedy i którędy?
-LIBERTAS: co i do kogo?
-PHANTOM VEIL: jak przejść niezauważonym?
-SENTINEL AEGIS: jak dotrzeć bez podmiany?
-```
-
-Każda aktywowana część daje profesji realną przewagę, ale jednocześnie ujawnia na mapie fragment większej konstrukcji. Po aktywacji wszystkich 20 modułów sieć zamyka się automatycznie, wysyła GhostSignal do 2108 roku, a GhostSystem ewoluuje do kolejnej wersji.
-
----
-
-# Kanon świata CHAOS
+## 1. Kanon świata i oś czasu
 
 ## Świat w 2026 roku
 
@@ -625,8 +244,393 @@ Nie oznacza to, że wojna została wygrana. Oznacza, że system poznał następn
 Najkrótsze podsumowanie całego kanonu brzmi:
 
 > MASA przewidziała każdą przyszłość, którą potrafiła sama zasymulować. GhostSystem sięga więc do ludzi żyjących przed jej powstaniem i prosi ich, aby stworzyli przyszłość, której nie było w żadnym modelu.
+## 2. Cztery klany, maszyny, części i profesje
 
-## 2. Dokładny schemat 20 części
+# VIREX ORACLE
+
+## Przeznaczenie maszyny
+
+VIREX ORACLE analizuje przepływy danych, zasobów i zachowań operatorów. Jego zadaniem podczas tworzenia GhostSignalu jest obliczenie chwili, trasy i wariantu transmisji dającego największą szansę dotarcia do 2108 roku.
+
+Oracle nie przełamuje MASA bezpośrednio. Przewiduje jej reakcję i wybiera moment, w którym sieć kontroli będzie najbardziej podatna.
+
+Niebezpieczna skrajność VIREX polega na tym, że system może zacząć traktować ludzi jak aktywa i optymalizować ich zachowania dokładnie tak samo jak MASA.
+
+## Część 1: Ledger Nexus
+
+**Profesja:** Broker
+**Funkcja:** Analiza rynku i przepływu zasobów.
+
+### Supermoc: Insider Feed
+
+Broker otrzymuje wyprzedzającą informację o zmianach popytu w Ghost Exchange. Widzi, które typy danych za chwilę zyskają na wartości oraz w których sektorach rośnie aktywność.
+
+Po aktywacji może okresowo oznaczyć jeden sektor rynku. Członkowie VIREX otrzymują premię za dane sprzedane w tym sektorze, dopóki moduł pozostaje aktywny.
+
+Broker widzi również przybliżoną wartość strategiczną odkrytej części, nawet jeśli nie zna jeszcze jej dokładnego przeznaczenia.
+
+## Część 2: Backdoor Forge
+
+**Profesja:** Architekt
+**Funkcja:** Projektowanie alternatywnych dróg wejścia.
+
+### Supermoc: Wejście Serwisowe
+
+Architekt może przygotować trwały backdoor w hakowanym obiekcie. Po jego założeniu członkowie VIREX potrzebują rozbroić mniejszą część zabezpieczeń, aby przejąć cel albo rozpocząć atak na terytorium.
+
+Backdoor pozostaje aktywny przez określony czas lub do wykrycia i usunięcia przez przeciwnika.
+
+To jest profesja pozwalająca VIREX szybciej odbijać terytoria zawierające części Oracle.
+
+## Część 3: Mimicry Engine
+
+**Profesja:** Manipulator
+**Funkcja:** Sterowanie informacją widoczną dla przeciwnika.
+
+### Supermoc: Fałszywy Obraz
+
+Manipulator może czasowo zmienić informacje wyświetlane przeciwnikom o wybranym terytorium VIREX.
+
+Może ukryć:
+
+* aktualny poziom aktywności;
+* liczbę ostatnich operacji;
+* przygotowania do obrony;
+* tożsamość operatora prowadzącego działanie.
+
+Nie może stworzyć prawdziwej części maszyny ani zmienić jej przynależności. Manipuluje wyłącznie informacją operacyjną widoczną dla innych graczy.
+
+## Część 4: Acquisition Drive
+
+**Profesja:** Egzekutor Zysku
+**Funkcja:** Finalizowanie przejęć.
+
+### Supermoc: Wrogie Przejęcie
+
+Jeżeli terytorium zostało już częściowo rozbrojone, Egzekutor może uruchomić krótkie okno przejęcia. W tym czasie jego działania szybciej usuwają pozostałe zabezpieczenia.
+
+Moc działa najmocniej na terytoria:
+
+* zawierające część maszyny;
+* wcześniej oznaczone przez Brokera;
+* posiadające backdoor Architekta.
+
+Egzekutor jest końcowym narzędziem ofensywnym VIREX, ale nie potrafi samodzielnie wykrywać ani analizować części.
+
+## Część 5: Probability Core
+
+**Profesja:** Kurator Algorytmu
+**Funkcja:** Analiza wzorców i przewidywanie ruchu.
+
+### Supermoc: Predykcja Operacyjna
+
+Kurator wskazuje na mapie obszary, w których rośnie prawdopodobieństwo:
+
+* odkrycia części;
+* ataku na terytorium VIREX;
+* powstania aktywnego hotspotu;
+* większego ruchu operatorów.
+
+Nie pokazuje dokładnego celu ani nazw graczy. Wyświetla strefy prawdopodobieństwa, dzięki czemu klan może wcześniej rozmieścić operatorów.
+
+## Pełna funkcja Oracle
+
+Po aktywacji wszystkich pięciu części VIREX ORACLE oblicza optymalne okno czasowe GhostSignalu i przekazuje je pozostałym maszynom.
+
+---
+
+# ECHO LIBERTAS
+
+## Przeznaczenie maszyny
+
+Echo Libertas wydobywa prawdę z kontrolowanego środowiska informacyjnego. Oczyszcza dane, tworzy z nich zrozumiały komunikat i odpowiada za właściwą transmisję GhostSignalu.
+
+To ona sprawia, że pakiet może zostać odczytany przez ruch oporu w 2108 roku.
+
+Niebezpieczną skrajnością Echa jest przekonanie, że każda informacja powinna zostać ujawniona bez względu na konsekwencje.
+
+## Część 1: Breach Voice
+
+**Profesja:** Haktywista
+**Funkcja:** Publiczne ujawnianie luk.
+
+### Supermoc: Expose
+
+Haktywista może ujawnić zabezpieczenia wybranego obiektu albo terytorium. Przez określony czas wszyscy członkowie Echa widzą jego słabe punkty i szybciej je rozbrajają.
+
+Ujawnienie jest widoczne również dla właściciela celu. Moc daje przewagę, ale jednocześnie ostrzega przeciwnika, że przygotowywana jest operacja.
+
+## Część 2: Influence Relay
+
+**Profesja:** Socjotechnik
+**Funkcja:** Wpływanie na reakcje systemów i operatorów.
+
+### Supermoc: Przejęcie Narracji
+
+Socjotechnik może zmienić sposób, w jaki system celu interpretuje pierwszą fazę ataku. Operacja przez krótki czas nie generuje pełnego alarmu i wygląda jak zwykły ruch albo błąd systemowy.
+
+Moc nie ukrywa całej operacji. Kupuje zespołowi czas potrzebny do rozpoczęcia właściwego włamania.
+
+W Cybernerze Socjotechnik może też publikować oznaczone komunikaty klanowe o większym zasięgu.
+
+## Część 3: Truth Lens
+
+**Profesja:** Odsłaniacz  
+**Funkcja:** Identyfikacja ukrytych danych.
+
+### Supermoc: Pełne Ujawnienie
+
+Odsłaniacz wykonuje specjalistyczny skan obiektu albo terytorium.
+
+Pełne Ujawnienie rozszerza analizę zabezpieczeń, historii właścicieli i aktywności operacyjnej, ale nie ujawnia tożsamości części ukrytej przez aktualne zasady widoczności.
+
+To główna profesja śledcza Echa Wolności.
+
+## Część 4: Resonance Beacon
+
+**Profesja:** Wizjoner
+**Funkcja:** Mobilizacja operatorów wokół wspólnego celu.
+
+### Supermoc: Sygnał Oporu
+
+Wizjoner oznacza wybrane terytorium jako cel operacji Echa. Członkowie klanu znajdujący się w jego pobliżu otrzymują premię do skanowania, hakowania albo obrony.
+
+Na Cybernerze pojawia się komunikat z lokalizacją i celem operacji. Moc działa najlepiej wtedy, gdy wielu operatorów odpowie na wezwanie.
+
+## Część 5: Spark Chamber
+
+**Profesja:** Zapalnik
+**Funkcja:** Rozpoczynanie reakcji łańcuchowych.
+
+### Supermoc: Efekt Domina
+
+Po skutecznym rozbrojeniu jednego elementu terytorium Zapalnik może osłabić sąsiedni element jego zabezpieczeń.
+
+Jeżeli kilka celów jest połączonych w jedną strukturę, udana akcja może otworzyć krótkie okno ataku na następny cel.
+
+Zapalnik nie jest najsilniejszy podczas długiego oblężenia. Jego przewagą jest nagłe rozpoczęcie większej operacji.
+
+## Pełna funkcja Libertas
+
+Po aktywacji wszystkich pięciu części Echo Libertas składa wyniki pozostałych maszyn w komunikat możliwy do przesłania i odczytania w 2108 roku.
+
+---
+
+# PHANTOM VEIL
+
+## Przeznaczenie maszyny
+
+Phantom Veil należy do Siatki Widmo. Jego zadaniem jest znalezienie drogi przez warstwy MASA, ukrycie transmisji i sprawienie, aby sygnał wyglądał jak nieistotne zakłócenie.
+
+Maszyna nie atakuje centralnej bramy. Tworzy trasę przebiegającą przez miejsca, których MASA nie uznaje za powiązane.
+
+Niebezpieczną skrajnością Siatki Widmo jest utrata granicy pomiędzy maskowaniem a całkowitym zniszczeniem prawdy.
+
+## Część 1: Mirage Projector
+
+**Profesja:** Iluzjonista
+**Funkcja:** Tworzenie fałszywego obrazu mapy.
+
+### Supermoc: Węzeł Widmo
+
+Iluzjonista może umieścić na mapie tymczasowy fałszywy ślad aktywności albo pozorny sygnał komponentu.
+
+Fałszywy węzeł:
+
+* nie jest prawdziwą częścią;
+* nie może wejść do GhostNetwork;
+* znika po dokładnym skanowaniu;
+* może odciągnąć przeciwników od właściwej operacji.
+
+System gry zawsze zna prawdziwy stan. Iluzja oddziałuje tylko na informacje prezentowane graczom.
+
+## Część 2: Glitch Reactor
+
+**Profesja:** Wirusolog
+**Funkcja:** Wprowadzanie trwałych zakłóceń.
+
+### Supermoc: Glitch Injection
+
+Wirusolog infekuje jeden element zabezpieczeń terytorium. Infekcja stopniowo obniża jego stabilność i utrudnia pełną rekonstrukcję.
+
+Właściciel może wykryć oraz usunąć infekcję, ale musi poświęcić na to czas albo wykorzystać zdolność Rekonstruktora Strażników.
+
+Glitch Injection przygotowuje cel do późniejszego ataku całej Siatki.
+
+## Część 3: Paranoia Loop
+
+**Profesja:** Paranoik
+**Funkcja:** Zaburzanie analizy aktywności.
+
+### Supermoc: Fałszywe Tropienie
+
+Paranoik generuje kilka pozornych śladów wychodzących z miejsca operacji. Przeciwnik widzi wiele możliwych kierunków ruchu i nie może łatwo ustalić, który operator naprawdę prowadził atak.
+
+Jednocześnie Paranoik otrzymuje ostrzeżenie, gdy ktoś intensywnie skanuje jego pozycję, terytorium albo aktywny moduł.
+
+## Część 4: Fracture Engine
+
+**Profesja:** Rozłamowiec
+**Funkcja:** Rozcinanie dużych struktur terytorialnych.
+
+### Supermoc: Pęknięcie Sieci
+
+Rozłamowiec wybiera połączenie pomiędzy dwoma elementami terytorium i czasowo je destabilizuje.
+
+Jeżeli właściciel nie naprawi połączenia:
+
+* część obszaru traci wsparcie sąsiednich filarów;
+* otwiera się droga do wewnętrznego celu;
+* aktywna część maszyny może zostać odizolowana od obrony.
+
+Rozłamowiec nie przejmuje terytorium natychmiast. Tworzy pęknięcie, które klan musi wykorzystać.
+
+## Część 5: Mirror Kernel
+
+**Profesja:** Lustrzany Sędzia
+**Funkcja:** Analiza i odwracanie działań przeciwnika.
+
+### Supermoc: Odbicie
+
+Po wykryciu wrogiego skanu albo próby infiltracji Lustrzany Sędzia może odwrócić kanał połączenia i uzyskać informacje o atakującym.
+
+W zależności od rodzaju operacji może ujawnić:
+
+* klan agresora;
+* użyte narzędzie;
+* przybliżoną lokalizację;
+* kolejny potencjalny cel przeciwnika.
+
+Odbicie nie zadaje automatycznie obrażeń. Zamienia atak przeciwnika w źródło danych dla Siatki Widmo.
+
+## Pełna funkcja Phantom Veil
+
+Po aktywacji wszystkich pięciu części Phantom Veil tworzy ukrytą trasę GhostSignalu przez warstwy percepcji MASA.
+
+---
+
+# SENTINEL AEGIS
+
+## Przeznaczenie maszyny
+
+Sentinel Aegis jest maszyną Strażników Ładu. Weryfikuje wyniki pozostałych konstrukcji, chroni integralność GhostSignalu i utrzymuje połączenia podczas transmisji.
+
+Bez Aegis pakiet mógłby zostać uszkodzony, podmieniony albo wykorzystany przez MASA.
+
+Niebezpieczną skrajnością Strażników jest przekonanie, że bezpieczeństwo usprawiedliwia pełną kontrolę nad systemem.
+
+## Część 1: Deep Sensor
+
+**Profesja:** Analizator
+**Funkcja:** Wykrywanie anomalii i zagrożeń.
+
+### Supermoc: Skan Integralny
+
+Analizator wykonuje rozszerzony skan terytorium. Widzi:
+
+* aktywne backdoory;
+* infekcje Wirusologa;
+* fałszywe węzły Iluzjonisty;
+* przygotowania do ataku;
+* przybliżony stan zabezpieczeń;
+* obecność części maszyny.
+
+Skan nie usuwa zagrożeń, lecz przekazuje Strażnikom pełny raport potrzebny do zaplanowania obrony.
+
+## Część 2: Bastion Matrix
+
+**Profesja:** Obrońca
+**Funkcja:** Ochrona kluczowych terytoriów.
+
+### Supermoc: Bastion
+
+Obrońca może objąć jeden element terytorium dodatkową warstwą ochronną. Atakujący musi najpierw przełamać Bastion, zanim zacznie rozbrajać właściwe zabezpieczenie.
+
+Moc jest szczególnie skuteczna na terytoriach zawierających aktywne części maszyn, ale Obrońca może utrzymywać tylko ograniczoną liczbę Bastionów.
+
+## Część 3: Restoration Engine
+
+**Profesja:** Rekonstruktor
+**Funkcja:** Naprawa uszkodzonych struktur.
+
+### Supermoc: Rollback
+
+Rekonstruktor może przywrócić część ostatnio utraconej integralności terytorium.
+
+Rollback:
+
+* odbudowuje fragment rozbrojonego zabezpieczenia;
+* usuwa Glitch Injection;
+* naprawia połączenie przecięte przez Rozłamowca;
+* stabilizuje aktywny moduł.
+
+Nie może odzyskać terytorium, które zostało już całkowicie przejęte. Musi zareagować podczas trwającej obrony.
+
+## Część 4: Accord Relay
+
+**Profesja:** Mediator
+**Funkcja:** Tworzenie kontrolowanych form współpracy.
+
+### Supermoc: Korytarz Zaufania
+
+Mediator może otworzyć czasowy dostęp do wybranego terytorium dla konkretnych operatorów innego klanu.
+
+Zaproszeni gracze mogą:
+
+* wejść w obszar bez wywołania konfliktu;
+* przeprowadzić uzgodniony skan;
+* pomóc przy wskazanej operacji;
+* potwierdzić obecność części.
+
+Nie otrzymują prawa do przejęcia terytorium. Korytarz może zostać natychmiast zamknięty przez Mediatora.
+
+To narzędzie bezpośrednio wspiera współpracę potrzebną do budowania GhostNetwork.
+
+## Część 5: Judgment Core
+
+**Profesja:** Egzekutor
+**Funkcja:** Izolowanie bezpośrednich zagrożeń.
+
+### Supermoc: Kwarantanna
+
+Po wykryciu aktywnego ataku Egzekutor może objąć jeden element terytorium krótką kwarantanną.
+
+W czasie kwarantanny:
+
+* zatrzymuje się dalszy postęp włamania;
+* nie można rozpocząć nowych operacji na tym elemencie;
+* obie strony otrzymują czas na przegrupowanie;
+* Analizator i Rekonstruktor mogą zbadać oraz naprawić cel.
+
+Kwarantanna nie cofa wykonanego ataku i nie może być używana bez końca. Jest awaryjnym hamulcem, a nie trwałą nietykalnością.
+
+## Pełna funkcja Aegis
+
+Po aktywacji wszystkich pięciu części Sentinel Aegis sprawdza integralność GhostSignalu, zabezpiecza połączenia i chroni pakiet przed podmianą przez MASA.
+
+# Wspólne działanie maszyn
+
+Cztery maszyny wykonują kolejne warstwy jednej operacji:
+
+1. **VIREX ORACLE** oblicza właściwy moment i wariant transmisji.
+2. **ECHO LIBERTAS** składa dane w komunikat oraz nadaje sygnał.
+3. **PHANTOM VEIL** tworzy niewidoczną drogę przez system MASA.
+4. **SENTINEL AEGIS** weryfikuje pakiet i chroni jego integralność.
+
+Ich zależność można skrócić do czterech pytań:
+
+```text
+ORACLE: kiedy i którędy?
+LIBERTAS: co i do kogo?
+PHANTOM VEIL: jak przejść niezauważonym?
+SENTINEL AEGIS: jak dotrzeć bez podmiany?
+```
+
+Każda aktywowana część daje profesji realną przewagę, ale jednocześnie ujawnia na mapie fragment większej konstrukcji. Po aktywacji wszystkich 20 modułów sieć zamyka się automatycznie, wysyła GhostSignal do 2108 roku, a GhostSystem ewoluuje do kolejnej wersji.
+
+---
+
+## 3. Topologia GhostNetwork
 
 # Topologia GhostNetwork
 
@@ -915,7 +919,7 @@ Gdy aktywowana zostanie ostatnia brakująca część:
 
 W ten sposób gracze nie muszą znać pełnego schematu na początku. Odkrywają go przez hakowanie, obserwowanie połówek linii, śledzenie mapy i wymianę informacji na Cybernerze.
 
-## 3. Cykl życia części
+## 4. Cykl życia części
 
 # Cykl życia części GhostNetwork
 
@@ -1249,7 +1253,7 @@ AKTYWNA
 System nie tworzy kolejnej kopii części niezależnie od liczby zmian właściciela. Do końca cyklu jest to ten sam komponent, ta sama lokalizacja i ta sama historia.
 
 
-## 4. Informacja i widoczność
+## 5. Informacja i widoczność
 
 # Informacja i widoczność części
 
@@ -1514,7 +1518,7 @@ Do opisania pozostaje właściwe wydarzenie na mapie:
 * zmiana wersji GhostSystemu;
 * czas do rozpoczęcia kolejnego cyklu.
 
-## 5. Przebieg transmisji
+## 6. Przebieg transmisji
 
 # Przebieg transmisji GhostSignal
 
@@ -1901,7 +1905,7 @@ ostatnia część aktywna
 → nowy cykl GhostNetwork
 ```
 
-## 6. Los GhostSignalu
+## 7. Los GhostSignalu
 
 Wysłanie GhostSignalu kończy cykl GhostNetwork, ale nie oznacza natychmiastowego poznania rezultatu transmisji.
 
@@ -2240,7 +2244,7 @@ Najważniejsza zasada całego rozdziału brzmi:
 > Gracze odpowiadają za wygenerowanie i wysłanie GhostSignalu. Nie odpowiadają za to, co wydarzy się z nim po drugiej stronie czasu. Każda transmisja jest zwycięstwem operatorów i kolejną próbą stworzenia przyszłości, której MASA nie potrafiła przewidzieć.
 
 
-## 7. Reputacja i nagrody
+## 8. Reputacja i nagrody
 
 GhostNetwork jest najważniejszą warstwą strategiczną CHAOS, dlatego nagrody za działania związane z częściami muszą być wyraźnie większe niż nagrody otrzymywane podczas zwykłego hakowania obiektów.
 
@@ -2659,7 +2663,7 @@ Najważniejsza zasada brzmi:
 > Regularna rozgrywka rozwija operatora krok po kroku. GhostNetwork nagradza momenty, w których działania gracza realnie wpływają na strategiczną sytuację całego świata.
 
 
-## 8. Zabezpieczenia strategiczne
+## 9. Zabezpieczenia strategiczne
 
 GhostNetwork nie powinien automatycznie rozwiązywać problemów politycznych i terytorialnych za graczy. Blokady, dysproporcje klanów oraz kontrolowanie cudzych części są częścią strategicznej rozgrywki.
 
@@ -2928,7 +2932,7 @@ Najważniejsza zasada brzmi:
 > GhostNetwork zapewnia możliwość rozwiązania blokady. Samo rozwiązanie należy do graczy.
 
 
-## 9. Rola Ollamy
+## 10. Rola Ollamy
 
 Ollama pełni funkcję demona narracyjnego GhostSystemu. Nie zarządza mechaniką gry i nie jest źródłem prawdy o stanie świata. Otrzymuje zatwierdzone fakty wygenerowane przez system, a następnie przekształca je w narrację publikowaną przez BlackNet, Cyberner i BlackNet Radio.
 
@@ -3504,7 +3508,7 @@ Nie może jednak stać się właścicielem prawdy o świecie.
 
 Tak. `ABOUT_CHAOS.md` mamy już zrobiony, więc do pełnego dokumentu zostaje narracja rejestracji `ghost_init`. Powinna wprowadzać świat stopniowo, bez wykładania graczowi całej mechaniki dwudziestu części.
 
-# 10. Narracja onboardingu `ghost_init`
+## 11. Narracja onboardingu `ghost_init`
 
 ## Założenie
 

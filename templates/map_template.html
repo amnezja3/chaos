@@ -1355,6 +1355,115 @@
             window[name] = [];
         }
 
+        function territoryStableId(area = {}) {
+            const explicitId = area.territory_id || area.id || area.area_id;
+            if (explicitId !== undefined && explicitId !== null && String(explicitId).trim()) {
+                return String(explicitId).trim();
+            }
+            const owner = String(area.owner_username || area.owner_id || 'unknown').trim() || 'unknown';
+            const lat = Number(area.centroid_lat || (area.centroid || {}).lat || 0).toFixed(6);
+            const lng = Number(area.centroid_lng || (area.centroid || {}).lng || 0).toFixed(6);
+            return `${owner}:${lat}:${lng}`;
+        }
+
+        function territoryLayerStyle(area = {}) {
+            const isMine = area.is_mine === true;
+            const isEncircled = area.status === 'encircled';
+            return {
+                pane: 'territoryPane',
+                color: isEncircled ? '#ffcc33' : (isMine ? '#26ff6a' : '#ff4b4b'),
+                fillColor: isEncircled ? '#b88700' : (isMine ? '#0aa83d' : '#b62020'),
+                fillOpacity: isEncircled ? 0.26 : (isMine ? 0.13 : 0.20),
+                weight: isEncircled ? 4 : (isMine ? 2 : 3),
+                dashArray: isEncircled ? '4 5' : (isMine ? null : '8 6'),
+                interactive: true
+            };
+        }
+
+        function territoryTooltip(area = {}) {
+            const ownerNick = window.escapeMapText(area.owner_nick || area.owner_username || area.owner_id || 'unknown');
+            const ownerUsername = window.escapeMapText(area.owner_username || area.owner_id || 'unknown');
+            const ownerClan = window.escapeMapText(area.owner_clan || 'brak');
+            const status = window.escapeMapText(area.status || 'active');
+            const size = Math.round(Number(area.area_size || 0));
+            return `${area.is_mine ? 'Twoje pole' : 'Pole gracza'}: ${ownerNick}<br>Login: ${ownerUsername}<br>Klan: ${ownerClan}<br>Status: ${status}<br>Pow.: ${size} mÂ˛`;
+        }
+
+        function renderTerritoryAreaLayer(area = {}) {
+            const territoryId = territoryStableId(area);
+            const points = (area.vertices || [])
+                .map(vertex => [parseFloat(vertex.lat), parseFloat(vertex.lng)])
+                .filter(point => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
+            if (points.length < 3) return null;
+            if (!isSaneTerritoryPolygon(points)) {
+                console.warn('[map] Pominieto podejrzane terytorium', area.owner_username, points);
+                return null;
+            }
+
+            const polygon = registerLayerInArray('playerAreaLayers', L.polygon(points, territoryLayerStyle(area)));
+            polygon._chaosTerritoryId = territoryId;
+            polygon._chaosTerritorySnapshot = { ...area, territory_id: territoryId };
+            polygon.addTo(map);
+            polygon.bindTooltip(territoryTooltip(area), {
+                sticky: true,
+                opacity: 0.95
+            });
+            window.territoryAreaLayers[territoryId] = {
+                id: territoryId,
+                layer: polygon,
+                area: polygon._chaosTerritorySnapshot
+            };
+            return polygon;
+        }
+
+        function renderTerritoryConflictLayer(conflict = {}) {
+            const intersections = conflict.intersections && conflict.intersections.length
+                ? conflict.intersections
+                : [conflict.intersection || []];
+            const participants = conflict.participants_display
+                ? window.escapeMapText(conflict.participants_display)
+                : (conflict.participant_names || conflict.participants || [])
+                    .map(name => window.escapeMapText(name))
+                    .join(', ');
+
+            intersections.forEach((intersection, index) => {
+                const points = (intersection || [])
+                    .map(vertex => [parseFloat(vertex.lat), parseFloat(vertex.lng)])
+                    .filter(point => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
+                if (points.length < 3) return;
+                if (!isSaneTerritoryPolygon(points)) {
+                    console.warn('[map] Pominieto podejrzany konflikt terytorium', conflict.id, points);
+                    return;
+                }
+
+                const polygon = registerLayerInArray('conflictAreaLayers', L.polygon(points, {
+                    pane: 'territoryPane',
+                    color: '#ffb300',
+                    fillColor: '#ff8a00',
+                    fillOpacity: 0.18,
+                    weight: 3,
+                    dashArray: '3 5',
+                    interactive: true
+                }));
+                polygon._chaosTerritoryConflictId = `${conflict.id || conflict.conflict_key || 'conflict'}:${index}`;
+                polygon.addTo(map);
+                polygon.bindTooltip(`Konflikt terytorium<br>Uczestnicy: ${participants || 'brak'}<br>Strefa: ${index + 1}`, {
+                    sticky: true,
+                    opacity: 0.95
+                });
+                window.territoryConflictLayers[polygon._chaosTerritoryConflictId] = {
+                    id: polygon._chaosTerritoryConflictId,
+                    layer: polygon,
+                    conflict
+                };
+            });
+        }
+
+        function resetTerritoryLayerRegistries() {
+            window.territoryAreaLayers = {};
+            window.territoryConflictLayers = {};
+        }
+
         function getLayerTooltipText(layer) {
             if (!layer || typeof layer.getTooltip !== 'function') return '';
             const tooltip = layer.getTooltip();
@@ -3641,7 +3750,6 @@
                     return timer;
                 };
                 scheduleSnapshot(window.refreshPlayerActors, MAP_PLAYER_ACTORS_SNAPSHOT_INTERVAL_MS, 500);
-                scheduleSnapshot(window.refreshPlayerAreas, MAP_PLAYER_AREAS_SNAPSHOT_INTERVAL_MS, 2600);
                 scheduleSnapshot(window.refreshClanVulnerabilities, MAP_CLAN_VULNERABILITIES_SNAPSHOT_INTERVAL_MS, 5600);
                 scheduleSnapshot(window.refreshActiveOperations, MAP_ACTIVE_OPERATIONS_SNAPSHOT_INTERVAL_MS, 8200);
             };
@@ -4330,6 +4438,9 @@
             window.contestedTargetLayers = [];
             window.conflictAreaLayers = [];
             window.capturedConflictPillarLayers = [];
+            window.territoryAreaLayers = window.territoryAreaLayers || {};
+            window.territoryConflictLayers = window.territoryConflictLayers || {};
+            window.territoryRecoveryTimer = null;
             window.hackActionSpinnerLayers = window.hackActionSpinnerLayers || {};
             window.mapRefreshTimers = window.mapRefreshTimers || [];
             window.mapRefreshState = window.mapRefreshState || {
@@ -4530,6 +4641,71 @@
                 }
             };
 
+            window.requestTerritorySnapshotRecovery = function(reason = 'territory_delta_recovery') {
+                if (window.territoryRecoveryTimer) {
+                    clearTimeout(window.territoryRecoveryTimer);
+                }
+                window.territoryRecoveryTimer = setTimeout(() => {
+                    window.territoryRecoveryTimer = null;
+                    if (typeof window.refreshPlayerAreas === 'function') {
+                        window.refreshPlayerAreas({ recovery: true, reason });
+                    }
+                }, 900);
+            };
+
+            window.applyTerritoryDelta = function(event) {
+                const payload = (event && event.payload) || {};
+                const type = String((event && event.type) || payload.type || '');
+
+                if (type === 'territory.conflict_changed') {
+                    window.requestTerritorySnapshotRecovery('territory_conflict_changed');
+                    return true;
+                }
+
+                if (type !== 'territory.updated' && event && event.scope !== 'territory') {
+                    return false;
+                }
+
+                const territoryId = String(
+                    (event && event.entity_id)
+                    || payload.territory_id
+                    || payload.area_id
+                    || ''
+                ).trim();
+                if (!territoryId) return false;
+
+                const entry = window.territoryAreaLayers && window.territoryAreaLayers[territoryId];
+                if (!entry || !entry.layer) {
+                    window.requestTerritorySnapshotRecovery('missing_territory_layer');
+                    return false;
+                }
+
+                const previous = entry.area || {};
+                const nextArea = {
+                    ...previous,
+                    ...payload,
+                    id: payload.area_id || previous.id,
+                    territory_id: territoryId,
+                    owner_username: payload.owner_username || payload.owner_id || previous.owner_username,
+                    area_size: payload.area_size !== undefined ? payload.area_size : previous.area_size,
+                    centroid_lat: (payload.centroid || {}).lat ?? previous.centroid_lat,
+                    centroid_lng: (payload.centroid || {}).lng ?? previous.centroid_lng
+                };
+                entry.area = nextArea;
+                entry.layer._chaosTerritorySnapshot = nextArea;
+                if (typeof entry.layer.setStyle === 'function') {
+                    entry.layer.setStyle(territoryLayerStyle(nextArea));
+                }
+                if (typeof entry.layer.bindTooltip === 'function') {
+                    entry.layer.bindTooltip(territoryTooltip(nextArea), {
+                        sticky: true,
+                        opacity: 0.95
+                    });
+                }
+                window.territoryAreaLayers[territoryId] = entry;
+                return true;
+            };
+
             window.refreshPlayerAreas = async function() {
                 const refreshSeq = ++window.playerAreaRefreshSeq;
                 const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
@@ -4553,8 +4729,11 @@
                     clearLayerArray('contestedTargetLayers');
                     clearLayerArray('conflictAreaLayers');
                     clearLayerArray('capturedConflictPillarLayers');
+                    resetTerritoryLayerRegistries();
 
                     (data.areas || []).forEach(area => {
+                        renderTerritoryAreaLayer(area);
+                        return;
                         const points = (area.vertices || [])
                             .map(vertex => [parseFloat(vertex.lat), parseFloat(vertex.lng)])
                             .filter(point => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
@@ -4590,6 +4769,8 @@
                     });
 
                     (data.conflict_areas || []).forEach(conflict => {
+                        renderTerritoryConflictLayer(conflict);
+                        return;
                         const intersections = conflict.intersections && conflict.intersections.length
                             ? conflict.intersections
                             : [conflict.intersection || []];
