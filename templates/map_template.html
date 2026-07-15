@@ -1380,6 +1380,9 @@
         map.createPane('incidentPane');
         map.getPane('incidentPane').style.zIndex = 640;
         map.getPane('incidentPane').style.pointerEvents = 'auto';
+        map.createPane('responseNpcPane');
+        map.getPane('responseNpcPane').style.zIndex = 735;
+        map.getPane('responseNpcPane').style.pointerEvents = 'none';
 
         function targetLayerKey(lat, lng, label = "") {
             return `${Number(lat).toFixed(6)}:${Number(lng).toFixed(6)}:${label || ""}`;
@@ -3972,10 +3975,12 @@
 
             window.bootMapOptionalScopes = function() {
                 Promise.allSettled([
-                    window.bootStep('Incydenty publiczne', 'incidents', window.refreshIncidentHotspots, { total: 1, index: 0, silent: true }),
-                    window.bootStep('Snikery reakcji', 'npc', window.refreshResponseNpcCapsules, { total: 1, index: 0, silent: true }),
+                    (async function bootResponseRuntimeScopes() {
+                        await window.bootStep('Aktywne operacje', 'active_operations', window.refreshActiveOperations, { total: 1, index: 0, silent: true });
+                        await window.bootStep('Incydenty publiczne', 'incidents', window.refreshIncidentHotspots, { total: 1, index: 0, silent: true });
+                        await window.bootStep('Snikery reakcji', 'npc', window.refreshResponseNpcCapsules, { total: 1, index: 0, silent: true });
+                    })(),
                     window.bootStep('Podatnosci klanow', 'clan_vulnerabilities', window.refreshClanVulnerabilities, { total: 1, index: 0, silent: true }),
-                    window.bootStep('Aktywne operacje', 'active_operations', window.refreshActiveOperations, { total: 1, index: 0, silent: true }),
                     window.bootStep('Gracze na mapie', 'player_actors', window.refreshPlayerActors, { total: 1, index: 0, silent: true })
                 ]).then(() => {
                     normalizeBootLoadedScopes().add('delta_feed_ready');
@@ -4319,7 +4324,7 @@
                 window.responseNpcCapsules[capsuleId] = { ...data };
                 if (!window.responseNpcMarkers[capsuleId]) {
                     const marker = L.marker([position.lat, position.lng], {
-                        pane: 'markerPane',
+                        pane: 'responseNpcPane',
                         zIndexOffset: 720 + Number(data.service_level || 1),
                         interactive: false,
                         icon: window.buildResponseNpcIcon(data, position)
@@ -4568,6 +4573,29 @@
                 window.responseNpcAnimationFrame = requestAnimationFrame(window.tickResponseNpcActors);
             };
 
+            window.responseRuntimeRefreshState = window.responseRuntimeRefreshState || {
+                inFlight: false,
+                lastRun: 0
+            };
+
+            window.refreshResponseRuntimeAfterOperations = async function() {
+                const state = window.responseRuntimeRefreshState;
+                const now = Date.now();
+                if (state.inFlight || (now - Number(state.lastRun || 0)) < 1800) return false;
+                state.inFlight = true;
+                state.lastRun = now;
+                try {
+                    await window.refreshIncidentHotspots();
+                    await window.refreshResponseNpcCapsules();
+                    return true;
+                } catch (err) {
+                    console.warn('Response runtime refresh after operations failed', err);
+                    return false;
+                } finally {
+                    state.inFlight = false;
+                }
+            };
+
             window.refreshActiveOperations = async function() {
                 const loadingToken = window.beginMapLoading('Aktualizacja operacji...');
                 try {
@@ -4588,6 +4616,9 @@
                     window.renderActiveOperationMarkers(active);
 
                     invalidateMapAfterLayerUpdate();
+                    if (typeof window.refreshResponseRuntimeAfterOperations === 'function') {
+                        window.refreshResponseRuntimeAfterOperations();
+                    }
                     return true;
                 } catch (err) {
                     console.warn('Active operations refresh failed', err);

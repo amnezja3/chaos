@@ -2767,10 +2767,57 @@ def publish_incident_actions(username, actions):
     return events
 
 
+def response_npc_runtime_iso(now=None):
+    now_dt = now if isinstance(now, datetime) else datetime.now(timezone.utc)
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
+    return now_dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def response_npc_parse_iso(value):
+    if not value:
+        return None
+    try:
+        raw = str(value).strip()
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(raw)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def response_npc_capsule_runtime_active(capsule, now=None):
+    capsule = capsule if isinstance(capsule, dict) else {}
+    status = str(capsule.get("status") or "").strip().lower()
+    if status not in {"active", "updated"}:
+        return False
+    now_dt = now if isinstance(now, datetime) else datetime.now(timezone.utc)
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
+    expires_at = response_npc_parse_iso(capsule.get("expires_at"))
+    return bool(expires_at and expires_at > now_dt.astimezone(timezone.utc))
+
+
+def incident_for_response_npc_dispatch(incident, now=None):
+    incident = copy.deepcopy(incident if isinstance(incident, dict) else {})
+    now_dt = now if isinstance(now, datetime) else datetime.now(timezone.utc)
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
+    now_dt = now_dt.astimezone(timezone.utc)
+    expires_at = response_npc_parse_iso(incident.get("expires_at"))
+    if not expires_at or expires_at <= now_dt + timedelta(seconds=30):
+        incident["expires_at"] = response_npc_runtime_iso(now_dt + timedelta(minutes=12))
+    return incident
+
+
 def ensure_response_npc_capsules_for_active_incidents(username=None):
     """Backfill NPC capsules for active incidents that predate dispatcher output."""
     username = str(username or "").strip()
     materialized_actions = []
+    now_dt = datetime.now(timezone.utc)
     try:
         active_incidents = incident_store.list_active()
     except Exception as exc:
@@ -2784,14 +2831,11 @@ def ensure_response_npc_capsules_for_active_incidents(username=None):
         if not incident_id:
             continue
         try:
-            if npc_capsule_store.list_by_incident(incident_id):
+            existing_capsules = npc_capsule_store.list_by_incident(incident_id)
+            if any(response_npc_capsule_runtime_active(capsule, now_dt) for capsule in existing_capsules):
                 continue
-            recovery_time = (
-                incident.get("created_at")
-                or incident.get("updated_at")
-                or incident.get("expires_at")
-            )
-            actions = response_dispatcher.dispatch_incident(incident, now=recovery_time)
+            runtime_incident = incident_for_response_npc_dispatch(incident, now_dt)
+            actions = response_dispatcher.dispatch_incident(runtime_incident, now=response_npc_runtime_iso(now_dt))
             if actions:
                 materialized_actions.extend(actions)
         except Exception as exc:
