@@ -8175,3 +8175,454 @@ Poza zakresem pozostaje:
 * BlackNet incident bridge;
 * ostrzezenia do graczy;
 * konsekwencje i wykrywanie.
+
+### Sprint 92 - BlackNet Incident Bridge
+
+Przeczytano:
+
+* opis Sprintu 92 w `doc/game_play_260626.md`,
+* `doc/incidents_npc_technical_architecture.md`,
+* raport Sprintu 91,
+* aktualny publiczny `incident_store`,
+* deterministyczny publisher BlackNetu.
+
+Wdrozono most incydentow do BlackNetu:
+
+* publiczne incydenty sa zrodlem sygnalow `incident_hotspot`;
+* sygnal publikuje tylko dane publiczne: lokalizacje, poziom reakcji, trend,
+  czas waznosci i stan publiczny;
+* CTA uzywa stabilnego `cta_action`, nie tekstu przycisku;
+* CTA mapy prowadzi do publicznego punktu incydentu;
+* CTA teleportu uzywa bezpiecznego punktu wejscia poza bezposrednim centrum
+  zagrozenia i korzysta z istniejacego potwierdzenia `OK/ANULUJ`;
+* `incident.resolved` oraz anulowanie ostatniej operacji wygasza sygnal przez
+  czyszczenie cache BlackNetu i usuniecie lokalnego sygnalu z feedu;
+* dodano deduplikacje przez `incident_id` / `entity_id` / `cta_target_id`;
+* incydenty mieszaja sie z obecnym feedem BlackNetu bez osobnego systemu.
+
+Nie wlaczono NPC, kapsul, snikersow, wykrywania, ostrzezen, konsekwencji ani
+Ollamy.
+
+Sprawdzono:
+
+* `python -m py_compile run.py response_network\incident_store.py
+  response_network\incident_initializer.py response_network\operation_risk_meter.py`;
+* `node --check static/js/terminal.js`;
+* `python -m unittest tests.test_blacknet_incident_bridge`;
+* `python -m unittest tests.test_public_incident_map
+  tests.test_incident_initializer tests.test_operation_risk_meter
+  tests.test_blacknet_incident_bridge`;
+* `python -m unittest tests.test_target_persistence.BlackNetWorldSignalPublisherTest
+  tests.test_target_persistence.BlackNetWorldFactsSnapshotTest`;
+* `python -m unittest tests.test_response_network_safety
+  tests.test_territory_context_reader tests.test_territory_delta
+  tests.test_target_persistence.GameStateDeltaBusTest`.
+
+Znany baseline legacy pozostaje bez nowych regresji Sprintu 92:
+
+* embedding duzego profilu w mapie nadal ma legacy problem JSON;
+* wybrany test generated app runtime przeszedl w walidacji punktowej;
+* recovery scopes nadal roznia sie przez obecny scope `territory`.
+
+Poza zakresem pozostaje:
+
+* NPC i zachowania reakcji;
+* kapsuly oraz snikersy;
+* wykrywanie i konsekwencje;
+* ostrzezenia graczy;
+* integracja Ollamy.
+
+### Sprint 93 - NPC Behavior Capsules
+
+Przeczytano:
+
+* opis Sprintu 93 w `doc/game_play_260626.md`,
+* `doc/incidents_npc_technical_architecture.md`,
+* raport Sprintu 92,
+* aktualne moduly `incident_store`, `incident_initializer` i delta-feed.
+
+Wdrozono backendowy kontrakt kapsul NPC bez renderowania mapy:
+
+* nowy `response_network.npc_capsule_factory`;
+* nowy `response_network.npc_capsule_store`;
+* nowy `response_network.response_dispatcher`;
+* kompletne kapsuly `response_npc` z typem sluzby, poziomem, czasem spawnu,
+  wygasnieciem, centrum incydentu, promieniami, predkoscia, seedem i typem
+  trajektorii;
+* rodziny wizualne `police`, `cyberpolice`, `secretservice`;
+* kontrakt osmiu kierunkow snikersow;
+* deterministyczna funkcja `position_at(capsule, world_time)`;
+* delty `npc.spawned`, `npc.updated` i `npc.removed`;
+* recovery snapshot `GET /api/map/incident-npc-capsules`;
+* usuniecie kapsul po anulowaniu incydentu albo `incident.resolved`;
+* wersjonowanie i deduplikacje kapsul.
+
+Nie dodano renderowania NPC na mapie, plikow PNG, wykrywania, feedbacku,
+ostrzezen ani konsekwencji. Backend nie przesyla cyklicznych pozycji NPC.
+
+Sprawdzono:
+
+* `python -m py_compile run.py response_network\incident_store.py
+  response_network\incident_initializer.py response_network\operation_risk_meter.py
+  response_network\npc_capsule_factory.py response_network\npc_capsule_store.py
+  response_network\response_dispatcher.py`;
+* `node --check static/js/terminal.js`;
+* `python -m unittest tests.test_npc_behavior_capsules`;
+* `python -m unittest tests.test_public_incident_map
+  tests.test_incident_initializer tests.test_operation_risk_meter
+  tests.test_blacknet_incident_bridge`;
+* `python -m unittest tests.test_response_network_safety
+  tests.test_territory_context_reader tests.test_territory_delta
+  tests.test_target_persistence.GameStateDeltaBusTest`;
+* `python -m unittest tests.test_target_persistence.BlackNetWorldSignalPublisherTest
+  tests.test_target_persistence.BlackNetWorldFactsSnapshotTest`.
+
+Znany baseline legacy pozostaje bez nowych regresji Sprintu 93:
+
+* embedding duzego profilu w mapie nadal ma legacy problem JSON;
+* wybrany test generated app runtime przeszedl w walidacji punktowej;
+* recovery scopes nadal roznia sie przez obecny scope `territory`.
+
+Poza zakresem pozostaje:
+
+* renderowanie NPC jako snikersow na mapie;
+* pliki PNG i skiny sluzb;
+* lokalny detection probe;
+* backendowy feedback wykrycia;
+* ostrzezenia graczy;
+* konsekwencje i egzekucja kar.
+
+### Sprint 94 - Response Actors on Snikers
+
+Przeczytano:
+
+* opis Sprintu 94 w `doc/game_play_260626.md`,
+* `doc/incidents_npc_technical_architecture.md`,
+* raport Sprintu 93,
+* aktualny kontrakt kapsul NPC i warstwe player actors na mapie.
+
+Wdrozono wizualizacje NPC reakcji na istniejacej warstwie snikersow:
+
+* kapsuly uzywaja kierunkow zgodnych z plikami
+  `npc_{visual_family}_{direction}.png`;
+* `actor_type: response_npc` pozostaje w kontrakcie kapsuly;
+* rodziny `police`, `cyberpolice`, `secretservice` mapuja sie na pliki PNG;
+* mapa pobiera snapshot `GET /api/map/incident-npc-capsules` jako optional scope;
+* delta-feed routuje `npc.spawned`, `npc.updated` i `npc.removed` do otwartej mapy;
+* recovery scope `npc` odswieza tylko kapsuly NPC;
+* pozycja NPC jest liczona lokalnie przez frontendowa funkcje zgodna z
+  `position_at(capsule, world_time)`;
+* po uspieniu karty pozycja wynika z aktualnego czasu, bez nadrabiania klatek;
+* anulowanie incydentu usuwa aktorow przez `npc.removed`;
+* nie dodano `npc.moved` ani cyklicznych zapisow pozycji backendu.
+
+Nie wdrozono wykrywania, `detection_candidate`, ostrzezen, feedbacku ani
+konsekwencji. NPC w Sprincie 94 tylko pojawiaja sie, poruszaja lokalnie i
+znikaja.
+
+Sprawdzono:
+
+* `python -m py_compile run.py response_network\npc_capsule_factory.py
+  response_network\npc_capsule_store.py response_network\response_dispatcher.py`;
+* `node --check static/js/terminal.js`;
+* `python -m unittest tests.test_npc_behavior_capsules`;
+* `python -m unittest tests.test_response_npc_frontend_contract`;
+* `python -m unittest tests.test_public_incident_map
+  tests.test_incident_initializer tests.test_operation_risk_meter
+  tests.test_blacknet_incident_bridge`;
+* `python -m unittest tests.test_response_network_safety
+  tests.test_territory_context_reader tests.test_territory_delta
+  tests.test_target_persistence.GameStateDeltaBusTest`;
+* `python -m unittest tests.test_target_persistence.BlackNetWorldSignalPublisherTest
+  tests.test_target_persistence.BlackNetWorldFactsSnapshotTest`;
+* punktowy baseline legacy `tests.test_target_persistence`.
+
+Znany baseline legacy pozostaje bez nowych regresji Sprintu 94:
+
+* embedding duzego profilu w mapie nadal ma legacy problem JSON;
+* generated app runtime pozostaje w znanym baseline;
+* recovery scopes nadal roznia sie przez obecny scope `territory`.
+
+Poza zakresem pozostaje:
+
+* lokalne wykrywanie gracza przez NPC;
+* `detection_candidate`;
+* ostrzezenia i Cyberner feedback;
+* konsekwencje gameplayowe;
+* balans widocznosci NPC na mapie po realnych testach mobile/desktop.
+
+### Sprint 95 - Detection Feedback Shadow
+
+Przeczytano:
+
+* opis Sprintu 95 w `doc/game_play_260626.md`,
+* `doc/incidents_npc_technical_architecture.md`,
+* raport Sprintu 94,
+* aktualny kontrakt kapsul NPC i mapowy renderer snikersow.
+
+Wdrozono shadow feedback wykrywania bez konsekwencji gameplayowych:
+
+* dodano `response_network.detection_candidate_store`;
+* dodano `response_network.detection_validator`;
+* dodano endpoint `POST /api/map/incidents/detection-candidates`;
+* frontend mapy ma `local_detection_probe`, ktory porownuje lokalna pozycje
+  NPC z dostepnymi pozycjami aktorow graczy;
+* probe wysyla tylko kandydata `detection_candidate` z `tracking_token`;
+* backend odtwarza trajektorie przez `position_at(capsule, world_time)`;
+* walidacja sprawdza czas, seed, `behavior_version`, pozycje NPC, promien,
+  aktywny incydent, aktywna kapsule i aktywna operacje;
+* bierny albo offline gracz na wlasnym, niezwiązanym terytorium jest
+  odrzucany jako chroniony;
+* anulowana operacja, anulowany incydent albo wygasla kapsula daja wynik
+  `expired`;
+* zgloszenia wielu obserwatorow sa deduplikowane przez `validation_key`;
+* wszystkie wyniki sa zapisywane w audycie;
+* calosc dziala w trybie `shadow`.
+
+Nie wdrozono:
+
+* ostrzezen dla graczy;
+* przerywania operacji;
+* konfiskaty narzedzi albo HC;
+* `Judgment`;
+* konsekwencji gameplayowych;
+* publicznego ujawniania sprawcow.
+
+Sprawdzono:
+
+* `python -m py_compile run.py response_network\detection_candidate_store.py
+  response_network\detection_validator.py response_network\npc_capsule_factory.py
+  response_network\npc_capsule_store.py response_network\response_dispatcher.py`;
+* `node --check static/js/terminal.js`;
+* `python -m unittest tests.test_detection_feedback_shadow`;
+* `python -m unittest tests.test_npc_behavior_capsules
+  tests.test_response_npc_frontend_contract`;
+* `python -m unittest tests.test_public_incident_map
+  tests.test_incident_initializer tests.test_operation_risk_meter
+  tests.test_blacknet_incident_bridge`;
+* `python -m unittest tests.test_response_network_safety
+  tests.test_territory_context_reader tests.test_territory_delta
+  tests.test_target_persistence.GameStateDeltaBusTest`.
+
+Uwaga walidacyjna:
+
+* podczas testow Windows zglosil jednorazowy warning blokady pliku
+  `flask_session`; testy zakonczyly sie statusem OK.
+
+Znany baseline legacy pozostaje bez zmian:
+
+* pelny `tests.test_target_persistence` nadal ma znane awarie spoza tej galęzi;
+* Sprint 95 nie naprawia ani nie zmienia tych legacy przypadkow.
+
+### Sprint 96 - Warning + Visible Safe
+
+Przeczytano:
+
+* opis Sprintu 96 w `doc/game_play_260626.md`;
+* `doc/incidents_npc_technical_architecture.md`;
+* raport Sprintu 95 i aktualny kod detection feedback.
+
+Wdrozono tryb `visible_safe` bez konsekwencji gameplayowych:
+
+* dodano domenowy store ostrzezen `response_network.warning_store`;
+* dodano zdarzenie `response_warning_issued` jako zrodlo prawdy ostrzezenia;
+* system-message jest emitowany dopiero po zapisaniu zdarzenia warning;
+* `refresh_operations_runtime()` synchronizuje ostrzezenia z risk meterem;
+* przekroczenie progu ostrzezenia zapisuje `warning_id`,
+  `warning_issued_at` i `warning_arrival_at` w mierniku operacji;
+* anulowanie operacji anuluje aktywne ostrzezenie przez warning store;
+* endpoint `POST /api/map/incidents/detection-candidates` dziala w trybie
+  `visible_safe`;
+* poprawny feedback detekcji zwraca `accepted`, odrzucony zwraca `rejected`,
+  a po anulowaniu pozostaje `expired`;
+* odpowiedz walidatora jawnie zwraca `penalty_executed: false` i
+  `consequence_executed: false`;
+* marker NPC na mapie pokazuje odliczanie oraz krotki status accepted/rejected;
+* dodano testy visible-safe warningow, detekcji i frontowego kontraktu markerow.
+
+Nie wdrozono:
+
+* przerywania operacji;
+* konfiskaty narzedzi albo HC;
+* kasowania postepu;
+* `Judgment`;
+* kar gameplayowych;
+* pelnego balansu UI ostrzezen.
+
+Sprawdzono:
+
+* `python -m py_compile run.py response_network\warning_store.py
+  response_network\detection_validator.py response_network\detection_candidate_store.py
+  response_network\npc_capsule_factory.py response_network\npc_capsule_store.py
+  response_network\response_dispatcher.py`;
+* `node --check static/js/terminal.js`;
+* `python -m unittest tests.test_response_warning_visible_safe
+  tests.test_detection_feedback_shadow tests.test_response_npc_frontend_contract`;
+* `python -m unittest tests.test_npc_behavior_capsules
+  tests.test_public_incident_map tests.test_incident_initializer
+  tests.test_operation_risk_meter tests.test_blacknet_incident_bridge`;
+* `python -m unittest tests.test_response_network_safety
+  tests.test_territory_context_reader tests.test_territory_delta
+  tests.test_target_persistence.GameStateDeltaBusTest`;
+* `python -m unittest tests.test_target_persistence` jako baseline legacy.
+
+Znany baseline legacy pozostaje bez nowych regresji:
+
+* embedding profilu w mapie nadal ma znany problem JSON;
+* generated app runtime nadal ma znany brak `runApp`;
+* recovery scopes nadal roznia sie przez obecny scope `territory`.
+
+### Sprint 97 - Limited Enforcement
+
+Przeczytano:
+
+* opis Sprintu 97 w `doc/game_play_260626.md`;
+* `doc/incidents_npc_technical_architecture.md`;
+* raport Sprintu 96 i aktualny flow `visible_safe`.
+
+Wdrozono ograniczone konsekwencje w trybie `limited_enforcement`:
+
+* dodano `response_network.consequence_policy`;
+* dodano `response_network.consequence_executor`;
+* policy tworzy intent wyłącznie dla zaakceptowanego wykrycia;
+* executor jest idempotentny przez `consequence_id` i osobny audit table;
+* po zaakceptowanym detection feedback anulowana jest tylko powiązana operacja;
+* postęp i bufor nagrody anulowanej operacji są czyszczone;
+* operacja oznaczana jest jako `reward_blocked`, bez przyznania nagrody;
+* `refresh_operations_runtime()` usuwa wkład anulowanej operacji z incydentu;
+* incydent bez aktywnych operacji może zostać rozwiązany przez istniejący
+  `incident_initializer`, co wygasza NPC i sygnał BlackNetu istniejącym flow;
+* obsłużono wyścig anulowania przez status `superseded` bez wykonania kary;
+* kill switch executora blokuje wykonanie bez restartu procesu;
+* endpoint `POST /api/map/incidents/detection-candidates` pracuje teraz w trybie
+  `limited_enforcement`;
+* frontend mapy wysyła `mode: limited_enforcement`.
+
+Nie wdrozono:
+
+* konfiskaty narzędzi;
+* konfiskaty HC;
+* `Judgment`;
+* kar niezwiązanych bezpośrednio z wykrytą operacją;
+* pełnego trybu enforcement.
+
+Sprawdzono:
+
+* `python -m py_compile run.py response_network\consequence_policy.py
+  response_network\consequence_executor.py response_network\detection_validator.py`;
+* `node --check static/js/terminal.js`;
+* `python -m unittest tests.test_consequence_limited_enforcement
+  tests.test_detection_feedback_shadow tests.test_response_npc_frontend_contract`;
+* `python -m unittest tests.test_npc_behavior_capsules
+  tests.test_public_incident_map tests.test_incident_initializer
+  tests.test_operation_risk_meter tests.test_blacknet_incident_bridge
+  tests.test_response_warning_visible_safe`;
+* `python -m unittest tests.test_target_persistence` jako baseline legacy.
+
+Wyniki:
+
+* testy celowane Sprintu 97: OK;
+* testy sąsiednie incydentów/NPC/BlackNet/warning: OK;
+* pełny `tests.test_target_persistence` nadal kończy się znanym baseline:
+  2 failures i 3 errors.
+
+Znany baseline legacy bez zmian:
+
+* embedding profilu w mapie nadal ma znany problem JSON;
+* generated app runtime nadal ma znany brak `runApp`;
+* recovery scopes nadal roznia się przez obecny scope `territory`.
+### Sprint 98 - Full Response Network + Readiness
+
+Przeczytano:
+
+* opis Sprintu 98 w `doc/game_play_260626.md`;
+* `doc/incidents_npc_technical_architecture.md`;
+* raport Sprintu 97 w dzienniku projektu.
+
+Wdrozono pelny tryb Response Network nad istniejacym flow `limited_enforcement`:
+
+* dodano tryb `full` w `response_network.consequence_policy`;
+* dodano osobne feature flagi i kill switche dla konfiskaty narzedzia, HC,
+  `Judgment`, hookow Radia, hookow Cybernera i historii incydentow;
+* endpoint `POST /api/map/incidents/detection-candidates` przechodzi teraz przez
+  tryb `full`;
+* frontendowy local detection probe wysyla `mode: full`;
+* `consequence_executor` po zaakceptowanym wykryciu:
+  * anuluje tylko powiazana operacje,
+  * usuwa jej postep i blokuje nagrode,
+  * konfiskuje uzyte narzedzie, jesli nie powoduje softlocka,
+  * konfiskuje skalowana kwote HC z rezerwa bezpieczenstwa,
+  * nadaje status `Judgment`,
+  * zapisuje historie zakonczonego incydentu,
+  * dodaje hook Cybernera przez `system_messages`,
+  * dodaje hook Radia przez `radio_events`;
+* replay tego samego `consequence_id` jest idempotentny i nie powiela kar,
+  wiadomosci, historii ani zdarzen Radia;
+* po karze emitowane sa delty wallet/apps/storage, z `/api/profile` jako recovery;
+* zachowano stary tryb `limited_enforcement` jako testowalny, bez konfiskat i
+  bez `Judgment`.
+
+Zabezpieczenia:
+
+* softlock protection nie pozwala zabrac ostatniego narzedzia zdolnego do
+  operacji;
+* globalny kill switch executora nadal blokuje wykonanie konsekwencji;
+* pojedyncze kary mozna wylaczyc osobno na poziomie policy;
+* walidator nadal nie wykonuje kar - tylko akceptuje feedback;
+* konsekwencje sa wykonywane dopiero przez `consequence_executor`.
+
+Nie wdrozono:
+
+* GhostNetworku;
+* maszyn klanowych;
+* integracji z Ollama;
+* cyklicznych zapisow pozycji NPC;
+* nowych endpointow gameplayowych poza rozszerzeniem istniejacego detection
+  endpointu.
+
+Sprawdzono:
+
+* `python -m py_compile run.py response_network\consequence_policy.py
+  response_network\consequence_executor.py response_network\detection_validator.py`;
+* `node --check static/js/terminal.js`;
+* `python -m unittest tests.test_consequence_limited_enforcement
+  tests.test_consequence_full_response tests.test_detection_feedback_shadow
+  tests.test_response_npc_frontend_contract`;
+* `python -m unittest tests.test_operation_risk_meter
+  tests.test_incident_initializer tests.test_public_incident_map
+  tests.test_blacknet_incident_bridge tests.test_npc_behavior_capsules
+  tests.test_response_warning_visible_safe`.
+
+Wyniki w trakcie wdrozenia:
+
+* testy pelnych konsekwencji potwierdzily konfiskate narzedzia, HC, `Judgment`,
+  hook Cybernera, hook Radia, historie incydentu i idempotencje replay;
+* test softlock potwierdzil, ze ostatnie narzedzie operacyjne zostaje u gracza;
+* testy sasiednie incydentow/NPC/BlackNet/warning: OK.
+
+Walidacja koncowa:
+
+* `python -m unittest tests.test_response_network_safety
+  tests.test_territory_context_reader tests.test_territory_delta
+  tests.test_operation_risk_meter tests.test_incident_initializer
+  tests.test_public_incident_map tests.test_blacknet_incident_bridge
+  tests.test_npc_behavior_capsules tests.test_response_warning_visible_safe`: OK;
+* `python -m unittest tests.test_target_persistence`: znany baseline legacy,
+  2 failures i 3 errors;
+* `git diff --check`: OK, tylko ostrzezenie CRLF dla `run.py`;
+* dodatkowy smoke pomiarow mapowych przez test client nie zostal wykonany,
+  poniewaz po testach lokalny `python.exe` przestal byc dostepny w sesji
+  narzedziowej (`Okreslona sesja logowania nie istnieje`).
+
+Znany baseline legacy bez zmian:
+
+* embedding profilu w mapie nadal ma znany problem JSON;
+* generated app runtime nadal ma znany brak `runApp`;
+* recovery scopes nadal roznia sie przez obecny scope `territory`.
+
+Readiness:
+
+* Response Network ma kompletna sciezke konsekwencji `full` zabezpieczona
+  feature flagami, kill switchami, idempotencja i softlock protection;
+* GhostNetwork, maszyny i Ollama pozostaja poza zakresem i nie zostaly
+  uruchomione.

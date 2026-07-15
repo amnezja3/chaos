@@ -52,6 +52,12 @@ RESPONSE_NETWORK_FLAGS = {
     "response_npc_capsules_enabled": env_bool("CHAOS_RESPONSE_NPC_CAPSULES_ENABLED", False),
     "response_detection_enabled": env_bool("CHAOS_RESPONSE_DETECTION_ENABLED", False),
     "response_consequences_enabled": env_bool("CHAOS_RESPONSE_CONSEQUENCES_ENABLED", False),
+    "response_tool_confiscation_enabled": env_bool("CHAOS_RESPONSE_TOOL_CONFISCATION_ENABLED", False),
+    "response_hc_confiscation_enabled": env_bool("CHAOS_RESPONSE_HC_CONFISCATION_ENABLED", False),
+    "response_judgment_enabled": env_bool("CHAOS_RESPONSE_JUDGMENT_ENABLED", False),
+    "response_radio_hooks_enabled": env_bool("CHAOS_RESPONSE_RADIO_HOOKS_ENABLED", False),
+    "response_cyberner_hooks_enabled": env_bool("CHAOS_RESPONSE_CYBERNER_HOOKS_ENABLED", False),
+    "response_incident_history_enabled": env_bool("CHAOS_RESPONSE_INCIDENT_HISTORY_ENABLED", False),
     "response_map_publication_enabled": env_bool("CHAOS_RESPONSE_MAP_PUBLICATION_ENABLED", False),
 }
 RESPONSE_NETWORK_KILL_SWITCHES = {
@@ -59,6 +65,12 @@ RESPONSE_NETWORK_KILL_SWITCHES = {
     "npc_capsules": env_bool("CHAOS_RESPONSE_KILL_NPC_CAPSULES", True),
     "detection": env_bool("CHAOS_RESPONSE_KILL_DETECTION", True),
     "consequences": env_bool("CHAOS_RESPONSE_KILL_CONSEQUENCES", True),
+    "tool_confiscation": env_bool("CHAOS_RESPONSE_KILL_TOOL_CONFISCATION", True),
+    "hc_confiscation": env_bool("CHAOS_RESPONSE_KILL_HC_CONFISCATION", True),
+    "judgment": env_bool("CHAOS_RESPONSE_KILL_JUDGMENT", True),
+    "radio_hooks": env_bool("CHAOS_RESPONSE_KILL_RADIO_HOOKS", True),
+    "cyberner_hooks": env_bool("CHAOS_RESPONSE_KILL_CYBERNER_HOOKS", True),
+    "incident_history": env_bool("CHAOS_RESPONSE_KILL_INCIDENT_HISTORY", True),
     "map_publication": env_bool("CHAOS_RESPONSE_KILL_MAP_PUBLICATION", True),
 }
 RESPONSE_NETWORK_AUDIT_LIMIT = env_int("CHAOS_RESPONSE_AUDIT_LIMIT", 250)

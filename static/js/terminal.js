@@ -3487,6 +3487,56 @@ function createBrowser() {
         return visible.length ? visible : outOfSignals;
     };
 
+    window.expireBlacknetIncidentSignals = event => {
+        const payload = event?.payload || {};
+        const type = String(event?.type || payload.type || "");
+        const incidentId = String(event?.entity_id || payload.incident_id || payload.id || "").trim();
+        if (!incidentId) return false;
+
+        if (type === "incident.resolved" || payload.removed || payload.status === "resolved") {
+            let removedActive = false;
+            const remaining = [];
+            blacknetSignals.forEach(signal => {
+                const metadata = signal?.metadata || {};
+                const matches = String(signal?.signal_type || "") === "incident_hotspot"
+                    && [
+                        signal.id,
+                        signal.fact_id,
+                        signal.entity_id,
+                        signal.cta_target_id,
+                        metadata.incident_id,
+                        metadata.hotspot_id,
+                        metadata.cta_target_id
+                    ].map(value => String(value || "").trim()).includes(incidentId);
+                if (matches) {
+                    blacknetSignalIdentityKeys(signal).forEach(key => blacknetCapturedSignals.add(key));
+                    removedActive = removedActive || signal.id === activeBlacknetSignalId;
+                    return;
+                }
+                remaining.push(signal);
+            });
+            if (remaining.length !== blacknetSignals.length) {
+                blacknetSignals = remaining.length ? remaining : [normalizeBlacknetSignal(blacknetClientOutOfSignal("incident_resolved"), 0)].filter(Boolean);
+                if (removedActive || !blacknetSignals.some(signal => signal.id === activeBlacknetSignalId)) {
+                    activeBlacknetSignalId = blacknetVisibleSignals()[0]?.id || "";
+                }
+                if (activeBrowserTab === "blacknet") renderBlackNet();
+                return true;
+            }
+            return false;
+        }
+
+        if (type === "incident.created" || type === "incident.updated") {
+            blacknetSignalsLoaded = false;
+            blacknetSignalFeedExhausted = false;
+            if (activeBrowserTab === "blacknet") {
+                loadBlacknetSignals({ force: true });
+            }
+            return true;
+        }
+        return false;
+    };
+
     const maybeRefillBlacknetSignals = visibleSignals => {
         if (!blacknetSignalsLoaded || blacknetSignalsLoading) return;
         if (blacknetSignalFeedExhausted) return;
@@ -5708,6 +5758,21 @@ function updateIncidentDeltaView(event = {}) {
     return applied;
 }
 
+function updateResponseNpcDeltaView(event = {}) {
+    let applied = false;
+    document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
+        try {
+            const mapWindow = frame.contentWindow;
+            if (mapWindow && typeof mapWindow.applyResponseNpcDelta === "function") {
+                applied = mapWindow.applyResponseNpcDelta(event) || applied;
+            }
+        } catch (err) {
+            console.warn("Response NPC delta failed", err);
+        }
+    });
+    return applied;
+}
+
 async function applyDelta(event) {
     if (!event || typeof event !== "object") return false;
     const dedupeKey = event.dedupe_key || `${event.type || 'event'}:${event.version || ''}`;
@@ -5748,6 +5813,13 @@ async function applyDelta(event) {
     }
     if (event.scope === "incident" || String(event.type || "").startsWith("incident.")) {
         updateIncidentDeltaView(event);
+        if (typeof window.expireBlacknetIncidentSignals === "function") {
+            window.expireBlacknetIncidentSignals(event);
+        }
+        return true;
+    }
+    if (event.scope === "npc" || String(event.type || "").startsWith("npc.")) {
+        updateResponseNpcDeltaView(event);
         return true;
     }
     if (event.scope === "map") {
@@ -5869,6 +5941,26 @@ async function recoverIncidentDeltaScope() {
     return recovered || null;
 }
 
+async function recoverResponseNpcDeltaScope() {
+    let recovered = false;
+    const tasks = [];
+    document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
+        try {
+            const mapWindow = frame.contentWindow;
+            if (mapWindow && typeof mapWindow.refreshResponseNpcCapsules === "function") {
+                tasks.push(Promise.resolve(mapWindow.refreshResponseNpcCapsules({ recovery: true, reason: "delta_recovery" })));
+                recovered = true;
+            }
+        } catch (err) {
+            console.warn("Response NPC delta recovery failed", err);
+        }
+    });
+    if (tasks.length) {
+        await Promise.allSettled(tasks);
+    }
+    return recovered || null;
+}
+
 async function recoverDeltaScopes(recoveryScopes = [], currentVersion = null) {
     const normalizedScopes = Array.isArray(recoveryScopes) && recoveryScopes.length
         ? recoveryScopes
@@ -5909,6 +6001,12 @@ async function recoverDeltaScopes(recoveryScopes = [], currentVersion = null) {
     if (scopes.has("incident")) {
         recoveryTasks.push(recoverIncidentDeltaScope().catch(err => {
             console.warn("Incident delta recovery failed", err);
+            return null;
+        }));
+    }
+    if (scopes.has("npc")) {
+        recoveryTasks.push(recoverResponseNpcDeltaScope().catch(err => {
+            console.warn("Response NPC delta recovery failed", err);
             return null;
         }));
     }

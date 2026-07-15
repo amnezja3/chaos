@@ -47,9 +47,17 @@ from response_network.foundation import (
 )
 from response_network.incident_initializer import IncidentInitializer
 from response_network.incident_store import IncidentStore
+from response_network.detection_candidate_store import DetectionCandidateStore
+from response_network.detection_validator import DetectionValidator
+from response_network.consequence_executor import ConsequenceExecutor
+from response_network.consequence_policy import ConsequencePolicy, CONSEQUENCE_MODE_FULL
+from response_network.npc_capsule_factory import public_capsule_payload
+from response_network.npc_capsule_store import NPCCapsuleStore
 from response_network.operation_risk_meter import update_operation_risk_meter
+from response_network.response_dispatcher import ResponseDispatcher
 from response_network.territory_context_reader import TerritoryContextReader
 from response_network.territory_delta import TerritoryDeltaPublisher
+from response_network.warning_store import ResponseWarningStore
 
 app = Flask(__name__)
 
@@ -69,6 +77,29 @@ territory_context_reader = TerritoryContextReader(territory_store, territory_con
 territory_delta_publisher = TerritoryDeltaPublisher(delta_bus, territory_context_reader)
 incident_store = IncidentStore()
 incident_initializer = IncidentInitializer(incident_store, territory_context_reader)
+npc_capsule_store = NPCCapsuleStore()
+response_dispatcher = ResponseDispatcher(npc_capsule_store)
+detection_candidate_store = DetectionCandidateStore()
+detection_validator = DetectionValidator(
+    incident_store,
+    npc_capsule_store,
+    territory_context_reader,
+    detection_candidate_store,
+)
+consequence_policy = ConsequencePolicy(
+    mode=CONSEQUENCE_MODE_FULL,
+    feature_flags={
+        "operation_cancel": True,
+        "tool_confiscation": True,
+        "hc_confiscation": True,
+        "judgment": True,
+        "radio_hooks": True,
+        "cyberner_hooks": True,
+        "incident_history": True,
+    },
+)
+consequence_executor = ConsequenceExecutor()
+response_warning_store = ResponseWarningStore()
 
 
 def record_wallet_balance_delta(username, balance, reason="", entity_id="wallet", dedupe_key=None):
@@ -532,6 +563,21 @@ BLACKNET_SIGNAL_RULES = {
         "tone": "red",
         "layout": 4,
     },
+    "incident_hotspot_reaction": {
+        "signal_type": "incident_hotspot",
+        "threshold": 1,
+        "channel": "RESPONSE NETWORK",
+        "title_template": "INCYDENT / {target_label}",
+        "label": "POZIOM REAKCJI",
+        "value_prefix": "L",
+        "value_suffix": "",
+        "stat_template": "{public_state} / {trend}",
+        "cta": "TELEPORT W OKOLICE",
+        "cta_action": "teleport_to_hotspot",
+        "cta_target": "incident",
+        "tone": "red",
+        "layout": 2,
+    },
 }
 BLACKNET_ALLOWED_CTA_ACTIONS = {
     "accept_blacknet_job",
@@ -835,6 +881,53 @@ def blacknet_conflict_target_snapshot(conflict, target):
         "conflict_id": conflict.get("id") or "",
         "conflict_key": conflict.get("conflict_key") or conflict.get("id") or "",
         "participants": [str(item) for item in participants[:8] if item],
+    }
+
+
+def blacknet_incident_trend(public_incident):
+    incident = public_incident if isinstance(public_incident, dict) else {}
+    status = str(incident.get("status") or "active").strip().lower()
+    level = int(incident.get("level") or 0)
+    if status == "escalated" or level >= 4:
+        return "rosnie"
+    if status == "cooling":
+        return "spada"
+    if status == "candidate":
+        return "wykryto"
+    return "stabilny"
+
+
+def blacknet_safe_incident_entry_point(public_incident):
+    incident = public_incident if isinstance(public_incident, dict) else {}
+    center = incident.get("center") if isinstance(incident.get("center"), dict) else {}
+    try:
+        lat = float(center.get("lat"))
+        lng = float(center.get("lng"))
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(lat) or not math.isfinite(lng):
+        return None
+
+    radius_m = max(0, int(incident.get("search_radius_m") or 0))
+    distance_m = max(220.0, float(radius_m) + 160.0, float(radius_m) * 1.35)
+    seed = str(incident.get("incident_id") or "incident")
+    digest = hashlib.sha1(seed.encode("utf-8")).hexdigest()
+    bearing = (int(digest[:8], 16) % 360) * math.pi / 180.0
+
+    meters_per_degree_lat = 111_320.0
+    cos_lat = max(0.2, abs(math.cos(math.radians(lat))))
+    entry_lat = lat + (math.cos(bearing) * distance_m / meters_per_degree_lat)
+    entry_lng = lng + (math.sin(bearing) * distance_m / (meters_per_degree_lat * cos_lat))
+    entry_lat = max(-89.999, min(89.999, entry_lat))
+    entry_lng = ((entry_lng + 180.0) % 360.0) - 180.0
+    return {
+        "lat": round(entry_lat, 6),
+        "lng": round(entry_lng, 6),
+        "center_lat": round(lat, 6),
+        "center_lng": round(lng, 6),
+        "distance_m": int(round(distance_m)),
+        "label": f"{entry_lat:.5f}, {entry_lng:.5f}",
+        "center_label": f"{lat:.5f}, {lng:.5f}",
     }
 
 
@@ -1439,6 +1532,72 @@ def build_blacknet_conflict_activity_facts(now_dt):
     return facts
 
 
+def build_blacknet_incident_facts(now_dt):
+    public_incidents = incident_store.list_public()
+    if not isinstance(public_incidents, list):
+        public_incidents = []
+    facts = []
+    for incident in public_incidents:
+        if not isinstance(incident, dict):
+            continue
+        incident_id = str(incident.get("incident_id") or "").strip()
+        if not incident_id:
+            continue
+        status = str(incident.get("status") or "active").strip().lower()
+        if status in {"resolved", "cancelled", "archived"}:
+            continue
+        entry = blacknet_safe_incident_entry_point(incident)
+        if not entry:
+            continue
+        level = max(1, int(incident.get("level") or 1))
+        radius_m = max(0, int(incident.get("search_radius_m") or 0))
+        trend = blacknet_incident_trend(incident)
+        location_label = f"INCYDENT {entry['center_label']}"
+        expires_at = parse_operation_timestamp(incident.get("expires_at"))
+        ttl_seconds = BLACKNET_WORLD_FACTS_TTL_SECONDS
+        if expires_at:
+            now_ts = now_dt.timestamp() if isinstance(now_dt, datetime) else blacknet_utc_now().timestamp()
+            if expires_at <= now_ts:
+                continue
+            ttl_seconds = max(1, int(round(expires_at - now_ts)))
+        facts.append(build_blacknet_fact(
+            "incident_hotspot_reaction",
+            "incidents",
+            "incident",
+            level,
+            now_dt,
+            importance="critical" if level >= 4 else "high",
+            confidence=0.9,
+            region_id=f"incident:{incident_id}",
+            subject_id=incident_id,
+            ttl_seconds=ttl_seconds,
+            metadata={
+                "incident_id": incident_id,
+                "entity_id": incident_id,
+                "cta_target_id": incident_id,
+                "hotspot_id": incident_id,
+                "target_label": f"L{level} {status.upper()}",
+                "location_label": location_label,
+                "public_state": status,
+                "status": status,
+                "trend": trend,
+                "incident_level": level,
+                "response_level": f"L{level}",
+                "search_radius_m": radius_m,
+                "radius_m": radius_m,
+                "incident_lat": entry["center_lat"],
+                "incident_lng": entry["center_lng"],
+                "incident_coordinates": entry["center_label"],
+                "lat": entry["lat"],
+                "lng": entry["lng"],
+                "coordinates": entry["label"],
+                "entry_distance_m": entry["distance_m"],
+                "expires_at": incident.get("expires_at"),
+            },
+        ))
+    return facts
+
+
 def build_blacknet_world_facts_snapshot(now=None, use_cache=True):
     if now is None and use_cache:
         cached = BLACKNET_WORLD_FACTS_CACHE.get("snapshot")
@@ -1481,6 +1640,7 @@ def build_blacknet_world_facts_snapshot(now=None, use_cache=True):
         ("radio", lambda: build_blacknet_radio_facts(now_dt)),
         ("system", lambda: build_blacknet_system_facts(profiles, now_dt)),
         ("conflicts", lambda: build_blacknet_conflict_activity_facts(now_dt)),
+        ("incidents", lambda: build_blacknet_incident_facts(now_dt)),
     ]
     for source_name, aggregator in aggregators:
         source_started = time.perf_counter()
@@ -1529,6 +1689,7 @@ def build_blacknet_world_facts_snapshot(now=None, use_cache=True):
             "radio": sum(1 for item in facts if item.get("source_system") == "radio"),
             "system": sum(1 for item in facts if item.get("source_system") == "system"),
             "conflicts": sum(1 for item in facts if item.get("source_system") == "conflicts"),
+            "incidents": sum(1 for item in facts if item.get("source_system") == "incidents"),
         },
         "facts": facts,
         "diagnostics": {
@@ -1602,6 +1763,12 @@ def blacknet_format_signal_stat(rule, fact, value):
         "temperature": int(metadata.get("temperature") or 0),
         "product_name": str(metadata.get("product_name") or blacknet_format_category(fact.get("category"))),
         "product_type": str(metadata.get("product_type") or ""),
+        "incident_level": int(metadata.get("incident_level") or 0),
+        "response_level": str(metadata.get("response_level") or ""),
+        "public_state": str(metadata.get("public_state") or metadata.get("status") or ""),
+        "trend": str(metadata.get("trend") or ""),
+        "radius_m": int(metadata.get("radius_m") or metadata.get("search_radius_m") or 0),
+        "location_label": str(metadata.get("location_label") or metadata.get("incident_coordinates") or ""),
     }
     template = str(rule.get("stat_template") or "{value}")
     try:
@@ -2507,11 +2674,62 @@ def record_incident_delta(username, incident, change_type="incident.updated", re
         return None
 
 
+def record_npc_capsule_delta(username, capsule, change_type="npc.updated", reason="npc_capsule_changed"):
+    username = str(username or "").strip()
+    if not username or not isinstance(capsule, dict):
+        return None
+    payload = public_capsule_payload(capsule)
+    capsule_id = str(payload.get("capsule_id") or "").strip()
+    if not capsule_id:
+        return None
+    if change_type == "npc.removed":
+        payload["removed"] = True
+        payload["status"] = "removed"
+    payload["reason"] = reason or "npc_capsule_changed"
+    try:
+        return delta_bus.record_change(
+            username,
+            "npc",
+            change_type,
+            payload,
+            entity_id=capsule_id,
+            dedupe_key=f"npc:{username}:{change_type}:{capsule_id}:{payload.get('version')}",
+        )
+    except Exception as exc:
+        print(f"[DELTA] {change_type} failed for {username}/{capsule_id}: {exc}", flush=True)
+        return None
+
+
+def publish_npc_capsule_actions(username, actions):
+    username = str(username or "").strip()
+    if not username:
+        return []
+    events = []
+    for action in actions or []:
+        if not isinstance(action, dict):
+            continue
+        action_type = str(action.get("action") or "").strip()
+        capsule = action.get("capsule") if isinstance(action.get("capsule"), dict) else {}
+        if action_type == "spawned":
+            event_type = "npc.spawned"
+        elif action_type == "updated":
+            event_type = "npc.updated"
+        elif action_type == "removed":
+            event_type = "npc.removed"
+        else:
+            continue
+        event = record_npc_capsule_delta(username, capsule, event_type, reason=action_type)
+        if event:
+            events.append(event)
+    return events
+
+
 def publish_incident_actions(username, actions):
     username = str(username or "").strip()
     if not username:
         return []
     events = []
+    blacknet_invalidated = False
     for action in actions or []:
         if not isinstance(action, dict):
             continue
@@ -2522,18 +2740,108 @@ def publish_incident_actions(username, actions):
         incident = incident_store.get(incident_id)
         if not incident:
             continue
+        capsule_actions = []
         if action_type == "created":
             event_type = "incident.created"
+            capsule_actions = response_dispatcher.dispatch_incident(incident)
         elif action_type == "cancelled":
             event_type = "incident.resolved"
+            capsule_actions = response_dispatcher.cancel_incident(incident_id, reason="incident_resolved")
         elif action_type == "recalculated":
             event_type = "incident.updated"
+            capsule_actions = response_dispatcher.dispatch_incident(incident)
         else:
             continue
+        if event_type == "incident.resolved":
+            events.extend(publish_npc_capsule_actions(username, capsule_actions))
         event = record_incident_delta(username, incident, event_type, reason=action_type)
         if event:
             events.append(event)
+            blacknet_invalidated = True
+        if event_type != "incident.resolved":
+            events.extend(publish_npc_capsule_actions(username, capsule_actions))
+    if blacknet_invalidated:
+        BLACKNET_WORLD_FACTS_CACHE["snapshot"] = None
+        BLACKNET_WORLD_FACTS_CACHE["cached_at"] = 0.0
+        BLACKNET_WORLD_SIGNALS_CACHE.clear()
     return events
+
+
+def response_warning_system_text(operation, warning):
+    target = operation.get("target") if isinstance(operation.get("target"), dict) else {}
+    target_label = (
+        target.get("label")
+        or target.get("name")
+        or operation.get("target_id")
+        or warning.get("target_id")
+        or "cel operacji"
+    )
+    arrival_at = warning.get("arrival_at") or "-"
+    heat = warning.get("heat") or 0
+    return (
+        f"Response Network wykryl aktywnosc przy {target_label}. "
+        f"Poziom ryzyka: {heat}. Sluzby sa w drodze. ETA: {arrival_at}. "
+        "Tryb visible_safe: brak kar, brak przerwania operacji."
+    )
+
+
+def sync_response_warnings(username, profile, operations, now_iso=None):
+    username = str(username or "").strip()
+    if not username:
+        return []
+    now_iso = now_iso or operation_iso_from_ts(datetime.now(timezone.utc).timestamp())
+    actions = []
+    for operation in operations or []:
+        if not isinstance(operation, dict):
+            continue
+        operation_id = str(operation.get("operation_id") or operation.get("id") or "").strip()
+        if not operation_id:
+            continue
+        meter = operation.get("operation_risk_meter") if isinstance(operation.get("operation_risk_meter"), dict) else {}
+        if meter.get("warning_cancelled") or meter.get("cancelled"):
+            cancelled = response_warning_store.cancel_for_operation(
+                operation_id,
+                reason="operation_cancelled",
+                now=now_iso,
+            )
+            if cancelled:
+                actions.extend({"action": "cancelled", "warning": item} for item in cancelled)
+            continue
+
+        if not meter.get("warning_crossed"):
+            continue
+        try:
+            active_contribution = int(meter.get("active_contribution") or 0)
+        except (TypeError, ValueError):
+            active_contribution = 0
+        if active_contribution <= 0:
+            continue
+
+        actor = str(meter.get("actor_id") or operation.get("owner_username") or username).strip()
+        incident = incident_store.get(meter.get("incident_id")) if meter.get("incident_id") else None
+        warning, created = response_warning_store.issue_warning(
+            actor,
+            operation,
+            incident=incident,
+            now=now_iso,
+        )
+        if not warning:
+            continue
+        meter["mode"] = "visible_safe"
+        meter["warning_issued_at"] = meter.get("warning_issued_at") or warning.get("issued_at")
+        meter["warning_id"] = warning.get("warning_id")
+        meter["warning_arrival_at"] = warning.get("arrival_at")
+        operation["operation_risk_meter"] = meter
+        actions.append({"action": "issued" if created else "existing", "warning": warning})
+
+        if created:
+            title = "Response Network: ostrzezenie"
+            text = response_warning_system_text(operation, warning)
+            if actor == username and isinstance(profile, dict):
+                append_profile_system_message(profile, "warning", title, text)
+            else:
+                add_system_message_to_user(actor, "warning", title, text)
+    return actions
 
 
 def rebuild_player_areas_with_territory_delta(username, player_level=1, reason="territory_rebuild"):
@@ -8440,8 +8748,16 @@ def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None, use
 
     try:
         incident_result = incident_initializer.sync_operations(operations, now=operation_iso_from_ts(now_ts))
-        if incident_result.get("actions"):
-            publish_incident_actions(username or profile.get("username"), incident_result.get("actions"))
+        incident_actions = incident_result.get("actions") or []
+        if incident_actions:
+            publish_incident_actions(username or profile.get("username"), incident_actions)
+        warning_actions = sync_response_warnings(
+            username or profile.get("username"),
+            profile,
+            operations,
+            now_iso=operation_iso_from_ts(now_ts),
+        )
+        if incident_actions or warning_actions:
             meters_by_operation_id = {
                 str(operation.get("operation_id") or ""): operation.get("operation_risk_meter")
                 for operation in operations
@@ -14630,6 +14946,177 @@ def map_incidents():
         "success": True,
         "scope": "incident",
         "incidents": incident_store.list_public(),
+    })
+
+
+@app.route("/api/map/incident-npc-capsules")
+def map_incident_npc_capsules():
+    if "user" not in session:
+        return jsonify({"error": "Nie jestes zalogowany"}), 401
+
+    return jsonify({
+        "success": True,
+        "scope": "npc",
+        "capsules": npc_capsule_store.list_public(),
+    })
+
+
+def execute_response_network_consequence(decision):
+    intent = consequence_policy.prepare_intent(decision)
+    if intent.get("status") != "prepared":
+        return intent
+
+    actor_id = str(intent.get("actor_id") or "").strip()
+    if not actor_id:
+        return {
+            "status": "rejected",
+            "reason": "missing_actor",
+            "consequence_executed": False,
+            "penalty_executed": False,
+        }
+
+    profile = user_store.get_profile(actor_id)
+    if not isinstance(profile, dict):
+        return {
+            "status": "rejected",
+            "reason": "profile_not_found",
+            "actor_id": actor_id,
+            "consequence_executed": False,
+            "penalty_executed": False,
+        }
+
+    def _cancel_operation(profile_arg, operation_id):
+        return cancel_profile_operation(
+            profile_arg,
+            operation_id,
+            cancelled_by="response_network",
+        )
+
+    def _refresh_operations(profile_arg):
+        operations, changed = refresh_operations_runtime(
+            profile_arg,
+            persist_timeouts=False,
+            username=actor_id,
+        )
+        if changed:
+            profile_arg["operations"] = operations
+        return operations
+
+    previous_storage = storage_delta_snapshot(profile)
+    previous_hc = profile.get("hackcoins")
+    result = consequence_executor.execute(
+        intent,
+        profile,
+        cancel_operation=_cancel_operation,
+        refresh_operations=_refresh_operations,
+        kill_switch_active=consequence_policy.kill_switch_active,
+    )
+
+    if result.get("status") in {"executed", "superseded", "rejected", "disabled"}:
+        if result.get("status") == "executed":
+            if result.get("confiscated_tools"):
+                tool = result.get("confiscated_tool") if isinstance(result.get("confiscated_tool"), dict) else {}
+                app_id = tool.get("app_id") or tool.get("app_name") or intent.get("operation_id")
+                record_apps_delta(
+                    actor_id,
+                    profile,
+                    "apps.app_uninstalled",
+                    app_id=app_id,
+                    reason="response_network_tool_confiscation",
+                    dedupe_key=f"apps:uninstalled:{actor_id}:response_network:{result.get('consequence_id') or intent.get('consequence_id')}",
+                    extra={"confiscated_tool": tool},
+                )
+            if result.get("confiscated_hc") and profile.get("hackcoins") != previous_hc:
+                record_wallet_balance_delta(
+                    actor_id,
+                    profile.get("hackcoins", 0),
+                    reason="response_network_hc_confiscation",
+                    dedupe_key=f"wallet:balance:{actor_id}:response_network:{result.get('consequence_id') or intent.get('consequence_id')}",
+                )
+            record_storage_delta(
+                actor_id,
+                profile,
+                reason="response_network_consequence",
+                previous=previous_storage,
+                dedupe_key_prefix=f"storage:{actor_id}:response_network:{result.get('consequence_id') or intent.get('consequence_id')}",
+            )
+        profile_update = {
+            "operations": profile.get("operations", []),
+            "apps": profile.get("apps", []),
+            "files": profile.get("files", {}),
+            "hackcoins": profile.get("hackcoins", 0),
+            "risk_events": profile.get("risk_events", []),
+            "system_messages": profile.get("system_messages", []),
+            "market_history": profile.get("market_history", []),
+            "confiscation_history": profile.get("confiscation_history", []),
+            "judgment": profile.get("judgment", {}),
+            "judgment_history": profile.get("judgment_history", []),
+            "incident_history": profile.get("incident_history", []),
+            "radio_events": profile.get("radio_events", []),
+            "storage_capacity": profile.get("storage_capacity"),
+            "storage_used": profile.get("storage_used"),
+            "storage_unit": profile.get("storage_unit", "MB"),
+            "storage_soft_limit": True,
+            "storage_over_limit": profile.get("storage_over_limit", False),
+        }
+        if "wallet" in profile:
+            profile_update["wallet"] = profile.get("wallet", profile.get("hackcoins", 0))
+        UserProfileManager(actor_id).update_profile(profile_update)
+        if session.get("user") == actor_id:
+            session["profile"] = profile
+
+    return result
+
+
+@app.route("/api/map/incidents/detection-candidates", methods=["POST"])
+def map_incident_detection_candidates():
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"success": False, "error": "invalid_payload"}), 400
+
+    candidate = dict(payload)
+    candidate["observer_username"] = session.get("user")
+    candidate["mode"] = "full"
+    try:
+        decision = detection_validator.validate(candidate, profile_loader=load_profile_readonly)
+    except Exception as exc:
+        print(f"[DETECTION] full validation failed: {exc}", flush=True)
+        return jsonify({
+            "success": False,
+            "mode": "full",
+            "status": "rejected",
+            "reason": "validation_error",
+        }), 200
+
+    consequence = None
+    if decision.get("status") == "accepted":
+        consequence = execute_response_network_consequence(decision)
+        if consequence and consequence.get("status") == "executed":
+            decision["consequence_executed"] = True
+            decision["penalty_executed"] = bool(consequence.get("penalty_executed"))
+
+    return jsonify({
+        "success": True,
+        "mode": decision.get("mode") or "full",
+        "status": decision.get("status") or decision.get("result"),
+        "reason": decision.get("reason"),
+        "candidate_id": decision.get("candidate_id"),
+        "penalty_executed": bool(decision.get("penalty_executed")),
+        "consequence_executed": bool(decision.get("consequence_executed")),
+        "consequence": {
+            "status": consequence.get("status"),
+            "reason": consequence.get("reason"),
+            "consequence_id": consequence.get("consequence_id"),
+            "operation_id": consequence.get("operation_id"),
+            "consequence_executed": bool(consequence.get("consequence_executed")),
+            "penalty_executed": bool(consequence.get("penalty_executed")),
+            "confiscated_tools": bool(consequence.get("confiscated_tools")),
+            "confiscated_hc": bool(consequence.get("confiscated_hc")),
+            "judgment": bool(consequence.get("judgment")),
+        } if isinstance(consequence, dict) else None,
     })
 
 

@@ -546,6 +546,115 @@
       white-space: nowrap;
     }
 
+    .response-npc-marker-root {
+      box-sizing: border-box !important;
+      overflow: visible !important;
+      pointer-events: none !important;
+      filter: drop-shadow(0 0 8px rgba(55, 210, 255, 0.55));
+    }
+
+    .response-npc-marker-hitbox {
+      position: relative;
+      width: 46px;
+      height: 46px;
+      box-sizing: border-box;
+      pointer-events: none;
+    }
+
+    .response-npc-marker-sprite {
+      width: 46px;
+      height: 46px;
+      object-fit: contain;
+      image-rendering: auto;
+      transform-origin: 50% 70%;
+    }
+
+    .response-npc-marker-root.is-scan .response-npc-marker-sprite {
+      animation: response-npc-pulse 1.25s ease-in-out infinite;
+    }
+
+    .response-npc-marker-root.is-pursuit .response-npc-marker-sprite {
+      animation: response-npc-pursuit 0.82s ease-in-out infinite;
+    }
+
+    .response-npc-marker-ring {
+      position: absolute;
+      left: 6px;
+      top: 6px;
+      width: 34px;
+      height: 34px;
+      border: 1px solid rgba(75, 230, 255, 0.44);
+      border-radius: 50%;
+      box-shadow: 0 0 8px rgba(75, 230, 255, 0.34);
+      opacity: 0.58;
+    }
+
+    .response-npc-marker-countdown {
+      position: absolute;
+      left: 50%;
+      bottom: -10px;
+      transform: translateX(-50%);
+      min-width: 34px;
+      padding: 1px 4px;
+      border: 1px solid rgba(75, 230, 255, 0.56);
+      background: rgba(0, 12, 10, 0.86);
+      color: #d8fff8;
+      font: 700 9px/1.2 monospace;
+      text-align: center;
+      letter-spacing: 0.04em;
+      text-shadow: 0 0 6px rgba(75, 230, 255, 0.7);
+      box-sizing: border-box;
+    }
+
+    .response-npc-marker-feedback {
+      position: absolute;
+      right: -12px;
+      top: -7px;
+      width: 16px;
+      height: 16px;
+      border: 1px solid rgba(180, 255, 120, 0.72);
+      border-radius: 50%;
+      background: rgba(0, 16, 8, 0.92);
+      color: #b8ff78;
+      font: 700 10px/15px monospace;
+      text-align: center;
+      box-shadow: 0 0 8px rgba(180, 255, 120, 0.48);
+    }
+
+    .response-npc-marker-root.is-detected .response-npc-marker-ring {
+      border-color: rgba(180, 255, 120, 0.86);
+      box-shadow: 0 0 12px rgba(180, 255, 120, 0.62);
+    }
+
+    .response-npc-marker-root.is-rejected .response-npc-marker-feedback,
+    .response-npc-marker-root.is-expired .response-npc-marker-feedback {
+      border-color: rgba(255, 210, 70, 0.72);
+      color: #ffd246;
+      box-shadow: 0 0 8px rgba(255, 210, 70, 0.44);
+    }
+
+    .response-npc-marker-root.is-police {
+      filter: drop-shadow(0 0 8px rgba(71, 196, 255, 0.52));
+    }
+
+    .response-npc-marker-root.is-cyberpolice {
+      filter: drop-shadow(0 0 9px rgba(0, 255, 170, 0.58));
+    }
+
+    .response-npc-marker-root.is-secretservice {
+      filter: drop-shadow(0 0 10px rgba(255, 220, 80, 0.58));
+    }
+
+    @keyframes response-npc-pulse {
+      0%, 100% { transform: scale(0.96); opacity: 0.82; }
+      50% { transform: scale(1.06); opacity: 1; }
+    }
+
+    @keyframes response-npc-pursuit {
+      0%, 100% { transform: translateX(-1px) scale(1); }
+      50% { transform: translateX(1px) scale(1.04); }
+    }
+
     .clan-vulnerability-pin {
       display: flex;
       flex-direction: column;
@@ -3220,6 +3329,16 @@
 
             window.friendMarkers = {};
             window.playerActorMarkers = {};
+            window.responseNpcMarkers = {};
+            window.responseNpcCapsules = {};
+            window.responseNpcFeedbackByCapsule = {};
+            window.responseNpcAnimationFrame = null;
+            window.responseNpcLastTick = 0;
+            window.localDetectionProbeState = {
+                lastRun: 0,
+                inFlight: new Set(),
+                submitted: new Set()
+            };
 
             window.escapeMapText = function(value) {
                 return String(value || '').replace(/[&<>"']/g, function (m) {
@@ -3804,6 +3923,7 @@
             window.bootMapOptionalScopes = function() {
                 Promise.allSettled([
                     window.bootStep('Incydenty publiczne', 'incidents', window.refreshIncidentHotspots, { total: 1, index: 0, silent: true }),
+                    window.bootStep('Snikery reakcji', 'npc', window.refreshResponseNpcCapsules, { total: 1, index: 0, silent: true }),
                     window.bootStep('Podatnosci klanow', 'clan_vulnerabilities', window.refreshClanVulnerabilities, { total: 1, index: 0, silent: true }),
                     window.bootStep('Aktywne operacje', 'active_operations', window.refreshActiveOperations, { total: 1, index: 0, silent: true }),
                     window.bootStep('Gracze na mapie', 'player_actors', window.refreshPlayerActors, { total: 1, index: 0, silent: true })
@@ -3968,6 +4088,440 @@
                     });
                 }
                 return false;
+            };
+
+            window.responseNpcDirections = [
+                'up',
+                'up_right',
+                'right',
+                'down_right',
+                'down',
+                'down_left',
+                'left',
+                'up_left'
+            ];
+            window.responseNpcFamilies = ['police', 'cyberpolice', 'secretservice'];
+
+            window.normalizeResponseNpcDirection = function(direction) {
+                const value = String(direction || '').toLowerCase().replace(/[^a-z_]/g, '');
+                return window.responseNpcDirections.includes(value) ? value : 'down';
+            };
+
+            window.normalizeResponseNpcFamily = function(family) {
+                const value = String(family || '').toLowerCase().replace(/[^a-z]/g, '');
+                return window.responseNpcFamilies.includes(value) ? value : 'police';
+            };
+
+            window.projectResponseNpcPoint = function(center, distanceM, bearingDeg) {
+                const lat = Number(center && center.lat);
+                const lng = Number(center && (center.lng ?? center.lon));
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+                const earthRadius = 6371000;
+                const bearing = Number(bearingDeg || 0) * Math.PI / 180;
+                const angular = Number(distanceM || 0) / earthRadius;
+                const latRad = lat * Math.PI / 180;
+                const lngRad = lng * Math.PI / 180;
+                const targetLat = Math.asin(
+                    Math.sin(latRad) * Math.cos(angular)
+                    + Math.cos(latRad) * Math.sin(angular) * Math.cos(bearing)
+                );
+                const targetLng = lngRad + Math.atan2(
+                    Math.sin(bearing) * Math.sin(angular) * Math.cos(latRad),
+                    Math.cos(angular) - Math.sin(latRad) * Math.sin(targetLat)
+                );
+                return {
+                    lat: Number((targetLat * 180 / Math.PI).toFixed(7)),
+                    lng: Number((targetLng * 180 / Math.PI).toFixed(7))
+                };
+            };
+
+            window.directionFromResponseNpcAngle = function(angleDeg) {
+                const normalized = ((Number(angleDeg || 0) + 360) % 360);
+                const index = Math.floor(((normalized + 22.5) % 360) / 45);
+                return window.responseNpcDirections[index] || 'down';
+            };
+
+            window.parseResponseNpcTime = function(value, fallbackDate = new Date()) {
+                if (!value) return fallbackDate;
+                const raw = String(value);
+                const normalized = /(?:Z|[+-]\d{2}:\d{2})$/.test(raw) ? raw : `${raw}Z`;
+                const date = new Date(normalized);
+                return Number.isNaN(date.getTime()) ? fallbackDate : date;
+            };
+
+            window.positionResponseNpcAt = function(capsule, worldTime = new Date()) {
+                const data = capsule && typeof capsule === 'object' ? capsule : {};
+                const now = window.parseResponseNpcTime(worldTime, new Date());
+                const center = data.incident_center || {};
+                const origin = data.origin || center;
+                if (!Number.isFinite(Number(center.lat)) || !Number.isFinite(Number(center.lng ?? center.lon))) {
+                    return null;
+                }
+                const spawnAt = window.parseResponseNpcTime(data.spawn_at, now);
+                const expiresAt = window.parseResponseNpcTime(data.expires_at, new Date(spawnAt.getTime() + 5 * 60 * 1000));
+                if (now < spawnAt) {
+                    return {
+                        lat: Number(origin.lat),
+                        lng: Number(origin.lng ?? origin.lon),
+                        direction: 'down',
+                        animation_state: 'waiting'
+                    };
+                }
+                if (now >= expiresAt || data.status === 'expired') {
+                    return {
+                        lat: Number(origin.lat),
+                        lng: Number(origin.lng ?? origin.lon),
+                        direction: 'down',
+                        animation_state: 'expired'
+                    };
+                }
+
+                const elapsed = Math.max(0, (now.getTime() - spawnAt.getTime()) / 1000);
+                const speed = Math.max(1, Number(data.speed_mps || 6));
+                const patrolRadius = Math.max(25, Number(data.patrol_radius_m || 160));
+                const phase = Number.isFinite(Number(data.trajectory_phase_deg)) ? Number(data.trajectory_phase_deg) : 0;
+                const angularSpeed = (speed / patrolRadius) * (180 / Math.PI);
+                let angle = phase + (elapsed * angularSpeed);
+                let radius = patrolRadius;
+                let animationState = 'patrol';
+                const trajectory = String(data.trajectory_type || 'orbital_search');
+
+                if (trajectory === 'spiral_sweep') {
+                    const pulse = (Math.sin(elapsed / 18) + 1) / 2;
+                    radius = Math.max(35, patrolRadius * (0.45 + 0.55 * pulse));
+                    animationState = 'scan';
+                } else if (trajectory === 'intercept_loop') {
+                    const pulse = (Math.sin(elapsed / 11) + 1) / 2;
+                    radius = Math.max(40, patrolRadius * (0.7 + 0.3 * pulse));
+                    angle = phase - (elapsed * angularSpeed * 1.25);
+                    animationState = 'pursuit';
+                }
+
+                const projected = window.projectResponseNpcPoint(center, radius, angle);
+                if (!projected) return null;
+                return {
+                    lat: projected.lat,
+                    lng: projected.lng,
+                    direction: window.directionFromResponseNpcAngle(angle + 90),
+                    animation_state: animationState
+                };
+            };
+
+            window.buildResponseNpcIcon = function(capsule, position) {
+                const family = window.normalizeResponseNpcFamily(capsule.visual_family || capsule.service_type);
+                const direction = window.normalizeResponseNpcDirection(position && position.direction);
+                const state = String((position && position.animation_state) || 'patrol').replace(/[^a-z_]/g, '');
+                const src = `/static/icons/npc_${family}_${direction}.png`;
+                const label = window.escapeMapText(`${family} L${capsule.service_level || 1}`);
+                const capsuleId = String((capsule && (capsule.capsule_id || capsule.npc_id)) || '').trim();
+                const warningUntilRaw = capsule.warning_until || capsule.arrival_at || capsule.expires_at;
+                const warningUntil = warningUntilRaw ? Date.parse(warningUntilRaw) : NaN;
+                const remainingSeconds = Number.isFinite(warningUntil)
+                    ? Math.max(0, Math.ceil((warningUntil - Date.now()) / 1000))
+                    : null;
+                const countdownText = remainingSeconds !== null
+                    ? `${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, '0')}`
+                    : '';
+                const feedback = window.responseNpcFeedbackByCapsule && window.responseNpcFeedbackByCapsule[capsuleId];
+                const feedbackStatus = feedback && feedback.expiresAt > Date.now()
+                    ? String(feedback.status || '').replace(/[^a-z_]/g, '')
+                    : '';
+                const feedbackLabel = feedbackStatus === 'accepted'
+                    ? 'OK'
+                    : (feedbackStatus === 'rejected' ? '!' : (feedbackStatus === 'expired' ? '-' : ''));
+                return L.divIcon({
+                    className: `response-npc-marker-root is-${family} is-${state}${feedbackStatus ? ` is-${feedbackStatus === 'accepted' ? 'detected' : feedbackStatus}` : ''}`,
+                    html: `
+                        <div class="response-npc-marker-hitbox" title="${label}">
+                            <span class="response-npc-marker-ring"></span>
+                            <img class="response-npc-marker-sprite" src="${src}" alt="">
+                            ${countdownText ? `<span class="response-npc-marker-countdown">${countdownText}</span>` : ''}
+                            ${feedbackLabel ? `<span class="response-npc-marker-feedback">${feedbackLabel}</span>` : ''}
+                        </div>
+                    `,
+                    iconSize: [46, 46],
+                    iconAnchor: [23, 36],
+                    popupAnchor: [0, -32]
+                });
+            };
+
+            window.applyDetectionFeedbackToNpc = function(capsuleId, status, reason) {
+                const key = String(capsuleId || '').trim();
+                if (!key) return false;
+                const normalized = String(status || '').trim();
+                if (!normalized) return false;
+                window.responseNpcFeedbackByCapsule[key] = {
+                    status: normalized,
+                    reason: String(reason || ''),
+                    expiresAt: Date.now() + 3200
+                };
+                const capsule = window.responseNpcCapsules && window.responseNpcCapsules[key];
+                const marker = window.responseNpcMarkers && window.responseNpcMarkers[key];
+                if (capsule && marker) {
+                    const position = window.positionResponseNpcAt(capsule, new Date());
+                    if (position) marker.setIcon(window.buildResponseNpcIcon(capsule, position));
+                }
+                return true;
+            };
+
+            window.upsertResponseNpcActor = function(capsule) {
+                const data = capsule && typeof capsule === 'object' ? capsule : {};
+                const capsuleId = String(data.capsule_id || data.npc_id || '').trim();
+                if (!capsuleId || data.removed || data.status === 'removed') {
+                    return capsuleId ? window.removeResponseNpcActor(capsuleId) : false;
+                }
+                const position = window.positionResponseNpcAt(data, new Date());
+                if (!position || !Number.isFinite(Number(position.lat)) || !Number.isFinite(Number(position.lng))) return false;
+                window.responseNpcCapsules[capsuleId] = { ...data };
+                if (!window.responseNpcMarkers[capsuleId]) {
+                    const marker = L.marker([position.lat, position.lng], {
+                        pane: 'markerPane',
+                        zIndexOffset: 720 + Number(data.service_level || 1),
+                        interactive: false,
+                        icon: window.buildResponseNpcIcon(data, position)
+                    }).addTo(map);
+                    marker._responseNpcSnapshot = data;
+                    window.responseNpcMarkers[capsuleId] = marker;
+                } else {
+                    const marker = window.responseNpcMarkers[capsuleId];
+                    marker.setLatLng([position.lat, position.lng]);
+                    marker.setIcon(window.buildResponseNpcIcon(data, position));
+                    marker._responseNpcSnapshot = data;
+                }
+                window.ensureResponseNpcAnimation();
+                return true;
+            };
+
+            window.removeResponseNpcActor = function(capsuleId) {
+                const key = String(capsuleId || '').trim();
+                if (!key) return false;
+                if (window.responseNpcMarkers[key]) {
+                    removeMapLayerSafe(window.responseNpcMarkers[key]);
+                    delete window.responseNpcMarkers[key];
+                }
+                delete window.responseNpcCapsules[key];
+                if (window.responseNpcFeedbackByCapsule) delete window.responseNpcFeedbackByCapsule[key];
+                return true;
+            };
+
+            window.renderResponseNpcCapsules = function(capsules) {
+                const visible = new Set();
+                (capsules || []).forEach(capsule => {
+                    const capsuleId = String((capsule && (capsule.capsule_id || capsule.npc_id)) || '').trim();
+                    if (capsuleId && window.upsertResponseNpcActor(capsule)) {
+                        visible.add(capsuleId);
+                    }
+                });
+                Object.keys(window.responseNpcMarkers || {}).forEach(capsuleId => {
+                    if (!visible.has(capsuleId)) {
+                        window.removeResponseNpcActor(capsuleId);
+                    }
+                });
+                window.ensureResponseNpcAnimation();
+            };
+
+            window.refreshResponseNpcCapsules = async function() {
+                try {
+                    const snapshot = await window.fetchMapSnapshot('npc', '/api/map/incident-npc-capsules', { timeoutMs: 10000 });
+                    if (snapshot.skipped || snapshot.aborted) return false;
+                    const res = snapshot.res;
+                    if (res.status === 401) {
+                        stopMapRefreshTimers();
+                        return false;
+                    }
+                    if (!res.ok) return false;
+                    const data = await res.json();
+                    window.renderResponseNpcCapsules(data.capsules || []);
+                    return true;
+                } catch (err) {
+                    console.warn('Response NPC refresh failed', err);
+                    return false;
+                }
+            };
+
+            window.applyResponseNpcDelta = function(event) {
+                const payload = (event && event.payload) || {};
+                const type = String((event && event.type) || payload.type || '');
+                const capsule = payload.capsule || payload;
+                const capsuleId = String(
+                    (event && event.entity_id)
+                    || payload.capsule_id
+                    || capsule.capsule_id
+                    || payload.npc_id
+                    || capsule.npc_id
+                    || ''
+                ).trim();
+                if (type === 'npc.removed' || payload.removed || capsule.status === 'removed') {
+                    return window.removeResponseNpcActor(capsuleId);
+                }
+                if (type === 'npc.spawned' || type === 'npc.updated' || event.scope === 'npc') {
+                    return window.upsertResponseNpcActor({ ...capsule, capsule_id: capsule.capsule_id || capsuleId });
+                }
+                return false;
+            };
+
+            window.mapDistanceMeters = function(left, right) {
+                if (!left || !right) return Infinity;
+                const lat1 = Number(left.lat);
+                const lng1 = Number(left.lng ?? left.lon);
+                const lat2 = Number(right.lat);
+                const lng2 = Number(right.lng ?? right.lon);
+                if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return Infinity;
+                const toRad = value => value * Math.PI / 180;
+                const dLat = toRad(lat2 - lat1);
+                const dLng = toRad(lng2 - lng1);
+                const a = Math.sin(dLat / 2) ** 2
+                    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+                return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            };
+
+            window.collectLocalDetectionActors = function() {
+                const actors = [];
+                Object.entries(window.playerActorMarkers || {}).forEach(([key, marker]) => {
+                    if (!marker || typeof marker.getLatLng !== 'function') return;
+                    const snapshot = marker._playerActorSnapshot || {};
+                    const latLng = marker.getLatLng();
+                    const actorId = String(snapshot.username || snapshot.target_username || key || '').trim();
+                    if (!actorId || !Number.isFinite(Number(latLng.lat)) || !Number.isFinite(Number(latLng.lng))) return;
+                    actors.push({
+                        actor_id: actorId,
+                        operation_id: snapshot.operation_id || snapshot.active_operation_id || null,
+                        position: { lat: Number(latLng.lat), lng: Number(latLng.lng) }
+                    });
+                });
+
+                const selfUsername = String((window.profileData && window.profileData.username) || '').trim();
+                if (selfUsername && window.avatarMarkerRef && typeof window.avatarMarkerRef.getLatLng === 'function') {
+                    const latLng = window.avatarMarkerRef.getLatLng();
+                    if (Number.isFinite(Number(latLng.lat)) && Number.isFinite(Number(latLng.lng))) {
+                        actors.push({
+                            actor_id: selfUsername,
+                            operation_id: null,
+                            position: { lat: Number(latLng.lat), lng: Number(latLng.lng) }
+                        });
+                    }
+                }
+                return actors;
+            };
+
+            window.buildLocalDetectionCandidate = function(capsule, npcPosition, actor, now) {
+                const capsuleId = String((capsule && (capsule.capsule_id || capsule.npc_id)) || '').trim();
+                const actorId = String((actor && actor.actor_id) || '').trim();
+                const detectedAt = now instanceof Date ? now : new Date();
+                const bucket = Math.floor(detectedAt.getTime() / 10000);
+                if (!capsuleId || !actorId || !npcPosition || !actor || !(capsule.tracking_tokens || []).length) return null;
+                return {
+                    candidate_id: `dc_${capsuleId}_${actorId}_${bucket}`.replace(/[^a-zA-Z0-9_.:-]/g, '_'),
+                    incident_id: capsule.incident_id,
+                    capsule_id: capsuleId,
+                    npc_id: capsule.npc_id || capsuleId,
+                    actor_id: actorId,
+                    operation_id: actor.operation_id || null,
+                    tracking_token: capsule.tracking_tokens[0],
+                    detected_at: detectedAt.toISOString(),
+                    npc_position: {
+                        lat: Number(npcPosition.lat),
+                        lng: Number(npcPosition.lng)
+                    },
+                    actor_position: {
+                        lat: Number(actor.position.lat),
+                        lng: Number(actor.position.lng)
+                    },
+                    behavior_version: capsule.behavior_version,
+                    trajectory_seed: capsule.trajectory_seed,
+                    trajectory_phase_deg: capsule.trajectory_phase_deg,
+                    mode: 'full'
+                };
+            };
+
+            window.submitLocalDetectionCandidate = async function(candidate) {
+                if (!candidate || !candidate.candidate_id) return false;
+                const state = window.localDetectionProbeState;
+                if (state.inFlight.has(candidate.candidate_id) || state.submitted.has(candidate.candidate_id)) return false;
+                state.inFlight.add(candidate.candidate_id);
+                try {
+                    const res = await fetch('/api/map/incidents/detection-candidates', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(candidate)
+                    });
+                    state.submitted.add(candidate.candidate_id);
+                    if (state.submitted.size > 300) {
+                        state.submitted = new Set(Array.from(state.submitted).slice(-180));
+                    }
+                    let payload = {};
+                    try {
+                        payload = await res.json();
+                    } catch (jsonErr) {
+                        payload = {};
+                    }
+                    if (payload && payload.status) {
+                        window.applyDetectionFeedbackToNpc(candidate.capsule_id || candidate.npc_id, payload.status, payload.reason);
+                    }
+                    return res.ok;
+                } catch (err) {
+                    console.warn('Detection candidate visible-safe submit failed', err);
+                    return false;
+                } finally {
+                    state.inFlight.delete(candidate.candidate_id);
+                }
+            };
+
+            window.runLocalDetectionProbe = function(now) {
+                const state = window.localDetectionProbeState;
+                const nowMs = now instanceof Date ? now.getTime() : Date.now();
+                if (nowMs - state.lastRun < 1200) return;
+                state.lastRun = nowMs;
+                const detectedAt = new Date(nowMs);
+                const actors = window.collectLocalDetectionActors();
+                if (!actors.length) return;
+
+                Object.entries(window.responseNpcCapsules || {}).forEach(([capsuleId, capsule]) => {
+                    if (!capsule || !capsule.tracking_tokens || !capsule.tracking_tokens.length) return;
+                    const npcPosition = window.positionResponseNpcAt(capsule, detectedAt);
+                    if (!npcPosition || !Number.isFinite(Number(npcPosition.lat)) || !Number.isFinite(Number(npcPosition.lng))) return;
+                    const radius = Math.max(1, Number(capsule.detection_radius_m || 65));
+                    actors.forEach(actor => {
+                        const distance = window.mapDistanceMeters(npcPosition, actor.position);
+                        if (!Number.isFinite(distance) || distance > radius) return;
+                        const candidate = window.buildLocalDetectionCandidate(capsule, npcPosition, actor, detectedAt);
+                        if (candidate) window.submitLocalDetectionCandidate(candidate);
+                    });
+                });
+            };
+
+            window.tickResponseNpcActors = function(timestamp) {
+                const capsules = window.responseNpcCapsules || {};
+                const ids = Object.keys(capsules);
+                if (!ids.length) {
+                    window.responseNpcAnimationFrame = null;
+                    return;
+                }
+                if (!window.responseNpcLastTick || (timestamp - window.responseNpcLastTick) >= 240) {
+                    window.responseNpcLastTick = timestamp;
+                    const now = new Date();
+                    ids.forEach(capsuleId => {
+                        const capsule = capsules[capsuleId];
+                        const marker = window.responseNpcMarkers[capsuleId];
+                        if (!capsule || !marker) return;
+                        const feedback = window.responseNpcFeedbackByCapsule && window.responseNpcFeedbackByCapsule[capsuleId];
+                        if (feedback && feedback.expiresAt <= Date.now()) delete window.responseNpcFeedbackByCapsule[capsuleId];
+                        const position = window.positionResponseNpcAt(capsule, now);
+                        if (!position || position.animation_state === 'expired') {
+                            window.removeResponseNpcActor(capsuleId);
+                            return;
+                        }
+                        marker.setLatLng([position.lat, position.lng]);
+                        marker.setIcon(window.buildResponseNpcIcon(capsule, position));
+                    });
+                    window.runLocalDetectionProbe(now);
+                }
+                window.responseNpcAnimationFrame = requestAnimationFrame(window.tickResponseNpcActors);
+            };
+
+            window.ensureResponseNpcAnimation = function() {
+                if (window.responseNpcAnimationFrame || !Object.keys(window.responseNpcCapsules || {}).length) return;
+                window.responseNpcAnimationFrame = requestAnimationFrame(window.tickResponseNpcActors);
             };
 
             window.refreshActiveOperations = async function() {
