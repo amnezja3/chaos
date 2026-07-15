@@ -3934,7 +3934,7 @@
                 }
                 try {
                     if (typeof fn === 'function') {
-                        const result = await fn();
+                        const result = await fn(options);
                         if (result === false && options.critical) {
                             throw new Error(`Critical map scope failed: ${scope || label}`);
                         }
@@ -5267,6 +5267,21 @@
                     return { skipped: true, reason: state.pauseReason || 'paused' };
                 }
                 if (state.inFlight[scopeKey]) {
+                    if (isCriticalBoot) {
+                        const previousController = state.controllers[scopeKey];
+                        if (previousController && typeof previousController.abort === 'function') {
+                            try {
+                                previousController.abort();
+                            } catch (err) {
+                                console.warn('[map refresh] critical boot abort failed', scopeKey, err);
+                            }
+                        }
+                    } else {
+                        return { skipped: true, reason: 'in_flight' };
+                    }
+                }
+
+                if (state.inFlight[scopeKey] && !isCriticalBoot) {
                     return { skipped: true, reason: 'in_flight' };
                 }
 
@@ -5286,9 +5301,9 @@
                     throw err;
                 } finally {
                     clearTimeout(timeoutId);
-                    delete state.inFlight[scopeKey];
                     if (state.controllers[scopeKey] === controller) {
                         delete state.controllers[scopeKey];
+                        delete state.inFlight[scopeKey];
                     }
                 }
             };
@@ -5457,12 +5472,19 @@
                 return true;
             };
 
-            window.refreshPlayerAreas = async function() {
+            window.refreshPlayerAreas = async function(options = {}) {
+                const isCritical = Boolean(options.critical);
                 const refreshSeq = ++window.playerAreaRefreshSeq;
                 const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
                 try {
-                    const snapshot = await window.fetchMapSnapshot('player_areas', '/api/map/player-areas', { timeoutMs: 15000 });
-                    if (snapshot.skipped || snapshot.aborted) return false;
+                    const snapshot = await window.fetchMapSnapshot('player_areas', '/api/map/player-areas', {
+                        timeoutMs: isCritical ? 45000 : 15000,
+                        critical: isCritical
+                    });
+                    if (snapshot.skipped || snapshot.aborted) {
+                        console.warn('[map] player areas snapshot not loaded', snapshot.reason || (snapshot.skipped ? 'skipped' : 'aborted'));
+                        return false;
+                    }
                     const res = snapshot.res;
                     if (res.status === 401) {
                         stopMapRefreshTimers();
