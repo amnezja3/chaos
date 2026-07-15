@@ -15067,6 +15067,7 @@ def map_incident_npc_capsules():
     return jsonify({
         "success": True,
         "scope": "npc",
+        "server_time": response_npc_runtime_iso(now_dt),
         "capsules": capsules,
         "debug": {
             "active_incident_count": active_incident_count,

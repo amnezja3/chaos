@@ -3387,6 +3387,8 @@
             window.responseNpcFeedbackByCapsule = {};
             window.responseNpcAnimationFrame = null;
             window.responseNpcLastTick = 0;
+            window.responseNpcServerOffsetMs = 0;
+            window.responseNpcLastServerSyncMs = 0;
             window.localDetectionProbeState = {
                 lastRun: 0,
                 inFlight: new Set(),
@@ -4191,11 +4193,26 @@
             };
 
             window.parseResponseNpcTime = function(value, fallbackDate = new Date()) {
+                if (value instanceof Date) {
+                    return Number.isNaN(value.getTime()) ? fallbackDate : value;
+                }
                 if (!value) return fallbackDate;
                 const raw = String(value);
                 const normalized = /(?:Z|[+-]\d{2}:\d{2})$/.test(raw) ? raw : `${raw}Z`;
                 const date = new Date(normalized);
                 return Number.isNaN(date.getTime()) ? fallbackDate : date;
+            };
+
+            window.syncResponseNpcServerTime = function(serverTime) {
+                const parsed = window.parseResponseNpcTime(serverTime, null);
+                if (!(parsed instanceof Date) || Number.isNaN(parsed.getTime())) return false;
+                window.responseNpcServerOffsetMs = parsed.getTime() - Date.now();
+                window.responseNpcLastServerSyncMs = Date.now();
+                return true;
+            };
+
+            window.responseNpcNow = function() {
+                return new Date(Date.now() + Number(window.responseNpcServerOffsetMs || 0));
             };
 
             window.responseNpcDebug = function(message, payload = {}) {
@@ -4316,7 +4333,7 @@
                 const capsule = window.responseNpcCapsules && window.responseNpcCapsules[key];
                 const marker = window.responseNpcMarkers && window.responseNpcMarkers[key];
                 if (capsule && marker) {
-                    const position = window.positionResponseNpcAt(capsule, new Date());
+                const position = window.positionResponseNpcAt(capsule, window.responseNpcNow());
                     if (position) marker.setIcon(window.buildResponseNpcIcon(capsule, position));
                 }
                 return true;
@@ -4333,7 +4350,7 @@
                     });
                     return capsuleId ? window.removeResponseNpcActor(capsuleId) : false;
                 }
-                const position = window.positionResponseNpcAt(data, new Date());
+                const position = window.positionResponseNpcAt(data, window.responseNpcNow());
                 if (!position || !Number.isFinite(Number(position.lat)) || !Number.isFinite(Number(position.lng))) {
                     window.responseNpcDebug('skip capsule invalid position', {
                         capsule_id: capsuleId,
@@ -4440,9 +4457,12 @@
                     }
                     if (!res.ok) return false;
                     const data = await res.json();
+                    window.syncResponseNpcServerTime(data.server_time);
                     window.responseNpcDebug('snapshot response', {
                         status: res.status,
                         debug: data.debug || {},
+                        server_time: data.server_time,
+                        server_offset_ms: Math.round(Number(window.responseNpcServerOffsetMs || 0)),
                         capsules: (data.capsules || []).length
                     });
                     window.renderResponseNpcCapsules(data.capsules || []);
@@ -4583,7 +4603,7 @@
 
             window.runLocalDetectionProbe = function(now) {
                 const state = window.localDetectionProbeState;
-                const nowMs = now instanceof Date ? now.getTime() : Date.now();
+                const nowMs = now instanceof Date ? now.getTime() : window.responseNpcNow().getTime();
                 if (nowMs - state.lastRun < 1200) return;
                 state.lastRun = nowMs;
                 const detectedAt = new Date(nowMs);
@@ -4613,7 +4633,7 @@
                 }
                 if (!window.responseNpcLastTick || (timestamp - window.responseNpcLastTick) >= 240) {
                     window.responseNpcLastTick = timestamp;
-                    const now = new Date();
+                    const now = window.responseNpcNow();
                     ids.forEach(capsuleId => {
                         const capsule = capsules[capsuleId];
                         const marker = window.responseNpcMarkers[capsuleId];
