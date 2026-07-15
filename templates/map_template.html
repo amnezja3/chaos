@@ -4289,8 +4289,8 @@
                 const src = `/static/icons/npc_${family}_${direction}.png`;
                 const label = window.escapeMapText(`${family} L${capsule.service_level || 1}`);
                 const capsuleId = String((capsule && (capsule.capsule_id || capsule.npc_id)) || '').trim();
-                const warningUntilRaw = capsule.warning_until || capsule.arrival_at || capsule.expires_at;
-                const warningUntil = warningUntilRaw ? Date.parse(warningUntilRaw) : NaN;
+                const countdownUntilRaw = capsule.expires_at || capsule.arrival_at || capsule.warning_until;
+                const warningUntil = countdownUntilRaw ? Date.parse(countdownUntilRaw) : NaN;
                 const remainingSeconds = Number.isFinite(warningUntil)
                     ? Math.max(0, Math.ceil((warningUntil - Date.now()) / 1000))
                     : null;
