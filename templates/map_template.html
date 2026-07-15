@@ -5200,6 +5200,7 @@
             window.mapRefreshState = window.mapRefreshState || {
                 inFlight: {},
                 controllers: {},
+                critical: {},
                 paused: false,
                 pauseReason: '',
                 resumeTimer: null
@@ -5226,6 +5227,9 @@
             window.abortMapOptionalRefreshes = function(reason = '') {
                 const state = window.mapRefreshState || {};
                 Object.entries(state.controllers || {}).forEach(([scope, controller]) => {
+                    if (state.critical && state.critical[scope]) {
+                        return;
+                    }
                     if (controller && typeof controller.abort === 'function') {
                         try {
                             controller.abort();
@@ -5269,20 +5273,24 @@
                 if (state.inFlight[scopeKey]) {
                     if (isCriticalBoot) {
                         const previousController = state.controllers[scopeKey];
-                        if (previousController && typeof previousController.abort === 'function') {
+                        const previousIsCritical = Boolean(state.critical && state.critical[scopeKey]);
+                        if (!previousIsCritical && previousController && typeof previousController.abort === 'function') {
                             try {
                                 previousController.abort();
                             } catch (err) {
                                 console.warn('[map refresh] critical boot abort failed', scopeKey, err);
                             }
+                            delete state.controllers[scopeKey];
+                            delete state.inFlight[scopeKey];
+                            delete state.critical[scopeKey];
                         }
                     } else {
                         return { skipped: true, reason: 'in_flight' };
                     }
                 }
 
-                if (state.inFlight[scopeKey] && !isCriticalBoot) {
-                    return { skipped: true, reason: 'in_flight' };
+                if (state.inFlight[scopeKey]) {
+                    return { skipped: true, reason: isCriticalBoot ? 'critical_in_flight' : 'in_flight' };
                 }
 
                 const controller = new AbortController();
@@ -5290,6 +5298,7 @@
                 const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
                 state.inFlight[scopeKey] = true;
                 state.controllers[scopeKey] = controller;
+                state.critical[scopeKey] = isCriticalBoot;
 
                 try {
                     const res = await fetch(url, { signal: controller.signal });
@@ -5304,6 +5313,7 @@
                     if (state.controllers[scopeKey] === controller) {
                         delete state.controllers[scopeKey];
                         delete state.inFlight[scopeKey];
+                        delete state.critical[scopeKey];
                     }
                 }
             };
