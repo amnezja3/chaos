@@ -144,6 +144,45 @@ class NPCBehaviorCapsulesTest(unittest.TestCase):
             if os.path.exists(path):
                 os.remove(path)
 
+    def test_dispatcher_keeps_active_capsule_lifecycle_stable_on_recalculation(self):
+        path = temp_db_path("chaos_npc_capsule_lifecycle_")
+        try:
+            store = NPCCapsuleStore(db_path=path)
+            dispatcher = ResponseDispatcher(store, NPCCapsuleFactory())
+            incident = {
+                "incident_id": "incident_lifecycle",
+                "status": "active",
+                "level": 2,
+                "seed": "lifecycle-seed",
+                "center": {"lat": 52.23, "lng": 21.01},
+                "search_radius_m": 220,
+                "expires_at": "2026-07-14T10:30:00+00:00",
+            }
+
+            created = dispatcher.dispatch_incident(incident, now="2026-07-14T10:00:00+00:00")
+            first_capsules = {
+                capsule["capsule_id"]: capsule
+                for capsule in store.list_public()
+            }
+            incident["heat"] = 96
+            incident["updated_at"] = "2026-07-14T10:05:00+00:00"
+            dispatcher.dispatch_incident(incident, now="2026-07-14T10:05:00+00:00")
+            second_capsules = {
+                capsule["capsule_id"]: capsule
+                for capsule in store.list_public()
+            }
+
+            self.assertGreaterEqual(len(created), 1)
+            self.assertEqual(set(first_capsules), set(second_capsules))
+            for capsule_id, first in first_capsules.items():
+                second = second_capsules[capsule_id]
+                self.assertEqual(second["spawn_at"], first["spawn_at"])
+                self.assertEqual(second["expires_at"], first["expires_at"])
+                self.assertEqual(second.get("warning_until"), first.get("warning_until"))
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+
     def test_refresh_runtime_emits_capsule_deltas_and_recovery_snapshot(self):
         incident_db = temp_db_path("chaos_incident_capsule_")
         capsule_db = temp_db_path("chaos_npc_capsule_")

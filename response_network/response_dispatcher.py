@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from .npc_capsule_factory import NPCCapsuleFactory
 from .npc_capsule_store import NPCCapsuleStore
 
@@ -7,6 +9,29 @@ from .npc_capsule_store import NPCCapsuleStore
 def _clean(value, default=""):
     text = str(value or "").strip()
     return text or default
+
+
+def _coerce_datetime(value=None):
+    if isinstance(value, datetime):
+        dt = value
+    elif value:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    else:
+        dt = datetime.now(timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _capsule_runtime_active(capsule, now=None):
+    capsule = capsule if isinstance(capsule, dict) else {}
+    if str(capsule.get("status") or "").strip().lower() not in {"active", "updated"}:
+        return False
+    try:
+        expires_at = _coerce_datetime(capsule.get("expires_at"))
+        return expires_at > _coerce_datetime(now)
+    except (TypeError, ValueError):
+        return False
 
 
 class ResponseDispatcher:
@@ -34,6 +59,10 @@ class ResponseDispatcher:
 
         for capsule in expected:
             existing = self.capsule_store.get(capsule.get("capsule_id"))
+            if existing and _capsule_runtime_active(existing, now=now):
+                capsule["spawn_at"] = existing.get("spawn_at") or capsule.get("spawn_at")
+                capsule["expires_at"] = existing.get("expires_at") or capsule.get("expires_at")
+                capsule["warning_until"] = existing.get("warning_until") or capsule.get("warning_until")
             saved, changed = self.capsule_store.upsert(capsule, now=now)
             if not changed:
                 continue
