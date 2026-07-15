@@ -1490,12 +1490,28 @@
             if (!window.L || !L.CircleMarker || !L.CircleMarker.prototype) return;
             const proto = L.CircleMarker.prototype;
             if (proto._chaosBoundsGuardInstalled || typeof proto._empty !== 'function') return;
-            const originalEmpty = proto._empty;
             proto._empty = function() {
-                if (!this._map || !this._renderer || !this._renderer._bounds || !this._point || !this._pxBounds) {
+                const rendererBounds = this._renderer && this._renderer._bounds;
+                const pixelBounds = this._pxBounds;
+                if (
+                    !this._map ||
+                    !this._renderer ||
+                    !rendererBounds ||
+                    !pixelBounds ||
+                    !pixelBounds.min ||
+                    !pixelBounds.max ||
+                    !Number.isFinite(pixelBounds.min.x) ||
+                    !Number.isFinite(pixelBounds.min.y) ||
+                    !Number.isFinite(pixelBounds.max.x) ||
+                    !Number.isFinite(pixelBounds.max.y)
+                ) {
                     return true;
                 }
-                return originalEmpty.call(this);
+                try {
+                    return Boolean(this._radius) && !rendererBounds.intersects(pixelBounds);
+                } catch (err) {
+                    return true;
+                }
             };
             proto._chaosBoundsGuardInstalled = true;
         }
