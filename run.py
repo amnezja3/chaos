@@ -15033,11 +15033,22 @@ def map_incident_npc_capsules():
     if "user" not in session:
         return jsonify({"error": "Nie jestes zalogowany"}), 401
 
-    ensure_response_npc_capsules_for_active_incidents(session["user"])
+    try:
+        active_incident_count = len(incident_store.list_active())
+    except Exception:
+        active_incident_count = None
+    backfilled_actions = ensure_response_npc_capsules_for_active_incidents(session["user"])
+    capsules = npc_capsule_store.list_public()
     return jsonify({
         "success": True,
         "scope": "npc",
-        "capsules": npc_capsule_store.list_public(),
+        "capsules": capsules,
+        "debug": {
+            "active_incident_count": active_incident_count,
+            "backfilled_action_count": len(backfilled_actions or []),
+            "public_capsule_count": len(capsules),
+            "capsule_ids": [str(capsule.get("capsule_id") or "") for capsule in capsules[:8]],
+        },
     })
 
 

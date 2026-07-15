@@ -4198,6 +4198,15 @@
                 return Number.isNaN(date.getTime()) ? fallbackDate : date;
             };
 
+            window.responseNpcDebug = function(message, payload = {}) {
+                try {
+                    if (window.localStorage && window.localStorage.getItem('chaos_response_npc_debug') === '0') return;
+                    console.info('[response npc]', message, payload);
+                } catch (err) {
+                    console.info('[response npc]', message, payload);
+                }
+            };
+
             window.positionResponseNpcAt = function(capsule, worldTime = new Date()) {
                 const data = capsule && typeof capsule === 'object' ? capsule : {};
                 const now = window.parseResponseNpcTime(worldTime, new Date());
@@ -4317,10 +4326,26 @@
                 const data = capsule && typeof capsule === 'object' ? capsule : {};
                 const capsuleId = String(data.capsule_id || data.npc_id || '').trim();
                 if (!capsuleId || data.removed || data.status === 'removed') {
+                    window.responseNpcDebug('remove request from upsert', {
+                        capsule_id: capsuleId,
+                        status: data.status,
+                        removed: Boolean(data.removed)
+                    });
                     return capsuleId ? window.removeResponseNpcActor(capsuleId) : false;
                 }
                 const position = window.positionResponseNpcAt(data, new Date());
-                if (!position || !Number.isFinite(Number(position.lat)) || !Number.isFinite(Number(position.lng))) return false;
+                if (!position || !Number.isFinite(Number(position.lat)) || !Number.isFinite(Number(position.lng))) {
+                    window.responseNpcDebug('skip capsule invalid position', {
+                        capsule_id: capsuleId,
+                        status: data.status,
+                        center: data.incident_center,
+                        origin: data.origin,
+                        spawn_at: data.spawn_at,
+                        expires_at: data.expires_at,
+                        position
+                    });
+                    return false;
+                }
                 window.responseNpcCapsules[capsuleId] = { ...data };
                 if (!window.responseNpcMarkers[capsuleId]) {
                     const marker = L.marker([position.lat, position.lng], {
@@ -4331,11 +4356,26 @@
                     }).addTo(map);
                     marker._responseNpcSnapshot = data;
                     window.responseNpcMarkers[capsuleId] = marker;
+                    window.responseNpcDebug('marker created', {
+                        capsule_id: capsuleId,
+                        incident_id: data.incident_id,
+                        family: data.visual_family || data.service_type,
+                        status: data.status,
+                        animation_state: position.animation_state,
+                        lat: position.lat,
+                        lng: position.lng
+                    });
                 } else {
                     const marker = window.responseNpcMarkers[capsuleId];
                     marker.setLatLng([position.lat, position.lng]);
                     marker.setIcon(window.buildResponseNpcIcon(data, position));
                     marker._responseNpcSnapshot = data;
+                    window.responseNpcDebug('marker updated', {
+                        capsule_id: capsuleId,
+                        animation_state: position.animation_state,
+                        lat: position.lat,
+                        lng: position.lng
+                    });
                 }
                 window.ensureResponseNpcAnimation();
                 return true;
@@ -4347,6 +4387,7 @@
                 if (window.responseNpcMarkers[key]) {
                     removeMapLayerSafe(window.responseNpcMarkers[key]);
                     delete window.responseNpcMarkers[key];
+                    window.responseNpcDebug('marker removed', { capsule_id: key });
                 }
                 delete window.responseNpcCapsules[key];
                 if (window.responseNpcFeedbackByCapsule) delete window.responseNpcFeedbackByCapsule[key];
@@ -4355,16 +4396,24 @@
 
             window.renderResponseNpcCapsules = function(capsules) {
                 const visible = new Set();
+                let accepted = 0;
                 (capsules || []).forEach(capsule => {
                     const capsuleId = String((capsule && (capsule.capsule_id || capsule.npc_id)) || '').trim();
                     if (capsuleId && window.upsertResponseNpcActor(capsule)) {
                         visible.add(capsuleId);
+                        accepted += 1;
                     }
                 });
                 Object.keys(window.responseNpcMarkers || {}).forEach(capsuleId => {
                     if (!visible.has(capsuleId)) {
                         window.removeResponseNpcActor(capsuleId);
                     }
+                });
+                window.responseNpcDebug('render snapshot', {
+                    incoming: (capsules || []).length,
+                    accepted,
+                    visible: visible.size,
+                    marker_count: Object.keys(window.responseNpcMarkers || {}).length
                 });
                 window.ensureResponseNpcAnimation();
             };
@@ -4380,6 +4429,11 @@
                     }
                     if (!res.ok) return false;
                     const data = await res.json();
+                    window.responseNpcDebug('snapshot response', {
+                        status: res.status,
+                        debug: data.debug || {},
+                        capsules: (data.capsules || []).length
+                    });
                     window.renderResponseNpcCapsules(data.capsules || []);
                     return true;
                 } catch (err) {
