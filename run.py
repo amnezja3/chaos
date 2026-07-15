@@ -2767,6 +2767,41 @@ def publish_incident_actions(username, actions):
     return events
 
 
+def ensure_response_npc_capsules_for_active_incidents(username=None):
+    """Backfill NPC capsules for active incidents that predate dispatcher output."""
+    username = str(username or "").strip()
+    materialized_actions = []
+    try:
+        active_incidents = incident_store.list_active()
+    except Exception as exc:
+        print(f"[RESPONSE_NPC] active incident recovery failed: {exc}", flush=True)
+        return materialized_actions
+
+    for incident in active_incidents:
+        if not isinstance(incident, dict):
+            continue
+        incident_id = str(incident.get("incident_id") or "").strip()
+        if not incident_id:
+            continue
+        try:
+            if npc_capsule_store.list_by_incident(incident_id):
+                continue
+            recovery_time = (
+                incident.get("created_at")
+                or incident.get("updated_at")
+                or incident.get("expires_at")
+            )
+            actions = response_dispatcher.dispatch_incident(incident, now=recovery_time)
+            if actions:
+                materialized_actions.extend(actions)
+        except Exception as exc:
+            print(f"[RESPONSE_NPC] capsule recovery failed for {incident_id}: {exc}", flush=True)
+
+    if username and materialized_actions:
+        publish_npc_capsule_actions(username, materialized_actions)
+    return materialized_actions
+
+
 def response_warning_system_text(operation, warning):
     target = operation.get("target") if isinstance(operation.get("target"), dict) else {}
     target_label = (
@@ -14954,6 +14989,7 @@ def map_incident_npc_capsules():
     if "user" not in session:
         return jsonify({"error": "Nie jestes zalogowany"}), 401
 
+    ensure_response_npc_capsules_for_active_incidents(session["user"])
     return jsonify({
         "success": True,
         "scope": "npc",

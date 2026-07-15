@@ -203,6 +203,58 @@ class NPCBehaviorCapsulesTest(unittest.TestCase):
                 if os.path.exists(path):
                     os.remove(path)
 
+    def test_capsule_snapshot_backfills_active_incident_without_capsules(self):
+        incident_db = temp_db_path("chaos_incident_backfill_")
+        capsule_db = temp_db_path("chaos_npc_backfill_")
+        delta_db = temp_db_path("chaos_delta_backfill_")
+        try:
+            incident_store = IncidentStore(db_path=incident_db)
+            capsule_store = NPCCapsuleStore(db_path=capsule_db)
+            dispatcher = ResponseDispatcher(capsule_store, NPCCapsuleFactory())
+            bus = GameStateDeltaBus(db_path=delta_db)
+            incident_store.upsert({
+                "incident_id": "incident_backfill",
+                "status": "active",
+                "level": 2,
+                "heat": 72,
+                "center": {"lat": 52.23, "lng": 21.01},
+                "search_radius_m": 220,
+                "operation_ids": ["op-backfill"],
+                "seed": "backfill-seed",
+                "created_at": "2026-07-14T10:00:00+00:00",
+                "updated_at": "2026-07-14T10:00:00+00:00",
+                "expires_at": "2026-07-14T10:30:00+00:00",
+            }, event_type="incident.created", now="2026-07-14T10:00:00+00:00")
+
+            with patch.object(run, "incident_store", incident_store), \
+                    patch.object(run, "npc_capsule_store", capsule_store), \
+                    patch.object(run, "response_dispatcher", dispatcher), \
+                    patch.object(run, "delta_bus", bus):
+                client = run.app.test_client()
+                with client.session_transaction() as sess:
+                    sess["user"] = "main"
+
+                first = client.get("/api/map/incident-npc-capsules").get_json()
+                versions_after_first = {
+                    capsule["capsule_id"]: capsule["version"]
+                    for capsule in capsule_store.list_public()
+                }
+                second = client.get("/api/map/incident-npc-capsules").get_json()
+                versions_after_second = {
+                    capsule["capsule_id"]: capsule["version"]
+                    for capsule in capsule_store.list_public()
+                }
+
+            self.assertTrue(first["success"])
+            self.assertEqual(first["scope"], "npc")
+            self.assertGreaterEqual(len(first["capsules"]), 1)
+            self.assertEqual(len(second["capsules"]), len(first["capsules"]))
+            self.assertEqual(versions_after_second, versions_after_first)
+        finally:
+            for path in (incident_db, capsule_db, delta_db):
+                if os.path.exists(path):
+                    os.remove(path)
+
 
 if __name__ == "__main__":
     unittest.main()
