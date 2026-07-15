@@ -1169,6 +1169,7 @@
 
     <script>
         const map = window[Object.keys(window).find(k => k.startsWith("map_"))];
+        installLeafletCircleMarkerBoundsGuard();
         let lastContextWasMarker = false;
         const targetLayerRegistry = new Map();
         let aimedTargetLayer = null;
@@ -1331,6 +1332,13 @@
             });
         }
 
+        function invalidateMapAfterLayerUpdate() {
+            if (!map || typeof map.invalidateSize !== 'function') return;
+            requestAnimationFrame(() => {
+                map.invalidateSize({ pan: false, animate: false });
+            });
+        }
+
         function clearZoomReturn() {
             if (zoomReturnTimer) {
                 clearTimeout(zoomReturnTimer);
@@ -1478,6 +1486,20 @@
             if (map.hasLayer(layer)) map.removeLayer(layer);
         }
 
+        function installLeafletCircleMarkerBoundsGuard() {
+            if (!window.L || !L.CircleMarker || !L.CircleMarker.prototype) return;
+            const proto = L.CircleMarker.prototype;
+            if (proto._chaosBoundsGuardInstalled || typeof proto._empty !== 'function') return;
+            const originalEmpty = proto._empty;
+            proto._empty = function() {
+                if (!this._map || !this._renderer || !this._renderer._bounds || !this._point || !this._pxBounds) {
+                    return true;
+                }
+                return originalEmpty.call(this);
+            };
+            proto._chaosBoundsGuardInstalled = true;
+        }
+
         function registerLayerInArray(name, layer) {
             window[name] = window[name] || [];
             if (layer) {
@@ -1548,8 +1570,8 @@
         function renderTerritoryAreaLayer(area = {}) {
             const territoryId = territoryStableId(area);
             const points = (area.vertices || [])
-                .map(vertex => [parseFloat(vertex.lat), parseFloat(vertex.lng)])
-                .filter(point => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
+                .map(normalizeMapVertex)
+                .filter(Boolean);
             if (points.length < 3) return null;
             if (!isSaneTerritoryPolygon(points)) {
                 console.warn('[map] Pominieto podejrzane terytorium', area.owner_username, points);
@@ -1584,8 +1606,8 @@
 
             intersections.forEach((intersection, index) => {
                 const points = (intersection || [])
-                    .map(vertex => [parseFloat(vertex.lat), parseFloat(vertex.lng)])
-                    .filter(point => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
+                    .map(normalizeMapVertex)
+                    .filter(Boolean);
                 if (points.length < 3) return;
                 if (!isSaneTerritoryPolygon(points)) {
                     console.warn('[map] Pominieto podejrzany konflikt terytorium', conflict.id, points);
@@ -1703,6 +1725,18 @@
             const latSpan = Math.max(...lats) - Math.min(...lats);
             const lngSpan = Math.max(...lngs) - Math.min(...lngs);
             return latSpan <= 0.25 && lngSpan <= 0.25;
+        }
+
+        function normalizeMapLatLngPair(latValue, lngValue) {
+            const lat = Number.parseFloat(latValue);
+            const lng = Number.parseFloat(lngValue);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+            if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+            return [lat, lng];
+        }
+
+        function normalizeMapVertex(vertex = {}) {
+            return normalizeMapLatLngPair(vertex.lat, vertex.lng !== undefined ? vertex.lng : vertex.lon);
         }
 
         function clearScanResultLayers() {
@@ -4050,15 +4084,9 @@
                     }
                     if (!res.ok) return false;
                     const data = await res.json();
-                    const keepCenter = map.getCenter();
-                    const keepZoom = map.getZoom();
                     Object.keys(window.incidentHotspotLayers || {}).forEach(id => window.removeIncidentHotspot(id));
                     (data.incidents || []).forEach(incident => window.renderIncidentHotspot(incident));
-                    programmaticMapMove = true;
-                    map.setView(keepCenter, keepZoom, { animate: false });
-                    setTimeout(() => {
-                        programmaticMapMove = false;
-                    }, 0);
+                    invalidateMapAfterLayerUpdate();
                     return true;
                 } catch (err) {
                     console.warn('Incident hotspot refresh failed', err);
@@ -4538,19 +4566,12 @@
                     const data = await res.json();
                     const active = data.active_operations || [];
                     const history = data.operation_history || [];
-                    const keepCenter = map.getCenter();
-                    const keepZoom = map.getZoom();
-
                     window.latestActiveOperations = active;
                     window.latestOperationHistory = history;
                     window.renderActiveOperationsPanel(active, history);
                     window.renderActiveOperationMarkers(active);
 
-                    programmaticMapMove = true;
-                    map.setView(keepCenter, keepZoom, { animate: false });
-                    setTimeout(() => {
-                        programmaticMapMove = false;
-                    }, 0);
+                    invalidateMapAfterLayerUpdate();
                     return true;
                 } catch (err) {
                     console.warn('Active operations refresh failed', err);
@@ -5097,16 +5118,9 @@
                     }
                     if (!res.ok) return false;
                     const data = await res.json();
-                    const keepCenter = map.getCenter();
-                    const keepZoom = map.getZoom();
-
                     window.renderPlayerActors(data.player_actors || []);
 
-                    programmaticMapMove = true;
-                    map.setView(keepCenter, keepZoom, { animate: false });
-                    setTimeout(() => {
-                        programmaticMapMove = false;
-                    }, 0);
+                    invalidateMapAfterLayerUpdate();
                     return true;
                 } catch (err) {
                     console.warn('Player actor refresh failed', err);
@@ -5126,9 +5140,6 @@
                     if (!res.ok) return;
                     const data = await res.json();
                     const visible = new Set();
-                    const keepCenter = map.getCenter();
-                    const keepZoom = map.getZoom();
-
                     (data.friends || []).forEach(friend => {
                         const key = friend.username || friend.nick;
                         const lat = parseFloat(friend.lat);
@@ -5153,11 +5164,7 @@
                         }
                     });
 
-                    programmaticMapMove = true;
-                    map.setView(keepCenter, keepZoom, { animate: false });
-                    setTimeout(() => {
-                        programmaticMapMove = false;
-                    }, 0);
+                    invalidateMapAfterLayerUpdate();
                 } catch (err) {
                     console.warn('Friend marker refresh failed', err);
                 }
@@ -5301,8 +5308,6 @@
                     }
                     if (!res.ok) return false;
                     const data = await res.json();
-                    const keepCenter = map.getCenter();
-                    const keepZoom = map.getZoom();
 
                     window.clanVulnerabilityLayers.forEach(layer => removeMapLayerSafe(layer));
                     window.clanVulnerabilityLayers = [];
@@ -5310,9 +5315,12 @@
 
                     (data.vulnerabilities || []).forEach(report => {
                         const target = report.target || {};
-                        const lat = parseFloat(report.lat || target.lat);
-                        const lng = parseFloat(report.lng || target.lng || target.lon);
-                        if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+                        const point = normalizeMapLatLngPair(
+                            report.lat !== undefined ? report.lat : target.lat,
+                            report.lng !== undefined ? report.lng : (report.lon !== undefined ? report.lon : (target.lng !== undefined ? target.lng : target.lon))
+                        );
+                        if (!point) return;
+                        const [lat, lng] = point;
 
                         const markerTarget = normalizeMapMenuTarget({
                             ...target,
@@ -5360,11 +5368,7 @@
                         window.clanVulnerabilityLayers.push(marker);
                     });
 
-                    programmaticMapMove = true;
-                    map.setView(keepCenter, keepZoom, { animate: false });
-                    setTimeout(() => {
-                        programmaticMapMove = false;
-                    }, 0);
+                    invalidateMapAfterLayerUpdate();
                     return true;
                 } catch (err) {
                     console.warn('Clan vulnerabilities refresh failed', err);
@@ -5451,9 +5455,6 @@
                     if (!res.ok) return false;
                     const data = await res.json();
                     if (refreshSeq !== window.playerAreaRefreshSeq) return false;
-                    const keepCenter = map.getCenter();
-                    const keepZoom = map.getZoom();
-
                     cleanupLegacyPlayerAreaLayers();
                     clearLayerArray('playerAreaLayers');
                     clearLayerArray('areaIntruderLayers');
@@ -5540,9 +5541,9 @@
                     });
 
                     (data.contested_targets || []).forEach(target => {
-                        const lat = parseFloat(target.lat);
-                        const lng = parseFloat(target.lng || target.lon);
-                        if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+                        const point = normalizeMapLatLngPair(target.lat, target.lng !== undefined ? target.lng : target.lon);
+                        if (!point) return;
+                        const [lat, lng] = point;
 
                         const label = window.escapeMapText(target.label || target.name || 'Kolizja');
                         const owner = window.escapeMapText(target.owner_nick || target.owner_username || 'wrog');
@@ -5584,9 +5585,9 @@
 
                     (data.captured_conflict_pillars || []).forEach(item => {
                         const target = item.target || item;
-                        const lat = parseFloat(target.lat);
-                        const lng = parseFloat(target.lng || target.lon);
-                        if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+                        const point = normalizeMapLatLngPair(target.lat, target.lng !== undefined ? target.lng : target.lon);
+                        if (!point) return;
+                        const [lat, lng] = point;
 
                         const label = window.escapeMapText(target.label || target.name || 'Przejety filar');
                         const capturedBy = window.escapeMapText(item.captured_by || item.hacked_by || target.owner_username || 'unknown');
@@ -5608,11 +5609,7 @@
                         registerLayerInArray('capturedConflictPillarLayers', marker);
                     });
 
-                    programmaticMapMove = true;
-                    map.setView(keepCenter, keepZoom, { animate: false });
-                    setTimeout(() => {
-                        programmaticMapMove = false;
-                    }, 0);
+                    invalidateMapAfterLayerUpdate();
                     return true;
                 } catch (err) {
                     console.warn('Player area refresh failed', err);
