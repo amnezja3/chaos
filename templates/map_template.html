@@ -4346,6 +4346,17 @@
                     });
                     return false;
                 }
+                if (position.animation_state === 'expired') {
+                    window.responseNpcDebug('skip capsule expired position', {
+                        capsule_id: capsuleId,
+                        incident_id: data.incident_id,
+                        status: data.status,
+                        spawn_at: data.spawn_at,
+                        expires_at: data.expires_at
+                    });
+                    window.removeResponseNpcActor(capsuleId);
+                    return false;
+                }
                 window.responseNpcCapsules[capsuleId] = { ...data };
                 if (!window.responseNpcMarkers[capsuleId]) {
                     const marker = L.marker([position.lat, position.lng], {

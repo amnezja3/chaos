@@ -2801,6 +2801,25 @@ def response_npc_capsule_runtime_active(capsule, now=None):
     return bool(expires_at and expires_at > now_dt.astimezone(timezone.utc))
 
 
+def response_npc_public_capsule_debug(capsule, now=None):
+    capsule = capsule if isinstance(capsule, dict) else {}
+    now_dt = now if isinstance(now, datetime) else datetime.now(timezone.utc)
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
+    now_dt = now_dt.astimezone(timezone.utc)
+    spawn_at = response_npc_parse_iso(capsule.get("spawn_at"))
+    expires_at = response_npc_parse_iso(capsule.get("expires_at"))
+    return {
+        "capsule_id": str(capsule.get("capsule_id") or ""),
+        "incident_id": str(capsule.get("incident_id") or ""),
+        "status": str(capsule.get("status") or ""),
+        "spawn_at": capsule.get("spawn_at"),
+        "expires_at": capsule.get("expires_at"),
+        "spawned": bool(spawn_at and spawn_at <= now_dt),
+        "runtime_active": response_npc_capsule_runtime_active(capsule, now_dt),
+    }
+
+
 def incident_for_response_npc_dispatch(incident, now=None):
     incident = copy.deepcopy(incident if isinstance(incident, dict) else {})
     now_dt = now if isinstance(now, datetime) else datetime.now(timezone.utc)
@@ -15037,8 +15056,14 @@ def map_incident_npc_capsules():
         active_incident_count = len(incident_store.list_active())
     except Exception:
         active_incident_count = None
+    now_dt = datetime.now(timezone.utc)
     backfilled_actions = ensure_response_npc_capsules_for_active_incidents(session["user"])
-    capsules = npc_capsule_store.list_public()
+    raw_capsules = npc_capsule_store.list_public()
+    capsules = [
+        capsule
+        for capsule in raw_capsules
+        if response_npc_capsule_runtime_active(capsule, now_dt)
+    ]
     return jsonify({
         "success": True,
         "scope": "npc",
@@ -15046,8 +15071,14 @@ def map_incident_npc_capsules():
         "debug": {
             "active_incident_count": active_incident_count,
             "backfilled_action_count": len(backfilled_actions or []),
+            "raw_public_capsule_count": len(raw_capsules),
             "public_capsule_count": len(capsules),
+            "expired_public_capsule_count": max(0, len(raw_capsules) - len(capsules)),
             "capsule_ids": [str(capsule.get("capsule_id") or "") for capsule in capsules[:8]],
+            "capsule_runtime": [
+                response_npc_public_capsule_debug(capsule, now_dt)
+                for capsule in raw_capsules[:8]
+            ],
         },
     })
 

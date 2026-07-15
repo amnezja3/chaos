@@ -1,7 +1,7 @@
 import os
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import run
@@ -250,6 +250,75 @@ class NPCBehaviorCapsulesTest(unittest.TestCase):
             self.assertGreaterEqual(len(first["capsules"]), 1)
             self.assertEqual(len(second["capsules"]), len(first["capsules"]))
             self.assertEqual(versions_after_second, versions_after_first)
+        finally:
+            for path in (incident_db, capsule_db, delta_db):
+                if os.path.exists(path):
+                    os.remove(path)
+
+    def test_capsule_snapshot_filters_expired_public_capsules(self):
+        incident_db = temp_db_path("chaos_incident_expired_capsule_")
+        capsule_db = temp_db_path("chaos_npc_expired_capsule_")
+        delta_db = temp_db_path("chaos_delta_expired_capsule_")
+        try:
+            incident_store = IncidentStore(db_path=incident_db)
+            capsule_store = NPCCapsuleStore(db_path=capsule_db)
+            dispatcher = ResponseDispatcher(capsule_store, NPCCapsuleFactory())
+            bus = GameStateDeltaBus(db_path=delta_db)
+            now = datetime.now(timezone.utc)
+            incident_store.upsert({
+                "incident_id": "incident_expired_capsule",
+                "status": "active",
+                "level": 2,
+                "heat": 72,
+                "center": {"lat": 52.23, "lng": 21.01},
+                "search_radius_m": 220,
+                "operation_ids": ["op-expired-capsule"],
+                "seed": "expired-capsule-seed",
+                "created_at": (now - timedelta(minutes=20)).isoformat(),
+                "updated_at": (now - timedelta(minutes=20)).isoformat(),
+                "expires_at": (now + timedelta(minutes=20)).isoformat(),
+            }, event_type="incident.created", now=now.isoformat())
+            capsule_store.upsert({
+                "capsule_id": "capsule_expired_public",
+                "incident_id": "incident_expired_capsule",
+                "npc_id": "npc_expired_public",
+                "actor_type": "response_npc",
+                "service_type": "police",
+                "service_level": 1,
+                "spawn_at": (now - timedelta(minutes=15)).isoformat(),
+                "expires_at": (now - timedelta(minutes=1)).isoformat(),
+                "origin": {"lat": 52.23, "lng": 21.01},
+                "incident_center": {"lat": 52.23, "lng": 21.01},
+                "patrol_radius_m": 180,
+                "detection_radius_m": 80,
+                "speed_mps": 6,
+                "trajectory_type": "orbital_search",
+                "trajectory_seed": "expired-capsule-seed",
+                "trajectory_phase_deg": 90,
+                "behavior_version": 1,
+                "visual_family": "police",
+                "sniker_directions": list(SNIKER_DIRECTIONS_8),
+                "status": "active",
+            }, now=now.isoformat())
+
+            with patch.object(run, "incident_store", incident_store), \
+                    patch.object(run, "npc_capsule_store", capsule_store), \
+                    patch.object(run, "response_dispatcher", dispatcher), \
+                    patch.object(run, "delta_bus", bus):
+                client = run.app.test_client()
+                with client.session_transaction() as sess:
+                    sess["user"] = "main"
+                snapshot = client.get("/api/map/incident-npc-capsules").get_json()
+
+            self.assertTrue(snapshot["success"])
+            self.assertGreaterEqual(snapshot["debug"]["raw_public_capsule_count"], 1)
+            self.assertNotIn(
+                "capsule_expired_public",
+                {capsule.get("capsule_id") for capsule in snapshot["capsules"]},
+            )
+            self.assertTrue(
+                all(run.response_npc_capsule_runtime_active(capsule) for capsule in snapshot["capsules"])
+            )
         finally:
             for path in (incident_db, capsule_db, delta_db):
                 if os.path.exists(path):
