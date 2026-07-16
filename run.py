@@ -10003,7 +10003,7 @@ def serialize_tool_selection_app(app):
     }
 
 
-def apply_app_map_actions_to_aimed_target(profile, app):
+def apply_app_map_actions_to_aimed_target(profile, app, username=None):
     """Mark the active target as touched by a launched app's map-action contract."""
     aimed_target = profile.get("aimed_target")
     if not isinstance(aimed_target, dict) or not aimed_target:
@@ -10019,6 +10019,22 @@ def apply_app_map_actions_to_aimed_target(profile, app):
         return False, []
 
     allowed = aimed_target.setdefault("actions_allowed", {})
+    if username:
+        try:
+            latest_profile = user_store.get_profile(username) or {}
+            latest_target = latest_profile.get("aimed_target") or {}
+            if (
+                isinstance(latest_target, dict)
+                and build_operation_target_id(latest_target) == build_operation_target_id(aimed_target)
+            ):
+                latest_allowed = latest_target.get("actions_allowed") or {}
+                if isinstance(latest_allowed, dict):
+                    for key, value in latest_allowed.items():
+                        if value is True and allowed.get(key) is not True:
+                            allowed[key] = True
+        except Exception:
+            pass
+
     changed = False
     marked = []
     for action in actions:
@@ -12402,7 +12418,7 @@ def command():
         if not found_app:
             return jsonify({"response": f"Nie znaleziono aplikacji o ID: {app_id}"})
 
-        target_changed, marked_actions = apply_app_map_actions_to_aimed_target(profile, found_app)
+        target_changed, marked_actions = apply_app_map_actions_to_aimed_target(profile, found_app, session.get("user"))
         if target_changed:
             UserProfileManager(session["user"]).update_profile({
                 "aimed_target": profile.get("aimed_target", {}),
@@ -16874,7 +16890,7 @@ def gonna_win():
     if not app:
         return jsonify({"success": False, "message": "Nie znaleziono aplikacji"}), 404
 
-    target_changed, marked_actions = apply_app_map_actions_to_aimed_target(profile, app)
+    target_changed, marked_actions = apply_app_map_actions_to_aimed_target(profile, app, session.get("user"))
     success = False
 
     if choice_id is None:

@@ -129,7 +129,7 @@
       overflow: hidden;
       background: rgba(0, 10, 4, 0.035);
       opacity: 0;
-      pointer-events: auto;
+      pointer-events: none;
       transition: opacity 260ms ease-out, background-color 260ms ease-out;
       contain: layout paint;
     }
@@ -196,6 +196,7 @@
     .chaos-map-glitch-overlay.is-heavy,
     .chaos-map-glitch-overlay.is-overloaded {
       background: rgba(26, 0, 6, 0.22);
+      pointer-events: auto;
     }
 
     .chaos-map-glitch-overlay.is-slow .chaos-map-glitch-block {
