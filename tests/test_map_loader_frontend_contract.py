@@ -13,10 +13,13 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("pickMapGhostSystemLog", self.map_template)
         self.assertIn("GhostSystem 2108", self.map_template)
         self.assertIn("setMapLoadingIntensity", self.map_template)
+        self.assertIn("seedMapGlitchBlocks", self.map_template)
+        self.assertIn("chaos-map-glitch-block", self.map_template)
+        self.assertIn("--glitch-color", self.map_template)
         self.assertNotIn("chaos-map-sync-status__spinner", self.map_template)
 
     def test_map_loading_cleans_ready_state(self):
-        self.assertIn("state.overlay.classList.remove('is-visible', 'is-slow', 'is-heavy')", self.map_template)
+        self.assertIn("state.overlay.classList.remove('is-visible', 'is-slow', 'is-heavy', 'is-overloaded')", self.map_template)
         self.assertIn("state.startedAt = 0", self.map_template)
         self.assertIn("clearTimeout(state.heavyTimer)", self.map_template)
 
@@ -24,6 +27,7 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("Siec przeciazona", self.map_template)
         self.assertIn("Blad ladowania", self.map_template)
         self.assertIn("is-heavy", self.map_template)
+        self.assertIn("is-overloaded", self.map_template)
         self.assertIn("prefers-reduced-motion: reduce", self.map_template)
 
 

@@ -8654,3 +8654,12 @@ Walidacja:
 * `git diff --check`: OK, tylko ostrzezenie CRLF dla
   `templates/map_template.html`;
 * grep po typowych sladach mojibake w plikach silnika: brak trafien.
+
+Update:
+
+* dopracowano sam charakter glitch overlayu: dominujace scanline'y i
+  przesuwajace sie pasy zastapiono losowymi blokami RGB;
+* bloki maja losowa pozycje, rozmiar, opoznienie, kolor i przezroczystosc;
+* `slow` i `overloaded/heavy` zwiekszaja czestotliwosc oraz powierzchnie
+  zaklocen bez dodawania pollera;
+* `ready` natychmiast zdejmuje klasy intensywnosci i chowa overlay.
