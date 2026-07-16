@@ -8626,3 +8626,31 @@ Readiness:
   feature flagami, kill switchami, idempotencja i softlock protection;
 * GhostNetwork, maszyny i Ollama pozostaja poza zakresem i nie zostaly
   uruchomione.
+
+## Map Glitch Loader Refactor
+
+Zastapiono lekki status spinnera mapy glitch overlayem GhostSystem 2108.
+
+Wdrozone:
+
+* overlay pokrywa powierzchnie mapy podczas aktywnej synchronizacji;
+* overlay blokuje interakcje mapy i ogranicza spamowanie kolejnych akcji;
+* intensywnosc efektu rosnie wraz z czasem oczekiwania: normal, slow, heavy;
+* pseudologi informuja o synchronizacji mapy, rekonstrukcji osi czasu,
+  polaczeniu z 2108 i przeciazeniu sieci;
+* boot overlay mapy dostal ten sam jezyk statusow i obsluge slow/heavy/error;
+* po zakonczeniu synchronizacji overlay znika natychmiast i mapa wraca do
+  interakcji;
+* zachowano obsluge bledu i timeoutu;
+* dodano wsparcie `prefers-reduced-motion`;
+* nie dodano pollerow, backendu ani zmian gameplayu.
+
+Walidacja:
+
+* dodano test kontraktu `tests.test_map_loader_frontend_contract`;
+* `python -m unittest tests.test_map_loader_frontend_contract
+  tests.test_response_npc_frontend_contract`: OK;
+* `node --check static/js/terminal.js`: OK;
+* `git diff --check`: OK, tylko ostrzezenie CRLF dla
+  `templates/map_template.html`;
+* grep po typowych sladach mojibake w plikach silnika: brak trafien.

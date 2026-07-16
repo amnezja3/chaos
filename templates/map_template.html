@@ -72,18 +72,123 @@
       pointer-events: none;
     }
 
+    .chaos-map-sync-status::before {
+      content: "";
+      width: 13px;
+      height: 13px;
+      border: 1px solid rgba(38, 255, 106, 0.65);
+      background:
+        linear-gradient(90deg, transparent 45%, rgba(38, 255, 106, 0.8) 46% 54%, transparent 55%),
+        linear-gradient(0deg, transparent 45%, rgba(38, 255, 106, 0.8) 46% 54%, transparent 55%);
+      box-shadow: 0 0 9px rgba(38, 255, 106, 0.35);
+      flex: 0 0 auto;
+      animation: chaos-sync-glitch-dot 1.8s steps(2, end) infinite;
+    }
+
     .chaos-map-sync-status.is-visible {
       display: flex;
     }
 
-    .chaos-map-sync-status__spinner {
-      width: 12px;
-      height: 12px;
-      border: 2px solid rgba(157, 255, 157, 0.26);
-      border-top-color: #26ff6a;
-      border-radius: 50%;
-      animation: chaos-sync-spin 900ms linear infinite;
-      flex: 0 0 auto;
+    .chaos-map-sync-status.is-slow {
+      border-color: rgba(255, 221, 102, 0.78);
+      color: #dfff9b;
+      animation: chaos-sync-box-glitch 1.7s steps(2, end) infinite;
+    }
+
+    .chaos-map-sync-status.is-heavy {
+      border-color: rgba(255, 88, 88, 0.86);
+      color: #fff2a6;
+      animation-duration: 1.05s;
+    }
+
+    .chaos-map-sync-status__body {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .chaos-map-sync-status__text,
+    .chaos-map-sync-status__log {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .chaos-map-sync-status__log {
+      color: rgba(184, 255, 184, 0.62);
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .chaos-map-glitch-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 719;
+      display: none;
+      overflow: hidden;
+      background:
+        repeating-linear-gradient(0deg, rgba(38, 255, 106, 0.07) 0 1px, transparent 1px 13px),
+        linear-gradient(105deg, transparent 0 38%, rgba(38, 255, 106, 0.10) 45%, rgba(184, 255, 40, 0.08) 49%, transparent 57%),
+        rgba(0, 10, 4, 0.12);
+      opacity: 0;
+      pointer-events: auto;
+      transition: opacity 120ms ease;
+    }
+
+    .chaos-map-glitch-overlay.is-visible {
+      display: block;
+      opacity: 1;
+    }
+
+    .chaos-map-glitch-overlay::before,
+    .chaos-map-glitch-overlay::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .chaos-map-glitch-overlay::before {
+      background:
+        linear-gradient(90deg, transparent, rgba(38, 255, 106, 0.18), transparent),
+        repeating-linear-gradient(90deg, transparent 0 28px, rgba(38, 255, 106, 0.05) 28px 29px);
+      transform: translateX(-75%);
+      animation: chaos-map-glitch-sweep 2.8s ease-in-out infinite;
+    }
+
+    .chaos-map-glitch-overlay::after {
+      content: attr(data-log);
+      left: auto;
+      top: auto;
+      right: 12px;
+      bottom: 12px;
+      width: min(340px, calc(100% - 24px));
+      height: auto;
+      padding: 7px 9px;
+      border: 1px solid rgba(38, 255, 106, 0.52);
+      background: rgba(2, 8, 4, 0.82);
+      color: rgba(184, 255, 184, 0.82);
+      font: 700 10px/1.3 monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      box-shadow: 0 0 18px rgba(38, 255, 106, 0.14);
+    }
+
+    .chaos-map-glitch-overlay.is-slow::before {
+      animation-duration: 1.45s;
+    }
+
+    .chaos-map-glitch-overlay.is-heavy::before {
+      animation-duration: 0.82s;
+    }
+
+    .chaos-map-glitch-overlay.is-heavy {
+      background:
+        repeating-linear-gradient(0deg, rgba(255, 221, 102, 0.08) 0 1px, transparent 1px 10px),
+        linear-gradient(105deg, transparent 0 35%, rgba(255, 70, 70, 0.12) 43%, rgba(184, 255, 40, 0.09) 49%, transparent 58%),
+        rgba(18, 4, 2, 0.15);
+      animation: chaos-map-glitch-jitter 0.78s steps(2, end) infinite;
     }
 
     .chaos-map-boot-overlay {
@@ -95,8 +200,9 @@
       justify-content: center;
       padding: 24px;
       background:
-        radial-gradient(circle at 50% 30%, rgba(25, 255, 115, 0.10), transparent 34%),
-        rgba(0, 0, 0, 0.82);
+        repeating-linear-gradient(0deg, rgba(38, 255, 106, 0.08) 0 1px, transparent 1px 15px),
+        radial-gradient(circle at 50% 30%, rgba(25, 255, 115, 0.12), transparent 34%),
+        rgba(0, 0, 0, 0.84);
       color: #d8ffd8;
       font-family: monospace;
       pointer-events: auto;
@@ -106,11 +212,47 @@
       display: flex;
     }
 
+    .chaos-map-boot-overlay::before,
+    .chaos-map-boot-overlay::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .chaos-map-boot-overlay::before {
+      background:
+        linear-gradient(90deg, transparent, rgba(38, 255, 106, 0.13), transparent),
+        repeating-linear-gradient(90deg, transparent 0 34px, rgba(38, 255, 106, 0.045) 34px 35px);
+      transform: translateX(-70%);
+      animation: chaos-map-glitch-sweep 2.4s ease-in-out infinite;
+    }
+
+    .chaos-map-boot-overlay::after {
+      content: attr(data-log);
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      max-width: min(360px, calc(100vw - 36px));
+      padding: 8px 10px;
+      border: 1px solid rgba(38, 255, 106, 0.42);
+      background: rgba(2, 8, 4, 0.80);
+      color: rgba(184, 255, 184, 0.72);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      box-shadow: 0 0 20px rgba(38, 255, 106, 0.12);
+    }
+
     .chaos-map-boot-panel {
+      position: relative;
+      z-index: 1;
       width: min(560px, calc(100vw - 32px));
       border: 1px solid rgba(38, 255, 106, 0.78);
       border-radius: 4px;
-      background: rgba(2, 11, 5, 0.94);
+      background:
+        linear-gradient(135deg, rgba(38, 255, 106, 0.08), transparent 35%),
+        rgba(2, 11, 5, 0.94);
       box-shadow: 0 0 32px rgba(38, 255, 106, 0.20);
       padding: 18px;
     }
@@ -157,6 +299,19 @@
 
     .chaos-map-boot-overlay.is-failed .chaos-map-boot-title {
       color: #ffdd66;
+    }
+
+    .chaos-map-boot-overlay.is-slow::before {
+      animation-duration: 1.35s;
+    }
+
+    .chaos-map-boot-overlay.is-heavy::before {
+      animation-duration: 0.78s;
+    }
+
+    .chaos-map-boot-overlay.is-heavy .chaos-map-boot-panel {
+      border-color: rgba(255, 221, 102, 0.78);
+      box-shadow: 0 0 36px rgba(255, 88, 88, 0.16);
     }
 
     .chaos-map-scan-overlay {
@@ -211,8 +366,45 @@
       to { transform: translateX(660%); }
     }
 
-    @keyframes chaos-sync-spin {
-      to { transform: rotate(360deg); }
+    @keyframes chaos-map-glitch-sweep {
+      0%, 42% { transform: translateX(-70%); opacity: 0.36; }
+      50% { opacity: 0.72; }
+      72%, 100% { transform: translateX(70%); opacity: 0.18; }
+    }
+
+    @keyframes chaos-map-glitch-jitter {
+      0%, 100% { transform: translate(0, 0); }
+      40% { transform: translate(1px, -1px); }
+      58% { transform: translate(-1px, 1px); }
+    }
+
+    @keyframes chaos-sync-glitch-dot {
+      0%, 72%, 100% { transform: translate(0, 0); opacity: 0.72; }
+      74% { transform: translate(1px, -1px); opacity: 1; }
+      78% { transform: translate(-1px, 1px); opacity: 0.9; }
+    }
+
+    @keyframes chaos-sync-box-glitch {
+      0%, 82%, 100% { transform: translate(0, 0); }
+      85% { transform: translate(1px, 0); }
+      88% { transform: translate(-1px, 0); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .chaos-map-sync-status,
+      .chaos-map-sync-status::before,
+      .chaos-map-glitch-overlay,
+      .chaos-map-glitch-overlay::before,
+      .chaos-map-boot-overlay::before {
+        animation: none !important;
+        transition: none !important;
+      }
+
+      .chaos-map-glitch-overlay::before,
+      .chaos-map-boot-overlay::before {
+        opacity: 0.18;
+        transform: none;
+      }
     }
 
     @media (max-width: 640px), (max-height: 700px) {
@@ -969,12 +1161,6 @@
     }
 
     @media (max-width: 900px), (max-height: 700px) {
-      .chaos-map-sync-status__spinner {
-        width: 6px;
-        height: 6px;
-        border-width: 1px;
-      }
-
       .hack-action-spinner {
         width: 5px;
         height: 5px;
@@ -1278,11 +1464,19 @@
         function updateMapBootOverlay(label = 'Synchronizacja mapy...', progress = 0, failed = false) {
             const overlay = mapBootOverlay();
             if (!overlay) return;
+            const safeProgress = Math.max(0, Math.min(100, Math.round(progress)));
+            const elapsedHint = safeProgress >= 82 ? 5400 : (safeProgress >= 45 ? 2400 : 0);
+            const log = typeof window.pickMapGhostSystemLog === 'function'
+                ? window.pickMapGhostSystemLog(label, failed ? 5400 : elapsedHint)
+                : 'GhostSystem 2108 // synchronizacja mapy';
+            overlay.dataset.log = log;
             overlay.classList.toggle('is-failed', Boolean(failed));
+            overlay.classList.toggle('is-slow', !failed && safeProgress >= 45 && safeProgress < 82);
+            overlay.classList.toggle('is-heavy', Boolean(failed) || safeProgress >= 82);
             const fill = overlay.querySelector('.chaos-map-boot-progress span');
             const step = overlay.querySelector('.chaos-map-boot-step');
             if (fill) {
-                fill.style.setProperty('--map-boot-progress', `${Math.max(0, Math.min(100, Math.round(progress)))}%`);
+                fill.style.setProperty('--map-boot-progress', `${safeProgress}%`);
             }
             if (step) {
                 step.textContent = label || 'Synchronizacja mapy...';
@@ -1299,7 +1493,7 @@
         function hideMapPreloader() {
             const overlay = mapBootOverlay();
             if (!overlay) return;
-            overlay.classList.remove('is-visible', 'is-failed');
+            overlay.classList.remove('is-visible', 'is-failed', 'is-slow', 'is-heavy');
         }
 
         function disableMapGameplay() {
@@ -1583,7 +1777,7 @@
             const ownerClan = window.escapeMapText(area.owner_clan || 'brak');
             const status = window.escapeMapText(area.status || 'active');
             const size = Math.round(Number(area.area_size || 0));
-            return `${area.is_mine ? 'Twoje pole' : 'Pole gracza'}: ${ownerNick}<br>Login: ${ownerUsername}<br>Klan: ${ownerClan}<br>Status: ${status}<br>Pow.: ${size} mÂ˛`;
+            return `${area.is_mine ? 'Twoje pole' : 'Pole gracza'}: ${ownerNick}<br>Login: ${ownerUsername}<br>Klan: ${ownerClan}<br>Status: ${status}<br>Pow.: ${size} m²`;
         }
 
         function renderTerritoryAreaLayer(area = {}) {
@@ -3855,9 +4049,55 @@
                 seq: 0,
                 showTimer: null,
                 slowTimer: null,
+                heavyTimer: null,
                 visible: false,
                 element: null,
-                text: null
+                text: null,
+                log: null,
+                overlay: null,
+                startedAt: 0
+            };
+
+            window.pickMapGhostSystemLog = function(message, elapsedMs = 0) {
+                const text = String(message || '').toLowerCase();
+                if (text.includes('blad') || text.includes('error')) return 'GhostSystem 2108 // blad synchronizacji';
+                if (elapsedMs > 5200) return 'GhostSystem 2108 // przeciazenie sieci';
+                if (elapsedMs > 2200) return 'GhostSystem 2108 // rekonstrukcja osi czasu';
+                if (text.includes('terytor')) return 'GhostSystem 2108 // walidacja warstw terytorium';
+                if (text.includes('operac')) return 'GhostSystem 2108 // synchronizacja operacji';
+                if (text.includes('incyd')) return 'GhostSystem 2108 // indeks incydentow aktywny';
+                return 'GhostSystem 2108 // synchronizacja mapy';
+            };
+
+            window.ensureMapGlitchOverlay = function() {
+                if (window.mapLoadingState.overlay && window.mapLoadingState.overlay.isConnected) {
+                    return window.mapLoadingState.overlay;
+                }
+                const container = map && typeof map.getContainer === 'function'
+                    ? map.getContainer()
+                    : document.querySelector('.leaflet-container');
+                if (!container) return null;
+                const computedPosition = window.getComputedStyle(container).position;
+                if (!computedPosition || computedPosition === 'static') {
+                    container.style.position = 'relative';
+                }
+                const overlay = document.createElement('div');
+                overlay.className = 'chaos-map-glitch-overlay';
+                overlay.dataset.log = 'GhostSystem 2108 // synchronizacja mapy';
+                overlay.setAttribute('aria-hidden', 'true');
+                container.appendChild(overlay);
+                window.mapLoadingState.overlay = overlay;
+                return overlay;
+            };
+
+            window.setMapLoadingIntensity = function(level = 'normal') {
+                const state = window.mapLoadingState;
+                const overlay = state.overlay || window.ensureMapGlitchOverlay();
+                [state.element, overlay].forEach(element => {
+                    if (!element) return;
+                    element.classList.toggle('is-slow', level === 'slow' || level === 'heavy');
+                    element.classList.toggle('is-heavy', level === 'heavy');
+                });
             };
 
             window.ensureMapLoadingStatus = function() {
@@ -3869,19 +4109,32 @@
                 status.setAttribute('role', 'status');
                 status.setAttribute('aria-live', 'polite');
                 status.innerHTML = `
-                    <span class="chaos-map-sync-status__spinner" aria-hidden="true"></span>
-                    <span class="chaos-map-sync-status__text">Synchronizacja mapy...</span>
+                    <span class="chaos-map-sync-status__body">
+                        <span class="chaos-map-sync-status__text">Synchronizacja mapy...</span>
+                        <span class="chaos-map-sync-status__log">GhostSystem 2108 // synchronizacja mapy</span>
+                    </span>
                 `;
                 document.body.appendChild(status);
                 window.mapLoadingState.element = status;
                 window.mapLoadingState.text = status.querySelector('.chaos-map-sync-status__text');
+                window.mapLoadingState.log = status.querySelector('.chaos-map-sync-status__log');
                 return status;
             };
 
             window.updateMapLoadingStatus = function(message) {
                 const status = window.ensureMapLoadingStatus();
+                const overlay = window.ensureMapGlitchOverlay();
+                const elapsed = window.mapLoadingState.startedAt ? performance.now() - window.mapLoadingState.startedAt : 0;
+                const log = window.pickMapGhostSystemLog(message, elapsed);
                 if (window.mapLoadingState.text) {
                     window.mapLoadingState.text.textContent = message || 'Synchronizacja mapy...';
+                }
+                if (window.mapLoadingState.log) {
+                    window.mapLoadingState.log.textContent = log;
+                }
+                if (overlay) {
+                    overlay.dataset.log = log;
+                    overlay.classList.add('is-visible');
                 }
                 status.classList.add('is-visible');
                 window.mapLoadingState.visible = true;
@@ -3891,19 +4144,31 @@
                 const state = window.mapLoadingState;
                 const token = `map-load-${++state.seq}`;
                 state.active.set(token, message || 'Synchronizacja mapy...');
+                if (!state.startedAt || state.active.size === 1) {
+                    state.startedAt = performance.now();
+                }
                 clearTimeout(state.showTimer);
                 clearTimeout(state.slowTimer);
+                clearTimeout(state.heavyTimer);
                 state.showTimer = setTimeout(() => {
                     const latest = Array.from(state.active.values()).pop();
                     if (latest) {
                         window.updateMapLoadingStatus(latest);
+                        window.setMapLoadingIntensity('normal');
                     }
                 }, 280);
                 state.slowTimer = setTimeout(() => {
                     if (state.active.size > 0) {
-                        window.updateMapLoadingStatus('Sieć przeciążona...');
+                        window.updateMapLoadingStatus('Siec przeciazona...');
+                        window.setMapLoadingIntensity('slow');
                     }
                 }, 2000);
+                state.heavyTimer = setTimeout(() => {
+                    if (state.active.size > 0) {
+                        window.updateMapLoadingStatus('GhostSystem 2108: rekonstrukcja osi czasu...');
+                        window.setMapLoadingIntensity('heavy');
+                    }
+                }, 5200);
                 return token;
             };
 
@@ -3916,15 +4181,22 @@
                     const latest = Array.from(state.active.values()).pop();
                     if (state.visible && latest) {
                         window.updateMapLoadingStatus(latest);
+                        const elapsed = state.startedAt ? performance.now() - state.startedAt : 0;
+                        window.setMapLoadingIntensity(elapsed > 5200 ? 'heavy' : (elapsed > 2000 ? 'slow' : 'normal'));
                     }
                     return;
                 }
                 clearTimeout(state.showTimer);
                 clearTimeout(state.slowTimer);
+                clearTimeout(state.heavyTimer);
                 if (state.element) {
-                    state.element.classList.remove('is-visible');
+                    state.element.classList.remove('is-visible', 'is-slow', 'is-heavy');
+                }
+                if (state.overlay) {
+                    state.overlay.classList.remove('is-visible', 'is-slow', 'is-heavy');
                 }
                 state.visible = false;
+                state.startedAt = 0;
             };
 
             window.bootStep = async function(label, scope, fn, options = {}) {
