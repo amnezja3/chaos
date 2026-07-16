@@ -16,12 +16,15 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("seedMapGlitchBlocks", self.map_template)
         self.assertIn("chaos-map-glitch-block", self.map_template)
         self.assertIn("--glitch-color", self.map_template)
+        self.assertIn("radial-gradient(circle at 50% 50%", self.map_template)
+        self.assertIn("chaos-map-glitch-overlay.has-map-log::after", self.map_template)
         self.assertNotIn("chaos-map-sync-status__spinner", self.map_template)
 
     def test_map_loading_cleans_ready_state(self):
-        self.assertIn("state.overlay.classList.remove('is-visible', 'is-slow', 'is-heavy', 'is-overloaded')", self.map_template)
+        self.assertIn("state.overlay.classList.remove('is-visible', 'is-slow', 'is-heavy', 'is-overloaded', 'has-map-log')", self.map_template)
         self.assertIn("state.startedAt = 0", self.map_template)
         self.assertIn("clearTimeout(state.heavyTimer)", self.map_template)
+        self.assertIn("Boolean(window.mapBootState?.ready)", self.map_template)
 
     def test_map_loading_handles_slow_error_and_reduced_motion(self):
         self.assertIn("Siec przeciazona", self.map_template)
