@@ -130,7 +130,7 @@
       background: rgba(0, 10, 4, 0.035);
       opacity: 0;
       pointer-events: auto;
-      transition: opacity 120ms ease;
+      transition: opacity 180ms ease-out, background-color 180ms ease-out;
       contain: layout paint;
     }
 
@@ -146,11 +146,11 @@
       opacity: 0;
       background:
         radial-gradient(circle at 50% 50%,
-          rgba(0, 0, 0, 0.50) 0 11%,
-          rgba(0, 12, 5, 0.32) 25%,
-          rgba(0, 0, 0, 0.66) 72%,
-          rgba(0, 0, 0, 0.78) 100%);
-      transition: opacity 120ms ease;
+          rgba(0, 0, 0, 0) 0 24%,
+          rgba(0, 18, 7, 0.16) 38%,
+          rgba(0, 0, 0, 0.50) 72%,
+          rgba(0, 0, 0, 0.68) 100%);
+      transition: opacity 180ms ease-out;
     }
 
     .chaos-map-glitch-overlay.is-visible {
@@ -195,7 +195,7 @@
 
     .chaos-map-glitch-overlay.is-heavy,
     .chaos-map-glitch-overlay.is-overloaded {
-      background: rgba(18, 4, 2, 0.13);
+      background: rgba(18, 4, 2, 0.18);
     }
 
     .chaos-map-glitch-overlay.is-slow .chaos-map-glitch-block {
@@ -205,6 +205,18 @@
     .chaos-map-glitch-overlay.is-heavy .chaos-map-glitch-block,
     .chaos-map-glitch-overlay.is-overloaded .chaos-map-glitch-block {
       animation-duration: calc(var(--glitch-duration, 2.4s) * 0.36);
+      --glitch-boost: 1.55;
+      filter: saturate(1.45) contrast(1.18);
+    }
+
+    .chaos-map-glitch-overlay.is-overloaded .chaos-map-glitch-block {
+      --glitch-boost: 1.85;
+    }
+
+    .chaos-map-glitch-overlay.is-heavy .chaos-map-glitch-block:nth-child(2n),
+    .chaos-map-glitch-overlay.is-overloaded .chaos-map-glitch-block:nth-child(2n) {
+      width: calc(var(--glitch-w, 22px) * 1.35);
+      height: calc(var(--glitch-h, 14px) * 1.35);
     }
 
     .chaos-map-glitch-overlay.is-heavy .chaos-map-glitch-block:nth-child(3n),
@@ -234,10 +246,22 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      opacity: 0;
+      transform: translateY(2px);
+      transition: opacity 160ms ease-out, transform 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out;
     }
 
     .chaos-map-glitch-overlay.has-map-log::after {
       display: block;
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .chaos-map-glitch-overlay.is-heavy.has-map-log::after,
+    .chaos-map-glitch-overlay.is-overloaded.has-map-log::after {
+      border-color: rgba(255, 66, 48, 0.82);
+      color: rgba(255, 216, 148, 0.88);
+      box-shadow: 0 0 18px rgba(255, 44, 48, 0.18);
     }
 
     .chaos-map-boot-overlay {
@@ -424,9 +448,9 @@
 
     @keyframes chaos-map-glitch-block {
       0%, 70%, 100% { opacity: 0; }
-      72% { opacity: var(--glitch-opacity, 0.42); }
+      72% { opacity: calc(var(--glitch-opacity, 0.42) * var(--glitch-boost, 1)); }
       76% { opacity: 0; }
-      82% { opacity: calc(var(--glitch-opacity, 0.42) * 0.65); }
+      82% { opacity: calc(var(--glitch-opacity, 0.42) * 0.65 * var(--glitch-boost, 1)); }
       85% { opacity: 0; }
     }
 
@@ -4232,8 +4256,10 @@
                     window.mapLoadingState.log.textContent = log;
                 }
                 if (overlay) {
+                    const bootOverlay = document.getElementById('chaos-map-boot-overlay');
+                    const showMapLog = Boolean(window.mapBootState?.ready) && !bootOverlay?.classList.contains('is-visible');
                     overlay.dataset.log = log;
-                    overlay.classList.toggle('has-map-log', Boolean(window.mapBootState?.ready));
+                    overlay.classList.toggle('has-map-log', showMapLog);
                     overlay.classList.add('is-visible');
                 }
                 status.classList.add('is-visible');
