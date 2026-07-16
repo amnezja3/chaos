@@ -26,6 +26,7 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("clearTimeout(state.heavyTimer)", self.map_template)
         self.assertIn("Boolean(window.mapBootState?.ready)", self.map_template)
         self.assertIn("!bootOverlay?.classList.contains('is-visible')", self.map_template)
+        self.assertIn("inset: auto;", self.map_template)
 
     def test_map_loading_handles_slow_error_and_reduced_motion(self):
         self.assertIn("Siec przeciazona", self.map_template)
