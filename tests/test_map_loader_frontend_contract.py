@@ -30,6 +30,12 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("is-overloaded", self.map_template)
         self.assertIn("prefers-reduced-motion: reduce", self.map_template)
 
+    def test_critical_boot_steps_retry_transient_failures(self):
+        self.assertIn("waitForMapBootRetry", self.map_template)
+        self.assertIn("options.critical ? 2 : 0", self.map_template)
+        self.assertIn("Ponawiam:", self.map_template)
+        self.assertIn("boot_attempt", self.map_template)
+
 
 if __name__ == "__main__":
     unittest.main()

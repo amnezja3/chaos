@@ -1555,6 +1555,10 @@
             });
         }
 
+        function waitForMapBootRetry(delayMs = 400) {
+            return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(delayMs) || 0)));
+        }
+
         function invalidateMapAfterLayerUpdate() {
             if (!map || typeof map.invalidateSize !== 'function') return;
             requestAnimationFrame(() => {
@@ -4268,34 +4272,48 @@
                 const silent = Boolean(options.silent);
                 const total = Math.max(1, Number(options.total || 1));
                 const index = Math.max(0, Number(options.index || 0));
+                const maxRetries = Math.max(0, Number(options.retries ?? (options.critical ? 2 : 0)) || 0);
                 if (!silent) {
                     updateMapBootOverlay(label, Math.round((index / total) * 100));
                     await waitForMapBootPaint();
                 }
-                try {
-                    if (typeof fn === 'function') {
-                        const result = await fn(options);
-                        if (result === false && options.critical) {
-                            throw new Error(`Critical map scope failed: ${scope || label}`);
+                for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+                    try {
+                        if (typeof fn === 'function') {
+                            const result = await fn({ ...options, boot_attempt: attempt + 1 });
+                            if (result === false && options.critical) {
+                                throw new Error(`Critical map scope failed: ${scope || label}`);
+                            }
                         }
+                        if (scope) {
+                            scopes.add(scope);
+                        }
+                        if (!silent) {
+                            updateMapBootOverlay(label, Math.round(((index + 1) / total) * 100));
+                            await waitForMapBootPaint();
+                        }
+                        return true;
+                    } catch (err) {
+                        const canRetry = options.critical && attempt < maxRetries;
+                        console.warn('[map boot] step failed', scope || label, { attempt: attempt + 1, retry: canRetry }, err);
+                        if (canRetry) {
+                            const retryDelay = 420 + (attempt * 520);
+                            if (!silent) {
+                                updateMapBootOverlay(`Ponawiam: ${label}`, Math.round((index / total) * 100));
+                                await waitForMapBootPaint();
+                            }
+                            await waitForMapBootRetry(retryDelay);
+                            continue;
+                        }
+                        if (options.critical) {
+                            state.failed = true;
+                            updateMapBootOverlay(`Blad ladowania: ${label}`, Math.round((index / total) * 100), true);
+                            throw err;
+                        }
+                        return false;
                     }
-                    if (scope) {
-                        scopes.add(scope);
-                    }
-                    if (!silent) {
-                        updateMapBootOverlay(label, Math.round(((index + 1) / total) * 100));
-                        await waitForMapBootPaint();
-                    }
-                    return true;
-                } catch (err) {
-                    console.warn('[map boot] step failed', scope || label, err);
-                    if (options.critical) {
-                        state.failed = true;
-                        updateMapBootOverlay(`Blad ladowania: ${label}`, Math.round((index / total) * 100), true);
-                        throw err;
-                    }
-                    return false;
                 }
+                return false;
             };
 
             window.startMapSnapshotRefreshTimers = function() {
