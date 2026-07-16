@@ -10003,6 +10003,39 @@ def serialize_tool_selection_app(app):
     }
 
 
+def apply_app_map_actions_to_aimed_target(profile, app):
+    """Mark the active target as touched by a launched app's map-action contract."""
+    aimed_target = profile.get("aimed_target")
+    if not isinstance(aimed_target, dict) or not aimed_target:
+        return False, []
+
+    normalized_app = normalize_app_contract(app or {})
+    actions = [
+        str(action).strip()
+        for action in as_list(normalized_app.get("map_actions"))
+        if str(action).strip()
+    ]
+    if not actions:
+        return False, []
+
+    allowed = aimed_target.setdefault("actions_allowed", {})
+    changed = False
+    marked = []
+    for action in actions:
+        for key in (action, HACK_ACTION_STEP_ALIASES.get(action, action)):
+            if not key:
+                continue
+            if allowed.get(key) is not True:
+                allowed[key] = True
+                changed = True
+            if key not in marked:
+                marked.append(key)
+
+    if changed:
+        profile["aimed_target"] = aimed_target
+    return changed, marked
+
+
 def infer_googleplex_app_level(app):
     level = str(app.get("app_level") or app.get("level_label") or "").strip()
     if level:
@@ -12367,15 +12400,29 @@ def command():
         app_id = result.get("runApp")
         found_app = next((a for a in user_apps if a["id"] == app_id), None)
         if not found_app:
-            return jsonify({"response": f"❌ Nie znaleziono aplikacji o ID: {app_id}"})
+            return jsonify({"response": f"Nie znaleziono aplikacji o ID: {app_id}"})
+
+        target_changed, marked_actions = apply_app_map_actions_to_aimed_target(profile, found_app)
+        if target_changed:
+            UserProfileManager(session["user"]).update_profile({
+                "aimed_target": profile.get("aimed_target", {}),
+            })
+            session["profile"] = profile
+            record_map_target_delta(
+                session["user"],
+                profile.get("aimed_target") or {},
+                change_type="map.target_updated",
+                reason="app_launch_actions_allowed",
+            )
 
         return jsonify({
             "runApp": True,
-            "consoleEffect": f"🟢 Uruchamianie aplikacji {found_app['name']}...",
+            "consoleEffect": f"Uruchamianie aplikacji {found_app['name']}...",
             "applicationId": app_id,
-            "applicationEffect": found_app
+            "applicationEffect": found_app,
+            "target": profile.get("aimed_target") if target_changed else None,
+            "actions_allowed_marked": marked_actions,
         })
-
     return jsonify({"response": f"❓ Nieznana komenda: {user_input}"})
 
 
@@ -16827,6 +16874,7 @@ def gonna_win():
     if not app:
         return jsonify({"success": False, "message": "Nie znaleziono aplikacji"}), 404
 
+    target_changed, marked_actions = apply_app_map_actions_to_aimed_target(profile, app)
     success = False
 
     if choice_id is None:
@@ -16917,6 +16965,8 @@ def gonna_win():
                 "player_areas_count": None,
                 "progression": None,
                 "player_hack_access": player_hack_access,
+                "target": None,
+                "actions_allowed_marked": marked_actions,
                 "message": f"Dostep do {player_hack_access.get('victim_nick') or victim_username} aktywny przez {PLAYER_HACK_ACCESS_MINUTES} min."
             })
 
@@ -17138,6 +17188,8 @@ def gonna_win():
         "success": success,
         "percent_off": round(percent_off, 2),
         "captured_target": captured_target_response,
+        "target": profile.get("aimed_target"),
+        "actions_allowed_marked": marked_actions,
         "hacked": profile.get("hacked", []),
         "player_areas_count": len(rebuilt_areas) if rebuilt_areas is not None else None,
         "progression": progression

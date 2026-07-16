@@ -810,6 +810,14 @@ async function refreshToolbarProfile() {
     return profile;
 }
 
+function updateToolbarAimedTarget(aimedTarget) {
+    if (!aimedTarget || typeof aimedTarget !== "object") return;
+    setToolbarProfile({
+        ...(toolbarProfile || {}),
+        aimed_target: aimedTarget
+    });
+}
+
 function renderToolbarStatus() {
     const strip = document.getElementById('system-status-strip');
     if (!strip) return;
@@ -1251,6 +1259,10 @@ function attachTerminalInputHandler(input, content) {
                 content.innerHTML += `<br>${data.response.replace(/\n/g, "<br>")}`;
             }
 
+            if (data.target) {
+                updateToolbarAimedTarget(data.target);
+            }
+
             if (data.terminalTeleport) {
                 await handleTerminalTeleport(content, data.terminalTeleport);
                 return;
@@ -1598,6 +1610,10 @@ function attachSystemTerminalInputHandler(input, content) {
 
             if (data.response) {
                 appendSystemTerminalOutput(content, data.response.replace(/\n/g, "<br>"));
+            }
+
+            if (data.target) {
+                updateToolbarAimedTarget(data.target);
             }
 
             if (data.terminalTeleport) {
@@ -2810,6 +2826,9 @@ async function notifyGonnaWin(appId) {
         if (data.player_hack_access) {
             refreshPlayerHackAccess(data.player_hack_access);
         }
+        if (data.target) {
+            updateToolbarAimedTarget(data.target);
+        }
         if (data.success && data.captured_target) {
             notifyOpenMapsTargetHacked(data.captured_target);
             refreshToolbarProfile();
@@ -2893,6 +2912,9 @@ async function sendGonnaWinRequest(appId, choiceId = null) {
         const data = await response.json();
         if (data.player_hack_access) {
             refreshPlayerHackAccess(data.player_hack_access);
+        }
+        if (data.target) {
+            updateToolbarAimedTarget(data.target);
         }
         if (data.success && data.captured_target) {
             notifyOpenMapsTargetHacked(data.captured_target);

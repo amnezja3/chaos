@@ -2336,6 +2336,62 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertIn("root", FakeProfileManager.created_for)
         self.assertNotIn("owner_a", FakeProfileManager.created_for)
 
+    def test_gonna_win_marks_app_map_actions_on_aimed_target(self):
+        class FakeProfileManager:
+            updates = []
+
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, updates):
+                self.__class__.updates.append((self.username, updates))
+
+        profile = {
+            "username": "root",
+            "nick": "Rut",
+            "apps": [{
+                "id": "gps_tool",
+                "name": "GPS Tool",
+                "requires_off": [],
+                "interferes_with": [],
+                "map_actions": ["trace_gps", "scan_ports"],
+                "map_actions_source": "manual",
+                "levels": [{"options": []}],
+            }],
+            "aimed_target": {
+                "target_mode": "standard",
+                "lat": 52.1,
+                "lng": 21.2,
+                "label": "Target",
+                "security": {"firewall": True},
+                "actions_allowed": {
+                    "scan_ports": False,
+                    "exploit": False,
+                    "sniff": False,
+                    "trace": False,
+                },
+            },
+            "system_messages": [],
+        }
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "root"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "UserProfileManager", FakeProfileManager):
+            response = client.post("/gonna-win", json={"app_id": "gps_tool"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        actions = payload["target"]["actions_allowed"]
+        self.assertTrue(actions["scan_ports"])
+        self.assertTrue(actions["trace_gps"])
+        self.assertTrue(actions["trace"])
+        self.assertFalse(actions["exploit"])
+        self.assertFalse(actions["sniff"])
+        self.assertEqual(payload["actions_allowed_marked"], ["trace_gps", "trace", "scan_ports"])
+
     def test_map_player_areas_skips_invalid_area_and_keeps_owner_encircled_area(self):
         profile = {
             "username": "main",
