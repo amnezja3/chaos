@@ -41,6 +41,12 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("Ponawiam:", self.map_template)
         self.assertIn("boot_attempt", self.map_template)
 
+    def test_travel_action_shows_destination_pulse_until_finished(self):
+        self.assertIn("travel-destination-pulse", self.map_template)
+        self.assertIn("showTravelDestinationPulse", self.map_template)
+        self.assertIn("finishTravelPulse = showTravelDestinationPulse(lat, lng)", self.map_template)
+        self.assertIn("typeof finishTravelPulse === 'function'", self.map_template)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -451,6 +451,39 @@
       to { transform: translateX(660%); }
     }
 
+    .travel-destination-pulse {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid rgba(184, 255, 40, 0.86);
+      background: radial-gradient(circle, rgba(184, 255, 40, 0.88) 0 10%, rgba(38, 255, 106, 0.26) 18%, rgba(38, 255, 106, 0.06) 44%, transparent 64%);
+      box-shadow: 0 0 14px rgba(184, 255, 40, 0.32);
+      transform: translateZ(0);
+      animation: chaos-travel-destination-pulse 1.05s ease-out infinite;
+    }
+
+    .travel-destination-pulse::before,
+    .travel-destination-pulse::after {
+      content: "";
+      position: absolute;
+      inset: 5px;
+      border-radius: 50%;
+      border: 1px solid rgba(38, 255, 106, 0.72);
+    }
+
+    .travel-destination-pulse::after {
+      inset: 11px;
+      background: #b8ff28;
+      border: 0;
+      box-shadow: 0 0 8px rgba(184, 255, 40, 0.72);
+    }
+
+    @keyframes chaos-travel-destination-pulse {
+      0% { opacity: 0.92; transform: scale(0.76); }
+      58% { opacity: 0.42; transform: scale(1.35); }
+      100% { opacity: 0; transform: scale(1.65); }
+    }
+
     @keyframes chaos-map-glitch-block {
       0%, 70%, 100% { opacity: 0; }
       72% { opacity: calc(var(--glitch-opacity, 0.42) * var(--glitch-boost, 1)); }
@@ -484,6 +517,7 @@
       .chaos-map-sync-status::before,
       .chaos-map-glitch-overlay,
       .chaos-map-glitch-block,
+      .travel-destination-pulse,
       .chaos-map-boot-overlay::before {
         animation: none !important;
         transition: none !important;
@@ -3259,12 +3293,36 @@
 
         
         
+        function showTravelDestinationPulse(lat, lng) {
+            const point = normalizeMapLatLngPair(lat, lng);
+            if (!point || typeof L === 'undefined' || !map) return null;
+            const [safeLat, safeLng] = point;
+            const marker = L.marker([safeLat, safeLng], {
+                interactive: false,
+                keyboard: false,
+                zIndexOffset: 1800,
+                icon: L.divIcon({
+                    className: 'travel-destination-pulse-icon',
+                    html: '<div class="travel-destination-pulse" aria-hidden="true"></div>',
+                    iconSize: [26, 26],
+                    iconAnchor: [13, 13]
+                })
+            }).addTo(map);
+            return function removeTravelDestinationPulse() {
+                removeMapLayerSafe(marker);
+            };
+        }
+
         async function mapAction(action, lat, lng, label = "Oznaczony cel", icon = "🎯", sourceType = "manual", name = label, generated = false) {
             const finishScanEffect = action === 'scan'
                 ? beginMapScanEffect('Skanowanie mapy')
                 : null;
+            let finishTravelPulse = null;
             try {
                 if (guardMapGameplayAction()) return;
+                if (action === 'travel') {
+                    finishTravelPulse = showTravelDestinationPulse(lat, lng);
+                }
                 const res = await fetch('/map-action', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -3425,6 +3483,9 @@
                 console.error(err);
             } finally {
                 finishMapScanEffectAfterPaint(finishScanEffect);
+                if (typeof finishTravelPulse === 'function') {
+                    finishTravelPulse();
+                }
             }
         }
 
