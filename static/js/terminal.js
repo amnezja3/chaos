@@ -7,6 +7,7 @@ let desktopSettings = { wallpaper: "", icon_positions: {}, auto_fullscreen: fals
 let desktopSaveTimer = null;
 let toolbarProfile = null;
 let toolbarTargetFeedbackState = { targetKey: "", dotSignature: "", progress: 0 };
+let gonnaWinRequestQueue = Promise.resolve();
 let desktopSessionActive = true;
 let desktopRenderedApps = [];
 const fileManagerInstances = new Map();
@@ -812,9 +813,35 @@ async function refreshToolbarProfile() {
 
 function updateToolbarAimedTarget(aimedTarget) {
     if (!aimedTarget || typeof aimedTarget !== "object") return;
+    const currentTarget = (toolbarProfile || {}).aimed_target || {};
+    const nextTarget = { ...aimedTarget };
+    if (getTargetFeedbackKey(currentTarget) && getTargetFeedbackKey(currentTarget) === getTargetFeedbackKey(nextTarget)) {
+        const currentActions = currentTarget.actions_allowed || {};
+        const nextActions = { ...(nextTarget.actions_allowed || {}) };
+        TARGET_FEEDBACK_ACTION_KEYS.forEach(key => {
+            if (currentActions[key] === true) {
+                nextActions[key] = true;
+            }
+        });
+        Object.entries(currentActions).forEach(([key, value]) => {
+            if (value === true) {
+                nextActions[key] = true;
+            }
+        });
+        nextTarget.actions_allowed = nextActions;
+
+        const currentSecurity = currentTarget.security || {};
+        const nextSecurity = { ...(nextTarget.security || {}) };
+        Object.entries(currentSecurity).forEach(([key, value]) => {
+            if (value === false && nextSecurity[key] !== false) {
+                nextSecurity[key] = false;
+            }
+        });
+        nextTarget.security = nextSecurity;
+    }
     setToolbarProfile({
         ...(toolbarProfile || {}),
-        aimed_target: aimedTarget
+        aimed_target: nextTarget
     });
 }
 
@@ -1033,6 +1060,7 @@ function launchApplicationEffect(appData) {
     const id = appData.id;
     const levels = appData.levels;
     const type = appData.interface;
+    notifyAppMapOperationStarted(appData);
     if (type === "window") app_window(id, levels);
     else if (type === "progressbar_random") app_progressbar_random(id, levels);
     else if (type === "terminal") app_terminal(id, levels);
@@ -1262,6 +1290,7 @@ function attachTerminalInputHandler(input, content) {
             if (data.target) {
                 updateToolbarAimedTarget(data.target);
             }
+            notifyCreatedOperations(data);
 
             if (data.terminalTeleport) {
                 await handleTerminalTeleport(content, data.terminalTeleport);
@@ -1615,6 +1644,7 @@ function attachSystemTerminalInputHandler(input, content) {
             if (data.target) {
                 updateToolbarAimedTarget(data.target);
             }
+            notifyCreatedOperations(data);
 
             if (data.terminalTeleport) {
                 stopLoader();
@@ -2816,7 +2846,7 @@ async function app_progressbar_random(id, levels) {
 }
 
 async function notifyGonnaWin(appId) {
-    try {
+    return enqueueGonnaWinRequest(async () => {
         const response = await fetch('/gonna-win', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2829,15 +2859,16 @@ async function notifyGonnaWin(appId) {
         if (data.target) {
             updateToolbarAimedTarget(data.target);
         }
+        notifyCreatedOperations(data);
         if (data.success && data.captured_target) {
             notifyOpenMapsTargetHacked(data.captured_target);
             refreshToolbarProfile();
         }
         return data.success === true;
-    } catch (err) {
+    }).catch(err => {
         console.error(`❌ Błąd połączenia z /gonna-win dla ${appId}`, err);
         return false; // default przy błędzie
-    }
+    });
 }
 
 function notifyOpenMapsTargetHacked(target) {
@@ -2897,8 +2928,50 @@ function notifyOpenMapsBlacknetFocus(focus = {}) {
     });
 }
 
+function enqueueGonnaWinRequest(task) {
+    const queued = gonnaWinRequestQueue.catch(() => {}).then(task);
+    gonnaWinRequestQueue = queued.catch(() => {});
+    return queued;
+}
+
+function notifyCreatedOperations(data) {
+    if (!data || !Array.isArray(data.created_operations) || !data.created_operations.length) return;
+    if (typeof notifyOpenMapsOperationsChanged === "function") {
+        notifyOpenMapsOperationsChanged();
+    }
+}
+
+function appHasMapRuntime(appData) {
+    if (!appData || typeof appData !== "object") return false;
+    const actions = Array.isArray(appData.map_actions) ? appData.map_actions : [];
+    const operations = Array.isArray(appData.operation_types) ? appData.operation_types : [];
+    return actions.some(Boolean) && operations.some(Boolean);
+}
+
+function notifyAppMapOperationStarted(appData) {
+    if (!appHasMapRuntime(appData)) return;
+    const appId = appData.id;
+    if (!appId) return;
+    enqueueGonnaWinRequest(async () => {
+        const response = await fetch('/gonna-win', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ app_id: appId, operation_only: true })
+        });
+        const data = await response.json();
+        if (data.target) {
+            updateToolbarAimedTarget(data.target);
+        }
+        notifyCreatedOperations(data);
+        return data;
+    }).catch(error => {
+        console.warn(`Nie udalo sie wystartowac operacji mapy dla ${appId}:`, error);
+        return null;
+    });
+}
+
 async function sendGonnaWinRequest(appId, choiceId = null) {
-    try {
+    return enqueueGonnaWinRequest(async () => {
         const response = await fetch('/gonna-win', {
             method: 'POST',
             headers: {
@@ -2916,15 +2989,16 @@ async function sendGonnaWinRequest(appId, choiceId = null) {
         if (data.target) {
             updateToolbarAimedTarget(data.target);
         }
+        notifyCreatedOperations(data);
         if (data.success && data.captured_target) {
             notifyOpenMapsTargetHacked(data.captured_target);
             refreshToolbarProfile();
         }
         return data;
-    } catch (error) {
+    }).catch(error => {
         console.error("Błąd komunikacji z backendem:", error);
         return { success: false };
-    }
+    });
 }
 
 function app_terminal(id, levels) {
@@ -10673,6 +10747,7 @@ async function pollLaunchQueue() {
                 });
 
                 const data = await cmdRes.json();
+                notifyCreatedOperations(data);
 
                 if (data.runApp && data.applicationEffect) {
                     const appData = data.applicationEffect;

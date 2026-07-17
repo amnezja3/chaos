@@ -2392,6 +2392,208 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertFalse(actions["sniff"])
         self.assertEqual(payload["actions_allowed_marked"], ["trace_gps", "trace", "scan_ports"])
 
+    def test_gonna_win_preserves_newer_target_action_flags(self):
+        class FakeProfileManager:
+            updates = []
+
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, updates):
+                self.__class__.updates.append((self.username, updates))
+
+        stale_target = {
+            "target_mode": "standard",
+            "lat": 52.1,
+            "lng": 21.2,
+            "label": "Target",
+            "security": {"firewall": True, "vpn": True},
+            "actions_allowed": {
+                "scan_ports": False,
+                "exploit": False,
+                "sniff": False,
+                "trace": False,
+            },
+        }
+        profile = {
+            "username": "root",
+            "nick": "Rut",
+            "apps": [{
+                "id": "exploit_tool",
+                "name": "Exploit Tool",
+                "requires_off": [],
+                "interferes_with": ["firewall"],
+                "map_actions": ["exploit"],
+                "map_actions_source": "manual",
+                "levels": [{"options": []}],
+            }],
+            "aimed_target": dict(stale_target),
+            "system_messages": [],
+        }
+        profile["aimed_target"]["actions_allowed"] = dict(stale_target["actions_allowed"])
+        latest_profile = {
+            "username": "root",
+            "aimed_target": {
+                **stale_target,
+                "security": {"firewall": True, "vpn": False},
+                "actions_allowed": {
+                    "scan_ports": True,
+                    "exploit": False,
+                    "sniff": False,
+                    "trace": False,
+                },
+            },
+        }
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "root"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run.user_store, "get_profile", return_value=latest_profile), \
+                patch.object(run, "UserProfileManager", FakeProfileManager):
+            response = client.post("/gonna-win", json={"app_id": "exploit_tool"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        actions = payload["target"]["actions_allowed"]
+        security = payload["target"]["security"]
+        self.assertTrue(actions["scan_ports"])
+        self.assertTrue(actions["exploit"])
+        self.assertFalse(actions["sniff"])
+        self.assertFalse(actions["trace"])
+        self.assertFalse(security["vpn"])
+        self.assertFalse(security["firewall"])
+
+    def test_gonna_win_operation_only_starts_map_operation_without_security_effect(self):
+        class FakeProfileManager:
+            updates = []
+
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, updates):
+                self.__class__.updates.append((self.username, updates))
+
+        profile = {
+            "username": "root",
+            "nick": "Rut",
+            "apps": [{
+                "id": "sniff_tool",
+                "name": "Sniff Tool",
+                "requires_off": [],
+                "interferes_with": ["firewall"],
+                "map_actions": ["sniff"],
+                "map_actions_source": "manual",
+                "operation_types": ["persistent_sniffer"],
+                "levels": [{"options": []}],
+            }],
+            "aimed_target": {
+                "target_mode": "standard",
+                "lat": 52.1,
+                "lng": 21.2,
+                "label": "Target",
+                "security": {"firewall": True},
+                "actions_allowed": {
+                    "scan_ports": False,
+                    "exploit": False,
+                    "sniff": False,
+                    "trace": False,
+                },
+            },
+            "operations": [],
+            "system_messages": [],
+        }
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "root"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run.user_store, "get_profile", return_value=None), \
+                patch.object(run, "UserProfileManager", FakeProfileManager):
+            response = client.post("/gonna-win", json={"app_id": "sniff_tool", "operation_only": True})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["success"])
+        self.assertTrue(payload["operation_only"])
+        self.assertEqual(payload["actions_allowed_marked"], ["sniff"])
+        self.assertTrue(payload["target"]["actions_allowed"]["sniff"])
+        self.assertTrue(payload["target"]["security"]["firewall"])
+        self.assertEqual(len(payload["created_operations"]), 1)
+        created = payload["created_operations"][0]
+        self.assertEqual(created["source_app_id"], "sniff_tool")
+        self.assertEqual(created["map_action_id"], "sniff")
+        self.assertEqual(created["operation_type"], "persistent_sniffer")
+        self.assertEqual(created["status"], "running")
+        self.assertEqual(len(profile["operations"]), 1)
+        self.assertIn("operations", FakeProfileManager.updates[-1][1])
+
+    def test_gonna_win_operation_only_deduplicates_running_map_operation(self):
+        class FakeProfileManager:
+            updates = []
+
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, updates):
+                self.__class__.updates.append((self.username, updates))
+
+        target = {
+            "target_mode": "standard",
+            "lat": 52.1,
+            "lng": 21.2,
+            "label": "Target",
+            "security": {"firewall": True},
+            "actions_allowed": {
+                "scan_ports": False,
+                "exploit": False,
+                "sniff": False,
+                "trace": False,
+            },
+        }
+        profile = {
+            "username": "root",
+            "nick": "Rut",
+            "apps": [{
+                "id": "sniff_tool",
+                "name": "Sniff Tool",
+                "requires_off": [],
+                "interferes_with": ["firewall"],
+                "map_actions": ["sniff"],
+                "map_actions_source": "manual",
+                "operation_types": ["persistent_sniffer"],
+                "levels": [{"options": []}],
+            }],
+            "aimed_target": dict(target),
+            "operations": [{
+                "operation_id": "op_existing",
+                "operation_type": "persistent_sniffer",
+                "source_app_id": "sniff_tool",
+                "source_app_name": "Sniff Tool",
+                "map_action_id": "sniff",
+                "target_id": run.build_operation_target_id(target),
+                "status": "running",
+            }],
+            "system_messages": [],
+        }
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "root"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run.user_store, "get_profile", return_value=None), \
+                patch.object(run, "UserProfileManager", FakeProfileManager):
+            response = client.post("/gonna-win", json={"app_id": "sniff_tool", "operation_only": True})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["success"])
+        self.assertEqual(payload["created_operations"], [])
+        self.assertEqual(len(profile["operations"]), 1)
+
     def test_map_player_areas_skips_invalid_area_and_keeps_owner_encircled_area(self):
         profile = {
             "username": "main",

@@ -4687,6 +4687,69 @@ def create_operations_for_app_action(profile, username, app, map_action_id, targ
     return created
 
 
+def create_missing_operations_for_app_target(profile, username, app, target):
+    """Start map operation runtime for desktop/terminal-launched tools, without duplicates."""
+    if not isinstance(profile, dict) or not username or not isinstance(target, dict) or not target:
+        return []
+
+    normalized_app = normalize_app_contract(app or {})
+    map_actions = [
+        str(action).strip()
+        for action in as_list(normalized_app.get("map_actions"))
+        if str(action).strip()
+    ]
+    operation_types = [
+        str(operation_type).strip()
+        for operation_type in as_list(normalized_app.get("operation_types"))
+        if str(operation_type).strip()
+    ]
+    if not map_actions or not operation_types:
+        return []
+
+    target_id = build_operation_target_id(target)
+    if not target_id:
+        return []
+
+    terminal_statuses = {"cancelled", "canceled", "done", "completed", "failed", "expired", "timeout", "resolved"}
+    operations = profile.setdefault("operations", [])
+    created = []
+    app_id = str(normalized_app.get("id") or normalized_app.get("name") or "").strip()
+    app_name = str(normalized_app.get("name") or normalized_app.get("id") or "").strip()
+
+    map_action_id = map_actions[0]
+    for operation_type in dict.fromkeys(operation_types):
+        exists = False
+        for operation in operations:
+            if not isinstance(operation, dict):
+                continue
+            status = str(operation.get("status") or "").strip().lower()
+            if status in terminal_statuses:
+                continue
+            if str(operation.get("target_id") or "") != str(target_id):
+                continue
+            if str(operation.get("map_action_id") or "") != str(map_action_id):
+                continue
+            if str(operation.get("operation_type") or "") != str(operation_type):
+                continue
+            operation_app_id = str(operation.get("source_app_id") or "").strip()
+            operation_app_name = str(operation.get("source_app_name") or "").strip()
+            if app_id and operation_app_id == app_id:
+                exists = True
+                break
+            if app_name and operation_app_name == app_name:
+                exists = True
+                break
+        if exists:
+            continue
+
+        operation = build_operation_instance(username, normalized_app, map_action_id, operation_type, target)
+        update_operation_risk_meter(operation, tool=normalized_app, target=target)
+        operations.append(operation)
+        created.append(operation)
+
+    return created
+
+
 def parse_operation_timestamp(value):
     if not value:
         return None
@@ -10052,6 +10115,42 @@ def apply_app_map_actions_to_aimed_target(profile, app, username=None):
     return changed, marked
 
 
+def merge_latest_aimed_target_runtime_state(profile, username):
+    """Keep target app progress monotonic when app/map requests finish out of order."""
+    aimed_target = (profile or {}).get("aimed_target")
+    if not username or not isinstance(aimed_target, dict) or not aimed_target:
+        return aimed_target
+
+    try:
+        latest_profile = user_store.get_profile(username) or {}
+    except Exception:
+        return aimed_target
+
+    latest_target = latest_profile.get("aimed_target") or {}
+    if not isinstance(latest_target, dict) or not latest_target:
+        return aimed_target
+
+    if build_operation_target_id(latest_target) != build_operation_target_id(aimed_target):
+        return aimed_target
+
+    allowed = aimed_target.setdefault("actions_allowed", {})
+    latest_allowed = latest_target.get("actions_allowed") or {}
+    if isinstance(latest_allowed, dict):
+        for key, value in latest_allowed.items():
+            if value is True:
+                allowed[key] = True
+
+    security = aimed_target.setdefault("security", {})
+    latest_security = latest_target.get("security") or {}
+    if isinstance(security, dict) and isinstance(latest_security, dict):
+        for key, value in latest_security.items():
+            if value is False and security.get(key) is not False:
+                security[key] = False
+
+    profile["aimed_target"] = aimed_target
+    return aimed_target
+
+
 def infer_googleplex_app_level(app):
     level = str(app.get("app_level") or app.get("level_label") or "").strip()
     if level:
@@ -12419,17 +12518,29 @@ def command():
             return jsonify({"response": f"Nie znaleziono aplikacji o ID: {app_id}"})
 
         target_changed, marked_actions = apply_app_map_actions_to_aimed_target(profile, found_app, session.get("user"))
-        if target_changed:
+        created_operations = []
+        if profile.get("aimed_target"):
+            merge_latest_aimed_target_runtime_state(profile, session.get("user"))
+            created_operations = create_missing_operations_for_app_target(
+                profile,
+                session.get("user"),
+                found_app,
+                profile.get("aimed_target") or {},
+            )
+
+        if target_changed or created_operations:
             UserProfileManager(session["user"]).update_profile({
                 "aimed_target": profile.get("aimed_target", {}),
+                "operations": profile.get("operations", []),
             })
             session["profile"] = profile
-            record_map_target_delta(
-                session["user"],
-                profile.get("aimed_target") or {},
-                change_type="map.target_updated",
-                reason="app_launch_actions_allowed",
-            )
+            if target_changed:
+                record_map_target_delta(
+                    session["user"],
+                    profile.get("aimed_target") or {},
+                    change_type="map.target_updated",
+                    reason="app_launch_actions_allowed",
+                )
 
         return jsonify({
             "runApp": True,
@@ -12438,6 +12549,7 @@ def command():
             "applicationEffect": found_app,
             "target": profile.get("aimed_target") if target_changed else None,
             "actions_allowed_marked": marked_actions,
+            "created_operations": created_operations,
         })
     return jsonify({"response": f"❓ Nieznana komenda: {user_input}"})
 
@@ -13600,6 +13712,7 @@ def hack_action():
         )
 
     # Zapisz
+    merge_latest_aimed_target_runtime_state(profile, session.get("user"))
     session["profile"] = profile
     mgr.update_profile({
         "launch_queue": profile["launch_queue"],
@@ -16849,9 +16962,10 @@ def launch_queue():
 
 @app.route('/gonna-win', methods=['POST'])
 def gonna_win():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     app_id = data.get("app_id")
     choice_id = data.get("choice_id", None)
+    operation_only = bool(data.get("operation_only"))
 
     CRITICAL_SECURITY_KEYS = [
         "stealth_mode", "scan_detection", "exploit_protection", "vpn_enabled",
@@ -16891,6 +17005,38 @@ def gonna_win():
         return jsonify({"success": False, "message": "Nie znaleziono aplikacji"}), 404
 
     target_changed, marked_actions = apply_app_map_actions_to_aimed_target(profile, app, session.get("user"))
+    created_operations = []
+    if profile.get("aimed_target"):
+        merge_latest_aimed_target_runtime_state(profile, session.get("user"))
+        created_operations = create_missing_operations_for_app_target(
+            profile,
+            session.get("user"),
+            app,
+            profile.get("aimed_target") or {},
+        )
+
+    if operation_only:
+        mgr = UserProfileManager(session["user"])
+        session["profile"] = profile
+        mgr.update_profile({
+            "aimed_target": profile.get("aimed_target", {}),
+            "operations": profile.get("operations", []),
+        })
+        if target_changed:
+            record_map_target_delta(
+                session["user"],
+                profile.get("aimed_target") or {},
+                change_type="map.target_updated",
+                reason="app_launch_operation_start",
+            )
+        return jsonify({
+            "success": True,
+            "operation_only": True,
+            "target": profile.get("aimed_target"),
+            "actions_allowed_marked": marked_actions,
+            "created_operations": created_operations,
+        })
+
     success = False
 
     if choice_id is None:
@@ -16916,6 +17062,7 @@ def gonna_win():
 
     # aktualizacja profilu
     profile["aimed_target"]["security"] = target_sec
+    merge_latest_aimed_target_runtime_state(profile, session.get("user"))
     if contest_owner_username and contest_owner_target:
         contest_owner_target["security"] = dict(target_sec)
         owner_mgr = UserProfileManager(contest_owner_username)
@@ -16972,6 +17119,7 @@ def gonna_win():
             mgr.update_profile({
                 "aimed_target": {},
                 "system_messages": profile.get("system_messages", []),
+                "operations": profile.get("operations", []),
             })
             return jsonify({
                 "success": True,
@@ -16983,6 +17131,7 @@ def gonna_win():
                 "player_hack_access": player_hack_access,
                 "target": None,
                 "actions_allowed_marked": marked_actions,
+                "created_operations": created_operations,
                 "message": f"Dostep do {player_hack_access.get('victim_nick') or victim_username} aktywny przez {PLAYER_HACK_ACCESS_MINUTES} min."
             })
 
@@ -17186,7 +17335,8 @@ def gonna_win():
             "exp": profile["exp"],
             "captured_targets_source": "sqlite",
             "territory_stats": profile["territory_stats"],
-            "system_messages": profile["system_messages"]
+            "system_messages": profile["system_messages"],
+            "operations": profile.get("operations", []),
         })
         record_map_target_delta(
             session["user"],
@@ -17196,7 +17346,8 @@ def gonna_win():
         )
     else:
         mgr.update_profile({
-            "aimed_target": profile["aimed_target"]
+            "aimed_target": profile["aimed_target"],
+            "operations": profile.get("operations", []),
         })
 
 
@@ -17208,7 +17359,8 @@ def gonna_win():
         "actions_allowed_marked": marked_actions,
         "hacked": profile.get("hacked", []),
         "player_areas_count": len(rebuilt_areas) if rebuilt_areas is not None else None,
-        "progression": progression
+        "progression": progression,
+        "created_operations": created_operations,
     })
 
 

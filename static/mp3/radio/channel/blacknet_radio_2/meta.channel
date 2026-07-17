@@ -7,7 +7,7 @@
   "source": "blacknet_radio",
   "autoplay": true,
   "loop": true,
-  "mode": "sort",
+  "mode": "random",
   "sort": "name",
   "exclude": []
 }
