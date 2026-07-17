@@ -1118,7 +1118,13 @@ body {
   justify-content: flex-start;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
   transition: min-height 150ms ease, padding 150ms ease, border-color 150ms ease, background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+
+#system-status-strip .system-status-target:focus-visible {
+  outline: 1px solid #70ff8d;
+  outline-offset: 2px;
 }
 
 #system-status-strip .system-status-target.has-target-feedback {
@@ -1161,6 +1167,24 @@ body {
 #system-status-strip .system-status-target.is-aimed b {
   color: #ff4862;
   text-shadow: 0 0 6px rgba(255, 48, 72, 0.62);
+}
+
+#system-status-strip .system-status-target.is-refreshing b {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+#system-status-strip .system-status-target.is-refreshing b::after {
+  content: "";
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border: 1px solid rgba(112, 255, 141, 0.35);
+  border-top-color: #70ff8d;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(112, 255, 141, 0.35);
+  animation: target-truth-spin 650ms linear infinite;
 }
 
 #system-status-strip .target-feedback {
@@ -1236,6 +1260,12 @@ body {
   100% {
     opacity: 0.92;
     transform: translateY(0);
+  }
+}
+
+@keyframes target-truth-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

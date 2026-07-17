@@ -8,6 +8,7 @@ let desktopSaveTimer = null;
 let toolbarProfile = null;
 let toolbarTargetFeedbackState = { targetKey: "", dotSignature: "", progress: 0 };
 let gonnaWinRequestQueue = Promise.resolve();
+let toolbarTargetTruthRefreshing = false;
 let desktopSessionActive = true;
 let desktopRenderedApps = [];
 const fileManagerInstances = new Map();
@@ -811,6 +812,20 @@ async function refreshToolbarProfile() {
     return profile;
 }
 
+async function refreshToolbarTargetTruth() {
+    if (toolbarTargetTruthRefreshing) return;
+    toolbarTargetTruthRefreshing = true;
+    renderToolbarStatus();
+    try {
+        await refreshToolbarProfile();
+    } catch (error) {
+        console.warn("Nie udalo sie odswiezyc prawdy celu:", error);
+    } finally {
+        toolbarTargetTruthRefreshing = false;
+        renderToolbarStatus();
+    }
+}
+
 function updateToolbarAimedTarget(aimedTarget) {
     if (!aimedTarget || typeof aimedTarget !== "object") return;
     setToolbarProfile({
@@ -834,13 +849,15 @@ function renderToolbarStatus() {
         const targetClasses = [
             "system-status-target",
             "is-aimed",
+            toolbarTargetTruthRefreshing ? "is-refreshing" : "",
             targetFeedback ? "has-target-feedback" : "",
             targetFeedback?.changed ? "is-feedback-change" : "",
             targetFeedback?.targetChanged ? "is-target-change" : ""
         ].filter(Boolean).join(" ");
         const targetProgressStyle = targetFeedback ? ` style="--target-disarm-progress: ${targetFeedback.progress}%;"` : "";
-        return `<span class="${targetClasses}" title="Cel na celowniku: ${escapeHTML(String(targetLabel))}"${targetProgressStyle}><b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(targetLabel))}</em>${renderTargetBarFeedback(targetFeedback)}</i></span>`;
-    })() : '<span class="system-status-target"><b>CEL</b></span>';
+        const title = toolbarTargetTruthRefreshing ? "Sprawdzam zrodlo prawdy celu..." : `Cel na celowniku: ${escapeHTML(String(targetLabel))}. Kliknij, aby odswiezyc.`;
+        return `<span class="${targetClasses}" role="button" tabindex="0" title="${title}"${targetProgressStyle}><b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(targetLabel))}</em>${renderTargetBarFeedback(targetFeedback)}</i></span>`;
+    })() : `<span class="system-status-target ${toolbarTargetTruthRefreshing ? "is-refreshing" : ""}" role="button" tabindex="0" title="Kliknij, aby odswiezyc profil celu"><b>CEL</b></span>`;
     strip.innerHTML = `
         ${targetMarkup}
         <span><b>ARS</b> ${arsenalLabel}</span>
@@ -848,6 +865,13 @@ function renderToolbarStatus() {
         <span><b>LVL</b> ${Number(profile.level || 1)}</span>
         <span><b>RSP</b> ${Number(profile.respect || 0)}</span>
     `;
+    const targetRefresh = strip.querySelector('.system-status-target');
+    targetRefresh?.addEventListener('click', refreshToolbarTargetTruth);
+    targetRefresh?.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        refreshToolbarTargetTruth();
+    });
 }
 
 function setToolbarLaunchers(apps, profile = null) {
