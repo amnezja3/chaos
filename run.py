@@ -15370,6 +15370,7 @@ def victim_picker_candidates():
         "action_range_m": action_range,
         "candidate_count": len(candidates),
         "candidates": [serialize_victim_picker_candidate(candidate) for candidate in candidates],
+        "aimed_target": profile.get("aimed_target") or None,
         "active_target_id": build_operation_target_id(profile.get("aimed_target") or {}) if profile.get("aimed_target") else "",
     })
 

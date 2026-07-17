@@ -8697,6 +8697,601 @@ Victim Picker jest płatną aplikacją Googleplex, działa jako lekkie okno bez 
 Ten sprint zamyka warstwę widoczną dla gracza: nie zmienia mechaniki ze Sprintu 100, tylko przedstawia ją w lekkim, szybkim i spójnym interfejsie.
 
 
+Dokładnie — obecna wersja dowiozła zakup i uruchamianie, ale zgubiła cały właściwy flow aplikacji, więc Sprint 102 naprawia mechanikę i trzy ekrany, a Sprint 103 przebudowuje GUI na prosty, czytelny Victim Picker zgodny z naszą wizją.
+
+# Sprint 102 — Victim Picker: właściwy flow, scan i synchronizacja CEL
+
+## Cel sprintu
+
+Przebudować obecną implementację Victim Pickera tak, aby odtwarzała uzgodniony proces:
+
+**MAIN → SCAN → oznaczenie obiektów → VICTIMS → ustawienie `aimed_target`**
+
+Nie rozwijamy teraz wyglądu. Najpierw aplikacja ma działać poprawnie i korzystać z tych samych mechanizmów co mapa.
+
+## 1. Nie ruszać tego, co już działa
+
+Zachować:
+
+* produkt `Victim Picker` w Googleplex,
+* cenę `100 000 HC`,
+* zakup,
+* instalację,
+* ikonę na pulpicie,
+* uruchamianie jako osobne okno,
+* jedną instancję aplikacji,
+* obecny system launcher.
+
+Nie przepisywać ponownie katalogu ani instalacji.
+
+## 2. Usunąć obecny błędny układ startowy
+
+Obecny ekran z:
+
+* wielkim panelem informacyjnym,
+* czterema nieopisanymi ikonami,
+* natychmiast wyświetloną listą graczy i podatności,
+
+nie jest ekranem głównym Victim Pickera.
+
+Po uruchomieniu aplikacji ma pojawić się prosty ekran **MAIN** z dwoma podstawowymi opcjami:
+
+### SCAN
+
+Uruchamia faktyczny skan otoczenia.
+
+### VICTIMS
+
+Otwiera listę już oznaczonych i dostępnych kandydatów do ustawienia jako cel.
+
+`Otwórz mapę`, `Odśwież` i zamknięcie mogą istnieć jako małe akcje pomocnicze w nagłówku, ale nie mogą konkurować z dwoma głównymi funkcjami aplikacji.
+
+## 3. Ekran MAIN
+
+Na ekranie głównym pokazać kompaktowo:
+
+* aktualną pozycję motocykla,
+* aktualny zasięg skanu,
+* aktualny `aimed_target`,
+* dwa duże kafle:
+
+  * `SCAN`,
+  * `VICTIMS`.
+
+Nie wyświetlać tutaj listy kandydatów.
+
+Nie wyświetlać tutaj czterech anonimowych przycisków.
+
+Stan `CEL` ma pochodzić z tego samego aktualnego profilu co pasek systemowy.
+
+Na screenie pasek pokazuje `POI-686955`, natomiast aplikacja pokazuje `CEL brak`. To oznacza dwa lokalne źródła stanu albo brak odświeżenia profilu. Victim Picker nie może utrzymywać osobnej prawdy o celu — frontend paska już korzysta z `profile.aimed_target` i ma gotowe funkcje aktualizacji oraz odświeżenia profilu.
+
+## 4. Ekran SCAN
+
+Kliknięcie `SCAN` przełącza aplikację na osobny ekran skanowania.
+
+### Skan ma korzystać z aktualnej pozycji motocykla
+
+Środkiem skanu jest zawsze:
+
+`profile.curently_possition`
+
+Victim Picker nie pozwala wskazać dowolnego punktu.
+
+Backend przed skanem ponownie pobiera aktualną pozycję motocykla i aktualny zasięg gracza.
+
+### Skan ma używać istniejącej ścieżki mapy
+
+Nie tworzyć nowego algorytmu generowania obiektów.
+
+Należy użyć tej samej logiki, która obsługuje:
+
+`/map-action` z `action: "scan"`
+
+Mapa już otrzymuje z tej ścieżki `markers`, normalizuje wyniki i tworzy tymczasowe obiekty skanu.
+
+Dopuszczalne jest wydzielenie wspólnego backendowego helpera, jeżeli bez tego aplikacja musiałaby udawać request mapy, ale oba interfejsy muszą korzystać z jednego źródła prawdy.
+
+### Przebieg skanu
+
+Po kliknięciu:
+
+1. Wyświetlić lekką animację skanowania.
+2. Pokazać komunikaty GhostSystem.
+3. Pobrać wyniki.
+4. Pogrupować je według istniejącego `source_type`.
+5. Posortować każdą grupę według odległości od motocykla.
+6. Pokazać ekran wyników.
+
+### Kategorie wyników
+
+Używać istniejących kategorii mapy, na przykład:
+
+* bankomaty,
+* banki,
+* restauracje,
+* kawiarnie,
+* bary,
+* hotspoty,
+* urządzenia,
+* kamery,
+* osoby,
+* pojazdy,
+* parkingi,
+* sklepy,
+* pozostałe POI.
+
+Nie wymyślać nowej kategorii `victim`.
+
+### Wiersz wyniku skanu
+
+Każdy wynik pokazuje:
+
+* istniejącą ikonę obiektu,
+* nazwę lub wygenerowany identyfikator,
+* typ,
+* odległość od motocykla,
+* status oznaczenia.
+
+Na ekranie SCAN dostępne są tylko akcje związane z wynikiem skanu:
+
+* `Oznacz`,
+* `Pokaż na mapie` — dopiero po oznaczeniu.
+
+Nie ma tutaj:
+
+* `Oznacz jako CEL`,
+* teleportu,
+* uruchamiania exploita,
+* uruchamiania narzędzi hackerskich.
+
+### Oznaczenie wyniku
+
+Akcja `Oznacz` ma wywołać dokładnie tę samą mechanikę co:
+
+`menu obiektu na mapie → Oznacz POI-XXXXXX`
+
+Czyli wynik trafia do istniejącego mechanizmu oznaczonych obiektów, a nie do nowego `victims`.
+
+Po sukcesie:
+
+* ikona oznaczenia zmienia stan,
+* obiekt staje się dostępny w widoku `VICTIMS`,
+* aktywuje się `Pokaż na mapie`.
+
+### Wyczyść scan
+
+Dodać akcję `Wyczyść scan`.
+
+Usuwa ona wyłącznie chwilowe wyniki bieżącego skanu z okna.
+
+Nie usuwa obiektów wcześniej oznaczonych przez użytkownika.
+
+Działa semantycznie tak samo jak `Wyczyść scan` na mapie.
+
+## 5. Ekran VICTIMS
+
+`VICTIMS` to nazwa ekranu, nie nowy model danych.
+
+Ekran składa kandydatów z istniejących źródeł:
+
+* obiekty oznaczone wcześniej przez użytkownika,
+* dozwoleni gracze i intruzi,
+* aktywne podatności,
+* filary konfliktów,
+* inne istniejące typy, które mapa potrafi ustawić jako cel.
+
+Każdy typ zachowuje istniejącą tożsamość:
+
+* standardowy obiekt — współrzędne i stabilny `target_id`,
+* gracz — `target_username`,
+* podatność — `vulnerability_id`,
+* filar konfliktu — `foreign_area_id`.
+
+System już rozróżnia te przypadki podczas budowania identyfikatora celu, więc Victim Picker nie może redukować wszystkiego do nazwy i współrzędnych.
+
+## 6. Akcje na ekranie VICTIMS
+
+Każdy kandydat może mieć:
+
+### Oznacz jako CEL
+
+Ustawia wybranego kandydata jako `profile.aimed_target`.
+
+To jest najważniejsza funkcja aplikacji.
+
+Nie uruchamia:
+
+* `/hack-action`,
+* narzędzia,
+* operacji,
+* spinnera operacji,
+* risk eventu,
+* kropek progresu,
+* rozbrajania zabezpieczeń.
+
+Nowy cel ma mieć czyste:
+
+* `actions_allowed.scan_ports = false`,
+* `actions_allowed.exploit = false`,
+* `actions_allowed.sniff = false`,
+* `actions_allowed.trace = false`.
+
+### Pokaż na mapie
+
+Dopiero na żądanie:
+
+* otwiera mapę,
+* ustawia fokus na celu,
+* nie zmienia `aimed_target`.
+
+### Teleport
+
+Korzysta z istniejącego potwierdzenia i istniejącej ścieżki teleportacji.
+
+Nie tworzyć nowego systemu teleportu.
+
+## 7. Zasięg i aktualna pozycja
+
+Lista może pokazywać obiekty poza zasięgiem, ale `Oznacz jako CEL` jest aktywne wyłącznie wtedy, gdy cel spełnia aktualne reguły mapy.
+
+Przy każdym kliknięciu backend ponownie sprawdza:
+
+1. aktualną pozycję motocykla,
+2. aktualny zasięg skanu,
+3. świeżą pozycję celu,
+4. rzeczywistą odległość,
+5. aktualny status celu,
+6. relacje gracza,
+7. status podatności lub konfliktu.
+
+Nie ufać odległości zwróconej przy wcześniejszym otwarciu okna.
+
+Zasięg musi uwzględniać istniejące bonusy `scan_range_bonus`; produkty rozbudowujące ten parametr są już częścią Googleplex.
+
+## 8. Naprawić ustawianie celu
+
+Obecnie przyciski wyglądają na aktywne, ale celu nie można ustawić.
+
+Sprint ma znaleźć i naprawić faktyczną przyczynę, bez obchodzenia walidacji.
+
+Po poprawnym ustawieniu:
+
+* backend zapisuje `aimed_target`,
+* response zwraca kanoniczny `target`,
+* Victim Picker aktualizuje swój nagłówek,
+* Victim Picker wyróżnia wybraną pozycję,
+* pasek systemowy aktualizuje się natychmiast,
+* następnie wykonywane jest kontrolne odświeżenie `/api/profile`.
+
+Nie może istnieć stan:
+
+* aplikacja: `CEL brak`,
+* pasek: `CEL POI-686955`.
+
+## 9. Nawigacja
+
+Każdy ekran poza MAIN ma przycisk `Wróć`.
+
+Wymagane widoki:
+
+* `main`,
+* `scan_loading`,
+* `scan_results`,
+* `victims`,
+* `error`.
+
+Nie renderować wszystkiego jednocześnie i nie ukrywać sekcji wyłącznie CSS-em bez jednoznacznego stanu aplikacji.
+
+## Testy Sprintu 102
+
+Sprawdzić:
+
+* MAIN ma dokładnie dwie główne opcje,
+* SCAN używa aktualnej pozycji motocykla,
+* SCAN używa faktycznego zasięgu gracza,
+* wyniki odpowiadają skanowi mapy,
+* oznaczenie obiektu zapisuje go tą samą ścieżką co mapa,
+* wyczyszczenie wyników nie usuwa oznaczonych obiektów,
+* oznaczony obiekt pojawia się w VICTIMS,
+* standardowy obiekt można ustawić jako CEL,
+* dozwolonego intruza można ustawić jako CEL,
+* znajomego, siebie i członka klanu nie można ustawić,
+* podatność i filar konfliktu zachowują swoją tożsamość,
+* cel poza zasięgiem jest zablokowany,
+* po ruchu gracza pozycja jest ponownie walidowana,
+* `aimed_target` jest identyczny w aplikacji i na pasku,
+* ustawienie celu nie tworzy operacji ani progresu,
+* mapa nie ładuje się podczas otwierania aplikacji ani skanu.
+
+## DoD Sprintu 102
+
+Victim Picker działa funkcjonalnie jako trzyetapowy interfejs:
+
+**MAIN → SCAN → VICTIMS**
+
+Gracz może zeskanować otoczenie motocykla, oznaczyć znalezione obiekty, przejść do VICTIMS i ustawić dozwolony cel jako aktualny `aimed_target`, a stan CEL jest natychmiast zgodny w aplikacji i na pasku systemowym.
+
+Ten sprint naprawia logikę i właściwy przebieg aplikacji; wygląd ma być jedynie czytelny i technicznie poprawny, bez finalnego dopieszczania.
+
+---
+
+# Sprint 103 — Victim Picker: finalne GUI i język ikon
+
+## Cel sprintu
+
+Zastąpić obecny ciężki, nieczytelny panel lekkim interfejsem narzędzia premium, w którym użytkownik od razu rozumie:
+
+* gdzie jest,
+* co może zrobić,
+* co oznaczają ikony,
+* który cel jest aktywny,
+* dlaczego dana akcja jest zablokowana.
+
+Sprint nie zmienia mechaniki ze Sprintu 102.
+
+## 1. Rozmiar i konstrukcja okna
+
+Okno nie powinno domyślnie zajmować prawie całego ekranu.
+
+Desktop:
+
+* szerokość około `620–760 px`,
+* wysokość około `480–620 px`,
+* rozsądne minimum,
+* możliwość zmiany rozmiaru,
+* lista przewijana wyłącznie w środkowej części.
+
+Fullscreen i mobile safe mode nadal mogą wypełniać ekran, ale layout musi się wtedy rozsądnie przeorganizować.
+
+## 2. Ekran MAIN — dwa czytelne kafle
+
+MAIN ma być bardzo prosty.
+
+U góry mały status:
+
+* aktualny CEL,
+* pozycja motocykla,
+* zasięg skanu.
+
+Niżej dwa duże kafle:
+
+### SCAN
+
+* duża ikona radaru,
+* krótka nazwa,
+* mały opis: `Skanuj otoczenie motocykla`.
+
+### VICTIMS
+
+* duża ikona celownika lub sylwetki,
+* licznik dostępnych kandydatów,
+* mały opis: `Wybierz aktywny cel`.
+
+Nie dodawać pomiędzy nimi anonimowego paska czterech przycisków.
+
+## 3. Ekran SCAN
+
+Nagłówek:
+
+* ikona powrotu,
+* `SCAN`,
+* pozycja motocykla,
+* zasięg,
+* odśwież,
+* wyczyść scan.
+
+Podczas skanowania pokazać prostą wizualizację:
+
+* impuls radaru,
+* krótkie logi GhostSystem,
+* licznik lub status wykrytych sygnatur.
+
+Po zakończeniu:
+
+* sekcje według typu,
+* licznik przy nazwie sekcji,
+* kompaktowe wiersze,
+* odległość dobrze widoczna.
+
+Każdy wiersz:
+
+* ikona obiektu,
+* nazwa,
+* typ,
+* dystans,
+* małe akcje ikonowe.
+
+Akcje:
+
+* pusty pin — `Oznacz`,
+* pełny pin — `Oznaczony`,
+* mapa — `Pokaż na mapie`, nieaktywna przed oznaczeniem.
+
+## 4. Ekran VICTIMS
+
+Nagłówek:
+
+* powrót,
+* `VICTIMS`,
+* liczba kandydatów,
+* aktywny CEL,
+* odśwież.
+
+Każdy wpis:
+
+* istniejąca ikona obiektu,
+* nazwa,
+* typ,
+* dystans,
+* status zasięgu,
+* stan aktywnego celu.
+
+Akcje:
+
+* celownik — `Oznacz jako CEL`,
+* aktywny celownik — `Aktualny CEL`,
+* mapa — `Pokaż na mapie`,
+* skok — `Teleport`.
+
+Nie pokazywać czterech przycisków w każdym wierszu, jeżeli część nic nie robi.
+
+Nie pokazywać żółtego `!` jako akcji. Ostrzeżenie nie jest przyciskiem.
+
+## 5. Własny zestaw ikon
+
+Dodać jeden spójny zestaw, np. `VICTIM_PICKER_ICONS`.
+
+Minimum:
+
+* `app`,
+* `scan`,
+* `victims`,
+* `back`,
+* `refresh`,
+* `clear`,
+* `bike`,
+* `range`,
+* `map`,
+* `mark`,
+* `marked`,
+* `aim`,
+* `aimed`,
+* `teleport`,
+* `inRange`,
+* `outOfRange`,
+* `locked`,
+* `loading`,
+* `error`.
+
+Ikony:
+
+* inline SVG,
+* wspólny `viewBox`,
+* podobna grubość linii,
+* `currentColor`,
+* bez przypadkowego miksowania emoji, znaków Unicode i różnych stylów,
+* bez zewnętrznego CDN.
+
+Ikony obiektów świata nadal pochodzą z mapy. Nowy zestaw dotyczy wyłącznie interfejsu Victim Pickera.
+
+## 6. Czytelność ikon
+
+Każdy przycisk ikonowy musi mieć:
+
+* `title`,
+* `aria-label`,
+* tooltip,
+* wyraźny hover,
+* focus klawiatury,
+* active,
+* disabled.
+
+Przy pierwszym wejściu na ekran można pokazać małą legendę:
+
+* celownik — ustaw CEL,
+* mapa — pokaż,
+* strzałka — teleport,
+* pin — oznacz.
+
+Legenda nie może zajmować połowy okna.
+
+## 7. Stany zablokowane
+
+Nie pokazywać długiego żółtego komunikatu pod każdym wpisem, jeśli przyczyna jest identyczna dla całej kategorii.
+
+Dla zablokowanej akcji:
+
+* ikona jest wyszarzona,
+* tooltip podaje pełny powód,
+* obok nazwy może być krótki status:
+
+  * `ZNAJOMY`,
+  * `WŁASNY KLAN`,
+  * `POZA ZASIĘGIEM`,
+  * `WŁASNA PODATNOŚĆ`,
+  * `NIEDOSTĘPNY`.
+
+Pełny komunikat pokazać po kliknięciu albo w dolnym pasku statusu.
+
+## 8. Aktywny CEL
+
+Aktualny cel musi być czytelny na wszystkich ekranach.
+
+Na liście:
+
+* wpis otrzymuje klasę `is-aimed`,
+* celownik zmienia się na aktywny,
+* pojawia się krótki badge `CEL`.
+
+W nagłówku:
+
+`CEL: POI-686955`
+
+Jeżeli celu nie ma:
+
+`CEL: —`
+
+Nie używać lokalnej wartości, która może rozjechać się z paskiem.
+
+Pasek systemowy ma już gotowy renderer oparty o `aimed_target`, a jego kropki wynikają z `actions_allowed`; Victim Picker powinien jedynie przekazać czysty target i odświeżyć wspólny profil.
+
+## 9. Responsywność
+
+W wąskim oknie:
+
+* nagłówek zawija się maksymalnie do dwóch rzędów,
+* kafle MAIN ustawiają się jeden pod drugim,
+* akcje pozostają ikonowe,
+* nazwa celu może być skrócona wielokropkiem,
+* tooltip pokazuje pełną nazwę,
+* wiersz nie rozjeżdża się przez długi komunikat,
+* scroll dotyczy listy, nie całej aplikacji wraz z nagłówkiem.
+
+## 10. Stan pusty i błędy
+
+MAIN:
+
+* brak pozycji motocykla — SCAN zablokowany z czytelnym powodem.
+
+SCAN:
+
+* brak wyników — radar i komunikat `Brak sygnatur w zasięgu`.
+
+VICTIMS:
+
+* brak oznaczonych i dostępnych celów — komunikat:
+  `Najpierw wykonaj SCAN i oznacz interesujące obiekty.`
+
+Błąd sieci:
+
+* nie usuwa poprzedniej listy,
+* pokazuje nieduży komunikat,
+* pozwala ponowić operację.
+
+## Testy Sprintu 103
+
+Sprawdzić:
+
+* MAIN ma dwa i tylko dwa główne kafle,
+* wszystkie ikony mają tooltip,
+* żadna kluczowa akcja nie jest anonimowym symbolem,
+* ostrzeżenie nie jest renderowane jako klikalny przycisk,
+* stan aktywnego CEL jest widoczny w nagłówku i na liście,
+* aplikacja i pasek zawsze pokazują ten sam CEL,
+* SCAN i VICTIMS są wizualnie różnymi ekranami,
+* aplikacja działa w oknie desktopowym, fullscreen i mobile safe mode,
+* długie nazwy nie rozsadzają wierszy,
+* mapa ładuje się tylko po kliknięciu ikony mapy,
+* nie ma regresji zakupu, instalacji ani launchera.
+
+## DoD Sprintu 103
+
+Victim Picker ma prosty MAIN z dwoma funkcjami, pełny ekran SCAN, osobny ekran VICTIMS, spójny zestaw ikon, czytelne stany zasięgu i aktywnego celu oraz kompaktowy wygląd pasujący do aplikacji premium za `100 000 HC`.
+
+Sprint 102 przywraca właściwy produkt, a Sprint 103 sprawia, że gracz faktycznie rozumie go bez zgadywania, co oznaczają `!`, kółko, pinezka i strzałka.
+
+
 ---
 
 comming soon..

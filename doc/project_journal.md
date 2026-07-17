@@ -8818,3 +8818,79 @@ Walidacja:
 * `python -m py_compile run.py database.py profileManagment.py`: OK;
 * `git diff --check`: OK, tylko ostrzezenie CRLF dla `static/css/style.css`;
 * `rg` potwierdzil integracje launchera, stylow i endpointow.
+
+## Sprint 102 - Victim Picker: flow, scan i CEL
+
+Przebudowano Victim Pickera z jednego widoku listy na jawny przeplyw
+`MAIN -> SCAN -> VICTIMS`.
+
+Wdrozone:
+
+* ekran `MAIN` pokazuje pozycje motocykla, zasieg, aktualny `CEL` i tylko dwie
+  glowne akcje: `SCAN` oraz `VICTIMS`;
+* `SCAN` korzysta z istniejacego `/map-action` z `action: scan`, bez ladowania
+  mapy i bez nowego algorytmu skanowania;
+* wyniki skanu sa grupowane po istniejacym `source_type`, sortowane po
+  odleglosci od motocykla i maja akcje `Oznacz`;
+* `Oznacz` korzysta z istniejacego `/map-action` z `action: mark_target`, czyli
+  zapisuje obiekt do obecnego mechanizmu oznaczonych celow;
+* `Pokaż na mapie` dla wyniku skanu aktywuje sie dopiero po oznaczeniu;
+* ekran `VICTIMS` pokazuje kandydatow z obecnych zrodel i pozwala ustawic
+  `aimed_target` przez `POST /api/victim-picker/aim`;
+* backend `GET /api/victim-picker/candidates` zwraca teraz kanoniczny
+  `aimed_target`, zeby aplikacja i pasek `CEL` korzystaly z tej samej prawdy;
+* po ustawieniu celu aplikacja odswieza liste i pasek `CEL` kontrolowanym
+  refresh target truth.
+
+Celowo poza zakresem:
+
+* brak finalnego polish GUI ze Sprintu 103;
+* brak nowych modeli `victims`;
+* brak uruchamiania narzedzi, operacji, ryzyka i incydentow z Victim Pickera;
+* brak zmian katalogu Googleplex i instalacji produktu.
+
+Walidacja:
+
+* `node --check static/js/terminal.js`: OK;
+* `python -m py_compile run.py database.py profileManagment.py`: OK;
+* `python -m unittest tests.test_target_persistence`: FAIL na znanym baseline
+  legacy: embedding profilu w mapie, generated app runtime oraz oczekiwana lista
+  recovery bez `territory`;
+* `git diff --check`: OK po usunieciu whitespace z dokumentacji, z pozostajacym
+  ostrzezeniem CRLF dla `static/css/style.css`.
+
+## Sprint 103 - Victim Picker: finalne GUI i jezyk ikon
+
+Dopolerowano Victim Pickera po przebudowie flow ze Sprintu 102. Mechanika
+pozostala bez zmian, a praca dotyczyla czytelnosci, ikon i stanow UI.
+
+Wdrozone:
+
+* dodano spojny zestaw `VICTIM_PICKER_ICONS` jako inline SVG z `currentColor`;
+* MAIN pokazuje dwa glowne kafle `SCAN` i `VICTIMS`, status `CEL`, pozycje
+  motocykla, zasieg oraz mala legende akcji;
+* SCAN dostal osobny ekran ladowania z impulsem radaru i logami GhostSystemu;
+* wyniki SCAN maja kompaktowe wiersze, akcje `Oznacz` / `Oznaczony` oraz
+  `Pokaz na mapie` aktywny dopiero po oznaczeniu;
+* VICTIMS pokazuje aktywny `CEL`, status zasiegu, skrotowe powody blokady i
+  male akcje ikonowe: ustaw cel, pokaz na mapie, teleport;
+* aktywny cel ma klase `is-aimed`, aktywny celownik i badge `CEL`;
+* przyciski maja `title`, `aria-label`, hover, focus, active i disabled;
+* style `.victim-picker-*` zostaly uzupelnione o responsywny layout, legendy,
+  stany ikon i radar scan.
+
+Poza zakresem:
+
+* brak zmian endpointow;
+* brak zmian mechaniki skanu, oznaczania i ustawiania celu;
+* brak nowych modeli danych;
+* brak zmian mapy, ryzyka, incydentow i operacji.
+
+Walidacja:
+
+* `node --check static/js/terminal.js`: OK;
+* `python -m py_compile run.py database.py profileManagment.py`: OK;
+* `python -m unittest tests.test_target_persistence`: uruchomiono jako baseline
+  legacy, znane awarie pozostaja bez zmian;
+* `git diff --check`: OK, tylko znane ostrzezenie CRLF dla
+  `static/css/style.css`.

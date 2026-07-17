@@ -2940,21 +2940,31 @@ function notifyCreatedOperations(data) {
     }
 }
 
+function victimPickerIcon(path, extra = "") {
+    return `<svg class="victim-picker-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false" ${extra}>${path}</svg>`;
+}
+
 const VICTIM_PICKER_ICONS = {
-    app: "⌖",
-    bike: "🏍",
-    range: "↔",
-    refresh: "⟳",
-    openMap: "⌁",
-    focusMap: "⌖",
-    aim: "◎",
-    aimed: "◉",
-    teleport: "⇥",
-    inRange: "✓",
-    outOfRange: "×",
-    unavailable: "!",
-    loading: "◌",
-    error: "!"
+    appText: "⌖",
+    app: victimPickerIcon('<circle cx="12" cy="12" r="8"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path><circle cx="12" cy="12" r="2"></circle>'),
+    scan: victimPickerIcon('<circle cx="12" cy="12" r="8"></circle><path d="M12 12l5-3M4 12h2M18 12h2M12 4v2"></path>'),
+    victims: victimPickerIcon('<path d="M8 20v-2a4 4 0 0 1 8 0v2"></path><circle cx="12" cy="9" r="3"></circle><path d="M18 8h3M19.5 6.5v3"></path>'),
+    back: victimPickerIcon('<path d="M15 6l-6 6 6 6"></path>'),
+    bike: victimPickerIcon('<circle cx="7" cy="17" r="3"></circle><circle cx="17" cy="17" r="3"></circle><path d="M7 17l4-8h3l3 8M11 9l-2-2M14 9l2-2M10 13h5"></path>'),
+    range: victimPickerIcon('<path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"></path>'),
+    refresh: victimPickerIcon('<path d="M20 6v5h-5"></path><path d="M4 18v-5h5"></path><path d="M18 10a6 6 0 0 0-10-4M6 14a6 6 0 0 0 10 4"></path>'),
+    clear: victimPickerIcon('<path d="M5 7h14M9 7V5h6v2M8 10l1 9h6l1-9"></path>'),
+    map: victimPickerIcon('<path d="M4 6l5-2 6 2 5-2v14l-5 2-6-2-5 2z"></path><path d="M9 4v14M15 6v14"></path>'),
+    mark: victimPickerIcon('<path d="M12 21s6-5.2 6-11a6 6 0 0 0-12 0c0 5.8 6 11 6 11z"></path><circle cx="12" cy="10" r="2"></circle>'),
+    marked: victimPickerIcon('<path d="M12 21s6-5.2 6-11a6 6 0 0 0-12 0c0 5.8 6 11 6 11z"></path><circle cx="12" cy="10" r="2"></circle><path d="M8 4l8 12"></path>'),
+    aim: victimPickerIcon('<circle cx="12" cy="12" r="8"></circle><path d="M12 7v10M7 12h10"></path>'),
+    aimed: victimPickerIcon('<circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path>'),
+    teleport: victimPickerIcon('<path d="M5 12h12"></path><path d="M13 7l5 5-5 5"></path><circle cx="5" cy="12" r="2"></circle>'),
+    inRange: victimPickerIcon('<path d="M5 12l4 4L19 6"></path>'),
+    outOfRange: victimPickerIcon('<circle cx="12" cy="12" r="8"></circle><path d="M8 8l8 8M16 8l-8 8"></path>'),
+    locked: victimPickerIcon('<rect x="6" y="10" width="12" height="10" rx="2"></rect><path d="M8 10V8a4 4 0 0 1 8 0v2"></path>'),
+    loading: victimPickerIcon('<circle cx="12" cy="12" r="8"></circle><path d="M12 4a8 8 0 0 1 8 8"></path>'),
+    error: victimPickerIcon('<path d="M12 3l9 16H3z"></path><path d="M12 8v5M12 17h.01"></path>')
 };
 
 const VICTIM_PICKER_SOURCE_LABELS = {
@@ -2971,6 +2981,16 @@ const VICTIM_PICKER_REASON_LABELS = {
     missing_position: "Brak pozycji celu",
     missing_player_position: "Brak pozycji motocykla",
     own_vulnerability: "Wlasne zgloszenie podatnosci"
+};
+
+const VICTIM_PICKER_REASON_BADGES = {
+    out_of_range: "POZA ZASIEGIEM",
+    missing_position: "BRAK POZYCJI",
+    missing_player_position: "BRAK MOTOCYKLA",
+    own_vulnerability: "WLASNA PODATNOSC",
+    self: "TY",
+    friend: "ZNAJOMY",
+    clan: "WLASNY KLAN"
 };
 
 function formatVictimPickerCoords(position) {
@@ -2997,9 +3017,15 @@ function getVictimPickerReason(candidate) {
     return VICTIM_PICKER_REASON_LABELS[reason] || reason || "";
 }
 
+function getVictimPickerReasonBadge(candidate) {
+    const reason = String(candidate?.disabled_reason || "").trim();
+    if (!reason) return "";
+    return VICTIM_PICKER_REASON_BADGES[reason] || "NIEDOSTEPNY";
+}
+
 function getVictimPickerCandidateIcon(candidate) {
     if (candidate?.is_aimed) return VICTIM_PICKER_ICONS.aimed;
-    if (!candidate?.can_aim) return VICTIM_PICKER_ICONS.unavailable;
+    if (!candidate?.can_aim) return VICTIM_PICKER_ICONS.locked;
     if (candidate?.in_range) return VICTIM_PICKER_ICONS.inRange;
     return VICTIM_PICKER_ICONS.outOfRange;
 }
@@ -3009,6 +3035,71 @@ function groupVictimPickerCandidates(candidates) {
         const label = getVictimPickerSourceLabel(candidate);
         if (!groups.has(label)) groups.set(label, []);
         groups.get(label).push(candidate);
+        return groups;
+    }, new Map());
+}
+
+function getVictimPickerActiveLabel(state = {}) {
+    const target = state.aimed_target || {};
+    const fromCandidates = (Array.isArray(state.candidates) ? state.candidates : []).find(item => item.is_aimed);
+    return target.label || target.name || fromCandidates?.label || "brak";
+}
+
+function getVictimPickerScanId(item = {}) {
+    const lat = Number(item.lat);
+    const lng = Number(item.lng ?? item.lon);
+    const label = item.label || item.name || "scan";
+    return `${Number.isFinite(lat) ? lat.toFixed(6) : "x"}:${Number.isFinite(lng) ? lng.toFixed(6) : "y"}:${label}`;
+}
+
+function isVictimPickerMissingDisplayName(value) {
+    const text = String(value || "").trim();
+    return !text || text === "-" || text.toLowerCase() === "unknown";
+}
+
+function victimPickerDisplayLabel(item = {}, fallbackPrefix = "POI") {
+    for (const key of ["label", "name", "title", "display_name"]) {
+        if (!isVictimPickerMissingDisplayName(item[key])) return String(item[key]).trim();
+    }
+    const rawId = item.osm_id || item.node_id || item.id || "";
+    if (rawId) return `${fallbackPrefix}-${String(rawId).slice(-6).toUpperCase()}`;
+    const lat = Number(item.lat);
+    const lng = Number(item.lng ?? item.lon);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return `${fallbackPrefix}-${Math.abs(Math.round((lat * 100000 + lng * 100000) % 1000000)).toString(16).toUpperCase()}`;
+    }
+    return `${fallbackPrefix}-UNKNOWN`;
+}
+
+function normalizeVictimPickerScanResult(item = {}) {
+    const lat = Number(item.lat);
+    const lng = Number(item.lng ?? item.lon);
+    const label = victimPickerDisplayLabel({
+        ...item,
+        target_type: item.target_type || "poi"
+    });
+    return {
+        ...item,
+        id: getVictimPickerScanId({ ...item, lat, lng, label }),
+        lat,
+        lng,
+        lon: lng,
+        label,
+        name: isVictimPickerMissingDisplayName(item.name) ? label : (item.name || label),
+        icon: item.icon || VICTIM_PICKER_ICONS.map,
+        source_type: item.source_type || "unknown",
+        target_type: item.target_type || "poi",
+        generated: Boolean(item.generated),
+        marked: Boolean(item.marked)
+    };
+}
+
+function groupVictimPickerScanResults(results) {
+    return (Array.isArray(results) ? results : []).reduce((groups, result) => {
+        const key = String(result.source_type || "pozostale");
+        const label = VICTIM_PICKER_SOURCE_LABELS[key] || key.replace(/[_:.]+/g, " ");
+        if (!groups.has(label)) groups.set(label, []);
+        groups.get(label).push(result);
         return groups;
     }, new Map());
 }
@@ -3101,21 +3192,22 @@ function renderVictimPickerEmpty(container, message) {
     container.innerHTML = `<div class="victim-picker-empty">${escapeHTML(message || "Brak kandydatow.")}</div>`;
 }
 
-function renderVictimPickerApp(app, state) {
+function renderVictimPickerFrame(app, state, bodyHtml, options = {}) {
     const root = app.querySelector(".victim-picker-shell");
-    if (!root) return;
-    const candidates = Array.isArray(state.candidates) ? state.candidates : [];
-    const currentLabel = candidates.find(item => item.is_aimed)?.label || "brak";
+    if (!root) return null;
+    const currentLabel = getVictimPickerActiveLabel(state);
     const position = state.position || {};
     const range = Number(state.action_range_m);
-    const groups = groupVictimPickerCandidates(candidates);
+    const view = state.view || "main";
+    const back = options.back ? `<button type="button" data-victim-picker-action="${escapeHTML(options.back)}" title="Wroc" aria-label="Wroc">${VICTIM_PICKER_ICONS.back}<span>Wroc</span></button>` : "";
+    const screenTitle = options.title || (view === "scan_results" || view === "scan_loading" ? "SCAN" : view === "victims" ? "VICTIMS" : "Victim Picker");
 
     root.innerHTML = `
         <header class="victim-picker-header">
             <div class="victim-picker-brand">
                 <span class="victim-picker-brand-icon">${VICTIM_PICKER_ICONS.app}</span>
                 <div>
-                    <strong>Victim Picker</strong>
+                    <strong>${escapeHTML(screenTitle)}</strong>
                     <span>Lekki selektor celu bez Leafleta</span>
                 </div>
             </div>
@@ -3126,16 +3218,260 @@ function renderVictimPickerApp(app, state) {
             </div>
         </header>
         <nav class="victim-picker-toolbar" aria-label="Victim Picker tools">
+            ${back}
             <button type="button" data-victim-picker-action="refresh" title="Odswiez" aria-label="Odswiez">${VICTIM_PICKER_ICONS.refresh}</button>
-            <button type="button" data-victim-picker-action="open-map" title="Otworz mape" aria-label="Otworz mape">${VICTIM_PICKER_ICONS.openMap}</button>
-            <button type="button" data-victim-picker-action="focus-active" title="Pokaz aktualny cel na mapie" aria-label="Pokaz aktualny cel na mapie">${VICTIM_PICKER_ICONS.focusMap}</button>
+            <button type="button" data-victim-picker-action="open-map" title="Otworz mape" aria-label="Otworz mape">${VICTIM_PICKER_ICONS.map}</button>
+            <button type="button" data-victim-picker-action="focus-active" title="Pokaz aktualny cel na mapie" aria-label="Pokaz aktualny cel na mapie">${VICTIM_PICKER_ICONS.aimed}</button>
             <button type="button" data-victim-picker-action="close" title="Zamknij" aria-label="Zamknij">×</button>
         </nav>
         <div class="victim-picker-status" data-victim-picker-status hidden></div>
+        <section class="victim-picker-screen victim-picker-screen-${escapeHTML(view)}" data-victim-picker-screen>${bodyHtml || ""}</section>
+    `;
+    bindVictimPickerCommonActions(app, state);
+    return root;
+}
+
+function bindVictimPickerCommonActions(app, state) {
+    const root = app.querySelector(".victim-picker-shell");
+    if (!root) return;
+    root.querySelector('[data-victim-picker-action="refresh"]')?.addEventListener("click", () => loadVictimPickerData(app, state, state.view || "main"));
+    root.querySelector('[data-victim-picker-action="open-map"]')?.addEventListener("click", () => createMap());
+    root.querySelector('[data-victim-picker-action="close"]')?.addEventListener("click", () => app.remove());
+    root.querySelector('[data-victim-picker-action="back-main"]')?.addEventListener("click", () => renderVictimPickerMain(app, state));
+    root.querySelector('[data-victim-picker-action="back-scan"]')?.addEventListener("click", () => renderVictimPickerScanResults(app, state));
+    root.querySelector('[data-victim-picker-action="focus-active"]')?.addEventListener("click", () => {
+        const active = (Array.isArray(state.candidates) ? state.candidates : []).find(item => item.is_aimed);
+        const target = state.aimed_target;
+        const focus = active?.focus || active || target;
+        if (!focus) {
+            addSystemMessage("warning", "VICTIM PICKER", "Brak aktywnego celu do pokazania.");
+            return;
+        }
+        openVictimPickerMapFocus(focus, getVictimPickerActiveLabel(state));
+    });
+}
+
+function renderVictimPickerMain(app, state) {
+    state.view = "main";
+    renderVictimPickerFrame(app, state, `
+        <div class="victim-picker-main">
+            <button type="button" class="victim-picker-tile" data-victim-picker-action="scan">
+                <span class="victim-picker-tile-icon">${VICTIM_PICKER_ICONS.scan}</span>
+                <strong>SCAN</strong>
+                <span>Skanuj otoczenie motocykla</span>
+            </button>
+            <button type="button" class="victim-picker-tile" data-victim-picker-action="victims">
+                <span class="victim-picker-tile-icon">${VICTIM_PICKER_ICONS.victims}</span>
+                <strong>VICTIMS</strong>
+                <span>Wybierz aktywny cel z ${Array.isArray(state.candidates) ? state.candidates.length : 0} kandydatow</span>
+            </button>
+        </div>
+        <div class="victim-picker-legend">
+            <span>${VICTIM_PICKER_ICONS.mark} oznacz</span>
+            <span>${VICTIM_PICKER_ICONS.aim} ustaw CEL</span>
+            <span>${VICTIM_PICKER_ICONS.map} pokaz</span>
+            <span>${VICTIM_PICKER_ICONS.teleport} teleport</span>
+        </div>
+    `, { title: "Victim Picker" });
+    const root = app.querySelector(".victim-picker-shell");
+    root?.querySelector('[data-victim-picker-action="scan"]')?.addEventListener("click", () => runVictimPickerScan(app, state));
+    root?.querySelector('[data-victim-picker-action="victims"]')?.addEventListener("click", () => renderVictimPickerVictims(app, state));
+}
+
+function renderVictimPickerScanLoading(app, state) {
+    state.view = "scan_loading";
+    renderVictimPickerFrame(app, state, `
+        <div class="victim-picker-loading">
+            <div class="victim-picker-radar" aria-hidden="true">${VICTIM_PICKER_ICONS.scan}</div>
+            <div>
+                <b>GhostSystem: skan otoczenia motocykla...</b>
+                <p>Pozycja i zasieg sa weryfikowane po stronie runtime.</p>
+                <ul class="victim-picker-scan-log">
+                    <li>kalibracja anteny</li>
+                    <li>rekonstrukcja sygnatur</li>
+                    <li>grupowanie wedlug source_type</li>
+                </ul>
+            </div>
+        </div>
+    `, { back: "back-main", title: "SCAN" });
+}
+
+function renderVictimPickerScanResults(app, state) {
+    state.view = "scan_results";
+    const results = Array.isArray(state.scan_results) ? state.scan_results : [];
+    const groups = groupVictimPickerScanResults(results);
+    const body = `
+        <div class="victim-picker-scan-actions">
+            <button type="button" data-victim-picker-action="clear-scan" title="Wyczysc scan" aria-label="Wyczysc scan">${VICTIM_PICKER_ICONS.clear}<span>Wyczysc scan</span></button>
+            <button type="button" data-victim-picker-action="go-victims" title="Przejdz do VICTIMS" aria-label="Przejdz do VICTIMS">${VICTIM_PICKER_ICONS.victims}<span>VICTIMS</span></button>
+        </div>
+        <div class="victim-picker-legend">
+            <span>${VICTIM_PICKER_ICONS.mark} oznacz</span>
+            <span>${VICTIM_PICKER_ICONS.marked} oznaczony</span>
+            <span>${VICTIM_PICKER_ICONS.map} pokaz na mapie</span>
+        </div>
+        <section class="victim-picker-list" data-victim-picker-list>
+            ${results.length ? Array.from(groups.entries()).map(([groupLabel, items]) => `
+                <section class="victim-picker-group">
+                    <h4>${escapeHTML(groupLabel)} <span>${items.length}</span></h4>
+                    ${items.map(result => `
+                        <article class="victim-picker-row ${result.marked ? "is-marked" : ""}" data-scan-id="${escapeHTML(result.id)}">
+                            <div class="victim-picker-kind">${escapeHTML(result.icon || VICTIM_PICKER_ICONS.map)}</div>
+                            <div class="victim-picker-copy">
+                                <strong>${escapeHTML(result.label || result.name || "unknown")}</strong>
+                                <span>${escapeHTML(result.source_type || "unknown")} / ${escapeHTML(formatVictimPickerDistance(result.distance_m))}</span>
+                                <em>${result.marked ? "Oznaczony" : "Wynik skanu"}</em>
+                            </div>
+                            <div class="victim-picker-state">${result.marked ? VICTIM_PICKER_ICONS.aimed : VICTIM_PICKER_ICONS.inRange}</div>
+                            <div class="victim-picker-actions">
+                                <button type="button" data-victim-picker-action="mark-scan" data-scan-id="${escapeHTML(result.id)}" title="${result.marked ? "Oznaczony" : "Oznacz"}" aria-label="${result.marked ? "Oznaczony" : "Oznacz"}" ${result.marked ? "disabled data-original-disabled=\"1\"" : ""}>${result.marked ? VICTIM_PICKER_ICONS.marked : VICTIM_PICKER_ICONS.mark}</button>
+                                <button type="button" data-victim-picker-action="show-scan-map" data-scan-id="${escapeHTML(result.id)}" title="${result.marked ? "Pokaz na mapie" : "Najpierw oznacz obiekt"}" aria-label="Pokaz na mapie" ${result.marked ? "" : "disabled data-original-disabled=\"1\""}>${VICTIM_PICKER_ICONS.map}</button>
+                            </div>
+                        </article>
+                    `).join("")}
+                </section>
+            `).join("") : `<div class="victim-picker-empty">Brak nowych obiektow w wyniku skanu.</div>`}
+        </section>
+    `;
+    renderVictimPickerFrame(app, state, body, { back: "back-main", title: "SCAN" });
+
+    const root = app.querySelector(".victim-picker-shell");
+    const getScan = id => results.find(item => String(item.id) === String(id));
+    root?.querySelector('[data-victim-picker-action="clear-scan"]')?.addEventListener("click", () => {
+        state.scan_results = [];
+        renderVictimPickerScanResults(app, state);
+    });
+    root?.querySelector('[data-victim-picker-action="go-victims"]')?.addEventListener("click", async () => {
+        await loadVictimPickerData(app, state, "victims");
+    });
+    root?.querySelectorAll("[data-victim-picker-action][data-scan-id]").forEach(button => {
+        button.addEventListener("click", async () => {
+            const scan = getScan(button.dataset.scanId);
+            if (!scan) return;
+            if (button.dataset.victimPickerAction === "show-scan-map") {
+                openVictimPickerMapFocus(scan, scan.label);
+                return;
+            }
+            if (button.dataset.victimPickerAction !== "mark-scan" || scan.marked) return;
+            setVictimPickerBusy(app, true, "Oznaczam obiekt...");
+            try {
+                const response = await fetch("/map-action", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        action: "mark_target",
+                        lat: scan.lat,
+                        lng: scan.lng,
+                        label: scan.label,
+                        icon: scan.icon,
+                        source_type: scan.source_type,
+                        name: scan.name || scan.label,
+                        generated: Boolean(scan.generated)
+                    })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || data.error) {
+                    addSystemMessage("warning", "VICTIM PICKER", data.error || "Nie udalo sie oznaczyc obiektu.");
+                    return;
+                }
+                scan.marked = true;
+                addSystemMessage("success", "VICTIM PICKER", "Obiekt oznaczony. Jest dostepny w VICTIMS.");
+                await loadVictimPickerData(app, state, "scan_results", { silent: true });
+                renderVictimPickerScanResults(app, state);
+            } catch (error) {
+                console.warn("Victim Picker mark scan failed", error);
+                addSystemMessage("warning", "VICTIM PICKER", "Most oznaczania jest chwilowo niedostepny.");
+            } finally {
+                setVictimPickerBusy(app, false);
+            }
+        });
+    });
+}
+
+async function runVictimPickerScan(app, state) {
+    renderVictimPickerScanLoading(app, state);
+    setVictimPickerBusy(app, true, "Skan...");
+    try {
+        await loadVictimPickerData(app, state, "scan_loading", { silent: true });
+        const position = state.position || {};
+        const lat = Number(position.lat);
+        const lng = Number(position.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            throw new Error("Brak pozycji motocykla.");
+        }
+        const response = await fetch("/map-action", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: "scan",
+                lat,
+                lng,
+                label: "Victim Picker scan",
+                icon: VICTIM_PICKER_ICONS.app,
+                source_type: "victim_picker",
+                name: "Victim Picker scan",
+                generated: false
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.message || data.status || "Skan odrzucony.");
+        }
+        const origin = state.position || {};
+        state.scan_results = (Array.isArray(data.markers) ? data.markers : [])
+            .map(item => normalizeVictimPickerScanResult(item))
+            .filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+            .map(item => ({
+                ...item,
+                distance_m: victimPickerDistanceFromOrigin(item, origin)
+            }))
+            .sort((a, b) => (a.distance_m ?? 10 ** 12) - (b.distance_m ?? 10 ** 12));
+        renderVictimPickerScanResults(app, state);
+    } catch (error) {
+        state.view = "error";
+        renderVictimPickerFrame(app, state, `
+            <div class="victim-picker-error">
+                <strong>${VICTIM_PICKER_ICONS.error} Scan offline</strong>
+                <p>${escapeHTML(error?.message || "Nie udalo sie wykonac skanu.")}</p>
+            </div>
+        `, { back: "back-main", title: "SCAN" });
+    } finally {
+        setVictimPickerBusy(app, false);
+    }
+}
+
+function victimPickerDistanceFromOrigin(item, origin) {
+    const lat1 = Number(item?.lat);
+    const lng1 = Number(item?.lng ?? item?.lon);
+    const lat2 = Number(origin?.lat);
+    const lng2 = Number(origin?.lng ?? origin?.lon);
+    if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return null;
+    const toRad = value => value * Math.PI / 180;
+    const earth = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    return Math.round(earth * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+function renderVictimPickerVictims(app, state) {
+    state.view = "victims";
+    const candidates = Array.isArray(state.candidates) ? state.candidates : [];
+    const groups = groupVictimPickerCandidates(candidates);
+    const body = `
+        <div class="victim-picker-legend">
+            <span>${VICTIM_PICKER_ICONS.aim} ustaw CEL</span>
+            <span>${VICTIM_PICKER_ICONS.aimed} aktualny CEL</span>
+            <span>${VICTIM_PICKER_ICONS.map} pokaz</span>
+            <span>${VICTIM_PICKER_ICONS.teleport} teleport</span>
+        </div>
         <section class="victim-picker-list" data-victim-picker-list></section>
     `;
+    renderVictimPickerFrame(app, state, body, { back: "back-main", title: "VICTIMS" });
 
-    const list = root.querySelector("[data-victim-picker-list]");
+    const root = app.querySelector(".victim-picker-shell");
+    const list = root?.querySelector("[data-victim-picker-list]");
+    if (!list) return;
     if (!candidates.length) {
         renderVictimPickerEmpty(list, "Brak kandydatow w zasiegu aktualnych zrodel.");
     } else {
@@ -3144,6 +3480,7 @@ function renderVictimPickerApp(app, state) {
                 <h4>${escapeHTML(groupLabel)} <span>${items.length}</span></h4>
                 ${items.map(candidate => {
                     const reason = getVictimPickerReason(candidate);
+                    const reasonBadge = getVictimPickerReasonBadge(candidate);
                     const classes = [
                         "victim-picker-row",
                         candidate.is_aimed ? "is-aimed" : "",
@@ -3156,13 +3493,14 @@ function renderVictimPickerApp(app, state) {
                             <div class="victim-picker-copy">
                                 <strong title="${escapeHTML(candidate.label || "")}">${escapeHTML(candidate.label || "unknown")}</strong>
                                 <span>${escapeHTML(candidate.target_mode || "standard")} / ${escapeHTML(formatVictimPickerDistance(candidate.distance_m))}</span>
-                                ${reason ? `<em>${escapeHTML(reason)}</em>` : ""}
+                                ${reasonBadge ? `<em title="${escapeHTML(reason)}">${escapeHTML(reasonBadge)}</em>` : ""}
+                                ${candidate.is_aimed ? `<em class="victim-picker-badge-cel">CEL</em>` : ""}
                             </div>
                             <div class="victim-picker-state" title="${candidate.is_aimed ? "Aktywny CEL" : candidate.in_range ? "W zasiegu" : "Poza zasiegiem"}">${getVictimPickerCandidateIcon(candidate)}</div>
                             <div class="victim-picker-actions">
-                                <button type="button" data-victim-picker-action="aim" data-target-id="${escapeHTML(candidate.target_id || "")}" title="${candidate.can_aim ? "Oznacz jako CEL" : escapeHTML(reason || "Niedostepny")}" aria-label="Oznacz jako CEL" ${candidate.can_aim ? "" : "disabled data-original-disabled=\"1\""}>${candidate.is_aimed ? VICTIM_PICKER_ICONS.aimed : VICTIM_PICKER_ICONS.aim}</button>
-                                <button type="button" data-victim-picker-action="show-map" data-target-id="${escapeHTML(candidate.target_id || "")}" title="Pokaz na mapie" aria-label="Pokaz na mapie">${VICTIM_PICKER_ICONS.focusMap}</button>
-                                <button type="button" data-victim-picker-action="teleport" data-target-id="${escapeHTML(candidate.target_id || "")}" title="Teleport w okolice celu" aria-label="Teleport w okolice celu" ${candidate.teleport ? "" : "disabled data-original-disabled=\"1\""}>${VICTIM_PICKER_ICONS.teleport}</button>
+                                <button type="button" data-victim-picker-action="aim" data-target-id="${escapeHTML(candidate.target_id || "")}" title="${candidate.can_aim ? (candidate.is_aimed ? "Aktualny CEL" : "Oznacz jako CEL") : escapeHTML(reason || "Niedostepny")}" aria-label="${candidate.is_aimed ? "Aktualny CEL" : "Oznacz jako CEL"}" ${candidate.can_aim && !candidate.is_aimed ? "" : "disabled data-original-disabled=\"1\""}>${candidate.is_aimed ? VICTIM_PICKER_ICONS.aimed : VICTIM_PICKER_ICONS.aim}</button>
+                                <button type="button" data-victim-picker-action="show-map" data-target-id="${escapeHTML(candidate.target_id || "")}" title="Pokaz na mapie" aria-label="Pokaz na mapie">${VICTIM_PICKER_ICONS.map}</button>
+                                ${candidate.teleport ? `<button type="button" data-victim-picker-action="teleport" data-target-id="${escapeHTML(candidate.target_id || "")}" title="Teleport w okolice celu" aria-label="Teleport w okolice celu">${VICTIM_PICKER_ICONS.teleport}</button>` : ""}
                             </div>
                         </article>
                     `;
@@ -3172,18 +3510,6 @@ function renderVictimPickerApp(app, state) {
     }
 
     const getCandidate = targetId => candidates.find(item => String(item.target_id || "") === String(targetId || ""));
-    root.querySelector('[data-victim-picker-action="refresh"]')?.addEventListener("click", () => loadVictimPickerData(app, state));
-    root.querySelector('[data-victim-picker-action="open-map"]')?.addEventListener("click", () => createMap());
-    root.querySelector('[data-victim-picker-action="close"]')?.addEventListener("click", () => app.remove());
-    root.querySelector('[data-victim-picker-action="focus-active"]')?.addEventListener("click", () => {
-        const active = candidates.find(item => item.is_aimed);
-        if (!active) {
-            addSystemMessage("warning", "VICTIM PICKER", "Brak aktywnego celu do pokazania.");
-            return;
-        }
-        openVictimPickerMapFocus(active.focus || active, active.label);
-    });
-
     root.querySelectorAll("[data-victim-picker-action][data-target-id]").forEach(button => {
         button.addEventListener("click", async () => {
             const action = button.dataset.victimPickerAction;
@@ -3223,7 +3549,8 @@ function renderVictimPickerApp(app, state) {
                 if (typeof refreshToolbarTargetTruth === "function") {
                     refreshToolbarTargetTruth();
                 }
-                await loadVictimPickerData(app, state);
+                await loadVictimPickerData(app, state, "victims", { silent: true });
+                renderVictimPickerVictims(app, state);
             } catch (error) {
                 console.warn("Victim Picker aim failed", error);
                 addSystemMessage("warning", "VICTIM PICKER", "Most celu jest chwilowo niedostepny.");
@@ -3234,16 +3561,16 @@ function renderVictimPickerApp(app, state) {
     });
 }
 
-async function loadVictimPickerData(app, state = {}) {
+async function loadVictimPickerData(app, state = {}, nextView = null, options = {}) {
     const shell = app.querySelector(".victim-picker-shell");
     if (!shell) return;
-    setVictimPickerBusy(app, true, "Pobieram kandydatow...");
-    if (!shell.dataset.initialized) {
+    if (!options.silent) setVictimPickerBusy(app, true, "Pobieram stan...");
+    if (!shell.dataset.initialized && !options.silent) {
         shell.dataset.initialized = "1";
         shell.innerHTML = `
             <div class="victim-picker-loading">
                 <span class="app-button-spinner" aria-hidden="true"></span>
-                <b>Synchronizacja VICTIMS...</b>
+                <b>Synchronizacja Victim Pickera...</b>
             </div>
         `;
     }
@@ -3265,7 +3592,11 @@ async function loadVictimPickerData(app, state = {}) {
         state.candidates = Array.isArray(data.candidates) ? data.candidates : [];
         state.position = data.position || null;
         state.action_range_m = data.action_range_m;
-        renderVictimPickerApp(app, state);
+        state.aimed_target = data.aimed_target || null;
+        if (nextView === "victims") renderVictimPickerVictims(app, state);
+        else if (nextView === "scan_results") return;
+        else if (nextView === "scan_loading") return;
+        else renderVictimPickerMain(app, state);
     } catch (error) {
         console.warn("Victim Picker load failed", error);
         shell.innerHTML = `
@@ -3275,7 +3606,7 @@ async function loadVictimPickerData(app, state = {}) {
             </div>
         `;
     } finally {
-        setVictimPickerBusy(app, false);
+        if (!options.silent) setVictimPickerBusy(app, false);
     }
 }
 
@@ -3289,7 +3620,7 @@ function createVictimPickerApp() {
     const app = document.createElement('div');
     app.className = 'app-window victim-picker-window';
     app.dataset.app = "victim-picker";
-    app.dataset.appIcon = VICTIM_PICKER_ICONS.app;
+    app.dataset.appIcon = VICTIM_PICKER_ICONS.appText;
     app.dataset.appTitle = "Victim Picker";
     const position = findAvailablePosition(760, 580);
     app.style.top = `${position.top}px`;
@@ -3304,8 +3635,8 @@ function createVictimPickerApp() {
     document.body.appendChild(app);
     makeDraggable(app);
     app.querySelector('.close-btn')?.addEventListener('click', () => app.remove());
-    const state = {};
-    loadVictimPickerData(app, state);
+    const state = { view: "main", scan_results: [] };
+    loadVictimPickerData(app, state, "main");
     return app;
 }
 
