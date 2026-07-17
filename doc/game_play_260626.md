@@ -8307,6 +8307,398 @@ Najważniejsza granica:
 ```
 
 
+## Sprint 99 — Audyt Victim Pickera i kontrakt źródeł
+
+**Cel:** dokładnie ustalić, skąd Victim Picker pobiera kandydatów, jak mapa ustawia różne rodzaje celu oraz które reguły muszą zostać współdzielone, zanim powstanie jakikolwiek nowy kod.
+
+### Zakres audytu
+
+Codex ma prześledzić istniejące ścieżki:
+
+* oznaczenie obiektu ze skanu przez `mark_target`,
+* przechowywanie oznaczonych obiektów w istniejącym `profile.targets`,
+* ustawianie zwykłego POI jako `aimed_target`,
+* ustawianie gracza jako celu,
+* blokady: self, friend, same clan i inne istniejące relacje,
+* ustawianie filaru podatności,
+* ustawianie filaru konfliktu,
+* aktualną pozycję motocykla z `curently_possition`,
+* obliczanie zasięgu przez `get_player_action_range(profile)`,
+* aktualne liczenie odległości metodą Haversine,
+* fokusowanie istniejącego celu na mapie,
+* procedurę teleportu i jej faktyczne ograniczenia.
+
+Backend już ma wspólną funkcję zasięgu uwzględniającą poziom oraz `scan_range_bonus`, więc audyt ma potwierdzić jej użycie bez kopiowania wzoru do nowego modułu.  Obecny endpoint aktorów mapy składa graczy z bieżącej pozycji i relacji, a akcja `mark_target` ma już swoje reguły dostępności.
+
+### Źródła widoku `VICTIMS`
+
+Audyt ma wskazać konkretne źródła dla jednego agregowanego widoku:
+
+* `profile.targets` — obiekty wcześniej oznaczone przez gracza,
+* aktualni dozwoleni gracze i intruzi,
+* aktywne filary podatności,
+* cele pochodzące z konfliktów terytorialnych.
+
+`VICTIMS` pozostaje wyłącznie nazwą widoku i przycisku. Nie wolno tworzyć:
+
+* `profile.victims`,
+* nowego magazynu celów,
+* nowej kategorii gameplayowej,
+* drugiego systemu targetowania.
+
+### Audyt UI i zestawu ikon
+
+Powstaje kontrakt własnego, zamkniętego zestawu ikon Victim Pickera:
+
+* aplikacja,
+* pozycja motocykla,
+* zasięg,
+* odświeżenie,
+* pokaż na mapie,
+* oznacz jako cel,
+* aktywny cel,
+* teleport,
+* w zasięgu,
+* poza zasięgiem,
+* brak aktualnej pozycji,
+* obiekt niedostępny.
+
+Ikony mają być jednym spójnym zestawem lokalnych SVG lub ikon CSS, bez mieszania przypadkowych emoji i bez zewnętrznej biblioteki ładowanej z sieci.
+
+Przyciski ikonowe zawsze muszą mieć:
+
+* `title`,
+* `aria-label`,
+* tooltip,
+* stan `disabled`,
+* stan aktywny i hover.
+
+Ikona rodzaju obiektu nadal pochodzi z istniejącego payloadu celu. Victim Picker nie tworzy drugiego zestawu ikon dla bankomatu, kamery, pojazdu czy gracza.
+
+### Wynik sprintu
+
+Dokument audytowy zawierający:
+
+* mapę obecnych funkcji i endpointów,
+* listę źródeł kandydatów,
+* wspólny kontrakt kandydata,
+* zasady zasięgu,
+* zasady ustawiania każdego typu celu,
+* kontrakt ikon,
+* listę miejsc wymagających refaktoru,
+* plan testów regresyjnych.
+
+### Poza sprintem
+
+Bez zmian w kodzie, bez endpointów, bez wpisu w Googleplex i bez budowania okna.
+
+### DoD
+
+Audyt jednoznacznie odpowiada:
+
+1. Skąd pochodzi każdy rodzaj kandydata.
+2. Jak ustalić jego aktualną pozycję.
+3. Jak sprawdzić zasięg względem motocykla.
+4. Jak sprawdzić, czy można go oznaczyć.
+5. Jak bezpiecznie zbudować czysty `aimed_target`.
+6. Jak pokazać go na mapie i teleportować bez powielania mechaniki.
+
+Ten sprint działa jak dokumentacja techniczna przed refaktorem: jego zadaniem jest znaleźć istniejące źródła prawdy i zablokować Codexowi tworzenie alternatywnej mechaniki.
+
+---
+
+## Sprint 100 — Wspólna mechanika kandydatów i ustawiania celu
+
+**Cel:** stworzyć lekką warstwę backendową Victim Pickera, która używa dokładnie tych samych reguł co mapa.
+
+### Przed rozpoczęciem
+
+Przeczytać:
+
+* `doc/victim_picker_audit.md`,
+* `doc/project_journal.md`,
+* aktualne ścieżki `mark_target`, `/hack-action`, `/api/map/player-targets/mark`,
+  `/api/map/player-areas` i `/api/map/clan-vulnerabilities`.
+
+Po zakończeniu uzupełnić `doc/project_journal.md` krótkim raportem Sprintu 100
+oraz uruchomić walidację kodu i `git diff --check`.
+
+### Katalog Googleplex
+
+Dodać do `PRO_SYSTEM_TOOLS`:
+
+* `id: victimPicker`,
+* `name: Victim Picker`,
+* `type: pro-system-tool`,
+* `category: pro-system-tools`,
+* `price: 100000`,
+* `purchase_account: admin`,
+* osobny `system_launcher`,
+* interfejs systemowy, a nie zwykłe `window` lub `terminal`.
+
+Katalog `PRO_SYSTEM_TOOLS` jest już automatycznie publikowany jako część katalogu systemowego Googleplex, więc Victim Picker powinien wejść w istniejącą ścieżkę zakupu i instalacji.
+
+### Wspólny kontrakt kandydata
+
+Każdy kandydat powinien otrzymać jednolity payload, niezależnie od źródła:
+
+* stabilny `target_id`,
+* `target_mode`,
+* `target_type`,
+* `source_type`,
+* `label`,
+* `icon`,
+* `lat`,
+* `lng`,
+* źródło kandydata,
+* aktualną odległość od motocykla,
+* aktualny zasięg gracza,
+* `in_range`,
+* `can_aim`,
+* `disabled_reason`,
+* `is_aimed`,
+* dane potrzebne do fokusu mapy,
+* dane potrzebne do teleportu.
+
+Nie należy spłaszczać tożsamości gracza, podatności i konfliktu do samej pary współrzędnych. Istniejące pola takie jak `target_username`, `vulnerability_id` oraz `foreign_area_id` muszą zostać zachowane.
+
+### Lekki odczyt kandydatów
+
+Dodać lekki endpoint Victim Pickera, który:
+
+1. synchronizuje tylko wymagany profil,
+2. pobiera aktualne `curently_possition`,
+3. wylicza `action_range` przez istniejący helper,
+4. składa kandydatów z istniejących źródeł,
+5. pobiera świeżą pozycję ruchomych graczy,
+6. liczy odległości,
+7. sprawdza relacje i reguły celu,
+8. zwraca listę posortowaną według odległości.
+
+Endpoint nie może:
+
+* renderować Folium,
+* ładować snapshotu pełnej mapy,
+* uruchamiać skanu POI,
+* tworzyć markerów,
+* tworzyć operacji,
+* wykonywać `/hack-action`.
+
+### Wspólna procedura ustawiania celu
+
+Dodać jeden backendowy helper ustawiający `aimed_target`, z którego docelowo może korzystać zarówno Victim Picker, jak i obecne ścieżki mapy.
+
+Przed zapisem helper ponownie sprawdza:
+
+* aktualną pozycję motocykla,
+* aktualny zasięg,
+* najnowszą pozycję kandydata,
+* jego rzeczywistą tożsamość,
+* relację gracza,
+* status podatności lub konfliktu,
+* czy cel nadal istnieje,
+* czy nie został już przejęty lub usunięty.
+
+Nowy cel ma być zapisany jako czysto namierzony:
+
+* wszystkie kroki `actions_allowed` są `false`,
+* postęp wynosi `0`,
+* nie powstaje operacja,
+* nie powstaje risk event,
+* nie uruchamia się aplikacja hackerska,
+* nie zapalają się kropki na pasku.
+
+Frontend paska już buduje kropki na podstawie `actions_allowed` i postęp na podstawie zabezpieczeń, więc czysty target musi być przygotowany tak, aby pasek pokazał nazwę celu, ale nie udawał wykonanej operacji.
+
+### Mapa i teleport
+
+Backend ma przygotować bezpieczne dane do:
+
+* pokazania kandydata na mapie,
+* wykonania teleportu istniejącą procedurą.
+
+Nie należy tworzyć nowego teleportu. Audytowana ścieżka ma zostać użyta ponownie wraz z jej potwierdzeniem i blokadami.
+
+### Testy
+
+Minimum:
+
+* zwykłe oznaczone POI w zasięgu,
+* zwykłe POI poza zasięgiem,
+* intruz w zasięgu,
+* znajomy,
+* członek własnego klanu,
+* self,
+* filar podatności,
+* filar konfliktu,
+* kandydat usunięty pomiędzy listą a kliknięciem,
+* gracz, który zmienił pozycję,
+* teleport lub podróż zmieniająca pozycję motocykla,
+* brak poprawnej pozycji motocykla,
+* zakup i instalacja za `100 000 HC`,
+* ustawienie targetu bez operacji i bez progressu.
+
+### DoD
+
+Backend zwraca spójną listę kandydatów i potrafi ustawić każdy dozwolony typ jako czysty `aimed_target`, z pełną ponowną walidacją zasięgu w chwili kliknięcia.
+
+Ten sprint tworzy całą mechanikę bez interfejsu: po jego zakończeniu aplikację da się obsłużyć testami API, ale gracz nie ma jeszcze nowego okna.
+
+Nie rozpoczynać Sprintu 101 w tym samym zakresie.
+
+---
+
+## Sprint 101 — Okno Victim Picker, ikony i integracja pulpitu
+
+**Cel:** zbudować finalne lekkie okno aplikacji i podłączyć je do mechaniki ze Sprintu 100.
+
+### Przed rozpoczęciem
+
+Przeczytać:
+
+* `doc/victim_picker_audit.md`,
+* raport Sprintu 100 w `doc/project_journal.md`,
+* aktualny kontrakt endpointów Victim Pickera,
+* istniejącą integrację okien systemowych w `static/js/terminal.js`.
+
+Po zakończeniu uzupełnić `doc/project_journal.md`, uruchomić walidację JS i
+`git diff --check`.
+
+### Uruchamianie aplikacji
+
+Dodać:
+
+* `createVictimPickerApp()`,
+* wpis w `runSystemLauncherApp()`,
+* obsługę jednej instancji okna,
+* rejestrację w pasku zadań,
+* fokus istniejącego okna przy kolejnym uruchomieniu,
+* ikonę aplikacji na pulpicie dopiero po zakupie.
+
+Obecny pulpit umie generować ikony z aplikacji profilu, otwierać osobne przeciągane okna oraz rejestrować je w taskbarze, więc Victim Picker powinien użyć tej infrastruktury.
+
+### Układ okna
+
+Nagłówek:
+
+* ikona i nazwa Victim Picker,
+* aktualny `CEL`,
+* ikona pozycji motocykla,
+* pozycja w skróconym formacie,
+* aktualny zasięg w metrach.
+
+Pasek narzędzi jako małe przyciski ikonowe:
+
+* odśwież,
+* otwórz mapę,
+* pokaż aktualny cel na mapie,
+* zamknij.
+
+Lista `VICTIMS`:
+
+* grupy istniejących typów kandydatów,
+* sortowanie według odległości,
+* czytelny status zasięgu,
+* wyróżnienie aktywnego celu,
+* zablokowane akcje z tooltipem podającym powód.
+
+Każdy wiersz posiada maksymalnie trzy przyciski ikonowe:
+
+* **celownik** — oznacz jako CEL,
+* **map pin** — pokaż na mapie,
+* **teleport** — uruchom istniejące potwierdzenie teleportu.
+
+Nie robimy ciężkich pełnoszerokich guzików typu „OZNACZ JAKO CEL”. Tekst pozostaje w tooltipie i `aria-label`.
+
+### Zestaw ikon Victim Pickera
+
+W aplikacji powstaje jedna namespacowana mapa, na przykład `VICTIM_PICKER_ICONS`, zawierająca:
+
+* `app`,
+* `bike`,
+* `range`,
+* `refresh`,
+* `openMap`,
+* `focusMap`,
+* `aim`,
+* `aimed`,
+* `teleport`,
+* `inRange`,
+* `outOfRange`,
+* `unavailable`,
+* `loading`,
+* `error`.
+
+Ikony mają:
+
+* ten sam rozmiar bazowy,
+* tę samą grubość linii,
+* wspólne pole widoku,
+* wariant normalny, hover, active i disabled,
+* kolor nadawany przez CSS, nie zapisany na stałe w każdym SVG.
+
+### Zachowanie mapy
+
+`Pokaż na mapie`:
+
+1. otwiera mapę dopiero po kliknięciu,
+2. przekazuje istniejący `target_id` i współrzędne,
+3. ustawia fokus,
+4. nie zmienia aktywnego celu.
+
+Obecny desktop posiada już most do uruchamiania mapy i przekazywania jej fokusu, więc nie trzeba budować osobnego mechanizmu komunikacji.
+
+### Odświeżanie pozycji i zasięgu
+
+Po:
+
+* podróży,
+* teleportacji,
+* zmianie `aimed_target`,
+* zmianie pozycji aktora,
+* zmianie podatności lub konfliktu,
+
+otwarte okno powinno odświeżyć dane lub oznaczyć je jako nieaktualne.
+
+Przed każdą akcją `Oznacz jako CEL` backend i tak ponownie wykonuje pełną walidację. Frontend nigdy nie jest źródłem prawdy.
+
+### Responsywność
+
+Na małym ekranie:
+
+* okno używa mobile safe mode,
+* nagłówek przechodzi do dwóch rzędów,
+* przyciski pozostają ikonowe,
+* lista ma pojedynczą kolumnę,
+* najważniejsza akcja celownika pozostaje zawsze widoczna,
+* tooltip może zostać zastąpiony krótkim opisem po dłuższym dotknięciu.
+
+### Testy końcowe
+
+Scenariusz pełny:
+
+1. Zakup Victim Pickera za `100 000 HC`.
+2. Ikona pojawia się na pulpicie.
+3. Uruchomienie nie ładuje `/map`.
+4. Lista pokazuje istniejące oznaczone obiekty oraz dozwolone cele innych typów.
+5. Odległości są liczone od aktualnego motocykla.
+6. Cel poza zasięgiem nie może zostać ustawiony.
+7. Cel w zasięgu zostaje zapisany jako `aimed_target`.
+8. Pasek pokazuje nazwę bez kropek i bez progresu.
+9. Inne narzędzia korzystają z nowego celu.
+10. Pokaż na mapie dopiero wtedy uruchamia ciężką mapę.
+11. Teleport używa istniejącego potwierdzenia.
+12. Po zmianie pozycji lista i zasięg są aktualizowane.
+
+### DoD
+
+Victim Picker jest płatną aplikacją Googleplex, działa jako lekkie okno bez Leafleta, używa wyłącznie istniejących źródeł celów i pozwala ustawić dozwolony obiekt jako `aimed_target` zgodnie z aktualną pozycją motocykla oraz faktycznym zasięgiem gracza.
+
+Ten sprint zamyka warstwę widoczną dla gracza: nie zmienia mechaniki ze Sprintu 100, tylko przedstawia ją w lekkim, szybkim i spójnym interfejsie.
+
+
+---
+
 comming soon..
 GhostNetwork zaczynamy dopiero po przejściu Sprintu 98. Wtedy terytoria, incydenty, aktorzy NPC, BlackNet i system konsekwencji będą już gotową infrastrukturą, a nie elementami budowanymi równocześnie z częściami maszyn.
 

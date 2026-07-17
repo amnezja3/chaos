@@ -3209,6 +3209,27 @@ PRO_SYSTEM_TOOLS = [
             "logs": ["Uruchamiaj z panelu PLAYER ACCESS po shackowaniu gracza."]
         }],
     },
+    {
+        "id": "victimPicker",
+        "name": "Victim Picker",
+        "icon": "\U0001F3AF",
+        "category": "pro-system-tools",
+        "type": "pro-system-tool",
+        "description": "Lekki selektor celow z istniejacych zrodel mapy: oznaczone POI, gracze, podatnosci i konflikty.",
+        "price": 100000,
+        "required_level": 1,
+        "required_respect": 0,
+        "allowed_fractions": [],
+        "risk_level": 0,
+        "purchase_account": "admin",
+        "interface": "system_launcher",
+        "system_launcher": "createVictimPickerApp",
+        "levels": [{
+            "title": "Victim Picker",
+            "command": "victim-picker --open",
+            "logs": ["Victim Picker wymaga pulpitu systemowego. Uruchom z ikony aplikacji."]
+        }],
+    },
 ]
 
 CREATOR_SYSTEM_APPS = [
@@ -10888,6 +10909,360 @@ def build_player_actor(viewer_username, actor_data, relation=None, context=None)
     }
 
 
+VICTIM_PICKER_APP_ID = "victimPicker"
+VICTIM_PICKER_ACTIONS_ALLOWED_TEMPLATE = {
+    "scan_ports": False,
+    "exploit": False,
+    "sniff": False,
+    "trace": False,
+}
+
+
+def victim_picker_position(profile):
+    position = (profile or {}).get("curently_possition") or (profile or {}).get("current_position") or {}
+    try:
+        lat = float(position.get("lat"))
+        lng = float(position.get("lng", position.get("lon")))
+    except (TypeError, ValueError, AttributeError):
+        return None
+    if lat in (0, 0.0) or lng in (0, 0.0):
+        return None
+    return {"lat": lat, "lng": lng}
+
+
+def victim_picker_app_installed(profile):
+    return app_is_installed(profile or {}, VICTIM_PICKER_APP_ID)
+
+
+def victim_picker_distance(candidate, origin):
+    if not origin:
+        return None
+    try:
+        return round(Haversine.haversine_distance(
+            float(candidate.get("lat")),
+            float(candidate.get("lng", candidate.get("lon"))),
+            float(origin.get("lat")),
+            float(origin.get("lng")),
+        ))
+    except (TypeError, ValueError):
+        return None
+
+
+def victim_picker_focus_payload(candidate):
+    try:
+        return {
+            "lat": float(candidate.get("lat")),
+            "lng": float(candidate.get("lng", candidate.get("lon"))),
+            "zoom": 18,
+            "mode": candidate.get("target_mode") or "standard",
+            "target_id": candidate.get("target_id"),
+        }
+    except (TypeError, ValueError):
+        return None
+
+
+def build_victim_picker_candidate(viewer_profile, raw_target, candidate_source, origin=None, action_range=None, can_aim=True, disabled_reason=""):
+    target = dict(raw_target or {})
+    try:
+        lat = float(target.get("lat"))
+        lng = float(target.get("lng", target.get("lon")))
+    except (TypeError, ValueError):
+        lat = None
+        lng = None
+
+    target["lat"] = lat
+    target["lng"] = lng
+    target["lon"] = lng
+    apply_target_display_label(target)
+    target_mode = str(target.get("target_mode") or "standard").strip() or "standard"
+    target_type = infer_target_type_from_target(target)
+    target_id = (
+        target.get("target_id")
+        or target.get("candidate_id")
+        or build_operation_target_id(target)
+    )
+    distance_m = victim_picker_distance(target, origin)
+    in_range = bool(
+        distance_m is not None
+        and action_range is not None
+        and distance_m <= action_range
+    )
+    reason = str(disabled_reason or "").strip()
+    if lat is None or lng is None:
+        can_aim = False
+        reason = reason or "missing_position"
+    elif origin is None:
+        can_aim = False
+        reason = reason or "missing_player_position"
+    elif not in_range:
+        can_aim = False
+        reason = reason or "out_of_range"
+
+    aimed = (viewer_profile or {}).get("aimed_target") or {}
+    is_aimed = targets_share_runtime_identity(aimed, target)
+    focus = victim_picker_focus_payload({
+        **target,
+        "target_id": target_id,
+        "target_mode": target_mode,
+    })
+    teleport = dict(focus or {})
+    if teleport:
+        teleport["requires_confirmation"] = True
+
+    return {
+        "target_id": str(target_id),
+        "target_mode": target_mode,
+        "target_type": target_type,
+        "source_type": target.get("source_type") or candidate_source,
+        "candidate_source": candidate_source,
+        "label": display_target_label(target),
+        "name": target.get("name") or display_target_label(target),
+        "icon": target.get("icon") or "\U0001F3AF",
+        "lat": lat,
+        "lng": lng,
+        "distance_m": distance_m,
+        "action_range_m": action_range,
+        "in_range": in_range,
+        "can_aim": bool(can_aim and in_range),
+        "disabled_reason": "" if can_aim and in_range else reason,
+        "is_aimed": bool(is_aimed),
+        "focus": focus,
+        "teleport": teleport,
+        "raw_ref": {
+            "target_username": target.get("target_username") or target.get("username"),
+            "vulnerability_id": target.get("vulnerability_id"),
+            "foreign_area_id": target.get("foreign_area_id"),
+            "contest_owner_username": target.get("contest_owner_username"),
+        },
+        "target": target,
+    }
+
+
+def build_victim_picker_standard_candidates(viewer_profile, origin, action_range):
+    candidates = []
+    for target in (viewer_profile or {}).get("targets", []) or []:
+        if not isinstance(target, dict):
+            continue
+        payload = {
+            **target,
+            "target_mode": target.get("target_mode") or "standard",
+            "source_type": target.get("source_type") or "manual",
+            "target_id": build_operation_target_id({
+                **target,
+                "target_mode": target.get("target_mode") or "standard",
+            }),
+        }
+        candidates.append(build_victim_picker_candidate(
+            viewer_profile,
+            payload,
+            "profile.targets",
+            origin=origin,
+            action_range=action_range,
+        ))
+    return candidates
+
+
+def build_victim_picker_player_candidates(viewer_username, viewer_profile, origin, action_range):
+    candidates = {}
+    aimed = (viewer_profile or {}).get("aimed_target") or {}
+    aimed_player_username = aimed.get("target_username") if aimed.get("target_mode") == "player" else None
+
+    def add_player_candidate(target_username, source, extra_context=None):
+        target_username = str(target_username or "").strip()
+        if not target_username or target_username == viewer_username or target_username in candidates:
+            return
+        target_profile = user_store.get_profile(target_username)
+        if not target_profile:
+            return
+        position = target_profile.get("curently_possition") or {}
+        context = dict(extra_context or {})
+        context["is_friend"] = bool(context.get("is_friend"))
+        context["is_intruder"] = bool(context.get("is_intruder"))
+        context["is_marked_target"] = bool(aimed_player_username and aimed_player_username == target_username)
+        relation = resolve_player_actor_relation(viewer_profile, target_profile, context)
+        actor = build_player_actor(
+            viewer_username,
+            {
+                "username": target_username,
+                "nick": target_profile.get("nick") or target_username,
+                "avatar": target_profile.get("avatar", ""),
+                "lat": position.get("lat"),
+                "lng": position.get("lng", position.get("lon")),
+                "is_marked_target": context["is_marked_target"],
+            },
+            relation=relation,
+            context=context,
+        )
+        action = (actor.get("actions") or {}).get("mark_target") or {}
+        disabled_reason = action.get("reason") or ""
+        target = {
+            "target_id": f"player:{target_username}",
+            "target_mode": "player",
+            "target_username": target_username,
+            "username": target_username,
+            "nick": target_profile.get("nick") or target_username,
+            "avatar": target_profile.get("avatar", ""),
+            "relation": relation,
+            "lat": position.get("lat"),
+            "lng": position.get("lng", position.get("lon")),
+            "label": target_profile.get("nick") or target_username,
+            "name": target_profile.get("nick") or target_username,
+            "icon": "\U0001F3AF",
+            "source_type": "player",
+            "generated": True,
+            "security": dict(target_profile.get("security") or {}),
+        }
+        candidates[target_username] = build_victim_picker_candidate(
+            viewer_profile,
+            target,
+            source,
+            origin=origin,
+            action_range=action_range,
+            can_aim=bool(action.get("enabled")),
+            disabled_reason=disabled_reason,
+        )
+
+    for contact in mail_store.list_accepted_contacts(viewer_username):
+        add_player_candidate(contact.get("name"), "player.friend", {"is_friend": True})
+    for intruder in territory_store.list_recent_area_intruders(viewer_username):
+        add_player_candidate(intruder.get("username"), "player.intruder", {"is_intruder": True})
+    if aimed_player_username:
+        add_player_candidate(aimed_player_username, "player.aimed", {"is_marked_target": True})
+    return list(candidates.values())
+
+
+def build_victim_picker_vulnerability_candidates(viewer_username, viewer_profile, origin, action_range):
+    candidates = []
+    for report in vulnerability_store.list_active():
+        item = dict(report or {})
+        target = dict(item.get("target") or {})
+        target.update({
+            "target_id": f"vulnerability:{item.get('id')}",
+            "target_mode": "vulnerability",
+            "vulnerability_id": item.get("id"),
+            "lat": item.get("lat"),
+            "lng": item.get("lng"),
+            "lon": item.get("lng"),
+            "label": item.get("label") or target.get("label"),
+            "name": item.get("name") or target.get("name") or item.get("label"),
+            "icon": item.get("icon") or target.get("icon") or "\U0001F6E1",
+            "source_type": item.get("source_type") or target.get("source_type") or "vulnerability",
+            "generated": item.get("generated", target.get("generated", True)),
+            "security": dict(item.get("security") or target.get("security") or {}),
+        })
+        is_reporter = item.get("reported_by_username") == viewer_username
+        candidates.append(build_victim_picker_candidate(
+            viewer_profile,
+            target,
+            "clan_vulnerability",
+            origin=origin,
+            action_range=action_range,
+            can_aim=not is_reporter,
+            disabled_reason="own_vulnerability" if is_reporter else "",
+        ))
+    return candidates
+
+
+def build_victim_picker_conflict_candidates(viewer_username, viewer_profile, origin, action_range):
+    candidates = []
+    try:
+        areas = safe_player_areas(territory_store.list_player_areas())
+        contested_targets = find_contested_targets_for_player(viewer_username, areas)
+    except Exception as exc:
+        print(f"[victim-picker] conflict source failed: {exc}", flush=True)
+        contested_targets = []
+    for target in contested_targets:
+        if not isinstance(target, dict):
+            continue
+        payload = {
+            **target,
+            "target_mode": "territory_contest",
+            "source_type": target.get("source_type") or "territory_contest",
+            "icon": target.get("icon") or "\U0001F6E1",
+            "target_id": build_operation_target_id({
+                **target,
+                "target_mode": "territory_contest",
+            }),
+        }
+        candidates.append(build_victim_picker_candidate(
+            viewer_profile,
+            payload,
+            "territory_conflict",
+            origin=origin,
+            action_range=action_range,
+        ))
+    return candidates
+
+
+def build_victim_picker_candidates(viewer_username, viewer_profile):
+    origin = victim_picker_position(viewer_profile)
+    action_range = get_player_action_range(viewer_profile or {})
+    candidates = []
+    candidates.extend(build_victim_picker_standard_candidates(viewer_profile, origin, action_range))
+    candidates.extend(build_victim_picker_player_candidates(viewer_username, viewer_profile, origin, action_range))
+    candidates.extend(build_victim_picker_vulnerability_candidates(viewer_username, viewer_profile, origin, action_range))
+    candidates.extend(build_victim_picker_conflict_candidates(viewer_username, viewer_profile, origin, action_range))
+
+    deduped = {}
+    for candidate in candidates:
+        key = str(candidate.get("target_id") or "")
+        if not key or key in deduped:
+            continue
+        deduped[key] = candidate
+    return sorted(
+        deduped.values(),
+        key=lambda item: (
+            item.get("distance_m") is None,
+            item.get("distance_m") if item.get("distance_m") is not None else 10**12,
+            item.get("label") or "",
+        ),
+    )
+
+
+def clean_victim_picker_aimed_target(candidate):
+    target = dict(candidate.get("target") or {})
+    clean = {
+        "lat": candidate.get("lat"),
+        "lng": candidate.get("lng"),
+        "lon": candidate.get("lng"),
+        "label": candidate.get("label"),
+        "name": candidate.get("name") or candidate.get("label"),
+        "icon": candidate.get("icon") or "\U0001F3AF",
+        "source_type": candidate.get("source_type") or candidate.get("candidate_source") or "victim_picker",
+        "generated": bool(target.get("generated", True)),
+        "target_mode": candidate.get("target_mode") or "standard",
+        "target_username": target.get("target_username") or target.get("username"),
+        "username": target.get("target_username") or target.get("username"),
+        "nick": target.get("nick"),
+        "avatar": target.get("avatar", ""),
+        "relation": target.get("relation"),
+        "vulnerability_id": target.get("vulnerability_id"),
+        "contest_owner_username": target.get("contest_owner_username"),
+        "foreign_area_id": target.get("foreign_area_id"),
+        "security": dict(target.get("security") or {}),
+        "actions_allowed": dict(VICTIM_PICKER_ACTIONS_ALLOWED_TEMPLATE),
+    }
+    apply_target_display_label(clean)
+    return clean
+
+
+def find_victim_picker_candidate_by_id(viewer_username, viewer_profile, target_id):
+    target_id = str(target_id or "").strip()
+    if not target_id:
+        return None, build_victim_picker_candidates(viewer_username, viewer_profile)
+    candidates = build_victim_picker_candidates(viewer_username, viewer_profile)
+    for candidate in candidates:
+        if str(candidate.get("target_id") or "") == target_id:
+            return candidate, candidates
+    return None, candidates
+
+
+def serialize_victim_picker_candidate(candidate):
+    item = dict(candidate or {})
+    item.pop("target", None)
+    return item
+
+
 def ensure_dev_admin_account():
     profile = user_store.get_profile("admin")
     if not profile:
@@ -14963,6 +15338,100 @@ def mark_player_target():
         "status": "already_target" if already_target else "marked",
         "message": f"Gracz {label} jest na celowniku.",
         "target": player_target,
+    })
+
+
+@app.route("/api/victim-picker/candidates")
+def victim_picker_candidates():
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+
+    username = session["user"]
+    profile = user_store.get_profile(username)
+    if not isinstance(profile, dict):
+        return jsonify({"success": False, "error": "profile_not_found"}), 404
+
+    profile = dict(profile)
+    profile["apps"] = normalize_app_contracts(profile.get("apps", []))
+    if not victim_picker_app_installed(profile):
+        return jsonify({
+            "success": False,
+            "error": "victim_picker_not_installed",
+            "message": "Victim Picker wymaga instalacji z Googleplex.",
+        }), 403
+
+    origin = victim_picker_position(profile)
+    action_range = get_player_action_range(profile)
+    candidates = build_victim_picker_candidates(username, profile)
+    return jsonify({
+        "success": True,
+        "scope": "victim_picker",
+        "position": origin,
+        "action_range_m": action_range,
+        "candidate_count": len(candidates),
+        "candidates": [serialize_victim_picker_candidate(candidate) for candidate in candidates],
+        "active_target_id": build_operation_target_id(profile.get("aimed_target") or {}) if profile.get("aimed_target") else "",
+    })
+
+
+@app.route("/api/victim-picker/aim", methods=["POST"])
+def victim_picker_aim():
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+
+    username = session["user"]
+    payload = request.get_json(silent=True) or {}
+    target_id = str(payload.get("target_id") or "").strip()
+    if not target_id:
+        return jsonify({"success": False, "error": "missing_target_id"}), 400
+
+    profile = user_store.get_profile(username)
+    if not isinstance(profile, dict):
+        return jsonify({"success": False, "error": "profile_not_found"}), 404
+
+    profile = dict(profile)
+    profile["apps"] = normalize_app_contracts(profile.get("apps", []))
+    if not victim_picker_app_installed(profile):
+        return jsonify({
+            "success": False,
+            "error": "victim_picker_not_installed",
+            "message": "Victim Picker wymaga instalacji z Googleplex.",
+        }), 403
+
+    candidate, candidates = find_victim_picker_candidate_by_id(username, profile, target_id)
+    if not candidate:
+        return jsonify({
+            "success": False,
+            "error": "target_not_found",
+            "message": "Kandydat nie istnieje albo przestal byc dostepny.",
+            "candidate_count": len(candidates),
+        }), 404
+    if not candidate.get("can_aim"):
+        return jsonify({
+            "success": False,
+            "error": "target_unavailable",
+            "message": candidate.get("disabled_reason") or "Kandydat jest niedostepny.",
+            "candidate": serialize_victim_picker_candidate(candidate),
+        }), 409
+
+    aimed_target = clean_victim_picker_aimed_target(candidate)
+    UserProfileManager(username).update_profile({"aimed_target": aimed_target})
+    profile["aimed_target"] = aimed_target
+    profile.pop("password", None)
+    profile.pop("salt", None)
+    session["profile"] = profile
+    record_map_target_delta(
+        username,
+        aimed_target,
+        change_type="map.target_updated",
+        reason="victim_picker_aim",
+    )
+    return jsonify({
+        "success": True,
+        "status": "aimed_target_set",
+        "message": f"Cel ustawiony: {display_target_label(aimed_target)}",
+        "target": aimed_target,
+        "candidate": serialize_victim_picker_candidate(candidate),
     })
 
 

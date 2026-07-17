@@ -8710,3 +8710,111 @@ Walidacja:
 * punktowe testy target flow / `gonna-win`: OK;
 * `python -m py_compile run.py database.py profileManagment.py`: OK;
 * `git diff --check`: OK.
+
+## Sprint 99 - Victim Picker Source Contract Audit
+
+Wykonano audyt zrodel i kontraktow pod przyszly Victim Picker.
+
+Wynik:
+
+* dodano dokument `doc/victim_picker_audit.md`;
+* potwierdzono, ze `VICTIMS` ma byc tylko agregowanym widokiem, nie nowym
+  magazynem targetow;
+* opisano zrodla kandydatow: `profile.targets`, player actors, clan
+  vulnerabilities i territory conflict targets;
+* wskazano istniejace sciezki ustawiania celu: `/map-action`,
+  `/hack-action`, `/api/map/player-targets/mark`;
+* potwierdzono uzycie `get_player_action_range(profile)` jako jedynego wzoru
+  zasiegu;
+* opisano kontrakt kandydata, zasady ikon UI, focus mapy i teleport przez
+  istniejace potwierdzenie;
+* wskazano miejsca wymagajace refaktoru przed budowa okna.
+
+Poza zakresem:
+
+* brak zmian runtime;
+* brak endpointow;
+* brak wpisu Googleplex;
+* brak okna Victim Pickera.
+
+## Sprint 100 - Victim Picker Backend Foundation
+
+Zbudowano lekka warstwe backendowa Victim Pickera bez okna desktopowego.
+
+Wdrozone:
+
+* dodano Victim Picker do `PRO_SYSTEM_TOOLS` jako platna aplikacje Googleplex
+  za `100 000 HC`;
+* dodano endpoint `GET /api/victim-picker/candidates`;
+* dodano endpoint `POST /api/victim-picker/aim`;
+* kandydaci powstaja z istniejacych zrodel: oznaczone POI, zaakceptowani
+  gracze/kontakty, intruzi terytorium, podatnosci klanowe i konflikty;
+* zasieg opiera sie na istniejacym `get_player_action_range(profile)`;
+* ustawienie celu zapisuje zwykly `aimed_target`, bez tworzenia nowego
+  magazynu `profile.victims`;
+* endpoint `aim` emituje istniejaca delte map target, zeby pasek `CEL` mogl
+  zostac odswiezony obecnym mechanizmem.
+
+Celowo poza zakresem:
+
+* brak okna Victim Pickera;
+* brak ikon UI Victim Pickera;
+* brak integracji pulpitu i menu Start;
+* brak Leafleta w pickerze;
+* brak uruchamiania operacji, ryzyka i incydentow.
+
+Walidacja:
+
+* `rg` potwierdzil obecne punkty integracji Victim Pickera;
+* `python -m py_compile run.py database.py profileManagment.py`: OK;
+* `git diff --check`: OK;
+* punktowy smoke endpointow przygotowano jako tymczasowy skrypt, ale lokalna
+  sesja PowerShell blokuje uruchomienie `python.exe` jako programu
+  (`Okreslona sesja logowania nie istnieje`), mimo ze `py_compile` dziala;
+* smoke endpointow Victim Pickera po instalacji aplikacji zostaje do
+  potwierdzenia na serwerze/runtime.
+
+## Sprint 101 - Victim Picker Desktop App
+
+Podpieto widoczna warstwe Victim Pickera do istniejacego runtime okien
+desktopowych.
+
+Wdrozone:
+
+* dodano `createVictimPickerApp()` w `static/js/terminal.js`;
+* podpieto `createVictimPickerApp` do `runSystemLauncherApp()`;
+* aplikacja dziala jako jedna instancja okna i korzysta z obecnego taskbara,
+  `makeDraggable()` oraz mobile safe mode;
+* okno pobiera kandydatow z `GET /api/victim-picker/candidates`;
+* lista `VICTIMS` grupuje kandydatow wedlug zrodla i sortowanie pozostaje po
+  stronie backendu;
+* kazdy kandydat ma trzy male akcje ikonowe:
+  * oznacz jako `CEL`,
+  * pokaz na mapie,
+  * teleport w okolice celu;
+* oznaczenie celu uzywa `POST /api/victim-picker/aim`, a po sukcesie odswieza
+  pasek `CEL` przez istniejacy mechanizm prawdy targetu;
+* pokazanie celu na mapie uruchamia mape dopiero po kliknieciu;
+* teleport uzywa istniejacego systemowego potwierdzenia `OK/ANULUJ` i
+  istniejacego endpointu teleportu.
+
+Styl:
+
+* dodano namespacowane style `.victim-picker-*` w `static/css/style.css`;
+* okno ma zwarty terminalowy layout, ikonowe przyciski, status zasiegu,
+  wyroznienie aktywnego celu i wariant mobile;
+* brak Leafleta w oknie Victim Pickera.
+
+Poza zakresem:
+
+* brak nowych endpointow;
+* brak nowego store;
+* brak uruchamiania operacji z Victim Pickera;
+* brak zmian mechaniki mapy, ryzyka i incydentow.
+
+Walidacja:
+
+* `node --check static/js/terminal.js`: OK;
+* `python -m py_compile run.py database.py profileManagment.py`: OK;
+* `git diff --check`: OK, tylko ostrzezenie CRLF dla `static/css/style.css`;
+* `rg` potwierdzil integracje launchera, stylow i endpointow.

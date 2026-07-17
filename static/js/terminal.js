@@ -1043,6 +1043,7 @@ function runSystemLauncherApp(appData) {
         createTermCreator,
         createWindowMaker,
         createButtonMaker,
+        createVictimPickerApp,
         ghost_lab: createGhostLabHub,
         dev_bug_reporter: createDevBugReporterApp
     };
@@ -2938,6 +2939,377 @@ function notifyCreatedOperations(data) {
         notifyOpenMapsOperationsChanged();
     }
 }
+
+const VICTIM_PICKER_ICONS = {
+    app: "⌖",
+    bike: "🏍",
+    range: "↔",
+    refresh: "⟳",
+    openMap: "⌁",
+    focusMap: "⌖",
+    aim: "◎",
+    aimed: "◉",
+    teleport: "⇥",
+    inRange: "✓",
+    outOfRange: "×",
+    unavailable: "!",
+    loading: "◌",
+    error: "!"
+};
+
+const VICTIM_PICKER_SOURCE_LABELS = {
+    "profile.targets": "Oznaczone",
+    "player.friend": "Gracze",
+    "player.intruder": "Intruzi",
+    "player.aimed": "Gracze",
+    "clan_vulnerability": "Podatnosci",
+    "territory_conflict": "Konflikty"
+};
+
+const VICTIM_PICKER_REASON_LABELS = {
+    out_of_range: "Poza zasiegiem",
+    missing_position: "Brak pozycji celu",
+    missing_player_position: "Brak pozycji motocykla",
+    own_vulnerability: "Wlasne zgloszenie podatnosci"
+};
+
+function formatVictimPickerCoords(position) {
+    const lat = Number(position?.lat);
+    const lng = Number(position?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "--";
+    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+}
+
+function formatVictimPickerDistance(distance) {
+    const value = Number(distance);
+    if (!Number.isFinite(value)) return "--";
+    if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)} km`;
+    return `${Math.round(value)} m`;
+}
+
+function getVictimPickerSourceLabel(candidate) {
+    const key = String(candidate?.candidate_source || candidate?.source_type || "profile.targets");
+    return VICTIM_PICKER_SOURCE_LABELS[key] || key.replace(/[_:.]+/g, " ");
+}
+
+function getVictimPickerReason(candidate) {
+    const reason = String(candidate?.disabled_reason || "").trim();
+    return VICTIM_PICKER_REASON_LABELS[reason] || reason || "";
+}
+
+function getVictimPickerCandidateIcon(candidate) {
+    if (candidate?.is_aimed) return VICTIM_PICKER_ICONS.aimed;
+    if (!candidate?.can_aim) return VICTIM_PICKER_ICONS.unavailable;
+    if (candidate?.in_range) return VICTIM_PICKER_ICONS.inRange;
+    return VICTIM_PICKER_ICONS.outOfRange;
+}
+
+function groupVictimPickerCandidates(candidates) {
+    return (Array.isArray(candidates) ? candidates : []).reduce((groups, candidate) => {
+        const label = getVictimPickerSourceLabel(candidate);
+        if (!groups.has(label)) groups.set(label, []);
+        groups.get(label).push(candidate);
+        return groups;
+    }, new Map());
+}
+
+function openVictimPickerMapFocus(focus = {}, label = "Victim Picker") {
+    const lat = Number(focus?.lat);
+    const lng = Number(focus?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        addSystemMessage("warning", "VICTIM PICKER", "Brak pozycji celu dla mapy.");
+        return false;
+    }
+    createMap();
+    const payload = {
+        ...focus,
+        lat,
+        lng,
+        label,
+        source: "victim_picker",
+        mode: focus.mode || "target"
+    };
+    window.setTimeout(() => notifyOpenMapsBlacknetFocus(payload), 80);
+    return true;
+}
+
+async function teleportVictimPickerCandidate(candidate, refreshAfter = null) {
+    const teleport = candidate?.teleport || candidate?.focus || {};
+    const lat = Number(teleport.lat ?? candidate?.lat);
+    const lng = Number(teleport.lng ?? candidate?.lng);
+    const label = candidate?.label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        addSystemMessage("warning", "VICTIM PICKER", "Brak poprawnych wspolrzednych teleportu.");
+        return false;
+    }
+
+    const accepted = await showGhostDecisionDialog({
+        title: "POTWIERDZENIE TELEPORTU",
+        message: `Wykonac teleport w okolice celu: ${label}?`,
+        details: "OK zmieni pozycje operatora i odswiezy mape. ANULUJ zostawi obecna pozycje.",
+        confirmLabel: "OK",
+        cancelLabel: "ANULUJ",
+        tone: "lime"
+    });
+    if (!accepted) return false;
+
+    const response = await fetch("/api/blacknet/cta/teleport", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            source: "victim_picker",
+            lat,
+            lng,
+            label: "victim_picker",
+            target_label: label
+        })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) {
+        addSystemMessage("warning", "VICTIM PICKER", data.message || "Teleport odrzucony.");
+        return false;
+    }
+
+    addSystemMessage("success", "VICTIM PICKER", data.message || `Teleport wykonany: ${label}.`);
+    if (typeof refreshToolbarProfile === "function") refreshToolbarProfile();
+    openVictimPickerMapFocus({
+        ...teleport,
+        lat: Number(data?.curently_possition?.lat ?? lat),
+        lng: Number(data?.curently_possition?.lng ?? lng),
+        mode: "teleport"
+    }, label);
+    if (typeof refreshAfter === "function") {
+        await refreshAfter();
+    }
+    return true;
+}
+
+function setVictimPickerBusy(app, busy, message = "") {
+    if (!app) return;
+    app.classList.toggle("is-loading", Boolean(busy));
+    const status = app.querySelector("[data-victim-picker-status]");
+    if (status) {
+        status.textContent = message || (busy ? "Synchronizacja..." : "");
+        status.hidden = !busy && !message;
+    }
+    app.querySelectorAll("[data-victim-picker-action]").forEach(button => {
+        button.disabled = Boolean(busy) || button.dataset.originalDisabled === "1";
+    });
+}
+
+function renderVictimPickerEmpty(container, message) {
+    container.innerHTML = `<div class="victim-picker-empty">${escapeHTML(message || "Brak kandydatow.")}</div>`;
+}
+
+function renderVictimPickerApp(app, state) {
+    const root = app.querySelector(".victim-picker-shell");
+    if (!root) return;
+    const candidates = Array.isArray(state.candidates) ? state.candidates : [];
+    const currentLabel = candidates.find(item => item.is_aimed)?.label || "brak";
+    const position = state.position || {};
+    const range = Number(state.action_range_m);
+    const groups = groupVictimPickerCandidates(candidates);
+
+    root.innerHTML = `
+        <header class="victim-picker-header">
+            <div class="victim-picker-brand">
+                <span class="victim-picker-brand-icon">${VICTIM_PICKER_ICONS.app}</span>
+                <div>
+                    <strong>Victim Picker</strong>
+                    <span>Lekki selektor celu bez Leafleta</span>
+                </div>
+            </div>
+            <div class="victim-picker-meta">
+                <span title="Aktualny cel"><b>CEL</b> ${escapeHTML(currentLabel)}</span>
+                <span title="Pozycja motocykla"><b>${VICTIM_PICKER_ICONS.bike}</b> ${escapeHTML(formatVictimPickerCoords(position))}</span>
+                <span title="Zasieg akcji"><b>${VICTIM_PICKER_ICONS.range}</b> ${Number.isFinite(range) ? `${Math.round(range)} m` : "--"}</span>
+            </div>
+        </header>
+        <nav class="victim-picker-toolbar" aria-label="Victim Picker tools">
+            <button type="button" data-victim-picker-action="refresh" title="Odswiez" aria-label="Odswiez">${VICTIM_PICKER_ICONS.refresh}</button>
+            <button type="button" data-victim-picker-action="open-map" title="Otworz mape" aria-label="Otworz mape">${VICTIM_PICKER_ICONS.openMap}</button>
+            <button type="button" data-victim-picker-action="focus-active" title="Pokaz aktualny cel na mapie" aria-label="Pokaz aktualny cel na mapie">${VICTIM_PICKER_ICONS.focusMap}</button>
+            <button type="button" data-victim-picker-action="close" title="Zamknij" aria-label="Zamknij">×</button>
+        </nav>
+        <div class="victim-picker-status" data-victim-picker-status hidden></div>
+        <section class="victim-picker-list" data-victim-picker-list></section>
+    `;
+
+    const list = root.querySelector("[data-victim-picker-list]");
+    if (!candidates.length) {
+        renderVictimPickerEmpty(list, "Brak kandydatow w zasiegu aktualnych zrodel.");
+    } else {
+        list.innerHTML = Array.from(groups.entries()).map(([groupLabel, items]) => `
+            <section class="victim-picker-group">
+                <h4>${escapeHTML(groupLabel)} <span>${items.length}</span></h4>
+                ${items.map(candidate => {
+                    const reason = getVictimPickerReason(candidate);
+                    const classes = [
+                        "victim-picker-row",
+                        candidate.is_aimed ? "is-aimed" : "",
+                        candidate.in_range ? "in-range" : "out-of-range",
+                        candidate.can_aim ? "" : "is-disabled"
+                    ].filter(Boolean).join(" ");
+                    return `
+                        <article class="${classes}" data-target-id="${escapeHTML(candidate.target_id || "")}">
+                            <div class="victim-picker-kind" title="${escapeHTML(candidate.target_type || candidate.source_type || "target")}">${escapeHTML(candidate.icon || "⌖")}</div>
+                            <div class="victim-picker-copy">
+                                <strong title="${escapeHTML(candidate.label || "")}">${escapeHTML(candidate.label || "unknown")}</strong>
+                                <span>${escapeHTML(candidate.target_mode || "standard")} / ${escapeHTML(formatVictimPickerDistance(candidate.distance_m))}</span>
+                                ${reason ? `<em>${escapeHTML(reason)}</em>` : ""}
+                            </div>
+                            <div class="victim-picker-state" title="${candidate.is_aimed ? "Aktywny CEL" : candidate.in_range ? "W zasiegu" : "Poza zasiegiem"}">${getVictimPickerCandidateIcon(candidate)}</div>
+                            <div class="victim-picker-actions">
+                                <button type="button" data-victim-picker-action="aim" data-target-id="${escapeHTML(candidate.target_id || "")}" title="${candidate.can_aim ? "Oznacz jako CEL" : escapeHTML(reason || "Niedostepny")}" aria-label="Oznacz jako CEL" ${candidate.can_aim ? "" : "disabled data-original-disabled=\"1\""}>${candidate.is_aimed ? VICTIM_PICKER_ICONS.aimed : VICTIM_PICKER_ICONS.aim}</button>
+                                <button type="button" data-victim-picker-action="show-map" data-target-id="${escapeHTML(candidate.target_id || "")}" title="Pokaz na mapie" aria-label="Pokaz na mapie">${VICTIM_PICKER_ICONS.focusMap}</button>
+                                <button type="button" data-victim-picker-action="teleport" data-target-id="${escapeHTML(candidate.target_id || "")}" title="Teleport w okolice celu" aria-label="Teleport w okolice celu" ${candidate.teleport ? "" : "disabled data-original-disabled=\"1\""}>${VICTIM_PICKER_ICONS.teleport}</button>
+                            </div>
+                        </article>
+                    `;
+                }).join("")}
+            </section>
+        `).join("");
+    }
+
+    const getCandidate = targetId => candidates.find(item => String(item.target_id || "") === String(targetId || ""));
+    root.querySelector('[data-victim-picker-action="refresh"]')?.addEventListener("click", () => loadVictimPickerData(app, state));
+    root.querySelector('[data-victim-picker-action="open-map"]')?.addEventListener("click", () => createMap());
+    root.querySelector('[data-victim-picker-action="close"]')?.addEventListener("click", () => app.remove());
+    root.querySelector('[data-victim-picker-action="focus-active"]')?.addEventListener("click", () => {
+        const active = candidates.find(item => item.is_aimed);
+        if (!active) {
+            addSystemMessage("warning", "VICTIM PICKER", "Brak aktywnego celu do pokazania.");
+            return;
+        }
+        openVictimPickerMapFocus(active.focus || active, active.label);
+    });
+
+    root.querySelectorAll("[data-victim-picker-action][data-target-id]").forEach(button => {
+        button.addEventListener("click", async () => {
+            const action = button.dataset.victimPickerAction;
+            const candidate = getCandidate(button.dataset.targetId);
+            if (!candidate) return;
+            if (action === "show-map") {
+                openVictimPickerMapFocus(candidate.focus || candidate, candidate.label);
+                return;
+            }
+            if (action === "teleport") {
+                setVictimPickerBusy(app, true, "Teleport...");
+                try {
+                    await teleportVictimPickerCandidate(candidate, () => loadVictimPickerData(app, state));
+                } finally {
+                    setVictimPickerBusy(app, false);
+                }
+                return;
+            }
+            if (action !== "aim") return;
+            if (!candidate.can_aim) return;
+            setVictimPickerBusy(app, true, "Ustawiam CEL...");
+            try {
+                const response = await fetch("/api/victim-picker/aim", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ target_id: candidate.target_id })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || data.success === false) {
+                    addSystemMessage("warning", "VICTIM PICKER", data.message || "Nie udalo sie ustawic celu.");
+                    return;
+                }
+                addSystemMessage("success", "VICTIM PICKER", data.message || "Cel ustawiony.");
+                if (data.target && typeof updateToolbarAimedTarget === "function") {
+                    updateToolbarAimedTarget(data.target);
+                }
+                if (typeof refreshToolbarTargetTruth === "function") {
+                    refreshToolbarTargetTruth();
+                }
+                await loadVictimPickerData(app, state);
+            } catch (error) {
+                console.warn("Victim Picker aim failed", error);
+                addSystemMessage("warning", "VICTIM PICKER", "Most celu jest chwilowo niedostepny.");
+            } finally {
+                setVictimPickerBusy(app, false);
+            }
+        });
+    });
+}
+
+async function loadVictimPickerData(app, state = {}) {
+    const shell = app.querySelector(".victim-picker-shell");
+    if (!shell) return;
+    setVictimPickerBusy(app, true, "Pobieram kandydatow...");
+    if (!shell.dataset.initialized) {
+        shell.dataset.initialized = "1";
+        shell.innerHTML = `
+            <div class="victim-picker-loading">
+                <span class="app-button-spinner" aria-hidden="true"></span>
+                <b>Synchronizacja VICTIMS...</b>
+            </div>
+        `;
+    }
+    try {
+        const response = await fetch("/api/victim-picker/candidates", { headers: { "Accept": "application/json" } });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) {
+            state.candidates = [];
+            state.position = null;
+            state.action_range_m = null;
+            shell.innerHTML = `
+                <div class="victim-picker-error">
+                    <strong>${VICTIM_PICKER_ICONS.error} Victim Picker offline</strong>
+                    <p>${escapeHTML(data.message || data.error || "Nie udalo sie pobrac kandydatow.")}</p>
+                </div>
+            `;
+            return;
+        }
+        state.candidates = Array.isArray(data.candidates) ? data.candidates : [];
+        state.position = data.position || null;
+        state.action_range_m = data.action_range_m;
+        renderVictimPickerApp(app, state);
+    } catch (error) {
+        console.warn("Victim Picker load failed", error);
+        shell.innerHTML = `
+            <div class="victim-picker-error">
+                <strong>${VICTIM_PICKER_ICONS.error} Victim Picker offline</strong>
+                <p>Nie udalo sie polaczyc z endpointem kandydatow.</p>
+            </div>
+        `;
+    } finally {
+        setVictimPickerBusy(app, false);
+    }
+}
+
+function createVictimPickerApp() {
+    const existing = document.querySelector('.app-window[data-app="victim-picker"]');
+    if (existing) {
+        bringWindowToFront(existing);
+        return existing;
+    }
+
+    const app = document.createElement('div');
+    app.className = 'app-window victim-picker-window';
+    app.dataset.app = "victim-picker";
+    app.dataset.appIcon = VICTIM_PICKER_ICONS.app;
+    app.dataset.appTitle = "Victim Picker";
+    const position = findAvailablePosition(760, 580);
+    app.style.top = `${position.top}px`;
+    app.style.left = `${position.left}px`;
+    app.style.width = `760px`;
+    app.style.height = `580px`;
+    app.innerHTML = `
+        <div class="title-bar">Victim Picker <span class="close-btn" style="float:right; cursor:pointer;">✖</span></div>
+        <div class="victim-picker-shell"></div>
+    `;
+
+    document.body.appendChild(app);
+    makeDraggable(app);
+    app.querySelector('.close-btn')?.addEventListener('click', () => app.remove());
+    const state = {};
+    loadVictimPickerData(app, state);
+    return app;
+}
+
+window.createVictimPickerApp = createVictimPickerApp;
 
 function appHasMapRuntime(appData) {
     if (!appData || typeof appData !== "object") return false;
