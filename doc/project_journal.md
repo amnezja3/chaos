@@ -8663,3 +8663,50 @@ Update:
 * `slow` i `overloaded/heavy` zwiekszaja czestotliwosc oraz powierzchnie
   zaklocen bez dodawania pollera;
 * `ready` natychmiast zdejmuje klasy intensywnosci i chowa overlay.
+
+## Target Action Flow - CEL Progress Sync
+
+Domknieto problem kropek progresu `CEL` na styku mapa / terminal / desktop.
+
+Problem:
+
+* aplikacje uruchamiane z terminala i pulpitu zaczely poprawnie dzialac na
+  aktualnym `aimed_target`, ale szybkie mieszanie z akcjami mapy potrafilo
+  cofac `actions_allowed`;
+* mapa mogla zapisac starszy snapshot targetu po tym, jak terminal albo desktop
+  zdazyl juz potwierdzic kolejny krok;
+* frontend zapalal kropke szybciej niz zrodlo prawdy zdazylo zapisac stan, co
+  dawalo mylace wrazenie postepu;
+* dodatkowo ten sam obiekt mapy mogl miec inna etykiete w roznych flow, wiec
+  backend traktowal go jak inny target i nie scalal progresu.
+
+Rozwiazanie:
+
+* `actions_allowed` stalo sie monotoniczne dla tego samego targetu: raz
+  potwierdzone `true` nie jest cofane przez pozniejszy request;
+* merge targetu nie opiera sie juz wylacznie na labelu w `target_id`, tylko na
+  runtime identity: gracz po `target_username`, vulnerability po
+  `vulnerability_id`, konflikt po `foreign_area_id` + pozycja, zwykly POI po
+  wspolrzednych;
+* desktop i terminal uruchamiaja brakujace operacje mapowe tym samym
+  kontraktem co mapa;
+* klik w segment `CEL` odswieza prawde z backendu i pozwala sprawdzic aktualny
+  stan bez restartu calego Ghosta;
+* usunieto frontendowe zgadywanie postepu jako zrodlo prawdy - UI ma pokazywac
+  stan potwierdzony przez backend.
+
+Efekt:
+
+* hackowanie celu jest czytelniejsze i mniej zalezne od otwartej mapy;
+* mapa jest odciazona, bo gracz moze oznaczyc cel na mapie, a potem pracowac z
+  terminala albo pulpitu;
+* pasek `CEL` stal sie praktycznym checkpointem prawdy targetu;
+* mix mapa / terminal / desktop jest stabilniejszy i mniej podatny na race
+  condition spoznionych requestow.
+
+Walidacja:
+
+* dodano regresje dla zachowania nowszych flag targetu mimo innej etykiety mapy;
+* punktowe testy target flow / `gonna-win`: OK;
+* `python -m py_compile run.py database.py profileManagment.py`: OK;
+* `git diff --check`: OK.

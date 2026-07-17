@@ -1491,6 +1491,7 @@
         let zoomReturnTimer = null;
         let zoomReturnInterval = null;
         let programmaticMapMove = false;
+        const AUTO_ZOOM_RETURN_DELAY_MS = 120000;
         window.activeOperationLayers = [];
         window.incidentHotspotLayers = window.incidentHotspotLayers || {};
         window.latestActiveOperations = [];
@@ -1689,7 +1690,7 @@
                         programmaticMapMove = false;
                     }, 350);
                 }, 650);
-            }, 1000);
+            }, AUTO_ZOOM_RETURN_DELAY_MS);
         }
 
         map.on('zoomend', scheduleZoomReturn);
