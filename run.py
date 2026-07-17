@@ -4062,6 +4062,40 @@ def targets_share_position(left, right, precision=5):
     return bool(left_key and right_key and left_key == right_key)
 
 
+def targets_share_runtime_identity(left, right):
+    """Return true when two target snapshots point at the same gameplay object."""
+    if not isinstance(left, dict) or not isinstance(right, dict):
+        return False
+
+    left_mode = str(left.get("target_mode") or "").strip()
+    right_mode = str(right.get("target_mode") or "").strip()
+
+    if left_mode == "player" or right_mode == "player":
+        return (
+            left_mode == right_mode == "player"
+            and str(left.get("target_username") or left.get("username") or "").strip()
+            and str(left.get("target_username") or left.get("username") or "").strip()
+            == str(right.get("target_username") or right.get("username") or "").strip()
+        )
+
+    left_vulnerability = str(left.get("vulnerability_id") or "").strip()
+    right_vulnerability = str(right.get("vulnerability_id") or "").strip()
+    if left_vulnerability or right_vulnerability:
+        return bool(left_vulnerability and left_vulnerability == right_vulnerability)
+
+    left_area = str(left.get("foreign_area_id") or "").strip()
+    right_area = str(right.get("foreign_area_id") or "").strip()
+    if left_area or right_area:
+        return bool(left_area and left_area == right_area and targets_share_position(left, right, precision=5))
+
+    if build_operation_target_id(left) == build_operation_target_id(right):
+        return True
+
+    # Map, terminal and desktop flows may carry different display labels for the
+    # same POI. Coordinates are the stable runtime identity for this fallback.
+    return targets_share_position(left, right, precision=5)
+
+
 def target_label_value(target):
     if not isinstance(target, dict):
         return ""
@@ -10088,7 +10122,7 @@ def apply_app_map_actions_to_aimed_target(profile, app, username=None):
             latest_target = latest_profile.get("aimed_target") or {}
             if (
                 isinstance(latest_target, dict)
-                and build_operation_target_id(latest_target) == build_operation_target_id(aimed_target)
+                and targets_share_runtime_identity(latest_target, aimed_target)
             ):
                 latest_allowed = latest_target.get("actions_allowed") or {}
                 if isinstance(latest_allowed, dict):
@@ -10130,7 +10164,7 @@ def merge_latest_aimed_target_runtime_state(profile, username):
     if not isinstance(latest_target, dict) or not latest_target:
         return aimed_target
 
-    if build_operation_target_id(latest_target) != build_operation_target_id(aimed_target):
+    if not targets_share_runtime_identity(latest_target, aimed_target):
         return aimed_target
 
     allowed = aimed_target.setdefault("actions_allowed", {})

@@ -2465,6 +2465,82 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertFalse(security["vpn"])
         self.assertFalse(security["firewall"])
 
+    def test_gonna_win_preserves_newer_target_flags_when_map_label_differs(self):
+        class FakeProfileManager:
+            updates = []
+
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, updates):
+                self.__class__.updates.append((self.username, updates))
+
+        stale_target = {
+            "target_mode": "standard",
+            "lat": 52.1000003,
+            "lng": 21.2000003,
+            "label": "Map display label",
+            "security": {"firewall": True, "vpn": True},
+            "actions_allowed": {
+                "scan_ports": False,
+                "exploit": False,
+                "sniff": False,
+                "trace": False,
+            },
+        }
+        profile = {
+            "username": "root",
+            "nick": "Rut",
+            "apps": [{
+                "id": "exploit_tool",
+                "name": "Exploit Tool",
+                "requires_off": [],
+                "interferes_with": ["firewall"],
+                "map_actions": ["exploit"],
+                "map_actions_source": "manual",
+                "levels": [{"options": []}],
+            }],
+            "aimed_target": dict(stale_target),
+            "system_messages": [],
+        }
+        profile["aimed_target"]["actions_allowed"] = dict(stale_target["actions_allowed"])
+        latest_profile = {
+            "username": "root",
+            "aimed_target": {
+                "target_mode": "standard",
+                "lat": 52.1,
+                "lng": 21.2,
+                "label": "Canonical target label",
+                "security": {"firewall": True, "vpn": False},
+                "actions_allowed": {
+                    "scan_ports": True,
+                    "exploit": False,
+                    "sniff": True,
+                    "trace": False,
+                },
+            },
+        }
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "root"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run.user_store, "get_profile", return_value=latest_profile), \
+                patch.object(run, "UserProfileManager", FakeProfileManager):
+            response = client.post("/gonna-win", json={"app_id": "exploit_tool"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        actions = payload["target"]["actions_allowed"]
+        security = payload["target"]["security"]
+        self.assertTrue(actions["scan_ports"])
+        self.assertTrue(actions["sniff"])
+        self.assertTrue(actions["exploit"])
+        self.assertFalse(actions["trace"])
+        self.assertFalse(security["vpn"])
+        self.assertFalse(security["firewall"])
+
     def test_gonna_win_operation_only_starts_map_operation_without_security_effect(self):
         class FakeProfileManager:
             updates = []
