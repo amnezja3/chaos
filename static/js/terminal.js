@@ -813,35 +813,9 @@ async function refreshToolbarProfile() {
 
 function updateToolbarAimedTarget(aimedTarget) {
     if (!aimedTarget || typeof aimedTarget !== "object") return;
-    const currentTarget = (toolbarProfile || {}).aimed_target || {};
-    const nextTarget = { ...aimedTarget };
-    if (getTargetFeedbackKey(currentTarget) && getTargetFeedbackKey(currentTarget) === getTargetFeedbackKey(nextTarget)) {
-        const currentActions = currentTarget.actions_allowed || {};
-        const nextActions = { ...(nextTarget.actions_allowed || {}) };
-        TARGET_FEEDBACK_ACTION_KEYS.forEach(key => {
-            if (currentActions[key] === true) {
-                nextActions[key] = true;
-            }
-        });
-        Object.entries(currentActions).forEach(([key, value]) => {
-            if (value === true) {
-                nextActions[key] = true;
-            }
-        });
-        nextTarget.actions_allowed = nextActions;
-
-        const currentSecurity = currentTarget.security || {};
-        const nextSecurity = { ...(nextTarget.security || {}) };
-        Object.entries(currentSecurity).forEach(([key, value]) => {
-            if (value === false && nextSecurity[key] !== false) {
-                nextSecurity[key] = false;
-            }
-        });
-        nextTarget.security = nextSecurity;
-    }
     setToolbarProfile({
         ...(toolbarProfile || {}),
-        aimed_target: nextTarget
+        aimed_target: { ...aimedTarget }
     });
 }
 
