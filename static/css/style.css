@@ -4962,6 +4962,13 @@ form button:hover {
   font-size: 0.76rem;
 }
 
+.territory-control-threats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
 .territory-control-threat {
   width: max-content;
   padding: 3px 7px;
@@ -4972,11 +4979,11 @@ form button:hover {
   font-weight: 800;
 }
 
-.threat-collision .territory-control-threat {
+.territory-control-threat-collision {
   color: #ffb13b;
 }
 
-.threat-attacked .territory-control-threat {
+.territory-control-threat-attacked {
   color: #ff5a5a;
 }
 
@@ -4994,23 +5001,37 @@ form button:hover {
   gap: 8px;
 }
 
-.territory-control-group h4 {
+.territory-control-category {
+  display: contents;
+}
+
+.territory-control-cluster-nodes {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-bottom: 6px;
+}
+
+.territory-control-group h4,
+.territory-control-category h4 {
   display: flex;
   align-items: center;
   gap: 10px;
   margin: 0;
+  padding-top: 2px;
   color: #35ff78;
   font-size: 0.82rem;
   text-transform: uppercase;
 }
 
-.territory-control-group h4::after {
+.territory-control-group h4::after,
+.territory-control-category h4::after {
   content: "";
   flex: 1 1 auto;
   border-top: 1px solid rgba(0, 255, 100, 0.25);
 }
 
-.territory-control-group h4 span {
+.territory-control-group h4 span,
+.territory-control-category h4 span {
   order: 3;
   color: #baff2a;
   font-size: 0.75rem;
@@ -5025,7 +5046,7 @@ form button:hover {
 
 .territory-control-object {
   display: grid;
-  grid-template-columns: 42px minmax(150px, 1fr) minmax(235px, auto) minmax(96px, auto) auto;
+  grid-template-columns: 42px minmax(150px, 1fr) 96px minmax(96px, auto) auto;
   gap: 10px;
   align-items: center;
   padding: 9px;
@@ -5076,14 +5097,19 @@ form button:hover {
 
 .territory-control-presets {
   display: grid;
-  grid-template-columns: repeat(5, minmax(42px, 1fr));
-  gap: 5px;
+  grid-template-columns: repeat(3, 28px);
+  grid-auto-rows: 24px;
+  align-content: center;
+  gap: 4px;
 }
 
 .territory-control-presets button {
   min-width: 0;
-  padding: 0 7px;
-  font-size: 0.72rem;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  font-size: 0.58rem;
+  letter-spacing: 0;
 }
 
 .territory-control-security-preview {

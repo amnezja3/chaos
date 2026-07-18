@@ -9014,3 +9014,70 @@ Walidacja:
 * `python -m unittest tests.test_territory_control tests.test_territory_context_reader tests.test_territory_delta`: OK;
 * `git diff --check`: OK, tylko istniejace ostrzezenie CRLF/LF dla
   `static/css/style.css`.
+
+## Sprint 106.1 - Territory Control Cluster List Fix
+
+Poprawiono ekran szczegolow klastra Territory Control. Wczesniej `FILARY` i
+`INNER NODES` byly renderowane jako dwie osobne sekcje z wlasnymi listami, co
+przy wiekszej liczbie filarow powodowalo ucinanie pierwszej sekcji i wrazenie
+rozbitego okna.
+
+Wdrozone:
+
+* filary i inner nodes sa teraz jedna wspolna przewijana lista;
+* `FILARY` i `INNER NODES` zostaly separatorami kategorii w tej samej liscie;
+* nie zmieniono endpointow, modelu klastra ani presetow zabezpieczen;
+* zachowano uklad mobile/narrow z akcjami w czytelnym przeplywie.
+
+Walidacja:
+
+* `node --check static/js/terminal.js`: OK;
+* `python -m unittest tests.test_territory_control tests.test_territory_context_reader tests.test_territory_delta`: OK;
+* `git diff --check`: OK, tylko istniejace ostrzezenie CRLF/LF dla
+  `static/css/style.css`;
+* backend pozostaje bez zmian.
+
+## Sprint 106.2 - Territory Control Preset Mini Palette
+
+Zmniejszono presety zabezpieczen w wierszu obiektu Territory Control. Przyciski
+`OPEN`, `LOW`, `REGULAR`, `SECURE`, `ALL` byly zbyt szerokie i konkurowaly z
+paleta flag oraz akcjami mapy/teleportu. Teraz dzialaja jako mini-paleta w dwoch
+liniach, z pelnymi nazwami dostepnymi w tooltipach.
+
+Wdrozone:
+
+* skrocono etykiety presetow w UI do `OP`, `LO`, `RG`, `SC`, `AL`;
+* pelne nazwy presetow zostaly w `title`;
+* presety sa ulozone w zwartej siatce 3 + 2;
+* wiersz obiektu ma wasza kolumne presetow i nie rozpycha listy klastra;
+* backend i kontrakt presetow pozostaly bez zmian.
+
+Walidacja:
+
+* `node --check static/js/terminal.js`: OK;
+* `python -m unittest tests.test_territory_control tests.test_territory_context_reader tests.test_territory_delta`: OK;
+* `git diff --check`: OK, tylko istniejace ostrzezenie CRLF/LF dla
+  `static/css/style.css`;
+* backend pozostaje bez zmian.
+
+## Sprint 106.3 - Territory Control Threat Labels Fix
+
+Poprawiono etykiety zagrozen na liscie klastrow Territory Control. Wczesniej
+aktywny konflikt z udzialem gracza mogl oznaczyc jako `KOLIZJA` rowniez klaster,
+ktory nie nalezal do konfliktu. Od teraz `KOLIZJA` wynika z dopasowania
+konkretnego `area_id`, a `ALARM` z atakowanego filara danego klastra.
+
+Wdrozone:
+
+* backend zwraca `threat_flags.collision` i `threat_flags.attacked` per klaster;
+* konflikt nie rozlewa sie na wszystkie klastry uczestnika;
+* frontend renderuje wiele etykiet obok siebie, np. `ALARM` + `KOLIZJA`;
+* po zmianie presetu zabezpieczen aktualny widok klastra odswieza sie na miejscu
+  zamiast wracac do listy;
+* dodano test regresyjny dla konfliktu z innym `area_id`.
+
+Walidacja:
+
+* `node --check static/js/terminal.js`: OK;
+* `python -m py_compile run.py database.py profileManagment.py`: OK;
+* `python -m unittest tests.test_territory_control tests.test_territory_context_reader tests.test_territory_delta`: OK.

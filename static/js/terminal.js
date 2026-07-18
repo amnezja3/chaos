@@ -3753,11 +3753,11 @@ const TERRITORY_CONTROL_ICONS = {
 };
 
 const TERRITORY_CONTROL_PRESETS = [
-    { id: "open", label: "OPEN" },
-    { id: "low", label: "LOW" },
-    { id: "regular", label: "REGULAR" },
-    { id: "secure", label: "SECURE" },
-    { id: "all", label: "ALL" }
+    { id: "open", label: "OP", title: "OPEN" },
+    { id: "low", label: "LO", title: "LOW" },
+    { id: "regular", label: "RG", title: "REGULAR" },
+    { id: "secure", label: "SC", title: "SECURE" },
+    { id: "all", label: "AL", title: "ALL" }
 ];
 
 function territoryControlMeters(value) {
@@ -3786,6 +3786,31 @@ function territoryControlThreatLabel(value) {
     if (key === "attacked") return "ATAK";
     if (key === "collision") return "KOLIZJA";
     return "NEUTRAL";
+}
+
+function territoryControlThreatBadges(cluster = {}) {
+    const flags = cluster?.threat_flags || {};
+    const badges = [];
+    if (flags.attacked || Number(cluster?.attacked_pillars_count || 0) > 0 || String(cluster?.threat_state || "").toLowerCase() === "attacked") {
+        badges.push({ kind: "attacked", label: "ALARM" });
+    }
+    if (flags.collision || Number(cluster?.conflict_count || 0) > 0) {
+        badges.push({ kind: "collision", label: "KOLIZJA" });
+    }
+    if (!badges.length) badges.push({ kind: "neutral", label: "NEUTRAL" });
+    return badges;
+}
+
+function renderTerritoryControlThreatBadges(cluster = {}) {
+    return territoryControlThreatBadges(cluster)
+        .map(badge => `<span class="territory-control-threat territory-control-threat-${escapeHTML(badge.kind)}">${escapeHTML(badge.label)}</span>`)
+        .join("");
+}
+
+function territoryControlThreatSummary(cluster = {}) {
+    return territoryControlThreatBadges(cluster)
+        .map(badge => badge.label)
+        .join(" + ");
 }
 
 function setTerritoryControlBusy(app, busy, message = "") {
@@ -3938,7 +3963,7 @@ function renderTerritoryClusterCard(cluster) {
                 <span>${Number(cluster.node_count || 0)} wezlow · ${Number(cluster.pillar_count || 0)} filarow · ${Number(cluster.inner_count || 0)} innerow</span>
                 <span>${escapeHTML(territoryControlArea(cluster.area_size))} · ${escapeHTML(territoryControlMeters(cluster.distance_from_bike))} od motocykla</span>
             </div>
-            <div class="territory-control-threat">${escapeHTML(territoryControlThreatLabel(threat))}</div>
+            <div class="territory-control-threats">${renderTerritoryControlThreatBadges(cluster)}</div>
             <div class="territory-control-actions">
                 <button type="button" data-territory-control-action="cluster-detail" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}" title="Otworz szczegoly">${TERRITORY_CONTROL_ICONS.open}</button>
                 <button type="button" data-territory-control-action="cluster-map" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}" title="Pokaz na mapie">${TERRITORY_CONTROL_ICONS.map}</button>
@@ -4016,7 +4041,7 @@ function renderTerritoryControlObjectRow(item, options = {}) {
                 </div>
             </div>
             <div class="territory-control-presets">
-                ${TERRITORY_CONTROL_PRESETS.map(preset => `<button type="button" data-territory-control-action="security-preset" data-target-id="${escapeHTML(item.target_id || "")}" data-preset="${preset.id}">${preset.label}</button>`).join("")}
+                ${TERRITORY_CONTROL_PRESETS.map(preset => `<button type="button" data-territory-control-action="security-preset" data-target-id="${escapeHTML(item.target_id || "")}" data-preset="${preset.id}" title="${escapeHTML(preset.title || preset.label)}">${preset.label}</button>`).join("")}
             </div>
             <div class="territory-control-security-preview">${securityPreview || `<span>brak flag</span>`}</div>
             <div class="territory-control-actions">
@@ -4033,12 +4058,14 @@ function renderTerritoryControlCluster(app, state, cluster) {
     state.currentClusterId = cluster?.cluster_id || state.currentClusterId;
     const pillars = Array.isArray(cluster?.pillars) ? cluster.pillars : [];
     const inners = Array.isArray(cluster?.inners) ? cluster.inners : [];
+    const pillarRows = pillars.map(item => renderTerritoryControlObjectRow(item)).join("");
+    const innerRows = inners.map(item => renderTerritoryControlObjectRow(item)).join("");
     const body = `
         <section class="territory-control-cluster-detail threat-${escapeHTML(cluster?.threat_state || "neutral")}">
             <div class="territory-control-detail-head">
                 <div>
                     <strong>${escapeHTML(cluster?.label || `Klaster ${cluster?.cluster_id || ""}`)}</strong>
-                    <span>${escapeHTML(territoryControlThreatLabel(cluster?.threat_state))} · ${escapeHTML(territoryControlArea(cluster?.area_size))} · ${escapeHTML(territoryControlMeters(cluster?.distance_from_bike))}</span>
+                    <span>${escapeHTML(territoryControlThreatSummary(cluster))} · ${escapeHTML(territoryControlArea(cluster?.area_size))} · ${escapeHTML(territoryControlMeters(cluster?.distance_from_bike))}</span>
                 </div>
                 <div class="territory-control-actions">
                     <button type="button" data-territory-control-action="cluster-map" data-cluster-id="${escapeHTML(cluster?.cluster_id || "")}" title="Pokaz klaster">${TERRITORY_CONTROL_ICONS.map}</button>
@@ -4046,13 +4073,15 @@ function renderTerritoryControlCluster(app, state, cluster) {
                 </div>
             </div>
         </section>
-        <section class="territory-control-group">
-            <h4>FILARY <span>${pillars.length}</span></h4>
-            <div class="territory-control-object-list">${pillars.map(item => renderTerritoryControlObjectRow(item)).join("") || `<div class="territory-control-empty">Brak filarow.</div>`}</div>
-        </section>
-        <section class="territory-control-group">
-            <h4>INNER NODES <span>${inners.length}</span></h4>
-            <div class="territory-control-object-list">${inners.map(item => renderTerritoryControlObjectRow(item)).join("") || `<div class="territory-control-empty">Brak inner nodes.</div>`}</div>
+        <section class="territory-control-object-list territory-control-cluster-nodes">
+            <div class="territory-control-category">
+                <h4>FILARY <span>${pillars.length}</span></h4>
+                ${pillarRows || `<div class="territory-control-empty">Brak filarow.</div>`}
+            </div>
+            <div class="territory-control-category">
+                <h4>INNER NODES <span>${inners.length}</span></h4>
+                ${innerRows || `<div class="territory-control-empty">Brak inner nodes.</div>`}
+            </div>
         </section>
     `;
     renderTerritoryControlFrame(app, state, body, { back: "back-list", title: cluster?.label || "KLASTER" });
@@ -4061,6 +4090,8 @@ function renderTerritoryControlCluster(app, state, cluster) {
 
 async function applyTerritoryControlPreset(app, state, item, preset) {
     setTerritoryControlBusy(app, true, `Preset ${preset.toUpperCase()}...`);
+    const preferredView = state.view;
+    const preferredClusterId = state.currentClusterId;
     try {
         const response = await fetch("/api/ghost-control/territory/security-preset", {
             method: "POST",
@@ -4074,9 +4105,11 @@ async function applyTerritoryControlPreset(app, state, item, preset) {
         }
         if (data.snapshot) {
             Object.assign(state, data.snapshot);
+            state.view = preferredView;
+            state.currentClusterId = preferredClusterId;
         }
         addSystemMessage("success", "TERRITORY CONTROL", `Preset ${preset.toUpperCase()} zapisany.`);
-        await refreshTerritoryControlAfterMutation(app, state, data.snapshot);
+        await refreshTerritoryControlAfterMutation(app, state, data.snapshot, { preferredView, preferredClusterId });
     } finally {
         setTerritoryControlBusy(app, false);
     }
@@ -4084,6 +4117,8 @@ async function applyTerritoryControlPreset(app, state, item, preset) {
 
 async function toggleTerritoryControlSecurity(app, state, item, action) {
     setTerritoryControlBusy(app, true, "Zmieniam flage...");
+    const preferredView = state.view;
+    const preferredClusterId = state.currentClusterId;
     try {
         const response = await fetch("/api/ghost-control/territory/security", {
             method: "POST",
@@ -4097,8 +4132,10 @@ async function toggleTerritoryControlSecurity(app, state, item, action) {
         }
         if (data.snapshot) {
             Object.assign(state, data.snapshot);
+            state.view = preferredView;
+            state.currentClusterId = preferredClusterId;
         }
-        await refreshTerritoryControlAfterMutation(app, state, data.snapshot);
+        await refreshTerritoryControlAfterMutation(app, state, data.snapshot, { preferredView, preferredClusterId });
     } finally {
         setTerritoryControlBusy(app, false);
     }
@@ -4135,16 +4172,25 @@ async function abandonTerritoryControlObject(app, state, item) {
 }
 
 async function refreshTerritoryControlAfterMutation(app, state, snapshot = null, options = {}) {
+    const preferredView = options.preferredView || state.view;
+    const preferredClusterId = options.preferredClusterId || state.currentClusterId;
     if (snapshot) {
         Object.assign(state, snapshot);
+        state.view = preferredView;
+        state.currentClusterId = preferredClusterId;
     } else {
         await loadTerritoryControlData(app, state, null, { silent: true, noRender: true });
+        state.view = preferredView;
+        state.currentClusterId = preferredClusterId;
     }
-    if (state.view === "cluster" && state.currentClusterId && !options.forceList) {
-        const cluster = getTerritoryControlClusterById(state, state.currentClusterId);
+    if (preferredView === "cluster" && preferredClusterId && !options.forceList) {
+        const cluster = getTerritoryControlClusterById(state, preferredClusterId);
         if (cluster) {
             renderTerritoryControlCluster(app, state, cluster);
             return;
+        }
+        if (!options.preferListOnMissingCluster) {
+            addSystemMessage("warning", "TERRITORY CONTROL", "Klaster zostal przeliczony. Wracam do listy.");
         }
     }
     renderTerritoryControlList(app, state);

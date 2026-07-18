@@ -788,6 +788,88 @@ Gracz może bez mapy:
 * otwierać je na mapie,
 * teleportować się.
 
+# Sprint 106.1 — Territory Control Cluster List Fix
+
+## Cel
+
+Poprawić czytelność ekranu szczegółów klastra bez zmiany backendu i mechaniki
+Territory Control.
+
+## Zakres
+
+* Filary i inner nodes mają tworzyć jedną wspólną przewijaną listę.
+* Lista jest podzielona nagłówkami kategorii:
+  * `FILARY`,
+  * `INNER NODES`.
+* Kategorie nie mogą tworzyć dwóch osobnych paneli przewijania.
+* Nagłówki kategorii są separatorami w tej samej liście.
+* Presety, zabezpieczenia, mapa, teleport i porzucenie pozostają bez zmian.
+* Nie zmieniać endpointów Sprintu 105.
+* Nie zmieniać modelu klastra, filarów ani inner nodes.
+
+## Kryteria akceptacji
+
+* Ekran szczegółów klastra ma jedną listę obiektów.
+* Filary są widoczne jako pierwsza kategoria.
+* Inner nodes są widoczne jako druga kategoria.
+* Przy dużej liczbie filarów lista przewija się cała, bez ucinania pierwszej
+  sekcji.
+* Mobile/narrow nadal pokazuje akcje w czytelnym układzie.
+* Backend pozostaje bez zmian.
+
+# Sprint 106.2 — Territory Control Preset Mini Palette
+
+## Cel
+
+Zmniejszyć przyciski presetów zabezpieczeń w wierszu obiektu, żeby działały jak
+mini-paleta obok podglądu flag, a nie jak szeroki blok tekstowych akcji.
+
+## Zakres
+
+* Presety `OPEN`, `LOW`, `REGULAR`, `SECURE`, `ALL` pozostają tymi samymi
+  akcjami backendowymi.
+* W UI presety mają być małe, zwarte i ułożone w dwóch liniach.
+* Pełne nazwy presetów pozostają dostępne w tooltipach.
+* Mini-paleta nie może rozpychać wiersza obiektu.
+* Podgląd flag zabezpieczeń zostaje obok presetów.
+* Backend pozostaje bez zmian.
+
+## Kryteria akceptacji
+
+* Presety są wizualnie mniejsze od głównych akcji `MAPA`, `TELEPORT`,
+  `PORZUĆ`.
+* Presety układają się w dwóch liniach.
+* Wiersz obiektu mieści nazwę, pasek zabezpieczeń, presety, flagi i akcje bez
+  poziomego rozjeżdżania.
+* Mobile/narrow nadal zachowuje czytelny układ.
+
+# Sprint 106.3 — Territory Control Threat Labels Fix
+
+## Cel
+
+Poprawić etykiety `ALARM` i `KOLIZJA` na liście klastrów Territory Control, żeby
+pokazywały wyłącznie faktyczny stan danego klastra.
+
+## Zakres
+
+* `KOLIZJA` może pojawić się tylko wtedy, gdy aktywny konflikt jest przypisany
+  do `area_id` tego klastra.
+* `ALARM` może pojawić się wtedy, gdy atakowany jest filar danego klastra.
+* Jeden klaster może pokazać obie etykiety obok siebie.
+* Udział gracza w konflikcie nie może sam z siebie oznaczać wszystkich jego
+  klastrów jako `KOLIZJA`.
+* Po zmianie presetu zabezpieczeń aktualny ekran ma się odświeżyć na miejscu.
+* Nie zmieniać geometrii terytoriów ani mechaniki konfliktów.
+
+## Kryteria akceptacji
+
+* Klaster bez konfliktu nie pokazuje `KOLIZJA`.
+* Klaster z konfliktem pokazuje `KOLIZJA`.
+* Klaster z atakowanym filarem pokazuje `ALARM`.
+* `ALARM` i `KOLIZJA` mogą występować razem.
+* Kliknięcie presetu `OPEN/LOW/REGULAR/SECURE/ALL` nie cofa z widoku klastra do
+  poprzedniego ekranu, tylko odświeża aktualny widok.
+
 ---
 
 # Sprint 107 — Operation Control: backend, pliki i incydenty

@@ -11453,12 +11453,15 @@ def territory_control_area_threat(username, area, conflicts):
     area_id = area.get("id")
     related = []
     attacked_positions = set()
+    area_id_text = str(area_id) if area_id is not None else ""
     for conflict in conflicts or []:
         if str(conflict.get("status") or "active") != "active":
             continue
         area_ids = {str(item) for item in (conflict.get("area_ids") or [])}
+        if not area_id_text or area_id_text not in area_ids:
+            continue
         participants = {str(item) for item in (conflict.get("participants") or [])}
-        if (area_id is not None and str(area_id) in area_ids) or username in participants:
+        if username in participants:
             related.append(conflict)
             for item in conflict.get("targets") or []:
                 target = item.get("target") if isinstance(item, dict) else {}
@@ -11476,6 +11479,10 @@ def territory_control_area_threat(username, area, conflicts):
         "conflict_count": len(related),
         "attacked_positions": attacked_positions,
         "threat_state": threat_state,
+        "threat_flags": {
+            "collision": bool(related),
+            "attacked": False,
+        },
     }
 
 
@@ -11549,6 +11556,7 @@ def build_territory_control_snapshot(username, profile=None):
         )
         if attacked_pillars_count:
             threat["threat_state"] = "attacked"
+        threat["threat_flags"]["attacked"] = bool(attacked_pillars_count)
         cluster_id = str(area_id)
         map_focus = {
             "type": "cluster",
@@ -11569,6 +11577,7 @@ def build_territory_control_snapshot(username, profile=None):
             "perimeter": calculate_area_perimeter(vertices),
             "conflict_count": threat["conflict_count"],
             "attacked_pillars_count": attacked_pillars_count,
+            "threat_flags": threat["threat_flags"],
             "centroid": centroid,
             "navigation_target": nearest,
             "distance_from_bike": nearest.get("distance_from_bike") if nearest else None,

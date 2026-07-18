@@ -123,6 +123,24 @@ class TerritoryControlTest(unittest.TestCase):
         self.assertEqual(summary["security_total"], 2)
         self.assertEqual(summary["security_percent"], 50)
 
+    def test_area_threat_uses_matching_area_id_not_only_participant(self):
+        conflict = {
+            "status": "active",
+            "area_ids": ["cluster-b"],
+            "participants": ["alice", "bob"],
+            "targets": [],
+        }
+
+        unrelated = run.territory_control_area_threat("alice", {"id": "cluster-a"}, [conflict])
+        related = run.territory_control_area_threat("alice", {"id": "cluster-b"}, [conflict])
+
+        self.assertEqual(unrelated["threat_state"], "clear")
+        self.assertEqual(unrelated["conflict_count"], 0)
+        self.assertFalse(unrelated["threat_flags"]["collision"])
+        self.assertEqual(related["threat_state"], "collision")
+        self.assertEqual(related["conflict_count"], 1)
+        self.assertTrue(related["threat_flags"]["collision"])
+
     def test_endpoint_uses_readonly_profile_and_does_not_sync(self):
         path = self._temp_db()
         try:
