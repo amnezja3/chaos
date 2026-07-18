@@ -6175,11 +6175,18 @@ function createSettings() {
             });
             setStatus("Zapisuje schemat mapy...", "loading");
             const response = await saveDesktopSettingsNow({ map_tile_scheme: mapTileScheme });
-            term.querySelectorAll('[data-map-scheme]').forEach(item => item.classList.toggle('is-active', item === btn));
             if (response && !response.ok) {
                 setStatus("Nie udalo sie zapisac schematu mapy.", "error");
                 return;
             }
+            const savedSettings = response ? await response.json().catch(() => null) : null;
+            if (savedSettings?.desktop_settings) {
+                applyDesktopSettings(savedSettings.desktop_settings);
+            }
+            const activeMapScheme = desktopSettings.map_tile_scheme || mapTileScheme;
+            term.querySelectorAll('[data-map-scheme]').forEach(item => {
+                item.classList.toggle('is-active', item.dataset.mapScheme === activeMapScheme);
+            });
             reloadOpenMapWindowsForSettings();
             setStatus("Schemat mapy zapisany. Mapa zostala odswiezona.", "success");
         });

@@ -10330,18 +10330,18 @@ def ensure_purchase_account_profile(username):
 MAP_TILE_SCHEMES = {
     "osm": {
         "label": "OpenStreetMap",
-        "tiles": "OpenStreetMap",
-        "attr": None,
+        "tiles": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        "attr": "OpenStreetMap contributors",
     },
     "carto_light": {
         "label": "Carto Light",
-        "tiles": "CartoDB positron",
-        "attr": None,
+        "tiles": "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+        "attr": "OpenStreetMap contributors, CARTO",
     },
     "carto_dark": {
         "label": "Carto Dark",
-        "tiles": "CartoDB dark_matter",
-        "attr": None,
+        "tiles": "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        "attr": "OpenStreetMap contributors, CARTO",
     },
     "opentopo": {
         "label": "OpenTopo",
@@ -13246,24 +13246,17 @@ def map_view():
     zoom = get_player_map_zoom(profile)
     min_zoom = get_player_min_map_zoom(profile)
     desktop_settings = normalize_desktop_settings(profile.get("desktop_settings"))
-    tile_scheme = MAP_TILE_SCHEMES.get(desktop_settings.get("map_tile_scheme")) or MAP_TILE_SCHEMES["osm"]
-    if tile_scheme.get("attr"):
-        m = folium.Map(
-            location=[ava_lat, ava_lng],
-            zoom_start=zoom,
-            min_zoom=min_zoom,
-            max_zoom=zoom,
-            tiles=tile_scheme["tiles"],
-            attr=tile_scheme["attr"],
-        )
-    else:
-        m = folium.Map(
-            location=[ava_lat, ava_lng],
-            zoom_start=zoom,
-            min_zoom=min_zoom,
-            max_zoom=zoom,
-            tiles=tile_scheme["tiles"],
-        )
+    requested_scheme = str(request.args.get("scheme") or "").strip()
+    scheme_id = requested_scheme if requested_scheme in MAP_TILE_SCHEMES else desktop_settings.get("map_tile_scheme")
+    tile_scheme = MAP_TILE_SCHEMES.get(scheme_id) or MAP_TILE_SCHEMES["osm"]
+    m = folium.Map(
+        location=[ava_lat, ava_lng],
+        zoom_start=zoom,
+        min_zoom=min_zoom,
+        max_zoom=zoom,
+        tiles=tile_scheme["tiles"],
+        attr=tile_scheme["attr"],
+    )
 
     # # Dodaj różne style
     # # OpenStreetMap
