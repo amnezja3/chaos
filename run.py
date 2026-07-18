@@ -10332,21 +10332,26 @@ MAP_TILE_SCHEMES = {
         "label": "OpenStreetMap",
         "tiles": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
         "attr": "OpenStreetMap contributors",
+        "zoom_offset": 0,
     },
     "carto_light": {
         "label": "Carto Light",
         "tiles": "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
         "attr": "OpenStreetMap contributors, CARTO",
+        "zoom_offset": 0,
     },
     "carto_dark": {
         "label": "Carto Dark",
         "tiles": "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
         "attr": "OpenStreetMap contributors, CARTO",
+        "zoom_offset": 0,
     },
     "opentopo": {
         "label": "OpenTopo",
         "tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
         "attr": "Map data: OpenStreetMap contributors, SRTM | Map style: OpenTopoMap",
+        "zoom_offset": -1,
+        "max_zoom_cap": 17,
     },
 }
 
@@ -13249,11 +13254,15 @@ def map_view():
     requested_scheme = str(request.args.get("scheme") or "").strip()
     scheme_id = requested_scheme if requested_scheme in MAP_TILE_SCHEMES else desktop_settings.get("map_tile_scheme")
     tile_scheme = MAP_TILE_SCHEMES.get(scheme_id) or MAP_TILE_SCHEMES["osm"]
+    scheme_zoom = max(1, min(20, zoom + int(tile_scheme.get("zoom_offset") or 0)))
+    if tile_scheme.get("max_zoom_cap") is not None:
+        scheme_zoom = min(scheme_zoom, int(tile_scheme["max_zoom_cap"]))
+    scheme_min_zoom = min(min_zoom, scheme_zoom)
     m = folium.Map(
         location=[ava_lat, ava_lng],
-        zoom_start=zoom,
-        min_zoom=min_zoom,
-        max_zoom=zoom,
+        zoom_start=scheme_zoom,
+        min_zoom=scheme_min_zoom,
+        max_zoom=scheme_zoom,
         tiles=tile_scheme["tiles"],
         attr=tile_scheme["attr"],
     )
