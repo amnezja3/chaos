@@ -14607,7 +14607,12 @@ def update_profile_desktop():
         return jsonify({"error": "Brak danych uzytkownika"}), 401
 
     data = request.get_json(silent=True) or {}
-    profile = sync_session_profile()
+    username = session["user"]
+    profile = user_store.get_profile(username)
+    if not profile:
+        session.pop("user", None)
+        session.pop("profile", None)
+        return jsonify({"error": "Brak danych uzytkownika"}), 401
     settings = normalize_desktop_settings(profile.get("desktop_settings"))
 
     if "wallpaper" in data:
@@ -14646,7 +14651,7 @@ def update_profile_desktop():
             return jsonify({"error": "Nieprawidlowy schemat mapy."}), 400
         settings["map_tile_scheme"] = map_tile_scheme
 
-    mgr = UserProfileManager(session["user"])
+    mgr = UserProfileManager(username)
     mgr.update_profile({"desktop_settings": settings})
     profile["desktop_settings"] = settings
     session["profile"] = profile
