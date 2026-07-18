@@ -9294,8 +9294,25 @@ Sprint 102 przywraca właściwy produkt, a Sprint 103 sprawia, że gracz faktycz
 
 ---
 
-comming soon..
-GhostNetwork zaczynamy dopiero po przejściu Sprintu 98. Wtedy terytoria, incydenty, aktorzy NPC, BlackNet i system konsekwencji będą już gotową infrastrukturą, a nie elementami budowanymi równocześnie z częściami maszyn.
+# Przejscie do `game_play_180726.md`
+
+`doc/game_play_260626.md` zamyka glowny plan rozwoju na Sprincie 103.
+
+Dalsze sprinty zostaly przeniesione do:
+
+```text
+doc/game_play_180726.md
+```
+
+Nowy plik otwiera kolejny etap:
+
+```text
+Faza J - Ghost Control Suite / Mapless Control Layer
+```
+
+Faza J zaczyna sie od Sprintu 104 i rozwija aplikacje kontrolne, ktore pozwalaja
+prowadzic cele, terytoria, operacje i incydenty bez koniecznosci stalego
+otwierania mapy.
 
 
 ---
@@ -9401,6 +9418,9 @@ Decision:
   najpierw domknac kanoniczny rejestr rodzin sygnalow, stabilny kontrakt
   odpowiedzi modelu oraz daemonowy feedback loop, ktory po walidacji doklada
   kandydatow do strumienia BlackNet.
+* Przyjeto: `game_play_260626.md` konczy aktywny plan na Sprincie 103. Dalsze
+  sprinty od 104 sa kontynuowane w `doc/game_play_180726.md` jako Faza J -
+  Ghost Control Suite / Mapless Control Layer.
 
 ---
 

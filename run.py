@@ -3230,6 +3230,29 @@ PRO_SYSTEM_TOOLS = [
             "logs": ["Victim Picker wymaga pulpitu systemowego. Uruchom z ikony aplikacji."]
         }],
     },
+    {
+        "id": "territoryControl",
+        "name": "Territory Control",
+        "icon": "\U0001F5FA",
+        "category": "pro-system-tools",
+        "type": "pro-system-tool",
+        "family_id": "ghost_control_suite",
+        "icon_pack": "ghost_control",
+        "description": "Lekka konsola zarzadzania wlasnymi klastrami, filarami i zabezpieczeniami przejetych obiektow bez uruchamiania pelnej mapy.",
+        "price": 50000,
+        "required_level": 1,
+        "required_respect": 0,
+        "allowed_fractions": [],
+        "risk_level": 0,
+        "purchase_account": "admin",
+        "interface": "system_launcher",
+        "system_launcher": "territory_control",
+        "levels": [{
+            "title": "Territory Control",
+            "command": "territory-control --open",
+            "logs": ["Territory Control wymaga pulpitu systemowego. Uruchom z ikony aplikacji."]
+        }],
+    },
 ]
 
 CREATOR_SYSTEM_APPS = [
@@ -11312,6 +11335,304 @@ def serialize_victim_picker_candidate(candidate):
     return item
 
 
+TERRITORY_CONTROL_APP_ID = "territoryControl"
+TERRITORY_CONTROL_PRESETS = {"open", "low", "regular", "secure", "all"}
+
+
+def territory_control_app_installed(profile):
+    return app_is_installed(profile or {}, TERRITORY_CONTROL_APP_ID)
+
+
+def territory_control_position(profile):
+    return victim_picker_position(profile)
+
+
+def territory_control_distance(target, origin):
+    return victim_picker_distance(target, origin)
+
+
+def territory_control_security_summary(security):
+    values = [
+        value for value in (security or {}).values()
+        if isinstance(value, bool)
+    ]
+    total = len(values)
+    enabled = sum(1 for value in values if value)
+    percent = round((enabled / total) * 100) if total else 0
+    return {
+        "security_enabled": enabled,
+        "security_total": total,
+        "security_percent": percent,
+    }
+
+
+def territory_control_target_id(target):
+    return build_operation_target_id({
+        **(target or {}),
+        "target_mode": (target or {}).get("target_mode") or "territory_control",
+    })
+
+
+def territory_control_focus_payload(target, mode="object", cluster_id=None, zoom=18):
+    try:
+        focus = {
+            "lat": float(target.get("lat")),
+            "lng": float(target.get("lng", target.get("lon"))),
+            "zoom": zoom,
+            "mode": mode,
+        }
+    except (AttributeError, TypeError, ValueError):
+        return None
+    if cluster_id is not None:
+        focus["cluster_id"] = str(cluster_id)
+    focus["target_id"] = target.get("target_id") or territory_control_target_id(target)
+    return focus
+
+
+def territory_control_object_payload(username, target, node_role, origin=None, profile=None, cluster_id=None):
+    target = dict(target or {})
+    try:
+        lat = float(target.get("lat"))
+        lng = float(target.get("lng", target.get("lon")))
+    except (TypeError, ValueError):
+        return None
+    target["lat"] = lat
+    target["lng"] = lng
+    target["lon"] = lng
+    apply_target_display_label(target)
+    security = dict(target.get("security") or {})
+    summary = territory_control_security_summary(security)
+    target_id = territory_control_target_id(target)
+    aimed = (profile or {}).get("aimed_target") or {}
+    disabled_reason = ""
+    can_abandon = target.get("owner_username") in (None, "", username)
+    if not can_abandon:
+        disabled_reason = "foreign_object"
+    focus = territory_control_focus_payload({**target, "target_id": target_id}, mode="object")
+    teleport = dict(focus or {})
+    if teleport:
+        teleport["requires_confirmation"] = True
+    payload = {
+        "target_id": target_id,
+        "label": display_target_label(target),
+        "name": target.get("name") or display_target_label(target),
+        "icon": target.get("icon") or "\U0001F4CD",
+        "source_type": target.get("source_type") or "",
+        "node_role": node_role,
+        "state": "alone" if node_role == "alone" else "clustered",
+        "lat": lat,
+        "lng": lng,
+        "distance_from_bike": territory_control_distance(target, origin),
+        "security": security,
+        **summary,
+        "is_aimed": bool(aimed and targets_share_runtime_identity(aimed, target)),
+        "can_abandon": bool(can_abandon),
+        "disabled_reason": disabled_reason,
+        "can_show_on_map": True,
+        "can_teleport": True,
+        "map_focus": focus,
+        "teleport": teleport,
+    }
+    if cluster_id is not None:
+        payload["cluster_id"] = str(cluster_id)
+    return payload
+
+
+def territory_control_target_in_area(target, area):
+    try:
+        return point_in_polygon(
+            float(target.get("lat")),
+            float(target.get("lng", target.get("lon"))),
+            area.get("vertices", []),
+        )
+    except (TypeError, ValueError):
+        return False
+
+
+def territory_control_area_threat(username, area, conflicts):
+    area_id = area.get("id")
+    related = []
+    attacked_positions = set()
+    for conflict in conflicts or []:
+        if str(conflict.get("status") or "active") != "active":
+            continue
+        area_ids = {str(item) for item in (conflict.get("area_ids") or [])}
+        participants = {str(item) for item in (conflict.get("participants") or [])}
+        if (area_id is not None and str(area_id) in area_ids) or username in participants:
+            related.append(conflict)
+            for item in conflict.get("targets") or []:
+                target = item.get("target") if isinstance(item, dict) else {}
+                owner = item.get("owner_username") or item.get("owner") if isinstance(item, dict) else None
+                previous_owner = item.get("previous_owner") if isinstance(item, dict) else None
+                if owner == username or previous_owner == username:
+                    key = target_position_key(target)
+                    if key:
+                        attacked_positions.add(key)
+    threat_state = "clear"
+    if related:
+        threat_state = "collision"
+    return {
+        "conflicts": [enrich_conflict_payload(conflict) for conflict in related],
+        "conflict_count": len(related),
+        "attacked_positions": attacked_positions,
+        "threat_state": threat_state,
+    }
+
+
+def territory_control_nearest_object(objects, origin):
+    candidates = [
+        item for item in objects or []
+        if item.get("distance_from_bike") is not None
+    ]
+    if not candidates:
+        return (objects or [None])[0]
+    return min(candidates, key=lambda item: item.get("distance_from_bike"))
+
+
+def build_territory_control_snapshot(username, profile=None):
+    profile = profile if isinstance(profile, dict) else load_profile_readonly(
+        username,
+        strip_sensitive=True,
+        normalize_apps=True,
+        normalize_files=False,
+    )
+    if not isinstance(profile, dict):
+        return None
+
+    origin = territory_control_position(profile)
+    captured_targets = territory_store.list_captured_targets(username)
+    own_areas = safe_player_areas(territory_store.list_player_areas(username))
+    conflicts = get_active_conflicts_for_player(username)
+
+    assigned_keys = set()
+    clusters = []
+    for area in own_areas:
+        area_id = area.get("id")
+        vertices = area.get("vertices") or []
+        vertex_keys = {target_position_key(vertex) for vertex in vertices}
+        vertex_keys.discard(None)
+        pillars = []
+        inners = []
+        for target in captured_targets:
+            key = target_position_key(target)
+            if not key:
+                continue
+            if key in vertex_keys:
+                item = territory_control_object_payload(
+                    username, target, "pillar", origin=origin, profile=profile, cluster_id=area_id
+                )
+                if item:
+                    pillars.append(item)
+                    assigned_keys.add(key)
+                continue
+            if territory_control_target_in_area(target, area):
+                item = territory_control_object_payload(
+                    username, target, "inner", origin=origin, profile=profile, cluster_id=area_id
+                )
+                if item:
+                    inners.append(item)
+                    assigned_keys.add(key)
+
+        if len(pillars) < 3:
+            continue
+
+        objects = pillars + inners
+        nearest = territory_control_nearest_object(objects, origin)
+        centroid = {
+            "lat": float(area.get("centroid_lat")),
+            "lng": float(area.get("centroid_lng")),
+        }
+        threat = territory_control_area_threat(username, area, conflicts)
+        attacked_pillars_count = sum(
+            1 for pillar in pillars
+            if target_position_key(pillar) in threat["attacked_positions"]
+        )
+        if attacked_pillars_count:
+            threat["threat_state"] = "attacked"
+        cluster_id = str(area_id)
+        map_focus = {
+            "type": "cluster",
+            "cluster_id": cluster_id,
+            "lat": centroid["lat"],
+            "lng": centroid["lng"],
+            "zoom": 17,
+        }
+        clusters.append({
+            "cluster_id": cluster_id,
+            "label": f"Klaster {cluster_id}",
+            "status": area.get("status") or "active",
+            "threat_state": threat["threat_state"],
+            "node_count": len(objects),
+            "pillar_count": len(pillars),
+            "inner_count": len(inners),
+            "area_size": float(area.get("area_size") or 0),
+            "perimeter": calculate_area_perimeter(vertices),
+            "conflict_count": threat["conflict_count"],
+            "attacked_pillars_count": attacked_pillars_count,
+            "centroid": centroid,
+            "navigation_target": nearest,
+            "distance_from_bike": nearest.get("distance_from_bike") if nearest else None,
+            "map_focus": map_focus,
+            "conflicts": threat["conflicts"],
+            "pillars": pillars,
+            "inners": inners,
+        })
+
+    alone_pillars = []
+    for target in captured_targets:
+        key = target_position_key(target)
+        if not key or key in assigned_keys:
+            continue
+        item = territory_control_object_payload(
+            username, target, "alone", origin=origin, profile=profile, cluster_id=None
+        )
+        if item:
+            item.pop("cluster_id", None)
+            alone_pillars.append(item)
+
+    clusters.sort(key=lambda item: (item.get("distance_from_bike") is None, item.get("distance_from_bike") or 10**12, item.get("cluster_id")))
+    alone_pillars.sort(key=lambda item: (item.get("distance_from_bike") is None, item.get("distance_from_bike") or 10**12, item.get("label") or ""))
+    return {
+        "scope": "territory_control",
+        "position": origin,
+        "cluster_count": len(clusters),
+        "alone_count": len(alone_pillars),
+        "clusters": clusters,
+        "alone_pillars": alone_pillars,
+    }
+
+
+def territory_control_find_cluster(snapshot, cluster_id):
+    cluster_id = str(cluster_id or "").strip()
+    for cluster in (snapshot or {}).get("clusters") or []:
+        if str(cluster.get("cluster_id") or "") == cluster_id:
+            return cluster
+    return None
+
+
+def territory_control_find_owned_target(username, lat, lng, label=None):
+    for target in territory_store.list_captured_targets(username):
+        if not targets_share_position(target, {"lat": lat, "lng": lng}):
+            continue
+        if label and str(target.get("label") or target.get("name") or "") != str(label):
+            continue
+        return target
+    return None
+
+
+def territory_control_object_snapshot(username, target, profile=None):
+    snapshot = build_territory_control_snapshot(username, profile=profile)
+    target_id = territory_control_target_id(target)
+    for cluster in (snapshot or {}).get("clusters") or []:
+        for item in (cluster.get("pillars") or []) + (cluster.get("inners") or []):
+            if item.get("target_id") == target_id or targets_share_position(item, target):
+                return item, snapshot
+    for item in (snapshot or {}).get("alone_pillars") or []:
+        if item.get("target_id") == target_id or targets_share_position(item, target):
+            return item, snapshot
+    return None, snapshot
+
+
 def ensure_dev_admin_account():
     profile = user_store.get_profile("admin")
     if not profile:
@@ -15508,6 +15829,260 @@ def victim_picker_aim():
         "message": f"Cel ustawiony: {display_target_label(aimed_target)}",
         "target": aimed_target,
         "candidate": serialize_victim_picker_candidate(candidate),
+    })
+
+
+def territory_control_load_profile(username, strip_sensitive=True):
+    profile = load_profile_readonly(
+        username,
+        strip_sensitive=strip_sensitive,
+        normalize_apps=True,
+        normalize_files=False,
+    )
+    if not isinstance(profile, dict):
+        return None
+    return profile
+
+
+def territory_control_forbidden_response():
+    return jsonify({
+        "success": False,
+        "error": "territory_control_not_installed",
+        "message": "Territory Control wymaga instalacji z Googleplex.",
+    }), 403
+
+
+@app.route("/api/ghost-control/territory")
+@app.route("/api/pro-system/territory-control")
+def territory_control_clusters():
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+
+    username = session["user"]
+    profile = territory_control_load_profile(username)
+    if not profile:
+        return jsonify({"success": False, "error": "profile_not_found"}), 404
+    if not territory_control_app_installed(profile):
+        return territory_control_forbidden_response()
+
+    snapshot = build_territory_control_snapshot(username, profile=profile)
+    return jsonify({
+        "success": True,
+        "ok": True,
+        **snapshot,
+    })
+
+
+@app.route("/api/ghost-control/territory/<cluster_id>")
+@app.route("/api/pro-system/territory-control/<cluster_id>")
+def territory_control_cluster_detail(cluster_id):
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+
+    username = session["user"]
+    profile = territory_control_load_profile(username)
+    if not profile:
+        return jsonify({"success": False, "error": "profile_not_found"}), 404
+    if not territory_control_app_installed(profile):
+        return territory_control_forbidden_response()
+
+    snapshot = build_territory_control_snapshot(username, profile=profile)
+    cluster = territory_control_find_cluster(snapshot, cluster_id)
+    if not cluster:
+        return jsonify({
+            "success": False,
+            "error": "cluster_not_found",
+            "cluster_id": str(cluster_id or ""),
+            "clusters": snapshot.get("clusters", []),
+            "alone_pillars": snapshot.get("alone_pillars", []),
+        }), 404
+    return jsonify({
+        "success": True,
+        "ok": True,
+        "scope": "territory_control.cluster",
+        "cluster": cluster,
+    })
+
+
+@app.route("/api/ghost-control/territory/security", methods=["POST"])
+def territory_control_security_toggle():
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+
+    username = session["user"]
+    data = request.get_json(silent=True) or {}
+    action = str(data.get("action") or "").strip()
+    label = data.get("label")
+    try:
+        lat = float(data.get("lat"))
+        lng = float(data.get("lng", data.get("lon")))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "invalid_position"}), 400
+    if not action:
+        return jsonify({"success": False, "error": "missing_action"}), 400
+
+    profile = territory_control_load_profile(username, strip_sensitive=False)
+    if not profile:
+        return jsonify({"success": False, "error": "profile_not_found"}), 404
+    if not territory_control_app_installed(profile):
+        return territory_control_forbidden_response()
+
+    target = territory_control_find_owned_target(username, lat, lng, label=label)
+    if not target:
+        return jsonify({"success": False, "error": "target_not_found"}), 404
+
+    security = dict(target.get("security") or {})
+    security[action] = not bool(security.get(action, False))
+    updated_target, updated = save_owned_hacked_security(username, lat, lng, security)
+    if not updated:
+        return jsonify({"success": False, "error": "security_save_failed"}), 500
+
+    record_map_target_delta(
+        username,
+        updated_target or target,
+        change_type="map.target_updated",
+        reason="territory_control_security",
+    )
+    object_snapshot, snapshot = territory_control_object_snapshot(username, updated_target or target, profile=profile)
+    summary = territory_control_security_summary(security)
+    return jsonify({
+        "success": True,
+        "ok": True,
+        "action": action,
+        "new_value": security.get(action),
+        "security": security,
+        **summary,
+        "disabled_rules": [],
+        "object": object_snapshot,
+        "snapshot": snapshot,
+    })
+
+
+@app.route("/api/ghost-control/territory/security-preset", methods=["POST"])
+def territory_control_security_preset():
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+
+    username = session["user"]
+    data = request.get_json(silent=True) or {}
+    preset = str(data.get("preset") or "").strip().lower()
+    label = data.get("label")
+    try:
+        lat = float(data.get("lat"))
+        lng = float(data.get("lng", data.get("lon")))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "invalid_position"}), 400
+    if preset not in TERRITORY_CONTROL_PRESETS:
+        return jsonify({"success": False, "error": "invalid_preset", "preset": preset}), 400
+
+    profile = territory_control_load_profile(username, strip_sensitive=False)
+    if not profile:
+        return jsonify({"success": False, "error": "profile_not_found"}), 404
+    if not territory_control_app_installed(profile):
+        return territory_control_forbidden_response()
+
+    target = territory_control_find_owned_target(username, lat, lng, label=label)
+    if not target:
+        return jsonify({"success": False, "error": "target_not_found"}), 404
+
+    try:
+        security = build_security_preset(target.get("security", {}), preset)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": "invalid_preset", "message": str(exc)}), 400
+
+    updated_target, updated = save_owned_hacked_security(username, lat, lng, security)
+    if not updated:
+        return jsonify({"success": False, "error": "security_save_failed"}), 500
+
+    record_map_target_delta(
+        username,
+        updated_target or target,
+        change_type="map.target_updated",
+        reason="territory_control_security_preset",
+    )
+    object_snapshot, snapshot = territory_control_object_snapshot(username, updated_target or target, profile=profile)
+    summary = territory_control_security_summary(security)
+    return jsonify({
+        "success": True,
+        "ok": True,
+        "preset": preset,
+        "security": security,
+        **summary,
+        "disabled_rules": [],
+        "object": object_snapshot,
+        "snapshot": snapshot,
+    })
+
+
+@app.route("/api/ghost-control/territory/abandon", methods=["POST"])
+def territory_control_abandon():
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+
+    username = session["user"]
+    data = request.get_json(silent=True) or {}
+    if data.get("confirm") is not True:
+        return jsonify({"success": False, "error": "confirmation_required"}), 409
+    label = data.get("label")
+    try:
+        lat = float(data.get("lat"))
+        lng = float(data.get("lng", data.get("lon")))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "invalid_position"}), 400
+
+    profile = territory_control_load_profile(username, strip_sensitive=False)
+    if not profile:
+        return jsonify({"success": False, "error": "profile_not_found"}), 404
+    if not territory_control_app_installed(profile):
+        return territory_control_forbidden_response()
+
+    target = territory_control_find_owned_target(username, lat, lng, label=label)
+    if not target:
+        return jsonify({"success": False, "error": "target_not_found"}), 404
+
+    removed_from_store = territory_store.remove_captured_target(username, lat, lng, label=target.get("label"))
+    if not removed_from_store:
+        removed_from_store = territory_store.remove_captured_target(username, lat, lng)
+
+    mgr = UserProfileManager(username)
+    removed_from_profile = mgr.remove_from_list_by_coords("hacked", lat, lng, label=target.get("label"))
+    if not removed_from_profile:
+        removed_from_profile = mgr.remove_from_list_by_coords("hacked", lat, lng)
+
+    clear_aimed_target_if_matches(username, target)
+    rebuilt_areas = rebuild_player_areas_with_territory_delta(
+        username,
+        profile.get("level", 1),
+        reason="territory_control_abandon",
+    )
+    all_areas = territory_store.list_player_areas()
+    detect_territory_conflicts(
+        actor_username=username,
+        source_event="territory_control_abandon",
+        areas=all_areas,
+    )
+    fresh_targets = territory_store.list_captured_targets(username)
+    mgr.update_profile({
+        "hacked": fresh_targets,
+        "captured_targets_source": "sqlite",
+    })
+    record_map_target_delta(
+        username,
+        target,
+        change_type="map.target_removed",
+        reason="territory_control_abandon",
+    )
+    fresh_profile = territory_control_load_profile(username)
+    snapshot = build_territory_control_snapshot(username, profile=fresh_profile)
+    return jsonify({
+        "success": True,
+        "ok": True,
+        "removed": bool(removed_from_store or removed_from_profile),
+        "target": target,
+        "rebuilt_area_count": len(rebuilt_areas or []),
+        "snapshot": snapshot,
+        "clusters": snapshot.get("clusters", []),
+        "alone_pillars": snapshot.get("alone_pillars", []),
     })
 
 

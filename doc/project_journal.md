@@ -8894,3 +8894,123 @@ Walidacja:
   legacy, znane awarie pozostaja bez zmian;
 * `git diff --check`: OK, tylko znane ostrzezenie CRLF dla
   `static/css/style.css`.
+
+## Sprint 104 - Ghost Control Suite: audyt i wspolny kontrakt
+
+Rozpoczeto Faze J w `doc/game_play_180726.md`. Sprint 104 zostal wykonany jako
+audytowy kontrakt dla rodziny Ghost Control Suite, bez budowania nowych okien i
+bez zmian runtime gameplayu.
+
+Wdrozone:
+
+* dodano `doc/ghost_control_suite_contract_audit.md`;
+* opisano istniejace zrodla prawdy dla klastrow terytorium, przejetych celow,
+  zabezpieczen, konfliktow, operacji, plikow wynikowych i incydentow;
+* potwierdzono, ze klaster jest obecnym rekordem `player_areas.id`, a nie nowym
+  modelem aplikacji;
+* opisano kontrakt `pillar`, `inner` i `alone`;
+* opisano backendowy kontrakt `threat_state`: `neutral`, `collision`,
+  `attacked`;
+* wskazano, ze presety `open`, `low`, `regular`, `secure`, `all` maja korzystac
+  z obecnej sciezki mapy;
+* opisano lifecycle porzucenia obiektu, anulowania operacji, mapowania rodzin
+  operacji i wspolnego zestawu ikon `GHOST_CONTROL_ICONS`.
+
+Poza zakresem:
+
+* brak nowych endpointow;
+* brak aplikacji Territory Control i Operation Control;
+* brak zmian mapy, delt, terytoriow, operacji i incydentow;
+* brak zmian Googleplex poza przyszlym kontraktem produktow.
+
+Walidacja:
+
+* sprint spelnia DoD audytowe: nie ma potrzeby tworzenia drugiego systemu
+  terytoriow, zabezpieczen, incydentow ani anulowania operacji;
+* kolejne sprinty 105-108 maja jasno wskazane miejsca podpiecia do obecnego
+  silnika.
+* `git diff --check`: OK, tylko istniejace ostrzezenie CRLF/LF dla
+  `static/css/style.css`;
+* testow runtime nie uruchamiano, bo Sprint 104 zmienil wylacznie dokumentacje.
+
+## Sprint 105 - Territory Control: backend i mechanika
+
+Dodano backendowy fundament Territory Control jako produkt Ghost Control Suite i
+lekki kontrakt API do zarzadzania wlasnymi klastrami bez otwierania mapy.
+
+Wdrozone:
+
+* dodano produkt Googleplex `territoryControl` za `50000 HC` w
+  `PRO_SYSTEM_TOOLS`;
+* dodano read-only snapshot `/api/ghost-control/territory` oraz alias
+  `/api/pro-system/territory-control`;
+* dodano endpoint szczegolow klastra po `cluster_id`;
+* snapshot zwraca `clusters` oraz `alone_pillars`;
+* filary bez minimum trzech punktow pozostaja jako `alone`, bez sztucznego
+  `cluster_id`, powierzchni, obwodu ani stanu konfliktu klastra;
+* klaster zwraca filary, innery, centroid, perimeter, najblizszy
+  `navigation_target`, dystans od motocykla i `map_focus`;
+* dodano zapis security przez istniejace presety `open`, `low`, `regular`,
+  `secure`, `all`;
+* `security_percent` liczy aktywne booleanowe zabezpieczenia, czyli poziom
+  uzbrojenia obiektu;
+* dodano porzucenie wlasnego obiektu z wymaganym `confirm: true`, przebudowa
+  obszarow, przeliczeniem konfliktow, wyczyszczeniem targetu i swiezym
+  snapshotem;
+* dodano testy cyklu `alone -> cluster -> dissolve`, security summary oraz
+  lekkiego endpointu bez `sync_session_profile()`.
+
+Poza zakresem:
+
+* brak okna Territory Control;
+* brak finalnego GUI, ikon i interakcji desktopowych;
+* brak zmian geometrii terytoriow;
+* brak nowych zasad konfliktow, incydentow, NPC i mapy.
+
+Walidacja:
+
+* `python -m unittest tests.test_territory_control`: OK;
+* `python -m unittest tests.test_territory_control tests.test_territory_context_reader tests.test_territory_delta`: OK;
+* `python -m py_compile run.py database.py profileManagment.py`: OK;
+* `git diff --check`: OK, tylko istniejace ostrzezenie CRLF/LF dla
+  `static/css/style.css`.
+
+## Sprint 106 - Territory Control: okno i finalny interfejs
+
+Domknieto frontend Territory Control jako okno systemowe Ghost Control Suite
+korzystajace z endpointow Sprintu 105. Aplikacja nie tworzy drugiego modelu
+terytorium: listy klastrow, samotne filary, role `pillar` / `inner` / `alone`,
+`threat_state`, presety zabezpieczen i porzucanie obiektow pochodza z backendu.
+
+Wdrozone:
+
+* dodano launcher `territory_control` dla produktu Territory Control;
+* dodano okno z lista klastrow, sekcja samotnych filarow i ekranem szczegolow
+  klastra;
+* ekran listy pokazuje pozycje motocykla, liczbe klastrow, aktywne konflikty,
+  odleglosci, powierzchnie i stany zagrozenia;
+* ekran szczegolow rozdziela filary i inner nodes oraz pokazuje zabezpieczenia
+  z paskiem procentowym;
+* podpieto akcje mapa i teleport przez istniejace mosty mapy oraz system
+  potwierdzen teleportu `OK/ANULUJ`;
+* podpieto presety `OPEN`, `LOW`, `REGULAR`, `SECURE`, `ALL` oraz pojedyncze
+  flagi zabezpieczen do endpointow Ghost Control;
+* podpieto porzucanie obiektu z odswiezeniem listy i powrotem do listy, jezeli
+  klaster zniknal po zmianie;
+* dodano responsywny styl okna desktop/mobile, w tym dwurzedowy uklad akcji na
+  waskim ekranie.
+
+Poza zakresem:
+
+* brak Operation Control;
+* brak nowej logiki mapy;
+* brak nowego backendu poza mechanika Sprintu 105;
+* brak zmian geometrii terytoriow, konfliktow, incydentow i NPC.
+
+Walidacja:
+
+* `node --check static/js/terminal.js`: OK;
+* `python -m py_compile run.py database.py profileManagment.py`: OK;
+* `python -m unittest tests.test_territory_control tests.test_territory_context_reader tests.test_territory_delta`: OK;
+* `git diff --check`: OK, tylko istniejace ostrzezenie CRLF/LF dla
+  `static/css/style.css`.

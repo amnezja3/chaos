@@ -1062,6 +1062,8 @@ function runSystemLauncherApp(appData) {
         createWindowMaker,
         createButtonMaker,
         createVictimPickerApp,
+        territory_control: createTerritoryControlApp,
+        createTerritoryControlApp,
         ghost_lab: createGhostLabHub,
         dev_bug_reporter: createDevBugReporterApp
     };
@@ -3730,6 +3732,560 @@ function createVictimPickerApp() {
 }
 
 window.createVictimPickerApp = createVictimPickerApp;
+
+const TERRITORY_CONTROL_ICONS = {
+    app: "◇",
+    cluster: "⬡",
+    pillar: "◆",
+    inner: "◇",
+    alone: "⌖",
+    map: "▣",
+    teleport: "➜",
+    back: "‹",
+    refresh: "⟳",
+    security: "▦",
+    abandon: "×",
+    open: "○",
+    low: "◔",
+    regular: "◑",
+    secure: "◕",
+    all: "●"
+};
+
+const TERRITORY_CONTROL_PRESETS = [
+    { id: "open", label: "OPEN" },
+    { id: "low", label: "LOW" },
+    { id: "regular", label: "REGULAR" },
+    { id: "secure", label: "SECURE" },
+    { id: "all", label: "ALL" }
+];
+
+function territoryControlMeters(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "--";
+    if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)} km`;
+    return `${Math.round(n)} m`;
+}
+
+function territoryControlArea(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "--";
+    if (n >= 1000000) return `${(n / 1000000).toFixed(2)} km²`;
+    return `${Math.round(n).toLocaleString("pl-PL")} m²`;
+}
+
+function territoryControlCoords(position) {
+    const lat = Number(position?.lat);
+    const lng = Number(position?.lng ?? position?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "--";
+    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+}
+
+function territoryControlThreatLabel(value) {
+    const key = String(value || "neutral").toLowerCase();
+    if (key === "attacked") return "ATAK";
+    if (key === "collision") return "KOLIZJA";
+    return "NEUTRAL";
+}
+
+function setTerritoryControlBusy(app, busy, message = "") {
+    if (!app) return;
+    app.classList.toggle("is-loading", Boolean(busy));
+    const status = app.querySelector("[data-territory-control-status]");
+    if (status) {
+        status.textContent = message || (busy ? "Synchronizacja..." : "");
+        status.hidden = !busy && !message;
+    }
+    app.querySelectorAll("[data-territory-control-action]").forEach(button => {
+        button.disabled = Boolean(busy) || button.dataset.originalDisabled === "1";
+    });
+}
+
+function getTerritoryControlObjectById(state, targetId) {
+    const id = String(targetId || "");
+    const clusters = Array.isArray(state?.clusters) ? state.clusters : [];
+    for (const cluster of clusters) {
+        const objects = [...(cluster.pillars || []), ...(cluster.inners || [])];
+        const found = objects.find(item => String(item.target_id || "") === id);
+        if (found) return found;
+    }
+    return (state?.alone_pillars || []).find(item => String(item.target_id || "") === id) || null;
+}
+
+function getTerritoryControlClusterById(state, clusterId) {
+    return (Array.isArray(state?.clusters) ? state.clusters : [])
+        .find(item => String(item.cluster_id || "") === String(clusterId || "")) || null;
+}
+
+function openTerritoryControlMapFocus(focus = {}, label = "Territory Control") {
+    const lat = Number(focus?.lat);
+    const lng = Number(focus?.lng ?? focus?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        addSystemMessage("warning", "TERRITORY CONTROL", "Brak pozycji do pokazania na mapie.");
+        return false;
+    }
+    createMap();
+    window.setTimeout(() => notifyOpenMapsBlacknetFocus({
+        ...focus,
+        lat,
+        lng,
+        label,
+        source: "territory_control",
+        mode: focus.mode || "territory_control"
+    }), 80);
+    return true;
+}
+
+async function teleportTerritoryControlObject(item, refreshAfter = null) {
+    const teleport = item?.teleport || item?.map_focus || item || {};
+    const lat = Number(teleport.lat ?? item?.lat);
+    const lng = Number(teleport.lng ?? item?.lng ?? item?.lon);
+    const label = item?.label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        addSystemMessage("warning", "TERRITORY CONTROL", "Brak poprawnych wspolrzednych teleportu.");
+        return false;
+    }
+
+    const accepted = await showGhostDecisionDialog({
+        title: "POTWIERDZENIE TELEPORTU",
+        message: `Wykonac teleport w okolice: ${label}?`,
+        details: "OK zmieni pozycje operatora i odswiezy mape. ANULUJ zostawi obecna pozycje.",
+        confirmLabel: "OK",
+        cancelLabel: "ANULUJ",
+        tone: "lime"
+    });
+    if (!accepted) return false;
+
+    const response = await fetch("/api/blacknet/cta/teleport", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            source: "territory_control",
+            lat,
+            lng,
+            label: "territory_control",
+            target_label: label
+        })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) {
+        addSystemMessage("warning", "TERRITORY CONTROL", data.message || "Teleport odrzucony.");
+        return false;
+    }
+    addSystemMessage("success", "TERRITORY CONTROL", data.message || `Teleport wykonany: ${label}.`);
+    if (typeof refreshToolbarProfile === "function") refreshToolbarProfile();
+    openTerritoryControlMapFocus({
+        ...teleport,
+        lat: Number(data?.curently_possition?.lat ?? lat),
+        lng: Number(data?.curently_possition?.lng ?? lng),
+        mode: "teleport"
+    }, label);
+    if (typeof refreshAfter === "function") await refreshAfter();
+    return true;
+}
+
+function renderTerritoryControlFrame(app, state, bodyHtml, options = {}) {
+    const root = app.querySelector(".territory-control-shell");
+    if (!root) return null;
+    const clusters = Array.isArray(state.clusters) ? state.clusters : [];
+    const conflictCount = clusters.reduce((sum, cluster) => sum + Number(cluster.conflict_count || 0), 0);
+    const attackedCount = clusters.filter(cluster => cluster.threat_state === "attacked").length;
+    const back = options.back ? `<button type="button" data-territory-control-action="${escapeHTML(options.back)}" title="Wroc" aria-label="Wroc">${TERRITORY_CONTROL_ICONS.back}<span>Wroc</span></button>` : "";
+    root.innerHTML = `
+        <header class="territory-control-header">
+            <div class="territory-control-brand">
+                <span class="territory-control-brand-icon">${TERRITORY_CONTROL_ICONS.app}</span>
+                <div>
+                    <strong>${escapeHTML(options.title || "TERRITORY CONTROL")}</strong>
+                    <span>Zarzadzanie przejetym terenem bez Leafleta</span>
+                </div>
+            </div>
+            <div class="territory-control-meta">
+                <span title="Pozycja motocykla"><b>POS</b> ${escapeHTML(territoryControlCoords(state.position))}</span>
+                <span title="Klastry"><b>KLASTRY</b> ${clusters.length}</span>
+                <span title="Konflikty"><b>KONFLIKTY</b> ${conflictCount}</span>
+                <span title="Atakowane"><b>ATAK</b> ${attackedCount}</span>
+            </div>
+        </header>
+        <nav class="territory-control-toolbar" aria-label="Territory Control tools">
+            ${back}
+            <button type="button" data-territory-control-action="refresh" title="Odswiez" aria-label="Odswiez">${TERRITORY_CONTROL_ICONS.refresh}</button>
+            <button type="button" data-territory-control-action="open-map" title="Otworz mape" aria-label="Otworz mape">${TERRITORY_CONTROL_ICONS.map}</button>
+            <button type="button" data-territory-control-action="close" title="Zamknij" aria-label="Zamknij">×</button>
+        </nav>
+        <div class="territory-control-status" data-territory-control-status hidden></div>
+        <section class="territory-control-screen" data-territory-control-screen>${bodyHtml || ""}</section>
+    `;
+    bindTerritoryControlCommonActions(app, state);
+    return root;
+}
+
+function bindTerritoryControlCommonActions(app, state) {
+    const root = app.querySelector(".territory-control-shell");
+    if (!root) return;
+    root.querySelector('[data-territory-control-action="refresh"]')?.addEventListener("click", () => loadTerritoryControlData(app, state, state.view || "list"));
+    root.querySelector('[data-territory-control-action="open-map"]')?.addEventListener("click", () => createMap());
+    root.querySelector('[data-territory-control-action="close"]')?.addEventListener("click", () => app.remove());
+    root.querySelector('[data-territory-control-action="back-list"]')?.addEventListener("click", () => renderTerritoryControlList(app, state));
+}
+
+function renderTerritoryClusterCard(cluster) {
+    const threat = String(cluster.threat_state || "neutral").toLowerCase();
+    return `
+        <article class="territory-control-cluster threat-${escapeHTML(threat)}" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}">
+            <div class="territory-control-cluster-main">
+                <strong>${escapeHTML(cluster.label || `Klaster ${cluster.cluster_id}`)}</strong>
+                <span>${Number(cluster.node_count || 0)} wezlow · ${Number(cluster.pillar_count || 0)} filarow · ${Number(cluster.inner_count || 0)} innerow</span>
+                <span>${escapeHTML(territoryControlArea(cluster.area_size))} · ${escapeHTML(territoryControlMeters(cluster.distance_from_bike))} od motocykla</span>
+            </div>
+            <div class="territory-control-threat">${escapeHTML(territoryControlThreatLabel(threat))}</div>
+            <div class="territory-control-actions">
+                <button type="button" data-territory-control-action="cluster-detail" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}" title="Otworz szczegoly">${TERRITORY_CONTROL_ICONS.open}</button>
+                <button type="button" data-territory-control-action="cluster-map" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}" title="Pokaz na mapie">${TERRITORY_CONTROL_ICONS.map}</button>
+                <button type="button" data-territory-control-action="cluster-teleport" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}" title="Teleport do klastra">${TERRITORY_CONTROL_ICONS.teleport}</button>
+            </div>
+        </article>
+    `;
+}
+
+function renderTerritoryControlList(app, state) {
+    state.view = "list";
+    const clusters = Array.isArray(state.clusters) ? state.clusters : [];
+    const alone = Array.isArray(state.alone_pillars) ? state.alone_pillars : [];
+    const aloneInfo = alone.length ? `<p class="territory-control-alone-info">${alone.length} / 3 filary - dodaj kolejny filar, aby utworzyc klaster.</p>` : "";
+    const body = `
+        <section class="territory-control-list">
+            ${clusters.length ? clusters.map(renderTerritoryClusterCard).join("") : `<div class="territory-control-empty">Brak aktywnych klastrow. Przejete filary pojawia sie jako samotne do czasu zbudowania trojkata.</div>`}
+        </section>
+        ${alone.length ? `
+            <section class="territory-control-group">
+                <h4>SAMOTNE FILARY <span>${alone.length}</span></h4>
+                ${aloneInfo}
+                <div class="territory-control-object-list">
+                    ${alone.map(item => renderTerritoryControlObjectRow(item, { alone: true })).join("")}
+                </div>
+            </section>
+        ` : ""}
+    `;
+    renderTerritoryControlFrame(app, state, body, { title: "TERRITORY CONTROL" });
+    bindTerritoryControlListActions(app, state);
+}
+
+function bindTerritoryControlListActions(app, state) {
+    const root = app.querySelector(".territory-control-shell");
+    if (!root) return;
+    root.querySelectorAll("[data-cluster-id][data-territory-control-action]").forEach(button => {
+        button.addEventListener("click", async () => {
+            const action = button.dataset.territoryControlAction;
+            const cluster = getTerritoryControlClusterById(state, button.dataset.clusterId);
+            if (!cluster) return;
+            if (action === "cluster-detail") {
+                await loadTerritoryControlCluster(app, state, cluster.cluster_id);
+                return;
+            }
+            if (action === "cluster-map") {
+                openTerritoryControlMapFocus(cluster.map_focus || cluster.centroid, cluster.label);
+                return;
+            }
+            if (action === "cluster-teleport") {
+                await teleportTerritoryControlObject(cluster.navigation_target || cluster.map_focus || cluster.centroid, () => loadTerritoryControlData(app, state, "list", { silent: true }));
+            }
+        });
+    });
+    bindTerritoryControlObjectActions(app, state);
+}
+
+function renderTerritoryControlObjectRow(item, options = {}) {
+    const role = String(item.node_role || (options.alone ? "alone" : "inner"));
+    const percent = Math.max(0, Math.min(100, Number(item.security_percent || 0)));
+    const roleIcon = role === "pillar" ? TERRITORY_CONTROL_ICONS.pillar : role === "alone" ? TERRITORY_CONTROL_ICONS.alone : TERRITORY_CONTROL_ICONS.inner;
+    const securityPreview = Object.entries(item.security || {})
+        .filter(([, value]) => typeof value === "boolean")
+        .slice(0, 8)
+        .map(([key, value]) => `<button type="button" data-territory-control-action="security-toggle" data-target-id="${escapeHTML(item.target_id || "")}" data-security-key="${escapeHTML(key)}" title="${escapeHTML(key)}" class="${value ? "is-on" : ""}">${value ? "1" : "0"}</button>`)
+        .join("");
+    return `
+        <article class="territory-control-object role-${escapeHTML(role)} ${item.is_aimed ? "is-aimed" : ""}" data-target-id="${escapeHTML(item.target_id || "")}">
+            <div class="territory-control-object-icon">${escapeHTML(item.icon || roleIcon)}</div>
+            <div class="territory-control-object-copy">
+                <strong title="${escapeHTML(item.label || "")}">${escapeHTML(item.label || "unknown")}</strong>
+                <span>${escapeHTML(role.toUpperCase())} · ${escapeHTML(territoryControlMeters(item.distance_from_bike))}</span>
+                <div class="territory-control-security-bar" title="Zabezpieczenia ${percent}%">
+                    <i style="width:${percent}%"></i>
+                    <b>${percent}%</b>
+                </div>
+            </div>
+            <div class="territory-control-presets">
+                ${TERRITORY_CONTROL_PRESETS.map(preset => `<button type="button" data-territory-control-action="security-preset" data-target-id="${escapeHTML(item.target_id || "")}" data-preset="${preset.id}">${preset.label}</button>`).join("")}
+            </div>
+            <div class="territory-control-security-preview">${securityPreview || `<span>brak flag</span>`}</div>
+            <div class="territory-control-actions">
+                <button type="button" data-territory-control-action="object-abandon" data-target-id="${escapeHTML(item.target_id || "")}" title="Porzuc">${TERRITORY_CONTROL_ICONS.abandon}</button>
+                <button type="button" data-territory-control-action="object-map" data-target-id="${escapeHTML(item.target_id || "")}" title="Pokaz na mapie">${TERRITORY_CONTROL_ICONS.map}</button>
+                <button type="button" data-territory-control-action="object-teleport" data-target-id="${escapeHTML(item.target_id || "")}" title="Teleport">${TERRITORY_CONTROL_ICONS.teleport}</button>
+            </div>
+        </article>
+    `;
+}
+
+function renderTerritoryControlCluster(app, state, cluster) {
+    state.view = "cluster";
+    state.currentClusterId = cluster?.cluster_id || state.currentClusterId;
+    const pillars = Array.isArray(cluster?.pillars) ? cluster.pillars : [];
+    const inners = Array.isArray(cluster?.inners) ? cluster.inners : [];
+    const body = `
+        <section class="territory-control-cluster-detail threat-${escapeHTML(cluster?.threat_state || "neutral")}">
+            <div class="territory-control-detail-head">
+                <div>
+                    <strong>${escapeHTML(cluster?.label || `Klaster ${cluster?.cluster_id || ""}`)}</strong>
+                    <span>${escapeHTML(territoryControlThreatLabel(cluster?.threat_state))} · ${escapeHTML(territoryControlArea(cluster?.area_size))} · ${escapeHTML(territoryControlMeters(cluster?.distance_from_bike))}</span>
+                </div>
+                <div class="territory-control-actions">
+                    <button type="button" data-territory-control-action="cluster-map" data-cluster-id="${escapeHTML(cluster?.cluster_id || "")}" title="Pokaz klaster">${TERRITORY_CONTROL_ICONS.map}</button>
+                    <button type="button" data-territory-control-action="cluster-teleport" data-cluster-id="${escapeHTML(cluster?.cluster_id || "")}" title="Teleport do klastra">${TERRITORY_CONTROL_ICONS.teleport}</button>
+                </div>
+            </div>
+        </section>
+        <section class="territory-control-group">
+            <h4>FILARY <span>${pillars.length}</span></h4>
+            <div class="territory-control-object-list">${pillars.map(item => renderTerritoryControlObjectRow(item)).join("") || `<div class="territory-control-empty">Brak filarow.</div>`}</div>
+        </section>
+        <section class="territory-control-group">
+            <h4>INNER NODES <span>${inners.length}</span></h4>
+            <div class="territory-control-object-list">${inners.map(item => renderTerritoryControlObjectRow(item)).join("") || `<div class="territory-control-empty">Brak inner nodes.</div>`}</div>
+        </section>
+    `;
+    renderTerritoryControlFrame(app, state, body, { back: "back-list", title: cluster?.label || "KLASTER" });
+    bindTerritoryControlListActions(app, state);
+}
+
+async function applyTerritoryControlPreset(app, state, item, preset) {
+    setTerritoryControlBusy(app, true, `Preset ${preset.toUpperCase()}...`);
+    try {
+        const response = await fetch("/api/ghost-control/territory/security-preset", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat: item.lat, lng: item.lng, label: item.label, preset })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) {
+            addSystemMessage("warning", "TERRITORY CONTROL", data.message || data.error || "Nie udalo sie zapisac presetu.");
+            return;
+        }
+        if (data.snapshot) {
+            Object.assign(state, data.snapshot);
+        }
+        addSystemMessage("success", "TERRITORY CONTROL", `Preset ${preset.toUpperCase()} zapisany.`);
+        await refreshTerritoryControlAfterMutation(app, state, data.snapshot);
+    } finally {
+        setTerritoryControlBusy(app, false);
+    }
+}
+
+async function toggleTerritoryControlSecurity(app, state, item, action) {
+    setTerritoryControlBusy(app, true, "Zmieniam flage...");
+    try {
+        const response = await fetch("/api/ghost-control/territory/security", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat: item.lat, lng: item.lng, label: item.label, action })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) {
+            addSystemMessage("warning", "TERRITORY CONTROL", data.message || data.error || "Nie udalo sie zapisac flagi.");
+            return;
+        }
+        if (data.snapshot) {
+            Object.assign(state, data.snapshot);
+        }
+        await refreshTerritoryControlAfterMutation(app, state, data.snapshot);
+    } finally {
+        setTerritoryControlBusy(app, false);
+    }
+}
+
+async function abandonTerritoryControlObject(app, state, item) {
+    const accepted = await showGhostDecisionDialog({
+        title: "PORZUCENIE OBIEKTU",
+        message: `Porzucic przejety obiekt: ${item.label || "unknown"}?`,
+        details: "Obiekt zniknie z terytorium, a klastry i konflikty zostana przeliczone.",
+        confirmLabel: "PORZUC",
+        cancelLabel: "ANULUJ",
+        tone: "red"
+    });
+    if (!accepted) return;
+    setTerritoryControlBusy(app, true, "Porzucam obiekt...");
+    try {
+        const response = await fetch("/api/ghost-control/territory/abandon", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat: item.lat, lng: item.lng, label: item.label, confirm: true })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) {
+            addSystemMessage("warning", "TERRITORY CONTROL", data.message || data.error || "Nie udalo sie porzucic obiektu.");
+            return;
+        }
+        addSystemMessage("success", "TERRITORY CONTROL", "Obiekt porzucony. Terytorium przeliczone.");
+        if (data.snapshot) Object.assign(state, data.snapshot);
+        await refreshTerritoryControlAfterMutation(app, state, data.snapshot, { preferListOnMissingCluster: true });
+    } finally {
+        setTerritoryControlBusy(app, false);
+    }
+}
+
+async function refreshTerritoryControlAfterMutation(app, state, snapshot = null, options = {}) {
+    if (snapshot) {
+        Object.assign(state, snapshot);
+    } else {
+        await loadTerritoryControlData(app, state, null, { silent: true, noRender: true });
+    }
+    if (state.view === "cluster" && state.currentClusterId && !options.forceList) {
+        const cluster = getTerritoryControlClusterById(state, state.currentClusterId);
+        if (cluster) {
+            renderTerritoryControlCluster(app, state, cluster);
+            return;
+        }
+    }
+    renderTerritoryControlList(app, state);
+}
+
+function bindTerritoryControlObjectActions(app, state) {
+    const root = app.querySelector(".territory-control-shell");
+    if (!root) return;
+    root.querySelectorAll("[data-territory-control-action][data-target-id]").forEach(button => {
+        button.addEventListener("click", async () => {
+            const action = button.dataset.territoryControlAction;
+            const item = getTerritoryControlObjectById(state, button.dataset.targetId);
+            if (!item) return;
+            if (action === "security-preset") {
+                await applyTerritoryControlPreset(app, state, item, button.dataset.preset || "regular");
+                return;
+            }
+            if (action === "security-toggle") {
+                await toggleTerritoryControlSecurity(app, state, item, button.dataset.securityKey);
+                return;
+            }
+            if (action === "object-map") {
+                openTerritoryControlMapFocus(item.map_focus || item, item.label);
+                return;
+            }
+            if (action === "object-teleport") {
+                setTerritoryControlBusy(app, true, "Teleport...");
+                try {
+                    await teleportTerritoryControlObject(item, () => loadTerritoryControlData(app, state, null, { silent: true, noRender: true }));
+                } finally {
+                    setTerritoryControlBusy(app, false);
+                }
+                return;
+            }
+            if (action === "object-abandon") {
+                await abandonTerritoryControlObject(app, state, item);
+            }
+        });
+    });
+}
+
+async function loadTerritoryControlCluster(app, state, clusterId) {
+    setTerritoryControlBusy(app, true, "Pobieram klaster...");
+    try {
+        const response = await fetch(`/api/ghost-control/territory/${encodeURIComponent(clusterId)}`, { headers: { "Accept": "application/json" } });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false || !data.cluster) {
+            addSystemMessage("warning", "TERRITORY CONTROL", data.message || data.error || "Klaster juz nie istnieje.");
+            await loadTerritoryControlData(app, state, "list");
+            return;
+        }
+        const cluster = data.cluster;
+        state.currentClusterId = cluster.cluster_id;
+        const existing = getTerritoryControlClusterById(state, cluster.cluster_id);
+        if (existing) Object.assign(existing, cluster);
+        renderTerritoryControlCluster(app, state, cluster);
+    } finally {
+        setTerritoryControlBusy(app, false);
+    }
+}
+
+async function loadTerritoryControlData(app, state = {}, nextView = "list", options = {}) {
+    const shell = app.querySelector(".territory-control-shell");
+    if (!shell) return;
+    if (!options.silent) setTerritoryControlBusy(app, true, "Pobieram terytorium...");
+    if (!shell.dataset.initialized && !options.silent) {
+        shell.dataset.initialized = "1";
+        shell.innerHTML = `
+            <div class="territory-control-loading">
+                <span class="app-button-spinner" aria-hidden="true"></span>
+                <b>Synchronizacja Territory Control...</b>
+            </div>
+        `;
+    }
+    try {
+        const response = await fetch("/api/ghost-control/territory", { headers: { "Accept": "application/json" } });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) {
+            shell.innerHTML = `
+                <div class="territory-control-error">
+                    <strong>Territory Control offline</strong>
+                    <p>${escapeHTML(data.message || data.error || "Nie udalo sie pobrac terytorium.")}</p>
+                </div>
+            `;
+            return;
+        }
+        Object.assign(state, data);
+        if (options.noRender) return;
+        if (nextView === "cluster" && state.currentClusterId) {
+            const cluster = getTerritoryControlClusterById(state, state.currentClusterId);
+            if (cluster) renderTerritoryControlCluster(app, state, cluster);
+            else renderTerritoryControlList(app, state);
+        } else {
+            renderTerritoryControlList(app, state);
+        }
+    } catch (error) {
+        console.warn("Territory Control load failed", error);
+        shell.innerHTML = `
+            <div class="territory-control-error">
+                <strong>Territory Control offline</strong>
+                <p>Nie udalo sie polaczyc z endpointem terytorium.</p>
+            </div>
+        `;
+    } finally {
+        if (!options.silent) setTerritoryControlBusy(app, false);
+    }
+}
+
+function createTerritoryControlApp() {
+    const existing = document.querySelector('.app-window[data-app="territory-control"]');
+    if (existing) {
+        bringWindowToFront(existing);
+        return existing;
+    }
+
+    const app = document.createElement('div');
+    app.className = 'app-window territory-control-window';
+    app.dataset.app = "territory-control";
+    app.dataset.appIcon = TERRITORY_CONTROL_ICONS.app;
+    app.dataset.appTitle = "Territory Control";
+    const position = findAvailablePosition(860, 620);
+    app.style.top = `${position.top}px`;
+    app.style.left = `${position.left}px`;
+    app.style.width = `860px`;
+    app.style.height = `620px`;
+    app.innerHTML = `
+        <div class="title-bar">Territory Control <span class="close-btn" style="float:right; cursor:pointer;">✖</span></div>
+        <div class="territory-control-shell"></div>
+    `;
+
+    document.body.appendChild(app);
+    makeDraggable(app);
+    bringWindowToFront(app);
+    app.querySelector('.close-btn')?.addEventListener('click', () => app.remove());
+    const state = { view: "list" };
+    loadTerritoryControlData(app, state, "list");
+    return app;
+}
+
+window.createTerritoryControlApp = createTerritoryControlApp;
+window.territory_control = createTerritoryControlApp;
 
 function appHasMapRuntime(appData) {
     if (!appData || typeof appData !== "object") return false;

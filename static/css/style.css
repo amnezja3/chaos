@@ -4724,6 +4724,417 @@ form button:hover {
   color: #d6ffdf;
 }
 
+.territory-control-window {
+  width: min(860px, calc(100vw - 44px));
+  height: min(620px, calc(100vh - 90px));
+  min-width: 520px;
+  min-height: 460px;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-color: rgba(0, 255, 100, 0.55);
+  background:
+    linear-gradient(135deg, rgba(0, 34, 15, 0.96), rgba(3, 8, 6, 0.98) 48%, rgba(0, 20, 13, 0.97));
+  box-shadow: 0 0 24px rgba(0, 255, 100, 0.18);
+}
+
+.territory-control-window .title-bar {
+  flex: 0 0 auto;
+}
+
+.territory-control-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  overflow: hidden;
+  color: #d6ffdf;
+}
+
+.territory-control-header {
+  display: grid;
+  grid-template-columns: minmax(230px, 1fr) minmax(330px, 1.5fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.territory-control-brand,
+.territory-control-meta,
+.territory-control-toolbar,
+.territory-control-status,
+.territory-control-cluster,
+.territory-control-object,
+.territory-control-empty,
+.territory-control-error,
+.territory-control-loading,
+.territory-control-detail-head {
+  border: 1px solid rgba(0, 255, 100, 0.34);
+  background: rgba(0, 18, 8, 0.78);
+}
+
+.territory-control-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+
+.territory-control-brand-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(190, 255, 60, 0.45);
+  color: #baff2a;
+  font-size: 1.4rem;
+  background: rgba(70, 120, 0, 0.13);
+}
+
+.territory-control-brand strong {
+  display: block;
+  color: #35ff78;
+  font-size: 1.08rem;
+  letter-spacing: 0;
+}
+
+.territory-control-brand span:last-child {
+  display: block;
+  color: #8ecf9e;
+  font-size: 0.76rem;
+  margin-top: 4px;
+}
+
+.territory-control-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+}
+
+.territory-control-meta span {
+  min-width: 0;
+  border: 1px solid rgba(0, 255, 100, 0.2);
+  padding: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #c9ffd5;
+}
+
+.territory-control-meta b {
+  color: #35ff78;
+}
+
+.territory-control-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+}
+
+.territory-control-toolbar button,
+.territory-control-actions button,
+.territory-control-presets button,
+.territory-control-security-preview button {
+  min-width: 36px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(0, 255, 100, 0.45);
+  background: rgba(0, 26, 11, 0.82);
+  color: #35ff78;
+  font: 700 0.86rem monospace;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+
+.territory-control-toolbar button:hover:not(:disabled),
+.territory-control-actions button:hover:not(:disabled),
+.territory-control-presets button:hover:not(:disabled),
+.territory-control-security-preview button:hover:not(:disabled) {
+  background: rgba(0, 255, 90, 0.16);
+  color: #e2ffe8;
+  border-color: #baff2a;
+  box-shadow: 0 0 12px rgba(0, 255, 100, 0.22);
+}
+
+.territory-control-toolbar button:disabled,
+.territory-control-actions button:disabled,
+.territory-control-presets button:disabled,
+.territory-control-security-preview button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.territory-control-toolbar [data-territory-control-action="back-list"] {
+  width: auto;
+  min-width: 74px;
+  padding: 0 12px;
+}
+
+.territory-control-status {
+  padding: 8px 10px;
+  color: #baff2a;
+}
+
+.territory-control-screen {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.territory-control-list,
+.territory-control-object-list {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.territory-control-list {
+  flex: 1 1 auto;
+}
+
+.territory-control-cluster {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(82px, auto) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 11px;
+}
+
+.territory-control-cluster.threat-neutral,
+.territory-control-cluster.threat-clear,
+.territory-control-cluster-detail.threat-neutral,
+.territory-control-cluster-detail.threat-clear {
+  border-color: rgba(53, 255, 120, 0.42);
+}
+
+.territory-control-cluster.threat-collision,
+.territory-control-cluster-detail.threat-collision {
+  border-color: rgba(255, 175, 48, 0.68);
+  background: linear-gradient(90deg, rgba(255, 168, 36, 0.15), rgba(0, 26, 11, 0.82));
+}
+
+.territory-control-cluster.threat-attacked,
+.territory-control-cluster-detail.threat-attacked {
+  border-color: rgba(255, 62, 62, 0.72);
+  background: linear-gradient(90deg, rgba(255, 35, 35, 0.18), rgba(0, 26, 11, 0.82));
+}
+
+.territory-control-object.is-aimed {
+  border-color: rgba(186, 255, 42, 0.82);
+  box-shadow: inset 3px 0 0 rgba(186, 255, 42, 0.9), 0 0 14px rgba(186, 255, 42, 0.16);
+}
+
+.territory-control-cluster-main,
+.territory-control-object-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.territory-control-cluster-main strong,
+.territory-control-object-copy strong,
+.territory-control-detail-head strong {
+  color: #f0fff3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.territory-control-cluster-main span,
+.territory-control-object-copy span,
+.territory-control-detail-head span,
+.territory-control-alone-info {
+  color: #8fd5a1;
+  font-size: 0.76rem;
+}
+
+.territory-control-threat {
+  width: max-content;
+  padding: 3px 7px;
+  border: 1px solid currentColor;
+  color: #baff2a;
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.threat-collision .territory-control-threat {
+  color: #ffb13b;
+}
+
+.threat-attacked .territory-control-threat {
+  color: #ff5a5a;
+}
+
+.territory-control-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.territory-control-group {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.territory-control-group h4 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: #35ff78;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}
+
+.territory-control-group h4::after {
+  content: "";
+  flex: 1 1 auto;
+  border-top: 1px solid rgba(0, 255, 100, 0.25);
+}
+
+.territory-control-group h4 span {
+  order: 3;
+  color: #baff2a;
+  font-size: 0.75rem;
+}
+
+.territory-control-alone-info {
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(186, 255, 42, 0.28);
+  background: rgba(186, 255, 42, 0.06);
+}
+
+.territory-control-object {
+  display: grid;
+  grid-template-columns: 42px minmax(150px, 1fr) minmax(235px, auto) minmax(96px, auto) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px;
+}
+
+.territory-control-object.role-pillar {
+  border-color: rgba(186, 255, 42, 0.58);
+  box-shadow: inset 3px 0 0 rgba(186, 255, 42, 0.78);
+}
+
+.territory-control-object.role-alone {
+  border-color: rgba(255, 175, 48, 0.58);
+}
+
+.territory-control-object-icon {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(0, 255, 100, 0.28);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.territory-control-security-bar {
+  position: relative;
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 255, 100, 0.28);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.territory-control-security-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #35ff78, #baff2a);
+  transition: width 220ms ease;
+}
+
+.territory-control-security-bar b {
+  position: absolute;
+  right: 4px;
+  top: -2px;
+  color: #001b08;
+  font-size: 0.62rem;
+  text-shadow: 0 0 4px rgba(214, 255, 223, 0.6);
+}
+
+.territory-control-presets {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(42px, 1fr));
+  gap: 5px;
+}
+
+.territory-control-presets button {
+  min-width: 0;
+  padding: 0 7px;
+  font-size: 0.72rem;
+}
+
+.territory-control-security-preview {
+  display: grid;
+  grid-template-columns: repeat(4, 24px);
+  gap: 4px;
+}
+
+.territory-control-security-preview button {
+  min-width: 24px;
+  width: 24px;
+  height: 24px;
+  font-size: 0.65rem;
+  opacity: 0.75;
+}
+
+.territory-control-security-preview button.is-on {
+  color: #001b08;
+  background: #35ff78;
+  border-color: #baff2a;
+  opacity: 1;
+}
+
+.territory-control-detail-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+}
+
+.territory-control-empty,
+.territory-control-error,
+.territory-control-loading {
+  padding: 18px;
+  color: #baff2a;
+}
+
+.territory-control-error strong,
+.territory-control-loading b {
+  display: block;
+  color: #35ff78;
+  margin-bottom: 8px;
+}
+
+.territory-control-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .profile-window .profile-content {
   flex: 1;
   min-height: 0;
@@ -5579,20 +5990,49 @@ form button:hover {
   }
 
   .victim-picker-shell {
-    padding: 10px;
-    gap: 8px;
+    padding: 8px;
+    gap: 6px;
   }
 
   .victim-picker-header {
     grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .victim-picker-brand {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .victim-picker-brand-icon {
+    width: 34px;
+    height: 34px;
+    font-size: 1.1rem;
+  }
+
+  .victim-picker-brand strong {
+    font-size: 1rem;
+  }
+
+  .victim-picker-brand span:last-child {
+    display: none;
   }
 
   .victim-picker-meta {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 0.72fr);
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .victim-picker-meta span {
+    padding: 6px;
+    font-size: 0.72rem;
   }
 
   .victim-picker-toolbar {
-    overflow-x: auto;
+    gap: 6px;
+    padding: 6px;
+    overflow-x: visible;
   }
 
   .victim-picker-main {
@@ -5637,7 +6077,104 @@ form button:hover {
   .victim-picker-toolbar [data-victim-picker-action="back-main"],
   .victim-picker-toolbar [data-victim-picker-action="back-scan"] {
     width: auto;
-    min-width: 70px;
+    min-width: 64px;
+  }
+
+  .territory-control-window,
+  .territory-control-window[data-mobile-safe-mode="true"] {
+    width: calc(100vw - 16px) !important;
+    height: calc(100vh - 16px) !important;
+    min-width: 0;
+    min-height: 0;
+    left: 8px !important;
+    top: 8px !important;
+  }
+
+  .territory-control-shell {
+    padding: 8px;
+    gap: 6px;
+  }
+
+  .territory-control-header {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .territory-control-brand {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .territory-control-brand-icon {
+    width: 34px;
+    height: 34px;
+    font-size: 1.1rem;
+  }
+
+  .territory-control-brand strong {
+    font-size: 1rem;
+  }
+
+  .territory-control-brand span:last-child {
+    display: none;
+  }
+
+  .territory-control-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .territory-control-meta span {
+    padding: 6px;
+    font-size: 0.72rem;
+  }
+
+  .territory-control-toolbar {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .territory-control-cluster {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .territory-control-cluster .territory-control-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .territory-control-object {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .territory-control-object-icon {
+    width: 30px;
+    height: 30px;
+  }
+
+  .territory-control-presets,
+  .territory-control-security-preview,
+  .territory-control-object .territory-control-actions {
+    grid-column: 1 / -1;
+  }
+
+  .territory-control-presets {
+    grid-template-columns: repeat(5, minmax(44px, 1fr));
+  }
+
+  .territory-control-security-preview {
+    grid-template-columns: repeat(8, 24px);
+  }
+
+  .territory-control-object .territory-control-actions {
+    justify-content: flex-start;
+  }
+
+  .territory-control-detail-head {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 
