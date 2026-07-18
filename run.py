@@ -9577,7 +9577,8 @@ def ensure_profile_template_projects_folder():
         template["desktop_settings"] = {
             "wallpaper": "",
             "icon_positions": {},
-            "auto_fullscreen": False
+            "auto_fullscreen": False,
+            "map_tile_scheme": "osm"
         }
         changed = True
     if changed:
@@ -10320,10 +10321,34 @@ def ensure_purchase_account_profile(username):
         "apps": [],
         "files": {"tools": [], "projects": []},
         "system_messages": [],
-        "desktop_settings": {"wallpaper": "", "icon_positions": {}, "auto_fullscreen": False},
+        "desktop_settings": {"wallpaper": "", "icon_positions": {}, "auto_fullscreen": False, "map_tile_scheme": "osm"},
     }
     user_store.save_profile(profile)
     return profile
+
+
+MAP_TILE_SCHEMES = {
+    "osm": {
+        "label": "OpenStreetMap",
+        "tiles": "OpenStreetMap",
+        "attr": None,
+    },
+    "carto_light": {
+        "label": "Carto Light",
+        "tiles": "CartoDB positron",
+        "attr": None,
+    },
+    "carto_dark": {
+        "label": "Carto Dark",
+        "tiles": "CartoDB dark_matter",
+        "attr": None,
+    },
+    "opentopo": {
+        "label": "OpenTopo",
+        "tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+        "attr": "Map data: OpenStreetMap contributors, SRTM | Map style: OpenTopoMap",
+    },
+}
 
 
 def normalize_desktop_settings(settings):
@@ -10332,6 +10357,7 @@ def normalize_desktop_settings(settings):
         "wallpaper": str(source.get("wallpaper") or "").strip(),
         "icon_positions": source.get("icon_positions") if isinstance(source.get("icon_positions"), dict) else {},
         "auto_fullscreen": source.get("auto_fullscreen") is True,
+        "map_tile_scheme": str(source.get("map_tile_scheme") or "osm").strip(),
     }
     if normalized["wallpaper"] not in [
         "",
@@ -10340,6 +10366,8 @@ def normalize_desktop_settings(settings):
         "wall-chaos-amber", "wall-chaos-violet",
     ]:
         normalized["wallpaper"] = ""
+    if normalized["map_tile_scheme"] not in MAP_TILE_SCHEMES:
+        normalized["map_tile_scheme"] = "osm"
     return normalized
 
 
@@ -13217,7 +13245,25 @@ def map_view():
     ava_lng = profile.get("curently_possition", {}).get("lng", 21.0122)
     zoom = get_player_map_zoom(profile)
     min_zoom = get_player_min_map_zoom(profile)
-    m = folium.Map(location=[ava_lat, ava_lng], zoom_start=zoom, min_zoom=min_zoom, max_zoom=zoom)
+    desktop_settings = normalize_desktop_settings(profile.get("desktop_settings"))
+    tile_scheme = MAP_TILE_SCHEMES.get(desktop_settings.get("map_tile_scheme")) or MAP_TILE_SCHEMES["osm"]
+    if tile_scheme.get("attr"):
+        m = folium.Map(
+            location=[ava_lat, ava_lng],
+            zoom_start=zoom,
+            min_zoom=min_zoom,
+            max_zoom=zoom,
+            tiles=tile_scheme["tiles"],
+            attr=tile_scheme["attr"],
+        )
+    else:
+        m = folium.Map(
+            location=[ava_lat, ava_lng],
+            zoom_start=zoom,
+            min_zoom=min_zoom,
+            max_zoom=zoom,
+            tiles=tile_scheme["tiles"],
+        )
 
     # # Dodaj różne style
     # # OpenStreetMap
@@ -14591,6 +14637,12 @@ def update_profile_desktop():
 
     if "auto_fullscreen" in data:
         settings["auto_fullscreen"] = data.get("auto_fullscreen") is True
+
+    if "map_tile_scheme" in data:
+        map_tile_scheme = str(data.get("map_tile_scheme") or "osm").strip()
+        if map_tile_scheme not in MAP_TILE_SCHEMES:
+            return jsonify({"error": "Nieprawidlowy schemat mapy."}), 400
+        settings["map_tile_scheme"] = map_tile_scheme
 
     mgr = UserProfileManager(session["user"])
     mgr.update_profile({"desktop_settings": settings})

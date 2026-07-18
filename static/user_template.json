@@ -18,7 +18,8 @@
   "desktop_settings": {
     "wallpaper": "",
     "icon_positions": {},
-    "auto_fullscreen": false
+    "auto_fullscreen": false,
+    "map_tile_scheme": "osm"
   },
   "territory_stats": {
     "total_area": 0,

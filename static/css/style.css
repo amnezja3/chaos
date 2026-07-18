@@ -1479,6 +1479,58 @@ body.wall-chaos-violet {
   background: repeating-linear-gradient(135deg, #050805 0 8px, #101510 8px 16px);
 }
 
+.settings-subblock {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(38, 255, 106, 0.18);
+}
+
+.settings-section__header--sub {
+  margin-bottom: 8px;
+}
+
+.settings-section__header--sub h3 {
+  font-size: 0.78rem;
+}
+
+.settings-map-scheme-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-map-scheme {
+  min-height: 54px;
+  border: 1px solid rgba(38, 255, 106, 0.34);
+  background: rgba(0, 0, 0, 0.34);
+  color: #d8ffd8;
+  font-family: monospace;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.settings-map-scheme:hover,
+.settings-wallpaper:hover {
+  border-color: rgba(183, 255, 51, 0.78);
+  background: rgba(0, 34, 12, 0.56);
+}
+
+.settings-map-scheme.is-active {
+  border-color: #b7ff33;
+  box-shadow: 0 0 12px rgba(38, 255, 106, 0.34);
+}
+
+.settings-map-scheme__swatch {
+  display: block;
+  height: 20px;
+  margin-bottom: 5px;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.26) 0 20%, transparent 20% 40%, rgba(0, 0, 0, 0.18) 40% 60%, transparent 60%),
+    radial-gradient(circle at 72% 35%, color-mix(in srgb, var(--map-scheme-color, #26ff6a) 70%, white), transparent 42%),
+    linear-gradient(135deg, color-mix(in srgb, var(--map-scheme-color, #26ff6a) 24%, #030803), color-mix(in srgb, var(--map-scheme-color, #26ff6a) 58%, #111));
+  border-bottom: 1px solid rgba(38, 255, 106, 0.2);
+}
+
 .settings-form {
   display: grid;
   gap: 8px;
@@ -1529,6 +1581,10 @@ body.wall-chaos-violet {
 
 @media (max-width: 640px) {
   .settings-wallpaper-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-map-scheme-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

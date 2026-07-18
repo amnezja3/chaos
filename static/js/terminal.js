@@ -3,7 +3,7 @@ let topZIndex = 1000;
 let windowSequence = 0;
 let toolbarLauncherApps = [];
 const runningWindows = new Map();
-let desktopSettings = { wallpaper: "", icon_positions: {}, auto_fullscreen: false };
+let desktopSettings = { wallpaper: "", icon_positions: {}, auto_fullscreen: false, map_tile_scheme: "osm" };
 let desktopSaveTimer = null;
 let toolbarProfile = null;
 let toolbarTargetFeedbackState = { targetKey: "", dotSignature: "", progress: 0 };
@@ -383,7 +383,8 @@ function applyDesktopSettings(settings = {}) {
     desktopSettings = {
         wallpaper: settings.wallpaper || "",
         icon_positions: settings.icon_positions || {},
-        auto_fullscreen: autoFullscreen
+        auto_fullscreen: autoFullscreen,
+        map_tile_scheme: settings.map_tile_scheme || "osm"
     };
     setAutoFullscreenEnabled(desktopSettings.auto_fullscreen);
     if (settings.auto_fullscreen !== desktopSettings.auto_fullscreen && desktopSessionActive) {
@@ -441,6 +442,23 @@ function sendDesktopSettingsBeacon(partial = {}) {
         console.warn("Nie udało się zapisać pulpitu beaconem:", err);
         return false;
     }
+}
+
+function reloadOpenMapWindowsForSettings() {
+    document.querySelectorAll('.map-window').forEach(mapWindow => {
+        const frame = mapWindow.querySelector('iframe.map-frame, iframe[src^="/map"]');
+        if (!frame) return;
+        mapWindow.classList.remove('map-frame-loaded');
+        frame.addEventListener('load', () => {
+            mapWindow.classList.add('map-frame-loaded');
+        }, { once: true });
+        frame.removeAttribute('src');
+        requestAnimationFrame(() => {
+            if (frame.isConnected) {
+                frame.src = `/map?scheme=${encodeURIComponent(desktopSettings.map_tile_scheme || "osm")}&ts=${Date.now()}`;
+            }
+        });
+    });
 }
 
 function saveDesktopSettingsNow(partial = {}) {
@@ -3940,7 +3958,7 @@ function createMap() {
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
             if (frame && term.isConnected && !frame.src) {
-                frame.src = "/map";
+                frame.src = `/map?scheme=${encodeURIComponent(desktopSettings.map_tile_scheme || "osm")}`;
             }
         });
     });
@@ -6024,7 +6042,14 @@ function createSettings() {
         { id: "wall-2", label: "Obraz 2", color: "#59d6ff" },
         { id: "wall-3", label: "Obraz 3", color: "#d18cff" },
     ];
+    const mapSchemeOptions = [
+        { id: "osm", label: "OSM", color: "#8bd37f" },
+        { id: "carto_light", label: "Carto Light", color: "#d7e3da" },
+        { id: "carto_dark", label: "Carto Dark", color: "#15202b" },
+        { id: "opentopo", label: "OpenTopo", color: "#d6b46a" },
+    ];
     const currentWallpaper = desktopSettings.wallpaper || "";
+    const currentMapScheme = desktopSettings.map_tile_scheme || "osm";
 
     term.innerHTML = `
         <div class="title-bar">
@@ -6050,6 +6075,20 @@ function createSettings() {
                             <b>${escapeHTML(option.label)}</b>
                         </button>
                     `).join("")}
+                </div>
+                <div class="settings-subblock">
+                    <div class="settings-section__header settings-section__header--sub">
+                        <h3>Mapa</h3>
+                        <span>Schemat Leaflet</span>
+                    </div>
+                    <div class="settings-map-scheme-grid">
+                        ${mapSchemeOptions.map(option => `
+                            <button type="button" class="settings-map-scheme ${currentMapScheme === option.id ? 'is-active' : ''}" data-map-scheme="${escapeHTML(option.id)}" title="Schemat mapy: ${escapeHTML(option.label)}">
+                                <span class="settings-map-scheme__swatch" style="--map-scheme-color:${escapeHTML(option.color)}"></span>
+                                <b>${escapeHTML(option.label)}</b>
+                            </button>
+                        `).join("")}
+                    </div>
                 </div>
             </section>
 
@@ -6124,6 +6163,25 @@ function createSettings() {
             saveDesktopSettingsNow({ wallpaper: wall });
             term.querySelectorAll('[data-wall]').forEach(item => item.classList.toggle('is-active', item === btn));
             setStatus("Tapeta zapisana.", "success");
+        });
+    });
+
+    term.querySelectorAll('[data-map-scheme]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const mapTileScheme = btn.dataset.mapScheme || "osm";
+            applyDesktopSettings({
+                ...desktopSettings,
+                map_tile_scheme: mapTileScheme
+            });
+            setStatus("Zapisuje schemat mapy...", "loading");
+            const response = await saveDesktopSettingsNow({ map_tile_scheme: mapTileScheme });
+            term.querySelectorAll('[data-map-scheme]').forEach(item => item.classList.toggle('is-active', item === btn));
+            if (response && !response.ok) {
+                setStatus("Nie udalo sie zapisac schematu mapy.", "error");
+                return;
+            }
+            reloadOpenMapWindowsForSettings();
+            setStatus("Schemat mapy zapisany. Mapa zostala odswiezona.", "success");
         });
     });
 
