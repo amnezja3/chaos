@@ -1213,6 +1213,32 @@ function findAvailablePosition(width = 300, height = 200, padding = 20) {
     };
 }
 
+function getInitialMapWindowLayout() {
+    if (isMobileSafeMode()) {
+        return { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight };
+    }
+    const padding = 24;
+    const toolbarHeight = 64;
+    const availableHeight = Math.max(420, window.innerHeight - toolbarHeight - (padding * 2));
+    const availableRightWidth = Math.max(420, Math.floor(window.innerWidth * 0.48));
+    const isWideDesktop = window.innerWidth >= 1280 && window.innerHeight >= 720;
+
+    if (isWideDesktop) {
+        const size = Math.floor(Math.min(860, availableHeight, availableRightWidth));
+        return {
+            top: padding,
+            left: Math.max(padding, window.innerWidth - size - padding),
+            width: size,
+            height: size
+        };
+    }
+
+    const width = Math.floor(Math.min(960, window.innerWidth - (padding * 2)));
+    const height = Math.floor(Math.min(620, availableHeight));
+    const position = findAvailablePosition(width, height, padding);
+    return { ...position, width, height };
+}
+
 
 
 
@@ -3885,11 +3911,11 @@ function createMap() {
     const term = document.createElement('div');
     term.className = 'terminal map-window';
     term.dataset.app = "map";
-    const position = findAvailablePosition();
-    term.style.top = `${position.top}px`;
-    term.style.left = `${position.left}px`;
-    term.style.width = `1200px`;
-    term.style.height = `500px`;
+    const layout = getInitialMapWindowLayout();
+    term.style.top = `${layout.top}px`;
+    term.style.left = `${layout.left}px`;
+    term.style.width = `${layout.width}px`;
+    term.style.height = `${layout.height}px`;
 
     term.innerHTML = `
         <div class="title-bar">
