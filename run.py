@@ -9581,6 +9581,23 @@ def ensure_profile_template_projects_folder():
             "map_tile_scheme": "osm"
         }
         changed = True
+    else:
+        desktop_settings = template["desktop_settings"] if isinstance(template["desktop_settings"], dict) else {}
+        if desktop_settings is not template["desktop_settings"]:
+            template["desktop_settings"] = desktop_settings
+            changed = True
+        if "wallpaper" not in desktop_settings:
+            desktop_settings["wallpaper"] = ""
+            changed = True
+        if "icon_positions" not in desktop_settings or not isinstance(desktop_settings.get("icon_positions"), dict):
+            desktop_settings["icon_positions"] = {}
+            changed = True
+        if "auto_fullscreen" not in desktop_settings:
+            desktop_settings["auto_fullscreen"] = False
+            changed = True
+        if "map_tile_scheme" not in desktop_settings:
+            desktop_settings["map_tile_scheme"] = "osm"
+            changed = True
     if changed:
         resources_store.set("user_template", template)
 

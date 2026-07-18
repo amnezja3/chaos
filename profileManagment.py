@@ -38,7 +38,7 @@ class UserProfileManager:
             elif isinstance(template_value, dict) and isinstance(user_data[key], dict):
                 updated = self._recursive_sync(user_data[key], template_value, path + (key,)) or updated
 
-        if path == ("desktop_settings", "icon_positions"):
+        if path == ("desktop_settings",) or path == ("desktop_settings", "icon_positions"):
             return updated
 
         keys_to_remove = [
