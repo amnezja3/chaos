@@ -9071,10 +9071,14 @@ Wdrozone:
 
 * backend zwraca `threat_flags.collision` i `threat_flags.attacked` per klaster;
 * konflikt nie rozlewa sie na wszystkie klastry uczestnika;
+* konflikt po przebudowie klastra moze zostac dopasowany po targetach lezacych
+  w aktualnym polygonie, nawet jesli zapisany `area_id` jest juz historyczny;
+* `ALARM` wynika z atakowanych targetow klastra, nie tylko z trzech filarow;
 * frontend renderuje wiele etykiet obok siebie, np. `ALARM` + `KOLIZJA`;
 * po zmianie presetu zabezpieczen aktualny widok klastra odswieza sie na miejscu
-  zamiast wracac do listy;
-* dodano test regresyjny dla konfliktu z innym `area_id`.
+  zamiast wracac do listy, rowniez gdy `cluster_id` zmieni sie po przebudowie;
+* dodano testy regresyjne dla konfliktu z innym `area_id` i dla dopasowania
+  konfliktu po targetach w polygonie.
 
 Walidacja:
 

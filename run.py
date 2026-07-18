@@ -11458,19 +11458,32 @@ def territory_control_area_threat(username, area, conflicts):
         if str(conflict.get("status") or "active") != "active":
             continue
         area_ids = {str(item) for item in (conflict.get("area_ids") or [])}
-        if not area_id_text or area_id_text not in area_ids:
-            continue
         participants = {str(item) for item in (conflict.get("participants") or [])}
-        if username in participants:
-            related.append(conflict)
-            for item in conflict.get("targets") or []:
-                target = item.get("target") if isinstance(item, dict) else {}
-                owner = item.get("owner_username") or item.get("owner") if isinstance(item, dict) else None
-                previous_owner = item.get("previous_owner") if isinstance(item, dict) else None
-                if owner == username or previous_owner == username:
-                    key = target_position_key(target)
-                    if key:
-                        attacked_positions.add(key)
+        if username not in participants:
+            continue
+
+        conflict_targets = [
+            item for item in (conflict.get("targets") or [])
+            if isinstance(item, dict) and isinstance(item.get("target"), dict)
+        ]
+        targets_in_area = [
+            item for item in conflict_targets
+            if territory_control_target_in_area(item.get("target") or {}, area)
+        ]
+        area_id_matches = bool(area_id_text and area_id_text in area_ids)
+        if not area_id_matches and not targets_in_area:
+            continue
+
+        related.append(conflict)
+        scoped_targets = targets_in_area or conflict_targets
+        for item in scoped_targets:
+            target = item.get("target") or {}
+            owner = item.get("owner_username") or item.get("owner")
+            previous_owner = item.get("previous_owner")
+            if owner == username or previous_owner == username:
+                key = target_position_key(target)
+                if key:
+                    attacked_positions.add(key)
     threat_state = "clear"
     if related:
         threat_state = "collision"
@@ -11554,9 +11567,10 @@ def build_territory_control_snapshot(username, profile=None):
             1 for pillar in pillars
             if target_position_key(pillar) in threat["attacked_positions"]
         )
-        if attacked_pillars_count:
+        attacked_targets_count = len(threat["attacked_positions"])
+        if attacked_targets_count:
             threat["threat_state"] = "attacked"
-        threat["threat_flags"]["attacked"] = bool(attacked_pillars_count)
+        threat["threat_flags"]["attacked"] = bool(attacked_targets_count)
         cluster_id = str(area_id)
         map_focus = {
             "type": "cluster",
@@ -11577,6 +11591,7 @@ def build_territory_control_snapshot(username, profile=None):
             "perimeter": calculate_area_perimeter(vertices),
             "conflict_count": threat["conflict_count"],
             "attacked_pillars_count": attacked_pillars_count,
+            "attacked_targets_count": attacked_targets_count,
             "threat_flags": threat["threat_flags"],
             "centroid": centroid,
             "navigation_target": nearest,

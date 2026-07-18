@@ -854,6 +854,8 @@ pokazywały wyłącznie faktyczny stan danego klastra.
 
 * `KOLIZJA` może pojawić się tylko wtedy, gdy aktywny konflikt jest przypisany
   do `area_id` tego klastra.
+* Jeśli `area_id` klastra zmienił się po przebudowie terytorium, konflikt może
+  zostać dopasowany po targetach leżących wewnątrz aktualnego polygonu klastra.
 * `ALARM` może pojawić się wtedy, gdy atakowany jest filar danego klastra.
 * Jeden klaster może pokazać obie etykiety obok siebie.
 * Udział gracza w konflikcie nie może sam z siebie oznaczać wszystkich jego
@@ -865,6 +867,8 @@ pokazywały wyłącznie faktyczny stan danego klastra.
 
 * Klaster bez konfliktu nie pokazuje `KOLIZJA`.
 * Klaster z konfliktem pokazuje `KOLIZJA`.
+* Klaster po przebudowie polygonu nadal widzi swój konflikt, jeżeli target
+  konfliktu leży w jego aktualnym obszarze.
 * Klaster z atakowanym filarem pokazuje `ALARM`.
 * `ALARM` i `KOLIZJA` mogą występować razem.
 * Kliknięcie presetu `OPEN/LOW/REGULAR/SECURE/ALL` nie cofa z widoku klastra do

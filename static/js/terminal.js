@@ -3791,7 +3791,7 @@ function territoryControlThreatLabel(value) {
 function territoryControlThreatBadges(cluster = {}) {
     const flags = cluster?.threat_flags || {};
     const badges = [];
-    if (flags.attacked || Number(cluster?.attacked_pillars_count || 0) > 0 || String(cluster?.threat_state || "").toLowerCase() === "attacked") {
+    if (flags.attacked || Number(cluster?.attacked_targets_count || 0) > 0 || Number(cluster?.attacked_pillars_count || 0) > 0 || String(cluster?.threat_state || "").toLowerCase() === "attacked") {
         badges.push({ kind: "attacked", label: "ALARM" });
     }
     if (flags.collision || Number(cluster?.conflict_count || 0) > 0) {
@@ -3840,6 +3840,16 @@ function getTerritoryControlObjectById(state, targetId) {
 function getTerritoryControlClusterById(state, clusterId) {
     return (Array.isArray(state?.clusters) ? state.clusters : [])
         .find(item => String(item.cluster_id || "") === String(clusterId || "")) || null;
+}
+
+function getTerritoryControlClusterByTargetId(state, targetId) {
+    const id = String(targetId || "");
+    if (!id) return null;
+    const clusters = Array.isArray(state?.clusters) ? state.clusters : [];
+    return clusters.find(cluster => {
+        const objects = [...(cluster.pillars || []), ...(cluster.inners || [])];
+        return objects.some(item => String(item.target_id || "") === id);
+    }) || null;
 }
 
 function openTerritoryControlMapFocus(focus = {}, label = "Territory Control") {
@@ -4092,6 +4102,7 @@ async function applyTerritoryControlPreset(app, state, item, preset) {
     setTerritoryControlBusy(app, true, `Preset ${preset.toUpperCase()}...`);
     const preferredView = state.view;
     const preferredClusterId = state.currentClusterId;
+    const preferredTargetId = item?.target_id;
     try {
         const response = await fetch("/api/ghost-control/territory/security-preset", {
             method: "POST",
@@ -4109,7 +4120,7 @@ async function applyTerritoryControlPreset(app, state, item, preset) {
             state.currentClusterId = preferredClusterId;
         }
         addSystemMessage("success", "TERRITORY CONTROL", `Preset ${preset.toUpperCase()} zapisany.`);
-        await refreshTerritoryControlAfterMutation(app, state, data.snapshot, { preferredView, preferredClusterId });
+        await refreshTerritoryControlAfterMutation(app, state, data.snapshot, { preferredView, preferredClusterId, preferredTargetId });
     } finally {
         setTerritoryControlBusy(app, false);
     }
@@ -4119,6 +4130,7 @@ async function toggleTerritoryControlSecurity(app, state, item, action) {
     setTerritoryControlBusy(app, true, "Zmieniam flage...");
     const preferredView = state.view;
     const preferredClusterId = state.currentClusterId;
+    const preferredTargetId = item?.target_id;
     try {
         const response = await fetch("/api/ghost-control/territory/security", {
             method: "POST",
@@ -4135,7 +4147,7 @@ async function toggleTerritoryControlSecurity(app, state, item, action) {
             state.view = preferredView;
             state.currentClusterId = preferredClusterId;
         }
-        await refreshTerritoryControlAfterMutation(app, state, data.snapshot, { preferredView, preferredClusterId });
+        await refreshTerritoryControlAfterMutation(app, state, data.snapshot, { preferredView, preferredClusterId, preferredTargetId });
     } finally {
         setTerritoryControlBusy(app, false);
     }
@@ -4174,6 +4186,7 @@ async function abandonTerritoryControlObject(app, state, item) {
 async function refreshTerritoryControlAfterMutation(app, state, snapshot = null, options = {}) {
     const preferredView = options.preferredView || state.view;
     const preferredClusterId = options.preferredClusterId || state.currentClusterId;
+    const preferredTargetId = options.preferredTargetId;
     if (snapshot) {
         Object.assign(state, snapshot);
         state.view = preferredView;
@@ -4184,8 +4197,10 @@ async function refreshTerritoryControlAfterMutation(app, state, snapshot = null,
         state.currentClusterId = preferredClusterId;
     }
     if (preferredView === "cluster" && preferredClusterId && !options.forceList) {
-        const cluster = getTerritoryControlClusterById(state, preferredClusterId);
+        const cluster = getTerritoryControlClusterById(state, preferredClusterId)
+            || getTerritoryControlClusterByTargetId(state, preferredTargetId);
         if (cluster) {
+            state.currentClusterId = cluster.cluster_id;
             renderTerritoryControlCluster(app, state, cluster);
             return;
         }

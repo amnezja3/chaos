@@ -141,6 +141,32 @@ class TerritoryControlTest(unittest.TestCase):
         self.assertEqual(related["conflict_count"], 1)
         self.assertTrue(related["threat_flags"]["collision"])
 
+    def test_area_threat_matches_conflict_target_inside_area_after_area_id_changes(self):
+        area = {
+            "id": "new-cluster-id",
+            "vertices": [
+                {"lat": 52.0, "lng": 21.0},
+                {"lat": 52.01, "lng": 21.0},
+                {"lat": 52.0, "lng": 21.01},
+            ],
+        }
+        conflict = {
+            "status": "active",
+            "area_ids": ["old-cluster-id"],
+            "participants": ["alice", "bob"],
+            "targets": [{
+                "owner_username": "alice",
+                "target": captured("Inside", 52.001, 21.001),
+            }],
+        }
+
+        threat = run.territory_control_area_threat("alice", area, [conflict])
+
+        self.assertEqual(threat["threat_state"], "collision")
+        self.assertEqual(threat["conflict_count"], 1)
+        self.assertTrue(threat["threat_flags"]["collision"])
+        self.assertEqual(len(threat["attacked_positions"]), 1)
+
     def test_endpoint_uses_readonly_profile_and_does_not_sync(self):
         path = self._temp_db()
         try:
