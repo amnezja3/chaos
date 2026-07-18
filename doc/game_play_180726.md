@@ -1072,6 +1072,21 @@ Wymagane potwierdzenie zawierające:
 
 Backend dostarcza pełny, lekki snapshot operacji wraz z dystansem, plikiem wynikowym i incydentem oraz bezpiecznie anuluje pojedyncze operacje i całe grupy.
 
+## Wynik Sprintu 107
+
+Wdrożono backendowy fundament Operation Control:
+
+* produkt Googleplex `operationControl`;
+* `GET /api/ghost-control/operations`;
+* `POST /api/ghost-control/operations/cancel`;
+* `POST /api/ghost-control/operations/cancel-group`;
+* aliasy `/api/pro-system/operation-control*`;
+* centralny mapping rodzin operacji;
+* summary outputu plików i publicznego incident linku;
+* testy kontraktu backendowego.
+
+GUI pozostaje zakresem Sprintu 108.
+
 ---
 
 # Sprint 108 — Operation Control: GUI i zamknięcie Ghost Control Suite
@@ -1256,3 +1271,25 @@ Operation Control → co aktualnie pracuje i co generuje ryzyko
 ```
 
 Całość daje graczowi prawdziwe centrum dowodzenia bez odbierania znaczenia mapie — mapa pozostaje wizualnym światem gry, a płatne pro-toolsy zapewniają szybszą, lżejszą i bardziej uporządkowaną kontrolę.
+
+## Wynik Sprintu 108
+
+Operation Control zostal domkniety jako trzecia aplikacja Ghost Control Suite.
+Frontend korzysta z endpointow przygotowanych w Sprintach 107-107.1 i nie tworzy
+osobnego magazynu operacji ani nowego pollera.
+
+Wdrozone:
+
+* uruchamianie aplikacji `operation_control` z pulpitu i launchera systemowego;
+* jedno standardowe okno CHAOS z pojedyncza instancja i wpisem taskbara;
+* naglowek z liczba aktywnych operacji, incydentow, grup i pozycja motocykla;
+* grupy operacji po rodzinach: GPS, RECON, CAMERA, NETWORK, ATM, AUDIO,
+  VEHICLE i pozostałe;
+* wiersze operacji z targetem, dystansem, czasem, outputem, ryzykiem,
+  incydentem i anulowaniem;
+* anulowanie pojedynczej operacji oraz calej grupy przez istniejace endpointy;
+* stany empty/loading/error/busy oraz mobile safe mode;
+* wspolny styl z Victim Picker i Territory Control.
+
+Poza zakresem pozostaje automatyczny poller Operation Control. Aplikacja odswieza
+sie przy otwarciu, recznym odswiezeniu i po akcjach anulowania.

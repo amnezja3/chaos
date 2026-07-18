@@ -1064,6 +1064,8 @@ function runSystemLauncherApp(appData) {
         createVictimPickerApp,
         territory_control: createTerritoryControlApp,
         createTerritoryControlApp,
+        operation_control: createOperationControlApp,
+        createOperationControlApp,
         ghost_lab: createGhostLabHub,
         dev_bug_reporter: createDevBugReporterApp
     };
@@ -4347,6 +4349,412 @@ function createTerritoryControlApp() {
 
 window.createTerritoryControlApp = createTerritoryControlApp;
 window.territory_control = createTerritoryControlApp;
+
+const OPERATION_CONTROL_ICONS = {
+    app: "📟",
+    refresh: "⟳",
+    map: "▣",
+    cancel: "×",
+    cancelGroup: "⊘",
+    close: "×",
+    gps: "⌖",
+    recon: "◇",
+    camera: "▣",
+    network: "⌁",
+    atm: "$",
+    audio: "♪",
+    vehicle: "▱",
+    implant: "⌬",
+    device: "▤",
+    other: "□",
+    incident: "!",
+    warning: "△",
+    file: "▥"
+};
+
+const OPERATION_CONTROL_FAMILY_LABELS = {
+    gps: "GPS",
+    recon: "RECON",
+    camera: "CAMERA",
+    network: "NETWORK",
+    atm: "ATM",
+    audio: "AUDIO",
+    vehicle: "VEHICLE",
+    implant: "IMPLANT",
+    device: "DEVICE",
+    other: "OTHER"
+};
+
+function operationControlFamilyLabel(family) {
+    const key = String(family || "other").toLowerCase();
+    return OPERATION_CONTROL_FAMILY_LABELS[key] || key.toUpperCase();
+}
+
+function operationControlIcon(family) {
+    return OPERATION_CONTROL_ICONS[String(family || "other").toLowerCase()] || OPERATION_CONTROL_ICONS.other;
+}
+
+function operationControlMeters(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return "-";
+    if (num >= 1000) return `${(num / 1000).toFixed(num >= 10000 ? 0 : 1)} km`;
+    return `${Math.max(0, Math.round(num))} m`;
+}
+
+function operationControlCoords(position) {
+    if (!position || !Number.isFinite(Number(position.lat)) || !Number.isFinite(Number(position.lng ?? position.lon))) return "-";
+    return `${Number(position.lat).toFixed(4)}, ${Number(position.lng ?? position.lon).toFixed(4)}`;
+}
+
+function operationControlTime(seconds) {
+    const value = Number(seconds);
+    if (!Number.isFinite(value) || value <= 0) return "0:00";
+    const total = Math.max(0, Math.round(value));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function operationControlFileLabel(output) {
+    output = output && typeof output === "object" ? output : {};
+    const category = String(output.file_category || "system");
+    const directory = output.directory || "-";
+    const size = Number(output.expected_size_mb || 0);
+    const status = output.output_status || "pending";
+    return {
+        title: `${category.toUpperCase()} ${size ? `~${size} MB` : ""}`.trim(),
+        detail: `${directory} · ${status}`,
+    };
+}
+
+function operationControlRiskClass(item) {
+    const incident = item?.incident || {};
+    const risk = item?.risk || {};
+    if (incident.active) return "danger";
+    if (incident.warning || risk.warning_crossed || risk.incident_crossed) return "warning";
+    return "safe";
+}
+
+function operationControlRiskLabel(item) {
+    const risk = item?.risk || {};
+    const level = risk.level || item?.risk_level || "low";
+    const heat = risk.current_heat ?? risk.score;
+    return heat !== undefined && heat !== null ? `${level} · ${heat}` : String(level);
+}
+
+function setOperationControlBusy(app, busy, message = "") {
+    const root = app?.querySelector(".operation-control-shell");
+    if (!root) return;
+    root.classList.toggle("is-busy", !!busy);
+    root.querySelectorAll("button").forEach(button => {
+        if (busy) {
+            button.dataset.operationControlDisabled = button.disabled ? "1" : "0";
+            button.disabled = true;
+        } else if (button.dataset.operationControlDisabled === "0") {
+            button.disabled = false;
+        }
+    });
+    const status = root.querySelector("[data-operation-control-status]");
+    if (status) {
+        status.hidden = !busy && !message;
+        status.textContent = message || "";
+    }
+}
+
+function renderOperationControlFrame(app, state, bodyHtml, options = {}) {
+    const root = app.querySelector(".operation-control-shell");
+    if (!root) return null;
+    const groups = Array.isArray(state.groups) ? state.groups : [];
+    const activeCount = Number(state.active_count || 0);
+    const incidentCount = Number(state.incident_count || 0);
+    root.innerHTML = `
+        <header class="operation-control-header">
+            <div class="operation-control-brand">
+                <span class="operation-control-brand-icon">${OPERATION_CONTROL_ICONS.app}</span>
+                <div>
+                    <strong>${escapeHTML(options.title || "OPERATION CONTROL")}</strong>
+                    <span>Aktywne operacje, pliki i incydenty bez Leafleta</span>
+                </div>
+            </div>
+            <div class="operation-control-meta">
+                <span title="Aktywne operacje"><b>AKTYWNE</b> ${activeCount}</span>
+                <span title="Operacje z incydentem"><b>INCYDENTY</b> ${incidentCount}</span>
+                <span title="Grupy operacji"><b>GRUPY</b> ${groups.length}</span>
+                <span title="Pozycja motocykla"><b>POS</b> ${escapeHTML(operationControlCoords(state.position))}</span>
+            </div>
+        </header>
+        <nav class="operation-control-toolbar" aria-label="Operation Control tools">
+            <button type="button" data-operation-control-action="refresh" title="Odswiez" aria-label="Odswiez">${OPERATION_CONTROL_ICONS.refresh}</button>
+            <button type="button" data-operation-control-action="close" title="Zamknij" aria-label="Zamknij">${OPERATION_CONTROL_ICONS.close}</button>
+        </nav>
+        <div class="operation-control-status" data-operation-control-status hidden></div>
+        <section class="operation-control-screen" data-operation-control-screen>${bodyHtml || ""}</section>
+    `;
+    bindOperationControlCommonActions(app, state);
+    return root;
+}
+
+function bindOperationControlCommonActions(app, state) {
+    const root = app.querySelector(".operation-control-shell");
+    if (!root) return;
+    root.querySelector('[data-operation-control-action="refresh"]')?.addEventListener("click", () => loadOperationControlData(app, state, { silent: false }));
+    root.querySelector('[data-operation-control-action="close"]')?.addEventListener("click", () => app.remove());
+}
+
+function renderOperationControlGroup(group, operations) {
+    const family = String(group.operation_family || "other");
+    const outputTypes = Array.isArray(group.output_types) && group.output_types.length ? group.output_types.join(", ") : "-";
+    const incidentCount = Number(group.incident_count || 0);
+    const groupOperations = operations.filter(item => String(item.operation_family || "other") === family);
+    const expectedMb = groupOperations.reduce((sum, item) => sum + Number(item?.output?.expected_size_mb || 0), 0);
+    return `
+        <section class="operation-control-group family-${escapeHTML(family)}" data-operation-family="${escapeHTML(family)}">
+            <header class="operation-control-group-head">
+                <div class="operation-control-group-title">
+                    <span>${operationControlIcon(family)}</span>
+                    <div>
+                        <strong>${escapeHTML(operationControlFamilyLabel(family))}</strong>
+                        <em>${Number(group.count || 0)} operacji · ${incidentCount} incydentow · ${expectedMb} MB</em>
+                    </div>
+                </div>
+                <div class="operation-control-group-output" title="Przewidywany output">${escapeHTML(outputTypes)}</div>
+                <button type="button" data-operation-control-action="cancel-group" data-operation-family="${escapeHTML(family)}" title="Anuluj cala grupe" aria-label="Anuluj cala grupe">${OPERATION_CONTROL_ICONS.cancelGroup}</button>
+            </header>
+            <div class="operation-control-rows">
+                ${groupOperations.map(renderOperationControlRow).join("")}
+            </div>
+        </section>
+    `;
+}
+
+function renderOperationControlRow(item) {
+    const family = String(item.operation_family || "other");
+    const riskClass = operationControlRiskClass(item);
+    const output = operationControlFileLabel(item.output);
+    const incident = item.incident || {};
+    const incidentBadge = incident.active
+        ? `<span class="operation-control-incident danger">${OPERATION_CONTROL_ICONS.incident} INCYDENT L${escapeHTML(incident.level || "-")}</span>`
+        : incident.warning
+            ? `<span class="operation-control-incident warning">${OPERATION_CONTROL_ICONS.warning} WARNING</span>`
+            : `<span class="operation-control-incident safe">czysto</span>`;
+    const distance = item.distance_available ? operationControlMeters(item.distance_from_bike) : "brak pozycji";
+    return `
+        <article class="operation-control-row risk-${escapeHTML(riskClass)}" data-operation-id="${escapeHTML(item.operation_id || "")}">
+            <div class="operation-control-row-icon">${operationControlIcon(family)}</div>
+            <div class="operation-control-row-main">
+                <strong title="${escapeHTML(item.operation_type || "")}">${escapeHTML(item.label || item.operation_type || "operacja")}</strong>
+                <span>Target: ${escapeHTML(item.target_label || item.target_id || "-")}</span>
+                <span>Dystans: ${escapeHTML(distance)} · Pozostalo: ${escapeHTML(operationControlTime(item.remaining_seconds))}</span>
+            </div>
+            <div class="operation-control-output">
+                <b>${OPERATION_CONTROL_ICONS.file} ${escapeHTML(output.title)}</b>
+                <span>${escapeHTML(output.detail)}</span>
+            </div>
+            <div class="operation-control-risk">
+                <b>${escapeHTML(operationControlRiskLabel(item))}</b>
+                ${incidentBadge}
+                ${incident.active ? `<span>${escapeHTML(incident.status || "active")} ${incident.arrival_at ? `· ETA ${escapeHTML(String(incident.arrival_at))}` : ""}</span>` : ""}
+            </div>
+            <div class="operation-control-actions">
+                <button type="button" data-operation-control-action="cancel-operation" data-operation-id="${escapeHTML(item.operation_id || "")}" title="${item.can_cancel ? "Anuluj operacje" : "Operacja zakonczona"}" aria-label="Anuluj operacje" ${item.can_cancel ? "" : "disabled data-original-disabled=\"1\""}>${OPERATION_CONTROL_ICONS.cancel}</button>
+            </div>
+        </article>
+    `;
+}
+
+function renderOperationControl(app, state) {
+    const operations = Array.isArray(state.operations) ? state.operations : Array.isArray(state.active_operations) ? state.active_operations : [];
+    const groups = Array.isArray(state.groups) ? state.groups.filter(group => Number(group.count || 0) > 0) : [];
+    const body = operations.length ? `
+        <section class="operation-control-list">
+            ${groups.map(group => renderOperationControlGroup(group, operations)).join("")}
+        </section>
+        ${Array.isArray(state.operation_history) && state.operation_history.length ? `
+            <section class="operation-control-history">
+                <h4>HISTORIA <span>${state.operation_history.length}</span></h4>
+                ${state.operation_history.slice(-8).reverse().map(item => {
+                    const output = operationControlFileLabel(item.output);
+                    return `<div class="operation-control-history-row"><b>${escapeHTML(item.operation_type || item.operation_id || "-")}</b><span>${escapeHTML(output.title)} · ${escapeHTML(item.status || "-")}</span></div>`;
+                }).join("")}
+            </section>
+        ` : ""}
+    ` : `
+        <div class="operation-control-empty">
+            <strong>Brak aktywnych operacji.</strong>
+            <span>Operation Control odswiezy sie po uruchomieniu narzedzia albo recznym odswiezeniu.</span>
+        </div>
+    `;
+    renderOperationControlFrame(app, state, body);
+    bindOperationControlActions(app, state);
+}
+
+function operationControlGroupByFamily(state, family) {
+    const operations = Array.isArray(state.operations) ? state.operations : [];
+    return operations.filter(item => String(item.operation_family || "other") === String(family || "other") && item.can_cancel);
+}
+
+async function cancelOperationControlItem(app, state, item) {
+    const accepted = await showGhostDecisionDialog({
+        title: "ANULOWANIE OPERACJI",
+        message: `Anulowac operacje ${item.operation_type || item.operation_id || "unknown"}?`,
+        details: "Wynik operacji moze zostac utracony, a powiazane ryzyko zostanie przeliczone.",
+        confirmLabel: "ANULUJ OPERACJE",
+        cancelLabel: "WRÓC",
+        tone: "red"
+    });
+    if (!accepted) return;
+    setOperationControlBusy(app, true, "Anuluje operacje...");
+    try {
+        const response = await fetch("/api/ghost-control/operations/cancel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ operation_id: item.operation_id })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) {
+            addSystemMessage("warning", "OPERATION CONTROL", data.message || data.error || "Nie udalo sie anulowac operacji.");
+            return;
+        }
+        if (data.snapshot) Object.assign(state, data.snapshot);
+        addSystemMessage("success", "OPERATION CONTROL", data.message || "Operacja anulowana.");
+        renderOperationControl(app, state);
+    } finally {
+        setOperationControlBusy(app, false);
+    }
+}
+
+async function cancelOperationControlGroup(app, state, family) {
+    const groupItems = operationControlGroupByFamily(state, family);
+    if (!groupItems.length) {
+        addSystemMessage("warning", "OPERATION CONTROL", "Brak aktywnych operacji w tej grupie.");
+        return;
+    }
+    const outputTypes = Array.from(new Set(groupItems.map(item => item?.output?.file_category).filter(Boolean)));
+    const incidentCount = groupItems.filter(item => item?.incident?.active).length;
+    const accepted = await showGhostDecisionDialog({
+        title: "ANULOWANIE GRUPY",
+        message: `Anulowac grupe ${operationControlFamilyLabel(family)} (${groupItems.length} operacji)?`,
+        details: `Output: ${outputTypes.join(", ") || "-"} | Incydenty: ${incidentCount}. Wyniki aktywnych operacji moga zostac utracone.`,
+        confirmLabel: "ANULUJ GRUPE",
+        cancelLabel: "WRÓC",
+        tone: "red"
+    });
+    if (!accepted) return;
+    setOperationControlBusy(app, true, "Anuluje grupe...");
+    try {
+        const response = await fetch("/api/ghost-control/operations/cancel-group", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                operation_family: family,
+                operation_ids: groupItems.map(item => item.operation_id)
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) {
+            addSystemMessage("warning", "OPERATION CONTROL", data.message || data.error || "Nie udalo sie anulowac grupy.");
+            return;
+        }
+        if (data.snapshot) Object.assign(state, data.snapshot);
+        addSystemMessage("success", "OPERATION CONTROL", `Anulowano ${Array.isArray(data.cancelled) ? data.cancelled.length : 0} operacji.`);
+        renderOperationControl(app, state);
+    } finally {
+        setOperationControlBusy(app, false);
+    }
+}
+
+function bindOperationControlActions(app, state) {
+    const root = app.querySelector(".operation-control-shell");
+    if (!root) return;
+    root.querySelectorAll('[data-operation-control-action="cancel-operation"]').forEach(button => {
+        button.addEventListener("click", async () => {
+            const operationId = button.dataset.operationId;
+            const item = (state.operations || []).find(operation => String(operation.operation_id || "") === String(operationId || ""));
+            if (item) await cancelOperationControlItem(app, state, item);
+        });
+    });
+    root.querySelectorAll('[data-operation-control-action="cancel-group"]').forEach(button => {
+        button.addEventListener("click", async () => {
+            await cancelOperationControlGroup(app, state, button.dataset.operationFamily || "other");
+        });
+    });
+}
+
+async function loadOperationControlData(app, state = {}, options = {}) {
+    const shell = app.querySelector(".operation-control-shell");
+    if (!shell) return;
+    if (!options.silent) setOperationControlBusy(app, true, "Pobieram operacje...");
+    if (!shell.dataset.initialized && !options.silent) {
+        shell.dataset.initialized = "1";
+        shell.innerHTML = `
+            <div class="operation-control-loading">
+                <span class="app-button-spinner" aria-hidden="true"></span>
+                <b>Synchronizacja Operation Control...</b>
+            </div>
+        `;
+    }
+    try {
+        const response = await fetch("/api/ghost-control/operations", { headers: { "Accept": "application/json" } });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) {
+            shell.innerHTML = `
+                <div class="operation-control-error">
+                    <strong>Operation Control offline</strong>
+                    <p>${escapeHTML(data.message || data.error || "Nie udalo sie pobrac operacji.")}</p>
+                </div>
+            `;
+            return;
+        }
+        Object.assign(state, data);
+        renderOperationControl(app, state);
+    } catch (error) {
+        console.warn("Operation Control load failed", error);
+        shell.innerHTML = `
+            <div class="operation-control-error">
+                <strong>Operation Control offline</strong>
+                <p>Nie udalo sie polaczyc z endpointem operacji.</p>
+            </div>
+        `;
+    } finally {
+        if (!options.silent) setOperationControlBusy(app, false);
+    }
+}
+
+function createOperationControlApp() {
+    const existing = document.querySelector('.app-window[data-app="operation-control"]');
+    if (existing) {
+        bringWindowToFront(existing);
+        return existing;
+    }
+
+    const app = document.createElement('div');
+    app.className = 'app-window operation-control-window';
+    app.dataset.app = "operation-control";
+    app.dataset.appIcon = OPERATION_CONTROL_ICONS.app;
+    app.dataset.appTitle = "Operation Control";
+    const position = findAvailablePosition(900, 640);
+    app.style.top = `${position.top}px`;
+    app.style.left = `${position.left}px`;
+    app.style.width = `900px`;
+    app.style.height = `640px`;
+    app.innerHTML = `
+        <div class="title-bar">Operation Control <span class="close-btn" style="float:right; cursor:pointer;">✖</span></div>
+        <div class="operation-control-shell"></div>
+    `;
+
+    document.body.appendChild(app);
+    makeDraggable(app);
+    bringWindowToFront(app);
+    app.querySelector('.close-btn')?.addEventListener('click', () => app.remove());
+    const state = {};
+    loadOperationControlData(app, state);
+    return app;
+}
+
+window.createOperationControlApp = createOperationControlApp;
+window.operation_control = createOperationControlApp;
 
 function appHasMapRuntime(appData) {
     if (!appData || typeof appData !== "object") return false;

@@ -9085,3 +9085,89 @@ Walidacja:
 * `node --check static/js/terminal.js`: OK;
 * `python -m py_compile run.py database.py profileManagment.py`: OK;
 * `python -m unittest tests.test_territory_control tests.test_territory_context_reader tests.test_territory_delta`: OK.
+
+## Sprint 107 - Operation Control: backend, pliki i incydenty
+
+Dodano backendowy fundament Operation Control bez budowania finalnego GUI. Nowa
+warstwa korzysta z istniejacego runtime operacji, `summarize_operation_for_client`
+oraz `cancel_profile_operation`, wiec nie powstaje drugi system operacji ani
+drugi mechanizm anulowania.
+
+Wdrozone:
+
+* dodano produkt Googleplex `operationControl` za `20000 HC` w rodzinie
+  `ghost_control_suite`;
+* dodano lekki snapshot `GET /api/ghost-control/operations` oraz alias
+  `/api/pro-system/operation-control`;
+* snapshot rozszerza operacje o rodzine, aktualna pozycje, dystans od motocykla,
+  podsumowanie pliku wynikowego, ryzyko i publiczne powiazanie z incydentem;
+* dodano pojedyncze anulowanie przez
+  `POST /api/ghost-control/operations/cancel`;
+* dodano grupowe anulowanie przez
+  `POST /api/ghost-control/operations/cancel-group` i alias
+  `/api/pro-system/operation-control/cancel-group`;
+* grupowe anulowanie laduje profil raz, odswieza operacje raz, sprawdza rodzine,
+  anuluje istniejacym helperem i zapisuje profil raz;
+* dodano testy regresyjne dla snapshotu, dystansu, outputu, incydentu,
+  read-only endpointu i grupowego anulowania.
+
+Pozostaje poza zakresem:
+
+* finalne okno Operation Control;
+* osobny poller UI;
+* zmiana mechaniki operacji, incydentow i plikow.
+
+Walidacja:
+
+* `python -m unittest tests.test_operation_control`: OK.
+
+## Sprint 107.1 - Operation Control audit po disconnectach
+
+Sprawdzono zakres Sprintu 107 po przerwanych sesjach. Nie znaleziono duplikatow
+endpointow, produktu Googleplex ani pomocniczych helperow. Zmiany pozostaja
+ograniczone do backendu Operation Control, dokumentacji oraz testow.
+
+Domknieto brakujace testy kontraktowe:
+
+* historia operacji zwracana w snapshocie;
+* pojedyncze anulowanie przez istniejacy helper;
+* ponowna walidacja grupowego anulowania i Territory Control.
+
+Walidacja:
+
+* `python -m py_compile run.py database.py profileManagment.py`: OK;
+* `python -m unittest tests.test_operation_control tests.test_territory_control`: OK, 12 testow;
+* `git diff --check`: OK.
+
+## Sprint 108 - Operation Control GUI i Ghost Control Suite
+
+Domknieto finalne okno Operation Control jako trzecia aplikacje rodziny Ghost
+Control Suite. Aplikacja korzysta z backendowego snapshotu i endpointow
+anulowania ze Sprintow 107-107.1, bez drugiego runtime operacji i bez nowego
+ciezkiego pollera.
+
+Wdrozone:
+
+* launcher `operation_control` w systemowym uruchamianiu aplikacji;
+* jedno okno Operation Control z wpisem taskbara i ponownym podnoszeniem
+  istniejacej instancji;
+* naglowek z aktywnymi operacjami, incydentami, grupami i pozycja motocykla;
+* grupowanie po rodzinach operacji z ikonami, outputem i anulowaniem calej
+  grupy;
+* wiersze operacji z targetem, dystansem, czasem, outputem, ryzykiem,
+  incydentem i anulowaniem pojedynczym;
+* stany loading, empty, error, busy oraz mobile safe mode;
+* CSS dopasowany do Victim Picker i Territory Control.
+
+Poza zakresem:
+
+* automatyczny poller Operation Control;
+* zmiany mechaniki operacji, incydentow, plikow albo mapy.
+
+Walidacja:
+
+* `node --check static/js/terminal.js`: OK;
+* `python -m py_compile run.py database.py profileManagment.py`: OK;
+* `python -m unittest tests.test_operation_control tests.test_territory_control`: OK, 12 testow;
+* `git diff --check`: OK, tylko istniejace ostrzezenie CRLF/LF dla
+  `static/css/style.css`.

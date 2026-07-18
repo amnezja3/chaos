@@ -3253,6 +3253,29 @@ PRO_SYSTEM_TOOLS = [
             "logs": ["Territory Control wymaga pulpitu systemowego. Uruchom z ikony aplikacji."]
         }],
     },
+    {
+        "id": "operationControl",
+        "name": "Operation Control",
+        "icon": "\U0001F4DF",
+        "category": "pro-system-tools",
+        "type": "pro-system-tool",
+        "family_id": "ghost_control_suite",
+        "icon_pack": "ghost_control",
+        "description": "Konsola aktywnych operacji, generowanych plikow i incydentow Response Network z kontrola pojedynczego oraz grupowego anulowania.",
+        "price": 20000,
+        "required_level": 1,
+        "required_respect": 0,
+        "allowed_fractions": [],
+        "risk_level": 0,
+        "purchase_account": "admin",
+        "interface": "system_launcher",
+        "system_launcher": "operation_control",
+        "levels": [{
+            "title": "Operation Control",
+            "command": "operation-control --open",
+            "logs": ["Operation Control wymaga pulpitu systemowego. Uruchom z ikony aplikacji."]
+        }],
+    },
 ]
 
 CREATOR_SYSTEM_APPS = [
@@ -9162,6 +9185,370 @@ def summarize_operation_for_client(operation):
     }
 
 
+OPERATION_CONTROL_APP_ID = "operationControl"
+
+OPERATION_CONTROL_TYPE_FAMILIES = {
+    "vehicle_tracking": "gps",
+    "generic_trace": "recon",
+    "device_tracking": "device",
+    "camera_stream": "camera",
+    "camera_shutdown": "camera",
+    "atm_log_extraction": "atm",
+    "persistent_sniffer": "implant",
+    "wifi_scanner": "network",
+    "microphone_sniffer": "audio",
+    "audio_interference": "audio",
+    "vehicle_ecu": "vehicle",
+    "implant_timer": "implant",
+}
+
+OPERATION_CONTROL_RESOURCE_FAMILIES = {
+    "gps_logs": "gps",
+    "location_history": "gps",
+    "gps": "gps",
+    "device_logs": "device",
+    "device": "device",
+    "camera_dump": "camera",
+    "video_material": "camera",
+    "camera": "camera",
+    "audio_transcript": "audio",
+    "audio": "audio",
+    "wifi_networks": "network",
+    "hotspot_database": "network",
+    "network": "network",
+    "atm_dump": "atm",
+    "atm": "atm",
+    "vehicle_diagnostics": "vehicle",
+    "vehicle": "vehicle",
+    "internal_recon_state": "recon",
+    "system": "recon",
+    "credentials": "network",
+    "financial_records": "atm",
+}
+
+OPERATION_CONTROL_OUTPUT_DEFAULTS = {
+    "vehicle_tracking": "gps",
+    "generic_trace": "system",
+    "device_tracking": "device",
+    "camera_stream": "camera",
+    "camera_shutdown": "camera",
+    "atm_log_extraction": "atm",
+    "persistent_sniffer": "credentials",
+    "wifi_scanner": "network",
+    "microphone_sniffer": "audio",
+    "audio_interference": "audio",
+    "vehicle_ecu": "vehicle",
+    "implant_timer": "system",
+}
+
+
+def operation_control_app_installed(profile):
+    return app_is_installed(profile or {}, OPERATION_CONTROL_APP_ID)
+
+
+def operation_control_load_profile(username, strip_sensitive=True):
+    return load_profile_readonly(
+        username,
+        strip_sensitive=strip_sensitive,
+        normalize_apps=True,
+        normalize_files=False,
+    )
+
+
+def operation_control_forbidden_response():
+    return jsonify({
+        "success": False,
+        "error": "operation_control_not_installed",
+        "message": "Operation Control nie jest zainstalowany.",
+    }), 403
+
+
+def operation_control_unique(values):
+    seen = set()
+    result = []
+    for value in values or []:
+        value = str(value or "").strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
+def operation_control_resource_types(operation):
+    resources = []
+    direct = operation.get("resource_types")
+    if isinstance(direct, list):
+        resources.extend(direct)
+    elif direct:
+        resources.append(direct)
+
+    resource_buffer = operation.get("resource_buffer") if isinstance(operation.get("resource_buffer"), dict) else {}
+    buffered = resource_buffer.get("resource_types")
+    if isinstance(buffered, list):
+        resources.extend(buffered)
+    elif buffered:
+        resources.append(buffered)
+
+    for item in resource_buffer.get("files", []) or []:
+        if not isinstance(item, dict):
+            continue
+        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        for key in ("resource_type", "category", "file_category"):
+            if item.get(key):
+                resources.append(item.get(key))
+            if metadata.get(key):
+                resources.append(metadata.get(key))
+        for key in ("resource_types", "resources"):
+            value = item.get(key)
+            if isinstance(value, list):
+                resources.extend(value)
+            value = metadata.get(key)
+            if isinstance(value, list):
+                resources.extend(value)
+
+    return operation_control_unique(resources)
+
+
+def operation_control_family(operation):
+    operation_type = str(operation.get("operation_type") or "").strip()
+    if operation_type in OPERATION_CONTROL_TYPE_FAMILIES:
+        return OPERATION_CONTROL_TYPE_FAMILIES[operation_type]
+
+    map_action_id = str(operation.get("map_action_id") or "").strip()
+    if map_action_id in OPERATION_CONTROL_TYPE_FAMILIES:
+        return OPERATION_CONTROL_TYPE_FAMILIES[map_action_id]
+
+    for resource in operation_control_resource_types(operation):
+        family = OPERATION_CONTROL_RESOURCE_FAMILIES.get(resource)
+        if family:
+            return family
+    return "other"
+
+
+def operation_control_position(operation):
+    current_position = operation.get("current_position")
+    if not isinstance(current_position, dict):
+        current_position = {}
+    try:
+        return {
+            "lat": round(float(current_position.get("lat")), 7),
+            "lng": round(float(current_position.get("lng", current_position.get("lon"))), 7),
+        }
+    except (TypeError, ValueError):
+        return None
+
+
+def operation_control_distance_from_bike(position, origin):
+    if not isinstance(position, dict) or not isinstance(origin, dict):
+        return None, False
+    try:
+        distance = Haversine.haversine_distance(
+            float(origin.get("lat")),
+            float(origin.get("lng", origin.get("lon"))),
+            float(position.get("lat")),
+            float(position.get("lng", position.get("lon"))),
+        )
+    except (TypeError, ValueError):
+        return None, False
+    return int(round(distance)), True
+
+
+def operation_control_output_summary(operation):
+    operation_type = str(operation.get("operation_type") or "").strip()
+    resource_buffer = operation.get("resource_buffer") if isinstance(operation.get("resource_buffer"), dict) else {}
+    files = [item for item in (resource_buffer.get("files", []) or []) if isinstance(item, dict)]
+    first_file = files[0] if files else {}
+    first_metadata = first_file.get("metadata") if isinstance(first_file.get("metadata"), dict) else {}
+
+    file_category = (
+        first_file.get("file_category")
+        or first_file.get("category")
+        or first_file.get("folder")
+        or first_metadata.get("file_category")
+        or first_metadata.get("category")
+        or OPERATION_CONTROL_OUTPUT_DEFAULTS.get(operation_type)
+        or "system"
+    )
+    defaults = FILE_CATEGORY_DEFAULTS.get(str(file_category), FILE_CATEGORY_DEFAULTS["system"])
+    directory = (
+        first_file.get("directory")
+        or first_file.get("path")
+        or first_metadata.get("directory")
+        or first_metadata.get("path")
+        or defaults.get("directory")
+    )
+    preview_mode = (
+        first_file.get("preview_mode")
+        or first_metadata.get("preview_mode")
+        or defaults.get("preview_mode")
+    )
+    resource_types = operation_control_resource_types(operation) or defaults.get("resource_types", [])
+    expected_size_mb = operation_output_size_mb(operation)
+    if not expected_size_mb:
+        expected_size_mb = clamp_storage_number(
+            operation.get("expected_size_mb")
+            or resource_buffer.get("expected_size_mb")
+            or first_file.get("file_size")
+            or first_metadata.get("file_size"),
+            default=0,
+            minimum=0,
+        )
+
+    if resource_buffer.get("cancelled") or operation.get("status") == "cancelled":
+        output_status = "cancelled"
+    elif files:
+        output_status = "created"
+    elif operation.get("status") in OPERATION_ACTIVE_STATUSES:
+        output_status = "pending"
+    else:
+        output_status = "empty"
+
+    return {
+        "file_category": str(file_category),
+        "resource_types": operation_control_unique(resource_types),
+        "directory": directory,
+        "preview_mode": preview_mode,
+        "expected_size_mb": expected_size_mb,
+        "output_status": output_status,
+        "file_count": len(files),
+    }
+
+
+def operation_control_incident_summary(operation):
+    risk_meter = operation.get("operation_risk_meter") if isinstance(operation.get("operation_risk_meter"), dict) else {}
+    incident_id = risk_meter.get("incident_id")
+    incident = None
+    if incident_id:
+        try:
+            incident = incident_store.get(incident_id)
+        except Exception:
+            incident = None
+    incident = incident if isinstance(incident, dict) else {}
+    status = incident.get("status") or risk_meter.get("incident_status")
+    active = bool(incident_id and str(status or "active") not in {"resolved", "cancelled", "expired"})
+    response_units = (
+        incident.get("response_units")
+        or incident.get("public_response_units")
+        or risk_meter.get("response_units")
+        or []
+    )
+    return {
+        "active": active,
+        "incident_id": incident_id,
+        "level": incident.get("level") or incident.get("severity") or risk_meter.get("incident_level"),
+        "status": status,
+        "warning": bool(risk_meter.get("warning_crossed") or risk_meter.get("warning_id")),
+        "arrival_at": risk_meter.get("warning_arrival_at") or incident.get("arrival_at"),
+        "response_units": response_units,
+    }
+
+
+def operation_control_risk_summary(operation):
+    summary = summarize_operation_for_client(operation)
+    risk_meter = summary.get("operation_risk_meter") or {}
+    risk_state = summary.get("risk_state") or {}
+    return {
+        "level": risk_state.get("level") or risk_meter.get("risk_level") or operation.get("risk_level"),
+        "score": risk_state.get("score"),
+        "current_heat": risk_meter.get("current_heat"),
+        "active_contribution": risk_meter.get("active_contribution"),
+        "warning_threshold": risk_meter.get("warning_threshold"),
+        "incident_threshold": risk_meter.get("incident_threshold"),
+        "warning_crossed": risk_meter.get("warning_crossed"),
+        "incident_crossed": risk_meter.get("incident_crossed"),
+    }
+
+
+def summarize_operation_control_item(operation, profile=None):
+    base = summarize_operation_for_client(operation)
+    profile = profile if isinstance(profile, dict) else {}
+    target = base.get("target") if isinstance(base.get("target"), dict) else {}
+    position = operation_control_position(operation)
+    origin = victim_picker_position(profile)
+    distance, distance_available = operation_control_distance_from_bike(position, origin)
+    can_cancel = operation.get("status") in OPERATION_ACTIVE_STATUSES
+    disabled_reason = None
+    if not can_cancel:
+        disabled_reason = "already_terminal" if operation.get("status") in OPERATION_TERMINAL_STATUSES else "not_active"
+
+    return {
+        **base,
+        "operation_family": operation_control_family(operation),
+        "target_id": base.get("target_id") or target.get("target_id"),
+        "target_label": target.get("label") or target.get("name") or base.get("target_id"),
+        "position": position,
+        "distance_from_bike": distance,
+        "distance_available": distance_available,
+        "risk": operation_control_risk_summary(operation),
+        "incident": operation_control_incident_summary(operation),
+        "output": operation_control_output_summary(operation),
+        "can_cancel": can_cancel,
+        "disabled_reason": disabled_reason,
+    }
+
+
+def build_operation_control_snapshot(username, profile, operations=None):
+    profile = profile if isinstance(profile, dict) else {}
+    if operations is None:
+        operations, _ = refresh_operations_runtime(profile, persist_timeouts=False, username=username)
+    active_operations = active_operations_from_operations(operations)
+    operation_history = operation_history_from_operations(operations)
+    active_items = [summarize_operation_control_item(operation, profile=profile) for operation in active_operations]
+    history_items = [summarize_operation_control_item(operation, profile=profile) for operation in operation_history[-25:]]
+
+    groups_by_family = {}
+    for item in active_items:
+        family = item.get("operation_family") or "other"
+        group = groups_by_family.setdefault(family, {
+            "operation_family": family,
+            "count": 0,
+            "operation_ids": [],
+            "output_types": set(),
+            "incident_count": 0,
+        })
+        group["count"] += 1
+        group["operation_ids"].append(item.get("operation_id"))
+        output = item.get("output") if isinstance(item.get("output"), dict) else {}
+        if output.get("file_category"):
+            group["output_types"].add(output.get("file_category"))
+        incident = item.get("incident") if isinstance(item.get("incident"), dict) else {}
+        if incident.get("active"):
+            group["incident_count"] += 1
+
+    groups = []
+    for group in groups_by_family.values():
+        groups.append({
+            **group,
+            "output_types": sorted(group["output_types"]),
+        })
+    groups.sort(key=lambda item: (-item.get("count", 0), item.get("operation_family", "")))
+
+    return {
+        "success": True,
+        "ok": True,
+        "scope": "operation_control",
+        "position": victim_picker_position(profile),
+        "active_count": len(active_items),
+        "history_count": len(operation_history),
+        "incident_count": sum(1 for item in active_items if (item.get("incident") or {}).get("active")),
+        "groups": groups,
+        "operations": active_items,
+        "active_operations": active_items,
+        "operation_history": history_items,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+
+
+def persist_operation_control_profile(username, profile):
+    UserProfileManager(username).update_profile({
+        "operations": profile.get("operations", []),
+        "files": profile.get("files", {}),
+        "risk_events": profile.get("risk_events", []),
+        "system_messages": profile.get("system_messages", []),
+    })
+
+
 def cancel_profile_operation(profile, operation_id, cancelled_by="player", now_ts=None):
     if not operation_id:
         return None, "missing_operation_id"
@@ -14733,6 +15120,184 @@ def api_cancel_operation():
         "operations": operations,
         "active_operations": active_operations_from_operations(operations),
         "operation_history": operation_history_from_operations(operations),
+    })
+
+
+@app.route("/api/ghost-control/operations")
+@app.route("/api/pro-system/operation-control")
+def operation_control_snapshot():
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+
+    username = session["user"]
+    profile = operation_control_load_profile(username, strip_sensitive=True)
+    if not profile:
+        session.clear()
+        return jsonify({"success": False, "error": "profile_not_found"}), 401
+    if not operation_control_app_installed(profile):
+        return operation_control_forbidden_response()
+
+    profile = refresh_and_persist_operations(username, profile)
+    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False, username=username)
+    return jsonify(build_operation_control_snapshot(username, profile, operations=operations))
+
+
+@app.route("/api/ghost-control/operations/cancel", methods=["POST"])
+@app.route("/api/pro-system/operation-control/cancel", methods=["POST"])
+def operation_control_cancel():
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+
+    username = session["user"]
+    data = request.get_json(silent=True) or {}
+    operation_id = str(data.get("operation_id") or "").strip()
+    if not operation_id:
+        return jsonify({"success": False, "error": "missing_operation_id"}), 400
+
+    profile = sync_session_profile(rebuild_territory=False)
+    if not profile:
+        return jsonify({"success": False, "error": "profile_not_found"}), 404
+    if not operation_control_app_installed(profile):
+        return operation_control_forbidden_response()
+
+    refresh_operations_runtime(profile, persist_timeouts=True, username=username)
+    operation, result = cancel_profile_operation(profile, operation_id, cancelled_by=username)
+    if result == "not_found":
+        return jsonify({"success": False, "error": "not_found", "message": "Nie znaleziono operacji."}), 404
+    if result in {"already_terminal", "not_active"}:
+        return jsonify({
+            "success": False,
+            "error": result,
+            "message": "Operacja nie jest juz aktywna.",
+            "operation": summarize_operation_control_item(operation, profile=profile) if operation else None,
+        }), 409
+    if result != "cancelled":
+        return jsonify({"success": False, "error": result or "cancel_failed"}), 409
+
+    persist_operation_control_profile(username, profile)
+    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False, username=username)
+    snapshot = build_operation_control_snapshot(username, profile, operations=operations)
+    return jsonify({
+        "success": True,
+        "ok": True,
+        "message": "Operacja zostala anulowana.",
+        "result": result,
+        "operation": summarize_operation_control_item(operation, profile=profile),
+        "snapshot": snapshot,
+        "remaining_active": snapshot.get("active_count", 0),
+    })
+
+
+@app.route("/api/ghost-control/operations/cancel-group", methods=["POST"])
+@app.route("/api/pro-system/operation-control/cancel-group", methods=["POST"])
+def operation_control_cancel_group():
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+
+    username = session["user"]
+    data = request.get_json(silent=True) or {}
+    requested_family = str(data.get("operation_family") or "").strip().lower()
+    operation_ids = data.get("operation_ids")
+    if not isinstance(operation_ids, list):
+        return jsonify({"success": False, "error": "invalid_operation_ids"}), 400
+    operation_ids = [str(item or "").strip() for item in operation_ids if str(item or "").strip()]
+    if not operation_ids:
+        return jsonify({"success": False, "error": "empty_operation_ids"}), 400
+
+    profile = sync_session_profile(rebuild_territory=False)
+    if not profile:
+        return jsonify({"success": False, "error": "profile_not_found"}), 404
+    if not operation_control_app_installed(profile):
+        return operation_control_forbidden_response()
+
+    operations, _ = refresh_operations_runtime(profile, persist_timeouts=True, username=username)
+    operation_map = {
+        str(operation.get("operation_id") or ""): operation
+        for operation in operations or []
+        if isinstance(operation, dict) and operation.get("operation_id")
+    }
+    now_ts = datetime.now(timezone.utc).timestamp()
+    results = []
+    cancelled = []
+    already_terminal = []
+    not_found = []
+    failed = []
+
+    for operation_id in operation_ids:
+        operation = operation_map.get(operation_id)
+        if not operation:
+            item = {"operation_id": operation_id, "status": "not_found"}
+            results.append(item)
+            not_found.append(operation_id)
+            continue
+
+        family = operation_control_family(operation)
+        if requested_family and family != requested_family:
+            item = {
+                "operation_id": operation_id,
+                "status": "failed",
+                "reason": "family_mismatch",
+                "operation_family": family,
+            }
+            results.append(item)
+            failed.append(item)
+            continue
+
+        if operation.get("status") in OPERATION_TERMINAL_STATUSES:
+            item = {
+                "operation_id": operation_id,
+                "status": "already_terminal",
+                "operation_family": family,
+            }
+            results.append(item)
+            already_terminal.append(operation_id)
+            continue
+
+        _, result = cancel_profile_operation(profile, operation_id, cancelled_by=username, now_ts=now_ts)
+        if result == "cancelled":
+            item = {
+                "operation_id": operation_id,
+                "status": "cancelled",
+                "operation_family": family,
+            }
+            results.append(item)
+            cancelled.append(operation_id)
+        elif result == "already_terminal":
+            item = {
+                "operation_id": operation_id,
+                "status": "already_terminal",
+                "operation_family": family,
+            }
+            results.append(item)
+            already_terminal.append(operation_id)
+        elif result == "not_found":
+            item = {"operation_id": operation_id, "status": "not_found"}
+            results.append(item)
+            not_found.append(operation_id)
+        else:
+            item = {
+                "operation_id": operation_id,
+                "status": "failed",
+                "reason": result or "cancel_failed",
+                "operation_family": family,
+            }
+            results.append(item)
+            failed.append(item)
+
+    persist_operation_control_profile(username, profile)
+    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False, username=username)
+    snapshot = build_operation_control_snapshot(username, profile, operations=operations)
+    return jsonify({
+        "success": True,
+        "ok": True,
+        "operation_family": requested_family or None,
+        "results": results,
+        "cancelled": cancelled,
+        "already_terminal": already_terminal,
+        "not_found": not_found,
+        "failed": failed,
+        "remaining_active": snapshot.get("active_count", 0),
+        "snapshot": snapshot,
     })
 
 
