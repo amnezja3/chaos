@@ -4552,6 +4552,25 @@ form button:hover {
   color: #8ca891;
 }
 
+.victim-picker-row.risk-safe {
+  border-color: rgba(53, 255, 120, 0.42);
+  background: linear-gradient(90deg, rgba(0, 80, 38, 0.18), rgba(0, 26, 11, 0.82));
+}
+
+.victim-picker-row.risk-warning {
+  border-color: rgba(255, 175, 48, 0.58);
+  background: linear-gradient(90deg, rgba(255, 168, 36, 0.16), rgba(0, 26, 11, 0.82));
+}
+
+.victim-picker-row.risk-danger {
+  border-color: rgba(255, 62, 62, 0.72);
+  background: linear-gradient(90deg, rgba(255, 35, 35, 0.18), rgba(0, 26, 11, 0.82));
+}
+
+.victim-picker-row.risk-unknown {
+  border-color: rgba(140, 168, 145, 0.38);
+}
+
 .victim-picker-kind,
 .victim-picker-state {
   width: 34px;
@@ -4588,6 +4607,30 @@ form button:hover {
   color: #ffd35b;
 }
 
+.victim-picker-risk {
+  width: max-content;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 0.68rem !important;
+}
+
+.victim-picker-row.risk-safe .victim-picker-risk {
+  color: #35ff78;
+}
+
+.victim-picker-row.risk-warning .victim-picker-risk {
+  color: #ffb13b;
+}
+
+.victim-picker-row.risk-danger .victim-picker-risk {
+  color: #ff5a5a;
+}
+
+.victim-picker-row.risk-unknown .victim-picker-risk {
+  color: #8ca891;
+}
+
 .victim-picker-badge-cel {
   width: max-content;
   padding: 1px 5px;
@@ -4605,6 +4648,18 @@ form button:hover {
 .victim-picker-row.out-of-range .victim-picker-state,
 .victim-picker-row.is-disabled .victim-picker-state {
   color: #ffcf4a;
+}
+
+.victim-picker-row.risk-safe .victim-picker-state {
+  color: #35ff78;
+}
+
+.victim-picker-row.risk-warning .victim-picker-state {
+  color: #ffb13b;
+}
+
+.victim-picker-row.risk-danger .victim-picker-state {
+  color: #ff5a5a;
 }
 
 .victim-picker-actions {

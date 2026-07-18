@@ -11045,7 +11045,6 @@ def build_victim_picker_candidate(viewer_profile, raw_target, candidate_source, 
         can_aim = False
         reason = reason or "missing_player_position"
     elif not in_range:
-        can_aim = False
         reason = reason or "out_of_range"
 
     aimed = (viewer_profile or {}).get("aimed_target") or {}
@@ -11073,8 +11072,8 @@ def build_victim_picker_candidate(viewer_profile, raw_target, candidate_source, 
         "distance_m": distance_m,
         "action_range_m": action_range,
         "in_range": in_range,
-        "can_aim": bool(can_aim and in_range),
-        "disabled_reason": "" if can_aim and in_range else reason,
+        "can_aim": bool(can_aim),
+        "disabled_reason": "" if can_aim else reason,
         "is_aimed": bool(is_aimed),
         "focus": focus,
         "teleport": teleport,

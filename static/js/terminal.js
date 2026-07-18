@@ -3021,14 +3021,14 @@ const VICTIM_PICKER_SOURCE_LABELS = {
 };
 
 const VICTIM_PICKER_REASON_LABELS = {
-    out_of_range: "Poza zasiegiem",
+    out_of_range: "Daleki cel",
     missing_position: "Brak pozycji celu",
     missing_player_position: "Brak pozycji motocykla",
     own_vulnerability: "Wlasne zgloszenie podatnosci"
 };
 
 const VICTIM_PICKER_REASON_BADGES = {
-    out_of_range: "POZA ZASIEGIEM",
+    out_of_range: "DALEKI CEL",
     missing_position: "BRAK POZYCJI",
     missing_player_position: "BRAK MOTOCYKLA",
     own_vulnerability: "WLASNA PODATNOSC",
@@ -3067,11 +3067,54 @@ function getVictimPickerReasonBadge(candidate) {
     return VICTIM_PICKER_REASON_BADGES[reason] || "NIEDOSTEPNY";
 }
 
+function getVictimPickerRisk(candidate, actionRange) {
+    const distance = Number(candidate?.distance_m);
+    const range = Number(candidate?.action_range_m ?? actionRange);
+    if (!Number.isFinite(distance)) {
+        return {
+            key: "unknown",
+            className: "risk-unknown",
+            label: "RYZYKO NIEZNANE",
+            title: "Brak dystansu celu"
+        };
+    }
+    if (!Number.isFinite(range) || range <= 0) {
+        return {
+            key: "safe",
+            className: "risk-safe",
+            label: "ZDALNY CEL",
+            title: "Cel jest oznaczony i moze byc atakowany zdalnie"
+        };
+    }
+    const dangerLimit = Math.max(180, Math.min(650, range * 0.35));
+    if (distance <= dangerLimit) {
+        return {
+            key: "danger",
+            className: "risk-danger",
+            label: "GORACY CEL",
+            title: "Bardzo blisko motocykla: wysokie ryzyko namierzenia"
+        };
+    }
+    if (distance <= range) {
+        return {
+            key: "warning",
+            className: "risk-warning",
+            label: "BLISKI CEL",
+            title: "Blisko motocykla: podwyzszone ryzyko reakcji"
+        };
+    }
+    return {
+        key: "safe",
+        className: "risk-safe",
+        label: "DALEKI CEL",
+        title: "Poza bezposrednim zasiegiem reakcji: bezpieczniejszy cel"
+    };
+}
+
 function getVictimPickerCandidateIcon(candidate) {
     if (candidate?.is_aimed) return VICTIM_PICKER_ICONS.aimed;
     if (!candidate?.can_aim) return VICTIM_PICKER_ICONS.locked;
-    if (candidate?.in_range) return VICTIM_PICKER_ICONS.inRange;
-    return VICTIM_PICKER_ICONS.outOfRange;
+    return candidate?.in_range ? VICTIM_PICKER_ICONS.inRange : VICTIM_PICKER_ICONS.aim;
 }
 
 function groupVictimPickerCandidates(candidates) {
@@ -3525,10 +3568,12 @@ function renderVictimPickerVictims(app, state) {
                 ${items.map(candidate => {
                     const reason = getVictimPickerReason(candidate);
                     const reasonBadge = getVictimPickerReasonBadge(candidate);
+                    const risk = getVictimPickerRisk(candidate, state.action_range_m);
                     const classes = [
                         "victim-picker-row",
                         candidate.is_aimed ? "is-aimed" : "",
                         candidate.in_range ? "in-range" : "out-of-range",
+                        risk.className,
                         candidate.can_aim ? "" : "is-disabled"
                     ].filter(Boolean).join(" ");
                     return `
@@ -3537,10 +3582,10 @@ function renderVictimPickerVictims(app, state) {
                             <div class="victim-picker-copy">
                                 <strong title="${escapeHTML(candidate.label || "")}">${escapeHTML(candidate.label || "unknown")}</strong>
                                 <span>${escapeHTML(candidate.target_mode || "standard")} / ${escapeHTML(formatVictimPickerDistance(candidate.distance_m))}</span>
-                                ${reasonBadge ? `<em title="${escapeHTML(reason)}">${escapeHTML(reasonBadge)}</em>` : ""}
+                                <em class="victim-picker-risk" title="${escapeHTML(risk.title)}">${escapeHTML(candidate.can_aim ? risk.label : (reasonBadge || risk.label))}</em>
                                 ${candidate.is_aimed ? `<em class="victim-picker-badge-cel">CEL</em>` : ""}
                             </div>
-                            <div class="victim-picker-state" title="${candidate.is_aimed ? "Aktywny CEL" : candidate.in_range ? "W zasiegu" : "Poza zasiegiem"}">${getVictimPickerCandidateIcon(candidate)}</div>
+                            <div class="victim-picker-state" title="${candidate.is_aimed ? "Aktywny CEL" : candidate.can_aim ? risk.title : escapeHTML(reason || "Niedostepny")}">${getVictimPickerCandidateIcon(candidate)}</div>
                             <div class="victim-picker-actions">
                                 <button type="button" data-victim-picker-action="aim" data-target-id="${escapeHTML(candidate.target_id || "")}" title="${candidate.can_aim ? (candidate.is_aimed ? "Aktualny CEL" : "Oznacz jako CEL") : escapeHTML(reason || "Niedostepny")}" aria-label="${candidate.is_aimed ? "Aktualny CEL" : "Oznacz jako CEL"}" ${candidate.can_aim && !candidate.is_aimed ? "" : "disabled data-original-disabled=\"1\""}>${candidate.is_aimed ? VICTIM_PICKER_ICONS.aimed : VICTIM_PICKER_ICONS.aim}</button>
                                 <button type="button" data-victim-picker-action="show-map" data-target-id="${escapeHTML(candidate.target_id || "")}" title="Pokaz na mapie" aria-label="Pokaz na mapie">${VICTIM_PICKER_ICONS.map}</button>
