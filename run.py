@@ -3212,9 +3212,11 @@ PRO_SYSTEM_TOOLS = [
     {
         "id": "victimPicker",
         "name": "Victim Picker",
-        "icon": "\U0001F3AF",
+        "icon": "\u2316",
         "category": "pro-system-tools",
         "type": "pro-system-tool",
+        "family_id": "ghost_control_suite",
+        "icon_pack": "ghost_control",
         "description": "Lekki selektor celow z istniejacych zrodel mapy: oznaczone POI, gracze, podatnosci i konflikty.",
         "price": 100000,
         "required_level": 1,

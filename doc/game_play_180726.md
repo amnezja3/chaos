@@ -1293,3 +1293,61 @@ Wdrozone:
 
 Poza zakresem pozostaje automatyczny poller Operation Control. Aplikacja odswieza
 sie przy otwarciu, recznym odswiezeniu i po akcjach anulowania.
+
+---
+
+# Sprint 109 - Ghost Control Suite Polish
+
+## Cel gameplayowy
+
+Dopolerowac wspolne UI aplikacji Ghost Control Suite bez zmiany ich mechaniki.
+
+Zakres dotyczy tylko warstwy prezentacji Victim Picker, Territory Control i
+Operation Control.
+
+## Zakres
+
+1. Victim Picker ma dostac unikalna ikone rodziny Ghost Control Suite.
+2. Stara ikona Victim Pickera nie moze kolidowac ze standardowymi aplikacjami.
+3. Okna Victim Picker, Territory Control i Operation Control maja miec widoczny
+   resize corner na desktopie.
+4. Mobile safe mode nie korzysta z natywnego resize okien.
+5. Ikony akcji zatrzymujacych, anulujacych albo kasujacych maja byc
+   pomaranczowe albo czerwone.
+6. Nie zmieniac endpointow, danych ani gameplayu aplikacji.
+
+## Kryteria akceptacji
+
+* Victim Picker ma odrebna ikone od standardowych narzedzi.
+* Trzy okna Ghost Control Suite mozna rozciagac na desktopie.
+* Destrukcyjne akcje sa wizualnie alarmowe.
+* Mobile nie dostaje regresji resize.
+* Dokumentacja i dziennik sa zaktualizowane.
+
+
+GhostNetwork — audyt integracyjny i kontrakt domeny
+GhostNetwork — fundament modułu i repozytorium stanu
+GhostNetwork — katalog klanów, maszyn, profesji i części
+GhostNetwork — cykle, wersje systemu i 20 części
+GhostNetwork — topologia zamkniętego obwodu
+GhostNetwork — rezerwacja części przy oznaczaniu celu
+GhostNetwork — emisja części po skutecznym hacku
+GhostNetwork — lifecycle części i zdarzenia domenowe
+GhostNetwork — integracja z terytoriami
+GhostNetwork — neutralne, blokowane i aktywne moduły
+GhostNetwork — widoczność danych i projekcje odbiorców
+GhostNetwork — markery części i warstwa mapy
+GhostNetwork — połowy linii, pełne połączenia i animacje
+GhostNetwork — delty, snapshot i recovery
+GhostNetwork — supermoce profesji i rejestr efektów
+GhostNetwork — wkład graczy, RSP i reputacja klanowa
+GhostNetwork — obrona, odbicia i zabezpieczenia nagród
+GhostNetwork — domknięcie sieci i blokada cyklu
+GhostNetwork — transmisja GhostSignalu i restart systemu
+GhostNetwork — BlackNet, Cyberner, Radio i narracyjny outbox
+GhostNetwork — archiwum, testy końcowe i uruchomienie endgame
+GhostNetwork Suite — audyt widoczności części i integracja z Territory Control
+GhostNetwork Suite — lekki snapshot części, właścicieli i stanów terytorialnych
+GhostNetwork Suite — lista części publicznych, blokowanych i aktywnych
+GhostNetwork Suite — mapa na żądanie, teleport i oznaczenia klastrów z komponentami
+GhostNetwork Suite — GUI desktopowe, delty, recovery i regresja całej Ghost Control Suite

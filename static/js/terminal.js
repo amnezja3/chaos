@@ -1120,7 +1120,7 @@ async function buildIconsFromJsonWithCommand(jsonData) {
         try {
             const action = () => launchApplicationEffect(app);
             icons.push({
-                icon: app.icon || '\u2753',
+                icon: getLauncherAppIcon(app),
                 label: name,
                 action
             });
@@ -1131,6 +1131,16 @@ async function buildIconsFromJsonWithCommand(jsonData) {
     }
 
     return icons;
+}
+
+function getLauncherAppIcon(app = {}) {
+    const id = String(app.id || app.app_id || "").toLowerCase();
+    const name = String(app.name || "").toLowerCase();
+    const launcher = String(app.system_launcher || "").toLowerCase();
+    if (id === "victimpicker" || name === "victim picker" || launcher === "createvictimpickerapp") {
+        return "\u2316";
+    }
+    return app.icon || '\u2753';
 }
 
 

@@ -9171,3 +9171,24 @@ Walidacja:
 * `python -m unittest tests.test_operation_control tests.test_territory_control`: OK, 12 testow;
 * `git diff --check`: OK, tylko istniejace ostrzezenie CRLF/LF dla
   `static/css/style.css`.
+
+## Sprint 109 - Ghost Control Suite polish
+
+Domknieto drobny UX polish rodziny Victim Picker / Territory Control /
+Operation Control.
+
+Wdrozone:
+
+* Victim Picker dostal unikalna ikone `⌖` w katalogu produktu i w renderowaniu
+  ikon istniejących instalacji;
+* Victim Picker zostal dopiety do rodziny `ghost_control_suite`;
+* okna Victim Picker, Territory Control i Operation Control dostaly desktopowy
+  resize corner;
+* mobile safe mode wylacza natywny resize dla tych okien;
+* akcje kasujace, porzucajace i anulujace sa pomaranczowo-czerwone, z osobnym
+  hoverem alarmowym.
+
+Poza zakresem:
+
+* zmiana mechaniki skanu, terytoriow, operacji i incydentow;
+* nowe endpointy albo nowe magazyny danych.
