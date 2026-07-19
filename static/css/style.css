@@ -5377,6 +5377,8 @@ form button:hover {
   flex-direction: column;
   gap: 8px;
   padding: 10px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .operation-control-group.family-gps {
@@ -5394,9 +5396,10 @@ form button:hover {
 
 .operation-control-group-head {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(130px, auto) auto;
+  grid-template-columns: minmax(150px, 1fr) minmax(92px, auto) 42px;
   gap: 8px;
   align-items: center;
+  min-width: 0;
 }
 
 .operation-control-group-title {
@@ -5453,10 +5456,11 @@ form button:hover {
 
 .operation-control-row {
   display: grid;
-  grid-template-columns: 38px minmax(165px, 1fr) minmax(135px, 0.72fr) minmax(125px, 0.7fr) auto;
-  gap: 10px;
+  grid-template-columns: 34px minmax(145px, 1fr) minmax(110px, 0.62fr) minmax(104px, 0.58fr) 42px;
+  gap: 8px;
   align-items: center;
   padding: 9px;
+  min-width: 0;
 }
 
 .operation-control-row.risk-safe {
@@ -5518,6 +5522,7 @@ form button:hover {
 .operation-control-actions {
   display: flex;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .operation-control-history {
