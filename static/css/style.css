@@ -5368,7 +5368,8 @@ form button:hover {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding-right: 4px;
 }
 
@@ -5378,7 +5379,7 @@ form button:hover {
   gap: 8px;
   padding: 10px;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .operation-control-group.family-gps {
