@@ -189,6 +189,100 @@ class TerritoryControlTest(unittest.TestCase):
         finally:
             self._cleanup(path)
 
+    def test_partial_encirclement_does_not_capture_defender_cluster(self):
+        path = self._temp_db()
+        try:
+            store = TerritoryStore(db_path=str(path))
+            conflict_store = TerritoryConflictStore(db_path=str(path))
+            for target in [
+                captured("A1", 52.0, 21.0),
+                captured("A2", 52.0018, 21.0),
+                captured("A3", 52.0018, 21.0018),
+                captured("A4", 52.0, 21.0018),
+            ]:
+                store.save_captured_target("alice", target)
+            for target in [
+                captured("B1", 52.0006, 21.0006),
+                captured("B2", 52.0010, 21.0006),
+                captured("B3", 52.0022, 21.0010),
+            ]:
+                store.save_captured_target("bob", target)
+            store.rebuild_player_areas("alice", player_level=3)
+            store.rebuild_player_areas("bob", player_level=3)
+
+            with patch.object(run, "record_territory_areas_delta", return_value=[]), \
+                    patch.object(run, "record_territory_encirclement_delta", return_value=[]):
+                resolver = run.TerritoryEncirclementResolver(store, conflict_store)
+                resolved = resolver.detect_encircled_clusters(apply=True, actor_username="alice")
+
+            self.assertEqual(resolved, [])
+            self.assertEqual({target["label"] for target in store.list_captured_targets("bob")}, {"B1", "B2", "B3"})
+            self.assertFalse({"B1", "B2", "B3"} & {target["label"] for target in store.list_captured_targets("alice")})
+        finally:
+            self._cleanup(path)
+
+    def test_full_encirclement_transfers_cluster_members_and_preserves_outside_points(self):
+        path = self._temp_db()
+        try:
+            store = TerritoryStore(db_path=str(path))
+            conflict_store = TerritoryConflictStore(db_path=str(path))
+            for target in [
+                captured("A1", 52.0, 21.0),
+                captured("A2", 52.0018, 21.0),
+                captured("A3", 52.0018, 21.0018),
+                captured("A4", 52.0, 21.0018),
+            ]:
+                store.save_captured_target("alice", target)
+            for target in [
+                captured("B1", 52.0006, 21.0006),
+                captured("B2", 52.0010, 21.0006),
+                captured("B3", 52.0008, 21.0010),
+                captured("B-inner", 52.0008, 21.00075),
+                captured("B-outside", 52.01, 21.01),
+            ]:
+                store.save_captured_target("bob", target)
+            store.rebuild_player_areas("alice", player_level=3)
+            store.rebuild_player_areas("bob", player_level=3)
+            attacker_area = store.list_player_areas("alice")[0]
+            defender_area = store.list_player_areas("bob")[0]
+            conflict_store.upsert_conflict({
+                "conflict_key": "alice-bob-test",
+                "participants": ["alice", "bob"],
+                "area_ids": [attacker_area["id"], defender_area["id"]],
+                "targets": [],
+                "status": "active",
+            })
+
+            with patch.object(run, "record_territory_areas_delta", return_value=[]), \
+                    patch.object(run, "record_territory_encirclement_delta", return_value=[]), \
+                    patch.object(run, "record_territory_conflict_delta", return_value=[]), \
+                    patch.object(run, "load_profile_readonly", return_value={"level": 3}):
+                resolver = run.TerritoryEncirclementResolver(store, conflict_store)
+                result = resolver.resolve_encirclement(
+                    attacker_area["id"],
+                    defender_area["id"],
+                    actor_username="alice",
+                    reason="unit_test",
+                )
+
+            self.assertIsNotNone(result)
+            self.assertEqual(result["status"], "resolved")
+            self.assertEqual(result["captured_count"], 4)
+            alice_labels = {target["label"] for target in store.list_captured_targets("alice")}
+            bob_labels = {target["label"] for target in store.list_captured_targets("bob")}
+            self.assertTrue({"B1", "B2", "B3", "B-inner"} <= alice_labels)
+            self.assertEqual(bob_labels, {"B-outside"})
+            self.assertEqual(store.list_player_areas("bob"), [])
+            self.assertGreaterEqual(len(store.list_player_areas("alice")), 1)
+            self.assertEqual(conflict_store.get_by_key("alice-bob-test")["status"], "resolved_by_encirclement")
+
+            with patch.object(run, "load_profile_readonly", return_value={"level": 3}):
+                repeated = run.TerritoryEncirclementResolver(store, conflict_store).detect_encircled_clusters(apply=True)
+            self.assertEqual(repeated, [])
+            self.assertEqual({target["label"] for target in store.list_captured_targets("bob")}, {"B-outside"})
+        finally:
+            self._cleanup(path)
+
 
 if __name__ == "__main__":
     unittest.main()

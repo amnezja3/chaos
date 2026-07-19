@@ -9192,3 +9192,32 @@ Poza zakresem:
 
 * zmiana mechaniki skanu, terytoriow, operacji i incydentow;
 * nowe endpointy albo nowe magazyny danych.
+
+## Sprint 109.5 - Territory Control: pelne otoczenie klastra
+
+Domknieto luke pomiedzy statusem `encircled` a realnym przejeciem klastra.
+Pelne otoczenie nie jest juz tylko flaga UI: resolver potrafi wykryc stabilny
+atakujacy klaster, ktory obejmuje caly klaster obroncy, i wykonac jedna
+domenowa operacje przejecia.
+
+Wdrozone:
+
+* `TerritoryEncirclementResolver` z rewalidacja geometrii i aktualnych punktow
+  klastra przed przejeciem;
+* przeniesienie tylko kanonicznych punktow nalezacych do otoczonego klastra:
+  filarow i inner nodes;
+* pozostawienie punktow obroncy poza przejmowanym klastrem;
+* zamykanie aktywnych konfliktow statusem `resolved_by_encirclement`;
+* event/delta `territory.encirclement_resolved` z dedupe key;
+* dry-run helper `reconcile_territory_encirclements()`;
+* bezpieczne wpiecie po rebuildzie terytorium, bez nowego runtime mapy.
+
+Poza zakresem:
+
+* GhostNetwork i maszyny klanowe;
+* osobne UI dla historii otoczen;
+* automatyczna migracja historycznie otoczonych klastrow.
+
+Walidacja:
+
+* `python -m unittest tests.test_territory_control`: OK, 8 testow.

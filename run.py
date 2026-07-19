@@ -2648,6 +2648,28 @@ def record_territory_conflict_delta(conflict, reason="territory_conflict"):
         return []
 
 
+def record_territory_encirclement_delta(attacker_username, defender_username, payload, dedupe_key):
+    payload = dict(payload or {})
+    users = sorted({
+        str(attacker_username or "").strip(),
+        str(defender_username or "").strip(),
+    } - {""})
+    events = []
+    for username in users:
+        try:
+            events.append(delta_bus.record_change(
+                username,
+                "territory",
+                "territory.encirclement_resolved",
+                payload,
+                entity_id=str(payload.get("defender_cluster_id") or "territory_encirclement"),
+                dedupe_key=f"{dedupe_key}:{username}",
+            ))
+        except Exception as exc:
+            print(f"[DELTA] territory.encirclement_resolved failed for {username}: {exc}", flush=True)
+    return events
+
+
 def record_incident_delta(username, incident, change_type="incident.updated", reason="incident_changed"):
     username = str(username or "").strip()
     if not username or not isinstance(incident, dict):
@@ -2945,6 +2967,15 @@ def sync_response_warnings(username, profile, operations, now_iso=None):
 def rebuild_player_areas_with_territory_delta(username, player_level=1, reason="territory_rebuild"):
     areas = territory_store.rebuild_player_areas(username, player_level)
     record_territory_areas_delta(username, areas, reason=reason)
+    if not str(reason or "").startswith("territory_encirclement"):
+        try:
+            resolve_territory_encirclements_after_change(
+                actor_username=username,
+                changed_territory_id=None,
+                reason=reason,
+            )
+        except Exception as exc:
+            print(f"[TERRITORY] encirclement resolver failed after {reason}: {exc}", flush=True)
     return areas
 
 
@@ -4163,6 +4194,349 @@ def targets_share_runtime_identity(left, right):
     # Map, terminal and desktop flows may carry different display labels for the
     # same POI. Coordinates are the stable runtime identity for this fallback.
     return targets_share_position(left, right, precision=5)
+
+
+TERRITORY_ENCIRCLEMENT_EVENT_TYPE = "territory_encirclement_resolved"
+TERRITORY_ENCIRCLEMENT_TOLERANCE_DEGREES = 1e-9
+
+
+def _territory_point_on_segment(point, a, b, tolerance=TERRITORY_ENCIRCLEMENT_TOLERANCE_DEGREES):
+    try:
+        px = float(point.get("lng", point.get("lon")))
+        py = float(point.get("lat"))
+        ax = float(a.get("lng", a.get("lon")))
+        ay = float(a.get("lat"))
+        bx = float(b.get("lng", b.get("lon")))
+        by = float(b.get("lat"))
+    except (AttributeError, TypeError, ValueError):
+        return False
+
+    dx = bx - ax
+    dy = by - ay
+    length_sq = dx * dx + dy * dy
+    if length_sq <= tolerance:
+        return abs(px - ax) <= tolerance and abs(py - ay) <= tolerance
+    projection = ((px - ax) * dx + (py - ay) * dy) / length_sq
+    if projection < -tolerance or projection > 1 + tolerance:
+        return False
+    closest_x = ax + max(0, min(1, projection)) * dx
+    closest_y = ay + max(0, min(1, projection)) * dy
+    return abs(px - closest_x) <= tolerance and abs(py - closest_y) <= tolerance
+
+
+def territory_point_in_polygon_or_boundary(point, vertices, tolerance=TERRITORY_ENCIRCLEMENT_TOLERANCE_DEGREES):
+    if len(vertices or []) < 3:
+        return False
+    try:
+        lat = float(point.get("lat"))
+        lng = float(point.get("lng", point.get("lon")))
+    except (AttributeError, TypeError, ValueError):
+        return False
+    if point_in_polygon(lat, lng, vertices):
+        return True
+    point_payload = {"lat": lat, "lng": lng}
+    for index, start in enumerate(vertices):
+        end = vertices[(index + 1) % len(vertices)]
+        if _territory_point_on_segment(point_payload, start, end, tolerance=tolerance):
+            return True
+    return False
+
+
+def territory_area_by_id(areas, area_id):
+    area_id = str(area_id or "").strip()
+    for area in areas or []:
+        if str(area.get("id") or "") == area_id:
+            return area
+    return None
+
+
+def territory_area_cluster_members(store, area):
+    owner = str((area or {}).get("owner_username") or "").strip()
+    vertices = (area or {}).get("vertices") or []
+    if not owner or len(vertices) < 3:
+        return {"pillars": [], "inners": [], "objects": [], "valid": False}
+
+    vertex_keys = {target_position_key(vertex) for vertex in vertices}
+    vertex_keys.discard(None)
+    pillars = []
+    inners = []
+    for target in store.list_captured_targets(owner):
+        key = target_position_key(target)
+        if not key:
+            continue
+        if key in vertex_keys:
+            pillars.append(target)
+        elif territory_point_in_polygon_or_boundary(target, vertices):
+            inners.append(target)
+    objects = pillars + inners
+    return {
+        "pillars": pillars,
+        "inners": inners,
+        "objects": objects,
+        "valid": len(pillars) >= 3,
+    }
+
+
+class TerritoryEncirclementResolver:
+    """Resolves full cluster encirclement without becoming a new territory store."""
+
+    def __init__(self, store=None, conflict_store=None):
+        self.store = store or territory_store
+        self.conflict_store = conflict_store or territory_conflict_store
+
+    def detect_encircled_clusters(self, changed_territory_id=None, actor_username=None, apply=False, reason="territory_rebuild"):
+        areas = safe_player_areas(self.store.list_player_areas())
+        changed_id = str(changed_territory_id or "").strip()
+        results = []
+        for defender in areas:
+            if changed_id and str(defender.get("id") or "") != changed_id:
+                # A changed attacker can also close a ring, so only skip after
+                # testing attackers below.
+                pass
+            for attacker in areas:
+                if attacker.get("id") == defender.get("id"):
+                    continue
+                if changed_id and changed_id not in {str(attacker.get("id") or ""), str(defender.get("id") or "")}:
+                    continue
+                if not self.is_cluster_fully_encircled(attacker, defender):
+                    continue
+                snapshot = self.build_encirclement_snapshot(
+                    attacker,
+                    defender,
+                    actor_username=actor_username,
+                    reason=reason,
+                )
+                if apply:
+                    snapshot = self.resolve_encirclement(
+                        attacker.get("id"),
+                        defender.get("id"),
+                        actor_username=actor_username,
+                        reason=reason,
+                    )
+                    if not snapshot:
+                        continue
+                results.append(snapshot)
+        return results
+
+    def is_cluster_fully_encircled(self, attacker, defender):
+        attacker_owner = str((attacker or {}).get("owner_username") or "").strip()
+        defender_owner = str((defender or {}).get("owner_username") or "").strip()
+        if not attacker_owner or not defender_owner or attacker_owner == defender_owner:
+            return False
+        attacker_vertices = (attacker or {}).get("vertices") or []
+        defender_vertices = (defender or {}).get("vertices") or []
+        if len(attacker_vertices) < 3 or len(defender_vertices) < 3:
+            return False
+
+        attacker_members = territory_area_cluster_members(self.store, attacker)
+        defender_members = territory_area_cluster_members(self.store, defender)
+        if not attacker_members["valid"] or not defender_members["valid"]:
+            return False
+
+        for vertex in defender_vertices:
+            if not territory_point_in_polygon_or_boundary(vertex, attacker_vertices):
+                return False
+        for target in defender_members["objects"]:
+            if not territory_point_in_polygon_or_boundary(target, attacker_vertices):
+                return False
+        return True
+
+    def build_encirclement_snapshot(self, attacker, defender, actor_username=None, reason="territory_rebuild"):
+        attacker_members = territory_area_cluster_members(self.store, attacker)
+        defender_members = territory_area_cluster_members(self.store, defender)
+        now = runtime_file_now()
+        return {
+            "attacker_username": attacker.get("owner_username"),
+            "defender_username": defender.get("owner_username"),
+            "attacker_cluster_id": str(attacker.get("id")),
+            "defender_cluster_id": str(defender.get("id")),
+            "closing_player_id": actor_username or attacker.get("owner_username"),
+            "closing_node_id": None,
+            "territory_state_version": str(defender.get("updated_at") or defender.get("id") or now),
+            "encircled_at": now,
+            "reason": reason or "territory_rebuild",
+            "captured_objects": [
+                {
+                    "lat": target.get("lat"),
+                    "lng": target.get("lng", target.get("lon")),
+                    "label": target.get("label") or target.get("name") or "",
+                    "node_role": "pillar" if target in defender_members["pillars"] else "inner",
+                }
+                for target in defender_members["objects"]
+            ],
+            "attacker_snapshot": {
+                "area_id": attacker.get("id"),
+                "owner_username": attacker.get("owner_username"),
+                "vertices": copy.deepcopy(attacker.get("vertices") or []),
+                "object_count": len(attacker_members["objects"]),
+            },
+            "defender_snapshot": {
+                "area_id": defender.get("id"),
+                "owner_username": defender.get("owner_username"),
+                "vertices": copy.deepcopy(defender.get("vertices") or []),
+                "object_count": len(defender_members["objects"]),
+            },
+        }
+
+    def resolve_encirclement(self, attacker_id, defender_id, actor_username=None, reason="territory_rebuild"):
+        areas = safe_player_areas(self.store.list_player_areas())
+        attacker = territory_area_by_id(areas, attacker_id)
+        defender = territory_area_by_id(areas, defender_id)
+        if not attacker or not defender or not self.is_cluster_fully_encircled(attacker, defender):
+            return None
+
+        snapshot = self.build_encirclement_snapshot(
+            attacker,
+            defender,
+            actor_username=actor_username,
+            reason=reason,
+        )
+        attacker_username = snapshot["attacker_username"]
+        defender_username = snapshot["defender_username"]
+        dedupe_key = (
+            f"encirclement:{snapshot['attacker_cluster_id']}:"
+            f"{snapshot['defender_cluster_id']}:{snapshot['territory_state_version']}"
+        )
+        if self.store.area_event_exists_with_payload_key(
+            defender_username,
+            attacker_username,
+            TERRITORY_ENCIRCLEMENT_EVENT_TYPE,
+            "dedupe_key",
+            dedupe_key,
+        ):
+            snapshot["status"] = "deduped"
+            return snapshot
+
+        defender_members = territory_area_cluster_members(self.store, defender)
+        captured_objects = []
+        for target in defender_members["objects"]:
+            transferred = copy.deepcopy(target)
+            transferred["owner_username"] = attacker_username
+            transferred["owner"] = attacker_username
+            transferred["captured_by"] = attacker_username
+            transferred["previous_owner"] = defender_username
+            transferred["capture_reason"] = "territory_encirclement"
+            transferred["territory_encirclement"] = {
+                "attacker_cluster_id": snapshot["attacker_cluster_id"],
+                "defender_cluster_id": snapshot["defender_cluster_id"],
+                "dedupe_key": dedupe_key,
+            }
+            self.store.remove_captured_target(
+                defender_username,
+                transferred.get("lat"),
+                transferred.get("lng", transferred.get("lon")),
+                transferred.get("label"),
+            )
+            captured_objects.append(self.store.save_captured_target(attacker_username, transferred))
+
+        attacker_level = territory_player_level(attacker_username)
+        defender_level = territory_player_level(defender_username)
+        attacker_areas = self.store.rebuild_player_areas(attacker_username, attacker_level)
+        defender_areas = self.store.rebuild_player_areas(defender_username, defender_level)
+        record_territory_areas_delta(attacker_username, attacker_areas, reason="territory_encirclement_attacker")
+        record_territory_areas_delta(defender_username, defender_areas, reason="territory_encirclement_defender")
+        self._sync_profile_captured_targets(attacker_username)
+        self._sync_profile_captured_targets(defender_username)
+
+        closed_conflicts = self._close_conflicts(attacker, defender, captured_objects)
+        snapshot["status"] = "resolved"
+        snapshot["captured_count"] = len(captured_objects)
+        snapshot["closed_conflict_count"] = len(closed_conflicts)
+        snapshot["dedupe_key"] = dedupe_key
+        self.store.add_area_event(
+            defender_username,
+            attacker_username,
+            TERRITORY_ENCIRCLEMENT_EVENT_TYPE,
+            area_id=defender.get("id"),
+            payload={
+                "dedupe_key": dedupe_key,
+                "snapshot": snapshot,
+            },
+        )
+        record_territory_encirclement_delta(
+            attacker_username,
+            defender_username,
+            snapshot,
+            dedupe_key=dedupe_key,
+        )
+        return snapshot
+
+    def _sync_profile_captured_targets(self, username):
+        try:
+            profile = user_store.get_profile(username) or {}
+        except Exception:
+            return False
+        if not isinstance(profile, dict):
+            return False
+        profile["hacked"] = self.store.list_captured_targets(username)
+        profile["captured_targets_source"] = "sqlite"
+        try:
+            user_store.save_profile(profile)
+            return True
+        except Exception:
+            return False
+
+    def _close_conflicts(self, attacker, defender, captured_objects):
+        closed = []
+        attacker_id = attacker.get("id")
+        defender_id = defender.get("id")
+        captured_keys = {target_position_key(target) for target in captured_objects}
+        captured_keys.discard(None)
+        for conflict in self.conflict_store.list_active():
+            area_ids = {str(item) for item in (conflict.get("area_ids") or []) if item is not None}
+            should_close = str(attacker_id) in area_ids or str(defender_id) in area_ids
+            if not should_close:
+                for item in conflict.get("targets") or []:
+                    if target_position_key(item.get("target") or {}) in captured_keys:
+                        should_close = True
+                        break
+            if not should_close:
+                continue
+            updated = self.conflict_store.upsert_conflict({
+                **conflict,
+                "status": "resolved_by_encirclement",
+                "source_event": "territory_encirclement",
+                "last_actor_username": attacker.get("owner_username") or "",
+            })
+            closed.append(updated)
+            record_territory_conflict_delta(updated, reason="territory_encirclement")
+        return closed
+
+
+def territory_player_level(username):
+    try:
+        profile = load_profile_readonly(
+            username,
+            strip_sensitive=True,
+            normalize_apps=False,
+            normalize_files=False,
+        )
+    except Exception:
+        profile = None
+    if not isinstance(profile, dict):
+        try:
+            profile = user_store.get_profile(username) or {}
+        except Exception:
+            profile = {}
+    try:
+        return max(1, int((profile or {}).get("level") or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def resolve_territory_encirclements_after_change(actor_username=None, changed_territory_id=None, reason="territory_rebuild"):
+    resolver = TerritoryEncirclementResolver(territory_store, territory_conflict_store)
+    return resolver.detect_encircled_clusters(
+        changed_territory_id=changed_territory_id,
+        actor_username=actor_username,
+        apply=True,
+        reason=reason,
+    )
+
+
+def reconcile_territory_encirclements():
+    resolver = TerritoryEncirclementResolver(territory_store, territory_conflict_store)
+    return resolver.detect_encircled_clusters(apply=False, reason="reconcile")
 
 
 def target_label_value(target):

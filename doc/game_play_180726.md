@@ -1325,7 +1325,607 @@ Operation Control.
 * Dokumentacja i dziennik sa zaktualizowane.
 
 
-Faza GhostNetwork
+
+
+> Brakująca reguła domykająca konflikty: **pełne otoczenie nie może pozostawiać starego właściciela wewnątrz cudzego pola**, tylko musi być traktowane jak ostateczne zwycięstwo terytorialne.
+
+# Sprint 109.5 — Territory Control: pełne otoczenie i natychmiastowe przejęcie klastra
+
+## Cel sprintu
+
+Dodać jednoznaczną regułę rozstrzygania konfliktu terytorialnego:
+
+> Jeżeli stabilne pole atakującego całkowicie otoczy klaster innego gracza, cały otoczony klaster zostaje natychmiast przejęty przez atakującego.
+
+Przejęcie obejmuje:
+
+* wszystkie filary klastra,
+* wszystkie inner nodes,
+* wszystkie przejęte obiekty przypisane do klastra,
+* strategiczne właściwości tych obiektów,
+* komponent GhostNetwork znajdujący się wewnątrz klastra,
+* historię zmiany właściciela.
+
+Stary właściciel nie może zachować otoczonych punktów i odzyskać ich wyłącznie przez postawienie jednego filaru poza polem przeciwnika.
+
+Może rozpocząć odbudowę poza obszarem atakującego, ale będzie to nowe terytorium, bez automatycznego połączenia z utraconym klastrem.
+
+Ta reguła powinna powstać przed GhostNetwork, ponieważ GhostNetwork ma traktować istniejący system terytoriów jako źródło prawdy o właścicielu strategicznej lokalizacji. 
+
+## 1. Dwie drogi przejęcia terytorium
+
+Po sprincie istnieją dwie pełnoprawne drogi zwycięstwa.
+
+### Przejęcie punktowe
+
+Atakujący rozbraja i przejmuje:
+
+* poszczególne filary,
+* inner nodes,
+* zabezpieczenia klastra.
+
+Klaster może stopniowo stracić minimalną liczbę trzech filarów i ulec rozwiązaniu.
+
+### Przejęcie przez otoczenie
+
+Atakujący buduje stabilne terytorium całkowicie obejmujące wrogie pole.
+
+W chwili pełnego otoczenia:
+
+* konflikt zostaje rozstrzygnięty,
+* nie trzeba hakować każdego wewnętrznego punktu oddzielnie,
+* wszystkie punkty otoczonego klastra przechodzą do atakującego.
+
+Częściowe przecięcie albo otoczenie pojedynczego filaru nie uruchamia tej reguły.
+
+## 2. Kanoniczna definicja otoczenia
+
+Dodać domenowy resolver:
+
+`TerritoryEncirclementResolver`
+
+Minimalny kontrakt:
+
+* `detect_encircled_clusters(changed_territory_id)`
+* `is_cluster_fully_encircled(attacker, defender)`
+* `resolve_encirclement(attacker_id, defender_id)`
+* `build_encirclement_snapshot(...)`
+
+Pełne otoczenie zachodzi, gdy:
+
+1. Atakujący i obrońca są różnymi właścicielami.
+2. Atak jest dozwolony przez istniejące reguły relacji graczy i klanów.
+3. Pole atakującego posiada ważny klaster.
+4. Klaster atakującego ma minimum trzy prawidłowe filary.
+5. Poligon atakującego jest poprawny geometrycznie.
+6. Klaster obrońcy istnieje i posiada własny kanoniczny poligon.
+7. Poligon atakującego obejmuje cały poligon obrońcy.
+8. Wszystkie punkty przypisane do klastra obrońcy znajdują się wewnątrz lub na tolerowanej granicy pola atakującego.
+9. Wynik opiera się na zapisanej, zatwierdzonej wersji terytoriów, a nie tymczasowej geometrii frontendu.
+
+Nie wystarczy:
+
+* przecięcie poligonów,
+* przykrycie centroidu,
+* objęcie jednego filaru,
+* objęcie większości powierzchni,
+* wejście ostatnim punktem do wnętrza pola obrońcy.
+
+## 3. Tolerancja geometryczna
+
+Do sprawdzenia użyć tego samego systemu geometrii co obecne klastry.
+
+Pełne otoczenie powinno wykorzystywać logiczny odpowiednik:
+
+`attacker_polygon covers defender_polygon`
+
+z niewielką, kontrolowaną tolerancją współrzędnych.
+
+Tolerancja ma zapobiegać sytuacji, w której pole nie zostaje uznane za otoczone przez mikroskopijną szczelinę wynikającą z błędów obliczeń.
+
+Nie może jednak pozwalać na przejęcie przy widocznej przerwie w pierścieniu.
+
+Wartość tolerancji trafia do konfiguracji i testów geometrii.
+
+## 4. Moment sprawdzania
+
+Ocena otoczenia uruchamia się po trwałym zdarzeniu:
+
+* dodania filaru,
+* przejęcia filaru,
+* odbudowy klastra,
+* podziału klastra,
+* zmiany właściciela punktu,
+* zakończenia konfliktu,
+* naprawy geometrii.
+
+Najważniejszym triggerem jest zatwierdzenie punktu, który domyka pole atakującego.
+
+Frontend może pokazać animację, ale nie decyduje o przejęciu.
+
+## 5. Ostatni punkt domykający
+
+Zapisać:
+
+* `closing_node_id`,
+* `closing_player_id`,
+* `attacker_cluster_id`,
+* `defender_cluster_id`,
+* `territory_state_version`,
+* `encircled_at`.
+
+Operator stawiający ostatni punkt jest zapisany jako gracz domykający otoczenie.
+
+Nie oznacza to jednak, że wszystkie punkty powinny być aktualizowane przez frontendowy request ostatniego filaru. Rozstrzygnięcie wykonuje osobny serwis domenowy po zapisaniu klastra.
+
+## 6. Snapshot przed przejęciem
+
+Przed zmianą właściciela utworzyć niezmienny snapshot:
+
+* poligon atakującego,
+* poligon obrońcy,
+* właścicieli,
+* klany,
+* wszystkie filary obrońcy,
+* wszystkie inner nodes,
+* wszystkie obiekty przypisane do klastra,
+* stan zabezpieczeń,
+* trwające konflikty,
+* komponenty strategiczne,
+* wersję terytoriów,
+* punkt domykający.
+
+Snapshot służy:
+
+* audytowi,
+* recovery,
+* historii konfliktu,
+* nagrodom,
+* późniejszej integracji GhostNetwork.
+
+## 7. Zakres przejmowanych punktów
+
+Przejęciu podlegają wyłącznie obiekty, których kanoniczne członkostwo wskazuje:
+
+`cluster_id = defender_cluster_id`
+
+Obejmuje to:
+
+* filary,
+* inner nodes,
+* obiekty przejęte i przypisane do klastra,
+* kotwice strategiczne należące do struktury terytorium.
+
+Nie przejmować automatycznie:
+
+* neutralnych markerów leżących wewnątrz pola,
+* punktów innego gracza należących do osobnego klastra,
+* niezależnych samotnych filarów,
+* aktywnych operacji,
+* aktorów mapy,
+* NPC.
+
+Jeżeli pole atakującego otacza kilka oddzielnych wrogich klastrów, każdy klaster jest oceniany i rozstrzygany osobno.
+
+## 8. Atomowe przejęcie
+
+W jednej operacji domenowej:
+
+1. Zablokować oba klastry.
+2. Ponownie sprawdzić geometrię.
+3. Utworzyć snapshot otoczenia.
+4. Zamknąć konflikty dotyczące przejmowanego klastra.
+5. Zmienić właściciela wszystkich punktów klastra.
+6. Usunąć stary klaster obrońcy.
+7. Przebudować terytorium atakującego.
+8. Przeliczyć role przejętych punktów.
+9. Zaktualizować profile i rejestry właścicieli.
+10. Przeliczyć konflikty sąsiednich obszarów.
+11. Opublikować zdarzenia i delty.
+12. Zatwierdzić transakcję.
+
+Nie może powstać stan pośredni, w którym:
+
+* część punktów należy do atakującego,
+* część do obrońcy,
+* stary klaster nadal istnieje,
+* nowy klaster nie uwzględnia przejętych obiektów.
+
+## 9. Wspólny helper przejęcia obiektu
+
+Nie zmieniać właściciela bezpośrednio przez przypisanie pola:
+
+`object.owner = attacker`
+
+Każdy punkt powinien przejść przez kanoniczny helper przejęcia, na przykład:
+
+`capture_territory_object_by_encirclement(...)`
+
+Helper wykorzystuje tę samą ścieżkę aktualizacji co normalne skuteczne przejęcie:
+
+* Target Registry,
+* profile właścicieli,
+* `own_places`,
+* `captured_targets`,
+* klasyfikację pillar/inner,
+* historię obiektu,
+* delty mapy,
+* cache terytoriów.
+
+Źródło przejęcia:
+
+`capture_reason = territory_encirclement`
+
+## 10. Zabezpieczenia przejmowanych punktów
+
+Przejęty punkt nie powinien zachowywać aktywnych prywatnych zabezpieczeń poprzedniego właściciela jako gotowej ochrony dla atakującego.
+
+Po przejęciu użyć istniejącego kanonicznego stanu początkowego dla przejętego obiektu.
+
+Jeżeli zwykłe przejęcie ustawia określony preset bezpieczeństwa, otoczenie korzysta z tej samej reguły.
+
+Usunąć lub zakończyć efekty należące do obrońcy:
+
+* prywatne warstwy zabezpieczeń,
+* aktywne Bastiony,
+* backdoory wymagające poprzedniego właściciela,
+* tymczasowe prawa dostępu,
+* defensywne cooldowny przypisane do starego klastra.
+
+Historia ich istnienia pozostaje w audycie.
+
+## 11. Przebudowa klastra atakującego
+
+Po przejęciu obiekty nie muszą zachować poprzedniej roli.
+
+Dawny filar obrońcy może stać się:
+
+* inner node nowego dużego klastra,
+* filarem granicznym atakującego,
+* punktem wewnętrznym bez wpływu na poligon.
+
+Role ustala istniejący `territory rebuild`.
+
+Nie kopiować starego poligonu obrońcy jako osobnej wewnętrznej wyspy.
+
+Docelowo pozostaje jeden kanoniczny układ terytoriów wynikający z aktualnych punktów atakującego.
+
+## 12. Zachowanie punktów obrońcy poza polem
+
+Punkty obrońcy, które nie należały do otoczonego klastra, pozostają jego własnością.
+
+Mogą to być:
+
+* samotne filary,
+* drugi klaster w innym miejscu,
+* nowy filar postawiony poza polem atakującego.
+
+Po przejęciu obrońca może dalej budować nowe terytorium.
+
+Nie może jednak odzyskać utraconych punktów przez samo połączenie z nowym filarem.
+
+Aby odzyskać stary obszar, musi przeprowadzić normalny atak na aktualnego właściciela.
+
+## 13. Brak „wyjścia z impasu” starymi punktami
+
+Po pełnym otoczeniu:
+
+* stary właściciel nie posiada już otoczonych filarów,
+* nie może użyć ich do dalszego rysowania pola,
+* nie może hakować ze środka przejętego klastra jako właściciel,
+* nowy filar poza obszarem zaczyna nową, niezależną strukturę.
+
+To usuwa sytuację, w której gracz wychodzi poza pole jednym punktem, ale wszystkie wcześniejsze otoczone punkty nadal formalnie należą do niego.
+
+## 14. Konflikty podczas przejęcia
+
+Pełne otoczenie jest końcowym rozstrzygnięciem konfliktu dla danego klastra.
+
+Zamknąć:
+
+* konflikt właścicieli klastrów,
+* tymczasowe obszary sporne związane z przejmowanymi punktami,
+* postęp ataku na przejęte obiekty,
+* obrony przypisane do nieistniejącego klastra.
+
+Status rozstrzygnięcia:
+
+`resolved_by_encirclement`
+
+Nie pozostawiać przejętych punktów w stanie `contested`.
+
+## 15. Trzeci gracz w obszarze
+
+Jeżeli dwa różne hostile klastry jednocześnie mogłyby zostać uznane za otaczające ten sam klaster:
+
+* nie wybierać właściciela na podstawie kolejności iteracji bazy,
+* użyć trwałej kolejności zatwierdzonych `territory_state_version`,
+* pierwsze poprawnie zatwierdzone pełne otoczenie otrzymuje prawo do przejęcia.
+
+Jeżeli w tej samej wersji stanu nie można jednoznacznie wskazać zwycięzcy:
+
+* zachować konflikt,
+* nie wykonywać automatycznego przejęcia,
+* uruchomić ponowną ocenę po kolejnej stabilnej zmianie.
+
+Nie może powstać podwójne przejęcie.
+
+## 16. Integracja z GhostNetwork
+
+Sprint powstaje przed implementacją GhostNetwork, ale musi przygotować trwały event:
+
+`territory.encirclement_resolved`
+
+Payload:
+
+* `encirclement_id`,
+* `attacker_owner_id`,
+* `attacker_clan`,
+* `defender_owner_id`,
+* `defender_clan`,
+* `attacker_cluster_id`,
+* `defender_cluster_id`,
+* przejęte punkty,
+* strategiczne kotwice,
+* wersję stanu,
+* `resolved_at`.
+
+GhostNetwork po późniejszym wdrożeniu reaguje na to zdarzenie jak na ostateczną stabilną zmianę właściciela.
+
+Nie stosuje zamrożenia konfliktowego, ponieważ konflikt został już rozstrzygnięty.
+
+## 17. Część GhostNetwork w otoczonym polu
+
+Jeżeli klaster przechowuje część:
+
+1. Część nie znika.
+2. Nie zmienia kotwicy.
+3. Nie wraca do puli.
+4. Otrzymuje nowego właściciela terytorialnego.
+5. Jej stan jest natychmiast ponownie rozstrzygany.
+
+Możliwe wyniki:
+
+### Atakujący należy do właściwego klanu części
+
+`blocked albo public → active`
+
+Część zostaje aktywowana.
+
+### Atakujący należy do obcego klanu
+
+`active albo public → blocked`
+
+Część zostaje zablokowana.
+
+### Część była aktywna dla obrońcy
+
+Jeżeli atakujący jest obcego klanu:
+
+* moduł zostaje dezaktywowany,
+* supermoc zostaje wyłączona,
+* pełne linie zostają przerwane,
+* postęp maszyny spada.
+
+Nie może pozostać częścią aktywną dawnego właściciela po przejęciu całego klastra.
+
+Raz wyemitowana część musi pozostać możliwa do odbicia i aktywacji przez właściwy klan. 
+
+## 18. Inne strategiczne komponenty
+
+Przygotować ogólny kontrakt:
+
+`territory_payloads`
+
+Może obejmować później:
+
+* GhostNetwork part,
+* specjalny węzeł,
+* event świata,
+* klanowy beacon,
+* przyszły quest object.
+
+System otoczenia nie powinien zawierać wielu bezpośrednich warunków:
+
+`if ghost_part`
+
+Publikuje zmianę właściciela lokalizacji, a odpowiedni moduł strategiczny reaguje swoim adapterem.
+
+## 19. Zdarzenia domenowe
+
+Wymagane:
+
+* `territory.encirclement_detected`
+* `territory.encirclement_locked`
+* `territory.object_captured_by_encirclement`
+* `territory.cluster_captured_by_encirclement`
+* `territory.encirclement_resolved`
+* `territory.cluster_rebuilt`
+* `territory.conflict_resolved_by_encirclement`
+
+Każde zdarzenie posiada:
+
+* `encirclement_id`,
+* właścicieli,
+* klastry,
+* `territory_state_version`,
+* `source_node_id`,
+* `dedupe_key`.
+
+## 20. Deduplikacja
+
+Stabilny klucz:
+
+`encirclement:<attacker_cluster_id>:<defender_cluster_id>:<territory_state_version>`
+
+Ponowne przetworzenie:
+
+* zwraca poprzedni rezultat,
+* nie przejmuje punktów drugi raz,
+* nie przebudowuje wielokrotnie klastra,
+* nie duplikuje nagród,
+* nie publikuje drugiego eventu zwycięstwa.
+
+## 21. Delty
+
+Do klientów wysłać jedną grupę transakcyjną:
+
+* usunięcie starego klastra,
+* zmianę właścicieli punktów,
+* przebudowę pola atakującego,
+* zamknięcie konfliktu,
+* aktualizację strategicznych badge’y,
+* ewentualną zmianę części GhostNetwork.
+
+Frontend nie powinien przez chwilę pokazywać starego klastra i przejętych punktów jednocześnie.
+
+## 22. Informacja dla atakującego
+
+Komunikat:
+
+`TERYTORIUM OTOCZONE`
+
+`KLASTER PRZEJĘTY`
+
+`PUNKTY: [liczba]`
+
+Jeżeli w polu znajduje się komponent strategiczny i gracz ma prawo o nim wiedzieć, może pojawić się dodatkowy status.
+
+Nie ujawniać ukrytej części odbiorcom bez odpowiednich praw.
+
+## 23. Informacja dla obrońcy
+
+Komunikat:
+
+`UTRACONO KLASTER`
+
+`POWÓD: PEŁNE OTOCZENIE`
+
+`PUNKTY PRZEJĘTE: [liczba]`
+
+Dodatkowa informacja:
+
+`PUNKTY POZA OTOCZONYM KLASTREM POZOSTAJĄ AKTYWNE`
+
+Komunikat powinien jasno pokazywać, że nowy filar poza polem nie odzyska automatycznie starego obszaru.
+
+## 24. Territory Control
+
+Karta atakującego klastra może pokazać:
+
+* przejęte punkty,
+* czas otoczenia,
+* poprzedniego właściciela,
+* komponent strategiczny, jeśli widoczny.
+
+Karta obrońcy znika z aktywnych klastrów.
+
+Pozostałe jego samotne filary i inne klastry nadal pozostają na liście.
+
+## 25. Wydajność
+
+Po zmianie klastra sprawdzać tylko:
+
+* nowy lub zmieniony poligon,
+* klastry posiadające bounds przecinające jego bounds,
+* klastry potencjalnie znajdujące się wewnątrz.
+
+Nie porównywać każdego klastra z każdym polem świata.
+
+Do dokładnej geometrii przechodzą wyłącznie kandydaci z filtra bounding box.
+
+## 26. Recovery
+
+Dodać:
+
+`reconcile_territory_encirclements()`
+
+Tryb dry-run wykrywa:
+
+* klaster w całości otoczony, ale nadal należący do starego właściciela,
+* częściowo przejęty klaster,
+* stary cluster record bez punktów,
+* punkty przejęte bez eventu,
+* strategiczny komponent z błędnym właścicielem,
+* konflikt, który powinien zostać zakończony przez otoczenie.
+
+Tryb naprawczy korzysta z tego samego resolvera domenowego.
+
+## 27. Migracja istniejącego świata
+
+Przed wdrożeniem uruchomić raport istniejących klastrów.
+
+Nie przejmować automatycznie historycznie otoczonych pól bez jawnej decyzji.
+
+Możliwe tryby:
+
+* `report_only`,
+* `apply_from_deployment_time`,
+* kontrolowana jednorazowa migracja.
+
+Najbezpieczniej uruchomić regułę wyłącznie dla zmian zatwierdzonych po wdrożeniu, a istniejące anomalie przejrzeć osobno.
+
+## Testy Sprintu 109.5
+
+Minimum:
+
+* częściowe przecięcie — brak przejęcia,
+* objęcie jednego filaru — brak przejęcia,
+* objęcie dwóch filarów — brak przejęcia,
+* pełne pokrycie poligonu — przejęcie,
+* wszystkie filary zmieniają właściciela,
+* wszystkie inner nodes zmieniają właściciela,
+* stary klaster znika,
+* klaster atakującego przebudowuje się,
+* role pillar/inner są przeliczane,
+* punkty obrońcy poza klastrem pozostają jego własnością,
+* nowy filar poza polem nie odzyskuje utraconych punktów,
+* konflikt zostaje zamknięty,
+* brak stanu `contested` po rozstrzygnięciu,
+* dwa triggery nie duplikują przejęcia,
+* dwóch potencjalnych atakujących nie przejmuje jednocześnie,
+* błąd w połowie operacji wykonuje rollback,
+* strategiczny komponent pozostaje w tej samej lokalizacji,
+* część właściwego klanu atakującego staje się aktywna,
+* obca część staje się blokowana,
+* aktywna część obrońcy zostaje wyłączona po obcym przejęciu,
+* delty tworzą spójny wynik,
+* recovery wykrywa częściowo przejęty klaster.
+
+## Poza sprintem
+
+Nie implementować:
+
+* GhostNetwork jako całości,
+* nagród RSP za otoczenie,
+* nowych supermocy,
+* automatycznej narracji BlackNetu,
+* specjalnych animacji przejęcia,
+* panelu administracyjnego.
+
+Sprint przygotowuje jedynie poprawne eventy i stan, które zostaną później wykorzystane przez GhostNetwork, nagrody i media.
+
+## DoD
+
+Sprint jest zakończony, gdy:
+
+1. Pełne otoczenie klastra jest wykrywane jednoznacznie.
+2. Częściowe nakładanie nie powoduje przejęcia.
+3. Cały otoczony klaster przechodzi atomowo do atakującego.
+4. Wszystkie filary i inner nodes zmieniają właściciela.
+5. Stary klaster i jego konflikty zostają zamknięte.
+6. Pole atakującego zostaje przebudowane.
+7. Punkty obrońcy poza otoczonym klastrem pozostają jego własnością.
+8. Postawienie filaru poza polem nie przywraca utraconego klastra.
+9. Strategiczny komponent podąża za nową kontrolą terytorialną.
+10. Operacja jest idempotentna, audytowalna i możliwa do odtworzenia.
+11. Zwykłe przejmowanie pojedynczych punktów nadal działa.
+12. Reguła jest gotowa jako stabilne źródło własności dla GhostNetwork.
+
+Ten sprint bardzo dobrze zamyka lukę przed rozpoczęciem Sprintu 110: **otoczenie przestaje być długotrwałą blokadą bez wyjścia i staje się czytelnym, ostatecznym manewrem przejęcia całego pola**.
+
+
+# Faza GhostNetwork
 
 Po tych trzech sprintach mamy zamknięte fundamenty: wiemy, gdzie moduł dotyka istniejącej gry, mamy bezpieczny magazyn globalnego stanu i dysponujemy pełnym kanonem dwudziestu elementów, ale jeszcze żadna część nie może wypaść ani pojawić się na mapie.
 
@@ -5444,27 +6044,8824 @@ GhostNetwork — neutralne, blokowane i aktywne moduły
 GhostNetwork — widoczność danych i projekcje odbiorców
 GhostNetwork — markery części i warstwa mapy
 
+Po Sprintach 119–121 GhostNetwork po raz pierwszy staje się widoczny dla graczy: system rozumie strategiczny stan każdej części, bezpiecznie filtruje wiedzę i pokazuje na mapie tylko to, co dany operator naprawdę powinien zobaczyć.
 
+Lecimy dalej — Sprint 119 zamknie kanoniczne stany strategiczne części, 120 zbuduje jedną bezpieczną projekcję widoczności dla wszystkich interfejsów, a 121 pokaże części na mapie bez dokładania kolejnego ciężkiego pollera.
 
+# Sprint 119 — GhostNetwork: neutralne, blokowane i aktywne moduły
+
+## Cel sprintu
+
+Zbudować kanoniczną warstwę strategicznego stanu części, która jednoznacznie odpowiada:
+
+* czy część jest publiczna,
+* czy została zabezpieczona przez obcy klan,
+* czy została aktywowana przez właściwy klan,
+* kto kontroluje jej lokalizację,
+* czy moduł daje obecnie supermoc,
+* jaki jest postęp każdej z czterech maszyn.
+
+Sprint korzysta z lifecycle części i integracji terytorialnej powstałych wcześniej. Nie wylicza ponownie geometrii i nie implementuje jeszcze widoczności zależnej od odbiorcy.
+
+## 1. Serwis stanu modułów
+
+Dodać:
+
+```text
+GhostModuleStateService
+```
+
+Minimalny kontrakt:
+
+```text
+resolve_part_module_state(part)
+resolve_cycle_module_states(cycle_id)
+resolve_machine_progress(cycle_id, machine_code)
+resolve_clan_machine_progress(cycle_id, clan_code)
+```
+
+Ten serwis tłumaczy techniczny stan części na znaczenie strategiczne używane później przez mapę, Territory Control, GhostNetwork Suite, BlackNet i supermoce.
+
+## 2. Trzy główne stany strategiczne
+
+Kanoniczny katalog:
+
+```text
+neutral
+blocked
+active
+```
+
+Powiązanie ze stanem części:
+
+```text
+part.status = public
+→ module_state = neutral
+```
+
+```text
+part.status = contained
+→ module_state = blocked
+```
+
+```text
+part.status = active
+→ module_state = active
+```
+
+Nie tworzyć dodatkowych stanów takich jak:
+
+* `owned`,
+* `captured`,
+* `secured`,
+* `activated_by_owner`,
+* `foreign_owned`.
+
+Te informacje powinny być przekazywane w osobnych polach.
+
+## 3. Konflikt nie jest czwartym stanem modułu
+
+Podczas konfliktu zachować:
+
+```text
+module_state = stan sprzed konfliktu
+conflict_state = contested
+```
+
+Przykłady:
+
+```text
+module_state: active
+conflict_state: contested
+```
+
+```text
+module_state: blocked
+conflict_state: contested
+```
+
+Nie tworzyć:
+
+```text
+module_state: contested
+```
+
+jako zamiennika stanu strategicznego, ponieważ konflikt jedynie zamraża poprzedni wynik do stabilizacji granic. 
+
+## 4. Stan neutralny
+
+Część neutralna:
+
+* została odkryta,
+* posiada trwałą kotwicę,
+* nie znajduje się pod stabilną kontrolą terytorium,
+* pozostaje nieaktywna,
+* nie daje supermocy,
+* nie jest przypisana do właściciela klastra.
+
+Kontrakt:
+
+```text
+module_state: neutral
+territory_id: null
+territory_owner_id: null
+territory_clan: null
+ability_enabled: false
+```
+
+Część neutralna pozostaje w tym stanie bez limitu czasu.
+
+Nie wygasa, nie wraca do puli i nie zmienia lokalizacji.
+
+## 5. Stan blokowany
+
+Część jest blokowana, gdy stabilne terytorium należy do klanu innego niż klan części.
+
+Kontrakt:
+
+```text
+module_state: blocked
+part_clan: phantom_mesh
+territory_clan: virex
+territory_owner_id: operator_x
+ability_enabled: false
+```
+
+Obcy klan:
+
+* może przetrzymywać część dowolnie długo,
+* nie otrzymuje jej supermocy,
+* nie może jej sprzedać,
+* nie może jej przenieść,
+* nie może jej zniszczyć,
+* nie może przypisać jej do własnej maszyny.
+
+Blokowanie części jest legalną strategią, ale nie jest aktywacją modułu. 
+
+## 6. Stan aktywny
+
+Część jest aktywna, gdy stabilne terytorium należy do właściwego klanu.
+
+Kontrakt:
+
+```text
+module_state: active
+part_clan: phantom_mesh
+territory_clan: phantom_mesh
+territory_owner_id: operator_phantom
+ability_enabled: true
+```
+
+Aktywność jest przypisana do:
+
+* części,
+* terytorium,
+* klanu kontrolującego lokalizację.
+
+Nie zależy od:
+
+* aktywnej sesji właściciela,
+* obecności właściciela online,
+* czasu od ostatniego logowania,
+* aktywnego okna mapy.
+
+Nieaktywny właściciel nie wyłącza modułu. Moduł pozostaje aktywny, dopóki właściwy klan stabilnie kontroluje lokalizację. 
+
+## 7. Relacja części względem gracza
+
+Dodać osobny resolver:
+
+```text
+resolve_part_viewer_relation(part, viewer)
+```
+
+Możliwe wyniki:
+
+```text
+public_neutral
+self_foreign_blocked
+self_own_active
+clan_own_active
+foreign_blocked
+foreign_active
+```
+
+Znaczenie:
+
+### `public_neutral`
+
+Część nie jest otoczona żadnym stabilnym terytorium.
+
+### `self_foreign_blocked`
+
+Gracz osobiście kontroluje terytorium przechowujące część obcego klanu.
+
+### `self_own_active`
+
+Gracz osobiście kontroluje aktywną część własnego klanu.
+
+### `clan_own_active`
+
+Inny członek klanu kontroluje aktywną część właściwej maszyny.
+
+### `foreign_blocked`
+
+Część jest przetrzymywana przez obcy klan lub innego właściciela, a gracz nie ma pełnych praw właściciela.
+
+### `foreign_active`
+
+Część jest aktywna dla innego klanu.
+
+Ten resolver nie decyduje jeszcze, jakie pola są widoczne. To zadanie Sprintu 120.
+
+## 8. Aktywacja supermocy
+
+Dodać techniczny kontrakt:
+
+```text
+ability_enabled
+```
+
+Reguła:
+
+```text
+module_state == active
+→ ability_enabled = true
+```
+
+W pozostałych stanach:
+
+```text
+ability_enabled = false
+```
+
+Nie implementować jeszcze mechanicznego działania mocy.
+
+Sprint przygotowuje źródło prawdy używane później przez rejestr efektów:
+
+```text
+klan gracza
++ profesja gracza
++ aktywna część
+= dostępna supermoc
+```
+
+## 9. Postęp maszyny
+
+Każda maszyna ma dokładnie pięć części.
+
+Dodać agregat:
+
+```text
+machine_code
+clan_code
+parts_total
+parts_pooled
+parts_reserved
+parts_neutral
+parts_blocked
+parts_active
+parts_contested
+progress_percent
+machine_online
+```
+
+`progress_percent` oznacza procent aktywnych modułów:
+
+```text
+active_parts / 5 × 100
+```
+
+Przykład:
+
+```text
+PHANTOM VEIL
+
+MODUŁY ODKRYTE: 4 / 5
+MODUŁY AKTYWNE: 2 / 5
+MODUŁY BLOKOWANE: 1
+POSTĘP MASZYNY: 40%
+```
+
+Maszyna jest online dopiero przy:
+
+```text
+parts_active == 5
+```
+
+Nie oznacza to jeszcze zamknięcia GhostNetwork. Wszystkie cztery maszyny muszą być kompletne.
+
+## 10. Postęp całego cyklu
+
+Dodać agregat:
+
+```text
+parts_total: 20
+parts_discovered
+parts_neutral
+parts_blocked
+parts_active
+parts_contested
+machines_online
+network_ready
+```
+
+Warunek:
+
+```text
+network_ready = parts_active == 20
+```
+
+Nie uruchamiać jeszcze transmisji. Sprint 127 przejmie blokadę cyklu i finalną kontrolę.
+
+## 11. Aktualizacja po zmianie części
+
+Po zdarzeniach:
+
+```text
+ghost.part_discovered
+ghost.part_contained
+ghost.part_activated
+ghost.part_deactivated
+ghost.part_revealed
+ghost.part_conflict_resolved
+```
+
+przeliczyć:
+
+* stan zmienionej części,
+* postęp jednej maszyny,
+* globalny postęp cyklu,
+* stan dwóch sąsiednich połączeń jako wewnętrzną informację.
+
+Nie przeliczać całego świata i wszystkich profili.
+
+Przeliczenie dwudziestu części aktywnego cyklu jest dopuszczalne jako recovery, ale nie jako zwykła reakcja na każde zdarzenie.
+
+## 12. Zdarzenie zmiany maszyny
+
+Zapisać:
+
+```text
+ghost.machine_progress_changed
+```
+
+Payload:
+
+```text
+cycle_id
+machine_code
+clan_code
+previous_active_parts
+active_parts
+blocked_parts
+neutral_parts
+machine_online
+state_version
+```
+
+Zdarzenie powstaje tylko przy realnej zmianie agregatu.
+
+## 13. Zdarzenie ukończenia maszyny
+
+Przy przejściu:
+
+```text
+4 / 5 → 5 / 5
+```
+
+zapisać:
+
+```text
+ghost.machine_online
+```
+
+Przy utracie modułu:
+
+```text
+5 / 5 → 4 / 5
+```
+
+zapisać:
+
+```text
+ghost.machine_offline
+```
+
+Maszyna może wielokrotnie przechodzić między online i offline podczas cyklu.
+
+Idempotencja musi opierać się na wersji stanu i faktycznej zmianie.
+
+## 14. Oznaczenie klastra w Territory Control
+
+Przygotować bezpieczny wewnętrzny kontrakt klastra:
+
+```text
+ghost_components:
+    total
+    neutral
+    blocked
+    active
+    contested
+```
+
+oraz relacje:
+
+```text
+contains_own_clan_part
+contains_foreign_clan_part
+contains_active_part
+contains_blocked_part
+```
+
+W normalnym stabilnym klastrze część znajdująca się wewnątrz nie będzie `neutral`, ale kontrakt może obsłużyć stan przejściowy lub recovery.
+
+Territory Control ma otrzymać informację, że klaster:
+
+* przechowuje część własnego klanu,
+* przechowuje część obcego klanu,
+* aktywuje część,
+* blokuje część,
+* uczestniczy w konflikcie dotyczącym komponentu.
+
+Nie przekazywać jeszcze ukrytej nazwy części bez projekcji widoczności.
+
+## 15. Brak usuwania części przez Territory Control
+
+Jeżeli użytkownik próbuje porzucić obiekt będący kotwicą części:
+
+* sama część nie może zostać usunięta,
+* porzucenie zwykłego przejętego obiektu może rozbić terytorium,
+* GhostNetwork zachowuje kotwicę,
+* po rozpadzie terytorium część staje się publiczna,
+* marker może przejść w niezależny `GHOST ANCHOR`.
+
+Territory Control musi otrzymać:
+
+```text
+contains_ghost_part: true
+ghost_anchor_protected: true
+```
+
+Nie wolno użyć tej flagi do zablokowania rozpadu terytorium. Chroni ona komponent przed usunięciem, nie obszar gracza.
+
+## 16. Diagnostyka stanów
+
+Dodać raport:
+
+```text
+ghostnetwork modules status
+```
+
+Zwraca:
+
+```text
+cycle_id
+state_version
+parts_by_state
+machines
+network_ready
+conflicts_frozen
+integrity_errors
+```
+
+W trybie admin może pokazywać wszystkie części, ale zwykły endpoint nie może korzystać z tego raportu.
+
+## Testy Sprintu 119
+
+Minimum:
+
+* neutralna część,
+* blokowana część,
+* aktywna część,
+* aktywna część podczas konfliktu,
+* blokowana część podczas konfliktu,
+* właściciel offline nie wyłącza modułu,
+* obcy klan nie otrzymuje aktywacji,
+* właściwy klan aktywuje część,
+* utrata terytorium dezaktywuje część,
+* pięć części uruchamia maszynę,
+* utrata jednej wyłącza maszynę,
+* cztery maszyny po pięć części dają `network_ready`,
+* jeden brakujący moduł blokuje gotowość,
+* relacja `self_foreign_blocked`,
+* relacja `self_own_active`,
+* relacja `clan_own_active`,
+* klastry otrzymują poprawne flagi,
+* porzucenie kotwicy nie usuwa części.
+
+## Poza sprintem
+
+Nie implementować:
+
+* filtrowania pól dla odbiorców,
+* markerów,
+* linii,
+* supermocy,
+* nagród,
+* transmisji.
+
+## DoD
+
+Sprint jest zakończony, gdy każda część posiada jednoznaczny stan strategiczny, każda maszyna ma poprawny postęp, a Territory Control może bezpiecznie rozpoznać klaster przechowujący komponent.
+
+Ten sprint zamienia surowe statusy części w mechanikę zrozumiałą dla całej gry.
+
+---
+
+# Sprint 120 — GhostNetwork: widoczność danych i projekcje odbiorców
+
+## Cel sprintu
+
+Zbudować jedno centralne źródło prawdy decydujące, jakie informacje o części może zobaczyć konkretny gracz, klan, właściciel terytorium albo publiczne medium.
+
+Ta sama projekcja musi być używana przez:
+
+* mapę,
+* API,
+* GhostNetwork Suite,
+* Territory Control,
+* BlackNet,
+* Cyberner,
+* Radio,
+* narracyjny outbox,
+* przyszłą Ollamę.
+
+Frontend nie może samodzielnie ukrywać pól otrzymanych z backendu. Backend nie może wysyłać tajnych danych z założeniem, że CSS ich nie pokaże. 
+
+## 1. Serwis widoczności
+
+Dodać:
+
+```text
+GhostVisibilityService
+```
+
+Minimalny kontrakt:
+
+```text
+project_part_for_viewer(part, viewer)
+project_parts_for_viewer(parts, viewer)
+project_connection_for_viewer(connection, viewer)
+project_machine_for_viewer(machine, viewer)
+project_territory_component_for_viewer(cluster, viewer)
+```
+
+Wymagane tryby odbiorcy:
+
+```text
+player
+clan
+owner
+public
+internal
+```
+
+## 2. Kontekst odbiorcy
+
+Znormalizowany kontrakt:
+
+```text
+viewer_id
+viewer_clan
+viewer_profession
+is_authenticated
+is_admin
+audience_scope
+```
+
+Nie przekazywać do projektora pełnego profilu.
+
+Wystarczą dane potrzebne do reguł widoczności.
+
+## 3. Projekcja wewnętrzna
+
+`internal` może zawierać:
+
+* pełną nazwę części,
+* kod,
+* maszynę,
+* profesję,
+* supermoc,
+* właściciela,
+* stan,
+* sąsiadów,
+* topologię,
+* historię.
+
+Nie może być zwracana zwykłemu endpointowi gracza.
+
+Dostępna wyłącznie:
+
+* domenie,
+* testom,
+* recovery,
+* kontrolowanym narzędziom admina.
+
+## 4. Część neutralna
+
+Neutralna część jest w pełni publiczna.
+
+Każdy odbiorca widzi:
+
+```text
+part_id
+part_code
+name
+clan_code
+clan_name
+machine_code
+machine_name
+profession_code
+profession_name
+ability_code
+ability_name
+ability_description
+latitude
+longitude
+module_state: neutral
+territory_id: null
+discovered_at
+visible_connections
+```
+
+Część neutralna nie posiada ukrytej klasyfikacji. Kanon jasno określa, że neutralny komponent jest jawny dla wszystkich. 
+
+## 5. Część blokowana przez obcy klan
+
+### Właściciel terytorium
+
+Właściciel widzi pełne dane:
+
+* nazwę części,
+* klan docelowy,
+* maszynę,
+* profesję,
+* supermoc,
+* stan połączeń,
+* informację, że część jest blokowana.
+
+Projekcja:
+
+```text
+visibility_level: full_owner
+identity_visible: true
+ability_visible: true
+```
+
+### Pozostali gracze
+
+Pozostali widzą jedynie:
+
+```text
+territory_contains_part: true
+part_identity: null
+part_clan: null
+machine: null
+profession: null
+ability: null
+module_state: blocked
+territory_id
+territory_owner_id
+location lub odniesienie do terytorium
+```
+
+Dotyczy to również innych członków klanu właściciela.
+
+Pełną tożsamość zna właściciel konkretnego terytorium, a nie automatycznie cały jego klan. 
+
+## 6. Część aktywna we właściwym klanie
+
+### Właściciel terytorium
+
+Pełne dane.
+
+### Członkowie właściwego klanu
+
+Pełne dane:
+
+* nazwa,
+* maszyna,
+* profesja,
+* supermoc,
+* właściciel,
+* stan,
+* połączenia.
+
+Projekcja:
+
+```text
+visibility_level: full_clan
+identity_visible: true
+ability_visible: true
+```
+
+### Pozostałe klany
+
+Widzą:
+
+* lokalizację aktywnego węzła,
+* klan,
+* właściciela terytorium,
+* stan aktywny,
+* widoczne linie.
+
+Nie widzą:
+
+* nazwy części,
+* profesji,
+* supermocy,
+* kodu modułu,
+* informacji, którzy gracze otrzymali efekt.
+
+Projekcja:
+
+```text
+visibility_level: active_foreign
+part_code: null
+name: null
+profession: null
+ability: null
+clan_code
+territory_owner_id
+module_state: active
+```
+
+## 7. Konflikt
+
+Podczas konfliktu widoczność jest taka sama jak przed jego rozpoczęciem.
+
+Projektor używa:
+
+```text
+frozen_status
+frozen_visibility_context
+```
+
+albo aktualnego stanu bazowego zachowanego przez lifecycle.
+
+Nie zmieniać widoczności tylko dlatego, że:
+
+```text
+conflict_state = contested
+```
+
+Dodać jedynie publiczną informację:
+
+```text
+contested: true
+```
+
+jeżeli pozwalają na to reguły terytorium.
+
+## 8. Brak pamięci systemowej
+
+System nie próbuje usuwać wiedzy, którą gracz zdobył wcześniej, gdy część była publiczna.
+
+Nie tworzyć jednak automatycznego pola:
+
+```text
+viewer_knows_part_identity
+```
+
+na podstawie samego wcześniejszego wyświetlenia.
+
+Gracze mogą:
+
+* zapisać informację,
+* przekazać ją na Cybernerze,
+* skłamać,
+* rozpoznać lokalizację.
+
+Interfejs po ukryciu części stosuje aktualne reguły widoczności, nawet jeśli człowiek pamięta wcześniejszą nazwę.
+
+## 9. Projekcja pozycji
+
+Dla blokowanej części publiczny odbiorca może widzieć:
+
+* terytorium zawierające część,
+* strategiczne oznaczenie obszaru.
+
+Nie musi otrzymywać dokładnego `target_id` kotwicy, jeśli ujawniałoby to więcej niż mapa.
+
+Dodać dwa warianty:
+
+```text
+location_visibility: exact
+location_visibility: territory_only
+```
+
+Neutralna:
+
+```text
+exact
+```
+
+Aktywna:
+
+```text
+exact
+```
+
+Blokowana dla właściciela:
+
+```text
+exact
+```
+
+Blokowana dla pozostałych:
+
+```text
+territory_only
+```
+
+## 10. Projekcja identyfikatorów
+
+Nie wysyłać ukrytych wartości pod neutralnymi nazwami pól.
+
+Błędne:
+
+```json
+{
+  "part_code": "P3",
+  "part_code_visible": false
+}
+```
+
+Poprawne:
+
+```json
+{
+  "part_code": null,
+  "identity_visible": false
+}
+```
+
+To samo dotyczy:
+
+* `ability_code`,
+* `profession_code`,
+* `machine_code`,
+* prawdziwego `target_id`,
+* ukrytych sąsiadów.
+
+## 11. Projekcja połączeń
+
+Widoczność części nie może zdradzać ukrytej topologii.
+
+Reguły:
+
+* część w puli — brak w publicznym snapshotcie,
+* aktywny węzeł z nieodkrytym sąsiadem — brak połowy linii,
+* aktywny węzeł z odkrytym sąsiadem — projekcja może pokazać połowę,
+* ukryta blokowana część nie może ujawnić nazwy przez dane połączenia,
+* pełne połączenie może pokazywać dwa widoczne końce zgodnie z prawami odbiorcy.
+
+Szczegółowy rendering powstanie w Sprincie 122.
+
+## 12. Territory Control
+
+Dla każdego klastra projekcja może zwrócić:
+
+```text
+contains_ghost_part
+ghost_part_count
+ghost_part_relation
+ghost_part_state
+ghost_part_identity_visible
+ghost_part_summary
+```
+
+Przykłady:
+
+### Właściciel blokujący obcą część
+
+```text
+relation: self_foreign_blocked
+identity_visible: true
+```
+
+### Właściciel aktywnej części własnego klanu
+
+```text
+relation: self_own_active
+identity_visible: true
+```
+
+### Inny gracz oglądający blokowany klaster
+
+```text
+relation: foreign_blocked
+identity_visible: false
+summary: "TERYTORIUM ZAWIERA CZĘŚĆ GHOSTNETWORK"
+```
+
+## 13. GhostNetwork Suite
+
+Przygotować projekcję list desktopowego narzędzia:
+
+```text
+public_parts
+blocked_parts
+active_parts
+self_controlled_parts
+clan_parts
+```
+
+To nie są osobne magazyny danych.
+
+Są to filtrowane widoki tej samej listy części aktywnego cyklu.
+
+Pozycja może zawierać:
+
+```text
+part_id lub public_entity_id
+display_label
+module_state
+viewer_relation
+visibility_level
+clan
+owner
+territory
+latitude
+longitude
+can_show_on_map
+can_teleport
+```
+
+Pola nazwy, profesji i mocy zależą od projekcji.
+
+## 14. BlackNet i media
+
+Dodać projekcję faktu:
+
+```text
+project_event_fact_for_audience(event, audience)
+```
+
+Publiczny BlackNet nie może otrzymać pełnej tożsamości części blokowanej.
+
+Przykład publiczny:
+
+```json
+{
+  "event_type": "part_contained",
+  "territory_contains_part": true,
+  "part_identity": null,
+  "owner_clan": "virex"
+}
+```
+
+Przykład prywatny właściciela:
+
+```json
+{
+  "event_type": "part_contained",
+  "part_code": "P3",
+  "part_name": "Paranoia Loop",
+  "target_clan": "phantom_mesh"
+}
+```
+
+Najbezpieczniejsza zasada: medium nie otrzymuje informacji, których nie może opublikować. 
+
+## 15. Klasy projekcji
+
+Każda pozycja otrzymuje:
+
+```text
+visibility_level
+```
+
+Dozwolone:
+
+```text
+internal
+full_public
+full_owner
+full_clan
+active_foreign
+contained_hidden
+```
+
+Nie opierać frontendu na zgadywaniu, czy `name == null`.
+
+## 16. Stabilny publiczny identyfikator
+
+Ukryta część może potrzebować identyfikatora do:
+
+* odświeżenia delty,
+* oznaczenia terytorium,
+* otwarcia mapy.
+
+Nie wolno przy tym ujawniać `part_code`.
+
+Dodać:
+
+```text
+public_entity_id
+```
+
+Przykład:
+
+```text
+ghost-node:8f3a12
+```
+
+Identyfikator:
+
+* jest stabilny w cyklu,
+* nie zawiera kodu części,
+* nie pozwala odtworzyć maszyny,
+* może być używany przez delty.
+
+## 17. Cache projekcji
+
+Projekcja może być cache’owana według:
+
+```text
+cycle_id
+state_version
+viewer_id
+viewer_clan
+audience_scope
+```
+
+Zmiana `state_version` unieważnia cache.
+
+Nie cache’ować pełnej projekcji ownera jako publicznej.
+
+## 18. Testy przecieków
+
+Dodać testy zabezpieczające przed ujawnieniem:
+
+* nazwy części,
+* kodu części,
+* profesji,
+* supermocy,
+* maszyny,
+* ukrytego `target_id`,
+* nieodkrytych sąsiadów,
+* pełnej topologii.
+
+Test powinien serializować response i sprawdzać brak zabronionych wartości, nie tylko stan pól w Pythonie.
+
+## 19. Snapshot dla odbiorcy
+
+Dodać:
+
+```text
+GhostNetworkService.get_snapshot_for_viewer(viewer)
+```
+
+Minimalnie:
+
+```text
+cycle
+progress
+machines
+parts
+connections
+visibility_version
+state_version
+```
+
+Zawiera wyłącznie części i pola widoczne dla odbiorcy.
+
+Nie zawiera aktywnych rezerwacji ani pełnego ring order.
+
+## 20. Recovery projekcji
+
+Jeżeli frontend utraci delty:
+
+* pobiera snapshot dla tego samego odbiorcy,
+* nie pobiera snapshotu wewnętrznego,
+* odbudowuje markery i warstwy,
+* nie wymaga pełnego profilu ani pełnej mapy świata.
+
+## Testy Sprintu 120
+
+Minimum:
+
+* neutralna część pełna dla wszystkich,
+* blokowana część pełna dla właściciela,
+* blokowana część ukryta dla członka klanu właściciela,
+* blokowana część ukryta dla właściwego klanu części,
+* aktywna część pełna dla właściwego klanu,
+* aktywna część ograniczona dla pozostałych,
+* konflikt zachowuje poprzednią widoczność,
+* publiczny snapshot nie zawiera rezerwacji,
+* publiczny snapshot nie zawiera ring order,
+* ukryty `part_code` nie występuje w JSON,
+* ukryta moc nie występuje w JSON,
+* publiczne media nie otrzymują danych owner-only,
+* Territory Control otrzymuje poprawny summary,
+* GhostNetwork Suite otrzymuje poprawne grupy,
+* cache nie miesza właściciela z publicznym odbiorcą,
+* recovery zwraca tę samą projekcję.
+
+## Poza sprintem
+
+Nie implementować:
+
+* markerów,
+* linii,
+* GUI GhostNetwork Suite,
+* supermocy,
+* narracji Ollamy,
+* transmisji.
+
+## DoD
+
+Sprint jest zakończony, gdy istnieje jedna centralna projekcja, która pozwala wszystkim interfejsom pokazywać dokładnie tyle informacji, ile wolno danemu odbiorcy, bez ryzyka wycieku ukrytej części.
+
+Ten sprint buduje filtr bezpieczeństwa, przez który przejdzie każda informacja GhostNetwork.
+
+---
+
+# Sprint 121 — GhostNetwork: markery części i warstwa mapy
+
+## Cel sprintu
+
+Dodać do istniejącej mapy lekką warstwę GhostNetwork renderującą odkryte części zgodnie z projekcją widoczności odbiorcy.
+
+Mapa nie podejmuje decyzji o stanie części. Otrzymuje gotowe projekcje i jedynie:
+
+* tworzy markery,
+* aktualizuje je przez delty,
+* pokazuje właściwe panele,
+* oznacza terytoria przechowujące komponenty.
+
+Warstwa nie rysuje jeszcze połączeń pomiędzy częściami. Linie powstaną w Sprincie 122.
+
+## 1. Osobny moduł frontendowy
+
+Utworzyć:
+
+```text
+static/js/map/ghostnetwork.js
+```
+
+Odpowiedzialności:
+
+```text
+loadGhostNetworkSnapshot()
+renderGhostParts()
+applyGhostPartDelta()
+removeGhostPartMarker()
+renderGhostTerritoryBadge()
+openGhostPartPanel()
+clearGhostNetworkLayer()
+recoverGhostNetworkLayer()
+```
+
+Nie dopisywać całej logiki bezpośrednio do `map_template.html`.
+
+## 2. Osobny scope danych
+
+Mapa pobiera:
+
+```text
+GET /api/ghostnetwork/snapshot
+```
+
+albo wspólny endpoint scope recovery.
+
+Response jest już przefiltrowany przez `GhostVisibilityService`.
+
+Nie wywoływać:
+
+* pełnego `/api/profile`,
+* `sync_session_profile()`,
+* pełnego renderowania mapy,
+* listy wszystkich profili,
+* pełnej diagnostyki GhostNetwork.
+
+## 3. Rejestr warstwy
+
+Frontend utrzymuje:
+
+```text
+window.ghostNetworkPartLayers
+window.ghostNetworkTerritoryLayers
+window.ghostNetworkStateVersion
+```
+
+Rejestr kluczuje po:
+
+```text
+public_entity_id
+```
+
+albo widocznym `part_id`.
+
+Nie kluczować po nazwie części ani zaokrąglonych współrzędnych.
+
+## 4. Pane Leafleta
+
+Dodać osobne pane:
+
+```text
+ghostNetworkPartPane
+ghostNetworkTerritoryPane
+```
+
+Proponowana kolejność:
+
+* ponad zwykłymi markerami POI,
+* ponad terytoriami,
+* poniżej krytycznych overlayów systemowych,
+* bez blokowania kontekstowego menu innych elementów poza hitboxem markera.
+
+Nie używać przypadkowego wysokiego `z-index`, który przykryje menu albo Response Network.
+
+## 5. Marker neutralnej części
+
+Neutralna część ma wyraźny publiczny marker.
+
+Marker powinien komunikować:
+
+* część GhostNetwork,
+* klan części,
+* stan neutralny,
+* brak aktywacji.
+
+Dla pełnej projekcji panel pokazuje:
+
+```text
+nazwa części
+maszyna
+klan
+profesja
+supermoc
+odkrywca, jeśli publiczny
+status
+lokalizacja
+```
+
+Nie dodawać akcji:
+
+* podnieś,
+* sprzedaj,
+* przenieś,
+* usuń.
+
+Dostępne mogą być:
+
+* pokaż szczegóły,
+* ustaw fokus,
+* teleport,
+* informacje o terytorium.
+
+## 6. Marker blokowanej części dla właściciela
+
+Właściciel terytorium otrzymuje marker albo oznaczenie wewnątrz własnego klastra z pełnymi danymi.
+
+Wygląd:
+
+* stan `BLOCKED`,
+* kolor właściciela terytorium połączony z ostrzeżeniem klanu docelowego,
+* brak animacji aktywnego przepływu,
+* wyraźna informacja, że moduł jest nieaktywny.
+
+Panel:
+
+```text
+KOMPONENT ZABEZPIECZONY
+CZĘŚĆ: [pełna nazwa]
+KLAN DOCELOWY: [klan części]
+STATUS: BLOKOWANY
+AKTYWNOŚĆ: 0%
+```
+
+## 7. Blokowana część dla pozostałych
+
+Pozostali nie otrzymują dokładnego markera części.
+
+Mapa oznacza klaster:
+
+```text
+TERYTORIUM ZAWIERA CZĘŚĆ GHOSTNETWORK
+TOŻSAMOŚĆ: UKRYTA
+STATUS: NIEAKTYWNA
+```
+
+Oznaczenie może być:
+
+* badge przy centroidzie klastra,
+* subtelnym symbolem na obramowaniu,
+* ikoną strategicznego terytorium.
+
+Nie ujawnia:
+
+* dokładnej kotwicy,
+* nazwy,
+* kodu,
+* klanu docelowego,
+* profesji,
+* supermocy.
+
+## 8. Marker aktywnej części dla właściwego klanu
+
+Właściwy klan widzi pełny aktywny węzeł:
+
+* nazwę części,
+* maszynę,
+* profesję,
+* aktywną supermoc,
+* właściciela,
+* stan połączeń.
+
+Marker powinien posiadać:
+
+* mocniejszą poświatę,
+* animację aktywnego impulsu,
+* kolor klanu,
+* badge aktywnego modułu.
+
+Nie przesadzać z animacją, ponieważ docelowo na mapie może być 20 komponentów i wiele linii.
+
+## 9. Marker aktywnej części dla obcych klanów
+
+Obcy klan widzi aktywny strategiczny węzeł, ale bez pełnej tożsamości.
+
+Panel:
+
+```text
+AKTYWNY WĘZEŁ GHOSTNETWORK
+
+KLAN: SIATKA WIDMO
+WŁAŚCICIEL: operator_x
+MODUŁ: ZASZYFROWANY
+STATUS: AKTYWNY
+```
+
+Marker może korzystać z koloru klanu, lecz nie z ikony konkretnej części, jeśli zdradzałaby jej tożsamość.
+
+## 10. Ghost Anchor
+
+Jeżeli źródłowy marker zniknął:
+
+* warstwa nadal renderuje komponent,
+* używa zapisanych współrzędnych,
+* używa specjalnej ikony `GHOST ANCHOR`,
+* panel pokazuje informację o utraconym źródle.
+
+Przykład:
+
+```text
+GHOST ANCHOR
+ŹRÓDŁO PIERWOTNE: UTRACONE
+KOMPONENT: ZACHOWANY
+```
+
+Zakres pozostałych informacji nadal zależy od widoczności.
+
+## 11. Interakcja z istniejącymi markerami
+
+Marker części może znajdować się na tych samych współrzędnych co:
+
+* przejęty obiekt,
+* filar,
+* inner node,
+* zwykły marker mapy.
+
+Nie usuwać ani zastępować istniejącego markera gameplayowego.
+
+Preferowane rozwiązania:
+
+* osobny mały badge GhostNetwork,
+* złożony marker,
+* kontrolowany offset,
+* warstwa nakładana na istniejący cel.
+
+Nie tworzyć sytuacji, w której kliknięcie komponentu uniemożliwia użycie kontekstowego menu obiektu.
+
+## 12. Panel szczegółów
+
+Panel musi renderować wyłącznie pola otrzymane w projekcji.
+
+Nie posiada warunków typu:
+
+```text
+if viewerClan === partClan
+```
+
+Backend już rozstrzygnął widoczność.
+
+Frontend może jedynie sprawdzić:
+
+```text
+visibility_level
+identity_visible
+ability_visible
+location_visibility
+```
+
+## 13. Status konfliktu
+
+Część objęta konfliktem:
+
+* zachowuje dotychczasowy wygląd stanu bazowego,
+* otrzymuje badge lub subtelny efekt `CONTESTED`,
+* nie przełącza się wizualnie między active i blocked przy każdej zmianie granicy,
+* nie zmienia informacji do czasu zdarzenia stabilizacji.
+
+To musi odpowiadać zamrożeniu lifecycle.
+
+## 14. Oznaczenia klastrów
+
+Rozszerzyć warstwę terytoriów o:
+
+```text
+contains_ghost_part
+ghost_part_state
+ghost_part_relation
+```
+
+Stany wizualne klastra:
+
+### Neutralny klaster bez komponentu
+
+Bez dodatkowego oznaczenia GhostNetwork.
+
+### Klaster blokujący część
+
+Badge komponentu zabezpieczonego.
+
+### Klaster aktywujący część
+
+Badge aktywnego węzła.
+
+### Klaster z komponentem w konflikcie
+
+Badge zachowuje wcześniejszy stan i otrzymuje nakładkę konfliktu.
+
+Kolor zagrożenia Territory Control:
+
+* zielony,
+* pomarańczowy,
+* czerwony
+
+pozostaje osobnym systemem od koloru części GhostNetwork.
+
+Nie nadpisywać całego koloru klastra kolorem komponentu.
+
+## 15. Ładowanie warstwy
+
+Warstwa może zostać załadowana:
+
+* podczas końcowego etapu bootowania mapy,
+* równolegle z opcjonalnymi warstwami,
+* po udostępnieniu podstawowego gameplayu mapy, jeśli snapshot jest wolniejszy.
+
+Błąd GhostNetwork:
+
+* nie blokuje mapy,
+* pokazuje mały status warstwy,
+* pozwala wykonać retry,
+* nie usuwa zwykłych terytoriów i markerów.
+
+## 16. Delty
+
+Obsłużyć minimum:
+
+```text
+ghost.part_discovered
+ghost.part_contained
+ghost.part_revealed
+ghost.part_activated
+ghost.part_deactivated
+ghost.part_contested
+ghost.part_conflict_resolved
+ghost.part_anchor_source_lost
+ghost.part_anchor_migrated
+ghost.part_consumed
+```
+
+Delta zawiera gotową projekcję dla odbiorcy albo identyfikator wymagający punktowego odczytu.
+
+Preferowana jest gotowa bezpieczna projekcja.
+
+## 17. Aktualizacja pojedynczego markera
+
+Po delcie:
+
+1. Sprawdzić `state_version`.
+2. Odrzucić starsze zdarzenie.
+3. Znaleźć marker przez `public_entity_id`.
+4. Zaktualizować ikonę, pozycję i panel.
+5. Zaktualizować badge klastra.
+6. Nie odświeżać całej mapy.
+7. Nie pobierać pełnego profilu.
+
+## 18. Zdarzenie odkrycia
+
+Po `ghost.part_discovered`:
+
+* nowy neutralny marker pojawia się bez przeładowania mapy,
+* użytkownik otrzymuje kontrolowany komunikat systemowy,
+* mapa może ustawić subtelny fokus, jeśli odkrywcą jest aktualny gracz,
+* nie otwiera automatycznie ciężkiego modala podczas innej operacji.
+
+Pierwsze odkrycie w historii gracza może uruchomić osobny onboarding komponentu.
+
+## 19. Zdarzenie ukrycia w terytorium
+
+Po przejściu `public → blocked`:
+
+* dla właściciela neutralny marker zmienia się w marker blokowanego komponentu,
+* dla pozostałych dokładny marker znika,
+* pojawia się badge terytorium,
+* stare popupy i tooltipy są usuwane,
+* pamięć frontendowa nie zachowuje ukrytych danych w dostępnym DOM.
+
+## 20. Zdarzenie aktywacji
+
+Po przejściu do `active`:
+
+* pojawia się aktywny węzeł,
+* dla właściwego klanu panel jest pełny,
+* dla pozostałych moduł pozostaje zaszyfrowany,
+* aktualizuje się postęp maszyny,
+* przygotowywany jest stan do narysowania połączeń w Sprincie 122.
+
+## 21. Zdarzenie zużycia
+
+Po `ghost.part_consumed`:
+
+* marker części znika z aktywnej warstwy,
+* badge klastra zostaje usunięty,
+* zwykły obiekt i terytorium pozostają,
+* frontend może później dodać historyczny ślad transmisji.
+
+Nie usuwać markera zwykłego POI ani klastra.
+
+## 22. Recovery
+
+Jeżeli frontend wykryje:
+
+* lukę wersji,
+* nieznany `public_entity_id`,
+* marker bez projekcji,
+* błąd zastosowania delty,
+
+pobiera wyłącznie:
+
+```text
+ghostnetwork snapshot
+```
+
+Następnie:
+
+* czyści warstwę GhostNetwork,
+* odtwarza markery i badge,
+* nie przeładowuje całej mapy,
+* nie wywołuje pełnego bootowania.
+
+## 23. Wydajność
+
+Wymagania:
+
+* maksymalnie 20 aktywnych markerów części,
+* brak stałych interwałów animujących każdy marker osobno w JavaScript,
+* animacje oparte o CSS,
+* jeden listener delt,
+* brak ciężkiego pollera,
+* brak pełnego re-renderu po pojedynczej zmianie,
+* brak odpytywania profilu przy zmianie części.
+
+Architektura GhostNetwork wymaga osobnego snapshotu i scope delt właśnie po to, aby globalna warstwa nie obciążała mapy pełnymi synchronizacjami. 
+
+## 24. Responsywność i dostępność
+
+Marker:
+
+* ma kontrolowany hitbox,
+* nie wychodzi poza własny rozmiar,
+* nie przechwytuje kliknięć poza ikoną.
+
+Panel:
+
+* działa na desktopie i mobile,
+* ma przycisk zamknięcia,
+* ma czytelne statusy bez polegania wyłącznie na kolorze,
+* pełne dane mają etykiety tekstowe,
+* ukryta część nie pozostawia nazwy w `title` ani `aria-label`.
+
+## 25. Testy Sprintu 121
+
+Minimum:
+
+* neutralny marker dla każdego gracza,
+* pełne dane neutralnej części,
+* blokowana część pełna dla właściciela,
+* blokowana część ukryta dla pozostałych,
+* aktywna część pełna dla właściwego klanu,
+* aktywna część zaszyfrowana dla obcego klanu,
+* konflikt zachowuje wcześniejszy marker,
+* Ghost Anchor po utracie źródła,
+* dwa markery na tych samych współrzędnych nie blokują menu,
+* delta odkrycia,
+* delta ukrycia,
+* delta aktywacji,
+* delta dezaktywacji,
+* delta migracji,
+* delta zużycia,
+* starsza delta zostaje odrzucona,
+* luka wersji uruchamia recovery,
+* recovery nie przeładowuje pełnej mapy,
+* ukryta nazwa nie znajduje się w DOM,
+* brak ciężkiego pollera,
+* mapa działa mimo błędu warstwy GhostNetwork.
+
+## Poza sprintem
+
+Nie implementować:
+
+* linii i łuków połączeń,
+* animacji połówek,
+* transmisji,
+* supermocy,
+* nagród,
+* finalnego GhostNetwork Suite.
+
+## DoD
+
+Sprint jest zakończony, gdy odkryte części pojawiają się na mapie zgodnie z prawami odbiorcy, blokowane komponenty ukrywają dokładną kotwicę przed nieuprawnionymi graczami, aktywne moduły są czytelnie oznaczone, a cała warstwa aktualizuje się punktowo przez delty.
 
 
 GhostNetwork — połowy linii, pełne połączenia i animacje
 GhostNetwork — delty, snapshot i recovery
 GhostNetwork — supermoce profesji i rejestr efektów
 
+Po Sprintach 122–124 GhostNetwork staje się pełną mechaniczną siecią: linie pokazują realne zależności, stan synchronizuje się lekko pomiędzy interfejsami, a aktywowanie modułu daje konkretną przewagę wszystkim operatorom właściwej profesji.
+
+Lecimy dalej — Sprint 122 pokaże żywą topologię sieci, 123 zapewni lekką synchronizację bez przeładowywania mapy, a 124 uruchomi profesje wyłącznie wtedy, gdy odpowiadający im moduł naprawdę pozostaje aktywny.
+
+# Sprint 122 — GhostNetwork: połowy linii, pełne połączenia i animacje
+
+## Cel sprintu
+
+Wyrenderować na mapie połączenia wynikające z zapisanej topologii GhostNetwork oraz aktualnych stanów części.
+
+Warstwa ma obsługiwać:
+
+* brak linii,
+* nieaktywną relację,
+* połowę połączenia,
+* pełne połączenie,
+* zerwanie połączenia,
+* zmianę kierunku aktywnej połówki,
+* animację przepływu pomiędzy aktywnymi węzłami.
+
+Frontend nie wylicza topologii ani nie sprawdza stanów części. Otrzymuje gotową projekcję połączenia dla aktualnego gracza. Każda część posiada dokładnie dwóch sąsiadów, a wszystkie 20 elementów tworzy jeden zamknięty obwód. 
+
+## 1. Backendowy resolver połączeń
+
+Rozszerzyć `GhostTopologyService` o publiczny resolver:
+
+`resolve_connection_projection(connection, viewer_context)`
+
+Każda projekcja połączenia powinna zawierać:
+
+* `connection_id`,
+* `public_connection_id`,
+* `state`,
+* widoczny początek,
+* widoczny koniec,
+* współrzędne widocznych węzłów,
+* kierunek przepływu,
+* klany końców,
+* poziom widoczności danych,
+* integralność,
+* wersję stanu,
+* informację o konflikcie.
+
+Dozwolone stany projekcji:
+
+* `hidden`,
+* `inactive`,
+* `half_from_a`,
+* `half_from_b`,
+* `active`.
+
+Stan `inactive` może istnieć w snapshotcie technicznym, ale nie musi być rysowany na mapie.
+
+## 2. Reguły widoczności linii
+
+### Obie części nieodkryte
+
+`hidden`
+
+Brak jakiegokolwiek elementu na mapie.
+
+### Jedna aktywna, druga nieodkryta
+
+`hidden`
+
+Aktywny węzeł nie może zdradzić lokalizacji części znajdującej się jeszcze w puli.
+
+### Obie odkryte i nieaktywne
+
+`inactive`
+
+Brak widocznej linii.
+
+### A aktywna, B odkryta i nieaktywna
+
+`half_from_a`
+
+Linia rozpoczyna się przy A i kończy w połowie drogi zakłóceniem.
+
+### B aktywna, A odkryta i nieaktywna
+
+`half_from_b`
+
+Kierunek odwrotny.
+
+### Obie aktywne
+
+`active`
+
+Powstaje pełne połączenie z pulsującym przepływem.
+
+Te reguły wynikają bezpośrednio z kanonicznego zachowania GhostNetwork: połówka pojawia się wyłącznie wtedy, gdy jeden koniec jest aktywny, a drugi został już odkryty. 
+
+## 3. Konflikt nie przerywa linii
+
+Jeżeli część pozostawała aktywna przed rozpoczęciem konfliktu:
+
+* jej pełne połączenia nadal działają,
+* jej połówki nadal pozostają widoczne,
+* linia otrzymuje jedynie stan `contested`,
+* nie zmienia długości ani kierunku do czasu stabilizacji granic.
+
+Jeżeli część była blokowana albo neutralna, konflikt również nie aktywuje jej połączeń.
+
+## 4. Zmiana stanu połączenia
+
+Po zdarzeniach części przeliczyć wyłącznie jej dwa sąsiednie połączenia.
+
+Źródłowe zdarzenia:
+
+* `ghost.part_discovered`,
+* `ghost.part_activated`,
+* `ghost.part_deactivated`,
+* `ghost.part_revealed`,
+* `ghost.part_contained`,
+* `ghost.part_conflict_resolved`,
+* `ghost.part_consumed`.
+
+Nie przeliczać wszystkich 20 połączeń po każdej zmianie pojedynczej części.
+
+Recovery może przeliczyć cały pierścień.
+
+## 5. Zdarzenie domenowe
+
+Przy realnej zmianie zapisać:
+
+`ghost.connection_changed`
+
+Payload:
+
+* `cycle_id`,
+* `connection_id`,
+* `previous_state`,
+* `state`,
+* identyfikatory końców,
+* widoczne współrzędne,
+* `flow_direction`,
+* `contested`,
+* `state_version`,
+* `reason`.
+
+Nie publikować kodu nieodkrytej części ani pełnej topologii.
+
+## 6. Warstwa mapy
+
+Rozszerzyć:
+
+`static/js/map/ghostnetwork.js`
+
+o:
+
+* `renderGhostConnections()`,
+* `createGhostConnectionLayer()`,
+* `updateGhostConnectionLayer()`,
+* `removeGhostConnectionLayer()`,
+* `applyGhostConnectionDelta()`,
+* `animateGhostConnectionPulse()`.
+
+Rejestr:
+
+`window.ghostNetworkConnectionLayers`
+
+Kluczowanie po `public_connection_id`.
+
+## 7. Osobne pane Leafleta
+
+Dodać:
+
+* `ghostNetworkConnectionPane`,
+* `ghostNetworkPulsePane`.
+
+Linie powinny być:
+
+* ponad poligonami terytoriów,
+* poniżej markerów części,
+* poniżej menu i overlayów,
+* całkowicie nieinteraktywne poza kontrolowanym hitboxem podglądu.
+
+Nie mogą przechwytywać kliknięć przeznaczonych dla markerów albo mapy.
+
+## 8. Łuki zamiast prostych linii
+
+Połączenia mają być krzywymi łukami.
+
+Dla każdej pary współrzędnych obliczyć deterministyczny punkt kontrolny na podstawie:
+
+* `connection_id`,
+* odległości końców,
+* pozycji w pierścieniu,
+* opcjonalnego znaku wygięcia.
+
+Ten sam connection zawsze powinien wyginać się w tę samą stronę po odświeżeniu.
+
+Nie używać losowej krzywizny przy każdym renderze.
+
+## 9. Pełna linia
+
+Pełne połączenie posiada trzy warstwy:
+
+1. tło stabilizujące,
+2. gradient pomiędzy kolorami klanów,
+3. animowany impuls GhostSystemu.
+
+Przykładowy przebieg:
+
+`kolor klanu A → GhostSignal → kolor klanu B`
+
+Animacja:
+
+* oparta o CSS lub SVG,
+* bez osobnego `setInterval` dla każdej linii,
+* prędkość kontrolowana tokenem CSS,
+* zatrzymywana przy `prefers-reduced-motion`.
+
+## 10. Połowa linii
+
+Połówka:
+
+* rozpoczyna się przy aktywnym węźle,
+* dochodzi do geometrycznego środka łuku,
+* stopniowo traci kolor klanu,
+* kończy się glitchem lub urwanym impulsem.
+
+Nie powinna dochodzić wizualnie do nieaktywnego węzła.
+
+Nie może ujawniać części, która nie została jeszcze odkryta.
+
+## 11. Zerwanie połączenia
+
+Przy przejściu:
+
+`active → half_from_a`
+
+albo:
+
+`active → half_from_b`
+
+wykonać krótką animację:
+
+* impuls gaśnie od dezaktywowanego końca,
+* środkowa część linii rozpada się,
+* pozostaje połowa wychodząca od aktywnego węzła.
+
+Przy przejściu:
+
+`active → hidden`
+
+linia zanika całkowicie.
+
+Animacja jest tylko wizualizacją zatwierdzonego stanu backendu.
+
+## 12. Domknięcie pełnego połączenia
+
+Przy przejściu:
+
+`half_from_a → active`
+
+lub:
+
+`half_from_b → active`
+
+brakująca połowa dochodzi od nowo aktywowanego węzła do środka.
+
+Po zetknięciu:
+
+* pojawia się jeden mocniejszy impuls,
+* linia przechodzi w zwykły rytm aktywny,
+* aktualizuje się licznik pełnych połączeń.
+
+Nie uruchamiać jeszcze globalnej sekwencji transmisji. Ta pojawi się w Sprincie 128.
+
+## 13. Kierunek impulsu
+
+Zwykłe pełne połączenie może posiadać kierunek zgodny z kolejnością pierścienia:
+
+`part_a → part_b`
+
+Kierunek służy:
+
+* późniejszej animacji obiegu całej sieci,
+* spójnemu pulsowaniu,
+* pokazaniu kolejności transmisji.
+
+Nie oznacza przepływu własności ani ataku.
+
+## 14. Panel połączenia
+
+Kliknięcie kontrolowanego hitboxu pełnej lub połowicznej linii może otworzyć niewielki panel.
+
+Dla niekompletnego połączenia:
+
+* węzeł A: aktywny,
+* węzeł B: odkryty / nieaktywny,
+* przepływ: 50%,
+* stabilność: oczekiwanie.
+
+Dla pełnego:
+
+* węzeł A,
+* węzeł B,
+* przepływ: stabilny,
+* integralność: 100%.
+
+Nazwy końców zależą od projekcji widoczności aktualnego gracza. 
+
+## 15. Liczniki sieci
+
+Snapshot mapy może zawierać:
+
+* `connections_total: 20`,
+* `connections_hidden`,
+* `connections_half`,
+* `connections_active`,
+* `circuit_complete`.
+
+`circuit_complete` nie może być liczone wyłącznie na frontendzie.
+
+## 16. Wydajność
+
+Maksymalny stan jednego cyklu:
+
+* 20 części,
+* 20 połączeń.
+
+Wymagania:
+
+* jedna warstwa połączeń,
+* brak osobnego pollera,
+* brak odświeżenia Folium,
+* punktowe aktualizacje,
+* animacja CSS/SVG,
+* brak wielu timerów JavaScript,
+* usuwanie starych ścieżek i listenerów.
+
+## 17. Recovery
+
+Po utracie wersji:
+
+1. pobrać GhostNetwork snapshot,
+2. usunąć wyłącznie warstwę połączeń,
+3. odtworzyć widoczne linie,
+4. zachować zwykłą mapę i terytoria,
+5. wznowić animację od aktualnego stanu, bez odgrywania historycznych przejść.
+
+## Testy Sprintu 122
+
+Minimum:
+
+* dwie nieodkryte części — brak linii,
+* aktywna i nieodkryta — brak linii,
+* dwie odkryte nieaktywne — brak renderu,
+* A aktywna — połowa od A,
+* B aktywna — połowa od B,
+* obie aktywne — pełna linia,
+* aktywna część traci kontrolę — zerwanie,
+* konflikt nie zrywa aktywnej linii,
+* stabilizacja zmienia stan,
+* połączenie nie ujawnia kodu nieodkrytej części,
+* deterministyczna krzywizna,
+* brak blokowania kliknięć mapy,
+* delta aktualizuje jedną linię,
+* recovery odtwarza 20 połączeń,
+* `prefers-reduced-motion`,
+* brak timerów per linia.
+
+## Poza sprintem
+
+Nie implementować:
+
+* globalnego impulsu transmisji,
+* dodatkowej pajęczyny synchronizacyjnej,
+* czarnego ekranu,
+* restartu,
+* historycznych linii.
+
+## DoD
+
+Sprint jest zakończony, gdy mapa pokazuje wyłącznie poprawne połówki i pełne połączenia, reaguje punktowo na aktywację oraz utratę części i nigdy nie zdradza lokalizacji nieodkrytego modułu.
+
+Ten sprint zamienia dwadzieścia osobnych markerów w faktycznie rosnącą sieć.
+
+---
+
+# Sprint 123 — GhostNetwork: delty, snapshot i recovery
+
+## Cel sprintu
+
+Domknąć niezależny kanał synchronizacji GhostNetwork, aby mapa, desktopowe aplikacje i przyszłe media mogły reagować na zmiany bez pobierania pełnego profilu ani ciężkiego stanu mapy.
+
+GhostNetwork otrzymuje osobny scope delty, własny snapshot oraz kontrolowany mechanizm recovery. Architektura wymaga aktualizacji punktowych i zabrania ciężkiego pollera oraz `sync_session_profile()` przy odświeżaniu warstwy. 
+
+## 1. Osobny scope delt
+
+Dodać do `GameStateDeltaBus`:
+
+`ghostnetwork`
+
+Minimalne typy:
+
+* `ghost.cycle_created`,
+* `ghost.cycle_activated`,
+* `ghost.part_discovered`,
+* `ghost.part_contained`,
+* `ghost.part_revealed`,
+* `ghost.part_activated`,
+* `ghost.part_deactivated`,
+* `ghost.part_contested`,
+* `ghost.part_conflict_resolved`,
+* `ghost.connection_changed`,
+* `ghost.machine_progress_changed`,
+* `ghost.machine_online`,
+* `ghost.machine_offline`,
+* `ghost.cycle_locked`,
+* `ghost.signal_sent`,
+* `ghost.version_changed`,
+* `ghost.restart_required`.
+
+Wewnętrzne rezerwacje nie trafiają do zwykłego scope gracza.
+
+## 2. Producent zdarzeń
+
+Dodać:
+
+`GhostNetworkDeltaPublisher`
+
+Odpowiada za:
+
+* pobranie zdarzenia domenowego,
+* ustalenie odbiorców,
+* wykonanie projekcji widoczności,
+* zapis bezpiecznego payloadu,
+* deduplikację,
+* logowanie błędów publikacji.
+
+Warstwa domenowa nie powinna bezpośrednio budować prywatnych payloadów dla graczy.
+
+## 3. Odbiorcy
+
+Możliwe zakresy:
+
+* `public`,
+* `clan`,
+* `owner`,
+* `player`,
+* `all_active_players`.
+
+Dla jednego zdarzenia mogą powstać różne projekcje.
+
+Przykład `ghost.part_contained`:
+
+* właściciel otrzymuje pełną tożsamość,
+* pozostali otrzymują ukryty badge terytorium,
+* publiczne media otrzymują wyłącznie dozwolony fakt.
+
+Nie zapisywać jednego pełnego payloadu i filtrować go później w przeglądarce.
+
+## 4. Kontrakt delty
+
+Każda delta:
+
+* `event_id`,
+* `scope`,
+* `type`,
+* `cycle_id`,
+* `entity_id`,
+* `state_version`,
+* `audience_scope`,
+* `payload`,
+* `created_at`,
+* `dedupe_key`.
+
+Payload może zawierać:
+
+* gotową projekcję części,
+* gotową projekcję połączenia,
+* agregat maszyny,
+* usunięcie elementu,
+* wymóg recovery.
+
+## 5. Kolejność wersji
+
+Klient utrzymuje:
+
+`ghostNetworkStateVersion`
+
+Zasady:
+
+* niższa lub równa wersja — odrzucić jako starą albo zduplikowaną,
+* kolejna oczekiwana wersja — zastosować,
+* luka wersji — zatrzymać punktowe zmiany i uruchomić recovery,
+* delta z innego cyklu — porównać z aktualnym snapshotem.
+
+Nie zakładać, że jedna wersja oznacza dokładnie jedno zdarzenie. Jedna transakcja może opublikować kilka delt z tym samym `state_version`.
+
+## 6. Grupowanie delt transakcji
+
+Dodać:
+
+* `transaction_id`,
+* `transaction_index`,
+* `transaction_size`.
+
+Pozwala to zastosować razem:
+
+* zmianę części,
+* zmianę dwóch połączeń,
+* zmianę postępu maszyny,
+* zmianę globalnego postępu.
+
+Frontend nie powinien przez krótką chwilę pokazywać części aktywnej bez odpowiadających jej połączeń.
+
+## 7. Snapshot gracza
+
+Endpoint:
+
+`GET /api/ghostnetwork/snapshot`
+
+Response:
+
+* `cycle`,
+* `ghostsystem_version`,
+* `state_version`,
+* `visibility_version`,
+* `progress`,
+* `machines`,
+* widoczne `parts`,
+* widoczne `connections`,
+* `restart_required`,
+* `stabilization_until`,
+* diagnostykę ograniczoną do danych klienta.
+
+Nie zawiera:
+
+* rezerwacji,
+* pełnego katalogu topologii,
+* nieodkrytych części,
+* ukrytych nazw,
+* pełnych eventów historycznych.
+
+## 8. Snapshot lekki dla desktopu
+
+Dodać możliwość ograniczenia projekcji:
+
+`GET /api/ghostnetwork/snapshot?view=suite`
+
+Może zwrócić:
+
+* listy części,
+* stany,
+* lokalizacje,
+* relacje odbiorcy,
+* postęp maszyn.
+
+Nie musi zawierać geometrii linii potrzebnej mapie.
+
+Widoki:
+
+* `map`,
+* `suite`,
+* `territory_summary`,
+* `status`.
+
+Wszystkie korzystają z jednej projekcji widoczności.
+
+## 9. Snapshot wewnętrzny
+
+Pozostawić osobny:
+
+`build_internal_snapshot()`
+
+Nie może być wywoływany przez endpoint użytkownika.
+
+Zawiera:
+
+* wszystkie 20 części,
+* pełną topologię,
+* rezerwacje,
+* historię techniczną,
+* błędy integralności.
+
+## 10. Recovery klienta
+
+Dodać wspólny klient:
+
+`window.GhostNetworkDeltaClient`
+
+Odpowiedzialności:
+
+* subskrypcja delt,
+* kolejka transakcji,
+* wersjonowanie,
+* deduplikacja,
+* dystrybucja zdarzeń do widoków,
+* recovery,
+* retry z backoffem.
+
+Odbiorcy:
+
+* mapa,
+* Territory Control,
+* GhostNetwork Suite,
+* przyszły panel statusu.
+
+Nie tworzyć osobnego pollera w każdej aplikacji.
+
+## 11. Rejestr widoków
+
+Widoki mogą rejestrować callbacki:
+
+* `onPartChanged`,
+* `onConnectionChanged`,
+* `onMachineChanged`,
+* `onCycleChanged`,
+* `onRecovery`.
+
+Po zamknięciu okna muszą się wyrejestrować.
+
+Nie pozostawiać listenerów aplikacji, która została usunięta z DOM.
+
+## 12. Recovery mapy
+
+Po recovery:
+
+* odtworzyć markery części,
+* odtworzyć badge terytoriów,
+* odtworzyć linie,
+* ustawić postęp,
+* nie przeładowywać iframe mapy,
+* nie pobierać pełnego profilu.
+
+## 13. Recovery desktopowych aplikacji
+
+Po recovery:
+
+* odtworzyć listę części,
+* zachować aktualny ekran aplikacji, jeśli element nadal istnieje,
+* pokazać komunikat o odświeżeniu stanu,
+* nie uruchamiać mapy.
+
+## 14. Recovery po zmianie cyklu
+
+Jeżeli klient posiada cykl A, a delta dotyczy cyklu B:
+
+1. zatrzymać stare delty,
+2. pobrać nowy snapshot,
+3. usunąć zużyte elementy aktywnego świata,
+4. ustawić nową wersję,
+5. wznowić nasłuch.
+
+Nie mieszać elementów dwóch cykli.
+
+## 15. Deduplikacja
+
+Dedupe po:
+
+* `event_id`,
+* `dedupe_key`,
+* `cycle_id + state_version + entity_id + type`.
+
+Ograniczyć rozmiar pamięciowego zbioru przetworzonych eventów.
+
+Po pełnym recovery można wyczyścić starsze identyfikatory poprzedniej wersji.
+
+## 16. Snapshot consistency token
+
+Response może zawierać:
+
+`snapshot_checksum`
+
+Checksum obejmuje publiczne identyfikatory:
+
+* części,
+* ich wersje,
+* połączenia,
+* stan cyklu.
+
+Klient może użyć go diagnostycznie.
+
+Nie jest zabezpieczeniem kryptograficznym ani źródłem autoryzacji.
+
+## 17. Retry i backoff
+
+Przy błędzie snapshotu:
+
+* zachować ostatni poprawny widok,
+* oznaczyć dane jako chwilowo nieaktualne,
+* ponowić z rosnącym opóźnieniem,
+* nie spamować endpointu,
+* pozwolić na ręczne odświeżenie.
+
+## 18. Brak ciężkiego pollera
+
+Dozwolone:
+
+* istniejący delta bus,
+* recovery po luce,
+* bardzo rzadki sanity refresh jako zabezpieczenie, jeśli audyt wykaże potrzebę.
+
+Niedozwolone:
+
+* osobne odpytywanie co kilka sekund w każdej aplikacji,
+* odświeżanie pełnej mapy,
+* pobieranie pełnego profilu dla części,
+* przeliczanie terytoriów przy odczycie snapshotu.
+
+## 19. Publikacja po błędzie
+
+Błąd publikacji delty nie może cofnąć poprawnej transakcji domenowej.
+
+Zdarzenie domenowe pozostaje w dzienniku.
+
+Dodać mechanizm:
+
+* `pending`,
+* `published`,
+* `failed`,
+* retry publikacji.
+
+Można wykorzystać istniejący log zdarzeń jako źródło ponownej publikacji.
+
+## 20. Recovery po stronie serwera
+
+Dodać:
+
+`rebuild_ghostnetwork_delta_projection(cycle_id, from_version=None)`
+
+Może:
+
+* odtworzyć brakujące projekcje z dziennika,
+* porównać snapshot z eventami,
+* wykryć nieopublikowane zmiany.
+
+Nie powinien ponownie wykonywać efektów domenowych.
+
+## 21. Obserwowalność
+
+Logować:
+
+* event domenowy,
+* liczbę odbiorców,
+* liczbę projekcji,
+* czas publikacji,
+* wielkość payloadu,
+* błędy widoczności,
+* liczbę recovery,
+* powód recovery,
+* luki wersji.
+
+Każdy log posiada `cycle_id` i `state_version`.
+
+## 22. Testy Sprintu 123
+
+Minimum:
+
+* publiczna delta neutralnej części,
+* prywatna delta właściciela,
+* ukryta delta pozostałych,
+* delta klanowa aktywnego modułu,
+* kilka delt z jedną wersją,
+* zachowanie kolejności transakcji,
+* starsza delta odrzucona,
+* duplikat odrzucony,
+* luka uruchamia recovery,
+* zmiana cyklu uruchamia recovery,
+* snapshot mapy,
+* snapshot suite,
+* snapshot nie zawiera rezerwacji,
+* snapshot nie zawiera ukrytych danych,
+* wyrejestrowanie zamkniętego okna,
+* błąd delty nie cofa domeny,
+* retry publikacji,
+* recovery nie wywołuje profilu ani pełnej mapy,
+* brak pollera per aplikacja.
+
+## Poza sprintem
+
+Nie implementować:
+
+* transmisji końcowej,
+* archiwum historycznego,
+* Ollamy,
+* pełnego GhostNetwork Suite GUI.
+
+## DoD
+
+Sprint jest zakończony, gdy każda zmiana części, połączenia, maszyny i cyklu dociera do uprawnionych klientów jako bezpieczna delta, a utrata zdarzenia prowadzi do lekkiego recovery wyłącznie scope GhostNetwork.
+
+Ten sprint sprawia, że GhostNetwork może działać długo i stabilnie bez zamieniania mapy w ciężki monitor całego świata.
+
+---
+
+# Sprint 124 — GhostNetwork: supermoce profesji i rejestr efektów
+
+## Cel sprintu
+
+Uruchomić centralny rejestr efektów profesji, w którym dostęp do supermocy wynika z aktualnego stanu części:
+
+`klan gracza + profesja + aktywny moduł = aktywna supermoc`
+
+Supermoc nie jest trwałym polem profilu. Jeżeli część zostanie dezaktywowana, wszyscy gracze odpowiedniej profesji natychmiast tracą rozszerzenie.
+
+Reguły nie mogą zostać rozrzucone po endpointach jako przypadkowe `if clan` i `if profession`. 
+
+## 1. Centralny rejestr
+
+Dodać:
+
+`GhostAbilityRegistry`
+
+Minimalny kontrakt:
+
+* `register(effect)`,
+* `get(ability_code)`,
+* `list_for_clan(clan_code)`,
+* `resolve_player_abilities(player_context)`,
+* `is_ability_active(player_context, ability_code)`,
+* `apply_modifier(effect_type, context, value)`,
+* `collect_effects(effect_type, context)`.
+
+Rejestr ładuje 20 definicji ze Sprintu 112.
+
+## 2. Kontekst gracza
+
+Minimalny kontrakt:
+
+* `player_id`,
+* `clan_code`,
+* `profession_code`,
+* `level`,
+* `target`,
+* `territory`,
+* `operation`,
+* `viewer_context`.
+
+Nie przekazywać całego profilu do każdego efektu.
+
+## 3. Warunek aktywacji
+
+Supermoc jest aktywna tylko wtedy, gdy:
+
+1. profil ma poprawny klan,
+2. profil ma profesję należącą do tego klanu,
+3. katalog wskazuje odpowiadającą część,
+4. część w aktywnym cyklu istnieje,
+5. jej `module_state == active`,
+6. cykl nie jest zamknięty ani po transmisji.
+
+Właściciel terytorium nie musi posiadać tej profesji.
+
+Aktywna część uruchamia moc dla wszystkich graczy właściwego klanu mających przypisaną profesję.
+
+## 4. Brak zapisu w profilu
+
+Nie zapisywać:
+
+* `active_superpowers`,
+* `profession_power_enabled`,
+* kopii stanu modułu,
+* trwałego bonusu części.
+
+Profil może przechowywać wyłącznie:
+
+* klan,
+* profesję,
+* historię użyć,
+* osiągnięcia.
+
+Stan mocy jest wyliczany.
+
+## 5. Cache uprawnień
+
+Cache może używać klucza:
+
+* `cycle_id`,
+* `state_version`,
+* `player_id`,
+* `clan_code`,
+* `profession_code`.
+
+Każda zmiana części unieważnia odpowiedni cache klanu lub profesji.
+
+Nie trzymać uprawnienia dłużej niż wersja stanu.
+
+## 6. Typy efektów
+
+Rejestr powinien obsługiwać co najmniej:
+
+* modyfikator wartości,
+* dodatkowy odczyt,
+* czasowy stan celu,
+* czasową akcję aktywowaną przez gracza,
+* reakcję na zdarzenie,
+* ograniczoną liczbę aktywnych instancji,
+* cooldown.
+
+Przykładowe kontrakty:
+
+* `hack_threshold_modifier`,
+* `market_demand_preview`,
+* `territory_defense_layer`,
+* `operation_alert_delay`,
+* `scan_detail_modifier`,
+* `territory_repair`,
+* `territory_information_mask`,
+* `operation_quarantine`.
+
+## 7. Status mechaniki mocy
+
+Każda definicja otrzymuje:
+
+* `catalog_only`,
+* `passive_active`,
+* `active_command`,
+* `event_reaction`,
+* `implemented`,
+* `disabled`.
+
+Po tym sprincie wszystkie 20 mocy powinno posiadać poprawny kontrakt.
+
+Mechanika może być wdrażana w kontrolowanych adapterach, ale żadna moc nie może być oznaczona jako `implemented`, jeśli nie posiada testów i realnego punktu integracji.
+
+## 8. VIREX — pięć mocy
+
+### Insider Feed — Broker
+
+Typ: `market_demand_preview`.
+
+Efekt:
+
+* rozszerza widok Ghost Exchange o przewidywany trend,
+* nie zmienia faktycznej ceny bez dodatkowej aktywacji,
+* dane pochodzą z backendu, nie z losowego frontendu.
+
+### Wejście Serwisowe — Architekt
+
+Typ: `hack_threshold_modifier`.
+
+Efekt:
+
+* tworzy czasowy backdoor na kwalifikującym celu,
+* obniża wymagany próg zabezpieczeń dla członków VIREX,
+* zapisuje właściciela, czas i cel,
+* może zostać usunięty lub wygasnąć.
+
+### Fałszywy Obraz — Manipulator
+
+Typ: `territory_information_mask`.
+
+Efekt:
+
+* zmienia wyłącznie projekcję informacji operacyjnej,
+* nie zmienia prawdziwego stanu terytorium ani części,
+* nie może ukryć danych części wbrew regułom widoczności GhostNetwork.
+
+### Wrogie Przejęcie — Egzekutor Zysku
+
+Typ: `territory_attack_window`.
+
+Efekt:
+
+* czasowo zwiększa tempo usuwania pozostałych zabezpieczeń,
+* wymaga już częściowego rozbrojenia,
+* nie przejmuje celu automatycznie.
+
+### Predykcja Operacyjna — Kurator Algorytmu
+
+Typ: `operation_probability_zone`.
+
+Efekt:
+
+* pokazuje strefy prawdopodobieństwa,
+* nie ujawnia dokładnych części ani graczy,
+* nie może przewidzieć niewidocznej rezerwacji konkretnego celu.
+
+## 9. Echo Wolności — pięć mocy
+
+### Expose — Haktywista
+
+Typ: `security_weakness_reveal`.
+
+Efekt:
+
+* ujawnia słabe zabezpieczenia członkom Echa,
+* właściciel celu otrzymuje informację o ujawnieniu.
+
+### Przejęcie Narracji — Socjotechnik
+
+Typ: `operation_alert_delay`.
+
+Efekt:
+
+* opóźnia pełny alert pierwszej fazy,
+* nie usuwa całego ryzyka operacji,
+* może rozszerzać zasięg oznaczonego komunikatu klanowego.
+
+### Pełne Ujawnienie — Odsłaniacz
+
+Typ: `scan_detail_modifier`.
+
+Efekt:
+
+* rozszerza szczegóły zabezpieczeń i historii,
+* nie ujawnia części ukrytej przez zasady widoczności.
+
+### Sygnał Oporu — Wizjoner
+
+Typ: `clan_operation_beacon`.
+
+Efekt:
+
+* oznacza terytorium jako cel klanowy,
+* może dać premię członkom klanu w określonym promieniu,
+* publikuje zatwierdzony komunikat Cybernera.
+
+### Efekt Domina — Zapalnik
+
+Typ: `neighbor_security_reduction`.
+
+Efekt:
+
+* po realnym rozbrojeniu jednego elementu osłabia sąsiedni,
+* wymaga istniejącego powiązania terytorialnego,
+* nie może tworzyć nieskończonej reakcji łańcuchowej.
+
+## 10. Siatka Widmo — pięć mocy
+
+### Węzeł Widmo — Iluzjonista
+
+Typ: `false_activity_marker`.
+
+Efekt:
+
+* tworzy fałszywy marker informacyjny,
+* nie tworzy części ani GhostNetwork node,
+* znika po odpowiednim skanowaniu.
+
+### Glitch Injection — Wirusolog
+
+Typ: `territory_stability_damage`.
+
+Efekt:
+
+* stopniowo osłabia stabilność wskazanego zabezpieczenia,
+* pozostawia wykrywalną infekcję,
+* może zostać usunięty przez Rollback.
+
+### Fałszywe Tropienie — Paranoik
+
+Typ: `false_tracking_traces`.
+
+Efekt:
+
+* tworzy kilka fałszywych kierunków śladu,
+* ostrzega gracza o intensywnym skanowaniu jego zasobów.
+
+### Pęknięcie Sieci — Rozłamowiec
+
+Typ: `territory_connection_disruption`.
+
+Efekt:
+
+* destabilizuje połączenie pomiędzy elementami terytorium,
+* nie zmienia topologii GhostNetwork,
+* wpływa wyłącznie na strukturę obrony terytorium.
+
+### Odbicie — Lustrzany Sędzia
+
+Typ: `attack_reflection`.
+
+Efekt:
+
+* reaguje na wykryty skan lub infiltrację,
+* może ujawnić klan, narzędzie albo przybliżony kierunek,
+* nie wykonuje automatycznego kontrataku.
+
+## 11. Strażnicy Ładu — pięć mocy
+
+### Skan Integralny — Analizator
+
+Typ: `territory_integrity_scan`.
+
+Efekt:
+
+* wykrywa backdoory, infekcje, iluzje i przygotowania do ataku,
+* nie ujawnia tożsamości części wbrew projekcji.
+
+### Bastion — Obrońca
+
+Typ: `territory_defense_layer`.
+
+Efekt:
+
+* dodaje ograniczoną dodatkową warstwę zabezpieczenia,
+* wymaga osobnego przebicia,
+* liczba aktywnych Bastionów jest ograniczona.
+
+### Rollback — Rekonstruktor
+
+Typ: `territory_repair`.
+
+Efekt:
+
+* odbudowuje fragment zabezpieczenia,
+* usuwa Glitch Injection,
+* naprawia pęknięcie,
+* nie przywraca już całkowicie utraconego terytorium.
+
+### Korytarz Zaufania — Mediator
+
+Typ: `trusted_access_corridor`.
+
+Efekt:
+
+* przyznaje czasowy, imienny dostęp operatorom innego klanu,
+* nie przenosi własności,
+* nie zezwala na przejęcie części ani terytorium.
+
+### Kwarantanna — Egzekutor
+
+Typ: `operation_quarantine`.
+
+Efekt:
+
+* czasowo zatrzymuje dalszy postęp aktywnego ataku,
+* blokuje rozpoczęcie nowych operacji na elemencie,
+* nie cofa dotychczasowego postępu,
+* posiada twardy cooldown.
+
+Pełne funkcje tych dwudziestu modułów oraz granice ich działania są elementem kanonu maszyn. 
+
+## 12. Adaptery systemów
+
+Dodać wydzielone adaptery:
+
+* `GhostMarketAbilityAdapter`,
+* `GhostHackAbilityAdapter`,
+* `GhostTerritoryAbilityAdapter`,
+* `GhostOperationAbilityAdapter`,
+* `GhostVisibilityAbilityAdapter`,
+* `GhostCybernerAbilityAdapter`.
+
+Endpointy pytają adapter lub rejestr o efekt.
+
+Nie importują konkretnych klas dwudziestu mocy.
+
+## 13. Efekty pasywne
+
+Modyfikatory pasywne powinny być czystymi funkcjami:
+
+`modified_value = registry.apply_modifier(effect_type, context, base_value)`
+
+Wymagania:
+
+* deterministyczność,
+* ograniczenia minimum i maksimum,
+* zapis źródła modyfikatora,
+* brak trwałej zmiany bazowej konfiguracji.
+
+## 14. Efekty aktywowane
+
+Aktywne moce potrzebują:
+
+* `ability_instance_id`,
+* aktywatora,
+* celu,
+* czasu rozpoczęcia,
+* `expires_at`,
+* cooldownu,
+* statusu,
+* limitu równoczesnych instancji,
+* dziennika zdarzeń.
+
+Nie przechowywać ich w `ghost_parts`.
+
+Część jedynie włącza dostęp do tworzenia instancji mocy.
+
+## 15. Utrata modułu
+
+Po `ghost.part_deactivated`:
+
+* nowe użycie mocy zostaje zablokowane,
+* pasywny modyfikator znika natychmiast,
+* aktywne instancje zachowują się zgodnie z definicją:
+
+  * `terminate_on_part_loss`,
+  * `persist_until_expiry`,
+  * `grace_period`.
+
+Każda moc musi jawnie określić politykę.
+
+Domyślnie:
+
+`terminate_on_part_loss`
+
+## 16. Konflikt
+
+Ponieważ moduł zachowuje aktywność podczas konfliktu, odpowiadająca mu supermoc również pozostaje aktywna do stabilizacji granic.
+
+Nie wyłączać mocy w momencie pojawienia się `conflict_state = contested`.
+
+## 17. Uprawnienia i walidacja
+
+Przed użyciem aktywnej mocy backend ponownie sprawdza:
+
+* gracza,
+* klan,
+* profesję,
+* część,
+* stan modułu,
+* cooldown,
+* limit instancji,
+* poprawność celu,
+* zasady zasięgu,
+* aktualny stan operacji lub terytorium.
+
+Frontend nigdy nie jest źródłem prawdy o dostępności mocy.
+
+## 18. Projekcja dla profilu i GUI
+
+Profil może otrzymać lekki odczyt:
+
+* profesja,
+* powiązany moduł,
+* stan modułu,
+* moc,
+* aktywność,
+* cooldown,
+* dostępne użycia.
+
+Nie zapisywać tam bieżącego stanu jako danych trwałych.
+
+## 19. Delty mocy
+
+Dodać:
+
+* `ghost.ability_enabled`,
+* `ghost.ability_disabled`,
+* `ghost.ability_activated`,
+* `ghost.ability_expired`,
+* `ghost.ability_cancelled`,
+* `ghost.ability_cooldown_changed`.
+
+Odbiorcy zależą od definicji mocy.
+
+Fałszywe markery i maskowanie informacji wymagają bezpiecznej projekcji, która nie ujawnia przeciwnikowi prawdziwego stanu.
+
+## 20. Audyt i zdarzenia
+
+Każde użycie zapisuje:
+
+* gracza,
+* profesję,
+* część,
+* cel,
+* czas,
+* wynik,
+* przyczynę odrzucenia,
+* wpływ,
+* `state_version`,
+* `dedupe_key`.
+
+Ollama może później otrzymać zatwierdzony fakt o użyciu zdolności, ale nie steruje mocą.
+
+## 21. Balans
+
+Wartości liczbowe:
+
+* premie,
+* czasy,
+* promienie,
+* limity,
+* cooldowny
+
+muszą pochodzić z konfiguracji.
+
+Nie umieszczać ich bezpośrednio w endpointach.
+
+Kanon świadomie pozostawia dokładne wartości do późniejszego balansu. 
+
+## 22. Testy Sprintu 124
+
+Minimum:
+
+* profesja bez aktywnej części — brak mocy,
+* aktywna część — moc dostępna,
+* inna profesja — brak dostępu,
+* inny klan — brak dostępu,
+* właściciel części bez właściwej profesji — brak osobistej mocy,
+* członek klanu z profesją — dostęp,
+* właściciel offline nie wyłącza mocy klanowi,
+* konflikt nie wyłącza mocy,
+* stabilna utrata części wyłącza moc,
+* cache unieważniony przez wersję,
+* aktywne użycie respektuje cooldown,
+* utrata części kończy instancję zgodnie z polityką,
+* Pełne Ujawnienie nie omija widoczności części,
+* Węzeł Widmo nie tworzy prawdziwego komponentu,
+* Pęknięcie Sieci nie zmienia topologii GhostNetwork,
+* Korytarz Zaufania nie przenosi własności,
+* Kwarantanna nie cofa postępu,
+* Rollback nie odzyskuje całkowicie utraconego terytorium,
+* wszystkie 20 definicji posiada adapter i test kontraktu.
+
+## Poza sprintem
+
+Nie implementować:
+
+* końcowego balansu liczbowego,
+* dedykowanych animacji każdej mocy,
+* nagród RSP za użycie,
+* narracji medialnej,
+* transmisji GhostSignalu.
+
+## DoD
+
+Sprint jest zakończony, gdy wszystkie 20 profesji posiada kanoniczny kontrakt mocy, dostęp jest wyliczany z aktywnego modułu, efekty przechodzą przez centralny rejestr i żaden system nie potrzebuje rozsianych warunków klanowo-profesyjnych.
+
+
+
 
 GhostNetwork — wkład graczy, RSP i reputacja klanowa
 GhostNetwork — obrona, odbicia i zabezpieczenia nagród
 GhostNetwork — domknięcie sieci i blokada cyklu
+
+Po Sprintach 125–127 GhostNetwork zna pełny wkład społeczności, nagradza prawdziwe działania, chroni ekonomię przed farmieniem i potrafi bezpiecznie powiedzieć: sieć jest zamknięta — od tej chwili transmisji nie da się już zatrzymać.
+
+Lecimy dalej — Sprint 125 zbuduje uczciwy ledger wkładu i nagród, Sprint 126 rozpozna prawdziwe obrony oraz odbicia bez otwierania farmy RSP, a Sprint 127 atomowo zamknie kompletną sieć i przygotuje niezmienny snapshot do transmisji.
+
+# Sprint 125 — GhostNetwork: wkład graczy, RSP i reputacja klanowa
+
+## Cel sprintu
+
+Zbudować centralny system rejestrowania wkładu operatorów oraz klanów w cykl GhostNetwork i podłączyć go do istniejącego RSP oraz rozwoju LVL.
+
+Nagrody mają dotyczyć faktycznie potwierdzonych wydarzeń strategicznych:
+
+* odkrycia części,
+* pierwszego otoczenia,
+* pierwszej aktywacji,
+* późniejszego odbicia,
+* utrzymania aktywnego modułu,
+* udziału w obronie,
+* utrzymania węzła podczas transmisji,
+* domknięcia GhostNetwork.
+
+Sprint nie przyznaje osobnej waluty i nie ustawia LVL bezpośrednio. GhostNetwork zasila istniejący system RSP, który dalej rozwija poziom gracza. 
+
+## 1. Serwis wkładu i nagród
+
+Dodać dwa rozdzielone komponenty:
+
+* `GhostContributionService`
+* `GhostRewardService`
+
+Pierwszy zapisuje, **co gracz zrobił**. Drugi decyduje, **czy za to działanie należy się nagroda i w jakiej wysokości**.
+
+Nie łączyć tych odpowiedzialności w jednym helperze typu `give_ghost_rsp()`.
+
+Minimalny kontrakt wkładu:
+
+* `record_contribution(...)`
+* `list_player_contributions(...)`
+* `list_cycle_contributions(...)`
+* `aggregate_player_contribution(...)`
+* `aggregate_clan_contribution(...)`
+
+Minimalny kontrakt nagród:
+
+* `evaluate_event_reward(...)`
+* `create_reward_entry(...)`
+* `apply_pending_reward(...)`
+* `apply_pending_rewards(...)`
+* `get_player_reward_summary(...)`
+
+Ten podział pozwala zachować pełną historię działania nawet wtedy, gdy nagroda zostanie ograniczona przez cooldown albo zabezpieczenia antyfarmowe.
+
+## 2. Model wkładu
+
+Wykorzystać przygotowane wcześniej `ghost_contributions`.
+
+Każdy wpis powinien zawierać:
+
+* `contribution_id`,
+* `cycle_id`,
+* opcjonalny `signal_id`,
+* `player_id`,
+* `clan_code`,
+* `profession_code`,
+* `contribution_type`,
+* opcjonalny `part_id`,
+* opcjonalny `territory_id`,
+* opcjonalny `operation_id`,
+* `score`,
+* `weight`,
+* `source_event_id`,
+* `created_at`,
+* `dedupe_key`,
+* metadane działania.
+
+Dozwolone typy wkładu na tym etapie:
+
+* `part_discovered`
+* `part_first_contained`
+* `part_first_activated`
+* `part_recovered`
+* `part_stable_held`
+* `part_defended`
+* `defense_support`
+* `attack_support`
+* `territory_repaired`
+* `ability_support`
+* `transmission_node_held`
+* `network_closer`
+
+Nie wszystkie typy muszą od razu wypłacać RSP.
+
+## 3. Wkład nie jest nagrodą
+
+Wkład zapisuje potwierdzony udział niezależnie od tego, czy przysługuje za niego pełne RSP.
+
+Przykład:
+
+* operator pomaga odbić część,
+* jego udział zostaje zapisany,
+* zabezpieczenie antyfarmowe ogranicza wypłatę,
+* historia i wkład klanowy nadal mogą uwzględnić realne działanie z niższą wagą.
+
+Nie usuwać wpisu wkładu tylko dlatego, że nagroda wyniosła `0`.
+
+## 4. Ledger nagród
+
+Wykorzystać `ghost_reward_ledger`.
+
+Minimalne pola:
+
+* `reward_id`,
+* `reward_key`,
+* `cycle_id`,
+* `signal_id`,
+* `player_id`,
+* `clan_code`,
+* `reward_type`,
+* `source_event_id`,
+* `base_rsp`,
+* `multiplier`,
+* `final_rsp`,
+* `status`,
+* `created_at`,
+* `applied_at`,
+* `failure_reason`,
+* metadane kalkulacji.
+
+Statusy:
+
+* `pending`
+* `applied`
+* `rejected`
+* `failed`
+* `cancelled`
+
+`reward_key` musi być unikalny.
+
+Przykład klucza:
+
+`ghost-reward:<cycle_id>:<part_id>:discover:<player_id>`
+
+Ten klucz gwarantuje, że retry zdarzenia odkrycia nie wypłaci nagrody ponownie.
+
+## 5. Skala względem zwykłej operacji
+
+Nie wpisywać wszystkich wartości jako stałe RSP oderwane od reszty progresji.
+
+Dodać resolver:
+
+`resolve_standard_operation_rsp(profile, context)`
+
+oraz konfigurację mnożników GhostNetwork.
+
+Przykładowe kategorie balansu:
+
+* odkrycie części: `5–8 ×` zwykła operacja,
+* pierwsze otoczenie: `6–10 ×`,
+* pierwsza aktywacja: `10–15 ×`,
+* odbicie: `12–18 ×`,
+* obrona: `5–12 ×`,
+* utrzymanie do transmisji: `25–40 ×`.
+
+Dokładne wartości trafiają do konfiguracji, ponieważ dokument kanoniczny świadomie pozostawia je do balansu. 
+
+## 6. Nagroda za odkrycie części
+
+Źródło:
+
+`ghost.part_discovered`
+
+Warunki:
+
+* część została wyemitowana po skutecznym hacku,
+* gracz jest zapisanym odkrywcą,
+* zdarzenie pochodzi z aktywnego cyklu,
+* nie istnieje wcześniejsza nagroda odkrycia tej części.
+
+Rezultat:
+
+* wpis `part_discovered`,
+* jednorazowy strategiczny RSP,
+* reputacja klanu odkrywcy,
+* statystyka osobista,
+* przyszły wpis archiwalny.
+
+Odkrywca otrzymuje nagrodę mimo że część zawsze należy do innego klanu.
+
+## 7. Nagroda za pierwsze otoczenie
+
+Źródło:
+
+pierwsze przejście części z `public` do stabilnego `contained` albo `active`.
+
+Warunki:
+
+* część wcześniej nie posiadała stabilnego właściciela,
+* jest to pierwsze stabilne otoczenie w cyklu,
+* klaster istnieje naprawdę i ma minimum trzy filary,
+* zdarzenie nie jest wynikiem recovery technicznego.
+
+Zapisać trwałe pola historyczne:
+
+* `first_contained_by`,
+* `first_contained_clan`,
+* `first_contained_territory_id`,
+* `first_contained_at`.
+
+Pierwsze otoczenie jest nagradzane zarówno dla części własnego, jak i obcego klanu.
+
+Długoterminowe utrzymanie obcej części nie daje jednak stałego RSP.
+
+## 8. Nagroda za pierwszą aktywację
+
+Źródło:
+
+pierwsze `ghost.part_activated`.
+
+Warunki:
+
+* terytorium należy do właściwego klanu części,
+* jest stabilne,
+* część nie była wcześniej aktywowana w tym cyklu,
+* aktywacja nie jest techniczną naprawą danych.
+
+Rezultat:
+
+* duży RSP właściciela terytorium,
+* reputacja właściwego klanu,
+* wkład `part_first_activated`,
+* zapis pierwszego aktywatora.
+
+Wszyscy gracze właściwej profesji otrzymują dostęp do mocy, ale nie otrzymują automatycznie RSP za cudzą aktywację.
+
+## 9. Utrzymanie aktywnego modułu
+
+Dodać kontrolowane naliczanie okresowe, na przykład w przedziałach godzinnych.
+
+Wymagane warunki:
+
+* część ma `module_state = active`,
+* znajduje się na stabilnym terytorium właściwego klanu,
+* cykl jest `active`,
+* nie zakończono transmisji,
+* przedział nie został wcześniej rozliczony.
+
+Idempotentny klucz przedziału:
+
+`ghost-hold:<cycle_id>:<part_id>:<owner_id>:<period_start>`
+
+Naliczanie może uwzględniać progi:
+
+* pierwsza godzina,
+* sześć godzin,
+* dwadzieścia cztery godziny,
+* utrzymanie do transmisji.
+
+Każda część posiada limit RSP za utrzymanie w jednym cyklu.
+
+## 10. Konflikt a punkty utrzymania
+
+Podczas aktywnego konfliktu część zachowuje stan `active`, ale spokojne naliczanie za utrzymanie może zostać wstrzymane.
+
+Dodać konfigurację:
+
+`pause_hold_rewards_during_conflict = true`
+
+W tym okresie gracz może otrzymać osobną nagrodę za skuteczną obronę po rozstrzygnięciu konfliktu.
+
+Nie wypłacać jednocześnie maksymalnej nagrody za bezpieczne utrzymanie i pełnej nagrody obronnej za ten sam czas.
+
+## 11. Statystyki osobiste GhostNetwork
+
+Profil może przechowywać trwały agregat historyczny:
+
+* `parts_discovered`,
+* `parts_first_contained`,
+* `parts_activated`,
+* `parts_recovered`,
+* `active_node_seconds`,
+* `successful_defenses`,
+* `signals_participated`,
+* `transmission_nodes_held`,
+* `networks_closed`,
+* `ghostnetwork_rsp_total`.
+
+Profil nie przechowuje bieżącej części, stanu maszyny ani globalnego postępu cyklu.
+
+Aktualizacja agregatu następuje po zastosowaniu potwierdzonego rewardu albo zatwierdzonego wkładu.
+
+## 12. Źródło RSP
+
+Każda wypłata do istniejącego systemu profilu powinna posiadać źródło:
+
+`ghostnetwork`
+
+oraz metadane:
+
+* `cycle_id`,
+* `part_id`,
+* `reward_type`,
+* `reward_id`.
+
+Dzięki temu profil może później pokazać:
+
+* RSP z operacji regularnych,
+* RSP z GhostNetwork.
+
+Nie tworzyć drugiego salda RSP.
+
+## 13. Rozwój LVL
+
+Po dodaniu RSP użyć istniejącej procedury przeliczenia LVL.
+
+Nie implementować osobnych progów poziomu dla GhostNetwork.
+
+Jedna transakcja logiczna powinna:
+
+1. zatwierdzić wpis ledgeru,
+2. zwiększyć RSP profilu,
+3. przeliczyć LVL,
+4. zapisać trwałą statystykę,
+5. oznaczyć reward jako `applied`,
+6. opublikować deltę profilu.
+
+Przy błędzie profil nie może otrzymać RSP przy pozostawieniu ledgeru jako `pending` bez możliwości bezpiecznego retry.
+
+## 14. Reputacja klanowa
+
+Wykorzystać `ghost_clan_reputation`.
+
+Agregat:
+
+* `clan_code`,
+* `total_reputation`,
+* `signals_participated`,
+* `parts_discovered`,
+* `parts_first_contained`,
+* `parts_activated`,
+* `parts_recovered`,
+* `territories_defended`,
+* `active_node_seconds`,
+* `transmission_nodes_held`,
+* `updated_at`.
+
+Reputacja klanowa nie jest walutą.
+
+Nie można jej wydać ani przelać.
+
+Służy:
+
+* rankingom,
+* podsumowaniu cyklu,
+* narracji,
+* historii GhostSignali.
+
+## 15. Punktacja klanowa
+
+Dodać wersjonowany policy object:
+
+`GhostClanReputationPolicy`
+
+Każdy typ wkładu otrzymuje wagę.
+
+Przykład:
+
+* odkrycie części — informacja,
+* pierwsze otoczenie — zabezpieczenie,
+* aktywacja — rozwój maszyny,
+* odbicie — ofensywa,
+* obrona — utrzymanie,
+* aktywny węzeł przy transmisji — największa waga.
+
+Nie wiązać procentu końcowego wyłącznie z sumą RSP, ponieważ RSP może zależeć od poziomu gracza i mnożników progresji.
+
+## 16. Podsumowanie cyklu
+
+Przygotować agregat:
+
+* wkład każdego gracza,
+* wkład każdego klanu,
+* procentowy udział klanów,
+* najważniejsze zdarzenia,
+* odkrywców,
+* aktywatorów,
+* właścicieli węzłów,
+* czas utrzymania.
+
+Procent udziału powinien sumować się do `100%`, z kontrolowanym zaokrągleniem.
+
+Nie oznacza zwycięzcy GhostNetwork — sygnał jest wspólnym wynikiem wszystkich klanów. 
+
+## 17. Delty i komunikaty
+
+Dodać:
+
+* `ghost.contribution_recorded`
+* `ghost.reward_pending`
+* `ghost.reward_applied`
+* `ghost.clan_reputation_changed`
+* `ghost.player_history_changed`
+
+Prywatna delta nagrody zawiera RSP gracza.
+
+Publiczna delta reputacji nie musi ujawniać dokładnej prywatnej kalkulacji rewardu.
+
+## 18. Recovery ledgeru
+
+Dodać:
+
+`reconcile_ghost_rewards(cycle_id=None, player_id=None)`
+
+Tryb dry-run sprawdza:
+
+* event bez oczekiwanego wkładu,
+* wkład bez rewardu,
+* reward `applied` bez zmiany RSP,
+* reward `pending` po udanej zmianie profilu,
+* duplikaty `reward_key`,
+* niezgodną reputację klanu.
+
+Naprawa musi opierać się na zdarzeniach domenowych, nie na ponownym zgadywaniu historii z aktualnego stanu części.
+
+## Testy Sprintu 125
+
+Minimum:
+
+* odkrycie zapisuje wkład,
+* odkrycie wypłaca RSP raz,
+* retry odkrycia nie płaci ponownie,
+* pierwsze otoczenie raz,
+* pierwsza aktywacja raz,
+* ponowna aktywacja nie udaje pierwszej,
+* utrzymanie rozliczane przedziałami,
+* brak utrzymania obcej części,
+* brak naliczania po transmisji,
+* konflikt wstrzymuje spokojne utrzymanie,
+* RSP podnosi LVL istniejącą ścieżką,
+* ledger pozostaje idempotentny,
+* agregat osobisty,
+* reputacja klanowa,
+* procenty czterech klanów,
+* recovery wykrywa niespójność,
+* los GhostSignalu nie cofa nagród.
+
+## Poza sprintem
+
+Nie implementować jeszcze:
+
+* szczegółowej obrony,
+* odbić,
+* antyfarmingu par graczy,
+* końcowej nagrody transmisji,
+* osiągnięć,
+* finalnego balansu mnożników.
+
+## DoD
+
+Sprint jest zakończony, gdy każde podstawowe wydarzenie strategiczne tworzy audytowalny wkład, nagrody trafiają do istniejącego RSP dokładnie raz, a klany posiadają porównywalną reputację niezależną od bieżącego stanu profili.
+
+Ten sprint odpowiada na pytanie: **kto rzeczywiście buduje GhostNetwork i jak duży jest jego udział**.
+
+---
+
+# Sprint 126 — GhostNetwork: obrona, odbicia i zabezpieczenia nagród
+
+## Cel sprintu
+
+Rozpoznać prawdziwe strategiczne obrony oraz odbicia części, zapisać udział operatorów i przyznać podwyższone nagrody tylko wtedy, gdy doszło do realnego konfliktu.
+
+Sprint ma jednocześnie zabezpieczyć system przed:
+
+* szybką wymianą części między współpracującymi kontami,
+* pozorowanymi atakami,
+* wielokrotnym przejmowaniem tego samego węzła,
+* farmieniem obrony przez nieistotne próby,
+* powtarzaniem konfliktu tej samej pary graczy.
+
+Kanon zakłada, że system nie blokuje samej zmiany terytorium — ograniczeniom podlegają wyłącznie sztucznie powtarzane nagrody. 
+
+## 1. Serwis zdarzeń strategicznych
+
+Dodać:
+
+`GhostStrategicConflictService`
+
+Minimalny kontrakt:
+
+* `on_conflict_started(...)`
+* `record_conflict_progress(...)`
+* `record_defensive_action(...)`
+* `record_offensive_action(...)`
+* `resolve_conflict_outcome(...)`
+* `evaluate_defense_reward(...)`
+* `evaluate_recovery_reward(...)`
+
+Serwis nie rozstrzyga własności terenu.
+
+Własność nadal ustala istniejący system terytoriów.
+
+## 2. Snapshot początku konfliktu
+
+Gdy część przechodzi do `conflict_state = contested`, zapisać:
+
+* `conflict_id`,
+* `part_id`,
+* właściciela początkowego,
+* klan początkowy,
+* status części przed konfliktem,
+* integralność terytorium,
+* stan zabezpieczeń filarów,
+* aktywne operacje ofensywne,
+* uczestników początkowych,
+* `started_at`.
+
+Snapshot musi być niezmienny i służyć późniejszej ocenie realnej skali konfliktu.
+
+## 3. Aktywność ofensywna
+
+Rejestrować wyłącznie potwierdzone działania mechaniczne:
+
+* rozbrojenie zabezpieczenia,
+* przejęcie filaru,
+* atak na inner node,
+* użycie zdolności ofensywnej,
+* zakończoną operację na terytorium,
+* zmianę geometrii konfliktu,
+* zniszczenie warstwy obronnej.
+
+Nie zaliczać samego:
+
+* wejścia gracza na mapę,
+* otwarcia Territory Control,
+* zaznaczenia celu,
+* rozpoczęcia operacji bez postępu,
+* wiadomości na Cybernerze.
+
+## 4. Aktywność defensywna
+
+Możliwy potwierdzony wkład:
+
+* odbudowa zabezpieczenia,
+* Rollback,
+* usunięcie infekcji,
+* naprawa połączenia terytorium,
+* uruchomienie Bastionu,
+* Kwarantanna,
+* zatrzymanie aktywnej operacji,
+* odbicie filaru,
+* utrzymanie stabilnej kontroli do końca konfliktu.
+
+Każde działanie zapisuje:
+
+* wykonawcę,
+* profesję,
+* efekt,
+* target,
+* wartość mechaniczną,
+* czas,
+* źródłowy event.
+
+## 5. Minimalny próg realnego ataku
+
+Dodać `GhostDefenseRewardPolicy`.
+
+Konfigurowalne warunki pełnej obrony mogą obejmować:
+
+* minimalny procent utraconej integralności,
+* minimalną liczbę rozbrojonych zabezpieczeń,
+* minimalny czas konfliktu,
+* minimalną liczbę zakończonych operacji ofensywnych,
+* minimalną liczbę aktywnych agresorów,
+* realne zagrożenie utratą części.
+
+Nie każdy przypadkowy atak daje pełną nagrodę.
+
+Jeżeli próg nie został przekroczony:
+
+* konflikt pozostaje w historii,
+* wkład obrońców może zostać zapisany,
+* pełny RSP za obronę nie jest przyznawany.
+
+## 6. Skuteczna obrona
+
+Obrona jest skuteczna, gdy:
+
+1. część znajdowała się na stabilnym terytorium,
+2. powstał rzeczywisty konflikt,
+3. atak przekroczył minimalny próg,
+4. po stabilizacji część nadal kontroluje ten sam właściciel albo ten sam klan,
+5. terytorium znów jest stabilne.
+
+Zapisać:
+
+`ghost.part_defended`
+
+Payload:
+
+* `part_id`,
+* `conflict_id`,
+* właściciel,
+* klan,
+* czas konfliktu,
+* maksymalny postęp ataku,
+* uczestnicy,
+* działania defensywne,
+* wynik,
+* `state_version`.
+
+## 7. Podział nagrody obronnej
+
+Główna nagroda trafia do właściciela terytorium.
+
+Pomocniczy RSP może otrzymać gracz, którego potwierdzony wkład przekroczył minimalną wagę.
+
+Przykładowy podział policy:
+
+* właściciel — główny udział,
+* operatorzy naprawiający — udział pomocniczy,
+* operatorzy zatrzymujący działania agresora — udział pomocniczy,
+* użycie istotnej supermocy — udział specjalny.
+
+Łączna wypłata posiada limit dla jednego konfliktu.
+
+Nie mnożyć pełnej wartości przez liczbę obrońców.
+
+## 8. Definicja odbicia części
+
+Odbicie strategiczne występuje, gdy część:
+
+1. była stabilnie `contained` przez obcy klan,
+2. poprzednie terytorium istniało przez wymagany czas,
+3. zostało realnie rozbrojone,
+4. utraciło stabilną kontrolę,
+5. część została następnie objęta stabilnym terytorium właściwego klanu,
+6. osiągnęła stan `active`.
+
+Nie uznawać za odbicie:
+
+* przejścia z neutralnej części bez wcześniejszej blokady,
+* pierwszej aktywacji bez obcego właściciela,
+* technicznej korekty właściciela,
+* natychmiastowej zmiany między współpracującymi profilami bez realnego konfliktu.
+
+## 9. Snapshot poprzedniej blokady
+
+Dla części zapisać historię stabilnych okresów kontroli:
+
+* właściciel,
+* klan,
+* terytorium,
+* status części,
+* `started_at`,
+* `ended_at`,
+* czas trwania,
+* sposób zakończenia.
+
+Na tej podstawie system może potwierdzić, że część była naprawdę więziona przez obcy klan.
+
+Nie wystarczy sprawdzenie wyłącznie ostatniego eventu.
+
+## 10. Zdarzenie odbicia
+
+Po spełnieniu warunków zapisać:
+
+`ghost.part_recovered`
+
+Payload:
+
+* `part_id`,
+* wcześniejszy właściciel,
+* wcześniejszy klan,
+* nowy właściciel,
+* właściwy klan części,
+* czas blokady,
+* `conflict_id`,
+* aktywator,
+* pomocnicy,
+* poziom realnego rozbrojenia,
+* `state_version`.
+
+Pierwsza aktywacja i odbicie są różnymi kategoriami wydarzeń.
+
+## 11. Nagroda za odbicie
+
+Nagroda powinna być większa niż za pierwsze otoczenie.
+
+Otrzymują ją:
+
+* operator finalizujący właściwe terytorium,
+* właściciel nowego klastra, jeśli jest inną osobą,
+* potwierdzeni uczestnicy ofensywy według udziału.
+
+Dodać twardy limit całkowitego RSP dla jednego odbicia.
+
+Nie wypłacać każdemu uczestnikowi pełnej wartości.
+
+## 12. Historia par graczy
+
+Dodać zapis relacji:
+
+* `part_id`,
+* poprzedni właściciel,
+* nowy właściciel,
+* poprzedni klan,
+* nowy klan,
+* czas,
+* konflikt,
+* wypłacona nagroda.
+
+Policy może wykrywać:
+
+* częste zmiany tej samej pary,
+* zmianę A → B → A w krótkim czasie,
+* powtarzające się konflikty bez realnego oporu,
+* identyczne wzorce operacji.
+
+Nie musi automatycznie blokować przejęcia.
+
+Może:
+
+* obniżyć mnożnik,
+* ustawić cooldown,
+* oznaczyć reward do review,
+* odrzucić jedynie nagrodę.
+
+## 13. Cooldown nagrody za węzeł
+
+Dodać konfigurację:
+
+* cooldown dla tej samej części,
+* cooldown dla tej samej pary właścicieli,
+* malejący mnożnik powtarzanych odbić,
+* reset mnożnika po dłuższym stabilnym okresie.
+
+Przykładowe statusy oceny:
+
+* `full_reward`
+* `reduced_reward`
+* `cooldown`
+* `review`
+* `no_reward`
+
+Ocena i powód muszą zostać zapisane w ledgerze.
+
+## 14. Minimalny czas poprzedniego terytorium
+
+Aby odbicie otrzymało pełną nagrodę, poprzednia stabilna kontrola musi trwać określony czas.
+
+Nie oznacza to, że krótsza kontrola nie może zostać przejęta.
+
+Zmiana gameplayowa następuje zawsze.
+
+Ograniczana jest wyłącznie wypłata strategicznego RSP.
+
+## 15. Wykrywanie powiązań kont
+
+Sprint nie musi rozwiązać kompletnego problemu multikont.
+
+Ma jednak przygotować kontrakt risk flags:
+
+* wspólne techniczne fingerprinty, jeśli już istnieją,
+* nietypowo powtarzalne interakcje,
+* szybkie przekazywanie części,
+* identyczne czasy aktywności,
+* wzajemne farmienie.
+
+GhostNetwork nie podejmuje na tej podstawie automatycznej decyzji o banie.
+
+Może oznaczyć nagrodę jako `review`.
+
+## 16. Obrona nieaktywnego właściciela
+
+Właściciel nie musi być online, aby moduł pozostał aktywny.
+
+Jeżeli inni członkowie klanu realnie bronią jego węzła:
+
+* właściciel może otrzymać główną nagrodę utrzymania obszaru,
+* aktywni obrońcy otrzymują udział pomocniczy,
+* brak aktywności właściciela nie unieważnia obrony.
+
+Nie przyznawać właścicielowi bonusu za działania, których faktycznie nie wykonał, poza utrzymaniem własności terytorium.
+
+## 17. Przejęcie przez trzeci klan
+
+Możliwy przebieg:
+
+* klan A blokuje część klanu B,
+* klan C przejmuje lokalizację,
+* część nadal pozostaje `blocked`,
+* później klan B ją odbija.
+
+Historia musi zachować wszystkie okresy kontroli.
+
+Pełne odbicie dla klanu B może odnosić się do ostatniego stabilnego blokującego właściciela i całego łańcucha konfliktów.
+
+## 18. Utrata aktywnej części
+
+Jeżeli właściwy klan traci aktywną część na rzecz obcego klanu:
+
+* część przechodzi do `blocked`,
+* aktywna moc zostaje wyłączona po stabilizacji,
+* maszyna traci moduł,
+* pełne linie zostają przerwane,
+* nowy obcy właściciel nie otrzymuje nagrody za aktywację.
+
+Może otrzymać jednorazowy wkład za przejęcie strategiczne, ale nie stałe punkty utrzymania obcej części.
+
+## 19. Delty i media
+
+Dodać:
+
+* `ghost.defense_started`
+* `ghost.defense_progress_changed`
+* `ghost.part_defended`
+* `ghost.part_recovered`
+* `ghost.reward_reduced`
+* `ghost.reward_flagged`
+
+Media otrzymują wyłącznie fakty zgodne z widocznością części.
+
+Nie ujawniać ukrytej tożsamości blokowanego komponentu w publicznym komunikacie.
+
+## 20. Recovery konfliktów
+
+Dodać:
+
+`reconcile_ghost_conflict_outcomes(conflict_id=None)`
+
+Sprawdza:
+
+* zakończony konflikt bez oceny,
+* obronę bez rewardu,
+* odbicie bez wkładu,
+* reward bez potwierdzonego progu,
+* duplikat nagrody,
+* aktywny konflikt dotyczący nieistniejącego klastra.
+
+Nie zmienia właściciela terytorium.
+
+## Testy Sprintu 126
+
+Minimum:
+
+* nieistotny atak bez pełnej nagrody,
+* realny atak zakończony obroną,
+* właściciel otrzymuje główną nagrodę,
+* pomocnicy otrzymują udział,
+* limit całkowitej nagrody,
+* pierwsza aktywacja nie jest odbiciem,
+* blokowana część odbita przez właściwy klan,
+* obce terytorium istniało za krótko — reduced/no reward,
+* A → B → A w cooldownie,
+* zmiana właściciela nadal zachodzi mimo braku RSP,
+* trzeci klan przejmuje obcą część,
+* późniejsze odbicie przez właściwy klan,
+* nieaktywny właściciel i aktywni obrońcy,
+* utrata aktywnej części wyłącza moduł,
+* publiczne eventy nie ujawniają ukrytej części,
+* retry rozstrzygnięcia jest idempotentny,
+* recovery wykrywa brakującą ocenę.
+
+## Poza sprintem
+
+Nie implementować:
+
+* automatycznych banów,
+* pełnego systemu anty-multikonto,
+* ręcznego panelu moderatorskiego,
+* końcowych nagród transmisji,
+* losu GhostSignalu.
+
+## DoD
+
+Sprint jest zakończony, gdy system potrafi odróżnić prawdziwą obronę i odbicie od przypadkowego lub pozorowanego konfliktu, zachowuje pełną historię udziału, a zabezpieczenia ograniczają wyłącznie nagrody — nigdy samą możliwość przejęcia części.
+
+Ten sprint odpowiada na pytanie: **czy gracze rzeczywiście walczyli o strategiczny węzeł, czy tylko przekazywali go sobie dla RSP**.
+
+---
+
+# Sprint 127 — GhostNetwork: domknięcie sieci i blokada cyklu
+
+## Cel sprintu
+
+Wykryć moment, w którym wszystkie 20 części jest stabilnie aktywnych, wszystkie 20 połączeń tworzy pełny zamknięty obwód, a następnie atomowo zablokować cykl przed jakąkolwiek dalszą zmianą strategiczną.
+
+Sprint nie wykonuje jeszcze transmisji, nie usuwa części i nie zmienia wersji GhostSystemu.
+
+Jego wynikiem jest niezmienny, zatwierdzony snapshot gotowy do przekazania do Sprintu 128.
+
+## 1. Serwis gotowości sieci
+
+Dodać:
+
+`GhostNetworkClosureService`
+
+Minimalny kontrakt:
+
+* `evaluate_network_readiness(cycle_id)`
+* `attempt_cycle_lock(cycle_id, trigger_event_id)`
+* `build_lock_snapshot(cycle_id)`
+* `get_locked_cycle_snapshot(cycle_id)`
+* `validate_locked_snapshot(cycle_id)`
+
+Serwis musi być jedynym miejscem, które może przełączyć cykl:
+
+`active → transmitting`
+
+Na tym etapie status `transmitting` oznacza: sieć została atomowo zamknięta i oczekuje na wykonanie transmisji przez kolejny sprint.
+
+## 2. Warunki gotowości
+
+Wszystkie warunki muszą być spełnione jednocześnie:
+
+* cykl ma status `active`,
+* istnieje dokładnie 20 części,
+* wszystkie 20 części zostało odkrytych,
+* wszystkie 20 ma `module_state = active`,
+* wszystkie 20 ma stabilne terytorium właściwego klanu,
+* żadna część nie znajduje się w nierozstrzygniętym konflikcie,
+* istnieje dokładnie 20 połączeń,
+* wszystkie 20 połączeń ma stan `active`,
+* topologia nadal jest jednym zamkniętym obwodem,
+* checksum topologii jest poprawny,
+* nie istnieje wcześniejsza blokada tego cyklu,
+* nie istnieje wcześniejszy GhostSignal tego cyklu.
+
+Nie wystarczy samo `parts_active == 20`.
+
+## 3. Stabilność węzłów
+
+Każda część musi posiadać:
+
+* `territory_id`,
+* `territory_owner_id`,
+* `territory_clan == part.clan_code`,
+* aktualną wersję terytorium,
+* brak aktywnego `conflict_state`,
+* poprawną kotwicę.
+
+Jeżeli jedna część jest aktywna wyłącznie wskutek niespójnego starego rekordu, health check i closure muszą odrzucić blokadę.
+
+## 4. Sprawdzenie maszyn
+
+Wymagane:
+
+* VIREX ORACLE `5/5`,
+* ECHO LIBERTAS `5/5`,
+* PHANTOM VEIL `5/5`,
+* SENTINEL AEGIS `5/5`.
+
+Każda maszyna musi mieć `machine_online = true`.
+
+Nie zakładać gotowości na podstawie samego globalnego licznika.
+
+## 5. Sprawdzenie obwodu
+
+Walidator ponownie sprawdza:
+
+* jeden komponent spójności,
+* 20 węzłów,
+* 20 krawędzi,
+* stopień każdego węzła równy `2`,
+* brak połączeń wewnątrz klanu,
+* każdy connection `active`,
+* wszystkie końce wskazują aktywne części,
+* ring order odpowiada checksumowi cyklu.
+
+Domknięcie obwodu jest faktem backendowym, nie rezultatem animacji linii w przeglądarce.
+
+## 6. Trigger oceny
+
+Ocena gotowości może zostać wywołana po:
+
+* `ghost.part_activated`,
+* `ghost.part_conflict_resolved`,
+* naprawie recovery,
+* kontrolowanej komendzie diagnostycznej.
+
+Najczęstszy trigger to aktywacja ostatniego brakującego modułu.
+
+Nie uruchamiać pełnej oceny przy każdym odczycie snapshotu.
+
+## 7. Ostatnia aktywowana część
+
+Jeżeli zdarzenie aktywacji prowadzi do gotowości sieci, zapisać:
+
+* `closing_part_id`,
+* `closing_part_code`,
+* `closing_player_id`,
+* `closing_territory_id`,
+* `closing_event_id`,
+* `closed_at`.
+
+Operator zostaje kandydatem do osiągnięcia `Ostatni Obwód` i późniejszej dodatkowej nagrody prestiżowej.
+
+Nie oznacza to, że wysłał sygnał samodzielnie.
+
+## 8. Ponowna walidacja w transakcji
+
+`attempt_cycle_lock()` nie może ufać wynikowi wcześniejszego, niezablokowanego odczytu.
+
+W transakcji:
+
+1. zablokować rekord cyklu,
+2. potwierdzić `status = active`,
+3. zablokować 20 części,
+4. ponownie odczytać statusy,
+5. zweryfikować konflikty,
+6. zweryfikować 20 połączeń,
+7. zweryfikować topologię,
+8. sprawdzić brak istniejącego signal/lock snapshotu,
+9. dopiero potem zmienić status.
+
+Jeżeli stan zmienił się pomiędzy oceną a blokadą, operacja kończy się bez zamknięcia cyklu.
+
+## 9. Atomowa blokada cyklu
+
+W jednej transakcji:
+
+* `cycle.status: active → transmitting`,
+* `cycle.locked_at`,
+* `cycle.lock_event_id`,
+* `closing_part_id`,
+* utworzenie lock snapshotu,
+* zwiększenie `state_version`,
+* zapis `ghost.cycle_locked`,
+* zablokowanie nowych rezerwacji,
+* zablokowanie emisji części,
+* zablokowanie zmian lifecycle części.
+
+Nie tworzyć jeszcze rekordu `ghost_signals`.
+
+To zrobi Sprint 128 na podstawie zatwierdzonego lock snapshotu.
+
+## 10. Snapshot blokady
+
+Dodać trwały rekord, na przykład:
+
+`ghost_cycle_lock_snapshots`
+
+Minimalna zawartość:
+
+* `lock_snapshot_id`,
+* `cycle_id`,
+* `signal_number`,
+* wersja GhostSystemu,
+* katalog i checksum,
+* topologia i checksum,
+* 20 części,
+* ich kotwice,
+* odkrywcy,
+* aktualni właściciele,
+* klany,
+* terytoria,
+* daty aktywacji,
+* czas utrzymania,
+* konflikty i obrony,
+* aktywne połączenia,
+* postęp maszyn,
+* wkład operatorów,
+* reputacja klanowa,
+* closing operator,
+* `state_version`,
+* `locked_at`,
+* checksum snapshotu.
+
+Snapshot musi być niezmienny.
+
+## 11. Snapshot właścicieli węzłów
+
+Dla każdej części zapisać stan dokładnie w chwili blokady:
+
+* `part_id`,
+* `part_code`,
+* `clan_code`,
+* `territory_id`,
+* `territory_owner_id`,
+* `activated_at`,
+* `active_duration_seconds`,
+* `successful_defenses`,
+* `discoverer`,
+* `first_activator`,
+* `recovery_history`.
+
+Na tej podstawie Sprint 128 przyzna końcowe nagrody i utworzy archiwum sygnału.
+
+Nie odczytywać później „aktualnego” właściciela, ponieważ po locku transmisja ma opierać się na zamrożonym stanie.
+
+## 12. Snapshot wkładu
+
+Zamrozić:
+
+* sumę wkładu gracza,
+* sumę wkładu klanu,
+* typy udziału,
+* pełne węzły transmisyjne,
+* operatora domykającego.
+
+Można później naliczyć finalne rewardy, ale źródłowe wartości nie mogą zmienić się po blokadzie.
+
+## 13. Zakaz zmian po locku
+
+Po statusie `transmitting` zablokować:
+
+* nowe rezerwacje,
+* emisję części,
+* zmianę właściciela części,
+* aktywację i dezaktywację,
+* migrację kotwicy,
+* zmianę topologii,
+* zmianę ring order,
+* nowe strategiczne nagrody za utrzymanie,
+* nowe konflikty wpływające na zamrożony cykl.
+
+Zwykłe terytoria i gameplay mogą technicznie nadal istnieć, ale nie mogą zmienić wyniku zamkniętego cyklu.
+
+## 14. Wyścig ostatniej części z konfliktem
+
+Możliwa sytuacja:
+
+* część zostaje aktywowana,
+* jednocześnie rozpoczyna się konflikt jej terytorium.
+
+Blokada musi rozstrzygnąć kolejność transakcyjnie.
+
+Jeżeli trwały event konfliktu został zatwierdzony wcześniej:
+
+* część ma `conflict_state = contested`,
+* sieć nie może zostać zamknięta.
+
+Jeżeli blokada cyklu została zatwierdzona wcześniej:
+
+* cykl jest `transmitting`,
+* późniejszy konflikt nie przerywa transmisji.
+
+Kanon przewiduje, że po atomowym zablokowaniu cyklu atak nie może już zatrzymać wydarzenia. 
+
+## 15. Wyścig dwóch triggerów
+
+Dwa równoległe handlery mogą zauważyć `20/20`.
+
+Tylko jeden może utworzyć lock snapshot i przełączyć cykl.
+
+Drugi:
+
+* widzi `status = transmitting`,
+* zwraca istniejący lock,
+* nie zwiększa wersji,
+* nie zapisuje drugiego `ghost.cycle_locked`.
+
+## 16. Błąd po blokadzie
+
+Jeżeli transakcja locku się nie zakończy:
+
+* status pozostaje `active`,
+* snapshot nie istnieje,
+* sieć może zostać oceniona ponownie.
+
+Jeżeli lock został zatwierdzony, ale publikacja delty się nie udała:
+
+* cykl pozostaje `transmitting`,
+* event domenowy pozostaje w logu,
+* publisher wykonuje retry,
+* nie wolno cofać locku tylko z powodu błędu frontendu.
+
+## 17. Zdarzenie `ghost.cycle_locked`
+
+Publiczny payload:
+
+* `cycle_id`,
+* `signal_number`,
+* `parts_active: 20`,
+* `connections_active: 20`,
+* `machines_online: 4`,
+* `circuit_complete: true`,
+* `closing_public_entity_id`,
+* dozwolone dane operatora domykającego,
+* `state_version`,
+* `locked_at`.
+
+Nie publikować jeszcze pełnego archiwum uczestników.
+
+## 18. Komunikat klienta
+
+Po delcie klienci mogą pokazać:
+
+`GHOSTNETWORK: 20/20`
+
+`OBWÓD CZASOWY: ZAMKNIĘTY`
+
+`PRZYGOTOWANIE TRANSMISJI`
+
+Mapa nie uruchamia jeszcze pełnej animacji wysłania.
+
+Może wejść w stan oczekiwania na event Sprintu 128.
+
+## 19. Timeout transmisji
+
+Dodać diagnostyczne pole:
+
+* `transmission_started_at`,
+* `transmission_expected_by`.
+
+Jeżeli cykl długo pozostaje `transmitting` bez utworzonego GhostSignalu:
+
+* health check zgłasza błąd,
+* operator może wznowić proces na podstawie istniejącego lock snapshotu,
+* nie wykonuje ponownej blokady.
+
+## 20. Recovery blokady
+
+Dodać:
+
+`recover_locked_cycle(cycle_id)`
+
+Możliwe przypadki:
+
+### Status `transmitting`, snapshot istnieje
+
+Proces może przejść do Sprintu 128.
+
+### Status `transmitting`, snapshotu brak
+
+Błąd krytyczny integralności. Nie generować snapshotu z późniejszego stanu bez jawnej procedury recovery.
+
+### Snapshot istnieje, status nadal `active`
+
+Błąd częściowej migracji. Recovery ustala, czy lock został faktycznie zatwierdzony na podstawie eventu i wersji.
+
+### Dwa snapshoty
+
+Błąd krytyczny unikalności.
+
+## 21. Health check closure
+
+Sprawdza:
+
+* `20/20` bez locku,
+* lock bez `20/20`,
+* transmitting bez snapshotu,
+* snapshot o błędnym checksumie,
+* dwa lock snapshoty,
+* snapshot z 19 częściami,
+* nieaktywną część w snapshotcie,
+* niepełne połączenie,
+* brak closing operatora,
+* istniejący GhostSignal przed lockiem.
+
+## Testy Sprintu 127
+
+Minimum:
+
+* 19 aktywnych części — brak locku,
+* 20 aktywnych, jedna contested — brak locku,
+* 20 aktywnych, 19 pełnych połączeń — brak locku,
+* cztery maszyny online,
+* poprawny zamknięty obwód,
+* aktywacja ostatniej części uruchamia próbę,
+* atomowe `active → transmitting`,
+* snapshot zawiera 20 części,
+* snapshot zawiera 20 połączeń,
+* zapis operatora domykającego,
+* dwie równoległe próby tworzą jeden lock,
+* konflikt zatwierdzony przed lockiem blokuje zamknięcie,
+* lock zatwierdzony przed konfliktem pozostaje ważny,
+* po locku nie można zmienić części,
+* po locku nie można utworzyć rezerwacji,
+* błąd delty nie cofa locku,
+* recovery z istniejącego snapshotu,
+* wykrycie transmitting bez snapshotu,
+* poprawny checksum lock snapshotu.
+
+## Poza sprintem
+
+Nie implementować:
+
+* utworzenia GhostSignalu,
+* końcowych nagród,
+* animacji transmisji,
+* błysku i czarnego ekranu,
+* zużywania części,
+* zmiany wersji,
+* restartu,
+* stabilizacji kolejnego cyklu.
+
+## DoD
+
+Sprint jest zakończony, gdy backend potrafi jednoznacznie potwierdzić pełne `20/20`, atomowo zamrozić cały stan strategiczny i utworzyć niezmienny snapshot, którego nie może już zmienić żaden atak, konflikt ani późniejsza operacja.
+
+
 
 
 GhostNetwork — transmisja GhostSignalu i restart systemu
 GhostNetwork — BlackNet, Cyberner, Radio i narracyjny outbox
 GhostNetwork — archiwum, testy końcowe i uruchomienie endgame
 
-GhostNetwork Suite — audyt widoczności części i integracja z Territory Control
-GhostNetwork Suite — lekki snapshot części, właścicieli i stanów terytorialnych
-GhostNetwork Suite — lista części publicznych, blokowanych i aktywnych
 
-GhostNetwork Suite — mapa na żądanie, teleport i oznaczenia klastrów z komponentami
-GhostNetwork Suite — GUI desktopowe, delty, recovery i regresja całej Ghost Control Suite
+Po Sprintach 128–130 GhostNetwork jest kompletną pętlą endgame: gracze budują sieć, wysyłają niesyntetyczny sygnał do 2108 roku, GhostSystem ewoluuje, historia zostaje zachowana, a świat automatycznie przygotowuje kolejny cykl.
+
+
+Sprint 128 — GhostNetwork: transmisja GhostSignalu i restart systemu
+Cel sprintu
+
+Na podstawie niezmiennego snapshotu blokady ze Sprintu 127:
+
+utworzyć rekord GhostSignalu,
+przyznać końcowe nagrody,
+zużyć wszystkie 20 części,
+usunąć aktywne połączenia,
+wyłączyć supermoce,
+zwiększyć wersję GhostSystemu,
+wymusić restart klientów,
+rozpocząć 15-minutową stabilizację przed kolejnym cyklem.
+
+Frontend odtwarza wydarzenie, ale nie rozstrzyga, czy transmisja została wykonana. Źródłem prawdy pozostaje backend i trwały rekord sygnału.
+
+1. Serwis transmisji
+
+Dodać:
+
+GhostTransmissionService
+
+Minimalny kontrakt:
+
+start_transmission(cycle_id)
+create_signal_from_lock(lock_snapshot)
+apply_transmission_rewards(signal_id)
+consume_cycle_parts(signal_id)
+advance_ghostsystem_version(signal_id)
+begin_stabilization(signal_id)
+resume_interrupted_transmission(cycle_id)
+validate_transmission(cycle_id)
+
+Żaden endpoint ani frontend nie może samodzielnie tworzyć rekordu GhostSignalu.
+
+2. Warunek wejścia
+
+Transmisję można rozpocząć wyłącznie, gdy:
+
+cykl ma status transmitting,
+istnieje jeden poprawny lock snapshot,
+snapshot ma 20 aktywnych części,
+snapshot ma 20 aktywnych połączeń,
+wszystkie cztery maszyny są online,
+checksum snapshotu jest poprawny,
+nie istnieje jeszcze GhostSignal tego cyklu.
+
+Jeżeli warunki nie są spełnione, transmisja nie może budować stanu na podstawie aktualnych danych świata.
+
+3. Rekord GhostSignalu
+
+Utworzyć wpis ghost_signals:
+
+signal_id
+signal_number
+cycle_id
+source_version
+target_year = 2108
+status = sent
+outcome = pending
+integrity = null
+recipient = null
+sent_at
+resolved_at = null
+next_version
+lock_snapshot_id
+signal_checksum
+
+Numer sygnału musi pochodzić z cyklu, a nie z liczby istniejących rekordów.
+
+Początkowy rezultat zawsze pozostaje nierozstrzygnięty:
+
+STATUS: WYSŁANY
+
+POTWIERDZENIE Z 2108: OCZEKIWANIE
+
+Dalszy los sygnału będzie osobnym wydarzeniem narracyjnym i nie wpływa na już przyznane nagrody.
+
+4. Idempotencja transmisji
+
+Stabilny klucz:
+
+ghost-signal:<cycle_id>
+
+Ponowne wywołanie:
+
+zwraca istniejący sygnał,
+nie tworzy kolejnego numeru,
+nie przyznaje ponownie nagród,
+nie zużywa ponownie części,
+nie zwiększa drugi raz wersji systemu.
+
+Repozytorium musi posiadać ograniczenie: jeden sygnał na cykl.
+
+5. Atomowa sekwencja backendowa
+
+Kolejność:
+
+Zablokować cykl i lock snapshot.
+Potwierdzić brak sygnału.
+Utworzyć ghost_signals.
+Zamrozić końcowy wkład graczy i klanów.
+Utworzyć końcowe wpisy reward ledgeru.
+Oznaczyć wszystkie 20 części jako consumed.
+Wyłączyć aktywne supermoce.
+Zamknąć aktywne połączenia.
+Zapisać historyczne węzły.
+Podnieść wersję GhostSystemu.
+Ustawić restart_required.
+Przejść do stabilizing.
+Ustawić stabilization_until.
+Zapisać zdarzenia domenowe.
+Zatwierdzić transakcję.
+
+Nie musi to być jedna ogromna transakcja techniczna, jeżeli magazyn na to nie pozwala, ale każda faza musi mieć trwały checkpoint i bezpieczne wznowienie.
+
+6. Końcowe nagrody
+
+Na podstawie lock snapshotu przyznać:
+
+nagrodę właścicielom 20 aktywnych węzłów,
+wkład klanom,
+premię za utrzymanie części do transmisji,
+osiągnięcie uczestnika GhostSignalu,
+wyróżnienie operatora domykającego,
+trwały wpis do historii gracza.
+
+Reward keys:
+
+ghost-signal:<signal_id>:node:<part_id>:<player_id>
+
+ghost-signal:<signal_id>:closer:<player_id>
+
+Operator domykający otrzymuje prestiżowy bonus, ale nie nagrodę porównywalną z sumą pracy pozostałych właścicieli.
+
+7. Zużycie części
+
+Po trwałym utworzeniu GhostSignalu wszystkie części przechodzą:
+
+active → consumed
+
+Zapisać:
+
+consumed_at
+consumed_by_signal_id
+końcowego właściciela,
+czas aktywności,
+liczbę obron,
+dane archiwalne.
+
+Nie usuwać rekordów części z bazy.
+
+Z aktywnego świata znikają:
+
+markery części,
+badge komponentów,
+pełne i połowiczne linie,
+aktywne moduły,
+supermoce.
+
+Terytoria pozostają bez zmian.
+
+8. Historyczne ślady węzłów
+
+Dodać rekord historycznej kotwicy, na przykład:
+
+ghost_historical_nodes
+
+Każdy zapis:
+
+signal_id
+part_id
+part_code
+współrzędne,
+odkrywca,
+właściciel podczas transmisji,
+klan,
+czas aktywności,
+obrony,
+aktywacje i odbicia,
+status spent.
+
+Historyczny ślad nie daje żadnego efektu gameplayowego.
+
+9. Wyłączenie supermocy
+
+Po ghost.part_consumed:
+
+pasywne efekty znikają,
+nowe aktywacje mocy są blokowane,
+aktywne instancje kończą się zgodnie z ich polityką,
+cache uprawnień jest unieważniany.
+
+Nie czekać z wyłączeniem mocy na restart przeglądarki.
+
+10. Zmiana wersji GhostSystemu
+
+Dla standardowej transmisji:
+
+1.0.N → 1.0.N+1
+
+Zapisać:
+
+source_version
+next_version
+version_changed_at
+version_change_reason = ghostsignal_transmission
+signal_id
+
+Numer GhostSignalu i wersja systemu pozostają osobne.
+
+11. Restart wymagany
+
+Dodać globalny stan:
+
+restart_required
+restart_reason
+restart_signal_id
+restart_from_version
+restart_to_version
+restart_required_at
+
+Każdy aktywny klient otrzymuje:
+
+ghost.restart_required
+
+Od tego momentu:
+
+interfejs desktopu zostaje zablokowany,
+nie można rozpoczynać nowych operacji,
+mapa kończy animację transmisji i przechodzi w czarny ekran,
+użytkownik widzi przycisk restartu.
+
+Nie wykonywać automatycznego przeładowania bez działania gracza.
+
+12. Sekwencja frontendowa transmisji
+
+Po ghost.signal_sent uruchomić około 25–35 sekund animacji:
+
+Domknięcie dwóch ostatnich odcinków.
+Impuls przechodzący po pełnym pierścieniu.
+Wspólny puls 20 węzłów.
+Tymczasowe linie synchronizacyjne czterech maszyn.
+Komunikaty Oracle, Libertas, Phantom Veil i Aegis.
+Numer GhostSignalu.
+Globalny błysk.
+TRANSMISSION SENT.
+Czarny ekran.
+Komunikaty aktualizacji i restartu.
+
+Animacja korzysta z zatwierdzonego signal_id i signal_number.
+
+Nie może zostać uruchomiona wyłącznie dlatego, że frontend sam policzył 20/20.
+
+13. Zachowanie radia i audio
+
+Sama mapa nie uruchamia dźwięku.
+
+Jeżeli radio jest aktywne, Sprint 129 może na krótko przerwać kanał zatwierdzonym komunikatem.
+
+Jeżeli radio jest wyłączone lub wyciszone, transmisja pozostaje wizualna.
+
+14. Czarny ekran i blokada
+
+Po błysku ukryć:
+
+mapę,
+markery,
+terytoria,
+menu,
+aktywne kontrolki.
+
+Wyświetlać kolejno:
+
+numer GhostSignalu,
+status wysłania,
+brak potwierdzenia,
+zużywanie węzłów,
+czyszczenie kotwic,
+zapis historii,
+aktualizację wersji,
+wymagany restart.
+
+Stan czarnego ekranu musi przetrwać odświeżenie strony, jeśli gracz jeszcze nie wykonał restartu.
+
+15. Restart GhostSystemu
+
+Przycisk:
+
+RESTART GHOSTSYSTEM
+
+Uruchamia istniejącą sekwencję bootowania z komunikatami:
+
+montowanie ghost bus,
+odczyt nowej wersji,
+czyszczenie zużytych komponentów,
+przywracanie własności terytoriów,
+ładowanie nagród,
+oczekiwanie na następny cykl.
+
+Po restarcie:
+
+klient zapisuje potwierdzenie wersji,
+restart_required znika dla tego gracza,
+pulpit działa normalnie,
+mapa nie pokazuje starych aktywnych części,
+dostępne jest podsumowanie transmisji.
+
+Gracz offline przechodzi tę samą sekwencję przy następnym logowaniu.
+
+16. Stabilizacja
+
+Po transmisji cykl ma status:
+
+stabilizing
+
+Domyślne okno:
+
+15 minut
+
+W tym czasie:
+
+zwykły gameplay działa,
+mapa i narzędzia działają,
+można hackować cele,
+nie można rezerwować ani emitować nowych części,
+media publikują podsumowanie,
+system przygotowuje nowy cykl.
+
+Po czasie stabilizacji kolejny sprint cyklu może utworzyć następny zestaw i przejść do active.
+
+17. Zdarzenia
+
+Zapisać i opublikować:
+
+ghost.signal_created
+ghost.signal_sent
+ghost.parts_consumed
+ghost.abilities_disabled
+ghost.version_changed
+ghost.restart_required
+ghost.stabilization_started
+ghost.player_restart_confirmed
+
+Każde zdarzenie posiada signal_id, cycle_id i state_version.
+
+18. Recovery transmisji
+
+Proces musi rozpoznawać checkpointy:
+
+lock istnieje, sygnału brak,
+sygnał istnieje, nagrody niepełne,
+nagrody gotowe, części niezużyte,
+części zużyte, wersja niezmieniona,
+wersja zmieniona, brak restart flag,
+restart flag istnieje, cykl nie jest stabilizing.
+
+resume_interrupted_transmission() wykonuje wyłącznie brakujące fazy.
+
+Nie tworzy nowego GhostSignalu.
+
+19. Health check
+
+Sprawdza:
+
+dwa sygnały dla cyklu,
+signal bez lock snapshotu,
+sygnał z innym numerem niż cykl,
+sent przy aktywnych częściach,
+consumed części bez signal_id,
+zmienioną wersję bez sygnału,
+restart wymagany z błędną wersją,
+stabilizing bez stabilization_until,
+końcowe nagrody bez wpisów ledgeru.
+Testy Sprintu 128
+
+Minimum:
+
+poprawna transmisja 20/20,
+jeden sygnał na cykl,
+retry jest idempotentny,
+końcowe nagrody dokładnie raz,
+wszystkie części consumed,
+terytoria pozostają,
+supermoce znikają,
+wersja rośnie dokładnie raz,
+restart wymagany dla aktywnego gracza,
+restart wymagany przy kolejnym logowaniu,
+animacja nie jest źródłem prawdy,
+błąd klienta nie cofa transmisji,
+recovery z każdego checkpointu,
+zwykłe hackowanie podczas stabilizacji,
+brak nowych dropów podczas stabilizacji,
+brak cofania nagród po późniejszym negatywnym wyniku sygnału.
+Poza sprintem
+
+Nie implementować jeszcze:
+
+wyboru rezultatu GhostSignalu,
+odpowiedzi z 2108,
+pełnych publikacji medialnych,
+finalnego archiwum gracza,
+kolejnego aktywnego cyklu po stabilizacji, jeśli wymaga osobnego initializer flow.
+DoD
+
+Sprint jest zakończony, gdy zablokowany cykl może bezpiecznie i dokładnie raz wysłać GhostSignal, zużyć strategiczny stan świata, podnieść wersję GhostSystemu oraz przeprowadzić każdego gracza przez wymagany restart.
+
+Sprint 129 — GhostNetwork: BlackNet, Cyberner, Radio i narracyjny outbox
+Cel sprintu
+
+Podłączyć GhostNetwork do istniejących mediów tak, aby istotne wydarzenia strategiczne stawały się częścią żywego świata, ale bez ujawniania ukrytych danych i bez oddawania narracji kontroli nad mechaniką.
+
+Backend tworzy fakty. Media renderują komunikaty. Ollama może później rozwinąć narrację, lecz nie może zmieniać stanu gry.
+
+1. Narracyjny publisher
+
+Dodać:
+
+GhostNarrativePublisher
+
+Minimalny kontrakt:
+
+publish_domain_event(event)
+build_facts(event, audience)
+enqueue_blacknet(...)
+enqueue_cyberner(...)
+enqueue_radio(...)
+enqueue_ollama_outbox(...)
+retry_failed_publications(...)
+
+Publisher nie odczytuje pełnych profili ani całej bazy świata.
+
+Korzysta z:
+
+zdarzenia domenowego,
+projekcji widoczności,
+katalogu GhostNetwork,
+zatwierdzonego snapshotu.
+2. Jedno źródło faktów
+
+Dla każdego wydarzenia powstaje zestaw zatwierdzonych faktów, na przykład:
+
+part_discovered
+part_contained
+part_activated
+part_revealed
+part_recovered
+part_defended
+machine_online
+connection_completed
+cycle_locked
+signal_sent
+version_changed
+stabilization_started
+
+Każdy fakt:
+
+ma fact_id,
+wskazuje źródłowy event_id,
+posiada cycle_id,
+ma zakres odbiorców,
+posiada klasę prawdziwości,
+nie zawiera danych niedozwolonych dla odbiorcy.
+3. Klasy prawdziwości
+
+Wspierane:
+
+canonical
+interpretation
+rumor
+propaganda
+narrative_deception
+
+Fakty mechaniczne są canonical.
+
+Ollama nie może sama zmienić klasy na bardziej wiarygodną.
+
+Treść mechaniczna i komentarz narracyjny muszą pozostać rozdzielone.
+
+4. BlackNet deterministyczny
+
+Dodać reguły sygnałów dla:
+
+Odkrycia publicznej części
+
+Pokazać:
+
+nazwę części,
+klan,
+lokalizację,
+status neutralny.
+Zabezpieczenia przez obcy klan
+
+Pokazać publicznie:
+
+terytorium przechowuje komponent,
+właściciela lub klan blokujący, jeśli publiczny,
+status nieaktywny.
+
+Nie pokazywać:
+
+nazwy części,
+właściwego klanu części,
+profesji,
+mocy.
+Aktywacji
+
+Właściwy klan może otrzymać pełny sygnał.
+
+Pozostali:
+
+klan aktywujący,
+lokalizacja,
+aktywny węzeł,
+zaszyfrowany typ modułu.
+Maszyny online
+
+Pokazać postęp:
+
+maszyna,
+5/5,
+wpływ na sieć.
+
+Zakres danych zależy od odbiorcy.
+
+Transmisji
+
+BlackNet przechodzi w specjalny tryb:
+
+GHOSTNETWORK // 20 WĘZŁÓW
+
+POŁĄCZENIE ZAMKNIĘTE
+
+TRANSMISJA W TOKU
+
+Po restarcie:
+
+GHOSTSIGNAL XXXX
+
+WYSŁANY DO 2108
+
+STATUS: BRAK POTWIERDZENIA
+
+5. BlackNet CTA
+
+Dozwolone CTA:
+
+pokaż publiczną część na mapie,
+pokaż aktywny węzeł,
+pokaż strategiczne terytorium,
+otwórz GhostNetwork Suite,
+otwórz archiwum sygnału,
+otwórz kanał Cybernera,
+uruchom zatwierdzony podcast.
+
+CTA nie może:
+
+teleportować bez potwierdzenia,
+przejmować części,
+ustawiać właściciela,
+przyznawać nagród,
+uruchamiać mocy.
+6. Cyberner globalny
+
+Publikować komunikaty systemowe:
+
+Pierwsze odkrycie części w cyklu
+
+Krótki komunikat globalny.
+
+Pierwsze połączenie
+
+ANOMALIA GHOSTNETWORK
+
+DWA WĘZŁY UZYSKAŁY POŁĄCZENIE
+
+Domknięcie sieci
+
+Przypięty komunikat:
+
+GHOSTNETWORK XXXX ZAMKNIĘTY
+
+TRANSMISJA DO 2108 ROZPOCZĘTA
+
+Po wysłaniu
+
+GHOSTSIGNAL XXXX WYSŁANY
+
+GHOSTSYSTEM [wersja] OCZEKUJE NA RESTART
+
+Wiadomości graczy nadal działają. Komunikat systemowy nie blokuje kanału.
+
+7. Cyberner klanowy
+
+Właściwy klan może otrzymać pełne informacje o aktywnej części:
+
+nazwa,
+profesja,
+moc,
+właściciel,
+połączenia,
+stan maszyny.
+
+Właściciel blokującego terytorium może otrzymać prywatną wiadomość z pełną tożsamością obcej części.
+
+Inni członkowie jego klanu nie otrzymują automatycznie danych owner-only.
+
+8. Radio
+
+Radio reaguje wyłącznie, gdy jest uruchomione.
+
+Przy transmisji:
+
+zapamiętać kanał i stan odtwarzania,
+przerwać materiał krótkim alarmem,
+odtworzyć zatwierdzony komunikat,
+wrócić do poprzedniego kanału i miejsca odtwarzania.
+
+Jeżeli radio jest:
+
+wyłączone,
+zatrzymane,
+wyciszone,
+
+nie uruchamiać dźwięku automatycznie.
+
+9. Komunikaty radiowe
+
+Na początku można użyć krótkich, deterministycznych nagrań lub istniejącego TTS pipeline.
+
+Przykładowe wydarzenia:
+
+pierwsza część cyklu,
+pierwsza kompletna maszyna,
+wielogodzinna obrona,
+ostatni brakujący węzeł,
+GhostSignal wysłany,
+późniejsza odpowiedź z 2108.
+
+Nie tworzyć audycji dla każdego drobnego eventu.
+
+10. Narracyjny outbox
+
+Wykorzystać ghost_narrative_outbox.
+
+Minimalne pola:
+
+outbox_id
+event_id
+cycle_id
+signal_id
+audience_scope
+audience_clan
+audience_owner
+medium
+truth_class
+facts_json
+allowed_actions_json
+canon_version
+ghostsystem_version
+status
+created_at
+processed_at
+validation_json
+
+Statusy:
+
+created
+ready
+processing
+processed
+failed
+expired
+archived
+11. Bezpieczne fakty dla Ollamy
+
+Ollama nie otrzymuje:
+
+pełnych profili,
+haseł,
+maili,
+sesji,
+ukrytych części,
+pełnej topologii, jeśli nie jest publiczna,
+danych owner-only w publikacji globalnej,
+możliwości zapisania stanu gry.
+
+Pakiet zawiera tylko fakty potrzebne do konkretnego zadania.
+
+Najbezpieczniejsza zasada: model nie dostaje danych, których nie wolno mu opublikować dla wskazanego odbiorcy.
+
+12. Kontrakt wejściowy narracji
+
+Pakiet może zawierać:
+
+task_id
+canon_version
+ghostsystem_version
+cycle_id
+signal_id
+medium
+zakres odbiorców,
+typ wydarzenia,
+zatwierdzone fakty,
+ostatnie publikacje wątku,
+reguły redakcyjne,
+dozwolone CTA,
+limity długości.
+
+Nie przekazywać surowych rekordów bazowych.
+
+13. Wynik modelu
+
+Model zwraca ustrukturyzowany JSON:
+
+content_id
+medium
+audience
+source
+truth_class
+title
+body
+tone
+fact_refs
+cta_action
+cta_payload
+expires_at
+
+Nie publikować surowego tekstu bez walidacji.
+
+14. Walidacja narracji
+
+Sprawdzić:
+
+strukturę,
+dozwolone fact_refs,
+zgodność odbiorców,
+klasę prawdziwości,
+ukryte dane,
+CTA,
+identyfikatory,
+długości,
+brak zewnętrznych URL,
+brak nowych części i encji,
+brak mechanicznych twierdzeń nieobecnych w faktach.
+
+Błędna odpowiedź zostaje odrzucona i nie wpływa na grę.
+
+15. Głosy klanów i MASA
+
+Dodać wersjonowane reguły stylu:
+
+VIREX — aktywa, ryzyko, przepływy, kontrola,
+Echo Wolności — prawda, ujawnienie, mobilizacja,
+Siatka Widmo — zakłócenia, sprzeczności, niedopowiedzenia,
+Strażnicy Ładu — procedury, integralność, stabilność,
+MASA — spokojny, opiekuńczy, pozornie racjonalny ton.
+
+Reguły stylu nie mogą zmieniać faktów mechanicznych.
+
+16. Ciągłość wątków
+
+Dodać narrative_thread_id, na przykład:
+
+ghost-cycle-0047
+virex-blockade-<part>
+signal-reply-0047
+masa-counter-signal-12
+
+Outbox może przekazywać:
+
+skrót dotychczasowej historii,
+nierozwiązane pytania,
+ostatnie publikacje.
+
+Nie potrzebuje pełnej historii świata.
+
+17. Retry i niezależność mechaniki
+
+Błąd:
+
+BlackNetu,
+Cybernera,
+Radia,
+Ollamy
+
+nie może cofnąć:
+
+aktywacji części,
+nagrody,
+zamknięcia sieci,
+transmisji,
+zmiany wersji.
+
+Publikacje posiadają retry i niezależne statusy.
+
+18. Obserwowalność
+
+Logować:
+
+event źródłowy,
+zakres odbiorcy,
+medium,
+fact_refs,
+wynik projekcji,
+status outboxa,
+walidację Ollamy,
+publikację,
+odrzucenie,
+czas przetwarzania.
+Testy Sprintu 129
+
+Minimum:
+
+publiczne odkrycie pełnej neutralnej części,
+ukryta blokowana część bez przecieku,
+pełna wiadomość owner-only,
+pełna aktywna część dla klanu,
+zaszyfrowana aktywna część dla innych,
+BlackNet po zamknięciu,
+Cyberner globalny,
+Cyberner klanowy,
+radio aktywne wraca do kanału,
+radio wyłączone nie startuje,
+outbox zawiera wyłącznie dozwolone fakty,
+Ollama nie może dodać części,
+niedozwolone CTA zostaje odrzucone,
+błędny model nie wpływa na gameplay,
+retry publikacji nie duplikuje wiadomości,
+mechanika działa przy całkowicie wyłączonej Ollamie.
+DoD
+
+Sprint jest zakończony, gdy wszystkie istotne wydarzenia GhostNetwork mają bezpieczny i spójny głos w istniejących mediach, a narracja nigdy nie otrzymuje prawa do zmiany stanu świata.
+
+Sprint 130 — GhostNetwork: archiwum, testy końcowe i uruchomienie endgame
+Cel sprintu
+
+Domknąć pierwszy produkcyjny etap GhostNetwork:
+
+stworzyć trwałe archiwum cykli i sygnałów,
+udostępnić historię graczom,
+przeprowadzić pełne testy integracyjne i wydajnościowe,
+przygotować migracje i recovery,
+uruchomić endgame etapami,
+potwierdzić, że zwykły gameplay działa również przy wyłączonym GhostNetwork.
+1. Archiwum GhostSignali
+
+Dodać publiczny i prywatny odczyt archiwum.
+
+Lista:
+
+numer sygnału,
+wersja przed i po transmisji,
+data,
+początkowy status,
+późniejszy outcome,
+integralność,
+odbiorca, jeśli ujawniony,
+udział klanów,
+liczba uczestników.
+
+Przykład:
+
+0047 // DOSTARCZONY
+0048 // PRZECHWYCONY
+0049 // USZKODZONY 43%
+0050 // ZMODYFIKOWANY
+0051 // BRAK ODPOWIEDZI
+
+Sprint nie musi jeszcze automatycznie rozstrzygać późniejszego outcome, ale archiwum musi być gotowe na jego zmianę.
+
+2. Szczegóły sygnału
+
+Widok sygnału może pokazywać:
+
+20 historycznych części,
+odkrywców,
+właścicieli transmisyjnych,
+aktywatorów,
+czas utrzymania,
+obrony,
+odbicia,
+operatora domykającego,
+procentowy udział klanów,
+wersję katalogu,
+wersję GhostSystemu,
+późniejsze konsekwencje.
+
+Po zakończeniu cyklu nazwy dawnych części mogą być publiczne.
+
+3. Historia osobista gracza
+
+Profil otrzymuje sekcję:
+
+udział w GhostSignalach,
+odkryte części,
+aktywowane moduły,
+odbicia,
+obrony,
+aktywne godziny węzłów,
+operator domykający,
+GhostNetwork RSP,
+osiągnięcia.
+
+Nie ładować pełnej historii każdego sygnału przy zwykłym odczycie profilu.
+
+Używać lekkiego agregatu i osobnego endpointu szczegółów.
+
+4. Historia klanów
+
+Dodać:
+
+całkowitą reputację,
+liczbę sygnałów,
+części odkryte,
+części aktywowane,
+odbicia,
+obrony,
+utrzymane węzły,
+najlepsze cykle,
+procent udziału w kolejnych transmisjach.
+
+Ranking nie wskazuje jedynego zwycięzcy cyklu, ponieważ wszystkie klany są wymagane do wysłania sygnału.
+
+5. Historyczna warstwa mapy
+
+Dodać opcjonalną warstwę:
+
+Historia GhostNetwork
+
+Zasady:
+
+domyślnie wyłączona albo subtelna,
+widoczna przy odpowiednim zoomie,
+najnowszy sygnał wyróżniony,
+starsze węzły uproszczone,
+brak aktywnych efektów,
+brak kolizji z bieżącymi częściami.
+
+Kliknięcie historycznego węzła otwiera jego wpis archiwalny.
+
+6. Osiągnięcia
+
+Minimum:
+
+Pierwszy Kontakt
+Kotwica
+Moduł Online
+Odzyskany Fragment
+Nieprzerwany Węzeł
+Linia Obrony
+Operator Sygnału
+Ostatni Obwód
+Weteran GhostSystemu
+
+Każde osiągnięcie:
+
+ma stabilny kod,
+jest idempotentne,
+wskazuje źródłowy cykl lub sygnał,
+nie jest odbierane po utracie części.
+7. Kolejny cykl
+
+Po stabilization_until:
+
+zakończyć poprzedni cykl jako closed,
+utworzyć kolejny cykl,
+utworzyć 20 nowych instancji części,
+wygenerować topologię,
+zachować historię poprzedniego cyklu,
+aktywować dropy,
+opublikować ghost.cycle_activated.
+
+Nowy zestaw nie może korzystać ze starych rezerwacji ani aktywnych części.
+
+Terytoria pozostają.
+
+8. Feature flags
+
+Dodać niezależne flagi:
+
+GHOSTNETWORK_ENABLED
+GHOSTNETWORK_DROPS_ENABLED
+GHOSTNETWORK_MAP_LAYER_ENABLED
+GHOSTNETWORK_ABILITIES_ENABLED
+GHOSTNETWORK_REWARDS_ENABLED
+GHOSTNETWORK_TRANSMISSION_ENABLED
+GHOSTNETWORK_MEDIA_ENABLED
+GHOSTNETWORK_OLLAMA_ENABLED
+
+Pozwala to uruchamiać warstwy etapami bez wyłączania całej gry.
+
+9. Tryb shadow
+
+Pierwszy etap produkcyjny:
+
+cykl istnieje,
+rezerwacje i symulowane dropy są logowane,
+części nie są jeszcze emitowane publicznie,
+system porównuje oczekiwane hooki i wydajność,
+zwykły gameplay pozostaje bez zmian.
+
+Shadow mode ma własne logi i nie przyznaje RSP.
+
+10. Tryb dev/staging
+
+Narzędzia testowe:
+
+wymuszenie rezerwacji,
+wymuszenie odkrycia,
+ustawienie stanu części,
+przypisanie części do klastra,
+symulacja konfliktu,
+ustawienie 19/20,
+aktywacja ostatniego modułu,
+test transmisji bez realnych nagród,
+czyszczenie testowego cyklu.
+
+Każda akcja jest dostępna wyłącznie w dev/staging i oznaczona w audycie.
+
+11. Migracje
+
+Przygotować:
+
+utworzenie tabel,
+indeksy,
+ograniczenia unikalności,
+inicjalizację wersji,
+utworzenie pierwszego cyklu,
+backfill klanów i profesji,
+rollback migracji bez utraty profili,
+backup przed uruchomieniem.
+
+Nie tworzyć aktywnego cyklu automatycznie podczas samego importu modułu.
+
+12. Test pełnego gameplayu
+
+Scenariusz end-to-end:
+
+Gracz wybiera klan i profesję.
+Oznacza kwalifikujący cel.
+Powstaje niewidoczna rezerwacja.
+Skuteczny hack emituje część obcego klanu.
+Część pojawia się publicznie.
+Gracz otacza ją obcym terytorium.
+Część zostaje zablokowana.
+Właściwy klan odbija lokalizację.
+Część zostaje aktywowana.
+Profesja otrzymuje moc.
+Linie aktualizują się.
+Powstaje obrona i odbicie.
+Wkład i RSP naliczają się raz.
+Ostatni moduł zamyka sieć.
+Powstaje lock snapshot.
+GhostSignal zostaje wysłany.
+Części zostają zużyte.
+Wersja systemu rośnie.
+Klient wykonuje restart.
+Po stabilizacji powstaje kolejny cykl.
+13. Testy współbieżności
+
+Obowiązkowo:
+
+równoległe oznaczenie wielu celów,
+dwa hacki tej samej rezerwacji,
+równoczesna emisja ostatnich części,
+konflikt i aktywacja w tej samej chwili,
+dwa triggery 20/20,
+retry transmisji,
+reward retry,
+równoległy restart klientów,
+utworzenie kolejnego cyklu przez dwa procesy.
+14. Testy widoczności
+
+Dla każdego stanu:
+
+neutralny,
+blocked owner,
+blocked foreign,
+active clan,
+active foreign,
+contested,
+consumed/history.
+
+Sprawdzić serializowany JSON, DOM mapy, BlackNet, Cyberner, outbox i GhostNetwork Suite.
+
+Ukryte dane nie mogą pojawić się nawet w niewidocznym atrybucie HTML.
+
+15. Testy wydajności
+
+Mierzyć:
+
+czas oznaczenia celu z hookiem,
+czas rezerwacji,
+czas emisji,
+czas eventu terytorialnego,
+czas snapshotu mapy,
+czas snapshotu suite,
+rozmiar delt,
+czas recovery,
+czas locku,
+czas transmisji backendowej.
+
+Wymagania:
+
+brak pełnego profilu przy zmianie części,
+brak skanowania wszystkich profili,
+brak przeliczania wszystkich terytoriów,
+brak ciężkiego pollera,
+maksymalnie 20 części i 20 połączeń w aktywnym cyklu.
+16. Chaos i awarie
+
+Testować restart serwera:
+
+po rezerwacji,
+podczas emisji,
+podczas zmiany terytorium,
+podczas rewardu,
+po locku,
+podczas tworzenia signal,
+po zużyciu części,
+przed zmianą wersji,
+podczas stabilizacji.
+
+System musi wznowić proces bez duplikacji.
+
+17. Obserwowalność
+
+Dashboard diagnostyczny lub raport:
+
+aktywny cykl,
+części według statusu,
+rezerwacje,
+odkryte części,
+maszyny,
+połączenia,
+konflikty,
+pending rewardy,
+publikacje medialne,
+recovery,
+ostatni signal,
+stabilizacja,
+błędy integralności.
+
+Nie wystawiać pełnego raportu zwykłym graczom.
+
+18. Runbook administracyjny
+
+Dokument:
+
+docs/ghostnetwork/GHOSTNETWORK_RUNBOOK.md
+
+Powinien opisywać:
+
+uruchomienie,
+wyłączenie flag,
+health check,
+recovery,
+transmisję przerwaną,
+niespójną część,
+uszkodzoną topologię,
+duplikat rewardu,
+problem z widocznością,
+wyłączenie Ollamy,
+rollback feature flag,
+backup i przywrócenie.
+
+Administrator nie może ręcznie uwalniać części tylko dlatego, że gracze zablokowali cykl strategicznie.
+
+19. Kryteria uruchomienia produkcyjnego
+
+Przed pełnym włączeniem:
+
+wszystkie migracje przechodzą,
+health check jest zielony,
+pełne E2E przechodzi,
+brak przecieków widoczności,
+shadow mode nie wykazuje brakujących hooków,
+transmisja jest idempotentna,
+rewards są idempotentne,
+recovery działa na każdym checkpointcie,
+mapa działa przy wyłączonym module,
+zwykłe operacje nie są spowolnione ponad ustalony budżet.
+20. Etapowe wdrożenie
+
+Proponowana kolejność:
+
+Fundament i cykl bez dropów.
+Shadow reservations.
+Publiczne części bez supermocy.
+Terytoria i połączenia.
+Nagrody.
+Supermoce.
+Media.
+Pierwsza kontrolowana transmisja.
+Automatyczny kolejny cykl.
+Pełne endgame.
+21. Rollback
+
+Wyłączenie feature flag nie może usuwać danych.
+
+Przy awaryjnym wyłączeniu:
+
+części pozostają w bazie,
+cykl zostaje zamrożony,
+rezerwacje nie powstają,
+istniejące terytoria działają,
+zwykły gameplay działa,
+po ponownym włączeniu GhostNetwork wykonuje recovery.
+22. DoD Sprintu 130
+
+Sprint jest zakończony, gdy:
+
+Każdy cykl i sygnał posiada trwałe archiwum.
+Gracze widzą swój wkład i osiągnięcia.
+Klany posiadają historię reputacji.
+Historyczne węzły można obejrzeć bez wpływu na gameplay.
+Pełny scenariusz end-to-end przechodzi.
+Testy współbieżności nie tworzą duplikatów.
+Testy widoczności nie wykazują przecieków.
+Recovery działa po przerwaniu każdej krytycznej fazy.
+System można uruchomić etapami i bezpiecznie wyłączyć.
+Zwykła gra działa nawet przy całkowicie wyłączonym GhostNetwork.
+Pierwszy produkcyjny cykl może zostać rozpoczęty świadomie.
+Endgame nie wymaga ręcznej ingerencji administratora w normalny przebieg strategiczny.
+
+
+> Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.
+
+# Sprint 131 — GhostNetwork Suite: audyt widoczności części i integracja z Territory Control
+
+## Cel sprintu
+
+Przeprowadzić audyt istniejącego GhostNetwork, Territory Control oraz wspólnej infrastruktury desktopowych `pro-system-tools`, a następnie zdefiniować kontrakt nowej aplikacji obserwacyjnej.
+
+GhostNetwork Suite nie tworzy:
+
+* nowego magazynu części,
+* własnej klasy widoczności,
+* alternatywnego systemu terytoriów,
+* kopii właścicieli klastrów,
+* osobnego pollera,
+* własnej mechaniki teleportu.
+
+Aplikacja jest lekką projekcją istniejącego globalnego stanu GhostNetwork i uzupełnia:
+
+* Victim Picker,
+* Territory Control,
+* Operation Control.
+
+Stan części nadal należy do GhostNetwork, kontrola obszaru do systemu terytoriów, a frontend wyświetla wyłącznie projekcję zatwierdzoną dla aktualnego operatora. 
+
+## 1. Miejsce produktu w Ghost Control Suite
+
+Potwierdzić wspólną rodzinę aplikacji:
+
+```text
+ghost_control_suite
+```
+
+Komponenty:
+
+```text
+Victim Picker
+Territory Control
+Operation Control
+GhostNetwork Suite
+```
+
+Nowa aplikacja pozostaje produktem:
+
+```text
+type: pro-system-tool
+category: pro-system-tools
+```
+
+Nie tworzyć nowej kategorii gameplayowej ani drugiego systemu instalacji.
+
+Audyt ma wskazać:
+
+* obecny kontrakt zakupu w Googleplexie,
+* instalację produktu w profilu,
+* launcher desktopowy,
+* taskbar,
+* zachowanie aktywnego okna,
+* wspólny icon pack,
+* mechanizm aktualizacji przez delty.
+
+Cena produktu pozostaje konfigurowalna i nie jest ustalana w tym sprincie.
+
+## 2. Audyt projekcji widoczności
+
+Sprawdzić implementację ze Sprintu 120:
+
+```text
+GhostVisibilityService
+```
+
+Nowe narzędzie musi korzystać dokładnie z tych samych reguł co:
+
+* mapa,
+* Territory Control,
+* BlackNet,
+* Cyberner,
+* narracyjny outbox.
+
+Nie może samodzielnie wyliczać widoczności na podstawie:
+
+```text
+viewer.clan === part.clan
+```
+
+Do aplikacji trafia gotowa projekcja.
+
+## 3. Kanoniczne grupy widoku
+
+Ustalić pięć grup wyświetlanych w GhostNetwork Suite.
+
+### Publiczne
+
+Części:
+
+```text
+module_state = neutral
+```
+
+Nie są otoczone stabilnym terytorium.
+
+Wszyscy widzą pełne dane:
+
+* nazwę,
+* klan,
+* maszynę,
+* profesję,
+* supermoc,
+* dokładną lokalizację.
+
+### Zablokowane przez inny klan
+
+Części znajdują się na stabilnym terytorium klanu innego niż klan części.
+
+Dla zwykłego obserwatora:
+
+* tożsamość może być ukryta,
+* znane jest terytorium,
+* znany jest stan `blocked`,
+* dokładna kotwica może pozostać niewidoczna.
+
+### Aktywne w naszym klanie
+
+Części własnej maszyny aktywowane przez innego członka klanu.
+
+Aktualny operator widzi pełne dane dzięki przynależności klanowej, ale nie jest właścicielem terytorium.
+
+### Kontrolowane przeze mnie — część obca
+
+Aktualny operator jest właścicielem klastra zawierającego część obcego klanu.
+
+Relacja:
+
+```text
+self_foreign_blocked
+```
+
+Operator widzi pełną tożsamość komponentu, ponieważ sam go blokuje.
+
+### Kontrolowane przeze mnie — część własna
+
+Aktualny operator jest właścicielem klastra aktywującego część własnego klanu.
+
+Relacja:
+
+```text
+self_own_active
+```
+
+Część jest aktywna i daje moc właściwej profesji całemu klanowi.
+
+## 4. Brak osobnych list w bazie
+
+Grupy są filtrami jednego snapshotu:
+
+```text
+parts[]
+```
+
+Nie tworzyć struktur:
+
+```text
+public_parts_store
+blocked_parts_store
+my_parts_store
+clan_parts_store
+```
+
+Ta sama część może po zmianie terytorium przejść z jednej sekcji do drugiej bez zmiany swojego `part_id`.
+
+## 5. Relacje odbiorcy
+
+Audyt ma potwierdzić i ewentualnie uzupełnić resolver:
+
+```text
+resolve_part_viewer_relation(part, viewer)
+```
+
+Wymagane wartości:
+
+```text
+public_neutral
+foreign_blocked
+foreign_active
+clan_own_active
+self_foreign_blocked
+self_own_active
+```
+
+Opcjonalnie dla spójności:
+
+```text
+self_contested
+clan_contested
+foreign_contested
+```
+
+Konflikt pozostaje jednak nakładką, a nie nowym stanem bazowym.
+
+## 6. Audyt danych właściciela
+
+Ustalić kanoniczne pola:
+
+```text
+territory_id
+territory_owner_id
+territory_owner_alias
+territory_clan
+cluster_id
+cluster_label
+```
+
+Nie pobierać pełnych profili właścicieli.
+
+Alias i klan muszą pochodzić z lekkiej projekcji przygotowanej na backendzie.
+
+## 7. Audyt integracji z Territory Control
+
+Territory Control ma już oznaczać klastry zawierające komponent.
+
+Potwierdzić pola:
+
+```text
+contains_ghost_part
+ghost_parts_count
+ghost_part_relation
+ghost_part_state
+ghost_part_identity_visible
+ghost_part_summary
+```
+
+Dla właściciela klastra dodatkowo:
+
+```text
+ghost_part_public_entity_id
+ghost_part_name
+ghost_part_clan
+ghost_part_machine
+ghost_part_profession
+ghost_part_ability
+```
+
+Pola szczegółowe mogą wystąpić tylko wtedy, gdy pozwala na to projekcja widoczności.
+
+## 8. Klaster z własną częścią
+
+Territory Control pokazuje:
+
+```text
+GHOST COMPONENT
+WŁASNY KLAN
+STATUS: AKTYWNY
+```
+
+Jeżeli właścicielem jest aktualny operator:
+
+```text
+RELACJA: KONTROLOWANY PRZEZE MNIE
+```
+
+Jeżeli inny członek klanu:
+
+```text
+RELACJA: WĘZEŁ KLANOWY
+```
+
+## 9. Klaster z obcą częścią
+
+Dla właściciela:
+
+```text
+GHOST COMPONENT
+CZĘŚĆ OBCEGO KLANU
+STATUS: BLOKOWANY
+```
+
+Dla pozostałych:
+
+```text
+TERYTORIUM ZAWIERA CZĘŚĆ GHOSTNETWORK
+TOŻSAMOŚĆ: UKRYTA
+STATUS: NIEAKTYWNA
+```
+
+Nie ujawniać kodu części w badge, tooltipie, DOM ani danych aplikacji.
+
+## 10. Konflikt terytorialny
+
+Podczas konfliktu aplikacja pokazuje stan sprzed jego rozpoczęcia:
+
+```text
+module_state: active lub blocked
+conflict_state: contested
+```
+
+Pozycja otrzymuje dodatkowe oznaczenie:
+
+```text
+STAN ZAMROŻONY — KONFLIKT
+```
+
+Nie przenosić jej między grupami aż do zdarzenia stabilizacji.
+
+Reguła odpowiada kanonowi, według którego konflikt nie zmienia natychmiast właściciela ani aktywności części. 
+
+## 11. Audyt akcji mapy
+
+Sprawdzić wspólny kontrakt używany już przez:
+
+* Victim Picker,
+* Territory Control,
+* Operation Control.
+
+Wymagane akcje:
+
+```text
+show_on_map
+teleport
+```
+
+Obie muszą używać wspólnego bridge’a desktop–mapa.
+
+GhostNetwork Suite nie może tworzyć własnego iframe ani alternatywnego endpointu teleportacji.
+
+## 12. Audyt teleportu
+
+Teleport ma prowadzić:
+
+* do dokładnej kotwicy, jeśli odbiorca ją zna,
+* do pozycji klastra lub bezpiecznego punktu terytorium, jeśli część jest ukryta,
+* do aktualnej pozycji historycznej kotwicy Ghost Anchor, jeśli źródło zniknęło.
+
+Aplikacja nie może ujawnić dokładnych współrzędnych ukrytej części przez payload teleportu.
+
+## 13. Audyt lifecycle okna
+
+Sprawdzić wzorce:
+
+* instalacja produktu,
+* utworzenie okna,
+* jedna instancja aplikacji,
+* przywracanie z taskbara,
+* focus istniejącego okna,
+* zamknięcie,
+* wyrejestrowanie listenerów delt,
+* restart GhostSystemu.
+
+## 14. Wspólne ikony
+
+Rozszerzyć:
+
+```text
+GHOST_CONTROL_ICONS
+```
+
+Minimalne klucze:
+
+```text
+ghostnetwork
+public_part
+blocked_part
+active_part
+self_controlled
+clan_controlled
+map
+teleport
+territory
+owner
+machine
+profession
+ability
+conflict
+refresh
+```
+
+Ikony inline SVG:
+
+* posiadają `title`,
+* `aria-label`,
+* stany hover/focus/disabled,
+* nie są anonimowymi symbolami.
+
+## 15. Artefakt sprintu
+
+Dokument:
+
+```text
+docs/ghostnetwork/sprint_131_suite_audit.md
+```
+
+Powinien zawierać:
+
+* źródła danych,
+* macierz widoczności,
+* mapowanie grup,
+* kontrakt Territory Control,
+* kontrakt mapy,
+* kontrakt teleportu,
+* listę wykorzystywanych helperów,
+* listę zabronionych duplikatów,
+* plan testów 132–135.
+
+## Testy Sprintu 131
+
+Minimum:
+
+* neutralna część trafia do `public_neutral`,
+* blokowana część dla właściciela trafia do `self_foreign_blocked`,
+* blokowana część dla obcego obserwatora trafia do `foreign_blocked`,
+* aktywna część właściciela trafia do `self_own_active`,
+* aktywna część członka klanu trafia do `clan_own_active`,
+* konflikt nie zmienia grupy bazowej,
+* ukryta tożsamość nie przechodzi do Territory Control,
+* dokładna pozycja ukrytej części nie trafia do akcji mapy,
+* istniejące helpery mapy i teleportu są wskazane,
+* brak drugiego źródła danych.
+
+## Poza sprintem
+
+Nie tworzyć jeszcze:
+
+* endpointu snapshotu,
+* aplikacji GUI,
+* list,
+* delty,
+* zakupu produktu,
+* nowych akcji mapy.
+
+## DoD
+
+Sprint jest zakończony, gdy dokładnie wiadomo:
+
+1. Jak części są grupowane.
+2. Kto widzi ich tożsamość.
+3. Jak Territory Control oznacza klastry.
+4. Jakie dane otrzymuje mapa.
+5. Gdzie kieruje teleport.
+6. Które istniejące helpery zostaną ponownie użyte.
+7. Jak uniknąć przecieku dokładnej pozycji blokowanej części.
+8. Jak aplikacja wpina się w Ghost Control Suite.
+
+---
+
+# Sprint 132 — GhostNetwork Suite: lekki snapshot części, właścicieli i stanów terytorialnych
+
+## Cel sprintu
+
+Przygotować lekki backendowy snapshot przeznaczony specjalnie dla desktopowej aplikacji GhostNetwork Suite.
+
+Snapshot ma zawierać jedynie dane potrzebne do:
+
+* wyświetlenia list,
+* określenia relacji części względem operatora,
+* pokazania właściciela i klastra,
+* wykonania akcji mapy oraz teleportu,
+* aktualizacji przez delty.
+
+Nie może zawierać:
+
+* pełnej topologii,
+* geometrii wszystkich terytoriów,
+* rezerwacji,
+* pełnego profilu,
+* historii wszystkich części,
+* danych ukrytych przed odbiorcą.
+
+## 1. Widok snapshotu
+
+Rozszerzyć istniejący endpoint:
+
+```text
+GET /api/ghostnetwork/snapshot?view=suite
+```
+
+Nie tworzyć zupełnie niezależnego magazynu ani endpointu omijającego `GhostVisibilityService`.
+
+## 2. Kontrakt główny
+
+Response:
+
+```text
+cycle
+summary
+groups
+parts
+state_version
+visibility_version
+restart_required
+stabilization_until
+```
+
+`cycle` zawiera:
+
+```text
+cycle_id
+signal_number
+ghostsystem_version
+status
+```
+
+`summary`:
+
+```text
+parts_total
+parts_discovered
+parts_public
+parts_blocked
+parts_active
+parts_contested
+parts_visible_to_viewer
+```
+
+## 3. Rekord części
+
+Każda widoczna pozycja może zawierać:
+
+```text
+public_entity_id
+part_id
+display_label
+identity_visible
+module_state
+conflict_state
+viewer_relation
+visibility_level
+part_clan
+machine
+profession
+ability
+territory
+owner
+location
+actions
+updated_at
+state_version
+```
+
+Ukryte pola muszą być `null` albo nieobecne.
+
+Nie wysyłać prawdziwej wartości z dodatkowym `visible: false`.
+
+## 4. Identyfikator aplikacyjny
+
+Aplikacja kluczuje elementy po:
+
+```text
+public_entity_id
+```
+
+Identyfikator:
+
+* stabilny w cyklu,
+* nie zdradza `part_code`,
+* działa również dla ukrytej części,
+* może zostać użyty w deltach i focusie Territory Control.
+
+## 5. Dane tożsamości
+
+Gdy `identity_visible = true`:
+
+```text
+part_id
+part_code
+part_name
+part_clan_code
+part_clan_name
+machine_code
+machine_name
+profession_code
+profession_name
+ability_code
+ability_name
+ability_description
+```
+
+Gdy tożsamość jest ukryta:
+
+```text
+part_id: null
+part_code: null
+part_name: null
+machine: null
+profession: null
+ability: null
+```
+
+Dozwolony `display_label`:
+
+```text
+NIEZIDENTYFIKOWANY KOMPONENT
+```
+
+## 6. Dane terytorialne
+
+Minimalny kontrakt:
+
+```text
+territory:
+    territory_id
+    cluster_id
+    cluster_label
+    owner_id
+    owner_alias
+    owner_clan
+    threat_state
+    pillar_count
+    inner_count
+    conflict_state
+```
+
+Nie przesyłać całej listy wierzchołków klastra.
+
+Do listy wystarczy agregat.
+
+## 7. Pozycja części
+
+Kontrakt:
+
+```text
+location:
+    visibility
+    latitude
+    longitude
+    map_focus_type
+    map_focus_id
+```
+
+Dozwolone wartości:
+
+```text
+visibility: exact
+visibility: territory_only
+```
+
+### `exact`
+
+Współrzędne kotwicy są dostępne.
+
+### `territory_only`
+
+Snapshot nie zawiera dokładnej pozycji komponentu.
+
+Może zawierać:
+
+* centroid klastra,
+* publiczny identyfikator terytorium,
+* bezpieczny punkt teleportu.
+
+## 8. Akcje
+
+Backend zwraca gotowe możliwości:
+
+```text
+actions:
+    can_show_on_map
+    can_teleport
+    map_target_type
+    map_target_id
+    teleport_target_type
+    teleport_target_id
+```
+
+Frontend nie zgaduje dostępności na podstawie stanu.
+
+## 9. Pokaż na mapie
+
+Dla `exact`:
+
+```text
+map_target_type: ghost_part
+map_target_id: public_entity_id
+```
+
+Dla `territory_only`:
+
+```text
+map_target_type: territory
+map_target_id: territory_id
+```
+
+To zapobiega ujawnieniu dokładnej kotwicy blokowanej części.
+
+## 10. Teleport
+
+Dla `exact` teleport może używać pozycji części.
+
+Dla `territory_only` teleport kieruje do:
+
+* centroidu klastra,
+* dozwolonego punktu wejścia,
+* publicznej kotwicy terytorium.
+
+Backend ponownie waliduje target przy kliknięciu.
+
+Nie ufać współrzędnym przechowywanym w DOM.
+
+## 11. Grupy snapshotu
+
+Backend może zwrócić gotowe grupowanie:
+
+```text
+groups:
+    public
+    blocked_by_other_clans
+    active_in_my_clan
+    self_foreign_blocked
+    self_own_active
+```
+
+Każda grupa zawiera listę `public_entity_id`.
+
+Alternatywnie frontend może filtrować po `viewer_relation`, ale jedna kanoniczna metoda grupowania powinna być współdzielona z testami.
+
+## 12. Brak duplikatów
+
+Jedna część występuje dokładnie raz w głównej liście `parts`.
+
+`groups` zawiera jedynie odwołania.
+
+Nie zwracać pięciu pełnych kopii tego samego rekordu.
+
+## 13. Sortowanie
+
+Backend zwraca stabilne pola sortowania:
+
+```text
+distance_from_player
+owner_alias
+part_clan_sort
+module_state_sort
+updated_at
+```
+
+Odległość liczona jest od aktualnej pozycji motocykla operatora.
+
+Jeżeli część jest `territory_only`, odległość może być liczona do punktu klastra, nie dokładnej kotwicy.
+
+## 14. Aktualna pozycja operatora
+
+Snapshot może zawierać:
+
+```text
+viewer_position:
+    latitude
+    longitude
+    updated_at
+```
+
+Nie uruchamia pełnej synchronizacji profilu.
+
+Używa lekkiego źródła bieżącej pozycji, tego samego co Victim Picker i Territory Control.
+
+## 15. Ghost Anchor
+
+Dla części ze źródłem utraconym:
+
+```text
+anchor_state: source_lost
+display_source: GHOST ANCHOR
+```
+
+Jej dostępność mapy i teleportu nadal zależy od projekcji.
+
+## 16. Cykl transmitting i stabilizing
+
+Podczas `transmitting`:
+
+* snapshot może zwracać zamrożone 20 części,
+* akcje mapy mogą być czasowo wyłączone,
+* GUI pokazuje transmisję.
+
+Po `consumed`:
+
+* aktywna lista zostaje wyczyszczona,
+* aplikacja pokazuje brak aktywnych części,
+* może pokazać odnośnik do archiwum.
+
+Podczas `stabilizing`:
+
+* lista jest pusta,
+* widoczne jest odliczanie do kolejnego cyklu.
+
+## 17. Cache
+
+Cache kluczowany:
+
+```text
+cycle_id
+state_version
+viewer_id
+viewer_clan
+view=suite
+```
+
+Nie mieszać snapshotów:
+
+* właściciela,
+* członka klanu,
+* obcego gracza.
+
+## 18. Rozmiar odpowiedzi
+
+Maksymalnie 20 części.
+
+Nie wysyłać:
+
+* pełnej geometrii,
+* event history,
+* pełnych definicji katalogu,
+* opisów fabularnych większych niż potrzebne w kartach.
+
+Długie opisy supermocy mogą być opcjonalne i pobierane dopiero przy rozwinięciu szczegółów.
+
+## 19. Endpoint punktowy
+
+Dodać opcjonalnie:
+
+```text
+GET /api/ghostnetwork/parts/<public_entity_id>?view=suite
+```
+
+Służy do:
+
+* punktowego odświeżenia,
+* obsługi delty bez pełnego payloadu,
+* ponownej walidacji przed otwarciem mapy.
+
+Endpoint nadal stosuje projekcję widoczności.
+
+## 20. Health check snapshotu
+
+Sprawdza:
+
+* duplikaty `public_entity_id`,
+* część w dwóch bazowych grupach,
+* `exact` bez współrzędnych,
+* `territory_only` bez `territory_id`,
+* ukrytą część z nazwą,
+* self relation bez zgodnego właściciela,
+* active clan relation bez zgodnego klanu,
+* action target zdradzający ukryty `part_id`.
+
+## Testy Sprintu 132
+
+Minimum:
+
+* snapshot z pustym cyklem,
+* snapshot z 20 częściami,
+* neutralna część z pełnymi danymi,
+* blokowana część dla właściciela,
+* blokowana część dla członka klanu właściciela,
+* blokowana część dla właściwego klanu części,
+* aktywna część własnego klanu,
+* aktywna część obcego klanu,
+* `self_foreign_blocked`,
+* `self_own_active`,
+* `territory_only` bez dokładnych współrzędnych,
+* mapa wskazuje klaster zamiast kotwicy,
+* teleport wskazuje klaster,
+* brak pełnego profilu,
+* brak geometrii terytorium,
+* brak rezerwacji,
+* brak duplikatów,
+* cache nie przecieka między odbiorcami.
+
+## Poza sprintem
+
+Nie tworzyć jeszcze:
+
+* końcowego GUI,
+* paneli list,
+* map bridge,
+* teleport endpointu,
+* delt frontendowych.
+
+## DoD
+
+Sprint jest zakończony, gdy desktopowa aplikacja może jednym lekkim odczytem otrzymać wszystkie części dostępne operatorowi, bez pobierania mapy, pełnego profilu i bez możliwości poznania ukrytej tożsamości albo dokładnej lokalizacji.
+
+---
+
+# Sprint 133 — GhostNetwork Suite: lista części publicznych, blokowanych i aktywnych
+
+## Cel sprintu
+
+Zbudować funkcjonalny frontend desktopowej aplikacji, który prezentuje części GhostNetwork w pięciu jednoznacznych sekcjach i pozwala operatorowi szybko zrozumieć strategiczny stan świata bez otwierania mapy.
+
+Sprint tworzy listy oraz szczegóły, ale akcje mapy i teleportu mogą pozostać jeszcze podłączone do placeholderów kontraktowych do Sprintu 134.
+
+## 1. Okno aplikacji
+
+Dodać:
+
+```text
+createGhostNetworkSuite()
+```
+
+Zasady:
+
+* tylko jedna instancja,
+* ponowne uruchomienie podnosi istniejące okno,
+* osobny `data-app`,
+* integracja z taskbarem,
+* wspólna rodzina `ghost_control_suite`.
+
+## 2. Główny układ
+
+Widok powinien zawierać:
+
+* nagłówek cyklu,
+* wersję GhostSystemu,
+* licznik odkrytych części,
+* licznik aktywnych części,
+* sekcje list,
+* status aktualizacji,
+* przycisk lekkiego odświeżenia.
+
+Nie odwzorowywać ciężkiej mapy ani diagramu pełnej topologii.
+
+## 3. Nagłówek statusu
+
+Przykład:
+
+```text
+GHOSTNETWORK // CYKL 0047
+
+ODKRYTE: 13 / 20
+AKTYWNE: 7 / 20
+BLOKOWANE: 4
+PUBLICZNE: 2
+```
+
+Dodatkowo:
+
+```text
+GHOSTSYSTEM 1.0.47
+```
+
+Statusy:
+
+* aktywny,
+* transmisja,
+* stabilizacja,
+* restart wymagany.
+
+## 4. Nawigacja sekcji
+
+Preferowane dwa poziomy:
+
+### Główne filtry
+
+```text
+WSZYSTKIE
+PUBLICZNE
+BLOKOWANE
+AKTYWNE
+MOJA KONTROLA
+```
+
+### Podgrupy
+
+W `MOJA KONTROLA`:
+
+```text
+CZĘŚCI OBCE
+CZĘŚCI WŁASNE
+```
+
+Alternatywnie aplikacja może pokazywać pięć stałych sekcji w jednej przewijanej liście.
+
+Na mobilnym układzie zakładki powinny mieścić się bez szerokich napisów, wykorzystując ikony i krótkie etykiety.
+
+## 5. Sekcja publiczna
+
+Nagłówek:
+
+```text
+PUBLICZNE CZĘŚCI
+```
+
+Opis:
+
+```text
+Odkryte komponenty poza stabilną kontrolą terytorium.
+```
+
+Karta pokazuje:
+
+* nazwę,
+* kod części,
+* klan,
+* maszynę,
+* profesję,
+* moc,
+* odległość,
+* lokalizację,
+* stan neutralny.
+
+## 6. Sekcja blokowana przez inne klany
+
+Nagłówek:
+
+```text
+BLOKOWANE CZĘŚCI
+```
+
+Karta może być pełna albo ukryta zależnie od projekcji.
+
+Dla ukrytej:
+
+```text
+NIEZIDENTYFIKOWANY KOMPONENT
+
+TERYTORIUM: [nazwa]
+WŁAŚCICIEL: [alias]
+KLAN: [klan kontrolujący]
+STATUS: BLOKOWANY
+```
+
+Nie pokazywać pustych etykiet:
+
+```text
+PROFESJA: —
+MOC: —
+```
+
+Sekcja szczegółów w ogóle nie powinna ich renderować.
+
+## 7. Sekcja aktywna w naszym klanie
+
+Nagłówek:
+
+```text
+AKTYWNE WĘZŁY KLANU
+```
+
+Pokazuje części własnej maszyny aktywowane przez innych operatorów klanu.
+
+Karta:
+
+* pełna nazwa,
+* właściciel,
+* klaster,
+* profesja,
+* aktywna moc,
+* czas aktywności,
+* stan konfliktu,
+* odległość.
+
+Wyraźnie odróżnić:
+
+```text
+WŁAŚCICIEL: INNY OPERATOR KLANU
+```
+
+od części kontrolowanej osobiście.
+
+## 8. Sekcja „kontrolowane przeze mnie — obce”
+
+Nagłówek:
+
+```text
+BLOKOWANE PRZEZE MNIE
+```
+
+Karta zawiera pełne dane części:
+
+* część,
+* właściwy klan,
+* maszyna,
+* profesja,
+* supermoc,
+* własny klaster,
+* czas blokady.
+
+Stan:
+
+```text
+MODUŁ NIEAKTYWNY
+```
+
+Aplikacja nie sugeruje, że operator otrzymuje moc komponentu.
+
+## 9. Sekcja „kontrolowane przeze mnie — własne”
+
+Nagłówek:
+
+```text
+AKTYWNE PRZEZE MNIE
+```
+
+Karta:
+
+* część,
+* maszyna,
+* profesja,
+* moc,
+* własny klaster,
+* czas aktywności,
+* liczba obron,
+* stan połączeń w formie lekkiego licznika.
+
+Stan:
+
+```text
+WĘZEŁ AKTYWNY
+```
+
+## 10. Karta części
+
+Minimalna struktura:
+
+```text
+ikona stanu
+nazwa lub bezpieczny label
+klan
+właściciel
+terytorium
+stan
+odległość
+konflikt
+akcje
+```
+
+Nie tworzyć rozbudowanego panelu z każdą informacją na stałe.
+
+Dodatkowe dane można otworzyć w rozwijanym szczególe.
+
+## 11. Szczegóły części
+
+Po rozwinięciu:
+
+* maszyna,
+* profesja,
+* moc,
+* odkrywca, jeśli widoczny,
+* data odkrycia,
+* stan kotwicy,
+* właściciel,
+* liczba filarów klastra,
+* zagrożenie klastra,
+* stan konfliktu,
+* status połączeń.
+
+Renderować wyłącznie dane obecne w snapshotcie.
+
+## 12. Konflikt
+
+Karta zachowuje kolor stanu bazowego i otrzymuje:
+
+```text
+KONFLIKT — STAN ZAMROŻONY
+```
+
+Nie przenosić pozycji do innej sekcji przed stabilizacją.
+
+## 13. Puste sekcje
+
+Zamiast pustego panelu:
+
+```text
+BRAK PUBLICZNYCH CZĘŚCI
+```
+
+```text
+NIE BLOKUJESZ ŻADNEGO KOMPONENTU
+```
+
+```text
+TWÓJ KLAN NIE MA AKTYWNYCH WĘZŁÓW
+```
+
+Komunikaty mają być krótkie i zgodne ze stylem GhostSystemu.
+
+## 14. Sortowanie
+
+Domyślne:
+
+1. konflikt,
+2. kontrolowane przeze mnie,
+3. aktywne,
+4. odległość,
+5. nazwa.
+
+Dostępne sortowania:
+
+* odległość,
+* stan,
+* klan,
+* właściciel,
+* ostatnia zmiana.
+
+Nie sortować ukrytej części po prawdziwej nazwie.
+
+## 15. Filtrowanie
+
+Lekki filtr tekstowy może przeszukiwać wyłącznie widoczne dane:
+
+* nazwę,
+* klan,
+* właściciela,
+* terytorium,
+* profesję.
+
+Nie może zwracać ukrytej części po wpisaniu jej prawdziwego kodu.
+
+## 16. Stan ładowania
+
+Aplikacja powinna pokazać kontekstowe logi, na przykład:
+
+```text
+SYNCHRONIZACJA GHOSTNETWORK
+ODCZYT PROJEKCJI WĘZŁÓW
+WERYFIKACJA ZAKRESU ODBIORCY
+```
+
+Nie ładować mapy w tle.
+
+## 17. Stan błędu
+
+Przy błędzie snapshotu:
+
+* zachować ostatni widok,
+* oznaczyć go jako nieaktualny,
+* pokazać retry,
+* nie zamykać aplikacji,
+* nie otwierać mapy.
+
+## 18. Stan transmisji
+
+Po `cycle.status = transmitting`:
+
+```text
+GHOSTNETWORK ZAMKNIĘTY
+TRANSMISJA W TOKU
+```
+
+Listy mogą zostać zamrożone.
+
+Po zużyciu części:
+
+```text
+AKTYWNY CYKL ZAKOŃCZONY
+20 WĘZŁÓW ZUŻYTYCH
+```
+
+Podczas stabilizacji:
+
+```text
+NOWY CYKL OCZEKUJE NA STABILIZACJĘ
+```
+
+## 19. Dostępność
+
+Każda akcja:
+
+* ma ikonę,
+* `title`,
+* `aria-label`,
+* stan focus,
+* stan disabled z wyjaśnieniem.
+
+Kolor nie jest jedynym komunikatem stanu.
+
+## 20. Testy Sprintu 133
+
+Minimum:
+
+* pięć grup list,
+* jedna część tylko w jednej grupie,
+* pełna publiczna karta,
+* ukryta blokowana karta,
+* karta aktywna klanowa,
+* karta `self_foreign_blocked`,
+* karta `self_own_active`,
+* konflikt zachowuje sekcję,
+* sortowanie po odległości,
+* wyszukiwanie nie ujawnia ukrytego kodu,
+* puste stany,
+* transmitting,
+* stabilizing,
+* błąd snapshotu,
+* aplikacja nie ładuje mapy,
+* jedna instancja okna.
+
+## Poza sprintem
+
+Nie wdrażać jeszcze:
+
+* rzeczywistego show-on-map,
+* teleportu,
+* finalnych delt,
+* pełnej responsywności,
+* integracji zakupu produktu.
+
+## DoD
+
+Sprint jest zakończony, gdy operator może bez mapy zobaczyć wszystkie dostępne mu części, rozróżnić elementy publiczne, blokowane, aktywne i kontrolowane osobiście oraz nie otrzymuje żadnej informacji wykraczającej poza jego projekcję.
+
+---
+
+# Sprint 134 — GhostNetwork Suite: mapa na żądanie, teleport i oznaczenia klastrów z komponentami
+
+## Cel sprintu
+
+Podłączyć do każdej pozycji dwie właściwe akcje:
+
+* `Pokaż na mapie`,
+* `Teleport`.
+
+Jednocześnie zakończyć integrację z Territory Control tak, aby oba narzędzia korzystały z tych samych oznaczeń komponentów w klastrach.
+
+Mapa pozostaje ładowana wyłącznie wtedy, gdy gracz jawnie wybierze akcję podglądu.
+
+## 1. Wspólny bridge mapy
+
+Użyć istniejącego mechanizmu:
+
+```text
+openMapAtTarget(...)
+```
+
+lub jego kanonicznego odpowiednika ustalonego w audycie.
+
+Bridge powinien:
+
+1. sprawdzić, czy mapa istnieje,
+2. otworzyć ją tylko na żądanie,
+3. poczekać na gotowość iframe,
+4. wysłać bezpieczny focus target,
+5. podnieść okno mapy,
+6. nie zmieniać `aimed_target`.
+
+## 2. Pokaż dokładną część
+
+Dla:
+
+```text
+location.visibility = exact
+```
+
+akcja:
+
+```text
+show_on_map(public_entity_id)
+```
+
+Mapa:
+
+* otwiera warstwę GhostNetwork,
+* centruje część,
+* podświetla marker,
+* otwiera bezpieczny panel,
+* nie ustawia celu hackowania.
+
+## 3. Pokaż terytorium
+
+Dla:
+
+```text
+location.visibility = territory_only
+```
+
+akcja otwiera:
+
+* klaster,
+* badge komponentu,
+* panel terytorium.
+
+Nie centruje ukrytej kotwicy.
+
+Komunikat:
+
+```text
+DOKŁADNA LOKALIZACJA KOMPONENTU JEST UKRYTA
+POKAZANO TERYTORIUM PRZECHOWUJĄCE CZĘŚĆ
+```
+
+## 4. Brak przecieku przez map bridge
+
+Payload nie może zawierać:
+
+* ukrytego `part_id`,
+* prawdziwych współrzędnych,
+* kodu części,
+* ukrytej maszyny,
+* profesji,
+* mocy.
+
+Dla ukrytej części bridge otrzymuje wyłącznie identyfikator terytorium.
+
+## 5. Teleport do części
+
+Dla dokładnej pozycji:
+
+```text
+teleport_target_type = ghost_part
+```
+
+Backend przed teleportem sprawdza:
+
+* aktywny cykl,
+* aktualną projekcję widoczności,
+* aktualną pozycję kotwicy,
+* poprawność współrzędnych,
+* brak stanu restartu,
+* możliwość użycia teleportu przez operatora.
+
+Nie ufać starym współrzędnym snapshotu.
+
+## 6. Teleport do klastra
+
+Dla ukrytej części:
+
+```text
+teleport_target_type = territory
+```
+
+Cel:
+
+* bezpieczny punkt klastra,
+* centroid,
+* dozwolona kotwica wejścia.
+
+Nie przenosić operatora bezpośrednio na ukrytą część.
+
+## 7. Potwierdzenie teleportu
+
+Przed wykonaniem:
+
+```text
+TELEPORT DO WĘZŁA GHOSTNETWORK
+```
+
+lub:
+
+```text
+TELEPORT DO TERYTORIUM Z KOMPONENTEM
+```
+
+Pokazać:
+
+* odległość,
+* cel,
+* typ lokalizacji,
+* ostrzeżenie o konflikcie.
+
+Przyciski:
+
+```text
+TELEPORT
+ANULUJ
+```
+
+## 8. Aktualizacja motocykla
+
+Teleport korzysta z istniejącego procesu przesuwania pozycji motocykla.
+
+Po sukcesie:
+
+* aktualizuje bieżącą pozycję,
+* emituje istniejącą deltę pozycji,
+* odświeża odległości w Victim Pickerze,
+* odświeża odległości w Territory Control,
+* odświeża odległości w GhostNetwork Suite,
+* nie przeładowuje mapy, jeśli jest zamknięta.
+
+## 9. Brak automatycznego ustawienia celu
+
+Teleport ani pokazanie mapy nie może:
+
+* ustawić `aimed_target`,
+* uruchomić hacku,
+* zarezerwować kolejnej części,
+* rozpocząć operacji.
+
+GhostNetwork Suite jest narzędziem obserwacyjnym i nawigacyjnym.
+
+## 10. Territory Control — badge klastra
+
+Karta klastra otrzymuje ikonę GhostNetwork oraz status.
+
+Możliwe warianty:
+
+```text
+CZĘŚĆ WŁASNEGO KLANU // AKTYWNA
+CZĘŚĆ OBCEGO KLANU // BLOKOWANA
+KOMPONENT NIEZIDENTYFIKOWANY // BLOKOWANY
+KOMPONENT // KONFLIKT
+```
+
+Badge nie zastępuje istniejącego koloru zagrożenia:
+
+* zielony,
+* pomarańczowy,
+* czerwony.
+
+## 11. Territory Control — szczegół klastra
+
+W szczególe dodać sekcję:
+
+```text
+GHOSTNETWORK
+```
+
+Dla pełnej widoczności:
+
+* część,
+* klan,
+* maszyna,
+* profesja,
+* moc,
+* status,
+* czas aktywności lub blokady.
+
+Dla ukrytej:
+
+```text
+TERYTORIUM PRZECHOWUJE NIEZIDENTYFIKOWANY KOMPONENT
+```
+
+Nie wyświetlać pustych szczegółów.
+
+## 12. Synchronizacja między aplikacjami
+
+Kliknięcie klastra w Territory Control może opcjonalnie otworzyć GhostNetwork Suite i ustawić filtr na powiązaną część.
+
+Kliknięcie części w GhostNetwork Suite może podświetlić powiązany klaster w już otwartym Territory Control.
+
+Nie uruchamiać drugiej aplikacji automatycznie bez akcji gracza.
+
+## 13. Ghost Anchor
+
+`Pokaż na mapie`:
+
+* centruje niezależną kotwicę,
+* pokazuje specjalny marker.
+
+Teleport:
+
+* używa zachowanych współrzędnych,
+* nadal ponownie je waliduje.
+
+## 14. Konflikt
+
+Podczas konfliktu:
+
+* mapa pokazuje badge sporu,
+* teleport jest nadal możliwy, jeśli zwykłe zasady na to pozwalają,
+* potwierdzenie ostrzega o aktywnym konflikcie,
+* dokładność pozycji nadal zależy od zamrożonej projekcji widoczności.
+
+## 15. Nieistniejący już target
+
+Jeżeli między snapshotem a kliknięciem część została:
+
+* ukryta,
+* przeniesiona technicznie,
+* zużyta,
+* objęta innym terytorium,
+
+backend zwraca aktualną projekcję.
+
+Frontend:
+
+* aktualizuje kartę,
+* nie wykonuje starej akcji,
+* pokazuje czytelny komunikat.
+
+## 16. Stany przycisków
+
+### Pokaż na mapie
+
+Aktywny, gdy istnieje:
+
+* dokładna część,
+* terytorium,
+* historyczna kotwica.
+
+### Teleport
+
+Disabled, gdy:
+
+* restart wymagany,
+* brak poprawnej lokalizacji,
+* stan transmisji blokuje akcje,
+* bieżący system teleportu odrzuca cel.
+
+Tooltip wyjaśnia powód.
+
+## 17. Testy Sprintu 134
+
+Minimum:
+
+* mapa nie ładuje się przed kliknięciem,
+* dokładna część centruje marker,
+* ukryta część centruje terytorium,
+* payload nie zawiera ukrytych współrzędnych,
+* pokazanie mapy nie ustawia celu,
+* teleport do dokładnej części,
+* teleport do klastra,
+* ponowna walidacja przed teleportem,
+* teleport odświeża odległości wszystkich narzędzi,
+* konflikt pokazuje ostrzeżenie,
+* consumed część blokuje akcję,
+* Ghost Anchor działa,
+* badge własnej części,
+* badge obcej części,
+* badge ukrytej części,
+* Territory Control i Suite używają tej samej projekcji.
+
+## Poza sprintem
+
+Nie wykonywać jeszcze:
+
+* końcowego polishu GUI,
+* pełnej obsługi delt w aplikacji,
+* finalnej regresji zakupów i instalacji.
+
+## DoD
+
+Sprint jest zakończony, gdy każda część może bezpiecznie otworzyć właściwy punkt mapy albo terytorium, teleport nie ujawnia ukrytej kotwicy, a Territory Control jednoznacznie pokazuje, które klastry przechowują własne i obce komponenty.
+
+---
+
+# Sprint 135 — GhostNetwork Suite: GUI desktopowe, delty, recovery i regresja całej Ghost Control Suite
+
+## Cel sprintu
+
+Dokończyć produkcyjne GUI GhostNetwork Suite, podłączyć je do wspólnego klienta delt i recovery oraz przeprowadzić regresję całej rodziny czterech narzędzi.
+
+Po tym sprincie zaawansowany operator może obsługiwać większość warstwy strategicznej z lekkiego desktopu, używając mapy tylko do świadomego podglądu przestrzennego.
+
+## 1. Rejestr produktu
+
+Dodać produkt do istniejącego katalogu Googleplex:
+
+```text
+type: pro-system-tool
+family: ghost_control_suite
+app_code: ghostnetwork_suite
+```
+
+Produkt ma:
+
+* nazwę,
+* opis,
+* ikonę,
+* cenę z konfiguracji,
+* kontrakt instalacji,
+* launcher.
+
+Nie tworzyć osobnej procedury zakupu.
+
+## 2. Instalacja i launcher
+
+Po zakupie:
+
+* produkt zapisuje się istniejącą ścieżką,
+* aplikacja pojawia się na desktopie,
+* launcher używa wspólnego icon packa,
+* brak produktu blokuje uruchomienie,
+* istniejące profile z przyznanym produktem działają po migracji.
+
+## 3. Finalny układ GUI
+
+Okno powinno być zwarte i czytelne.
+
+Sekcje:
+
+* pasek statusu cyklu,
+* szybkie liczniki,
+* filtry,
+* lista kart,
+* rozwijane szczegóły,
+* pasek aktualizacji.
+
+Nie robić ogromnej tabeli z dwudziestoma kolumnami.
+
+## 4. Responsive desktop i mobile
+
+Desktop:
+
+* lista i panel szczegółów mogą działać obok siebie.
+
+Węższe okno:
+
+* szczegóły otwierają się pod kartą albo jako osobny ekran,
+* przyciski zmieniają się w ikony,
+* etykiety nie nachodzą na statusy,
+* sekcje są przewijalne.
+
+Nie skalować całego okna transformacją CSS.
+
+## 5. Wspólny klient delt
+
+Aplikacja rejestruje się w:
+
+```text
+GhostNetworkDeltaClient
+```
+
+Obsługiwane eventy:
+
+* `ghost.part_discovered`
+* `ghost.part_contained`
+* `ghost.part_revealed`
+* `ghost.part_activated`
+* `ghost.part_deactivated`
+* `ghost.part_contested`
+* `ghost.part_conflict_resolved`
+* `ghost.part_anchor_migrated`
+* `ghost.part_consumed`
+* `ghost.machine_progress_changed`
+* `ghost.cycle_locked`
+* `ghost.signal_sent`
+* `ghost.version_changed`
+* `ghost.restart_required`
+* `ghost.cycle_activated`
+
+## 6. Przenoszenie pozycji między sekcjami
+
+Po zmianie stanu część powinna:
+
+* zaktualizować kartę,
+* opuścić poprzednią grupę,
+* wejść do nowej grupy,
+* zachować rozwinięcie, jeśli nadal jest widoczna,
+* nie duplikować się.
+
+Przykład:
+
+```text
+PUBLICZNA
+→ BLOKOWANA PRZEZE MNIE
+→ PUBLICZNA
+→ AKTYWNA W KLANIE
+```
+
+## 7. Zmiana widoczności
+
+Najważniejszy przypadek:
+
+```text
+public → blocked
+```
+
+Dla nieuprawnionego operatora karta:
+
+* usuwa nazwę,
+* usuwa kod,
+* usuwa profesję,
+* usuwa moc,
+* usuwa dokładną pozycję,
+* zmienia akcję mapy na terytorium.
+
+Nie pozostawia starych danych w DOM, datasetach ani tooltipach.
+
+## 8. Recovery
+
+Przy:
+
+* luce wersji,
+* nieznanym `public_entity_id`,
+* zmianie cyklu,
+* niespójnym grupowaniu,
+* błędzie zastosowania delty,
+
+aplikacja pobiera:
+
+```text
+snapshot?view=suite
+```
+
+Następnie:
+
+* odtwarza listy,
+* zachowuje aktywny filtr,
+* przywraca fokus, jeśli element nadal istnieje,
+* nie otwiera mapy,
+* nie pobiera pełnego profilu.
+
+## 9. Zamknięcie okna
+
+Po zamknięciu:
+
+* wyrejestrować callbacki,
+* usunąć lokalne listenery,
+* anulować pending retry widoku,
+* zachować wspólnego klienta, jeśli korzystają z niego inne aplikacje.
+
+Nie tworzyć kolejnego delta clienta po każdym uruchomieniu okna.
+
+## 10. Restart GhostSystemu
+
+Po `ghost.restart_required`:
+
+* aplikacja zostaje zablokowana,
+* listy pozostają jako końcowy snapshot transmisji,
+* przyciski mapy i teleportu są disabled,
+* widoczny jest status aktualizacji.
+
+Po restarcie:
+
+* aplikacja może zostać automatycznie zamknięta lub odtworzona na nowym pulpicie zgodnie z istniejącym lifecycle,
+* stary cykl nie wraca do aktywnej listy.
+
+## 11. Stabilizacja
+
+Po transmisji:
+
+```text
+BRAK AKTYWNYCH CZĘŚCI
+NOWY CYKL ZA: [czas]
+```
+
+Odliczanie może być lokalne na podstawie `stabilization_until`, ale backend pozostaje źródłem prawdy o rozpoczęciu kolejnego cyklu.
+
+## 12. Wspólne wzorce wizualne
+
+Cztery aplikacje powinny używać:
+
+* tej samej wysokości nagłówków,
+* tego samego systemu ikon,
+* podobnych przycisków mapy i teleportu,
+* wspólnych statusów synchronizacji,
+* wspólnych tooltipów,
+* tych samych stanów błędu i recovery.
+
+Nie muszą mieć identycznego layoutu, ponieważ obsługują inne dane.
+
+## 13. Regresja Victim Picker
+
+Sprawdzić:
+
+* ustawianie `aimed_target`,
+* skan,
+* oznaczanie celów,
+* mapę na żądanie,
+* teleport,
+* odległości po zmianie pozycji,
+* brak konfliktu listenerów.
+
+GhostNetwork Suite nie może zmieniać celu gracza.
+
+## 14. Regresja Territory Control
+
+Sprawdzić:
+
+* klastry i samotne filary,
+* minimum trzy filary,
+* badge części,
+* własna część,
+* obca część,
+* ukryta część,
+* konflikt,
+* porzucenie obiektu,
+* rozpad klastra,
+* aktualizacja części po stabilizacji,
+* wspólna mapa i teleport.
+
+Porzucenie kotwicy nie usuwa części GhostNetwork.
+
+## 15. Regresja Operation Control
+
+Sprawdzić:
+
+* listy operacji,
+* grupy,
+* anulowanie,
+* incydenty,
+* odległości,
+* aktualizację pozycji,
+* brak mieszania delt GhostNetwork z deltami operacji.
+
+## 16. Regresja mapy
+
+Sprawdzić:
+
+* mapa ładuje się wyłącznie na żądanie,
+* focus części,
+* focus terytorium,
+* Ghost Anchor,
+* markery,
+* linie,
+* brak przecieku danych,
+* brak wielokrotnego tworzenia iframe,
+* powrót do aplikacji po zamknięciu mapy.
+
+## 17. Regresja zakupów
+
+Dla wszystkich czterech produktów:
+
+* zakup,
+* brak środków,
+* ponowny zakup,
+* instalacja,
+* istniejący zakup,
+* launcher,
+* jedna instancja,
+* odinstalowanie, jeśli system je obsługuje,
+* restart profilu.
+
+## 18. Testy widoczności E2E
+
+Dla jednej części wykonać pełny przebieg:
+
+1. Neutralna — pełna dla wszystkich.
+2. Zablokowana przez gracza A — pełna dla A.
+3. Zablokowana — ukryta dla członka klanu A.
+4. Zablokowana — ukryta dla właściwego klanu części.
+5. Aktywna — pełna dla właściwego klanu.
+6. Aktywna — zaszyfrowana dla obcych.
+7. Kontestowana — widoczność zamrożona.
+8. Zużyta — usunięta z aktywnych list.
+
+Sprawdzić snapshot, deltę, GUI, mapę i Territory Control.
+
+## 19. Testy wydajności
+
+Mierzyć:
+
+* czas otwarcia aplikacji,
+* czas snapshotu,
+* wielkość response,
+* czas aktualizacji jednej karty,
+* czas przegrupowania,
+* liczbę listenerów,
+* zużycie pamięci po wielokrotnym otwieraniu,
+* brak pełnego profilu,
+* brak ciężkiego pollera,
+* brak renderowania mapy bez żądania.
+
+## 20. Testy recovery
+
+Minimum:
+
+* utrata jednej delty,
+* zmiana widoczności podczas zamkniętego okna,
+* otwarcie po zmianie cyklu,
+* consumed podczas braku połączenia,
+* restart wymagany,
+* powrót po restarcie,
+* błąd snapshotu,
+* retry z backoffem.
+
+## 21. Testy bezpieczeństwa
+
+Sprawdzić, że ukryte dane nie występują w:
+
+* JSON,
+* HTML,
+* `dataset`,
+* `title`,
+* `aria-label`,
+* logach konsoli,
+* bridge mapy,
+* payloadzie teleportu,
+* cache frontendowym po zmianie widoczności.
+
+## 22. Dokumentacja
+
+Dodać:
+
+```text
+docs/ghostnetwork/GHOSTNETWORK_SUITE.md
+```
+
+Dokument opisuje:
+
+* przeznaczenie,
+* grupy części,
+* widoczność,
+* mapę,
+* teleport,
+* integrację z Territory Control,
+* delty,
+* recovery,
+* zależności z pozostałymi narzędziami.
+
+## DoD
+
+Sprint jest zakończony, gdy:
+
+1. GhostNetwork Suite można kupić, zainstalować i uruchomić.
+2. Lista prezentuje wszystkie części widoczne dla operatora.
+3. Publiczne, blokowane, klanowe i własne części są jednoznacznie rozdzielone.
+4. Każda pozycja posiada bezpieczne akcje mapy i teleportu.
+5. Ukryta część nigdy nie ujawnia dokładnej kotwicy.
+6. Territory Control pokazuje klastry przechowujące komponenty.
+7. Delty aktualizują pojedyncze karty bez pełnego odświeżenia.
+8. Recovery obejmuje wyłącznie scope GhostNetwork.
+9. Zamknięcie okna nie pozostawia listenerów.
+10. Cała Ghost Control Suite przechodzi regresję.
+11. Mapa nie jest ładowana bez jawnej akcji gracza.
+12. Narzędzie nie tworzy żadnego alternatywnego źródła prawdy.
+
+Po Sprintach 131–135 zaawansowany operator dostaje kompletną lekką ścieżkę obserwacji GhostNetwork: widzi, gdzie znajdują się publiczne części, kto blokuje komponenty, które moduły jego klanu są aktywne oraz jakie części kontroluje osobiście — a ciężką mapę otwiera wyłącznie wtedy, gdy naprawdę potrzebuje zobaczyć przestrzenny kontekst.
+
+---
+
+Lecimy z trzema sprintami domykającymi właściwy obieg narracyjny: zdarzenia GhostNetwork trafią jako bezpieczne fakty do istniejącego BlackNet/Ollama inboxa, model przygotuje ustrukturyzowaną narrację, a zwalidowany outbox opublikuje ją jako sygnały `ollama_enriched`.
+
+# Sprint 136 — GhostNetwork: bridge zdarzeń do BlackNet Outbox
+
+## Cel sprintu
+
+Podłączyć zatwierdzone zdarzenia GhostNetwork do istniejącego pipeline’u narracyjnego BlackNetu.
+
+BlackNet Outbox ma od tej pory otrzymywać również fakty dotyczące:
+
+* odkrywania części,
+* blokowania komponentów,
+* aktywowania modułów,
+* walk i obron,
+* odbijania części,
+* powstawania połączeń,
+* postępu maszyn,
+* domknięcia sieci,
+* transmisji GhostSignalu,
+* zmiany wersji GhostSystemu.
+
+Sprint nie uruchamia jeszcze generowania tekstu przez Ollamę. Przygotowuje bezpieczne, wersjonowane zadania narracyjne.
+
+Backend nadal rozstrzyga, co faktycznie się wydarzyło. Ollama może później jedynie opisać zatwierdzone wydarzenie. 
+
+## 1. Integracja z istniejącym outboxem
+
+Nie tworzyć drugiego, konkurencyjnego systemu kolejek, jeżeli BlackNet posiada już działający outbox.
+
+Rozszerzyć istniejący kontrakt o:
+
+```text
+source_scope: ghostnetwork
+source_event_id
+cycle_id
+signal_id
+part_id
+territory_id
+state_version
+narrative_thread_id
+```
+
+Dopuszczalne źródła:
+
+```text
+world
+blacknet
+ghostnetwork
+system
+```
+
+GhostNetwork ma korzystać z tej samej obsługi:
+
+* statusów,
+* retry,
+* deduplikacji,
+* priorytetów,
+* publikacji,
+* audytu.
+
+## 2. Bridge zdarzeń domenowych
+
+Dodać komponent:
+
+```text
+GhostNetworkBlackNetBridge
+```
+
+Minimalny kontrakt:
+
+```text
+handle_domain_event(event)
+is_narrative_worthy(event)
+build_audience_tasks(event)
+build_blacknet_facts(event, audience)
+enqueue_tasks(tasks)
+```
+
+Bridge subskrybuje zapisane wydarzenia domenowe, a nie wywołania frontendu.
+
+## 3. Dozwolone zdarzenia
+
+Podstawowa allowlista:
+
+```text
+ghost.part_discovered
+ghost.part_contained
+ghost.part_revealed
+ghost.part_activated
+ghost.part_deactivated
+ghost.part_defended
+ghost.part_recovered
+ghost.part_contested
+ghost.part_conflict_resolved
+
+ghost.connection_changed
+ghost.machine_progress_changed
+ghost.machine_online
+ghost.machine_offline
+
+ghost.cycle_locked
+ghost.signal_sent
+ghost.version_changed
+ghost.stabilization_started
+ghost.cycle_activated
+```
+
+Zdarzenia techniczne niewidoczne narracyjnie:
+
+```text
+ghost.part_reserved
+ghost.part_reservation_released
+ghost.part_reservation_expired
+ghost.reward_pending
+ghost.delta_published
+ghost.health_check_completed
+```
+
+Nie mogą trafiać do BlackNetu.
+
+## 4. Polityka istotności
+
+Nie każde `ghost.connection_changed` powinno tworzyć osobny sygnał.
+
+Dodać:
+
+```text
+GhostNarrativeSignificancePolicy
+```
+
+Polityka ocenia:
+
+* typ wydarzenia,
+* pierwsze wystąpienie w cyklu,
+* wpływ na postęp maszyny,
+* zmianę układu strategicznego,
+* liczbę uczestników,
+* długość konfliktu,
+* znaczenie dla domknięcia sieci,
+* czas od ostatniego podobnego sygnału.
+
+Poziomy:
+
+```text
+ignore
+low
+normal
+high
+critical
+```
+
+Przykłady:
+
+* pierwsza część cyklu — `high`,
+* zwykłe kolejne połączenie — `low`,
+* pierwsza kompletna maszyna — `high`,
+* odbicie ostatniej brakującej części — `critical`,
+* GhostSignal — `critical`.
+
+## 5. Łączenie drobnych wydarzeń
+
+Dodać możliwość agregowania wydarzeń w krótkim oknie.
+
+Przykład:
+
+```text
+3 aktywacje części Echo Wolności w ciągu 10 minut
+```
+
+mogą utworzyć jeden task:
+
+```text
+Echo Wolności uruchomiło trzy kolejne moduły Libertas.
+```
+
+Agregator nie zmienia historii domenowej. Łączy wyłącznie zadania narracyjne.
+
+Klucz grupowania może obejmować:
+
+```text
+cycle_id
+event_family
+clan_code
+machine_code
+time_bucket
+```
+
+## 6. Projekcja widoczności przed outboxem
+
+Bridge musi najpierw użyć:
+
+```text
+GhostVisibilityService
+```
+
+Dopiero potem budować fakty dla konkretnej grupy odbiorców.
+
+Nie wolno umieszczać pełnych danych w outboxie publicznym z założeniem, że Ollama ich nie wykorzysta.
+
+Dla blokowanej części publiczny task może zawierać:
+
+```json
+{
+  "territory_contains_part": true,
+  "part_identity": null,
+  "part_clan": null,
+  "machine": null,
+  "profession": null,
+  "ability": null,
+  "owner_clan": "virex",
+  "module_state": "blocked"
+}
+```
+
+Właściciel terytorium może otrzymać osobny task z pełną tożsamością.
+
+## 7. Zakresy odbiorców
+
+Dozwolone:
+
+```text
+public
+clan
+owner
+player
+```
+
+Jedno wydarzenie może utworzyć kilka tasków.
+
+Przykład aktywacji części:
+
+### Publiczny
+
+* aktywny węzeł,
+* klan,
+* lokalizacja,
+* zaszyfrowany moduł.
+
+### Właściwy klan
+
+* pełna nazwa części,
+* maszyna,
+* profesja,
+* supermoc,
+* właściciel.
+
+### Właściciel
+
+* pełne dane i wpis o jego terytorium.
+
+Każdy task posiada własny `audience_scope`.
+
+## 8. Kontrakt tasku narracyjnego
+
+Minimalna struktura:
+
+```text
+task_id
+source_scope
+source_event_id
+cycle_id
+signal_id
+state_version
+
+medium
+audience_scope
+audience_clan
+audience_owner
+
+event_family
+truth_class
+priority
+narrative_thread_id
+
+facts_json
+allowed_actions_json
+editorial_rules_json
+
+canon_version
+ghostsystem_version
+prompt_version
+
+status
+dedupe_key
+created_at
+expires_at
+```
+
+Dla tego pipeline’u:
+
+```text
+medium = blacknet
+truth_class = canonical
+```
+
+Ollama może zwrócić interpretacyjny język, ale nie może zmienić klasy źródłowego faktu.
+
+## 9. Fakty wiążące
+
+Każdy fakt otrzymuje stabilny identyfikator:
+
+```text
+fact_id
+fact_type
+value
+visibility_scope
+source_event_id
+```
+
+Przykład:
+
+```json
+{
+  "fact_id": "fact-part-activated-9281",
+  "fact_type": "part_activated",
+  "value": {
+    "clan": "phantom_mesh",
+    "territory": "territory_441",
+    "module_identity_visible": false
+  },
+  "visibility_scope": "public",
+  "source_event_id": "event_9281"
+}
+```
+
+Późniejszy output Ollamy musi wskazywać użyte `fact_refs`.
+
+## 10. Wątki narracyjne
+
+Dodać stabilne wątki:
+
+```text
+ghost-cycle:<cycle_id>
+ghost-part:<part_id>
+ghost-machine:<cycle_id>:<machine_code>
+ghost-conflict:<conflict_id>
+ghost-signal:<signal_id>
+```
+
+Dzięki temu kolejne sygnały mogą kontynuować historię:
+
+* znalezienie części,
+* późniejsza blokada,
+* atak,
+* odbicie,
+* aktywacja,
+* utrzymanie podczas transmisji.
+
+Outbox nie potrzebuje pełnej historii. Może otrzymać skrót wątku.
+
+## 11. CTA
+
+Dozwolone akcje dla tasków GhostNetwork:
+
+```text
+open_ghostnetwork_suite
+open_map_location
+open_map_territory
+open_territory_control
+open_cyberner_thread
+open_ghostsignal_archive
+```
+
+Model nie może tworzyć dowolnych URL ani endpointów.
+
+Dla ukrytej części:
+
+```text
+open_map_territory
+```
+
+zamiast dokładnej lokalizacji komponentu.
+
+## 12. Deduplikacja
+
+Przykładowy klucz:
+
+```text
+blacknet:ghostnetwork:<event_id>:<audience_scope>
+```
+
+Dla agregatu:
+
+```text
+blacknet:ghostnetwork:<cycle_id>:<event_family>:<time_bucket>:<audience>
+```
+
+Retry eventu nie może utworzyć kolejnego tasku.
+
+## 13. Deterministyczny fallback
+
+Każdy task powinien posiadać:
+
+```text
+fallback_template_key
+fallback_payload
+```
+
+Jeżeli Ollama jest niedostępna, BlackNet może opublikować prosty, deterministyczny sygnał.
+
+Przykład:
+
+```text
+fallback_template_key:
+ghost_part_activated_public
+```
+
+Brak modelu nie może zatrzymać informowania graczy o ważnych zdarzeniach.
+
+## 14. Priorytety
+
+Przykładowe priorytety:
+
+```text
+critical:
+  cycle_locked
+  signal_sent
+  restart_required
+
+high:
+  machine_online
+  part_recovered
+  first_part_discovered
+
+normal:
+  part_activated
+  part_contained
+  part_defended
+
+low:
+  connection_changed
+  machine_progress_changed
+```
+
+Critical może ominąć zwykłą kolejkę publikacji i wejść do BlackNetu szybciej.
+
+## 15. Obserwowalność
+
+Logować:
+
+* odebrany event,
+* wynik significance policy,
+* liczbę tasków,
+* zakresy odbiorców,
+* `fact_ids`,
+* dedupe,
+* wybrany fallback,
+* czas budowy outboxa,
+* odrzucone zdarzenia.
+
+## Testy Sprintu 136
+
+Minimum:
+
+* odkrycie części tworzy task publiczny,
+* blokowana część nie ujawnia tożsamości publicznie,
+* właściciel otrzymuje pełny task,
+* aktywna część tworzy wariant publiczny i klanowy,
+* rezerwacja nie tworzy tasku,
+* trzy małe zdarzenia mogą zostać zagregowane,
+* pierwsza część ma wyższy priorytet,
+* GhostSignal ma priorytet critical,
+* retry eventu nie duplikuje tasku,
+* CTA ukrytej części prowadzi do terytorium,
+* każdy task posiada fallback,
+* błąd bridge’a nie cofa zdarzenia GhostNetwork.
+
+## DoD
+
+Sprint jest zakończony, gdy BlackNet Outbox otrzymuje bezpieczne, deduplikowane i gotowe do narracyjnego przetworzenia fakty dotyczące ważnych działań GhostNetwork.
+
+---
+
+# Sprint 137 — Ollama Inbox/Outbox: generowanie i walidacja sygnałów GhostNetwork
+
+## Cel sprintu
+
+Rozszerzyć istniejący worker Ollamy tak, aby przetwarzał zadania GhostNetwork z BlackNet Inboxu i zapisywał ustrukturyzowane propozycje sygnałów do Ollama Outboxu.
+
+Model nie otrzymuje dostępu do tabel GhostNetwork ani pełnych profili. Pracuje wyłącznie na zatwierdzonym pakiecie faktów przygotowanym w Sprincie 136. 
+
+## 1. Lifecycle zadania inbox
+
+Dopasować nazwy do istniejącego systemu, zachowując statusy:
+
+```text
+queued
+claimed
+processing
+generated
+validated
+rejected
+retry_wait
+dead_letter
+completed
+```
+
+Worker atomowo przejmuje jeden task.
+
+Pola przejęcia:
+
+```text
+claimed_by
+claimed_at
+lease_until
+attempt_count
+```
+
+Jeżeli worker przestanie działać, task po wygaśnięciu lease może zostać odzyskany.
+
+## 2. Obsługa `source_scope = ghostnetwork`
+
+Worker rozpoznaje:
+
+```text
+source_scope: ghostnetwork
+medium: blacknet
+```
+
+i używa dedykowanego prompt contract:
+
+```text
+blacknet_ghostnetwork_signal_v1
+```
+
+Nie mieszać tego z promptem zwykłego podsumowania świata.
+
+## 3. Pakiet wejściowy
+
+Ollama otrzymuje:
+
+```text
+task_id
+medium
+audience
+truth_class
+event_family
+
+canon_version
+ghostsystem_version
+cycle_id
+signal_number
+
+facts
+fact_refs
+narrative_context
+editorial_rules
+allowed_actions
+output_schema
+```
+
+Nie otrzymuje:
+
+* pełnej bazy,
+* ukrytych części,
+* tabel nagród,
+* adresów mailowych,
+* danych sesji,
+* prywatnych profili,
+* dowolnych endpointów.
+
+## 4. Reguły promptu GhostNetwork
+
+Prompt systemowy powinien jasno określać:
+
+* nie dodawaj nowych faktów,
+* nie zmieniaj stanu części,
+* nie wybieraj wyniku transmisji,
+* nie ujawniaj pól `null`,
+* nie zgaduj nazwy ukrytej części,
+* nie twórz nowych graczy ani lokalizacji,
+* użyj wyłącznie podanych `fact_refs`,
+* zwróć wyłącznie JSON,
+* zachowaj styl BlackNetu,
+* nie udawaj komunikatu autorytatywnego backendu.
+
+## 5. Rodziny sygnałów
+
+Obsłużyć co najmniej:
+
+```text
+part_discovery
+part_blockade
+part_reveal
+part_activation
+part_deactivation
+part_defense
+part_recovery
+connection_progress
+machine_progress
+machine_online
+cycle_closure
+signal_transmission
+system_version_change
+cycle_stabilization
+```
+
+Każda rodzina może posiadać własne limity długości i ton.
+
+## 6. Ton sygnału
+
+Dozwolone wartości:
+
+```text
+info
+warning
+critical
+victory
+mystery
+system
+clan
+```
+
+Przykłady:
+
+* neutralna część — `info`,
+* blokada — `warning`,
+* odbicie — `victory`,
+* pierwsze połączenie — `mystery`,
+* transmisja — `critical`,
+* stabilizacja — `system`.
+
+## 7. Kontrakt outputu
+
+Model zwraca:
+
+```json
+{
+  "content_id": "ollama_ghost_0047_018",
+  "task_id": "task_018",
+  "medium": "blacknet",
+  "source": "blacknet_editorial",
+  "truth_class": "canonical",
+  "audience_scope": "public",
+  "signal_type": "ghost_part_activated",
+  "title": "WĘZEŁ PHANTOM AKTYWNY",
+  "body": "Siatka Widmo uruchomiła kolejny fragment swojej maszyny.",
+  "tone": "warning",
+  "fact_refs": [
+    "fact-part-activated-9281"
+  ],
+  "cta_action": "open_map_location",
+  "cta_payload": {
+    "target_id": "ghost-node:8f3a12"
+  },
+  "thread_id": "ghost-machine:0047:phantom_veil",
+  "expires_at": "2026-07-20T12:00:00Z"
+}
+```
+
+Nie pozwalać na dodatkowe nieznane pola bez jawnej zgody schematu.
+
+## 8. Walidator struktury
+
+Dodać:
+
+```text
+GhostNetworkNarrativeOutputValidator
+```
+
+Sprawdza:
+
+* poprawny JSON,
+* wymagane pola,
+* znany `signal_type`,
+* dozwolony `tone`,
+* poprawny audience,
+* poprawną klasę prawdziwości,
+* maksymalną długość,
+* poprawne CTA,
+* zgodny `thread_id`,
+* brak zewnętrznego URL.
+
+## 9. Walidator faktów
+
+Każde `fact_ref` musi istnieć w tasku.
+
+Output zostaje odrzucony, jeśli:
+
+* zawiera nieznany fakt,
+* nie wskazuje żadnego faktu,
+* twierdzi coś sprzecznego z faktami,
+* ujawnia ukryty identyfikator,
+* zmienia `pending` na `delivered`,
+* nazywa niezidentyfikowany komponent,
+* przypisuje część niewłaściwemu klanowi.
+
+## 10. Kontrola ukrytych danych
+
+Walidator powinien sprawdzić gotowy tekst pod kątem zabronionych wartości znanych systemowi wewnętrznemu.
+
+Dla publicznego tasku blokowanej części sprawdzić, czy output nie zawiera:
+
+* `part_code`,
+* nazwy,
+* maszyny,
+* profesji,
+* supermocy,
+* dokładnej kotwicy.
+
+Model nie powinien ich znać, ale walidacja pozostaje dodatkową ochroną.
+
+## 11. Walidacja CTA
+
+CTA musi znajdować się w `allowed_actions`.
+
+Payload musi odpowiadać przekazanemu identyfikatorowi.
+
+Niedozwolone:
+
+```text
+teleport
+set_aimed_target
+purchase
+activate_ability
+capture_territory
+send_hc
+external_url
+```
+
+Model nie może zamienić obserwacyjnego sygnału w akcję mechaniczną.
+
+## 12. Zapis do Ollama Outbox
+
+Po poprawnej walidacji utworzyć wpis:
+
+```text
+output_id
+task_id
+source_event_id
+cycle_id
+signal_id
+content_json
+fact_refs_json
+validation_status
+validation_report
+model_name
+model_version
+prompt_version
+generation_time_ms
+created_at
+published_at
+dedupe_key
+```
+
+Statusy:
+
+```text
+generated
+validated
+rejected
+published
+expired
+```
+
+## 13. Idempotencja outputu
+
+Dla jednego tasku może istnieć maksymalnie jeden aktywny zwalidowany output.
+
+Ponowne generowanie po błędzie może utworzyć kolejną próbę, ale tylko jeden wynik zostaje oznaczony:
+
+```text
+validated
+```
+
+Stabilny klucz:
+
+```text
+ollama-output:<task_id>:<prompt_version>
+```
+
+## 14. Retry
+
+Retry przy:
+
+* timeout,
+* niedostępny model,
+* niepoprawny JSON,
+* chwilowy błąd walidatora technicznego.
+
+Nie wykonywać automatycznego retry przy:
+
+* ujawnieniu ukrytych danych,
+* wymyśleniu faktów,
+* niedozwolonym CTA,
+* powtarzającym się naruszeniu schematu po ustalonym limicie.
+
+Po limicie task trafia do:
+
+```text
+dead_letter
+```
+
+i może zostać obsłużony fallbackiem deterministycznym.
+
+## 15. Timeout i limity
+
+Konfiguracja:
+
+```text
+OLLAMA_GHOSTNETWORK_TIMEOUT
+OLLAMA_GHOSTNETWORK_MAX_ATTEMPTS
+OLLAMA_GHOSTNETWORK_MAX_TITLE_LENGTH
+OLLAMA_GHOSTNETWORK_MAX_BODY_LENGTH
+OLLAMA_GHOSTNETWORK_LEASE_SECONDS
+```
+
+Długi task nie może blokować całej kolejki BlackNetu.
+
+## 16. Kolejność priorytetów
+
+Worker powinien przetwarzać najpierw:
+
+1. `signal_transmission`,
+2. `cycle_closure`,
+3. `machine_online`,
+4. `part_recovery`,
+5. zwykłe aktywacje i odkrycia,
+6. agregaty postępu.
+
+Stary sygnał niskiego priorytetu może wygasnąć, jeśli świat zdążył się znacząco zmienić.
+
+## 17. Kontekst poprzednich publikacji
+
+Worker może otrzymać maksymalnie kilka ostatnich wpisów wątku.
+
+Cel:
+
+* unikać powtarzania tego samego początku,
+* utrzymać ciągłość konfliktu,
+* nawiązać do wcześniejszej blokady.
+
+Nie przekazywać całego BlackNetu ani pełnej historii cyklu.
+
+## 18. Brak wpływu na gameplay
+
+Awaria workera:
+
+* nie blokuje aktywacji,
+* nie blokuje transmisji,
+* nie zatrzymuje rewardów,
+* nie zmienia wersji,
+* nie opóźnia delt gameplayowych.
+
+Pipeline narracyjny pozostaje asynchroniczny.
+
+## 19. Obserwowalność
+
+Logować:
+
+* task,
+* model,
+* prompt version,
+* próbę,
+* czas generowania,
+* wynik parsowania,
+* wynik walidacji,
+* zabronione fakty,
+* użyte CTA,
+* dead letter.
+
+Nie logować pełnych tajnych danych w zwykłym logu aplikacji.
+
+## Testy Sprintu 137
+
+Minimum:
+
+* poprawny task odkrycia,
+* poprawny sygnał aktywacji,
+* ukryta część pozostaje anonimowa,
+* nieznany `fact_ref` odrzucony,
+* niedozwolone CTA odrzucone,
+* zmiana outcome sygnału odrzucona,
+* niepoprawny JSON trafia do retry,
+* timeout odzyskuje task po lease,
+* tylko jeden validated output,
+* fallback po dead letter,
+* priorytet transmisji,
+* model nie ma dostępu do bazy,
+* błąd modelu nie wpływa na mechanikę.
+
+## DoD
+
+Sprint jest zakończony, gdy Ollama może bezpiecznie przekształcić zatwierdzone fakty GhostNetwork w ustrukturyzowane propozycje sygnałów BlackNetu, a każdy output przechodzi walidację faktów, widoczności i CTA.
+
+---
+
+# Sprint 138 — BlackNet: publikacja narracyjnych sygnałów GhostNetwork
+
+## Cel sprintu
+
+Podłączyć zwalidowany Ollama Outbox do istniejącego publishera BlackNetu i publikować sygnały dotyczące GhostNetwork jako wpisy:
+
+```text
+ollama_enriched
+```
+
+Sygnały mają przeplatać się z deterministycznym BlackNetem, zachowywać ciągłość historii i zawsze posiadać mechaniczny fallback.
+
+## 1. Publisher
+
+Dodać lub rozszerzyć:
+
+```text
+BlackNetOllamaOutboxPublisher
+```
+
+Minimalny kontrakt:
+
+```text
+publish_validated_output(output)
+build_blacknet_signal(output)
+resolve_signal_priority(output)
+deduplicate_signal(output)
+publish_fallback(task)
+```
+
+Publisher nie interpretuje ponownie faktów.
+
+Korzysta ze zwalidowanego outputu.
+
+## 2. Typ sygnału
+
+Publikowany wpis:
+
+```text
+source: ollama
+origin: ghostnetwork
+signal_class: ollama_enriched
+```
+
+Dodatkowo:
+
+```text
+source_event_id
+cycle_id
+signal_id
+thread_id
+fact_refs
+truth_class
+```
+
+Pozwala to odróżnić:
+
+* sygnał deterministyczny,
+* narrację Ollamy,
+* wpis klanowy,
+* komunikat systemowy.
+
+## 3. Relacja z sygnałami deterministycznymi
+
+Ważne zdarzenie może stworzyć dwa elementy:
+
+### Natychmiastowy sygnał deterministyczny
+
+Publikowany od razu.
+
+### Późniejszy sygnał narracyjny
+
+Rozwija znaczenie wydarzenia.
+
+Przykład:
+
+```text
+SYSTEM:
+GHOSTSIGNAL 0047 WYSŁANY.
+```
+
+Następnie:
+
+```text
+BLACKNET:
+Sygnał opuścił naszą warstwę czasu, ale kanał po drugiej stronie nadal milczy.
+```
+
+Nie publikować dwóch niemal identycznych wiadomości.
+
+## 4. Deduplikacja semantyczna
+
+Poza `dedupe_key` sprawdzić:
+
+* ten sam event,
+* ten sam tytuł,
+* bardzo podobne body,
+* ten sam thread,
+* krótki odstęp czasu,
+* identyczne CTA.
+
+Jeżeli narracja nie wnosi nic ponad deterministic fallback, może zostać odrzucona albo opóźniona.
+
+## 5. Typy kompozycji BlackNet
+
+Przygotować layouty dla:
+
+```text
+ghost_discovery
+ghost_blockade
+ghost_activation
+ghost_defense
+ghost_recovery
+ghost_machine_progress
+ghost_machine_online
+ghost_connection
+ghost_cycle_closure
+ghost_signal_sent
+ghost_version_change
+ghost_stabilization
+```
+
+Nie wszystkie muszą mieć osobny CSS. Mogą używać wspólnych wariantów z różnymi ikonami i danymi.
+
+## 6. Wizualne dane sygnału
+
+Sygnał może zawierać:
+
+* ikonę klanu,
+* ikonę maszyny, jeśli widoczna,
+* stan części,
+* licznik `N/20`,
+* licznik `N/5`,
+* status konfliktu,
+* właściciela,
+* lokalizację,
+* numer GhostSignalu,
+* wersję systemu.
+
+Nie dołączać danych, których nie było w zwalidowanym outboxie.
+
+## 7. Priorytety publikacji
+
+### Critical
+
+* domknięcie sieci,
+* transmisja,
+* restart,
+* odpowiedź z 2108.
+
+Mogą przerwać zwykłą rotację BlackNetu.
+
+### High
+
+* maszyna online,
+* odbicie strategicznej części,
+* pierwsza część cyklu.
+
+### Normal
+
+* aktywacja,
+* blokada,
+* skuteczna obrona.
+
+### Low
+
+* częściowy postęp,
+* pojedyncze połączenie,
+* agregat mniejszych wydarzeń.
+
+## 8. TTL
+
+Przykładowe zasady:
+
+* odkrycie — średni TTL,
+* konflikt — krótki TTL,
+* blokada — do zmiany stanu albo określonego limitu,
+* aktywacja — dłuższy TTL,
+* transmisja — pozostaje do restartu,
+* wersja systemu — pozostaje przez okres stabilizacji.
+
+Sygnał może zostać unieważniony przez późniejszy event.
+
+## 9. Unieważnianie
+
+Przykłady:
+
+* sygnał o publicznej części wygasa po jej zablokowaniu,
+* sygnał o blokadzie wygasa po ujawnieniu lub aktywacji,
+* sygnał o trwającym konflikcie wygasa po stabilizacji,
+* sygnał o maszynie online może zostać zastąpiony przez `machine_offline`.
+
+Publisher powinien korzystać z:
+
+```text
+supersedes_signal_id
+invalidated_by_event_id
+```
+
+## 10. Wątki
+
+Sygnały tego samego komponentu lub konfliktu mogą tworzyć ciąg:
+
+```text
+ODKRYCIE
+→ BLOKADA
+→ ATAK
+→ ODBICIE
+→ AKTYWACJA
+→ TRANSMISJA
+```
+
+BlackNet może pokazywać oznaczenie:
+
+```text
+KONTYNUACJA SYGNAŁU
+```
+
+Nie musi wyświetlać pełnej historii na głównej kompozycji.
+
+## 11. CTA
+
+Publisher zachowuje wyłącznie zwalidowane CTA.
+
+Przykłady:
+
+### Publiczna część
+
+```text
+POKAŻ NA MAPIE
+```
+
+### Ukryta blokada
+
+```text
+POKAŻ TERYTORIUM
+```
+
+### Aktywny węzeł
+
+```text
+OTWÓRZ GHOSTNETWORK SUITE
+```
+
+### Konflikt
+
+```text
+OTWÓRZ TERRITORY CONTROL
+```
+
+### Transmisja
+
+```text
+OTWÓRZ ARCHIWUM SYGNAŁU
+```
+
+## 12. Widoczność publikacji
+
+Publisher publikuje osobne wpisy dla:
+
+* publicznego feedu,
+* feedu klanowego,
+* ewentualnie feedu owner-only.
+
+Nie publikuje jednego pełnego wpisu z frontendowym filtrem.
+
+## 13. Fallback
+
+Jeżeli:
+
+* Ollama jest wyłączona,
+* task wygasł,
+* output został odrzucony,
+* worker nie odpowiada,
+* outbox jest uszkodzony,
+
+publisher używa deterministycznego szablonu ze Sprintu 136.
+
+W logu zapisuje:
+
+```text
+publication_mode: fallback
+```
+
+Gracz nadal otrzymuje informację o wydarzeniu.
+
+## 14. Przeplatanie z istniejącymi sygnałami
+
+Dodać politykę rotacji:
+
+```text
+BlackNetSignalMixPolicy
+```
+
+Uwzględnia:
+
+* sygnały świata,
+* sygnały GhostNetwork,
+* sygnały klanowe,
+* podcasty,
+* wpisy deterministyczne,
+* `ollama_enriched`.
+
+Nie dopuścić, aby intensywny konflikt GhostNetwork całkowicie zalał pozostały BlackNet.
+
+Możliwe limity:
+
+* maksymalna liczba sygnałów GN w krótkim oknie,
+* wyjątek dla priority critical,
+* agregowanie powtarzalnych działań.
+
+## 15. Odpowiedź z 2108
+
+Pipeline musi być gotowy na przyszły fakt:
+
+```text
+ghost.signal_outcome_resolved
+```
+
+Ollama może przygotować wiadomość dopiero po zatwierdzeniu przez backend:
+
+* outcome,
+* odbiorcy,
+* integralności,
+* autentyczności,
+* źródła odpowiedzi.
+
+Nie może samodzielnie wybrać, czy sygnał został przechwycony albo dostarczony.
+
+## 16. Regresja GhostNetwork
+
+Pełny test:
+
+1. Część zostaje odkryta.
+2. Bridge tworzy task.
+3. Ollama generuje output.
+4. Walidator akceptuje.
+5. Publisher tworzy `ollama_enriched`.
+6. BlackNet wyświetla sygnał.
+7. CTA otwiera poprawny cel.
+8. Zmiana stanu unieważnia poprzedni wpis.
+
+## 17. Testy braku Ollamy
+
+Powtórzyć najważniejsze scenariusze przy:
+
+```text
+GHOSTNETWORK_OLLAMA_ENABLED = false
+```
+
+Wszystkie wydarzenia:
+
+* nadal zmieniają gameplay,
+* nadal publikują sygnały deterministyczne,
+* nadal trafiają do archiwum,
+* nie generują błędów interfejsu.
+
+## 18. Obserwowalność
+
+Raport pipeline’u:
+
+```text
+GN EVENTS
+OUTBOX TASKS
+OLLAMA CLAIMED
+VALIDATED OUTPUTS
+REJECTED OUTPUTS
+BLACKNET PUBLISHED
+FALLBACK PUBLISHED
+EXPIRED
+DEAD LETTER
+```
+
+Metryki:
+
+* czas event → task,
+* task → output,
+* output → publikacja,
+* liczba retry,
+* udział fallbacków,
+* liczba unieważnionych wpisów.
+
+## 19. Dokumentacja
+
+Dodać:
+
+```text
+docs/ghostnetwork/GHOSTNETWORK_OLLAMA_BLACKNET.md
+```
+
+Dokument opisuje:
+
+* źródłowe eventy,
+* projekcję widoczności,
+* inbox,
+* worker,
+* outbox,
+* walidację,
+* publisher,
+* fallback,
+* retry,
+* feature flags,
+* recovery.
+
+## Testy Sprintu 138
+
+Minimum:
+
+* narracyjne odkrycie części,
+* narracyjna blokada bez ujawnienia tożsamości,
+* aktywacja pełna dla klanu,
+* aktywacja zaszyfrowana publicznie,
+* obrona,
+* odbicie,
+* maszyna online,
+* transmisja,
+* poprawne CTA,
+* unieważnienie starego sygnału,
+* brak duplikatu deterministycznego tekstu,
+* rotacja nie zalewa BlackNetu,
+* fallback przy wyłączonej Ollamie,
+* dead letter nie zatrzymuje publishera,
+* odpowiedź modelu nie wpływa na mechanikę,
+* pełne E2E event → BlackNet.
+
+## DoD
+
+Sprint jest zakończony, gdy ważne działania GhostNetwork automatycznie stają się narracyjnymi sygnałami BlackNetu, przechodzą przez Ollama Inbox/Outbox, respektują widoczność części, posiadają mechaniczny fallback i pozostają całkowicie odseparowane od źródła prawdy gameplayu.
+
+Po Sprintach 136–138 GhostNetwork nie tylko działa jako system strategiczny — zaczyna również sam opowiadać historię swoich konfliktów, aktywacji i transmisji przez żywy strumień BlackNetu.
