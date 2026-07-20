@@ -2150,6 +2150,48 @@
             });
         }
 
+        function removeTargetMarkerForTarget(target) {
+            const normalized = normalizeMapMenuTarget(target || {});
+            const lat = Number(normalized.lat);
+            const lng = Number(normalized.lng !== undefined ? normalized.lng : normalized.lon);
+            const ids = new Set([
+                normalized.target_id,
+                targetStableId(normalized)
+            ].filter(Boolean).map(String));
+
+            ids.forEach(targetId => {
+                const entry = window.targetMarkers && window.targetMarkers[targetId];
+                if (!entry) return;
+                if (entry.marker) removeMapLayerSafe(entry.marker);
+                if (entry.element) {
+                    const markerEl = entry.element.closest('.leaflet-marker-icon');
+                    if (markerEl) markerEl.style.display = 'none';
+                    entry.element.style.display = 'none';
+                }
+                unregisterTargetMarker(targetId);
+            });
+
+            removeScanResultForTarget(normalized);
+            if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                removeScanResultAt(lat, lng);
+                removeContestedTargetAt(lat, lng);
+                hideDomTargetMarkers(lat, lng, mapTargetDisplayLabel(normalized, "TARGET"));
+                hideDomTargetMarkers(lat, lng);
+                if (aimedTargetLayer && typeof aimedTargetLayer.getLatLng === 'function') {
+                    const pos = aimedTargetLayer.getLatLng();
+                    if (
+                        pos
+                        && Number(pos.lat).toFixed(6) === lat.toFixed(6)
+                        && Number(pos.lng).toFixed(6) === lng.toFixed(6)
+                    ) {
+                        removeMapLayerSafe(aimedTargetLayer);
+                        aimedTargetLayer = null;
+                        aimedTargetMenuSnapshot = null;
+                    }
+                }
+            }
+        }
+
         function isMissingTargetDisplayName(value) {
             const normalized = String(value || '').trim().toLowerCase();
             return !normalized || ['brak nazwy', 'brak_nazwy', 'no name', 'unnamed', 'unnamed target', 'unknown', 'none', 'null', 'nieznany obiekt'].includes(normalized);
@@ -2265,8 +2307,15 @@
             const targetId = payload.target_id || (event && event.entity_id) || target.target_id;
             if (!targetId) return false;
 
+            const captured = type === "map.target_captured" || payload.captured || target.captured;
             const entry = window.targetMarkers[targetId];
-            if (!entry) return false;
+            if (!entry) {
+                if (captured) {
+                    window.markMapTargetHacked(target);
+                    return true;
+                }
+                return false;
+            }
 
             if (type === "map.target_removed" || payload.removed) {
                 if (entry.marker) {
@@ -2285,8 +2334,13 @@
             const lng = Number(target.lng !== undefined ? target.lng : target.lon);
             if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
 
-            const captured = type === "map.target_captured" || payload.captured || target.captured;
             const label = mapTargetDisplayLabel(target, "TARGET");
+
+            if (captured) {
+                removeTargetMarkerForTarget(target);
+                addInteractiveHackedMarker(target);
+                return true;
+            }
 
             if (entry.marker && typeof entry.marker.setLatLng === 'function') {
                 entry.marker.setLatLng([lat, lng]);
@@ -2522,12 +2576,22 @@
             if (!target || target.lat === undefined || (target.lng === undefined && target.lon === undefined)) return;
             window.profileData = window.profileData || {};
             window.profileData.hacked = window.profileData.hacked || [];
-            window.profileData.hacked.push(target);
+            const targetKey = vulnerabilityTargetKey(target) || targetStableId(target);
+            const alreadyHacked = window.profileData.hacked.some(item => {
+                const itemKey = vulnerabilityTargetKey(item) || targetStableId(item);
+                return itemKey && targetKey && itemKey === targetKey;
+            });
+            if (!alreadyHacked) {
+                window.profileData.hacked.push(target);
+            }
             window.profileData.aimed_target = {};
+            removeTargetMarkerForTarget(target);
             addInteractiveHackedMarker(target);
-            if (window.refreshPlayerAreas) {
-                window.refreshPlayerAreas();
-                setTimeout(window.refreshPlayerAreas, 900);
+            if (typeof window.scheduleOperationTerritoryRefresh === 'function') {
+                window.scheduleOperationTerritoryRefresh('target_captured');
+            } else if (window.refreshPlayerAreas) {
+                window.refreshPlayerAreas({ reason: 'target_captured' });
+                setTimeout(() => window.refreshPlayerAreas({ reason: 'target_captured_retry' }), 900);
             }
             if (window.refreshClanVulnerabilities) {
                 window.refreshClanVulnerabilities();
@@ -3066,7 +3130,9 @@
                     addSystemMessage("info", `🛠️ ${action}`, data.status || "Wybierz narzędzie.");
                     return;
                 }
-                if (data.target && data.target.lat !== undefined && (data.target.lng !== undefined || data.target.lon !== undefined)) {
+                if (data.captured_target && data.captured_target.lat !== undefined && (data.captured_target.lng !== undefined || data.captured_target.lon !== undefined)) {
+                    window.markMapTargetHacked(data.captured_target);
+                } else if (data.target && data.target.lat !== undefined && (data.target.lng !== undefined || data.target.lon !== undefined)) {
                     const target = data.target;
                     const targetLat = Number(target.lat);
                     const targetLng = Number(target.lng !== undefined ? target.lng : target.lon);
@@ -5177,6 +5243,52 @@
                 lastRun: 0
             };
 
+            window.operationTerritoryRefreshTimer = window.operationTerritoryRefreshTimer || null;
+            window.operationLifecycleState = window.operationLifecycleState || {
+                activeIds: null,
+                historySignature: null
+            };
+
+            function operationClientId(operation = {}) {
+                return String(
+                    operation.operation_id
+                    || operation.id
+                    || operation.created_at
+                    || `${operation.target_id || operation.target_label || 'target'}:${operation.operation_type || operation.type || 'operation'}:${operation.expires_at || ''}`
+                );
+            }
+
+            function operationHistorySignature(history = []) {
+                return (Array.isArray(history) ? history : [])
+                    .slice(-8)
+                    .map(operation => [
+                        operationClientId(operation),
+                        operation.status || '',
+                        operation.ended_at || operation.completed_at || '',
+                        operation.target_id || operation.target_label || ''
+                    ].join(':'))
+                    .join('|');
+            }
+
+            window.scheduleOperationTerritoryRefresh = function(reason = 'operation_lifecycle') {
+                if (window.operationTerritoryRefreshTimer) {
+                    clearTimeout(window.operationTerritoryRefreshTimer);
+                }
+                window.operationTerritoryRefreshTimer = setTimeout(async () => {
+                    window.operationTerritoryRefreshTimer = null;
+                    try {
+                        if (typeof window.refreshPlayerAreas === 'function') {
+                            await window.refreshPlayerAreas({ reason });
+                        }
+                        if (typeof window.refreshClanVulnerabilities === 'function') {
+                            window.refreshClanVulnerabilities();
+                        }
+                    } catch (err) {
+                        console.warn('Operation territory refresh failed', err);
+                    }
+                }, 450);
+            };
+
             window.refreshResponseRuntimeAfterOperations = async function() {
                 const state = window.responseRuntimeRefreshState;
                 const now = Date.now();
@@ -5209,12 +5321,30 @@
                     const data = await res.json();
                     const active = data.active_operations || [];
                     const history = data.operation_history || [];
+                    const nextActiveIds = new Set(active.map(operationClientId));
+                    const nextHistorySignature = operationHistorySignature(history);
+                    const previousLifecycle = window.operationLifecycleState || {};
+                    const previousActiveIds = previousLifecycle.activeIds;
+                    const activeOperationFinished = previousActiveIds instanceof Set
+                        ? [...previousActiveIds].some(operationId => !nextActiveIds.has(operationId))
+                        : false;
+                    const operationHistoryChanged = Boolean(
+                        previousLifecycle.historySignature
+                        && previousLifecycle.historySignature !== nextHistorySignature
+                    );
                     window.latestActiveOperations = active;
                     window.latestOperationHistory = history;
+                    window.operationLifecycleState = {
+                        activeIds: nextActiveIds,
+                        historySignature: nextHistorySignature
+                    };
                     window.renderActiveOperationsPanel(active, history);
                     window.renderActiveOperationMarkers(active);
 
                     invalidateMapAfterLayerUpdate();
+                    if (activeOperationFinished || operationHistoryChanged) {
+                        window.scheduleOperationTerritoryRefresh('operation_lifecycle_changed');
+                    }
                     if (typeof window.refreshResponseRuntimeAfterOperations === 'function') {
                         window.refreshResponseRuntimeAfterOperations();
                     }
