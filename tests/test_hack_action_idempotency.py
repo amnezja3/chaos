@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 import run
 
@@ -56,6 +57,93 @@ class HackActionIdempotencyTests(unittest.TestCase):
         self.assertEqual(len(first), 1)
         self.assertEqual(second, [])
         self.assertEqual(len(profile["operations"]), 1)
+
+    def test_merge_operations_monotonic_preserves_latest_and_incoming_work(self):
+        latest = [
+            {
+                "operation_id": "op_scan",
+                "target_id": "target-1",
+                "map_action_id": "scan_ports",
+                "operation_type": "wifi_scanner",
+                "source_app_id": "scanner_1",
+                "status": "running",
+            }
+        ]
+        incoming = [
+            {
+                "operation_id": "op_trace",
+                "target_id": "target-1",
+                "map_action_id": "trace",
+                "operation_type": "generic_trace",
+                "source_app_id": "trace_1",
+                "status": "running",
+            }
+        ]
+
+        merged = run.merge_operations_monotonic(latest, incoming)
+
+        self.assertEqual({op["operation_id"] for op in merged}, {"op_scan", "op_trace"})
+
+    def test_merge_operations_monotonic_skips_cross_worker_active_duplicate(self):
+        latest = [
+            {
+                "operation_id": "op_first",
+                "target_id": "target-1",
+                "map_action_id": "scan_ports",
+                "operation_type": "wifi_scanner",
+                "source_app_id": "scanner_1",
+                "status": "running",
+            }
+        ]
+        incoming = [
+            {
+                "operation_id": "op_duplicate",
+                "target_id": "target-1",
+                "map_action_id": "scan_ports",
+                "operation_type": "wifi_scanner",
+                "source_app_id": "scanner_1",
+                "status": "running",
+            }
+        ]
+
+        merged = run.merge_operations_monotonic(latest, incoming)
+
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0]["operation_id"], "op_first")
+
+    def test_merge_latest_profile_runtime_fields_preserves_saved_runtime_fields(self):
+        latest_profile = {
+            "operations": [
+                {
+                    "operation_id": "op_scan",
+                    "target_id": "target-1",
+                    "map_action_id": "scan_ports",
+                    "operation_type": "wifi_scanner",
+                    "source_app_id": "scanner_1",
+                    "status": "running",
+                }
+            ],
+            "launch_queue": ["Port Scanner"],
+        }
+        fields = {
+            "operations": [
+                {
+                    "operation_id": "op_trace",
+                    "target_id": "target-1",
+                    "map_action_id": "trace",
+                    "operation_type": "generic_trace",
+                    "source_app_id": "trace_1",
+                    "status": "running",
+                }
+            ],
+            "launch_queue": ["Trace Compass"],
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value=latest_profile):
+            merged = run.merge_latest_profile_runtime_fields("main", fields)
+
+        self.assertEqual({op["operation_id"] for op in merged["operations"]}, {"op_scan", "op_trace"})
+        self.assertEqual(merged["launch_queue"], ["Port Scanner", "Trace Compass"])
 
 
 if __name__ == "__main__":

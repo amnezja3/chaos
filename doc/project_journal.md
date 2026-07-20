@@ -10012,3 +10012,27 @@ Walidacja:
 * `python -m py_compile ghostnetwork/repository.py ghostnetwork/archive.py ghostnetwork/service.py ghostnetwork/__init__.py run.py`: OK;
 * `python -m unittest tests.test_ghostnetwork_archive tests.test_ghostnetwork_transmission tests.test_ghostnetwork_narrative tests.test_ghostnetwork_repository`: OK, 20 testow;
 * `python -m unittest discover -s tests -p "test_ghostnetwork*.py"`: OK, 127 testow.
+
+## Runtime hotfix - sesje workerow i monotoniczny zapis operacji
+
+Sprawdzono podejrzenie mieszania sesji po zwiekszeniu liczby workerow gunicorna.
+Sesje sa obslugiwane przez Flask-Session, wiec problem nie wyglada na osobna
+sesje per worker. Ryzyko lezalo gdzie indziej: procesowe cache i zapisy calego
+profilu mogly powodowac last-write-wins przy szybkich akcjach mapy, terminala i
+desktopu.
+
+Wdrozone:
+
+* jawny katalog `SESSION_FILE_DIR` dla wspolnego filesystem session store;
+* monotoniczne scalanie `operations` i `launch_queue` przed zapisem
+  `aimed_target`;
+* zabezpieczenie przed sytuacja, w ktorej spozniony request nadpisuje profil
+  starsza lista operacji;
+* deduplikacja aktywnej operacji po celu, akcji, typie operacji i aplikacji;
+* testy regresyjne dla merge operacji oraz kolejki uruchomien.
+
+Ograniczenie:
+
+* lokalny cache idempotencji `/hack-action` nadal jest per worker. Fix chroni
+  zapis runtime przed utrata pracy i duplikatami logicznymi po odczycie profilu,
+  ale pelna idempotencja cross-worker wymagalaby wspolnego store receiptow.

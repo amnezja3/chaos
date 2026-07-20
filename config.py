@@ -33,6 +33,10 @@ APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v
 
 FLASK_SESSION_CONFIG = {
     "SESSION_TYPE": os.environ.get("CHAOS_SESSION_TYPE", "filesystem"),
+    "SESSION_FILE_DIR": os.environ.get(
+        "CHAOS_SESSION_FILE_DIR",
+        os.path.join(os.path.dirname(__file__), "data", "flask_session"),
+    ),
     "SESSION_PERMANENT": env_bool("CHAOS_SESSION_PERMANENT", False),
     "SESSION_USE_SIGNER": env_bool("CHAOS_SESSION_USE_SIGNER", True),
     "SESSION_KEY_PREFIX": os.environ.get("CHAOS_SESSION_KEY_PREFIX", "haos_"),

@@ -4917,11 +4917,104 @@ def set_player_aimed_target(username, profile, aimed_target, update_fields=None,
     if aimed_target and not aimed_target.get("target_id"):
         aimed_target["target_id"] = build_operation_target_id(aimed_target)
     fields = dict(update_fields or {})
+    fields = merge_latest_profile_runtime_fields(username, fields)
     fields["aimed_target"] = aimed_target
     UserProfileManager(username).update_profile(fields)
     profile["aimed_target"] = aimed_target
     safe_ghostnetwork_on_target_aimed(username, profile, aimed_target, reason=reason)
     return aimed_target
+
+
+def _operation_is_terminal_for_merge(operation):
+    status = str((operation or {}).get("status") or "").strip().lower()
+    return status in {"cancelled", "canceled", "done", "completed", "failed", "expired", "timeout", "resolved", "detected"}
+
+
+def _operation_logical_merge_key(operation):
+    operation = operation if isinstance(operation, dict) else {}
+    if _operation_is_terminal_for_merge(operation):
+        operation_id = str(operation.get("operation_id") or operation.get("id") or "").strip()
+        return ("terminal", operation_id) if operation_id else None
+    parts = (
+        str(operation.get("target_id") or "").strip(),
+        str(operation.get("map_action_id") or "").strip(),
+        str(operation.get("operation_type") or "").strip(),
+        str(operation.get("source_app_id") or operation.get("source_app_name") or "").strip(),
+    )
+    return ("active", *parts) if any(parts) else None
+
+
+def merge_operations_monotonic(latest_operations, incoming_operations):
+    """Merge operation runtime lists without letting a stale request drop newer work."""
+    merged = []
+    ids = {}
+    logical = {}
+
+    def add(operation, prefer_update=False):
+        if not isinstance(operation, dict):
+            return
+        operation_id = str(operation.get("operation_id") or operation.get("id") or "").strip()
+        if operation_id and operation_id in ids:
+            if prefer_update:
+                index = ids[operation_id]
+                current = dict(merged[index])
+                current.update(operation)
+                merged[index] = current
+            return
+
+        logical_key = _operation_logical_merge_key(operation)
+        if logical_key and logical_key in logical:
+            return
+
+        index = len(merged)
+        merged.append(dict(operation))
+        if operation_id:
+            ids[operation_id] = index
+        if logical_key:
+            logical[logical_key] = index
+
+    for operation in latest_operations or []:
+        add(operation)
+    for operation in incoming_operations or []:
+        add(operation, prefer_update=True)
+    return merged
+
+
+def merge_launch_queue_monotonic(latest_queue, incoming_queue):
+    merged = []
+    seen = set()
+    for item in list(latest_queue or []) + list(incoming_queue or []):
+        value = str(item or "").strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        merged.append(item)
+    return merged
+
+
+def merge_latest_profile_runtime_fields(username, fields):
+    """Protect runtime fields from last-write-wins races across gunicorn workers."""
+    if not username or not isinstance(fields, dict):
+        return fields
+    needs_latest = any(key in fields for key in ("operations", "launch_queue"))
+    if not needs_latest:
+        return fields
+    try:
+        latest_profile = user_store.get_profile(username) or {}
+    except Exception:
+        return fields
+    merged = dict(fields)
+    if "operations" in merged:
+        merged["operations"] = merge_operations_monotonic(
+            latest_profile.get("operations", []),
+            merged.get("operations", []),
+        )
+    if "launch_queue" in merged:
+        merged["launch_queue"] = merge_launch_queue_monotonic(
+            latest_profile.get("launch_queue", []),
+            merged.get("launch_queue", []),
+        )
+    return merged
 
 
 def operation_utc_iso(value):
