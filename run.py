@@ -2965,9 +2965,115 @@ def sync_response_warnings(username, profile, operations, now_iso=None):
     return actions
 
 
+def _profile_map_position(profile):
+    if not isinstance(profile, dict):
+        return None
+    position = (
+        profile.get("curently_possition")
+        or profile.get("current_position")
+        or profile.get("position")
+        or {}
+    )
+    try:
+        lat = float(position.get("lat"))
+        lng = float(position.get("lng", position.get("lon")))
+    except (AttributeError, TypeError, ValueError):
+        return None
+    if lat in (0, 0.0) or lng in (0, 0.0):
+        return None
+    return {"lat": lat, "lng": lng}
+
+
+def sync_static_area_intruders_for_owner(owner_username, areas=None, reason="territory_rebuild"):
+    owner_username = str(owner_username or "").strip()
+    if not owner_username:
+        return []
+
+    try:
+        source_areas = areas if areas is not None else territory_store.list_player_areas()
+        owner_areas = [
+            area for area in safe_player_areas(source_areas)
+            if area.get("owner_username") == owner_username
+            and area.get("status", "active") == "active"
+        ]
+    except Exception as exc:
+        print(f"[TERRITORY] static intruder area scan failed for {owner_username}: {exc}", flush=True)
+        return []
+
+    if not owner_areas:
+        return []
+
+    try:
+        profiles = user_store.list_profiles()
+    except Exception as exc:
+        print(f"[TERRITORY] static intruder profile scan failed for {owner_username}: {exc}", flush=True)
+        return []
+
+    synced = []
+    for actor_profile in profiles or []:
+        actor_username = str((actor_profile or {}).get("username") or "").strip()
+        if not actor_username or actor_username == owner_username:
+            continue
+        position = _profile_map_position(actor_profile)
+        if not position:
+            continue
+        for area in owner_areas:
+            if not territory_point_in_polygon_or_boundary(position, area.get("vertices") or []):
+                continue
+            area_id = area.get("id")
+            if territory_store.recent_area_event_exists(
+                owner_username,
+                actor_username,
+                "intruder_enter",
+                area_id=area_id,
+                seconds=60,
+            ):
+                break
+            actor_name = actor_profile.get("nick") or actor_username
+            territory_store.add_area_event(
+                owner_username=owner_username,
+                actor_username=actor_username,
+                event_type="intruder_enter",
+                area_id=area_id,
+                lat=position["lat"],
+                lng=position["lng"],
+                payload={
+                    "actor_nick": actor_name,
+                    "area_status": area.get("status", "active"),
+                    "source": reason,
+                    "static_sync": True,
+                },
+            )
+            record_map_player_actor_delta(
+                actor_username,
+                actor_profile,
+                change_type="map.player_moved",
+                reason=reason or "territory_static_intruder_sync",
+                intrusion_area=area,
+                dedupe_key_prefix=(
+                    f"map:player_actor:{actor_username}:territory_intruder:"
+                    f"{owner_username}:{area_id}:{runtime_file_now()}"
+                ),
+            )
+            synced.append({
+                "username": actor_username,
+                "area_id": area_id,
+                "lat": position["lat"],
+                "lng": position["lng"],
+            })
+            break
+    if synced:
+        print(
+            f"[TERRITORY] static intruders synced owner={owner_username} count={len(synced)} reason={reason}",
+            flush=True,
+        )
+    return synced
+
+
 def rebuild_player_areas_with_territory_delta(username, player_level=1, reason="territory_rebuild"):
     areas = territory_store.rebuild_player_areas(username, player_level)
     record_territory_areas_delta(username, areas, reason=reason)
+    sync_static_area_intruders_for_owner(username, areas, reason=reason)
     if not str(reason or "").startswith("territory_encirclement"):
         try:
             resolve_territory_encirclements_after_change(
@@ -4436,6 +4542,16 @@ class TerritoryEncirclementResolver:
         defender_areas = self.store.rebuild_player_areas(defender_username, defender_level)
         record_territory_areas_delta(attacker_username, attacker_areas, reason="territory_encirclement_attacker")
         record_territory_areas_delta(defender_username, defender_areas, reason="territory_encirclement_defender")
+        sync_static_area_intruders_for_owner(
+            attacker_username,
+            attacker_areas,
+            reason="territory_encirclement_attacker",
+        )
+        sync_static_area_intruders_for_owner(
+            defender_username,
+            defender_areas,
+            reason="territory_encirclement_defender",
+        )
         self._sync_profile_captured_targets(attacker_username)
         self._sync_profile_captured_targets(defender_username)
 
@@ -17412,11 +17528,19 @@ def map_player_actors():
         else None
     )
     territory_counts = {}
+    viewer_area_ids = set()
     try:
         for area in territory_store.list_player_areas():
-            owner_username = area.get("owner_username") or area.get("login")
+            clean_area = normalize_player_area(area)
+            if not clean_area:
+                continue
+            owner_username = clean_area.get("owner_username") or clean_area.get("login")
             if owner_username:
                 territory_counts[owner_username] = territory_counts.get(owner_username, 0) + 1
+            if owner_username == viewer_username and clean_area.get("status", "active") == "active":
+                area_id = clean_area.get("id")
+                if area_id is not None:
+                    viewer_area_ids.add(str(area_id))
     except Exception as exc:
         print(f"Nie udalo sie policzyc terytoriow player_actor: {exc}")
 
@@ -17507,6 +17631,9 @@ def map_player_actors():
         )
 
     for intruder in territory_store.list_recent_area_intruders(viewer_username):
+        intruder_area_id = intruder.get("area_id")
+        if intruder_area_id is not None and str(intruder_area_id) not in viewer_area_ids:
+            continue
         actor_profile = user_store.get_profile(intruder.get("username"))
         if not actor_profile:
             continue

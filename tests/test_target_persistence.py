@@ -418,6 +418,61 @@ class GameStateDeltaBusTest(unittest.TestCase):
         finally:
             self._cleanup(path)
 
+    def test_static_area_intruder_sync_after_territory_rebuild_records_intruder_delta(self):
+        area = {
+            "id": 77,
+            "owner_username": "owner",
+            "status": "active",
+            "vertices": [
+                {"lat": 52.0, "lng": 21.0},
+                {"lat": 52.0, "lng": 21.02},
+                {"lat": 52.02, "lng": 21.0},
+            ],
+        }
+
+        class DummyUserStore:
+            def list_profiles(self):
+                return [
+                    {"username": "owner", "curently_possition": {"lat": 51.0, "lng": 20.0}},
+                    {
+                        "username": "intruder",
+                        "nick": "Intruder",
+                        "curently_possition": {"lat": 52.005, "lng": 21.005},
+                    },
+                ]
+
+        class DummyTerritoryStore:
+            def __init__(self):
+                self.events = []
+
+            def recent_area_event_exists(self, owner_username, actor_username, event_type, area_id=None, seconds=60):
+                return False
+
+            def add_area_event(self, **event):
+                self.events.append(event)
+
+        territory = DummyTerritoryStore()
+        with patch.object(run, "user_store", DummyUserStore()), \
+                patch.object(run, "territory_store", territory), \
+                patch.object(run, "record_map_player_actor_delta") as record_delta:
+            synced = run.sync_static_area_intruders_for_owner(
+                "owner",
+                [area],
+                reason="territory_rebuild_test",
+            )
+
+        self.assertEqual(len(synced), 1)
+        self.assertEqual(synced[0]["username"], "intruder")
+        self.assertEqual(len(territory.events), 1)
+        self.assertEqual(territory.events[0]["event_type"], "intruder_enter")
+        self.assertEqual(territory.events[0]["owner_username"], "owner")
+        self.assertEqual(territory.events[0]["actor_username"], "intruder")
+        self.assertTrue(territory.events[0]["payload"]["static_sync"])
+        record_delta.assert_called_once()
+        _, kwargs = record_delta.call_args
+        self.assertEqual(kwargs["change_type"], "map.player_moved")
+        self.assertEqual(kwargs["intrusion_area"]["id"], 77)
+
     def test_record_map_target_delta_uses_target_id_contract(self):
         path = self._temp_path()
         try:
