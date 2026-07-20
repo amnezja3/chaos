@@ -13094,6 +13094,8 @@ def build_generated_app(data, creator_username, creator_nick):
     name = str(data.get("name", "")).strip()
     if not name:
         raise ValueError("Brak nazwy aplikacji.")
+    if ";" in name:
+        raise ValueError("Nazwa aplikacji nie moze zawierac srednika (;).")
 
     interface = data.get("interface", "progressbar_random")
     if interface not in {"progressbar_random", "window", "terminal", "button_choices"}:

@@ -1508,6 +1508,36 @@ function appendSystemTerminalLoader(content) {
     };
 }
 
+const GHOST_SCRIPT_COMMAND_DELAY_MS = 2000;
+
+function splitGhostScriptCommands(value) {
+    return String(value || "")
+        .split(";")
+        .map(command => command.trim())
+        .filter(Boolean);
+}
+
+function waitGhostScriptStep(ms = GHOST_SCRIPT_COMMAND_DELAY_MS) {
+    return new Promise(resolve => window.setTimeout(resolve, ms));
+}
+
+function appendSystemTerminalScriptStatus(content, command, index, total) {
+    appendSystemTerminalOutput(
+        content,
+        `GhostScript ${index + 1}/${total}: uruchamiam <b>${escapeHTML(command)}</b>...`,
+        "system-terminal-console-effect"
+    );
+}
+
+function validateGeneratedAppNameForScripts(payload, status) {
+    const name = String(payload?.name || "").trim();
+    if (name.includes(";")) {
+        if (status) status.textContent = "Nazwa aplikacji nie moze zawierac srednika (;).";
+        return false;
+    }
+    return true;
+}
+
 function showGhostDecisionDialog({
     title = "GHOST SYSTEM",
     message = "",
@@ -1627,129 +1657,175 @@ async function handleTerminalTeleport(content, teleport) {
     });
 }
 
+async function executeSystemTerminalCommand(value, input, content, { echo = true } = {}) {
+    if (echo) {
+        appendSystemTerminalCommand(content, value);
+    }
+    const stopLoader = appendSystemTerminalLoader(content);
+
+    try {
+        if (content.pendingConfirm) {
+            const answer = String(value || "").toLowerCase();
+            const pending = content.pendingConfirm;
+
+            if (!["y", "yes", "n", "no"].includes(answer)) {
+                appendSystemTerminalOutput(content, "Wpisz Y albo N.");
+                return false;
+            }
+
+            content.pendingConfirm = null;
+
+            if (answer === "n" || answer === "no") {
+                appendSystemTerminalOutput(content, "Anulowano.");
+                return true;
+            }
+
+            if (pending.action === "userdel") {
+                const deleteRes = await fetch('/api/users/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: pending.username })
+                });
+                const deleteData = await deleteRes.json();
+                appendSystemTerminalOutput(content, escapeHTML(deleteData.message || "Operacja zakonczona."));
+                if (deleteData.logout) {
+                    setTimeout(() => {
+                        window.location.href = deleteData.redirect || '/';
+                    }, 500);
+                    return false;
+                }
+                return true;
+            }
+        }
+
+        const res = await fetch('/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ input: value })
+        });
+        const data = await res.json();
+
+        if (data.clear) {
+            content.innerHTML = '';
+            return true;
+        }
+
+        if (data.confirm) {
+            content.pendingConfirm = data.confirm;
+            appendSystemTerminalOutput(content, escapeHTML(data.confirm.prompt));
+            return false;
+        }
+
+        if (data.response) {
+            appendSystemTerminalOutput(content, data.response.replace(/\n/g, "<br>"));
+        }
+
+        if (data.target) {
+            updateToolbarAimedTarget(data.target);
+        }
+        notifyCreatedOperations(data);
+
+        if (data.terminalTeleport) {
+            stopLoader();
+            await handleTerminalTeleport(content, data.terminalTeleport);
+            return false;
+        }
+
+        if (data.closeTerminal) {
+            setTimeout(() => {
+                content.closest('.terminal')?.remove();
+            }, 180);
+            return false;
+        }
+
+        if (data.openSystemApp) {
+            openSystemAppFromTerminal(data.openSystemApp);
+        }
+
+        if (data.logout) {
+            setTimeout(() => {
+                window.location.href = '/logout';
+            }, 350);
+            return false;
+        }
+
+        if (data.runApp && data.applicationEffect) {
+            const app = data.applicationEffect;
+            const consoleEffect = data.consoleEffect || '';
+            const id = app.id;
+            const levels = app.levels;
+            const type = app.interface;
+
+            if (consoleEffect) {
+                appendSystemTerminalOutput(content, consoleEffect.replace(/\n/g, "<br>"), "system-terminal-console-effect");
+            }
+
+            if (!runSystemLauncherApp(app)) {
+                if (type === "window") app_window(id, levels);
+                if (type === "progressbar_random") app_progressbar_random(id, levels);
+                if (type === "terminal") app_terminal(id, levels);
+                if (type === "button_choices") app_button_choices(id, levels);
+            }
+        }
+
+        return true;
+    } catch (err) {
+        appendSystemTerminalOutput(content, '<span style="color:red;">Blad komunikacji z serwerem</span>');
+        return false;
+    } finally {
+        stopLoader();
+        window.requestAnimationFrame(() => {
+            input?.focus();
+            content.scrollTop = content.scrollHeight;
+        });
+    }
+}
+
 function attachSystemTerminalInputHandler(input, content) {
     const form = input.closest('.system-terminal-composer');
     if (!form || form.dataset.systemTerminalBound === "1") return;
     form.dataset.systemTerminalBound = "1";
+    let ghostScriptRunning = false;
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
         const value = input.value.trim();
-        if (!value) return;
+        if (!value || ghostScriptRunning) return;
 
-        appendSystemTerminalCommand(content, value);
+        const scriptCommands = content.pendingConfirm ? [value] : splitGhostScriptCommands(value);
+        if (!scriptCommands.length) return;
+
         input.value = '';
         input.disabled = true;
-        const stopLoader = appendSystemTerminalLoader(content);
+
+        if (scriptCommands.length === 1) {
+            await executeSystemTerminalCommand(scriptCommands[0], input, content, { echo: true });
+            input.disabled = false;
+            window.requestAnimationFrame(() => input.focus());
+            return;
+        }
+
+        ghostScriptRunning = true;
+        appendSystemTerminalCommand(content, value);
+        appendSystemTerminalOutput(
+            content,
+            `GhostScript: wykryto ${scriptCommands.length} komend. Wykonuje sekwencje co ${GHOST_SCRIPT_COMMAND_DELAY_MS / 1000}s.`,
+            "system-terminal-console-effect"
+        );
 
         try {
-            if (content.pendingConfirm) {
-                const answer = value.toLowerCase();
-                const pending = content.pendingConfirm;
-
-                if (!["y", "yes", "n", "no"].includes(answer)) {
-                    appendSystemTerminalOutput(content, "Wpisz Y albo N.");
-                    return;
-                }
-
-                content.pendingConfirm = null;
-
-                if (answer === "n" || answer === "no") {
-                    appendSystemTerminalOutput(content, "Anulowano.");
-                    return;
-                }
-
-                if (pending.action === "userdel") {
-                    const deleteRes = await fetch('/api/users/delete', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username: pending.username })
-                    });
-                    const deleteData = await deleteRes.json();
-                    appendSystemTerminalOutput(content, escapeHTML(deleteData.message || "Operacja zakonczona."));
-                    if (deleteData.logout) {
-                        setTimeout(() => {
-                            window.location.href = deleteData.redirect || '/';
-                        }, 500);
-                    }
-                    return;
+            for (let index = 0; index < scriptCommands.length; index += 1) {
+                const command = scriptCommands[index];
+                appendSystemTerminalScriptStatus(content, command, index, scriptCommands.length);
+                const canContinue = await executeSystemTerminalCommand(command, input, content, { echo: false });
+                if (!canContinue) break;
+                if (index < scriptCommands.length - 1) {
+                    await waitGhostScriptStep();
                 }
             }
-
-            const res = await fetch('/command', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ input: value })
-            });
-            const data = await res.json();
-
-            if (data.clear) {
-                content.innerHTML = '';
-                return;
-            }
-
-            if (data.confirm) {
-                content.pendingConfirm = data.confirm;
-                appendSystemTerminalOutput(content, escapeHTML(data.confirm.prompt));
-                return;
-            }
-
-            if (data.response) {
-                appendSystemTerminalOutput(content, data.response.replace(/\n/g, "<br>"));
-            }
-
-            if (data.target) {
-                updateToolbarAimedTarget(data.target);
-            }
-            notifyCreatedOperations(data);
-
-            if (data.terminalTeleport) {
-                stopLoader();
-                await handleTerminalTeleport(content, data.terminalTeleport);
-                return;
-            }
-
-            if (data.closeTerminal) {
-                setTimeout(() => {
-                    content.closest('.terminal')?.remove();
-                }, 180);
-                return;
-            }
-
-            if (data.openSystemApp) {
-                openSystemAppFromTerminal(data.openSystemApp);
-            }
-
-            if (data.logout) {
-                setTimeout(() => {
-                    window.location.href = '/logout';
-                }, 350);
-                return;
-            }
-
-            if (data.runApp && data.applicationEffect) {
-                const app = data.applicationEffect;
-                const consoleEffect = data.consoleEffect || '';
-                const id = app.id;
-                const levels = app.levels;
-                const type = app.interface;
-
-                if (consoleEffect) {
-                    appendSystemTerminalOutput(content, consoleEffect.replace(/\n/g, "<br>"), "system-terminal-console-effect");
-                }
-
-                if (!runSystemLauncherApp(app)) {
-                    if (type === "window") app_window(id, levels);
-                    if (type === "progressbar_random") app_progressbar_random(id, levels);
-                    if (type === "terminal") app_terminal(id, levels);
-                    if (type === "button_choices") app_button_choices(id, levels);
-                }
-            }
-        } catch (err) {
-            appendSystemTerminalOutput(content, '<span style="color:red;">Blad komunikacji z serwerem</span>');
         } finally {
-            stopLoader();
             input.disabled = false;
+            ghostScriptRunning = false;
             window.requestAnimationFrame(() => {
                 input.focus();
                 content.scrollTop = content.scrollHeight;
@@ -8179,6 +8255,7 @@ function createAppForgeLegacy() {
         const formData = new FormData(form);
         const payload = Object.fromEntries(formData.entries());
         payload.price = Number(payload.price || 0);
+        if (!validateGeneratedAppNameForScripts(payload, status)) return;
         status.textContent = 'Publikowanie...';
 
         try {
@@ -9074,6 +9151,7 @@ function wireCreatorSubmit(term, buildExtraPayload) {
         const status = term.querySelector('.appforge-status');
         const payload = Object.fromEntries(new FormData(form).entries());
         payload.price = Number(payload.price || 0);
+        if (!validateGeneratedAppNameForScripts(payload, status)) return;
         ["interferes_with", "requires_off", "disables", "affects"].forEach(fieldName => {
             payload[fieldName] = Array.from(
                 term.querySelectorAll(`[data-appforge-field="${fieldName}"] input:checked`)
