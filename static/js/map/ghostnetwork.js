@@ -1,0 +1,707 @@
+(function () {
+    "use strict";
+
+    const SNAPSHOT_URL = "/api/ghostnetwork/snapshot";
+    const PART_PANE = "ghostNetworkPartPane";
+    const CONNECTION_PANE = "ghostNetworkConnectionPane";
+    const PULSE_PANE = "ghostNetworkPulsePane";
+    const TERRITORY_PANE = "ghostNetworkTerritoryPane";
+    const MAX_VISIBLE_PARTS = 20;
+    const DELTA_TYPES = new Set([
+        "ghost.part_discovered",
+        "ghost.part_contained",
+        "ghost.part_revealed",
+        "ghost.part_activated",
+        "ghost.part_deactivated",
+        "ghost.part_contested",
+        "ghost.part_conflict_resolved",
+        "ghost.part_anchor_source_lost",
+        "ghost.part_anchor_migrated",
+        "ghost.part_consumed"
+    ]);
+    const CONNECTION_DELTA_TYPES = new Set([
+        "ghost.connection_changed",
+        "ghost.connection_created",
+        "ghost.connection_updated",
+        "ghost.connection_removed"
+    ]);
+
+    window.ghostNetworkPartLayers = window.ghostNetworkPartLayers || {};
+    window.ghostNetworkConnectionLayers = window.ghostNetworkConnectionLayers || {};
+    window.ghostNetworkConnectionProjections = window.ghostNetworkConnectionProjections || {};
+    window.ghostNetworkTerritoryLayers = window.ghostNetworkTerritoryLayers || {};
+    window.ghostNetworkStateVersion = Number(window.ghostNetworkStateVersion || 0);
+    window.ghostNetworkCycleId = window.ghostNetworkCycleId || "";
+    window.ghostNetworkSnapshotChecksum = window.ghostNetworkSnapshotChecksum || "";
+
+    const ghostNetworkDeltaState = window.ghostNetworkDeltaState || {
+        processed: [],
+        processedSet: new Set(),
+        callbacks: {}
+    };
+    if (!(ghostNetworkDeltaState.processedSet instanceof Set)) {
+        ghostNetworkDeltaState.processedSet = new Set(ghostNetworkDeltaState.processed || []);
+    }
+    window.ghostNetworkDeltaState = ghostNetworkDeltaState;
+
+    function getMap() {
+        if (window.chaosMap) return window.chaosMap;
+        if (window.map && typeof window.map.createPane === "function") return window.map;
+        const key = Object.keys(window).find(name => name.startsWith("map_"));
+        return key ? window[key] : null;
+    }
+
+    function ensureGhostNetworkPanes() {
+        const map = getMap();
+        if (!map || typeof map.createPane !== "function") return null;
+        if (!map.getPane(TERRITORY_PANE)) {
+            const pane = map.createPane(TERRITORY_PANE);
+            pane.style.zIndex = "455";
+            pane.style.pointerEvents = "none";
+        }
+        if (!map.getPane(CONNECTION_PANE)) {
+            const pane = map.createPane(CONNECTION_PANE);
+            pane.style.zIndex = "548";
+            pane.style.pointerEvents = "none";
+        }
+        if (!map.getPane(PULSE_PANE)) {
+            const pane = map.createPane(PULSE_PANE);
+            pane.style.zIndex = "552";
+            pane.style.pointerEvents = "none";
+        }
+        if (!map.getPane(PART_PANE)) {
+            const pane = map.createPane(PART_PANE);
+            pane.style.zIndex = "625";
+            pane.style.pointerEvents = "auto";
+        }
+        return map;
+    }
+
+    function escapeHtml(value) {
+        return String(value == null ? "" : value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    }
+
+    function asNumber(value) {
+        const num = Number(value);
+        return Number.isFinite(num) ? num : null;
+    }
+
+    function validLatLng(lat, lng) {
+        const nLat = asNumber(lat);
+        const nLng = asNumber(lng);
+        if (nLat === null || nLng === null) return null;
+        if (Math.abs(nLat) > 90 || Math.abs(nLng) > 180) return null;
+        return [nLat, nLng];
+    }
+
+    function projectionKey(part) {
+        if (!part || typeof part !== "object") return "";
+        return String(part.public_entity_id || part.part_id || part.entity_id || part.target_id || "").trim();
+    }
+
+    function connectionKey(connection) {
+        if (!connection || typeof connection !== "object") return "";
+        return String(connection.public_connection_id || connection.connection_id || connection.entity_id || "").trim();
+    }
+
+    function normalizeState(part) {
+        if (part && part.contested) return "contested";
+        return String((part && part.module_state) || (part && part.status) || "neutral").toLowerCase();
+    }
+
+    function isAnchor(part) {
+        return String((part && part.part_type) || (part && part.kind) || "").toLowerCase() === "ghost_anchor"
+            || String((part && part.part_code) || "").toLowerCase().includes("anchor")
+            || String((part && part.display_label) || "").toLowerCase().includes("anchor");
+    }
+
+    function buildGhostPartIcon(part) {
+        const state = normalizeState(part);
+        const classNames = [
+            "ghostnetwork-node",
+            `is-${state}`,
+            isAnchor(part) ? "is-anchor" : "",
+            part && part.identity_visible === false ? "is-hidden" : ""
+        ].filter(Boolean).join(" ");
+        return L.divIcon({
+            className: "ghostnetwork-part-icon",
+            html: `<span class="${classNames}" aria-hidden="true"></span>`,
+            iconSize: [34, 34],
+            iconAnchor: [17, 17],
+            popupAnchor: [0, -18]
+        });
+    }
+
+    function popupRow(label, value) {
+        if (value == null || value === "") return "";
+        return `<div class="ghostnetwork-popup-row"><span class="ghostnetwork-popup-label">${escapeHtml(label)}</span><span class="ghostnetwork-popup-value">${escapeHtml(value)}</span></div>`;
+    }
+
+    function openGhostPartPanel(part, marker) {
+        if (!marker || !part) return false;
+        const label = part.display_label || part.summary || "GhostNetwork";
+        const rows = [
+            popupRow("Stan", part.module_state || part.status),
+            popupRow("Widocznosc", part.visibility_level),
+            popupRow("Relacja", part.viewer_relation),
+            popupRow("Terytorium", part.territory_id),
+            part.identity_visible ? popupRow("Czesc", part.part_id || part.part_code) : "",
+            part.ability_visible ? popupRow("Modul", part.machine_id || part.machine_code) : "",
+            part.conflict_state ? popupRow("Konflikt", part.conflict_state) : ""
+        ].join("");
+        const summary = part.summary ? `<div class="ghostnetwork-popup-summary">${escapeHtml(part.summary)}</div>` : "";
+        marker.bindPopup(
+            `<div class="ghostnetwork-popup"><div class="ghostnetwork-popup-title">${escapeHtml(label)}</div>${rows}${summary}</div>`,
+            { className: "ghostnetwork-leaflet-popup", closeButton: true }
+        );
+        marker.openPopup();
+        return true;
+    }
+
+    function removeGhostPartMarker(key) {
+        const map = getMap();
+        const normalizedKey = String(key || "").trim();
+        if (!normalizedKey) return false;
+        const marker = window.ghostNetworkPartLayers[normalizedKey];
+        if (marker && map) {
+            try {
+                map.removeLayer(marker);
+            } catch (err) {
+                console.warn("[ghostnetwork] remove part marker failed", err);
+            }
+        }
+        delete window.ghostNetworkPartLayers[normalizedKey];
+
+        const badge = window.ghostNetworkTerritoryLayers[normalizedKey];
+        if (badge && map) {
+            try {
+                map.removeLayer(badge);
+            } catch (err) {
+                console.warn("[ghostnetwork] remove territory badge failed", err);
+            }
+        }
+        delete window.ghostNetworkTerritoryLayers[normalizedKey];
+        return true;
+    }
+
+    function removeGhostConnectionLayer(key) {
+        const map = getMap();
+        const normalizedKey = String(key || "").trim();
+        if (!normalizedKey) return false;
+        const layer = window.ghostNetworkConnectionLayers[normalizedKey];
+        if (layer && map) {
+            try {
+                map.removeLayer(layer);
+            } catch (err) {
+                console.warn("[ghostnetwork] remove connection failed", err);
+            }
+        }
+        delete window.ghostNetworkConnectionLayers[normalizedKey];
+        delete window.ghostNetworkConnectionProjections[normalizedKey];
+        return true;
+    }
+
+    function clearGhostConnections() {
+        Object.keys(window.ghostNetworkConnectionLayers || {}).forEach(removeGhostConnectionLayer);
+        window.ghostNetworkConnectionLayers = {};
+        window.ghostNetworkConnectionProjections = {};
+    }
+
+    function clearGhostNetworkLayer() {
+        clearGhostConnections();
+        Object.keys(window.ghostNetworkPartLayers || {}).forEach(removeGhostPartMarker);
+        Object.keys(window.ghostNetworkTerritoryLayers || {}).forEach(removeGhostPartMarker);
+        window.ghostNetworkPartLayers = {};
+        window.ghostNetworkTerritoryLayers = {};
+    }
+
+    function renderGhostTerritoryBadge(part) {
+        const map = ensureGhostNetworkPanes();
+        if (!map || !window.L || !part) return false;
+        const key = projectionKey(part);
+        const coords = validLatLng(part.territory_latitude || part.territory_lat, part.territory_longitude || part.territory_lng);
+        if (!key || !coords) return false;
+        const html = '<span class="ghostnetwork-territory-badge" aria-hidden="true"></span>';
+        const icon = L.divIcon({
+            className: "ghostnetwork-territory-icon",
+            html,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        });
+        let marker = window.ghostNetworkTerritoryLayers[key];
+        if (!marker) {
+            marker = L.marker(coords, { icon, pane: TERRITORY_PANE, interactive: false });
+            marker.addTo(map);
+            window.ghostNetworkTerritoryLayers[key] = marker;
+        } else {
+            marker.setLatLng(coords);
+            marker.setIcon(icon);
+        }
+        return true;
+    }
+
+    function connectionEndpoint(connection, side) {
+        const key = side === "b" ? "endpoint_b" : "endpoint_a";
+        const endpoint = connection && connection[key] && typeof connection[key] === "object" ? connection[key] : {};
+        const lat = endpoint.latitude ?? (side === "b" ? connection.to_latitude : connection.from_latitude);
+        const lng = endpoint.longitude ?? (side === "b" ? connection.to_longitude : connection.from_longitude);
+        const coords = validLatLng(lat, lng);
+        if (coords) return coords;
+
+        const publicId = endpoint.public_entity_id || (side === "b" ? connection.to_public_entity_id : connection.from_public_entity_id);
+        const marker = publicId ? window.ghostNetworkPartLayers[String(publicId)] : null;
+        if (marker && typeof marker.getLatLng === "function") {
+            const latLng = marker.getLatLng();
+            return validLatLng(latLng.lat, latLng.lng);
+        }
+        return null;
+    }
+
+    function hashConnectionSign(value) {
+        let hash = 0;
+        const text = String(value || "");
+        for (let i = 0; i < text.length; i += 1) {
+            hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+        }
+        return hash % 2 === 0 ? 1 : -1;
+    }
+
+    function curvePoint(a, b, connection) {
+        const latMid = (a[0] + b[0]) / 2;
+        const lngMid = (a[1] + b[1]) / 2;
+        const dLat = b[0] - a[0];
+        const dLng = b[1] - a[1];
+        const distance = Math.sqrt(dLat * dLat + dLng * dLng);
+        const sign = hashConnectionSign(connectionKey(connection) || connection.connection_id);
+        const bend = Math.min(Math.max(distance * 0.18, 0.0009), 0.018) * sign;
+        return [latMid - dLng * bend / Math.max(distance, 0.000001), lngMid + dLat * bend / Math.max(distance, 0.000001)];
+    }
+
+    function buildConnectionCurve(connection) {
+        const state = String(connection && connection.state || "hidden");
+        const a = connectionEndpoint(connection, "a");
+        const b = connectionEndpoint(connection, "b");
+        if (!a || !b) return [];
+        let start = a;
+        let end = b;
+        let maxT = 1;
+        if (state === "half_from_b") {
+            start = b;
+            end = a;
+            maxT = 0.52;
+        } else if (state === "half_from_a") {
+            maxT = 0.52;
+        }
+        const control = curvePoint(start, end, connection);
+        const points = [];
+        const steps = state.startsWith("half_") ? 12 : 24;
+        for (let i = 0; i <= steps; i += 1) {
+            const t = maxT * (i / steps);
+            const inv = 1 - t;
+            points.push([
+                inv * inv * start[0] + 2 * inv * t * control[0] + t * t * end[0],
+                inv * inv * start[1] + 2 * inv * t * control[1] + t * t * end[1]
+            ]);
+        }
+        return points;
+    }
+
+    function connectionClass(connection, role) {
+        return [
+            "ghostnetwork-connection",
+            `ghostnetwork-connection-${role}`,
+            `is-${String(connection.state || "hidden")}`,
+            connection.contested ? "is-contested" : ""
+        ].filter(Boolean).join(" ");
+    }
+
+    function createGhostConnectionLayer(connection) {
+        const map = ensureGhostNetworkPanes();
+        if (!map || !window.L || !connection) return null;
+        const points = buildConnectionCurve(connection);
+        if (points.length < 2) return null;
+        const state = String(connection.state || "hidden");
+        if (!connection.can_show_on_map || !["half_from_a", "half_from_b", "active"].includes(state)) return null;
+
+        const layers = [
+            L.polyline(points, {
+                pane: CONNECTION_PANE,
+                interactive: false,
+                bubblingMouseEvents: false,
+                className: connectionClass(connection, "base"),
+                weight: state === "active" ? 9 : 7,
+                opacity: 0.36
+            }),
+            L.polyline(points, {
+                pane: CONNECTION_PANE,
+                interactive: false,
+                bubblingMouseEvents: false,
+                className: connectionClass(connection, "core"),
+                weight: state === "active" ? 4 : 3,
+                opacity: state === "active" ? 0.78 : 0.62
+            })
+        ];
+        if (state === "active") {
+            layers.push(L.polyline(points, {
+                pane: PULSE_PANE,
+                interactive: false,
+                bubblingMouseEvents: false,
+                className: connectionClass(connection, "pulse"),
+                weight: 3,
+                opacity: 0.86
+            }));
+        }
+        return L.layerGroup(layers);
+    }
+
+    function updateGhostConnectionLayer(connection) {
+        const map = ensureGhostNetworkPanes();
+        const key = connectionKey(connection);
+        if (!map || !key) return false;
+        removeGhostConnectionLayer(key);
+        window.ghostNetworkConnectionProjections[key] = connection;
+        const layer = createGhostConnectionLayer(connection);
+        if (!layer) return false;
+        layer.addTo(map);
+        window.ghostNetworkConnectionLayers[key] = layer;
+        return true;
+    }
+
+    function renderGhostConnections(connections) {
+        clearGhostConnections();
+        if (!Array.isArray(connections)) return 0;
+        let rendered = 0;
+        connections.forEach(connection => {
+            const key = connectionKey(connection);
+            if (key) window.ghostNetworkConnectionProjections[key] = connection;
+            if (updateGhostConnectionLayer(connection)) rendered += 1;
+        });
+        return rendered;
+    }
+
+    function refreshGhostConnections() {
+        const projections = Object.values(window.ghostNetworkConnectionProjections || {});
+        if (!projections.length) return 0;
+        return renderGhostConnections(projections);
+    }
+
+    function renderGhostPart(part) {
+        const map = ensureGhostNetworkPanes();
+        if (!map || !window.L || !part) return false;
+        const key = projectionKey(part);
+        if (!key) return false;
+        if (part.can_show_on_map === false) {
+            removeGhostPartMarker(key);
+            return false;
+        }
+        if (String(part.location_visibility || "").toLowerCase() !== "exact") {
+            removeGhostPartMarker(key);
+            return renderGhostTerritoryBadge(part);
+        }
+        const coords = validLatLng(part.latitude || part.lat, part.longitude || part.lng);
+        if (!coords) {
+            removeGhostPartMarker(key);
+            return false;
+        }
+
+        const icon = buildGhostPartIcon(part);
+        let marker = window.ghostNetworkPartLayers[key];
+        if (!marker) {
+            marker = L.marker(coords, { icon, pane: PART_PANE, keyboard: false, riseOnHover: true });
+            marker.on("click", () => openGhostPartPanel(part, marker));
+            marker.addTo(map);
+            window.ghostNetworkPartLayers[key] = marker;
+        } else {
+            marker.setLatLng(coords);
+            marker.setIcon(icon);
+            marker.off("click");
+            marker.on("click", () => openGhostPartPanel(part, marker));
+        }
+        marker.ghostNetworkProjection = part;
+        refreshGhostConnections();
+        const badge = window.ghostNetworkTerritoryLayers[key];
+        if (badge) {
+            try {
+                map.removeLayer(badge);
+            } catch (err) {
+                console.warn("[ghostnetwork] remove replaced territory badge failed", err);
+            }
+            delete window.ghostNetworkTerritoryLayers[key];
+        }
+        return true;
+    }
+
+    function renderGhostParts(parts) {
+        clearGhostNetworkLayer();
+        if (!Array.isArray(parts)) return 0;
+        let rendered = 0;
+        parts
+            .filter(part => part && part.can_show_on_map !== false)
+            .slice(0, MAX_VISIBLE_PARTS)
+            .forEach(part => {
+                if (renderGhostPart(part)) rendered += 1;
+            });
+        return rendered;
+    }
+
+    function normalizeSnapshotPayload(data) {
+        const payload = data && typeof data === "object" ? data : {};
+        if (!Array.isArray(payload.parts) && payload.snapshot && typeof payload.snapshot === "object") {
+            return {
+                ...payload,
+                cycle: payload.snapshot.cycle || payload.cycle,
+                parts: payload.snapshot.parts || [],
+                connections: payload.snapshot.connections || [],
+                state_version: payload.snapshot.state_version || payload.state_version || 0
+            };
+        }
+        return payload;
+    }
+
+    async function loadGhostNetworkSnapshot(options = {}) {
+        try {
+            let response;
+            if (typeof window.fetchMapSnapshot === "function") {
+                const snapshot = await window.fetchMapSnapshot("ghostnetwork", `${SNAPSHOT_URL}?view=map`, { timeoutMs: options.timeoutMs || 10000 });
+                if (!snapshot || snapshot.skipped || snapshot.aborted) return false;
+                response = snapshot.res;
+            } else {
+                response = await fetch(`${SNAPSHOT_URL}?view=map`, { headers: { Accept: "application/json" } });
+            }
+            if (!response || !response.ok) {
+                console.warn("[ghostnetwork] snapshot unavailable", response && response.status);
+                return false;
+            }
+            const data = normalizeSnapshotPayload(await response.json());
+            if (data.ok === false) {
+                console.warn("[ghostnetwork] snapshot rejected", data.error || data.reason || "unknown");
+                return false;
+            }
+            const version = Number(data.current_version || data.state_version || (data.cycle && data.cycle.state_version) || 0);
+            if (Number.isFinite(version)) {
+                window.ghostNetworkStateVersion = Math.max(Number(window.ghostNetworkStateVersion || 0), version);
+            }
+            window.ghostNetworkCycleId = (data.cycle && data.cycle.cycle_id) || data.cycle_id || window.ghostNetworkCycleId || "";
+            window.ghostNetworkSnapshotChecksum = data.snapshot_checksum || window.ghostNetworkSnapshotChecksum || "";
+            renderGhostParts(data.parts || []);
+            renderGhostConnections(data.connections || []);
+            notifyGhostNetworkDeltaViews({ type: "snapshot", snapshot: data });
+            return true;
+        } catch (err) {
+            console.warn("[ghostnetwork] snapshot failed", err);
+            return false;
+        }
+    }
+
+    function extractDeltaProjection(event) {
+        const payload = event && event.payload && typeof event.payload === "object" ? event.payload : {};
+        return payload.projection || payload.part_projection || payload.part || payload.ghost_part || null;
+    }
+
+    function extractConnectionProjection(event) {
+        const payload = event && event.payload && typeof event.payload === "object" ? event.payload : {};
+        return payload.projection || payload.connection_projection || payload.connection || payload.ghost_connection || null;
+    }
+
+    function extractDeltaKey(event, projection) {
+        const payload = event && event.payload && typeof event.payload === "object" ? event.payload : {};
+        return projectionKey(projection)
+            || String(event && (event.entity_id || event.public_entity_id) || "").trim()
+            || String(payload.public_entity_id || payload.part_id || payload.entity_id || "").trim();
+    }
+
+    function applyGhostPartDelta(event) {
+        if (!event || typeof event !== "object") return false;
+        const type = String(event.type || "");
+        if (CONNECTION_DELTA_TYPES.has(type) || (event.scope === "ghostnetwork" && extractConnectionProjection(event))) {
+            return applyGhostConnectionDelta(event);
+        }
+        if (!DELTA_TYPES.has(type) && event.scope !== "ghostnetwork") return false;
+        const projection = extractDeltaProjection(event);
+        const key = extractDeltaKey(event, projection);
+        const version = Number(
+            (event.payload && (event.payload.state_version || event.payload.version))
+            || (projection && projection.state_version)
+            || event.version
+            || 0
+        );
+        if (Number.isFinite(version) && version > 0 && version < Number(window.ghostNetworkStateVersion || 0)) {
+            return false;
+        }
+        if (type === "ghost.part_consumed" || (event.payload && event.payload.removed === true)) {
+            if (key) removeGhostPartMarker(key);
+            refreshGhostConnections();
+            if (Number.isFinite(version)) window.ghostNetworkStateVersion = Math.max(window.ghostNetworkStateVersion || 0, version);
+            return true;
+        }
+        if (!projection) {
+            recoverGhostNetworkLayer({ reason: "missing_projection", event_type: type });
+            return false;
+        }
+        renderGhostPart(projection);
+        if (Number.isFinite(version)) window.ghostNetworkStateVersion = Math.max(window.ghostNetworkStateVersion || 0, version);
+        return true;
+    }
+
+    function applyGhostConnectionDelta(event) {
+        if (!event || typeof event !== "object") return false;
+        const type = String(event.type || "");
+        const projection = extractConnectionProjection(event);
+        const payload = event.payload && typeof event.payload === "object" ? event.payload : {};
+        const key = connectionKey(projection) || String(event.entity_id || payload.public_connection_id || payload.connection_id || "").trim();
+        const version = Number(payload.state_version || payload.version || (projection && projection.state_version) || event.version || 0);
+        if (Number.isFinite(version) && version > 0 && version < Number(window.ghostNetworkStateVersion || 0)) {
+            return false;
+        }
+        if (type === "ghost.connection_removed" || payload.removed === true) {
+            if (key) removeGhostConnectionLayer(key);
+            if (Number.isFinite(version)) window.ghostNetworkStateVersion = Math.max(window.ghostNetworkStateVersion || 0, version);
+            return true;
+        }
+        if (!projection) {
+            recoverGhostNetworkLayer({ reason: "missing_connection_projection", event_type: type });
+            return false;
+        }
+        const applied = updateGhostConnectionLayer(projection);
+        if (Number.isFinite(version)) window.ghostNetworkStateVersion = Math.max(window.ghostNetworkStateVersion || 0, version);
+        return applied;
+    }
+
+    function applyGhostNetworkDeltaPayload(event) {
+        return applyGhostPartDelta(event) || applyGhostConnectionDelta(event);
+    }
+
+    function animateGhostConnectionPulse() {
+        return true;
+    }
+
+    async function recoverGhostNetworkLayer(options = {}) {
+        return loadGhostNetworkSnapshot({ recovery: true, ...options });
+    }
+
+    function ghostNetworkEventVersion(event) {
+        const payload = event && event.payload && typeof event.payload === "object" ? event.payload : {};
+        return Number(payload.state_version || event.state_version || event.version || 0);
+    }
+
+    function ghostNetworkEventCycle(event) {
+        const payload = event && event.payload && typeof event.payload === "object" ? event.payload : {};
+        return String(payload.cycle_id || event.cycle_id || "").trim();
+    }
+
+    function ghostNetworkDedupeKey(event) {
+        const payload = event && event.payload && typeof event.payload === "object" ? event.payload : {};
+        return String(event && (event.dedupe_key || payload.dedupe_key || payload.event_id || `${event.type || "event"}:${ghostNetworkEventVersion(event)}`) || "").trim();
+    }
+
+    function rememberGhostNetworkDelta(event) {
+        const key = ghostNetworkDedupeKey(event);
+        if (!key) return false;
+        if (ghostNetworkDeltaState.processedSet.has(key)) return true;
+        ghostNetworkDeltaState.processedSet.add(key);
+        ghostNetworkDeltaState.processed.push(key);
+        while (ghostNetworkDeltaState.processed.length > 400) {
+            const removed = ghostNetworkDeltaState.processed.shift();
+            ghostNetworkDeltaState.processedSet.delete(removed);
+        }
+        return false;
+    }
+
+    function notifyGhostNetworkDeltaViews(event) {
+        Object.values(ghostNetworkDeltaState.callbacks || {}).forEach(callback => {
+            try {
+                if (typeof callback === "function") callback(event);
+            } catch (err) {
+                console.warn("[ghostnetwork] view callback failed", err);
+            }
+        });
+    }
+
+    function registerGhostNetworkDeltaView(name, callback) {
+        const key = String(name || `view_${Date.now()}`).trim();
+        if (!key || typeof callback !== "function") return "";
+        ghostNetworkDeltaState.callbacks[key] = callback;
+        return key;
+    }
+
+    function unregisterGhostNetworkDeltaView(name) {
+        const key = String(name || "").trim();
+        if (!key) return false;
+        delete ghostNetworkDeltaState.callbacks[key];
+        return true;
+    }
+
+    async function requestGhostNetworkRecovery(reason, event) {
+        console.warn("[ghostnetwork] delta recovery requested", { reason, type: event && event.type });
+        return recoverGhostNetworkLayer({ reason: reason || "delta_recovery" });
+    }
+
+    function handleGhostNetworkDelta(event) {
+        if (!event || typeof event !== "object") return false;
+        const type = String(event.type || "");
+        if (event.scope !== "ghostnetwork" && !type.startsWith("ghost.")) return false;
+        if (rememberGhostNetworkDelta(event)) return false;
+
+        const eventCycle = ghostNetworkEventCycle(event);
+        if (eventCycle && window.ghostNetworkCycleId && eventCycle !== window.ghostNetworkCycleId) {
+            requestGhostNetworkRecovery("cycle_mismatch", event);
+            return false;
+        }
+
+        const version = ghostNetworkEventVersion(event);
+        const current = Number(window.ghostNetworkStateVersion || 0);
+        if (Number.isFinite(version) && version > 0) {
+            if (current > 0 && version < current) return false;
+            if (current > 0 && version > current + 1) {
+                requestGhostNetworkRecovery("version_gap", event);
+                return false;
+            }
+        }
+
+        const applied = applyGhostNetworkDeltaPayload(event);
+        if (applied) {
+            if (eventCycle) window.ghostNetworkCycleId = eventCycle;
+            if (Number.isFinite(version) && version > 0) {
+                window.ghostNetworkStateVersion = Math.max(Number(window.ghostNetworkStateVersion || 0), version);
+            }
+            const payload = event.payload && typeof event.payload === "object" ? event.payload : {};
+            if (payload.snapshot_checksum) window.ghostNetworkSnapshotChecksum = payload.snapshot_checksum;
+            notifyGhostNetworkDeltaViews(event);
+            return true;
+        }
+        requestGhostNetworkRecovery("unapplied_delta", event);
+        return false;
+    }
+
+    window.GhostNetworkDeltaClient = {
+        handle: handleGhostNetworkDelta,
+        recover: requestGhostNetworkRecovery,
+        registerView: registerGhostNetworkDeltaView,
+        unregisterView: unregisterGhostNetworkDeltaView,
+        state: ghostNetworkDeltaState
+    };
+
+    window.loadGhostNetworkSnapshot = loadGhostNetworkSnapshot;
+    window.renderGhostParts = renderGhostParts;
+    window.renderGhostConnections = renderGhostConnections;
+    window.createGhostConnectionLayer = createGhostConnectionLayer;
+    window.updateGhostConnectionLayer = updateGhostConnectionLayer;
+    window.removeGhostConnectionLayer = removeGhostConnectionLayer;
+    window.applyGhostConnectionDelta = applyGhostConnectionDelta;
+    window.applyGhostNetworkDeltaPayload = applyGhostNetworkDeltaPayload;
+    window.applyGhostNetworkDelta = handleGhostNetworkDelta;
+    window.animateGhostConnectionPulse = animateGhostConnectionPulse;
+    window.applyGhostPartDelta = applyGhostPartDelta;
+    window.removeGhostPartMarker = removeGhostPartMarker;
+    window.renderGhostTerritoryBadge = renderGhostTerritoryBadge;
+    window.openGhostPartPanel = openGhostPartPanel;
+    window.clearGhostNetworkLayer = clearGhostNetworkLayer;
+    window.recoverGhostNetworkLayer = recoverGhostNetworkLayer;
+    window.registerGhostNetworkDeltaView = registerGhostNetworkDeltaView;
+    window.unregisterGhostNetworkDeltaView = unregisterGhostNetworkDeltaView;
+})();

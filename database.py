@@ -2705,15 +2705,29 @@ class GameStateDeltaBus:
     def _event_from_row(cls, row):
         if not row:
             return None
-        return {
+        payload = loads_json(row["payload_json"], {})
+        event = {
             "version": int(row["version"]),
             "scope": row["scope"],
             "type": row["type"],
             "entity_id": row["entity_id"],
             "dedupe_key": row["dedupe_key"],
-            "payload": loads_json(row["payload_json"], {}),
+            "payload": payload,
             "created_at": row["created_at"],
         }
+        if isinstance(payload, dict):
+            for key in (
+                "event_id",
+                "cycle_id",
+                "state_version",
+                "audience_scope",
+                "transaction_id",
+                "transaction_index",
+                "transaction_size",
+            ):
+                if key in payload:
+                    event[key] = payload.get(key)
+        return event
 
     @staticmethod
     def _payload_size(payload):

@@ -8,6 +8,7 @@
   {{ folium_css|safe }}
   <link rel="stylesheet" href="/static/css/style.css">
   <link rel="stylesheet" href="/static/css/blacknet.css">
+  <link rel="stylesheet" href="/static/css/ghostnetwork_map.css">
   <style>
     .context-menu {
       position: absolute;
@@ -1476,9 +1477,11 @@
   </script>
 
 {{ folium_js|safe }}
+<script src="/static/js/map/ghostnetwork.js"></script>
 
     <script>
         const map = window[Object.keys(window).find(k => k.startsWith("map_"))];
+        window.chaosMap = map;
         installLeafletCircleMarkerBoundsGuard();
         let lastContextWasMarker = false;
         const targetLayerRegistry = new Map();
@@ -4463,7 +4466,12 @@
                         await window.bootStep('Snikery reakcji', 'npc', window.refreshResponseNpcCapsules, { total: 1, index: 0, silent: true });
                     })(),
                     window.bootStep('Podatnosci klanow', 'clan_vulnerabilities', window.refreshClanVulnerabilities, { total: 1, index: 0, silent: true }),
-                    window.bootStep('Gracze na mapie', 'player_actors', window.refreshPlayerActors, { total: 1, index: 0, silent: true })
+                    window.bootStep('Gracze na mapie', 'player_actors', window.refreshPlayerActors, { total: 1, index: 0, silent: true }),
+                    (typeof window.loadGhostNetworkSnapshot === 'function'
+                        ? window.bootStep('GhostNetwork', 'ghostnetwork', function() {
+                            return window.loadGhostNetworkSnapshot({ boot: true });
+                        }, { total: 1, index: 0, silent: true })
+                        : Promise.resolve(false))
                 ]).then(() => {
                     normalizeBootLoadedScopes().add('delta_feed_ready');
                 });

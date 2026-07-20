@@ -22,7 +22,7 @@ let stateDeltaPollInFlight = false;
 const processedDeltaKeys = new Set();
 const STATE_DELTA_POLL_INTERVAL_MS = 4000;
 const STATE_DELTA_LIMIT = 100;
-const STATE_DELTA_DEFAULT_RECOVERY_SCOPES = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map", "territory", "incident"];
+const STATE_DELTA_DEFAULT_RECOVERY_SCOPES = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map", "territory", "incident", "ghostnetwork"];
 const CYBERNER_THREAD_REFRESH_INTERVAL_MS = 10000;
 const APP_TERMINAL_AUTO_CLOSE_MS = 30000;
 const DESKTOP_WALLPAPER_CLASSES = [
@@ -7741,6 +7741,25 @@ function updateResponseNpcDeltaView(event = {}) {
     return applied;
 }
 
+function updateGhostNetworkDeltaView(event = {}) {
+    let applied = false;
+    document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
+        try {
+            const mapWindow = frame.contentWindow;
+            if (mapWindow && mapWindow.GhostNetworkDeltaClient && typeof mapWindow.GhostNetworkDeltaClient.handle === "function") {
+                applied = mapWindow.GhostNetworkDeltaClient.handle(event) || applied;
+            } else if (mapWindow && typeof mapWindow.applyGhostNetworkDelta === "function") {
+                applied = mapWindow.applyGhostNetworkDelta(event) || applied;
+            } else if (mapWindow && typeof mapWindow.applyGhostPartDelta === "function") {
+                applied = mapWindow.applyGhostPartDelta(event) || applied;
+            }
+        } catch (err) {
+            console.warn("GhostNetwork delta failed", err);
+        }
+    });
+    return applied;
+}
+
 async function applyDelta(event) {
     if (!event || typeof event !== "object") return false;
     const dedupeKey = event.dedupe_key || `${event.type || 'event'}:${event.version || ''}`;
@@ -7788,6 +7807,10 @@ async function applyDelta(event) {
     }
     if (event.scope === "npc" || String(event.type || "").startsWith("npc.")) {
         updateResponseNpcDeltaView(event);
+        return true;
+    }
+    if (event.scope === "ghostnetwork" || String(event.type || "").startsWith("ghost.")) {
+        updateGhostNetworkDeltaView(event);
         return true;
     }
     if (event.scope === "map") {
@@ -7929,6 +7952,29 @@ async function recoverResponseNpcDeltaScope() {
     return recovered || null;
 }
 
+async function recoverGhostNetworkDeltaScope() {
+    let recovered = false;
+    const tasks = [];
+    document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
+        try {
+            const mapWindow = frame.contentWindow;
+            if (mapWindow && typeof mapWindow.recoverGhostNetworkLayer === "function") {
+                tasks.push(Promise.resolve(mapWindow.recoverGhostNetworkLayer({ reason: "delta_recovery" })));
+                recovered = true;
+            } else if (mapWindow && typeof mapWindow.loadGhostNetworkSnapshot === "function") {
+                tasks.push(Promise.resolve(mapWindow.loadGhostNetworkSnapshot({ recovery: true, reason: "delta_recovery" })));
+                recovered = true;
+            }
+        } catch (err) {
+            console.warn("GhostNetwork delta recovery failed", err);
+        }
+    });
+    if (tasks.length) {
+        await Promise.allSettled(tasks);
+    }
+    return recovered || null;
+}
+
 async function recoverDeltaScopes(recoveryScopes = [], currentVersion = null) {
     const normalizedScopes = Array.isArray(recoveryScopes) && recoveryScopes.length
         ? recoveryScopes
@@ -7975,6 +8021,12 @@ async function recoverDeltaScopes(recoveryScopes = [], currentVersion = null) {
     if (scopes.has("npc")) {
         recoveryTasks.push(recoverResponseNpcDeltaScope().catch(err => {
             console.warn("Response NPC delta recovery failed", err);
+            return null;
+        }));
+    }
+    if (scopes.has("ghostnetwork")) {
+        recoveryTasks.push(recoverGhostNetworkDeltaScope().catch(err => {
+            console.warn("GhostNetwork delta recovery failed", err);
             return null;
         }));
     }

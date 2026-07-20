@@ -18,6 +18,16 @@ def env_int(name, default):
         return int(default)
 
 
+def env_float(name, default):
+    value = os.environ.get(name)
+    if value is None:
+        return float(default)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
 APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
 
 
@@ -81,6 +91,69 @@ VULNERABILITY_REPORT_THRESHOLD = float(os.environ.get("CHAOS_VULNERABILITY_REPOR
 
 PLAYER_HACK_ACCESS_MINUTES = env_int("CHAOS_PLAYER_HACK_ACCESS_MINUTES", 5)
 PLAYER_HACK_COOLDOWN_HOURS = env_int("CHAOS_PLAYER_HACK_COOLDOWN_HOURS", 3)
+
+
+GHOSTNETWORK_DROPS_ENABLED = env_bool("CHAOS_GHOSTNETWORK_DROPS_ENABLED", False)
+GHOSTNETWORK_DROP_CHANCE = max(0.0, min(1.0, env_float("CHAOS_GHOSTNETWORK_DROP_CHANCE", 0.0)))
+GHOSTNETWORK_RESERVATION_TTL_SECONDS = env_int("CHAOS_GHOSTNETWORK_RESERVATION_TTL_SECONDS", 15 * 60)
+GHOSTNETWORK_REWARD_BASE_RSP = env_int("CHAOS_GHOSTNETWORK_REWARD_BASE_RSP", 12)
+GHOSTNETWORK_HOLD_REWARD_PERIOD_SECONDS = env_int("CHAOS_GHOSTNETWORK_HOLD_REWARD_PERIOD_SECONDS", 60 * 60)
+GHOSTNETWORK_PAUSE_HOLD_REWARDS_DURING_CONFLICT = env_bool(
+    "CHAOS_GHOSTNETWORK_PAUSE_HOLD_REWARDS_DURING_CONFLICT",
+    True,
+)
+GHOSTNETWORK_REWARD_MULTIPLIERS = {
+    "part_discovered": env_float("CHAOS_GHOSTNETWORK_REWARD_MULTIPLIER_DISCOVERED", 1.0),
+    "part_first_contained": env_float("CHAOS_GHOSTNETWORK_REWARD_MULTIPLIER_FIRST_CONTAINED", 1.6),
+    "part_first_activated": env_float("CHAOS_GHOSTNETWORK_REWARD_MULTIPLIER_FIRST_ACTIVATED", 2.0),
+    "part_recovered": env_float("CHAOS_GHOSTNETWORK_REWARD_MULTIPLIER_RECOVERED", 1.4),
+    "part_stable_held": env_float("CHAOS_GHOSTNETWORK_REWARD_MULTIPLIER_STABLE_HELD", 0.5),
+    "part_defended": env_float("CHAOS_GHOSTNETWORK_REWARD_MULTIPLIER_DEFENDED", 1.2),
+    "defense_support": env_float("CHAOS_GHOSTNETWORK_REWARD_MULTIPLIER_DEFENSE_SUPPORT", 0.8),
+    "attack_support": env_float("CHAOS_GHOSTNETWORK_REWARD_MULTIPLIER_ATTACK_SUPPORT", 0.8),
+    "territory_repaired": env_float("CHAOS_GHOSTNETWORK_REWARD_MULTIPLIER_TERRITORY_REPAIRED", 0.7),
+    "ability_support": env_float("CHAOS_GHOSTNETWORK_REWARD_MULTIPLIER_ABILITY_SUPPORT", 0.6),
+    "transmission_node_held": env_float("CHAOS_GHOSTNETWORK_REWARD_MULTIPLIER_TRANSMISSION_NODE_HELD", 1.5),
+    "network_closer": env_float("CHAOS_GHOSTNETWORK_REWARD_MULTIPLIER_NETWORK_CLOSER", 3.0),
+}
+GHOSTNETWORK_CLAN_REPUTATION_WEIGHTS = {
+    "part_discovered": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_DISCOVERED", 1),
+    "part_first_contained": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_FIRST_CONTAINED", 2),
+    "part_first_activated": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_FIRST_ACTIVATED", 3),
+    "part_recovered": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_RECOVERED", 2),
+    "part_stable_held": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_STABLE_HELD", 1),
+    "part_defended": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_DEFENDED", 2),
+    "defense_support": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_DEFENSE_SUPPORT", 1),
+    "attack_support": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_ATTACK_SUPPORT", 1),
+    "territory_repaired": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_TERRITORY_REPAIRED", 1),
+    "ability_support": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_ABILITY_SUPPORT", 1),
+    "transmission_node_held": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_TRANSMISSION_NODE_HELD", 2),
+    "network_closer": env_int("CHAOS_GHOSTNETWORK_CLAN_REP_NETWORK_CLOSER", 5),
+}
+GHOSTNETWORK_DEFENSE_POLICY = {
+    "min_attack_progress": env_int("CHAOS_GHOSTNETWORK_DEFENSE_MIN_ATTACK_PROGRESS", 25),
+    "min_integrity_loss": env_int("CHAOS_GHOSTNETWORK_DEFENSE_MIN_INTEGRITY_LOSS", 10),
+    "min_offensive_actions": env_int("CHAOS_GHOSTNETWORK_DEFENSE_MIN_OFFENSIVE_ACTIONS", 1),
+    "min_defensive_score": env_int("CHAOS_GHOSTNETWORK_DEFENSE_MIN_DEFENSIVE_SCORE", 1),
+    "min_conflict_seconds": env_int("CHAOS_GHOSTNETWORK_DEFENSE_MIN_CONFLICT_SECONDS", 60),
+    "support_min_score": env_int("CHAOS_GHOSTNETWORK_DEFENSE_SUPPORT_MIN_SCORE", 2),
+    "owner_reward_score": env_int("CHAOS_GHOSTNETWORK_DEFENSE_OWNER_SCORE", 14),
+    "support_reward_score": env_int("CHAOS_GHOSTNETWORK_DEFENSE_SUPPORT_SCORE", 5),
+    "total_rsp_cap": env_int("CHAOS_GHOSTNETWORK_DEFENSE_TOTAL_RSP_CAP", 60),
+}
+GHOSTNETWORK_RECOVERY_POLICY = {
+    "min_previous_control_seconds": env_int("CHAOS_GHOSTNETWORK_RECOVERY_MIN_PREVIOUS_CONTROL_SECONDS", 60 * 60),
+    "min_offensive_actions": env_int("CHAOS_GHOSTNETWORK_RECOVERY_MIN_OFFENSIVE_ACTIONS", 1),
+    "min_disarm_score": env_int("CHAOS_GHOSTNETWORK_RECOVERY_MIN_DISARM_SCORE", 1),
+    "owner_reward_score": env_int("CHAOS_GHOSTNETWORK_RECOVERY_OWNER_SCORE", 18),
+    "support_reward_score": env_int("CHAOS_GHOSTNETWORK_RECOVERY_SUPPORT_SCORE", 5),
+    "total_rsp_cap": env_int("CHAOS_GHOSTNETWORK_RECOVERY_TOTAL_RSP_CAP", 80),
+}
+GHOSTNETWORK_REWARD_COOLDOWNS = {
+    "same_part_seconds": env_int("CHAOS_GHOSTNETWORK_REWARD_SAME_PART_COOLDOWN_SECONDS", 60 * 60),
+    "same_pair_seconds": env_int("CHAOS_GHOSTNETWORK_REWARD_SAME_PAIR_COOLDOWN_SECONDS", 6 * 60 * 60),
+    "rapid_transfer_review_seconds": env_int("CHAOS_GHOSTNETWORK_REWARD_RAPID_TRANSFER_REVIEW_SECONDS", 15 * 60),
+}
 
 
 DEFAULT_STORAGE_CAPACITY_MB = env_int("CHAOS_DEFAULT_STORAGE_CAPACITY_MB", 512)

@@ -58,6 +58,7 @@ from response_network.response_dispatcher import ResponseDispatcher
 from response_network.territory_context_reader import TerritoryContextReader
 from response_network.territory_delta import TerritoryDeltaPublisher
 from response_network.warning_store import ResponseWarningStore
+from ghostnetwork import GhostNetworkDeltaPublisher, GhostNetworkService, normalize_snapshot_view
 
 app = Flask(__name__)
 
@@ -4680,6 +4681,130 @@ def build_operation_target_id(target):
     key = target_position_key(target) or ("unknown", "unknown")
     label = target_label_value(target) or target.get("source_type") or "target"
     return f"map:{key[0]}:{key[1]}:{label}"
+
+
+def ghostnetwork_player_payload(username, profile):
+    profile = profile if isinstance(profile, dict) else {}
+    return {
+        "player_id": username,
+        "username": username,
+        "clan_code": (
+            profile.get("ghost_clan_code")
+            or profile.get("clan_code")
+            or profile.get("clan")
+            or profile.get("fraction")
+            or profile.get("faction")
+            or ""
+        ),
+        "ghost_clan": profile.get("ghost_clan") or profile.get("clan") or "",
+        "ghost_profession": profile.get("ghost_profession") or profile.get("profession") or "",
+    }
+
+
+def collect_ghostnetwork_domain_events(value):
+    events = []
+    if isinstance(value, dict):
+        if value.get("event_id") and (value.get("event_type") or value.get("type")):
+            events.append(value)
+        for item in value.values():
+            events.extend(collect_ghostnetwork_domain_events(item))
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            events.extend(collect_ghostnetwork_domain_events(item))
+    return events
+
+
+def publish_ghostnetwork_delta_result(username, profile, result):
+    events = collect_ghostnetwork_domain_events(result)
+    if not events:
+        return []
+    viewer = ghostnetwork_player_payload(username, profile)
+    viewer.update({
+        "viewer_id": username,
+        "viewer_clan": viewer.get("clan_code") or "",
+        "viewer_profession": viewer.get("ghost_profession") or profile.get("profession") or "",
+        "audience_scope": "player",
+        "is_authenticated": True,
+    })
+    transaction_id = ""
+    if len(events) > 1:
+        seed = ":".join(str(event.get("event_id") or "") for event in events)
+        transaction_id = f"ghostnetwork:{hashlib.sha1(seed.encode('utf-8')).hexdigest()[:16]}"
+    publisher = GhostNetworkDeltaPublisher(delta_bus=delta_bus)
+    published = []
+    for index, event in enumerate(events):
+        transaction = None
+        if transaction_id:
+            transaction = {
+                "transaction_id": transaction_id,
+                "transaction_index": index,
+                "transaction_size": len(events),
+            }
+        published.extend(publisher.publish_event(event, [viewer], transaction=transaction))
+    return published
+
+
+def safe_ghostnetwork_on_target_aimed(username, profile, target, reason="aimed_target"):
+    target = target if isinstance(target, dict) else {}
+    target_id = str(target.get("target_id") or build_operation_target_id(target) or "").strip()
+    cycle_id = "unknown"
+    try:
+        service = GhostNetworkService()
+        active_cycle = service.get_active_cycle()
+        cycle_id = (active_cycle or {}).get("cycle_id") or "none"
+        return service.on_target_aimed(
+            ghostnetwork_player_payload(username, profile),
+            target,
+            context={"reason": str(reason or "aimed_target")},
+        )
+    except Exception as exc:
+        print(
+            f"[ghostnetwork] on_target_aimed failed cycle_id={cycle_id} "
+            f"player={username} target_id={target_id} error={exc}",
+            flush=True,
+        )
+        return {"ok": False, "status": "hook_failed", "cycle_id": cycle_id}
+
+
+def safe_ghostnetwork_on_target_hacked(username, profile, target, operation=None, result=None, reason="target_hacked"):
+    target = dict(target or {}) if isinstance(target, dict) else {}
+    if target and not target.get("target_id"):
+        target["target_id"] = build_operation_target_id(target)
+    target_id = str(target.get("target_id") or "").strip()
+    cycle_id = "unknown"
+    try:
+        service = GhostNetworkService()
+        active_cycle = service.get_active_cycle()
+        cycle_id = (active_cycle or {}).get("cycle_id") or "none"
+        result_payload = service.on_target_hacked(
+            ghostnetwork_player_payload(username, profile),
+            target,
+            operation=operation,
+            result=result or {"target_captured": True},
+            context={"reason": str(reason or "target_hacked"), "target_captured": True},
+        )
+        publish_ghostnetwork_delta_result(username, profile, result_payload)
+        return result_payload
+    except Exception as exc:
+        print(
+            f"[ghostnetwork] on_target_hacked failed cycle_id={cycle_id} "
+            f"player={username} target_id={target_id} error={exc}",
+            flush=True,
+        )
+        return {"ok": False, "status": "hook_failed", "cycle_id": cycle_id}
+
+
+def set_player_aimed_target(username, profile, aimed_target, update_fields=None, reason="aimed_target"):
+    profile = profile if isinstance(profile, dict) else {}
+    aimed_target = dict(aimed_target or {})
+    if aimed_target and not aimed_target.get("target_id"):
+        aimed_target["target_id"] = build_operation_target_id(aimed_target)
+    fields = dict(update_fields or {})
+    fields["aimed_target"] = aimed_target
+    UserProfileManager(username).update_profile(fields)
+    profile["aimed_target"] = aimed_target
+    safe_ghostnetwork_on_target_aimed(username, profile, aimed_target, reason=reason)
+    return aimed_target
 
 
 def operation_utc_iso(value):
@@ -13616,7 +13741,7 @@ def api_dev_state():
 
 @app.route("/api/state/changes")
 def api_state_changes():
-    recovery_scopes = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map", "territory"]
+    recovery_scopes = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map", "territory", "ghostnetwork"]
     username = session.get("user")
     if not username:
         return jsonify({
@@ -13635,6 +13760,185 @@ def api_state_changes():
     if result.get("recovery_required"):
         result["recovery_scopes"] = recovery_scopes
     return jsonify(result)
+
+
+@app.route("/api/ghostnetwork/snapshot")
+def api_ghostnetwork_snapshot():
+    username = session.get("user")
+    view = str(request.args.get("view") or "map").strip().lower()
+    if not username:
+        return jsonify({
+            "ok": False,
+            "error": "not_logged_in",
+            "scope": "ghostnetwork",
+            "view": view,
+            "current_version": 0,
+            "parts": [],
+        }), 401
+
+    profile = load_profile_readonly(
+        username,
+        strip_sensitive=True,
+        normalize_apps=False,
+        normalize_files=False,
+    )
+    if not profile:
+        session.pop("user", None)
+        session.pop("profile", None)
+        return jsonify({
+            "ok": False,
+            "error": "profile_not_found",
+            "scope": "ghostnetwork",
+            "view": view,
+            "current_version": 0,
+            "parts": [],
+        }), 401
+
+    viewer = ghostnetwork_player_payload(username, profile)
+    viewer.update({
+        "viewer_id": username,
+        "viewer_clan": viewer.get("clan_code") or "",
+        "viewer_profession": viewer.get("ghost_profession") or profile.get("profession") or "",
+        "audience_scope": "player",
+        "is_authenticated": True,
+    })
+
+    try:
+        projection = GhostNetworkService().get_snapshot_for_viewer(viewer)
+    except Exception as exc:
+        print(f"[ghostnetwork] snapshot failed user={username} error={exc}", flush=True)
+        return jsonify({
+            "ok": False,
+            "error": "ghostnetwork_unavailable",
+            "scope": "ghostnetwork",
+            "view": view,
+            "current_version": 0,
+            "parts": [],
+        }), 503
+
+    projection = projection if isinstance(projection, dict) else {}
+    if "parts" not in projection and isinstance(projection.get("snapshot"), dict):
+        raw_snapshot = projection.get("snapshot") or {}
+        projection = {
+            **projection,
+            "cycle": raw_snapshot.get("cycle"),
+            "parts": raw_snapshot.get("parts") or [],
+            "connections": raw_snapshot.get("connections") or [],
+            "machines": raw_snapshot.get("machines") or [],
+            "progress": raw_snapshot.get("progress") or {},
+            "state_version": raw_snapshot.get("state_version") or 0,
+        }
+    projection = normalize_snapshot_view(projection, view=view)
+
+    cycle = projection.get("cycle") if isinstance(projection.get("cycle"), dict) else {}
+    try:
+        current_version = int(projection.get("state_version") or cycle.get("state_version") or 0)
+    except (TypeError, ValueError):
+        current_version = 0
+
+    return jsonify({
+        "ok": True,
+        "scope": "ghostnetwork",
+        "view": projection.get("view") or view or "map",
+        "current_version": current_version,
+        **projection,
+    })
+
+
+def _ghostnetwork_archive_viewer():
+    username = session.get("user")
+    if not username:
+        return None, None, (jsonify({"ok": False, "error": "not_logged_in", "scope": "ghostnetwork_archive"}), 401)
+    profile = load_profile_readonly(
+        username,
+        strip_sensitive=True,
+        normalize_apps=False,
+        normalize_files=False,
+    )
+    if not profile:
+        session.pop("user", None)
+        session.pop("profile", None)
+        return None, None, (jsonify({"ok": False, "error": "profile_not_found", "scope": "ghostnetwork_archive"}), 401)
+    viewer = ghostnetwork_player_payload(username, profile)
+    viewer["viewer_id"] = username
+    return username, viewer, None
+
+
+@app.route("/api/ghostnetwork/archive/signals")
+def api_ghostnetwork_archive_signals():
+    _username, _viewer, error_response = _ghostnetwork_archive_viewer()
+    if error_response:
+        return error_response
+    try:
+        limit = max(1, min(int(request.args.get("limit") or 50), 200))
+    except (TypeError, ValueError):
+        limit = 50
+    return jsonify({
+        "ok": True,
+        "scope": "ghostnetwork_archive",
+        "signals": GhostNetworkService().list_signal_archive(limit=limit),
+    })
+
+
+@app.route("/api/ghostnetwork/archive/signals/<signal_id>")
+def api_ghostnetwork_archive_signal_detail(signal_id):
+    _username, viewer, error_response = _ghostnetwork_archive_viewer()
+    if error_response:
+        return error_response
+    include_private = str(request.args.get("private") or "").strip() in {"1", "true", "yes"}
+    detail = GhostNetworkService().get_signal_archive_detail(signal_id, include_private=include_private)
+    if not detail.get("ok"):
+        return jsonify(detail), 404
+    detail["viewer"] = {
+        "viewer_id": (viewer or {}).get("viewer_id") or "",
+        "clan_code": (viewer or {}).get("clan_code") or "",
+    }
+    return jsonify(detail)
+
+
+@app.route("/api/ghostnetwork/archive/player")
+def api_ghostnetwork_archive_player():
+    username, _viewer, error_response = _ghostnetwork_archive_viewer()
+    if error_response:
+        return error_response
+    try:
+        limit = max(1, min(int(request.args.get("limit") or 50), 200))
+    except (TypeError, ValueError):
+        limit = 50
+    return jsonify(GhostNetworkService().get_player_archive_history(username, limit=limit))
+
+
+@app.route("/api/ghostnetwork/archive/clans")
+def api_ghostnetwork_archive_clans():
+    _username, _viewer, error_response = _ghostnetwork_archive_viewer()
+    if error_response:
+        return error_response
+    try:
+        limit = max(1, min(int(request.args.get("limit") or 100), 250))
+    except (TypeError, ValueError):
+        limit = 100
+    return jsonify(GhostNetworkService().get_clan_archive_history(limit=limit))
+
+
+@app.route("/api/ghostnetwork/archive/map")
+def api_ghostnetwork_archive_map():
+    _username, _viewer, error_response = _ghostnetwork_archive_viewer()
+    if error_response:
+        return error_response
+    try:
+        limit = max(1, min(int(request.args.get("limit") or 200), 1000))
+    except (TypeError, ValueError):
+        limit = 200
+    signal_id = str(request.args.get("signal_id") or "").strip()
+    return jsonify(GhostNetworkService().get_historical_map_layer(signal_id=signal_id, limit=limit))
+
+
+@app.route("/api/ghostnetwork/archive/readiness")
+def api_ghostnetwork_archive_readiness():
+    _username, _viewer, error_response = _ghostnetwork_archive_viewer()
+    if error_response:
+        return error_response
+    return jsonify(GhostNetworkService().get_archive_readiness_report())
 
 
 @app.route("/api/dev/delta-diagnostics")
@@ -15295,13 +15599,18 @@ def hack_action():
     # Zapisz
     merge_latest_aimed_target_runtime_state(profile, session.get("user"))
     session["profile"] = profile
-    mgr.update_profile({
-        "launch_queue": profile["launch_queue"],
-        "aimed_target": profile["aimed_target"],
-        "operations": profile.get("operations", []),
-        "risk_events": profile.get("risk_events", []),
-        "system_messages": profile.get("system_messages", []),
-    })
+    set_player_aimed_target(
+        session["user"],
+        profile,
+        profile["aimed_target"],
+        update_fields={
+            "launch_queue": profile["launch_queue"],
+            "operations": profile.get("operations", []),
+            "risk_events": profile.get("risk_events", []),
+            "system_messages": profile.get("system_messages", []),
+        },
+        reason="hack_action_target_set",
+    )
     record_map_target_delta(
         session["user"],
         profile.get("aimed_target") or {},
@@ -16689,9 +16998,12 @@ def mark_player_target():
         # aplikacje i zabezpieczenia, z wymaganiami HC/level/klan/frakcja.
     }
 
-    mgr = UserProfileManager(viewer_username)
-    mgr.update_profile({"aimed_target": player_target})
-    viewer_profile["aimed_target"] = player_target
+    set_player_aimed_target(
+        viewer_username,
+        viewer_profile,
+        player_target,
+        reason="player_target_mark",
+    )
     session["profile"] = viewer_profile
 
     return jsonify({
@@ -16777,8 +17089,12 @@ def victim_picker_aim():
         }), 409
 
     aimed_target = clean_victim_picker_aimed_target(candidate)
-    UserProfileManager(username).update_profile({"aimed_target": aimed_target})
-    profile["aimed_target"] = aimed_target
+    set_player_aimed_target(
+        username,
+        profile,
+        aimed_target,
+        reason="victim_picker_aim",
+    )
     profile.pop("password", None)
     profile.pop("salt", None)
     session["profile"] = profile
@@ -19276,8 +19592,22 @@ def gonna_win():
         captured_target["owner_username"] = session["user"]
         captured_target["captured_at"] = datetime.utcnow().isoformat(timespec="seconds")
         captured_target["stationary"] = not bool(captured_target.get("generated", False))
+        if not captured_target.get("target_id"):
+            captured_target["target_id"] = build_operation_target_id(captured_target)
         captured_target = territory_store.save_captured_target(session["user"], captured_target)
         captured_target_response = dict(captured_target)
+        safe_ghostnetwork_on_target_hacked(
+            session["user"],
+            profile,
+            captured_target_response,
+            result={
+                "success": True,
+                "target_captured": True,
+                "percent_off": round(percent_off, 2),
+                "source": "gonna_win_capture",
+            },
+            reason="gonna_win_capture",
+        )
 
         hacked_targets = profile.setdefault("hacked", [])
         already_hacked_index = next(

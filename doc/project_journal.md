@@ -9221,3 +9221,794 @@ Poza zakresem:
 Walidacja:
 
 * `python -m unittest tests.test_territory_control`: OK, 8 testow.
+
+## Sprint 110 - GhostNetwork: audyt integracyjny i kontrakt domeny
+
+Rozpoczeto faze GhostNetwork od audytu, bez zmian runtime. Dodano twarda zasade
+dla sprintow 110-130: przed kazdym sprintem trzeba potwierdzic spojnosc z
+`doc/clans_machines.md` i `doc/ghostnetwork_architecture.md`, a raport koncowy
+ma zawierac punkt o tej spojnosci.
+
+Powstal artefakt `doc/sprint_110_integration_audit.md`, ktory
+opisuje granice profilu, target identity, hooki `on_target_aimed` i
+`on_target_hacked`, kwalifikacje markerow, integracje z terytoriami, zakres delt
+`ghostnetwork` oraz bezpieczny most do BlackNetu, Cybernera, Radia i Ollamy.
+
+Najwazniejszy wniosek: GhostNetwork ma byc globalnym modulem swiata, a nie
+drugim profilem, drugim magazynem terytoriow ani drugim systemem mediow.
+
+## Sprint 111 - GhostNetwork: fundament modulu i repozytorium stanu
+
+Wdrozono izolowany fundament domenowy GhostNetwork bez uruchamiania gameplayu
+czesci. Powstal pakiet `ghostnetwork/` z repozytorium, serwisem, kontraktami,
+enumami, modelami zdarzen, widocznoscia-placeholderem i jawnymi wyjatkami
+domenowymi.
+
+Wdrozone:
+
+* `GhostNetworkRepository` oparty o istniejace SQLite/store conventions;
+* tabele `ghost_cycles`, `ghost_parts`, `ghost_part_reservations`,
+  `ghost_connections`, `ghost_part_events`, `ghost_signals`,
+  `ghost_contributions`, `ghost_reward_ledger`, `ghost_clan_reputation` i
+  `ghost_narrative_outbox`;
+* jawna transakcja `with repository.transaction():`;
+* ograniczenia unikalnosci dla `cycle_id + part_code`, `cycle_id + target_id`,
+  aktywnych rezerwacji oraz `dedupe_key`;
+* monotoniczne `state_version`;
+* append-only dziennik zdarzen;
+* internal recovery snapshot;
+* `GhostNetworkService` z `get_active_cycle()`, `get_state_version()`,
+  `get_snapshot_for_viewer()` i `health_check()`;
+* placeholdery przyszlych hookow bez mechaniki runtime.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md` i `doc/sprint_110_integration_audit.md`;
+* GhostNetwork pozostaje globalnym modulem swiata, nie profile cache;
+* brak wywolan `sync_session_profile()`, brak przebudowy mapy i brak publikacji
+  do delta feedu w tym sprincie.
+
+Walidacja:
+
+* `python -m unittest tests.test_ghostnetwork_repository`: OK, 9 testow;
+* `python -m py_compile ghostnetwork\__init__.py ghostnetwork\contracts.py ghostnetwork\enums.py ghostnetwork\errors.py ghostnetwork\events.py ghostnetwork\models.py ghostnetwork\repository.py ghostnetwork\service.py ghostnetwork\visibility.py`: OK.
+
+Poza zakresem pozostaja katalog klanow/maszyn/czesci, dropy, integracja z mapa,
+terytoriami, hackiem, mediami, supermocami i transmisja.
+
+## Sprint 112 - GhostNetwork: katalog klanow, maszyn, profesji i czesci
+
+Wdrozono kanoniczny, wersjonowany katalog GhostNetwork jako stala definicje
+swiata, bez uruchamiania cyklu i bez tworzenia runtime czesci.
+
+Wdrozone:
+
+* `ghostnetwork/catalog.py` z `catalog_version = ghost-canon-1`;
+* cztery klany, cztery maszyny, 20 profesji, 20 czesci i 20 kontraktow mocy;
+* relacje czesc-profesja-maszyna-klan;
+* pierwsza topologiczna kotwica katalogu;
+* walidator katalogu, checksum i diagnostyka;
+* projekcja onboardingu bez ujawniania topologii, polaczen i lokalizacji;
+* read-only normalizacja profilu do `clan_code` i `profession_code`;
+* wpiecie diagnostyki katalogu w `GhostNetworkService.health_check()`.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md`, `doc/sprint_110_integration_audit.md`
+  i `doc/sprint_111_ghostnetwork_repository.md`;
+* katalog pozostaje definicja kanonu, a nie stanem aktywnego cyklu;
+* profil nie dostaje pelnych definicji klanu/profesji;
+* nie powstaja rekordy `ghost_parts`, markery mapy, dropy, transmisja ani
+  aktywne supermoce.
+
+Walidacja:
+
+* `python -m unittest tests.test_ghostnetwork_repository tests.test_ghostnetwork_catalog`: OK, 22 testy;
+* `python -m py_compile ghostnetwork\__init__.py ghostnetwork\catalog.py ghostnetwork\contracts.py ghostnetwork\service.py`: OK.
+
+## Sprint 113 - GhostNetwork: cykle, wersje systemu i 20 czesci
+
+Wdrozono domenowy lifecycle pierwszego cyklu GhostNetwork. Powstal
+`GhostCycleService`, ktory atomowo tworzy cykl, laduje katalog Sprintu 112,
+tworzy dokladnie 20 czesci i aktywuje cykl dopiero po pelnym sukcesie.
+
+Wdrozone:
+
+* `GhostCycleService`;
+* `ensure_active_ghostnetwork_cycle()`;
+* pola `catalog_version`, `catalog_checksum`, `source_version`, `next_version`
+  na cyklu;
+* `catalog_version` na instancjach `ghost_parts`;
+* statusy i blokady przejsc `preparing -> active -> transmitting ->
+  stabilizing -> closed`;
+* atomowy rollback przy bledzie tworzenia czesci;
+* agregat `parts_summary`;
+* zdarzenia `ghost.cycle_created`, `ghost.parts_created`,
+  `ghost.cycle_status_changed` i `ghost.cycle_activated`;
+* rozszerzony `health_check()` dla pelnego cyklu z katalogiem.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md`, `doc/sprint_110_integration_audit.md`,
+  `doc/sprint_111_ghostnetwork_repository.md` i
+  `doc/sprint_112_ghostnetwork_catalog.md`;
+* cykle i czesci pozostaja globalnym stanem swiata, nie elementem profilu;
+* brak dropow, mapy, rezerwacji celu, topologii, transmisji i supermocy.
+
+Walidacja:
+
+* `python -m unittest tests.test_ghostnetwork_repository tests.test_ghostnetwork_catalog tests.test_ghostnetwork_cycle_service`: OK, 33 testy;
+* `python -m py_compile ghostnetwork\__init__.py ghostnetwork\catalog.py ghostnetwork\contracts.py ghostnetwork\cycles.py ghostnetwork\enums.py ghostnetwork\errors.py ghostnetwork\events.py ghostnetwork\models.py ghostnetwork\repository.py ghostnetwork\service.py ghostnetwork\visibility.py`: OK.
+
+## Sprint 114 - GhostNetwork: topologia zamknietego obwodu
+
+Wdrozono logiczna topologie pierwszego cyklu GhostNetwork. Nowy cykl po
+utworzeniu 20 czesci generuje 20 polaczen w jednym zamknietym pierscieniu,
+waliduje obwod i dopiero wtedy moze przejsc do statusu `active`.
+
+Wdrozone:
+
+* `GhostTopologyService`;
+* kanoniczny pierscien `V1 -> S5 -> E4 -> ... -> P2 -> V1`;
+* deterministyczny generator dla kolejnych cykli oparty o `topology_seed`;
+* `validate_topology(cycle_id)`, `get_neighbors(part_id)`,
+  `list_connections(cycle_id)`, `get_ring_order(cycle_id)`;
+* `topology_checksum` na cyklu;
+* `ghost.topology_created`;
+* wewnetrzny snapshot topologii z seed, checksum, ring_order, connections i
+  validation;
+* blokade aktywacji cyklu bez poprawnej topologii;
+* testy split-ring, missing edge, self-loop, duplicate edge, same-clan edge,
+  checksum mismatch, rollback i restart-idempotency.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md`, `doc/sprint_110_integration_audit.md`,
+  `doc/sprint_111_ghostnetwork_repository.md`,
+  `doc/sprint_112_ghostnetwork_catalog.md` i
+  `doc/sprint_113_ghostnetwork_cycle_service.md`;
+* topologia pozostaje wewnetrzna warstwa logiczna, bez publicznych linii mapy;
+* brak dropow, rezerwacji, odkrywania czesci, markerow, transmisji i supermocy.
+
+Walidacja:
+
+* `python -m unittest tests.test_ghostnetwork_repository tests.test_ghostnetwork_catalog tests.test_ghostnetwork_cycle_service tests.test_ghostnetwork_topology`: OK, 43 testy;
+* `python -m py_compile ghostnetwork\__init__.py ghostnetwork\catalog.py ghostnetwork\contracts.py ghostnetwork\cycles.py ghostnetwork\enums.py ghostnetwork\errors.py ghostnetwork\events.py ghostnetwork\models.py ghostnetwork\repository.py ghostnetwork\service.py ghostnetwork\topology.py ghostnetwork\visibility.py`: OK;
+* `git diff --check`: OK.
+
+## Sprint 115 - GhostNetwork: rezerwacja czesci przy oznaczaniu celu
+
+Wdrozono pierwsza niewidoczna integracje GhostNetwork z realnym gameplayem:
+poprawne oznaczenie celu moze wewnetrznie zarezerwowac czesc z aktywnego cyklu,
+ale nie pokazuje tego graczowi i nie blokuje zwyklego hackowania.
+
+Wdrozone:
+
+* `GhostReservationService` i `GhostDropPolicy`;
+* konfiguracja dropow GhostNetwork z domyslnym produkcyjnym `disabled`;
+* wspolny helper `set_player_aimed_target(...)` po skutecznym zapisie celu;
+* bezpieczny hook `safe_ghostnetwork_on_target_aimed(...)`;
+* integracja hooka z mapa, oznaczaniem gracza jako celu i Victim Pickerem;
+* atomowe przejscie czesci `pooled -> reserved`;
+* wygasanie, zwalnianie, attach do przyszlej operacji i diagnostyka rezerwacji;
+* integralnosc recovery dla aktywnych rezerwacji i czesci `reserved`;
+* artefakt `doc/sprint_115_ghostnetwork_reservations.md`.
+
+Najwazniejsze decyzje:
+
+* rezerwacja pozostaje wewnetrzna i nie trafia do `aimed_target`;
+* blad GhostNetwork nie cofa oznaczenia celu;
+* gracz nie moze rezerwowac czesci swojego klanu;
+* ponowne oznaczenie tego samego celu nie robi rerollu i nie przedluza TTL;
+* emisja czesci po sukcesie hacku zostaje na Sprint 116.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md` i sprintami 110-114;
+* GhostNetwork nadal jest globalnym modulem swiata, nie cache profilu;
+* brak markerow, BlackNetu, Cybernera, Radia, supermocy i RSP.
+
+Walidacja:
+
+* `python -m py_compile ghostnetwork\__init__.py ghostnetwork\catalog.py ghostnetwork\contracts.py ghostnetwork\cycles.py ghostnetwork\enums.py ghostnetwork\errors.py ghostnetwork\events.py ghostnetwork\models.py ghostnetwork\repository.py ghostnetwork\reservations.py ghostnetwork\service.py ghostnetwork\topology.py ghostnetwork\visibility.py run.py config.py`: OK;
+* `python -m unittest tests.test_ghostnetwork_repository tests.test_ghostnetwork_catalog tests.test_ghostnetwork_cycle_service tests.test_ghostnetwork_topology tests.test_ghostnetwork_reservations`: OK, 52 testy;
+* `git diff --check`: OK.
+
+## Sprint 116 - GhostNetwork: emisja czesci po skutecznym hacku
+
+Wdrozono kanoniczny moment emisji czesci GhostNetwork po realnym sukcesie
+hackowania. Aktywna rezerwacja moze zostac zatwierdzona dopiero po backendowym
+zapisie przejecia celu, a blad GhostNetwork nie cofa zwyklego gameplayu.
+
+Wdrozone:
+
+* `GhostNetworkService.on_target_hacked(...)`;
+* repozytoryjny commit `discover_reserved_part(...)`;
+* wyszukiwanie aktywnej rezerwacji po `cycle_id`, `player_id`, `target_id` i
+  preferencyjnie `operation_id`;
+* atomowe przejscie rezerwacji `active -> committed`;
+* atomowe przejscie czesci `reserved -> public`;
+* trwala kotwica czesci na celu: `target_id`, `latitude`, `longitude`;
+* audyt odkrycia: `discovered_by`, `discovered_clan`,
+  `discovery_operation_id`, `anchor_snapshot_json`;
+* event `ghost.part_discovered`;
+* idempotencja przez dedupe key odkrycia;
+* diagnostyka integralnosci publicznych czesci i rezerwacji;
+* bezpieczny hook w `/gonna-win` po `territory_store.save_captured_target(...)`;
+* artefakt `doc/sprint_116_ghostnetwork_discovery.md`.
+
+Najwazniejsze decyzje:
+
+* emisja nie zachodzi po kliknieciu, animacji, starcie operacji, `/hack-action`
+  ani samym `aimed_target`;
+* skan, sniff, trace, czesciowe rozbrojenie i start narzedzia nie publikuja
+  czesci;
+* finalny wynik musi zawierac `target_captured`;
+* wygasla rezerwacja albo brak rezerwacji oznacza brak emisji;
+* gracz nie moze ujawnic czesci swojego klanu;
+* ten sam target nie moze wyemitowac czesci drugi raz.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md` i sprintami 110-115;
+* GhostNetwork pozostaje globalnym modulem swiata, nie czescia profilu;
+* czesc staje sie publiczna w stanie domenowym, ale nadal nie ma markerow,
+  topologii na mapie, RSP, BlackNetu, Cybernera, Radia ani supermocy.
+
+Walidacja:
+
+* `python -m py_compile run.py config.py ghostnetwork\repository.py ghostnetwork\service.py ghostnetwork\reservations.py`: OK;
+* `python -m unittest tests.test_ghostnetwork_repository tests.test_ghostnetwork_catalog tests.test_ghostnetwork_cycle_service tests.test_ghostnetwork_topology tests.test_ghostnetwork_reservations tests.test_ghostnetwork_discovery`: OK, 56 testow;
+* `git diff --check`: OK.
+
+## Sprint 117 - GhostNetwork: lifecycle czesci i zdarzenia domenowe
+
+Wdrozono pelny cykl zycia czesci GhostNetwork jako jawny serwis domenowy.
+Czesci przechodza teraz przez kontrolowane stany `pooled`, `reserved`,
+`public`, `contained`, `active` i `consumed`, a konflikt jest osobna nakladka
+`conflict_state`, nie normalnym statusem.
+
+Wdrozone:
+
+* `GhostPartLifecycleService`;
+* transakcyjny `patch_part_lifecycle(...)`;
+* przejscia contain/activate/reveal/freeze/resolve/deactivate/consume;
+* idempotentne eventy domenowe z `dedupe_key`;
+* rozdzielenie `status` i `conflict_state`;
+* pola lifecycle czasu, `territory_state_version` i `consumed_signal_id`;
+* replay historii czesci;
+* health checki wykrywajace niespojne stany;
+* artefakt `doc/sprint_117_ghostnetwork_lifecycle.md`.
+
+Najwazniejsze decyzje:
+
+* `contested` nie jest statusem bazowym;
+* `consumed` jest stanem terminalnym;
+* `activated_at` nie jest nadpisywany przy reaktywacji;
+* lifecycle nie zmienia geometrii terytoriow i nie zapisuje stanu czesci w
+  profilu gracza.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md` i sprintami 110-116;
+* nadal poza zakresem pozostaja integracja z terytoriami, markery mapy, delty,
+  widocznosc odbiorcow, supermoce, media i transmisja GhostSignalu.
+
+Walidacja:
+
+* `python -m py_compile ghostnetwork\enums.py ghostnetwork\errors.py ghostnetwork\repository.py ghostnetwork\lifecycle.py ghostnetwork\service.py`: OK;
+* `python -m unittest tests.test_ghostnetwork_repository tests.test_ghostnetwork_catalog tests.test_ghostnetwork_cycle_service tests.test_ghostnetwork_topology tests.test_ghostnetwork_reservations tests.test_ghostnetwork_discovery tests.test_ghostnetwork_lifecycle`: OK, 60 testow;
+* `git diff --check`: OK.
+
+## Sprint 118 - GhostNetwork: adapter terytorium
+
+Podpieto stan czesci GhostNetwork pod istniejace stabilne terytoria przez
+`GhostTerritoryAdapter`. Adapter reaguje na zdarzenia stabilizacji, konfliktu,
+zwolnienia i zmiany wlasciciela terytorium, a nastepnie korzysta z istniejacego
+`GhostPartLifecycleService`, aby ustawic czesc jako `public`, `contained`,
+`active` albo `conflict_state = contested`.
+
+Wdrozone:
+
+* `GhostTerritoryAdapter`;
+* punktowe rozpoznawanie czesci w zmienionym obszarze przez bounds i
+  point-in-polygon;
+* repozytoryjne odczyty `list_discovered_parts_in_bounds(...)` i
+  `list_parts_by_territory(...)`;
+* recovery `reconcile_parts_with_territories(...)` z domyslnym dry-run;
+* obsluga minimum trzech filarow dla stabilnego terytorium;
+* public decay po zwolnieniu albo utracie stabilnosci terytorium;
+* konflikt overlap bez losowego wyboru wlasciciela;
+* artefakt `doc/sprint_118_ghostnetwork_territory.md`.
+
+Najwazniejsze decyzje:
+
+* GhostNetwork nie tworzy polygonow, filarow, klastrow ani konfliktow;
+* zrodlem prawdy pozostaje istniejacy system terytoriow;
+* konflikt jest nadal nakladka `conflict_state`, a nie bazowym statusem czesci;
+* pelne przeliczenie wszystkich czesci jest tylko sciezka recovery.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md` i sprintami 110-117;
+* nadal poza zakresem pozostaja markery mapy, delty GhostNetwork, supermoce,
+  BlackNet, Cyberner, Radio i transmisja GhostSignalu.
+
+Walidacja:
+
+* `python -m py_compile ghostnetwork\territory.py ghostnetwork\repository.py ghostnetwork\service.py ghostnetwork\__init__.py`: OK;
+* `python -m unittest tests.test_ghostnetwork_repository tests.test_ghostnetwork_catalog tests.test_ghostnetwork_cycle_service tests.test_ghostnetwork_topology tests.test_ghostnetwork_reservations tests.test_ghostnetwork_discovery tests.test_ghostnetwork_lifecycle tests.test_ghostnetwork_territory`: OK, 67 testow;
+* `git diff --check`: OK.
+
+## Sprint 119 - GhostNetwork: kanoniczne stany modulow
+
+Dodano `GhostModuleStateService`, ktory rozstrzyga strategiczny stan czesci
+GhostNetwork bez tworzenia drugiego magazynu stanu. Czesci maja teraz jeden z
+trzech kanonicznych stanow modulu: `neutral`, `blocked` albo `active`, a konflikt
+pozostaje osobna nakladka `conflict_state = contested`.
+
+Wdrozone:
+
+* resolver `resolve_part_module_state(...)`;
+* relacje widza `resolve_part_viewer_relation(...)`;
+* progres maszyny 5/5 i progres cyklu 20/20;
+* eventy `ghost.machine_progress_changed`, `ghost.machine_online` i
+  `ghost.machine_offline`;
+* idempotencja progresu przez fingerprint agregatu i `dedupe_key`;
+* kontrakt `ghost_components` dla Territory Control;
+* diagnostyka `get_modules_status_report(...)`;
+* artefakt `doc/sprint_119_ghostnetwork_module_state.md`.
+
+Najwazniejsze decyzje:
+
+* `contested` nie jest `module_state`;
+* `ability_enabled` wynika wylacznie z `module_state == active`;
+* stan online wlasciciela nie wplywa na aktywnosc modulu;
+* foreign clan moze blokowac czesc, ale nie aktywuje supermocy;
+* `ghost_anchor_protected` chroni komponent, nie blokuje player area.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md` i sprintami 110-118;
+* nadal poza zakresem pozostaja widocznosc gracza, markery mapy, linie,
+  supermoce, nagrody, media i transmisja GhostSignalu.
+
+Walidacja:
+
+* `python -m py_compile ghostnetwork\enums.py ghostnetwork\module_state.py ghostnetwork\service.py ghostnetwork\__init__.py`: OK;
+* `python -m unittest tests.test_ghostnetwork_module_state`: OK, 4 testy;
+* `python -m unittest tests.test_ghostnetwork_repository tests.test_ghostnetwork_catalog tests.test_ghostnetwork_cycle_service tests.test_ghostnetwork_topology tests.test_ghostnetwork_reservations tests.test_ghostnetwork_discovery tests.test_ghostnetwork_lifecycle tests.test_ghostnetwork_territory tests.test_ghostnetwork_module_state`: OK, 71 testow;
+* `git diff --check`: OK.
+
+## Sprint 120 - GhostNetwork: projekcja widocznosci
+
+Dodano `GhostVisibilityService`, czyli jedna bezpieczna projekcje widocznosci
+GhostNetwork dla mapy, API, Suite, Territory Control, BlackNetu, Cybernera,
+Radia, outboxow narracyjnych i przyszlych integracji. Frontend ma otrzymywac
+wylacznie dane, ktore odbiorca moze zobaczyc; ukrywanie przez CSS nie jest
+zrodlem bezpieczenstwa.
+
+Wdrozone:
+
+* `GhostVisibilityService`;
+* `VISIBILITY_VERSION`;
+* `build_viewer_projection(...)`;
+* viewer context dla gracza, klanu, admina i publicznych odbiorcow;
+* poziomy widocznosci `full_public`, `full_owner`, `full_clan`,
+  `active_foreign`, `contained_hidden` i `internal`;
+* projekcje czesci, list czesci, polaczen, maszyn, komponentow terytorium i
+  faktow publicznych;
+* bezpieczne `public_entity_id` dla ukrytych czesci;
+* brak przeciekow `part_code`, `part_id`, `target_id`, ability, profesji i
+  maszyny tam, gdzie odbiorca nie ma uprawnien;
+* `cache_key` zalezne od wersji widocznosci, cyklu, wersji stanu i odbiorcy;
+* grupy Suite: public, blocked, active, self-controlled i clan parts;
+* artefakt `doc/sprint_120_ghostnetwork_visibility.md`.
+
+Najwazniejsze decyzje:
+
+* zrodlem prawdy pozostaje repository, module state i istniejace terytoria;
+* widocznosc nie jest drugim magazynem stanu;
+* konflikt nie zmienia automatycznie uprawnien, tylko zachowuje zamrozony
+  kontekst;
+* publiczne media i BlackNet nie moga dostawac owner-only danych.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md` i sprintami 110-119;
+* nadal poza zakresem pozostaja markery mapy, linie, supermoce, nagrody,
+  BlackNet bridge, Cyberner, Radio, Ollama i transmisja GhostSignalu.
+
+Walidacja:
+
+* `python -m py_compile ghostnetwork\visibility.py ghostnetwork\service.py ghostnetwork\__init__.py`: OK;
+* `python -m unittest tests.test_ghostnetwork_visibility`: OK, 9 testow;
+* `python -m unittest tests.test_ghostnetwork_repository tests.test_ghostnetwork_catalog tests.test_ghostnetwork_cycle_service tests.test_ghostnetwork_topology tests.test_ghostnetwork_reservations tests.test_ghostnetwork_discovery tests.test_ghostnetwork_lifecycle tests.test_ghostnetwork_territory tests.test_ghostnetwork_module_state tests.test_ghostnetwork_visibility`: OK, 80 testow.
+
+## Sprint 121 - GhostNetwork: warstwa mapy
+
+Dodano pierwsza lekka warstwe mapy dla czesci GhostNetwork bez nowego ciezkiego
+pollera. Mapa pobiera readonly snapshot `GET /api/ghostnetwork/snapshot`, renderuje
+wylacznie bezpieczna projekcje Sprintu 120 i korzysta z istniejacego delta feedu
+oraz recovery per scope.
+
+Wdrozone:
+
+* endpoint `GET /api/ghostnetwork/snapshot`;
+* modul `static/js/map/ghostnetwork.js`;
+* style markerow `static/css/ghostnetwork_map.css`;
+* optional boot scope `ghostnetwork` w mapie;
+* dispatch delt `ghostnetwork` i eventow `ghost.*` do otwartej mapy;
+* recovery warstwy GhostNetwork bez pelnego profilu.
+
+Najwazniejsze decyzje:
+
+* brak nowego pollera dla GhostNetwork;
+* brak `/api/profile` i `sync_session_profile()` w map layer;
+* frontend nie liczy widocznosci, tylko renderuje projekcje;
+* ukryte czesci bez dokladnej lokalizacji nie dostaja dokladnego markera.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md` i Sprintem 120;
+* poza zakresem pozostaja polaczenia, Suite, supermoce, nagrody, media,
+  GhostSignal i pelny publisher delt GhostNetwork.
+
+## Sprint 122 - GhostNetwork: zywa topologia mapy
+
+Dodano warstwe polaczen GhostNetwork na mapie. Frontend nadal nie liczy
+topologii ani stanu polaczen; renderuje tylko readonly projekcje z backendu.
+Pozycje, stan i widocznosc linii wynikaja z aktualnych czesci cyklu,
+widocznosci Sprintu 120 oraz istniejacej topologii GhostNetwork.
+
+Wdrozone:
+
+* projekcja polaczen z `public_connection_id`;
+* stany `inactive`, `half_from_a`, `half_from_b` i `active`;
+* ukrywanie linii, gdy aktywna czesc prowadzi do nieodkrytego endpointu;
+* polowki linii dla aktywnej czesci i odkrytego, ale nieaktywnego endpointu;
+* pelne linie dla dwoch aktywnych endpointow;
+* wizualny wariant `contested`, bez rozrywania polaczenia przez konflikt;
+* registry `window.ghostNetworkConnectionLayers`;
+* funkcje `renderGhostConnections()`, `createGhostConnectionLayer()`,
+  `updateGhostConnectionLayer()`, `removeGhostConnectionLayer()`,
+  `applyGhostConnectionDelta()` i `animateGhostConnectionPulse()`;
+* osobne Leaflet panes `ghostNetworkConnectionPane` i `ghostNetworkPulsePane`;
+* lekkie animacje CSS/SVG z obsluga `prefers-reduced-motion`;
+* artefakt `doc/sprint_122_ghostnetwork_topology_map.md`.
+
+Najwazniejsze decyzje:
+
+* brak nowego pollera;
+* brak `/api/profile` i `sync_session_profile()` w tej sciezce;
+* backend decyduje, czy linia istnieje i jaka ma dlugosc;
+* mapa odbudowuje tylko warstwe polaczen przy recovery GhostNetwork.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md` oraz sprintami 120-121;
+* poza zakresem pozostaja Suite, supermoce, nagrody, media, GhostSignal,
+  BlackNet bridge i nowe efekty gameplayowe.
+
+Walidacja:
+
+* `node --check static/js/map/ghostnetwork.js`: OK;
+* `node --check static/js/terminal.js`: OK;
+* `python -m py_compile ghostnetwork\visibility.py ghostnetwork\topology.py ghostnetwork\service.py run.py`: OK;
+* `python -m unittest tests.test_ghostnetwork_visibility tests.test_ghostnetwork_map_layer_contract tests.test_ghostnetwork_map_snapshot_endpoint`: OK, 18 testow;
+* `python -m unittest tests.test_ghostnetwork_catalog tests.test_ghostnetwork_cycle_service tests.test_ghostnetwork_discovery tests.test_ghostnetwork_lifecycle tests.test_ghostnetwork_map_layer_contract tests.test_ghostnetwork_map_snapshot_endpoint tests.test_ghostnetwork_module_state tests.test_ghostnetwork_repository tests.test_ghostnetwork_reservations tests.test_ghostnetwork_territory tests.test_ghostnetwork_topology tests.test_ghostnetwork_visibility`: OK, 89 testow.
+
+## Sprint 123 - GhostNetwork: delty, snapshot i recovery
+
+Dodano lekka synchronizacje GhostNetwork przez istniejacy delta-feed. Zmiany
+czesci, polaczen, maszyn i cyklu moga trafiac do mapy bez reloadu iframe, bez
+pelnego `/api/profile` i bez osobnego pollera na kazda aplikacje.
+
+Wdrozone:
+
+* `GhostNetworkDeltaPublisher`;
+* bezpieczna projekcja delty przez istniejacy `GhostVisibilityService`;
+* `snapshot_checksum` dla snapshotow i delt;
+* widoki snapshotu `map`, `suite`, `territory_summary` i `status`;
+* `rebuild_ghostnetwork_delta_projection(cycle_id, from_version=None)`;
+* publikacja eventow domenowych GhostNetwork do istniejacego `delta_bus`;
+* pola kontraktu `event_id`, `cycle_id`, `state_version`, `audience_scope`,
+  `transaction_id`, `transaction_index` i `transaction_size`;
+* `window.GhostNetworkDeltaClient` z dedupe, wersjonowaniem, recovery po luce,
+  recovery po zmianie cyklu i rejestrem callbackow widokow;
+* artefakt `doc/sprint_123_ghostnetwork_delta_sync.md`.
+
+Najwazniejsze decyzje:
+
+* zrodlem prawdy pozostaje repository GhostNetwork i projekcja widocznosci;
+* delta bus nie jest drugim magazynem stanu;
+* recovery dotyczy tylko scope `ghostnetwork`;
+* widok `suite` nie niesie geometrii linii mapy;
+* wewnetrzne rezerwacje nadal nie sa zwykla delta gracza.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md` oraz sprintami 110-122;
+* poza zakresem pozostaja pelne GUI Suite, transmisja finalna, Ollama,
+  media, sanity refresh i osobna kolejka retry publikacji.
+
+Walidacja:
+
+* `node --check static/js/map/ghostnetwork.js`: OK;
+* `node --check static/js/terminal.js`: OK;
+* `python -m py_compile run.py database.py ghostnetwork/deltas.py`: OK;
+* `python -m unittest tests.test_ghostnetwork_delta_publisher tests.test_ghostnetwork_map_snapshot_endpoint tests.test_ghostnetwork_map_layer_contract`: OK, 9 testow.
+
+## Sprint 124 - GhostNetwork: supermoce profesji i rejestr efektow
+
+Dodano centralny `GhostAbilityRegistry`, ktory uruchamia profesje tylko wtedy,
+gdy odpowiadajacy im modul GhostNetwork naprawde pozostaje aktywny. Dostep do
+mocy jest wyliczany z katalogu, profesji gracza, aktywnego cyklu i
+`module_state == active` czesci, a nie z trwalego pola profilu.
+
+Wdrozone:
+
+* `ghostnetwork/abilities.py`;
+* `GhostAbilityRegistry`;
+* adaptery domenowe `market`, `hack`, `territory`, `operation`, `visibility`,
+  `cyberner` i `generic`;
+* metody serwisowe `resolve_player_abilities()`, `is_ability_active()`,
+  `collect_ability_effects()` i `apply_ability_modifier()`;
+* kontrakt 20 ability z katalogu Sprintu 112;
+* cache kluczowany przez `cycle_id`, `state_version`, `player_id`,
+  `clan_code` i `profession_code`;
+* artefakt `doc/sprint_124_ghostnetwork_abilities.md`;
+* testy `tests.test_ghostnetwork_abilities`.
+
+Najwazniejsze decyzje:
+
+* profil nie dostaje `active_superpowers`, `profession_power_enabled` ani kopii
+  `module_state`;
+* utrata aktywnej czesci wylacza moc przy kolejnym resolve;
+* konflikt nie wylacza mocy, jesli zamrozony stan modulu pozostaje aktywny;
+* `apply_modifier()` jest bezpiecznym no-op do czasu jawnego wdrozenia balansu;
+* endpointy i przyszle integracje maja pytac rejestr albo adapter, nie pisac
+  rozproszonych warunkow `if clan` / `if profession`.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md` oraz sprintami 110-123;
+* poza zakresem pozostaja aktywne komendy mocy, instancje efektow, UI
+  supermocy, nagrody RSP, media, GhostSignal i koncowy balans liczbowy.
+
+Walidacja:
+
+* `python -m py_compile ghostnetwork/abilities.py ghostnetwork/service.py ghostnetwork/__init__.py`: OK;
+* `python -m unittest tests.test_ghostnetwork_abilities tests.test_ghostnetwork_catalog tests.test_ghostnetwork_module_state`: OK, 26 testow.
+
+## Sprint 125 - GhostNetwork: ledger wkładu, RSP i reputacja klanowa
+
+Dodano centralny ledger wkładu i nagród GhostNetwork. System rozdziela
+informację o tym, co gracz zrobił, od decyzji czy i ile RSP należy wypłacić.
+Nagrody zasilają istniejące pole `respect`; nie powstała druga waluta ani
+drugi system poziomów.
+
+Wdrożone:
+
+* `GhostContributionService`;
+* `GhostRewardService`;
+* `GhostClanReputationPolicy`;
+* `resolve_standard_operation_rsp(profile, context)`;
+* rozszerzony schemat `ghost_contributions`, `ghost_reward_ledger`
+  i `ghost_clan_reputation`;
+* idempotentne `reward_key` dla odkryć, pierwszych otoczeń, aktywacji,
+  odzyskań i okresowego hold reward;
+* eventy `ghost.contribution_recorded`, `ghost.reward_pending`,
+  `ghost.reward_applied`, `ghost.clan_reputation_changed`
+  i `ghost.player_history_changed`;
+* dry-run `reconcile_ghost_rewards(...)`;
+* artefakt `doc/sprint_125_ghostnetwork_rewards.md`.
+
+Najważniejsze decyzje:
+
+* wkład nie jest nagrodą i nie znika, gdy reward wynosi `0`;
+* retry eventu nie może wypłacić RSP drugi raz;
+* spokojny hold reward jest wstrzymywany podczas konfliktu;
+* obcy hold nie daje stałej nagrody za utrzymanie;
+* reputacja klanowa służy rankingowi i narracji, nie jest zasobem do wydania.
+
+Spójność z artefaktami GhostNetwork:
+
+* potwierdzono zgodność z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md` oraz sprintami 110-124;
+* poza zakresem pozostają obrona, odbicia, antyfarming, końcowa transmisja
+  i finalny balans mnożników.
+
+Walidacja:
+
+* `python -m py_compile ghostnetwork/repository.py ghostnetwork/service.py ghostnetwork/rewards.py ghostnetwork/__init__.py config.py`: OK;
+* `python -m unittest tests.test_ghostnetwork_rewards`: OK, 6 testów;
+* `python -m unittest tests.test_ghostnetwork_catalog tests.test_ghostnetwork_repository tests.test_ghostnetwork_module_state tests.test_ghostnetwork_abilities`: OK, 35 testów.
+
+## Sprint 126 - GhostNetwork: obrona, odbicia i zabezpieczenia nagrod
+
+Dodano warstwe rozpoznawania realnych obron i odbic czesci GhostNetwork bez
+zmiany gameplayowej wlasnosci terytoriow. System zapisuje snapshot poczatku
+konfliktu, potwierdzone akcje ofensywne i defensywne, okresy stabilnej kontroli
+oraz historie transferow wlascicieli. Nagrody sa ograniczane przez progi,
+cooldowny i deduplikacje; blokowana jest tylko farma RSP, nie samo przejecie
+czesci.
+
+Wdrozone:
+
+* `GhostStrategicConflictService`;
+* `GhostDefenseRewardPolicy`;
+* tabele `ghost_strategic_conflicts`, `ghost_conflict_actions`,
+  `ghost_control_periods` i `ghost_part_transfer_history`;
+* eventy `ghost.defense_started`, `ghost.defense_progress_changed`,
+  `ghost.part_defended`, `ghost.part_recovered`, `ghost.reward_reduced`
+  i `ghost.reward_flagged`;
+* fasada konfliktow w `GhostNetworkService`;
+* artefakt `doc/sprint_126_ghostnetwork_conflicts.md`;
+* testy `tests.test_ghostnetwork_conflicts`.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md`,
+  `doc/ghostnetwork_architecture.md` oraz sprintami 110-125;
+* GhostNetwork nadal czyta wynik istniejacego systemu terytoriow i nie tworzy
+  drugiej geometrii ani drugiej prawdy o wlascicielu.
+
+Walidacja:
+
+* `python -m py_compile config.py ghostnetwork/repository.py ghostnetwork/service.py ghostnetwork/conflicts.py ghostnetwork/__init__.py`: OK;
+* `python -m unittest tests.test_ghostnetwork_conflicts`: OK, 4 testy;
+* `python -m unittest tests.test_ghostnetwork_conflicts tests.test_ghostnetwork_rewards tests.test_ghostnetwork_lifecycle tests.test_ghostnetwork_territory`: OK, 21 testow.
+
+## Sprint 127 - GhostNetwork: domkniecie sieci i blokada cyklu
+
+Dodano atomowy mechanizm zamkniecia kompletnej sieci GhostNetwork. Backend
+potrafi potwierdzic pelne `20/20`, zweryfikowac aktywne maszyny, stabilne
+terytoria, brak nierozstrzygnietych konfliktow oraz zamkniety obwod 20 polaczen,
+a nastepnie zamrozic cykl w statusie `transmitting`.
+
+Wdrozone:
+
+* `GhostNetworkClosureService`;
+* tabela `ghost_cycle_lock_snapshots`;
+* readiness check pelnej sieci;
+* atomowy lock `active -> transmitting`;
+* checksum niezmiennego lock snapshotu;
+* event `ghost.cycle_locked`;
+* fasada closure w `GhostNetworkService`;
+* testy `tests.test_ghostnetwork_closure`;
+* artefakt `doc/sprint_127_ghostnetwork_closure.md`.
+
+Poza zakresem pozostaja transmisja GhostSignalu, koncowe nagrody, zuzycie czesci,
+restart cyklu i zmiana wersji GhostSystemu. Sprint 128 ma korzystac z
+zatwierdzonego lock snapshotu jako zrodla prawdy.
+
+Walidacja:
+
+* `python -m unittest tests.test_ghostnetwork_closure`: OK, 5 testow;
+* `python -m unittest tests.test_ghostnetwork_closure tests.test_ghostnetwork_topology tests.test_ghostnetwork_lifecycle tests.test_ghostnetwork_rewards tests.test_ghostnetwork_conflicts`: OK, 29 testow;
+* `python -m py_compile config.py database.py run.py ghostnetwork\repository.py ghostnetwork\service.py ghostnetwork\closure.py ghostnetwork\__init__.py`: OK;
+* `git diff --check`: OK.
+
+## Sprint 128 - GhostNetwork: transmisja GhostSignalu i restart systemu
+
+Dodano backendowy final cyklu GhostNetwork oparty na niezmiennym lock snapshocie
+ze Sprintu 127. System tworzy jeden `ghost_signals` na cykl, liczy checksum
+payloadu, przyznaje koncowe nagrody, zuzywa wszystkie 20 czesci, archiwizuje
+historyczne wezly, usuwa aktywne polaczenia, podnosi wersje GhostSystemu,
+ustawia restart klienta i rozpoczyna 15-minutowa stabilizacje.
+
+Wdrozone:
+
+* `GhostTransmissionService`;
+* tabele i pola transmisji: `ghost_signals`, `ghost_historical_nodes`,
+  `restart_required`, `restart_signal_id`, wersje restartu;
+* idempotentne API serwisu: `start_transmission`,
+  `resume_interrupted_transmission`, `validate_transmission`;
+* eventy transmisji, restartu, zuzycia czesci, zamkniecia polaczen i
+  stabilizacji;
+* health-check spojnosci po transmisji;
+* testy `tests.test_ghostnetwork_transmission`;
+* artefakt `doc/sprint_128_ghostnetwork_transmission.md`.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md` oraz
+  `doc/ghostnetwork_architecture.md`;
+* transmisja nie liczy wyniku z zywego swiata, tylko z lock snapshotu;
+* GhostNetwork nadal nie tworzy drugiego systemu terytoriow ani drugiego zrodla
+  prawdy o wlascicielach.
+
+Poza zakresem pozostaja odpowiedz z 2108, rozstrzygniecie outcome,
+frontendowa animacja finalu i start kolejnego aktywnego cyklu po stabilizacji.
+
+Walidacja:
+
+* `python -m unittest tests.test_ghostnetwork_transmission tests.test_ghostnetwork_closure tests.test_ghostnetwork_lifecycle tests.test_ghostnetwork_rewards tests.test_ghostnetwork_conflicts`: OK, 23 testy;
+* `python -m py_compile config.py database.py run.py ghostnetwork\repository.py ghostnetwork\service.py ghostnetwork\closure.py ghostnetwork\transmission.py ghostnetwork\__init__.py`: OK;
+* `git diff --check`: OK.
+
+## Sprint 129 - GhostNetwork: BlackNet, Cyberner, Radio i narracyjny outbox
+
+Dodano pierwszy bezpieczny most narracyjny GhostNetwork. `GhostNarrativePublisher`
+buduje zatwierdzone fakty z domenowego eventu i lock snapshotu, a nastepnie
+zapisuje idempotentne rekordy do istniejacego `ghost_narrative_outbox` dla
+BlackNetu, Cybernera, Radia i przyszlego outboxa Ollamy.
+
+Wdrozone:
+
+* `GhostNarrativePublisher`;
+* rozszerzenie `ghost_narrative_outbox` o pola Sprintu 129;
+* fakty `signal_sent`, `network_closed`, `restart_required`;
+* dozwolone CTA bez przejmowania czesci, nagrod, teleportu bez potwierdzenia
+  i uruchamiania mocy;
+* walidator odpowiedzi modelu narracyjnego;
+* retry publikacji bez duplikowania rekordow;
+* integracja z `GhostNetworkService.start_transmission()`;
+* testy `tests.test_ghostnetwork_narrative`;
+* artefakt `doc/sprint_129_ghostnetwork_narrative_outbox.md`.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md` oraz
+  `doc/ghostnetwork_architecture.md`;
+* outbox nie jest zrodlem prawdy i nie liczy stanu gry;
+* Ollama otrzymuje tylko zatwierdzone fakty i nie moze zmieniac mechaniki.
+
+Poza zakresem pozostaja finalny renderer publikacji BlackNetu, bezposrednie
+wiadomosci Cybernera, automatyczne sterowanie radiem, realna integracja z
+Ollama oraz odpowiedz z 2108.
+
+Walidacja:
+
+* `python -m py_compile ghostnetwork/repository.py ghostnetwork/narrative.py ghostnetwork/service.py`: OK;
+* `python -m unittest tests.test_ghostnetwork_narrative tests.test_ghostnetwork_transmission`: OK, 8 testow.
+
+## Sprint 130 - GhostNetwork: archiwum, testy koncowe i uruchomienie endgame
+
+Dodano read-only archiwum GhostNetwork zamykajace pierwszy etap endgame.
+`GhostArchiveService` materializuje historie na podstawie istniejacych tabel
+sygnalow, lock snapshotow, historycznych wezlow, ledgerow i reputacji klanow.
+Archiwum nie jest drugim zrodlem stanu i nie zmienia mechaniki gry.
+
+Wdrozone:
+
+* tabele `ghost_achievements`;
+* idempotentne osiagniecia archiwalne z `dedupe_key`;
+* finalizacja archiwum po `GhostNetworkService.start_transmission()`;
+* publiczna lista sygnalow i szczegoly sygnalu;
+* prywatny widok szczegolow z odkrywcami, wlascicielami i ledgerem;
+* historia gracza, historia klanow i historyczna warstwa mapy jako read-only;
+* endpointy `/api/ghostnetwork/archive/*`;
+* readiness report endgame;
+* artefakt `doc/sprint_130_ghostnetwork_archive_readiness.md`;
+* runbook `doc/ghostnetwork_endgame_runbook.md`.
+
+Spojnosc z artefaktami GhostNetwork:
+
+* potwierdzono zgodnosc z `doc/clans_machines.md` oraz
+  `doc/ghostnetwork_architecture.md`;
+* archiwum czyta stan z obecnego repozytorium GhostNetwork;
+* endpointy archiwum uzywaja lekkiego `load_profile_readonly` tylko do
+  identyfikacji widza i nie uruchamiaja `sync_session_profile()`;
+* Suite UI, sterowanie Ollama i kolejny cykl pozostaja poza zakresem.
+
+Walidacja:
+
+* `python -m py_compile ghostnetwork/repository.py ghostnetwork/archive.py ghostnetwork/service.py ghostnetwork/__init__.py run.py`: OK;
+* `python -m unittest tests.test_ghostnetwork_archive tests.test_ghostnetwork_transmission tests.test_ghostnetwork_narrative tests.test_ghostnetwork_repository`: OK, 20 testow;
+* `python -m unittest discover -s tests -p "test_ghostnetwork*.py"`: OK, 127 testow.

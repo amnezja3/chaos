@@ -1,0 +1,4223 @@
+from __future__ import annotations
+
+import copy
+import hashlib
+import math
+from contextlib import contextmanager, nullcontext
+from datetime import datetime, timezone
+from sqlite3 import IntegrityError
+
+from database import DB_PATH, db_connect, dumps_json, loads_json
+
+from .catalog import CATALOG_VERSION, get_catalog, get_catalog_checksum
+from .enums import (
+    AUDIENCE_SCOPES,
+    BLOCKING_CYCLE_STATUSES,
+    CYCLE_STATUSES,
+    PART_CONFLICT_STATES,
+    PART_STATUSES,
+    RESERVATION_STATUSES,
+)
+from .errors import (
+    CycleAlreadyActive,
+    CycleNotFound,
+    InvalidStateTransition,
+    PartNotFound,
+    RepositoryIntegrityError,
+    ReservationConflict,
+    ReservationExpired,
+)
+
+
+def _utc_now():
+    return datetime.now(timezone.utc)
+
+
+def _iso(value=None):
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, (int, float)):
+        dt = datetime.fromtimestamp(float(value), tz=timezone.utc)
+    elif value:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    else:
+        dt = _utc_now()
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat()
+
+
+def _clean(value, default=""):
+    text = str(value or "").strip()
+    return text or default
+
+
+def _hash_id(prefix, *parts):
+    raw = ":".join(str(part or "") for part in parts)
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    return f"{prefix}_{digest}"
+
+
+class GhostNetworkRepository:
+    """SQLite repository for GhostNetwork state.
+
+    This repository is the Sprint 111 foundation only. It stores cycles, parts,
+    reservations, connections and append-only events without touching player
+    profiles, map layers or gameplay endpoints.
+    """
+
+    def __init__(self, db_path=DB_PATH, clock=None):
+        self.db_path = db_path
+        self.clock = clock
+        self._transaction_conn = None
+        self._ensure_schema()
+
+    def now(self):
+        if self.clock:
+            value = self.clock() if callable(self.clock) else self.clock.now()
+            return _iso(value)
+        return _iso()
+
+    @contextmanager
+    def transaction(self):
+        if self._transaction_conn is not None:
+            yield self
+            return
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            self._transaction_conn = conn
+            try:
+                yield self
+            finally:
+                self._transaction_conn = None
+
+    @contextmanager
+    def _conn(self):
+        if self._transaction_conn is not None:
+            yield self._transaction_conn
+        else:
+            with db_connect(self.db_path) as conn:
+                yield conn
+
+    def _ensure_schema(self):
+        with db_connect(self.db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_cycles (
+                    cycle_id TEXT PRIMARY KEY,
+                    signal_number INTEGER NOT NULL,
+                    ghostsystem_version INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    topology_seed TEXT NOT NULL DEFAULT '',
+                    topology_checksum TEXT NOT NULL DEFAULT '',
+                    state_version INTEGER NOT NULL DEFAULT 0,
+                    started_at TEXT NOT NULL DEFAULT '',
+                    locked_at TEXT NOT NULL DEFAULT '',
+                    transmitted_at TEXT NOT NULL DEFAULT '',
+                    stabilization_until TEXT NOT NULL DEFAULT '',
+                    closed_at TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            self._ensure_column(conn, "ghost_cycles", "catalog_version", "catalog_version TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_cycles", "topology_checksum", "topology_checksum TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_cycles", "catalog_checksum", "catalog_checksum TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_cycles", "source_version", "source_version TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_cycles", "next_version", "next_version TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_cycles", "lock_event_id", "lock_event_id TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_cycles", "closing_part_id", "closing_part_id TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_cycles", "restart_required", "restart_required INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "ghost_cycles", "restart_reason", "restart_reason TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_cycles", "restart_signal_id", "restart_signal_id TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_cycles", "restart_from_version", "restart_from_version TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_cycles", "restart_to_version", "restart_to_version TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_cycles", "restart_required_at", "restart_required_at TEXT NOT NULL DEFAULT ''")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_parts (
+                    part_id TEXT PRIMARY KEY,
+                    cycle_id TEXT NOT NULL,
+                    part_code TEXT NOT NULL,
+                    clan_code TEXT NOT NULL,
+                    machine_code TEXT NOT NULL,
+                    profession_code TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    target_id TEXT NOT NULL DEFAULT '',
+                    latitude REAL,
+                    longitude REAL,
+                    discovered_by TEXT NOT NULL DEFAULT '',
+                    discovered_at TEXT NOT NULL DEFAULT '',
+                    territory_id TEXT NOT NULL DEFAULT '',
+                    territory_owner_id TEXT NOT NULL DEFAULT '',
+                    territory_clan TEXT NOT NULL DEFAULT '',
+                    activated_at TEXT NOT NULL DEFAULT '',
+                    deactivated_at TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(cycle_id, part_code),
+                    FOREIGN KEY(cycle_id) REFERENCES ghost_cycles(cycle_id)
+                )
+                """
+            )
+            self._ensure_column(conn, "ghost_parts", "catalog_version", "catalog_version TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_parts", "discovered_clan", "discovered_clan TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_parts", "discovery_operation_id", "discovery_operation_id TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_parts", "anchor_snapshot_json", "anchor_snapshot_json TEXT NOT NULL DEFAULT '{}'")
+            self._ensure_column(conn, "ghost_parts", "source_state", "source_state TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_parts", "conflict_state", "conflict_state TEXT NOT NULL DEFAULT 'none'")
+            self._ensure_column(conn, "ghost_parts", "frozen_status", "frozen_status TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_parts", "conflict_id", "conflict_id TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_parts", "territory_state_version", "territory_state_version INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "ghost_parts", "contained_at", "contained_at TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_parts", "revealed_at", "revealed_at TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_parts", "contested_at", "contested_at TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_parts", "conflict_resolved_at", "conflict_resolved_at TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_parts", "consumed_at", "consumed_at TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_parts", "last_activated_at", "last_activated_at TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_parts", "last_deactivated_at", "last_deactivated_at TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_parts", "consumed_signal_id", "consumed_signal_id TEXT NOT NULL DEFAULT ''")
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_parts_cycle_target
+                ON ghost_parts(cycle_id, target_id)
+                WHERE target_id IS NOT NULL AND target_id != ''
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_part_reservations (
+                    reservation_id TEXT PRIMARY KEY,
+                    cycle_id TEXT NOT NULL,
+                    part_id TEXT NOT NULL,
+                    target_id TEXT NOT NULL,
+                    player_id TEXT NOT NULL,
+                    player_clan TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL,
+                    reserved_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    committed_at TEXT NOT NULL DEFAULT '',
+                    released_at TEXT NOT NULL DEFAULT '',
+                    operation_id TEXT NOT NULL DEFAULT '',
+                    FOREIGN KEY(cycle_id) REFERENCES ghost_cycles(cycle_id),
+                    FOREIGN KEY(part_id) REFERENCES ghost_parts(part_id)
+                )
+                """
+            )
+            self._ensure_column(conn, "ghost_part_reservations", "release_reason", "release_reason TEXT NOT NULL DEFAULT ''")
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_res_active_part
+                ON ghost_part_reservations(cycle_id, part_id)
+                WHERE status = 'active'
+                """
+            )
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_res_active_target
+                ON ghost_part_reservations(cycle_id, target_id)
+                WHERE status = 'active'
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_connections (
+                    connection_id TEXT PRIMARY KEY,
+                    cycle_id TEXT NOT NULL,
+                    part_a_id TEXT NOT NULL,
+                    part_b_id TEXT NOT NULL,
+                    position_in_ring INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(cycle_id, part_a_id, part_b_id),
+                    FOREIGN KEY(cycle_id) REFERENCES ghost_cycles(cycle_id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_part_events (
+                    event_id TEXT PRIMARY KEY,
+                    cycle_id TEXT NOT NULL,
+                    part_id TEXT NOT NULL DEFAULT '',
+                    event_type TEXT NOT NULL,
+                    player_id TEXT NOT NULL DEFAULT '',
+                    clan_code TEXT NOT NULL DEFAULT '',
+                    territory_id TEXT NOT NULL DEFAULT '',
+                    state_version INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    dedupe_key TEXT NOT NULL DEFAULT '',
+                    audience_scope TEXT NOT NULL DEFAULT 'system',
+                    audience_clan TEXT NOT NULL DEFAULT '',
+                    entity_id TEXT NOT NULL DEFAULT '',
+                    FOREIGN KEY(cycle_id) REFERENCES ghost_cycles(cycle_id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_event_dedupe
+                ON ghost_part_events(dedupe_key)
+                WHERE dedupe_key IS NOT NULL AND dedupe_key != ''
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_signals (
+                    signal_id TEXT PRIMARY KEY,
+                    signal_number INTEGER NOT NULL,
+                    cycle_id TEXT NOT NULL,
+                    source_version INTEGER NOT NULL DEFAULT 0,
+                    target_year INTEGER NOT NULL DEFAULT 2108,
+                    status TEXT NOT NULL DEFAULT 'sent',
+                    outcome TEXT NOT NULL DEFAULT 'pending',
+                    integrity INTEGER NOT NULL DEFAULT 100,
+                    recipient TEXT NOT NULL DEFAULT '',
+                    sent_at TEXT NOT NULL DEFAULT '',
+                    resolved_at TEXT NOT NULL DEFAULT '',
+                    next_version INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+            self._ensure_column(conn, "ghost_signals", "lock_snapshot_id", "lock_snapshot_id TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_signals", "signal_checksum", "signal_checksum TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_signals", "created_at", "created_at TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_signals", "payload_json", "payload_json TEXT NOT NULL DEFAULT '{}'")
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_signals_cycle
+                ON ghost_signals(cycle_id)
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_cycle_lock_snapshots (
+                    lock_snapshot_id TEXT PRIMARY KEY,
+                    cycle_id TEXT NOT NULL UNIQUE,
+                    signal_number INTEGER NOT NULL,
+                    ghostsystem_version INTEGER NOT NULL,
+                    state_version INTEGER NOT NULL,
+                    locked_at TEXT NOT NULL,
+                    lock_event_id TEXT NOT NULL DEFAULT '',
+                    closing_part_id TEXT NOT NULL DEFAULT '',
+                    snapshot_json TEXT NOT NULL DEFAULT '{}',
+                    snapshot_checksum TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(cycle_id) REFERENCES ghost_cycles(cycle_id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_historical_nodes (
+                    historical_node_id TEXT PRIMARY KEY,
+                    signal_id TEXT NOT NULL,
+                    cycle_id TEXT NOT NULL,
+                    part_id TEXT NOT NULL,
+                    part_code TEXT NOT NULL DEFAULT '',
+                    latitude REAL,
+                    longitude REAL,
+                    discovered_by TEXT NOT NULL DEFAULT '',
+                    owner_id TEXT NOT NULL DEFAULT '',
+                    clan_code TEXT NOT NULL DEFAULT '',
+                    machine_code TEXT NOT NULL DEFAULT '',
+                    profession_code TEXT NOT NULL DEFAULT '',
+                    active_since TEXT NOT NULL DEFAULT '',
+                    active_until TEXT NOT NULL DEFAULT '',
+                    defense_count INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'spent',
+                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    UNIQUE(signal_id, part_id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_contributions (
+                    contribution_id TEXT PRIMARY KEY,
+                    cycle_id TEXT NOT NULL,
+                    signal_id TEXT NOT NULL DEFAULT '',
+                    player_id TEXT NOT NULL DEFAULT '',
+                    clan_code TEXT NOT NULL DEFAULT '',
+                    contribution_type TEXT NOT NULL,
+                    part_id TEXT NOT NULL DEFAULT '',
+                    territory_id TEXT NOT NULL DEFAULT '',
+                    score INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            self._ensure_column(conn, "ghost_contributions", "profession_code", "profession_code TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_contributions", "operation_id", "operation_id TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_contributions", "weight", "weight REAL NOT NULL DEFAULT 1.0")
+            self._ensure_column(conn, "ghost_contributions", "source_event_id", "source_event_id TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_contributions", "dedupe_key", "dedupe_key TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_contributions", "metadata_json", "metadata_json TEXT NOT NULL DEFAULT '{}'")
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_contribution_dedupe
+                ON ghost_contributions(dedupe_key)
+                WHERE dedupe_key IS NOT NULL AND dedupe_key != ''
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_reward_ledger (
+                    reward_id TEXT PRIMARY KEY,
+                    reward_key TEXT NOT NULL UNIQUE,
+                    cycle_id TEXT NOT NULL,
+                    player_id TEXT NOT NULL,
+                    reward_type TEXT NOT NULL,
+                    rsp_amount INTEGER NOT NULL DEFAULT 0,
+                    level_progress INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    created_at TEXT NOT NULL,
+                    applied_at TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
+            self._ensure_column(conn, "ghost_reward_ledger", "signal_id", "signal_id TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_reward_ledger", "clan_code", "clan_code TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_reward_ledger", "source_event_id", "source_event_id TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_reward_ledger", "base_rsp", "base_rsp INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "ghost_reward_ledger", "multiplier", "multiplier REAL NOT NULL DEFAULT 1.0")
+            self._ensure_column(conn, "ghost_reward_ledger", "final_rsp", "final_rsp INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "ghost_reward_ledger", "failure_reason", "failure_reason TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_reward_ledger", "metadata_json", "metadata_json TEXT NOT NULL DEFAULT '{}'")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_clan_reputation (
+                    clan_code TEXT PRIMARY KEY,
+                    total_reputation INTEGER NOT NULL DEFAULT 0,
+                    signals_participated INTEGER NOT NULL DEFAULT 0,
+                    parts_discovered INTEGER NOT NULL DEFAULT 0,
+                    parts_activated INTEGER NOT NULL DEFAULT 0,
+                    parts_recovered INTEGER NOT NULL DEFAULT 0,
+                    territories_defended INTEGER NOT NULL DEFAULT 0,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            self._ensure_column(conn, "ghost_clan_reputation", "parts_first_contained", "parts_first_contained INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "ghost_clan_reputation", "active_node_seconds", "active_node_seconds INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "ghost_clan_reputation", "transmission_nodes_held", "transmission_nodes_held INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "ghost_clan_reputation", "networks_closed", "networks_closed INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "ghost_clan_reputation", "metadata_json", "metadata_json TEXT NOT NULL DEFAULT '{}'")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_strategic_conflicts (
+                    conflict_id TEXT PRIMARY KEY,
+                    cycle_id TEXT NOT NULL,
+                    part_id TEXT NOT NULL,
+                    territory_id TEXT NOT NULL DEFAULT '',
+                    initial_owner_id TEXT NOT NULL DEFAULT '',
+                    initial_clan TEXT NOT NULL DEFAULT '',
+                    initial_status TEXT NOT NULL DEFAULT '',
+                    initial_integrity INTEGER NOT NULL DEFAULT 100,
+                    initial_security_score INTEGER NOT NULL DEFAULT 0,
+                    active_offensive_operations INTEGER NOT NULL DEFAULT 0,
+                    initial_participants_json TEXT NOT NULL DEFAULT '[]',
+                    snapshot_json TEXT NOT NULL DEFAULT '{}',
+                    status TEXT NOT NULL DEFAULT 'active',
+                    outcome TEXT NOT NULL DEFAULT '',
+                    max_attack_progress INTEGER NOT NULL DEFAULT 0,
+                    offensive_score INTEGER NOT NULL DEFAULT 0,
+                    defensive_score INTEGER NOT NULL DEFAULT 0,
+                    offensive_actors_json TEXT NOT NULL DEFAULT '[]',
+                    defensive_actors_json TEXT NOT NULL DEFAULT '[]',
+                    assessment_json TEXT NOT NULL DEFAULT '{}',
+                    dedupe_key TEXT NOT NULL DEFAULT '',
+                    started_at TEXT NOT NULL,
+                    resolved_at TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_strategic_conflict_dedupe
+                ON ghost_strategic_conflicts(dedupe_key)
+                WHERE dedupe_key IS NOT NULL AND dedupe_key != ''
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_conflict_actions (
+                    action_id TEXT PRIMARY KEY,
+                    conflict_id TEXT NOT NULL,
+                    cycle_id TEXT NOT NULL,
+                    part_id TEXT NOT NULL,
+                    side TEXT NOT NULL,
+                    action_type TEXT NOT NULL,
+                    player_id TEXT NOT NULL DEFAULT '',
+                    clan_code TEXT NOT NULL DEFAULT '',
+                    profession_code TEXT NOT NULL DEFAULT '',
+                    target_id TEXT NOT NULL DEFAULT '',
+                    operation_id TEXT NOT NULL DEFAULT '',
+                    mechanical_value INTEGER NOT NULL DEFAULT 0,
+                    weight REAL NOT NULL DEFAULT 1.0,
+                    source_event_id TEXT NOT NULL DEFAULT '',
+                    dedupe_key TEXT NOT NULL DEFAULT '',
+                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_conflict_action_dedupe
+                ON ghost_conflict_actions(dedupe_key)
+                WHERE dedupe_key IS NOT NULL AND dedupe_key != ''
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_control_periods (
+                    period_id TEXT PRIMARY KEY,
+                    cycle_id TEXT NOT NULL,
+                    part_id TEXT NOT NULL,
+                    owner_id TEXT NOT NULL DEFAULT '',
+                    clan_code TEXT NOT NULL DEFAULT '',
+                    territory_id TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT '',
+                    started_at TEXT NOT NULL,
+                    ended_at TEXT NOT NULL DEFAULT '',
+                    duration_seconds INTEGER NOT NULL DEFAULT 0,
+                    end_reason TEXT NOT NULL DEFAULT '',
+                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    dedupe_key TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_control_period_dedupe
+                ON ghost_control_periods(dedupe_key)
+                WHERE dedupe_key IS NOT NULL AND dedupe_key != ''
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_part_transfer_history (
+                    transfer_id TEXT PRIMARY KEY,
+                    cycle_id TEXT NOT NULL,
+                    part_id TEXT NOT NULL,
+                    previous_owner_id TEXT NOT NULL DEFAULT '',
+                    new_owner_id TEXT NOT NULL DEFAULT '',
+                    previous_clan TEXT NOT NULL DEFAULT '',
+                    new_clan TEXT NOT NULL DEFAULT '',
+                    conflict_id TEXT NOT NULL DEFAULT '',
+                    reward_status TEXT NOT NULL DEFAULT '',
+                    reward_amount INTEGER NOT NULL DEFAULT 0,
+                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    dedupe_key TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_transfer_history_dedupe
+                ON ghost_part_transfer_history(dedupe_key)
+                WHERE dedupe_key IS NOT NULL AND dedupe_key != ''
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_narrative_outbox (
+                    outbox_id TEXT PRIMARY KEY,
+                    event_id TEXT NOT NULL,
+                    audience_scope TEXT NOT NULL,
+                    audience_clan TEXT NOT NULL DEFAULT '',
+                    medium TEXT NOT NULL,
+                    truth_class TEXT NOT NULL,
+                    facts_json TEXT NOT NULL DEFAULT '{}',
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    created_at TEXT NOT NULL,
+                    processed_at TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
+            self._ensure_column(conn, "ghost_narrative_outbox", "cycle_id", "cycle_id TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_narrative_outbox", "signal_id", "signal_id TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "ghost_narrative_outbox", "audience_owner", "audience_owner TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(
+                conn,
+                "ghost_narrative_outbox",
+                "allowed_actions_json",
+                "allowed_actions_json TEXT NOT NULL DEFAULT '[]'",
+            )
+            self._ensure_column(
+                conn,
+                "ghost_narrative_outbox",
+                "canon_version",
+                "canon_version TEXT NOT NULL DEFAULT ''",
+            )
+            self._ensure_column(
+                conn,
+                "ghost_narrative_outbox",
+                "ghostsystem_version",
+                "ghostsystem_version TEXT NOT NULL DEFAULT ''",
+            )
+            self._ensure_column(
+                conn,
+                "ghost_narrative_outbox",
+                "validation_json",
+                "validation_json TEXT NOT NULL DEFAULT '{}'",
+            )
+            self._ensure_column(conn, "ghost_narrative_outbox", "dedupe_key", "dedupe_key TEXT NOT NULL DEFAULT ''")
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_narrative_outbox_dedupe
+                ON ghost_narrative_outbox(dedupe_key)
+                WHERE dedupe_key IS NOT NULL AND dedupe_key != ''
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_achievements (
+                    achievement_id TEXT PRIMARY KEY,
+                    player_id TEXT NOT NULL DEFAULT '',
+                    clan_code TEXT NOT NULL DEFAULT '',
+                    achievement_code TEXT NOT NULL,
+                    cycle_id TEXT NOT NULL DEFAULT '',
+                    signal_id TEXT NOT NULL DEFAULT '',
+                    source_id TEXT NOT NULL DEFAULT '',
+                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    awarded_at TEXT NOT NULL,
+                    dedupe_key TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_achievement_dedupe
+                ON ghost_achievements(dedupe_key)
+                WHERE dedupe_key IS NOT NULL AND dedupe_key != ''
+                """
+            )
+
+    @staticmethod
+    def _ensure_column(conn, table, column, ddl):
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        if column not in {row["name"] for row in rows}:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+
+    @staticmethod
+    def _cycle(row):
+        if not row:
+            return None
+        keys = set(row.keys())
+        return {
+            "cycle_id": row["cycle_id"],
+            "signal_number": int(row["signal_number"] or 0),
+            "ghostsystem_version": int(row["ghostsystem_version"] or 0),
+            "status": row["status"],
+            "topology_seed": row["topology_seed"],
+            "topology_checksum": row["topology_checksum"],
+            "catalog_version": row["catalog_version"],
+            "catalog_checksum": row["catalog_checksum"],
+            "source_version": row["source_version"],
+            "next_version": row["next_version"],
+            "state_version": int(row["state_version"] or 0),
+            "started_at": row["started_at"],
+            "locked_at": row["locked_at"],
+            "lock_event_id": row["lock_event_id"] if "lock_event_id" in keys else "",
+            "closing_part_id": row["closing_part_id"] if "closing_part_id" in keys else "",
+            "transmitted_at": row["transmitted_at"],
+            "stabilization_until": row["stabilization_until"],
+            "restart_required": bool(row["restart_required"]) if "restart_required" in keys else False,
+            "restart_reason": row["restart_reason"] if "restart_reason" in keys else "",
+            "restart_signal_id": row["restart_signal_id"] if "restart_signal_id" in keys else "",
+            "restart_from_version": row["restart_from_version"] if "restart_from_version" in keys else "",
+            "restart_to_version": row["restart_to_version"] if "restart_to_version" in keys else "",
+            "restart_required_at": row["restart_required_at"] if "restart_required_at" in keys else "",
+            "closed_at": row["closed_at"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    @staticmethod
+    def _signal(row):
+        if not row:
+            return None
+        keys = set(row.keys())
+        return {
+            "signal_id": row["signal_id"],
+            "signal_number": int(row["signal_number"] or 0),
+            "cycle_id": row["cycle_id"],
+            "source_version": int(row["source_version"] or 0),
+            "target_year": int(row["target_year"] or 2108),
+            "status": row["status"],
+            "outcome": row["outcome"],
+            "integrity": row["integrity"] if "integrity" in keys else None,
+            "recipient": row["recipient"] if "recipient" in keys else "",
+            "sent_at": row["sent_at"],
+            "resolved_at": row["resolved_at"],
+            "next_version": int(row["next_version"] or 0),
+            "lock_snapshot_id": row["lock_snapshot_id"] if "lock_snapshot_id" in keys else "",
+            "signal_checksum": row["signal_checksum"] if "signal_checksum" in keys else "",
+            "payload": loads_json(row["payload_json"], {}) if "payload_json" in keys else {},
+            "created_at": row["created_at"] if "created_at" in keys else "",
+        }
+
+    @staticmethod
+    def _cycle_lock_snapshot(row):
+        if not row:
+            return None
+        return {
+            "lock_snapshot_id": row["lock_snapshot_id"],
+            "cycle_id": row["cycle_id"],
+            "signal_number": int(row["signal_number"] or 0),
+            "ghostsystem_version": int(row["ghostsystem_version"] or 0),
+            "state_version": int(row["state_version"] or 0),
+            "locked_at": row["locked_at"],
+            "lock_event_id": row["lock_event_id"],
+            "closing_part_id": row["closing_part_id"],
+            "snapshot": loads_json(row["snapshot_json"], {}),
+            "snapshot_checksum": row["snapshot_checksum"],
+            "created_at": row["created_at"],
+        }
+
+    @staticmethod
+    def _part(row):
+        if not row:
+            return None
+        keys = set(row.keys())
+        anchor_snapshot_json = row["anchor_snapshot_json"] if "anchor_snapshot_json" in keys else "{}"
+        return {
+            "part_id": row["part_id"],
+            "cycle_id": row["cycle_id"],
+            "part_code": row["part_code"],
+            "clan_code": row["clan_code"],
+            "machine_code": row["machine_code"],
+            "profession_code": row["profession_code"],
+            "status": row["status"],
+            "catalog_version": row["catalog_version"],
+            "target_id": row["target_id"],
+            "latitude": row["latitude"],
+            "longitude": row["longitude"],
+            "discovered_by": row["discovered_by"],
+            "discovered_clan": row["discovered_clan"] if "discovered_clan" in keys else "",
+            "discovered_at": row["discovered_at"],
+            "discovery_operation_id": row["discovery_operation_id"] if "discovery_operation_id" in keys else "",
+            "anchor_snapshot": loads_json(anchor_snapshot_json, {}),
+            "anchor_snapshot_json": anchor_snapshot_json,
+            "source_state": row["source_state"] if "source_state" in keys else "",
+            "conflict_state": row["conflict_state"] if "conflict_state" in keys else "none",
+            "frozen_status": row["frozen_status"] if "frozen_status" in keys else "",
+            "conflict_id": row["conflict_id"] if "conflict_id" in keys else "",
+            "territory_id": row["territory_id"],
+            "territory_owner_id": row["territory_owner_id"],
+            "territory_clan": row["territory_clan"],
+            "territory_state_version": int(row["territory_state_version"] or 0) if "territory_state_version" in keys else 0,
+            "contained_at": row["contained_at"] if "contained_at" in keys else "",
+            "activated_at": row["activated_at"],
+            "deactivated_at": row["deactivated_at"],
+            "revealed_at": row["revealed_at"] if "revealed_at" in keys else "",
+            "contested_at": row["contested_at"] if "contested_at" in keys else "",
+            "conflict_resolved_at": row["conflict_resolved_at"] if "conflict_resolved_at" in keys else "",
+            "consumed_at": row["consumed_at"] if "consumed_at" in keys else "",
+            "last_activated_at": row["last_activated_at"] if "last_activated_at" in keys else "",
+            "last_deactivated_at": row["last_deactivated_at"] if "last_deactivated_at" in keys else "",
+            "consumed_signal_id": row["consumed_signal_id"] if "consumed_signal_id" in keys else "",
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    @staticmethod
+    def _reservation(row):
+        if not row:
+            return None
+        return {
+            "reservation_id": row["reservation_id"],
+            "cycle_id": row["cycle_id"],
+            "part_id": row["part_id"],
+            "target_id": row["target_id"],
+            "player_id": row["player_id"],
+            "player_clan": row["player_clan"],
+            "status": row["status"],
+            "reserved_at": row["reserved_at"],
+            "expires_at": row["expires_at"],
+            "committed_at": row["committed_at"],
+            "released_at": row["released_at"],
+            "operation_id": row["operation_id"],
+            "release_reason": row["release_reason"] if "release_reason" in row.keys() else "",
+        }
+
+    @staticmethod
+    def _connection(row):
+        if not row:
+            return None
+        return {
+            "connection_id": row["connection_id"],
+            "cycle_id": row["cycle_id"],
+            "part_a_id": row["part_a_id"],
+            "part_b_id": row["part_b_id"],
+            "position_in_ring": int(row["position_in_ring"] or 0),
+            "created_at": row["created_at"],
+        }
+
+    @staticmethod
+    def _event(row):
+        if not row:
+            return None
+        return {
+            "event_id": row["event_id"],
+            "event_type": row["event_type"],
+            "cycle_id": row["cycle_id"],
+            "part_id": row["part_id"],
+            "entity_id": row["entity_id"],
+            "state_version": int(row["state_version"] or 0),
+            "audience_scope": row["audience_scope"],
+            "audience_clan": row["audience_clan"],
+            "payload": loads_json(row["payload_json"], {}),
+            "created_at": row["created_at"],
+            "dedupe_key": row["dedupe_key"],
+            "player_id": row["player_id"],
+            "clan_code": row["clan_code"],
+            "territory_id": row["territory_id"],
+        }
+
+    @staticmethod
+    def _narrative_outbox(row):
+        if not row:
+            return None
+        keys = set(row.keys())
+        return {
+            "outbox_id": row["outbox_id"],
+            "event_id": row["event_id"],
+            "cycle_id": row["cycle_id"] if "cycle_id" in keys else "",
+            "signal_id": row["signal_id"] if "signal_id" in keys else "",
+            "audience_scope": row["audience_scope"],
+            "audience_clan": row["audience_clan"],
+            "audience_owner": row["audience_owner"] if "audience_owner" in keys else "",
+            "medium": row["medium"],
+            "truth_class": row["truth_class"],
+            "facts": loads_json(row["facts_json"], []),
+            "allowed_actions": loads_json(row["allowed_actions_json"], []) if "allowed_actions_json" in keys else [],
+            "canon_version": row["canon_version"] if "canon_version" in keys else "",
+            "ghostsystem_version": row["ghostsystem_version"] if "ghostsystem_version" in keys else "",
+            "status": row["status"],
+            "created_at": row["created_at"],
+            "processed_at": row["processed_at"],
+            "validation": loads_json(row["validation_json"], {}) if "validation_json" in keys else {},
+            "dedupe_key": row["dedupe_key"] if "dedupe_key" in keys else "",
+        }
+
+    @staticmethod
+    def _contribution(row):
+        if not row:
+            return None
+        keys = set(row.keys())
+        return {
+            "contribution_id": row["contribution_id"],
+            "cycle_id": row["cycle_id"],
+            "signal_id": row["signal_id"],
+            "player_id": row["player_id"],
+            "clan_code": row["clan_code"],
+            "profession_code": row["profession_code"] if "profession_code" in keys else "",
+            "contribution_type": row["contribution_type"],
+            "part_id": row["part_id"],
+            "territory_id": row["territory_id"],
+            "operation_id": row["operation_id"] if "operation_id" in keys else "",
+            "score": int(row["score"] or 0),
+            "weight": float(row["weight"] or 1.0) if "weight" in keys else 1.0,
+            "source_event_id": row["source_event_id"] if "source_event_id" in keys else "",
+            "dedupe_key": row["dedupe_key"] if "dedupe_key" in keys else "",
+            "metadata": loads_json(row["metadata_json"], {}) if "metadata_json" in keys else {},
+            "created_at": row["created_at"],
+        }
+
+    @staticmethod
+    def _reward(row):
+        if not row:
+            return None
+        keys = set(row.keys())
+        final_rsp = int(row["final_rsp"] or row["rsp_amount"] or 0) if "final_rsp" in keys else int(row["rsp_amount"] or 0)
+        base_rsp = int(row["base_rsp"] or final_rsp or 0) if "base_rsp" in keys else final_rsp
+        return {
+            "reward_id": row["reward_id"],
+            "reward_key": row["reward_key"],
+            "cycle_id": row["cycle_id"],
+            "signal_id": row["signal_id"] if "signal_id" in keys else "",
+            "player_id": row["player_id"],
+            "clan_code": row["clan_code"] if "clan_code" in keys else "",
+            "reward_type": row["reward_type"],
+            "source_event_id": row["source_event_id"] if "source_event_id" in keys else "",
+            "base_rsp": base_rsp,
+            "multiplier": float(row["multiplier"] or 1.0) if "multiplier" in keys else 1.0,
+            "final_rsp": final_rsp,
+            "rsp_amount": int(row["rsp_amount"] or final_rsp or 0),
+            "level_progress": int(row["level_progress"] or 0),
+            "status": row["status"],
+            "failure_reason": row["failure_reason"] if "failure_reason" in keys else "",
+            "metadata": loads_json(row["metadata_json"], {}) if "metadata_json" in keys else {},
+            "created_at": row["created_at"],
+            "applied_at": row["applied_at"],
+        }
+
+    @staticmethod
+    def _clan_reputation(row):
+        if not row:
+            return None
+        keys = set(row.keys())
+        return {
+            "clan_code": row["clan_code"],
+            "total_reputation": int(row["total_reputation"] or 0),
+            "signals_participated": int(row["signals_participated"] or 0),
+            "parts_discovered": int(row["parts_discovered"] or 0),
+            "parts_first_contained": int(row["parts_first_contained"] or 0) if "parts_first_contained" in keys else 0,
+            "parts_activated": int(row["parts_activated"] or 0),
+            "parts_recovered": int(row["parts_recovered"] or 0),
+            "territories_defended": int(row["territories_defended"] or 0),
+            "active_node_seconds": int(row["active_node_seconds"] or 0) if "active_node_seconds" in keys else 0,
+            "transmission_nodes_held": int(row["transmission_nodes_held"] or 0) if "transmission_nodes_held" in keys else 0,
+            "networks_closed": int(row["networks_closed"] or 0) if "networks_closed" in keys else 0,
+            "metadata": loads_json(row["metadata_json"], {}) if "metadata_json" in keys else {},
+            "updated_at": row["updated_at"],
+        }
+
+    @staticmethod
+    def _achievement(row):
+        if not row:
+            return None
+        keys = set(row.keys())
+        return {
+            "achievement_id": row["achievement_id"],
+            "player_id": row["player_id"],
+            "clan_code": row["clan_code"] if "clan_code" in keys else "",
+            "achievement_code": row["achievement_code"],
+            "cycle_id": row["cycle_id"] if "cycle_id" in keys else "",
+            "signal_id": row["signal_id"] if "signal_id" in keys else "",
+            "source_id": row["source_id"] if "source_id" in keys else "",
+            "metadata": loads_json(row["metadata_json"], {}) if "metadata_json" in keys else {},
+            "awarded_at": row["awarded_at"],
+            "dedupe_key": row["dedupe_key"] if "dedupe_key" in keys else "",
+        }
+
+    @staticmethod
+    def _strategic_conflict(row):
+        if not row:
+            return None
+        keys = set(row.keys())
+        return {
+            "conflict_id": row["conflict_id"],
+            "cycle_id": row["cycle_id"],
+            "part_id": row["part_id"],
+            "territory_id": row["territory_id"],
+            "initial_owner_id": row["initial_owner_id"],
+            "initial_clan": row["initial_clan"],
+            "initial_status": row["initial_status"],
+            "initial_integrity": int(row["initial_integrity"] or 0),
+            "initial_security_score": int(row["initial_security_score"] or 0),
+            "active_offensive_operations": int(row["active_offensive_operations"] or 0),
+            "initial_participants": loads_json(row["initial_participants_json"], []),
+            "snapshot": loads_json(row["snapshot_json"], {}),
+            "status": row["status"],
+            "outcome": row["outcome"],
+            "max_attack_progress": int(row["max_attack_progress"] or 0),
+            "offensive_score": int(row["offensive_score"] or 0),
+            "defensive_score": int(row["defensive_score"] or 0),
+            "offensive_actors": loads_json(row["offensive_actors_json"], []),
+            "defensive_actors": loads_json(row["defensive_actors_json"], []),
+            "assessment": loads_json(row["assessment_json"], {}),
+            "dedupe_key": row["dedupe_key"] if "dedupe_key" in keys else "",
+            "started_at": row["started_at"],
+            "resolved_at": row["resolved_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    @staticmethod
+    def _conflict_action(row):
+        if not row:
+            return None
+        return {
+            "action_id": row["action_id"],
+            "conflict_id": row["conflict_id"],
+            "cycle_id": row["cycle_id"],
+            "part_id": row["part_id"],
+            "side": row["side"],
+            "action_type": row["action_type"],
+            "player_id": row["player_id"],
+            "clan_code": row["clan_code"],
+            "profession_code": row["profession_code"],
+            "target_id": row["target_id"],
+            "operation_id": row["operation_id"],
+            "mechanical_value": int(row["mechanical_value"] or 0),
+            "weight": float(row["weight"] or 1.0),
+            "source_event_id": row["source_event_id"],
+            "dedupe_key": row["dedupe_key"],
+            "metadata": loads_json(row["metadata_json"], {}),
+            "created_at": row["created_at"],
+        }
+
+    @staticmethod
+    def _control_period(row):
+        if not row:
+            return None
+        return {
+            "period_id": row["period_id"],
+            "cycle_id": row["cycle_id"],
+            "part_id": row["part_id"],
+            "owner_id": row["owner_id"],
+            "clan_code": row["clan_code"],
+            "territory_id": row["territory_id"],
+            "status": row["status"],
+            "started_at": row["started_at"],
+            "ended_at": row["ended_at"],
+            "duration_seconds": int(row["duration_seconds"] or 0),
+            "end_reason": row["end_reason"],
+            "metadata": loads_json(row["metadata_json"], {}),
+            "dedupe_key": row["dedupe_key"],
+        }
+
+    @staticmethod
+    def _transfer_history(row):
+        if not row:
+            return None
+        return {
+            "transfer_id": row["transfer_id"],
+            "cycle_id": row["cycle_id"],
+            "part_id": row["part_id"],
+            "previous_owner_id": row["previous_owner_id"],
+            "new_owner_id": row["new_owner_id"],
+            "previous_clan": row["previous_clan"],
+            "new_clan": row["new_clan"],
+            "conflict_id": row["conflict_id"],
+            "reward_status": row["reward_status"],
+            "reward_amount": int(row["reward_amount"] or 0),
+            "metadata": loads_json(row["metadata_json"], {}),
+            "dedupe_key": row["dedupe_key"],
+            "created_at": row["created_at"],
+        }
+
+    def _require_cycle(self, conn, cycle_id):
+        row = conn.execute("SELECT * FROM ghost_cycles WHERE cycle_id = ?", (_clean(cycle_id),)).fetchone()
+        cycle = self._cycle(row)
+        if not cycle:
+            raise CycleNotFound(f"Cycle not found: {cycle_id}")
+        return cycle
+
+    def _active_cycle_id(self, conn):
+        row = conn.execute(
+            """
+            SELECT cycle_id FROM ghost_cycles
+            WHERE status IN ('preparing', 'active', 'transmitting', 'stabilizing')
+            ORDER BY created_at DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        return row["cycle_id"] if row else ""
+
+    def _bump_version(self, conn, cycle_id):
+        cycle = self._require_cycle(conn, cycle_id)
+        version = int(cycle.get("state_version") or 0) + 1
+        conn.execute(
+            "UPDATE ghost_cycles SET state_version = ?, updated_at = ? WHERE cycle_id = ?",
+            (version, self.now(), cycle_id),
+        )
+        return version
+
+    def get_active_cycle(self):
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM ghost_cycles
+                WHERE status IN ('preparing', 'active', 'transmitting', 'stabilizing')
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ).fetchone()
+            return self._cycle(row)
+
+    def get_cycle(self, cycle_id):
+        with self._conn() as conn:
+            return self._cycle(conn.execute("SELECT * FROM ghost_cycles WHERE cycle_id = ?", (_clean(cycle_id),)).fetchone())
+
+    def list_cycles(self, limit=100):
+        limit = max(1, min(int(limit or 100), 500))
+        with self._conn() as conn:
+            rows = conn.execute("SELECT * FROM ghost_cycles ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+            return [self._cycle(row) for row in rows]
+
+    def create_cycle(
+        self,
+        cycle_id=None,
+        signal_number=1,
+        ghostsystem_version=1,
+        status="preparing",
+        topology_seed="",
+        topology_checksum="",
+        started_at="",
+        catalog_version="",
+        catalog_checksum="",
+        source_version="",
+        next_version="",
+    ):
+        status = _clean(status, "preparing")
+        if status not in CYCLE_STATUSES:
+            raise InvalidStateTransition(f"Invalid cycle status: {status}")
+        with self.transaction():
+            conn = self._transaction_conn
+            if status in BLOCKING_CYCLE_STATUSES and self._active_cycle_id(conn):
+                raise CycleAlreadyActive("GhostNetwork already has an active or transitional cycle.")
+            now = self.now()
+            if not cycle_id:
+                cycle_id = f"ghostnetwork_{int(signal_number or 1):04d}"
+            conn.execute(
+                """
+                INSERT INTO ghost_cycles (
+                    cycle_id, signal_number, ghostsystem_version, status,
+                    topology_seed, topology_checksum, catalog_version, catalog_checksum,
+                    source_version, next_version, state_version,
+                    started_at, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+                """,
+                (
+                    _clean(cycle_id),
+                    int(signal_number or 1),
+                    int(ghostsystem_version or 1),
+                    status,
+                    _clean(topology_seed or cycle_id),
+                    _clean(topology_checksum),
+                    _clean(catalog_version),
+                    _clean(catalog_checksum),
+                    _clean(source_version),
+                    _clean(next_version),
+                    _clean(started_at or now),
+                    now,
+                    now,
+                ),
+            )
+            self.append_event(
+                "ghost.cycle_created",
+                cycle_id=cycle_id,
+                entity_id=cycle_id,
+                dedupe_key=f"ghost:cycle_created:{cycle_id}",
+                payload={
+                    "status": status,
+                    "signal_number": int(signal_number or 1),
+                    "ghostsystem_version": int(ghostsystem_version or 1),
+                    "catalog_version": _clean(catalog_version),
+                },
+            )
+            return self.get_cycle(cycle_id)
+
+    def update_cycle(self, cycle_id, **fields):
+        allowed = {
+            "status",
+            "ghostsystem_version",
+            "topology_seed",
+            "topology_checksum",
+            "started_at",
+            "locked_at",
+            "transmitted_at",
+            "stabilization_until",
+            "closed_at",
+            "catalog_version",
+            "catalog_checksum",
+            "source_version",
+            "next_version",
+            "lock_event_id",
+            "closing_part_id",
+            "restart_required",
+            "restart_reason",
+            "restart_signal_id",
+            "restart_from_version",
+            "restart_to_version",
+            "restart_required_at",
+        }
+        updates = {key: value for key, value in fields.items() if key in allowed}
+        if "status" in updates and updates["status"] not in CYCLE_STATUSES:
+            raise InvalidStateTransition(f"Invalid cycle status: {updates['status']}")
+        if not updates:
+            return self.get_cycle(cycle_id)
+        with self.transaction():
+            conn = self._transaction_conn
+            self._require_cycle(conn, cycle_id)
+            assignments = ", ".join(f"{key} = ?" for key in updates)
+            values = [_clean(value) for value in updates.values()]
+            version = self._bump_version(conn, cycle_id)
+            conn.execute(
+                f"UPDATE ghost_cycles SET {assignments}, updated_at = ? WHERE cycle_id = ?",
+                [*values, self.now(), cycle_id],
+            )
+            self.append_event(
+                "ghost.cycle_state_changed",
+                cycle_id=cycle_id,
+                entity_id=cycle_id,
+                state_version=version,
+                dedupe_key=f"ghost:cycle_update:{cycle_id}:{version}",
+                payload=updates,
+            )
+            return self.get_cycle(cycle_id)
+
+    def lock_cycle(self, cycle_id):
+        return self.update_cycle(cycle_id, status="transmitting", locked_at=self.now())
+
+    def create_cycle_lock_snapshot(self, snapshot):
+        snapshot = snapshot if isinstance(snapshot, dict) else {}
+        cycle_id = _clean(snapshot.get("cycle_id"))
+        lock_snapshot_id = _clean(snapshot.get("lock_snapshot_id"))
+        with self.transaction():
+            conn = self._transaction_conn
+            cycle = self._require_cycle(conn, cycle_id)
+            existing = conn.execute(
+                "SELECT * FROM ghost_cycle_lock_snapshots WHERE cycle_id = ? LIMIT 1",
+                (cycle_id,),
+            ).fetchone()
+            if existing:
+                existing_snapshot = self._cycle_lock_snapshot(existing)
+                existing_snapshot["idempotent"] = True
+                return existing_snapshot
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_cycle_lock_snapshots (
+                        lock_snapshot_id, cycle_id, signal_number, ghostsystem_version,
+                        state_version, locked_at, lock_event_id, closing_part_id,
+                        snapshot_json, snapshot_checksum, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        lock_snapshot_id or _hash_id("lock", cycle_id, snapshot.get("snapshot_checksum")),
+                        cycle_id,
+                        int(snapshot.get("signal_number") or cycle.get("signal_number") or 0),
+                        int(snapshot.get("ghostsystem_version") or cycle.get("ghostsystem_version") or 0),
+                        int(snapshot.get("state_version") or cycle.get("state_version") or 0),
+                        _clean(snapshot.get("locked_at") or self.now()),
+                        _clean(snapshot.get("lock_event_id")),
+                        _clean(snapshot.get("closing_part_id")),
+                        dumps_json(snapshot.get("snapshot") if isinstance(snapshot.get("snapshot"), dict) else {}),
+                        _clean(snapshot.get("snapshot_checksum")),
+                        _clean(snapshot.get("created_at") or self.now()),
+                    ),
+                )
+            except IntegrityError:
+                existing = conn.execute(
+                    "SELECT * FROM ghost_cycle_lock_snapshots WHERE cycle_id = ? LIMIT 1",
+                    (cycle_id,),
+                ).fetchone()
+                if existing:
+                    existing_snapshot = self._cycle_lock_snapshot(existing)
+                    existing_snapshot["idempotent"] = True
+                    return existing_snapshot
+                raise
+            row = conn.execute(
+                "SELECT * FROM ghost_cycle_lock_snapshots WHERE cycle_id = ? LIMIT 1",
+                (cycle_id,),
+            ).fetchone()
+            return self._cycle_lock_snapshot(row)
+
+    def get_cycle_lock_snapshot(self, cycle_id):
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_cycle_lock_snapshots WHERE cycle_id = ? LIMIT 1",
+                (_clean(cycle_id),),
+            ).fetchone()
+            return self._cycle_lock_snapshot(row)
+
+    def list_cycle_lock_snapshots(self, cycle_id):
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM ghost_cycle_lock_snapshots
+                WHERE cycle_id = ?
+                ORDER BY locked_at ASC, lock_snapshot_id ASC
+                """,
+                (_clean(cycle_id),),
+            ).fetchall()
+            return [self._cycle_lock_snapshot(row) for row in rows]
+
+    def list_signals_for_cycle(self, cycle_id, limit=100):
+        limit = max(1, min(int(limit or 100), 1000))
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM ghost_signals
+                WHERE cycle_id = ?
+                ORDER BY sent_at ASC, signal_id ASC
+                LIMIT ?
+                """,
+                (_clean(cycle_id), limit),
+            ).fetchall()
+            return [self._signal(row) for row in rows]
+
+    def list_signals(self, limit=100, status=None):
+        limit = max(1, min(int(limit or 100), 1000))
+        clauses = []
+        params = []
+        if status:
+            clauses.append("status = ?")
+            params.append(_clean(status))
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM ghost_signals
+                {where}
+                ORDER BY sent_at DESC, signal_number DESC, signal_id DESC
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+            return [self._signal(row) for row in rows]
+
+    def get_signal(self, signal_id):
+        with self._conn() as conn:
+            return self._signal(
+                conn.execute(
+                    "SELECT * FROM ghost_signals WHERE signal_id = ? LIMIT 1",
+                    (_clean(signal_id),),
+                ).fetchone()
+            )
+
+    def get_signal_for_cycle(self, cycle_id):
+        with self._conn() as conn:
+            return self._signal(
+                conn.execute(
+                    "SELECT * FROM ghost_signals WHERE cycle_id = ? LIMIT 1",
+                    (_clean(cycle_id),),
+                ).fetchone()
+            )
+
+    def create_signal(self, signal):
+        signal = signal if isinstance(signal, dict) else {}
+        cycle_id = _clean(signal.get("cycle_id"))
+        existing = self.get_signal_for_cycle(cycle_id)
+        if existing:
+            existing["idempotent"] = True
+            return existing
+        now = self.now()
+        signal_id = _clean(signal.get("signal_id") or _hash_id("signal", cycle_id, signal.get("signal_number"), signal.get("lock_snapshot_id")))
+        with self.transaction():
+            conn = self._transaction_conn
+            cycle = self._require_cycle(conn, cycle_id)
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_signals (
+                        signal_id, signal_number, cycle_id, source_version, target_year,
+                        status, outcome, integrity, recipient, sent_at, resolved_at,
+                        next_version, lock_snapshot_id, signal_checksum, created_at, payload_json
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        signal_id,
+                        int(signal.get("signal_number") or cycle.get("signal_number") or 0),
+                        cycle_id,
+                        int(signal.get("source_version") or cycle.get("ghostsystem_version") or 0),
+                        int(signal.get("target_year") or 2108),
+                        _clean(signal.get("status"), "sent"),
+                        _clean(signal.get("outcome"), "pending"),
+                        int(signal.get("integrity") if signal.get("integrity") is not None else 0),
+                        _clean(signal.get("recipient")),
+                        _clean(signal.get("sent_at") or now),
+                        _clean(signal.get("resolved_at")),
+                        int(signal.get("next_version") or 0),
+                        _clean(signal.get("lock_snapshot_id")),
+                        _clean(signal.get("signal_checksum")),
+                        _clean(signal.get("created_at") or now),
+                        dumps_json(signal.get("payload") if isinstance(signal.get("payload"), dict) else {}),
+                    ),
+                )
+            except IntegrityError:
+                existing = self.get_signal_for_cycle(cycle_id)
+                if existing:
+                    existing["idempotent"] = True
+                    return existing
+                raise
+            return self.get_signal(signal_id)
+
+    def get_state_version(self, cycle_id=None):
+        with self._conn() as conn:
+            if not cycle_id:
+                cycle_id = self._active_cycle_id(conn)
+            if not cycle_id:
+                return 0
+            cycle = self._require_cycle(conn, cycle_id)
+            return int(cycle.get("state_version") or 0)
+
+    def increment_state_version(self, cycle_id=None):
+        with self.transaction():
+            conn = self._transaction_conn
+            if not cycle_id:
+                cycle_id = self._active_cycle_id(conn)
+            if not cycle_id:
+                raise CycleNotFound("No active GhostNetwork cycle.")
+            return self._bump_version(conn, cycle_id)
+
+    def create_parts(self, parts):
+        parts = list(parts or [])
+        saved = []
+        with self.transaction():
+            conn = self._transaction_conn
+            for part in parts:
+                part = copy.deepcopy(part if isinstance(part, dict) else {})
+                cycle_id = _clean(part.get("cycle_id"))
+                self._require_cycle(conn, cycle_id)
+                status = _clean(part.get("status"), "pooled")
+                if status not in PART_STATUSES:
+                    raise InvalidStateTransition(f"Invalid part status: {status}")
+                now = self.now()
+                part_id = _clean(part.get("part_id") or _hash_id("part", cycle_id, part.get("part_code")))
+                try:
+                    conn.execute(
+                        """
+                        INSERT INTO ghost_parts (
+                            part_id, cycle_id, part_code, clan_code, machine_code,
+                            profession_code, status, catalog_version, target_id, latitude, longitude,
+                            discovered_by, discovered_at, territory_id,
+                            territory_owner_id, territory_clan, activated_at,
+                            deactivated_at, created_at, updated_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            part_id,
+                            cycle_id,
+                            _clean(part.get("part_code")),
+                            _clean(part.get("clan_code")),
+                            _clean(part.get("machine_code")),
+                            _clean(part.get("profession_code")),
+                            status,
+                            _clean(part.get("catalog_version")),
+                            _clean(part.get("target_id")),
+                            part.get("latitude"),
+                            part.get("longitude"),
+                            _clean(part.get("discovered_by")),
+                            _clean(part.get("discovered_at")),
+                            _clean(part.get("territory_id")),
+                            _clean(part.get("territory_owner_id")),
+                            _clean(part.get("territory_clan")),
+                            _clean(part.get("activated_at")),
+                            _clean(part.get("deactivated_at")),
+                            now,
+                            now,
+                        ),
+                    )
+                except IntegrityError as exc:
+                    raise RepositoryIntegrityError(str(exc)) from exc
+                saved.append(self.get_part(part_id))
+            if saved:
+                cycle_id = saved[0]["cycle_id"]
+                version = self._bump_version(conn, cycle_id)
+                self.append_event(
+                    "ghost.parts_created",
+                    cycle_id=cycle_id,
+                    entity_id=cycle_id,
+                    state_version=version,
+                    dedupe_key=f"ghost:parts_created:{cycle_id}:{version}",
+                    payload={"count": len(saved)},
+                )
+        return saved
+
+    def get_part(self, part_id):
+        with self._conn() as conn:
+            return self._part(conn.execute("SELECT * FROM ghost_parts WHERE part_id = ?", (_clean(part_id),)).fetchone())
+
+    def list_parts(self, cycle_id):
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM ghost_parts WHERE cycle_id = ? ORDER BY part_code ASC",
+                (_clean(cycle_id),),
+            ).fetchall()
+            return [self._part(row) for row in rows]
+
+    def list_discovered_parts_in_bounds(self, cycle_id, min_lat, min_lng, max_lat, max_lng):
+        min_lat, max_lat = sorted((float(min_lat), float(max_lat)))
+        min_lng, max_lng = sorted((float(min_lng), float(max_lng)))
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM ghost_parts
+                WHERE cycle_id = ?
+                  AND status IN ('public', 'contained', 'active')
+                  AND latitude IS NOT NULL
+                  AND longitude IS NOT NULL
+                  AND latitude BETWEEN ? AND ?
+                  AND longitude BETWEEN ? AND ?
+                ORDER BY part_code ASC
+                """,
+                (_clean(cycle_id), min_lat, max_lat, min_lng, max_lng),
+            ).fetchall()
+            return [self._part(row) for row in rows]
+
+    def list_parts_by_territory(self, cycle_id, territory_id):
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM ghost_parts
+                WHERE cycle_id = ?
+                  AND territory_id = ?
+                  AND status IN ('public', 'contained', 'active')
+                ORDER BY part_code ASC
+                """,
+                (_clean(cycle_id), _clean(territory_id)),
+            ).fetchall()
+            return [self._part(row) for row in rows]
+
+    def find_part_by_target(self, cycle_id, target_id):
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_parts WHERE cycle_id = ? AND target_id = ?",
+                (_clean(cycle_id), _clean(target_id)),
+            ).fetchone()
+            return self._part(row)
+
+    def update_part(self, part_id, **fields):
+        allowed = {
+            "status",
+            "target_id",
+            "latitude",
+            "longitude",
+            "discovered_by",
+            "discovered_clan",
+            "discovered_at",
+            "discovery_operation_id",
+            "anchor_snapshot_json",
+            "source_state",
+            "conflict_state",
+            "frozen_status",
+            "conflict_id",
+            "territory_id",
+            "territory_owner_id",
+            "territory_clan",
+            "territory_state_version",
+            "contained_at",
+            "activated_at",
+            "deactivated_at",
+            "revealed_at",
+            "contested_at",
+            "conflict_resolved_at",
+            "consumed_at",
+            "last_activated_at",
+            "last_deactivated_at",
+            "consumed_signal_id",
+        }
+        updates = {key: value for key, value in fields.items() if key in allowed}
+        if "status" in updates and updates["status"] not in PART_STATUSES:
+            raise InvalidStateTransition(f"Invalid part status: {updates['status']}")
+        if "conflict_state" in updates and updates["conflict_state"] not in PART_CONFLICT_STATES:
+            raise InvalidStateTransition(f"Invalid part conflict state: {updates['conflict_state']}")
+        with self.transaction():
+            conn = self._transaction_conn
+            part = self.get_part(part_id)
+            if not part:
+                raise PartNotFound(f"Part not found: {part_id}")
+            if not updates:
+                return part
+            assignments = ", ".join(f"{key} = ?" for key in updates)
+            values = [
+                value if key in {"latitude", "longitude", "territory_state_version"} else _clean(value)
+                for key, value in updates.items()
+            ]
+            version = self._bump_version(conn, part["cycle_id"])
+            try:
+                conn.execute(
+                    f"UPDATE ghost_parts SET {assignments}, updated_at = ? WHERE part_id = ?",
+                    [*values, self.now(), part_id],
+                )
+            except IntegrityError as exc:
+                raise RepositoryIntegrityError(str(exc)) from exc
+            self.append_event(
+                "ghost.part_updated",
+                cycle_id=part["cycle_id"],
+                part_id=part_id,
+                entity_id=part_id,
+                state_version=version,
+                dedupe_key=f"ghost:part_update:{part_id}:{version}",
+                payload=updates,
+            )
+            return self.get_part(part_id)
+
+    def get_event_by_dedupe_key(self, dedupe_key):
+        dedupe_key = _clean(dedupe_key)
+        if not dedupe_key:
+            return None
+        with self._conn() as conn:
+            return self._event(
+                conn.execute(
+                    "SELECT * FROM ghost_part_events WHERE dedupe_key = ? LIMIT 1",
+                    (dedupe_key,),
+                ).fetchone()
+            )
+
+    def patch_part_lifecycle(self, part_id, updates, *, event_type, payload=None,
+                             dedupe_key="", player_id="", clan_code="", territory_id="",
+                             audience_scope="internal", audience_clan="", entity_id=""):
+        updates = updates if isinstance(updates, dict) else {}
+        if not updates:
+            part = self.get_part(part_id)
+            if not part:
+                raise PartNotFound(f"Part not found: {part_id}")
+            return {"part": part, "event": None, "state_version": int(part.get("state_version") or 0)}
+        if dedupe_key:
+            existing = self.get_event_by_dedupe_key(dedupe_key)
+            if existing:
+                part = self.get_part(part_id)
+                return {
+                    "part": part,
+                    "event": existing,
+                    "state_version": int(existing.get("state_version") or 0),
+                    "idempotent": True,
+                }
+        with self.transaction():
+            conn = self._transaction_conn
+            part = self.get_part(part_id)
+            if not part:
+                raise PartNotFound(f"Part not found: {part_id}")
+            allowed = {
+                "status",
+                "target_id",
+                "latitude",
+                "longitude",
+                "discovered_by",
+                "discovered_clan",
+                "discovered_at",
+                "discovery_operation_id",
+                "anchor_snapshot_json",
+                "source_state",
+                "conflict_state",
+                "frozen_status",
+                "conflict_id",
+                "territory_id",
+                "territory_owner_id",
+                "territory_clan",
+                "territory_state_version",
+                "contained_at",
+                "activated_at",
+                "deactivated_at",
+                "revealed_at",
+                "contested_at",
+                "conflict_resolved_at",
+                "consumed_at",
+                "last_activated_at",
+                "last_deactivated_at",
+                "consumed_signal_id",
+            }
+            clean_updates = {key: value for key, value in updates.items() if key in allowed}
+            if "status" in clean_updates and clean_updates["status"] not in PART_STATUSES:
+                raise InvalidStateTransition(f"Invalid part status: {clean_updates['status']}")
+            if "conflict_state" in clean_updates and clean_updates["conflict_state"] not in PART_CONFLICT_STATES:
+                raise InvalidStateTransition(f"Invalid part conflict state: {clean_updates['conflict_state']}")
+            assignments = ", ".join(f"{key} = ?" for key in clean_updates)
+            values = [
+                value if key in {"latitude", "longitude", "territory_state_version"} else _clean(value)
+                for key, value in clean_updates.items()
+            ]
+            version = self._bump_version(conn, part["cycle_id"])
+            event_id = _hash_id(
+                "event",
+                part["cycle_id"],
+                event_type,
+                entity_id or part_id,
+                version,
+                dedupe_key,
+            )
+            event_payload = copy.deepcopy(payload if isinstance(payload, dict) else {})
+            event_payload.setdefault("event_id", event_id)
+            event_payload.setdefault("state_version", version)
+            event_payload.setdefault("dedupe_key", _clean(dedupe_key))
+            try:
+                conn.execute(
+                    f"UPDATE ghost_parts SET {assignments}, updated_at = ? WHERE part_id = ?",
+                    [*values, self.now(), part_id],
+                )
+            except IntegrityError as exc:
+                raise RepositoryIntegrityError(str(exc)) from exc
+            event = self.append_event(
+                event_type,
+                cycle_id=part["cycle_id"],
+                part_id=part_id,
+                entity_id=entity_id or part_id,
+                player_id=player_id,
+                clan_code=clan_code,
+                territory_id=territory_id,
+                state_version=version,
+                audience_scope=audience_scope,
+                audience_clan=audience_clan,
+                dedupe_key=dedupe_key,
+                event_id=event_id,
+                payload=event_payload,
+            )
+            return {"part": self.get_part(part_id), "event": event, "state_version": version}
+
+    def create_reservation(
+        self,
+        cycle_id,
+        part_id,
+        target_id,
+        player_id,
+        player_clan="",
+        reservation_id=None,
+        expires_at=None,
+    ):
+        with self.transaction():
+            conn = self._transaction_conn
+            self._require_cycle(conn, cycle_id)
+            part = self.get_part(part_id)
+            if not part:
+                raise PartNotFound(f"Part not found: {part_id}")
+            if part.get("status") != "pooled":
+                raise ReservationConflict(f"Part is not reservable: {part.get('status')}")
+            if part.get("target_id") or part.get("latitude") is not None or part.get("longitude") is not None:
+                raise ReservationConflict("Part is already anchored.")
+            reservation_id = _clean(reservation_id or _hash_id("reservation", cycle_id, part_id, target_id, player_id))
+            now = self.now()
+            expires_at = _clean(expires_at or now)
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_part_reservations (
+                        reservation_id, cycle_id, part_id, target_id, player_id,
+                        player_clan, status, reserved_at, expires_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
+                    """,
+                    (
+                        reservation_id,
+                        _clean(cycle_id),
+                        _clean(part_id),
+                        _clean(target_id),
+                        _clean(player_id),
+                        _clean(player_clan),
+                        now,
+                        expires_at,
+                    ),
+                )
+                updated = conn.execute(
+                    """
+                    UPDATE ghost_parts
+                    SET status = 'reserved', updated_at = ?
+                    WHERE part_id = ? AND cycle_id = ? AND status = 'pooled'
+                    """,
+                    (now, _clean(part_id), _clean(cycle_id)),
+                ).rowcount
+                if updated != 1:
+                    raise ReservationConflict("Part reservation race.")
+            except IntegrityError as exc:
+                raise ReservationConflict(str(exc)) from exc
+            version = self._bump_version(conn, cycle_id)
+            self.append_event(
+                "ghost.part_reserved",
+                cycle_id=cycle_id,
+                part_id=part_id,
+                entity_id=part_id,
+                player_id=player_id,
+                clan_code=player_clan,
+                state_version=version,
+                dedupe_key=f"ghost:reservation:{reservation_id}",
+                payload={"reservation_id": reservation_id, "target_id": target_id},
+            )
+            return self.get_reservation(reservation_id)
+
+    def list_reservable_parts(self, cycle_id, excluded_clan=""):
+        params = [_clean(cycle_id)]
+        clan_filter = ""
+        excluded_clan = _clean(excluded_clan)
+        if excluded_clan:
+            clan_filter = "AND clan_code != ?"
+            params.append(excluded_clan)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM ghost_parts
+                WHERE cycle_id = ?
+                  AND status = 'pooled'
+                  AND target_id = ''
+                  AND latitude IS NULL
+                  AND longitude IS NULL
+                  {clan_filter}
+                ORDER BY part_code ASC
+                """,
+                params,
+            ).fetchall()
+            return [self._part(row) for row in rows]
+
+    def get_active_reservation(self, cycle_id, part_id=None, target_id=None):
+        clauses = ["cycle_id = ?", "status = 'active'"]
+        params = [_clean(cycle_id)]
+        if part_id:
+            clauses.append("part_id = ?")
+            params.append(_clean(part_id))
+        if target_id:
+            clauses.append("target_id = ?")
+            params.append(_clean(target_id))
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_part_reservations WHERE " + " AND ".join(clauses) + " LIMIT 1",
+                params,
+            ).fetchone()
+            return self._reservation(row)
+
+    def find_active_reservation_for_discovery(self, cycle_id, player_id, target_id, operation_id=""):
+        cycle_id = _clean(cycle_id)
+        player_id = _clean(player_id)
+        target_id = _clean(target_id)
+        operation_id = _clean(operation_id)
+        with self._conn() as conn:
+            if operation_id:
+                row = conn.execute(
+                    """
+                    SELECT *
+                    FROM ghost_part_reservations
+                    WHERE cycle_id = ?
+                      AND player_id = ?
+                      AND target_id = ?
+                      AND operation_id = ?
+                      AND status = 'active'
+                    ORDER BY reserved_at ASC
+                    LIMIT 1
+                    """,
+                    (cycle_id, player_id, target_id, operation_id),
+                ).fetchone()
+                if row:
+                    return self._reservation(row)
+            row = conn.execute(
+                """
+                SELECT *
+                FROM ghost_part_reservations
+                WHERE cycle_id = ?
+                  AND player_id = ?
+                  AND target_id = ?
+                  AND status = 'active'
+                ORDER BY
+                  CASE WHEN operation_id = '' THEN 0 ELSE 1 END,
+                  reserved_at ASC
+                LIMIT 1
+                """,
+                (cycle_id, player_id, target_id),
+            ).fetchone()
+            return self._reservation(row)
+
+    def get_reservation(self, reservation_id):
+        with self._conn() as conn:
+            return self._reservation(
+                conn.execute(
+                    "SELECT * FROM ghost_part_reservations WHERE reservation_id = ?",
+                    (_clean(reservation_id),),
+                ).fetchone()
+            )
+
+    def attach_reservation_to_operation(self, reservation_id, operation_id):
+        with self.transaction():
+            conn = self._transaction_conn
+            reservation = self.get_reservation(reservation_id)
+            if not reservation:
+                raise ReservationConflict(f"Reservation not found: {reservation_id}")
+            if reservation["status"] != "active":
+                raise InvalidStateTransition(f"Reservation is not active: {reservation['status']}")
+            operation_id = _clean(operation_id)
+            if reservation.get("operation_id") == operation_id:
+                return reservation
+            conn.execute(
+                """
+                UPDATE ghost_part_reservations
+                SET operation_id = ?
+                WHERE reservation_id = ? AND status = 'active'
+                """,
+                (operation_id, reservation_id),
+            )
+            version = self._bump_version(conn, reservation["cycle_id"])
+            self.append_event(
+                "ghost.part_reservation_attached",
+                cycle_id=reservation["cycle_id"],
+                part_id=reservation["part_id"],
+                entity_id=reservation["part_id"],
+                player_id=reservation["player_id"],
+                clan_code=reservation["player_clan"],
+                state_version=version,
+                dedupe_key=f"ghost:reservation_attached:{reservation_id}:{operation_id}",
+                payload={"reservation_id": reservation_id, "operation_id": operation_id},
+            )
+            return self.get_reservation(reservation_id)
+
+    def commit_reservation(self, reservation_id, operation_id=""):
+        with self.transaction():
+            conn = self._transaction_conn
+            reservation = self.get_reservation(reservation_id)
+            if not reservation:
+                raise ReservationConflict(f"Reservation not found: {reservation_id}")
+            if reservation["status"] == "committed":
+                raise InvalidStateTransition("Reservation already committed.")
+            if reservation["status"] != "active":
+                raise InvalidStateTransition(f"Reservation is not active: {reservation['status']}")
+            if reservation["expires_at"] and _iso(reservation["expires_at"]) < self.now():
+                conn.execute(
+                    "UPDATE ghost_part_reservations SET status = 'expired' WHERE reservation_id = ?",
+                    (reservation_id,),
+                )
+                raise ReservationExpired("Reservation expired.")
+            now = self.now()
+            conn.execute(
+                """
+                UPDATE ghost_part_reservations
+                SET status = 'committed', committed_at = ?, operation_id = ?
+                WHERE reservation_id = ?
+                """,
+                (now, _clean(operation_id), reservation_id),
+            )
+            version = self._bump_version(conn, reservation["cycle_id"])
+            self.append_event(
+                "ghost.reservation_committed",
+                cycle_id=reservation["cycle_id"],
+                part_id=reservation["part_id"],
+                entity_id=reservation["part_id"],
+                player_id=reservation["player_id"],
+                clan_code=reservation["player_clan"],
+                state_version=version,
+                dedupe_key=f"ghost:reservation_committed:{reservation_id}",
+                payload={"reservation_id": reservation_id, "operation_id": _clean(operation_id)},
+            )
+            return self.get_reservation(reservation_id)
+
+    @staticmethod
+    def _coerce_coordinate(value):
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(numeric):
+            return None
+        return numeric
+
+    @staticmethod
+    def _target_anchor_snapshot(target):
+        target = target if isinstance(target, dict) else {}
+        lat = GhostNetworkRepository._coerce_coordinate(target.get("lat") or target.get("latitude"))
+        lng = GhostNetworkRepository._coerce_coordinate(
+            target.get("lng") or target.get("lon") or target.get("longitude")
+        )
+        label = (
+            target.get("display_label")
+            or target.get("label")
+            or target.get("name")
+            or target.get("title")
+            or target.get("target_id")
+            or target.get("id")
+            or "unknown"
+        )
+        return {
+            "target_id": _clean(target.get("target_id") or target.get("id")),
+            "label": _clean(label, "unknown"),
+            "target_type": _clean(target.get("target_type") or target.get("type") or target.get("target_mode") or "standard"),
+            "source_type": _clean(target.get("source_type") or target.get("category") or "unknown"),
+            "icon_key": _clean(target.get("icon_key") or target.get("icon") or target.get("source_type") or "target"),
+            "latitude": lat,
+            "longitude": lng,
+            "osm_id": _clean(target.get("osm_id")),
+            "node_id": _clean(target.get("node_id")),
+            "procedural_seed": _clean(target.get("procedural_seed") or target.get("seed")),
+            "original_source": _clean(target.get("original_source") or target.get("source") or "map_target"),
+        }
+
+    def discover_reserved_part(
+        self,
+        reservation_id,
+        player=None,
+        target=None,
+        operation_id="",
+        result=None,
+        context=None,
+    ):
+        player = player if isinstance(player, dict) else {}
+        target = target if isinstance(target, dict) else {}
+        result = result if isinstance(result, dict) else {}
+        context = context if isinstance(context, dict) else {}
+        player_id = _clean(player.get("player_id") or player.get("username") or player.get("login"))
+        player_clan = _clean(player.get("clan_code") or player.get("clan"))
+        target_id = _clean(target.get("target_id") or target.get("id"))
+        operation_id = _clean(operation_id)
+        if not target_id:
+            return {"ok": False, "status": "invalid_target", "reason": "missing_target_id"}
+        anchor = self._target_anchor_snapshot({**target, "target_id": target_id})
+        lat = self._coerce_coordinate(anchor.get("latitude"))
+        lng = self._coerce_coordinate(anchor.get("longitude"))
+        if lat is None or lng is None:
+            return {"ok": False, "status": "invalid_target", "reason": "missing_coordinates"}
+
+        with self.transaction():
+            conn = self._transaction_conn
+            reservation = self.get_reservation(reservation_id)
+            if not reservation:
+                return {"ok": False, "status": "no_matching_reservation"}
+            part = self.get_part(reservation["part_id"])
+            if not part:
+                raise PartNotFound(f"Part not found: {reservation['part_id']}")
+
+            if reservation["target_id"] != target_id:
+                return {"ok": False, "status": "target_mismatch"}
+            if player_id and reservation["player_id"] != player_id:
+                return {"ok": False, "status": "player_mismatch"}
+
+            discover_operation_id = operation_id or reservation.get("operation_id") or ""
+            dedupe_key = (
+                f"discover:{reservation['cycle_id']}:{reservation['part_id']}:{discover_operation_id}"
+                if discover_operation_id
+                else f"discover:{reservation['cycle_id']}:{target_id}"
+            )
+            existing_event = conn.execute(
+                "SELECT * FROM ghost_part_events WHERE dedupe_key = ? LIMIT 1",
+                (dedupe_key,),
+            ).fetchone()
+            if existing_event:
+                return {
+                    "ok": True,
+                    "status": "already_discovered",
+                    "part": self.get_part(reservation["part_id"]),
+                    "reservation": reservation,
+                    "event": self._event(existing_event),
+                }
+
+            if reservation["status"] == "committed" and part.get("status") == "public":
+                return {
+                    "ok": True,
+                    "status": "already_discovered",
+                    "part": part,
+                    "reservation": reservation,
+                    "event": None,
+                }
+            if reservation["status"] != "active":
+                return {"ok": False, "status": f"reservation_{reservation['status']}"}
+            if reservation["expires_at"] and _iso(reservation["expires_at"]) < self.now():
+                now = self.now()
+                conn.execute(
+                    """
+                    UPDATE ghost_part_reservations
+                    SET status = 'expired', released_at = ?, release_reason = 'reservation_expired'
+                    WHERE reservation_id = ?
+                    """,
+                    (now, reservation["reservation_id"]),
+                )
+                conn.execute(
+                    """
+                    UPDATE ghost_parts
+                    SET status = 'pooled', updated_at = ?
+                    WHERE part_id = ? AND status = 'reserved'
+                    """,
+                    (now, reservation["part_id"]),
+                )
+                return {"ok": True, "status": "reservation_expired"}
+
+            cycle = self._require_cycle(conn, reservation["cycle_id"])
+            if cycle.get("status") != "active":
+                return {"ok": False, "status": "cycle_not_active"}
+            if part.get("status") != "reserved":
+                return {"ok": False, "status": "part_not_reserved"}
+            if part.get("cycle_id") != cycle["cycle_id"]:
+                return {"ok": False, "status": "cycle_mismatch"}
+            if part.get("clan_code") and player_clan and part.get("clan_code") == player_clan:
+                return {"ok": False, "status": "own_clan_part_blocked"}
+            if part.get("target_id") and part.get("target_id") != target_id:
+                return {"ok": False, "status": "part_target_mismatch"}
+
+            duplicate_target = conn.execute(
+                """
+                SELECT part_id
+                FROM ghost_parts
+                WHERE cycle_id = ? AND target_id = ? AND part_id != ?
+                LIMIT 1
+                """,
+                (cycle["cycle_id"], target_id, part["part_id"]),
+            ).fetchone()
+            if duplicate_target:
+                return {"ok": False, "status": "target_already_emitted", "part_id": duplicate_target["part_id"]}
+
+            now = self.now()
+            anchor_json = dumps_json(anchor)
+            conn.execute(
+                """
+                UPDATE ghost_part_reservations
+                SET status = 'committed', committed_at = ?, operation_id = ?
+                WHERE reservation_id = ? AND status = 'active'
+                """,
+                (now, discover_operation_id, reservation["reservation_id"]),
+            )
+            updated = conn.execute(
+                """
+                UPDATE ghost_parts
+                SET status = 'public',
+                    target_id = ?,
+                    latitude = ?,
+                    longitude = ?,
+                    discovered_by = ?,
+                    discovered_clan = ?,
+                    discovered_at = ?,
+                    discovery_operation_id = ?,
+                    anchor_snapshot_json = ?,
+                    source_state = 'present',
+                    updated_at = ?
+                WHERE part_id = ? AND cycle_id = ? AND status = 'reserved'
+                """,
+                (
+                    target_id,
+                    lat,
+                    lng,
+                    player_id or reservation["player_id"],
+                    player_clan or reservation.get("player_clan") or "",
+                    now,
+                    discover_operation_id,
+                    anchor_json,
+                    now,
+                    part["part_id"],
+                    cycle["cycle_id"],
+                ),
+            ).rowcount
+            if updated != 1:
+                return {"ok": False, "status": "part_update_race"}
+
+            version = self._bump_version(conn, cycle["cycle_id"])
+            event = self.append_event(
+                "ghost.part_discovered",
+                cycle_id=cycle["cycle_id"],
+                part_id=part["part_id"],
+                entity_id=part["part_id"],
+                player_id=player_id or reservation["player_id"],
+                clan_code=player_clan or reservation.get("player_clan") or "",
+                state_version=version,
+                dedupe_key=dedupe_key,
+                audience_scope="system",
+                payload={
+                    "reservation_id": reservation["reservation_id"],
+                    "target_id": target_id,
+                    "operation_id": discover_operation_id,
+                    "anchor": anchor,
+                    "result": result,
+                    "context": context,
+                },
+            )
+            return {
+                "ok": True,
+                "status": "discovered",
+                "part": self.get_part(part["part_id"]),
+                "reservation": self.get_reservation(reservation["reservation_id"]),
+                "event": event,
+                "state_version": version,
+            }
+
+    def release_reservation(self, reservation_id, status="released", reason=""):
+        status = _clean(status, "released")
+        if status not in {"released", "cancelled"}:
+            raise InvalidStateTransition(f"Invalid release status: {status}")
+        with self.transaction():
+            conn = self._transaction_conn
+            reservation = self.get_reservation(reservation_id)
+            if not reservation:
+                raise ReservationConflict(f"Reservation not found: {reservation_id}")
+            if reservation["status"] != "active":
+                return reservation
+            now = self.now()
+            conn.execute(
+                """
+                UPDATE ghost_part_reservations
+                SET status = ?, released_at = ?, release_reason = ?
+                WHERE reservation_id = ?
+                """,
+                (status, now, _clean(reason), reservation_id),
+            )
+            conn.execute(
+                """
+                UPDATE ghost_parts
+                SET status = 'pooled', updated_at = ?
+                WHERE part_id = ? AND status = 'reserved'
+                """,
+                (now, reservation["part_id"]),
+            )
+            version = self._bump_version(conn, reservation["cycle_id"])
+            self.append_event(
+                "ghost.part_reservation_released",
+                cycle_id=reservation["cycle_id"],
+                part_id=reservation["part_id"],
+                entity_id=reservation["part_id"],
+                state_version=version,
+                dedupe_key=f"ghost:reservation_released:{reservation_id}:{status}:{_clean(reason)}",
+                payload={"reservation_id": reservation_id, "status": status, "reason": _clean(reason)},
+            )
+            return self.get_reservation(reservation_id)
+
+    def expire_reservations(self, now=None):
+        now_iso = _iso(now or self.now())
+        expired = []
+        with self.transaction():
+            conn = self._transaction_conn
+            rows = conn.execute(
+                """
+                SELECT * FROM ghost_part_reservations
+                WHERE status = 'active' AND expires_at != '' AND expires_at < ?
+                """,
+                (now_iso,),
+            ).fetchall()
+            for row in rows:
+                reservation = self._reservation(row)
+                conn.execute(
+                    """
+                    UPDATE ghost_part_reservations
+                    SET status = 'expired', released_at = ?, release_reason = 'reservation_expired'
+                    WHERE reservation_id = ?
+                    """,
+                    (now_iso, reservation["reservation_id"]),
+                )
+                conn.execute(
+                    """
+                    UPDATE ghost_parts
+                    SET status = 'pooled', updated_at = ?
+                    WHERE part_id = ? AND status = 'reserved'
+                    """,
+                    (now_iso, reservation["part_id"]),
+                )
+                version = self._bump_version(conn, reservation["cycle_id"])
+                self.append_event(
+                    "ghost.part_reservation_expired",
+                    cycle_id=reservation["cycle_id"],
+                    part_id=reservation["part_id"],
+                    entity_id=reservation["part_id"],
+                    state_version=version,
+                    dedupe_key=f"ghost:reservation_expired:{reservation['reservation_id']}",
+                    payload={"reservation_id": reservation["reservation_id"], "reason": "reservation_expired"},
+                )
+                expired.append(self.get_reservation(reservation["reservation_id"]))
+        return expired
+
+    def release_inactive_cycle_reservations(self, reason="cycle_locked"):
+        released = []
+        with self.transaction():
+            conn = self._transaction_conn
+            rows = conn.execute(
+                """
+                SELECT r.*
+                FROM ghost_part_reservations r
+                LEFT JOIN ghost_cycles c ON c.cycle_id = r.cycle_id
+                WHERE r.status = 'active'
+                  AND (c.cycle_id IS NULL OR c.status != 'active')
+                """
+            ).fetchall()
+            now = self.now()
+            for row in rows:
+                reservation = self._reservation(row)
+                conn.execute(
+                    """
+                    UPDATE ghost_part_reservations
+                    SET status = 'released', released_at = ?, release_reason = ?
+                    WHERE reservation_id = ?
+                    """,
+                    (now, _clean(reason), reservation["reservation_id"]),
+                )
+                conn.execute(
+                    """
+                    UPDATE ghost_parts
+                    SET status = 'pooled', updated_at = ?
+                    WHERE part_id = ? AND status = 'reserved'
+                    """,
+                    (now, reservation["part_id"]),
+                )
+                version = self._bump_version(conn, reservation["cycle_id"])
+                self.append_event(
+                    "ghost.part_reservation_released",
+                    cycle_id=reservation["cycle_id"],
+                    part_id=reservation["part_id"],
+                    entity_id=reservation["part_id"],
+                    state_version=version,
+                    dedupe_key=f"ghost:reservation_released:{reservation['reservation_id']}:cycle_locked",
+                    payload={"reservation_id": reservation["reservation_id"], "reason": _clean(reason)},
+                )
+                released.append(self.get_reservation(reservation["reservation_id"]))
+        return released
+
+    def get_reservation_status(self, cycle_id=None):
+        params = []
+        where = ""
+        if cycle_id:
+            where = "WHERE cycle_id = ?"
+            params.append(_clean(cycle_id))
+        with self._conn() as conn:
+            status_rows = conn.execute(
+                f"""
+                SELECT status, COUNT(*) AS c
+                FROM ghost_part_reservations
+                {where}
+                GROUP BY status
+                """,
+                params,
+            ).fetchall()
+            counts = {row["status"]: int(row["c"] or 0) for row in status_rows}
+
+            active_params = []
+            active_where = "WHERE r.status = 'active'"
+            if cycle_id:
+                active_where += " AND r.cycle_id = ?"
+                active_params.append(_clean(cycle_id))
+
+            oldest = conn.execute(
+                f"""
+                SELECT MIN(r.reserved_at) AS oldest
+                FROM ghost_part_reservations r
+                {active_where}
+                """,
+                active_params,
+            ).fetchone()["oldest"]
+            oldest_age = 0
+            if oldest:
+                try:
+                    oldest_dt = datetime.fromisoformat(str(oldest).replace("Z", "+00:00"))
+                    now_dt = datetime.fromisoformat(self.now().replace("Z", "+00:00"))
+                    oldest_age = max(0, int((now_dt - oldest_dt).total_seconds()))
+                except (TypeError, ValueError):
+                    oldest_age = 0
+
+            parts_params = []
+            parts_where = "WHERE status = 'reserved'"
+            if cycle_id:
+                parts_where += " AND cycle_id = ?"
+                parts_params.append(_clean(cycle_id))
+            parts_reserved = conn.execute(
+                f"SELECT COUNT(*) AS c FROM ghost_parts {parts_where}",
+                parts_params,
+            ).fetchone()["c"]
+
+            targets_reserved = conn.execute(
+                f"""
+                SELECT COUNT(DISTINCT r.target_id) AS c
+                FROM ghost_part_reservations r
+                {active_where}
+                """,
+                active_params,
+            ).fetchone()["c"]
+
+            integrity_errors = []
+            reserved_without_res = conn.execute(
+                f"""
+                SELECT COUNT(*) AS c
+                FROM ghost_parts p
+                LEFT JOIN ghost_part_reservations r
+                  ON r.part_id = p.part_id AND r.cycle_id = p.cycle_id AND r.status = 'active'
+                WHERE p.status = 'reserved'
+                  {"AND p.cycle_id = ?" if cycle_id else ""}
+                  AND r.reservation_id IS NULL
+                """,
+                [_clean(cycle_id)] if cycle_id else [],
+            ).fetchone()["c"]
+            if reserved_without_res:
+                integrity_errors.append("reserved_part_without_active_reservation")
+
+            active_part_not_reserved = conn.execute(
+                f"""
+                SELECT COUNT(*) AS c
+                FROM ghost_part_reservations r
+                LEFT JOIN ghost_parts p ON p.part_id = r.part_id AND p.cycle_id = r.cycle_id
+                {active_where}
+                  AND (p.part_id IS NULL OR p.status != 'reserved')
+                """,
+                active_params,
+            ).fetchone()["c"]
+            if active_part_not_reserved:
+                integrity_errors.append("active_reservation_part_not_reserved")
+
+            closed_active = conn.execute(
+                f"""
+                SELECT COUNT(*) AS c
+                FROM ghost_part_reservations r
+                LEFT JOIN ghost_cycles c ON c.cycle_id = r.cycle_id
+                {active_where}
+                  AND (c.cycle_id IS NULL OR c.status != 'active')
+                """,
+                active_params,
+            ).fetchone()["c"]
+            if closed_active:
+                integrity_errors.append("active_reservation_not_in_active_cycle")
+
+            return {
+                "cycle_id": _clean(cycle_id),
+                "active": counts.get("active", 0),
+                "expired": counts.get("expired", 0),
+                "committed": counts.get("committed", 0),
+                "released": counts.get("released", 0),
+                "cancelled": counts.get("cancelled", 0),
+                "oldest_active_age": oldest_age,
+                "parts_reserved": int(parts_reserved or 0),
+                "targets_reserved": int(targets_reserved or 0),
+                "integrity_errors": integrity_errors,
+            }
+
+    def create_connection(self, cycle_id, part_a_id, part_b_id, position_in_ring=0, connection_id=None):
+        part_a_id = _clean(part_a_id)
+        part_b_id = _clean(part_b_id)
+        if not part_a_id or not part_b_id or part_a_id == part_b_id:
+            raise RepositoryIntegrityError("Invalid GhostNetwork connection.")
+        a_id, b_id = sorted([part_a_id, part_b_id])
+        connection_id = _clean(connection_id or _hash_id("connection", cycle_id, a_id, b_id))
+        with self.transaction():
+            conn = self._transaction_conn
+            self._require_cycle(conn, cycle_id)
+            for part_id in (a_id, b_id):
+                if not self.get_part(part_id):
+                    raise PartNotFound(f"Part not found: {part_id}")
+                count = conn.execute(
+                    """
+                    SELECT COUNT(*) AS c FROM ghost_connections
+                    WHERE cycle_id = ? AND (part_a_id = ? OR part_b_id = ?)
+                    """,
+                    (cycle_id, part_id, part_id),
+                ).fetchone()["c"]
+                if int(count or 0) >= 2:
+                    raise RepositoryIntegrityError("Part already has two connections.")
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_connections (
+                        connection_id, cycle_id, part_a_id, part_b_id, position_in_ring, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (connection_id, cycle_id, a_id, b_id, int(position_in_ring or 0), self.now()),
+                )
+            except IntegrityError as exc:
+                raise RepositoryIntegrityError(str(exc)) from exc
+            version = self._bump_version(conn, cycle_id)
+            self.append_event(
+                "ghost.connection_created",
+                cycle_id=cycle_id,
+                entity_id=connection_id,
+                state_version=version,
+                dedupe_key=f"ghost:connection:{connection_id}",
+                payload={"part_a_id": a_id, "part_b_id": b_id},
+            )
+            return self._connection(
+                conn.execute("SELECT * FROM ghost_connections WHERE connection_id = ?", (connection_id,)).fetchone()
+            )
+
+    def list_connections(self, cycle_id):
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM ghost_connections
+                WHERE cycle_id = ?
+                ORDER BY position_in_ring ASC, connection_id ASC
+                """,
+                (_clean(cycle_id),),
+            ).fetchall()
+            return [self._connection(row) for row in rows]
+
+    def remove_connections_for_cycle(self, cycle_id, signal_id="", reason="ghostsignal_transmission"):
+        cycle_id = _clean(cycle_id)
+        with self.transaction():
+            conn = self._transaction_conn
+            self._require_cycle(conn, cycle_id)
+            count = int(
+                conn.execute(
+                    "SELECT COUNT(*) AS c FROM ghost_connections WHERE cycle_id = ?",
+                    (cycle_id,),
+                ).fetchone()["c"]
+                or 0
+            )
+            if count:
+                conn.execute("DELETE FROM ghost_connections WHERE cycle_id = ?", (cycle_id,))
+                version = self._bump_version(conn, cycle_id)
+                self.append_event(
+                    "ghost.connections_closed",
+                    cycle_id=cycle_id,
+                    entity_id=cycle_id,
+                    state_version=version,
+                    audience_scope="internal",
+                    dedupe_key=f"ghost:connections_closed:{cycle_id}:{_clean(signal_id) or version}",
+                    payload={"signal_id": _clean(signal_id), "count": count, "reason": _clean(reason)},
+                )
+            return {"cycle_id": cycle_id, "removed": count}
+
+    def insert_historical_node(self, node):
+        node = node if isinstance(node, dict) else {}
+        signal_id = _clean(node.get("signal_id"))
+        part_id = _clean(node.get("part_id"))
+        cycle_id = _clean(node.get("cycle_id"))
+        historical_node_id = _clean(node.get("historical_node_id") or _hash_id("histnode", signal_id, part_id))
+        with self.transaction():
+            conn = self._transaction_conn
+            self._require_cycle(conn, cycle_id)
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_historical_nodes (
+                        historical_node_id, signal_id, cycle_id, part_id, part_code,
+                        latitude, longitude, discovered_by, owner_id, clan_code,
+                        machine_code, profession_code, active_since, active_until,
+                        defense_count, status, metadata_json, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        historical_node_id,
+                        signal_id,
+                        cycle_id,
+                        part_id,
+                        _clean(node.get("part_code")),
+                        node.get("latitude"),
+                        node.get("longitude"),
+                        _clean(node.get("discovered_by")),
+                        _clean(node.get("owner_id")),
+                        _clean(node.get("clan_code")),
+                        _clean(node.get("machine_code")),
+                        _clean(node.get("profession_code")),
+                        _clean(node.get("active_since")),
+                        _clean(node.get("active_until")),
+                        int(node.get("defense_count") or 0),
+                        _clean(node.get("status"), "spent"),
+                        dumps_json(node.get("metadata") if isinstance(node.get("metadata"), dict) else {}),
+                        _clean(node.get("created_at") or self.now()),
+                    ),
+                )
+            except IntegrityError:
+                pass
+            row = conn.execute(
+                "SELECT * FROM ghost_historical_nodes WHERE signal_id = ? AND part_id = ? LIMIT 1",
+                (signal_id, part_id),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_historical_nodes_for_signal(self, signal_id):
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM ghost_historical_nodes
+                WHERE signal_id = ?
+                ORDER BY part_code ASC, part_id ASC
+                """,
+                (_clean(signal_id),),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def list_historical_nodes(self, signal_id=None, cycle_id=None, player_id=None, clan_code=None, limit=1000):
+        limit = max(1, min(int(limit or 1000), 5000))
+        clauses = []
+        params = []
+        if signal_id:
+            clauses.append("signal_id = ?")
+            params.append(_clean(signal_id))
+        if cycle_id:
+            clauses.append("cycle_id = ?")
+            params.append(_clean(cycle_id))
+        if player_id:
+            clauses.append("(discovered_by = ? OR owner_id = ?)")
+            params.extend([_clean(player_id), _clean(player_id)])
+        if clan_code:
+            clauses.append("clan_code = ?")
+            params.append(_clean(clan_code))
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM ghost_historical_nodes
+                {where}
+                ORDER BY created_at DESC, signal_id DESC, part_code ASC
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def append_event(
+        self,
+        event_type,
+        cycle_id=None,
+        part_id="",
+        entity_id="",
+        player_id="",
+        clan_code="",
+        territory_id="",
+        state_version=None,
+        audience_scope="system",
+        audience_clan="",
+        payload=None,
+        dedupe_key="",
+        event_id=None,
+    ):
+        payload = payload if isinstance(payload, dict) else {}
+        audience_scope = _clean(audience_scope, "system")
+        if audience_scope not in AUDIENCE_SCOPES:
+            raise RepositoryIntegrityError(f"Invalid audience scope: {audience_scope}")
+        with self._conn() as conn:
+            cycle_id = _clean(cycle_id or self._active_cycle_id(conn))
+            self._require_cycle(conn, cycle_id)
+            if dedupe_key:
+                existing = conn.execute(
+                    "SELECT * FROM ghost_part_events WHERE dedupe_key = ?",
+                    (_clean(dedupe_key),),
+                ).fetchone()
+                if existing:
+                    raise RepositoryIntegrityError(f"Duplicate GhostNetwork event: {dedupe_key}")
+            if state_version is None:
+                state_version = self._bump_version(conn, cycle_id)
+            now = self.now()
+            event_id = _clean(event_id or _hash_id("event", cycle_id, event_type, entity_id or part_id, state_version, dedupe_key))
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_part_events (
+                        event_id, cycle_id, part_id, event_type, player_id,
+                        clan_code, territory_id, state_version, created_at,
+                        payload_json, dedupe_key, audience_scope, audience_clan, entity_id
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event_id,
+                        cycle_id,
+                        _clean(part_id),
+                        _clean(event_type),
+                        _clean(player_id),
+                        _clean(clan_code),
+                        _clean(territory_id),
+                        int(state_version or 0),
+                        now,
+                        dumps_json(payload),
+                        _clean(dedupe_key),
+                        audience_scope,
+                        _clean(audience_clan),
+                        _clean(entity_id),
+                    ),
+                )
+            except IntegrityError as exc:
+                raise RepositoryIntegrityError(str(exc)) from exc
+            return self._event(
+                conn.execute("SELECT * FROM ghost_part_events WHERE event_id = ?", (event_id,)).fetchone()
+            )
+
+    def list_events(self, cycle_id=None, limit=100):
+        limit = max(1, min(int(limit or 100), 1000))
+        with self._conn() as conn:
+            if cycle_id:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM ghost_part_events
+                    WHERE cycle_id = ?
+                    ORDER BY state_version ASC, created_at ASC
+                    LIMIT ?
+                    """,
+                    (_clean(cycle_id), limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM ghost_part_events ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [self._event(row) for row in rows]
+
+    def get_narrative_outbox(self, outbox_id):
+        with self._conn() as conn:
+            return self._narrative_outbox(
+                conn.execute(
+                    "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                    (_clean(outbox_id),),
+                ).fetchone()
+            )
+
+    def get_narrative_outbox_by_dedupe_key(self, dedupe_key):
+        dedupe_key = _clean(dedupe_key)
+        if not dedupe_key:
+            return None
+        with self._conn() as conn:
+            return self._narrative_outbox(
+                conn.execute(
+                    "SELECT * FROM ghost_narrative_outbox WHERE dedupe_key = ? LIMIT 1",
+                    (dedupe_key,),
+                ).fetchone()
+            )
+
+    def insert_narrative_outbox(self, item):
+        item = item if isinstance(item, dict) else {}
+        dedupe_key = _clean(item.get("dedupe_key"))
+        if dedupe_key:
+            existing = self.get_narrative_outbox_by_dedupe_key(dedupe_key)
+            if existing:
+                existing["idempotent"] = True
+                return existing
+        now = self.now()
+        outbox_id = _clean(
+            item.get("outbox_id")
+            or _hash_id(
+                "narrative",
+                item.get("event_id"),
+                item.get("medium"),
+                item.get("audience_scope"),
+                item.get("audience_clan"),
+                item.get("signal_id"),
+                dedupe_key,
+            )
+        )
+        with self._conn() as conn:
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_narrative_outbox (
+                        outbox_id, event_id, cycle_id, signal_id,
+                        audience_scope, audience_clan, audience_owner, medium,
+                        truth_class, facts_json, allowed_actions_json,
+                        canon_version, ghostsystem_version, status,
+                        created_at, processed_at, validation_json, dedupe_key
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        outbox_id,
+                        _clean(item.get("event_id")),
+                        _clean(item.get("cycle_id")),
+                        _clean(item.get("signal_id")),
+                        _clean(item.get("audience_scope"), "public"),
+                        _clean(item.get("audience_clan")),
+                        _clean(item.get("audience_owner")),
+                        _clean(item.get("medium")),
+                        _clean(item.get("truth_class"), "canonical"),
+                        dumps_json(item.get("facts") if isinstance(item.get("facts"), list) else []),
+                        dumps_json(
+                            item.get("allowed_actions")
+                            if isinstance(item.get("allowed_actions"), list)
+                            else []
+                        ),
+                        _clean(item.get("canon_version")),
+                        _clean(item.get("ghostsystem_version")),
+                        _clean(item.get("status"), "ready"),
+                        _clean(item.get("created_at") or now),
+                        _clean(item.get("processed_at")),
+                        dumps_json(
+                            item.get("validation")
+                            if isinstance(item.get("validation"), dict)
+                            else {}
+                        ),
+                        dedupe_key,
+                    ),
+                )
+            except IntegrityError:
+                if dedupe_key:
+                    existing = self.get_narrative_outbox_by_dedupe_key(dedupe_key)
+                    if existing:
+                        existing["idempotent"] = True
+                        return existing
+                raise
+            return self._narrative_outbox(
+                conn.execute(
+                    "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                    (outbox_id,),
+                ).fetchone()
+            )
+
+    def list_narrative_outbox(self, cycle_id=None, signal_id=None, medium=None, status=None, limit=100):
+        limit = max(1, min(int(limit or 100), 1000))
+        clauses = []
+        params = []
+        if cycle_id:
+            clauses.append("cycle_id = ?")
+            params.append(_clean(cycle_id))
+        if signal_id:
+            clauses.append("signal_id = ?")
+            params.append(_clean(signal_id))
+        if medium:
+            clauses.append("medium = ?")
+            params.append(_clean(medium))
+        if status:
+            clauses.append("status = ?")
+            params.append(_clean(status))
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM ghost_narrative_outbox
+                {where}
+                ORDER BY created_at ASC, outbox_id ASC
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+            return [self._narrative_outbox(row) for row in rows]
+
+    def update_narrative_outbox_status(self, outbox_id, status, processed_at=None, validation=None):
+        validation = validation if isinstance(validation, dict) else None
+        with self._conn() as conn:
+            existing = conn.execute(
+                "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                (_clean(outbox_id),),
+            ).fetchone()
+            if not existing:
+                return None
+            current = self._narrative_outbox(existing)
+            next_validation = validation if validation is not None else current.get("validation") or {}
+            conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET status = ?, processed_at = ?, validation_json = ?
+                WHERE outbox_id = ?
+                """,
+                (
+                    _clean(status),
+                    _clean(processed_at if processed_at is not None else current.get("processed_at")),
+                    dumps_json(next_validation),
+                    _clean(outbox_id),
+                ),
+            )
+            return self._narrative_outbox(
+                conn.execute(
+                    "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                    (_clean(outbox_id),),
+                ).fetchone()
+            )
+
+    def get_contribution_by_dedupe_key(self, dedupe_key):
+        dedupe_key = _clean(dedupe_key)
+        if not dedupe_key:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_contributions WHERE dedupe_key = ? LIMIT 1",
+                (dedupe_key,),
+            ).fetchone()
+            return self._contribution(row)
+
+    def insert_contribution(self, contribution):
+        contribution = contribution if isinstance(contribution, dict) else {}
+        dedupe_key = _clean(contribution.get("dedupe_key"))
+        if dedupe_key:
+            existing = self.get_contribution_by_dedupe_key(dedupe_key)
+            if existing:
+                existing["idempotent"] = True
+                return existing
+        cycle_id = _clean(contribution.get("cycle_id"))
+        contribution_type = _clean(contribution.get("contribution_type"))
+        player_id = _clean(contribution.get("player_id"))
+        now = self.now()
+        contribution_id = _clean(
+            contribution.get("contribution_id")
+            or _hash_id("contribution", cycle_id, contribution_type, player_id, contribution.get("part_id"), dedupe_key, now)
+        )
+        with self.transaction():
+            conn = self._transaction_conn
+            self._require_cycle(conn, cycle_id)
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_contributions (
+                        contribution_id, cycle_id, signal_id, player_id, clan_code,
+                        profession_code, contribution_type, part_id, territory_id,
+                        operation_id, score, weight, source_event_id, dedupe_key,
+                        metadata_json, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        contribution_id,
+                        cycle_id,
+                        _clean(contribution.get("signal_id")),
+                        player_id,
+                        _clean(contribution.get("clan_code")),
+                        _clean(contribution.get("profession_code")),
+                        contribution_type,
+                        _clean(contribution.get("part_id")),
+                        _clean(contribution.get("territory_id")),
+                        _clean(contribution.get("operation_id")),
+                        int(contribution.get("score") or 0),
+                        float(contribution.get("weight") or 1.0),
+                        _clean(contribution.get("source_event_id")),
+                        dedupe_key,
+                        dumps_json(contribution.get("metadata") if isinstance(contribution.get("metadata"), dict) else {}),
+                        _clean(contribution.get("created_at") or now),
+                    ),
+                )
+            except IntegrityError:
+                if dedupe_key:
+                    existing = self.get_contribution_by_dedupe_key(dedupe_key)
+                    if existing:
+                        existing["idempotent"] = True
+                        return existing
+                raise
+            return self._contribution(
+                conn.execute(
+                    "SELECT * FROM ghost_contributions WHERE contribution_id = ?",
+                    (contribution_id,),
+                ).fetchone()
+            )
+
+    def list_player_contributions(self, player_id, cycle_id=None, limit=500):
+        limit = max(1, min(int(limit or 500), 2000))
+        with self._conn() as conn:
+            if cycle_id:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM ghost_contributions
+                    WHERE player_id = ? AND cycle_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (_clean(player_id), _clean(cycle_id), limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM ghost_contributions
+                    WHERE player_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (_clean(player_id), limit),
+                ).fetchall()
+            return [self._contribution(row) for row in rows]
+
+    def list_cycle_contributions(self, cycle_id, limit=1000):
+        limit = max(1, min(int(limit or 1000), 5000))
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM ghost_contributions
+                WHERE cycle_id = ?
+                ORDER BY created_at ASC
+                LIMIT ?
+                """,
+                (_clean(cycle_id), limit),
+            ).fetchall()
+            return [self._contribution(row) for row in rows]
+
+    def list_contributions(self, signal_id=None, cycle_id=None, player_id=None, clan_code=None, limit=1000):
+        limit = max(1, min(int(limit or 1000), 5000))
+        clauses = []
+        params = []
+        if signal_id:
+            clauses.append("signal_id = ?")
+            params.append(_clean(signal_id))
+        if cycle_id:
+            clauses.append("cycle_id = ?")
+            params.append(_clean(cycle_id))
+        if player_id:
+            clauses.append("player_id = ?")
+            params.append(_clean(player_id))
+        if clan_code:
+            clauses.append("clan_code = ?")
+            params.append(_clean(clan_code))
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM ghost_contributions
+                {where}
+                ORDER BY created_at DESC, contribution_id DESC
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+            return [self._contribution(row) for row in rows]
+
+    def aggregate_player_contribution(self, player_id, cycle_id=None):
+        where = ["player_id = ?"]
+        params = [_clean(player_id)]
+        if cycle_id:
+            where.append("cycle_id = ?")
+            params.append(_clean(cycle_id))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT contribution_type, COUNT(*) AS count, SUM(score) AS score, SUM(score * weight) AS weighted_score
+                FROM ghost_contributions
+                WHERE {' AND '.join(where)}
+                GROUP BY contribution_type
+                ORDER BY contribution_type ASC
+                """,
+                params,
+            ).fetchall()
+            totals = {
+                "player_id": _clean(player_id),
+                "cycle_id": _clean(cycle_id),
+                "count": 0,
+                "score": 0,
+                "weighted_score": 0.0,
+                "by_type": {},
+            }
+            for row in rows:
+                item = {
+                    "count": int(row["count"] or 0),
+                    "score": int(row["score"] or 0),
+                    "weighted_score": float(row["weighted_score"] or 0.0),
+                }
+                totals["by_type"][row["contribution_type"]] = item
+                totals["count"] += item["count"]
+                totals["score"] += item["score"]
+                totals["weighted_score"] += item["weighted_score"]
+            return totals
+
+    def aggregate_clan_contribution(self, clan_code, cycle_id=None):
+        where = ["clan_code = ?"]
+        params = [_clean(clan_code)]
+        if cycle_id:
+            where.append("cycle_id = ?")
+            params.append(_clean(cycle_id))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT contribution_type, COUNT(*) AS count, SUM(score) AS score, SUM(score * weight) AS weighted_score
+                FROM ghost_contributions
+                WHERE {' AND '.join(where)}
+                GROUP BY contribution_type
+                ORDER BY contribution_type ASC
+                """,
+                params,
+            ).fetchall()
+            totals = {
+                "clan_code": _clean(clan_code),
+                "cycle_id": _clean(cycle_id),
+                "count": 0,
+                "score": 0,
+                "weighted_score": 0.0,
+                "by_type": {},
+            }
+            for row in rows:
+                item = {
+                    "count": int(row["count"] or 0),
+                    "score": int(row["score"] or 0),
+                    "weighted_score": float(row["weighted_score"] or 0.0),
+                }
+                totals["by_type"][row["contribution_type"]] = item
+                totals["count"] += item["count"]
+                totals["score"] += item["score"]
+                totals["weighted_score"] += item["weighted_score"]
+            return totals
+
+    def get_reward_by_key(self, reward_key):
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_reward_ledger WHERE reward_key = ? LIMIT 1",
+                (_clean(reward_key),),
+            ).fetchone()
+            return self._reward(row)
+
+    def get_reward(self, reward_id):
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_reward_ledger WHERE reward_id = ? LIMIT 1",
+                (_clean(reward_id),),
+            ).fetchone()
+            return self._reward(row)
+
+    def insert_reward(self, reward):
+        reward = reward if isinstance(reward, dict) else {}
+        reward_key = _clean(reward.get("reward_key"))
+        existing = self.get_reward_by_key(reward_key)
+        if existing:
+            existing["idempotent"] = True
+            return existing
+        cycle_id = _clean(reward.get("cycle_id"))
+        reward_type = _clean(reward.get("reward_type"))
+        player_id = _clean(reward.get("player_id"))
+        final_rsp = int(reward.get("final_rsp") or reward.get("rsp_amount") or 0)
+        now = self.now()
+        reward_id = _clean(reward.get("reward_id") or _hash_id("reward", reward_key, cycle_id, player_id, reward_type))
+        with self.transaction():
+            conn = self._transaction_conn
+            self._require_cycle(conn, cycle_id)
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_reward_ledger (
+                        reward_id, reward_key, cycle_id, signal_id, player_id, clan_code,
+                        reward_type, source_event_id, base_rsp, multiplier, final_rsp,
+                        rsp_amount, level_progress, status, failure_reason, metadata_json,
+                        created_at, applied_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        reward_id,
+                        reward_key,
+                        cycle_id,
+                        _clean(reward.get("signal_id")),
+                        player_id,
+                        _clean(reward.get("clan_code")),
+                        reward_type,
+                        _clean(reward.get("source_event_id")),
+                        int(reward.get("base_rsp") or final_rsp or 0),
+                        float(reward.get("multiplier") or 1.0),
+                        final_rsp,
+                        final_rsp,
+                        int(reward.get("level_progress") or 0),
+                        _clean(reward.get("status"), "pending"),
+                        _clean(reward.get("failure_reason")),
+                        dumps_json(reward.get("metadata") if isinstance(reward.get("metadata"), dict) else {}),
+                        _clean(reward.get("created_at") or now),
+                        _clean(reward.get("applied_at")),
+                    ),
+                )
+            except IntegrityError:
+                existing = self.get_reward_by_key(reward_key)
+                if existing:
+                    existing["idempotent"] = True
+                    return existing
+                raise
+            return self.get_reward(reward_id)
+
+    def list_pending_rewards(self, player_id=None, cycle_id=None, limit=100):
+        limit = max(1, min(int(limit or 100), 1000))
+        where = ["status = 'pending'"]
+        params = []
+        if player_id:
+            where.append("player_id = ?")
+            params.append(_clean(player_id))
+        if cycle_id:
+            where.append("cycle_id = ?")
+            params.append(_clean(cycle_id))
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM ghost_reward_ledger
+                WHERE {' AND '.join(where)}
+                ORDER BY created_at ASC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+            return [self._reward(row) for row in rows]
+
+    def list_rewards(self, signal_id=None, cycle_id=None, player_id=None, clan_code=None, status=None, limit=1000):
+        limit = max(1, min(int(limit or 1000), 5000))
+        clauses = []
+        params = []
+        if signal_id:
+            clauses.append("signal_id = ?")
+            params.append(_clean(signal_id))
+        if cycle_id:
+            clauses.append("cycle_id = ?")
+            params.append(_clean(cycle_id))
+        if player_id:
+            clauses.append("player_id = ?")
+            params.append(_clean(player_id))
+        if clan_code:
+            clauses.append("clan_code = ?")
+            params.append(_clean(clan_code))
+        if status:
+            clauses.append("status = ?")
+            params.append(_clean(status))
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM ghost_reward_ledger
+                {where}
+                ORDER BY created_at DESC, reward_id DESC
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+            return [self._reward(row) for row in rows]
+
+    def update_reward_status(self, reward_id, status, *, failure_reason="", applied_at=None):
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE ghost_reward_ledger
+                SET status = ?, failure_reason = ?, applied_at = ?
+                WHERE reward_id = ?
+                """,
+                (
+                    _clean(status),
+                    _clean(failure_reason),
+                    _clean(applied_at if applied_at is not None else (self.now() if status == "applied" else "")),
+                    _clean(reward_id),
+                ),
+            )
+            row = conn.execute(
+                "SELECT * FROM ghost_reward_ledger WHERE reward_id = ? LIMIT 1",
+                (_clean(reward_id),),
+            ).fetchone()
+            return self._reward(row)
+
+    def get_player_reward_summary(self, player_id, cycle_id=None):
+        where = ["player_id = ?"]
+        params = [_clean(player_id)]
+        if cycle_id:
+            where.append("cycle_id = ?")
+            params.append(_clean(cycle_id))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT status, reward_type, COUNT(*) AS count, SUM(final_rsp) AS rsp
+                FROM ghost_reward_ledger
+                WHERE {' AND '.join(where)}
+                GROUP BY status, reward_type
+                """,
+                params,
+            ).fetchall()
+            summary = {
+                "player_id": _clean(player_id),
+                "cycle_id": _clean(cycle_id),
+                "total_rewards": 0,
+                "pending_rsp": 0,
+                "applied_rsp": 0,
+                "by_status": {},
+                "by_type": {},
+            }
+            for row in rows:
+                status = row["status"]
+                reward_type = row["reward_type"]
+                count = int(row["count"] or 0)
+                rsp = int(row["rsp"] or 0)
+                summary["total_rewards"] += count
+                summary["by_status"].setdefault(status, {"count": 0, "rsp": 0})
+                summary["by_status"][status]["count"] += count
+                summary["by_status"][status]["rsp"] += rsp
+                summary["by_type"].setdefault(reward_type, {"count": 0, "rsp": 0})
+                summary["by_type"][reward_type]["count"] += count
+                summary["by_type"][reward_type]["rsp"] += rsp
+                if status == "pending":
+                    summary["pending_rsp"] += rsp
+                if status == "applied":
+                    summary["applied_rsp"] += rsp
+            return summary
+
+    def get_clan_reputation(self, clan_code):
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_clan_reputation WHERE clan_code = ? LIMIT 1",
+                (_clean(clan_code),),
+            ).fetchone()
+            return self._clan_reputation(row)
+
+    def increment_clan_reputation(self, clan_code, increments=None, metadata=None):
+        clan_code = _clean(clan_code)
+        if not clan_code:
+            return None
+        increments = increments if isinstance(increments, dict) else {}
+        allowed = {
+            "total_reputation",
+            "signals_participated",
+            "parts_discovered",
+            "parts_first_contained",
+            "parts_activated",
+            "parts_recovered",
+            "territories_defended",
+            "active_node_seconds",
+            "transmission_nodes_held",
+            "networks_closed",
+        }
+        clean_increments = {key: int(value or 0) for key, value in increments.items() if key in allowed}
+        now = self.now()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO ghost_clan_reputation (clan_code, updated_at)
+                VALUES (?, ?)
+                """,
+                (clan_code, now),
+            )
+            if clean_increments:
+                assignments = ", ".join(f"{key} = {key} + ?" for key in clean_increments)
+                values = list(clean_increments.values())
+                conn.execute(
+                    f"""
+                    UPDATE ghost_clan_reputation
+                    SET {assignments}, metadata_json = ?, updated_at = ?
+                    WHERE clan_code = ?
+                    """,
+                    [
+                        *values,
+                        dumps_json(metadata if isinstance(metadata, dict) else {}),
+                        now,
+                        clan_code,
+                    ],
+                )
+            row = conn.execute(
+                "SELECT * FROM ghost_clan_reputation WHERE clan_code = ? LIMIT 1",
+                (clan_code,),
+            ).fetchone()
+            return self._clan_reputation(row)
+
+    def list_clan_reputation(self, limit=100):
+        limit = max(1, min(int(limit or 100), 500))
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM ghost_clan_reputation
+                ORDER BY total_reputation DESC, clan_code ASC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            return [self._clan_reputation(row) for row in rows]
+
+    def get_achievement_by_dedupe_key(self, dedupe_key):
+        dedupe_key = _clean(dedupe_key)
+        if not dedupe_key:
+            return None
+        with self._conn() as conn:
+            return self._achievement(
+                conn.execute(
+                    "SELECT * FROM ghost_achievements WHERE dedupe_key = ? LIMIT 1",
+                    (dedupe_key,),
+                ).fetchone()
+            )
+
+    def insert_achievement(self, achievement):
+        achievement = achievement if isinstance(achievement, dict) else {}
+        player_id = _clean(achievement.get("player_id"))
+        achievement_code = _clean(achievement.get("achievement_code"))
+        source_id = _clean(achievement.get("source_id"))
+        dedupe_key = _clean(
+            achievement.get("dedupe_key")
+            or f"achievement:{player_id}:{achievement_code}:{source_id}"
+        )
+        if dedupe_key:
+            existing = self.get_achievement_by_dedupe_key(dedupe_key)
+            if existing:
+                existing["idempotent"] = True
+                return existing
+        now = self.now()
+        achievement_id = _clean(
+            achievement.get("achievement_id")
+            or _hash_id("achievement", player_id, achievement_code, source_id, dedupe_key)
+        )
+        with self._conn() as conn:
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_achievements (
+                        achievement_id, player_id, clan_code, achievement_code,
+                        cycle_id, signal_id, source_id, metadata_json,
+                        awarded_at, dedupe_key
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        achievement_id,
+                        player_id,
+                        _clean(achievement.get("clan_code")),
+                        achievement_code,
+                        _clean(achievement.get("cycle_id")),
+                        _clean(achievement.get("signal_id")),
+                        source_id,
+                        dumps_json(achievement.get("metadata") if isinstance(achievement.get("metadata"), dict) else {}),
+                        _clean(achievement.get("awarded_at") or now),
+                        dedupe_key,
+                    ),
+                )
+            except IntegrityError:
+                existing = self.get_achievement_by_dedupe_key(dedupe_key)
+                if existing:
+                    existing["idempotent"] = True
+                    return existing
+                raise
+            return self._achievement(
+                conn.execute(
+                    "SELECT * FROM ghost_achievements WHERE achievement_id = ? LIMIT 1",
+                    (achievement_id,),
+                ).fetchone()
+            )
+
+    def list_achievements(self, player_id=None, signal_id=None, cycle_id=None, limit=500):
+        limit = max(1, min(int(limit or 500), 2000))
+        clauses = []
+        params = []
+        if player_id:
+            clauses.append("player_id = ?")
+            params.append(_clean(player_id))
+        if signal_id:
+            clauses.append("signal_id = ?")
+            params.append(_clean(signal_id))
+        if cycle_id:
+            clauses.append("cycle_id = ?")
+            params.append(_clean(cycle_id))
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM ghost_achievements
+                {where}
+                ORDER BY awarded_at DESC, achievement_code ASC
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+            return [self._achievement(row) for row in rows]
+
+    def get_strategic_conflict(self, conflict_id):
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_strategic_conflicts WHERE conflict_id = ? LIMIT 1",
+                (_clean(conflict_id),),
+            ).fetchone()
+            return self._strategic_conflict(row)
+
+    def get_strategic_conflict_by_dedupe_key(self, dedupe_key):
+        dedupe_key = _clean(dedupe_key)
+        if not dedupe_key:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_strategic_conflicts WHERE dedupe_key = ? LIMIT 1",
+                (dedupe_key,),
+            ).fetchone()
+            return self._strategic_conflict(row)
+
+    def list_strategic_conflicts(self, cycle_id=None, part_id=None, statuses=None, limit=500):
+        limit = max(1, min(int(limit or 500), 5000))
+        where = []
+        params = []
+        if cycle_id:
+            where.append("cycle_id = ?")
+            params.append(_clean(cycle_id))
+        if part_id:
+            where.append("part_id = ?")
+            params.append(_clean(part_id))
+        statuses = [str(status).strip() for status in (statuses or []) if str(status or "").strip()]
+        if statuses:
+            where.append(f"status IN ({', '.join('?' for _ in statuses)})")
+            params.extend(statuses)
+        sql_where = f"WHERE {' AND '.join(where)}" if where else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM ghost_strategic_conflicts
+                {sql_where}
+                ORDER BY started_at DESC, conflict_id ASC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+            return [self._strategic_conflict(row) for row in rows]
+
+    def insert_strategic_conflict(self, conflict):
+        conflict = conflict if isinstance(conflict, dict) else {}
+        dedupe_key = _clean(conflict.get("dedupe_key"))
+        if dedupe_key:
+            existing = self.get_strategic_conflict_by_dedupe_key(dedupe_key)
+            if existing:
+                existing["idempotent"] = True
+                return existing
+        cycle_id = _clean(conflict.get("cycle_id"))
+        part_id = _clean(conflict.get("part_id"))
+        now = _clean(conflict.get("started_at") or self.now())
+        conflict_id = _clean(conflict.get("conflict_id") or _hash_id("ghost_conflict", cycle_id, part_id, now, dedupe_key))
+        snapshot = conflict.get("snapshot") if isinstance(conflict.get("snapshot"), dict) else {}
+        participants = conflict.get("initial_participants") if isinstance(conflict.get("initial_participants"), list) else []
+        with self.transaction():
+            conn = self._transaction_conn
+            self._require_cycle(conn, cycle_id)
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_strategic_conflicts (
+                        conflict_id, cycle_id, part_id, territory_id, initial_owner_id,
+                        initial_clan, initial_status, initial_integrity, initial_security_score,
+                        active_offensive_operations, initial_participants_json, snapshot_json,
+                        status, outcome, max_attack_progress, offensive_score, defensive_score,
+                        offensive_actors_json, defensive_actors_json, assessment_json, dedupe_key,
+                        started_at, resolved_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        conflict_id,
+                        cycle_id,
+                        part_id,
+                        _clean(conflict.get("territory_id")),
+                        _clean(conflict.get("initial_owner_id")),
+                        _clean(conflict.get("initial_clan")),
+                        _clean(conflict.get("initial_status")),
+                        int(conflict.get("initial_integrity") or 100),
+                        int(conflict.get("initial_security_score") or 0),
+                        int(conflict.get("active_offensive_operations") or 0),
+                        dumps_json(participants),
+                        dumps_json(snapshot),
+                        _clean(conflict.get("status"), "active"),
+                        _clean(conflict.get("outcome")),
+                        int(conflict.get("max_attack_progress") or 0),
+                        int(conflict.get("offensive_score") or 0),
+                        int(conflict.get("defensive_score") or 0),
+                        dumps_json(conflict.get("offensive_actors") if isinstance(conflict.get("offensive_actors"), list) else []),
+                        dumps_json(conflict.get("defensive_actors") if isinstance(conflict.get("defensive_actors"), list) else []),
+                        dumps_json(conflict.get("assessment") if isinstance(conflict.get("assessment"), dict) else {}),
+                        dedupe_key,
+                        now,
+                        _clean(conflict.get("resolved_at")),
+                        _clean(conflict.get("updated_at") or now),
+                    ),
+                )
+            except IntegrityError:
+                if dedupe_key:
+                    existing = self.get_strategic_conflict_by_dedupe_key(dedupe_key)
+                    if existing:
+                        existing["idempotent"] = True
+                        return existing
+                raise
+            return self.get_strategic_conflict(conflict_id)
+
+    def update_strategic_conflict(self, conflict_id, **changes):
+        allowed = {
+            "status",
+            "outcome",
+            "max_attack_progress",
+            "offensive_score",
+            "defensive_score",
+            "offensive_actors_json",
+            "defensive_actors_json",
+            "assessment_json",
+            "resolved_at",
+            "updated_at",
+        }
+        assignments = []
+        values = []
+        for key, value in changes.items():
+            if key not in allowed:
+                continue
+            if key in {"offensive_actors_json", "defensive_actors_json"}:
+                value = dumps_json(value if isinstance(value, list) else [])
+            if key == "assessment_json":
+                value = dumps_json(value if isinstance(value, dict) else {})
+            assignments.append(f"{key} = ?")
+            values.append(value)
+        if not assignments:
+            return self.get_strategic_conflict(conflict_id)
+        if "updated_at" not in changes:
+            assignments.append("updated_at = ?")
+            values.append(self.now())
+        values.append(_clean(conflict_id))
+        with self._conn() as conn:
+            conn.execute(
+                f"UPDATE ghost_strategic_conflicts SET {', '.join(assignments)} WHERE conflict_id = ?",
+                values,
+            )
+            row = conn.execute(
+                "SELECT * FROM ghost_strategic_conflicts WHERE conflict_id = ? LIMIT 1",
+                (_clean(conflict_id),),
+            ).fetchone()
+            return self._strategic_conflict(row)
+
+    def insert_conflict_action(self, action):
+        action = action if isinstance(action, dict) else {}
+        dedupe_key = _clean(action.get("dedupe_key"))
+        if dedupe_key:
+            existing = self.get_conflict_action_by_dedupe_key(dedupe_key)
+            if existing:
+                existing["idempotent"] = True
+                return existing
+        cycle_id = _clean(action.get("cycle_id"))
+        conflict_id = _clean(action.get("conflict_id"))
+        part_id = _clean(action.get("part_id"))
+        now = _clean(action.get("created_at") or self.now())
+        action_id = _clean(action.get("action_id") or _hash_id("ghost_action", cycle_id, conflict_id, action.get("side"), action.get("action_type"), action.get("player_id"), dedupe_key, now))
+        with self.transaction():
+            conn = self._transaction_conn
+            self._require_cycle(conn, cycle_id)
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_conflict_actions (
+                        action_id, conflict_id, cycle_id, part_id, side, action_type,
+                        player_id, clan_code, profession_code, target_id, operation_id,
+                        mechanical_value, weight, source_event_id, dedupe_key,
+                        metadata_json, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        action_id,
+                        conflict_id,
+                        cycle_id,
+                        part_id,
+                        _clean(action.get("side")),
+                        _clean(action.get("action_type")),
+                        _clean(action.get("player_id")),
+                        _clean(action.get("clan_code")),
+                        _clean(action.get("profession_code")),
+                        _clean(action.get("target_id")),
+                        _clean(action.get("operation_id")),
+                        int(action.get("mechanical_value") or 0),
+                        float(action.get("weight") or 1.0),
+                        _clean(action.get("source_event_id")),
+                        dedupe_key,
+                        dumps_json(action.get("metadata") if isinstance(action.get("metadata"), dict) else {}),
+                        now,
+                    ),
+                )
+            except IntegrityError:
+                if dedupe_key:
+                    existing = self.get_conflict_action_by_dedupe_key(dedupe_key)
+                    if existing:
+                        existing["idempotent"] = True
+                        return existing
+                raise
+            row = conn.execute(
+                "SELECT * FROM ghost_conflict_actions WHERE action_id = ? LIMIT 1",
+                (action_id,),
+            ).fetchone()
+            return self._conflict_action(row)
+
+    def get_conflict_action_by_dedupe_key(self, dedupe_key):
+        dedupe_key = _clean(dedupe_key)
+        if not dedupe_key:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_conflict_actions WHERE dedupe_key = ? LIMIT 1",
+                (dedupe_key,),
+            ).fetchone()
+            return self._conflict_action(row)
+
+    def list_conflict_actions(self, conflict_id, side=None, limit=500):
+        limit = max(1, min(int(limit or 500), 5000))
+        where = ["conflict_id = ?"]
+        params = [_clean(conflict_id)]
+        if side:
+            where.append("side = ?")
+            params.append(_clean(side))
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM ghost_conflict_actions
+                WHERE {' AND '.join(where)}
+                ORDER BY created_at ASC, action_id ASC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+            return [self._conflict_action(row) for row in rows]
+
+    def insert_control_period(self, period):
+        period = period if isinstance(period, dict) else {}
+        dedupe_key = _clean(period.get("dedupe_key"))
+        if dedupe_key:
+            existing = self.get_control_period_by_dedupe_key(dedupe_key)
+            if existing:
+                existing["idempotent"] = True
+                return existing
+        cycle_id = _clean(period.get("cycle_id"))
+        part_id = _clean(period.get("part_id"))
+        started_at = _clean(period.get("started_at") or self.now())
+        period_id = _clean(period.get("period_id") or _hash_id("ghost_period", cycle_id, part_id, period.get("owner_id"), period.get("clan_code"), started_at, dedupe_key))
+        with self.transaction():
+            conn = self._transaction_conn
+            self._require_cycle(conn, cycle_id)
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_control_periods (
+                        period_id, cycle_id, part_id, owner_id, clan_code, territory_id,
+                        status, started_at, ended_at, duration_seconds, end_reason,
+                        metadata_json, dedupe_key
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        period_id,
+                        cycle_id,
+                        part_id,
+                        _clean(period.get("owner_id")),
+                        _clean(period.get("clan_code")),
+                        _clean(period.get("territory_id")),
+                        _clean(period.get("status")),
+                        started_at,
+                        _clean(period.get("ended_at")),
+                        int(period.get("duration_seconds") or 0),
+                        _clean(period.get("end_reason")),
+                        dumps_json(period.get("metadata") if isinstance(period.get("metadata"), dict) else {}),
+                        dedupe_key,
+                    ),
+                )
+            except IntegrityError:
+                if dedupe_key:
+                    existing = self.get_control_period_by_dedupe_key(dedupe_key)
+                    if existing:
+                        existing["idempotent"] = True
+                        return existing
+                raise
+            row = conn.execute("SELECT * FROM ghost_control_periods WHERE period_id = ?", (period_id,)).fetchone()
+            return self._control_period(row)
+
+    def get_control_period_by_dedupe_key(self, dedupe_key):
+        dedupe_key = _clean(dedupe_key)
+        if not dedupe_key:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_control_periods WHERE dedupe_key = ? LIMIT 1",
+                (dedupe_key,),
+            ).fetchone()
+            return self._control_period(row)
+
+    def list_control_periods(self, part_id, cycle_id=None, limit=100):
+        limit = max(1, min(int(limit or 100), 1000))
+        where = ["part_id = ?"]
+        params = [_clean(part_id)]
+        if cycle_id:
+            where.append("cycle_id = ?")
+            params.append(_clean(cycle_id))
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM ghost_control_periods
+                WHERE {' AND '.join(where)}
+                ORDER BY started_at DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+            return [self._control_period(row) for row in rows]
+
+    def insert_transfer_history(self, transfer):
+        transfer = transfer if isinstance(transfer, dict) else {}
+        dedupe_key = _clean(transfer.get("dedupe_key"))
+        if dedupe_key:
+            existing = self.get_transfer_history_by_dedupe_key(dedupe_key)
+            if existing:
+                existing["idempotent"] = True
+                return existing
+        cycle_id = _clean(transfer.get("cycle_id"))
+        part_id = _clean(transfer.get("part_id"))
+        now = _clean(transfer.get("created_at") or self.now())
+        transfer_id = _clean(transfer.get("transfer_id") or _hash_id("ghost_transfer", cycle_id, part_id, transfer.get("previous_owner_id"), transfer.get("new_owner_id"), transfer.get("conflict_id"), now, dedupe_key))
+        with self.transaction():
+            conn = self._transaction_conn
+            self._require_cycle(conn, cycle_id)
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_part_transfer_history (
+                        transfer_id, cycle_id, part_id, previous_owner_id, new_owner_id,
+                        previous_clan, new_clan, conflict_id, reward_status, reward_amount,
+                        metadata_json, dedupe_key, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        transfer_id,
+                        cycle_id,
+                        part_id,
+                        _clean(transfer.get("previous_owner_id")),
+                        _clean(transfer.get("new_owner_id")),
+                        _clean(transfer.get("previous_clan")),
+                        _clean(transfer.get("new_clan")),
+                        _clean(transfer.get("conflict_id")),
+                        _clean(transfer.get("reward_status")),
+                        int(transfer.get("reward_amount") or 0),
+                        dumps_json(transfer.get("metadata") if isinstance(transfer.get("metadata"), dict) else {}),
+                        dedupe_key,
+                        now,
+                    ),
+                )
+            except IntegrityError:
+                if dedupe_key:
+                    existing = self.get_transfer_history_by_dedupe_key(dedupe_key)
+                    if existing:
+                        existing["idempotent"] = True
+                        return existing
+                raise
+            row = conn.execute("SELECT * FROM ghost_part_transfer_history WHERE transfer_id = ?", (transfer_id,)).fetchone()
+            return self._transfer_history(row)
+
+    def get_transfer_history_by_dedupe_key(self, dedupe_key):
+        dedupe_key = _clean(dedupe_key)
+        if not dedupe_key:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_part_transfer_history WHERE dedupe_key = ? LIMIT 1",
+                (dedupe_key,),
+            ).fetchone()
+            return self._transfer_history(row)
+
+    def list_transfer_history(self, part_id=None, cycle_id=None, previous_owner_id=None, new_owner_id=None, limit=100):
+        limit = max(1, min(int(limit or 100), 1000))
+        where = []
+        params = []
+        if part_id:
+            where.append("part_id = ?")
+            params.append(_clean(part_id))
+        if cycle_id:
+            where.append("cycle_id = ?")
+            params.append(_clean(cycle_id))
+        if previous_owner_id:
+            where.append("previous_owner_id = ?")
+            params.append(_clean(previous_owner_id))
+        if new_owner_id:
+            where.append("new_owner_id = ?")
+            params.append(_clean(new_owner_id))
+        params.append(limit)
+        query_where = f"WHERE {' AND '.join(where)}" if where else ""
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM ghost_part_transfer_history
+                {query_where}
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+            return [self._transfer_history(row) for row in rows]
+
+    def build_internal_snapshot(self, cycle_id):
+        with self._conn() as conn:
+            cycle = self._require_cycle(conn, cycle_id)
+            parts = [
+                self._part(row)
+                for row in conn.execute(
+                    "SELECT * FROM ghost_parts WHERE cycle_id = ? ORDER BY part_code ASC",
+                    (cycle_id,),
+                ).fetchall()
+            ]
+            connections = [
+                self._connection(row)
+                for row in conn.execute(
+                    "SELECT * FROM ghost_connections WHERE cycle_id = ? ORDER BY position_in_ring ASC",
+                    (cycle_id,),
+                ).fetchall()
+            ]
+            reservations = [
+                self._reservation(row)
+                for row in conn.execute(
+                    """
+                    SELECT * FROM ghost_part_reservations
+                    WHERE cycle_id = ? AND status = 'active'
+                    ORDER BY reserved_at ASC
+                    """,
+                    (cycle_id,),
+                ).fetchall()
+            ]
+            return {
+                "cycle": cycle,
+                "parts": parts,
+                "connections": connections,
+                "topology": {
+                    "seed": cycle.get("topology_seed") or "",
+                    "checksum": cycle.get("topology_checksum") or "",
+                    "ring_order": [],
+                    "connections": connections,
+                    "validation": {"ok": False, "reason": "not_validated_by_repository"},
+                },
+                "active_reservations": reservations,
+                "state_version": int(cycle.get("state_version") or 0),
+            }
+
+    def health_check(self):
+        warnings = []
+        errors = []
+        metrics = {}
+        with self._conn() as conn:
+            active_count = conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM ghost_cycles
+                WHERE status IN ('preparing', 'active', 'transmitting', 'stabilizing')
+                """
+            ).fetchone()["c"]
+            metrics["blocking_cycles"] = int(active_count or 0)
+            if int(active_count or 0) > 1:
+                errors.append("more_than_one_active_or_transitional_cycle")
+
+            invalid_cycles = conn.execute(
+                "SELECT COUNT(*) AS c FROM ghost_cycles WHERE status NOT IN ('preparing','active','transmitting','stabilizing','closed')"
+            ).fetchone()["c"]
+            invalid_parts = conn.execute(
+                "SELECT COUNT(*) AS c FROM ghost_parts WHERE status NOT IN ('pooled','reserved','public','contained','active','consumed')"
+            ).fetchone()["c"]
+            invalid_reservations = conn.execute(
+                "SELECT COUNT(*) AS c FROM ghost_part_reservations WHERE status NOT IN ('active','committed','released','expired','cancelled')"
+            ).fetchone()["c"]
+            metrics["invalid_cycles"] = int(invalid_cycles or 0)
+            metrics["invalid_parts"] = int(invalid_parts or 0)
+            metrics["invalid_reservations"] = int(invalid_reservations or 0)
+            if invalid_cycles:
+                errors.append("invalid_cycle_status")
+            if invalid_parts:
+                errors.append("invalid_part_status")
+            if invalid_reservations:
+                errors.append("invalid_reservation_status")
+
+            parts_without_cycle = conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM ghost_parts p
+                LEFT JOIN ghost_cycles c ON c.cycle_id = p.cycle_id
+                WHERE c.cycle_id IS NULL
+                """
+            ).fetchone()["c"]
+            metrics["parts_without_cycle"] = int(parts_without_cycle or 0)
+            if parts_without_cycle:
+                errors.append("parts_without_cycle")
+
+            duplicate_part_codes = conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM (
+                    SELECT cycle_id, part_code FROM ghost_parts
+                    GROUP BY cycle_id, part_code HAVING COUNT(*) > 1
+                )
+                """
+            ).fetchone()["c"]
+            duplicate_targets = conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM (
+                    SELECT cycle_id, target_id FROM ghost_parts
+                    WHERE target_id != ''
+                    GROUP BY cycle_id, target_id HAVING COUNT(*) > 1
+                )
+                """
+            ).fetchone()["c"]
+            metrics["duplicate_part_codes"] = int(duplicate_part_codes or 0)
+            metrics["duplicate_targets"] = int(duplicate_targets or 0)
+            if duplicate_part_codes:
+                errors.append("duplicate_part_code")
+            if duplicate_targets:
+                errors.append("duplicate_target_id")
+
+            now = self.now()
+            overdue_reservations = conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM ghost_part_reservations
+                WHERE status = 'active' AND expires_at != '' AND expires_at < ?
+                """,
+                (now,),
+            ).fetchone()["c"]
+            metrics["overdue_active_reservations"] = int(overdue_reservations or 0)
+            if overdue_reservations:
+                warnings.append("active_reservations_after_expires_at")
+
+            reserved_without_reservation = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_parts p
+                LEFT JOIN ghost_part_reservations r
+                  ON r.part_id = p.part_id AND r.cycle_id = p.cycle_id AND r.status = 'active'
+                WHERE p.status = 'reserved' AND r.reservation_id IS NULL
+                """
+            ).fetchone()["c"]
+            active_reservation_part_not_reserved = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_part_reservations r
+                LEFT JOIN ghost_parts p ON p.part_id = r.part_id AND p.cycle_id = r.cycle_id
+                WHERE r.status = 'active'
+                  AND (p.part_id IS NULL OR p.status != 'reserved')
+                """
+            ).fetchone()["c"]
+            metrics["reserved_parts_without_active_reservation"] = int(reserved_without_reservation or 0)
+            metrics["active_reservations_with_unreserved_part"] = int(active_reservation_part_not_reserved or 0)
+            if reserved_without_reservation:
+                errors.append("reserved_part_without_active_reservation")
+            if active_reservation_part_not_reserved:
+                errors.append("active_reservation_part_not_reserved")
+
+            public_without_anchor = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_parts
+                WHERE status IN ('public','contained','active','consumed')
+                  AND (
+                    target_id = ''
+                    OR latitude IS NULL
+                    OR longitude IS NULL
+                    OR discovered_by = ''
+                    OR discovered_at = ''
+                  )
+                """
+            ).fetchone()["c"]
+            committed_reserved = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_part_reservations r
+                JOIN ghost_parts p ON p.part_id = r.part_id AND p.cycle_id = r.cycle_id
+                WHERE r.status = 'committed' AND p.status = 'reserved'
+                """
+            ).fetchone()["c"]
+            anchored_without_committed = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_parts p
+                LEFT JOIN ghost_part_reservations r
+                  ON r.part_id = p.part_id
+                 AND r.cycle_id = p.cycle_id
+                 AND r.target_id = p.target_id
+                 AND r.status = 'committed'
+                WHERE p.status IN ('public','contained','active','consumed')
+                  AND p.target_id != ''
+                  AND r.reservation_id IS NULL
+                """
+            ).fetchone()["c"]
+            public_missing_event = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_parts p
+                LEFT JOIN ghost_part_events e
+                  ON e.part_id = p.part_id
+                 AND e.cycle_id = p.cycle_id
+                 AND e.event_type = 'ghost.part_discovered'
+                WHERE p.status IN ('public','contained','active','consumed')
+                  AND p.target_id != ''
+                  AND e.event_id IS NULL
+                """
+            ).fetchone()["c"]
+            metrics["public_parts_without_anchor"] = int(public_without_anchor or 0)
+            metrics["committed_reservations_with_reserved_part"] = int(committed_reserved or 0)
+            metrics["anchored_parts_without_committed_reservation"] = int(anchored_without_committed or 0)
+            metrics["public_parts_missing_discovery_event"] = int(public_missing_event or 0)
+            if public_without_anchor:
+                errors.append("public_part_without_anchor")
+            if committed_reserved:
+                errors.append("committed_reservation_with_reserved_part")
+            if anchored_without_committed:
+                errors.append("anchored_part_without_committed_reservation")
+            if public_missing_event:
+                errors.append("public_part_missing_discovery_event")
+
+            active_without_territory_clan = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_parts
+                WHERE status = 'active' AND territory_clan = ''
+                """
+            ).fetchone()["c"]
+            active_wrong_territory_clan = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_parts
+                WHERE status = 'active'
+                  AND territory_clan != ''
+                  AND clan_code != territory_clan
+                """
+            ).fetchone()["c"]
+            contained_without_owner = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_parts
+                WHERE status = 'contained' AND territory_owner_id = ''
+                """
+            ).fetchone()["c"]
+            public_with_owner = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_parts
+                WHERE status = 'public'
+                  AND (territory_id != '' OR territory_owner_id != '' OR territory_clan != '')
+                """
+            ).fetchone()["c"]
+            consumed_without_signal = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_parts
+                WHERE status = 'consumed' AND consumed_signal_id = ''
+                """
+            ).fetchone()["c"]
+            conflict_without_frozen = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_parts
+                WHERE conflict_state = 'contested' AND frozen_status = ''
+                """
+            ).fetchone()["c"]
+            legacy_contested_status = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_parts
+                WHERE status = 'contested'
+                """
+            ).fetchone()["c"]
+            metrics["active_parts_without_territory_clan"] = int(active_without_territory_clan or 0)
+            metrics["active_parts_wrong_territory_clan"] = int(active_wrong_territory_clan or 0)
+            metrics["contained_parts_without_owner"] = int(contained_without_owner or 0)
+            metrics["public_parts_with_owner"] = int(public_with_owner or 0)
+            metrics["consumed_parts_without_signal"] = int(consumed_without_signal or 0)
+            metrics["contested_parts_without_frozen_status"] = int(conflict_without_frozen or 0)
+            metrics["legacy_contested_status_parts"] = int(legacy_contested_status or 0)
+            if active_without_territory_clan:
+                errors.append("active_part_without_territory_clan")
+            if active_wrong_territory_clan:
+                errors.append("active_part_wrong_territory_clan")
+            if contained_without_owner:
+                errors.append("contained_part_without_owner")
+            if public_with_owner:
+                errors.append("public_part_with_owner")
+            if consumed_without_signal:
+                errors.append("consumed_part_without_signal")
+            if conflict_without_frozen:
+                errors.append("contested_part_without_frozen_status")
+            if legacy_contested_status:
+                errors.append("legacy_contested_status")
+
+            duplicate_signals = conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM (
+                    SELECT cycle_id FROM ghost_signals
+                    GROUP BY cycle_id HAVING COUNT(*) > 1
+                )
+                """
+            ).fetchone()["c"]
+            signal_without_lock = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_signals s
+                LEFT JOIN ghost_cycle_lock_snapshots l
+                  ON l.lock_snapshot_id = s.lock_snapshot_id
+                 AND l.cycle_id = s.cycle_id
+                WHERE s.lock_snapshot_id = ''
+                   OR l.lock_snapshot_id IS NULL
+                """
+            ).fetchone()["c"]
+            signal_with_active_parts = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_signals s
+                JOIN ghost_parts p ON p.cycle_id = s.cycle_id
+                WHERE p.status = 'active'
+                """
+            ).fetchone()["c"]
+            sent_signal_without_history = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_signals s
+                LEFT JOIN ghost_historical_nodes h ON h.signal_id = s.signal_id
+                GROUP BY s.signal_id
+                HAVING COUNT(h.historical_node_id) != 20
+                """
+            ).fetchall()
+            metrics["duplicate_signals_per_cycle"] = int(duplicate_signals or 0)
+            metrics["signals_without_lock_snapshot"] = int(signal_without_lock or 0)
+            metrics["signals_with_active_parts"] = int(signal_with_active_parts or 0)
+            metrics["signals_without_20_historical_nodes"] = len(sent_signal_without_history)
+            if duplicate_signals:
+                errors.append("duplicate_signal_for_cycle")
+            if signal_without_lock:
+                errors.append("signal_without_lock_snapshot")
+            if signal_with_active_parts:
+                errors.append("signal_with_active_parts")
+            if sent_signal_without_history:
+                errors.append("signal_without_20_historical_nodes")
+
+            broken_connections = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM ghost_connections gc
+                LEFT JOIN ghost_parts a ON a.part_id = gc.part_a_id
+                LEFT JOIN ghost_parts b ON b.part_id = gc.part_b_id
+                WHERE a.part_id IS NULL OR b.part_id IS NULL OR gc.part_a_id = gc.part_b_id
+                """
+            ).fetchone()["c"]
+            metrics["broken_connections"] = int(broken_connections or 0)
+            if broken_connections:
+                errors.append("broken_connections")
+
+            negative_versions = conn.execute(
+                "SELECT COUNT(*) AS c FROM ghost_cycles WHERE state_version < 0"
+            ).fetchone()["c"]
+            metrics["negative_state_versions"] = int(negative_versions or 0)
+            if negative_versions:
+                errors.append("negative_state_version")
+
+            if int(active_count or 0) == 0:
+                warnings.append("no_active_cycle")
+
+            current_checksum = get_catalog_checksum(get_catalog())
+            blocking_cycles = [
+                self._cycle(row)
+                for row in conn.execute(
+                    """
+                    SELECT * FROM ghost_cycles
+                    WHERE status IN ('preparing', 'active', 'transmitting', 'stabilizing')
+                    ORDER BY created_at ASC
+                    """
+                ).fetchall()
+            ]
+            for cycle in blocking_cycles:
+                cycle_id = cycle["cycle_id"]
+                ghostsystem_version = int(cycle.get("ghostsystem_version") or 0)
+                if ghostsystem_version <= 0:
+                    errors.append("invalid_ghostsystem_version")
+                event_version = conn.execute(
+                    """
+                    SELECT COALESCE(MAX(state_version), 0) AS version
+                    FROM ghost_part_events
+                    WHERE cycle_id = ?
+                    """,
+                    (cycle_id,),
+                ).fetchone()["version"]
+                if int(event_version or 0) > int(cycle.get("state_version") or 0):
+                    errors.append("state_version_mismatch")
+
+                part_rows = [
+                    self._part(row)
+                    for row in conn.execute(
+                        "SELECT * FROM ghost_parts WHERE cycle_id = ? ORDER BY part_code ASC",
+                        (cycle_id,),
+                    ).fetchall()
+                ]
+                metrics[f"{cycle_id}:parts_total"] = len(part_rows)
+                if not cycle.get("catalog_version"):
+                    warnings.append(f"{cycle_id}:cycle_missing_catalog_version")
+                    continue
+                if cycle.get("catalog_version") != CATALOG_VERSION:
+                    warnings.append(f"{cycle_id}:catalog_version_differs_from_runtime")
+                if cycle.get("catalog_checksum") and cycle.get("catalog_checksum") != current_checksum:
+                    warnings.append(f"{cycle_id}:catalog_checksum_differs_from_runtime")
+                if len(part_rows) != 20:
+                    errors.append("active_cycle_without_20_parts")
+                connection_count = conn.execute(
+                    "SELECT COUNT(*) AS c FROM ghost_connections WHERE cycle_id = ?",
+                    (cycle_id,),
+                ).fetchone()["c"]
+                metrics[f"{cycle_id}:connections_total"] = int(connection_count or 0)
+                if cycle.get("status") == "stabilizing":
+                    if int(connection_count or 0) != 0:
+                        errors.append("stabilizing_cycle_with_active_connections")
+                    if not cycle.get("restart_required") or not cycle.get("restart_signal_id"):
+                        errors.append("stabilizing_cycle_without_restart_signal")
+                    if not cycle.get("stabilization_until"):
+                        errors.append("stabilizing_cycle_without_until")
+                elif len(part_rows) == 20 and int(connection_count or 0) != 20:
+                    errors.append("active_cycle_without_20_connections")
+                if (
+                    cycle.get("status") != "stabilizing"
+                    and len(part_rows) == 20
+                    and int(connection_count or 0) == 20
+                    and not cycle.get("topology_checksum")
+                ):
+                    errors.append("active_cycle_missing_topology_checksum")
+                clans = {}
+                machines = {}
+                codes = set()
+                for part in part_rows:
+                    clans[part["clan_code"]] = clans.get(part["clan_code"], 0) + 1
+                    machines[part["machine_code"]] = machines.get(part["machine_code"], 0) + 1
+                    codes.add(part["part_code"])
+                    if part.get("catalog_version") != cycle.get("catalog_version"):
+                        errors.append("part_catalog_version_mismatch")
+                    if part.get("status") == "pooled":
+                        has_anchor = any(
+                            part.get(key)
+                            for key in (
+                                "target_id",
+                                "discovered_by",
+                                "discovered_at",
+                                "territory_id",
+                                "territory_owner_id",
+                                "territory_clan",
+                                "activated_at",
+                            )
+                        ) or part.get("latitude") is not None or part.get("longitude") is not None
+                        if has_anchor:
+                            errors.append("pooled_part_has_anchor")
+                if len(codes) != len(part_rows):
+                    errors.append("duplicate_part_code")
+                if part_rows and (set(clans.values()) != {5} or set(machines.values()) != {5}):
+                    errors.append("invalid_part_distribution")
+
+        return {
+            "ok": not errors,
+            "warnings": warnings,
+            "errors": errors,
+            "metrics": metrics,
+        }

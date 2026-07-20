@@ -1935,6 +1935,25 @@ GhostNetwork — katalog klanów, maszyn, profesji i części
 
 Lecimy z pierwszą trójką — 110 ustali twarde granice integracji, 111 postawi bezpieczny fundament globalnego stanu, a 112 zamknie kanoniczny katalog czterech maszyn i dwudziestu części.
 
+## Twarda zasada Sprintów 110-130
+
+Przed rozpoczęciem każdego sprintu GhostNetwork od 110 do 130 należy przeczytać
+i potwierdzić spójność z artefaktami:
+
+* `doc/clans_machines.md`,
+* `doc/ghostnetwork_architecture.md`,
+* `doc/sprint_110_integration_audit.md`.
+
+Jeżeli zakres sprintu, implementacja albo wynik audytu są sprzeczne z tymi
+artefaktami, sprint zatrzymuje się na wpisie decyzyjnym i korekcie kontraktu.
+Nie wolno rozwiązywać sprzeczności przez lokalny wyjątek w kodzie.
+
+Każdy raport końcowy sprintów 110-130 musi zawierać punkt:
+
+```text
+Spójność z artefaktami GhostNetwork
+```
+
 # Sprint 110 — GhostNetwork: audyt integracyjny i kontrakt domeny
 
 ## Cel sprintu
@@ -2253,7 +2272,7 @@ Przygotować budżet operacji:
 Powinien powstać dokument, przykładowo:
 
 ```text
-docs/ghostnetwork/sprint_110_integration_audit.md
+doc/ghostnetwork/sprint_110_integration_audit.md
 ```
 
 Dokument zawiera:
@@ -4613,7 +4632,7 @@ GhostNetwork — integracja z terytoriami
 
 Po Sprintach 116–118 części naprawdę wchodzą do świata: wypadają z poprawnie schakowanych obiektów, posiadają pełny audytowalny lifecycle i reagują na tę samą geometrię terytoriów, o którą gracze już walczą.
 
-Lecimy dalej — Sprint 116 zakotwiczy część po prawdziwym sukcesie, 117 zamknie jej pełny cykl życia, a 118 podepnie stan części pod istniejące klastry, konflikty i stabilną kontrolę terytorium.
+
 
 # Sprint 116 — GhostNetwork: emisja części po skutecznym hacku
 
@@ -6046,7 +6065,7 @@ GhostNetwork — markery części i warstwa mapy
 
 Po Sprintach 119–121 GhostNetwork po raz pierwszy staje się widoczny dla graczy: system rozumie strategiczny stan każdej części, bezpiecznie filtruje wiedzę i pokazuje na mapie tylko to, co dany operator naprawdę powinien zobaczyć.
 
-Lecimy dalej — Sprint 119 zamknie kanoniczne stany strategiczne części, 120 zbuduje jedną bezpieczną projekcję widoczności dla wszystkich interfejsów, a 121 pokaże części na mapie bez dokładania kolejnego ciężkiego pollera.
+
 
 # Sprint 119 — GhostNetwork: neutralne, blokowane i aktywne moduły
 
@@ -8484,6 +8503,13 @@ Sprint jest zakończony, gdy każda zmiana części, połączenia, maszyny i cyk
 
 Ten sprint sprawia, że GhostNetwork może działać długo i stabilnie bez zamieniania mapy w ciężki monitor całego świata.
 
+## Checkpoint 123
+
+Wdrozenie ma korzystac z istniejacego `delta_bus`, `GhostVisibilityService` i
+readonly snapshotow GhostNetwork. Delta bus pozostaje dziennikiem zmian, a nie
+drugim magazynem stanu. Recovery dotyczy tylko scope `ghostnetwork` i nie moze
+odpalac pelnego profilu ani reloadu mapy.
+
 ---
 
 # Sprint 124 — GhostNetwork: supermoce profesji i rejestr efektów
@@ -9012,6 +9038,20 @@ Nie implementować:
 
 Sprint jest zakończony, gdy wszystkie 20 profesji posiada kanoniczny kontrakt mocy, dostęp jest wyliczany z aktywnego modułu, efekty przechodzą przez centralny rejestr i żaden system nie potrzebuje rozsianych warunków klanowo-profesyjnych.
 
+## Checkpoint Sprintu 124
+
+`GhostAbilityRegistry` jest centralnym punktem rozstrzygania mocy profesji.
+Aktywność wynika z katalogu, profesji gracza, aktywnego cyklu i
+`module_state == active` odpowiadającej części. Konflikt nie wyłącza mocy, jeśli
+zamrożony stan części nadal jest aktywny, a utrata części albo transmisja cyklu
+odcina dostęp przy kolejnym resolve.
+
+Efekty przechodzą przez adaptery domenowe `market`, `hack`, `territory`,
+`operation`, `visibility` i `cyberner`. Adaptery są na tym etapie bezpiecznym
+kontraktem i nie zmieniają jeszcze balansu liczbowego.
+
+Artefakt sprintu: `doc/sprint_124_ghostnetwork_abilities.md`.
+
 
 
 
@@ -9481,6 +9521,28 @@ Sprint jest zakończony, gdy każde podstawowe wydarzenie strategiczne tworzy au
 
 Ten sprint odpowiada na pytanie: **kto rzeczywiście buduje GhostNetwork i jak duży jest jego udział**.
 
+## Checkpoint Sprintu 125
+
+Wdrożono ledger wkładu i nagród GhostNetwork:
+
+* `GhostContributionService`;
+* `GhostRewardService`;
+* `GhostClanReputationPolicy`;
+* rozszerzony zapis `ghost_contributions`, `ghost_reward_ledger`
+  i `ghost_clan_reputation`;
+* idempotentne `reward_key` dla odkrycia, pierwszego otoczenia, aktywacji,
+  odzyskania i okresowego hold reward;
+* eventy `ghost.contribution_recorded`, `ghost.reward_pending`,
+  `ghost.reward_applied`, `ghost.clan_reputation_changed`
+  i `ghost.player_history_changed`;
+* dry-run `reconcile_ghost_rewards(...)`.
+
+RSP trafia do istniejącego pola `respect`, a reputacja klanowa pozostaje
+osobnym agregatem narracyjno-rankingowym, nie walutą. Profil nie dostaje kopii
+bieżącego stanu części ani maszyn.
+
+Artefakt sprintu: `doc/sprint_125_ghostnetwork_rewards.md`.
+
 ---
 
 # Sprint 126 — GhostNetwork: obrona, odbicia i zabezpieczenia nagród
@@ -9897,6 +9959,26 @@ Sprint jest zakończony, gdy system potrafi odróżnić prawdziwą obronę i odb
 
 Ten sprint odpowiada na pytanie: **czy gracze rzeczywiście walczyli o strategiczny węzeł, czy tylko przekazywali go sobie dla RSP**.
 
+## Checkpoint Sprintu 126
+
+Wdrożono warstwę rozpoznawania prawdziwych obron i odbić GhostNetwork:
+
+* `GhostStrategicConflictService`;
+* `GhostDefenseRewardPolicy`;
+* tabele `ghost_strategic_conflicts`, `ghost_conflict_actions`,
+  `ghost_control_periods` i `ghost_part_transfer_history`;
+* eventy `ghost.defense_started`, `ghost.defense_progress_changed`,
+  `ghost.part_defended`, `ghost.part_recovered`, `ghost.reward_reduced`
+  i `ghost.reward_flagged`;
+* konfigurację progów obrony, odbicia i cooldownów par właścicieli;
+* fasadę w `GhostNetworkService`;
+* testy `tests.test_ghostnetwork_conflicts`.
+
+Sprint nie zmienia własności terytorium ani geometrii mapy. Ograniczeniu
+podlegają wyłącznie nagrody RSP, a nie sama możliwość przejęcia części.
+
+Artefakt sprintu: `doc/sprint_126_ghostnetwork_conflicts.md`.
+
 ---
 
 # Sprint 127 — GhostNetwork: domknięcie sieci i blokada cyklu
@@ -10309,6 +10391,27 @@ Nie implementować:
 
 Sprint jest zakończony, gdy backend potrafi jednoznacznie potwierdzić pełne `20/20`, atomowo zamrozić cały stan strategiczny i utworzyć niezmienny snapshot, którego nie może już zmienić żaden atak, konflikt ani późniejsza operacja.
 
+## Realizacja Sprintu 127
+
+Wdrożono backendowy kontrakt domknięcia cyklu:
+
+* `GhostNetworkClosureService`;
+* readiness check pełnej sieci `20/20`;
+* atomowe przejście `active -> transmitting`;
+* tabelę `ghost_cycle_lock_snapshots`;
+* walidację lock snapshotu przez checksum;
+* event `ghost.cycle_locked`;
+* fasadę closure w `GhostNetworkService`;
+* testy regresyjne `tests.test_ghostnetwork_closure`;
+* artefakt `doc/sprint_127_ghostnetwork_closure.md`.
+
+Status `transmitting` w Sprint 127 oznacza wyłącznie zamrożenie cyklu i
+oczekiwanie na Sprint 128. Nie utworzono jeszcze GhostSignalu, nie przyznano
+końcowych nagród, nie zużyto części i nie zmieniono wersji GhostSystemu.
+
+Spójność sprawdzono względem `doc/clans_machines.md`,
+`doc/ghostnetwork_architecture.md` oraz sprintów 110-126.
+
 
 
 
@@ -10320,7 +10423,8 @@ GhostNetwork — archiwum, testy końcowe i uruchomienie endgame
 Po Sprintach 128–130 GhostNetwork jest kompletną pętlą endgame: gracze budują sieć, wysyłają niesyntetyczny sygnał do 2108 roku, GhostSystem ewoluuje, historia zostaje zachowana, a świat automatycznie przygotowuje kolejny cykl.
 
 
-Sprint 128 — GhostNetwork: transmisja GhostSignalu i restart systemu
+# Sprint 128 — GhostNetwork: transmisja GhostSignalu i restart systemu
+
 Cel sprintu
 
 Na podstawie niezmiennego snapshotu blokady ze Sprintu 127:
@@ -10727,7 +10831,8 @@ DoD
 
 Sprint jest zakończony, gdy zablokowany cykl może bezpiecznie i dokładnie raz wysłać GhostSignal, zużyć strategiczny stan świata, podnieść wersję GhostSystemu oraz przeprowadzić każdego gracza przez wymagany restart.
 
-Sprint 129 — GhostNetwork: BlackNet, Cyberner, Radio i narracyjny outbox
+# Sprint 129 — GhostNetwork: BlackNet, Cyberner, Radio i narracyjny outbox
+
 Cel sprintu
 
 Podłączyć GhostNetwork do istniejących mediów tak, aby istotne wydarzenia strategiczne stawały się częścią żywego świata, ale bez ujawniania ukrytych danych i bez oddawania narracji kontroli nad mechaniką.
@@ -11154,7 +11259,8 @@ DoD
 
 Sprint jest zakończony, gdy wszystkie istotne wydarzenia GhostNetwork mają bezpieczny i spójny głos w istniejących mediach, a narracja nigdy nie otrzymuje prawa do zmiany stanu świata.
 
-Sprint 130 — GhostNetwork: archiwum, testy końcowe i uruchomienie endgame
+# Sprint 130 — GhostNetwork: archiwum, testy końcowe i uruchomienie endgame
+
 Cel sprintu
 
 Domknąć pierwszy produkcyjny etap GhostNetwork:
