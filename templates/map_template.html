@@ -2991,6 +2991,23 @@
 
         function hackingAction(action, lat, lng, label, icon, source_type = "manual", name = label, generated = false, vulnerability_id = null, target_mode = null, contest_owner_username = null, foreign_area_id = null, target_username = null) {
             if (guardMapGameplayAction()) return;
+            const normalizedActionLat = Number(lat);
+            const normalizedActionLng = Number(lng);
+            const hackActionKey = [
+                action,
+                Number.isFinite(normalizedActionLat) ? normalizedActionLat.toFixed(6) : String(lat),
+                Number.isFinite(normalizedActionLng) ? normalizedActionLng.toFixed(6) : String(lng),
+                source_type || "manual",
+                vulnerability_id || "",
+                target_mode || "",
+                target_username || "",
+                String(label || name || "")
+            ].join("|");
+            window.__pendingHackActionKeys = window.__pendingHackActionKeys || new Set();
+            if (window.__pendingHackActionKeys.has(hackActionKey)) {
+                return;
+            }
+            window.__pendingHackActionKeys.add(hackActionKey);
             closeMenus();
             const hackFlowId = `hf-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
             if (typeof window.startHackActionSpinner === 'function') {
@@ -3017,7 +3034,8 @@
                     contest_owner_username,
                     foreign_area_id,
                     target_username,
-                    _flow_id: hackFlowId
+                    _flow_id: hackFlowId,
+                    _client_action_key: hackActionKey
                 })
             })
             .then(async res => {
@@ -3030,6 +3048,9 @@
             })
             .then(async data => {
                 if (!data) return;
+                if (data.duplicate) {
+                    return;
+                }
                 if (data.tool_selection_required) {
                     if (typeof window.stopHackActionSpinner === 'function') {
                         window.stopHackActionSpinner(hackFlowId);
@@ -3077,6 +3098,11 @@
                 if (typeof window.resumeMapOptionalRefresh === 'function') {
                     window.resumeMapOptionalRefresh(1200);
                 }
+                window.setTimeout(() => {
+                    if (window.__pendingHackActionKeys) {
+                        window.__pendingHackActionKeys.delete(hackActionKey);
+                    }
+                }, 750);
             });
         }
 

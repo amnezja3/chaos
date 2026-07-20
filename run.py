@@ -12,6 +12,7 @@ import ipaddress
 import html
 import subprocess
 import time
+import threading
 from datetime import datetime, timezone, timedelta
 from random import random, choice, randint, sample
 import random as random_module
@@ -5337,6 +5338,69 @@ def risk_scan_action_dedupe_key(username, action, lat, lng):
     return f"action:{username}:{action}:{lat_key}:{lng_key}:{minute_bucket}"
 
 
+HACK_ACTION_IDEMPOTENCY_TTL_SECONDS = 90
+HACK_ACTION_IDEMPOTENCY_MAX = 512
+_hack_action_idempotency_cache = {}
+_hack_action_idempotency_lock = threading.Lock()
+
+
+def build_hack_action_idempotency_key(username, flow_id, action, app, client_action_key=""):
+    username = str(username or "").strip()
+    action = str(action or "").strip()
+    flow_id = str(flow_id or "").strip()[:96]
+    client_action_key = str(client_action_key or "").strip()[:160]
+    app_id = str((app or {}).get("id") or (app or {}).get("name") or "direct").strip()
+    if not username or not action or (not flow_id and not client_action_key):
+        return ""
+    request_key = flow_id or client_action_key
+    return f"{username}:{request_key}:{action}:{app_id}"
+
+
+def begin_hack_action_idempotency(key):
+    if not key:
+        return "new", None
+    now_ts = time.monotonic()
+    with _hack_action_idempotency_lock:
+        expired_keys = [
+            cached_key
+            for cached_key, receipt in _hack_action_idempotency_cache.items()
+            if float(receipt.get("expires_at") or 0) <= now_ts
+        ]
+        for cached_key in expired_keys:
+            _hack_action_idempotency_cache.pop(cached_key, None)
+        if len(_hack_action_idempotency_cache) > HACK_ACTION_IDEMPOTENCY_MAX:
+            oldest = sorted(
+                _hack_action_idempotency_cache.items(),
+                key=lambda item: float(item[1].get("expires_at") or 0),
+            )
+            for cached_key, _receipt in oldest[:64]:
+                _hack_action_idempotency_cache.pop(cached_key, None)
+
+        receipt = _hack_action_idempotency_cache.get(key)
+        if receipt:
+            return str(receipt.get("state") or "in_flight"), copy.deepcopy(receipt)
+
+        _hack_action_idempotency_cache[key] = {
+            "state": "in_flight",
+            "expires_at": now_ts + HACK_ACTION_IDEMPOTENCY_TTL_SECONDS,
+            "payload": None,
+            "status_code": 202,
+        }
+    return "new", None
+
+
+def finish_hack_action_idempotency(key, payload, status_code=200):
+    if not key:
+        return
+    with _hack_action_idempotency_lock:
+        _hack_action_idempotency_cache[key] = {
+            "state": "completed",
+            "expires_at": time.monotonic() + HACK_ACTION_IDEMPOTENCY_TTL_SECONDS,
+            "payload": copy.deepcopy(payload or {}),
+            "status_code": int(status_code or 200),
+        }
+
+
 def build_operation_instance(username, app, map_action_id, operation_type, target):
     now = datetime.now(timezone.utc)
     operation_id = f"op_{now.strftime('%Y%m%d%H%M%S')}_{randint(100000, 999999)}"
@@ -5387,19 +5451,49 @@ def build_operation_instance(username, app, map_action_id, operation_type, targe
 
 
 def create_operations_for_app_action(profile, username, app, map_action_id, target):
+    normalized_app = normalize_app_contract(app or {})
     operation_types = [
         str(operation_type).strip()
-        for operation_type in as_list((app or {}).get("operation_types"))
+        for operation_type in as_list(normalized_app.get("operation_types"))
         if str(operation_type).strip()
     ]
     if not operation_types:
         return []
 
+    target_id = build_operation_target_id(target)
+    terminal_statuses = {"cancelled", "canceled", "done", "completed", "failed", "expired", "timeout", "resolved"}
     operations = profile.setdefault("operations", [])
     created = []
-    for operation_type in operation_types:
-        operation = build_operation_instance(username, app or {}, map_action_id, operation_type, target)
-        update_operation_risk_meter(operation, tool=app or {}, target=target)
+    app_id = str(normalized_app.get("id") or normalized_app.get("name") or "").strip()
+    app_name = str(normalized_app.get("name") or normalized_app.get("id") or "").strip()
+
+    for operation_type in dict.fromkeys(operation_types):
+        exists = False
+        for existing_operation in operations:
+            if not isinstance(existing_operation, dict):
+                continue
+            status = str(existing_operation.get("status") or "").strip().lower()
+            if status in terminal_statuses:
+                continue
+            if str(existing_operation.get("target_id") or "") != str(target_id):
+                continue
+            if str(existing_operation.get("map_action_id") or "") != str(map_action_id):
+                continue
+            if str(existing_operation.get("operation_type") or "") != str(operation_type):
+                continue
+            existing_app_id = str(existing_operation.get("source_app_id") or "").strip()
+            existing_app_name = str(existing_operation.get("source_app_name") or "").strip()
+            if app_id and existing_app_id == app_id:
+                exists = True
+                break
+            if app_name and existing_app_name == app_name:
+                exists = True
+                break
+        if exists:
+            continue
+
+        operation = build_operation_instance(username, normalized_app, map_action_id, operation_type, target)
+        update_operation_risk_meter(operation, tool=normalized_app, target=target)
         operations.append(operation)
         created.append(operation)
     return created
@@ -12138,6 +12232,38 @@ def build_victim_picker_standard_candidates(viewer_profile, origin, action_range
     return candidates
 
 
+def build_victim_picker_active_target_candidate(viewer_profile, origin, action_range):
+    aimed = (viewer_profile or {}).get("aimed_target") or {}
+    if not isinstance(aimed, dict) or not aimed:
+        return None
+
+    try:
+        lat = float(aimed.get("lat"))
+        lng = float(aimed.get("lng", aimed.get("lon")))
+    except (TypeError, ValueError):
+        return None
+
+    payload = {
+        **aimed,
+        "lat": lat,
+        "lng": lng,
+        "lon": lng,
+        "target_mode": aimed.get("target_mode") or "standard",
+        "source_type": aimed.get("source_type") or "active_target",
+        "target_id": aimed.get("target_id") or build_operation_target_id(aimed),
+    }
+    candidate = build_victim_picker_candidate(
+        viewer_profile,
+        payload,
+        "profile.targets",
+        origin=origin,
+        action_range=action_range,
+    )
+    candidate["is_aimed"] = True
+    candidate["is_active_target"] = True
+    return candidate
+
+
 def build_victim_picker_player_candidates(viewer_username, viewer_profile, origin, action_range):
     candidates = {}
     aimed = (viewer_profile or {}).get("aimed_target") or {}
@@ -12274,6 +12400,9 @@ def build_victim_picker_candidates(viewer_username, viewer_profile):
     origin = victim_picker_position(viewer_profile)
     action_range = get_player_action_range(viewer_profile or {})
     candidates = []
+    active_candidate = build_victim_picker_active_target_candidate(viewer_profile, origin, action_range)
+    if active_candidate:
+        candidates.append(active_candidate)
     candidates.extend(build_victim_picker_standard_candidates(viewer_profile, origin, action_range))
     candidates.extend(build_victim_picker_player_candidates(viewer_username, viewer_profile, origin, action_range))
     candidates.extend(build_victim_picker_vulnerability_candidates(viewer_username, viewer_profile, origin, action_range))
@@ -15425,6 +15554,7 @@ def hack_action():
                     "foreign_area_id": data.get("foreign_area_id"),
                     "target_username": preflight_player_target_username or data.get("target_username"),
                     "_flow_id": flow_id,
+                    "_client_action_key": data.get("_client_action_key"),
                 }
             })
 
@@ -15581,8 +15711,31 @@ def hack_action():
                 "foreign_area_id": data.get("foreign_area_id"),
                 "target_username": player_target_username or data.get("target_username"),
                 "_flow_id": flow_id,
+                "_client_action_key": data.get("_client_action_key"),
             }
         })
+
+    hack_action_idempotency_key = build_hack_action_idempotency_key(
+        session.get("user"),
+        flow_id,
+        action,
+        matched_apps[0] if matched_apps else {},
+        data.get("_client_action_key"),
+    )
+    idempotency_state, idempotency_receipt = begin_hack_action_idempotency(hack_action_idempotency_key)
+    if idempotency_state == "completed" and idempotency_receipt:
+        cached_payload = copy.deepcopy(idempotency_receipt.get("payload") or {})
+        cached_payload["duplicate"] = True
+        cached_payload["idempotent_replay"] = True
+        return jsonify(cached_payload), int(idempotency_receipt.get("status_code") or 200)
+    if idempotency_state == "in_flight":
+        return jsonify({
+            "success": True,
+            "duplicate": True,
+            "status": "Akcja jest juz uruchamiana.",
+            "map_action_id": action,
+            "canonical_action": canonical_action,
+        }), 202
 
     if "launch_queue" not in profile:
         profile["launch_queue"] = []
@@ -15736,14 +15889,16 @@ def hack_action():
         reason="hack_action_target_set",
     )
 
-    return jsonify({
+    response_payload = {
         "status": f"🎯 Cel ustawiony: {display_target_label(profile.get('aimed_target') or {})}",
         "target": profile["aimed_target"],
         "added_apps": new_apps,
         "created_operations": created_operations,
         "map_action_id": action,
         "app_match_source": match_source
-    })
+    }
+    finish_hack_action_idempotency(hack_action_idempotency_key, response_payload, 200)
+    return jsonify(response_payload)
 
 
 

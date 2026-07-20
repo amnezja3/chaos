@@ -10644,6 +10644,13 @@ async function selectMapActionTool(appId) {
     try {
         selection.in_flight = true;
         const flowId = getHackFlowId(selection);
+        const selectionRequestKey = `${flowId}:${String(app.id || app.name || appId || "")}`;
+        window.__pendingMapToolSelectionKeys = window.__pendingMapToolSelectionKeys || new Set();
+        if (window.__pendingMapToolSelectionKeys.has(selectionRequestKey)) {
+            return;
+        }
+        window.__pendingMapToolSelectionKeys.add(selectionRequestKey);
+        selection.pending_request_key = selectionRequestKey;
         notifyOpenMapsHackActionStarted(flowId, {
             ...selection.pending_action,
             selected_app_id: app.id,
@@ -10664,6 +10671,17 @@ async function selectMapActionTool(appId) {
             addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", data.status || "Nie uda\u0142o si\u0119 uruchomi\u0107 narz\u0119dzia.");
             selection.in_flight = false;
             updateMapToolPickerBusyState(false);
+            return;
+        }
+        if (data.duplicate) {
+            if (data.target) {
+                setToolbarProfile({
+                    ...(toolbarProfile || {}),
+                    aimed_target: data.target
+                });
+            }
+            window.activeToolSelection = null;
+            closeMapToolPicker(false);
             return;
         }
 
@@ -10689,6 +10707,10 @@ async function selectMapActionTool(appId) {
     } finally {
         notifyOpenMapsHackActionStopped(getHackFlowId(selection));
         resumeOpenMapOptionalRefresh(1200);
+        if (selection?.pending_request_key && window.__pendingMapToolSelectionKeys) {
+            window.__pendingMapToolSelectionKeys.delete(selection.pending_request_key);
+            delete selection.pending_request_key;
+        }
     }
 }
 
