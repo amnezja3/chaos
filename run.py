@@ -5017,6 +5017,22 @@ def merge_latest_profile_runtime_fields(username, fields):
     return merged
 
 
+def normalize_profile_position_update(position):
+    """Keep legacy and canonical position fields in sync during partial updates."""
+    if not isinstance(position, dict):
+        return {}
+    try:
+        lat = float(position.get("lat"))
+        lng = float(position.get("lng", position.get("lon")))
+    except (TypeError, ValueError):
+        return {}
+    normalized = {"lat": lat, "lng": lng}
+    return {
+        "curently_possition": dict(normalized),
+        "current_position": dict(normalized),
+    }
+
+
 def operation_utc_iso(value):
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
@@ -14560,10 +14576,11 @@ def api_blacknet_cta_teleport():
             "error": "profile_not_found",
         }), 401
 
-    profile["curently_possition"] = position
+    position_updates = normalize_profile_position_update(position)
+    profile.update(position_updates)
 
     mgr = UserProfileManager(username)
-    mgr.update_profile({"curently_possition": position})
+    mgr.update_profile(position_updates)
     session["profile"] = profile
 
     intrusion_area = notify_area_intrusion(username, position["lat"], position["lng"])
@@ -14582,6 +14599,7 @@ def api_blacknet_cta_teleport():
         "message": f"{message_prefix}: {target_label}.",
         "hotspot": hotspot_payload,
         "curently_possition": position,
+        "current_position": position,
         "intrusion": bool(intrusion_area),
         "intrusion_area": {
             "id": intrusion_area.get("id"),
@@ -15476,19 +15494,12 @@ def map_action():
                 "message": f"Za daleko, zasięg motocykla: {action_range} m."
             })
 
-        # Zaktualizuj pozycję w profilu
-        profile["curently_possition"]["lat"] = lat
-        profile["curently_possition"]["lng"] = lng
+        position_updates = normalize_profile_position_update({"lat": lat, "lng": lng})
+        profile.update(position_updates)
         session["profile"] = profile
 
-        # Trwale zaktualizuj w pliku JSON
         mgr = UserProfileManager(session["user"])
-        mgr.update_profile({
-            "curently_possition": {
-                "lat": lat,
-                "lng": lng
-            }
-        })
+        mgr.update_profile(position_updates)
         intrusion_area = notify_area_intrusion(session["user"], lat, lng)
         record_map_player_actor_delta(
             session["user"],
@@ -15501,6 +15512,8 @@ def map_action():
         return jsonify({
             "status": f"🎯 Cel osiągnięty: ({lat}, {lng})",
             "message": f"🎯 Cel osiągnięty: ({lat}, {lng})",
+            "curently_possition": position_updates.get("curently_possition"),
+            "current_position": position_updates.get("current_position"),
             "intrusion": bool(intrusion_area),
             "intrusion_area": {
                 "id": intrusion_area.get("id"),
@@ -15526,6 +15539,8 @@ def hack_action():
     player_target_username = str(data.get("target_username") or "").strip()
     selected_app_id = str(data.get("selected_app_id") or "").strip()
     flow_id = str(data.get("_flow_id") or "")[:96]
+    hack_action_idempotency_key = None
+    hack_action_idempotency_started = False
     vulnerability_report = None
     contested_target = None
 
@@ -15648,8 +15663,51 @@ def hack_action():
                     "target_username": preflight_player_target_username or data.get("target_username"),
                     "_flow_id": flow_id,
                     "_client_action_key": data.get("_client_action_key"),
-                }
-            })
+            }
+        })
+
+    if selected_app_id:
+        readonly_profile = load_profile_readonly(
+            session.get("user"),
+            strip_sensitive=True,
+            normalize_apps=True,
+            normalize_files=False,
+        )
+        readonly_apps = normalize_app_contracts((readonly_profile or {}).get("apps", []))
+        early_matched_apps, _ = get_apps_for_map_action(readonly_apps, action)
+        if not early_matched_apps and canonical_action != action:
+            early_matched_apps, _ = get_apps_for_map_action(readonly_apps, canonical_action)
+        early_selected_app = next(
+            (
+                app for app in early_matched_apps
+                if str(app.get("id") or "") == selected_app_id
+                or str(app.get("name") or "") == selected_app_id
+            ),
+            None,
+        )
+        if early_selected_app:
+            hack_action_idempotency_key = build_hack_action_idempotency_key(
+                session.get("user"),
+                flow_id,
+                action,
+                early_selected_app,
+                data.get("_client_action_key"),
+            )
+            idempotency_state, idempotency_receipt = begin_hack_action_idempotency(hack_action_idempotency_key)
+            if idempotency_state == "completed" and idempotency_receipt:
+                cached_payload = copy.deepcopy(idempotency_receipt.get("payload") or {})
+                cached_payload["duplicate"] = True
+                cached_payload["idempotent_replay"] = True
+                return jsonify(cached_payload), int(idempotency_receipt.get("status_code") or 200)
+            if idempotency_state == "in_flight":
+                return jsonify({
+                    "success": True,
+                    "duplicate": True,
+                    "status": "Akcja jest juz uruchamiana.",
+                    "map_action_id": action,
+                    "canonical_action": canonical_action,
+                }), 202
+            hack_action_idempotency_started = True
 
     profile = sync_session_profile()
     if vulnerability_id:
@@ -15808,27 +15866,29 @@ def hack_action():
             }
         })
 
-    hack_action_idempotency_key = build_hack_action_idempotency_key(
-        session.get("user"),
-        flow_id,
-        action,
-        matched_apps[0] if matched_apps else {},
-        data.get("_client_action_key"),
-    )
-    idempotency_state, idempotency_receipt = begin_hack_action_idempotency(hack_action_idempotency_key)
-    if idempotency_state == "completed" and idempotency_receipt:
-        cached_payload = copy.deepcopy(idempotency_receipt.get("payload") or {})
-        cached_payload["duplicate"] = True
-        cached_payload["idempotent_replay"] = True
-        return jsonify(cached_payload), int(idempotency_receipt.get("status_code") or 200)
-    if idempotency_state == "in_flight":
-        return jsonify({
-            "success": True,
-            "duplicate": True,
-            "status": "Akcja jest juz uruchamiana.",
-            "map_action_id": action,
-            "canonical_action": canonical_action,
-        }), 202
+    if not hack_action_idempotency_key:
+        hack_action_idempotency_key = build_hack_action_idempotency_key(
+            session.get("user"),
+            flow_id,
+            action,
+            matched_apps[0] if matched_apps else {},
+            data.get("_client_action_key"),
+        )
+    if not hack_action_idempotency_started:
+        idempotency_state, idempotency_receipt = begin_hack_action_idempotency(hack_action_idempotency_key)
+        if idempotency_state == "completed" and idempotency_receipt:
+            cached_payload = copy.deepcopy(idempotency_receipt.get("payload") or {})
+            cached_payload["duplicate"] = True
+            cached_payload["idempotent_replay"] = True
+            return jsonify(cached_payload), int(idempotency_receipt.get("status_code") or 200)
+        if idempotency_state == "in_flight":
+            return jsonify({
+                "success": True,
+                "duplicate": True,
+                "status": "Akcja jest juz uruchamiana.",
+                "map_action_id": action,
+                "canonical_action": canonical_action,
+            }), 202
 
     if "launch_queue" not in profile:
         profile["launch_queue"] = []

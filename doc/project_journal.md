@@ -10036,3 +10036,15 @@ Ograniczenie:
 * lokalny cache idempotencji `/hack-action` nadal jest per worker. Fix chroni
   zapis runtime przed utrata pracy i duplikatami logicznymi po odczycie profilu,
   ale pelna idempotencja cross-worker wymagalaby wspolnego store receiptow.
+
+Kontynuacja hotfixu:
+
+* ujednolicono zapisy pozycji gracza przez `curently_possition` i
+  `current_position`, zeby mapowy travel, terminal teleport i BlackNet teleport
+  nie rozjezdzaly sie po ponownym otwarciu mapy;
+* mapowy `travel` zapisuje teraz oba aliasy pozycji w profilu i sesji;
+* frontend mapy po animacji przejazdu aktualizuje oba aliasy lokalnego
+  `profileData`;
+* `/hack-action` dla juz wybranego narzedzia zaklada idempotency receipt przed
+  ciezkim `sync_session_profile()`, ograniczajac okno na podwojne/potrojne
+  uruchomienia przy lagu mapy.

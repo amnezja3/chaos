@@ -3567,6 +3567,7 @@
 
                     await animateAvatarTravel(avatarMarker, from, to, 1500);
                     window.profileData.curently_possition = { ...to };
+                    window.profileData.current_position = { ...to };
                     if (window.refreshPlayerActors) {
                         window.refreshPlayerActors();
                     }

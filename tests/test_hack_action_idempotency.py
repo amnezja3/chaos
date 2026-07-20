@@ -145,6 +145,13 @@ class HackActionIdempotencyTests(unittest.TestCase):
         self.assertEqual({op["operation_id"] for op in merged["operations"]}, {"op_scan", "op_trace"})
         self.assertEqual(merged["launch_queue"], ["Port Scanner", "Trace Compass"])
 
+    def test_normalize_profile_position_update_writes_legacy_and_canonical_fields(self):
+        result = run.normalize_profile_position_update({"lat": "52.1", "lon": "21.2"})
+
+        self.assertEqual(result["curently_possition"], {"lat": 52.1, "lng": 21.2})
+        self.assertEqual(result["current_position"], {"lat": 52.1, "lng": 21.2})
+        self.assertIsNot(result["curently_possition"], result["current_position"])
+
 
 if __name__ == "__main__":
     unittest.main()
