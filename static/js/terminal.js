@@ -1609,7 +1609,7 @@ async function handleTerminalTeleport(content, teleport) {
     const lng = Number(teleport?.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         appendSystemTerminalOutput(content, "teleport: brak poprawnych wspolrzednych.");
-        return;
+        return false;
     }
 
     const label = teleport?.label || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
@@ -1623,7 +1623,7 @@ async function handleTerminalTeleport(content, teleport) {
     });
     if (!accepted) {
         appendSystemTerminalOutput(content, "Teleport anulowany.");
-        return;
+        return false;
     }
 
     const response = await fetch("/api/blacknet/cta/teleport", {
@@ -1640,7 +1640,7 @@ async function handleTerminalTeleport(content, teleport) {
     const data = await response.json();
     if (!response.ok || data.success === false) {
         appendSystemTerminalOutput(content, escapeHTML(data.message || "Teleport odrzucony."));
-        return;
+        return false;
     }
 
     appendSystemTerminalOutput(content, escapeHTML(data.message || `Teleport wykonany: ${label}.`));
@@ -1655,6 +1655,7 @@ async function handleTerminalTeleport(content, teleport) {
         lng: Number(data?.curently_possition?.lng ?? lng),
         source: "terminal"
     });
+    return true;
 }
 
 async function executeSystemTerminalCommand(value, input, content, { echo = true } = {}) {
@@ -1727,8 +1728,7 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
 
         if (data.terminalTeleport) {
             stopLoader();
-            await handleTerminalTeleport(content, data.terminalTeleport);
-            return false;
+            return await handleTerminalTeleport(content, data.terminalTeleport);
         }
 
         if (data.closeTerminal) {
@@ -1786,11 +1786,51 @@ function attachSystemTerminalInputHandler(input, content) {
     if (!form || form.dataset.systemTerminalBound === "1") return;
     form.dataset.systemTerminalBound = "1";
     let ghostScriptRunning = false;
+    const commandHistory = [];
+    let historyIndex = -1;
+    let historyDraft = "";
+
+    input.addEventListener("keydown", (event) => {
+        if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+        if (!commandHistory.length) return;
+
+        event.preventDefault();
+        if (event.key === "ArrowUp") {
+            if (historyIndex === -1) {
+                historyDraft = input.value;
+                historyIndex = commandHistory.length - 1;
+            } else {
+                historyIndex = Math.max(0, historyIndex - 1);
+            }
+            input.value = commandHistory[historyIndex] || "";
+        } else {
+            if (historyIndex === -1) return;
+            historyIndex += 1;
+            if (historyIndex >= commandHistory.length) {
+                historyIndex = -1;
+                input.value = historyDraft;
+            } else {
+                input.value = commandHistory[historyIndex] || "";
+            }
+        }
+
+        window.requestAnimationFrame(() => {
+            input.setSelectionRange(input.value.length, input.value.length);
+        });
+    });
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
         const value = input.value.trim();
         if (!value || ghostScriptRunning) return;
+
+        if (commandHistory[commandHistory.length - 1] !== value) {
+            commandHistory.push(value);
+            if (commandHistory.length > 80) commandHistory.shift();
+        }
+        historyIndex = -1;
+        historyDraft = "";
 
         const scriptCommands = content.pendingConfirm ? [value] : splitGhostScriptCommands(value);
         if (!scriptCommands.length) return;
