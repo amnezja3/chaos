@@ -37,7 +37,8 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
 
     def test_critical_boot_steps_retry_transient_failures(self):
         self.assertIn("waitForMapBootRetry", self.map_template)
-        self.assertIn("options.critical ? 2 : 0", self.map_template)
+        self.assertIn("options.critical ? 3 : 0", self.map_template)
+        self.assertIn("isNarrowViewport ? 90000 : 65000", self.map_template)
         self.assertIn("Ponawiam:", self.map_template)
         self.assertIn("boot_attempt", self.map_template)
 

@@ -4402,7 +4402,7 @@
                 const silent = Boolean(options.silent);
                 const total = Math.max(1, Number(options.total || 1));
                 const index = Math.max(0, Number(options.index || 0));
-                const maxRetries = Math.max(0, Number(options.retries ?? (options.critical ? 2 : 0)) || 0);
+                const maxRetries = Math.max(0, Number(options.retries ?? (options.critical ? 3 : 0)) || 0);
                 if (!silent) {
                     updateMapBootOverlay(label, Math.round((index / total) * 100));
                     await waitForMapBootPaint();
@@ -4427,7 +4427,7 @@
                         const canRetry = options.critical && attempt < maxRetries;
                         console.warn('[map boot] step failed', scope || label, { attempt: attempt + 1, retry: canRetry }, err);
                         if (canRetry) {
-                            const retryDelay = 420 + (attempt * 520);
+                            const retryDelay = 900 + (attempt * 900);
                             if (!silent) {
                                 updateMapBootOverlay(`Ponawiam: ${label}`, Math.round((index / total) * 100));
                                 await waitForMapBootPaint();
@@ -6088,11 +6088,13 @@
 
             window.refreshPlayerAreas = async function(options = {}) {
                 const isCritical = Boolean(options.critical);
+                const isNarrowViewport = typeof window.matchMedia === 'function'
+                    && window.matchMedia('(max-width: 760px)').matches;
                 const refreshSeq = ++window.playerAreaRefreshSeq;
                 const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
                 try {
                     const snapshot = await window.fetchMapSnapshot('player_areas', '/api/map/player-areas', {
-                        timeoutMs: isCritical ? 45000 : 15000,
+                        timeoutMs: isCritical ? (isNarrowViewport ? 90000 : 65000) : (isNarrowViewport ? 30000 : 20000),
                         critical: isCritical
                     });
                     if (snapshot.skipped || snapshot.aborted) {
