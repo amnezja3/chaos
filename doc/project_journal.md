@@ -10048,3 +10048,18 @@ Kontynuacja hotfixu:
 * `/hack-action` dla juz wybranego narzedzia zaklada idempotency receipt przed
   ciezkim `sync_session_profile()`, ograniczajac okno na podwojne/potrojne
   uruchomienia przy lagu mapy.
+
+Dalsze dopiecie map action flow:
+
+* klik w akcje markera mapy dostal lokalny `busy` guard na elemencie menu;
+* klucz mapowej akcji pozostaje zablokowany dluzej, a dla wyboru narzedzia
+  jeszcze dluzej, zeby lag mapy nie powodowal kilku takich samych requestow;
+* `/launch-queue` zwraca zmonotonicznie scalona kolejke uruchomien;
+* frontend deduplikuje nazwy aplikacji z jednej paczki `launch_queue`;
+* toasty systemowe dostaly krotki klientowy dedupe window;
+* `/add-system-message` uzywa lekkiego `load_profile_readonly()` i nie odpala
+  pelnego `sync_session_profile()`.
+
+Cel poprawki: jeden klik mapowy ma prowadzic do jednego wyboru/uruchomienia
+narzedzia, a ewentualne duplikaty backendowe nie powinny mnozyc okien aplikacji
+ani identycznych komunikatow systemowych.

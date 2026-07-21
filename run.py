@@ -19355,10 +19355,23 @@ def add_system_message():
     if not all([msg_type, title, text]):
         return jsonify({"error": "Brakuje danych: type, title, text"}), 400
 
-    profile = sync_session_profile()
+    profile = load_profile_readonly(session["user"], normalize_apps=False, normalize_files=False)
+    if not profile:
+        session.clear()
+        return jsonify({"error": "Brak danych profilu"}), 401
     mgr = UserProfileManager(session["user"])
 
     messages = profile.get("system_messages", [])
+    duplicate_pending = any(
+        msg.get("status") == "new"
+        and msg.get("type") == msg_type
+        and msg.get("title") == title
+        and msg.get("text") == text
+        for msg in messages
+        if isinstance(msg, dict)
+    )
+    if duplicate_pending:
+        return jsonify({"status": "success", "duplicate": True, "message": "Wiadomosc juz czeka"})
 
     # Prosty generator ID
     new_id = max([m.get("id", 0) for m in messages], default=0) + 1
@@ -19368,6 +19381,7 @@ def add_system_message():
         "type": msg_type,
         "title": title,
         "text": text,
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "status": "new"
     }
 
@@ -19817,7 +19831,7 @@ def launch_queue():
         session.clear()
         return jsonify({"logout": True})
 
-    launch_list = profile.get("launch_queue", [])
+    launch_list = merge_launch_queue_monotonic([], profile.get("launch_queue", []))
     if not launch_list:
         return jsonify([])
 

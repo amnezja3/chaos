@@ -12725,8 +12725,34 @@ document.querySelectorAll('.icon').forEach(icon => {
     });
 });
 
+function shouldSuppressDuplicateSystemToast(message, type = 'success') {
+    const now = Date.now();
+    const ttlMs = 20000;
+    window.__systemToastDedupe = window.__systemToastDedupe || new Map();
+    for (const [key, expiresAt] of window.__systemToastDedupe.entries()) {
+        if (expiresAt <= now) {
+            window.__systemToastDedupe.delete(key);
+        }
+    }
+    const key = [
+        message && message.id ? `id:${message.id}` : "",
+        type || "",
+        message && message.title ? String(message.title) : "",
+        message && message.text ? String(message.text) : "",
+        message && message.notification_type ? String(message.notification_type) : ""
+    ].join("|");
+    if (window.__systemToastDedupe.has(key)) {
+        return true;
+    }
+    window.__systemToastDedupe.set(key, now + ttlMs);
+    return false;
+}
+
 function showSystemToast(message, type = 'success') {
     const container = document.getElementById("system-toast-container");
+    if (!container || shouldSuppressDuplicateSystemToast(message, type)) {
+        return;
+    }
     const isCyberner = message && message.notification_type === "cyberner";
     const cybernerThread = isCyberner ? normalizeCybernerNotificationThread(message) : null;
     if (isCyberner && isCybernerThreadCurrentlyOpen(cybernerThread)) {
@@ -12803,7 +12829,17 @@ async function pollLaunchQueue() {
         }
 
         if (Array.isArray(appsToLaunch) && appsToLaunch.length > 0) {
-            for (const name of appsToLaunch) {
+            const uniqueAppsToLaunch = [];
+            const seenLaunchNames = new Set();
+            for (const rawName of appsToLaunch) {
+                const name = String(rawName || "").trim();
+                if (!name || seenLaunchNames.has(name)) {
+                    continue;
+                }
+                seenLaunchNames.add(name);
+                uniqueAppsToLaunch.push(name);
+            }
+            for (const name of uniqueAppsToLaunch) {
                 const cmdRes = await fetch('/command', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
