@@ -145,6 +145,62 @@ class HackActionIdempotencyTests(unittest.TestCase):
         self.assertEqual({op["operation_id"] for op in merged["operations"]}, {"op_scan", "op_trace"})
         self.assertEqual(merged["launch_queue"], ["Port Scanner", "Trace Compass"])
 
+    def test_filter_accepted_created_operations_drops_rejected_cross_worker_duplicate(self):
+        profile_after_merge = {
+            "operations": [
+                {
+                    "operation_id": "op_first",
+                    "target_id": "target-1",
+                    "map_action_id": "scan_ports",
+                    "operation_type": "wifi_scanner",
+                    "source_app_id": "scanner_1",
+                    "status": "running",
+                }
+            ]
+        }
+        locally_created = [
+            {
+                "operation_id": "op_duplicate",
+                "target_id": "target-1",
+                "map_action_id": "scan_ports",
+                "operation_type": "wifi_scanner",
+                "source_app_id": "scanner_1",
+                "status": "running",
+            }
+        ]
+
+        accepted = run.filter_accepted_created_operations(profile_after_merge, locally_created)
+
+        self.assertEqual(accepted, [])
+
+    def test_filter_accepted_created_operations_keeps_saved_operation(self):
+        profile_after_merge = {
+            "operations": [
+                {
+                    "operation_id": "op_scan",
+                    "target_id": "target-1",
+                    "map_action_id": "scan_ports",
+                    "operation_type": "wifi_scanner",
+                    "source_app_id": "scanner_1",
+                    "status": "running",
+                }
+            ]
+        }
+        locally_created = [
+            {
+                "operation_id": "op_scan",
+                "target_id": "target-1",
+                "map_action_id": "scan_ports",
+                "operation_type": "wifi_scanner",
+                "source_app_id": "scanner_1",
+                "status": "running",
+            }
+        ]
+
+        accepted = run.filter_accepted_created_operations(profile_after_merge, locally_created)
+
+        self.assertEqual(accepted, locally_created)
+
     def test_normalize_profile_position_update_writes_legacy_and_canonical_fields(self):
         result = run.normalize_profile_position_update({"lat": "52.1", "lon": "21.2"})
 

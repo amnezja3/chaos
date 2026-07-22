@@ -10063,3 +10063,23 @@ Dalsze dopiecie map action flow:
 Cel poprawki: jeden klik mapowy ma prowadzic do jednego wyboru/uruchomienia
 narzedzia, a ewentualne duplikaty backendowe nie powinny mnozyc okien aplikacji
 ani identycznych komunikatow systemowych.
+
+Korekta po testach na roznych komputerach:
+
+* potwierdzono, ze na wolniejszym kliencie dubel ujawnia sie glownie jako wiele
+  okien aplikacji, a na szybszym jako kilka operacji w Centrum Operacji;
+* odpowiedz `/hack-action` filtruje teraz `created_operations` po faktycznym
+  stanie profilu po monotonicznym merge;
+* spozniony request, ktorego operacja zostala odrzucona jako logiczny duplikat,
+  nie informuje juz frontendu, ze utworzyl nowa operacje;
+* lokalny `profile` po `set_player_aimed_target()` dostaje te same zmergowane
+  pola runtime, ktore zostaly zapisane w profilu;
+* `pollLaunchQueue()` ma guard przed nakladajacym sie pollingiem oraz krotki
+  TTL na ponowne uruchomienie tej samej aplikacji z kolejki.
+
+Walidacja korekty:
+
+* `python -m py_compile run.py database.py profileManagment.py config.py`: OK;
+* `node --check static/js/terminal.js`: OK;
+* `python -m unittest tests.test_hack_action_idempotency`: OK, 9 testow;
+* `git diff --check`: OK.

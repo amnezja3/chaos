@@ -12817,7 +12817,32 @@ setInterval(pollSystemMessages, 10000);
 setTimeout(pollStateChanges, 1000);
 setInterval(pollStateChanges, STATE_DELTA_POLL_INTERVAL_MS);
 
+let launchQueuePollInFlight = false;
+const recentLaunchQueueApps = new Map();
+const LAUNCH_QUEUE_RECENT_TTL_MS = 12000;
+
+function shouldSkipRecentLaunchQueueApp(name) {
+    const key = String(name || "").trim().toLowerCase();
+    if (!key) return true;
+    const now = Date.now();
+    const expiresAt = recentLaunchQueueApps.get(key) || 0;
+    if (expiresAt > now) {
+        return true;
+    }
+    recentLaunchQueueApps.set(key, now + LAUNCH_QUEUE_RECENT_TTL_MS);
+    for (const [recentKey, recentExpiresAt] of recentLaunchQueueApps.entries()) {
+        if (recentExpiresAt <= now) {
+            recentLaunchQueueApps.delete(recentKey);
+        }
+    }
+    return false;
+}
+
 async function pollLaunchQueue() {
+    if (launchQueuePollInFlight) {
+        return;
+    }
+    launchQueuePollInFlight = true;
     const loadingToken = beginDesktopLoading('Sprawdzam system...');
     try {
         const res = await fetch('/launch-queue');
@@ -12833,7 +12858,7 @@ async function pollLaunchQueue() {
             const seenLaunchNames = new Set();
             for (const rawName of appsToLaunch) {
                 const name = String(rawName || "").trim();
-                if (!name || seenLaunchNames.has(name)) {
+                if (!name || seenLaunchNames.has(name) || shouldSkipRecentLaunchQueueApp(name)) {
                     continue;
                 }
                 seenLaunchNames.add(name);
@@ -12872,6 +12897,7 @@ async function pollLaunchQueue() {
         console.error("❌ Błąd podczas pobierania launch-queue:", err);
     } finally {
         // Spróbuj ponownie za 10 sekund
+        launchQueuePollInFlight = false;
         endDesktopLoading(loadingToken);
         setTimeout(pollLaunchQueue, 10000);
     }

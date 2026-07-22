@@ -4920,6 +4920,8 @@ def set_player_aimed_target(username, profile, aimed_target, update_fields=None,
     fields = merge_latest_profile_runtime_fields(username, fields)
     fields["aimed_target"] = aimed_target
     UserProfileManager(username).update_profile(fields)
+    for key, value in fields.items():
+        profile[key] = value
     profile["aimed_target"] = aimed_target
     safe_ghostnetwork_on_target_aimed(username, profile, aimed_target, reason=reason)
     return aimed_target
@@ -4990,6 +4992,25 @@ def merge_launch_queue_monotonic(latest_queue, incoming_queue):
         seen.add(value)
         merged.append(item)
     return merged
+
+
+def filter_accepted_created_operations(profile, created_operations):
+    """Return only operations that survived the latest runtime merge/write."""
+    if not isinstance(profile, dict) or not created_operations:
+        return []
+    accepted_ids = {
+        str(operation.get("operation_id") or operation.get("id") or "").strip()
+        for operation in profile.get("operations", []) or []
+        if isinstance(operation, dict)
+    }
+    if not accepted_ids:
+        return []
+    return [
+        operation
+        for operation in created_operations or []
+        if isinstance(operation, dict)
+        and str(operation.get("operation_id") or operation.get("id") or "").strip() in accepted_ids
+    ]
 
 
 def merge_latest_profile_runtime_fields(username, fields):
@@ -16035,6 +16056,7 @@ def hack_action():
         },
         reason="hack_action_target_set",
     )
+    accepted_created_operations = filter_accepted_created_operations(profile, created_operations)
     record_map_target_delta(
         session["user"],
         profile.get("aimed_target") or {},
@@ -16046,7 +16068,7 @@ def hack_action():
         "status": f"🎯 Cel ustawiony: {display_target_label(profile.get('aimed_target') or {})}",
         "target": profile["aimed_target"],
         "added_apps": new_apps,
-        "created_operations": created_operations,
+        "created_operations": accepted_created_operations,
         "map_action_id": action,
         "app_match_source": match_source
     }
