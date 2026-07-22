@@ -11,6 +11,10 @@ let gonnaWinRequestQueue = Promise.resolve();
 let toolbarTargetTruthRefreshing = false;
 let desktopSessionActive = true;
 let desktopRenderedApps = [];
+const recentApplicationWindowLaunches = new Map();
+const notifiedOperationIds = new Map();
+const APP_WINDOW_LAUNCH_DEDUPE_MS = 1600;
+const NOTIFIED_OPERATION_TTL_MS = 30000;
 const fileManagerInstances = new Map();
 const cybernerDeltaClients = new Set();
 const ghostExchangeDeltaViews = new Set();
@@ -1073,6 +1077,36 @@ function runSystemLauncherApp(appData) {
         return false;
     }
     launcherMap[launcher]();
+    return true;
+}
+
+function buildApplicationWindowLaunchKey(id, type) {
+    return `${String(type || "app").trim().toLowerCase()}:${String(id || "").trim().toLowerCase()}`;
+}
+
+function beginApplicationWindowLaunch(id, type) {
+    const key = buildApplicationWindowLaunchKey(id, type);
+    const now = Date.now();
+    for (const [recentKey, expiresAt] of recentApplicationWindowLaunches.entries()) {
+        if (expiresAt <= now) {
+            recentApplicationWindowLaunches.delete(recentKey);
+        }
+    }
+    if (!key || key.endsWith(":") || (recentApplicationWindowLaunches.get(key) || 0) > now) {
+        hackFlowDebug(window.__lastHackFlowId || "", "desktop", "app_launch_skip_recent", {
+            app_id: id,
+            interface: type,
+            key
+        });
+        return false;
+    }
+    recentApplicationWindowLaunches.set(key, now + APP_WINDOW_LAUNCH_DEDUPE_MS);
+    hackFlowDebug(window.__lastHackFlowId || "", "desktop", "app_launch_open", {
+        app_id: id,
+        interface: type,
+        key,
+        stack: (new Error().stack || "").split("\n").slice(2, 7)
+    });
     return true;
 }
 
@@ -2898,6 +2932,7 @@ function createTerminal() {
 }
 
 function app_window(id, levels) {
+    if (!beginApplicationWindowLaunch(id, "window")) return null;
     const safeLevels = Array.isArray(levels) ? levels : [];
     const level = safeLevels[0] || {};
     const items = Array.isArray(level.list) && level.list.length
@@ -2957,6 +2992,7 @@ function app_window(id, levels) {
 }
 
 async function app_progressbar_random(id, levels) {
+    if (!beginApplicationWindowLaunch(id, "progressbar_random")) return null;
     const safeLevels = Array.isArray(levels) ? levels : [];
     const level = safeLevels[0] || {};
     const steps = Array.isArray(level.steps) && level.steps.length
@@ -3119,12 +3155,37 @@ function hackFlowDebug(flowId, source, step, details = {}) {
 
 function notifyCreatedOperations(data) {
     if (!data || !Array.isArray(data.created_operations) || !data.created_operations.length) return;
+    const now = Date.now();
+    for (const [operationId, expiresAt] of notifiedOperationIds.entries()) {
+        if (expiresAt <= now) {
+            notifiedOperationIds.delete(operationId);
+        }
+    }
+    const freshOperations = data.created_operations.filter(op => {
+        const operationId = op && op.operation_id;
+        if (!operationId) return true;
+        if (notifiedOperationIds.has(operationId)) return false;
+        notifiedOperationIds.set(operationId, now + NOTIFIED_OPERATION_TTL_MS);
+        return true;
+    });
+    if (!freshOperations.length) {
+        hackFlowDebug(
+            data.debug_flow && data.debug_flow.flow_id,
+            "desktop",
+            "created_operations_skip_duplicate_notify",
+            {
+                ids: data.created_operations.map(op => op && op.operation_id),
+                debug_flow: data.debug_flow || null
+            }
+        );
+        return;
+    }
     hackFlowDebug(
         data.debug_flow && data.debug_flow.flow_id,
         "desktop",
         "created_operations_notify",
         {
-            ids: data.created_operations.map(op => op && op.operation_id),
+            ids: freshOperations.map(op => op && op.operation_id),
             debug_flow: data.debug_flow || null
         }
     );
@@ -4962,6 +5023,7 @@ async function sendGonnaWinRequest(appId, choiceId = null) {
 }
 
 function app_terminal(id, levels) {
+    if (!beginApplicationWindowLaunch(id, "terminal")) return null;
     notifyGonnaWin(id);
     const safeLevels = Array.isArray(levels) ? levels : [];
     const level = safeLevels[0] || {};
@@ -5056,6 +5118,7 @@ function app_terminal(id, levels) {
 }
 
 function app_button_choices(id, levels) {
+    if (!beginApplicationWindowLaunch(id, "button_choices")) return null;
     const safeLevels = Array.isArray(levels) ? levels : [];
     const lvl = safeLevels[0] || {};
     const options = Array.isArray(lvl.options) && lvl.options.length
