@@ -13,7 +13,7 @@ let desktopSessionActive = true;
 let desktopRenderedApps = [];
 const recentApplicationWindowLaunches = new Map();
 const notifiedOperationIds = new Map();
-const APP_WINDOW_LAUNCH_DEDUPE_MS = 1600;
+const APP_WINDOW_LAUNCH_DEDUPE_MS = 30000;
 const NOTIFIED_OPERATION_TTL_MS = 30000;
 const fileManagerInstances = new Map();
 const cybernerDeltaClients = new Set();
@@ -1087,6 +1087,17 @@ function buildApplicationWindowLaunchKey(id, type) {
 function beginApplicationWindowLaunch(id, type) {
     const key = buildApplicationWindowLaunchKey(id, type);
     const now = Date.now();
+    for (const existing of document.querySelectorAll('.app-window')) {
+        if (existing.dataset.launchKey === key) {
+            bringWindowToFront(existing);
+            hackFlowDebug(window.__lastHackFlowId || "", "desktop", "app_launch_skip_existing_window", {
+                app_id: id,
+                interface: type,
+                key
+            });
+            return false;
+        }
+    }
     for (const [recentKey, expiresAt] of recentApplicationWindowLaunches.entries()) {
         if (expiresAt <= now) {
             recentApplicationWindowLaunches.delete(recentKey);
@@ -1419,12 +1430,7 @@ function attachTerminalInputHandler(input, content) {
                 content.appendChild(conDiv);
 
                 // 👇 Uruchom aplikację
-                if (!runSystemLauncherApp(app)) {
-                if (type === "window") app_window(id, levels);
-                if (type === "progressbar_random") app_progressbar_random(id, levels);
-                if (type === "terminal") app_terminal(id, levels);
-                if (type === "button_choices") app_button_choices(id, levels);
-                }
+                launchApplicationEffect(app);
             }
 
             // 👇 Dopiero teraz tworzysz nową linię terminala
@@ -1794,12 +1800,7 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
                 appendSystemTerminalOutput(content, consoleEffect.replace(/\n/g, "<br>"), "system-terminal-console-effect");
             }
 
-            if (!runSystemLauncherApp(app)) {
-                if (type === "window") app_window(id, levels);
-                if (type === "progressbar_random") app_progressbar_random(id, levels);
-                if (type === "terminal") app_terminal(id, levels);
-                if (type === "button_choices") app_button_choices(id, levels);
-            }
+            launchApplicationEffect(app);
         }
 
         return true;
@@ -2941,6 +2942,7 @@ function app_window(id, levels) {
     const windowButtons = Array.isArray(level.buttons) ? level.buttons : [];
     const app = document.createElement('div');
     app.className = 'app-window';
+    app.dataset.launchKey = buildApplicationWindowLaunchKey(id, "window");
     const position = findAvailablePosition();
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -3000,6 +3002,7 @@ async function app_progressbar_random(id, levels) {
         : ["Inicjalizacja modułu...", "Wykonanie operacji...", "Finalizacja..."];
     const app = document.createElement('div');
     app.className = 'app-window';
+    app.dataset.launchKey = buildApplicationWindowLaunchKey(id, "progressbar_random");
     const position = findAvailablePosition();
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -5032,6 +5035,7 @@ function app_terminal(id, levels) {
 
     const app = document.createElement('div');
     app.className = 'app-window';
+    app.dataset.launchKey = buildApplicationWindowLaunchKey(id, "terminal");
     const position = findAvailablePosition();
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -5126,6 +5130,7 @@ function app_button_choices(id, levels) {
         : [{ id: 0, label: "Wykonaj", effect: {} }];
     const app = document.createElement('div');
     app.className = 'app-window';
+    app.dataset.launchKey = buildApplicationWindowLaunchKey(id, "button_choices");
     const position = findAvailablePosition();
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -13033,12 +13038,7 @@ async function pollLaunchQueue() {
                             app_id: id,
                             interface: type
                         });
-                        if (runSystemLauncherApp(appData)) return;
-                        if (type === "window") app_window(id, levels);
-                        else if (type === "progressbar_random") app_progressbar_random(id, levels);
-                        else if (type === "terminal") app_terminal(id, levels);
-                        else if (type === "button_choices") app_button_choices(id, levels);
-                        else console.warn(`❓ Nieznany interfejs: ${type}`);
+                        launchApplicationEffect(appData);
                     };
 
                     action();

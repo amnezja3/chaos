@@ -5488,7 +5488,11 @@ def build_hack_action_idempotency_key(username, flow_id, action, app, client_act
     app_id = str((app or {}).get("id") or (app or {}).get("name") or "direct").strip()
     if not username or not action or (not flow_id and not client_action_key):
         return ""
-    request_key = flow_id or client_action_key
+    # The flow id is diagnostic and can change when the map retries/reopens a
+    # UI flow. The client action key describes the actual gameplay intent:
+    # action + target + mode. Prefer it so repeated map submissions do not
+    # enqueue/open the same tool multiple times under different flow ids.
+    request_key = client_action_key or flow_id
     return f"{username}:{request_key}:{action}:{app_id}"
 
 

@@ -45,6 +45,24 @@ class HackActionIdempotencyTests(unittest.TestCase):
         self.assertEqual(receipt["payload"], payload)
         self.assertEqual(receipt["status_code"], 200)
 
+    def test_client_action_key_wins_over_flow_id_for_map_retries(self):
+        first = run.build_hack_action_idempotency_key(
+            "main",
+            "hf-first",
+            "scan_ports",
+            {"id": "port_scanner", "name": "Port Scanner"},
+            "scan_ports|52.308268|21.062800|parcel_locker||territory_contest||POI-7C133E",
+        )
+        retry = run.build_hack_action_idempotency_key(
+            "main",
+            "hf-retry",
+            "scan_ports",
+            {"id": "port_scanner", "name": "Port Scanner"},
+            "scan_ports|52.308268|21.062800|parcel_locker||territory_contest||POI-7C133E",
+        )
+
+        self.assertEqual(first, retry)
+
     def test_create_operations_for_app_action_skips_active_duplicate(self):
         profile = {"operations": []}
         app = {
