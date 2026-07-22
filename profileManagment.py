@@ -82,6 +82,11 @@ class UserProfileManager:
         self._find_user_profile()
 
     def update_profile(self, updates: dict):
+        launch_queue_write_mode = None
+        if isinstance(updates, dict) and "launch_queue" in updates:
+            incoming_queue = updates.get("launch_queue")
+            launch_queue_write_mode = "clear" if isinstance(incoming_queue, list) and not incoming_queue else "append"
+
         for key, new_value in updates.items():
             if key in self._locked_keys:
                 continue
@@ -95,6 +100,8 @@ class UserProfileManager:
             else:
                 self.user_profile[key] = new_value
 
+        if launch_queue_write_mode:
+            self.user_profile["_launch_queue_write_mode"] = launch_queue_write_mode
         self._save_changes()
 
     def update_profile_value(self, profile_key: str, new_value):

@@ -1,6 +1,9 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from database import UserStore
 import run
 
 
@@ -152,6 +155,35 @@ class HackActionIdempotencyTests(unittest.TestCase):
             merged = run.merge_latest_profile_runtime_fields("main", {"launch_queue": []})
 
         self.assertEqual(merged["launch_queue"], [])
+
+    def test_user_store_does_not_resurrect_consumed_launch_queue_from_stale_save(self):
+        with TemporaryDirectory() as tmpdir:
+            store = UserStore(
+                db_path=str(Path(tmpdir) / "game.sqlite3"),
+                seed_path=str(Path(tmpdir) / "missing_users.json"),
+            )
+            store.save_profile({
+                "username": "main",
+                "password": "pw",
+                "salt": "",
+                "launch_queue": [],
+            })
+
+            pending = store.get_profile("main")
+            pending["launch_queue"] = ["Snfx"]
+            pending["_launch_queue_write_mode"] = "append"
+            store.save_profile(pending)
+
+            stale = store.get_profile("main")
+            consumed = store.get_profile("main")
+            consumed["launch_queue"] = []
+            consumed["_launch_queue_write_mode"] = "clear"
+            store.save_profile(consumed)
+
+            stale["system_messages"] = [{"id": 1, "title": "Late writer"}]
+            store.save_profile(stale)
+
+            self.assertEqual(store.get_profile("main")["launch_queue"], [])
 
     def test_filter_accepted_created_operations_drops_rejected_cross_worker_duplicate(self):
         profile_after_merge = {

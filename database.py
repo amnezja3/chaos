@@ -33,6 +33,18 @@ def loads_json(value, default=None):
         return copy.deepcopy(default)
 
 
+def merge_launch_queue_values(latest_queue, incoming_queue):
+    merged = []
+    seen = set()
+    for item in list(latest_queue or []) + list(incoming_queue or []):
+        value = str(item or "").strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        merged.append(item)
+    return merged
+
+
 PASSWORD_HASH_PREFIX = "pbkdf2_sha256"
 PASSWORD_HASH_ITERATIONS = 240000
 
@@ -457,13 +469,33 @@ class UserStore:
             return loads_json(row["profile_json"], {})
 
     def save_profile(self, profile):
+        profile = dict(profile or {})
         username = profile.get("username")
         if not username:
             raise ValueError("Profile must contain username.")
 
+        launch_queue_write_mode = str(profile.pop("_launch_queue_write_mode", "") or "").strip()
         ensure_password_hash(profile)
         now = utc_now()
         with db_connect(self.db_path) as conn:
+            current_row = conn.execute(
+                "SELECT profile_json FROM users WHERE username = ?",
+                (username,),
+            ).fetchone()
+            current_profile = loads_json(current_row["profile_json"], {}) if current_row else {}
+            if current_profile:
+                if launch_queue_write_mode == "clear":
+                    profile["launch_queue"] = []
+                elif launch_queue_write_mode == "append":
+                    profile["launch_queue"] = merge_launch_queue_values(
+                        current_profile.get("launch_queue", []),
+                        profile.get("launch_queue", []),
+                    )
+                else:
+                    # launch_queue is a transient app-launch bus. A slow full-profile
+                    # write must not resurrect apps that /launch-queue already consumed.
+                    profile["launch_queue"] = current_profile.get("launch_queue", [])
+
             conn.execute(
                 """
                 INSERT INTO users
