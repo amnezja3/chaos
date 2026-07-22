@@ -5531,6 +5531,30 @@ def finish_hack_action_idempotency(key, payload, status_code=200):
         }
 
 
+HACK_FLOW_DEBUG_ENABLED = os.environ.get("CHAOS_HACK_FLOW_DEBUG", "1").strip().lower() not in {"0", "false", "no", "off"}
+
+
+def hack_flow_debug(flow_id, step, **fields):
+    if not HACK_FLOW_DEBUG_ENABLED:
+        return
+    safe_fields = {
+        "pid": os.getpid(),
+        "thread": threading.get_ident(),
+    }
+    safe_fields.update(fields)
+    parts = []
+    for key, value in safe_fields.items():
+        if isinstance(value, (dict, list, tuple, set)):
+            try:
+                value = json.dumps(value, ensure_ascii=False, sort_keys=True)[:700]
+            except Exception:
+                value = repr(value)[:700]
+        else:
+            value = str(value)[:220]
+        parts.append(f"{key}={value}")
+    print(f"[HACK_FLOW_DEBUG {flow_id or '-'}] step={step} " + " ".join(parts), flush=True)
+
+
 def build_operation_instance(username, app, map_action_id, operation_type, target):
     now = datetime.now(timezone.utc)
     operation_id = f"op_{now.strftime('%Y%m%d%H%M%S')}_{randint(100000, 999999)}"
@@ -15560,10 +15584,24 @@ def hack_action():
     player_target_username = str(data.get("target_username") or "").strip()
     selected_app_id = str(data.get("selected_app_id") or "").strip()
     flow_id = str(data.get("_flow_id") or "")[:96]
+    client_action_key = str(data.get("_client_action_key") or "")[:220]
     hack_action_idempotency_key = None
     hack_action_idempotency_started = False
     vulnerability_report = None
     contested_target = None
+    hack_flow_debug(
+        flow_id,
+        "request_start",
+        user=session.get("user"),
+        action=action,
+        selected=bool(selected_app_id),
+        selected_app_id=selected_app_id,
+        client_key=client_action_key,
+        lat=lat,
+        lng=lng,
+        label=label,
+        target_mode=requested_target_mode,
+    )
 
     if not selected_app_id:
         readonly_profile = load_profile_readonly(
@@ -15660,6 +15698,15 @@ def hack_action():
             }), 409
 
         if len(preflight_matched_apps) > 1:
+            hack_flow_debug(
+                flow_id,
+                "return_tool_selection_preflight",
+                user=session.get("user"),
+                action=action,
+                matched=len(preflight_matched_apps),
+                apps=[app.get("id") or app.get("name") for app in preflight_matched_apps],
+                client_key=client_action_key,
+            )
             return jsonify({
                 "success": True,
                 "tool_selection_required": True,
@@ -15715,12 +15762,24 @@ def hack_action():
                 data.get("_client_action_key"),
             )
             idempotency_state, idempotency_receipt = begin_hack_action_idempotency(hack_action_idempotency_key)
+            hack_flow_debug(
+                flow_id,
+                "idempotency_early",
+                user=session.get("user"),
+                action=action,
+                app=early_selected_app.get("id") or early_selected_app.get("name"),
+                key=hack_action_idempotency_key,
+                state=idempotency_state,
+                client_key=client_action_key,
+            )
             if idempotency_state == "completed" and idempotency_receipt:
                 cached_payload = copy.deepcopy(idempotency_receipt.get("payload") or {})
                 cached_payload["duplicate"] = True
                 cached_payload["idempotent_replay"] = True
+                hack_flow_debug(flow_id, "return_idempotent_replay_early", key=hack_action_idempotency_key)
                 return jsonify(cached_payload), int(idempotency_receipt.get("status_code") or 200)
             if idempotency_state == "in_flight":
+                hack_flow_debug(flow_id, "return_idempotent_in_flight_early", key=hack_action_idempotency_key)
                 return jsonify({
                     "success": True,
                     "duplicate": True,
@@ -15731,6 +15790,16 @@ def hack_action():
             hack_action_idempotency_started = True
 
     profile = sync_session_profile()
+    hack_flow_debug(
+        flow_id,
+        "after_sync_session_profile",
+        user=session.get("user"),
+        action=action,
+        selected=bool(selected_app_id),
+        apps=len(profile.get("apps", []) if isinstance(profile, dict) else []),
+        operations=len(profile.get("operations", []) if isinstance(profile, dict) else []),
+        launch_queue=list(profile.get("launch_queue", []) if isinstance(profile, dict) else []),
+    )
     if vulnerability_id:
         try:
             vulnerability_report = vulnerability_store.get(int(vulnerability_id))
@@ -15860,6 +15929,15 @@ def hack_action():
             }), 400
         matched_apps = [selected_app]
     elif len(matched_apps) > 1:
+        hack_flow_debug(
+            flow_id,
+            "return_tool_selection_full",
+            user=session.get("user"),
+            action=action,
+            matched=len(matched_apps),
+            apps=[app.get("id") or app.get("name") for app in matched_apps],
+            client_key=client_action_key,
+        )
         return jsonify({
             "success": True,
             "tool_selection_required": True,
@@ -15897,12 +15975,24 @@ def hack_action():
         )
     if not hack_action_idempotency_started:
         idempotency_state, idempotency_receipt = begin_hack_action_idempotency(hack_action_idempotency_key)
+        hack_flow_debug(
+            flow_id,
+            "idempotency_full",
+            user=session.get("user"),
+            action=action,
+            app=((matched_apps[0] or {}).get("id") or (matched_apps[0] or {}).get("name")) if matched_apps else "",
+            key=hack_action_idempotency_key,
+            state=idempotency_state,
+            client_key=client_action_key,
+        )
         if idempotency_state == "completed" and idempotency_receipt:
             cached_payload = copy.deepcopy(idempotency_receipt.get("payload") or {})
             cached_payload["duplicate"] = True
             cached_payload["idempotent_replay"] = True
+            hack_flow_debug(flow_id, "return_idempotent_replay_full", key=hack_action_idempotency_key)
             return jsonify(cached_payload), int(idempotency_receipt.get("status_code") or 200)
         if idempotency_state == "in_flight":
+            hack_flow_debug(flow_id, "return_idempotent_in_flight_full", key=hack_action_idempotency_key)
             return jsonify({
                 "success": True,
                 "duplicate": True,
@@ -15915,6 +16005,15 @@ def hack_action():
         profile["launch_queue"] = []
     new_apps = [app["name"] for app in matched_apps if app["name"] not in profile["launch_queue"]]
     profile["launch_queue"].extend(new_apps)
+    hack_flow_debug(
+        flow_id,
+        "launch_queue_append",
+        user=session.get("user"),
+        action=action,
+        selected_app_id=selected_app_id,
+        new_apps=new_apps,
+        launch_queue=list(profile.get("launch_queue", [])),
+    )
     security_template = resources_store.get(
         "user_security",
         default={}
@@ -16023,6 +16122,15 @@ def hack_action():
         action,
         profile["aimed_target"]
     )
+    hack_flow_debug(
+        flow_id,
+        "created_operations",
+        user=session.get("user"),
+        action=action,
+        count=len(created_operations or []),
+        ids=[op.get("operation_id") for op in created_operations or [] if isinstance(op, dict)],
+        operations_total=len(profile.get("operations", [])),
+    )
 
     if action == "scan_ports":
         append_risk_event(
@@ -16057,6 +16165,16 @@ def hack_action():
         reason="hack_action_target_set",
     )
     accepted_created_operations = filter_accepted_created_operations(profile, created_operations)
+    hack_flow_debug(
+        flow_id,
+        "after_persist",
+        user=session.get("user"),
+        action=action,
+        target_id=build_operation_target_id(profile.get("aimed_target") or {}),
+        allowed=(profile.get("aimed_target") or {}).get("actions_allowed"),
+        operations_total=len(profile.get("operations", [])),
+        accepted_created=[op.get("operation_id") for op in accepted_created_operations or [] if isinstance(op, dict)],
+    )
     record_map_target_delta(
         session["user"],
         profile.get("aimed_target") or {},
@@ -16070,8 +16188,28 @@ def hack_action():
         "added_apps": new_apps,
         "created_operations": accepted_created_operations,
         "map_action_id": action,
-        "app_match_source": match_source
+        "app_match_source": match_source,
+        "debug_flow": {
+            "flow_id": flow_id,
+            "client_action_key": client_action_key,
+            "pid": os.getpid(),
+            "thread": threading.get_ident(),
+            "idempotency_key": hack_action_idempotency_key,
+            "new_apps": new_apps,
+            "created_operation_ids": [op.get("operation_id") for op in created_operations or [] if isinstance(op, dict)],
+            "accepted_operation_ids": [op.get("operation_id") for op in accepted_created_operations or [] if isinstance(op, dict)],
+        }
     }
+    hack_flow_debug(
+        flow_id,
+        "return_success",
+        user=session.get("user"),
+        action=action,
+        status_code=200,
+        new_apps=new_apps,
+        accepted_count=len(accepted_created_operations or []),
+        key=hack_action_idempotency_key,
+    )
     finish_hack_action_idempotency(hack_action_idempotency_key, response_payload, 200)
     return jsonify(response_payload)
 
@@ -19392,6 +19530,16 @@ def add_system_message():
         for msg in messages
         if isinstance(msg, dict)
     )
+    hack_flow_debug(
+        request.headers.get("X-Hack-Flow-Id") or request.headers.get("X-Client-Action-Key") or "",
+        "system_message_request",
+        user=session.get("user"),
+        msg_type=msg_type,
+        title=title,
+        text_hash=hashlib.sha1(str(text or "").encode("utf-8", errors="ignore")).hexdigest()[:12],
+        duplicate=duplicate_pending,
+        pending_count=len(messages),
+    )
     if duplicate_pending:
         return jsonify({"status": "success", "duplicate": True, "message": "Wiadomosc juz czeka"})
 
@@ -19854,6 +20002,13 @@ def launch_queue():
         return jsonify({"logout": True})
 
     launch_list = merge_launch_queue_monotonic([], profile.get("launch_queue", []))
+    hack_flow_debug(
+        request.headers.get("X-Hack-Flow-Id") or "",
+        "launch_queue_read",
+        user=session.get("user"),
+        count=len(launch_list),
+        apps=launch_list,
+    )
     if not launch_list:
         return jsonify([])
 
@@ -19865,6 +20020,13 @@ def launch_queue():
     if isinstance(session_profile, dict):
         session_profile["launch_queue"] = []
         session["profile"] = session_profile
+    hack_flow_debug(
+        request.headers.get("X-Hack-Flow-Id") or "",
+        "launch_queue_cleared",
+        user=session.get("user"),
+        count=len(launch_list),
+        apps=launch_list,
+    )
     return jsonify(launch_list)
 
 

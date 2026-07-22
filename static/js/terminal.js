@@ -1921,7 +1921,8 @@ function addSystemMessage(type, title, text) {
     fetch('/add-system-message', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-Hack-Flow-Id': window.__lastHackFlowId || ''
         },
         body: JSON.stringify({
             type: type,
@@ -3107,8 +3108,26 @@ function enqueueGonnaWinRequest(task) {
     return queued;
 }
 
+window.HACK_FLOW_DEBUG = window.HACK_FLOW_DEBUG !== false;
+function hackFlowDebug(flowId, source, step, details = {}) {
+    if (!window.HACK_FLOW_DEBUG) return;
+    console.debug(`[HACK_FLOW_DEBUG ${flowId || '-'}] ${source} ${step}`, {
+        ...details,
+        ts: new Date().toISOString()
+    });
+}
+
 function notifyCreatedOperations(data) {
     if (!data || !Array.isArray(data.created_operations) || !data.created_operations.length) return;
+    hackFlowDebug(
+        data.debug_flow && data.debug_flow.flow_id,
+        "desktop",
+        "created_operations_notify",
+        {
+            ids: data.created_operations.map(op => op && op.operation_id),
+            debug_flow: data.debug_flow || null
+        }
+    );
     if (typeof notifyOpenMapsOperationsChanged === "function") {
         notifyOpenMapsOperationsChanged();
     }
@@ -10628,15 +10647,18 @@ function notifyOpenMapsHackActionStopped(flowId) {
 async function selectMapActionTool(appId) {
     const selection = window.activeToolSelection;
     if (!selection || !selection.pending_action) {
+        hackFlowDebug("", "desktop", "tool_picker_missing_selection", { appId });
         addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", "Brak aktywnej akcji mapy.");
         return;
     }
     if (selection.in_flight) {
+        hackFlowDebug(getHackFlowId(selection), "desktop", "tool_picker_skip_in_flight", { appId });
         return;
     }
 
     const app = selection.matching_apps.find(item => String(item.id || "") === String(appId || ""));
     if (!app) {
+        hackFlowDebug(getHackFlowId(selection), "desktop", "tool_picker_app_not_found", { appId });
         addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", "To narz\u0119dzie nie pasuje do aktywnej akcji.");
         return;
     }
@@ -10645,8 +10667,17 @@ async function selectMapActionTool(appId) {
         selection.in_flight = true;
         const flowId = getHackFlowId(selection);
         const selectionRequestKey = `${flowId}:${String(app.id || app.name || appId || "")}`;
+        window.__lastHackFlowId = flowId;
+        hackFlowDebug(flowId, "desktop", "tool_picker_use_start", {
+            app_id: app.id,
+            app_name: app.name,
+            action: selection.pending_action && selection.pending_action.action,
+            pending_action: selection.pending_action,
+            selectionRequestKey
+        });
         window.__pendingMapToolSelectionKeys = window.__pendingMapToolSelectionKeys || new Set();
         if (window.__pendingMapToolSelectionKeys.has(selectionRequestKey)) {
+            hackFlowDebug(flowId, "desktop", "tool_picker_skip_pending_key", { selectionRequestKey });
             return;
         }
         window.__pendingMapToolSelectionKeys.add(selectionRequestKey);
@@ -10660,13 +10691,26 @@ async function selectMapActionTool(appId) {
         updateMapToolPickerBusyState(true, app.id);
         const res = await fetch('/hack-action', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Hack-Flow-Id': flowId,
+                'X-Client-Action-Key': selection.pending_action?._client_action_key || selectionRequestKey
+            },
             body: JSON.stringify({
                 ...selection.pending_action,
                 selected_app_id: app.id
             })
         });
         const data = await res.json();
+        hackFlowDebug(flowId, "desktop", "tool_picker_response", {
+            status: res.status,
+            ok: res.ok,
+            blocked: Boolean(data.blocked),
+            duplicate: Boolean(data.duplicate),
+            added_apps: data.added_apps || [],
+            created_operations: (data.created_operations || []).map(op => op && op.operation_id),
+            debug_flow: data.debug_flow || null
+        });
         if (!res.ok || data.blocked) {
             addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", data.status || "Nie uda\u0142o si\u0119 uruchomi\u0107 narz\u0119dzia.");
             selection.in_flight = false;
@@ -10674,6 +10718,10 @@ async function selectMapActionTool(appId) {
             return;
         }
         if (data.duplicate) {
+            hackFlowDebug(flowId, "desktop", "tool_picker_duplicate_response", {
+                idempotent_replay: Boolean(data.idempotent_replay),
+                status: data.status || ""
+            });
             if (data.target) {
                 setToolbarProfile({
                     ...(toolbarProfile || {}),
@@ -10697,7 +10745,14 @@ async function selectMapActionTool(appId) {
         if (typeof notifyOpenMapsOperationsChanged === "function") {
             await notifyOpenMapsOperationsChanged();
         }
+        hackFlowDebug(flowId, "desktop", "tool_picker_success", {
+            app_id: app.id,
+            app_name: app.name
+        });
     } catch (err) {
+        hackFlowDebug(selection ? getHackFlowId(selection) : "", "desktop", "tool_picker_error", {
+            message: err && err.message ? err.message : String(err)
+        });
         console.error("Błąd wyboru narzędzia:", err);
         addSystemMessage("danger", "\u{1F6E0}\uFE0F Narz\u0119dzia", "B\u0142\u0105d po\u0142\u0105czenia podczas wyboru narz\u0119dzia.");
         if (selection) {
@@ -10709,6 +10764,9 @@ async function selectMapActionTool(appId) {
         resumeOpenMapOptionalRefresh(1200);
         if (selection?.pending_request_key && window.__pendingMapToolSelectionKeys) {
             window.__pendingMapToolSelectionKeys.delete(selection.pending_request_key);
+            hackFlowDebug(getHackFlowId(selection), "desktop", "tool_picker_pending_key_released", {
+                selectionRequestKey: selection.pending_request_key
+            });
             delete selection.pending_request_key;
         }
     }
@@ -12840,13 +12898,23 @@ function shouldSkipRecentLaunchQueueApp(name) {
 
 async function pollLaunchQueue() {
     if (launchQueuePollInFlight) {
+        hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_skip_in_flight", {});
         return;
     }
     launchQueuePollInFlight = true;
     const loadingToken = beginDesktopLoading('Sprawdzam system...');
     try {
-        const res = await fetch('/launch-queue');
+        hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_poll_start", {});
+        const res = await fetch('/launch-queue', {
+            headers: {
+                'X-Hack-Flow-Id': window.__lastHackFlowId || ''
+            }
+        });
         const appsToLaunch = await res.json();
+        hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_response", {
+            status: res.status,
+            apps: Array.isArray(appsToLaunch) ? appsToLaunch : appsToLaunch
+        });
 
         if (appsToLaunch.logout) {
             window.location.href = '/';
@@ -12859,19 +12927,35 @@ async function pollLaunchQueue() {
             for (const rawName of appsToLaunch) {
                 const name = String(rawName || "").trim();
                 if (!name || seenLaunchNames.has(name) || shouldSkipRecentLaunchQueueApp(name)) {
+                    hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_skip_app", {
+                        name,
+                        seen: seenLaunchNames.has(name)
+                    });
                     continue;
                 }
                 seenLaunchNames.add(name);
                 uniqueAppsToLaunch.push(name);
             }
             for (const name of uniqueAppsToLaunch) {
+                hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_command_start", { name });
                 const cmdRes = await fetch('/command', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Hack-Flow-Id': window.__lastHackFlowId || ''
+                    },
                     body: JSON.stringify({ input: name })
                 });
 
                 const data = await cmdRes.json();
+                hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_command_response", {
+                    name,
+                    status: cmdRes.status,
+                    runApp: Boolean(data.runApp),
+                    app_id: data.applicationEffect && data.applicationEffect.id,
+                    interface: data.applicationEffect && data.applicationEffect.interface,
+                    created_operations: (data.created_operations || []).map(op => op && op.operation_id)
+                });
                 notifyCreatedOperations(data);
 
                 if (data.runApp && data.applicationEffect) {
@@ -12881,6 +12965,11 @@ async function pollLaunchQueue() {
                     const type = appData.interface;
 
                     const action = () => {
+                        hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_launch_app", {
+                            name,
+                            app_id: id,
+                            interface: type
+                        });
                         if (runSystemLauncherApp(appData)) return;
                         if (type === "window") app_window(id, levels);
                         else if (type === "progressbar_random") app_progressbar_random(id, levels);
@@ -12894,6 +12983,9 @@ async function pollLaunchQueue() {
             }
         }
     } catch (err) {
+        hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_error", {
+            message: err && err.message ? err.message : String(err)
+        });
         console.error("❌ Błąd podczas pobierania launch-queue:", err);
     } finally {
         // Spróbuj ponownie za 10 sekund

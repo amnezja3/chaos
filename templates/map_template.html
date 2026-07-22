@@ -3060,8 +3060,23 @@
         }
 
 
+        window.MAP_ACTION_DEBUG = window.MAP_ACTION_DEBUG !== false;
+        function mapActionDebug(flowId, step, details = {}) {
+            if (!window.MAP_ACTION_DEBUG) return;
+            const payload = {
+                ...details,
+                ts: new Date().toISOString()
+            };
+            try {
+                payload.stack = (new Error()).stack.split('\n').slice(2, 7);
+            } catch (_err) {}
+            console.debug(`[MAP_ACTION_DEBUG ${flowId || '-'}] ${step}`, payload);
+        }
+
+
         function hackingAction(action, lat, lng, label, icon, source_type = "manual", name = label, generated = false, vulnerability_id = null, target_mode = null, contest_owner_username = null, foreign_area_id = null, target_username = null, triggerEl = null) {
             if (guardMapGameplayAction()) {
+                mapActionDebug(null, 'blocked_by_map_guard', { action, lat, lng, label });
                 if (triggerEl) triggerEl.dataset.busy = "0";
                 return;
             }
@@ -3079,6 +3094,7 @@
             ].join("|");
             window.__pendingHackActionKeys = window.__pendingHackActionKeys || new Set();
             if (window.__pendingHackActionKeys.has(hackActionKey)) {
+                mapActionDebug(null, 'skip_pending_key', { action, hackActionKey, lat, lng, label });
                 if (triggerEl) triggerEl.dataset.busy = "0";
                 return;
             }
@@ -3086,6 +3102,19 @@
             let releaseHackActionKeyDelayMs = 4000;
             closeMenus();
             const hackFlowId = `hf-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+            window.__lastHackFlowId = hackFlowId;
+            mapActionDebug(hackFlowId, 'request_start', {
+                action,
+                lat,
+                lng,
+                label,
+                source_type,
+                vulnerability_id,
+                target_mode,
+                target_username,
+                hackActionKey,
+                triggerBusy: triggerEl ? triggerEl.dataset.busy : null
+            });
             if (typeof window.startHackActionSpinner === 'function') {
                 window.startHackActionSpinner(hackFlowId, { action, lat, lng, label });
             }
@@ -3095,7 +3124,11 @@
 
             fetch('/hack-action', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Hack-Flow-Id': hackFlowId,
+                    'X-Client-Action-Key': hackActionKey
+                },
                 body: JSON.stringify({
                     action,
                     lat,
@@ -3116,6 +3149,16 @@
             })
             .then(async res => {
                 const data = await res.json();
+                mapActionDebug(hackFlowId, 'response', {
+                    status: res.status,
+                    ok: res.ok,
+                    blocked: Boolean(data.blocked),
+                    duplicate: Boolean(data.duplicate),
+                    tool_selection_required: Boolean(data.tool_selection_required),
+                    added_apps: data.added_apps || [],
+                    created_operations: (data.created_operations || []).map(op => op && op.operation_id),
+                    debug_flow: data.debug_flow || null
+                });
                 if (!res.ok || data.blocked) {
                     addSystemMessage("warning", `⛔ ${action}`, data.status || "Akcja zablokowana.");
                     return null;
@@ -3125,10 +3168,18 @@
             .then(async data => {
                 if (!data) return;
                 if (data.duplicate) {
+                    mapActionDebug(hackFlowId, 'skip_duplicate_response', {
+                        idempotent_replay: Boolean(data.idempotent_replay),
+                        status: data.status || ''
+                    });
                     return;
                 }
                 if (data.tool_selection_required) {
                     releaseHackActionKeyDelayMs = 12000;
+                    mapActionDebug(hackFlowId, 'open_tool_selection', {
+                        matching_apps: (data.matching_apps || []).map(app => app && (app.id || app.name)),
+                        pending_action: data.pending_action || null
+                    });
                     if (typeof window.stopHackActionSpinner === 'function') {
                         window.stopHackActionSpinner(hackFlowId);
                     }
