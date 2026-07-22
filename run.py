@@ -4916,6 +4916,8 @@ def set_player_aimed_target(username, profile, aimed_target, update_fields=None,
     aimed_target = dict(aimed_target or {})
     if aimed_target and not aimed_target.get("target_id"):
         aimed_target["target_id"] = build_operation_target_id(aimed_target)
+    if find_owned_captured_target_for_runtime_target(username, aimed_target):
+        aimed_target = {}
     fields = dict(update_fields or {})
     fields = merge_latest_profile_runtime_fields(username, fields)
     fields["aimed_target"] = aimed_target
@@ -4923,7 +4925,8 @@ def set_player_aimed_target(username, profile, aimed_target, update_fields=None,
     for key, value in fields.items():
         profile[key] = value
     profile["aimed_target"] = aimed_target
-    safe_ghostnetwork_on_target_aimed(username, profile, aimed_target, reason=reason)
+    if aimed_target:
+        safe_ghostnetwork_on_target_aimed(username, profile, aimed_target, reason=reason)
     return aimed_target
 
 
@@ -10617,6 +10620,22 @@ def find_captured_target_for_owner(username, lat, lng, label=None):
     return None
 
 
+def find_owned_captured_target_for_runtime_target(username, target):
+    if not username or not isinstance(target, dict) or not target:
+        return None
+    try:
+        lat = target.get("lat")
+        lng = target.get("lng", target.get("lon"))
+        float(lat)
+        float(lng)
+    except (TypeError, ValueError):
+        return None
+
+    label = target_label_value(target)
+    captured = find_captured_target_for_owner(username, lat, lng, label=label) if label else None
+    return captured or find_captured_target_for_owner(username, lat, lng)
+
+
 def add_system_message_to_user(username, msg_type, title, text):
     profile = user_store.get_profile(username)
     if not profile:
@@ -11478,6 +11497,10 @@ def merge_latest_aimed_target_runtime_state(profile, username):
     aimed_target = (profile or {}).get("aimed_target")
     if not username or not isinstance(aimed_target, dict) or not aimed_target:
         return aimed_target
+
+    if find_owned_captured_target_for_runtime_target(username, aimed_target):
+        profile["aimed_target"] = {}
+        return {}
 
     try:
         latest_profile = user_store.get_profile(username) or {}
@@ -15649,6 +15672,52 @@ def hack_action():
                 }), 403
 
         preflight_contested_target = find_contested_target(session["user"], lat, lng, label)
+        preflight_target_snapshot = {
+            "lat": lat,
+            "lng": lng,
+            "label": label,
+            "name": data.get("name", label),
+            "source_type": data.get("source_type", "manual"),
+            "target_mode": requested_target_mode or (
+                "vulnerability" if preflight_vulnerability_report
+                else ("territory_contest" if preflight_contested_target else "standard")
+            ),
+            "vulnerability_id": (
+                preflight_vulnerability_report.get("id")
+                if preflight_vulnerability_report else vulnerability_id
+            ),
+            "foreign_area_id": (
+                preflight_contested_target.get("foreign_area_id")
+                if preflight_contested_target else data.get("foreign_area_id")
+            ),
+            "target_username": preflight_player_target_username if requested_target_mode == "player" else None,
+        }
+        if requested_target_mode != "player":
+            preflight_already_captured = find_owned_captured_target_for_runtime_target(
+                session.get("user"),
+                preflight_target_snapshot,
+            )
+            if preflight_already_captured:
+                clear_aimed_target_if_matches(session["user"], preflight_target_snapshot)
+                hack_flow_debug(
+                    flow_id,
+                    "return_stale_captured_target_guard_preflight",
+                    user=session.get("user"),
+                    action=action,
+                    target_id=build_operation_target_id(preflight_already_captured),
+                    client_key=client_action_key,
+                )
+                return jsonify({
+                    "success": True,
+                    "duplicate": True,
+                    "status": f"Cel jest juz przejety: {display_target_label(preflight_already_captured)}",
+                    "target": {},
+                    "captured_target": preflight_already_captured,
+                    "added_apps": [],
+                    "created_operations": [],
+                    "map_action_id": action,
+                    "canonical_action": canonical_action,
+                })
 
         if requested_target_mode == "player":
             if not preflight_player_target_username:
@@ -16010,6 +16079,55 @@ def hack_action():
                 "map_action_id": action,
                 "canonical_action": canonical_action,
             }), 202
+
+    requested_target_snapshot = {
+        "lat": lat,
+        "lng": lng,
+        "label": label,
+        "name": data.get("name", label),
+        "source_type": data.get("source_type", "manual"),
+        "target_mode": requested_target_mode or ("vulnerability" if vulnerability_report else ("territory_contest" if contested_target else "standard")),
+        "vulnerability_id": vulnerability_report.get("id") if vulnerability_report else vulnerability_id,
+        "foreign_area_id": contested_target.get("foreign_area_id") if contested_target else data.get("foreign_area_id"),
+        "target_username": player_target_username if requested_target_mode == "player" else None,
+    }
+    already_captured_target = None
+    if requested_target_mode != "player":
+        already_captured_target = find_owned_captured_target_for_runtime_target(
+            session.get("user"),
+            requested_target_snapshot,
+        )
+    if already_captured_target:
+        clear_aimed_target_if_matches(session["user"], requested_target_snapshot)
+        profile["aimed_target"] = {}
+        session["profile"] = profile
+        response_payload = {
+            "success": True,
+            "duplicate": True,
+            "status": f"Cel jest juz przejety: {display_target_label(already_captured_target)}",
+            "target": {},
+            "captured_target": already_captured_target,
+            "added_apps": [],
+            "created_operations": [],
+            "map_action_id": action,
+            "canonical_action": canonical_action,
+            "debug_flow": {
+                "flow_id": flow_id,
+                "client_action_key": client_action_key,
+                "idempotency_key": hack_action_idempotency_key,
+                "stale_captured_target_guard": True,
+            },
+        }
+        hack_flow_debug(
+            flow_id,
+            "return_stale_captured_target_guard",
+            user=session.get("user"),
+            action=action,
+            key=hack_action_idempotency_key,
+            target_id=build_operation_target_id(already_captured_target),
+        )
+        finish_hack_action_idempotency(hack_action_idempotency_key, response_payload, 200)
+        return jsonify(response_payload)
 
     if "launch_queue" not in profile:
         profile["launch_queue"] = []

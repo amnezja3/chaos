@@ -663,8 +663,88 @@ function ensureSystemToolbar() {
     return toolbar;
 }
 
+function getToolbarTargetCoordKey(target) {
+    const lat = Number((target || {}).lat);
+    const lng = Number((target || {}).lng !== undefined ? (target || {}).lng : (target || {}).lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "";
+    return `${lat.toFixed(5)}|${lng.toFixed(5)}`;
+}
+
+function toolbarTargetsShareProgressIdentity(left, right) {
+    if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+    const leftMode = String(left.target_mode || "").trim();
+    const rightMode = String(right.target_mode || "").trim();
+    if (leftMode === "player" || rightMode === "player") {
+        const leftUser = String(left.target_username || left.username || "").trim();
+        const rightUser = String(right.target_username || right.username || "").trim();
+        return Boolean(leftUser && rightUser && leftMode === rightMode && leftUser === rightUser);
+    }
+    const leftVulnerability = String(left.vulnerability_id || "").trim();
+    const rightVulnerability = String(right.vulnerability_id || "").trim();
+    if (leftVulnerability || rightVulnerability) {
+        return Boolean(leftVulnerability && leftVulnerability === rightVulnerability);
+    }
+    const leftArea = String(left.foreign_area_id || "").trim();
+    const rightArea = String(right.foreign_area_id || "").trim();
+    if (leftArea || rightArea) {
+        return Boolean(leftArea && leftArea === rightArea && getToolbarTargetCoordKey(left) === getToolbarTargetCoordKey(right));
+    }
+    const leftId = String(left.target_id || left.id || "").trim();
+    const rightId = String(right.target_id || right.id || "").trim();
+    if (leftId && rightId && leftId === rightId) return true;
+    const leftCoords = getToolbarTargetCoordKey(left);
+    const rightCoords = getToolbarTargetCoordKey(right);
+    return Boolean(leftCoords && leftCoords === rightCoords);
+}
+
+function mergeToolbarTargetProgress(currentTarget, incomingTarget) {
+    if (!incomingTarget || typeof incomingTarget !== "object") return incomingTarget;
+    if (!hasToolbarAimedTarget(incomingTarget)) return incomingTarget;
+    if (!currentTarget || typeof currentTarget !== "object" || !hasToolbarAimedTarget(currentTarget)) return incomingTarget;
+    if (!toolbarTargetsShareProgressIdentity(currentTarget, incomingTarget)) return incomingTarget;
+
+    const merged = { ...incomingTarget };
+    const currentActions = currentTarget.actions_allowed || {};
+    const incomingActions = incomingTarget.actions_allowed || {};
+    merged.actions_allowed = { ...incomingActions };
+    Object.entries(currentActions).forEach(([key, value]) => {
+        if (value === true) merged.actions_allowed[key] = true;
+    });
+
+    const currentSecurity = currentTarget.security || {};
+    const incomingSecurity = incomingTarget.security || {};
+    merged.security = { ...incomingSecurity };
+    Object.entries(currentSecurity).forEach(([key, value]) => {
+        if (value === false) merged.security[key] = false;
+    });
+
+    const incomingProgress = targetFeedbackClampPercent(
+        incomingTarget.disarm_progress !== undefined
+            ? incomingTarget.disarm_progress
+            : ((incomingTarget.feedback || {}).disarm_progress)
+    );
+    const currentProgress = targetFeedbackClampPercent(
+        currentTarget.disarm_progress !== undefined
+            ? currentTarget.disarm_progress
+            : ((currentTarget.feedback || {}).disarm_progress)
+    );
+    if (incomingProgress !== null || currentProgress !== null) {
+        merged.disarm_progress = Math.max(incomingProgress || 0, currentProgress || 0);
+    }
+    return merged;
+}
+
+function normalizeToolbarProfileProgress(profile) {
+    if (!profile || typeof profile !== "object") return profile;
+    if (!Object.prototype.hasOwnProperty.call(profile, "aimed_target")) return profile;
+    return {
+        ...profile,
+        aimed_target: mergeToolbarTargetProgress((toolbarProfile || {}).aimed_target, profile.aimed_target)
+    };
+}
+
 function setToolbarProfile(profile) {
-    toolbarProfile = profile || toolbarProfile;
+    toolbarProfile = profile ? normalizeToolbarProfileProgress(profile) : toolbarProfile;
     renderToolbarStatus();
 }
 
