@@ -145,6 +145,14 @@ class HackActionIdempotencyTests(unittest.TestCase):
         self.assertEqual({op["operation_id"] for op in merged["operations"]}, {"op_scan", "op_trace"})
         self.assertEqual(merged["launch_queue"], ["Port Scanner", "Trace Compass"])
 
+    def test_merge_latest_profile_runtime_fields_allows_launch_queue_consume_clear(self):
+        latest_profile = {"launch_queue": ["V-MAP"]}
+
+        with patch.object(run.user_store, "get_profile", return_value=latest_profile):
+            merged = run.merge_latest_profile_runtime_fields("main", {"launch_queue": []})
+
+        self.assertEqual(merged["launch_queue"], [])
+
     def test_filter_accepted_created_operations_drops_rejected_cross_worker_duplicate(self):
         profile_after_merge = {
             "operations": [

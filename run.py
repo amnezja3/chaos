@@ -5031,10 +5031,16 @@ def merge_latest_profile_runtime_fields(username, fields):
             merged.get("operations", []),
         )
     if "launch_queue" in merged:
-        merged["launch_queue"] = merge_launch_queue_monotonic(
-            latest_profile.get("launch_queue", []),
-            merged.get("launch_queue", []),
-        )
+        incoming_queue = merged.get("launch_queue", [])
+        if isinstance(incoming_queue, list) and not incoming_queue:
+            # Empty list is an intentional consume/clear from /launch-queue.
+            # Do not resurrect already delivered apps from the latest profile.
+            merged["launch_queue"] = []
+        else:
+            merged["launch_queue"] = merge_launch_queue_monotonic(
+                latest_profile.get("launch_queue", []),
+                incoming_queue,
+            )
     return merged
 
 
