@@ -12940,7 +12940,7 @@ setInterval(pollStateChanges, STATE_DELTA_POLL_INTERVAL_MS);
 
 let launchQueuePollInFlight = false;
 const recentLaunchQueueApps = new Map();
-const LAUNCH_QUEUE_RECENT_TTL_MS = 12000;
+const LAUNCH_QUEUE_RECENT_TTL_MS = 60000;
 
 function shouldSkipRecentLaunchQueueApp(name) {
     const key = String(name || "").trim().toLowerCase();

@@ -19998,16 +19998,15 @@ def launch_queue():
         return jsonify([])
 
     try:
-        profile = load_profile_readonly(session["user"], normalize_apps=False, normalize_files=False)
+        launch_list = user_store.consume_launch_queue(session["user"])
     except Exception:
         session.clear()
         return jsonify({"logout": True})
 
-    if not profile:
+    if launch_list is None:
         session.clear()
         return jsonify({"logout": True})
 
-    launch_list = merge_launch_queue_monotonic([], profile.get("launch_queue", []))
     hack_flow_debug(
         request.headers.get("X-Hack-Flow-Id") or "",
         "launch_queue_read",
@@ -20019,9 +20018,6 @@ def launch_queue():
         return jsonify([])
 
     # Opróżnij kolejkę po pobraniu
-    profile["launch_queue"] = []
-    mgr = UserProfileManager(session["user"])
-    mgr.update_profile({"launch_queue": []})
     session_profile = session.get("profile")
     if isinstance(session_profile, dict):
         session_profile["launch_queue"] = []

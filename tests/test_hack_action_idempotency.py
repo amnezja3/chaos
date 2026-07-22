@@ -185,6 +185,26 @@ class HackActionIdempotencyTests(unittest.TestCase):
 
             self.assertEqual(store.get_profile("main")["launch_queue"], [])
 
+    def test_user_store_consume_launch_queue_is_one_shot(self):
+        with TemporaryDirectory() as tmpdir:
+            store = UserStore(
+                db_path=str(Path(tmpdir) / "game.sqlite3"),
+                seed_path=str(Path(tmpdir) / "missing_users.json"),
+            )
+            store.save_profile({
+                "username": "main",
+                "password": "pw",
+                "salt": "",
+                "launch_queue": ["Snfx", "Snfx", "Trace Compass"],
+            })
+
+            first = store.consume_launch_queue("main")
+            second = store.consume_launch_queue("main")
+
+            self.assertEqual(first, ["Snfx", "Trace Compass"])
+            self.assertEqual(second, [])
+            self.assertEqual(store.get_profile("main")["launch_queue"], [])
+
     def test_filter_accepted_created_operations_drops_rejected_cross_worker_duplicate(self):
         profile_after_merge = {
             "operations": [

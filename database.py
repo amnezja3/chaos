@@ -517,6 +517,44 @@ class UserStore:
                 ),
             )
 
+    def consume_launch_queue(self, username):
+        username = str(username or "").strip()
+        if not username:
+            return None
+
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT profile_json FROM users WHERE username = ?",
+                (username,),
+            ).fetchone()
+            if not row:
+                return None
+
+            profile = loads_json(row["profile_json"], {})
+            launch_list = merge_launch_queue_values([], profile.get("launch_queue", []))
+            if not launch_list:
+                return []
+
+            profile["launch_queue"] = []
+            ensure_password_hash(profile)
+            now = utc_now()
+            conn.execute(
+                """
+                UPDATE users
+                SET password = ?, salt = ?, profile_json = ?, updated_at = ?
+                WHERE username = ?
+                """,
+                (
+                    profile.get("password", ""),
+                    profile.get("salt", ""),
+                    dumps_json(profile),
+                    now,
+                    username,
+                ),
+            )
+            return launch_list
+
     def username_exists(self, username):
         with db_connect(self.db_path) as conn:
             row = conn.execute(
