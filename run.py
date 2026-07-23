@@ -22,7 +22,7 @@ from flask_session import Session
 from poiFetchClass import POIFetcher
 import Haversine
 from profileManagment import UserProfileManager, authenticate_user
-from database import JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus
+from database import AppActionReceiptStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore
 import requests
 from config import (
     APP_VERSION,
@@ -75,6 +75,13 @@ wallet_store = WalletStore()
 player_hack_access_store = PlayerHackAccessStore()
 dev_bug_report_store = DevBugReportStore()
 delta_bus = GameStateDeltaBus()
+app_action_receipt_store = AppActionReceiptStore()
+player_target_runtime_store = PlayerTargetRuntimeStore()
+player_position_store = PlayerPositionStore()
+player_operation_store = PlayerOperationStore()
+system_message_store = SystemMessageStore()
+player_inventory_store = PlayerInventoryStore()
+wallet_balance_store = WalletBalanceStore()
 territory_context_reader = TerritoryContextReader(territory_store, territory_conflict_store)
 territory_delta_publisher = TerritoryDeltaPublisher(delta_bus, territory_context_reader)
 incident_store = IncidentStore()
@@ -109,6 +116,15 @@ def record_wallet_balance_delta(username, balance, reason="", entity_id="wallet"
         balance = int(balance or 0)
     except (TypeError, ValueError):
         balance = 0
+    try:
+        wallet_balance_store.set_balance(
+            username,
+            balance,
+            transaction_key=dedupe_key or f"wallet:{username}:{reason or 'balance'}:{balance}",
+            reason=reason or "wallet_delta",
+        )
+    except Exception as exc:
+        print(f"[wallet balance store] update failed for {username}: {exc}")
     payload = {
         "balance": balance,
         "currency": "HC",
@@ -142,6 +158,10 @@ def storage_delta_snapshot(profile):
 
 
 def record_storage_delta(username, profile, reason="", previous=None, dedupe_key_prefix=None):
+    try:
+        player_inventory_store.write_from_profile(username, profile)
+    except Exception as exc:
+        print(f"[inventory store] storage mirror failed for {username}: {exc}")
     current = storage_delta_snapshot(profile)
     previous = previous if isinstance(previous, dict) else {}
     reason = str(reason or "storage_changed")
@@ -198,6 +218,10 @@ def record_apps_delta(username, profile, change_type, app=None, app_id=None, rea
         "apps.cooldown_changed",
     }:
         return None
+    try:
+        player_inventory_store.write_from_profile(username, profile)
+    except Exception as exc:
+        print(f"[inventory store] apps mirror failed for {username}: {exc}")
 
     payload = apps_delta_snapshot(profile)
     if app is not None:
@@ -2465,7 +2489,12 @@ def build_map_player_actor_delta_payload(viewer_username, actor_profile, context
     if not actor_username or actor_username == viewer_username:
         return None
 
-    position = actor_profile.get("curently_possition", {}) or {}
+    try:
+        position = player_position_store.get_position(actor_username) or {}
+    except Exception:
+        position = {}
+    if not position:
+        position = actor_profile.get("curently_possition", {}) or actor_profile.get("current_position", {}) or {}
     lat = position.get("lat") if lat is None else lat
     lng = position.get("lng") if lng is None else lng
     if lat in (None, 0, 0.0) or lng in (None, 0, 0.0):
@@ -2560,7 +2589,12 @@ def record_map_player_actor_delta(actor_username, actor_profile=None, change_typ
     if not viewer_contexts:
         return []
 
-    position = actor_profile.get("curently_possition", {}) or {}
+    try:
+        position = player_position_store.get_position(actor_username) or {}
+    except Exception:
+        position = {}
+    if not position:
+        position = actor_profile.get("curently_possition", {}) or actor_profile.get("current_position", {}) or {}
     lat = position.get("lat")
     lng = position.get("lng")
     reason = str(reason or "player_actor_changed")
@@ -4763,10 +4797,16 @@ def filter_targets_by_position(targets, reference_target, match_label=False):
 
 
 def clear_aimed_target_if_matches(username, reference_target):
+    runtime_cleared = False
+    try:
+        if player_target_runtime_store.clear_if_matches(username, reference_target, source="clear_aimed_target"):
+            runtime_cleared = True
+    except Exception as exc:
+        print(f"[target runtime] clear failed user={username} error={exc}", flush=True)
     profile = user_store.get_profile(username) or {}
     aimed = profile.get("aimed_target") or {}
     if not aimed or not targets_share_position(aimed, reference_target):
-        return False
+        return bool(runtime_cleared)
     profile["aimed_target"] = {}
     user_store.save_profile(profile)
     return True
@@ -4917,7 +4957,17 @@ def set_player_aimed_target(username, profile, aimed_target, update_fields=None,
     if aimed_target and not aimed_target.get("target_id"):
         aimed_target["target_id"] = build_operation_target_id(aimed_target)
     if find_owned_captured_target_for_runtime_target(username, aimed_target):
+        try:
+            player_target_runtime_store.mark_captured(username, aimed_target, source=f"{reason}:already_captured")
+        except Exception as exc:
+            print(f"[target runtime] captured mark failed user={username} error={exc}", flush=True)
         aimed_target = {}
+    elif aimed_target:
+        try:
+            result = player_target_runtime_store.upsert_aimed(username, aimed_target, source=reason)
+            aimed_target = dict(result.get("target") or aimed_target)
+        except Exception as exc:
+            print(f"[target runtime] upsert failed user={username} reason={reason} error={exc}", flush=True)
     fields = dict(update_fields or {})
     fields = merge_latest_profile_runtime_fields(username, fields)
     fields["aimed_target"] = aimed_target
@@ -5016,6 +5066,36 @@ def filter_accepted_created_operations(profile, created_operations):
     ]
 
 
+def operations_from_store_or_profile(username, profile, refresh=False, include_terminal=True):
+    profile = profile if isinstance(profile, dict) else {}
+    stored_operations = []
+    if username:
+        try:
+            stored_operations = player_operation_store.list_operations(username, include_terminal=include_terminal)
+            if not stored_operations and profile.get("operations"):
+                stored_operations = player_operation_store.seed_from_profile(username, profile)
+        except Exception as exc:
+            print(f"[OPERATIONS] store read skipped: {exc}")
+
+    operations = stored_operations or profile.get("operations", []) or []
+    if refresh:
+        working_profile = dict(profile)
+        working_profile["operations"] = list(operations)
+        operations, changed = refresh_operations_runtime(working_profile, persist_timeouts=False, username=username)
+        if changed and username:
+            try:
+                player_operation_store.upsert_operations(
+                    username,
+                    operations,
+                    event_type="operation.refresh",
+                    source="runtime_refresh",
+                )
+            except Exception as exc:
+                print(f"[OPERATIONS] store refresh skipped: {exc}")
+        profile["operations"] = operations
+    return operations
+
+
 def merge_latest_profile_runtime_fields(username, fields):
     """Protect runtime fields from last-write-wins races across gunicorn workers."""
     if not username or not isinstance(fields, dict):
@@ -5047,7 +5127,7 @@ def merge_latest_profile_runtime_fields(username, fields):
     return merged
 
 
-def normalize_profile_position_update(position):
+def normalize_profile_position_update(position, username=None, source="runtime"):
     """Keep legacy and canonical position fields in sync during partial updates."""
     if not isinstance(position, dict):
         return {}
@@ -5057,10 +5137,55 @@ def normalize_profile_position_update(position):
     except (TypeError, ValueError):
         return {}
     normalized = {"lat": lat, "lng": lng}
+    if username:
+        try:
+            stored = player_position_store.upsert(username, normalized, source=source).get("position") or normalized
+            normalized = {"lat": float(stored["lat"]), "lng": float(stored["lng"])}
+        except Exception as exc:
+            print(f"[position runtime] store update failed user={username} source={source} error={exc}", flush=True)
     return {
         "curently_possition": dict(normalized),
         "current_position": dict(normalized),
     }
+
+
+def apply_runtime_stores_to_profile(username, profile):
+    profile = profile if isinstance(profile, dict) else {}
+    if not username:
+        return profile
+
+    try:
+        position = player_position_store.get_position(username)
+        if not position:
+            position = player_position_store.seed_from_profile(username, profile)
+        if position:
+            profile.update(normalize_profile_position_update(position))
+    except Exception as exc:
+        print(f"[position runtime] profile overlay failed user={username} error={exc}", flush=True)
+
+    try:
+        target = player_target_runtime_store.get_active_target(username)
+        if not target:
+            target = player_target_runtime_store.seed_from_profile(username, profile)
+        if target:
+            profile["aimed_target"] = target
+        else:
+            runtime = player_target_runtime_store.get(username)
+            if runtime and runtime.get("status") in {"cleared", "captured"}:
+                profile["aimed_target"] = {}
+    except Exception as exc:
+        print(f"[target runtime] profile overlay failed user={username} error={exc}", flush=True)
+
+    try:
+        player_inventory_store.mirror_profile(username, profile)
+    except Exception as exc:
+        print(f"[inventory runtime] profile overlay failed user={username} error={exc}", flush=True)
+
+    try:
+        wallet_balance_store.mirror_profile(username, profile)
+    except Exception as exc:
+        print(f"[wallet runtime] profile overlay failed user={username} error={exc}", flush=True)
+    return profile
 
 
 def operation_utc_iso(value):
@@ -5499,9 +5624,70 @@ def build_hack_action_idempotency_key(username, flow_id, action, app, client_act
     return f"{username}:{request_key}:{action}:{app_id}"
 
 
-def begin_hack_action_idempotency(key):
+def _cache_hack_action_idempotency_receipt(key, state, receipt=None):
+    if not key:
+        return
+    now_ts = time.monotonic()
+    cached = {
+        "state": state,
+        "expires_at": now_ts + HACK_ACTION_IDEMPOTENCY_TTL_SECONDS,
+        "payload": None,
+        "status_code": 202,
+    }
+    if isinstance(receipt, dict):
+        cached.update(copy.deepcopy(receipt))
+        cached["state"] = state
+        cached["expires_at"] = now_ts + HACK_ACTION_IDEMPOTENCY_TTL_SECONDS
+    _hack_action_idempotency_cache[key] = cached
+
+
+def build_hack_action_receipt_metadata(username, action, app, data=None):
+    data = data or {}
+    app = app or {}
+    return {
+        "username": str(username or "").strip(),
+        "app_id": str(app.get("id") or app.get("name") or "direct").strip(),
+        "action": str(action or "").strip(),
+        "target_key": str(
+            data.get("_client_action_key")
+            or data.get("target_key")
+            or "|".join([
+                str(data.get("lat") or ""),
+                str(data.get("lng") or ""),
+                str(data.get("label") or ""),
+                str(data.get("target_mode") or ""),
+            ])
+        ).strip()[:220],
+        "source": str(data.get("_source") or data.get("source") or "hack_action").strip(),
+    }
+
+
+def begin_hack_action_idempotency(key, metadata=None):
     if not key:
         return "new", None
+
+    metadata = metadata or {}
+    try:
+        state, receipt = app_action_receipt_store.begin(
+            key,
+            username=metadata.get("username", ""),
+            app_id=metadata.get("app_id", ""),
+            action=metadata.get("action", ""),
+            target_key=metadata.get("target_key", ""),
+            source=metadata.get("source", ""),
+            ttl_seconds=HACK_ACTION_IDEMPOTENCY_TTL_SECONDS,
+        )
+        with _hack_action_idempotency_lock:
+            _cache_hack_action_idempotency_receipt(key, "in_flight" if state == "new" else state, receipt)
+        return state, copy.deepcopy(receipt) if receipt else None
+    except Exception as exc:
+        hack_flow_debug(
+            metadata.get("flow_id") or "",
+            "idempotency_store_fallback",
+            key=key,
+            error=exc,
+        )
+
     now_ts = time.monotonic()
     with _hack_action_idempotency_lock:
         expired_keys = [
@@ -5523,25 +5709,31 @@ def begin_hack_action_idempotency(key):
         if receipt:
             return str(receipt.get("state") or "in_flight"), copy.deepcopy(receipt)
 
-        _hack_action_idempotency_cache[key] = {
-            "state": "in_flight",
-            "expires_at": now_ts + HACK_ACTION_IDEMPOTENCY_TTL_SECONDS,
-            "payload": None,
-            "status_code": 202,
-        }
+        _cache_hack_action_idempotency_receipt(key, "in_flight")
     return "new", None
 
 
 def finish_hack_action_idempotency(key, payload, status_code=200):
     if not key:
         return
+    try:
+        app_action_receipt_store.finish(
+            key,
+            payload,
+            status_code,
+            ttl_seconds=HACK_ACTION_IDEMPOTENCY_TTL_SECONDS,
+        )
+    except Exception as exc:
+        hack_flow_debug("", "idempotency_store_finish_failed", key=key, error=exc)
     with _hack_action_idempotency_lock:
-        _hack_action_idempotency_cache[key] = {
-            "state": "completed",
-            "expires_at": time.monotonic() + HACK_ACTION_IDEMPOTENCY_TTL_SECONDS,
-            "payload": copy.deepcopy(payload or {}),
-            "status_code": int(status_code or 200),
-        }
+        _cache_hack_action_idempotency_receipt(
+            key,
+            "completed",
+            {
+                "payload": copy.deepcopy(payload or {}),
+                "status_code": int(status_code or 200),
+            },
+        )
 
 
 HACK_FLOW_DEBUG_ENABLED = os.environ.get("CHAOS_HACK_FLOW_DEBUG", "1").strip().lower() not in {"0", "false", "no", "off"}
@@ -5661,6 +5853,19 @@ def create_operations_for_app_action(profile, username, app, map_action_id, targ
 
         operation = build_operation_instance(username, normalized_app, map_action_id, operation_type, target)
         update_operation_risk_meter(operation, tool=normalized_app, target=target)
+        try:
+            accepted = player_operation_store.upsert_operations(
+                username,
+                [operation],
+                event_type="operation.started",
+                source="map_action",
+                dedupe_key_prefix=f"start:{username}:{target_id}:{map_action_id}:{operation_type}:{app_id or app_name}",
+            )
+            if not accepted:
+                continue
+            operation = accepted[0]
+        except Exception as exc:
+            print(f"[OPERATIONS] store start skipped: {exc}")
         operations.append(operation)
         created.append(operation)
     return created
@@ -5723,6 +5928,19 @@ def create_missing_operations_for_app_target(profile, username, app, target):
 
         operation = build_operation_instance(username, normalized_app, map_action_id, operation_type, target)
         update_operation_risk_meter(operation, tool=normalized_app, target=target)
+        try:
+            accepted = player_operation_store.upsert_operations(
+                username,
+                [operation],
+                event_type="operation.started",
+                source="desktop_terminal",
+                dedupe_key_prefix=f"start:{username}:{target_id}:{map_action_id}:{operation_type}:{app_id or app_name}",
+            )
+            if not accepted:
+                continue
+            operation = accepted[0]
+        except Exception as exc:
+            print(f"[OPERATIONS] store start skipped: {exc}")
         operations.append(operation)
         created.append(operation)
 
@@ -9924,6 +10142,15 @@ def refresh_and_persist_operations(username, profile):
 
     previous_storage = storage_delta_snapshot(profile)
     operations, changed = refresh_operations_runtime(profile, persist_timeouts=True, username=username)
+    try:
+        player_operation_store.upsert_operations(
+            username,
+            profile.get("operations", []),
+            event_type="operation.runtime_sync",
+            source="refresh_and_persist_operations",
+        )
+    except Exception as exc:
+        print(f"[OPERATIONS] store sync skipped: {exc}")
     if not changed:
         return profile
 
@@ -9973,6 +10200,7 @@ def load_profile_readonly(username, strip_sensitive=True, normalize_apps=True, n
     if normalize_files:
         normalize_files_inventory(profile)
     normalize_runtime_profile_defaults(profile)
+    apply_runtime_stores_to_profile(username, profile)
     return profile
 
 
@@ -10637,22 +10865,18 @@ def find_owned_captured_target_for_runtime_target(username, target):
 
 
 def add_system_message_to_user(username, msg_type, title, text):
-    profile = user_store.get_profile(username)
-    if not profile:
+    if not username:
         return False
-
-    messages = profile.get("system_messages", [])
-    new_id = max([m.get("id", 0) for m in messages], default=0) + 1
-    messages.append({
-        "id": new_id,
+    message = {
         "type": msg_type,
         "title": title,
         "text": text,
+        "body": text,
+        "source": "domain_event",
         "status": "new"
-    })
-    profile["system_messages"] = messages
-    user_store.save_profile(profile)
-    return True
+    }
+    _, created = system_message_store.add_message(username, message, source="domain_event")
+    return bool(created)
 
 
 def cyberner_notification_source(scope, peer_name, sender):
@@ -11177,7 +11401,7 @@ def is_googleplex_product(item):
     return isinstance(item, dict) and bool(item.get("product_type") or item.get("effects"))
 
 
-def apply_googleplex_product_effect(profile, product):
+def apply_googleplex_product_effect(profile, product, username=None):
     if not isinstance(profile, dict) or not isinstance(product, dict):
         return {"applied": [], "messages": []}
     effects = product.get("effects")
@@ -11207,10 +11431,12 @@ def apply_googleplex_product_effect(profile, product):
             city = TRAVEL_CITIES.get(city_key)
             if not city:
                 raise ValueError(f"Nieznane miasto biletu: {city_key}")
-            profile["curently_possition"] = {
-                "lat": city["lat"],
-                "lng": city["lng"],
-            }
+            position_updates = normalize_profile_position_update(
+                {"lat": city["lat"], "lng": city["lng"]},
+                username=username,
+                source="googleplex_travel",
+            )
+            profile.update(position_updates)
             profile["current_city"] = city["name"]
             applied.append({"type": effect_type, "city": city["name"], "lat": city["lat"], "lng": city["lng"]})
             messages.append(f"Przejazd do miasta: {city['name']}.")
@@ -11489,18 +11715,80 @@ def apply_app_map_actions_to_aimed_target(profile, app, username=None):
 
     if changed:
         profile["aimed_target"] = aimed_target
+        if username:
+            try:
+                player_target_runtime_store.upsert_aimed(username, aimed_target, status="in_progress", source="app_map_actions")
+            except Exception as exc:
+                print(f"[target runtime] app action merge failed user={username} error={exc}", flush=True)
     return changed, marked
 
 
 def merge_latest_aimed_target_runtime_state(profile, username):
     """Keep target app progress monotonic when app/map requests finish out of order."""
-    aimed_target = (profile or {}).get("aimed_target")
-    if not username or not isinstance(aimed_target, dict) or not aimed_target:
+    profile = profile if isinstance(profile, dict) else {}
+    aimed_target = profile.get("aimed_target")
+    if not username:
         return aimed_target
 
+    try:
+        stored_target = player_target_runtime_store.get_active_target(username)
+    except Exception as exc:
+        print(f"[target runtime] read failed user={username} error={exc}", flush=True)
+        stored_target = {}
+    try:
+        runtime_state = player_target_runtime_store.get(username)
+    except Exception:
+        runtime_state = {}
+
+    if isinstance(stored_target, dict) and stored_target:
+        if not isinstance(aimed_target, dict) or not aimed_target:
+            profile["aimed_target"] = stored_target
+            return stored_target
+        if targets_share_runtime_identity(stored_target, aimed_target):
+            allowed = aimed_target.setdefault("actions_allowed", {})
+            for key, value in (stored_target.get("actions_allowed") or {}).items():
+                if value is True:
+                    allowed[key] = True
+            security = aimed_target.setdefault("security", {})
+            for key, value in (stored_target.get("security") or {}).items():
+                if value is False:
+                    security[key] = False
+            if not aimed_target.get("target_id"):
+                aimed_target["target_id"] = stored_target.get("target_id") or build_operation_target_id(aimed_target)
+            try:
+                player_target_runtime_store.upsert_aimed(username, aimed_target, source="runtime_merge")
+            except Exception:
+                pass
+            profile["aimed_target"] = aimed_target
+            return aimed_target
+        profile["aimed_target"] = stored_target
+        return stored_target
+
+    if not isinstance(aimed_target, dict) or not aimed_target:
+        return aimed_target
+
+    if isinstance(runtime_state, dict) and runtime_state.get("status") in {"cleared", "captured"}:
+        runtime_target = runtime_state.get("target") or {}
+        if (
+            not runtime_target
+            or targets_share_runtime_identity(runtime_target, aimed_target)
+            or targets_share_position(runtime_target, aimed_target)
+        ):
+            profile["aimed_target"] = {}
+            return {}
+
     if find_owned_captured_target_for_runtime_target(username, aimed_target):
+        try:
+            player_target_runtime_store.mark_captured(username, aimed_target, source="runtime_merge_captured")
+        except Exception as exc:
+            print(f"[target runtime] captured merge failed user={username} error={exc}", flush=True)
         profile["aimed_target"] = {}
         return {}
+
+    try:
+        player_target_runtime_store.seed_from_profile(username, profile)
+    except Exception:
+        pass
 
     try:
         latest_profile = user_store.get_profile(username) or {}
@@ -13622,6 +13910,7 @@ def sync_session_profile(rebuild_territory=True):
         profile["apps"] = normalize_app_contracts(profile.get("apps", []))
         normalize_files_inventory(profile)
         normalize_runtime_profile_defaults(profile)
+        apply_runtime_stores_to_profile(username, profile)
         UserProfileManager(username).update_profile({
             "storage_capacity": profile.get("storage_capacity"),
             "storage_used": profile.get("storage_used"),
@@ -13647,6 +13936,7 @@ def sync_session_profile(rebuild_territory=True):
     profile["apps"] = normalize_app_contracts(profile.get("apps", []))
     normalize_files_inventory(profile)
     normalize_runtime_profile_defaults(profile)
+    apply_runtime_stores_to_profile(username, profile)
     normalized_clan = get_profile_clan(profile)
     if normalized_clan and normalized_clan != profile.get("clan"):
         profile["clan"] = normalized_clan
@@ -14654,7 +14944,7 @@ def api_blacknet_cta_teleport():
             "error": "profile_not_found",
         }), 401
 
-    position_updates = normalize_profile_position_update(position)
+    position_updates = normalize_profile_position_update(position, username=username, source=source or "blacknet")
     profile.update(position_updates)
 
     mgr = UserProfileManager(username)
@@ -15572,7 +15862,7 @@ def map_action():
                 "message": f"Za daleko, zasięg motocykla: {action_range} m."
             })
 
-        position_updates = normalize_profile_position_update({"lat": lat, "lng": lng})
+        position_updates = normalize_profile_position_update({"lat": lat, "lng": lng}, username=session.get("user"), source="travel")
         profile.update(position_updates)
         session["profile"] = profile
 
@@ -15840,7 +16130,17 @@ def hack_action():
                 early_selected_app,
                 data.get("_client_action_key"),
             )
-            idempotency_state, idempotency_receipt = begin_hack_action_idempotency(hack_action_idempotency_key)
+            idempotency_metadata = build_hack_action_receipt_metadata(
+                session.get("user"),
+                action,
+                early_selected_app,
+                data,
+            )
+            idempotency_metadata["flow_id"] = flow_id
+            idempotency_state, idempotency_receipt = begin_hack_action_idempotency(
+                hack_action_idempotency_key,
+                idempotency_metadata,
+            )
             hack_flow_debug(
                 flow_id,
                 "idempotency_early",
@@ -15849,6 +16149,7 @@ def hack_action():
                 app=early_selected_app.get("id") or early_selected_app.get("name"),
                 key=hack_action_idempotency_key,
                 state=idempotency_state,
+                store=(idempotency_receipt or {}).get("store", "sqlite"),
                 client_key=client_action_key,
             )
             if idempotency_state == "completed" and idempotency_receipt:
@@ -16053,7 +16354,17 @@ def hack_action():
             data.get("_client_action_key"),
         )
     if not hack_action_idempotency_started:
-        idempotency_state, idempotency_receipt = begin_hack_action_idempotency(hack_action_idempotency_key)
+        idempotency_metadata = build_hack_action_receipt_metadata(
+            session.get("user"),
+            action,
+            matched_apps[0] if matched_apps else {},
+            data,
+        )
+        idempotency_metadata["flow_id"] = flow_id
+        idempotency_state, idempotency_receipt = begin_hack_action_idempotency(
+            hack_action_idempotency_key,
+            idempotency_metadata,
+        )
         hack_flow_debug(
             flow_id,
             "idempotency_full",
@@ -16062,6 +16373,7 @@ def hack_action():
             app=((matched_apps[0] or {}).get("id") or (matched_apps[0] or {}).get("name")) if matched_apps else "",
             key=hack_action_idempotency_key,
             state=idempotency_state,
+            store=(idempotency_receipt or {}).get("store", "sqlite"),
             client_key=client_action_key,
         )
         if idempotency_state == "completed" and idempotency_receipt:
@@ -16447,14 +16759,9 @@ def api_operations():
         if not profile:
             session.clear()
             return jsonify({"success": False, "message": "Brak danych uzytkownika"}), 401
-    else:
-        profile = sync_session_profile()
-    profile = refresh_and_persist_operations(session["user"], profile)
-    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False, username=session["user"])
-    active_operations = active_operations_from_operations(operations)
-    operation_history = operation_history_from_operations(operations)
-
-    if summary_mode:
+        operations = operations_from_store_or_profile(session["user"], profile, refresh=False)
+        active_operations = active_operations_from_operations(operations)
+        operation_history = operation_history_from_operations(operations)
         return jsonify({
             "success": True,
             "active_operations": [
@@ -16467,7 +16774,14 @@ def api_operations():
             ],
             "active_count": len(active_operations),
             "history_count": len(operation_history),
+            "source": "player_operations",
         })
+    else:
+        profile = sync_session_profile()
+    profile = refresh_and_persist_operations(session["user"], profile)
+    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False, username=session["user"])
+    active_operations = active_operations_from_operations(operations)
+    operation_history = operation_history_from_operations(operations)
 
     return jsonify({
         "success": True,
@@ -16490,6 +16804,15 @@ def api_cancel_operation():
     profile = sync_session_profile()
     operation, result = cancel_profile_operation(profile, operation_id, cancelled_by=session["user"])
     if result == "not_found":
+        store_operation, store_result = player_operation_store.cancel_operation(
+            session["user"],
+            operation_id,
+            cancelled_by=session["user"],
+        )
+        if store_result == "cancelled":
+            operation = store_operation
+            result = "cancelled"
+    if result == "not_found":
         return jsonify({"success": False, "message": "Nie znaleziono operacji."}), 404
     if result in {"already_terminal", "not_active"}:
         return jsonify({
@@ -16504,6 +16827,12 @@ def api_cancel_operation():
         "risk_events": profile.get("risk_events", []),
         "system_messages": profile.get("system_messages", []),
     })
+    player_operation_store.upsert_operations(
+        session["user"],
+        profile.get("operations", []),
+        event_type="operation.cancelled",
+        source="api_operations_cancel",
+    )
     stored_profile = user_store.get_profile(session["user"]) or {}
     profile["operations"] = stored_profile.get("operations", [])
     profile["files"] = stored_profile.get("files", {})
@@ -16536,8 +16865,7 @@ def operation_control_snapshot():
     if not operation_control_app_installed(profile):
         return operation_control_forbidden_response()
 
-    profile = refresh_and_persist_operations(username, profile)
-    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False, username=username)
+    operations = operations_from_store_or_profile(username, profile, refresh=False)
     return jsonify(build_operation_control_snapshot(username, profile, operations=operations))
 
 
@@ -16562,6 +16890,15 @@ def operation_control_cancel():
     refresh_operations_runtime(profile, persist_timeouts=True, username=username)
     operation, result = cancel_profile_operation(profile, operation_id, cancelled_by=username)
     if result == "not_found":
+        store_operation, store_result = player_operation_store.cancel_operation(
+            username,
+            operation_id,
+            cancelled_by=username,
+        )
+        if store_result == "cancelled":
+            operation = store_operation
+            result = "cancelled"
+    if result == "not_found":
         return jsonify({"success": False, "error": "not_found", "message": "Nie znaleziono operacji."}), 404
     if result in {"already_terminal", "not_active"}:
         return jsonify({
@@ -16574,7 +16911,13 @@ def operation_control_cancel():
         return jsonify({"success": False, "error": result or "cancel_failed"}), 409
 
     persist_operation_control_profile(username, profile)
-    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False, username=username)
+    player_operation_store.upsert_operations(
+        username,
+        profile.get("operations", []),
+        event_type="operation.cancelled",
+        source="operation_control_cancel",
+    )
+    operations = operations_from_store_or_profile(username, profile, refresh=False)
     snapshot = build_operation_control_snapshot(username, profile, operations=operations)
     return jsonify({
         "success": True,
@@ -16684,7 +17027,13 @@ def operation_control_cancel_group():
             failed.append(item)
 
     persist_operation_control_profile(username, profile)
-    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False, username=username)
+    player_operation_store.upsert_operations(
+        username,
+        profile.get("operations", []),
+        event_type="operation.cancelled_group",
+        source="operation_control_cancel_group",
+    )
+    operations = operations_from_store_or_profile(username, profile, refresh=False)
     snapshot = build_operation_control_snapshot(username, profile, operations=operations)
     return jsonify({
         "success": True,
@@ -19605,29 +19954,19 @@ def get_system_messages():
     if "user" not in session:
         return jsonify([])
 
-    # Synchronizuj i załaduj aktualny profil
     profile = load_profile_readonly(session["user"], normalize_apps=False, normalize_files=False)
     if not profile:
         session.clear()
         return jsonify({"logout": True})
 
-    messages = profile.get("system_messages", [])
+    legacy_new = [
+        message for message in profile.get("system_messages", []) or []
+        if isinstance(message, dict) and message.get("status") == "new"
+    ]
+    if legacy_new:
+        system_message_store.add_messages(session["user"], legacy_new, source="legacy_profile")
 
-    # Wyciągnij nowe wiadomości
-    new_msgs = [m for m in messages if m.get("status") == "new"]
-    if not new_msgs:
-        return jsonify([])
-
-    # Usuń wiadomości o statusie 'new' z listy
-    messages = [m for m in messages if m.get("status") != "new"]
-
-    # Zaktualizuj profil bez tych wiadomości
-    mgr = UserProfileManager(session["user"])
-    mgr.update_profile({"system_messages": messages})
-    session_profile = session.get("profile")
-    if isinstance(session_profile, dict):
-        session_profile["system_messages"] = messages
-        session["profile"] = session_profile
+    new_msgs = system_message_store.consume_pending(session["user"])
     return jsonify(new_msgs)
 
 @app.route('/add-system-message', methods=['POST'])
@@ -19643,21 +19982,19 @@ def add_system_message():
     if not all([msg_type, title, text]):
         return jsonify({"error": "Brakuje danych: type, title, text"}), 400
 
-    profile = load_profile_readonly(session["user"], normalize_apps=False, normalize_files=False)
-    if not profile:
-        session.clear()
-        return jsonify({"error": "Brak danych profilu"}), 401
-    mgr = UserProfileManager(session["user"])
-
-    messages = profile.get("system_messages", [])
-    duplicate_pending = any(
-        msg.get("status") == "new"
-        and msg.get("type") == msg_type
-        and msg.get("title") == title
-        and msg.get("text") == text
-        for msg in messages
-        if isinstance(msg, dict)
-    )
+    dedupe_key = data.get("dedupe_key") or f"manual:{session['user']}:{msg_type}:{title}:{hashlib.sha1(str(text or '').encode('utf-8', errors='ignore')).hexdigest()[:16]}"
+    new_msg = {
+        "type": msg_type,
+        "title": title,
+        "text": text,
+        "body": text,
+        "status": "new",
+        "source": "api",
+        "dedupe_key": dedupe_key,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _, created = system_message_store.add_message(session["user"], new_msg, source="api")
+    duplicate_pending = not created
     hack_flow_debug(
         request.headers.get("X-Hack-Flow-Id") or request.headers.get("X-Client-Action-Key") or "",
         "system_message_request",
@@ -19666,25 +20003,10 @@ def add_system_message():
         title=title,
         text_hash=hashlib.sha1(str(text or "").encode("utf-8", errors="ignore")).hexdigest()[:12],
         duplicate=duplicate_pending,
-        pending_count=len(messages),
+        pending_count=0,
     )
     if duplicate_pending:
         return jsonify({"status": "success", "duplicate": True, "message": "Wiadomosc juz czeka"})
-
-    # Prosty generator ID
-    new_id = max([m.get("id", 0) for m in messages], default=0) + 1
-
-    new_msg = {
-        "id": new_id,
-        "type": msg_type,
-        "title": title,
-        "text": text,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "status": "new"
-    }
-
-    messages.append(new_msg)
-    mgr.update_profile({"system_messages": messages})
 
     return jsonify({"status": "success", "message": "Wiadomość dodana"})
 
@@ -19777,7 +20099,7 @@ def install_app():
                 profile["hackcoins"] = int(profile.get("hackcoins", 0) or 0) + price
 
         if is_product:
-            effect_result = apply_googleplex_product_effect(profile, app_data)
+            effect_result = apply_googleplex_product_effect(profile, app_data, username=buyer_username)
             purchases = profile.setdefault("googleplex_products", [])
             if not isinstance(purchases, list):
                 purchases = []
@@ -19815,18 +20137,15 @@ def install_app():
                         "price": price,
                         "purchased_at": purchase_record["purchased_at"],
                     })
-            system_messages = profile.get("system_messages", [])
-            if not isinstance(system_messages, list):
-                system_messages = []
-            system_messages.append({
+            system_message_store.add_message(buyer_username, {
                 "title": "Zakup Googleplex",
                 "text": f"Produkt <b>{app_data['name']}</b> zostal aktywowany.",
                 "type": "success",
                 "status": "new",
                 "product_id": app_id,
                 "effects": effect_result.get("applied", []),
-            })
-            profile["system_messages"] = system_messages
+                "dedupe_key": f"googleplex_product:{buyer_username}:{app_id}:{purchase_record['purchased_at']}",
+            }, source="googleplex_product")
             update_payload = {
                 "hackcoins": profile.get("hackcoins", 0),
                 "storage_capacity": profile.get("storage_capacity"),
@@ -19842,7 +20161,6 @@ def install_app():
                 "map_zoom_bonus": profile.get("map_zoom_bonus", 0),
                 "scan_range_bonus": profile.get("scan_range_bonus", 0),
                 "bike_range_bonus": profile.get("bike_range_bonus", 0),
-                "system_messages": system_messages,
             }
             mgr.update_profile(update_payload)
             record_storage_delta(
@@ -19968,7 +20286,7 @@ def install_app():
                 dedupe_key=f"wallet:balance:{payee_username}:googleplex_app_sale:{buyer_username}:{app_id}",
             )
 
-        # --- SYSTEM MESSAGE zapisane do profilu ---
+        # --- SYSTEM MESSAGE przez runtime store ---
         new_message = {
             "title": "Instalacja zakończona",
             "text": f"Aplikacja <b>{app_data['name']}</b> została poprawnie zainstalowana!",
@@ -19976,10 +20294,8 @@ def install_app():
             "status": "new"
         }
 
-        system_messages = profile.get("system_messages", [])
-        system_messages.append(new_message)
-
-        mgr.update_profile({"system_messages": system_messages})
+        new_message["dedupe_key"] = f"googleplex_app_install:{buyer_username}:{app_id}"
+        system_message_store.add_message(buyer_username, new_message, source="googleplex_install")
 
         return jsonify({
             "status": "success",
@@ -20257,6 +20573,16 @@ def gonna_win():
     # aktualizacja profilu
     profile["aimed_target"]["security"] = target_sec
     merge_latest_aimed_target_runtime_state(profile, session.get("user"))
+    if profile.get("aimed_target"):
+        try:
+            player_target_runtime_store.upsert_aimed(
+                session.get("user"),
+                profile.get("aimed_target") or {},
+                status="in_progress",
+                source="gonna_win_security_update",
+            )
+        except Exception as exc:
+            print(f"[target runtime] security update failed user={session.get('user')} error={exc}", flush=True)
     if contest_owner_username and contest_owner_target:
         contest_owner_target["security"] = dict(target_sec)
         owner_mgr = UserProfileManager(contest_owner_username)
@@ -20307,6 +20633,14 @@ def gonna_win():
                 cooldown_hours=PLAYER_HACK_COOLDOWN_HOURS,
             )
             player_hack_access = serialize_player_hack_access(access)
+            try:
+                player_target_runtime_store.mark_captured(
+                    session["user"],
+                    profile.get("aimed_target") or {},
+                    source="player_hack_access_granted",
+                )
+            except Exception as exc:
+                print(f"[target runtime] player capture mark failed user={session.get('user')} error={exc}", flush=True)
             profile["aimed_target"] = {}
             success = True
             session["profile"] = profile
@@ -20530,6 +20864,14 @@ def gonna_win():
             )
         notify_encircled_area_owners()
 
+        try:
+            player_target_runtime_store.mark_captured(
+                session["user"],
+                captured_target_response or captured_target,
+                source="gonna_win_capture",
+            )
+        except Exception as exc:
+            print(f"[target runtime] capture mark failed user={session.get('user')} error={exc}", flush=True)
         profile["aimed_target"] = {}
         success = True
         session["profile"] = profile

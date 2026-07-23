@@ -10083,3 +10083,191 @@ Walidacja korekty:
 * `node --check static/js/terminal.js`: OK;
 * `python -m unittest tests.test_hack_action_idempotency`: OK, 9 testow;
 * `git diff --check`: OK.
+
+## Sprint 130.1 - Extraction Foundation and Action Receipts
+
+Wdrożono pierwszy fundament ekstrakcji stanu z `profile_json`: trwały store
+`app_action_receipts` w SQLite. Dotychczasowy cache idempotencji `/hack-action`
+pozostaje jako lekka warstwa kompatybilności, ale decyzja `new / in_flight /
+completed` jest teraz zapisywana w bazie i działa ponad procesami workerów.
+
+Zakres:
+
+* dodano tabelę `app_action_receipts` z kluczem receiptu, użytkownikiem,
+  aplikacją, akcją, targetem, źródłem, statusem, payloadem odpowiedzi,
+  kodem statusu i retencją TTL;
+* dodano `AppActionReceiptStore` z atomowym `begin()` na `BEGIN IMMEDIATE`,
+  `finish()`, `get()`, `metrics()` i czyszczeniem przeterminowanych receiptów;
+* `/hack-action` dla wybranego narzędzia zakłada receipt przed
+  `sync_session_profile()`, więc duplicate może zostać zatrzymany przed
+  ciężkim profile sync;
+* zapisany wynik akcji może zostać odtworzony po wyczyszczeniu lokalnego cache
+  procesu;
+* dodano metadane receiptu: `username`, `app_id`, `action`, `target_key`,
+  `source`.
+
+Walidacja:
+
+* `python -m py_compile run.py database.py`: OK;
+* `python -m unittest tests.test_hack_action_idempotency`: OK, 16 testów;
+* `git diff --check`: OK.
+
+Poza zakresem:
+
+* nie przenoszono jeszcze targetu, pozycji, operacji, system messages ani
+  walleta do osobnych store’ów;
+* nie zmieniano gameplayu mapy, terminala ani desktopu;
+* nie wdrażano cutoveru `store_primary`.
+
+## Sprint 130.2 - Target and Position Runtime Stores
+
+Wdrożono drugi krok ekstrakcji stanu z `profile_json`: osobne runtime store dla
+aktywnego celu gracza oraz pozycji gracza. Celem sprintu było ograniczenie
+cofek widocznych jako powrót zhakowanego celu na belkę CEL oraz reset pozycji
+po teleport/travel/map open.
+
+Zakres:
+
+* dodano tabele `player_target_runtime`, `player_target_events` oraz
+  `player_positions`;
+* dodano `PlayerTargetRuntimeStore` z monotonicznym scalaniem
+  `actions_allowed`, `security`, `disarm_progress` oraz statusami `cleared`,
+  `aimed`, `in_progress`, `captured`;
+* dodano ledger eventów targetu: `target.aimed`, `target.progressed`,
+  `target.captured`, `target.cleared`, `target.aimed_rejected`;
+* dodano `PlayerPositionStore` dla lekkiego zapisu pozycji gracza z wersją,
+  źródłem i fallbackiem z profilu;
+* `load_profile_readonly()` oraz `sync_session_profile()` nakładają runtime
+  target/position na profil kompatybilnościowy;
+* map, terminal, desktop, Victim Picker, travel, teleport, BlackNet teleport i
+  bilety Googleplex korzystają ze wspólnej ścieżki runtime pozycji/celu;
+* player actors czytają pozycję najpierw z lekkiego `player_positions`;
+* captured/cleared target w runtime store blokuje późny snapshot profilu przed
+  ponownym ustawieniem celu jako `aimed`.
+
+Walidacja:
+
+* `python -m py_compile run.py database.py tests/test_hack_action_idempotency.py`: OK;
+* `python -m unittest tests.test_hack_action_idempotency`: OK, 20 testów;
+* `git diff --check`: OK.
+
+Poza zakresem:
+
+* nie przenoszono jeszcze pełnych operacji, system messages, walleta ani storage
+  do osobnych tabel;
+* nie usuwano kompatybilnego zapisu do `profile_json`;
+* nie włączano trybu `store_primary`;
+* nie robiono commita ani deployu.
+
+## Sprint 130.3 - Operations and System Messages Extraction
+
+Wdrożono trzeci krok ekstrakcji stanu z `profile_json`: osobne, atomowe store’y
+dla operacji gracza oraz wiadomości systemowych. Celem sprintu było zmniejszyć
+ryzyko dubli operacji/toastów przy wielu workerach, pollerach i późnych
+requestach mapy.
+
+Zakres:
+
+* dodano tabele `player_operations`, `operation_events` i `system_messages`;
+* dodano `PlayerOperationStore` z atomowym upsertem, aktywną deduplikacją
+  operacji po logicznym kluczu target/action/tool oraz idempotentnym
+  anulowaniem;
+* dodano `SystemMessageStore` z dedupe key, statusami `pending`, `delivered`,
+  `consumed`, `expired`, atomowym consume i TTL dla wiadomości tymczasowych;
+* `/api/operations?summary=1` czyta z `player_operations` bez pełnego syncu
+  profilu;
+* start operacji z mapy, terminala i desktopu zapisuje operacje do store’u;
+* Operation Center używa store’u dla snapshotu, cancel i cancel-group;
+* `/system-messages` pobiera i konsumuje wiadomości bez zapisywania całego
+  profilu;
+* `/add-system-message` oraz helper domenowy zapisują wiadomości przez nowy
+  store z deduplikacją.
+
+Walidacja:
+
+* `python -m py_compile run.py database.py tests/test_hack_action_idempotency.py tests/test_operation_risk_meter.py`: OK;
+* `python -m unittest tests.test_hack_action_idempotency tests.test_consequence_full_response tests.test_response_warning_visible_safe tests.test_operation_risk_meter tests.test_incident_initializer`: OK, 41 testów;
+* `git diff --check`: OK.
+
+Znane legacy:
+
+* dodatkowy smoke `tests.test_target_persistence.LightweightPollingEndpointTest`
+  nadal ma niezwiązany problem baseline w `launch-queue` przy mockowanym
+  profilu; nie był naprawiany w Sprincie 130.3.
+
+Poza zakresem:
+
+* nie przenoszono jeszcze apps, tools, storage ani walleta;
+* nie usuwano kompatybilnego fallbacku z `profile_json`;
+* nie włączano trybu `store_primary`;
+* nie robiono commita ani deployu.
+
+## Sprint 130.4 - Apps, Tools, Storage and Wallet Cutover
+
+Wdrożono czwarty krok ekstrakcji stanu z `profile_json`: runtime store dla
+inventory, tool files, storage i bieżącego balansu walleta.
+
+Zakres:
+
+* dodano tabele `player_apps`, `player_tool_files`, `player_storage`,
+  `wallet_balances` oraz `wallet_balance_events`;
+* dodano `PlayerInventoryStore` z projekcją `apps`, `files.tools` i storage;
+* dodano `WalletBalanceStore` z idempotentnym `transaction_key`;
+* delty `apps`, `storage` i `wallet` zapisują teraz nowe store'y;
+* `apply_runtime_stores_to_profile()` nakłada inventory/storage/wallet na
+  kompatybilny profil, żeby stare UI nadal działało;
+* `WalletStore.get_wallet()` czyta bieżący balans z `wallet_balances` z
+  fallbackiem do profilu;
+* komunikaty instalacji/zakupu Googleplex trafiają do `system_messages`, nie do
+  osobnego pełnego zapisu profilu.
+
+Walidacja:
+
+* `python -m py_compile run.py database.py tests/test_hack_action_idempotency.py tests/test_operation_risk_meter.py`: OK;
+* `python -m unittest tests.test_hack_action_idempotency`: OK, 29 testow;
+* `python -m unittest tests.test_hack_action_idempotency tests.test_consequence_full_response tests.test_response_warning_visible_safe tests.test_operation_risk_meter tests.test_incident_initializer`: OK, 45 testow;
+* `git diff --check`: OK.
+
+Poza zakresem:
+
+* legacy `profile_json` nadal jest compatibility mirror/cache;
+* produkcyjna migracja istniejących kont i narzędzia repair pozostają zakresem
+  Sprintu 130.5;
+* desktop settings nadal są odłożone jako osobny potencjalny store.
+
+## Sprint 130.5 - Production Migration and Account Repair Tools
+
+Wdrozono operatorskie narzedzie migracji istniejacych kont z legacy
+`profile_json` do store'ow runtime przygotowanych w Sprintach 130.1-130.4.
+Sprint nie zmienil gameplayu ani UI; dostarczyl bezpieczna sciezke audytu,
+backupu, dry-run, migracji, weryfikacji, reconcile, resume, rollback i raportu.
+
+Zakres:
+
+* dodano tabele `profile_store_migrations`;
+* dodano `tools/profile_store_migration.py`;
+* dodano tryby `audit`, `backup`, `dry-run`, `migrate-user`, `migrate-all`,
+  `verify-user`, `verify-all`, `reconcile`, `resume`, `rollback-user`,
+  `rollback-all` i `report`;
+* migracja obejmuje target runtime, pozycje, operacje, system messages, apps,
+  tool files, storage i wallet;
+* komendy zapisujace wymagaja `--write`;
+* produkcyjny zapis wymaga `--backup-manifest` albo jawnego
+  `--allow-without-backup`;
+* dodano lock migracji oraz backup JSON per user do rejestru;
+* dodano instrukcje operatorska `doc/profile_store_migration_manual.md`.
+
+Walidacja:
+
+* `python -m py_compile database.py tools/profile_store_migration.py tests/test_profile_store_migration_tool.py`: OK;
+* `python -m unittest tests.test_profile_store_migration_tool`: OK, 4 testy;
+* `python -m unittest tests.test_profile_store_migration_tool tests.test_hack_action_idempotency tests.test_consequence_full_response tests.test_response_warning_visible_safe tests.test_operation_risk_meter tests.test_incident_initializer`: OK, 49 testow;
+* `git diff --check`: OK.
+
+Poza zakresem:
+
+* nie uruchamiano migracji produkcyjnej;
+* nie usuwano legacy pol z `profile_json`;
+* nie wlaczano `store_primary`;
+* nie migrowano desktop settings;
+* nie robiono commita ani deployu.

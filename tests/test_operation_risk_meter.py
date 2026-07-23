@@ -1,6 +1,9 @@
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
+from database import PlayerOperationStore
 import run
 from response_network.operation_risk_meter import (
     calculate_operation_risk,
@@ -13,6 +16,15 @@ def ts(hour, minute=0):
 
 
 class OperationRiskMeterTest(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = TemporaryDirectory()
+        self.original_operation_store = run.player_operation_store
+        run.player_operation_store = PlayerOperationStore(db_path=str(Path(self.tmpdir.name) / "game.sqlite3"))
+
+    def tearDown(self):
+        run.player_operation_store = self.original_operation_store
+        self.tmpdir.cleanup()
+
     def _operation(self, **overrides):
         operation = {
             "operation_id": "op-risk-1",

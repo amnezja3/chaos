@@ -11653,6 +11653,1038 @@ Pierwszy produkcyjny cykl może zostać rozpoczęty świadomie.
 Endgame nie wymaga ręcznej ingerencji administratora w normalny przebieg strategiczny.
 
 
+# Profile Store Extraction — Sprinty 130.1–130.5
+
+Data: 2026-07-23
+
+Status: plan implementacyjny
+
+## Cel serii
+
+Ograniczyć używanie `users.profile_json` jako głównego magazynu aktywnego stanu gry.
+
+Docelowo:
+
+```text
+dedykowany store = źródło prawdy dla swojego zakresu
+profile_json = bootstrap / compatibility / recovery cache
+```
+
+Migracja musi być wykonywana stopniowo. Każdy sprint powinien pozostawić działający runtime, kompatybilność ze starymi profilami oraz możliwość wycofania zmiany bez utraty danych.
+
+## Zasady obowiązujące we wszystkich sprintach
+
+Każdy nowy store musi zapewniać:
+
+* własną wersję rekordu,
+* atomowe i idempotentne zapisy,
+* monotoniczny merge dla postępu,
+* ochronę przed nadpisaniem nowszego stanu starszym requestem,
+* deltę runtime po zmianie,
+* recovery snapshot lub możliwość odbudowy,
+* zgodność ze starym `profile_json`,
+* brak pełnego `sync_session_profile()` przy zwykłym odczycie,
+* test dwóch równoległych zapisów,
+* test powtórzonego requestu,
+* test odtworzenia sesji po ponownym otwarciu gry.
+
+Nowy store po aktywacji staje się źródłem prawdy. Profil może otrzymywać kopię kompatybilności, ale nie może ponownie nadpisywać store’a swoim starszym stanem.
+
+Po aktywacji store’a `sync_session_profile()` nie może zapisywać wydzielonego
+scope’u na podstawie starszego `profile_json`. Pełny profil może być użyty jako
+bootstrap albo recovery tylko wtedy, gdy store nie ma jeszcze rekordu albo gdy
+operator uruchomi jawne narzędzie naprawcze.
+
+Każdy sprint 130.x musi kończyć się:
+
+* aktualizacją `doc/project_journal.md`,
+* aktualizacją dokumentacji właściwego store’a albo migracji,
+* opisem wykonanych testów,
+* opisem zakresu pozostającego w trybie compatibility,
+* potwierdzeniem, że nie dodano nowego pełnego refreshu profilu.
+
+## Tryby cutover
+
+Każdy wydzielany scope powinien przechodzić przez kontrolowane tryby:
+
+```text
+observe
+mirror_write
+store_primary
+store_only
+```
+
+`observe` tylko mierzy i porównuje stan. `mirror_write` zapisuje nowy store
+równolegle do profilu. `store_primary` czyta już ze store’a, a profil traktuje
+jako cache kompatybilności. `store_only` usuwa store z zależności runtime od
+`profile_json`.
+
+Przejście pomiędzy trybami musi być sterowane feature flagą albo ustawieniem
+operacyjnym możliwym do wyłączenia bez deployu.
+
+## Endpointy objęte kontrolą
+
+Seria 130.x musi sprawdzać co najmniej następujące ścieżki:
+
+* `/hack-action`,
+* `/command`,
+* akcje mapy, w tym travel i teleport,
+* `/launch-queue`,
+* `/system-messages`,
+* `/api/operations?summary=1`,
+* `/api/profile`,
+* odświeżenie celu na toolbarze,
+* File Manager,
+* Googleplex,
+* Ghost Exchange,
+* Victim Picker,
+* Territory Control,
+* Operation Control.
+
+Każda ścieżka objęta nowym store’em musi mieć test późnego requestu:
+
+```text
+request A startuje wcześniej
+request B zapisuje nowszy stan
+request A kończy później
+request A nie może cofnąć stanu ze store’a
+```
+
+---
+
+# Sprint 130.1 — Extraction Foundation and Action Receipts
+
+## Cel
+
+Zbudować wspólny fundament pod wydzielanie danych z profilu i zatrzymać duplikaty akcji przed uruchomieniem ciężkiej logiki profilu.
+
+## Zakres
+
+### 1. Wspólny kontrakt store’ów runtime
+
+Wprowadzić wspólne zasady dla nowych store’ów:
+
+* `version`,
+* `updated_at`,
+* optimistic update albo compare-and-swap,
+* idempotency key,
+* odrzucenie starszej wersji,
+* zapis delty,
+* opcjonalny compatibility mirror do profilu.
+
+Dodać helpery do:
+
+* pobrania bieżącej wersji,
+* atomowego zwiększenia wersji,
+* rozpoznania duplicate/no-op,
+* budowania recovery snapshotu,
+* kontrolowanego mirrorowania danych do profilu.
+
+Każdy helper musi umieć zwrócić informację, czy zapis:
+
+* utworzył nowy rekord,
+* zaktualizował istniejący rekord,
+* został odrzucony jako starszy,
+* został rozpoznany jako duplicate,
+* wymaga recovery.
+
+### 2. `app_action_receipts`
+
+Dodać tabelę:
+
+```text
+app_action_receipts(
+  receipt_key primary key,
+  username text not null,
+  app_id text,
+  action text,
+  target_key text,
+  source text,
+  status text not null,
+  response_json text,
+  created_at text not null,
+  updated_at text not null
+)
+```
+
+Obsługiwane statusy:
+
+* `received`,
+* `started`,
+* `effect_applied`,
+* `duplicate`,
+* `failed`.
+
+Receipt musi być rozpoznawany przed:
+
+* `sync_session_profile()`,
+* odświeżaniem operacji,
+* pobieraniem pełnego profilu,
+* ponownym wykonaniem efektu aplikacji.
+
+Powtórzony request powinien zwrócić zapisany wynik albo kontrolowaną odpowiedź `duplicate`, bez ponownego uruchamiania gameplayu.
+
+### 3. Obserwowalność
+
+Dodać metryki lub logi:
+
+* liczba nowych receiptów,
+* liczba duplicate,
+* liczba duplicate zatrzymanych przed profile sync,
+* liczba failed,
+* czas obsługi duplicate path,
+* źródło requestu: mapa, terminal, desktop, launch queue.
+
+### 4. Hooki delta i recovery
+
+Fundament musi przewidzieć wspólny sposób podpinania:
+
+* `record_*_delta`,
+* `current_version`,
+* `recovery_required`,
+* snapshotu per scope.
+
+Nie wolno rozwiązywać braku danych powrotem do pełnego `/api/profile`, jeśli
+dany scope ma już własny snapshot recovery.
+
+## Definition of Done
+
+* duplicate aplikacji jest rozpoznawany przed ciężkim profile sync,
+* ten sam receipt nie wykonuje efektu drugi raz,
+* dwa workery nie mogą jednocześnie zastosować tego samego efektu,
+* istnieją testy dla mapy, terminala i desktopu,
+* istnieje test późnego requestu dla receiptów,
+* duplicate path nie uruchamia `/api/profile` ani `sync_session_profile()`,
+* istnieje wspólna baza helperów używana przez następne sprinty,
+* stary flow bez receipt key pozostaje kompatybilny przez okres przejściowy,
+* brak zmiany zasad gameplayu.
+
+## Poza zakresem
+
+* migracja targetu,
+* migracja pozycji,
+* migracja operacji,
+* usuwanie pól z `profile_json`,
+* masowa migracja kont na serwerze.
+
+---
+
+# Sprint 130.2 — Target and Position Runtime Stores
+
+## Cel
+
+Usunąć dwa najczęściej cofające się zakresy stanu: aktualny cel gracza oraz pozycję gracza.
+
+## Zakres
+
+### 1. `player_target_runtime`
+
+Dodać tabelę:
+
+```text
+player_target_runtime(
+  username text primary key,
+  target_key text,
+  target_json text,
+  security_json text,
+  actions_allowed_json text,
+  disarm_progress integer not null default 0,
+  status text not null,
+  version integer not null,
+  updated_at text not null
+)
+```
+
+Obsługiwane statusy:
+
+* `cleared`,
+* `aimed`,
+* `in_progress`,
+* `captured`.
+
+Zasady monotoniczne dla tego samego `target_key`:
+
+* `security=false` nie może wrócić na `true`,
+* `actions_allowed=true` nie może wrócić na `false`,
+* `disarm_progress` nie może spaść,
+* `captured` wygrywa ze starym `aimed`,
+* `cleared` wygrywa ze starszym requestem dotyczącym poprzedniego celu,
+* stary target nie może zastąpić nowszego targetu o wyższej wersji.
+
+Mapa, terminal, desktop i Victim Picker muszą korzystać z jednego store’a.
+
+Dodać dziennik zdarzeń targetu albo równoważny ledger:
+
+```text
+target.aimed
+target.progressed
+target.captured
+target.cleared
+```
+
+Ledger ma chronić przed sytuacją, w której zhakowany cel wraca jako namierzony
+po późnym zapisie mapy, terminala, desktopu albo refreshu toolbaru.
+
+### 2. `player_positions`
+
+Dodać tabelę:
+
+```text
+player_positions(
+  username text primary key,
+  lat real not null,
+  lng real not null,
+  source text,
+  version integer not null,
+  updated_at text not null
+)
+```
+
+Obsługiwane źródła:
+
+* `travel`,
+* `teleport`,
+* `blacknet`,
+* `terminal`,
+* `map`,
+* `migration`,
+* `recovery`.
+
+Zapisy pozycji muszą być monotoniczne po wersji. Późno zakończony request nie może przywrócić wcześniejszej lokalizacji.
+
+Należy ujednolicić wszystkie aliasy pozycji używane przez:
+
+* mapę,
+* motocykl,
+* teleport,
+* BlackNet,
+* terminal,
+* player actors.
+
+### 3. Warstwa kompatybilności
+
+Przy odczycie:
+
+1. najpierw sprawdzany jest nowy store,
+2. brak rekordu pozwala wykonać kontrolowany fallback do profilu,
+3. fallback może utworzyć rekord w store,
+4. profil nigdy nie nadpisuje istniejącego rekordu o nowszej wersji.
+
+Mirror do `profile_json` może być wykonywany:
+
+* przy checkpointach,
+* przy wylogowaniu,
+* w zadaniu recovery,
+* poza główną ścieżką teleportu i hackowania.
+
+## Definition of Done
+
+* target nie wraca po zhakowaniu lub wyczyszczeniu,
+* kropki zabezpieczeń i postęp rozbrajania nie cofają się,
+* teleport nie cofa się po otwarciu mapy,
+* travel i teleport nie zapisują pełnego profilu,
+* player actors czytają pozycję z lekkiego store’a,
+* ponowne otwarcie terminala pokazuje ten sam target co mapa,
+* dwa równoległe requesty nie mogą obniżyć postępu,
+* późny request nie może przywrócić starego targetu ani starej pozycji,
+* `captured_targets` i aktywny target pozostają spójne,
+* istnieją testy kompatybilności dla kont bez nowych rekordów.
+
+## Poza zakresem
+
+* przenoszenie operacji,
+* migracja system messages,
+* inventory aplikacji,
+* masowe uruchamianie migracji na produkcji.
+
+---
+
+# Sprint 130.3 — Operations and System Messages Extraction
+
+## Cel
+
+Przenieść operacje oraz wiadomości systemowe z profilu do osobnych, atomowych store’ów.
+
+## Zakres
+
+### 1. `player_operations`
+
+Dodać tabelę:
+
+```text
+player_operations(
+  operation_id text primary key,
+  username text not null,
+  target_key text,
+  operation_type text not null,
+  status text not null,
+  operation_json text not null,
+  risk_json text,
+  version integer not null,
+  created_at text not null,
+  updated_at text not null
+)
+```
+
+Dodać dziennik:
+
+```text
+operation_events(
+  event_id text primary key,
+  operation_id text not null,
+  event_type text not null,
+  dedupe_key text,
+  payload_json text not null,
+  created_at text not null
+)
+```
+
+Start, anulowanie i finalizacja operacji muszą być atomowe.
+
+Powtórzenie eventu z tym samym `dedupe_key` nie może:
+
+* uruchomić drugiej operacji,
+* wypłacić drugiej nagrody,
+* ponownie naliczyć ryzyka,
+* dwukrotnie wygenerować incydentu,
+* dwukrotnie anulować lub finalizować operacji.
+
+Endpoint summary powinien czytać bezpośrednio z `player_operations`, bez odświeżania i zapisywania pełnego profilu.
+
+### 2. `system_messages`
+
+Dodać tabelę:
+
+```text
+system_messages(
+  message_id text primary key,
+  username text not null,
+  dedupe_key text,
+  title text,
+  body text,
+  type text,
+  source text,
+  status text not null,
+  created_at text not null,
+  consumed_at text
+)
+```
+
+Obsługiwane statusy:
+
+* `pending`,
+* `delivered`,
+* `consumed`,
+* `expired`.
+
+Pobranie wiadomości nie może zapisywać pełnego profilu.
+
+Oznaczenie wiadomości jako odczytanej lub zużytej powinno być atomową zmianą pojedynczego rekordu.
+
+Dodać:
+
+* deduplikację po `dedupe_key`,
+* TTL dla wiadomości tymczasowych,
+* kontrolowane ponowienie dostarczenia,
+* możliwość odróżnienia `delivered` od `consumed`.
+
+### 3. Integracja
+
+Przepiąć na nowe store’y:
+
+* Operation Center,
+* mapę,
+* response network,
+* aplikacje uruchamiające operacje,
+* endpoint system messages,
+* toasty na desktopie.
+
+System messages muszą posiadać deduplikację niezależną od liczby pollerów,
+workerów i ponownego renderu okien. Wiadomość wynikająca z jednego zdarzenia
+domenowego nie może pojawić się jako kilka toastów tylko dlatego, że frontend
+odebrał ją kilka razy.
+
+## Definition of Done
+
+* start/cancel/finalize operacji są idempotentne,
+* operation summary nie wywołuje pełnego sync profilu,
+* ten sam event nie tworzy dwóch operacji,
+* ten sam komunikat nie tworzy dwóch toastów,
+* odczyt wiadomości nie zapisuje całego profilu,
+* stan operacji jest wspólny dla mapy i Operation Center,
+* późny request nie może odtworzyć zakończonej lub anulowanej operacji,
+* pobranie `/system-messages` nie duplikuje toastów,
+* istnieje recovery dla operacji pozostawionych w stanie przejściowym,
+* stare operacje z profilu są obsługiwane przez fallback.
+
+## Poza zakresem
+
+* aplikacje i pliki narzędzi,
+* storage,
+* wallet,
+* desktop settings,
+* produkcyjna migracja wszystkich użytkowników.
+
+## Checkpoint 130.3
+
+Wdrożono `PlayerOperationStore` i `SystemMessageStore` jako atomowe store’y
+runtime. Operation summary, Operation Center oraz endpoint `/system-messages`
+korzystają z nowych tabel bez pełnego zapisu profilu w ścieżkach odczytu.
+
+Legacy `profile_json` pozostaje fallbackiem kompatybilnościowym. Apps, tools,
+storage i wallet przechodzą do kolejnego sprintu.
+
+---
+
+# Sprint 130.4 — Apps, Tools, Storage and Wallet Cutover
+
+## Cel
+
+Odłączyć najczęściej używane elementy ekonomii i inventory od pełnego profilu oraz zakończyć runtime’ową część ekstrakcji.
+
+## Zakres
+
+### 1. `player_apps`
+
+Dodać tabelę:
+
+```text
+player_apps(
+  username text not null,
+  app_id text not null,
+  app_json text not null,
+  status text not null,
+  version integer not null,
+  updated_at text not null,
+  primary key(username, app_id)
+)
+```
+
+### 2. `player_tool_files`
+
+Dodać tabelę:
+
+```text
+player_tool_files(
+  username text not null,
+  tool_id text not null,
+  app_id text,
+  tool_json text not null,
+  version integer not null,
+  updated_at text not null,
+  primary key(username, tool_id)
+)
+```
+
+File Manager nie może być źródłem prawdy dla posiadanych narzędzi. Może prezentować projekcję danych z inventory store.
+
+Install i uninstall muszą być:
+
+* atomowe,
+* idempotentne,
+* połączone z receipt,
+* połączone z aktualizacją storage,
+* odporne na dwa równoległe requesty.
+
+### 3. `player_storage`
+
+Dodać tabelę:
+
+```text
+player_storage(
+  username text primary key,
+  capacity integer not null,
+  used integer not null,
+  unit text not null,
+  modifiers_json text,
+  version integer not null,
+  updated_at text not null
+)
+```
+
+Źródłem prawdy dla storage muszą być:
+
+* lista zainstalowanych aplikacji,
+* tool files,
+* produkty zwiększające pojemność,
+* inne jawne modyfikatory.
+
+Nie można dopuścić do:
+
+* ujemnego `used`,
+* przekroczenia capacity bez jawnego stanu over-limit,
+* podwójnego naliczenia pliku,
+* utraty modyfikatora po późnym zapisie profilu.
+
+### 4. `wallet_balances`
+
+Dodać tabelę:
+
+```text
+wallet_balances(
+  username text primary key,
+  balance integer not null,
+  version integer not null,
+  updated_at text not null
+)
+```
+
+`wallet_transactions` pozostaje ledgerem zdarzeń, a `wallet_balances` staje się lekkim, atomowo aktualizowanym balansem.
+
+Każda zmiana salda musi:
+
+* posiadać transaction key,
+* być idempotentna,
+* aktualizować ledger i balance w jednej transakcji,
+* uniemożliwiać powtórne naliczenie tej samej wypłaty lub opłaty.
+
+Przepiąć:
+
+* Ghost Exchange,
+* Googleplex,
+* przelewy,
+* nagrody operacji,
+* kary response network,
+* toolbar.
+
+### 5. Ograniczenie `sync_session_profile()`
+
+Po tym sprincie zwykłe odczyty i drobne zmiany w zakresie:
+
+* targetu,
+* pozycji,
+* operacji,
+* wiadomości,
+* aplikacji,
+* narzędzi,
+* storage,
+* walleta
+
+nie mogą wymagać pełnego zapisu profilu.
+
+## Definition of Done
+
+* picker narzędzi nie wymaga pełnego `/api/profile`,
+* install/uninstall nie zapisuje całego profilu,
+* File Manager korzysta z projekcji nowego inventory,
+* storage nie cofa się po zakupie produktu,
+* saldo nie jest aktualizowane przez bezpośrednią mutację `profile_json`,
+* ledger i balance pozostają zgodne,
+* istnieją testy równoległego zakupu, instalacji i wypłaty,
+* compatibility mirror nie jest źródłem prawdy,
+* istnieje dokument wskazujący, które pola profilu są już tylko cache’em.
+
+## Poza zakresem
+
+* desktop settings jako pełny store,
+* usuwanie legacy pól z profilu,
+* przebudowa identity i progression,
+* automatyczna migracja produkcyjnej bazy.
+
+`desktop_settings` pozostają świadomie odłożone po tej serii, chyba że podczas
+implementacji okaże się, że pełny profil nadal cofa ustawienia mapy, fullscreen
+albo autostart radia. Wtedy należy dopisać osobny mini-sprint albo wydzielić
+lekki store ustawień przed produkcyjnym cutoverem.
+
+---
+
+## Checkpoint 130.4
+
+Wdrożono runtime store dla inventory, tool files, storage oraz wallet balance:
+
+* `player_apps`,
+* `player_tool_files`,
+* `player_storage`,
+* `wallet_balances`,
+* `wallet_balance_events`.
+
+Delty `apps`, `storage` i `wallet` zapisują teraz odpowiednie projekcje do
+nowych tabel. `apply_runtime_stores_to_profile()` nakłada te dane na
+kompatybilny profil podczas bootstrapu, dzięki czemu stare widoki dalej widzą
+`apps`, `files.tools`, `storage_*` i `hackcoins`, ale źródłem runtime dla tych
+scope'ów stają się nowe store'y.
+
+Googleplex install/product purchase przestał używać profilu jako źródła
+wiadomości systemowych dla komunikatu instalacji/zakupu; komunikaty trafiają do
+`system_messages`.
+
+Stan po sprincie:
+
+* inventory i wallet mają osobne tabele z wersjonowaniem;
+* `wallet_transactions` pozostaje ledgerem;
+* `wallet_balances` jest lekką projekcją bieżącego salda;
+* legacy `profile_json` nadal istnieje jako compatibility mirror i recovery
+  cache;
+* pełny produkcyjny cutover i migracja istniejących kont pozostają zakresem
+  Sprintu 130.5.
+
+---
+
+# Sprint 130.5 — Production Migration and Account Repair Tools
+
+## Status
+
+Tooling / database migration / production operations only.
+
+Sprint nie zmienia zasad gameplayu ani zachowania interfejsu. Jego celem jest przygotowanie narzędzi uruchamianych bezpośrednio na serwerze, które bezpiecznie przeniosą dane istniejących użytkowników z `profile_json` do store’ów utworzonych w Sprintach 130.1–130.4.
+
+## Cel
+
+Dostarczyć idempotentny zestaw narzędzi pozwalający:
+
+* przeanalizować bazę,
+* wykonać backup,
+* przeprowadzić dry-run,
+* migrować pojedyncze konto,
+* migrować wszystkie konta partiami,
+* wznowić przerwaną migrację,
+* zweryfikować wynik,
+* naprawić wykryte rozbieżności,
+* wygenerować raport,
+* wycofać migrację.
+
+## Główne narzędzie
+
+Dodać jeden kontrolowany entrypoint, na przykład:
+
+```text
+tools/profile_store_migration.py
+```
+
+Narzędzie powinno posiadać tryby:
+
+```text
+audit
+backup
+dry-run
+migrate-user
+migrate-all
+verify-user
+verify-all
+reconcile
+resume
+rollback-user
+rollback-all
+report
+```
+
+Każde polecenie ma wykonywać wyłącznie wskazaną operację: `audit` analizuje dane bez zmian, `backup` tworzy kopię bezpieczeństwa, `dry-run` pokazuje plan migracji, `migrate-*` zapisuje nowe store’y, `verify-*` porównuje dane źródłowe i wynikowe, `reconcile` naprawia kontrolowane rozbieżności, `resume` wznawia przerwane partie, a `rollback-*` odtwarza stan sprzed migracji.
+
+## 1. Rejestr migracji
+
+Dodać tabelę techniczną:
+
+```text
+profile_store_migrations(
+  migration_id text not null,
+  username text not null,
+  status text not null,
+  source_checksum text,
+  result_checksum text,
+  started_at text,
+  completed_at text,
+  error_json text,
+  backup_json text,
+  tool_version text not null,
+  primary key(migration_id, username)
+)
+```
+
+Obsługiwane statusy:
+
+* `pending`,
+* `running`,
+* `completed`,
+* `verified`,
+* `warning`,
+* `failed`,
+* `rolled_back`,
+* `skipped`.
+
+Dzięki temu ponowne uruchomienie narzędzia nie może migrować poprawnie zakończonego konta drugi raz bez jawnej flagi.
+
+## 2. Audit przed migracją
+
+Audit ma wykrywać dla każdego użytkownika:
+
+* brak lub uszkodzony `profile_json`,
+* nieznane aliasy pozycji,
+* niepełny target,
+* target już znajdujący się w `captured_targets`,
+* duplikaty operacji,
+* operacje bez ID,
+* duplikaty aplikacji i tool files,
+* niespójne `storage_used`,
+* capacity mniejsze niż used,
+* brakujące modyfikatory storage,
+* różnicę pomiędzy `hackcoins` a ledgerem,
+* duplikaty system messages,
+* niepoprawne typy pól,
+* nieznane legacy formaty.
+
+Audit nie może zmieniać bazy.
+
+## 3. Backup
+
+Przed migracją musi powstać:
+
+* kopia całej bazy,
+* eksport migrowanych fragmentów profili,
+* manifest z datą, wersją narzędzia i checksumą,
+* informacja o liczbie kont,
+* możliwość odtworzenia pojedynczego użytkownika.
+
+Narzędzie musi odmówić migracji produkcyjnej bez prawidłowego backupu, chyba że operator poda jawną flagę awaryjną.
+
+## 4. Migracja danych użytkownika
+
+Migracja pojedynczego konta powinna odbywać się w jednej kontrolowanej transakcji albo w etapach posiadających checkpointy.
+
+Kolejność:
+
+1. utworzenie wpisu migracji,
+2. odczyt i normalizacja profilu,
+3. migracja target runtime,
+4. migracja pozycji,
+5. migracja operacji i eventów,
+6. migracja niezużytych system messages,
+7. migracja apps i tool files,
+8. obliczenie storage,
+9. migracja wallet balance,
+10. utworzenie compatibility mirror,
+11. zapis checksum,
+12. weryfikacja,
+13. oznaczenie konta jako `verified`.
+
+`app_action_receipts` nie wymaga migracji historycznej i może rozpoczynać jako pusty store.
+
+## 5. Reguły migracji poszczególnych scope’ów
+
+### Target
+
+* nie migrować celu jako aktywnego, jeśli istnieje już w `captured_targets`,
+* `captured` i `cleared` wygrywają ze starym `aimed`,
+* niepełny target przenieść jako `cleared` albo oznaczyć do ręcznej kontroli,
+* zachować stabilny `target_key`, jeśli można go odtworzyć jednoznacznie.
+
+### Position
+
+* rozpoznać wszystkie znane aliasy,
+* wybrać najbardziej aktualną poprawną pozycję,
+* sprawdzić zakres `lat` i `lng`,
+* błędne współrzędne oznaczyć jako warning, bez tworzenia uszkodzonego rekordu.
+
+### Operations
+
+* zachować istniejące operation IDs,
+* wygenerować deterministyczne ID tylko dla legacy wpisów bez identyfikatora,
+* nie tworzyć dwóch rekordów dla tej samej operacji,
+* zakończonych operacji nie przywracać jako aktywnych.
+
+### System messages
+
+* przenieść wiadomości wymagające dalszego dostarczenia,
+* wygenerować deterministyczny `dedupe_key`,
+* stare, zużyte toasty można pominąć zgodnie z ustaloną polityką TTL.
+
+### Apps i tools
+
+* usunąć duplikaty po stabilnym `app_id` lub `tool_id`,
+* nie utracić generated metadata,
+* zachować relację pomiędzy aplikacją a plikiem narzędzia.
+
+### Storage
+
+* obliczyć `used` na podstawie rzeczywistego inventory,
+* zachować jawne modyfikatory capacity,
+* rozbieżności pomiędzy profilem a wyliczeniem zapisać w raporcie,
+* nie zmniejszać capacity bez jednoznacznej podstawy.
+
+### Wallet
+
+* porównać `profile.hackcoins` z `wallet_transactions`,
+* przy różnicy nie zgadywać automatycznie źródła prawdy,
+* użyć jawnej polityki migracyjnej,
+* każdą korektę zapisać jako reconciliation transaction,
+* nigdy nie zmieniać salda bez wpisu w ledgerze.
+
+## 6. Migracja wszystkich kont
+
+Tryb `migrate-all` musi obsługiwać:
+
+* partie o konfigurowalnym rozmiarze,
+* przerwę pomiędzy partiami,
+* limit błędów,
+* wznowienie od ostatniego checkpointu,
+* pomijanie kont już zweryfikowanych,
+* migrację wskazanego zakresu użytkowników,
+* migrację pojedynczego loginu,
+* tryb maintenance,
+* tryb online z ochroną przed równoległą zmianą profilu.
+
+W trybie online narzędzie musi wykryć zmianę checksum profilu pomiędzy rozpoczęciem a zakończeniem migracji. Takie konto powinno zostać wycofane z bieżącej próby i ponowione, zamiast zapisywać nieaktualny snapshot.
+
+## 7. Weryfikacja
+
+Weryfikacja powinna sprawdzać:
+
+* liczbę rekordów,
+* zgodność username,
+* zgodność aktywnego targetu,
+* zgodność pozycji,
+* liczbę i status operacji,
+* liczbę oczekujących wiadomości,
+* inventory aplikacji i narzędzi,
+* capacity oraz used,
+* saldo i ledger,
+* wersje rekordów,
+* możliwość zbudowania poprawnego bootstrap snapshotu.
+
+Wynik powinien mieć poziom:
+
+* `OK`,
+* `WARNING`,
+* `FAILED`.
+
+`WARNING` nie może być automatycznie traktowany jako sukces bez zapisania przyczyny.
+
+## 8. Rollback
+
+Rollback pojedynczego konta musi:
+
+* korzystać z backupu zapisanego przed migracją,
+* usunąć lub oznaczyć rekordy utworzone przez daną migrację,
+* odtworzyć compatibility profile,
+* zapisać status `rolled_back`,
+* nie usuwać późniejszych, prawidłowych zmian użytkownika bez wykrycia konfliktu wersji.
+
+Pełny rollback wszystkich kont może być wykonany tylko dla wskazanego `migration_id`.
+
+## 9. Raport końcowy
+
+Narzędzie ma generować raport zawierający:
+
+* wersję migracji,
+* czas rozpoczęcia i zakończenia,
+* liczbę wszystkich kont,
+* liczbę kont zweryfikowanych,
+* liczbę warningów,
+* liczbę błędów,
+* liczbę rollbacków,
+* rozbieżności walleta,
+* naprawione storage,
+* pominięte legacy rekordy,
+* listę kont wymagających ręcznej kontroli.
+
+Raport nie może ujawniać haseł, tokenów sesji ani innych danych uwierzytelniających.
+
+## 10. Bezpieczeństwo uruchamiania
+
+Narzędzie musi:
+
+* domyślnie działać jako dry-run,
+* wymagać jawnej flagi dla zapisu,
+* wyświetlać ścieżkę używanej bazy,
+* odmówić działania na nieznanym schemacie,
+* sprawdzać dostępne miejsce na backup,
+* mieć blokadę przed równoległym uruchomieniem dwóch migracji,
+* logować operatora, host i wersję kodu,
+* nie wypisywać pełnych profili do zwykłego logu,
+* zwracać niezerowy exit code przy błędach.
+
+## Definition of Done
+
+* można wykonać audit bez zmiany bazy,
+* można wykonać dry-run pojedynczego konta i całej bazy,
+* można migrować pojedyncze konto,
+* można migrować wszystkie konta partiami,
+* przerwaną migrację można bezpiecznie wznowić,
+* ponowne uruchomienie nie duplikuje danych,
+* istnieje backup i rollback pojedynczego użytkownika,
+* istnieje kontrolowany rollback całego `migration_id`,
+* każde konto otrzymuje wynik w rejestrze migracji,
+* wallet, storage, apps, tools, operations, messages, target i position są weryfikowane,
+* konto z błędnym legacy profilem nie zatrzymuje migracji pozostałych kont,
+* po migracji bootstrap gry działa bez konieczności zapisania pełnego profilu,
+* `sync_session_profile()` nie nadpisuje store’ów po migracji,
+* tryb `store_primary` można włączyć i wyłączyć bez utraty danych,
+* test migracji działa na kopii produkcyjnej bazy,
+* powstaje instrukcja uruchomienia na serwerze oraz checklista operatora.
+
+## Poza zakresem
+
+* zmiany gameplayu,
+* usuwanie legacy pól z `profile_json`,
+* migracja desktop settings,
+* przebudowa identity i progression,
+* automatyczne kasowanie starych compatibility snapshots,
+* uruchamianie migracji bez backupu i raportu.
+
+## Checkpoint 130.5
+
+Sprint 130.5 dostarcza narzedzia produkcyjnej migracji i naprawy kont bez
+zmiany gameplayu. Dodano kontrolowany entrypoint:
+
+```text
+tools/profile_store_migration.py
+```
+
+Narzędzie obsluguje tryby `audit`, `backup`, `dry-run`, `migrate-user`,
+`migrate-all`, `verify-user`, `verify-all`, `reconcile`, `resume`,
+`rollback-user`, `rollback-all` oraz `report`.
+
+Dodano rejestr techniczny:
+
+```text
+profile_store_migrations
+```
+
+Rejestr zapisuje `migration_id`, `username`, status, checksum profilu
+zrodlowego, checksum wyniku, backup JSON per user, blad walidacji oraz wersje
+narzedzia.
+
+Zasady bezpieczenstwa:
+
+* `audit` i `dry-run` sa read-only;
+* komendy zapisujace wymagaja `--write`;
+* zapis produkcyjny wymaga `--backup-manifest` albo jawnego
+  `--allow-without-backup`;
+* narzedzie uzywa locka migracji przy komendach zapisujacych;
+* rollback dziala per `migration_id`;
+* raport nie wypisuje pelnych profili ani sekretow.
+
+Zakres migracji obejmuje store'y ze Sprintow 130.1-130.4:
+
+* target runtime;
+* pozycja gracza;
+* operacje;
+* system messages;
+* apps;
+* tool files;
+* storage;
+* wallet balance.
+
+Instrukcja operatorska znajduje sie w:
+
+```text
+doc/profile_store_migration_manual.md
+```
+
+## Decyzja po Sprintach 130.1-130.5
+
+Po zakończeniu serii wymagany jest krótki checkpoint architektoniczny:
+
+* które scope’y działają w `store_primary`,
+* które nadal działają w `mirror_write`,
+* które nadal czytają z `profile_json`,
+* czy występują jeszcze cofki targetu, pozycji albo operacji,
+* czy system messages nadal potrafią tworzyć duplikaty toastów,
+* czy mapa, terminal i desktop widzą ten sam target,
+* czy teleport/travel pozostają po ponownym otwarciu mapy,
+* czy potrzebny jest mini-sprint dla `desktop_settings`.
+
+
+
 > Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.
 
 # Sprint 131 — GhostNetwork Suite: audyt widoczności części i integracja z Territory Control

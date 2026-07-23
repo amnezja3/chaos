@@ -7,6 +7,7 @@ import math
 import os
 import secrets
 import sqlite3
+import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
@@ -238,6 +239,52 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS player_target_runtime (
+                username TEXT PRIMARY KEY,
+                target_key TEXT NOT NULL DEFAULT '',
+                target_json TEXT NOT NULL DEFAULT '{}',
+                security_json TEXT NOT NULL DEFAULT '{}',
+                actions_allowed_json TEXT NOT NULL DEFAULT '{}',
+                disarm_progress INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'cleared',
+                version INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS player_target_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                target_key TEXT NOT NULL DEFAULT '',
+                version INTEGER NOT NULL DEFAULT 0,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_player_target_events_username_created
+            ON player_target_events(username, created_at)
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS player_positions (
+                username TEXT PRIMARY KEY,
+                lat REAL NOT NULL,
+                lng REAL NOT NULL,
+                source TEXT NOT NULL DEFAULT '',
+                version INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS dev_bug_reports (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
@@ -378,6 +425,90 @@ def init_db(db_path=DB_PATH):
             """
         )
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_action_receipts (
+                receipt_key TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                app_id TEXT NOT NULL DEFAULT '',
+                action TEXT NOT NULL DEFAULT '',
+                target_key TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL,
+                response_json TEXT NOT NULL DEFAULT '{}',
+                status_code INTEGER NOT NULL DEFAULT 202,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                expires_at REAL NOT NULL DEFAULT 0
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS player_operations (
+                operation_id TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                target_key TEXT NOT NULL DEFAULT '',
+                operation_type TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL,
+                operation_json TEXT NOT NULL DEFAULT '{}',
+                risk_json TEXT NOT NULL DEFAULT '{}',
+                version INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS operation_events (
+                event_id TEXT PRIMARY KEY,
+                operation_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                dedupe_key TEXT NOT NULL DEFAULT '',
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_operation_events_dedupe
+            ON operation_events(dedupe_key)
+            WHERE dedupe_key != ''
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS system_messages (
+                message_id TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                dedupe_key TEXT NOT NULL DEFAULT '',
+                title TEXT NOT NULL DEFAULT '',
+                body TEXT NOT NULL DEFAULT '',
+                type TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'pending',
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                expires_at REAL NOT NULL DEFAULT 0,
+                consumed_at TEXT
+            )
+            """
+        )
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(system_messages)").fetchall()
+        }
+        if "expires_at" not in columns:
+            conn.execute("ALTER TABLE system_messages ADD COLUMN expires_at REAL NOT NULL DEFAULT 0")
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_system_messages_dedupe
+            ON system_messages(username, dedupe_key)
+            WHERE dedupe_key != ''
+            """
+        )
+        conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_captured_targets_owner ON captured_targets(owner_username)"
         )
         conn.execute(
@@ -412,6 +543,122 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_game_state_deltas_created_at ON game_state_deltas(created_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_app_action_receipts_user_updated ON app_action_receipts(username, updated_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_app_action_receipts_expires_at ON app_action_receipts(expires_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_player_operations_user_status ON player_operations(username, status, updated_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_player_operations_target ON player_operations(username, target_key)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_operation_events_operation ON operation_events(operation_id, created_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_system_messages_user_status ON system_messages(username, status, created_at)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS player_apps (
+                username TEXT NOT NULL,
+                app_id TEXT NOT NULL,
+                app_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL DEFAULT 'installed',
+                version INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(username, app_id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS player_tool_files (
+                username TEXT NOT NULL,
+                tool_id TEXT NOT NULL,
+                app_id TEXT NOT NULL DEFAULT '',
+                tool_json TEXT NOT NULL DEFAULT '{}',
+                version INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(username, tool_id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS player_storage (
+                username TEXT PRIMARY KEY,
+                capacity INTEGER NOT NULL DEFAULT 0,
+                used INTEGER NOT NULL DEFAULT 0,
+                unit TEXT NOT NULL DEFAULT 'MB',
+                modifiers_json TEXT NOT NULL DEFAULT '{}',
+                version INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS wallet_balances (
+                username TEXT PRIMARY KEY,
+                balance INTEGER NOT NULL DEFAULT 0,
+                version INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS wallet_balance_events (
+                event_id TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                transaction_key TEXT NOT NULL DEFAULT '',
+                amount_delta INTEGER NOT NULL DEFAULT 0,
+                balance INTEGER NOT NULL DEFAULT 0,
+                reason TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_balance_events_key
+            ON wallet_balance_events(username, transaction_key)
+            WHERE transaction_key != ''
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_player_apps_user_status ON player_apps(username, status, updated_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_player_tool_files_user_app ON player_tool_files(username, app_id)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS profile_store_migrations (
+                migration_id TEXT NOT NULL,
+                username TEXT NOT NULL,
+                status TEXT NOT NULL,
+                source_checksum TEXT,
+                result_checksum TEXT,
+                started_at TEXT,
+                completed_at TEXT,
+                error_json TEXT,
+                backup_json TEXT,
+                tool_version TEXT NOT NULL,
+                PRIMARY KEY(migration_id, username)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_profile_store_migrations_status
+            ON profile_store_migrations(migration_id, status)
+            """
         )
 
 
@@ -1920,8 +2167,9 @@ class WalletStore:
                     "note": row["note"] or "",
                 })
 
+            balance = WalletBalanceStore(self.db_path).get_balance(username, fallback_profile=profile)
             return {
-                "balance": self._profile_balance(profile),
+                "balance": balance,
                 "currency": "HC",
                 "transactions": transactions,
             }
@@ -2220,6 +2468,1450 @@ class PlayerHackAccessStore:
                 "access_key": key,
                 "created_at": now,
             }
+
+
+class AppActionReceiptStore:
+    STATUS_RECEIVED = "received"
+    STATUS_STARTED = "started"
+    STATUS_EFFECT_APPLIED = "effect_applied"
+    STATUS_FAILED = "failed"
+
+    ACTIVE_STATUSES = {STATUS_RECEIVED, STATUS_STARTED}
+    COMPLETED_STATUSES = {STATUS_EFFECT_APPLIED, STATUS_FAILED}
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def _clean_text(value, default=""):
+        text = str(value or "").strip()
+        return text or default
+
+    @classmethod
+    def _state_for_status(cls, status):
+        status = cls._clean_text(status, cls.STATUS_STARTED)
+        if status in cls.COMPLETED_STATUSES:
+            return "completed"
+        return "in_flight"
+
+    @classmethod
+    def _receipt_from_row(cls, row):
+        if not row:
+            return None
+        status = row["status"]
+        return {
+            "state": cls._state_for_status(status),
+            "receipt_key": row["receipt_key"],
+            "username": row["username"],
+            "app_id": row["app_id"],
+            "action": row["action"],
+            "target_key": row["target_key"],
+            "source": row["source"],
+            "status": status,
+            "payload": loads_json(row["response_json"], {}),
+            "status_code": int(row["status_code"] or 202),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "expires_at": float(row["expires_at"] or 0),
+            "store": "sqlite",
+        }
+
+    def prune_expired(self, conn=None, now_ts=None):
+        now_ts = float(now_ts if now_ts is not None else time.time())
+        if conn is not None:
+            conn.execute(
+                "DELETE FROM app_action_receipts WHERE expires_at > 0 AND expires_at <= ?",
+                (now_ts,),
+            )
+            return
+        with db_connect(self.db_path) as own_conn:
+            self.prune_expired(own_conn, now_ts)
+
+    def begin(
+        self,
+        receipt_key,
+        username="",
+        app_id="",
+        action="",
+        target_key="",
+        source="",
+        ttl_seconds=90,
+    ):
+        receipt_key = self._clean_text(receipt_key)
+        if not receipt_key:
+            return "new", None
+
+        now_text = utc_now()
+        now_ts = time.time()
+        expires_at = now_ts + max(1, int(ttl_seconds or 90))
+        username = self._clean_text(username)
+        app_id = self._clean_text(app_id)
+        action = self._clean_text(action)
+        target_key = self._clean_text(target_key)
+        source = self._clean_text(source)
+
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            self.prune_expired(conn, now_ts)
+            existing = conn.execute(
+                "SELECT * FROM app_action_receipts WHERE receipt_key = ?",
+                (receipt_key,),
+            ).fetchone()
+            if existing:
+                receipt = self._receipt_from_row(existing)
+                return receipt["state"], receipt
+
+            conn.execute(
+                """
+                INSERT INTO app_action_receipts
+                    (receipt_key, username, app_id, action, target_key, source,
+                     status, response_json, status_code, created_at, updated_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, '{}', 202, ?, ?, ?)
+                """,
+                (
+                    receipt_key,
+                    username,
+                    app_id,
+                    action,
+                    target_key,
+                    source,
+                    self.STATUS_STARTED,
+                    now_text,
+                    now_text,
+                    expires_at,
+                ),
+            )
+        return "new", None
+
+    def finish(self, receipt_key, payload=None, status_code=200, ttl_seconds=90, status=None):
+        receipt_key = self._clean_text(receipt_key)
+        if not receipt_key:
+            return
+        now_text = utc_now()
+        expires_at = time.time() + max(1, int(ttl_seconds or 90))
+        status = self._clean_text(status, self.STATUS_EFFECT_APPLIED)
+        with db_connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                UPDATE app_action_receipts
+                SET status = ?,
+                    response_json = ?,
+                    status_code = ?,
+                    updated_at = ?,
+                    expires_at = ?
+                WHERE receipt_key = ?
+                """,
+                (
+                    status,
+                    dumps_json(payload or {}),
+                    int(status_code or 200),
+                    now_text,
+                    expires_at,
+                    receipt_key,
+                ),
+            )
+            if cursor.rowcount == 0:
+                conn.execute(
+                    """
+                    INSERT INTO app_action_receipts
+                        (receipt_key, username, status, response_json, status_code, created_at, updated_at, expires_at)
+                    VALUES (?, '', ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        receipt_key,
+                        status,
+                        dumps_json(payload or {}),
+                        int(status_code or 200),
+                        now_text,
+                        now_text,
+                        expires_at,
+                    ),
+                )
+
+    def get(self, receipt_key):
+        receipt_key = self._clean_text(receipt_key)
+        if not receipt_key:
+            return None
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM app_action_receipts WHERE receipt_key = ?",
+                (receipt_key,),
+            ).fetchone()
+            return self._receipt_from_row(row)
+
+    def metrics(self):
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT status, COUNT(*) AS count
+                FROM app_action_receipts
+                GROUP BY status
+                """
+            ).fetchall()
+            return {row["status"]: int(row["count"] or 0) for row in rows}
+
+    def clear_all(self):
+        with db_connect(self.db_path) as conn:
+            conn.execute("DELETE FROM app_action_receipts")
+
+
+class PlayerOperationStore:
+    TERMINAL_STATUSES = {"cancelled", "canceled", "done", "completed", "failed", "expired", "timeout", "resolved", "detected"}
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def _clean_text(value, default=""):
+        text = str(value or "").strip()
+        return text or default
+
+    @classmethod
+    def _operation_id(cls, operation):
+        operation = operation if isinstance(operation, dict) else {}
+        value = cls._clean_text(operation.get("operation_id") or operation.get("id"))
+        if value:
+            return value
+        raw = dumps_json(operation)
+        return "op_" + hashlib.sha1(raw.encode("utf-8", errors="ignore")).hexdigest()[:16]
+
+    @classmethod
+    def _status(cls, operation):
+        operation = operation if isinstance(operation, dict) else {}
+        return cls._clean_text(operation.get("status"), "running").lower()
+
+    @staticmethod
+    def _is_expired(operation):
+        operation = operation if isinstance(operation, dict) else {}
+        value = operation.get("expires_at")
+        if not value:
+            return False
+        try:
+            raw = str(value)
+            if raw.endswith("Z"):
+                raw = raw[:-1] + "+00:00"
+            parsed = datetime.fromisoformat(raw)
+            if parsed.tzinfo is not None:
+                now = datetime.utcnow().replace(tzinfo=parsed.tzinfo)
+            else:
+                now = datetime.utcnow()
+            return parsed <= now
+        except (TypeError, ValueError):
+            return False
+
+    @classmethod
+    def _target_key(cls, operation):
+        operation = operation if isinstance(operation, dict) else {}
+        target = operation.get("target") if isinstance(operation.get("target"), dict) else {}
+        if operation.get("target_id"):
+            return cls._clean_text(operation.get("target_id"))
+        if target.get("target_id"):
+            return cls._clean_text(target.get("target_id"))
+        lat = target.get("lat", operation.get("lat"))
+        lng = target.get("lng", target.get("lon", operation.get("lng", operation.get("lon"))))
+        label = target.get("label") or target.get("name") or operation.get("target_label") or operation.get("target_id") or ""
+        if lat is not None and lng is not None:
+            return f"map:{lat}:{lng}:{label}"
+        return cls._clean_text(label)
+
+    @classmethod
+    def _operation_type(cls, operation):
+        operation = operation if isinstance(operation, dict) else {}
+        return cls._clean_text(operation.get("operation_type") or operation.get("type"), "operation")
+
+    @classmethod
+    def _active_logical_key(cls, operation):
+        status = cls._status(operation)
+        if status in cls.TERMINAL_STATUSES or cls._is_expired(operation):
+            return ""
+        operation = operation if isinstance(operation, dict) else {}
+        parts = (
+            cls._target_key(operation),
+            cls._clean_text(operation.get("map_action_id")),
+            cls._operation_type(operation),
+            cls._clean_text(operation.get("source_app_id") or operation.get("source_app_name")),
+        )
+        return "|".join(parts) if any(parts) else ""
+
+    @staticmethod
+    def _risk_json(operation):
+        operation = operation if isinstance(operation, dict) else {}
+        value = operation.get("operation_risk_meter") or operation.get("risk_state") or operation.get("risk") or {}
+        return value if isinstance(value, dict) else {}
+
+    @staticmethod
+    def _created_at(operation, now):
+        operation = operation if isinstance(operation, dict) else {}
+        return str(operation.get("created_at") or operation.get("started_at") or now)
+
+    @classmethod
+    def _row_to_operation(cls, row):
+        if not row:
+            return None
+        operation = loads_json(row["operation_json"], {})
+        if isinstance(operation, dict):
+            operation.setdefault("operation_id", row["operation_id"])
+            operation.setdefault("status", row["status"])
+            operation.setdefault("operation_type", row["operation_type"])
+            operation.setdefault("_runtime_version", int(row["version"] or 0))
+            return operation
+        return None
+
+    def seed_from_profile(self, username, profile):
+        profile = profile if isinstance(profile, dict) else {}
+        operations = profile.get("operations", [])
+        if not operations:
+            return []
+        return self.upsert_operations(username, operations, event_type="operation.seed", source="profile")
+
+    def list_operations(self, username, include_terminal=True):
+        username = self._clean_text(username)
+        if not username:
+            return []
+        where = "username = ?"
+        params = [username]
+        if not include_terminal:
+            placeholders = ",".join("?" for _ in self.TERMINAL_STATUSES)
+            where += f" AND status NOT IN ({placeholders})"
+            params.extend(sorted(self.TERMINAL_STATUSES))
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM player_operations
+                WHERE {where}
+                ORDER BY created_at, updated_at
+                """,
+                tuple(params),
+            ).fetchall()
+            return [
+                operation for operation in (self._row_to_operation(row) for row in rows)
+                if isinstance(operation, dict)
+            ]
+
+    def upsert_operations(self, username, operations, event_type="operation.upsert", source="", dedupe_key_prefix=""):
+        username = self._clean_text(username)
+        if not username:
+            return []
+        now = utc_now()
+        accepted = []
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            active_rows = conn.execute(
+                """
+                SELECT operation_id, operation_json
+                FROM player_operations
+                WHERE username = ?
+                """,
+                (username,),
+            ).fetchall()
+            active_keys = {}
+            for row in active_rows:
+                existing_op = loads_json(row["operation_json"], {})
+                key = self._active_logical_key(existing_op)
+                if key:
+                    active_keys[key] = row["operation_id"]
+
+            for incoming in operations or []:
+                if not isinstance(incoming, dict):
+                    continue
+                operation = dict(incoming)
+                operation_id = self._operation_id(operation)
+                operation["operation_id"] = operation_id
+                status = self._status(operation)
+                logical_key = self._active_logical_key(operation)
+                if logical_key and active_keys.get(logical_key) not in {"", None, operation_id}:
+                    continue
+
+                dedupe_key = ""
+                if dedupe_key_prefix:
+                    dedupe_key = f"{dedupe_key_prefix}:{operation_id}:{status}"
+                    if conn.execute(
+                        "SELECT 1 FROM operation_events WHERE dedupe_key = ?",
+                        (dedupe_key,),
+                    ).fetchone():
+                        continue
+
+                existing = conn.execute(
+                    "SELECT version, created_at FROM player_operations WHERE operation_id = ?",
+                    (operation_id,),
+                ).fetchone()
+                version = int(existing["version"] or 0) + 1 if existing else 1
+                created_at = existing["created_at"] if existing else self._created_at(operation, now)
+                conn.execute(
+                    """
+                    INSERT INTO player_operations
+                        (operation_id, username, target_key, operation_type, status,
+                         operation_json, risk_json, version, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(operation_id) DO UPDATE SET
+                        username = excluded.username,
+                        target_key = excluded.target_key,
+                        operation_type = excluded.operation_type,
+                        status = excluded.status,
+                        operation_json = excluded.operation_json,
+                        risk_json = excluded.risk_json,
+                        version = excluded.version,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        operation_id,
+                        username,
+                        self._target_key(operation),
+                        self._operation_type(operation),
+                        status,
+                        dumps_json(operation),
+                        dumps_json(self._risk_json(operation)),
+                        version,
+                        created_at,
+                        now,
+                    ),
+                )
+                event_id = f"opev_{hashlib.sha1(f'{operation_id}:{event_type}:{now}:{version}'.encode('utf-8')).hexdigest()[:18]}"
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO operation_events
+                        (event_id, operation_id, event_type, dedupe_key, payload_json, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event_id,
+                        operation_id,
+                        self._clean_text(event_type, "operation.upsert"),
+                        dedupe_key,
+                        dumps_json({"source": source, "status": status, "operation_id": operation_id}),
+                        now,
+                    ),
+                )
+                if logical_key:
+                    active_keys[logical_key] = operation_id
+                accepted.append(operation)
+        return accepted
+
+    def cancel_operation(self, username, operation_id, cancelled_by="player"):
+        username = self._clean_text(username)
+        operation_id = self._clean_text(operation_id)
+        if not username or not operation_id:
+            return None, "missing_operation_id"
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT * FROM player_operations WHERE username = ? AND operation_id = ?",
+                (username, operation_id),
+            ).fetchone()
+            if not row:
+                return None, "not_found"
+            operation = self._row_to_operation(row) or {}
+            if self._status(operation) in self.TERMINAL_STATUSES:
+                return operation, "already_terminal"
+            operation["status"] = "cancelled"
+            operation["ended_at"] = now
+            operation["cancelled_at"] = now
+            operation["cancelled_by"] = cancelled_by
+            operation["remaining_seconds"] = 0
+            operation["expired"] = True
+            resource_buffer = operation.setdefault("resource_buffer", {})
+            if isinstance(resource_buffer, dict):
+                resource_buffer["cancelled"] = True
+                resource_buffer.setdefault("files", [])
+            version = int(row["version"] or 0) + 1
+            conn.execute(
+                """
+                UPDATE player_operations
+                SET status = 'cancelled',
+                    operation_json = ?,
+                    risk_json = ?,
+                    version = ?,
+                    updated_at = ?
+                WHERE operation_id = ?
+                """,
+                (
+                    dumps_json(operation),
+                    dumps_json(self._risk_json(operation)),
+                    version,
+                    now,
+                    operation_id,
+                ),
+            )
+            event_id = f"opev_{hashlib.sha1(f'{operation_id}:cancel:{now}:{version}'.encode('utf-8')).hexdigest()[:18]}"
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO operation_events
+                    (event_id, operation_id, event_type, dedupe_key, payload_json, created_at)
+                VALUES (?, ?, 'operation.cancelled', ?, ?, ?)
+                """,
+                (
+                    event_id,
+                    operation_id,
+                    f"cancel:{operation_id}",
+                    dumps_json({"cancelled_by": cancelled_by}),
+                    now,
+                ),
+            )
+            return operation, "cancelled"
+
+    def clear_all(self):
+        with db_connect(self.db_path) as conn:
+            conn.execute("DELETE FROM operation_events")
+            conn.execute("DELETE FROM player_operations")
+
+
+class SystemMessageStore:
+    ACTIVE_STATUSES = {"pending", "delivered"}
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def _clean_text(value, default=""):
+        text = str(value or "").strip()
+        return text or default
+
+    @classmethod
+    def _message_id(cls, username, message):
+        message = message if isinstance(message, dict) else {}
+        value = cls._clean_text(message.get("message_id") or message.get("id"))
+        if value:
+            return f"msg_{username}_{value}"
+        raw = dumps_json({
+            "username": username,
+            "type": message.get("type"),
+            "title": message.get("title"),
+            "text": message.get("text") or message.get("body"),
+            "created_at": message.get("created_at"),
+        })
+        return "msg_" + hashlib.sha1(raw.encode("utf-8", errors="ignore")).hexdigest()[:18]
+
+    @classmethod
+    def _dedupe_key(cls, username, message):
+        message = message if isinstance(message, dict) else {}
+        key = cls._clean_text(message.get("dedupe_key"))
+        if key:
+            return key
+        return cls._message_id(username, message)
+
+    @staticmethod
+    def _row_to_message(row):
+        if not row:
+            return None
+        payload = loads_json(row["payload_json"], {})
+        message = dict(payload) if isinstance(payload, dict) else {}
+        message.setdefault("id", row["message_id"])
+        message.setdefault("message_id", row["message_id"])
+        message.setdefault("type", row["type"])
+        message.setdefault("title", row["title"])
+        message.setdefault("text", row["body"])
+        message.setdefault("status", "new")
+        message.setdefault("created_at", row["created_at"])
+        return message
+
+    def add_message(self, username, message, source="", ttl_seconds=None):
+        username = self._clean_text(username)
+        if not username or not isinstance(message, dict):
+            return None, False
+        now = utc_now()
+        expires_at = 0
+        if ttl_seconds:
+            try:
+                expires_at = time.time() + max(1, int(ttl_seconds))
+            except (TypeError, ValueError):
+                expires_at = 0
+        payload = dict(message)
+        message_id = self._message_id(username, payload)
+        dedupe_key = self._dedupe_key(username, payload)
+        title = self._clean_text(payload.get("title"))
+        body = self._clean_text(payload.get("text") or payload.get("body"))
+        msg_type = self._clean_text(payload.get("type"), "info")
+        payload.setdefault("id", message_id)
+        payload.setdefault("message_id", message_id)
+        payload.setdefault("status", "new")
+        payload.setdefault("created_at", now)
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            existing = conn.execute(
+                """
+                SELECT * FROM system_messages
+                WHERE username = ? AND dedupe_key = ?
+                """,
+                (username, dedupe_key),
+            ).fetchone()
+            if existing and existing["status"] in {"pending", "delivered", "consumed"}:
+                return self._row_to_message(existing), False
+            conn.execute(
+                """
+                INSERT INTO system_messages
+                    (message_id, username, dedupe_key, title, body, type, source,
+                     status, payload_json, created_at, expires_at, consumed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, NULL)
+                ON CONFLICT(message_id) DO UPDATE SET
+                    dedupe_key = excluded.dedupe_key,
+                    title = excluded.title,
+                    body = excluded.body,
+                    type = excluded.type,
+                    source = excluded.source,
+                    expires_at = excluded.expires_at,
+                    status = CASE
+                        WHEN system_messages.status = 'consumed' THEN system_messages.status
+                        ELSE 'pending'
+                    END,
+                    payload_json = excluded.payload_json
+                """,
+                (
+                    message_id,
+                    username,
+                    dedupe_key,
+                    title,
+                    body,
+                    msg_type,
+                    self._clean_text(source or payload.get("source"), "system"),
+                    dumps_json(payload),
+                    str(payload.get("created_at") or now),
+                    expires_at,
+                ),
+            )
+        return payload, True
+
+    def add_messages(self, username, messages, source=""):
+        added = []
+        for message in messages or []:
+            payload, created = self.add_message(username, message, source=source)
+            if created and payload:
+                added.append(payload)
+        return added
+
+    def consume_pending(self, username, limit=50):
+        username = self._clean_text(username)
+        if not username:
+            return []
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute(
+                """
+                UPDATE system_messages
+                SET status = 'expired'
+                WHERE username = ?
+                  AND status IN ('pending', 'delivered')
+                  AND expires_at > 0
+                  AND expires_at <= ?
+                """,
+                (username, time.time()),
+            )
+            rows = conn.execute(
+                """
+                SELECT * FROM system_messages
+                WHERE username = ? AND status IN ('pending', 'delivered')
+                ORDER BY created_at, message_id
+                LIMIT ?
+                """,
+                (username, max(1, int(limit or 50))),
+            ).fetchall()
+            if not rows:
+                return []
+            ids = [row["message_id"] for row in rows]
+            conn.executemany(
+                """
+                UPDATE system_messages
+                SET status = 'consumed', consumed_at = ?
+                WHERE message_id = ?
+                """,
+                [(now, message_id) for message_id in ids],
+            )
+            return [
+                message for message in (self._row_to_message(row) for row in rows)
+                if isinstance(message, dict)
+            ]
+
+    def clear_all(self):
+        with db_connect(self.db_path) as conn:
+            conn.execute("DELETE FROM system_messages")
+
+
+class PlayerInventoryStore:
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def _clean_text(value, default=""):
+        text = str(value or "").strip()
+        return text or default
+
+    @staticmethod
+    def _app_id(app):
+        app = app if isinstance(app, dict) else {}
+        value = str(app.get("id") or app.get("app_id") or "").strip()
+        if value:
+            return value
+        name = str(app.get("name") or app.get("label") or "app").strip().lower()
+        raw = dumps_json({"name": name, "runtime": app.get("runtime_file") or app.get("file_name")})
+        return "app_" + hashlib.sha1(raw.encode("utf-8", errors="ignore")).hexdigest()[:16]
+
+    @staticmethod
+    def _tool_id(tool, app=None):
+        if isinstance(tool, dict):
+            value = str(tool.get("id") or tool.get("tool_id") or tool.get("file") or tool.get("name") or "").strip()
+        else:
+            value = str(tool or "").strip()
+        if value:
+            return value
+        app_id = PlayerInventoryStore._app_id(app or {})
+        return f"{app_id}.sh"
+
+    @staticmethod
+    def _storage_from_profile(profile):
+        profile = profile if isinstance(profile, dict) else {}
+        try:
+            capacity = int(profile.get("storage_capacity") or 0)
+        except (TypeError, ValueError):
+            capacity = 0
+        try:
+            used = int(profile.get("storage_used") or 0)
+        except (TypeError, ValueError):
+            used = 0
+        return {
+            "capacity": max(0, capacity),
+            "used": max(0, used),
+            "unit": str(profile.get("storage_unit") or "MB"),
+            "modifiers": {
+                "storage_upgrades": profile.get("storage_upgrades", []),
+                "googleplex_products": profile.get("googleplex_products", []),
+                "storage_soft_limit": profile.get("storage_soft_limit", True),
+                "storage_over_limit": profile.get("storage_over_limit", False),
+            },
+        }
+
+    @staticmethod
+    def _row_to_app(row):
+        if not row:
+            return None
+        app = loads_json(row["app_json"], {})
+        if isinstance(app, dict):
+            app.setdefault("id", row["app_id"])
+            app.setdefault("status", row["status"])
+            return app
+        return None
+
+    @staticmethod
+    def _row_to_tool(row):
+        if not row:
+            return None
+        tool = loads_json(row["tool_json"], {})
+        if isinstance(tool, dict):
+            tool.setdefault("id", row["tool_id"])
+            tool.setdefault("tool_id", row["tool_id"])
+            tool.setdefault("app_id", row["app_id"])
+            return tool
+        return {"id": row["tool_id"], "tool_id": row["tool_id"], "app_id": row["app_id"], "name": row["tool_id"]}
+
+    def seed_from_profile(self, username, profile):
+        username = self._clean_text(username)
+        if not username or not isinstance(profile, dict):
+            return self.snapshot(username)
+        apps = profile.get("apps", [])
+        files = profile.get("files") if isinstance(profile.get("files"), dict) else {}
+        tools = files.get("tools", []) if isinstance(files, dict) else []
+        storage = self._storage_from_profile(profile)
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            for app in apps or []:
+                if not isinstance(app, dict):
+                    continue
+                app_id = self._app_id(app)
+                existing = conn.execute(
+                    "SELECT version FROM player_apps WHERE username = ? AND app_id = ?",
+                    (username, app_id),
+                ).fetchone()
+                version = int(existing["version"] or 0) + 1 if existing else 1
+                conn.execute(
+                    """
+                    INSERT INTO player_apps
+                        (username, app_id, app_json, status, version, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(username, app_id) DO UPDATE SET
+                        app_json = excluded.app_json,
+                        status = excluded.status,
+                        version = excluded.version,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        username,
+                        app_id,
+                        dumps_json(dict(app)),
+                        self._clean_text(app.get("status"), "installed"),
+                        version,
+                        now,
+                    ),
+                )
+            for tool in tools or []:
+                tool_id = self._tool_id(tool)
+                payload = dict(tool) if isinstance(tool, dict) else {"name": tool_id, "file": tool_id}
+                app_id = self._clean_text(payload.get("app_id") or payload.get("source_app_id"))
+                existing = conn.execute(
+                    "SELECT version FROM player_tool_files WHERE username = ? AND tool_id = ?",
+                    (username, tool_id),
+                ).fetchone()
+                version = int(existing["version"] or 0) + 1 if existing else 1
+                conn.execute(
+                    """
+                    INSERT INTO player_tool_files
+                        (username, tool_id, app_id, tool_json, version, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(username, tool_id) DO UPDATE SET
+                        app_id = excluded.app_id,
+                        tool_json = excluded.tool_json,
+                        version = excluded.version,
+                        updated_at = excluded.updated_at
+                    """,
+                    (username, tool_id, app_id, dumps_json(payload), version, now),
+                )
+            row = conn.execute(
+                "SELECT version FROM player_storage WHERE username = ?",
+                (username,),
+            ).fetchone()
+            version = int(row["version"] or 0) + 1 if row else 1
+            conn.execute(
+                """
+                INSERT INTO player_storage
+                    (username, capacity, used, unit, modifiers_json, version, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(username) DO UPDATE SET
+                    capacity = excluded.capacity,
+                    used = excluded.used,
+                    unit = excluded.unit,
+                    modifiers_json = excluded.modifiers_json,
+                    version = excluded.version,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    username,
+                    storage["capacity"],
+                    storage["used"],
+                    storage["unit"],
+                    dumps_json(storage["modifiers"]),
+                    version,
+                    now,
+                ),
+            )
+        return self.snapshot(username)
+
+    def snapshot(self, username):
+        username = self._clean_text(username)
+        if not username:
+            return {"apps": [], "files": {"tools": []}, "storage": None}
+        with db_connect(self.db_path) as conn:
+            app_rows = conn.execute(
+                """
+                SELECT * FROM player_apps
+                WHERE username = ? AND status != 'uninstalled'
+                ORDER BY updated_at, app_id
+                """,
+                (username,),
+            ).fetchall()
+            tool_rows = conn.execute(
+                """
+                SELECT * FROM player_tool_files
+                WHERE username = ?
+                ORDER BY updated_at, tool_id
+                """,
+                (username,),
+            ).fetchall()
+            storage_row = conn.execute(
+                "SELECT * FROM player_storage WHERE username = ?",
+                (username,),
+            ).fetchone()
+        storage = None
+        if storage_row:
+            storage = {
+                "capacity": int(storage_row["capacity"] or 0),
+                "used": int(storage_row["used"] or 0),
+                "unit": storage_row["unit"] or "MB",
+                "modifiers": loads_json(storage_row["modifiers_json"], {}),
+                "version": int(storage_row["version"] or 0),
+            }
+        return {
+            "apps": [app for app in (self._row_to_app(row) for row in app_rows) if isinstance(app, dict)],
+            "files": {"tools": [tool for tool in (self._row_to_tool(row) for row in tool_rows) if tool is not None]},
+            "storage": storage,
+        }
+
+    def mirror_profile(self, username, profile):
+        snapshot = self.snapshot(username)
+        if not snapshot.get("apps") and not (snapshot.get("files") or {}).get("tools") and not snapshot.get("storage"):
+            snapshot = self.seed_from_profile(username, profile)
+        if not isinstance(profile, dict):
+            return profile
+        if snapshot.get("apps"):
+            profile["apps"] = snapshot["apps"]
+        files = profile.get("files") if isinstance(profile.get("files"), dict) else {}
+        tools = (snapshot.get("files") or {}).get("tools")
+        if tools:
+            files["tools"] = tools
+            profile["files"] = files
+        storage = snapshot.get("storage")
+        if storage:
+            profile["storage_capacity"] = storage.get("capacity", profile.get("storage_capacity"))
+            profile["storage_used"] = storage.get("used", profile.get("storage_used"))
+            profile["storage_unit"] = storage.get("unit", profile.get("storage_unit", "MB"))
+            modifiers = storage.get("modifiers") if isinstance(storage.get("modifiers"), dict) else {}
+            for key in ("storage_upgrades", "googleplex_products", "storage_soft_limit", "storage_over_limit"):
+                if key in modifiers:
+                    profile[key] = modifiers[key]
+        return profile
+
+    def write_from_profile(self, username, profile):
+        return self.seed_from_profile(username, profile)
+
+    def uninstall_app(self, username, app_id="", tool_id=""):
+        username = self._clean_text(username)
+        app_id = self._clean_text(app_id)
+        tool_id = self._clean_text(tool_id)
+        if not username:
+            return False
+        now = utc_now()
+        changed = False
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            if app_id:
+                row = conn.execute(
+                    "SELECT version FROM player_apps WHERE username = ? AND app_id = ?",
+                    (username, app_id),
+                ).fetchone()
+                if row:
+                    conn.execute(
+                        """
+                        UPDATE player_apps
+                        SET status = 'uninstalled', version = ?, updated_at = ?
+                        WHERE username = ? AND app_id = ?
+                        """,
+                        (int(row["version"] or 0) + 1, now, username, app_id),
+                    )
+                    changed = True
+                conn.execute(
+                    "DELETE FROM player_tool_files WHERE username = ? AND app_id = ?",
+                    (username, app_id),
+                )
+            if tool_id:
+                cursor = conn.execute(
+                    "DELETE FROM player_tool_files WHERE username = ? AND tool_id = ?",
+                    (username, tool_id),
+                )
+                changed = changed or cursor.rowcount > 0
+        return changed
+
+    def clear_all(self):
+        with db_connect(self.db_path) as conn:
+            conn.execute("DELETE FROM player_tool_files")
+            conn.execute("DELETE FROM player_apps")
+            conn.execute("DELETE FROM player_storage")
+
+
+class WalletBalanceStore:
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def _clean_text(value, default=""):
+        text = str(value or "").strip()
+        return text or default
+
+    @staticmethod
+    def _profile_balance(profile):
+        try:
+            return int((profile or {}).get("hackcoins", 0) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def seed_from_profile(self, username, profile):
+        return self.set_balance(username, self._profile_balance(profile), transaction_key=f"seed:{username}", reason="profile_seed")
+
+    def get_balance(self, username, fallback_profile=None):
+        username = self._clean_text(username)
+        if not username:
+            return 0
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT balance FROM wallet_balances WHERE username = ?",
+                (username,),
+            ).fetchone()
+        if row:
+            return int(row["balance"] or 0)
+        if fallback_profile is not None:
+            return self.seed_from_profile(username, fallback_profile)
+        return 0
+
+    def set_balance(self, username, balance, transaction_key="", reason=""):
+        username = self._clean_text(username)
+        if not username:
+            return 0
+        try:
+            balance = int(balance or 0)
+        except (TypeError, ValueError):
+            balance = 0
+        balance = max(0, balance)
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            existing = conn.execute(
+                "SELECT balance, version FROM wallet_balances WHERE username = ?",
+                (username,),
+            ).fetchone()
+            previous = int(existing["balance"] or 0) if existing else 0
+            if transaction_key:
+                event_row = conn.execute(
+                    "SELECT balance FROM wallet_balance_events WHERE username = ? AND transaction_key = ?",
+                    (username, transaction_key),
+                ).fetchone()
+                if event_row:
+                    return int(event_row["balance"] or balance)
+            version = int(existing["version"] or 0) + 1 if existing else 1
+            conn.execute(
+                """
+                INSERT INTO wallet_balances(username, balance, version, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(username) DO UPDATE SET
+                    balance = excluded.balance,
+                    version = excluded.version,
+                    updated_at = excluded.updated_at
+                """,
+                (username, balance, version, now),
+            )
+            event_id = f"wbe_{hashlib.sha1(f'{username}:{transaction_key}:{now}:{balance}'.encode('utf-8')).hexdigest()[:18]}"
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO wallet_balance_events
+                    (event_id, username, transaction_key, amount_delta, balance, reason, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event_id,
+                    username,
+                    self._clean_text(transaction_key),
+                    balance - previous,
+                    balance,
+                    self._clean_text(reason),
+                    now,
+                ),
+            )
+        return balance
+
+    def mirror_profile(self, username, profile):
+        if isinstance(profile, dict):
+            profile["hackcoins"] = self.get_balance(username, fallback_profile=profile)
+        return profile
+
+    def clear_all(self):
+        with db_connect(self.db_path) as conn:
+            conn.execute("DELETE FROM wallet_balance_events")
+            conn.execute("DELETE FROM wallet_balances")
+
+
+class PlayerTargetRuntimeStore:
+    STATUS_CLEARED = "cleared"
+    STATUS_AIMED = "aimed"
+    STATUS_IN_PROGRESS = "in_progress"
+    STATUS_CAPTURED = "captured"
+
+    TERMINAL_STATUSES = {STATUS_CLEARED, STATUS_CAPTURED}
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def _clean_text(value, default=""):
+        text = str(value or "").strip()
+        return text or default
+
+    @staticmethod
+    def target_key(target):
+        target = target if isinstance(target, dict) else {}
+        if target.get("target_id"):
+            return str(target.get("target_id"))
+        if target.get("target_mode") == "player" and target.get("target_username"):
+            return f"player:{target.get('target_username')}"
+        if target.get("vulnerability_id"):
+            return f"vulnerability:{target.get('vulnerability_id')}"
+        if target.get("foreign_area_id"):
+            lat = target.get("lat")
+            lng = target.get("lng", target.get("lon"))
+            return f"territory_contest:{target.get('foreign_area_id')}:{lat}:{lng}"
+        lat = target.get("lat")
+        lng = target.get("lng", target.get("lon"))
+        label = target.get("label") or target.get("name") or target.get("source_type") or "target"
+        return f"map:{lat}:{lng}:{label}"
+
+    @classmethod
+    def _progress_from_target(cls, target):
+        target = target if isinstance(target, dict) else {}
+        allowed = target.get("actions_allowed") or {}
+        if not isinstance(allowed, dict):
+            allowed = {}
+        security = target.get("security") or {}
+        if not isinstance(security, dict):
+            security = {}
+        allowed_score = sum(1 for value in allowed.values() if value is True)
+        disabled_score = sum(1 for value in security.values() if value is False)
+        return int(max(allowed_score, disabled_score))
+
+    @staticmethod
+    def _merge_actions(current, incoming):
+        merged = dict(current or {}) if isinstance(current, dict) else {}
+        if isinstance(incoming, dict):
+            for key, value in incoming.items():
+                if value is True or key not in merged:
+                    merged[key] = value
+        return merged
+
+    @staticmethod
+    def _merge_security(current, incoming):
+        merged = dict(current or {}) if isinstance(current, dict) else {}
+        if isinstance(incoming, dict):
+            for key, value in incoming.items():
+                if value is False or key not in merged:
+                    merged[key] = value
+        return merged
+
+    @classmethod
+    def _row_payload(cls, row):
+        if not row:
+            return None
+        target = loads_json(row["target_json"], {})
+        security = loads_json(row["security_json"], {})
+        actions_allowed = loads_json(row["actions_allowed_json"], {})
+        if isinstance(target, dict) and target:
+            target["security"] = security if isinstance(security, dict) else {}
+            target["actions_allowed"] = actions_allowed if isinstance(actions_allowed, dict) else {}
+            target["target_id"] = target.get("target_id") or row["target_key"]
+        return {
+            "username": row["username"],
+            "target_key": row["target_key"],
+            "target": target if isinstance(target, dict) else {},
+            "security": security if isinstance(security, dict) else {},
+            "actions_allowed": actions_allowed if isinstance(actions_allowed, dict) else {},
+            "disarm_progress": int(row["disarm_progress"] or 0),
+            "status": row["status"],
+            "version": int(row["version"] or 0),
+            "updated_at": row["updated_at"],
+        }
+
+    def _record_event(self, conn, username, event_type, target_key, version, payload=None):
+        conn.execute(
+            """
+            INSERT INTO player_target_events
+                (username, event_type, target_key, version, payload_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                username,
+                event_type,
+                target_key or "",
+                int(version or 0),
+                dumps_json(payload or {}),
+                utc_now(),
+            ),
+        )
+
+    def get(self, username):
+        username = self._clean_text(username)
+        if not username:
+            return None
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM player_target_runtime WHERE username = ?",
+                (username,),
+            ).fetchone()
+            return self._row_payload(row)
+
+    def get_active_target(self, username):
+        payload = self.get(username)
+        if not payload or payload.get("status") in self.TERMINAL_STATUSES:
+            return {}
+        return dict(payload.get("target") or {})
+
+    def upsert_aimed(self, username, target, status=STATUS_AIMED, source=""):
+        username = self._clean_text(username)
+        target = dict(target or {}) if isinstance(target, dict) else {}
+        target_key = self.target_key(target)
+        if not username or not target_key:
+            return {"changed": False, "target": target, "status": "invalid", "version": 0}
+
+        incoming_security = target.get("security") if isinstance(target.get("security"), dict) else {}
+        incoming_actions = target.get("actions_allowed") if isinstance(target.get("actions_allowed"), dict) else {}
+        incoming_progress = self._progress_from_target(target)
+        now = utc_now()
+
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT * FROM player_target_runtime WHERE username = ?",
+                (username,),
+            ).fetchone()
+            current = self._row_payload(row)
+            if current and current.get("target_key") == target_key and current.get("status") == self.STATUS_CAPTURED:
+                self._record_event(conn, username, "target.aimed_rejected", target_key, current.get("version"), {"source": source})
+                return {
+                    "changed": False,
+                    "target": {},
+                    "status": "captured",
+                    "version": current.get("version", 0),
+                }
+
+            if current and current.get("target_key") == target_key:
+                merged_security = self._merge_security(current.get("security"), incoming_security)
+                merged_actions = self._merge_actions(current.get("actions_allowed"), incoming_actions)
+                merged_target = dict(current.get("target") or {})
+                merged_target.update(target)
+                merged_target["security"] = merged_security
+                merged_target["actions_allowed"] = merged_actions
+                progress = max(int(current.get("disarm_progress") or 0), incoming_progress)
+                version = int(current.get("version") or 0) + 1
+            else:
+                merged_security = dict(incoming_security or {})
+                merged_actions = dict(incoming_actions or {})
+                merged_target = dict(target)
+                merged_target["security"] = merged_security
+                merged_target["actions_allowed"] = merged_actions
+                progress = incoming_progress
+                version = int(current.get("version") or 0) + 1 if current else 1
+
+            merged_target["target_id"] = merged_target.get("target_id") or target_key
+            conn.execute(
+                """
+                INSERT INTO player_target_runtime
+                    (username, target_key, target_json, security_json, actions_allowed_json,
+                     disarm_progress, status, version, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(username) DO UPDATE SET
+                    target_key = excluded.target_key,
+                    target_json = excluded.target_json,
+                    security_json = excluded.security_json,
+                    actions_allowed_json = excluded.actions_allowed_json,
+                    disarm_progress = excluded.disarm_progress,
+                    status = excluded.status,
+                    version = excluded.version,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    username,
+                    target_key,
+                    dumps_json(merged_target),
+                    dumps_json(merged_security),
+                    dumps_json(merged_actions),
+                    progress,
+                    self._clean_text(status, self.STATUS_AIMED),
+                    version,
+                    now,
+                ),
+            )
+            event_type = "target.progressed" if current and current.get("target_key") == target_key else "target.aimed"
+            self._record_event(conn, username, event_type, target_key, version, {"source": source})
+            return {
+                "changed": True,
+                "target": merged_target,
+                "status": self._clean_text(status, self.STATUS_AIMED),
+                "version": version,
+            }
+
+    def mark_captured(self, username, target, source=""):
+        return self._terminal_update(username, target, self.STATUS_CAPTURED, "target.captured", source)
+
+    def clear_if_matches(self, username, reference_target, source=""):
+        username = self._clean_text(username)
+        reference_key = self.target_key(reference_target)
+        if not username:
+            return False
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT * FROM player_target_runtime WHERE username = ?",
+                (username,),
+            ).fetchone()
+            current = self._row_payload(row)
+            if not current:
+                return False
+            if reference_key and current.get("target_key") != reference_key:
+                return False
+            version = int(current.get("version") or 0) + 1
+            now = utc_now()
+            conn.execute(
+                """
+                UPDATE player_target_runtime
+                SET target_json = '{}',
+                    security_json = '{}',
+                    actions_allowed_json = '{}',
+                    disarm_progress = 0,
+                    status = ?,
+                    version = ?,
+                    updated_at = ?
+                WHERE username = ?
+                """,
+                (self.STATUS_CLEARED, version, now, username),
+            )
+            self._record_event(conn, username, "target.cleared", current.get("target_key"), version, {"source": source})
+            return True
+
+    def _terminal_update(self, username, target, status, event_type, source=""):
+        username = self._clean_text(username)
+        target = dict(target or {}) if isinstance(target, dict) else {}
+        target_key = self.target_key(target)
+        if not username or not target_key:
+            return {"changed": False, "target": {}, "status": "invalid", "version": 0}
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT * FROM player_target_runtime WHERE username = ?",
+                (username,),
+            ).fetchone()
+            current = self._row_payload(row)
+            version = int((current or {}).get("version") or 0) + 1
+            conn.execute(
+                """
+                INSERT INTO player_target_runtime
+                    (username, target_key, target_json, security_json, actions_allowed_json,
+                     disarm_progress, status, version, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(username) DO UPDATE SET
+                    target_key = excluded.target_key,
+                    target_json = excluded.target_json,
+                    security_json = excluded.security_json,
+                    actions_allowed_json = excluded.actions_allowed_json,
+                    disarm_progress = excluded.disarm_progress,
+                    status = excluded.status,
+                    version = excluded.version,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    username,
+                    target_key,
+                    dumps_json(target),
+                    dumps_json(target.get("security") if isinstance(target.get("security"), dict) else {}),
+                    dumps_json(target.get("actions_allowed") if isinstance(target.get("actions_allowed"), dict) else {}),
+                    self._progress_from_target(target),
+                    status,
+                    version,
+                    now,
+                ),
+            )
+            self._record_event(conn, username, event_type, target_key, version, {"source": source})
+            return {"changed": True, "target": target, "status": status, "version": version}
+
+    def seed_from_profile(self, username, profile):
+        if self.get(username):
+            return self.get_active_target(username)
+        target = (profile or {}).get("aimed_target") if isinstance(profile, dict) else {}
+        if not isinstance(target, dict) or not target:
+            return {}
+        return self.upsert_aimed(username, target, source="profile_fallback").get("target") or {}
+
+    def clear_all(self):
+        with db_connect(self.db_path) as conn:
+            conn.execute("DELETE FROM player_target_runtime")
+            conn.execute("DELETE FROM player_target_events")
+
+
+class PlayerPositionStore:
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def _normalize(position):
+        if not isinstance(position, dict):
+            return {}
+        try:
+            lat = float(position.get("lat"))
+            lng = float(position.get("lng", position.get("lon")))
+        except (TypeError, ValueError):
+            return {}
+        if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+            return {}
+        return {"lat": lat, "lng": lng}
+
+    @staticmethod
+    def _row_payload(row):
+        if not row:
+            return None
+        return {
+            "username": row["username"],
+            "lat": float(row["lat"]),
+            "lng": float(row["lng"]),
+            "source": row["source"],
+            "version": int(row["version"] or 0),
+            "updated_at": row["updated_at"],
+        }
+
+    def get(self, username):
+        username = str(username or "").strip()
+        if not username:
+            return None
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM player_positions WHERE username = ?",
+                (username,),
+            ).fetchone()
+            return self._row_payload(row)
+
+    def get_position(self, username):
+        row = self.get(username)
+        if not row:
+            return {}
+        return {"lat": row["lat"], "lng": row["lng"]}
+
+    def upsert(self, username, position, source="runtime"):
+        username = str(username or "").strip()
+        normalized = self._normalize(position)
+        if not username or not normalized:
+            return {"changed": False, "position": {}, "version": 0}
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT * FROM player_positions WHERE username = ?",
+                (username,),
+            ).fetchone()
+            current = self._row_payload(row)
+            version = int((current or {}).get("version") or 0) + 1
+            conn.execute(
+                """
+                INSERT INTO player_positions
+                    (username, lat, lng, source, version, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(username) DO UPDATE SET
+                    lat = excluded.lat,
+                    lng = excluded.lng,
+                    source = excluded.source,
+                    version = excluded.version,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    username,
+                    normalized["lat"],
+                    normalized["lng"],
+                    str(source or "runtime"),
+                    version,
+                    now,
+                ),
+            )
+            return {"changed": True, "position": normalized, "version": version}
+
+    def seed_from_profile(self, username, profile, source="profile_fallback"):
+        if self.get(username):
+            return self.get_position(username)
+        profile = profile if isinstance(profile, dict) else {}
+        position = profile.get("curently_possition") or profile.get("current_position") or {}
+        result = self.upsert(username, position, source=source)
+        return result.get("position") or {}
+
+    def clear_all(self):
+        with db_connect(self.db_path) as conn:
+            conn.execute("DELETE FROM player_positions")
 
 
 class MailStore:
