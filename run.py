@@ -4699,6 +4699,7 @@ def target_label_value(target):
 
 UNNAMED_TARGET_VALUES = {
     "",
+    "brak",
     "brak nazwy",
     "brak_nazwy",
     "no name",
@@ -15900,7 +15901,23 @@ def hack_action():
     canonical_action = HACK_ACTION_STEP_ALIASES.get(action, action)
     lat = data['lat']
     lng = data['lng']
-    label = data['label']
+    label = display_target_label({
+        "display_label": data.get("display_label"),
+        "label": data.get("label"),
+        "name": data.get("name"),
+        "title": data.get("title"),
+        "lat": lat,
+        "lng": lng,
+        "source_type": data.get("source_type", "manual"),
+        "target_type": data.get("target_type"),
+        "target_id": data.get("target_id"),
+        "vulnerability_id": data.get("vulnerability_id"),
+        "foreign_area_id": data.get("foreign_area_id"),
+        "target_mode": data.get("target_mode"),
+    })
+    data["label"] = label
+    if is_missing_target_name(data.get("name")):
+        data["name"] = label
     vulnerability_id = data.get("vulnerability_id")
     requested_target_mode = data.get("target_mode")
     player_target_profile = None

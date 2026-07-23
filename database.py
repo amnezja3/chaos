@@ -3529,6 +3529,24 @@ class PlayerTargetRuntimeStore:
         return text or default
 
     @staticmethod
+    def _is_missing_target_name(value):
+        if value is None:
+            return True
+        normalized = str(value).strip().lower()
+        return normalized in {
+            "",
+            "brak",
+            "brak nazwy",
+            "brak_nazwy",
+            "no name",
+            "unnamed",
+            "unnamed target",
+            "unknown",
+            "none",
+            "null",
+        }
+
+    @staticmethod
     def target_key(target):
         target = target if isinstance(target, dict) else {}
         if target.get("target_id"):
@@ -3666,7 +3684,10 @@ class PlayerTargetRuntimeStore:
                 merged_security = self._merge_security(current.get("security"), incoming_security)
                 merged_actions = self._merge_actions(current.get("actions_allowed"), incoming_actions)
                 merged_target = dict(current.get("target") or {})
-                merged_target.update(target)
+                for key, value in target.items():
+                    if key in {"display_label", "label", "name", "title"} and self._is_missing_target_name(value):
+                        continue
+                    merged_target[key] = value
                 merged_target["security"] = merged_security
                 merged_target["actions_allowed"] = merged_actions
                 progress = max(int(current.get("disarm_progress") or 0), incoming_progress)

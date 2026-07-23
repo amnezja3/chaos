@@ -577,6 +577,33 @@ class HackActionIdempotencyTests(unittest.TestCase):
         self.assertIs(target["security"]["scan"], False)
         self.assertIs(target["security"]["exploit"], False)
 
+    def test_target_runtime_store_keeps_existing_label_when_late_payload_is_missing_name(self):
+        base = {
+            "lat": 52.3,
+            "lng": 21.0,
+            "label": "POI-1",
+            "name": "POI-1",
+            "target_id": "map:poi-1",
+            "actions_allowed": {"scan_ports": True},
+        }
+        late = {
+            "lat": 52.3,
+            "lng": 21.0,
+            "label": "brak",
+            "name": "",
+            "target_id": "map:poi-1",
+            "actions_allowed": {"exploit": True},
+        }
+
+        run.player_target_runtime_store.upsert_aimed("main", base, source="map")
+        result = run.player_target_runtime_store.upsert_aimed("main", late, source="late_map")
+
+        target = result["target"]
+        self.assertEqual(target["label"], "POI-1")
+        self.assertEqual(target["name"], "POI-1")
+        self.assertIs(target["actions_allowed"]["scan_ports"], True)
+        self.assertIs(target["actions_allowed"]["exploit"], True)
+
     def test_target_runtime_store_rejects_stale_aimed_after_capture(self):
         target = {
             "lat": 52.3,

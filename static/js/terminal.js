@@ -943,7 +943,13 @@ function renderToolbarStatus() {
     const profile = toolbarProfile || {};
     const aimedTarget = profile.aimed_target || {};
     const hasTarget = hasToolbarAimedTarget(aimedTarget);
-    const targetLabel = aimedTarget.label || aimedTarget.name || "brak";
+    const targetLabel = aimedTarget.display_label
+        || aimedTarget.label
+        || aimedTarget.name
+        || aimedTarget.title
+        || aimedTarget.target_id
+        || aimedTarget.id
+        || "brak";
     const arsenalCoverage = calculateToolbarArsenalCoverage(profile);
     const arsenalLabel = arsenalCoverage === null ? "--" : `${arsenalCoverage}%`;
     const targetFeedback = hasTarget ? resolveTargetBarFeedback(aimedTarget) : resolveTargetBarFeedback(null);
