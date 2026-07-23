@@ -3547,10 +3547,29 @@ class PlayerTargetRuntimeStore:
         }
 
     @staticmethod
+    def _is_placeholder_target_key(value):
+        normalized = str(value or "").strip().lower()
+        if not normalized:
+            return True
+        if normalized in {
+            "map:0.0:0.0:target",
+            "map:0:0:target",
+            "map:unknown:unknown:target",
+        }:
+            return True
+        parts = normalized.split(":")
+        if len(parts) >= 4 and parts[0] == "map":
+            missing_coord = {"0", "0.0", "0.00", "unknown", "none", "null"}
+            missing_label = {"", "target", "brak", "unknown", "none", "null"}
+            return parts[1] in missing_coord and parts[2] in missing_coord and ":".join(parts[3:]) in missing_label
+        return False
+
+    @staticmethod
     def target_key(target):
         target = target if isinstance(target, dict) else {}
         if target.get("target_id"):
-            return str(target.get("target_id"))
+            key = str(target.get("target_id"))
+            return "" if PlayerTargetRuntimeStore._is_placeholder_target_key(key) else key
         if target.get("target_mode") == "player" and target.get("target_username"):
             return f"player:{target.get('target_username')}"
         if target.get("vulnerability_id"):
@@ -3562,7 +3581,8 @@ class PlayerTargetRuntimeStore:
         lat = target.get("lat")
         lng = target.get("lng", target.get("lon"))
         label = target.get("label") or target.get("name") or target.get("source_type") or "target"
-        return f"map:{lat}:{lng}:{label}"
+        key = f"map:{lat}:{lng}:{label}"
+        return "" if PlayerTargetRuntimeStore._is_placeholder_target_key(key) else key
 
     @classmethod
     def _progress_from_target(cls, target):

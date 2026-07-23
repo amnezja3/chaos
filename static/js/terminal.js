@@ -783,20 +783,34 @@ function extractToolbarUnlockKeys(app) {
     return keys;
 }
 
+function getToolbarArsenalApps(profile) {
+    const source = profile || {};
+    if (Array.isArray(source.apps) && source.apps.length) return source.apps;
+    if (source.files && Array.isArray(source.files.tools) && source.files.tools.length) {
+        return source.files.tools;
+    }
+    if (Array.isArray(toolbarLauncherApps) && toolbarLauncherApps.length) return toolbarLauncherApps;
+    return [];
+}
+
 function calculateToolbarArsenalCoverage(profile) {
-    const targetSecurity = ((profile || {}).aimed_target || {}).security || {};
+    const aimedTarget = ((profile || {}).aimed_target || {});
+    const hasTarget = hasToolbarAimedTarget(aimedTarget);
+    const targetSecurity = aimedTarget.security || {};
     const activeKeys = Object.entries(targetSecurity)
         .filter(([, value]) => value === true)
         .map(([key]) => key);
 
     if (!activeKeys.length) {
-        return ((profile || {}).aimed_target || {}).label ? 100 : null;
+        return hasTarget ? 100 : null;
     }
 
     const unlockKeys = new Set();
-    ((profile || {}).apps || []).forEach(app => {
+    getToolbarArsenalApps(profile).forEach(app => {
         extractToolbarUnlockKeys(app).forEach(key => unlockKeys.add(key));
     });
+
+    if (!unlockKeys.size && hasTarget) return 100;
 
     const covered = activeKeys.filter(key => unlockKeys.has(key)).length;
     return Math.round((covered / activeKeys.length) * 100);
@@ -818,8 +832,29 @@ function targetFeedbackClampPercent(value) {
     return Math.max(0, Math.min(100, Math.round(number)));
 }
 
+function isToolbarPlaceholderTarget(aimedTarget) {
+    const target = aimedTarget || {};
+    const id = String(target.target_id || target.id || "").trim().toLowerCase();
+    if (!id) return false;
+    if (["map:0.0:0.0:target", "map:0:0:target", "map:unknown:unknown:target"].includes(id)) {
+        return true;
+    }
+    if (/^map:(0(?:\.0+)?|unknown|none|null):(0(?:\.0+)?|unknown|none|null):(target|brak|unknown|none|null)$/i.test(id)) {
+        return true;
+    }
+    const lat = Number(target.lat);
+    const lng = Number(target.lng !== undefined ? target.lng : target.lon);
+    const label = String(target.label || target.name || target.display_label || target.title || "").trim().toLowerCase();
+    return Number.isFinite(lat)
+        && Number.isFinite(lng)
+        && Math.abs(lat) < 0.000001
+        && Math.abs(lng) < 0.000001
+        && (!label || label === "target" || label === "brak" || label === "unknown");
+}
+
 function hasToolbarAimedTarget(aimedTarget) {
     const target = aimedTarget || {};
+    if (isToolbarPlaceholderTarget(target)) return false;
     const identity = String(
         target.label
         || target.name

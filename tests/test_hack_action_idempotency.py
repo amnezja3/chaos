@@ -604,6 +604,21 @@ class HackActionIdempotencyTests(unittest.TestCase):
         self.assertIs(target["actions_allowed"]["scan_ports"], True)
         self.assertIs(target["actions_allowed"]["exploit"], True)
 
+    def test_target_runtime_store_rejects_zero_coordinate_placeholder_target(self):
+        placeholder = {
+            "lat": 0.0,
+            "lng": 0.0,
+            "label": "target",
+            "target_id": "map:0.0:0.0:target",
+            "actions_allowed": {"scan_ports": True, "exploit": True, "sniff": True, "trace": True},
+        }
+
+        result = run.player_target_runtime_store.upsert_aimed("main", placeholder, source="late_placeholder")
+
+        self.assertFalse(result["changed"])
+        self.assertEqual(result["status"], "invalid")
+        self.assertEqual(run.player_target_runtime_store.get_active_target("main"), {})
+
     def test_target_runtime_store_rejects_stale_aimed_after_capture(self):
         target = {
             "lat": 52.3,
