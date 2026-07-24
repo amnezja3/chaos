@@ -5739,6 +5739,40 @@ def finish_hack_action_idempotency(key, payload, status_code=200):
 
 HACK_FLOW_DEBUG_ENABLED = os.environ.get("CHAOS_HACK_FLOW_DEBUG", "0").strip().lower() not in {"0", "false", "no", "off"}
 APP_FLOW_DEBUG_ENABLED = os.environ.get("CHAOS_APP_FLOW_DEBUG", "1").strip().lower() not in {"0", "false", "no", "off"}
+BACKEND_DEBUG_LOG_PATH = os.environ.get(
+    "CHAOS_BACKEND_DEBUG_LOG",
+    os.path.join("data", "logs", "backend_debug.log"),
+)
+BACKEND_DEBUG_STDOUT_ENABLED = os.environ.get("CHAOS_BACKEND_DEBUG_STDOUT", "0").strip().lower() in {"1", "true", "yes", "on"}
+BACKEND_DEBUG_LOG_MAX_BYTES = int(os.environ.get("CHAOS_BACKEND_DEBUG_LOG_MAX_BYTES", str(5 * 1024 * 1024)))
+_backend_debug_log_lock = threading.Lock()
+
+
+def backend_debug_log(line):
+    if not line:
+        return
+    timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    entry = f"{timestamp} {line}"
+    if BACKEND_DEBUG_STDOUT_ENABLED:
+        print(entry, flush=True)
+    try:
+        log_dir = os.path.dirname(BACKEND_DEBUG_LOG_PATH)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+        with _backend_debug_log_lock:
+            if BACKEND_DEBUG_LOG_MAX_BYTES > 0 and os.path.exists(BACKEND_DEBUG_LOG_PATH):
+                try:
+                    if os.path.getsize(BACKEND_DEBUG_LOG_PATH) >= BACKEND_DEBUG_LOG_MAX_BYTES:
+                        rotated_path = f"{BACKEND_DEBUG_LOG_PATH}.1"
+                        if os.path.exists(rotated_path):
+                            os.remove(rotated_path)
+                        os.replace(BACKEND_DEBUG_LOG_PATH, rotated_path)
+                except Exception:
+                    pass
+            with open(BACKEND_DEBUG_LOG_PATH, "a", encoding="utf-8") as handle:
+                handle.write(entry + "\n")
+    except Exception:
+        pass
 
 
 def hack_flow_debug(flow_id, step, **fields):
@@ -5759,7 +5793,7 @@ def hack_flow_debug(flow_id, step, **fields):
         else:
             value = str(value)[:220]
         parts.append(f"{key}={value}")
-    print(f"[HACK_FLOW_DEBUG {flow_id or '-'}] step={step} " + " ".join(parts), flush=True)
+    backend_debug_log(f"[HACK_FLOW_DEBUG {flow_id or '-'}] step={step} " + " ".join(parts))
 
 
 def app_flow_debug(flow_id, step, started_at=None, **fields):
@@ -5785,7 +5819,7 @@ def app_flow_debug(flow_id, step, started_at=None, **fields):
         else:
             value = str(value)[:220]
         parts.append(f"{key}={value}")
-    print(f"[APP_FLOW_BE {flow_id or '-'}] step={step} " + " ".join(parts), flush=True)
+    backend_debug_log(f"[APP_FLOW_BE {flow_id or '-'}] step={step} " + " ".join(parts))
 
 
 def build_operation_instance(username, app, map_action_id, operation_type, target):
