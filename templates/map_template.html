@@ -2339,6 +2339,9 @@
             if (captured) {
                 removeTargetMarkerForTarget(target);
                 addInteractiveHackedMarker(target);
+                if (typeof window.refreshPlayerAreasAfterTargetCapture === 'function') {
+                    window.refreshPlayerAreasAfterTargetCapture('target_captured_delta');
+                }
                 return true;
             }
 
@@ -2572,6 +2575,36 @@
             return rememberTargetLayer(lat, lng, label, marker);
         }
 
+        window.refreshPlayerAreasAfterTargetCapture = function(reason = 'target_captured', attempt = 0) {
+            const delays = [0, 900, 2400];
+            if (attempt === 0 && window.targetCaptureTerritoryRefreshTimer) {
+                clearTimeout(window.targetCaptureTerritoryRefreshTimer);
+                window.targetCaptureTerritoryRefreshTimer = null;
+            }
+            const delay = delays[Math.min(attempt, delays.length - 1)];
+            window.targetCaptureTerritoryRefreshTimer = setTimeout(async () => {
+                window.targetCaptureTerritoryRefreshTimer = null;
+                let refreshed = false;
+                try {
+                    if (typeof window.refreshPlayerAreas === 'function') {
+                        refreshed = await window.refreshPlayerAreas({
+                            reason: attempt ? `${reason}_retry_${attempt}` : reason,
+                            recovery: attempt > 0
+                        });
+                    }
+                } catch (err) {
+                    console.warn('Target capture territory refresh failed', err);
+                }
+                if (!refreshed && attempt < delays.length - 1) {
+                    window.refreshPlayerAreasAfterTargetCapture(reason, attempt + 1);
+                    return;
+                }
+                if (typeof window.refreshClanVulnerabilities === 'function') {
+                    window.refreshClanVulnerabilities();
+                }
+            }, delay);
+        };
+
         window.markMapTargetHacked = function(target) {
             if (!target || target.lat === undefined || (target.lng === undefined && target.lon === undefined)) return;
             window.profileData = window.profileData || {};
@@ -2587,14 +2620,8 @@
             window.profileData.aimed_target = {};
             removeTargetMarkerForTarget(target);
             addInteractiveHackedMarker(target);
-            if (typeof window.scheduleOperationTerritoryRefresh === 'function') {
-                window.scheduleOperationTerritoryRefresh('target_captured');
-            } else if (window.refreshPlayerAreas) {
-                window.refreshPlayerAreas({ reason: 'target_captured' });
-                setTimeout(() => window.refreshPlayerAreas({ reason: 'target_captured_retry' }), 900);
-            }
-            if (window.refreshClanVulnerabilities) {
-                window.refreshClanVulnerabilities();
+            if (typeof window.refreshPlayerAreasAfterTargetCapture === 'function') {
+                window.refreshPlayerAreasAfterTargetCapture('target_captured');
             }
         };
 
