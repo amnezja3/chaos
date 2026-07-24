@@ -16227,12 +16227,22 @@ def hack_action():
         })
 
     if selected_app_id:
+        step_started_at = time.perf_counter()
         readonly_profile = load_profile_readonly(
             session.get("user"),
             strip_sensitive=True,
             normalize_apps=True,
             normalize_files=False,
         )
+        app_flow_debug_timed(
+            flow_id,
+            "hack_action_selected_readonly_profile_done",
+            app_flow_started_at,
+            step_started_at,
+            has_profile=bool(readonly_profile),
+            apps=len((readonly_profile or {}).get("apps", [])),
+        )
+        step_started_at = time.perf_counter()
         readonly_apps = normalize_app_contracts((readonly_profile or {}).get("apps", []))
         early_matched_apps, _ = get_apps_for_map_action(readonly_apps, action)
         if not early_matched_apps and canonical_action != action:
@@ -16245,7 +16255,16 @@ def hack_action():
             ),
             None,
         )
+        app_flow_debug_timed(
+            flow_id,
+            "hack_action_selected_early_match_done",
+            app_flow_started_at,
+            step_started_at,
+            matched=len(early_matched_apps or []),
+            selected_found=bool(early_selected_app),
+        )
         if early_selected_app:
+            step_started_at = time.perf_counter()
             hack_action_idempotency_key = build_hack_action_idempotency_key(
                 session.get("user"),
                 flow_id,
@@ -16260,9 +16279,26 @@ def hack_action():
                 data,
             )
             idempotency_metadata["flow_id"] = flow_id
+            app_flow_debug_timed(
+                flow_id,
+                "hack_action_selected_idempotency_key_done",
+                app_flow_started_at,
+                step_started_at,
+                key=hack_action_idempotency_key,
+            )
+            step_started_at = time.perf_counter()
             idempotency_state, idempotency_receipt = begin_hack_action_idempotency(
                 hack_action_idempotency_key,
                 idempotency_metadata,
+            )
+            app_flow_debug_timed(
+                flow_id,
+                "hack_action_selected_idempotency_begin_done",
+                app_flow_started_at,
+                step_started_at,
+                key=hack_action_idempotency_key,
+                state=idempotency_state,
+                store=(idempotency_receipt or {}).get("store", "sqlite"),
             )
             hack_flow_debug(
                 flow_id,
@@ -16292,7 +16328,19 @@ def hack_action():
                 }), 202
             hack_action_idempotency_started = True
 
+    step_started_at = time.perf_counter()
     profile = sync_session_profile()
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_sync_session_profile_done",
+        app_flow_started_at,
+        step_started_at,
+        selected=bool(selected_app_id),
+        has_profile=bool(profile),
+        apps=len(profile.get("apps", []) if isinstance(profile, dict) else []),
+        operations=len(profile.get("operations", []) if isinstance(profile, dict) else []),
+        queue_len=len(profile.get("launch_queue", []) if isinstance(profile, dict) else []),
+    )
     hack_flow_debug(
         flow_id,
         "after_sync_session_profile",
@@ -16303,6 +16351,7 @@ def hack_action():
         operations=len(profile.get("operations", []) if isinstance(profile, dict) else []),
         launch_queue=list(profile.get("launch_queue", []) if isinstance(profile, dict) else []),
     )
+    step_started_at = time.perf_counter()
     if vulnerability_id:
         try:
             vulnerability_report = vulnerability_store.get(int(vulnerability_id))
@@ -16334,7 +16383,16 @@ def hack_action():
                     f"na zgloszeniu {vulnerability_report.get('label')}."
                 )
             )
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_vulnerability_check_done",
+        app_flow_started_at,
+        step_started_at,
+        vulnerability_id=vulnerability_id,
+        found=bool(vulnerability_report),
+    )
 
+    step_started_at = time.perf_counter()
     contested_target = find_contested_target(session["user"], lat, lng, label)
     if contested_target:
         owner_username = contested_target.get("owner_username")
@@ -16358,7 +16416,17 @@ def hack_action():
                     f"Pozycja: {lat}, {lng}"
                 )
             )
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_contest_check_done",
+        app_flow_started_at,
+        step_started_at,
+        contested=bool(contested_target),
+        owner=(contested_target or {}).get("owner_username"),
+        foreign_area_id=(contested_target or {}).get("foreign_area_id"),
+    )
 
+    step_started_at = time.perf_counter()
     if requested_target_mode == "player":
         if not player_target_username:
             aimed_player = (profile.get("aimed_target") or {}).get("target_username")
@@ -16381,8 +16449,26 @@ def hack_action():
                 "cooldown_seconds_left": cooldown.get("cooldown_seconds_left", 0),
                 "cooldown_until": cooldown.get("cooldown_until")
             }), 429
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_player_target_check_done",
+        app_flow_started_at,
+        step_started_at,
+        requested_player=requested_target_mode == "player",
+        target_username=player_target_username,
+        found=bool(player_target_profile),
+    )
 
+    step_started_at = time.perf_counter()
     foreign_area = find_foreign_area_for_point(session["user"], float(lat), float(lng))
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_foreign_area_check_done",
+        app_flow_started_at,
+        step_started_at,
+        foreign_area=bool(foreign_area),
+        owner=(foreign_area or {}).get("owner_username"),
+    )
     if foreign_area and not vulnerability_report and not contested_target and requested_target_mode != "player":
         return jsonify({
             "success": False,
@@ -16396,11 +16482,21 @@ def hack_action():
             }
         }), 403
 
+    step_started_at = time.perf_counter()
     installed_apps = normalize_app_contracts(profile.get("apps", []))
     profile["apps"] = installed_apps
     matched_apps, match_source = get_apps_for_map_action(installed_apps, action)
     if not matched_apps and canonical_action != action:
         matched_apps, match_source = get_apps_for_map_action(installed_apps, canonical_action)
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_full_app_match_done",
+        app_flow_started_at,
+        step_started_at,
+        installed=len(installed_apps or []),
+        matched=len(matched_apps or []),
+        match_source=match_source,
+    )
 
     if not matched_apps:
         return jsonify({
@@ -16413,6 +16509,7 @@ def hack_action():
         }), 409
 
     if selected_app_id:
+        step_started_at = time.perf_counter()
         selected_app = next(
             (
                 app for app in matched_apps
@@ -16431,6 +16528,14 @@ def hack_action():
                 "canonical_action": canonical_action
             }), 400
         matched_apps = [selected_app]
+        app_flow_debug_timed(
+            flow_id,
+            "hack_action_selected_app_validated",
+            app_flow_started_at,
+            step_started_at,
+            selected_app_id=selected_app_id,
+            selected_name=selected_app.get("name"),
+        )
     elif len(matched_apps) > 1:
         app_flow_debug(
             flow_id,
@@ -16477,6 +16582,7 @@ def hack_action():
         })
 
     if not hack_action_idempotency_key:
+        step_started_at = time.perf_counter()
         hack_action_idempotency_key = build_hack_action_idempotency_key(
             session.get("user"),
             flow_id,
@@ -16484,7 +16590,15 @@ def hack_action():
             matched_apps[0] if matched_apps else {},
             data.get("_client_action_key"),
         )
+        app_flow_debug_timed(
+            flow_id,
+            "hack_action_full_idempotency_key_done",
+            app_flow_started_at,
+            step_started_at,
+            key=hack_action_idempotency_key,
+        )
     if not hack_action_idempotency_started:
+        step_started_at = time.perf_counter()
         idempotency_metadata = build_hack_action_receipt_metadata(
             session.get("user"),
             action,
@@ -16492,9 +16606,26 @@ def hack_action():
             data,
         )
         idempotency_metadata["flow_id"] = flow_id
+        app_flow_debug_timed(
+            flow_id,
+            "hack_action_full_idempotency_metadata_done",
+            app_flow_started_at,
+            step_started_at,
+            key=hack_action_idempotency_key,
+        )
+        step_started_at = time.perf_counter()
         idempotency_state, idempotency_receipt = begin_hack_action_idempotency(
             hack_action_idempotency_key,
             idempotency_metadata,
+        )
+        app_flow_debug_timed(
+            flow_id,
+            "hack_action_full_idempotency_begin_done",
+            app_flow_started_at,
+            step_started_at,
+            key=hack_action_idempotency_key,
+            state=idempotency_state,
+            store=(idempotency_receipt or {}).get("store", "sqlite"),
         )
         hack_flow_debug(
             flow_id,
@@ -16536,9 +16667,18 @@ def hack_action():
     }
     already_captured_target = None
     if requested_target_mode != "player":
+        step_started_at = time.perf_counter()
         already_captured_target = find_owned_captured_target_for_runtime_target(
             session.get("user"),
             requested_target_snapshot,
+        )
+        app_flow_debug_timed(
+            flow_id,
+            "hack_action_already_captured_check_done",
+            app_flow_started_at,
+            step_started_at,
+            found=bool(already_captured_target),
+            target_id=build_operation_target_id(already_captured_target or requested_target_snapshot),
         )
     if already_captured_target:
         clear_aimed_target_if_matches(session["user"], requested_target_snapshot)
@@ -16627,7 +16767,24 @@ def hack_action():
             and previous_target.get("target_username") == player_target_username
         ) or same_target
 
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_target_identity_check_done",
+        app_flow_started_at,
+        step_started_at,
+        same_target=same_target,
+        previous_target_id=build_operation_target_id(previous_target or {}),
+    )
+    step_started_at = time.perf_counter()
     mgr = UserProfileManager(session["user"])
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_profile_manager_ready",
+        app_flow_started_at,
+        step_started_at,
+        user=session["user"],
+    )
+    target_branch_started_at = time.perf_counter()
     if same_target:
         if "actions_allowed" not in previous_target:
             previous_target["actions_allowed"] = {}
@@ -16649,9 +16806,25 @@ def hack_action():
             previous_target["username"] = player_target_username
             previous_target["security"] = dict((player_target_profile or {}).get("security") or previous_target.get("security") or {})
         profile["aimed_target"] = previous_target
+        app_flow_debug_timed(
+            flow_id,
+            "hack_action_target_same_branch_done",
+            app_flow_started_at,
+            target_branch_started_at,
+            allowed=previous_target.get("actions_allowed"),
+            target_mode=previous_target.get("target_mode"),
+        )
 
     else:
+        remove_started_at = time.perf_counter()
         mgr.remove_from_list_by_coords("targets", lat, lng, label=label)
+        app_flow_debug_timed(
+            flow_id,
+            "hack_action_target_remove_old_coords_done",
+            app_flow_started_at,
+            remove_started_at,
+            label=label,
+        )
 
         aimed_target = {
             "lat": lat,
@@ -16678,6 +16851,7 @@ def hack_action():
                 "trace": False
             }
         }
+        build_started_at = time.perf_counter()
         apply_target_display_label(aimed_target)
 
         aimed_target["actions_allowed"][action] = True
@@ -16703,6 +16877,15 @@ def hack_action():
                     aimed_target["security"][key] = randint(0, 100)
 
         profile["aimed_target"] = aimed_target
+        app_flow_debug_timed(
+            flow_id,
+            "hack_action_target_new_branch_done",
+            app_flow_started_at,
+            build_started_at,
+            target_mode=aimed_target.get("target_mode"),
+            security_keys=len(aimed_target.get("security") or {}),
+            allowed=aimed_target.get("actions_allowed"),
+        )
 
     app_flow_debug_timed(
         flow_id,
@@ -20666,11 +20849,23 @@ def uninstall_app():
 
 @app.route("/launch-queue")
 def launch_queue():
+    app_flow_started_at = time.perf_counter()
+    flow_id = request.headers.get("X-Hack-Flow-Id") or ""
     if "user" not in session:
         return jsonify([])
 
     try:
+        step_started_at = time.perf_counter()
         launch_list = user_store.consume_launch_queue(session["user"])
+        app_flow_debug_timed(
+            flow_id,
+            "launch_queue_consume_done",
+            app_flow_started_at,
+            step_started_at,
+            user=session.get("user"),
+            count=len(launch_list or []),
+            apps=launch_list or [],
+        )
     except Exception:
         session.clear()
         return jsonify({"logout": True})
@@ -20680,7 +20875,7 @@ def launch_queue():
         return jsonify({"logout": True})
 
     hack_flow_debug(
-        request.headers.get("X-Hack-Flow-Id") or "",
+        flow_id,
         "launch_queue_read",
         user=session.get("user"),
         count=len(launch_list),
@@ -20695,7 +20890,7 @@ def launch_queue():
         session_profile["launch_queue"] = []
         session["profile"] = session_profile
     hack_flow_debug(
-        request.headers.get("X-Hack-Flow-Id") or "",
+        flow_id,
         "launch_queue_cleared",
         user=session.get("user"),
         count=len(launch_list),
@@ -20734,13 +20929,17 @@ def gonna_win():
     #     "stealth_mode"
     # ] # DEV LISTA
 
+    step_started_at = time.perf_counter()
     profile = sync_session_profile()
-    app_flow_debug(
+    app_flow_debug_timed(
         flow_id,
         "gonna_win_sync_session_profile",
-        started_at=app_flow_started_at,
+        app_flow_started_at,
+        step_started_at,
         has_profile=bool(profile),
         has_target=bool(profile and profile.get("aimed_target")),
+        apps=len(profile.get("apps", []) if isinstance(profile, dict) else []),
+        operations=len(profile.get("operations", []) if isinstance(profile, dict) else []),
     )
     if not profile or "aimed_target" not in profile:
         return jsonify({"success": False, "message": "Brak celu"}), 400
