@@ -20777,7 +20777,7 @@ def gonna_win():
     percent_off = (off / total) * 100
     target_mode = profile["aimed_target"].get("target_mode", "standard")
     allowed_actions = profile["aimed_target"].get("actions_allowed", {})
-    if target_mode in ("vulnerability", "territory_contest"):
+    if target_mode == "vulnerability":
         all_actions_allowed = any(
             allowed_actions.get(k) is True
             for k in ["scan_ports", "exploit", "sniff", "trace"]
