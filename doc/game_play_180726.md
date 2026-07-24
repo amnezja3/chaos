@@ -12683,6 +12683,804 @@ Po zakończeniu serii wymagany jest krótki checkpoint architektoniczny:
 * czy teleport/travel pozostają po ponownym otwarciu mapy,
 * czy potrzebny jest mini-sprint dla `desktop_settings`.
 
+# Sprint 130.6 — Motorcycle Travel Queue Refactor
+
+Status: runtime refactor
+
+## Cel
+
+Przebudować sposób poruszania motocykla na mapie tak, aby:
+
+* backend nie sterował każdą kolejną animacją motocykla,
+* mapa przechowywała lokalną kolejkę punktów podróży,
+* motocykl płynnie przejeżdżał przez wszystkie zaznaczone punkty,
+* ostatni punkt kolejki był od razu zapisywany jako aktualna pozycja gracza,
+* zamknięcie mapy nie przerywało ani nie cofało podróży,
+* ponowne otwarcie mapy pokazywało motocykl w ostatnim zapisanym punkcie.
+
+---
+
+## Obecny model
+
+Aktualny flow działa według schematu:
+
+```text
+gracz wskazuje punkt podróży
+-> punkt trafia do backendu
+-> backend zapisuje lub przetwarza podróż
+-> backend wysyła sygnał poruszenia motocykla
+-> motocykl rozpoczyna animację
+-> po około dwóch minutach dociera do celu
+```
+
+Backend uczestniczy bezpośrednio w sterowaniu animacją motocykla.
+
+Powoduje to kilka problemów:
+
+* kolejne punkty podróży zależą od odpowiedzi backendu,
+* animacja może rozpocząć się z opóźnieniem,
+* zamknięcie mapy może pozostawić niejasny stan podróży,
+* pozycja gracza i wizualna pozycja motocykla mogą się rozjechać,
+* backend musi obsługiwać stan, który powinien być wyłącznie prezentacją frontendu.
+
+---
+
+## Nowy model
+
+Po refaktorze mapa będzie działała według schematu:
+
+```text
+gracz wskazuje punkt podróży
+-> punkt zostaje dodany do lokalnej kolejki trasy
+-> ostatni punkt kolejki trafia do backendu jako aktualna pozycja
+-> backend zapisuje pozycję gracza
+-> frontend płynnie animuje motocykl przez wszystkie punkty kolejki
+```
+
+Backend nie musi wiedzieć, na którym odcinku animacji aktualnie znajduje się motocykl.
+
+Dla backendu oraz pozostałych modułów gry aktualną pozycją jest zawsze:
+
+```text
+ostatni punkt aktywnej kolejki podróży
+```
+
+Frontend wykorzystuje całą kolejkę wyłącznie do prezentacji płynnego przejazdu.
+
+---
+
+## Główna zasada
+
+```text
+Pozycja logiczna gracza = ostatni punkt kolejki podróży.
+
+Pozycja wizualna motocykla = aktualny punkt animacji pomiędzy początkiem i końcem kolejki.
+```
+
+Oznacza to, że pozycja logiczna może znajdować się już w punkcie końcowym, podczas gdy motocykl nadal wizualnie przejeżdża przez wcześniejsze punkty trasy.
+
+---
+
+## Zakres frontendu mapy
+
+### 1. Lokalna kolejka podróży
+
+Mapa utrzymuje lokalną listę punktów:
+
+```text
+motorcycleTravelQueue = [
+  pointA,
+  pointB,
+  pointC
+]
+```
+
+Każdy nowy punkt zaznaczony przez użytkownika zostaje dodany na końcu kolejki.
+
+Kolejka powinna zachowywać:
+
+* `lat`,
+* `lng`,
+* kolejność punktów,
+* identyfikator punktu,
+* czas dodania,
+* opcjonalne źródło podróży.
+
+Źródłem może być na przykład:
+
+* mapa,
+* Victim Picker,
+* Territory Controller,
+* GhostNetwork Suite,
+* BlackNet,
+* teleport.
+
+### 2. Ciągła animacja
+
+Motocykl porusza się kolejno:
+
+```text
+aktualna pozycja wizualna
+-> pierwszy punkt kolejki
+-> drugi punkt kolejki
+-> trzeci punkt kolejki
+```
+
+Animacja nie zatrzymuje się pomiędzy punktami, jeżeli kolejka zawiera następne cele.
+
+Powinna tworzyć jeden płynny przejazd, nawet gdy użytkownik szybko zaznaczy wiele punktów.
+
+Przykład:
+
+```text
+Warszawa Centrum
+-> Praga
+-> Targówek
+-> Białołęka
+-> Marki
+```
+
+Motocykl wykonuje wizualnie pełny slalom przez wszystkie zaznaczone lokalizacje.
+
+### 3. Dodawanie punktu podczas trwającej animacji
+
+Jeżeli użytkownik zaznaczy nowy punkt, gdy motocykl jest już w ruchu:
+
+* trwająca animacja nie jest restartowana,
+* nowy punkt trafia na koniec kolejki,
+* ostatni punkt kolejki zostaje zapisany w backendzie,
+* motocykl po zakończeniu bieżącego odcinka jedzie dalej.
+
+Nie można:
+
+* teleportować wizualnie motocykla do początku nowej trasy,
+* resetować postępu bieżącego odcinka,
+* usuwać wcześniejszych punktów kolejki,
+* uruchamiać kilku niezależnych animatorów.
+
+---
+
+## Synchronizacja z backendem
+
+### 1. Zapis pozycji
+
+Po każdym dodaniu punktu do kolejki frontend wysyła do backendu najnowszy punkt końcowy.
+
+Przykład:
+
+```text
+kolejka:
+A -> B -> C
+
+pozycja zapisana w backendzie:
+C
+```
+
+Po dodaniu punktu `D`:
+
+```text
+kolejka:
+A -> B -> C -> D
+
+pozycja zapisana w backendzie:
+D
+```
+
+Backend zapisuje punkt jako aktualną pozycję gracza w `player_positions`.
+
+### 2. Backend nie steruje animacją
+
+Backend nie wysyła już polecenia:
+
+```text
+move motorcycle
+```
+
+Backend:
+
+* przyjmuje nową pozycję,
+* waliduje podróż,
+* zapisuje ostatni punkt,
+* zwiększa wersję pozycji,
+* zwraca potwierdzenie zapisu.
+
+Animacja jest odpowiedzialnością mapy.
+
+### 3. Synchronizacja cykli mapy
+
+Podczas cyklicznej synchronizacji mapa otrzymuje pozycję gracza z backendu.
+
+Jeżeli lokalna kolejka podróży jest aktywna:
+
+* synchronizacja nie może przerwać animacji,
+* snapshot backendu odpowiada ostatniemu punktowi kolejki,
+* motocykl nadal korzysta ze swojej lokalnej pozycji wizualnej.
+
+Jeżeli lokalna kolejka jest pusta:
+
+* motocykl ustawia się na pozycji otrzymanej z backendu.
+
+### 4. Ochrona przed cofnięciem pozycji
+
+Starszy snapshot mapy nie może nadpisać nowszego punktu podróży.
+
+Pozycja powinna korzystać z:
+
+* `version`,
+* `updated_at`,
+* monotonicznego zapisu w `player_positions`.
+
+Jeżeli frontend posiada potwierdzoną pozycję o wersji `12`, snapshot o wersji `11` musi zostać zignorowany.
+
+---
+
+## Zamknięcie mapy
+
+Jeżeli użytkownik zamknie mapę podczas animacji:
+
+```text
+A -> B -> C -> D
+       ^
+motocykl znajduje się wizualnie tutaj
+```
+
+to aktualną pozycją gracza pozostaje:
+
+```text
+D
+```
+
+Frontend nie musi zapisywać chwilowej pozycji motocykla pomiędzy punktami.
+
+Po zamknięciu mapy:
+
+* lokalna animacja zostaje zakończona razem z widokiem,
+* kolejka nie musi być kontynuowana w tle,
+* backend zachowuje ostatni punkt jako pozycję gracza,
+* pozostałe moduły gry traktują gracza jako znajdującego się w ostatnim punkcie.
+
+---
+
+## Ponowne otwarcie mapy
+
+Po ponownym otwarciu mapy:
+
+* mapa pobiera pozycję z `player_positions`,
+* motocykl pojawia się w ostatnim zapisanym punkcie,
+* poprzednia animacja nie jest odtwarzana ponownie,
+* stara kolejka nie jest odbudowywana,
+* nowa kolejka rozpoczyna się od aktualnej pozycji backendowej.
+
+Przykład:
+
+```text
+gracz zaznaczył:
+A -> B -> C -> D
+
+zamknął mapę podczas przejazdu A -> B
+
+ponowne otwarcie:
+motocykl znajduje się w D
+```
+
+---
+
+## Czyszczenie kolejki
+
+Po osiągnięciu punktu frontend usuwa go z początku kolejki.
+
+Przykład:
+
+```text
+przed osiągnięciem A:
+[A, B, C]
+
+po osiągnięciu A:
+[B, C]
+```
+
+Po dotarciu do ostatniego punktu:
+
+```text
+[]
+```
+
+Motocykl pozostaje w końcowej pozycji.
+
+Czyszczenie kolejki nie powoduje dodatkowego zapisu do backendu, ponieważ końcowa pozycja została zapisana już w chwili dodania punktu.
+
+---
+
+## Błędy zapisu
+
+Jeżeli backend odrzuci nowy punkt podróży:
+
+* punkt nie powinien pozostać jako zatwierdzony koniec trasy,
+* frontend powinien usunąć go z kolejki albo oznaczyć jako odrzucony,
+* motocykl nie powinien do niego jechać,
+* wcześniejsze zatwierdzone punkty pozostają w kolejce.
+
+Jeżeli zapis zakończy się timeoutem:
+
+* punkt otrzymuje status `pending`,
+* frontend może ponowić zapis z tym samym receipt key,
+* powtórzenie nie może utworzyć drugiej zmiany pozycji,
+* animacja do niepotwierdzonego punktu nie powinna kończyć się uznaniem go za zatwierdzoną pozycję.
+
+---
+
+## Kontrakt punktu podróży
+
+Przykładowy punkt kolejki:
+
+```text
+{
+  travel_id,
+  lat,
+  lng,
+  source,
+  status,
+  position_version,
+  created_at
+}
+```
+
+Statusy:
+
+```text
+pending
+confirmed
+animating
+completed
+rejected
+```
+
+Blok opisuje pojedynczy punkt podróży i pozwala oddzielić potwierdzenie backendowe od samego etapu animacji widocznego na mapie.
+
+---
+
+## Integracje
+
+Refaktor powinien objąć wszystkie miejsca, które mogą zmienić pozycję motocykla:
+
+* kliknięcie podróży na mapie,
+* teleport,
+* Victim Picker,
+* Territory Controller,
+* GhostNetwork Suite,
+* BlackNet,
+* terminal,
+* inne aplikacje otwierające mapę lub ustawiające cel podróży.
+
+Każda integracja powinna używać jednego wejścia:
+
+```text
+enqueueMotorcycleTravelPoint(point)
+```
+
+Nie może istnieć kilka niezależnych sposobów uruchamiania animacji motocykla.
+
+---
+
+## Testy wymagane
+
+### Kolejka
+
+* jeden punkt uruchamia jeden przejazd,
+* kilka punktów tworzy jeden płynny przejazd,
+* nowy punkt podczas animacji trafia na koniec kolejki,
+* punkt zakończony znika z początku kolejki,
+* po zakończeniu trasy kolejka jest pusta.
+
+### Backend
+
+* ostatni punkt kolejki jest zapisywany jako pozycja gracza,
+* dodanie kolejnego punktu aktualizuje pozycję,
+* duplicate request nie zwiększa wersji drugi raz,
+* starsza wersja nie nadpisuje nowszej,
+* snapshot mapy nie cofa aktywnej podróży.
+
+### Zamknięcie mapy
+
+* zamknięcie mapy nie zapisuje chwilowej pozycji animacji,
+* po ponownym otwarciu motocykl znajduje się w ostatnim punkcie,
+* zamknięcie mapy nie wymaga kontynuowania animacji na backendzie,
+* stara kolejka nie odtwarza się po ponownym otwarciu.
+
+### Integracje
+
+* podróż z mapy używa wspólnej kolejki,
+* teleport używa wspólnego store’a pozycji,
+* Victim Picker nie uruchamia osobnego animatora,
+* Territory Controller nie obchodzi kolejki,
+* BlackNet i terminal nie nadpisują pozycji starszym snapshotem.
+
+---
+
+## Definition of Done
+
+* backend nie wysyła już sygnału sterującego animacją motocykla,
+* mapa posiada jedną lokalną kolejkę punktów podróży,
+* motocykl płynnie przejeżdża przez całą kolejkę,
+* nowy punkt można dodać podczas trwającej animacji,
+* ostatni punkt kolejki jest od razu pozycją logiczną gracza,
+* pozycja jest zapisywana w `player_positions`,
+* cykliczna synchronizacja mapy nie przerywa animacji,
+* starszy snapshot nie cofa motocykla,
+* zamknięcie mapy kończy wyłącznie warstwę wizualną,
+* ponowne otwarcie mapy pokazuje motocykl w ostatnim punkcie,
+* wszystkie źródła podróży używają wspólnego API frontendu,
+* nie ma kilku równoległych animatorów motocykla,
+* brak zmiany czasu, kosztu oraz zasad dostępności podróży.
+
+---
+
+## Poza zakresem
+
+* zapisywanie chwilowej pozycji motocykla podczas animacji,
+* kontynuowanie animacji po zamknięciu mapy,
+* odtwarzanie starej trasy po ponownym otwarciu mapy,
+* zmiana czasu podróży,
+* zmiana kosztu podróży,
+* zmiana zasięgu podróży,
+* zmiana zasad teleportu,
+* zmiana gameplayu motocykla,
+* synchronizacja każdego punktu animacji z backendem.
+
+
+# Sprint 130.7 — Motorcycle Travel Phone Preloader
+
+Status: frontend / visual feedback
+
+## Cel
+
+Dodać nad motocyklem animowany wskaźnik oczekiwania na rozpoczęcie podróży.
+
+Od momentu zlecenia podróży do chwili faktycznego ruszenia motocykla nad jego ikoną pojawia się telefon komórkowy, który:
+
+* lekko drży jak podczas wibracji,
+* przechyla się naprzemiennie na boki,
+* emituje animowane łuki sygnału dzwonienia,
+* pozostaje widoczny do momentu rozpoczęcia ruchu motocykla.
+
+Wskaźnik zastępuje zwykły spinner i komunikuje, że podróż została przyjęta, ale motocykl jeszcze nie rozpoczął jazdy.
+
+---
+
+## Zachowanie
+
+Flow powinien wyglądać tak:
+
+```text
+gracz wybiera punkt podróży
+-> podróż zostaje przyjęta
+-> nad motocyklem pojawia się dzwoniący telefon
+-> telefon wibruje i emituje łuki
+-> motocykl rozpoczyna animację jazdy
+-> telefon natychmiast znika
+```
+
+Telefon nie pokazuje czasu pozostałego do rozpoczęcia podróży.
+
+Jest wyłącznie wizualnym stanem:
+
+```text
+podróż oczekuje na ruszenie motocykla
+```
+
+---
+
+## Wygląd
+
+Preloader powinien składać się z:
+
+* prostej ikony telefonu komórkowego,
+* dwóch lub trzech łuków po bokach telefonu,
+* opcjonalnego delikatnego tła zwiększającego czytelność,
+* lekkiego przesunięcia nad motocyklem.
+
+Ikona musi pasować do interfejsu CHAOS:
+
+* cyberpunkowa,
+* techniczna,
+* czytelna w małym rozmiarze,
+* bez dużego panelu i bez tekstu,
+* nie może zasłaniać motocykla ani istotnych elementów mapy.
+
+Przykładowa struktura wizualna:
+
+```text
+      ))) 📱 (((
+          🏍
+```
+
+Łuki powinny wyglądać jak promieniujący sygnał dzwonienia, a nie jak radar albo skanowanie mapy.
+
+---
+
+## Animacja telefonu
+
+Telefon powinien wykonywać krótką, zapętloną animację:
+
+1. lekki obrót w lewo,
+2. szybki powrót,
+3. lekki obrót w prawo,
+4. szybki powrót,
+5. krótka pauza,
+6. ponowienie cyklu.
+
+Animacja powinna naśladować telefon leżący na powierzchni i drżący podczas połączenia.
+
+Nie powinna:
+
+* wykonywać dużych obrotów,
+* skakać wysoko,
+* przesuwać się po mapie,
+* wyglądać jak uszkodzony element UI,
+* działać zbyt szybko i agresywnie.
+
+---
+
+## Animacja łuków
+
+Łuki sygnału powinny:
+
+* pojawiać się kolejno od telefonu na zewnątrz,
+* delikatnie zwiększać skalę,
+* stopniowo zanikać,
+* powtarzać się w rytmie wibracji telefonu.
+
+Cykl może wyglądać tak:
+
+```text
+telefon drży
+-> pojawia się pierwszy łuk
+-> pojawia się drugi łuk
+-> pojawia się trzeci łuk
+-> łuki zanikają
+-> krótka przerwa
+-> kolejny cykl
+```
+
+Łuki mogą znajdować się po jednej albo po obu stronach telefonu.
+
+Preferowany jest symetryczny układ, o ile pozostaje czytelny przy małej ikonie.
+
+---
+
+## Pozycjonowanie
+
+Preloader musi być zakotwiczony do aktualnej wizualnej pozycji motocykla.
+
+Podczas oczekiwania:
+
+* porusza się razem z markerem motocykla,
+* pozostaje nad jego ikoną,
+* uwzględnia skalę i przesunięcie markera,
+* nie zmienia pozycji przy odświeżeniu warstw mapy,
+* nie zostaje w starej lokalizacji po zmianie pozycji motocykla.
+
+Preloader nie może być osobnym markerem niezależnym od motocykla.
+
+Powinien być elementem jego warstwy wizualnej albo bezpośrednio powiązanym overlayem.
+
+---
+
+## Moment uruchomienia
+
+Preloader pojawia się, gdy:
+
+* użytkownik zlecił podróż,
+* punkt został przyjęty do kolejki,
+* motocykl jeszcze nie rozpoczął animacji ruchu.
+
+Nie powinien pojawiać się już przy samym kliknięciu miejsca na mapie, jeżeli podróż nie została jeszcze zatwierdzona.
+
+Najbezpieczniejszy stan wejściowy:
+
+```text
+travel accepted / queued
+```
+
+---
+
+## Moment wyłączenia
+
+Preloader znika w chwili, gdy:
+
+* animator motocykla rozpocznie pierwszy realny odcinek ruchu,
+* motocykl zmieni swoją wizualną pozycję,
+* podróż zostanie anulowana,
+* backend odrzuci punkt podróży,
+* mapa zostanie zamknięta,
+* marker motocykla zostanie usunięty.
+
+Nie należy czekać na zakończenie podróży.
+
+Telefon informuje wyłącznie o oczekiwaniu na start, a nie o trwającej jeździe.
+
+---
+
+## Integracja z kolejką podróży
+
+Preloader powinien być powiązany ze stanem kolejki motocykla.
+
+Przykładowe stany:
+
+```text
+idle
+waiting_to_start
+moving
+paused
+completed
+rejected
+```
+
+Telefon jest widoczny wyłącznie dla:
+
+```text
+waiting_to_start
+```
+
+Dla pozostałych stanów:
+
+```text
+idle             -> brak telefonu
+moving           -> brak telefonu
+paused           -> brak telefonu, chyba że powstanie osobny sprint
+completed        -> brak telefonu
+rejected         -> telefon znika
+```
+
+Blok stanów oddziela preloader startu od samej animacji jazdy i zapobiega pozostawaniu telefonu nad motocyklem po rozpoczęciu ruchu.
+
+---
+
+## Kolejne punkty podróży
+
+Jeżeli motocykl już jedzie, a użytkownik dodaje kolejny punkt do kolejki:
+
+* telefon nie powinien pojawiać się ponownie,
+* motocykl kontynuuje aktywną animację,
+* nowy punkt trafia na koniec kolejki.
+
+Telefon pojawia się tylko wtedy, gdy motocykl rzeczywiście stoi i oczekuje na rozpoczęcie pierwszego odcinka.
+
+Jeżeli motocykl zakończy trasę, zatrzyma się i powstanie nowa podróż, preloader może zostać pokazany ponownie.
+
+---
+
+## Obsługa błędów
+
+Jeżeli podróż zostanie odrzucona:
+
+* telefon znika,
+* kolejka nie rozpoczyna animacji,
+* nie pozostaje osierocony overlay.
+
+Jeżeli odpowiedź backendu się opóźnia:
+
+* telefon pojawia się dopiero po potwierdzeniu podróży,
+* przed potwierdzeniem może pozostać obecny systemowy stan oczekiwania,
+* nie można równocześnie pokazywać kilku preloaderów nad motocyklem.
+
+Jeżeli animator nie wystartuje z powodu błędu:
+
+* telefon nie może działać bez końca,
+* stan powinien zostać zakończony przez timeout techniczny,
+* błąd powinien zostać zapisany w logu,
+* UI może przejść do istniejącego komunikatu błędu podróży.
+
+Timeout techniczny nie zmienia zasad gameplayu i służy tylko do usunięcia zawieszonego efektu.
+
+---
+
+## Wydajność
+
+Animacja powinna być wykonana głównie w CSS.
+
+Preferowane właściwości:
+
+* `transform`,
+* `opacity`.
+
+Nie należy animować:
+
+* położenia przez `top` i `left`,
+* ciężkich filtrów,
+* dużych rozmyć,
+* wielu elementów SVG na każdej klatce,
+* efektów wymagających ciągłego przeliczania layoutu mapy.
+
+Na mapie może istnieć tylko jeden aktywny preloader motocykla gracza.
+
+---
+
+## Dostępność i ustawienia systemowe
+
+Dla użytkowników z włączonym:
+
+```text
+prefers-reduced-motion: reduce
+```
+
+telefon powinien:
+
+* pozostać widoczny,
+* nie wykonywać intensywnych drgań,
+* używać spokojnego pulsowania albo statycznych łuków.
+
+Wskaźnik nadal musi komunikować oczekiwanie, nawet bez pełnej animacji.
+
+---
+
+## Testy
+
+### Uruchomienie
+
+* potwierdzona podróż pokazuje telefon,
+* niepotwierdzona podróż nie pokazuje telefonu,
+* odrzucona podróż usuwa telefon,
+* jeden request tworzy tylko jeden preloader.
+
+### Animacja
+
+* telefon drży w krótkiej pętli,
+* łuki pojawiają się i zanikają,
+* animacja nie przesuwa markera motocykla,
+* preloader pozostaje poprawnie zakotwiczony podczas synchronizacji mapy.
+
+### Rozpoczęcie ruchu
+
+* telefon znika przy rozpoczęciu pierwszego odcinka,
+* telefon nie jest widoczny podczas jazdy,
+* dodanie punktu podczas jazdy nie pokazuje telefonu ponownie,
+* po zakończeniu trasy nowa podróż może pokazać nowy preloader.
+
+### Zamknięcie mapy
+
+* zamknięcie mapy usuwa preloader,
+* ponowne otwarcie mapy nie odtwarza starej animacji telefonu,
+* brak osieroconego timera lub listenera.
+
+### Błędy
+
+* błąd animatora kończy preloader po kontrolowanym timeoutcie,
+* anulowanie podróży natychmiast usuwa telefon,
+* usunięcie motocykla usuwa również jego overlay.
+
+---
+
+## Definition of Done
+
+* nad motocyklem pojawia się ikona telefonu po przyjęciu podróży,
+* telefon wykonuje czytelną animację wibracji,
+* animowane łuki imitują dzwonienie telefonu,
+* preloader jest widoczny do chwili rozpoczęcia ruchu,
+* preloader znika natychmiast po ruszeniu motocykla,
+* kolejny punkt dodany podczas jazdy nie uruchamia telefonu ponownie,
+* telefon jest zakotwiczony do markera motocykla,
+* synchronizacja mapy nie tworzy drugiej kopii efektu,
+* anulowanie lub odrzucenie podróży usuwa animację,
+* zamknięcie mapy czyści animację i listenery,
+* efekt jest wykonany lekko, głównie przy użyciu CSS,
+* obsłużony jest `prefers-reduced-motion`,
+* brak zmiany czasu, kosztu i logiki podróży.
+
+---
+
+## Poza zakresem
+
+* odtwarzanie prawdziwego dźwięku telefonu,
+* sterowanie głośnością,
+* wibracje urządzenia mobilnego,
+* komunikaty tekstowe nad motocyklem,
+* licznik czasu do rozpoczęcia podróży,
+* animacja telefonu podczas całej jazdy,
+* zmiana motoryki motocykla,
+* zmiana kolejki punktów podróży,
+* zmiana backendowego kontraktu pozycji,
+* preloader dla innych graczy i NPC.
 
 
 > Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.

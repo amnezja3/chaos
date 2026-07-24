@@ -1267,17 +1267,17 @@
 
     .hack-action-spinner {
       position: absolute;
-      width: 9px;
-      height: 9px;
+      width: 16px;
+      height: 16px;
       transform: translate(var(--hack-x, 18px), var(--hack-y, -16px));
-      filter: drop-shadow(0 0 3px rgba(38, 255, 106, 0.5));
+      filter: drop-shadow(0 0 4px rgba(38, 255, 106, 0.42));
     }
 
     .hack-action-spinner__ring {
       position: absolute;
       inset: 0;
       border-radius: 50%;
-      border: 1px solid rgba(38, 255, 106, 0.28);
+      border: 2px solid rgba(38, 255, 106, 0.28);
       border-top-color: #26ff6a;
       border-right-color: rgba(156, 255, 46, 0.75);
       animation: target-operation-spin 0.7s linear infinite;
@@ -1285,16 +1285,51 @@
       box-shadow: 0 0 3px rgba(38, 255, 106, 0.35);
     }
 
+    .hack-action-spinner__log {
+      position: absolute;
+      left: 20px;
+      top: -4px;
+      min-width: 118px;
+      max-width: 160px;
+      padding: 3px 5px;
+      border: 1px solid rgba(38, 255, 106, 0.35);
+      background: rgba(0, 12, 5, 0.78);
+      color: #9cff9c;
+      font-family: monospace;
+      font-size: 9px;
+      line-height: 1.2;
+      letter-spacing: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+    }
+
     @media (max-width: 900px), (max-height: 700px) {
       .hack-action-spinner {
-        width: 5px;
-        height: 5px;
-        filter: drop-shadow(0 0 1px rgba(38, 255, 106, 0.45));
+        width: 11px;
+        height: 11px;
+        filter: drop-shadow(0 0 2px rgba(38, 255, 106, 0.38));
       }
 
       .hack-action-spinner__ring {
         border-width: 1px;
         box-shadow: 0 0 1px rgba(38, 255, 106, 0.28);
+      }
+
+      .hack-action-spinner__log {
+        left: 15px;
+        top: -5px;
+        min-width: 92px;
+        max-width: 120px;
+        font-size: 8px;
+        padding: 2px 4px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .hack-action-spinner__ring {
+        animation-duration: 1.6s;
       }
     }
 
@@ -4284,6 +4319,15 @@
                 return `${Math.round(lat * 100000)}:${Math.round(lng * 100000)}`;
             };
 
+            window.hackActionSpinnerMessages = [
+                'wysylam sygnal ghost mapy',
+                'lacze narzedzie z celem',
+                'potwierdzam kanal runtime',
+                'czekam na echo mapy',
+                'rekonstruuje stan celu',
+                'synchronizuje akcje'
+            ];
+
             window.startHackActionSpinner = function(flowId, payload = {}) {
                 const key = String(flowId || '').trim();
                 if (!key) return false;
@@ -4302,7 +4346,7 @@
                     .filter(entry => entry && entry.coordKey === coordKey)
                     .length;
                 const angle = (activeAtTarget % 8) * (Math.PI / 4) - (Math.PI / 2);
-                const radius = 18 + Math.floor(activeAtTarget / 8) * 8;
+                const radius = 24 + Math.floor(activeAtTarget / 8) * 10;
                 const x = Math.round(Math.cos(angle) * radius);
                 const y = Math.round(Math.sin(angle) * radius);
                 const title = window.escapeMapText(payload.action || payload.map_action_id || 'hack-action');
@@ -4314,6 +4358,7 @@
                         html: `
                             <div class="hack-action-spinner" style="--hack-x:${x}px;--hack-y:${y}px;" title="${title}">
                                 <span class="hack-action-spinner__ring"></span>
+                                <span class="hack-action-spinner__log" data-hack-spinner-log>GhostMap // wysylam sygnal</span>
                             </div>
                         `,
                         iconSize: [1, 1],
@@ -4321,7 +4366,18 @@
                     })
                 }).addTo(map);
 
-                window.hackActionSpinnerLayers[key] = { marker, coordKey };
+                let messageIndex = 0;
+                const updateLog = () => {
+                    const log = marker.getElement()?.querySelector('[data-hack-spinner-log]');
+                    if (!log) return;
+                    const messages = window.hackActionSpinnerMessages || [];
+                    const message = messages[messageIndex % messages.length] || 'wysylam sygnal ghost mapy';
+                    messageIndex += 1;
+                    log.textContent = `GhostMap // ${message}`;
+                };
+                updateLog();
+                const timer = window.setInterval(updateLog, 1300);
+                window.hackActionSpinnerLayers[key] = { marker, coordKey, timer };
                 return true;
             };
 
@@ -4330,6 +4386,9 @@
                 if (!key || !window.hackActionSpinnerLayers) return false;
                 const entry = window.hackActionSpinnerLayers[key];
                 if (!entry) return false;
+                if (entry.timer) {
+                    window.clearInterval(entry.timer);
+                }
                 removeMapLayerSafe(entry.marker);
                 delete window.hackActionSpinnerLayers[key];
                 return true;
