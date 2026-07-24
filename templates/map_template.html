@@ -4630,33 +4630,51 @@
                 const total = Math.max(1, Number(options.total || 1));
                 const index = Math.max(0, Number(options.index || 0));
                 const maxRetries = Math.max(0, Number(options.retries ?? (options.critical ? 3 : 0)) || 0);
+                const startProgress = Math.round((index / total) * 100);
+                const endProgress = Math.round(((index + 1) / total) * 100);
                 if (!silent) {
-                    updateMapBootOverlay(label, Math.round((index / total) * 100));
+                    updateMapBootOverlay(label, startProgress);
                     await waitForMapBootPaint();
                 }
                 for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+                    let progressTimer = null;
+                    let liveProgress = startProgress;
                     try {
+                        if (!silent && endProgress > startProgress + 2) {
+                            progressTimer = setInterval(() => {
+                                liveProgress = Math.min(endProgress - 2, liveProgress + 1);
+                                updateMapBootOverlay(label, liveProgress);
+                            }, Number(options.progressIntervalMs || 2500));
+                        }
                         if (typeof fn === 'function') {
                             const result = await fn({ ...options, boot_attempt: attempt + 1 });
                             if (result === false && options.critical) {
                                 throw new Error(`Critical map scope failed: ${scope || label}`);
                             }
                         }
+                        if (progressTimer) {
+                            clearInterval(progressTimer);
+                            progressTimer = null;
+                        }
                         if (scope) {
                             scopes.add(scope);
                         }
                         if (!silent) {
-                            updateMapBootOverlay(label, Math.round(((index + 1) / total) * 100));
+                            updateMapBootOverlay(label, endProgress);
                             await waitForMapBootPaint();
                         }
                         return true;
                     } catch (err) {
+                        if (progressTimer) {
+                            clearInterval(progressTimer);
+                            progressTimer = null;
+                        }
                         const canRetry = options.critical && attempt < maxRetries;
                         console.warn('[map boot] step failed', scope || label, { attempt: attempt + 1, retry: canRetry }, err);
                         if (canRetry) {
                             const retryDelay = 900 + (attempt * 900);
                             if (!silent) {
-                                updateMapBootOverlay(`Ponawiam: ${label}`, Math.round((index / total) * 100));
+                                updateMapBootOverlay(`Ponawiam: ${label}`, startProgress);
                                 await waitForMapBootPaint();
                             }
                             await waitForMapBootRetry(retryDelay);
@@ -4664,7 +4682,7 @@
                         }
                         if (options.critical) {
                             state.failed = true;
-                            updateMapBootOverlay(`Blad ladowania: ${label}`, Math.round((index / total) * 100), true);
+                            updateMapBootOverlay(`Blad ladowania: ${label}`, startProgress, true);
                             throw err;
                         }
                         return false;
@@ -4711,15 +4729,25 @@
                 disableMapGameplay();
                 showMapPreloader('Inicjalizacja mapy...', 0);
                 await waitForMapBootPaint();
-                const criticalTotal = 5;
+                const criticalTotal = 8;
                 try {
                     await window.bootStep('Inicjalizacja mapy', 'base_map', null, { critical: true, total: criticalTotal, index: 0 });
-                    await window.bootStep('Pozycja gracza', 'player_position', null, { critical: true, total: criticalTotal, index: 1 });
-                    await window.bootStep('Oznaczone cele', 'target_snapshot', null, { critical: true, total: criticalTotal, index: 2 });
+                    await window.bootStep('Warstwa bazowa', 'base_tiles', null, { critical: true, total: criticalTotal, index: 1 });
+                    await window.bootStep('Pozycja gracza', 'player_position', null, { critical: true, total: criticalTotal, index: 2 });
+                    await window.bootStep('Oznaczone cele', 'target_snapshot', null, { critical: true, total: criticalTotal, index: 3 });
                     scheduleLegacyPlayerAreaCleanup();
-                    await window.bootStep('Terytoria graczy', 'player_areas', window.refreshPlayerAreas, { critical: true, total: criticalTotal, index: 3 });
+                    await window.bootStep('Terytoria graczy', 'player_areas', window.refreshPlayerAreas, {
+                        critical: true,
+                        total: criticalTotal,
+                        index: 4,
+                        retries: 1,
+                        timeoutMs: 420000,
+                        progressIntervalMs: 3500
+                    });
                     normalizeBootLoadedScopes().add('captured_targets');
-                    await window.bootStep('Przejete cele', 'captured_targets', null, { critical: true, total: criticalTotal, index: 4 });
+                    await window.bootStep('Przejete cele', 'captured_targets', null, { critical: true, total: criticalTotal, index: 5 });
+                    await window.bootStep('Recovery delt', 'delta_recovery', null, { critical: true, total: criticalTotal, index: 6 });
+                    await window.bootStep('Delta-feed mapy', 'delta_feed_ready', null, { critical: true, total: criticalTotal, index: 7 });
                     enableMapGameplay();
                     updateMapBootOverlay('Mapa gotowa.', 100);
                     setTimeout(hideMapPreloader, 220);
@@ -6381,11 +6409,12 @@
                 const isCritical = Boolean(options.critical);
                 const isNarrowViewport = typeof window.matchMedia === 'function'
                     && window.matchMedia('(max-width: 760px)').matches;
+                const criticalTimeoutMs = Number(options.timeoutMs || (isNarrowViewport ? 420000 : 300000));
                 const refreshSeq = ++window.playerAreaRefreshSeq;
                 const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
                 try {
                     const snapshot = await window.fetchMapSnapshot('player_areas', '/api/map/player-areas', {
-                        timeoutMs: isCritical ? (isNarrowViewport ? 90000 : 65000) : (isNarrowViewport ? 30000 : 20000),
+                        timeoutMs: isCritical ? criticalTimeoutMs : (isNarrowViewport ? 30000 : 20000),
                         critical: isCritical
                     });
                     if (snapshot.skipped || snapshot.aborted) {
