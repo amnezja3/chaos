@@ -15991,7 +15991,32 @@ def map_action():
         })
     
     if action == "travel":
-        distance = Haversine.haversine_distance(lat, lng, ava_lat, ava_lng)
+        route_waypoints = data.get("route_waypoints") if data.get("route_commit") else []
+        route_points = []
+        if isinstance(route_waypoints, list):
+            for waypoint in route_waypoints:
+                if not isinstance(waypoint, dict):
+                    continue
+                try:
+                    point_lat = float(waypoint.get("lat"))
+                    point_lng = float(waypoint.get("lng", waypoint.get("lon")))
+                except (TypeError, ValueError):
+                    continue
+                route_points.append({"lat": point_lat, "lng": point_lng})
+        if route_points:
+            final_point = route_points[-1]
+            if round(final_point["lat"], 6) != round(lat, 6) or round(final_point["lng"], 6) != round(lng, 6):
+                route_points.append({"lat": lat, "lng": lng})
+        else:
+            route_points = [{"lat": lat, "lng": lng}]
+
+        distance = 0
+        planned_lat, planned_lng = ava_lat, ava_lng
+        for route_point in route_points:
+            distance = Haversine.haversine_distance(route_point["lat"], route_point["lng"], planned_lat, planned_lng)
+            if distance > action_range:
+                break
+            planned_lat, planned_lng = route_point["lat"], route_point["lng"]
 
         if distance > action_range:
             return jsonify({

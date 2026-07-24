@@ -63,6 +63,19 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("chaos-phone-vibrate", self.map_template)
         self.assertIn("chaos-phone-ring", self.map_template)
 
+    def test_motorcycle_travel_local_queue_contract(self):
+        self.assertIn("shouldPlanTravelLocally", self.map_template)
+        self.assertIn("planMotorcycleTravelLocally", self.map_template)
+        self.assertIn("getMotorcyclePlannedPosition", self.map_template)
+        self.assertIn("getTravelRangeMeters", self.map_template)
+        self.assertIn("getTravelDistanceMeters", self.map_template)
+        self.assertIn("pendingBackendTravelCommit", self.map_template)
+        self.assertIn("flushMotorcycleTravelCommit", self.map_template)
+        self.assertIn("route_commit: true", self.map_template)
+        self.assertIn("route_waypoints", self.map_template)
+        self.assertIn("localPlanned: true", self.map_template)
+        self.assertIn("map_travel_local", self.map_template)
+
 
 if __name__ == "__main__":
     unittest.main()

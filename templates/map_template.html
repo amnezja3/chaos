@@ -516,10 +516,10 @@
 
     .motorcycle-phone-preloader {
       position: absolute;
-      right: -22px;
-      top: 8px;
-      width: 30px;
-      height: 30px;
+      right: -17px;
+      top: 11px;
+      width: 23px;
+      height: 23px;
       pointer-events: none;
       opacity: 0;
       transform: translateZ(0) scale(1);
@@ -532,28 +532,28 @@
 
     .motorcycle-phone-body {
       position: absolute;
-      inset: 7px 9px 6px 9px;
-      border: 2px solid rgba(184, 255, 40, 0.95);
-      border-radius: 5px;
+      inset: 6px 7px 5px 7px;
+      border: 1px solid rgba(184, 255, 40, 0.95);
+      border-radius: 4px;
       background: rgba(4, 12, 7, 0.88);
-      box-shadow: 0 0 10px rgba(184, 255, 40, 0.58);
+      box-shadow: 0 0 7px rgba(184, 255, 40, 0.5);
       animation: chaos-phone-vibrate 0.58s steps(2, end) infinite;
     }
 
     .motorcycle-phone-body::before {
       content: "";
       position: absolute;
-      left: 4px;
-      right: 4px;
-      top: 4px;
-      height: 2px;
+      left: 3px;
+      right: 3px;
+      top: 3px;
+      height: 1px;
       background: rgba(38, 255, 106, 0.82);
     }
 
     .motorcycle-phone-ring {
       position: absolute;
       inset: 0;
-      border: 2px solid rgba(38, 255, 106, 0.72);
+      border: 1px solid rgba(38, 255, 106, 0.72);
       border-left-color: transparent;
       border-bottom-color: transparent;
       border-radius: 50%;
@@ -563,7 +563,7 @@
 
     .motorcycle-phone-ring:nth-child(2) {
       animation-delay: 0.18s;
-      inset: -5px;
+      inset: -4px;
     }
 
     @keyframes chaos-phone-vibrate {
@@ -3679,6 +3679,151 @@
             };
         }
 
+        function getTravelRangeMeters() {
+            const profile = window.profileData || {};
+            const level = Math.max(1, Number(profile.level) || 1);
+            const bonus = Math.max(0, Number(profile.scan_range_bonus) || 0);
+            return Math.min(4000, Math.round(300 * Math.sqrt(level)) + bonus);
+        }
+
+        function getTravelDistanceMeters(from = {}, to = {}) {
+            const fromLat = Number(from.lat);
+            const fromLng = Number(from.lng !== undefined ? from.lng : from.lon);
+            const toLat = Number(to.lat);
+            const toLng = Number(to.lng !== undefined ? to.lng : to.lon);
+            if (![fromLat, fromLng, toLat, toLng].every(Number.isFinite)) return Infinity;
+            const earthRadius = 6371000;
+            const toRad = value => value * Math.PI / 180;
+            const dLat = toRad(toLat - fromLat);
+            const dLng = toRad(toLng - fromLng);
+            const a = Math.sin(dLat / 2) ** 2
+                + Math.cos(toRad(fromLat)) * Math.cos(toRad(toLat)) * Math.sin(dLng / 2) ** 2;
+            return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        function shouldPlanTravelLocally() {
+            const state = window.motorcycleTravelState;
+            return Boolean(state && (state.animating || state.queue.length > 0));
+        }
+
+        function getMotorcyclePlannedPosition() {
+            const state = window.motorcycleTravelState;
+            if (state && state.queue.length) {
+                const lastQueued = state.queue[state.queue.length - 1];
+                return { lat: lastQueued.lat, lng: lastQueued.lng };
+            }
+            if (state && state.lastPlannedPoint) {
+                return { lat: state.lastPlannedPoint.lat, lng: state.lastPlannedPoint.lng };
+            }
+            return getAvatarVisualPosition();
+        }
+
+        function scheduleMotorcycleTravelCommit(point = {}) {
+            const state = window.motorcycleTravelState;
+            if (!state) return false;
+            const lat = Number(point.lat);
+            const lng = Number(point.lng !== undefined ? point.lng : point.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+            state.pendingBackendTravelCommit = {
+                lat,
+                lng,
+                label: point.label || "Cel podrozy",
+                icon: point.icon || "target",
+                source_type: point.source_type || "map_travel_local",
+                name: point.name || point.label || "Cel podrozy",
+                generated: Boolean(point.generated),
+                route_waypoints: Array.isArray(state.pendingRouteWaypoints)
+                    ? state.pendingRouteWaypoints.map(item => ({ lat: item.lat, lng: item.lng }))
+                    : []
+            };
+            return true;
+        }
+
+        async function flushMotorcycleTravelCommit() {
+            const state = window.motorcycleTravelState;
+            if (!state || state.pendingBackendTravelCommitInFlight || !state.pendingBackendTravelCommit) return false;
+            const commit = state.pendingBackendTravelCommit;
+            state.pendingBackendTravelCommit = null;
+            state.pendingRouteWaypoints = [];
+            state.pendingBackendTravelCommitInFlight = true;
+            try {
+                const res = await fetch('/map-action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'travel',
+                        lat: commit.lat,
+                        lng: commit.lng,
+                        label: commit.label,
+                        icon: commit.icon,
+                        source_type: commit.source_type,
+                        name: commit.name,
+                        generated: commit.generated,
+                        route_commit: true,
+                        route_waypoints: commit.route_waypoints
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok || data.status === 'too_far') {
+                    console.warn('[travel] final route commit rejected', data);
+                    return false;
+                }
+                const position = data.curently_possition || data.current_position || { lat: commit.lat, lng: commit.lng };
+                if (typeof window.setMotorcyclePositionFromSnapshot === 'function') {
+                    window.setMotorcyclePositionFromSnapshot({
+                        lat: position.lat,
+                        lng: position.lng,
+                        source: 'map_travel',
+                        position_version: data.position_version,
+                        position_updated_at: data.position_updated_at
+                    }, { authoritative: true });
+                }
+                return true;
+            } catch (err) {
+                console.warn('[travel] final route commit failed', err);
+                state.pendingBackendTravelCommit = commit;
+                return false;
+            } finally {
+                state.pendingBackendTravelCommitInFlight = false;
+            }
+        }
+
+        function planMotorcycleTravelLocally(lat, lng, label, icon, sourceType, name, generated) {
+            const state = window.motorcycleTravelState;
+            if (!state || typeof window.enqueueMotorcycleTravelPoint !== 'function') return null;
+            const from = getMotorcyclePlannedPosition();
+            const to = { lat: Number(lat), lng: Number(lng) };
+            const range = getTravelRangeMeters();
+            const distance = getTravelDistanceMeters(from, to);
+            if (!Number.isFinite(distance) || distance > range) {
+                if (typeof window.hideMotorcycleTravelPhone === 'function') {
+                    window.hideMotorcycleTravelPhone("local_range_rejected");
+                }
+                addSystemMessage("warning", "Podroz", `Cel poza zasiegiem motocykla: ${Math.round(range)} m.`);
+                return { status: "too_far", message: "Cel poza lokalnym zasiegiem motocykla." };
+            }
+            const waypoint = {
+                travel_id: `travel-local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                lat: to.lat,
+                lng: to.lng,
+                source: 'map_travel_local',
+                local_planned: true
+            };
+            state.pendingRouteWaypoints = Array.isArray(state.pendingRouteWaypoints)
+                ? state.pendingRouteWaypoints
+                : [];
+            state.pendingRouteWaypoints.push({ lat: to.lat, lng: to.lng });
+            const queued = window.enqueueMotorcycleTravelPoint(waypoint, { localPlanned: true });
+            if (!queued) return null;
+            scheduleMotorcycleTravelCommit({ lat: to.lat, lng: to.lng, label, icon, source_type: sourceType, name, generated });
+            return {
+                status: `Dodano punkt trasy: (${to.lat}, ${to.lng})`,
+                local_route: true,
+                distance_m: Math.round(distance),
+                action_range_m: range
+            };
+        }
+
         async function mapAction(action, lat, lng, label = "Oznaczony cel", icon = "🎯", sourceType = "manual", name = label, generated = false) {
             const finishScanEffect = action === 'scan'
                 ? beginMapScanEffect('Skanowanie mapy')
@@ -3698,6 +3843,9 @@
                             allowDuringMotion: true,
                             timeoutMs: 45000
                         });
+                    }
+                    if (shouldPlanTravelLocally()) {
+                        return planMotorcycleTravelLocally(lat, lng, label, icon, sourceType, name, generated);
                     }
                 }
                 const res = await fetch('/map-action', {
@@ -4056,7 +4204,11 @@
             lastTravelId: "",
             travelPhoneVisible: false,
             travelPhoneId: "",
-            travelPhoneTimer: null
+            travelPhoneTimer: null,
+            lastPlannedPoint: null,
+            pendingRouteWaypoints: [],
+            pendingBackendTravelCommit: null,
+            pendingBackendTravelCommitInFlight: false
         };
 
         function refreshMotorcycleMarkerIcon(direction) {
@@ -4115,13 +4267,14 @@
                 order: Number(point.order) || Date.now(),
                 created_at: point.created_at || new Date().toISOString(),
                 source: String(point.source || "runtime"),
+                local_planned: Boolean(point.local_planned),
                 position_version: Number(point.position_version) || 0,
                 position_updated_at: point.position_updated_at || ""
             };
         }
 
         function isAuthoritativeMotorcycleSource(source) {
-            return ["teleport", "terminal", "blacknet", "victim_picker", "territory_control", "map_travel"].includes(String(source || ""));
+            return ["teleport", "terminal", "blacknet", "victim_picker", "territory_control", "map_travel", "map_travel_local"].includes(String(source || ""));
         }
 
         function applyMotorcycleLogicalPosition(point) {
@@ -4134,6 +4287,7 @@
             state.lastConfirmedVersion = normalized.position_version || state.lastConfirmedVersion || 0;
             state.lastConfirmedUpdatedAt = normalized.position_updated_at || state.lastConfirmedUpdatedAt || "";
             state.lastTravelId = normalized.travel_id;
+            state.lastPlannedPoint = normalized;
             window.profileData = window.profileData || {};
             window.profileData.curently_possition = { lat: normalized.lat, lng: normalized.lng };
             window.profileData.current_position = { lat: normalized.lat, lng: normalized.lng };
@@ -4186,18 +4340,21 @@
             } finally {
                 hideMotorcycleTravelPhone("queue_done");
                 state.animating = false;
+                if (!state.queue.length) {
+                    flushMotorcycleTravelCommit();
+                }
                 if (state.queue.length) {
                     processMotorcycleTravelQueue();
                 }
             }
         }
 
-        window.enqueueMotorcycleTravelPoint = function(point = {}) {
+        window.enqueueMotorcycleTravelPoint = function(point = {}, options = {}) {
             const normalized = applyMotorcycleLogicalPosition(point);
             if (!normalized) return false;
             const state = window.motorcycleTravelState;
             const idleBeforeQueue = !state.animating && state.queue.length === 0;
-            if (idleBeforeQueue) {
+            if (idleBeforeQueue && !options.localPlanned) {
                 showMotorcycleTravelPhone(normalized);
             }
             window.motorcycleTravelState.queue.push(normalized);
