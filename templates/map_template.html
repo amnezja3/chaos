@@ -506,9 +506,12 @@
     }
 
     .motorcycle-avatar-bike {
-      width: 48px;
-      height: auto;
+      width: 48px !important;
+      max-width: 48px !important;
+      height: auto !important;
+      max-height: 48px !important;
       display: block;
+      object-fit: contain;
     }
 
     .motorcycle-phone-preloader {
@@ -3959,7 +3962,7 @@
                 html: `
                     <div class="motorcycle-avatar-shell ${showTravelPhone ? 'is-travel-waiting' : ''}">
                         <span class="motorcycle-avatar-name">${riderName}</span>
-                        <img class="motorcycle-avatar-bike" src="${src}" alt="scigacz">
+                        <img class="motorcycle-avatar-bike" src="${src}" alt="scigacz" style="width: 48px; max-width: 48px; height: auto; max-height: 48px;">
                         <span class="motorcycle-phone-preloader" aria-hidden="true">
                             <span class="motorcycle-phone-ring"></span>
                             <span class="motorcycle-phone-ring"></span>
