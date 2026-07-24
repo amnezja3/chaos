@@ -5822,6 +5822,14 @@ def app_flow_debug(flow_id, step, started_at=None, **fields):
     backend_debug_log(f"[APP_FLOW_BE {flow_id or '-'}] step={step} " + " ".join(parts))
 
 
+def app_flow_debug_timed(flow_id, step, flow_started_at, step_started_at, **fields):
+    try:
+        fields["step_ms"] = int((time.perf_counter() - step_started_at) * 1000)
+    except Exception:
+        pass
+    app_flow_debug(flow_id, step, started_at=flow_started_at, **fields)
+
+
 def build_operation_instance(username, app, map_action_id, operation_type, target):
     now = datetime.now(timezone.utc)
     operation_id = f"op_{now.strftime('%Y%m%d%H%M%S')}_{randint(100000, 999999)}"
@@ -16586,12 +16594,21 @@ def hack_action():
         new_apps=new_apps,
         launch_queue=list(profile.get("launch_queue", [])),
     )
+    step_started_at = time.perf_counter()
     security_template = resources_store.get(
         "user_security",
         default={}
     )
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_security_template_loaded",
+        app_flow_started_at,
+        step_started_at,
+        keys=len(security_template or {}),
+    )
 
     previous_target = profile.get("aimed_target", {})
+    step_started_at = time.perf_counter()
     try:
         same_coords = (
             round(float(previous_target.get("lat")), 6) == round(float(lat), 6)
@@ -16687,12 +16704,34 @@ def hack_action():
 
         profile["aimed_target"] = aimed_target
 
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_target_state_prepared",
+        app_flow_started_at,
+        step_started_at,
+        same_target=same_target,
+        target_mode=(profile.get("aimed_target") or {}).get("target_mode"),
+        target_id=build_operation_target_id(profile.get("aimed_target") or {}),
+        allowed=(profile.get("aimed_target") or {}).get("actions_allowed"),
+    )
+
+    step_started_at = time.perf_counter()
     created_operations = create_operations_for_app_action(
         profile,
         session["user"],
         matched_apps[0] if matched_apps else {},
         action,
         profile["aimed_target"]
+    )
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_create_operations_done",
+        app_flow_started_at,
+        step_started_at,
+        action=action,
+        count=len(created_operations or []),
+        ids=[op.get("operation_id") for op in created_operations or [] if isinstance(op, dict)],
+        operations_total=len(profile.get("operations", [])),
     )
     hack_flow_debug(
         flow_id,
@@ -16705,6 +16744,7 @@ def hack_action():
     )
 
     if action == "scan_ports":
+        step_started_at = time.perf_counter()
         append_risk_event(
             profile,
             "suspicious_network_activity",
@@ -16720,10 +16760,28 @@ def hack_action():
             action=action,
             dedupe_key=risk_scan_action_dedupe_key(session["user"], action, lat, lng),
         )
+        app_flow_debug_timed(
+            flow_id,
+            "hack_action_risk_event_appended",
+            app_flow_started_at,
+            step_started_at,
+            action=action,
+            risk_events=len(profile.get("risk_events", [])),
+        )
 
     # Zapisz
+    step_started_at = time.perf_counter()
     merge_latest_aimed_target_runtime_state(profile, session.get("user"))
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_merge_latest_runtime_done",
+        app_flow_started_at,
+        step_started_at,
+        target_id=build_operation_target_id(profile.get("aimed_target") or {}),
+        allowed=(profile.get("aimed_target") or {}).get("actions_allowed"),
+    )
     session["profile"] = profile
+    step_started_at = time.perf_counter()
     set_player_aimed_target(
         session["user"],
         profile,
@@ -16736,7 +16794,25 @@ def hack_action():
         },
         reason="hack_action_target_set",
     )
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_set_player_aimed_target_done",
+        app_flow_started_at,
+        step_started_at,
+        target_id=build_operation_target_id(profile.get("aimed_target") or {}),
+        operations_total=len(profile.get("operations", [])),
+        queue_len=len(profile.get("launch_queue", [])),
+    )
+    step_started_at = time.perf_counter()
     accepted_created_operations = filter_accepted_created_operations(profile, created_operations)
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_filter_created_operations_done",
+        app_flow_started_at,
+        step_started_at,
+        created=len(created_operations or []),
+        accepted=len(accepted_created_operations or []),
+    )
     hack_flow_debug(
         flow_id,
         "after_persist",
@@ -16747,11 +16823,19 @@ def hack_action():
         operations_total=len(profile.get("operations", [])),
         accepted_created=[op.get("operation_id") for op in accepted_created_operations or [] if isinstance(op, dict)],
     )
+    step_started_at = time.perf_counter()
     record_map_target_delta(
         session["user"],
         profile.get("aimed_target") or {},
         change_type="map.target_updated",
         reason="hack_action_target_set",
+    )
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_record_map_target_delta_done",
+        app_flow_started_at,
+        step_started_at,
+        target_id=build_operation_target_id(profile.get("aimed_target") or {}),
     )
 
     response_payload = {
@@ -16792,7 +16876,15 @@ def hack_action():
         accepted_count=len(accepted_created_operations or []),
         key=hack_action_idempotency_key,
     )
+    step_started_at = time.perf_counter()
     finish_hack_action_idempotency(hack_action_idempotency_key, response_payload, 200)
+    app_flow_debug_timed(
+        flow_id,
+        "hack_action_finish_idempotency_done",
+        app_flow_started_at,
+        step_started_at,
+        key=hack_action_idempotency_key,
+    )
     return jsonify(response_payload)
 
 
@@ -20674,15 +20766,44 @@ def gonna_win():
     if not app:
         return jsonify({"success": False, "message": "Nie znaleziono aplikacji"}), 404
 
+    step_started_at = time.perf_counter()
     target_changed, marked_actions = apply_app_map_actions_to_aimed_target(profile, app, session.get("user"))
+    app_flow_debug_timed(
+        flow_id,
+        "gonna_win_apply_app_map_actions_done",
+        app_flow_started_at,
+        step_started_at,
+        app_id=app_id,
+        target_changed=target_changed,
+        marked_actions=marked_actions,
+    )
     created_operations = []
     if profile.get("aimed_target"):
+        step_started_at = time.perf_counter()
         merge_latest_aimed_target_runtime_state(profile, session.get("user"))
+        app_flow_debug_timed(
+            flow_id,
+            "gonna_win_merge_latest_runtime_done",
+            app_flow_started_at,
+            step_started_at,
+            target_id=build_operation_target_id(profile.get("aimed_target") or {}),
+            allowed=(profile.get("aimed_target") or {}).get("actions_allowed"),
+        )
+        step_started_at = time.perf_counter()
         created_operations = create_missing_operations_for_app_target(
             profile,
             session.get("user"),
             app,
             profile.get("aimed_target") or {},
+        )
+        app_flow_debug_timed(
+            flow_id,
+            "gonna_win_create_missing_operations_done",
+            app_flow_started_at,
+            step_started_at,
+            app_id=app_id,
+            created=[op.get("operation_id") for op in created_operations or [] if isinstance(op, dict)],
+            operations_total=len(profile.get("operations", [])),
         )
     app_flow_debug(
         flow_id,
@@ -20697,16 +20818,33 @@ def gonna_win():
     if operation_only:
         mgr = UserProfileManager(session["user"])
         session["profile"] = profile
+        step_started_at = time.perf_counter()
         mgr.update_profile({
             "aimed_target": profile.get("aimed_target", {}),
             "operations": profile.get("operations", []),
         })
+        app_flow_debug_timed(
+            flow_id,
+            "gonna_win_operation_only_profile_update_done",
+            app_flow_started_at,
+            step_started_at,
+            app_id=app_id,
+            operations_total=len(profile.get("operations", [])),
+        )
         if target_changed:
+            step_started_at = time.perf_counter()
             record_map_target_delta(
                 session["user"],
                 profile.get("aimed_target") or {},
                 change_type="map.target_updated",
                 reason="app_launch_operation_start",
+            )
+            app_flow_debug_timed(
+                flow_id,
+                "gonna_win_operation_only_delta_done",
+                app_flow_started_at,
+                step_started_at,
+                app_id=app_id,
             )
         app_flow_debug(
             flow_id,
@@ -20726,6 +20864,7 @@ def gonna_win():
 
     success = False
 
+    step_started_at = time.perf_counter()
     if choice_id is None:
         required_off = app.get("requires_off", [])
         all_off = all(target_sec.get(k) is False for k in required_off)
@@ -20747,28 +20886,64 @@ def gonna_win():
         except (IndexError, ValueError):
             return jsonify({"success": False, "message": "Nieprawidłowy choice_id"}), 400
 
+    app_flow_debug_timed(
+        flow_id,
+        "gonna_win_choice_effect_applied",
+        app_flow_started_at,
+        step_started_at,
+        app_id=app_id,
+        choice_id=choice_id,
+        success=success,
+        security_keys=len(target_sec or {}),
+    )
+
     # aktualizacja profilu
     profile["aimed_target"]["security"] = target_sec
+    step_started_at = time.perf_counter()
     merge_latest_aimed_target_runtime_state(profile, session.get("user"))
+    app_flow_debug_timed(
+        flow_id,
+        "gonna_win_security_merge_latest_runtime_done",
+        app_flow_started_at,
+        step_started_at,
+        target_id=build_operation_target_id(profile.get("aimed_target") or {}),
+        allowed=(profile.get("aimed_target") or {}).get("actions_allowed"),
+    )
     if profile.get("aimed_target"):
         try:
+            step_started_at = time.perf_counter()
             player_target_runtime_store.upsert_aimed(
                 session.get("user"),
                 profile.get("aimed_target") or {},
                 status="in_progress",
                 source="gonna_win_security_update",
             )
+            app_flow_debug_timed(
+                flow_id,
+                "gonna_win_target_runtime_upsert_done",
+                app_flow_started_at,
+                step_started_at,
+                target_id=build_operation_target_id(profile.get("aimed_target") or {}),
+            )
         except Exception as exc:
             print(f"[target runtime] security update failed user={session.get('user')} error={exc}", flush=True)
     if contest_owner_username and contest_owner_target:
         contest_owner_target["security"] = dict(target_sec)
         owner_mgr = UserProfileManager(contest_owner_username)
+        step_started_at = time.perf_counter()
         owner_mgr.update_hacked_target_by_coords(
             contest_owner_target.get("lat"),
             contest_owner_target.get("lng"),
             {"security": dict(target_sec)}
         )
         territory_store.save_captured_target(contest_owner_username, contest_owner_target)
+        app_flow_debug_timed(
+            flow_id,
+            "gonna_win_contest_owner_security_update_done",
+            app_flow_started_at,
+            step_started_at,
+            owner=contest_owner_username,
+        )
 
     # 📌 Weryfikacja: czy cel został skutecznie rozbrojony (>=70% wyłączonych + wszystkie actions_allowed)
     total = len(CRITICAL_SECURITY_KEYS)
@@ -20795,6 +20970,15 @@ def gonna_win():
     captured_target_response = None
 
     if percent_off >= 70 and all_actions_allowed:
+        app_flow_debug(
+            flow_id,
+            "gonna_win_capture_branch_enter",
+            started_at=app_flow_started_at,
+            app_id=app_id,
+            target_mode=target_mode,
+            percent_off=round(percent_off, 2),
+            allowed_actions=allowed_actions,
+        )
         if profile["aimed_target"].get("target_mode") == "player":
             victim_username = str(profile["aimed_target"].get("target_username") or profile["aimed_target"].get("username") or "").strip()
             if not victim_username or not user_store.get_profile(victim_username):
@@ -20821,11 +21005,19 @@ def gonna_win():
             profile["aimed_target"] = {}
             success = True
             session["profile"] = profile
+            step_started_at = time.perf_counter()
             mgr.update_profile({
                 "aimed_target": {},
                 "system_messages": profile.get("system_messages", []),
                 "operations": profile.get("operations", []),
             })
+            app_flow_debug_timed(
+                flow_id,
+                "gonna_win_player_access_profile_update_done",
+                app_flow_started_at,
+                step_started_at,
+                app_id=app_id,
+            )
             app_flow_debug(
                 flow_id,
                 "gonna_win_return_player_access",
@@ -20872,8 +21064,17 @@ def gonna_win():
         captured_target["stationary"] = not bool(captured_target.get("generated", False))
         if not captured_target.get("target_id"):
             captured_target["target_id"] = build_operation_target_id(captured_target)
+        step_started_at = time.perf_counter()
         captured_target = territory_store.save_captured_target(session["user"], captured_target)
+        app_flow_debug_timed(
+            flow_id,
+            "gonna_win_save_captured_target_done",
+            app_flow_started_at,
+            step_started_at,
+            target_id=build_operation_target_id(captured_target),
+        )
         captured_target_response = dict(captured_target)
+        step_started_at = time.perf_counter()
         safe_ghostnetwork_on_target_hacked(
             session["user"],
             profile,
@@ -20885,6 +21086,13 @@ def gonna_win():
                 "source": "gonna_win_capture",
             },
             reason="gonna_win_capture",
+        )
+        app_flow_debug_timed(
+            flow_id,
+            "gonna_win_ghostnetwork_hook_done",
+            app_flow_started_at,
+            step_started_at,
+            target_id=build_operation_target_id(captured_target_response),
         )
 
         hacked_targets = profile.setdefault("hacked", [])
@@ -20910,6 +21118,7 @@ def gonna_win():
 
         if contest_owner_username and contest_owner_username != session["user"]:
             owner_mgr = UserProfileManager(contest_owner_username)
+            step_started_at = time.perf_counter()
             removed_from_profile = owner_mgr.remove_from_list_by_coords(
                 "hacked",
                 captured_target.get("lat"),
@@ -20939,6 +21148,15 @@ def gonna_win():
                 "captured_targets_source": "sqlite",
             })
             clear_aimed_target_if_matches(contest_owner_username, captured_target)
+            app_flow_debug_timed(
+                flow_id,
+                "gonna_win_contest_owner_remove_target_done",
+                app_flow_started_at,
+                step_started_at,
+                owner=contest_owner_username,
+                removed_from_profile=removed_from_profile,
+                removed_from_store=removed_from_store,
+            )
 
         if vulnerability_report:
             vulnerability_store.set_status(vulnerability_report.get("id"), "hacked")
@@ -20984,19 +21202,37 @@ def gonna_win():
                     f"ID zgloszenia: {vulnerability_report.get('id')}"
                 )
             )
+        step_started_at = time.perf_counter()
         rebuilt_areas = rebuild_player_areas_with_territory_delta(
             session["user"],
             profile.get("level", 1),
             reason="pillar_captured",
         )
+        app_flow_debug_timed(
+            flow_id,
+            "gonna_win_rebuild_player_areas_done",
+            app_flow_started_at,
+            step_started_at,
+            user=session["user"],
+            areas=len(rebuilt_areas or []),
+        )
+        step_started_at = time.perf_counter()
         all_areas_after_capture = territory_store.list_player_areas()
         detect_territory_conflicts(
             actor_username=session["user"],
             source_event="pillar_captured",
             areas=all_areas_after_capture
         )
+        app_flow_debug_timed(
+            flow_id,
+            "gonna_win_detect_territory_conflicts_done",
+            app_flow_started_at,
+            step_started_at,
+            areas=len(all_areas_after_capture or []),
+        )
         if contest_owner_username and contest_owner_username != session["user"]:
             owner_profile = user_store.get_profile(contest_owner_username) or {}
+            step_started_at = time.perf_counter()
             owner_areas = rebuild_player_areas_with_territory_delta(
                 contest_owner_username,
                 owner_profile.get("level", 1),
@@ -21014,6 +21250,15 @@ def gonna_win():
                 actor_username=contest_owner_username,
                 source_event="pillar_lost",
                 areas=all_areas_after_owner_rebuild
+            )
+            app_flow_debug_timed(
+                flow_id,
+                "gonna_win_owner_rebuild_and_conflicts_done",
+                app_flow_started_at,
+                step_started_at,
+                owner=contest_owner_username,
+                owner_areas=len(owner_areas or []),
+                all_areas=len(all_areas_after_owner_rebuild or []),
             )
             attacker_name = profile.get("nick") or session["user"]
             target_label = display_target_label(captured_target)
@@ -21033,27 +21278,68 @@ def gonna_win():
                     f"Pozycja: {captured_target.get('lat')}, {captured_target.get('lng')}"
                 )
             )
+            step_started_at = time.perf_counter()
             rebuilt_areas = rebuild_player_areas_with_territory_delta(
                 session["user"],
                 profile.get("level", 1),
                 reason="pillar_captured_owner_rebuild",
             )
+            app_flow_debug_timed(
+                flow_id,
+                "gonna_win_attacker_rebuild_after_owner_done",
+                app_flow_started_at,
+                step_started_at,
+                user=session["user"],
+                areas=len(rebuilt_areas or []),
+            )
             profile["hacked"] = territory_store.list_captured_targets(session["user"])
             hacked_targets = profile["hacked"]
+        step_started_at = time.perf_counter()
         progression = apply_territory_progression(profile, rebuilt_areas)
+        app_flow_debug_timed(
+            flow_id,
+            "gonna_win_apply_territory_progression_done",
+            app_flow_started_at,
+            step_started_at,
+            levels_gained=(progression or {}).get("levels_gained"),
+        )
         if progression["levels_gained"]:
+            step_started_at = time.perf_counter()
             rebuilt_areas = rebuild_player_areas_with_territory_delta(
                 session["user"],
                 profile.get("level", 1),
                 reason="territory_progression",
             )
+            app_flow_debug_timed(
+                flow_id,
+                "gonna_win_rebuild_after_progression_done",
+                app_flow_started_at,
+                step_started_at,
+                user=session["user"],
+                areas=len(rebuilt_areas or []),
+            )
+        step_started_at = time.perf_counter()
         notify_encircled_area_owners()
+        app_flow_debug_timed(
+            flow_id,
+            "gonna_win_notify_encircled_done",
+            app_flow_started_at,
+            step_started_at,
+        )
 
         try:
+            step_started_at = time.perf_counter()
             player_target_runtime_store.mark_captured(
                 session["user"],
                 captured_target_response or captured_target,
                 source="gonna_win_capture",
+            )
+            app_flow_debug_timed(
+                flow_id,
+                "gonna_win_target_runtime_mark_captured_done",
+                app_flow_started_at,
+                step_started_at,
+                target_id=build_operation_target_id(captured_target_response or captured_target),
             )
         except Exception as exc:
             print(f"[target runtime] capture mark failed user={session.get('user')} error={exc}", flush=True)
@@ -21061,6 +21347,7 @@ def gonna_win():
         success = True
         session["profile"] = profile
 
+        step_started_at = time.perf_counter()
         mgr.update_profile({
             "hacked": hacked_targets,
             "targets": profile.get("targets", []),
@@ -21073,17 +21360,42 @@ def gonna_win():
             "system_messages": profile["system_messages"],
             "operations": profile.get("operations", []),
         })
+        app_flow_debug_timed(
+            flow_id,
+            "gonna_win_capture_profile_update_done",
+            app_flow_started_at,
+            step_started_at,
+            hacked=len(hacked_targets or []),
+            operations_total=len(profile.get("operations", [])),
+        )
+        step_started_at = time.perf_counter()
         record_map_target_delta(
             session["user"],
             captured_target_response or captured_target,
             change_type="map.target_captured",
             reason="gonna_win_capture",
         )
+        app_flow_debug_timed(
+            flow_id,
+            "gonna_win_capture_delta_done",
+            app_flow_started_at,
+            step_started_at,
+            target_id=build_operation_target_id(captured_target_response or captured_target),
+        )
     else:
+        step_started_at = time.perf_counter()
         mgr.update_profile({
             "aimed_target": profile["aimed_target"],
             "operations": profile.get("operations", []),
         })
+        app_flow_debug_timed(
+            flow_id,
+            "gonna_win_partial_profile_update_done",
+            app_flow_started_at,
+            step_started_at,
+            target_id=build_operation_target_id(profile.get("aimed_target") or {}),
+            operations_total=len(profile.get("operations", [])),
+        )
 
     app_flow_debug(
         flow_id,
