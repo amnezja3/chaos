@@ -3060,7 +3060,24 @@
         }
 
 
-        window.MAP_ACTION_DEBUG = window.MAP_ACTION_DEBUG !== false;
+        window.MAP_ACTION_DEBUG = window.MAP_ACTION_DEBUG === true;
+        function appFlowTrace(flowId, step, details = {}) {
+            const key = flowId || window.__lastHackFlowId || "manual";
+            try {
+                const parentTrace = window.parent && window.parent !== window
+                    ? window.parent.appFlowTrace
+                    : null;
+                if (typeof parentTrace === "function") {
+                    parentTrace(key, step, details);
+                    return;
+                }
+            } catch (_err) {}
+            if (window.APP_FLOW_TRACE === false) return;
+            console.info(`[APP_FLOW ${key}] ${step}`, {
+                ...details,
+                ts: new Date().toISOString()
+            });
+        }
         function mapActionDebug(flowId, step, details = {}) {
             if (!window.MAP_ACTION_DEBUG) return;
             const payload = {
@@ -3103,6 +3120,15 @@
             closeMenus();
             const hackFlowId = `hf-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
             window.__lastHackFlowId = hackFlowId;
+            appFlowTrace(hackFlowId, "map_action_click", {
+                action,
+                lat,
+                lng,
+                label,
+                source_type,
+                target_mode,
+                hackActionKey
+            });
             mapActionDebug(hackFlowId, 'request_start', {
                 action,
                 lat,
@@ -3117,11 +3143,13 @@
             });
             if (typeof window.startHackActionSpinner === 'function') {
                 window.startHackActionSpinner(hackFlowId, { action, lat, lng, label });
+                appFlowTrace(hackFlowId, "map_action_spinner_started", { action, label });
             }
             if (typeof window.pauseMapOptionalRefresh === 'function') {
                 window.pauseMapOptionalRefresh('hack_action');
             }
 
+            const hackActionStartedAt = performance.now();
             fetch('/hack-action', {
                 method: 'POST',
                 headers: {
@@ -3149,6 +3177,16 @@
             })
             .then(async res => {
                 const data = await res.json();
+                appFlowTrace(hackFlowId, "map_hack_action_response", {
+                    action,
+                    status: res.status,
+                    elapsed_ms: Math.round(performance.now() - hackActionStartedAt),
+                    blocked: Boolean(data.blocked),
+                    duplicate: Boolean(data.duplicate),
+                    tool_selection_required: Boolean(data.tool_selection_required),
+                    added_apps: data.added_apps || [],
+                    created_operations: (data.created_operations || []).map(op => op && op.operation_id)
+                });
                 mapActionDebug(hackFlowId, 'response', {
                     status: res.status,
                     ok: res.ok,
@@ -3176,6 +3214,10 @@
                 }
                 if (data.tool_selection_required) {
                     releaseHackActionKeyDelayMs = 12000;
+                    appFlowTrace(hackFlowId, "map_tool_picker_requested", {
+                        action,
+                        matching_apps: (data.matching_apps || []).map(app => app && (app.id || app.name))
+                    });
                     mapActionDebug(hackFlowId, 'open_tool_selection', {
                         matching_apps: (data.matching_apps || []).map(app => app && (app.id || app.name)),
                         pending_action: data.pending_action || null
@@ -4863,10 +4905,10 @@
 
             window.responseNpcDebug = function(message, payload = {}) {
                 try {
-                    if (window.localStorage && window.localStorage.getItem('chaos_response_npc_debug') === '0') return;
+                    if (!window.localStorage || window.localStorage.getItem('chaos_response_npc_debug') !== '1') return;
                     console.info('[response npc]', message, payload);
                 } catch (err) {
-                    console.info('[response npc]', message, payload);
+                    return;
                 }
             };
 

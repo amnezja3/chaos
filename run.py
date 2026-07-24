@@ -5737,7 +5737,8 @@ def finish_hack_action_idempotency(key, payload, status_code=200):
         )
 
 
-HACK_FLOW_DEBUG_ENABLED = os.environ.get("CHAOS_HACK_FLOW_DEBUG", "1").strip().lower() not in {"0", "false", "no", "off"}
+HACK_FLOW_DEBUG_ENABLED = os.environ.get("CHAOS_HACK_FLOW_DEBUG", "0").strip().lower() not in {"0", "false", "no", "off"}
+APP_FLOW_DEBUG_ENABLED = os.environ.get("CHAOS_APP_FLOW_DEBUG", "1").strip().lower() not in {"0", "false", "no", "off"}
 
 
 def hack_flow_debug(flow_id, step, **fields):
@@ -5759,6 +5760,32 @@ def hack_flow_debug(flow_id, step, **fields):
             value = str(value)[:220]
         parts.append(f"{key}={value}")
     print(f"[HACK_FLOW_DEBUG {flow_id or '-'}] step={step} " + " ".join(parts), flush=True)
+
+
+def app_flow_debug(flow_id, step, started_at=None, **fields):
+    if not APP_FLOW_DEBUG_ENABLED:
+        return
+    safe_fields = {
+        "pid": os.getpid(),
+        "thread": threading.get_ident(),
+    }
+    if started_at is not None:
+        try:
+            safe_fields["elapsed_ms"] = int((time.perf_counter() - started_at) * 1000)
+        except Exception:
+            pass
+    safe_fields.update(fields)
+    parts = []
+    for key, value in safe_fields.items():
+        if isinstance(value, (dict, list, tuple, set)):
+            try:
+                value = json.dumps(value, ensure_ascii=False, sort_keys=True)[:700]
+            except Exception:
+                value = repr(value)[:700]
+        else:
+            value = str(value)[:220]
+        parts.append(f"{key}={value}")
+    print(f"[APP_FLOW_BE {flow_id or '-'}] step={step} " + " ".join(parts), flush=True)
 
 
 def build_operation_instance(username, app, map_action_id, operation_type, target):
@@ -15896,6 +15923,7 @@ def map_action():
 
 @app.route('/hack-action', methods=['POST'])
 def hack_action():
+    app_flow_started_at = time.perf_counter()
     data = request.get_json() or {}
     action = data['action']
     canonical_action = HACK_ACTION_STEP_ALIASES.get(action, action)
@@ -15941,6 +15969,17 @@ def hack_action():
         lng=lng,
         label=label,
         target_mode=requested_target_mode,
+    )
+    app_flow_debug(
+        flow_id,
+        "hack_action_start",
+        started_at=app_flow_started_at,
+        user=session.get("user"),
+        action=action,
+        selected=bool(selected_app_id),
+        selected_app_id=selected_app_id,
+        client_key=client_action_key,
+        label=label,
     )
 
     if not selected_app_id:
@@ -16084,6 +16123,14 @@ def hack_action():
             }), 409
 
         if len(preflight_matched_apps) > 1:
+            app_flow_debug(
+                flow_id,
+                "hack_action_return_tool_selection_preflight",
+                started_at=app_flow_started_at,
+                action=action,
+                matched=len(preflight_matched_apps),
+                apps=[app.get("id") or app.get("name") for app in preflight_matched_apps],
+            )
             hack_flow_debug(
                 flow_id,
                 "return_tool_selection_preflight",
@@ -16326,6 +16373,14 @@ def hack_action():
             }), 400
         matched_apps = [selected_app]
     elif len(matched_apps) > 1:
+        app_flow_debug(
+            flow_id,
+            "hack_action_return_tool_selection_full",
+            started_at=app_flow_started_at,
+            action=action,
+            matched=len(matched_apps),
+            apps=[app.get("id") or app.get("name") for app in matched_apps],
+        )
         hack_flow_debug(
             flow_id,
             "return_tool_selection_full",
@@ -16462,6 +16517,15 @@ def hack_action():
         profile["launch_queue"] = []
     new_apps = [app["name"] for app in matched_apps if app["name"] not in profile["launch_queue"]]
     profile["launch_queue"].extend(new_apps)
+    app_flow_debug(
+        flow_id,
+        "hack_action_launch_queue_append",
+        started_at=app_flow_started_at,
+        action=action,
+        selected_app_id=selected_app_id,
+        new_apps=new_apps,
+        launch_queue=list(profile.get("launch_queue", [])),
+    )
     hack_flow_debug(
         flow_id,
         "launch_queue_append",
@@ -16657,6 +16721,16 @@ def hack_action():
             "accepted_operation_ids": [op.get("operation_id") for op in accepted_created_operations or [] if isinstance(op, dict)],
         }
     }
+    app_flow_debug(
+        flow_id,
+        "hack_action_return_success",
+        started_at=app_flow_started_at,
+        action=action,
+        selected_app_id=selected_app_id,
+        new_apps=new_apps,
+        accepted_count=len(accepted_created_operations or []),
+        target_id=build_operation_target_id(profile.get("aimed_target") or {}),
+    )
     hack_flow_debug(
         flow_id,
         "return_success",
@@ -20489,10 +20563,21 @@ def launch_queue():
 
 @app.route('/gonna-win', methods=['POST'])
 def gonna_win():
+    app_flow_started_at = time.perf_counter()
     data = request.get_json(silent=True) or {}
     app_id = data.get("app_id")
     choice_id = data.get("choice_id", None)
     operation_only = bool(data.get("operation_only"))
+    flow_id = str(data.get("_flow_id") or request.headers.get("X-Hack-Flow-Id") or "")[:96]
+    app_flow_debug(
+        flow_id,
+        "gonna_win_start",
+        started_at=app_flow_started_at,
+        user=session.get("user"),
+        app_id=app_id,
+        choice_id=choice_id,
+        operation_only=operation_only,
+    )
 
     CRITICAL_SECURITY_KEYS = [
         "stealth_mode", "scan_detection", "exploit_protection", "vpn_enabled",
@@ -20507,6 +20592,13 @@ def gonna_win():
     # ] # DEV LISTA
 
     profile = sync_session_profile()
+    app_flow_debug(
+        flow_id,
+        "gonna_win_sync_session_profile",
+        started_at=app_flow_started_at,
+        has_profile=bool(profile),
+        has_target=bool(profile and profile.get("aimed_target")),
+    )
     if not profile or "aimed_target" not in profile:
         return jsonify({"success": False, "message": "Brak celu"}), 400
 
@@ -20541,6 +20633,15 @@ def gonna_win():
             app,
             profile.get("aimed_target") or {},
         )
+    app_flow_debug(
+        flow_id,
+        "gonna_win_map_runtime_applied",
+        started_at=app_flow_started_at,
+        app_id=app_id,
+        target_changed=target_changed,
+        marked_actions=marked_actions,
+        created_operations=[op.get("operation_id") for op in created_operations or [] if isinstance(op, dict)],
+    )
 
     if operation_only:
         mgr = UserProfileManager(session["user"])
@@ -20556,6 +20657,14 @@ def gonna_win():
                 change_type="map.target_updated",
                 reason="app_launch_operation_start",
             )
+        app_flow_debug(
+            flow_id,
+            "gonna_win_return_operation_only",
+            started_at=app_flow_started_at,
+            app_id=app_id,
+            target_changed=target_changed,
+            created_count=len(created_operations or []),
+        )
         return jsonify({
             "success": True,
             "operation_only": True,
@@ -20666,6 +20775,14 @@ def gonna_win():
                 "system_messages": profile.get("system_messages", []),
                 "operations": profile.get("operations", []),
             })
+            app_flow_debug(
+                flow_id,
+                "gonna_win_return_player_access",
+                started_at=app_flow_started_at,
+                app_id=app_id,
+                choice_id=choice_id,
+                percent_off=round(percent_off, 2),
+            )
             return jsonify({
                 "success": True,
                 "percent_off": round(percent_off, 2),
@@ -20917,7 +21034,18 @@ def gonna_win():
             "operations": profile.get("operations", []),
         })
 
-
+    app_flow_debug(
+        flow_id,
+        "gonna_win_return",
+        started_at=app_flow_started_at,
+        app_id=app_id,
+        choice_id=choice_id,
+        success=success,
+        percent_off=round(percent_off, 2),
+        captured=bool(captured_target_response),
+        target_present=bool(profile.get("aimed_target")),
+        created_count=len(created_operations or []),
+    )
     return jsonify({
         "success": success,
         "percent_off": round(percent_off, 2),

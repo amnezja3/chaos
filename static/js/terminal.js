@@ -29,6 +29,37 @@ const STATE_DELTA_LIMIT = 100;
 const STATE_DELTA_DEFAULT_RECOVERY_SCOPES = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map", "territory", "incident", "ghostnetwork"];
 const CYBERNER_THREAD_REFRESH_INTERVAL_MS = 10000;
 const APP_TERMINAL_AUTO_CLOSE_MS = 30000;
+window.APP_FLOW_TRACE = window.APP_FLOW_TRACE !== false;
+window.HACK_FLOW_DEBUG = window.HACK_FLOW_DEBUG === true;
+window.BLACKNET_CTA_DEBUG = window.BLACKNET_CTA_DEBUG === true;
+window.__appFlowTraceState = window.__appFlowTraceState || new Map();
+
+function getCurrentAppFlowId(fallback = "") {
+    return String(fallback || window.__lastHackFlowId || "manual").trim() || "manual";
+}
+
+function appFlowTrace(flowId, step, details = {}) {
+    if (!window.APP_FLOW_TRACE) return;
+    const key = getCurrentAppFlowId(flowId);
+    const now = performance.now();
+    let state = window.__appFlowTraceState.get(key);
+    if (!state) {
+        state = { start: now, last: now };
+        window.__appFlowTraceState.set(key, state);
+    }
+    const deltaMs = Math.round(now - state.last);
+    const totalMs = Math.round(now - state.start);
+    state.last = now;
+    const payload = {
+        ...details,
+        delta_ms: deltaMs,
+        total_ms: totalMs,
+        ts: new Date().toISOString()
+    };
+    console.info(`[APP_FLOW ${key}] ${step} +${deltaMs}ms total=${totalMs}ms`, payload);
+}
+
+window.appFlowTrace = appFlowTrace;
 const DESKTOP_WALLPAPER_CLASSES = [
     "wall-1", "wall-2", "wall-3",
     "wall-chaos-green", "wall-chaos-blue", "wall-chaos-red", "wall-chaos-amber", "wall-chaos-violet"
@@ -1216,6 +1247,7 @@ function beginApplicationWindowLaunch(id, type) {
                 interface: type,
                 key
             });
+            appFlowTrace("", "app_launch_skip_existing_window", { app_id: id, interface: type, key });
             return false;
         }
     }
@@ -1230,6 +1262,7 @@ function beginApplicationWindowLaunch(id, type) {
             interface: type,
             key
         });
+        appFlowTrace("", "app_launch_skip_recent", { app_id: id, interface: type, key });
         return false;
     }
     recentApplicationWindowLaunches.set(key, now + APP_WINDOW_LAUNCH_DEDUPE_MS);
@@ -1239,6 +1272,11 @@ function beginApplicationWindowLaunch(id, type) {
         key,
         stack: (new Error().stack || "").split("\n").slice(2, 7)
     });
+    appFlowTrace("", "app_launch_open", {
+        app_id: id,
+        interface: type,
+        key
+    });
     return true;
 }
 
@@ -1247,6 +1285,13 @@ function launchApplicationEffect(appData) {
     const id = appData.id;
     const levels = appData.levels;
     const type = appData.interface;
+    const flowId = getCurrentAppFlowId(appData._flow_id || appData.flow_id || appData.debug_flow?.flow_id || "");
+    window.__lastHackFlowId = flowId;
+    appFlowTrace(flowId, "launch_application_effect", {
+        app_id: id,
+        app_name: appData.name || "",
+        interface: type
+    });
     notifyAppMapOperationStarted(appData);
     if (type === "window") app_window(id, levels);
     else if (type === "progressbar_random") app_progressbar_random(id, levels);
@@ -1259,6 +1304,12 @@ function launchApplicationEffect(appData) {
 function scheduleOperationalAppAutoClose(appWindow) {
     if (!appWindow || !appWindow.isConnected || appWindow.dataset.autoCloseScheduled === "1") return;
     appWindow.dataset.autoCloseScheduled = "1";
+    const flowId = getCurrentAppFlowId(appWindow.dataset.appFlowId || "");
+    appFlowTrace(flowId, "app_auto_close_scheduled", {
+        app_id: appWindow.dataset.appId || "",
+        interface: appWindow.dataset.appInterface || "",
+        timeout_ms: APP_TERMINAL_AUTO_CLOSE_MS
+    });
 
     const content = appWindow.querySelector('.app-content');
     if (content && !content.querySelector('.app-auto-close-notice')) {
@@ -1270,6 +1321,10 @@ function scheduleOperationalAppAutoClose(appWindow) {
 
     window.setTimeout(() => {
         if (!appWindow.isConnected) return;
+        appFlowTrace(flowId, "app_auto_closed", {
+            app_id: appWindow.dataset.appId || "",
+            interface: appWindow.dataset.appInterface || ""
+        });
         appWindow.remove();
         if (typeof renderRunningApps === "function") {
             renderRunningApps();
@@ -2181,6 +2236,8 @@ function openSystemLogReaderApp(payload = {}) {
     document.body.appendChild(app);
     makeDraggable(app);
     app.querySelector('.close-btn').addEventListener('click', () => app.remove());
+    appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "progressbar_random" });
+    appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "window" });
     renderSystemLogReaderLogs(app.querySelector('.system-log-reader-list'), payload);
 }
 
@@ -2224,6 +2281,7 @@ function openFinancialSnifferApp(payload = {}) {
     document.body.appendChild(app);
     makeDraggable(app);
     app.querySelector('.close-btn').addEventListener('click', () => app.remove());
+    appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "terminal" });
     renderFinancialSnifferResult(app.querySelector('.financial-sniffer-content'), payload);
 }
 
@@ -3064,6 +3122,9 @@ function app_window(id, levels) {
     const app = document.createElement('div');
     app.className = 'app-window';
     app.dataset.launchKey = buildApplicationWindowLaunchKey(id, "window");
+    app.dataset.appFlowId = getCurrentAppFlowId();
+    app.dataset.appId = id;
+    app.dataset.appInterface = "window";
     const position = findAvailablePosition();
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -3096,6 +3157,12 @@ function app_window(id, levels) {
             if (btn.disabled || btn.classList.contains("is-loading")) return;
             const action = btn.dataset.action;
             const label = btn.dataset.label;
+            appFlowTrace(app.dataset.appFlowId, "app_option_click", {
+                app_id: id,
+                interface: "window",
+                choice_id: action,
+                label
+            });
             setAppButtonGroupPending(buttons, btn, true);
             try {
                 const response = await sendGonnaWinRequest(id, action);
@@ -3105,6 +3172,11 @@ function app_window(id, levels) {
                 resultBox.textContent = success ? "\u2714 Sukces!" : "\u2716 Niepowodzenie.";
                 resultBox.style.color = success ? "#0f0" : "#f33";
                 if (success) {
+                    appFlowTrace(app.dataset.appFlowId, "app_option_success", {
+                        app_id: id,
+                        interface: "window",
+                        choice_id: action
+                    });
                     scheduleOperationalAppAutoClose(app);
                 }
             } finally {
@@ -3124,6 +3196,9 @@ async function app_progressbar_random(id, levels) {
     const app = document.createElement('div');
     app.className = 'app-window';
     app.dataset.launchKey = buildApplicationWindowLaunchKey(id, "progressbar_random");
+    app.dataset.appFlowId = getCurrentAppFlowId();
+    app.dataset.appId = id;
+    app.dataset.appInterface = "progressbar_random";
     const position = findAvailablePosition();
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -3141,6 +3216,7 @@ async function app_progressbar_random(id, levels) {
     document.body.appendChild(app);
     makeDraggable(app);
     app.querySelector('.close-btn').addEventListener('click', () => app.remove());
+    appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "button_choices" });
 
     const fill = app.querySelector('.progress-fill');
     const log = app.querySelector('.progress-log');
@@ -3268,7 +3344,7 @@ function enqueueGonnaWinRequest(task) {
     return queued;
 }
 
-window.HACK_FLOW_DEBUG = window.HACK_FLOW_DEBUG !== false;
+window.HACK_FLOW_DEBUG = window.HACK_FLOW_DEBUG === true;
 function hackFlowDebug(flowId, source, step, details = {}) {
     if (!window.HACK_FLOW_DEBUG) return;
     console.debug(`[HACK_FLOW_DEBUG ${flowId || '-'}] ${source} ${step}`, {
@@ -5097,15 +5173,39 @@ function notifyAppMapOperationStarted(appData) {
     if (!appHasMapRuntime(appData)) return;
     const appId = appData.id;
     if (!appId) return;
+    const flowId = getCurrentAppFlowId(appData._flow_id || appData.flow_id || appData.debug_flow?.flow_id || "");
+    const queuedAt = performance.now();
+    appFlowTrace(flowId, "operation_start_queued_from_app_launch", {
+        app_id: appId,
+        app_name: appData.name || ""
+    });
     enqueueGonnaWinRequest(async () => {
+        appFlowTrace(flowId, "operation_start_request_start", {
+            app_id: appId,
+            queue_wait_ms: Math.round(performance.now() - queuedAt)
+        });
+        const startedAt = performance.now();
         const response = await fetch('/gonna-win', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ app_id: appId, operation_only: true })
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Hack-Flow-Id': flowId
+            },
+            body: JSON.stringify({ app_id: appId, operation_only: true, _flow_id: flowId })
         });
         const data = await response.json();
+        appFlowTrace(flowId, "operation_start_response", {
+            app_id: appId,
+            status: response.status,
+            elapsed_ms: Math.round(performance.now() - startedAt),
+            created_operations: (data.created_operations || []).map(op => op && op.operation_id)
+        });
         if (data.target) {
             updateToolbarAimedTarget(data.target);
+            appFlowTrace(flowId, "toolbar_dot_updated_from_operation_start", {
+                app_id: appId,
+                target_label: data.target.label || data.target.display_label || data.target.name || ""
+            });
         }
         notifyCreatedOperations(data);
         return data;
@@ -5116,28 +5216,59 @@ function notifyAppMapOperationStarted(appData) {
 }
 
 async function sendGonnaWinRequest(appId, choiceId = null) {
+    const flowId = getCurrentAppFlowId();
+    const queuedAt = performance.now();
+    appFlowTrace(flowId, "app_option_request_queued", { app_id: appId, choice_id: choiceId });
     return enqueueGonnaWinRequest(async () => {
+        appFlowTrace(flowId, "app_option_request_start", {
+            app_id: appId,
+            choice_id: choiceId,
+            queue_wait_ms: Math.round(performance.now() - queuedAt)
+        });
+        const startedAt = performance.now();
         const response = await fetch('/gonna-win', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-Hack-Flow-Id': flowId
             },
             body: JSON.stringify({
                 app_id: appId,
-                choice_id: choiceId
+                choice_id: choiceId,
+                _flow_id: flowId
             })
         });
         const data = await response.json();
+        appFlowTrace(flowId, "app_option_response", {
+            app_id: appId,
+            choice_id: choiceId,
+            status: response.status,
+            elapsed_ms: Math.round(performance.now() - startedAt),
+            success: Boolean(data.success),
+            captured: Boolean(data.captured_target),
+            created_operations: (data.created_operations || []).map(op => op && op.operation_id)
+        });
         if (data.player_hack_access) {
             refreshPlayerHackAccess(data.player_hack_access);
         }
         if (data.target) {
             updateToolbarAimedTarget(data.target);
+            appFlowTrace(flowId, "toolbar_dot_updated_from_app_option", {
+                app_id: appId,
+                choice_id: choiceId,
+                target_label: data.target.label || data.target.display_label || data.target.name || "",
+                actions_allowed: data.target.actions_allowed || null
+            });
         }
         notifyCreatedOperations(data);
         if (data.success && data.captured_target) {
             notifyOpenMapsTargetHacked(data.captured_target);
             refreshToolbarProfile();
+            appFlowTrace(flowId, "target_captured_from_app_option", {
+                app_id: appId,
+                choice_id: choiceId,
+                target_label: data.captured_target.label || data.captured_target.display_label || data.captured_target.name || ""
+            });
         }
         return data;
     }).catch(error => {
@@ -5157,6 +5288,9 @@ function app_terminal(id, levels) {
     const app = document.createElement('div');
     app.className = 'app-window';
     app.dataset.launchKey = buildApplicationWindowLaunchKey(id, "terminal");
+    app.dataset.appFlowId = getCurrentAppFlowId();
+    app.dataset.appId = id;
+    app.dataset.appInterface = "terminal";
     const position = findAvailablePosition();
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -5252,6 +5386,9 @@ function app_button_choices(id, levels) {
     const app = document.createElement('div');
     app.className = 'app-window';
     app.dataset.launchKey = buildApplicationWindowLaunchKey(id, "button_choices");
+    app.dataset.appFlowId = getCurrentAppFlowId();
+    app.dataset.appId = id;
+    app.dataset.appInterface = "button_choices";
     const position = findAvailablePosition();
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -5284,6 +5421,12 @@ function app_button_choices(id, levels) {
             if (btn.disabled || btn.classList.contains("is-loading")) return;
             const optId = btn.dataset.optId;
             const choiceLabel = btn.textContent.trim();
+            appFlowTrace(app.dataset.appFlowId, "app_option_click", {
+                app_id: id,
+                interface: "button_choices",
+                choice_id: optId,
+                label: choiceLabel
+            });
             setAppButtonGroupPending(buttons, btn, true);
             try {
                 const response = await sendGonnaWinRequest(id, optId);
@@ -5293,6 +5436,11 @@ function app_button_choices(id, levels) {
                 resultBox.textContent = success ? "\u2714 Uda\u0142o si\u0119!" : "\u2716 Niestety nie tym razem.";
                 resultBox.style.color = success ? "#0f0" : "#f33";
                 if (success) {
+                    appFlowTrace(app.dataset.appFlowId, "app_option_success", {
+                        app_id: id,
+                        interface: "button_choices",
+                        choice_id: optId
+                    });
                     scheduleOperationalAppAutoClose(app);
                 }
             } finally {
@@ -5857,6 +6005,7 @@ function createBrowser() {
     };
 
     const blacknetCtaDiagnostic = (signal, stage, data = {}) => {
+        if (!window.BLACKNET_CTA_DEBUG) return;
         try {
             console.info("[BLACKNET_CTA]", {
                 stage,
@@ -10857,6 +11006,12 @@ async function selectMapActionTool(appId) {
         const flowId = getHackFlowId(selection);
         const selectionRequestKey = `${flowId}:${String(app.id || app.name || appId || "")}`;
         window.__lastHackFlowId = flowId;
+        appFlowTrace(flowId, "tool_picker_use_start", {
+            app_id: app.id,
+            app_name: app.name,
+            action: selection.pending_action && selection.pending_action.action,
+            selectionRequestKey
+        });
         hackFlowDebug(flowId, "desktop", "tool_picker_use_start", {
             app_id: app.id,
             app_name: app.name,
@@ -10878,6 +11033,7 @@ async function selectMapActionTool(appId) {
         });
         pauseOpenMapOptionalRefresh("hack_action_tool_use");
         updateMapToolPickerBusyState(true, app.id);
+        const requestStartedAt = performance.now();
         const res = await fetch('/hack-action', {
             method: 'POST',
             headers: {
@@ -10891,6 +11047,15 @@ async function selectMapActionTool(appId) {
             })
         });
         const data = await res.json();
+        appFlowTrace(flowId, "tool_picker_hack_action_response", {
+            app_id: app.id,
+            app_name: app.name,
+            status: res.status,
+            elapsed_ms: Math.round(performance.now() - requestStartedAt),
+            duplicate: Boolean(data.duplicate),
+            added_apps: data.added_apps || [],
+            created_operations: (data.created_operations || []).map(op => op && op.operation_id)
+        });
         hackFlowDebug(flowId, "desktop", "tool_picker_response", {
             status: res.status,
             ok: res.ok,
@@ -10929,10 +11094,18 @@ async function selectMapActionTool(appId) {
                 ...(toolbarProfile || {}),
                 aimed_target: data.target
             });
+            appFlowTrace(flowId, "toolbar_dot_updated_from_tool_picker", {
+                target_label: data.target.label || data.target.display_label || data.target.name || "",
+                actions_allowed: data.target.actions_allowed || null
+            });
         }
         addSystemMessage("success", "\u{1F6E0}\uFE0F Narz\u0119dzie", data.status || `Uruchomiono ${app.name || app.id}.`);
         if (typeof notifyOpenMapsOperationsChanged === "function") {
             await notifyOpenMapsOperationsChanged();
+            appFlowTrace(flowId, "operations_refresh_after_tool_picker", {
+                app_id: app.id,
+                app_name: app.name
+            });
         }
         hackFlowDebug(flowId, "desktop", "tool_picker_success", {
             app_id: app.id,
@@ -11067,9 +11240,19 @@ function createMapToolPicker(selection) {
 
 window.openToolSelectionForMapAction = async function(payload) {
     window.activeToolSelection = normalizeToolSelectionPayload(payload || {});
+    const flowId = getHackFlowId(window.activeToolSelection);
+    window.__lastHackFlowId = flowId;
+    appFlowTrace(flowId, "tool_picker_open", {
+        action: window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || "",
+        matching_apps: (window.activeToolSelection.matching_apps || []).map(app => app && (app.id || app.name))
+    });
     const title = window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || "akcja";
     addSystemMessage("info", "\u{1F6E0}\uFE0F Wyb\u00f3r narz\u0119dzia", `Wybierz narz\u0119dzie dla: ${title}`);
     createMapToolPicker(window.activeToolSelection);
+    appFlowTrace(flowId, "tool_picker_rendered", {
+        action: title,
+        cards: (window.activeToolSelection.matching_apps || []).length
+    });
 };
 
 async function createFileManager(options = {}) {
@@ -13111,6 +13294,9 @@ async function pollLaunchQueue() {
         }
 
         if (Array.isArray(appsToLaunch) && appsToLaunch.length > 0) {
+            appFlowTrace(window.__lastHackFlowId || "", "launch_queue_received", {
+                apps: appsToLaunch
+            });
             const uniqueAppsToLaunch = [];
             const seenLaunchNames = new Set();
             for (const rawName of appsToLaunch) {
@@ -13126,6 +13312,8 @@ async function pollLaunchQueue() {
                 uniqueAppsToLaunch.push(name);
             }
             for (const name of uniqueAppsToLaunch) {
+                const commandStartedAt = performance.now();
+                appFlowTrace(window.__lastHackFlowId || "", "launch_queue_command_start", { name });
                 hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_command_start", { name });
                 const cmdRes = await fetch('/command', {
                     method: 'POST',
@@ -13137,6 +13325,15 @@ async function pollLaunchQueue() {
                 });
 
                 const data = await cmdRes.json();
+                appFlowTrace(window.__lastHackFlowId || "", "launch_queue_command_response", {
+                    name,
+                    status: cmdRes.status,
+                    elapsed_ms: Math.round(performance.now() - commandStartedAt),
+                    runApp: Boolean(data.runApp),
+                    app_id: data.applicationEffect && data.applicationEffect.id,
+                    interface: data.applicationEffect && data.applicationEffect.interface,
+                    created_operations: (data.created_operations || []).map(op => op && op.operation_id)
+                });
                 hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_command_response", {
                     name,
                     status: cmdRes.status,
@@ -13154,6 +13351,11 @@ async function pollLaunchQueue() {
                     const type = appData.interface;
 
                     const action = () => {
+                        appFlowTrace(window.__lastHackFlowId || "", "launch_queue_launch_app", {
+                            name,
+                            app_id: id,
+                            interface: type
+                        });
                         hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_launch_app", {
                             name,
                             app_id: id,
