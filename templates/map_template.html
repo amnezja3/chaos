@@ -516,13 +516,13 @@
 
     .motorcycle-phone-preloader {
       position: absolute;
-      right: -12px;
-      top: 14px;
-      width: 18px;
-      height: 18px;
+      right: -22px;
+      top: 8px;
+      width: 30px;
+      height: 30px;
       pointer-events: none;
       opacity: 0;
-      transform: translateZ(0) scale(0.82);
+      transform: translateZ(0) scale(1);
       transition: opacity 120ms ease;
     }
 
@@ -532,28 +532,28 @@
 
     .motorcycle-phone-body {
       position: absolute;
-      inset: 4px 5px 3px 5px;
-      border: 1px solid rgba(184, 255, 40, 0.95);
-      border-radius: 3px;
+      inset: 7px 9px 6px 9px;
+      border: 2px solid rgba(184, 255, 40, 0.95);
+      border-radius: 5px;
       background: rgba(4, 12, 7, 0.88);
-      box-shadow: 0 0 7px rgba(184, 255, 40, 0.48);
+      box-shadow: 0 0 10px rgba(184, 255, 40, 0.58);
       animation: chaos-phone-vibrate 0.58s steps(2, end) infinite;
     }
 
     .motorcycle-phone-body::before {
       content: "";
       position: absolute;
-      left: 3px;
-      right: 3px;
-      top: 3px;
-      height: 1px;
+      left: 4px;
+      right: 4px;
+      top: 4px;
+      height: 2px;
       background: rgba(38, 255, 106, 0.82);
     }
 
     .motorcycle-phone-ring {
       position: absolute;
       inset: 0;
-      border: 1px solid rgba(38, 255, 106, 0.72);
+      border: 2px solid rgba(38, 255, 106, 0.72);
       border-left-color: transparent;
       border-bottom-color: transparent;
       border-radius: 50%;
@@ -563,7 +563,7 @@
 
     .motorcycle-phone-ring:nth-child(2) {
       animation-delay: 0.18s;
-      inset: -3px;
+      inset: -5px;
     }
 
     @keyframes chaos-phone-vibrate {
@@ -3688,6 +3688,17 @@
                 if (guardMapGameplayAction()) return;
                 if (action === 'travel') {
                     finishTravelPulse = showTravelDestinationPulse(lat, lng);
+                    if (typeof window.showMotorcycleTravelPhone === 'function') {
+                        window.showMotorcycleTravelPhone({
+                            travel_id: `travel-request-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                            lat,
+                            lng,
+                            source: 'map_travel_request'
+                        }, {
+                            allowDuringMotion: true,
+                            timeoutMs: 45000
+                        });
+                    }
                 }
                 const res = await fetch('/map-action', {
                     method: 'POST',
@@ -3706,6 +3717,9 @@
                 const data = await res.json();
                 
                 if (data.status === "too_far") {
+                    if (action === 'travel' && typeof window.hideMotorcycleTravelPhone === 'function') {
+                        window.hideMotorcycleTravelPhone("range_rejected");
+                    }
                     addSystemMessage("warning", "🧭 Podróż", data.message || "Cel zbyt daleko.");
                     // location.reload();
                     return;
@@ -3817,6 +3831,9 @@
                         })
                         : false;
                     if (!queued) {
+                        if (typeof window.hideMotorcycleTravelPhone === 'function') {
+                            window.hideMotorcycleTravelPhone("queue_rejected");
+                        }
                         console.warn("Nie znaleziono kolejki motocykla", { lat, lng, data });
                         return;
                     }
@@ -3830,6 +3847,9 @@
 
                 return data;
             } catch (err) {
+                if (action === 'travel' && typeof window.hideMotorcycleTravelPhone === 'function') {
+                    window.hideMotorcycleTravelPhone("request_failed");
+                }
                 addSystemMessage("danger", "🖥️ Połączenie", "❌ Błąd połączenia");
                 console.error(err);
             } finally {
@@ -4061,16 +4081,18 @@
             return true;
         }
 
-        function showMotorcycleTravelPhone(point = {}) {
+        function showMotorcycleTravelPhone(point = {}, options = {}) {
             const state = window.motorcycleTravelState;
-            if (!state || state.animating || state.queue.length > 0 || !window.avatarMarkerRef) return false;
+            if (!state || !window.avatarMarkerRef) return false;
+            if (!options.allowDuringMotion && (state.animating || state.queue.length > 0)) return false;
             state.travelPhoneVisible = true;
-            state.travelPhoneId = point.travel_id || "";
+            state.travelPhoneId = point.travel_id || state.travelPhoneId || "";
             refreshMotorcycleMarkerIcon();
             if (state.travelPhoneTimer) {
                 clearTimeout(state.travelPhoneTimer);
             }
-            state.travelPhoneTimer = setTimeout(() => hideMotorcycleTravelPhone("timeout"), 12000);
+            const timeoutMs = Number(options.timeoutMs) || 30000;
+            state.travelPhoneTimer = setTimeout(() => hideMotorcycleTravelPhone("timeout"), timeoutMs);
             return true;
         }
 
@@ -4079,6 +4101,7 @@
         }
 
         window.hideMotorcycleTravelPhone = hideMotorcycleTravelPhone;
+        window.showMotorcycleTravelPhone = showMotorcycleTravelPhone;
         window.addEventListener('beforeunload', () => hideMotorcycleTravelPhone("map_unload"));
 
         function normalizeMotorcyclePoint(point = {}) {
