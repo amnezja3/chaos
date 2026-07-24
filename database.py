@@ -1141,6 +1141,7 @@ class DevBugReportStore:
 class TerritoryStore:
     BASE_AREA_EDGE_METERS = 300
     MIN_TRIANGLE_AREA_SQM = 1
+    MAX_EXACT_AREA_TARGETS = int(os.environ.get("CHAOS_TERRITORY_EXACT_TARGET_LIMIT", "32"))
 
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
@@ -1289,6 +1290,29 @@ class TerritoryStore:
             "captured_at": target.get("captured_at", ""),
         }
 
+    def _area_from_hull(self, targets):
+        hull = self._convex_hull(targets)
+        if len(hull) < 3:
+            return None
+
+        vertices = [self._area_vertex(target) for target in hull]
+        area_size = self._polygon_area_sqm(vertices)
+        if area_size < self.MIN_TRIANGLE_AREA_SQM:
+            return None
+
+        hull_edges = [
+            self._distance_meters(vertices[i], vertices[(i + 1) % len(vertices)])
+            for i in range(len(vertices))
+        ]
+        return {
+            "vertices": vertices,
+            "centroid_lat": sum(vertex["lat"] for vertex in vertices) / len(vertices),
+            "centroid_lng": sum(vertex["lng"] for vertex in vertices) / len(vertices),
+            "area_size": area_size,
+            "max_edge_distance": max(hull_edges) if hull_edges else 0,
+            "status": "active",
+        }
+
     def _normalize_target(self, username, target):
         now = utc_now()
         normalized = copy.deepcopy(target or {})
@@ -1427,6 +1451,17 @@ class TerritoryStore:
         for group in self._connected_target_groups(targets, max_edge_distance):
             if len(group) < 3:
                 continue
+            if len(group) > self.MAX_EXACT_AREA_TARGETS:
+                area = self._area_from_hull(group)
+                if area:
+                    print(
+                        "[TERRITORY] large cluster approximated "
+                        f"username={username} targets={len(group)} "
+                        f"limit={self.MAX_EXACT_AREA_TARGETS}",
+                        flush=True,
+                    )
+                    areas.append(area)
+                continue
 
             valid_triangles = []
             for combo_indexes in combinations(range(len(group)), 3):
@@ -1462,28 +1497,10 @@ class TerritoryStore:
                         cluster_indexes.update(valid_triangles[other])
                         stack.append(other)
 
-                hull = self._convex_hull([group[index] for index in sorted(cluster_indexes)])
-                if len(hull) < 3:
+                area = self._area_from_hull([group[index] for index in sorted(cluster_indexes)])
+                if not area:
                     continue
-
-                vertices = [self._area_vertex(target) for target in hull]
-                hull_edges = [
-                    self._distance_meters(vertices[i], vertices[(i + 1) % len(vertices)])
-                    for i in range(len(vertices))
-                ]
-                combo_max_edge = max(hull_edges)
-                area_size = self._polygon_area_sqm(vertices)
-                if area_size < self.MIN_TRIANGLE_AREA_SQM:
-                    continue
-
-                areas.append({
-                    "vertices": vertices,
-                    "centroid_lat": sum(vertex["lat"] for vertex in vertices) / len(vertices),
-                    "centroid_lng": sum(vertex["lng"] for vertex in vertices) / len(vertices),
-                    "area_size": area_size,
-                    "max_edge_distance": combo_max_edge,
-                    "status": "active",
-                })
+                areas.append(area)
 
         areas.sort(key=lambda area: (area["area_size"], area["max_edge_distance"]))
         return areas
