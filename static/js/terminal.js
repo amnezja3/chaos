@@ -12,8 +12,10 @@ let toolbarTargetTruthRefreshing = false;
 let desktopSessionActive = true;
 let desktopRenderedApps = [];
 const recentApplicationWindowLaunches = new Map();
+const recentLaunchQueueReceipts = new Map();
 const notifiedOperationIds = new Map();
 const APP_WINDOW_LAUNCH_DEDUPE_MS = 30000;
+const LAUNCH_QUEUE_RECEIPT_TTL_MS = 10 * 60 * 1000;
 const NOTIFIED_OPERATION_TTL_MS = 30000;
 const fileManagerInstances = new Map();
 const cybernerDeltaClients = new Set();
@@ -33,6 +35,7 @@ window.APP_FLOW_TRACE = window.APP_FLOW_TRACE !== false;
 window.HACK_FLOW_DEBUG = window.HACK_FLOW_DEBUG === true;
 window.BLACKNET_CTA_DEBUG = window.BLACKNET_CTA_DEBUG === true;
 window.__appFlowTraceState = window.__appFlowTraceState || new Map();
+window.__pendingApplicationLaunchContext = null;
 
 function getCurrentAppFlowId(fallback = "") {
     return String(fallback || window.__lastHackFlowId || "manual").trim() || "manual";
@@ -1236,6 +1239,77 @@ function buildApplicationWindowLaunchKey(id, type) {
     return `${String(type || "app").trim().toLowerCase()}:${String(id || "").trim().toLowerCase()}`;
 }
 
+function buildApplicationLaunchContext(appData = {}) {
+    const flowId = getCurrentAppFlowId(appData._flow_id || appData.flow_id || appData.debug_flow?.flow_id || "");
+    const appId = String(appData.id || appData.app_id || "").trim();
+    const name = String(appData.name || appData.app_name || appId || "").trim();
+    const launchReceipt = String(
+        appData._launch_receipt ||
+        appData.launch_receipt ||
+        appData.receipt ||
+        appData._launch_key ||
+        ""
+    ).trim();
+    const launchKey = launchReceipt || `${flowId || "manual"}:${appId || name}`;
+    return {
+        flow_id: flowId,
+        launch_key: launchKey,
+        launch_receipt: launchReceipt,
+        source: String(appData._source || appData.source || "").trim(),
+        app_id: appId,
+        app_name: name
+    };
+}
+
+function currentApplicationLaunchContext(appWindow = null) {
+    const pending = window.__pendingApplicationLaunchContext || {};
+    const dataset = appWindow && appWindow.dataset ? appWindow.dataset : {};
+    const flowId = getCurrentAppFlowId(dataset.appFlowId || pending.flow_id || "");
+    const appId = String(dataset.appId || pending.app_id || "").trim();
+    return {
+        flow_id: flowId,
+        launch_key: String(dataset.launchQueueKey || pending.launch_key || `${flowId || "manual"}:${appId}`).trim(),
+        launch_receipt: String(dataset.launchReceipt || pending.launch_receipt || "").trim(),
+        source: String(dataset.launchSource || pending.source || "").trim(),
+        app_id: appId,
+        app_name: String(dataset.appTitle || pending.app_name || "").trim()
+    };
+}
+
+function applyApplicationLaunchContext(appWindow, fallbackAppData = {}) {
+    if (!appWindow || !appWindow.dataset) return currentApplicationLaunchContext();
+    const context = {
+        ...buildApplicationLaunchContext(fallbackAppData),
+        ...(window.__pendingApplicationLaunchContext || {})
+    };
+    appWindow.dataset.appFlowId = context.flow_id || getCurrentAppFlowId();
+    appWindow.dataset.launchQueueKey = context.launch_key || "";
+    appWindow.dataset.launchReceipt = context.launch_receipt || "";
+    appWindow.dataset.launchSource = context.source || "";
+    return currentApplicationLaunchContext(appWindow);
+}
+
+function shouldSkipLaunchQueueReceipt(receipt, details = {}) {
+    const key = String(receipt || "").trim().toLowerCase();
+    if (!key) return false;
+    const now = Date.now();
+    for (const [recentKey, expiresAt] of recentLaunchQueueReceipts.entries()) {
+        if (expiresAt <= now) {
+            recentLaunchQueueReceipts.delete(recentKey);
+        }
+    }
+    if ((recentLaunchQueueReceipts.get(key) || 0) > now) {
+        hackFlowDebug(details.flow_id || window.__lastHackFlowId || "", "desktop", "launch_queue_skip_receipt", {
+            receipt,
+            app_name: details.name || "",
+            app_id: details.app_id || ""
+        });
+        return true;
+    }
+    recentLaunchQueueReceipts.set(key, now + LAUNCH_QUEUE_RECEIPT_TTL_MS);
+    return false;
+}
+
 function beginApplicationWindowLaunch(id, type) {
     const key = buildApplicationWindowLaunchKey(id, type);
     const now = Date.now();
@@ -1285,19 +1359,28 @@ function launchApplicationEffect(appData) {
     const id = appData.id;
     const levels = appData.levels;
     const type = appData.interface;
-    const flowId = getCurrentAppFlowId(appData._flow_id || appData.flow_id || appData.debug_flow?.flow_id || "");
+    const launchContext = buildApplicationLaunchContext(appData);
+    const flowId = launchContext.flow_id;
     window.__lastHackFlowId = flowId;
     appFlowTrace(flowId, "launch_application_effect", {
         app_id: id,
         app_name: appData.name || "",
-        interface: type
+        interface: type,
+        launch_key: launchContext.launch_key,
+        source: launchContext.source
     });
-    if (type === "window") app_window(id, levels);
-    else if (type === "progressbar_random") app_progressbar_random(id, levels);
-    else if (type === "terminal") app_terminal(id, levels);
-    else if (type === "button_choices") app_button_choices(id, levels);
-    else if (type === "system_launcher") console.warn(`Brak system_launcher dla: ${appData.name || id}`);
-    else console.warn(`Nieznany interface: ${type}`);
+    const previousContext = window.__pendingApplicationLaunchContext;
+    window.__pendingApplicationLaunchContext = launchContext;
+    try {
+        if (type === "window") app_window(id, levels);
+        else if (type === "progressbar_random") app_progressbar_random(id, levels);
+        else if (type === "terminal") app_terminal(id, levels);
+        else if (type === "button_choices") app_button_choices(id, levels);
+        else if (type === "system_launcher") console.warn(`Brak system_launcher dla: ${appData.name || id}`);
+        else console.warn(`Nieznany interface: ${type}`);
+    } finally {
+        window.__pendingApplicationLaunchContext = previousContext || null;
+    }
 }
 
 function scheduleOperationalAppAutoClose(appWindow) {
@@ -3124,6 +3207,7 @@ function app_window(id, levels) {
     app.dataset.appFlowId = getCurrentAppFlowId();
     app.dataset.appId = id;
     app.dataset.appInterface = "window";
+    applyApplicationLaunchContext(app, { id, interface: "window" });
     const position = findAvailablePosition();
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -3164,7 +3248,7 @@ function app_window(id, levels) {
             });
             setAppButtonGroupPending(buttons, btn, true);
             try {
-                const response = await sendGonnaWinRequest(id, action);
+                const response = await sendGonnaWinRequest(id, action, app);
                 const success = response.success === true;
 
                 addSystemMessage('info', '\u25B6 Akcja', `Akcja: ${label} | Wynik: ${success ? "\u2714" : "\u2716"}`);
@@ -3198,6 +3282,7 @@ async function app_progressbar_random(id, levels) {
     app.dataset.appFlowId = getCurrentAppFlowId();
     app.dataset.appId = id;
     app.dataset.appInterface = "progressbar_random";
+    applyApplicationLaunchContext(app, { id, interface: "progressbar_random" });
     const position = findAvailablePosition();
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -3229,7 +3314,7 @@ async function app_progressbar_random(id, levels) {
     function runNextStep() {
         if (stepIndex >= totalSteps) {
             // <- tutaj korzystamy z odpowiedzi
-            notifyGonnaWin(id).then(success => {
+            notifyGonnaWin(id, app).then(success => {
                 result.textContent = success ? (level.result_success || "Operacja zako\u0144czona.") : (level.result_failure || "Operacja nie powiod\u0142a si\u0119.");
                 result.style.color = success ? "#0f0" : "#f33";
                 if (success) {
@@ -3254,12 +3339,23 @@ async function app_progressbar_random(id, levels) {
     runNextStep();
 }
 
-async function notifyGonnaWin(appId) {
+async function notifyGonnaWin(appId, appWindow = null) {
+    const context = currentApplicationLaunchContext(appWindow);
+    const flowId = context.flow_id;
     return enqueueGonnaWinRequest(async () => {
         const response = await fetch('/gonna-win', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ app_id: appId })
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Hack-Flow-Id': flowId
+            },
+            body: JSON.stringify({
+                app_id: appId,
+                _flow_id: flowId,
+                launch_key: context.launch_key,
+                launch_receipt: context.launch_receipt,
+                launch_source: context.source
+            })
         });
         const data = await response.json();
         if (data.player_hack_access) {
@@ -5172,11 +5268,14 @@ function notifyAppMapOperationStarted(appData) {
     if (!appHasMapRuntime(appData)) return;
     const appId = appData.id;
     if (!appId) return;
-    const flowId = getCurrentAppFlowId(appData._flow_id || appData.flow_id || appData.debug_flow?.flow_id || "");
+    const context = buildApplicationLaunchContext(appData);
+    const flowId = getCurrentAppFlowId(context.flow_id || appData.debug_flow?.flow_id || "");
     const queuedAt = performance.now();
     appFlowTrace(flowId, "operation_start_queued_from_app_launch", {
         app_id: appId,
-        app_name: appData.name || ""
+        app_name: appData.name || "",
+        launch_key: context.launch_key,
+        launch_receipt: context.launch_receipt
     });
     enqueueGonnaWinRequest(async () => {
         appFlowTrace(flowId, "operation_start_request_start", {
@@ -5190,7 +5289,14 @@ function notifyAppMapOperationStarted(appData) {
                 'Content-Type': 'application/json',
                 'X-Hack-Flow-Id': flowId
             },
-            body: JSON.stringify({ app_id: appId, operation_only: true, _flow_id: flowId })
+            body: JSON.stringify({
+                app_id: appId,
+                operation_only: true,
+                _flow_id: flowId,
+                launch_key: context.launch_key,
+                launch_receipt: context.launch_receipt,
+                launch_source: context.source
+            })
         });
         const data = await response.json();
         appFlowTrace(flowId, "operation_start_response", {
@@ -5214,10 +5320,15 @@ function notifyAppMapOperationStarted(appData) {
     });
 }
 
-async function sendGonnaWinRequest(appId, choiceId = null) {
-    const flowId = getCurrentAppFlowId();
+async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
+    const context = currentApplicationLaunchContext(appWindow);
+    const flowId = context.flow_id;
     const queuedAt = performance.now();
-    appFlowTrace(flowId, "app_option_request_queued", { app_id: appId, choice_id: choiceId });
+    appFlowTrace(flowId, "app_option_request_queued", {
+        app_id: appId,
+        choice_id: choiceId,
+        launch_key: context.launch_key
+    });
     return enqueueGonnaWinRequest(async () => {
         appFlowTrace(flowId, "app_option_request_start", {
             app_id: appId,
@@ -5234,7 +5345,10 @@ async function sendGonnaWinRequest(appId, choiceId = null) {
             body: JSON.stringify({
                 app_id: appId,
                 choice_id: choiceId,
-                _flow_id: flowId
+                _flow_id: flowId,
+                launch_key: context.launch_key,
+                launch_receipt: context.launch_receipt,
+                launch_source: context.source
             })
         });
         const data = await response.json();
@@ -5278,7 +5392,6 @@ async function sendGonnaWinRequest(appId, choiceId = null) {
 
 function app_terminal(id, levels) {
     if (!beginApplicationWindowLaunch(id, "terminal")) return null;
-    notifyGonnaWin(id);
     const safeLevels = Array.isArray(levels) ? levels : [];
     const level = safeLevels[0] || {};
     const logs = Array.isArray(level.logs) ? level.logs : [];
@@ -5290,6 +5403,8 @@ function app_terminal(id, levels) {
     app.dataset.appFlowId = getCurrentAppFlowId();
     app.dataset.appId = id;
     app.dataset.appInterface = "terminal";
+    applyApplicationLaunchContext(app, { id, interface: "terminal" });
+    notifyGonnaWin(id, app);
     const position = findAvailablePosition();
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -5388,6 +5503,7 @@ function app_button_choices(id, levels) {
     app.dataset.appFlowId = getCurrentAppFlowId();
     app.dataset.appId = id;
     app.dataset.appInterface = "button_choices";
+    applyApplicationLaunchContext(app, { id, interface: "button_choices" });
     const position = findAvailablePosition();
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -5428,7 +5544,7 @@ function app_button_choices(id, levels) {
             });
             setAppButtonGroupPending(buttons, btn, true);
             try {
-                const response = await sendGonnaWinRequest(id, optId);
+                const response = await sendGonnaWinRequest(id, optId, app);
                 const success = response.success === true;
 
                 addSystemMessage('info', '\u2699 Efekt', `Wybrano: ${choiceLabel} | Wynik: ${success ? "\u2714 SUKCES" : "\u2716 PORA\u017bKA"}`);
@@ -13250,8 +13366,39 @@ let launchQueuePollInFlight = false;
 const recentLaunchQueueApps = new Map();
 const LAUNCH_QUEUE_RECENT_TTL_MS = 60000;
 
-function shouldSkipRecentLaunchQueueApp(name) {
-    const key = String(name || "").trim().toLowerCase();
+function normalizeLaunchQueueItem(rawItem) {
+    if (rawItem && typeof rawItem === "object") {
+        const name = String(rawItem.name || rawItem.app_name || rawItem.command || "").trim();
+        const flowId = getCurrentAppFlowId(rawItem.flow_id || rawItem._flow_id || "");
+        const appId = String(rawItem.app_id || rawItem.id || "").trim();
+        const receipt = String(
+            rawItem.receipt ||
+            rawItem.launch_receipt ||
+            rawItem.launch_key ||
+            rawItem.idempotency_key ||
+            ""
+        ).trim() || `${flowId || "manual"}:${appId || name}`;
+        return {
+            name,
+            flow_id: flowId,
+            app_id: appId,
+            receipt,
+            raw: rawItem
+        };
+    }
+    const name = String(rawItem || "").trim();
+    const flowId = getCurrentAppFlowId(window.__lastHackFlowId || "");
+    return {
+        name,
+        flow_id: flowId,
+        app_id: "",
+        receipt: `${flowId || "manual"}:${name}`,
+        raw: rawItem
+    };
+}
+
+function shouldSkipRecentLaunchQueueApp(name, flowId = "") {
+    const key = `${String(flowId || "manual").trim().toLowerCase()}:${String(name || "").trim().toLowerCase()}`;
     if (!key) return true;
     const now = Date.now();
     const expiresAt = recentLaunchQueueApps.get(key) || 0;
@@ -13298,37 +13445,49 @@ async function pollLaunchQueue() {
             });
             const uniqueAppsToLaunch = [];
             const seenLaunchNames = new Set();
-            for (const rawName of appsToLaunch) {
-                const name = String(rawName || "").trim();
-                if (!name || seenLaunchNames.has(name) || shouldSkipRecentLaunchQueueApp(name)) {
-                    hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_skip_app", {
+            for (const rawItem of appsToLaunch) {
+                const item = normalizeLaunchQueueItem(rawItem);
+                const name = item.name;
+                const flowId = item.flow_id || window.__lastHackFlowId || "";
+                if (
+                    !name ||
+                    seenLaunchNames.has(name) ||
+                    shouldSkipLaunchQueueReceipt(item.receipt, item) ||
+                    shouldSkipRecentLaunchQueueApp(name, flowId)
+                ) {
+                    hackFlowDebug(flowId, "desktop", "launch_queue_skip_app", {
                         name,
+                        receipt: item.receipt,
                         seen: seenLaunchNames.has(name)
                     });
                     continue;
                 }
                 seenLaunchNames.add(name);
-                uniqueAppsToLaunch.push(name);
+                uniqueAppsToLaunch.push(item);
             }
-            for (const name of uniqueAppsToLaunch) {
+            for (const item of uniqueAppsToLaunch) {
+                const name = item.name;
+                const flowId = item.flow_id || window.__lastHackFlowId || "";
                 const commandStartedAt = performance.now();
-                appFlowTrace(window.__lastHackFlowId || "", "launch_queue_command_start", { name });
-                hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_command_start", { name });
+                appFlowTrace(flowId, "launch_queue_command_start", { name, receipt: item.receipt });
+                hackFlowDebug(flowId, "desktop", "launch_queue_command_start", { name, receipt: item.receipt });
                 const cmdRes = await fetch('/command', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Hack-Flow-Id': window.__lastHackFlowId || ''
+                        'X-Hack-Flow-Id': flowId
                     },
                     body: JSON.stringify({
                         input: name,
                         source: 'launch_queue',
-                        skip_map_runtime: true
+                        skip_map_runtime: true,
+                        _flow_id: flowId,
+                        launch_receipt: item.receipt
                     })
                 });
 
                 const data = await cmdRes.json();
-                appFlowTrace(window.__lastHackFlowId || "", "launch_queue_command_response", {
+                appFlowTrace(flowId, "launch_queue_command_response", {
                     name,
                     status: cmdRes.status,
                     elapsed_ms: Math.round(performance.now() - commandStartedAt),
@@ -13337,7 +13496,7 @@ async function pollLaunchQueue() {
                     interface: data.applicationEffect && data.applicationEffect.interface,
                     created_operations: (data.created_operations || []).map(op => op && op.operation_id)
                 });
-                hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_command_response", {
+                hackFlowDebug(flowId, "desktop", "launch_queue_command_response", {
                     name,
                     status: cmdRes.status,
                     runApp: Boolean(data.runApp),
@@ -13349,20 +13508,26 @@ async function pollLaunchQueue() {
 
                 if (data.runApp && data.applicationEffect) {
                     const appData = data.applicationEffect;
+                    appData._flow_id = flowId;
+                    appData._launch_receipt = item.receipt;
+                    appData._launch_key = item.receipt;
+                    appData._source = 'launch_queue';
                     const id = appData.id;
                     const levels = appData.levels;
                     const type = appData.interface;
 
                     const action = () => {
-                        appFlowTrace(window.__lastHackFlowId || "", "launch_queue_launch_app", {
+                        appFlowTrace(flowId, "launch_queue_launch_app", {
                             name,
                             app_id: id,
-                            interface: type
+                            interface: type,
+                            receipt: item.receipt
                         });
-                        hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_launch_app", {
+                        hackFlowDebug(flowId, "desktop", "launch_queue_launch_app", {
                             name,
                             app_id: id,
-                            interface: type
+                            interface: type,
+                            receipt: item.receipt
                         });
                         launchApplicationEffect(appData);
                     };

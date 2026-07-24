@@ -10271,3 +10271,35 @@ Poza zakresem:
 * nie wlaczano `store_primary`;
 * nie migrowano desktop settings;
 * nie robiono commita ani deployu.
+
+## 24.07.2026 - Map Hack Flow Duplicate Guard
+
+Zbadano dublowanie okien aplikacji i powiadomien po uruchamianiu narzedzi z
+mapy. Logi FE/BE pokazaly, ze launch queue potrafila byc poprawnie
+zdeduplikowana, ale sama sciezka `/gonna-win` mogla wejsc kilka razy dla tego
+samego launch receiptu, zanim ciezki request skonczyl prace.
+
+Wykonano:
+
+* dodano wczesna idempotencje `/gonna-win` oparta o `launch_receipt`;
+* replay receiptu zwraca poprzedni payload albo stan in-flight bez ponownego
+  `sync_session_profile()` i bez drugiej mutacji profilu;
+* frontend przekazuje `launch_key`, `launch_receipt` i `launch_source` takze w
+  automatycznym starcie operacji mapowej po otwarciu aplikacji;
+* tryb `operation_only` konczy receipt po zapisie operacji;
+* cele typu vulnerability/contest wymagaja teraz pelnego zestawu kropek
+  `scan_ports`, `exploit`, `sniff`, `trace`, a nie zaliczenia po pierwszej
+  akcji.
+
+Walidacja:
+
+* `python -m py_compile run.py database.py`: OK;
+* `node --check static/js/terminal.js`: OK;
+* `git diff --check -- run.py static/js/terminal.js database.py`: OK.
+
+Status:
+
+* poprawka gotowa do testu live na mapie;
+* jezeli okna nadal pojawia sie wizualnie wiecej niz raz, kolejna warstwa do
+  sprawdzenia to frontendowy open-window dedupe, ale backend nie powinien juz
+  wykonywac drugi raz tej samej pracy.

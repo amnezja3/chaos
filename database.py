@@ -38,7 +38,17 @@ def merge_launch_queue_values(latest_queue, incoming_queue):
     merged = []
     seen = set()
     for item in list(latest_queue or []) + list(incoming_queue or []):
-        value = str(item or "").strip()
+        if isinstance(item, dict):
+            value = str(
+                item.get("receipt")
+                or item.get("launch_receipt")
+                or item.get("launch_key")
+                or item.get("name")
+                or item.get("app_name")
+                or ""
+            ).strip()
+        else:
+            value = str(item or "").strip()
         if not value or value in seen:
             continue
         seen.add(value)

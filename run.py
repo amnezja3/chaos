@@ -4841,6 +4841,28 @@ def build_operation_target_id(target):
     return f"map:{key[0]}:{key[1]}:{label}"
 
 
+def target_has_stable_runtime_identity(target):
+    """Return true only for targets that are safe to mutate/start operations for."""
+    if not isinstance(target, dict) or not target:
+        return False
+    if str(target.get("target_mode") or "").strip() == "player":
+        return bool(str(target.get("target_username") or target.get("username") or "").strip())
+    if str(target.get("vulnerability_id") or "").strip():
+        return True
+    key = target_position_key(target)
+    if not key:
+        return False
+    try:
+        lat = float(key[0])
+        lng = float(key[1])
+    except (TypeError, ValueError):
+        return False
+    # 0,0 is a fallback sentinel in broken map/app flows, not a valid CHAOS POI.
+    if abs(lat) < 1e-9 and abs(lng) < 1e-9:
+        return False
+    return True
+
+
 def ghostnetwork_player_payload(username, profile):
     profile = profile if isinstance(profile, dict) else {}
     return {
@@ -5040,7 +5062,17 @@ def merge_launch_queue_monotonic(latest_queue, incoming_queue):
     merged = []
     seen = set()
     for item in list(latest_queue or []) + list(incoming_queue or []):
-        value = str(item or "").strip()
+        if isinstance(item, dict):
+            value = str(
+                item.get("receipt")
+                or item.get("launch_receipt")
+                or item.get("launch_key")
+                or item.get("name")
+                or item.get("app_name")
+                or ""
+            ).strip()
+        else:
+            value = str(item or "").strip()
         if not value or value in seen:
             continue
         seen.add(value)
@@ -5944,6 +5976,8 @@ def create_operations_for_app_action(profile, username, app, map_action_id, targ
 def create_missing_operations_for_app_target(profile, username, app, target):
     """Start map operation runtime for desktop/terminal-launched tools, without duplicates."""
     if not isinstance(profile, dict) or not username or not isinstance(target, dict) or not target:
+        return []
+    if not target_has_stable_runtime_identity(target):
         return []
 
     normalized_app = normalize_app_contract(app or {})
@@ -11744,6 +11778,8 @@ def apply_app_map_actions_to_aimed_target(profile, app, username=None):
     aimed_target = profile.get("aimed_target")
     if not isinstance(aimed_target, dict) or not aimed_target:
         return False, []
+    if not target_has_stable_runtime_identity(aimed_target):
+        return False, []
 
     normalized_app = normalize_app_contract(app or {})
     actions = [
@@ -16714,7 +16750,43 @@ def hack_action():
 
     if "launch_queue" not in profile:
         profile["launch_queue"] = []
-    new_apps = [app["name"] for app in matched_apps if app["name"] not in profile["launch_queue"]]
+    existing_launch_receipts = set()
+    existing_launch_names = set()
+    for queue_item in profile.get("launch_queue") or []:
+        if isinstance(queue_item, dict):
+            receipt = str(queue_item.get("receipt") or queue_item.get("launch_receipt") or "").strip()
+            name = str(queue_item.get("name") or queue_item.get("app_name") or "").strip()
+        else:
+            receipt = ""
+            name = str(queue_item or "").strip()
+        if receipt:
+            existing_launch_receipts.add(receipt)
+        if name:
+            existing_launch_names.add(name)
+    new_apps = []
+    for app in matched_apps:
+        app_name = str(app.get("name") or "").strip()
+        app_id = str(app.get("id") or "").strip()
+        receipt_seed = "|".join([
+            str(flow_id or ""),
+            str(client_action_key or ""),
+            str(selected_app_id or app_id or app_name),
+        ])
+        launch_receipt = hashlib.sha1(receipt_seed.encode("utf-8")).hexdigest()[:20]
+        if launch_receipt in existing_launch_receipts:
+            continue
+        if not launch_receipt and app_name in existing_launch_names:
+            continue
+        new_apps.append({
+            "name": app_name,
+            "app_id": app_id,
+            "flow_id": flow_id,
+            "receipt": launch_receipt,
+            "action": action,
+            "client_action_key": client_action_key,
+        })
+        existing_launch_receipts.add(launch_receipt)
+        existing_launch_names.add(app_name)
     profile["launch_queue"].extend(new_apps)
     app_flow_debug(
         flow_id,
@@ -20907,6 +20979,60 @@ def gonna_win():
     choice_id = data.get("choice_id", None)
     operation_only = bool(data.get("operation_only"))
     flow_id = str(data.get("_flow_id") or request.headers.get("X-Hack-Flow-Id") or "")[:96]
+    launch_receipt = str(
+        data.get("launch_receipt")
+        or data.get("receipt")
+        or data.get("launch_key")
+        or ""
+    ).strip()[:160]
+    launch_source = str(data.get("launch_source") or data.get("source") or "").strip()[:64]
+    gonna_win_receipt_key = ""
+    if launch_receipt and app_id and session.get("user"):
+        receipt_scope = "operation_only" if operation_only else f"choice:{choice_id if choice_id is not None else 'auto'}"
+        receipt_seed = "|".join([
+            "gonna_win",
+            str(session.get("user") or ""),
+            str(app_id or ""),
+            receipt_scope,
+            launch_receipt,
+        ])
+        gonna_win_receipt_key = "gonna_win:" + hashlib.sha1(receipt_seed.encode("utf-8")).hexdigest()[:32]
+        state, receipt = app_action_receipt_store.begin(
+            gonna_win_receipt_key,
+            username=session.get("user"),
+            app_id=str(app_id or ""),
+            action=receipt_scope,
+            target_key=launch_receipt,
+            source=launch_source or "gonna_win",
+            ttl_seconds=900,
+        )
+        if state != "new":
+            payload = copy.deepcopy((receipt or {}).get("payload") or {})
+            status_code = int((receipt or {}).get("status_code") or 202)
+            if not payload:
+                payload = {
+                    "success": True,
+                    "duplicate": True,
+                    "idempotent_replay": True,
+                    "operation_only": operation_only,
+                    "target": None,
+                    "actions_allowed_marked": [],
+                    "created_operations": [],
+                }
+            payload["duplicate"] = True
+            payload["idempotent_replay"] = True
+            app_flow_debug(
+                flow_id,
+                "gonna_win_receipt_replay",
+                started_at=app_flow_started_at,
+                app_id=app_id,
+                choice_id=choice_id,
+                operation_only=operation_only,
+                receipt_key=gonna_win_receipt_key,
+                state=state,
+                status_code=status_code,
+            )
+            return jsonify(payload), status_code
     app_flow_debug(
         flow_id,
         "gonna_win_start",
@@ -20915,7 +21041,20 @@ def gonna_win():
         app_id=app_id,
         choice_id=choice_id,
         operation_only=operation_only,
+        launch_receipt=launch_receipt,
+        receipt_key=gonna_win_receipt_key,
     )
+
+    def finish_gonna_win_receipt(payload, status_code=200, status=None):
+        if not gonna_win_receipt_key:
+            return
+        app_action_receipt_store.finish(
+            gonna_win_receipt_key,
+            payload,
+            status_code=status_code,
+            ttl_seconds=900,
+            status=status,
+        )
 
     CRITICAL_SECURITY_KEYS = [
         "stealth_mode", "scan_detection", "exploit_protection", "vpn_enabled",
@@ -20942,7 +21081,9 @@ def gonna_win():
         operations=len(profile.get("operations", []) if isinstance(profile, dict) else []),
     )
     if not profile or "aimed_target" not in profile:
-        return jsonify({"success": False, "message": "Brak celu"}), 400
+        payload = {"success": False, "message": "Brak celu"}
+        finish_gonna_win_receipt(payload, status_code=400, status=AppActionReceiptStore.STATUS_FAILED)
+        return jsonify(payload), 400
 
     aimed = profile["aimed_target"]
     target_sec = aimed.get("security", {})
@@ -20963,7 +21104,32 @@ def gonna_win():
     app = next((a for a in apps if a["id"] == app_id), None)
 
     if not app:
-        return jsonify({"success": False, "message": "Nie znaleziono aplikacji"}), 404
+        payload = {"success": False, "message": "Nie znaleziono aplikacji"}
+        finish_gonna_win_receipt(payload, status_code=404, status=AppActionReceiptStore.STATUS_FAILED)
+        return jsonify(payload), 404
+    normalized_app_for_guard = normalize_app_contract(app or {})
+    app_requires_map_target = bool(
+        as_list(normalized_app_for_guard.get("map_actions"))
+        or as_list(normalized_app_for_guard.get("operation_types"))
+    )
+    if app_requires_map_target and not target_has_stable_runtime_identity(profile.get("aimed_target")):
+        app_flow_debug(
+            flow_id,
+            "gonna_win_reject_invalid_target",
+            started_at=app_flow_started_at,
+            app_id=app_id,
+            target=profile.get("aimed_target"),
+        )
+        payload = {
+            "success": False,
+            "blocked": True,
+            "reason": "invalid_target",
+            "message": "Brak stabilnego celu dla aplikacji mapowej.",
+            "target": profile.get("aimed_target") or {},
+            "created_operations": [],
+        }
+        finish_gonna_win_receipt(payload, status_code=409, status=AppActionReceiptStore.STATUS_FAILED)
+        return jsonify(payload), 409
 
     step_started_at = time.perf_counter()
     target_changed, marked_actions = apply_app_map_actions_to_aimed_target(profile, app, session.get("user"))
@@ -21053,13 +21219,15 @@ def gonna_win():
             target_changed=target_changed,
             created_count=len(created_operations or []),
         )
-        return jsonify({
+        payload = {
             "success": True,
             "operation_only": True,
             "target": profile.get("aimed_target"),
             "actions_allowed_marked": marked_actions,
             "created_operations": created_operations,
-        })
+        }
+        finish_gonna_win_receipt(payload)
+        return jsonify(payload)
 
     success = False
 
@@ -21083,7 +21251,9 @@ def gonna_win():
                 target_sec[k] = v
             success = True
         except (IndexError, ValueError):
-            return jsonify({"success": False, "message": "Nieprawidłowy choice_id"}), 400
+            payload = {"success": False, "message": "Nieprawidlowy choice_id"}
+            finish_gonna_win_receipt(payload, status_code=400, status=AppActionReceiptStore.STATUS_FAILED)
+            return jsonify(payload), 400
 
     app_flow_debug_timed(
         flow_id,
@@ -21151,16 +21321,10 @@ def gonna_win():
     percent_off = (off / total) * 100
     target_mode = profile["aimed_target"].get("target_mode", "standard")
     allowed_actions = profile["aimed_target"].get("actions_allowed", {})
-    if target_mode == "vulnerability":
-        all_actions_allowed = any(
-            allowed_actions.get(k) is True
-            for k in ["scan_ports", "exploit", "sniff", "trace"]
-        )
-    else:
-        all_actions_allowed = all(
-            allowed_actions.get(k) is True
-            for k in ["scan_ports", "exploit", "sniff", "trace"]
-        )
+    all_actions_allowed = all(
+        allowed_actions.get(k) is True
+        for k in ["scan_ports", "exploit", "sniff", "trace"]
+    )
 
     mgr = UserProfileManager(session["user"])
     session["profile"] = profile
@@ -21181,10 +21345,12 @@ def gonna_win():
         if profile["aimed_target"].get("target_mode") == "player":
             victim_username = str(profile["aimed_target"].get("target_username") or profile["aimed_target"].get("username") or "").strip()
             if not victim_username or not user_store.get_profile(victim_username):
-                return jsonify({
+                payload = {
                     "success": False,
                     "message": "Nie mozna utworzyc dostepu: gracz celu nie istnieje."
-                }), 404
+                }
+                finish_gonna_win_receipt(payload, status_code=404, status=AppActionReceiptStore.STATUS_FAILED)
+                return jsonify(payload), 404
 
             access = player_hack_access_store.grant_access(
                 session["user"],
@@ -21225,7 +21391,7 @@ def gonna_win():
                 choice_id=choice_id,
                 percent_off=round(percent_off, 2),
             )
-            return jsonify({
+            payload = {
                 "success": True,
                 "percent_off": round(percent_off, 2),
                 "captured_target": None,
@@ -21237,7 +21403,9 @@ def gonna_win():
                 "actions_allowed_marked": marked_actions,
                 "created_operations": created_operations,
                 "message": f"Dostep do {player_hack_access.get('victim_nick') or victim_username} aktywny przez {PLAYER_HACK_ACCESS_MINUTES} min."
-            })
+            }
+            finish_gonna_win_receipt(payload)
+            return jsonify(payload)
 
         captured_target = dict(profile["aimed_target"])
         captured_target_mode = captured_target.get("target_mode")
@@ -21608,7 +21776,7 @@ def gonna_win():
         target_present=bool(profile.get("aimed_target")),
         created_count=len(created_operations or []),
     )
-    return jsonify({
+    payload = {
         "success": success,
         "percent_off": round(percent_off, 2),
         "captured_target": captured_target_response,
@@ -21618,7 +21786,9 @@ def gonna_win():
         "player_areas_count": len(rebuilt_areas) if rebuilt_areas is not None else None,
         "progression": progression,
         "created_operations": created_operations,
-    })
+    }
+    finish_gonna_win_receipt(payload)
+    return jsonify(payload)
 
 
 
