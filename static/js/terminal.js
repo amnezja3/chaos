@@ -1292,7 +1292,6 @@ function launchApplicationEffect(appData) {
         app_name: appData.name || "",
         interface: type
     });
-    notifyAppMapOperationStarted(appData);
     if (type === "window") app_window(id, levels);
     else if (type === "progressbar_random") app_progressbar_random(id, levels);
     else if (type === "terminal") app_terminal(id, levels);
