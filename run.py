@@ -15124,6 +15124,12 @@ def logout():
 def command():
     data = request.json
     user_input = data.get("input", "")
+    flow_id = request.headers.get("X-Hack-Flow-Id", "")
+    skip_map_runtime = bool(
+        data.get("skip_map_runtime")
+        or data.get("launch_queue")
+        or data.get("source") == "launch_queue"
+    )
 
     profile = sync_session_profile()
     user_apps = profile.get('apps', [])
@@ -15175,15 +15181,26 @@ def command():
         if not found_app:
             return jsonify({"response": f"Nie znaleziono aplikacji o ID: {app_id}"})
 
-        target_changed, marked_actions = apply_app_map_actions_to_aimed_target(profile, found_app, session.get("user"))
         created_operations = []
-        if profile.get("aimed_target"):
-            merge_latest_aimed_target_runtime_state(profile, session.get("user"))
-            created_operations = create_missing_operations_for_app_target(
-                profile,
-                session.get("user"),
-                found_app,
-                profile.get("aimed_target") or {},
+        target_changed = False
+        marked_actions = []
+        if not skip_map_runtime:
+            target_changed, marked_actions = apply_app_map_actions_to_aimed_target(profile, found_app, session.get("user"))
+            if profile.get("aimed_target"):
+                merge_latest_aimed_target_runtime_state(profile, session.get("user"))
+                created_operations = create_missing_operations_for_app_target(
+                    profile,
+                    session.get("user"),
+                    found_app,
+                    profile.get("aimed_target") or {},
+                )
+        else:
+            app_flow_debug(
+                flow_id,
+                "command_skip_map_runtime_for_launch_queue",
+                user=session.get("user"),
+                app_id=app_id,
+                app_name=found_app.get("name"),
             )
 
         if target_changed or created_operations:

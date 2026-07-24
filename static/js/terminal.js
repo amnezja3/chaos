@@ -13320,7 +13320,11 @@ async function pollLaunchQueue() {
                         'Content-Type': 'application/json',
                         'X-Hack-Flow-Id': window.__lastHackFlowId || ''
                     },
-                    body: JSON.stringify({ input: name })
+                    body: JSON.stringify({
+                        input: name,
+                        source: 'launch_queue',
+                        skip_map_runtime: true
+                    })
                 });
 
                 const data = await cmdRes.json();
