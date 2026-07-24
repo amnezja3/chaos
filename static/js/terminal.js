@@ -2264,6 +2264,175 @@ function setAppButtonGroupPending(buttons, activeButton, pending, pendingText = 
     });
 }
 
+const APP_WAIT_LOG_MESSAGES = [
+    "connection=false // retry ghost bus",
+    "reconnecting runtime channel",
+    "packet retry // target state",
+    "waiting for operation receipt",
+    "syncing source of truth",
+    "network overload // backoff",
+    "confirming tool effect",
+    "rebuilding local view",
+    "handshake timeout // retry route",
+    "ghost bus unavailable // probing fallback",
+    "runtime channel lost // restoring session",
+    "target state pending // await commit",
+    "operation receipt missing // rescan queue",
+    "source of truth locked // retry later",
+    "network jitter detected // stabilizing stream",
+    "tool effect pending // verify remote state",
+    "local snapshot stale // requesting delta",
+    "delta sequence gap // rebuilding cache",
+    "world state delayed // hold interface",
+    "remote worker busy // waiting slot",
+    "packet acknowledged // awaiting apply",
+    "command accepted // pending execution",
+    "execution delayed // node under load",
+    "state mutation queued // wait commit",
+    "commit hash pending // verify ledger",
+    "ghost relay saturated // applying backoff",
+    "route unstable // switching relay",
+    "relay switch complete // resuming sync",
+    "runtime pulse missing // health check",
+    "health check pending // node silent",
+    "node recovered // replaying packets",
+    "replaying missed deltas // stand by",
+    "map snapshot pending // loading world layer",
+    "actor registry syncing // partial state",
+    "target registry syncing // hold selection",
+    "territory state pending // resolving owner",
+    "cluster topology syncing // verify pillars",
+    "operation lock active // waiting release",
+    "operation lock expired // retry command",
+    "reservation pending // checking target claim",
+    "target claim conflict // resolving priority",
+    "ghost marker pending // awaiting projection",
+    "teleport receipt missing // verify position",
+    "position update pending // prevent rollback",
+    "movement stream delayed // holding coordinates",
+    "avatar state stale // fetching authority",
+    "inventory delta pending // verify balance",
+    "wallet delta delayed // awaiting ledger",
+    "reward receipt pending // checking payout",
+    "loot assignment pending // reserve object",
+    "loot state conflict // reconcile ownership",
+    "application queue busy // waiting executor",
+    "tool runtime cold // warming process",
+    "tool runtime ready // sending payload",
+    "payload fragmented // reassembling packet",
+    "payload checksum pending // verify integrity",
+    "checksum mismatch // requesting retransmit",
+    "packet retransmit scheduled // hold state",
+    "server response delayed // keep channel open",
+    "gateway overload // exponential backoff",
+    "gateway recovered // resuming requests",
+    "session token refresh // keep identity",
+    "identity check pending // verify profile",
+    "profile snapshot locked // avoid overwrite",
+    "profile delta queued // merge pending",
+    "session profile syncing // preserve progress",
+    "security state pending // await authority",
+    "actions_allowed stale // refreshing scope",
+    "aimed_target stale // validating selection",
+    "current_position stale // validating coordinates",
+    "local prediction paused // authority missing",
+    "authority response received // applying state",
+    "state apply pending // render blocked",
+    "render queue saturated // dropping frames",
+    "ui projection stale // rebuild requested",
+    "desktop runtime syncing // reopen channel",
+    "terminal bus busy // queueing message",
+    "terminal response pending // no output yet",
+    "command pipe blocked // flushing buffer",
+    "buffer flush pending // retry write",
+    "log stream delayed // reconnecting tail",
+    "trace channel unavailable // fallback logger",
+    "event stream paused // catch-up required",
+    "event backlog detected // draining queue",
+    "draining event backlog // keep interface idle",
+    "world digest delayed // awaiting publisher",
+    "blacknet signal pending // verify facts",
+    "radio state syncing // preserve playback",
+    "media channel interrupted // restoring buffer",
+    "ghostnetwork cycle state pending // reload snapshot",
+    "machine part state syncing // verify activation",
+    "part reservation pending // await hack result",
+    "activation receipt missing // check topology",
+    "topology update queued // rebuild circuit",
+    "half-line projection pending // calculate endpoint",
+    "machine circuit incomplete // waiting second node",
+    "ghost signal pending // cycle not closed",
+    "cycle lock active // await final commit",
+    "cycle archive pending // seal history",
+    "territory conflict active // operation blocked",
+    "pillar ownership pending // recalculate cluster",
+    "cluster boundary stale // rebuild polygon",
+    "map layer pending // request markers",
+    "marker projection delayed // rendering fallback",
+    "victim scan running // collecting nearby nodes",
+    "scan results delayed // sorting targets",
+    "target list stale // refreshing distance",
+    "motorcycle position pending // verify scan origin",
+    "operation controller syncing // load context",
+    "territory controller syncing // load clusters",
+    "ghost suite snapshot pending // wait delta",
+    "recovery mode active // rebuilding authoritative view",
+    "snapshot version mismatch // request full state",
+    "full state requested // pause local writes",
+    "full state received // applying snapshot",
+    "local writes paused // prevent race condition",
+    "race condition detected // reconcile timestamps",
+    "late request rejected // newer state exists",
+    "rollback prevented // authority version newer",
+    "duplicate command ignored // idempotency key",
+    "idempotency check pending // await ledger",
+    "worker heartbeat delayed // probing process",
+    "worker restart detected // restoring queue",
+    "process supervisor syncing // verify runtime",
+    "service degraded // limited operations",
+    "service recovering // gradually reopening channel",
+    "operation channel restored // resume interface"
+];
+
+function startAppWaitLog(container, options = {}) {
+    const root = container && typeof container.querySelector === "function" ? container : null;
+    if (!root) return () => {};
+    const content = root.querySelector('.app-content, .map-tool-picker-shell') || root;
+    let log = content.querySelector('.app-wait-log');
+    if (!log) {
+        log = document.createElement('div');
+        log.className = 'app-wait-log';
+        content.appendChild(log);
+    }
+
+    const prefix = options.prefix || "GhostSystem 2108";
+    const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let messageIndex = 0;
+    let timerId = null;
+    let stopped = false;
+
+    function renderNextMessage() {
+        if (stopped) return;
+        const msg = APP_WAIT_LOG_MESSAGES[messageIndex % APP_WAIT_LOG_MESSAGES.length];
+        messageIndex += 1;
+        log.textContent = `${prefix} // ${msg}`;
+        log.classList.add('is-active');
+        const delay = prefersReducedMotion ? 2800 : 1200 + Math.floor(Math.random() * 1200);
+        timerId = window.setTimeout(renderNextMessage, delay);
+    }
+
+    renderNextMessage();
+
+    return () => {
+        stopped = true;
+        if (timerId) {
+            window.clearTimeout(timerId);
+        }
+        log.classList.remove('is-active');
+        log.textContent = "";
+    };
+}
+
 function formatHackAccessTime(seconds) {
     const safeSeconds = Math.max(0, Number(seconds) || 0);
     const mins = Math.floor(safeSeconds / 60);
@@ -3247,6 +3416,7 @@ function app_window(id, levels) {
                 label
             });
             setAppButtonGroupPending(buttons, btn, true);
+            const stopWaitLog = startAppWaitLog(app);
             try {
                 const response = await sendGonnaWinRequest(id, action, app);
                 const success = response.success === true;
@@ -3263,6 +3433,7 @@ function app_window(id, levels) {
                     scheduleOperationalAppAutoClose(app);
                 }
             } finally {
+                stopWaitLog();
                 setAppButtonGroupPending(buttons, btn, false);
             }
         });
@@ -3300,7 +3471,7 @@ async function app_progressbar_random(id, levels) {
     document.body.appendChild(app);
     makeDraggable(app);
     app.querySelector('.close-btn').addEventListener('click', () => app.remove());
-    appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "button_choices" });
+    appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "progressbar_random" });
 
     const fill = app.querySelector('.progress-fill');
     const log = app.querySelector('.progress-log');
@@ -3314,13 +3485,18 @@ async function app_progressbar_random(id, levels) {
     function runNextStep() {
         if (stepIndex >= totalSteps) {
             // <- tutaj korzystamy z odpowiedzi
+            result.textContent = "Oczekiwanie na potwierdzenie runtime...";
+            result.style.color = "#9cff1a";
+            const stopWaitLog = startAppWaitLog(app);
             notifyGonnaWin(id, app).then(success => {
+                stopWaitLog();
                 result.textContent = success ? (level.result_success || "Operacja zako\u0144czona.") : (level.result_failure || "Operacja nie powiod\u0142a si\u0119.");
                 result.style.color = success ? "#0f0" : "#f33";
                 if (success) {
                     scheduleOperationalAppAutoClose(app);
                 }
             }).catch(() => {
+                stopWaitLog();
                 result.textContent = "\u2716 B\u0142\u0105d po\u0142\u0105czenia z serwerem.";
                 result.style.color = "#f33";
             });
@@ -5543,6 +5719,7 @@ function app_button_choices(id, levels) {
                 label: choiceLabel
             });
             setAppButtonGroupPending(buttons, btn, true);
+            const stopWaitLog = startAppWaitLog(app);
             try {
                 const response = await sendGonnaWinRequest(id, optId, app);
                 const success = response.success === true;
@@ -5559,6 +5736,7 @@ function app_button_choices(id, levels) {
                     scheduleOperationalAppAutoClose(app);
                 }
             } finally {
+                stopWaitLog();
                 setAppButtonGroupPending(buttons, btn, false);
             }
         });
@@ -11116,6 +11294,7 @@ async function selectMapActionTool(appId) {
         return;
     }
 
+    let stopPickerWaitLog = null;
     try {
         selection.in_flight = true;
         const flowId = getHackFlowId(selection);
@@ -11148,6 +11327,9 @@ async function selectMapActionTool(appId) {
         });
         pauseOpenMapOptionalRefresh("hack_action_tool_use");
         updateMapToolPickerBusyState(true, app.id);
+        stopPickerWaitLog = startAppWaitLog(document.querySelector('.terminal[data-app="map-tool-picker"]'), {
+            prefix: "GhostSystem 2108"
+        });
         const requestStartedAt = performance.now();
         const res = await fetch('/hack-action', {
             method: 'POST',
@@ -11237,6 +11419,9 @@ async function selectMapActionTool(appId) {
             updateMapToolPickerBusyState(false);
         }
     } finally {
+        if (typeof stopPickerWaitLog === "function") {
+            stopPickerWaitLog();
+        }
         notifyOpenMapsHackActionStopped(getHackFlowId(selection));
         resumeOpenMapOptionalRefresh(1200);
         if (selection?.pending_request_key && window.__pendingMapToolSelectionKeys) {

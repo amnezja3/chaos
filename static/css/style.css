@@ -3378,6 +3378,46 @@ form button:hover {
     color: #d8ffd8;
     border-color: #66ff8a;
 }
+
+.app-wait-log {
+    display: none;
+    margin-top: 10px;
+    padding: 6px 8px;
+    min-height: 18px;
+    border: 1px solid rgba(0, 255, 80, 0.35);
+    background: rgba(0, 16, 6, 0.72);
+    color: #9cff9c;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.35;
+    letter-spacing: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-wait-log.is-active {
+    display: block;
+    animation: appWaitPulse 1.6s steps(2, end) infinite;
+}
+
+@keyframes appWaitPulse {
+    0%, 100% { opacity: 0.72; }
+    50% { opacity: 1; }
+}
+
+@media (max-width: 560px) {
+    .app-wait-log {
+        font-size: 11px;
+        padding: 5px 7px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-wait-log.is-active {
+        animation: none;
+    }
+}
 .app-button-spinner {
     width: 11px;
     height: 11px;
