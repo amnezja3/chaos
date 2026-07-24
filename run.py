@@ -5170,16 +5170,24 @@ def normalize_profile_position_update(position, username=None, source="runtime")
     except (TypeError, ValueError):
         return {}
     normalized = {"lat": lat, "lng": lng}
+    position_meta = {}
     if username:
         try:
-            stored = player_position_store.upsert(username, normalized, source=source).get("position") or normalized
+            store_result = player_position_store.upsert(username, normalized, source=source)
+            stored = store_result.get("position") or normalized
             normalized = {"lat": float(stored["lat"]), "lng": float(stored["lng"])}
+            position_meta = {
+                "position_version": store_result.get("version"),
+                "position_updated_at": store_result.get("updated_at"),
+            }
         except Exception as exc:
             print(f"[position runtime] store update failed user={username} source={source} error={exc}", flush=True)
-    return {
+    result = {
         "curently_possition": dict(normalized),
         "current_position": dict(normalized),
     }
+    result.update({key: value for key, value in position_meta.items() if value is not None})
+    return result
 
 
 def apply_runtime_stores_to_profile(username, profile):
@@ -5188,11 +5196,15 @@ def apply_runtime_stores_to_profile(username, profile):
         return profile
 
     try:
-        position = player_position_store.get_position(username)
-        if not position:
-            position = player_position_store.seed_from_profile(username, profile)
-        if position:
+        position_payload = player_position_store.get(username)
+        if not position_payload:
+            player_position_store.seed_from_profile(username, profile)
+            position_payload = player_position_store.get(username)
+        if position_payload:
+            position = {"lat": position_payload.get("lat"), "lng": position_payload.get("lng")}
             profile.update(normalize_profile_position_update(position))
+            profile["position_version"] = position_payload.get("version")
+            profile["position_updated_at"] = position_payload.get("updated_at")
     except Exception as exc:
         print(f"[position runtime] profile overlay failed user={username} error={exc}", flush=True)
 
@@ -15072,8 +15084,10 @@ def api_blacknet_cta_teleport():
         "success": True,
         "message": f"{message_prefix}: {target_label}.",
         "hotspot": hotspot_payload,
-        "curently_possition": position,
-        "current_position": position,
+        "curently_possition": position_updates.get("curently_possition"),
+        "current_position": position_updates.get("current_position"),
+        "position_version": position_updates.get("position_version"),
+        "position_updated_at": position_updates.get("position_updated_at"),
         "intrusion": bool(intrusion_area),
         "intrusion_area": {
             "id": intrusion_area.get("id"),
@@ -16005,6 +16019,8 @@ def map_action():
             "message": f"🎯 Cel osiągnięty: ({lat}, {lng})",
             "curently_possition": position_updates.get("curently_possition"),
             "current_position": position_updates.get("current_position"),
+            "position_version": position_updates.get("position_version"),
+            "position_updated_at": position_updates.get("position_updated_at"),
             "intrusion": bool(intrusion_area),
             "intrusion_area": {
                 "id": intrusion_area.get("id"),

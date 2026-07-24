@@ -486,6 +486,97 @@
       100% { opacity: 0; transform: scale(1.65); }
     }
 
+    .motorcycle-avatar-shell {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      color: white;
+      text-shadow: 0 0 2px black;
+      transform: translateZ(0);
+    }
+
+    .motorcycle-avatar-name {
+      font-size: 0.8rem;
+      margin-bottom: 4px;
+      color: red;
+      white-space: nowrap;
+    }
+
+    .motorcycle-avatar-bike {
+      width: 48px;
+      height: auto;
+      display: block;
+    }
+
+    .motorcycle-phone-preloader {
+      position: absolute;
+      right: -12px;
+      top: 14px;
+      width: 18px;
+      height: 18px;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateZ(0) scale(0.82);
+      transition: opacity 120ms ease;
+    }
+
+    .motorcycle-avatar-shell.is-travel-waiting .motorcycle-phone-preloader {
+      opacity: 1;
+    }
+
+    .motorcycle-phone-body {
+      position: absolute;
+      inset: 4px 5px 3px 5px;
+      border: 1px solid rgba(184, 255, 40, 0.95);
+      border-radius: 3px;
+      background: rgba(4, 12, 7, 0.88);
+      box-shadow: 0 0 7px rgba(184, 255, 40, 0.48);
+      animation: chaos-phone-vibrate 0.58s steps(2, end) infinite;
+    }
+
+    .motorcycle-phone-body::before {
+      content: "";
+      position: absolute;
+      left: 3px;
+      right: 3px;
+      top: 3px;
+      height: 1px;
+      background: rgba(38, 255, 106, 0.82);
+    }
+
+    .motorcycle-phone-ring {
+      position: absolute;
+      inset: 0;
+      border: 1px solid rgba(38, 255, 106, 0.72);
+      border-left-color: transparent;
+      border-bottom-color: transparent;
+      border-radius: 50%;
+      opacity: 0;
+      animation: chaos-phone-ring 0.92s ease-out infinite;
+    }
+
+    .motorcycle-phone-ring:nth-child(2) {
+      animation-delay: 0.18s;
+      inset: -3px;
+    }
+
+    @keyframes chaos-phone-vibrate {
+      0%, 100% { transform: rotate(0deg) translate(0, 0); }
+      20% { transform: rotate(-8deg) translate(-1px, 0); }
+      40% { transform: rotate(7deg) translate(1px, -1px); }
+      60% { transform: rotate(-5deg) translate(-1px, 1px); }
+      80% { transform: rotate(5deg) translate(1px, 0); }
+    }
+
+    @keyframes chaos-phone-ring {
+      0% { opacity: 0; transform: scale(0.58); }
+      18% { opacity: 0.88; }
+      100% { opacity: 0; transform: scale(1.35); }
+    }
+
     @keyframes chaos-map-glitch-block {
       0%, 70%, 100% { opacity: 0; }
       72% { opacity: calc(var(--glitch-opacity, 0.42) * var(--glitch-boost, 1)); }
@@ -520,6 +611,8 @@
       .chaos-map-glitch-overlay,
       .chaos-map-glitch-block,
       .travel-destination-pulse,
+      .motorcycle-phone-body,
+      .motorcycle-phone-ring,
       .chaos-map-boot-overlay::before {
         animation: none !important;
         transition: none !important;
@@ -2443,20 +2536,24 @@
             const currentZoom = typeof map.getZoom === 'function' ? map.getZoom() : 16;
             const nextZoom = Math.max(currentZoom, focus.mode === 'teleport' ? 17 : 16);
             if (focus.mode === 'teleport') {
-                const position = { lat, lng };
-                if (window.profileData && typeof window.profileData === 'object') {
-                    window.profileData.curently_possition = position;
-                    window.profileData.current_position = position;
-                }
-                if (window.avatarMarkerRef && typeof window.avatarMarkerRef.setLatLng === 'function') {
-                    const previous = window.avatarMarkerRef.getLatLng && window.avatarMarkerRef.getLatLng();
-                    if (previous && typeof getBikeDirection === 'function' && typeof buildBikeIcon === 'function') {
-                        window.avatarMarkerRef.setIcon(buildBikeIcon(getBikeDirection(
-                            { lat: previous.lat, lng: previous.lng },
-                            position
-                        )));
+                const position = {
+                    lat,
+                    lng,
+                    source: focus.source || 'teleport',
+                    position_version: focus.position_version,
+                    position_updated_at: focus.position_updated_at
+                };
+                if (typeof window.setMotorcyclePositionFromSnapshot === 'function') {
+                    window.setMotorcyclePositionFromSnapshot(position, { authoritative: true });
+                } else {
+                    const simplePosition = { lat, lng };
+                    if (window.profileData && typeof window.profileData === 'object') {
+                        window.profileData.curently_possition = simplePosition;
+                        window.profileData.current_position = simplePosition;
                     }
-                    window.avatarMarkerRef.setLatLng([lat, lng]);
+                    if (window.avatarMarkerRef && typeof window.avatarMarkerRef.setLatLng === 'function') {
+                        window.avatarMarkerRef.setLatLng([lat, lng]);
+                    }
                 }
             }
             map.setView([lat, lng], nextZoom, { animate: true });
@@ -3700,43 +3797,27 @@
 
                 if (action === 'travel') {
                    
-                    const profile = window.profileData || {};
-                    const fromRaw = profile.curently_possition || { lat: 52.2297, lng: 21.0122 };
-                    const toRaw = { lat, lng };
-
-                    const from = {
-                        lat: parseFloat(fromRaw.lat),
-                        lng: parseFloat(fromRaw.lng)
-                    };
-                    const to = {
-                        lat: parseFloat(toRaw.lat),
-                        lng: parseFloat(toRaw.lng)
-                    };
-
-                    if (
-                        isNaN(from.lat) || isNaN(from.lng) ||
-                        isNaN(to.lat) || isNaN(to.lng)
-                    ) {
-                        console.error("❌ Nieprawidłowe współrzędne (NaN):", { from, to });
-                        addSystemMessage("danger", "📍 Błąd", "Nieprawidłowe współrzędne.");
-                        return;
-                    }
-
                     if (data.status === "too_far") {
                         addSystemMessage("warning", "🧭 Podróż", "Cel jest zbyt oddalony.");
                         // Bez przeładowania mapy przy błędzie zasięgu.
                         return;
                     }
 
-                    const avatarMarker = window.avatarMarkerRef;
-                    if (!avatarMarker) {
-                        console.warn("⚠️ Nie znaleziono markera awatara");
+                    const position = data.curently_possition || data.current_position || { lat, lng };
+                    const queued = typeof window.enqueueMotorcycleTravelPoint === 'function'
+                        ? window.enqueueMotorcycleTravelPoint({
+                            lat: position.lat,
+                            lng: position.lng,
+                            source: 'map_travel',
+                            position_version: data.position_version,
+                            position_updated_at: data.position_updated_at
+                        })
+                        : false;
+                    if (!queued) {
+                        console.warn("Nie znaleziono kolejki motocykla", { lat, lng, data });
                         return;
                     }
 
-                    await animateAvatarTravel(avatarMarker, from, to, 1500);
-                    window.profileData.curently_possition = { ...to };
-                    window.profileData.current_position = { ...to };
                     if (window.refreshPlayerActors) {
                         window.refreshPlayerActors();
                     }
@@ -3872,20 +3953,18 @@
             const riderName = window.escapeMapText
                 ? window.escapeMapText((window.profileData && (window.profileData.nick || window.profileData.username)) || "Avatar")
                 : ((window.profileData && (window.profileData.nick || window.profileData.username)) || "Avatar");
+            const showTravelPhone = Boolean(window.motorcycleTravelState && window.motorcycleTravelState.travelPhoneVisible);
             return L.divIcon({
                 className: 'custom-avatar-icon',
                 html: `
-                    <div style="
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        justify-content: center;
-                        font-size: 1rem;
-                        color: white;
-                        text-shadow: 0 0 2px black;
-                    ">
-                        <span style="font-size: 0.8rem; margin-bottom: 4px; color:red;">${riderName}</span>
-                        <img src="${src}" alt="scigacz" style="width: 48px; height: auto;">
+                    <div class="motorcycle-avatar-shell ${showTravelPhone ? 'is-travel-waiting' : ''}">
+                        <span class="motorcycle-avatar-name">${riderName}</span>
+                        <img class="motorcycle-avatar-bike" src="${src}" alt="scigacz">
+                        <span class="motorcycle-phone-preloader" aria-hidden="true">
+                            <span class="motorcycle-phone-ring"></span>
+                            <span class="motorcycle-phone-ring"></span>
+                            <span class="motorcycle-phone-body"></span>
+                        </span>
                     </div>
                 `,
                 iconSize: [48, 48],
@@ -3909,7 +3988,9 @@
 
         async function animateAvatarTravel(marker, from, to, duration = 2000) {
             window.avatarBikeDirection = null;
-            marker.setIcon(buildBikeIcon(getBikeDirection(from, to)));
+            const initialDirection = getBikeDirection(from, to);
+            window.avatarBikeDirection = initialDirection;
+            marker.setIcon(buildBikeIcon(initialDirection));
             return new Promise(resolve => {
                 const steps = 60;
                 const interval = duration / steps;
@@ -3923,10 +4004,12 @@
                     const newLat = from.lat + deltaLat * step;
                     const newLng = from.lng + deltaLng * step;
                     marker.setLatLng([newLat, newLng]);
-                    marker.setIcon(buildBikeIcon(getBikeDirection(
+                    const direction = getBikeDirection(
                         { lat: newLat, lng: newLng },
                         to
-                    )));
+                    );
+                    window.avatarBikeDirection = direction;
+                    marker.setIcon(buildBikeIcon(direction));
 
                     if (step < steps) {
                         setTimeout(move, interval);
@@ -3941,6 +4024,188 @@
 
 
 
+
+        window.motorcycleTravelState = window.motorcycleTravelState || {
+            queue: [],
+            animating: false,
+            lastConfirmedVersion: Number(window.profileData && window.profileData.position_version) || 0,
+            lastConfirmedUpdatedAt: (window.profileData && window.profileData.position_updated_at) || "",
+            lastTravelId: "",
+            travelPhoneVisible: false,
+            travelPhoneId: "",
+            travelPhoneTimer: null
+        };
+
+        function refreshMotorcycleMarkerIcon(direction) {
+            const marker = window.avatarMarkerRef;
+            if (!marker || typeof marker.setIcon !== 'function') return false;
+            const nextDirection = direction || window.avatarBikeDirection || "right";
+            marker.setIcon(buildBikeIcon(nextDirection));
+            return true;
+        }
+
+        function hideMotorcycleTravelPhone(reason = "ready") {
+            const state = window.motorcycleTravelState;
+            if (!state) return false;
+            if (state.travelPhoneTimer) {
+                clearTimeout(state.travelPhoneTimer);
+                state.travelPhoneTimer = null;
+            }
+            if (!state.travelPhoneVisible && !state.travelPhoneId) return false;
+            state.travelPhoneVisible = false;
+            state.travelPhoneId = "";
+            refreshMotorcycleMarkerIcon();
+            return true;
+        }
+
+        function showMotorcycleTravelPhone(point = {}) {
+            const state = window.motorcycleTravelState;
+            if (!state || state.animating || state.queue.length > 0 || !window.avatarMarkerRef) return false;
+            state.travelPhoneVisible = true;
+            state.travelPhoneId = point.travel_id || "";
+            refreshMotorcycleMarkerIcon();
+            if (state.travelPhoneTimer) {
+                clearTimeout(state.travelPhoneTimer);
+            }
+            state.travelPhoneTimer = setTimeout(() => hideMotorcycleTravelPhone("timeout"), 12000);
+            return true;
+        }
+
+        function waitForMotorcycleTravelPhoneFrame() {
+            return new Promise(resolve => setTimeout(resolve, 420));
+        }
+
+        window.hideMotorcycleTravelPhone = hideMotorcycleTravelPhone;
+        window.addEventListener('beforeunload', () => hideMotorcycleTravelPhone("map_unload"));
+
+        function normalizeMotorcyclePoint(point = {}) {
+            const lat = Number(point.lat);
+            const lng = Number(point.lng !== undefined ? point.lng : point.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+            return {
+                travel_id: String(point.travel_id || `travel-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+                lat,
+                lng,
+                order: Number(point.order) || Date.now(),
+                created_at: point.created_at || new Date().toISOString(),
+                source: String(point.source || "runtime"),
+                position_version: Number(point.position_version) || 0,
+                position_updated_at: point.position_updated_at || ""
+            };
+        }
+
+        function isAuthoritativeMotorcycleSource(source) {
+            return ["teleport", "terminal", "blacknet", "victim_picker", "territory_control", "map_travel"].includes(String(source || ""));
+        }
+
+        function applyMotorcycleLogicalPosition(point) {
+            const normalized = normalizeMotorcyclePoint(point);
+            if (!normalized) return null;
+            const state = window.motorcycleTravelState;
+            if (normalized.position_version && state.lastConfirmedVersion && normalized.position_version < state.lastConfirmedVersion) {
+                return null;
+            }
+            state.lastConfirmedVersion = normalized.position_version || state.lastConfirmedVersion || 0;
+            state.lastConfirmedUpdatedAt = normalized.position_updated_at || state.lastConfirmedUpdatedAt || "";
+            state.lastTravelId = normalized.travel_id;
+            window.profileData = window.profileData || {};
+            window.profileData.curently_possition = { lat: normalized.lat, lng: normalized.lng };
+            window.profileData.current_position = { lat: normalized.lat, lng: normalized.lng };
+            if (state.lastConfirmedVersion) {
+                window.profileData.position_version = state.lastConfirmedVersion;
+            }
+            if (state.lastConfirmedUpdatedAt) {
+                window.profileData.position_updated_at = state.lastConfirmedUpdatedAt;
+            }
+            return normalized;
+        }
+
+        function getAvatarVisualPosition() {
+            const marker = window.avatarMarkerRef;
+            if (marker && typeof marker.getLatLng === 'function') {
+                const current = marker.getLatLng();
+                if (current && Number.isFinite(Number(current.lat)) && Number.isFinite(Number(current.lng))) {
+                    return { lat: Number(current.lat), lng: Number(current.lng) };
+                }
+            }
+            const profile = window.profileData || {};
+            const position = profile.curently_possition || profile.current_position || {};
+            return {
+                lat: Number(position.lat) || 52.2297,
+                lng: Number(position.lng !== undefined ? position.lng : position.lon) || 21.0122
+            };
+        }
+
+        async function processMotorcycleTravelQueue() {
+            const state = window.motorcycleTravelState;
+            if (state.animating) return;
+            const marker = window.avatarMarkerRef;
+            if (!marker || typeof marker.setLatLng !== 'function') return;
+            state.animating = true;
+            try {
+                while (state.queue.length) {
+                    const point = state.queue.shift();
+                    const from = getAvatarVisualPosition();
+                    const to = { lat: point.lat, lng: point.lng };
+                    if (state.travelPhoneVisible && state.travelPhoneId === point.travel_id) {
+                        await waitForMotorcycleTravelPhoneFrame();
+                    }
+                    hideMotorcycleTravelPhone("movement_start");
+                    await animateAvatarTravel(marker, from, to, 1500);
+                    marker.setLatLng([to.lat, to.lng]);
+                    const direction = getBikeDirection(from, to);
+                    window.avatarBikeDirection = direction;
+                    marker.setIcon(buildBikeIcon(direction));
+                }
+            } finally {
+                hideMotorcycleTravelPhone("queue_done");
+                state.animating = false;
+                if (state.queue.length) {
+                    processMotorcycleTravelQueue();
+                }
+            }
+        }
+
+        window.enqueueMotorcycleTravelPoint = function(point = {}) {
+            const normalized = applyMotorcycleLogicalPosition(point);
+            if (!normalized) return false;
+            const state = window.motorcycleTravelState;
+            const idleBeforeQueue = !state.animating && state.queue.length === 0;
+            if (idleBeforeQueue) {
+                showMotorcycleTravelPhone(normalized);
+            }
+            window.motorcycleTravelState.queue.push(normalized);
+            processMotorcycleTravelQueue();
+            return true;
+        };
+
+        window.setMotorcyclePositionFromSnapshot = function(position = {}, options = {}) {
+            const normalized = normalizeMotorcyclePoint(position);
+            if (!normalized) return false;
+            const state = window.motorcycleTravelState;
+            const activeLocalQueue = state.animating || state.queue.length > 0;
+            const authoritative = Boolean(options.authoritative) || isAuthoritativeMotorcycleSource(normalized.source);
+            if (activeLocalQueue && !authoritative && !normalized.position_version) {
+                return true;
+            }
+            const applied = applyMotorcycleLogicalPosition(normalized);
+            if (!applied) return false;
+            if (activeLocalQueue && !authoritative) {
+                return true;
+            }
+            if (authoritative) {
+                hideMotorcycleTravelPhone("authoritative_snapshot");
+            }
+            const marker = window.avatarMarkerRef;
+            if (marker && typeof marker.setLatLng === 'function') {
+                const previous = getAvatarVisualPosition();
+                marker.setLatLng([applied.lat, applied.lng]);
+                const direction = getBikeDirection(previous, applied);
+                window.avatarBikeDirection = direction;
+                marker.setIcon(buildBikeIcon(direction));
+            }
+            return true;
+        };
 
         function addLiveMarker(lat, lng, label = "Cel", emoji = "🎯") {
             L.marker([lat, lng], {
@@ -6060,7 +6325,18 @@
                 }
 
                 const marker = window.playerActorMarkers[key];
-                marker.setLatLng([lat, lng]);
+                const selfUsername = String((window.profileData && (window.profileData.username || window.profileData.nick)) || "").trim();
+                if (selfUsername && key === selfUsername && typeof window.setMotorcyclePositionFromSnapshot === 'function') {
+                    window.setMotorcyclePositionFromSnapshot({
+                        lat,
+                        lng,
+                        source: 'player_actor_snapshot',
+                        position_version: menuActor.position_version,
+                        position_updated_at: menuActor.position_updated_at
+                    });
+                } else {
+                    marker.setLatLng([lat, lng]);
+                }
                 marker.setIcon(window.buildPlayerActorIcon(menuActor));
                 window.clearPlayerActorMarkerTooltip(marker);
                 marker._playerActorSnapshot = menuActor;

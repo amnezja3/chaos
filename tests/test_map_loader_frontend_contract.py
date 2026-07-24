@@ -38,7 +38,7 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
     def test_critical_boot_steps_retry_transient_failures(self):
         self.assertIn("waitForMapBootRetry", self.map_template)
         self.assertIn("options.critical ? 3 : 0", self.map_template)
-        self.assertIn("isNarrowViewport ? 90000 : 65000", self.map_template)
+        self.assertIn("isNarrowViewport ? 420000 : 300000", self.map_template)
         self.assertIn("Ponawiam:", self.map_template)
         self.assertIn("boot_attempt", self.map_template)
 
@@ -47,6 +47,17 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("showTravelDestinationPulse", self.map_template)
         self.assertIn("finishTravelPulse = showTravelDestinationPulse(lat, lng)", self.map_template)
         self.assertIn("typeof finishTravelPulse === 'function'", self.map_template)
+
+    def test_motorcycle_travel_phone_preloader_contract(self):
+        self.assertIn("motorcycle-phone-preloader", self.map_template)
+        self.assertIn("is-travel-waiting", self.map_template)
+        self.assertIn("showMotorcycleTravelPhone", self.map_template)
+        self.assertIn("hideMotorcycleTravelPhone", self.map_template)
+        self.assertIn("waitForMotorcycleTravelPhoneFrame", self.map_template)
+        self.assertIn("idleBeforeQueue", self.map_template)
+        self.assertIn("movement_start", self.map_template)
+        self.assertIn("chaos-phone-vibrate", self.map_template)
+        self.assertIn("chaos-phone-ring", self.map_template)
 
 
 if __name__ == "__main__":

@@ -10303,3 +10303,62 @@ Status:
 * jezeli okna nadal pojawia sie wizualnie wiecej niz raz, kolejna warstwa do
   sprawdzenia to frontendowy open-window dedupe, ale backend nie powinien juz
   wykonywac drugi raz tej samej pracy.
+
+## Sprint 130.6 - Motorcycle Travel Queue Refactor
+
+Wdrozono lokalna kolejke podrozy motocykla po stronie mapy. Backend zapisuje
+teraz potwierdzony punkt docelowy w `player_positions`, zwraca wersje pozycji i
+nie steruje kazdym krokiem animacji. Frontend traktuje ostatni punkt kolejki jako
+logiczna pozycje gracza, a marker motocykla animuje pojedynczy segment naraz.
+
+Wykonano:
+
+* dodano idempotentny zapis tej samej pozycji w `PlayerPositionStore.upsert()`;
+* snapshot profilu dostaje `position_version` i `position_updated_at`;
+* teleport terminala, BlackNetu, Victim Pickera i Territory Control przekazuje
+  wersje pozycji do mapy;
+* mapowe `travel` dopisuje punkt do `motorcycleTravelState.queue` zamiast
+  restartowac animacje;
+* snapshot aktora gracza nie nadpisuje aktywnej lokalnej kolejki starszym albo
+  bezwersyjnym stanem;
+* poprawiono test kontraktu loadera mapy pod wydluzone timeouty bootu
+  terytoriow.
+
+Walidacja:
+
+* `python -m py_compile run.py database.py`: OK;
+* `node --check static/js/terminal.js`: OK;
+* `python -m unittest tests.test_hack_action_idempotency -q`: OK, 32 testy;
+* `python -m unittest tests.test_map_loader_frontend_contract -q`: OK, 5 testow.
+
+Poza zakresem:
+
+* backend nadal potwierdza tylko punkt koncowy, nie publikuje krokow animacji;
+* zamkniecie mapy zatrzymuje tylko wizualna animacje;
+* po ponownym otwarciu mapa startuje z ostatniej zapisanej pozycji backendu.
+
+## Sprint 130.7 - Motorcycle Travel Phone Preloader
+
+Dodano lekki preloader telefonu przy markerze motocykla. Telefon pojawia sie
+dopiero po potwierdzeniu mapowej podrozy i tylko wtedy, gdy motocykl czeka na
+start pierwszego segmentu ruchu. Po rozpoczeciu animacji, snapshot recovery,
+timeoutcie albo zamknieciu mapy preloader znika.
+
+Wykonano:
+
+* dodano CSS telefonu, wibracji i krotkich fal dzwonienia w ikonie motocykla;
+* podlaczono stan `travelPhoneVisible` do istniejacego
+  `motorcycleTravelState`;
+* pokaz telefonu jest blokowany dla kolejnych punktow dodanych podczas aktywnej
+  animacji;
+* zachowano `prefers-reduced-motion` i brak nowych pollerow/backendowych zmian.
+
+Walidacja:
+
+* `python -m py_compile run.py database.py`: OK;
+* `node --check static/js/terminal.js`: OK;
+* `python -m unittest tests.test_hack_action_idempotency -q`: OK, 32 testy;
+* `python -m unittest tests.test_map_loader_frontend_contract -q`: OK, 6 testow;
+* `git diff --check`: OK;
+* test kontraktu loadera mapy obejmuje teraz preloader telefonu;
+* sprint pozostaje czysto frontendowy i nie zmienia logiki gameplayu travel.

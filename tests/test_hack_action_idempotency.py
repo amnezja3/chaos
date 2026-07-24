@@ -550,6 +550,23 @@ class HackActionIdempotencyTests(unittest.TestCase):
         self.assertEqual(result["current_position"], {"lat": 52.1, "lng": 21.2})
         self.assertIsNot(result["curently_possition"], result["current_position"])
 
+    def test_position_runtime_store_duplicate_position_keeps_version(self):
+        first = run.player_position_store.upsert(
+            "main",
+            {"lat": 52.55, "lng": 19.67},
+            source="travel",
+        )
+        second = run.player_position_store.upsert(
+            "main",
+            {"lat": 52.55, "lng": 19.67},
+            source="travel_retry",
+        )
+
+        self.assertTrue(first["changed"])
+        self.assertFalse(second["changed"])
+        self.assertEqual(second["position"], {"lat": 52.55, "lng": 19.67})
+        self.assertEqual(second["version"], first["version"])
+
     def test_target_runtime_store_merges_actions_and_security_monotonically(self):
         base = {
             "lat": 52.3,

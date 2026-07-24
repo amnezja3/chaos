@@ -3936,7 +3936,7 @@ class PlayerPositionStore:
         username = str(username or "").strip()
         normalized = self._normalize(position)
         if not username or not normalized:
-            return {"changed": False, "position": {}, "version": 0}
+            return {"changed": False, "position": {}, "version": 0, "updated_at": ""}
         now = utc_now()
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -3945,6 +3945,16 @@ class PlayerPositionStore:
                 (username,),
             ).fetchone()
             current = self._row_payload(row)
+            if current:
+                same_lat = abs(float(current.get("lat", 0)) - normalized["lat"]) < 0.0000001
+                same_lng = abs(float(current.get("lng", 0)) - normalized["lng"]) < 0.0000001
+                if same_lat and same_lng:
+                    return {
+                        "changed": False,
+                        "position": {"lat": float(current["lat"]), "lng": float(current["lng"])},
+                        "version": int(current.get("version") or 0),
+                        "updated_at": current.get("updated_at") or "",
+                    }
             version = int((current or {}).get("version") or 0) + 1
             conn.execute(
                 """
@@ -3967,7 +3977,12 @@ class PlayerPositionStore:
                     now,
                 ),
             )
-            return {"changed": True, "position": normalized, "version": version}
+            return {
+                "changed": True,
+                "position": normalized,
+                "version": version,
+                "updated_at": now,
+            }
 
     def seed_from_profile(self, username, profile, source="profile_fallback"):
         if self.get(username):

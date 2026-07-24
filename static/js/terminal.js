@@ -1951,6 +1951,8 @@ async function handleTerminalTeleport(content, teleport) {
         label,
         lat: Number(data?.curently_possition?.lat ?? lat),
         lng: Number(data?.curently_possition?.lng ?? lng),
+        position_version: data?.position_version,
+        position_updated_at: data?.position_updated_at,
         source: "terminal"
     });
     return true;
@@ -3935,6 +3937,8 @@ async function teleportVictimPickerCandidate(candidate, refreshAfter = null) {
         ...teleport,
         lat: Number(data?.curently_possition?.lat ?? lat),
         lng: Number(data?.curently_possition?.lng ?? lng),
+        position_version: data?.position_version,
+        position_updated_at: data?.position_updated_at,
         mode: "teleport"
     }, label);
     if (typeof refreshAfter === "function") {
@@ -4592,6 +4596,8 @@ async function teleportTerritoryControlObject(item, refreshAfter = null) {
         ...teleport,
         lat: Number(data?.curently_possition?.lat ?? lat),
         lng: Number(data?.curently_possition?.lng ?? lng),
+        position_version: data?.position_version,
+        position_updated_at: data?.position_updated_at,
         mode: "teleport"
     }, label);
     if (typeof refreshAfter === "function") await refreshAfter();
@@ -6614,6 +6620,8 @@ function createBrowser() {
                 entity_id: signal?.entity_id || "",
                 lat: Number(data?.curently_possition?.lat ?? lat),
                 lng: Number(data?.curently_possition?.lng ?? lng),
+                position_version: data?.position_version,
+                position_updated_at: data?.position_updated_at,
                 label
             };
             setTimeout(() => notifyOpenMapsBlacknetFocus(window.__blacknetMapFocus), 50);
