@@ -2789,7 +2789,11 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         data = response.get_json()
         self.assertEqual(response.status_code, 200)
         detect_mock.assert_not_called()
-        contested_mock.assert_called_once_with("main", [])
+        contested_mock.assert_called_once()
+        self.assertEqual(contested_mock.call_args.args[0], "main")
+        self.assertEqual(contested_mock.call_args.args[1], [])
+        passed_areas = contested_mock.call_args.args[2]
+        self.assertEqual([area["id"] for area in passed_areas], [2, 3])
         self.assertEqual(len(data["areas"]), 2)
         own_area = next(item for item in data["areas"] if item["owner_username"] == "main")
         self.assertTrue(own_area["is_mine"])
@@ -2834,6 +2838,62 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(targets[0]["target_mode"], "territory_contest")
         self.assertEqual(targets[0]["contest_owner_username"], "other")
         self.assertEqual(targets[0]["conflict_id"], 42)
+
+    def test_contested_targets_from_active_conflicts_derives_missing_inner_from_area_ids(self):
+        conflict = {
+            "id": 77,
+            "participants": ["main", "other"],
+            "area_ids": [1, 2],
+            "targets": [],
+        }
+        areas = [
+            {
+                "id": 1,
+                "owner_username": "main",
+                "status": "active",
+                "vertices": [
+                    {"lat": 52.0, "lng": 21.0},
+                    {"lat": 52.0, "lng": 21.02},
+                    {"lat": 52.02, "lng": 21.02},
+                    {"lat": 52.02, "lng": 21.0},
+                ],
+            },
+            {
+                "id": 2,
+                "owner_username": "other",
+                "status": "active",
+                "vertices": [
+                    {"lat": 52.01, "lng": 21.01},
+                    {"lat": 52.01, "lng": 21.03},
+                    {"lat": 52.03, "lng": 21.03},
+                    {"lat": 52.03, "lng": 21.01},
+                ],
+            },
+        ]
+
+        class FakeTerritoryStore:
+            def list_captured_targets(self, owner, stationary=True):
+                if owner == "other":
+                    return [
+                        {
+                            "lat": 52.015,
+                            "lng": 21.015,
+                            "label": "Enemy Inner",
+                            "source_type": "inner",
+                        }
+                    ]
+                return []
+
+        with patch.object(run, "territory_store", FakeTerritoryStore()), \
+                patch.object(run.user_store, "get_profile", return_value={"username": "other", "nick": "Other"}):
+            targets = run.contested_targets_from_active_conflicts("main", [conflict], areas)
+
+        self.assertEqual(len(targets), 1)
+        self.assertEqual(targets[0]["label"], "Enemy Inner")
+        self.assertEqual(targets[0]["target_mode"], "territory_contest")
+        self.assertEqual(targets[0]["contest_owner_username"], "other")
+        self.assertEqual(targets[0]["foreign_area_id"], 2)
+        self.assertEqual(targets[0]["my_area_id"], 1)
 
     def test_encircled_area_notification_uses_stable_area_key(self):
         area_first = {

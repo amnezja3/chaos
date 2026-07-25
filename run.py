@@ -10935,13 +10935,56 @@ def find_contested_targets_for_player(username, areas=None):
     return list(contested.values())
 
 
-def contested_targets_from_active_conflicts(username, conflicts=None):
+def contested_targets_from_active_conflicts(username, conflicts=None, areas=None):
     username = str(username or "").strip()
     if not username:
         return []
     conflicts = conflicts if conflicts is not None else territory_conflict_store.list_active_for_player(username)
     contested = {}
     owner_profiles = {}
+    owner_targets = {}
+
+    def add_contested_target(conflict, owner_username, target, item=None, extra=None):
+        owner_username = str(owner_username or "").strip()
+        if not owner_username or owner_username == username:
+            return
+        if item and item.get("previous_owner") == username:
+            return
+        if target.get("previous_owner_username") == username:
+            return
+        try:
+            lat = float(target.get("lat", (item or {}).get("lat")))
+            lng = float(target.get("lng", target.get("lon", (item or {}).get("lng", (item or {}).get("lon")))))
+        except (TypeError, ValueError):
+            return
+
+        target = dict(target)
+        target["lat"] = lat
+        target["lng"] = lng
+        target["lon"] = lng
+        key = target_coord_key(target)
+        if not key or key in contested:
+            return
+
+        if owner_username not in owner_profiles:
+            owner_profiles[owner_username] = user_store.get_profile(owner_username) or {}
+        owner_profile = owner_profiles.get(owner_username) or {}
+        label = str(target.get("label") or target.get("name") or (item or {}).get("label") or "Kolizja")
+        target.update({
+            "label": label,
+            "name": str(target.get("name") or label),
+            "owner_username": owner_username,
+            "owner_nick": owner_profile.get("nick") or owner_username,
+            "owner_clan": get_profile_clan(owner_profile),
+            "target_mode": "territory_contest",
+            "contest_owner_username": owner_username,
+            "conflict_id": conflict.get("id"),
+            "source_type": target.get("source_type") or "territory_contest",
+        })
+        if extra:
+            target.update(extra)
+        contested[key] = target
+
     for conflict in conflicts or []:
         participants = set(conflict.get("participants") or conflict.get("participant_usernames") or [])
         if username not in participants:
@@ -10957,39 +11000,63 @@ def contested_targets_from_active_conflicts(username, conflicts=None):
             if item.get("previous_owner") == username:
                 continue
             target = dict(item.get("target") or {})
-            try:
-                lat = float(target.get("lat", item.get("lat")))
-                lng = float(target.get("lng", target.get("lon", item.get("lng", item.get("lon")))))
-            except (TypeError, ValueError):
-                continue
-            target["lat"] = lat
-            target["lng"] = lng
-            target["lon"] = lng
-            key = target_coord_key(target)
-            if not key or key in contested:
-                continue
+            add_contested_target(conflict, owner_username, target, item=item)
 
-            if owner_username not in owner_profiles:
-                owner_profiles[owner_username] = user_store.get_profile(owner_username) or {}
-            owner_profile = owner_profiles.get(owner_username) or {}
-            label = str(target.get("label") or target.get("name") or item.get("label") or "Kolizja")
-            target.update({
-                "label": label,
-                "name": str(target.get("name") or label),
-                "owner_username": owner_username,
-                "owner_nick": owner_profile.get("nick") or owner_username,
-                "owner_clan": get_profile_clan(owner_profile),
-                "target_mode": "territory_contest",
-                "contest_owner_username": owner_username,
-                "conflict_id": conflict.get("id"),
-                "source_type": target.get("source_type") or "territory_contest",
-            })
-            contested[key] = target
+        if not areas:
+            continue
+
+        conflict_area_ids = {str(item) for item in (conflict.get("area_ids") or []) if item is not None}
+        if not conflict_area_ids:
+            continue
+        conflict_areas = [
+            area for area in areas or []
+            if str(area.get("id")) in conflict_area_ids and area.get("status", "active") == "active"
+        ]
+        my_areas = [area for area in conflict_areas if area.get("owner_username") == username]
+        if not my_areas:
+            continue
+        foreign_areas = [area for area in conflict_areas if area.get("owner_username") != username]
+        if not foreign_areas:
+            continue
+
+        for foreign_area in foreign_areas:
+            owner_username = str(foreign_area.get("owner_username") or "").strip()
+            if not owner_username or owner_username == username:
+                continue
+            if owner_username not in owner_targets:
+                owner_targets[owner_username] = territory_store.list_captured_targets(owner_username, stationary=True)
+            for target in owner_targets.get(owner_username) or []:
+                key = target_coord_key(target)
+                if not key or key in contested:
+                    continue
+                if target.get("previous_owner_username") == username:
+                    continue
+                try:
+                    lat = float(target.get("lat"))
+                    lng = float(target.get("lng", target.get("lon")))
+                except (TypeError, ValueError):
+                    continue
+                containing_my_area = next(
+                    (area for area in my_areas if point_in_polygon(lat, lng, area.get("vertices", []))),
+                    None,
+                )
+                if not containing_my_area:
+                    continue
+                add_contested_target(
+                    conflict,
+                    owner_username,
+                    target,
+                    extra={
+                        "foreign_area_id": foreign_area.get("id"),
+                        "my_area_id": containing_my_area.get("id"),
+                    },
+                )
     return list(contested.values())
 
 
 def find_contested_target(username, lat, lng, label=None):
-    for target in contested_targets_from_active_conflicts(username):
+    areas = safe_player_areas(territory_store.list_player_areas())
+    for target in contested_targets_from_active_conflicts(username, areas=areas):
         if round(float(target.get("lat")), 5) != round(float(lat), 5):
             continue
         if round(float(target.get("lng", target.get("lon"))), 5) != round(float(lng), 5):
@@ -19202,7 +19269,7 @@ def map_player_areas():
         enrich_conflict_payload(conflict)
         for conflict in active_conflicts
     ]
-    contested_targets = contested_targets_from_active_conflicts(username, active_conflicts)
+    contested_targets = contested_targets_from_active_conflicts(username, active_conflicts, all_areas)
     areas = []
     for area in all_areas:
         clean_area = normalize_player_area(area)
