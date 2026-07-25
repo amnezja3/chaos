@@ -9,6 +9,9 @@ let toolbarProfile = null;
 let toolbarTargetFeedbackState = { targetKey: "", dotSignature: "", progress: 0 };
 let gonnaWinRequestQueue = Promise.resolve();
 let toolbarTargetTruthRefreshing = false;
+let toolbarTargetHackedEffect = null;
+let toolbarTargetHackedEffectTimer = null;
+const toolbarTargetHackedEffectKeys = new Set();
 let desktopSessionActive = true;
 let desktopRenderedApps = [];
 const recentApplicationWindowLaunches = new Map();
@@ -740,6 +743,80 @@ function toolbarTargetsShareProgressIdentity(left, right) {
     return Boolean(leftCoords && leftCoords === rightCoords);
 }
 
+function getToolbarTargetLabelKey(target) {
+    return String(
+        (target || {}).label
+        || (target || {}).name
+        || (target || {}).display_label
+        || (target || {}).title
+        || ""
+    ).trim().toLowerCase();
+}
+
+function toolbarTargetMatchesCaptured(aimedTarget, capturedTarget) {
+    const aimedCoords = getToolbarTargetCoordKey(aimedTarget);
+    const capturedCoords = getToolbarTargetCoordKey(capturedTarget);
+    if (!aimedCoords || !capturedCoords || aimedCoords !== capturedCoords) return false;
+
+    const aimedLabel = getToolbarTargetLabelKey(aimedTarget);
+    const capturedLabel = getToolbarTargetLabelKey(capturedTarget);
+    if (aimedLabel && capturedLabel && aimedLabel !== capturedLabel) return false;
+    return true;
+}
+
+function toolbarTargetAlreadyCaptured(profile, aimedTarget) {
+    if (!hasToolbarAimedTarget(aimedTarget)) return false;
+    const capturedTargets = [];
+    const sources = [
+        profile && profile.hacked,
+        profile && profile.hacked_targets,
+        profile && profile.captured_targets,
+        toolbarProfile && toolbarProfile.hacked,
+        toolbarProfile && toolbarProfile.hacked_targets,
+        toolbarProfile && toolbarProfile.captured_targets
+    ];
+    sources.forEach(source => {
+        if (Array.isArray(source)) capturedTargets.push(...source);
+    });
+    return capturedTargets.some(capturedTarget => toolbarTargetMatchesCaptured(aimedTarget, capturedTarget));
+}
+
+function getToolbarTargetHackedEffectKey(target) {
+    return getTargetFeedbackKey(target)
+        || [
+            getToolbarTargetCoordKey(target),
+            getToolbarTargetLabelKey(target)
+        ].filter(Boolean).join("|");
+}
+
+function triggerToolbarTargetHackedEffect(target) {
+    if (!hasToolbarAimedTarget(target)) return;
+    const key = getToolbarTargetHackedEffectKey(target);
+    if (!key || toolbarTargetHackedEffectKeys.has(key)) return;
+    toolbarTargetHackedEffectKeys.add(key);
+    if (toolbarTargetHackedEffectKeys.size > 80) {
+        toolbarTargetHackedEffectKeys.clear();
+        toolbarTargetHackedEffectKeys.add(key);
+    }
+    toolbarTargetHackedEffect = {
+        key,
+        label: target.display_label
+            || target.label
+            || target.name
+            || target.title
+            || target.target_id
+            || target.id
+            || "target",
+        startedAt: Date.now()
+    };
+    clearTimeout(toolbarTargetHackedEffectTimer);
+    toolbarTargetHackedEffectTimer = setTimeout(() => {
+        toolbarTargetHackedEffect = null;
+        toolbarTargetHackedEffectTimer = null;
+        renderToolbarStatus();
+    }, 1100);
+}
+
 function mergeToolbarTargetProgress(currentTarget, incomingTarget) {
     if (!incomingTarget || typeof incomingTarget !== "object") return incomingTarget;
     if (!hasToolbarAimedTarget(incomingTarget)) return incomingTarget;
@@ -780,10 +857,15 @@ function mergeToolbarTargetProgress(currentTarget, incomingTarget) {
 function normalizeToolbarProfileProgress(profile) {
     if (!profile || typeof profile !== "object") return profile;
     if (!Object.prototype.hasOwnProperty.call(profile, "aimed_target")) return profile;
-    return {
+    const normalized = {
         ...profile,
         aimed_target: mergeToolbarTargetProgress((toolbarProfile || {}).aimed_target, profile.aimed_target)
     };
+    if (toolbarTargetAlreadyCaptured(normalized, normalized.aimed_target)) {
+        triggerToolbarTargetHackedEffect(normalized.aimed_target);
+        normalized.aimed_target = {};
+    }
+    return normalized;
 }
 
 function setToolbarProfile(profile) {
@@ -1031,6 +1113,11 @@ function renderToolbarStatus() {
     const arsenalCoverage = calculateToolbarArsenalCoverage(profile);
     const arsenalLabel = arsenalCoverage === null ? "--" : `${arsenalCoverage}%`;
     const targetFeedback = hasTarget ? resolveTargetBarFeedback(aimedTarget) : resolveTargetBarFeedback(null);
+    const hackedEffect = !hasTarget
+        && toolbarTargetHackedEffect
+        && Date.now() - toolbarTargetHackedEffect.startedAt < 1200
+        ? toolbarTargetHackedEffect
+        : null;
     const targetMarkup = hasTarget ? (() => {
         const targetClasses = [
             "system-status-target",
@@ -1043,7 +1130,9 @@ function renderToolbarStatus() {
         const targetProgressStyle = targetFeedback ? ` style="--target-disarm-progress: ${targetFeedback.progress}%;"` : "";
         const title = toolbarTargetTruthRefreshing ? "Sprawdzam zrodlo prawdy celu..." : `Cel na celowniku: ${escapeHTML(String(targetLabel))}. Kliknij, aby odswiezyc.`;
         return `<span class="${targetClasses}" role="button" tabindex="0" title="${title}"${targetProgressStyle}><b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(targetLabel))}</em>${renderTargetBarFeedback(targetFeedback)}</i></span>`;
-    })() : `<span class="system-status-target ${toolbarTargetTruthRefreshing ? "is-refreshing" : ""}" role="button" tabindex="0" title="Kliknij, aby odswiezyc profil celu"><b>CEL</b></span>`;
+    })() : (hackedEffect
+        ? `<span class="system-status-target is-hacked-clear" role="button" tabindex="0" title="Cel przejety. Belka zaraz wroci do stanu neutralnego."><b>CEL</b><i class="target-status-body"><em>${escapeHTML(String(hackedEffect.label))}</em></i></span>`
+        : `<span class="system-status-target ${toolbarTargetTruthRefreshing ? "is-refreshing" : ""}" role="button" tabindex="0" title="Kliknij, aby odswiezyc profil celu"><b>CEL</b></span>`);
     strip.innerHTML = `
         ${targetMarkup}
         <span><b>ARS</b> ${arsenalLabel}</span>

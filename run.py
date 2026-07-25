@@ -11979,6 +11979,13 @@ def merge_latest_aimed_target_runtime_state(profile, username):
         runtime_state = {}
 
     if isinstance(stored_target, dict) and stored_target:
+        if find_owned_captured_target_for_runtime_target(username, stored_target):
+            try:
+                player_target_runtime_store.mark_captured(username, stored_target, source="runtime_merge_stored_captured")
+            except Exception as exc:
+                print(f"[target runtime] stored captured merge failed user={username} error={exc}", flush=True)
+            profile["aimed_target"] = {}
+            return {}
         if not isinstance(aimed_target, dict) or not aimed_target:
             profile["aimed_target"] = stored_target
             return stored_target
