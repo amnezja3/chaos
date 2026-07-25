@@ -3252,6 +3252,14 @@
             console.debug(`[MAP_ACTION_DEBUG ${flowId || '-'}] ${step}`, payload);
         }
 
+        function safeHttpHeaderValue(value) {
+            try {
+                return encodeURIComponent(String(value || "")).slice(0, 500);
+            } catch (_err) {
+                return String(value || "").replace(/[^\x20-\x7E]/g, "?").slice(0, 500);
+            }
+        }
+
 
         function hackingAction(action, lat, lng, label, icon, source_type = "manual", name = label, generated = false, vulnerability_id = null, target_mode = null, contest_owner_username = null, foreign_area_id = null, target_username = null, triggerEl = null) {
             if (guardMapGameplayAction()) {
@@ -3312,12 +3320,13 @@
             }
 
             const hackActionStartedAt = performance.now();
+            const hackActionHeaderKey = safeHttpHeaderValue(hackActionKey);
             fetch('/hack-action', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Hack-Flow-Id': hackFlowId,
-                    'X-Client-Action-Key': hackActionKey
+                    'X-Client-Action-Key': hackActionHeaderKey
                 },
                 body: JSON.stringify({
                     action,
@@ -3423,6 +3432,21 @@
                 addSystemMessage("success", `✅ ${action}`, data.status);
             })
             .catch(err => {
+                console.error("[map hack-action] request failed before response", {
+                    action,
+                    lat,
+                    lng,
+                    label,
+                    source_type,
+                    target_mode,
+                    hackActionKey,
+                    hackActionHeaderKey
+                }, err);
+                appFlowTrace(hackFlowId, "map_hack_action_request_failed", {
+                    action,
+                    label,
+                    error: err && (err.message || String(err))
+                });
                 addSystemMessage("danger", "❌ Hackowanie", "Błąd operacji hackowania");
             })
             .finally(() => {

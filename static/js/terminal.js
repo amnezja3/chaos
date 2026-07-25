@@ -63,6 +63,15 @@ function appFlowTrace(flowId, step, details = {}) {
 }
 
 window.appFlowTrace = appFlowTrace;
+
+function safeHttpHeaderValue(value) {
+    try {
+        return encodeURIComponent(String(value || "")).slice(0, 500);
+    } catch (_err) {
+        return String(value || "").replace(/[^\x20-\x7E]/g, "?").slice(0, 500);
+    }
+}
+
 const DESKTOP_WALLPAPER_CLASSES = [
     "wall-1", "wall-2", "wall-3",
     "wall-chaos-green", "wall-chaos-blue", "wall-chaos-red", "wall-chaos-amber", "wall-chaos-violet"
@@ -11339,12 +11348,13 @@ async function selectMapActionTool(appId) {
             prefix: "GhostSystem 2108"
         });
         const requestStartedAt = performance.now();
+        const clientActionHeaderKey = safeHttpHeaderValue(selection.pending_action?._client_action_key || selectionRequestKey);
         const res = await fetch('/hack-action', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Hack-Flow-Id': flowId,
-                'X-Client-Action-Key': selection.pending_action?._client_action_key || selectionRequestKey
+                'X-Client-Action-Key': clientActionHeaderKey
             },
             body: JSON.stringify({
                 ...selection.pending_action,
