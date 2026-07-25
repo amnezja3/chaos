@@ -4378,6 +4378,59 @@ def targets_share_runtime_identity(left, right):
     return targets_share_position(left, right, precision=5)
 
 
+def is_generic_target_runtime_id(value):
+    target_id = str(value or "").strip().lower()
+    return (
+        not target_id
+        or target_id == "target"
+        or target_id == "map:0.0.0.0:target"
+        or "0.0.0.0" in target_id
+    )
+
+
+def targets_share_selection_identity(left, right):
+    """Return true only when two targets represent the same current player selection."""
+    if not isinstance(left, dict) or not isinstance(right, dict) or not left or not right:
+        return False
+
+    left_mode = str(left.get("target_mode") or "").strip()
+    right_mode = str(right.get("target_mode") or "").strip()
+    if left_mode == "player" or right_mode == "player":
+        return (
+            left_mode == right_mode == "player"
+            and str(left.get("target_username") or left.get("username") or "").strip()
+            and str(left.get("target_username") or left.get("username") or "").strip()
+            == str(right.get("target_username") or right.get("username") or "").strip()
+        )
+
+    left_key = target_position_key(left)
+    right_key = target_position_key(right)
+    if left_key and right_key and left_key != right_key:
+        return False
+
+    left_label = target_label_value(left)
+    right_label = target_label_value(right)
+    if left_label and right_label and left_label != right_label:
+        return False
+
+    left_vulnerability = str(left.get("vulnerability_id") or "").strip()
+    right_vulnerability = str(right.get("vulnerability_id") or "").strip()
+    if left_vulnerability or right_vulnerability:
+        return bool(left_vulnerability and left_vulnerability == right_vulnerability)
+
+    left_area = str(left.get("foreign_area_id") or "").strip()
+    right_area = str(right.get("foreign_area_id") or "").strip()
+    if left_area or right_area:
+        return bool(left_area and left_area == right_area and left_key and left_key == right_key)
+
+    left_id = str(left.get("target_id") or left.get("id") or "").strip()
+    right_id = str(right.get("target_id") or right.get("id") or "").strip()
+    if left_id and right_id and left_id == right_id and not is_generic_target_runtime_id(left_id):
+        return True
+
+    return bool(left_key and right_key and left_key == right_key)
+
+
 TERRITORY_ENCIRCLEMENT_EVENT_TYPE = "territory_encirclement_resolved"
 TERRITORY_ENCIRCLEMENT_TOLERANCE_DEGREES = 1e-9
 
@@ -4846,7 +4899,7 @@ def clear_aimed_target_if_matches(username, reference_target):
         print(f"[target runtime] clear failed user={username} error={exc}", flush=True)
     profile = user_store.get_profile(username) or {}
     aimed = profile.get("aimed_target") or {}
-    if not aimed or not targets_share_position(aimed, reference_target):
+    if not aimed or not targets_share_selection_identity(aimed, reference_target):
         return bool(runtime_cleared)
     profile["aimed_target"] = {}
     user_store.save_profile(profile)
@@ -12005,6 +12058,11 @@ def merge_latest_aimed_target_runtime_state(profile, username):
     """Keep target app progress monotonic when app/map requests finish out of order."""
     profile = profile if isinstance(profile, dict) else {}
     aimed_target = profile.get("aimed_target")
+    current_target_is_valid = (
+        isinstance(aimed_target, dict)
+        and bool(aimed_target)
+        and target_has_stable_runtime_identity(aimed_target)
+    )
     if not username:
         return aimed_target
 
@@ -12020,6 +12078,20 @@ def merge_latest_aimed_target_runtime_state(profile, username):
 
     if isinstance(stored_target, dict) and stored_target:
         if find_owned_captured_target_for_runtime_target(username, stored_target):
+            if current_target_is_valid and not targets_share_selection_identity(stored_target, aimed_target):
+                try:
+                    player_target_runtime_store.upsert_aimed(
+                        username,
+                        aimed_target,
+                        source="runtime_merge_new_target_over_captured_stored",
+                    )
+                except Exception as exc:
+                    print(
+                        f"[target runtime] new target over captured stored failed user={username} error={exc}",
+                        flush=True,
+                    )
+                profile["aimed_target"] = aimed_target
+                return aimed_target
             try:
                 player_target_runtime_store.mark_captured(username, stored_target, source="runtime_merge_stored_captured")
             except Exception as exc:
@@ -12029,7 +12101,7 @@ def merge_latest_aimed_target_runtime_state(profile, username):
         if not isinstance(aimed_target, dict) or not aimed_target:
             profile["aimed_target"] = stored_target
             return stored_target
-        if targets_share_runtime_identity(stored_target, aimed_target):
+        if targets_share_selection_identity(stored_target, aimed_target):
             allowed = aimed_target.setdefault("actions_allowed", {})
             for key, value in (stored_target.get("actions_allowed") or {}).items():
                 if value is True:
@@ -12046,6 +12118,13 @@ def merge_latest_aimed_target_runtime_state(profile, username):
                 pass
             profile["aimed_target"] = aimed_target
             return aimed_target
+        if current_target_is_valid:
+            try:
+                player_target_runtime_store.upsert_aimed(username, aimed_target, source="runtime_merge_new_target")
+            except Exception as exc:
+                print(f"[target runtime] new target merge failed user={username} error={exc}", flush=True)
+            profile["aimed_target"] = aimed_target
+            return aimed_target
         profile["aimed_target"] = stored_target
         return stored_target
 
@@ -12054,10 +12133,8 @@ def merge_latest_aimed_target_runtime_state(profile, username):
 
     if isinstance(runtime_state, dict) and runtime_state.get("status") in {"cleared", "captured"}:
         runtime_target = runtime_state.get("target") or {}
-        if (
-            not runtime_target
-            or targets_share_runtime_identity(runtime_target, aimed_target)
-            or targets_share_position(runtime_target, aimed_target)
+        if (not runtime_target and not current_target_is_valid) or (
+            runtime_target and targets_share_selection_identity(runtime_target, aimed_target)
         ):
             profile["aimed_target"] = {}
             return {}
@@ -12084,7 +12161,7 @@ def merge_latest_aimed_target_runtime_state(profile, username):
     if not isinstance(latest_target, dict) or not latest_target:
         return aimed_target
 
-    if not targets_share_runtime_identity(latest_target, aimed_target):
+    if not targets_share_selection_identity(latest_target, aimed_target):
         return aimed_target
 
     allowed = aimed_target.setdefault("actions_allowed", {})
