@@ -810,11 +810,35 @@ function triggerToolbarTargetHackedEffect(target) {
         startedAt: Date.now()
     };
     clearTimeout(toolbarTargetHackedEffectTimer);
+    renderToolbarStatus();
     toolbarTargetHackedEffectTimer = setTimeout(() => {
         toolbarTargetHackedEffect = null;
         toolbarTargetHackedEffectTimer = null;
         renderToolbarStatus();
     }, 1100);
+}
+
+function toolbarResultCapturedTarget(data) {
+    if (!data || typeof data !== "object" || data.success !== true) return false;
+    return Boolean(data.captured_target)
+        || data.target_present === false
+        || Number(data.percent_off) >= 100
+        || Number(data.disarm_progress) >= 100;
+}
+
+function handleToolbarTargetCapturedResult(data, fallbackTarget = null) {
+    if (!toolbarResultCapturedTarget(data)) return false;
+    const target = data.captured_target
+        || data.target
+        || fallbackTarget
+        || ((toolbarProfile || {}).aimed_target);
+    if (!hasToolbarAimedTarget(target)) return false;
+    triggerToolbarTargetHackedEffect(target);
+    setToolbarProfile({
+        ...(toolbarProfile || {}),
+        aimed_target: {}
+    });
+    return true;
 }
 
 function mergeToolbarTargetProgress(currentTarget, incomingTarget) {
@@ -3619,6 +3643,7 @@ async function notifyGonnaWin(appId, appWindow = null) {
     const context = currentApplicationLaunchContext(appWindow);
     const flowId = context.flow_id;
     return enqueueGonnaWinRequest(async () => {
+        const targetBeforeRequest = { ...((toolbarProfile || {}).aimed_target || {}) };
         const response = await fetch('/gonna-win', {
             method: 'POST',
             headers: {
@@ -3637,7 +3662,8 @@ async function notifyGonnaWin(appId, appWindow = null) {
         if (data.player_hack_access) {
             refreshPlayerHackAccess(data.player_hack_access);
         }
-        if (data.target) {
+        const capturedOnToolbar = handleToolbarTargetCapturedResult(data, targetBeforeRequest);
+        if (data.target && !capturedOnToolbar) {
             updateToolbarAimedTarget(data.target);
         }
         notifyCreatedOperations(data);
@@ -5604,6 +5630,7 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
     const context = currentApplicationLaunchContext(appWindow);
     const flowId = context.flow_id;
     const queuedAt = performance.now();
+    const targetBeforeRequest = { ...((toolbarProfile || {}).aimed_target || {}) };
     appFlowTrace(flowId, "app_option_request_queued", {
         app_id: appId,
         choice_id: choiceId,
@@ -5644,7 +5671,8 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
         if (data.player_hack_access) {
             refreshPlayerHackAccess(data.player_hack_access);
         }
-        if (data.target) {
+        const capturedOnToolbar = handleToolbarTargetCapturedResult(data, targetBeforeRequest);
+        if (data.target && !capturedOnToolbar) {
             updateToolbarAimedTarget(data.target);
             appFlowTrace(flowId, "toolbar_dot_updated_from_app_option", {
                 app_id: appId,
