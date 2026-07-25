@@ -10362,3 +10362,19 @@ Walidacja:
 * `git diff --check`: OK;
 * test kontraktu loadera mapy obejmuje teraz preloader telefonu;
 * sprint pozostaje czysto frontendowy i nie zmienia logiki gameplayu travel.
+
+## Runtime Target Stability - Snapshot Timestamp Contract
+
+Dodano pierwszy lekki kontrakt wieku snapshotu profilu. `/api/profile` zwraca
+teraz `snapshot_meta`, `snapshot_started_ms`, `snapshot_finished_ms` oraz
+`profile_snapshot_version`, a frontend dopisuje lokalne
+`snapshot_client_requested_ms` i `snapshot_client_received_ms`.
+
+Cel zmiany:
+
+* odroznic stary snapshot profilu od nowszej lokalnej akcji gracza;
+* nie pozwolic, zeby spoznione `/api/profile` przywrocilo poprzedni
+  `aimed_target`;
+* uniknac porownywania zegara serwera z zegarem przegladarki jako jedynej
+  prawdy;
+* zachowac snapshot profilu jako recovery, ale bez cofania belki CEL.

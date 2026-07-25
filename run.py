@@ -717,6 +717,46 @@ def blacknet_iso(dt):
     return dt.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+def runtime_snapshot_millis(dt):
+    if not isinstance(dt, datetime):
+        dt = blacknet_utc_now()
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return int(dt.astimezone(timezone.utc).timestamp() * 1000)
+
+
+def attach_profile_snapshot_meta(profile, started_at, finished_at):
+    if not isinstance(profile, dict):
+        return profile
+    started_ms = runtime_snapshot_millis(started_at)
+    finished_ms = runtime_snapshot_millis(finished_at)
+    profile_version = (
+        profile.get("profile_version")
+        or profile.get("state_version")
+        or profile.get("position_version")
+        or profile.get("updated_at")
+        or finished_ms
+    )
+    snapshot_meta = {
+        "scope": "profile",
+        "snapshot_started_at": blacknet_iso(started_at),
+        "snapshot_finished_at": blacknet_iso(finished_at),
+        "snapshot_started_ms": started_ms,
+        "snapshot_finished_ms": finished_ms,
+        "snapshot_duration_ms": max(0, finished_ms - started_ms),
+        "profile_version": profile_version,
+        "state_version": profile.get("state_version") or 0,
+        "app_version": APP_VERSION,
+    }
+    profile["snapshot_meta"] = snapshot_meta
+    profile["snapshot_started_at"] = snapshot_meta["snapshot_started_at"]
+    profile["snapshot_finished_at"] = snapshot_meta["snapshot_finished_at"]
+    profile["snapshot_started_ms"] = started_ms
+    profile["snapshot_finished_ms"] = finished_ms
+    profile["profile_snapshot_version"] = profile_version
+    return profile
+
+
 def blacknet_safe_metadata(metadata):
     if not isinstance(metadata, dict):
         return {}
@@ -17318,11 +17358,13 @@ def api_profile():
     if "user" not in session:
         return jsonify({"error": "Brak danych użytkownika"}), 401
 
+    snapshot_started_at = blacknet_utc_now()
     profile = sync_session_profile()
     profile = refresh_and_persist_operations(session["user"], profile)
     profile["desktop_settings"] = normalize_desktop_settings(profile.get("desktop_settings"))
     profile["dev_mode"] = is_dev_mode_enabled()
     profile["app_version"] = APP_VERSION
+    attach_profile_snapshot_meta(profile, snapshot_started_at, blacknet_utc_now())
     return jsonify(profile)
 
 

@@ -11,6 +11,7 @@ let gonnaWinRequestQueue = Promise.resolve();
 let toolbarTargetTruthRefreshing = false;
 let toolbarTargetHackedEffect = null;
 let toolbarTargetHackedEffectTimer = null;
+let toolbarTargetLocalOverride = null;
 const toolbarTargetHackedEffectKeys = new Set();
 let desktopSessionActive = true;
 let desktopRenderedApps = [];
@@ -20,6 +21,7 @@ const notifiedOperationIds = new Map();
 const APP_WINDOW_LAUNCH_DEDUPE_MS = 30000;
 const LAUNCH_QUEUE_RECEIPT_TTL_MS = 10 * 60 * 1000;
 const NOTIFIED_OPERATION_TTL_MS = 30000;
+const TOOLBAR_TARGET_LOCAL_OVERRIDE_TTL_MS = 3 * 60 * 1000;
 const fileManagerInstances = new Map();
 const cybernerDeltaClients = new Set();
 const ghostExchangeDeltaViews = new Set();
@@ -789,6 +791,81 @@ function getToolbarTargetHackedEffectKey(target) {
         ].filter(Boolean).join("|");
 }
 
+function getToolbarTargetStableKey(target) {
+    return getToolbarTargetHackedEffectKey(target);
+}
+
+function coerceSnapshotTimestampMs(value) {
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) return value;
+    if (typeof value === "string" && value.trim()) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric) && numeric > 0) return numeric;
+        const parsed = Date.parse(value);
+        if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    return 0;
+}
+
+function getProfileSnapshotClientRequestedMs(profile) {
+    return coerceSnapshotTimestampMs(profile && profile.snapshot_client_requested_ms);
+}
+
+function getProfileSnapshotClientReceivedMs(profile) {
+    return coerceSnapshotTimestampMs(profile && profile.snapshot_client_received_ms);
+}
+
+function getProfileSnapshotServerStartedMs(profile) {
+    const meta = (profile && profile.snapshot_meta) || {};
+    return coerceSnapshotTimestampMs((profile && profile.snapshot_started_ms) || meta.snapshot_started_ms || meta.snapshot_started_at);
+}
+
+function isProfileSnapshotOlderThanToolbarOverride(profile, override) {
+    if (!profile || !override) return false;
+    const requestedMs = getProfileSnapshotClientRequestedMs(profile);
+    if (requestedMs && requestedMs < override.startedAt) return true;
+    const receivedMs = getProfileSnapshotClientReceivedMs(profile);
+    if (receivedMs && receivedMs < override.startedAt) return true;
+    return false;
+}
+
+function rememberToolbarTargetLocalOverride(target) {
+    if (!hasToolbarAimedTarget(target)) return;
+    const startedAt = Date.now();
+    toolbarTargetLocalOverride = {
+        key: getToolbarTargetStableKey(target),
+        target: {
+            ...target,
+            client_action_ms: target.client_action_ms || startedAt
+        },
+        startedAt
+    };
+}
+
+function clearToolbarTargetLocalOverride(target = null) {
+    if (!toolbarTargetLocalOverride) return;
+    if (!target || !hasToolbarAimedTarget(target)) {
+        toolbarTargetLocalOverride = null;
+        return;
+    }
+    const key = getToolbarTargetStableKey(target);
+    if (
+        !key
+        || key === toolbarTargetLocalOverride.key
+        || toolbarTargetsShareProgressIdentity(toolbarTargetLocalOverride.target, target)
+    ) {
+        toolbarTargetLocalOverride = null;
+    }
+}
+
+function getActiveToolbarTargetLocalOverride() {
+    if (!toolbarTargetLocalOverride) return null;
+    if (Date.now() - toolbarTargetLocalOverride.startedAt > TOOLBAR_TARGET_LOCAL_OVERRIDE_TTL_MS) {
+        toolbarTargetLocalOverride = null;
+        return null;
+    }
+    return toolbarTargetLocalOverride;
+}
+
 function triggerToolbarTargetHackedEffect(target) {
     if (!hasToolbarAimedTarget(target)) return;
     const key = getToolbarTargetHackedEffectKey(target);
@@ -820,19 +897,15 @@ function triggerToolbarTargetHackedEffect(target) {
 
 function toolbarResultCapturedTarget(data) {
     if (!data || typeof data !== "object" || data.success !== true) return false;
-    return Boolean(data.captured_target)
-        || data.target_present === false
-        || Number(data.percent_off) >= 100
-        || Number(data.disarm_progress) >= 100;
+    if (!data.captured_target) return false;
+    return !hasToolbarAimedTarget(data.target);
 }
 
-function handleToolbarTargetCapturedResult(data, fallbackTarget = null) {
+function handleToolbarTargetCapturedResult(data) {
     if (!toolbarResultCapturedTarget(data)) return false;
-    const target = data.captured_target
-        || data.target
-        || fallbackTarget
-        || ((toolbarProfile || {}).aimed_target);
+    const target = data.captured_target;
     if (!hasToolbarAimedTarget(target)) return false;
+    clearToolbarTargetLocalOverride(target);
     triggerToolbarTargetHackedEffect(target);
     setToolbarProfile({
         ...(toolbarProfile || {}),
@@ -881,11 +954,25 @@ function mergeToolbarTargetProgress(currentTarget, incomingTarget) {
 function normalizeToolbarProfileProgress(profile) {
     if (!profile || typeof profile !== "object") return profile;
     if (!Object.prototype.hasOwnProperty.call(profile, "aimed_target")) return profile;
+    let incomingTarget = profile.aimed_target;
+    const localOverride = getActiveToolbarTargetLocalOverride();
+    if (localOverride && hasToolbarAimedTarget(localOverride.target)) {
+        if (toolbarTargetAlreadyCaptured(profile, localOverride.target)) {
+            clearToolbarTargetLocalOverride(localOverride.target);
+        } else if (
+            isProfileSnapshotOlderThanToolbarOverride(profile, localOverride)
+            || !hasToolbarAimedTarget(incomingTarget)
+            || !toolbarTargetsShareProgressIdentity(localOverride.target, incomingTarget)
+        ) {
+            incomingTarget = localOverride.target;
+        }
+    }
     const normalized = {
         ...profile,
-        aimed_target: mergeToolbarTargetProgress((toolbarProfile || {}).aimed_target, profile.aimed_target)
+        aimed_target: mergeToolbarTargetProgress((toolbarProfile || {}).aimed_target, incomingTarget)
     };
     if (toolbarTargetAlreadyCaptured(normalized, normalized.aimed_target)) {
+        clearToolbarTargetLocalOverride(normalized.aimed_target);
         triggerToolbarTargetHackedEffect(normalized.aimed_target);
         normalized.aimed_target = {};
     }
@@ -1114,6 +1201,7 @@ async function refreshToolbarTargetTruth() {
 
 function updateToolbarAimedTarget(aimedTarget) {
     if (!aimedTarget || typeof aimedTarget !== "object") return;
+    rememberToolbarTargetLocalOverride(aimedTarget);
     setToolbarProfile({
         ...(toolbarProfile || {}),
         aimed_target: { ...aimedTarget }
@@ -3643,7 +3731,6 @@ async function notifyGonnaWin(appId, appWindow = null) {
     const context = currentApplicationLaunchContext(appWindow);
     const flowId = context.flow_id;
     return enqueueGonnaWinRequest(async () => {
-        const targetBeforeRequest = { ...((toolbarProfile || {}).aimed_target || {}) };
         const response = await fetch('/gonna-win', {
             method: 'POST',
             headers: {
@@ -3662,7 +3749,7 @@ async function notifyGonnaWin(appId, appWindow = null) {
         if (data.player_hack_access) {
             refreshPlayerHackAccess(data.player_hack_access);
         }
-        const capturedOnToolbar = handleToolbarTargetCapturedResult(data, targetBeforeRequest);
+        const capturedOnToolbar = handleToolbarTargetCapturedResult(data);
         if (data.target && !capturedOnToolbar) {
             updateToolbarAimedTarget(data.target);
         }
@@ -5630,7 +5717,6 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
     const context = currentApplicationLaunchContext(appWindow);
     const flowId = context.flow_id;
     const queuedAt = performance.now();
-    const targetBeforeRequest = { ...((toolbarProfile || {}).aimed_target || {}) };
     appFlowTrace(flowId, "app_option_request_queued", {
         app_id: appId,
         choice_id: choiceId,
@@ -5671,7 +5757,7 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
         if (data.player_hack_access) {
             refreshPlayerHackAccess(data.player_hack_access);
         }
-        const capturedOnToolbar = handleToolbarTargetCapturedResult(data, targetBeforeRequest);
+        const capturedOnToolbar = handleToolbarTargetCapturedResult(data);
         if (data.target && !capturedOnToolbar) {
             updateToolbarAimedTarget(data.target);
             appFlowTrace(flowId, "toolbar_dot_updated_from_app_option", {
@@ -8400,6 +8486,7 @@ async function createProfile() {
 
 
 async function getUserProfile() {
+    const snapshotClientRequestedMs = Date.now();
     try {
         const res = await fetch('/api/profile');
         if (res.status === 401) {
@@ -8408,6 +8495,8 @@ async function getUserProfile() {
         }
         if (!res.ok) throw new Error("Nieprawidłowy response");
         const data = await res.json();
+        data.snapshot_client_requested_ms = snapshotClientRequestedMs;
+        data.snapshot_client_received_ms = Date.now();
         return data;
     } catch (err) {
         console.error("❌ Błąd pobierania profilu użytkownika:", err);
@@ -11509,10 +11598,7 @@ async function selectMapActionTool(appId) {
                 status: data.status || ""
             });
             if (data.target) {
-                setToolbarProfile({
-                    ...(toolbarProfile || {}),
-                    aimed_target: data.target
-                });
+                updateToolbarAimedTarget(data.target);
             }
             window.activeToolSelection = null;
             closeMapToolPicker(false);
@@ -11522,10 +11608,7 @@ async function selectMapActionTool(appId) {
         window.activeToolSelection = null;
         closeMapToolPicker(false);
         if (data.target) {
-            setToolbarProfile({
-                ...(toolbarProfile || {}),
-                aimed_target: data.target
-            });
+            updateToolbarAimedTarget(data.target);
             appFlowTrace(flowId, "toolbar_dot_updated_from_tool_picker", {
                 target_label: data.target.label || data.target.display_label || data.target.name || "",
                 actions_allowed: data.target.actions_allowed || null
