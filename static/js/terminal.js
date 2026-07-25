@@ -718,6 +718,33 @@ function getToolbarTargetCoordKey(target) {
     return `${lat.toFixed(5)}|${lng.toFixed(5)}`;
 }
 
+function getToolbarTargetLabelKey(target) {
+    return String(
+        (target || {}).label
+        || (target || {}).name
+        || (target || {}).display_label
+        || (target || {}).title
+        || ""
+    ).trim().toLowerCase();
+}
+
+function toolbarTargetsHaveDifferentSelection(left, right) {
+    if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+    const leftCoords = getToolbarTargetCoordKey(left);
+    const rightCoords = getToolbarTargetCoordKey(right);
+    if (leftCoords && rightCoords && leftCoords !== rightCoords) return true;
+
+    const leftLabel = getToolbarTargetLabelKey(left);
+    const rightLabel = getToolbarTargetLabelKey(right);
+    if (leftLabel && rightLabel && leftLabel !== rightLabel) return true;
+    return false;
+}
+
+function isToolbarTargetGenericId(value) {
+    const id = String(value || "").trim().toLowerCase();
+    return !id || id === "target" || id === "map:0.0.0.0:target" || id.includes("0.0.0.0");
+}
+
 function toolbarTargetsShareProgressIdentity(left, right) {
     if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
     const leftMode = String(left.target_mode || "").trim();
@@ -727,32 +754,23 @@ function toolbarTargetsShareProgressIdentity(left, right) {
         const rightUser = String(right.target_username || right.username || "").trim();
         return Boolean(leftUser && rightUser && leftMode === rightMode && leftUser === rightUser);
     }
+    const differentSelection = toolbarTargetsHaveDifferentSelection(left, right);
     const leftVulnerability = String(left.vulnerability_id || "").trim();
     const rightVulnerability = String(right.vulnerability_id || "").trim();
     if (leftVulnerability || rightVulnerability) {
-        return Boolean(leftVulnerability && leftVulnerability === rightVulnerability);
+        return Boolean(leftVulnerability && leftVulnerability === rightVulnerability && !differentSelection);
     }
     const leftArea = String(left.foreign_area_id || "").trim();
     const rightArea = String(right.foreign_area_id || "").trim();
     if (leftArea || rightArea) {
-        return Boolean(leftArea && leftArea === rightArea && getToolbarTargetCoordKey(left) === getToolbarTargetCoordKey(right));
+        return Boolean(leftArea && leftArea === rightArea && getToolbarTargetCoordKey(left) === getToolbarTargetCoordKey(right) && !differentSelection);
     }
     const leftId = String(left.target_id || left.id || "").trim();
     const rightId = String(right.target_id || right.id || "").trim();
-    if (leftId && rightId && leftId === rightId) return true;
+    if (leftId && rightId && leftId === rightId && !differentSelection && !isToolbarTargetGenericId(leftId)) return true;
     const leftCoords = getToolbarTargetCoordKey(left);
     const rightCoords = getToolbarTargetCoordKey(right);
-    return Boolean(leftCoords && leftCoords === rightCoords);
-}
-
-function getToolbarTargetLabelKey(target) {
-    return String(
-        (target || {}).label
-        || (target || {}).name
-        || (target || {}).display_label
-        || (target || {}).title
-        || ""
-    ).trim().toLowerCase();
+    return Boolean(leftCoords && leftCoords === rightCoords && !differentSelection);
 }
 
 function toolbarTargetMatchesCaptured(aimedTarget, capturedTarget) {
@@ -792,7 +810,14 @@ function getToolbarTargetHackedEffectKey(target) {
 }
 
 function getToolbarTargetStableKey(target) {
-    return getToolbarTargetHackedEffectKey(target);
+    return [
+        getToolbarTargetCoordKey(target),
+        getToolbarTargetLabelKey(target),
+        String((target || {}).target_mode || "").trim(),
+        String((target || {}).vulnerability_id || "").trim(),
+        String((target || {}).foreign_area_id || "").trim(),
+        String((target || {}).target_username || (target || {}).username || "").trim()
+    ].filter(Boolean).join("|") || getToolbarTargetHackedEffectKey(target);
 }
 
 function coerceSnapshotTimestampMs(value) {
@@ -828,9 +853,8 @@ function isProfileSnapshotOlderThanToolbarOverride(profile, override) {
     return false;
 }
 
-function rememberToolbarTargetLocalOverride(target) {
+function rememberToolbarTargetLocalOverride(target, startedAt = Date.now()) {
     if (!hasToolbarAimedTarget(target)) return;
-    const startedAt = Date.now();
     toolbarTargetLocalOverride = {
         key: getToolbarTargetStableKey(target),
         target: {
@@ -1201,11 +1225,20 @@ async function refreshToolbarTargetTruth() {
 
 function updateToolbarAimedTarget(aimedTarget) {
     if (!aimedTarget || typeof aimedTarget !== "object") return;
-    rememberToolbarTargetLocalOverride(aimedTarget);
-    setToolbarProfile({
+    const startedAt = Date.now();
+    const nextTarget = {
+        ...aimedTarget,
+        client_action_ms: aimedTarget.client_action_ms || startedAt
+    };
+    rememberToolbarTargetLocalOverride(nextTarget, startedAt);
+    toolbarTargetHackedEffect = null;
+    clearTimeout(toolbarTargetHackedEffectTimer);
+    toolbarTargetHackedEffectTimer = null;
+    toolbarProfile = {
         ...(toolbarProfile || {}),
-        aimed_target: { ...aimedTarget }
-    });
+        aimed_target: nextTarget
+    };
+    renderToolbarStatus();
 }
 
 function renderToolbarStatus() {
