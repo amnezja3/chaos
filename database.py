@@ -1152,6 +1152,7 @@ class TerritoryStore:
     BASE_AREA_EDGE_METERS = 300
     MIN_TRIANGLE_AREA_SQM = 1
     MAX_EXACT_AREA_TARGETS = int(os.environ.get("CHAOS_TERRITORY_EXACT_TARGET_LIMIT", "32"))
+    MAX_EXACT_AREA_TRIANGLES = int(os.environ.get("CHAOS_TERRITORY_EXACT_TRIANGLE_LIMIT", "1200"))
 
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
@@ -1474,6 +1475,7 @@ class TerritoryStore:
                 continue
 
             valid_triangles = []
+            exact_triangle_limit_exceeded = False
             for combo_indexes in combinations(range(len(group)), 3):
                 combo = [group[index] for index in combo_indexes]
                 vertices = [self._area_vertex(target) for target in combo]
@@ -1489,6 +1491,21 @@ class TerritoryStore:
                     continue
 
                 valid_triangles.append(set(combo_indexes))
+                if len(valid_triangles) > self.MAX_EXACT_AREA_TRIANGLES:
+                    exact_triangle_limit_exceeded = True
+                    break
+
+            if exact_triangle_limit_exceeded:
+                area = self._area_from_hull(group)
+                if area:
+                    print(
+                        "[TERRITORY] dense cluster approximated "
+                        f"username={username} targets={len(group)} "
+                        f"triangles>{self.MAX_EXACT_AREA_TRIANGLES}",
+                        flush=True,
+                    )
+                    areas.append(area)
+                continue
 
             unvisited = set(range(len(valid_triangles)))
             while unvisited:

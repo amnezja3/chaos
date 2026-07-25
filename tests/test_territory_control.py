@@ -129,6 +129,25 @@ class TerritoryControlTest(unittest.TestCase):
         finally:
             self._cleanup(path)
 
+    def test_dense_cluster_uses_fast_hull_area_when_triangle_limit_exceeded(self):
+        path = self._temp_db()
+        try:
+            store = TerritoryStore(db_path=str(path))
+            for index in range(12):
+                lat = 52.0 + (index // 4) * 0.00012
+                lng = 21.0 + (index % 4) * 0.00012
+                store.save_captured_target("alice", captured(f"D{index}", lat, lng))
+
+            with patch.object(TerritoryStore, "MAX_EXACT_AREA_TARGETS", 32), \
+                    patch.object(TerritoryStore, "MAX_EXACT_AREA_TRIANGLES", 10):
+                areas = store.rebuild_player_areas("alice", player_level=1)
+
+            self.assertEqual(len(areas), 1)
+            self.assertGreater(areas[0]["area_size"], 0)
+            self.assertGreaterEqual(len(areas[0]["vertices"]), 3)
+        finally:
+            self._cleanup(path)
+
     def test_security_summary_counts_boolean_armament_only(self):
         summary = run.territory_control_security_summary({
             "scan_ports": True,

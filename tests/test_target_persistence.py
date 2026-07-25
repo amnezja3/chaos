@@ -2781,18 +2781,59 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
                 patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run.user_store, "get_profile", side_effect=fake_profile), \
                 patch.object(run, "refresh_stale_territory_polygons", return_value=False), \
-                patch.object(run, "detect_territory_conflicts", return_value=[]), \
+                patch.object(run, "detect_territory_conflicts", return_value=[]) as detect_mock, \
                 patch.object(run, "get_active_conflicts_for_player", return_value=[]), \
-                patch.object(run, "find_contested_targets_for_player", return_value=[]):
+                patch.object(run, "contested_targets_from_active_conflicts", return_value=[]) as contested_mock:
             response = client.get("/api/map/player-areas")
 
         data = response.get_json()
         self.assertEqual(response.status_code, 200)
+        detect_mock.assert_not_called()
+        contested_mock.assert_called_once_with("main", [])
         self.assertEqual(len(data["areas"]), 2)
         own_area = next(item for item in data["areas"] if item["owner_username"] == "main")
         self.assertTrue(own_area["is_mine"])
         self.assertEqual(own_area["status"], "encircled")
         self.assertTrue(own_area["exposed"])
+
+    def test_contested_targets_from_active_conflicts_uses_stored_targets(self):
+        conflict = {
+            "id": 42,
+            "participants": ["main", "other"],
+            "targets": [
+                {
+                    "owner_username": "other",
+                    "status": "contested",
+                    "target": {
+                        "lat": 52.1,
+                        "lng": 21.2,
+                        "label": "Conflict Pillar",
+                        "source_type": "parcel_locker",
+                        "security": {"scan_ports": True},
+                    },
+                },
+                {
+                    "owner_username": "main",
+                    "status": "contested",
+                    "target": {"lat": 52.2, "lng": 21.3, "label": "Own Pillar"},
+                },
+                {
+                    "owner_username": "other",
+                    "status": "captured",
+                    "captured": True,
+                    "target": {"lat": 52.3, "lng": 21.4, "label": "Captured Pillar"},
+                },
+            ],
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value={"username": "other", "nick": "Other"}):
+            targets = run.contested_targets_from_active_conflicts("main", [conflict])
+
+        self.assertEqual(len(targets), 1)
+        self.assertEqual(targets[0]["label"], "Conflict Pillar")
+        self.assertEqual(targets[0]["target_mode"], "territory_contest")
+        self.assertEqual(targets[0]["contest_owner_username"], "other")
+        self.assertEqual(targets[0]["conflict_id"], 42)
 
     def test_encircled_area_notification_uses_stable_area_key(self):
         area_first = {

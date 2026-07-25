@@ -10935,8 +10935,61 @@ def find_contested_targets_for_player(username, areas=None):
     return list(contested.values())
 
 
+def contested_targets_from_active_conflicts(username, conflicts=None):
+    username = str(username or "").strip()
+    if not username:
+        return []
+    conflicts = conflicts if conflicts is not None else territory_conflict_store.list_active_for_player(username)
+    contested = {}
+    owner_profiles = {}
+    for conflict in conflicts or []:
+        participants = set(conflict.get("participants") or conflict.get("participant_usernames") or [])
+        if username not in participants:
+            continue
+        for item in conflict.get("targets") or []:
+            if not isinstance(item, dict):
+                continue
+            if item.get("captured") or item.get("status") == "captured":
+                continue
+            owner_username = str(item.get("owner_username") or item.get("owner") or "").strip()
+            if not owner_username or owner_username == username:
+                continue
+            if item.get("previous_owner") == username:
+                continue
+            target = dict(item.get("target") or {})
+            try:
+                lat = float(target.get("lat", item.get("lat")))
+                lng = float(target.get("lng", target.get("lon", item.get("lng", item.get("lon")))))
+            except (TypeError, ValueError):
+                continue
+            target["lat"] = lat
+            target["lng"] = lng
+            target["lon"] = lng
+            key = target_coord_key(target)
+            if not key or key in contested:
+                continue
+
+            if owner_username not in owner_profiles:
+                owner_profiles[owner_username] = user_store.get_profile(owner_username) or {}
+            owner_profile = owner_profiles.get(owner_username) or {}
+            label = str(target.get("label") or target.get("name") or item.get("label") or "Kolizja")
+            target.update({
+                "label": label,
+                "name": str(target.get("name") or label),
+                "owner_username": owner_username,
+                "owner_nick": owner_profile.get("nick") or owner_username,
+                "owner_clan": get_profile_clan(owner_profile),
+                "target_mode": "territory_contest",
+                "contest_owner_username": owner_username,
+                "conflict_id": conflict.get("id"),
+                "source_type": target.get("source_type") or "territory_contest",
+            })
+            contested[key] = target
+    return list(contested.values())
+
+
 def find_contested_target(username, lat, lng, label=None):
-    for target in find_contested_targets_for_player(username):
+    for target in contested_targets_from_active_conflicts(username):
         if round(float(target.get("lat")), 5) != round(float(lat), 5):
             continue
         if round(float(target.get("lng", target.get("lon"))), 5) != round(float(lng), 5):
@@ -12961,8 +13014,7 @@ def build_victim_picker_vulnerability_candidates(viewer_username, viewer_profile
 def build_victim_picker_conflict_candidates(viewer_username, viewer_profile, origin, action_range):
     candidates = []
     try:
-        areas = safe_player_areas(territory_store.list_player_areas())
-        contested_targets = find_contested_targets_for_player(viewer_username, areas)
+        contested_targets = contested_targets_from_active_conflicts(viewer_username)
     except Exception as exc:
         print(f"[victim-picker] conflict source failed: {exc}", flush=True)
         contested_targets = []
@@ -19145,17 +19197,12 @@ def map_player_areas():
     if refresh_stale_territory_polygons(all_areas):
         all_areas = safe_player_areas(territory_store.list_player_areas())
 
-    detect_territory_conflicts(
-        actor_username=username,
-        source_event="map_reload",
-        areas=all_areas
-    )
     active_conflicts = get_active_conflicts_for_player(username)
     active_conflicts_payload = [
         enrich_conflict_payload(conflict)
         for conflict in active_conflicts
     ]
-    contested_targets = find_contested_targets_for_player(username, all_areas)
+    contested_targets = contested_targets_from_active_conflicts(username, active_conflicts)
     areas = []
     for area in all_areas:
         clean_area = normalize_player_area(area)
