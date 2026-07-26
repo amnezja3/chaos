@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
 import run
-from database import DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore
+from database import DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, PlayerInventoryStore, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore
 from profileManagment import UserProfileManager
 from run import (
     active_operations_from_operations,
@@ -4243,6 +4243,45 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(profile["storage_upgrades"][0]["id"], product["id"])
         self.assertEqual(profile["product_purchases"][0]["id"], product["id"])
         self.assertFalse(profile["storage_over_limit"])
+
+    def test_profile_storage_normalize_repairs_legacy_capacity_and_purchased_upgrades(self):
+        product = next(item for item in run.storage_upgrade_products_catalog() if item["id"] == "storage_ghost_vault_basic")
+        profile = {
+            "username": "neo",
+            "storage_capacity": 64,
+            "storage_used": 0,
+            "googleplex_products": [{"id": product["id"], "product_type": "storage_upgrade"}],
+            "files": {"camera": []},
+        }
+
+        normalize_profile_storage(profile)
+
+        self.assertEqual(profile["storage_capacity"], run.DEFAULT_STORAGE_CAPACITY_MB + product["storage_capacity_bonus"])
+        self.assertEqual(profile["storage_upgrades"][0]["id"], product["id"])
+        self.assertEqual(profile["product_purchases"][0]["id"], product["id"])
+        self.assertFalse(profile["storage_over_limit"])
+
+    def test_record_storage_delta_repairs_stale_inventory_storage_projection(self):
+        product = next(item for item in run.storage_upgrade_products_catalog() if item["id"] == "storage_ghost_vault_basic")
+        profile = {
+            "username": "neo",
+            "storage_capacity": 64,
+            "storage_used": 0,
+            "googleplex_products": [{"id": product["id"], "product_type": "storage_upgrade"}],
+            "files": {"tools": []},
+            "apps": [],
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            inventory_store = PlayerInventoryStore(os.path.join(tmpdir, "inventory.sqlite3"))
+            delta_bus = GameStateDeltaBus(db_path=os.path.join(tmpdir, "delta.sqlite3"), retention_limit=20)
+            with patch.object(run, "player_inventory_store", inventory_store), patch.object(run, "delta_bus", delta_bus):
+                run.record_storage_delta("neo", profile, reason="test")
+                snapshot = inventory_store.snapshot("neo")
+
+        self.assertEqual(profile["storage_capacity"], run.DEFAULT_STORAGE_CAPACITY_MB + product["storage_capacity_bonus"])
+        self.assertEqual(snapshot["storage"]["capacity"], profile["storage_capacity"])
+        self.assertFalse(snapshot["storage"]["modifiers"]["storage_over_limit"])
 
     def test_googleplex_storage_upgrade_requires_hackcoins(self):
         profile = {

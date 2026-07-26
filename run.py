@@ -157,7 +157,58 @@ def storage_delta_snapshot(profile):
     }
 
 
+def profile_has_storage_entitlements(profile):
+    if not isinstance(profile, dict):
+        return False
+    catalog_builder = globals().get("storage_upgrade_products_catalog")
+    storage_product_ids = set()
+    if callable(catalog_builder):
+        try:
+            storage_product_ids = {
+                str(item.get("id") or "").strip()
+                for item in catalog_builder()
+                if isinstance(item, dict) and item.get("id")
+            }
+        except Exception:
+            storage_product_ids = set()
+    for key in ("storage_upgrades", "googleplex_products", "product_purchases"):
+        items = profile.get(key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            item_id = str(item.get("id") or item.get("product_id") or "").strip()
+            if item.get("storage_capacity_bonus") or item.get("product_type") == "storage_upgrade":
+                return True
+            if item_id and item_id in storage_product_ids:
+                return True
+    return False
+
+
+def normalize_profile_storage_capacity(profile):
+    if not isinstance(profile, dict):
+        return profile
+    has_storage_entitlements = profile_has_storage_entitlements(profile)
+    reconcile = globals().get("reconcile_googleplex_storage_products")
+    if callable(reconcile) and has_storage_entitlements:
+        reconcile(profile)
+    capacity = clamp_storage_number(
+        profile.get("storage_capacity"),
+        default=DEFAULT_STORAGE_CAPACITY_MB,
+        minimum=DEFAULT_STORAGE_CAPACITY_MB if has_storage_entitlements else 64,
+    )
+    profile["storage_capacity"] = capacity
+    if profile.get("storage_used") is None:
+        profile["storage_used"] = calculate_profile_storage_used(profile)
+    profile["storage_unit"] = "MB"
+    profile["storage_soft_limit"] = True
+    profile["storage_over_limit"] = clamp_storage_number(profile.get("storage_used"), default=0, minimum=0) > capacity
+    return profile
+
+
 def record_storage_delta(username, profile, reason="", previous=None, dedupe_key_prefix=None):
+    normalize_profile_storage_capacity(profile)
     try:
         player_inventory_store.write_from_profile(username, profile)
     except Exception as exc:
@@ -5316,6 +5367,13 @@ def apply_runtime_stores_to_profile(username, profile):
 
     try:
         player_inventory_store.mirror_profile(username, profile)
+        mirrored_storage = storage_delta_snapshot(profile)
+        normalize_profile_storage(profile)
+        if storage_delta_snapshot(profile) != mirrored_storage:
+            try:
+                player_inventory_store.write_from_profile(username, profile)
+            except Exception as repair_exc:
+                print(f"[inventory runtime] storage repair failed user={username} error={repair_exc}", flush=True)
     except Exception as exc:
         print(f"[inventory runtime] profile overlay failed user={username} error={exc}", flush=True)
 
@@ -7183,11 +7241,8 @@ def calculate_profile_storage_used(profile):
 def normalize_profile_storage(profile):
     if not isinstance(profile, dict):
         return profile
-    capacity = clamp_storage_number(
-        profile.get("storage_capacity"),
-        default=DEFAULT_STORAGE_CAPACITY_MB,
-        minimum=64,
-    )
+    normalize_profile_storage_capacity(profile)
+    capacity = profile["storage_capacity"]
     used = calculate_profile_storage_used(profile)
     profile["storage_capacity"] = capacity
     profile["storage_used"] = used
@@ -7629,10 +7684,11 @@ def normalize_file_market_status(file_entry):
 def can_store_runtime_file(profile, file_entry):
     if not isinstance(profile, dict) or not isinstance(file_entry, dict):
         return False
+    normalize_profile_storage_capacity(profile)
     capacity = clamp_storage_number(
         profile.get("storage_capacity"),
         default=DEFAULT_STORAGE_CAPACITY_MB,
-        minimum=64,
+        minimum=0,
     )
     current_used = profile.get("storage_used")
     if current_used is None:
@@ -7648,12 +7704,13 @@ def can_store_runtime_file(profile, file_entry):
 
 def build_storage_full_result(profile, operation, file_entry):
     profile = profile if isinstance(profile, dict) else {}
+    normalize_profile_storage_capacity(profile)
     operation = operation if isinstance(operation, dict) else {}
     file_entry = file_entry if isinstance(file_entry, dict) else {}
     capacity = clamp_storage_number(
         profile.get("storage_capacity"),
         default=DEFAULT_STORAGE_CAPACITY_MB,
-        minimum=64,
+        minimum=0,
     )
     current_used = profile.get("storage_used")
     if current_used is None:
@@ -11751,7 +11808,7 @@ def apply_googleplex_product_effect(profile, product, username=None):
             profile["storage_capacity"] = clamp_storage_number(
                 profile.get("storage_capacity"),
                 default=DEFAULT_STORAGE_CAPACITY_MB,
-                minimum=64,
+                minimum=DEFAULT_STORAGE_CAPACITY_MB,
             ) + bonus
             applied.append({"type": effect_type, "value": bonus})
             messages.append(f"Pojemnosc dysku +{bonus} MB.")
