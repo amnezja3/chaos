@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
 import run
-from database import DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore
+from database import DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore
 from profileManagment import UserProfileManager
 from run import (
     active_operations_from_operations,
@@ -856,6 +856,7 @@ class WalletDeltaEndpointTest(unittest.TestCase):
 
             transfer_result = {
                 "balance": 900,
+                "recipient_balance": 1100,
                 "currency": "HC",
                 "transaction": {
                     "id": 42,
@@ -901,6 +902,61 @@ class WalletDeltaEndpointTest(unittest.TestCase):
             self.assertEqual(changes_alice[0]["type"], "wallet.balance_changed")
             self.assertEqual(changes_alice[0]["payload"]["balance"], 900)
             self.assertEqual(changes_bob[0]["payload"]["balance"], 1100)
+        finally:
+            self._cleanup(path)
+
+    def test_wallet_read_reconciles_stale_balance_store_from_profile(self):
+        path = self._temp_path()
+        try:
+            users = UserStore(db_path=path, seed_path="_missing_wallet_seed.json")
+            users.save_profile({
+                "username": "bob",
+                "password": "",
+                "salt": "",
+                "hackcoins": 5242,
+            })
+            balance_store = WalletBalanceStore(db_path=path)
+            balance_store.set_balance(
+                "bob",
+                242,
+                transaction_key="stale:test",
+                reason="stale_test",
+            )
+
+            wallet = WalletStore(db_path=path).get_wallet("bob")
+
+            self.assertEqual(wallet["balance"], 5242)
+            self.assertEqual(balance_store.get_balance("bob"), 5242)
+            audit = wallet.get("ledger_audit", {})
+            self.assertEqual(audit.get("ledger_balance"), 5242)
+            self.assertTrue(audit.get("ok"))
+        finally:
+            self._cleanup(path)
+
+    def test_wallet_balance_store_records_ledger_seed_and_delta(self):
+        path = self._temp_path()
+        try:
+            balance_store = WalletBalanceStore(db_path=path)
+            ledger_store = WalletLedgerStore(db_path=path)
+
+            balance_store.set_balance(
+                "bob",
+                242,
+                transaction_key="legacy:balance",
+                reason="legacy_balance",
+            )
+            balance_store.set_balance(
+                "bob",
+                5242,
+                transaction_key="profile_reconcile:bob:5242",
+                reason="profile_reconcile",
+            )
+
+            events = ledger_store.list_events("bob", limit=10)
+            self.assertEqual(ledger_store.ledger_balance("bob"), 5242)
+            deltas = sorted(event["amount_delta"] for event in events)
+            self.assertEqual(deltas, [242, 5000])
+            self.assertIn(5242, {event["balance_after"] for event in events})
         finally:
             self._cleanup(path)
 

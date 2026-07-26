@@ -642,6 +642,34 @@ def init_db(db_path=DB_PATH):
             """
         )
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS wallet_ledger (
+                ledger_id TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                amount_delta INTEGER NOT NULL DEFAULT 0,
+                balance_after INTEGER NOT NULL DEFAULT 0,
+                source TEXT NOT NULL DEFAULT '',
+                source_id TEXT NOT NULL DEFAULT '',
+                peer_username TEXT NOT NULL DEFAULT '',
+                note TEXT NOT NULL DEFAULT '',
+                dedupe_key TEXT NOT NULL DEFAULT '',
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_ledger_dedupe
+            ON wallet_ledger(username, dedupe_key)
+            WHERE dedupe_key != ''
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_wallet_ledger_user_created ON wallet_ledger(username, created_at)"
+        )
+        conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_player_apps_user_status ON player_apps(username, status, updated_at)"
         )
         conn.execute(
@@ -2212,10 +2240,14 @@ class WalletStore:
                 })
 
             balance = WalletBalanceStore(self.db_path).get_balance(username, fallback_profile=profile)
+            ledger_store = WalletLedgerStore(self.db_path)
+            ledger = ledger_store.list_events(username, limit=limit)
             return {
                 "balance": balance,
                 "currency": "HC",
                 "transactions": transactions,
+                "ledger": ledger,
+                "ledger_audit": ledger_store.audit_balance(username, balance),
             }
 
     def transfer(self, from_username, to_username, amount, note=""):
@@ -2276,6 +2308,7 @@ class WalletStore:
 
             return {
                 "balance": sender_profile["hackcoins"],
+                "recipient_balance": recipient_profile["hackcoins"],
                 "currency": "HC",
                 "transaction": {
                     "id": cursor.lastrowid,
@@ -3454,6 +3487,207 @@ class PlayerInventoryStore:
             conn.execute("DELETE FROM player_storage")
 
 
+class WalletLedgerStore:
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def _clean_text(value, default=""):
+        text = str(value or "").strip()
+        return text or default
+
+    @staticmethod
+    def _safe_int(value, default=0):
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return default
+
+    def _row_to_event(self, row):
+        if not row:
+            return None
+        payload = loads_json(row["payload_json"], {}) or {}
+        return {
+            "ledger_id": row["ledger_id"],
+            "username": row["username"],
+            "event_type": row["event_type"],
+            "amount_delta": int(row["amount_delta"] or 0),
+            "balance_after": int(row["balance_after"] or 0),
+            "source": row["source"] or "",
+            "source_id": row["source_id"] or "",
+            "peer_username": row["peer_username"] or "",
+            "note": row["note"] or "",
+            "dedupe_key": row["dedupe_key"] or "",
+            "payload": payload,
+            "created_at": row["created_at"],
+        }
+
+    def has_events(self, username):
+        username = self._clean_text(username)
+        if not username:
+            return False
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM wallet_ledger WHERE username = ? LIMIT 1",
+                (username,),
+            ).fetchone()
+        return bool(row)
+
+    def record_event(
+        self,
+        username,
+        event_type,
+        amount_delta,
+        balance_after,
+        source="",
+        source_id="",
+        peer_username="",
+        note="",
+        dedupe_key="",
+        payload=None,
+        created_at=None,
+    ):
+        username = self._clean_text(username)
+        if not username:
+            return None
+        event_type = self._clean_text(event_type, "wallet.balance_changed")
+        amount_delta = self._safe_int(amount_delta)
+        balance_after = max(0, self._safe_int(balance_after))
+        source = self._clean_text(source)
+        source_id = self._clean_text(source_id)
+        peer_username = self._clean_text(peer_username)
+        note = self._clean_text(note)[:240]
+        dedupe_key = self._clean_text(
+            dedupe_key,
+            f"wallet_ledger:{username}:{event_type}:{source}:{source_id}:{balance_after}",
+        )
+        created_at = self._clean_text(created_at, utc_now())
+        payload_json = dumps_json(payload if isinstance(payload, dict) else {})
+        ledger_id = f"wl_{hashlib.sha1(f'{username}:{dedupe_key}'.encode('utf-8')).hexdigest()[:18]}"
+
+        with db_connect(self.db_path) as conn:
+            row = self.record_event_with_conn(
+                conn,
+                username=username,
+                event_type=event_type,
+                amount_delta=amount_delta,
+                balance_after=balance_after,
+                source=source,
+                source_id=source_id,
+                peer_username=peer_username,
+                note=note,
+                dedupe_key=dedupe_key,
+                payload_json=payload_json,
+                created_at=created_at,
+                ledger_id=ledger_id,
+            )
+        return self._row_to_event(row)
+
+    def record_event_with_conn(
+        self,
+        conn,
+        username,
+        event_type,
+        amount_delta,
+        balance_after,
+        source="",
+        source_id="",
+        peer_username="",
+        note="",
+        dedupe_key="",
+        payload_json="{}",
+        created_at=None,
+        ledger_id=None,
+    ):
+        username = self._clean_text(username)
+        event_type = self._clean_text(event_type, "wallet.balance_changed")
+        source = self._clean_text(source)
+        source_id = self._clean_text(source_id)
+        peer_username = self._clean_text(peer_username)
+        note = self._clean_text(note)[:240]
+        dedupe_key = self._clean_text(
+            dedupe_key,
+            f"wallet_ledger:{username}:{event_type}:{source}:{source_id}:{balance_after}",
+        )
+        created_at = self._clean_text(created_at, utc_now())
+        ledger_id = ledger_id or f"wl_{hashlib.sha1(f'{username}:{dedupe_key}'.encode('utf-8')).hexdigest()[:18]}"
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO wallet_ledger
+                (ledger_id, username, event_type, amount_delta, balance_after,
+                 source, source_id, peer_username, note, dedupe_key, payload_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ledger_id,
+                username,
+                event_type,
+                int(amount_delta or 0),
+                max(0, int(balance_after or 0)),
+                source,
+                source_id,
+                peer_username,
+                note,
+                dedupe_key,
+                payload_json or "{}",
+                created_at,
+            ),
+        )
+        return conn.execute(
+            """
+            SELECT ledger_id, username, event_type, amount_delta, balance_after,
+                   source, source_id, peer_username, note, dedupe_key, payload_json, created_at
+            FROM wallet_ledger
+            WHERE username = ? AND dedupe_key = ?
+            """,
+            (username, dedupe_key),
+        ).fetchone()
+
+    def list_events(self, username, limit=50):
+        username = self._clean_text(username)
+        try:
+            limit = max(1, min(200, int(limit or 50)))
+        except (TypeError, ValueError):
+            limit = 50
+        if not username:
+            return []
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT ledger_id, username, event_type, amount_delta, balance_after,
+                       source, source_id, peer_username, note, dedupe_key, payload_json, created_at
+                FROM wallet_ledger
+                WHERE username = ?
+                ORDER BY created_at DESC, ledger_id DESC
+                LIMIT ?
+                """,
+                (username, limit),
+            ).fetchall()
+        return [self._row_to_event(row) for row in rows]
+
+    def ledger_balance(self, username):
+        username = self._clean_text(username)
+        if not username:
+            return 0
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(amount_delta), 0) AS balance FROM wallet_ledger WHERE username = ?",
+                (username,),
+            ).fetchone()
+        return int((row or {})["balance"] or 0)
+
+    def audit_balance(self, username, current_balance):
+        current_balance = max(0, self._safe_int(current_balance))
+        ledger_balance = self.ledger_balance(username)
+        return {
+            "ledger_balance": ledger_balance,
+            "current_balance": current_balance,
+            "difference": current_balance - ledger_balance,
+            "ok": ledger_balance == current_balance,
+        }
+
+
 class WalletBalanceStore:
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
@@ -3478,13 +3712,35 @@ class WalletBalanceStore:
         username = self._clean_text(username)
         if not username:
             return 0
+        fallback_has_balance = isinstance(fallback_profile, dict) and "hackcoins" in fallback_profile
+        fallback_balance = self._profile_balance(fallback_profile) if fallback_has_balance else None
         with db_connect(self.db_path) as conn:
             row = conn.execute(
                 "SELECT balance FROM wallet_balances WHERE username = ?",
                 (username,),
             ).fetchone()
         if row:
-            return int(row["balance"] or 0)
+            stored_balance = int(row["balance"] or 0)
+            if fallback_has_balance and stored_balance != fallback_balance:
+                return self.set_balance(
+                    username,
+                    fallback_balance,
+                    transaction_key=f"profile_reconcile:{username}:{fallback_balance}",
+                    reason="profile_reconcile",
+                )
+            ledger = WalletLedgerStore(self.db_path)
+            if stored_balance > 0 and not ledger.has_events(username):
+                ledger.record_event(
+                    username,
+                    "wallet.seed",
+                    stored_balance,
+                    stored_balance,
+                    source="wallet_balance_store",
+                    source_id="existing_balance",
+                    dedupe_key=f"wallet:ledger:{username}:seed",
+                    note="Stan poczatkowy portfela przed ledgerem.",
+                )
+            return stored_balance
         if fallback_profile is not None:
             return self.seed_from_profile(username, fallback_profile)
         return 0
@@ -3499,6 +3755,7 @@ class WalletBalanceStore:
             balance = 0
         balance = max(0, balance)
         now = utc_now()
+        ledger = WalletLedgerStore(self.db_path)
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
             existing = conn.execute(
@@ -3514,6 +3771,23 @@ class WalletBalanceStore:
                 if event_row:
                     return int(event_row["balance"] or balance)
             version = int(existing["version"] or 0) + 1 if existing else 1
+            has_ledger_events = bool(conn.execute(
+                "SELECT 1 FROM wallet_ledger WHERE username = ? LIMIT 1",
+                (username,),
+            ).fetchone())
+            if existing and previous > 0 and not has_ledger_events:
+                ledger.record_event_with_conn(
+                    conn,
+                    username=username,
+                    event_type="wallet.seed",
+                    amount_delta=previous,
+                    balance_after=previous,
+                    source="wallet_balance_store",
+                    source_id="existing_balance",
+                    note="Stan poczatkowy portfela przed ledgerem.",
+                    dedupe_key=f"wallet:ledger:{username}:seed",
+                    created_at=now,
+                )
             conn.execute(
                 """
                 INSERT INTO wallet_balances(username, balance, version, updated_at)
@@ -3542,6 +3816,25 @@ class WalletBalanceStore:
                     now,
                 ),
             )
+            delta = balance - previous
+            if delta != 0 or transaction_key:
+                ledger.record_event_with_conn(
+                    conn,
+                    username=username,
+                    event_type=self._clean_text(reason, "wallet.balance_changed"),
+                    amount_delta=delta,
+                    balance_after=balance,
+                    source="wallet_balance_store",
+                    source_id=self._clean_text(transaction_key),
+                    note=self._clean_text(reason),
+                    dedupe_key=f"wallet:ledger:{username}:{self._clean_text(transaction_key, f'{reason}:{balance}:{now}')}",
+                    payload_json=dumps_json({
+                        "reason": self._clean_text(reason),
+                        "transaction_key": self._clean_text(transaction_key),
+                        "previous_balance": previous,
+                    }),
+                    created_at=now,
+                )
         return balance
 
     def mirror_profile(self, username, profile):
@@ -3551,6 +3844,7 @@ class WalletBalanceStore:
 
     def clear_all(self):
         with db_connect(self.db_path) as conn:
+            conn.execute("DELETE FROM wallet_ledger")
             conn.execute("DELETE FROM wallet_balance_events")
             conn.execute("DELETE FROM wallet_balances")
 

@@ -18202,10 +18202,9 @@ def api_wallet_transfer():
     recipient = str(data.get("to") or "").strip()
     if recipient:
         try:
-            recipient_wallet = wallet_store.get_wallet(recipient, limit=1)
             record_wallet_balance_delta(
                 recipient,
-                recipient_wallet.get("balance", 0),
+                result.get("recipient_balance", 0),
                 reason="wallet_transfer_incoming",
                 dedupe_key=f"wallet:balance:{recipient}:transfer:{transaction_id}:incoming",
             )
@@ -18220,6 +18219,8 @@ def api_wallet_transfer():
         "currency": result["currency"],
         "transaction": result["transaction"],
         "transactions": wallet["transactions"],
+        "ledger": wallet.get("ledger", []),
+        "ledger_audit": wallet.get("ledger_audit", {}),
     })
 
 

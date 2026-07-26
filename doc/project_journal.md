@@ -10378,3 +10378,70 @@ Cel zmiany:
 * uniknac porownywania zegara serwera z zegarem przegladarki jako jedynej
   prawdy;
 * zachowac snapshot profilu jako recovery, ale bez cofania belki CEL.
+
+## Runtime Fix Pass - Target, Map, Wallet HC
+
+Po serii testow live dopieto kilka poprawek stabilizujacych runtime mapy,
+hakowania i portfela. Glowny problem dotyczył mieszania sie starych snapshotow,
+spoznionych odpowiedzi i kilku sciezek uruchamiania narzedzi: mapa, terminal i
+desktop.
+
+Wykonano:
+
+* utwardzono przeplyw `aimed_target`, zeby zhakowany albo przejety cel nie
+  wracal na belke CEL jako widmo po spoznionym snapshotcie;
+* nowy cel z innym label/koordynatami ma pierwszenstwo nad starym celem z
+  poprzedniego snapshotu;
+* dodano efekt `HACKED` na belce CEL, ograniczony do realnego zakonczenia
+  hackowania, bez odpalania na posrednich kropkach progresu;
+* poprawiono kodowanie naglowkow akcji mapy i pickera narzedzi, zeby polskie
+  znaki w labelach nie przerywaly requestu przed `/hack-action`;
+* zebrano i ograniczono debug flow mapy/aplikacji, a backendowe logi
+  diagnostyczne przeniesiono do `data/logs/backend_debug.log`, zeby odciazyc
+  logi PM2;
+* wydluzono i uporzadkowano boot mapy oraz retry `player_areas`, bo ciezkie
+  terytoria potrafily przekraczac poprzednie timeouty;
+* dopracowano glitch overlay mapy: RGB bloki zamiast scanline, alarmowy
+  bordowy stan heavy, pseudologi GhostSystemu i blokada interakcji podczas
+  synchronizacji;
+* poprawiono travel motocykla: puls punktu docelowego, telefon przy markerze,
+  kolejke punktow po stronie frontendu i zapis ostatniego punktu po stronie
+  backendu;
+* dodano wybieralne schematy Leaflet w ustawieniach i utrwalono je po
+  wylogowaniu/restarcie;
+* poprawiono Victim Picker: odleglosc nie blokuje juz wyboru celu, tylko
+  oznacza ryzyko; picker widzi cel ustawiony ze skanu mapy;
+* dopracowano nowe okna narzedziowe `Victim Picker`, `Territory Control` i
+  `Operation Control`: ikony, resize corner, kolory akcji kasujacych,
+  responsive layout i scroll;
+* naprawiono przeplyw terminalowych GhostScriptow: komendy po sredniku ida
+  sekwencyjnie, teleport nie zatrzymuje skryptu, a terminal ma historie
+  komend na strzalkach;
+* dodano komendy i flow teleportu z potwierdzeniem OK/ANULUJ oraz kopiowanie
+  komendy teleportu z menu pustego pola mapy;
+* dodano ledger portfela HC jako zrodlo audytu transakcji i mechanizm
+  rekonsyliacji salda, zeby przelewy nie mogly znikac bez sladu.
+
+Wallet HC:
+
+* powstal `wallet_ledger` z idempotentnymi wpisami zdarzen;
+* `WalletBalanceStore` zapisuje delty salda razem z wpisem ledgerowym;
+* odczyt portfela zwraca `ledger` i `ledger_audit`;
+* transfer zwraca prawdziwy `recipient_balance`, a frontend nie zgaduje juz
+  salda odbiorcy;
+* UI portfela pokazuje historie z ledgeru, wlacznie z `balance_after`.
+
+Walidacja:
+
+* `python -m py_compile database.py run.py`: OK;
+* `node --check static/js/terminal.js`: OK;
+* `python -m unittest tests.test_target_persistence.WalletDeltaEndpointTest`: OK;
+* `git diff --check -- database.py run.py static/js/terminal.js tests/test_target_persistence.py`: OK.
+
+Status:
+
+* runtime hakowania jest wyraznie stabilniejszy, ale nadal obserwujemy
+  okazjonalne opoznienia na ciezkich terytoriach i operacjach mapy;
+* portfel ma teraz audytowalna podstawe do pozniejszego wyrownania salda;
+* kolejne optymalizacje powinny isc w kierunku dalszego wyjmowania goracych
+  danych z duzego profilu JSON do osobnych tabel i lekkich read modeli.

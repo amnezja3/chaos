@@ -7851,7 +7851,7 @@ async function loadWalletState(container = document.querySelector('.terminal[dat
             return null;
         }
         container.querySelector('[data-wallet-balance]').textContent = `Saldo: ${Number(data.balance || 0)} ${data.currency || 'HC'}`;
-        renderWalletHistory(container, data.transactions || []);
+        renderWalletHistory(container, data.ledger || data.transactions || []);
         setWalletMessage(container, "", "");
         return data;
     } catch (err) {
@@ -7865,18 +7865,29 @@ function renderWalletHistory(container, transactions) {
     const list = container.querySelector('[data-wallet-history]');
     if (!list) return;
     if (!transactions.length) {
-        list.innerHTML = `<div class="wallet-empty">Brak przelewow.</div>`;
+        list.innerHTML = `<div class="wallet-empty">Brak historii HC.</div>`;
         return;
     }
     list.innerHTML = transactions.map(tx => {
-        const outgoing = tx.type === "outgoing";
+        const ledgerDelta = Object.prototype.hasOwnProperty.call(tx, "amount_delta")
+            ? Number(tx.amount_delta || 0)
+            : null;
+        const amount = ledgerDelta === null ? Number(tx.amount || 0) : Math.abs(ledgerDelta);
+        const outgoing = ledgerDelta === null ? tx.type === "outgoing" : ledgerDelta < 0;
         const sign = outgoing ? "-" : "+";
-        const typeLabel = outgoing ? "wyslano" : "odebrano";
+        const typeLabel = tx.event_type
+            ? String(tx.event_type).replace(/^wallet[_:.]?/, '').replace(/_/g, ' ')
+            : (outgoing ? "wyslano" : "odebrano");
+        const peer = tx.peer_username || tx.peer || tx.source || '';
+        const balanceAfter = Object.prototype.hasOwnProperty.call(tx, "balance_after")
+            ? `<span>saldo: ${Number(tx.balance_after || 0)} HC</span>`
+            : '';
         return `
             <div class="wallet-transaction ${outgoing ? 'is-outgoing' : 'is-incoming'}">
                 <div>
-                    <strong>${escapeHTML(typeLabel)} ${sign}${Number(tx.amount || 0)} HC</strong>
-                    <span>${escapeHTML(String(tx.peer || 'unknown'))}</span>
+                    <strong>${escapeHTML(typeLabel)} ${sign}${amount} HC</strong>
+                    <span>${escapeHTML(String(peer || 'system'))}</span>
+                    ${balanceAfter}
                 </div>
                 <small>${escapeHTML(String(tx.created_at || ''))}</small>
                 ${tx.note ? `<em>${escapeHTML(String(tx.note))}</em>` : ''}
@@ -7915,7 +7926,7 @@ async function submitWalletTransfer(container = document.querySelector('.termina
         container.querySelector('[data-wallet-amount]').value = "";
         container.querySelector('[data-wallet-note]').value = "";
         container.querySelector('[data-wallet-balance]').textContent = `Saldo: ${Number(data.balance || 0)} ${data.currency || 'HC'}`;
-        renderWalletHistory(container, data.transactions || (data.transaction ? [data.transaction] : []));
+        renderWalletHistory(container, data.ledger || data.transactions || (data.transaction ? [data.transaction] : []));
         setWalletMessage(container, "success", "Przelew wykonany.");
         updateWalletBalanceView(data.balance, data.currency || "HC");
     } catch (err) {
