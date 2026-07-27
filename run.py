@@ -4319,10 +4319,14 @@ def capture_conflict_pillar(captured_target, captured_by_username, previous_owne
 
     affected_conflicts = []
     affected_participants = {captured_by_username}
+    captured_conflict_id = captured_target.get("conflict_id")
     if previous_owner_username:
         affected_participants.add(previous_owner_username)
 
     for conflict in territory_conflict_store.list_active():
+        conflict_id = conflict.get("id")
+        if captured_conflict_id is not None and str(conflict_id) != str(captured_conflict_id):
+            continue
         participants = set(conflict.get("participants") or [])
         if captured_by_username not in participants and previous_owner_username not in participants:
             continue
@@ -4351,6 +4355,27 @@ def capture_conflict_pillar(captured_target, captured_by_username, previous_owne
                 changed = True
             else:
                 updated_targets.append(item)
+
+        # A pillar selected from the full foreign cluster may initiate the
+        # conflict without belonging to its original overlap snapshot. Once
+        # captured, keep it in the exact conflict named by the target so the
+        # captured-pillar layer does not lose it during the next rebuild.
+        if not changed and captured_conflict_id is not None:
+            normalized_target = {
+                **captured_target,
+                "owner_username": captured_by_username,
+            }
+            updated_targets.append({
+                "owner": captured_by_username,
+                "owner_username": captured_by_username,
+                "previous_owner": previous_owner_username,
+                "status": "captured",
+                "captured": True,
+                "captured_by": captured_by_username,
+                "hacked_by": captured_by_username,
+                "target": normalized_target,
+            })
+            changed = True
 
         if not changed:
             continue

@@ -3005,6 +3005,56 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(targets[0]["foreign_area_id"], 2)
         self.assertEqual(targets[0]["my_area_id"], 1)
 
+    def test_capture_conflict_pillar_registers_initial_target_missing_from_snapshot(self):
+        conflict = {
+            "id": 79,
+            "participants": ["main", "other"],
+            "targets": [],
+            "status": "active",
+        }
+
+        class FakeConflictStore:
+            def __init__(self):
+                self.saved = None
+
+            def list_active(self):
+                return [conflict]
+
+            def upsert_conflict(self, payload):
+                self.saved = payload
+                return payload
+
+        conflict_store = FakeConflictStore()
+        captured_target = {
+            "target_id": "pillar-initial",
+            "conflict_id": 79,
+            "lat": 52.03,
+            "lng": 21.03,
+            "label": "Initial Conflict Pillar",
+            "source_type": "parcel_locker",
+        }
+
+        with patch.object(run, "territory_conflict_store", conflict_store), \
+                patch.object(run, "record_territory_conflict_delta") as delta_mock, \
+                patch.object(run, "rebuild_conflict_polygons") as rebuild_mock:
+            affected = run.capture_conflict_pillar(
+                captured_target,
+                captured_by_username="main",
+                previous_owner_username="other",
+            )
+
+        self.assertEqual(len(affected), 1)
+        self.assertIsNotNone(conflict_store.saved)
+        self.assertEqual(len(conflict_store.saved["targets"]), 1)
+        saved = conflict_store.saved["targets"][0]
+        self.assertTrue(saved["captured"])
+        self.assertEqual(saved["status"], "captured")
+        self.assertEqual(saved["captured_by"], "main")
+        self.assertEqual(saved["previous_owner"], "other")
+        self.assertEqual(saved["target"]["target_id"], "pillar-initial")
+        delta_mock.assert_called_once()
+        rebuild_mock.assert_called_once()
+
     def test_encircled_area_notification_uses_stable_area_key(self):
         area_first = {
             "id": 10,
