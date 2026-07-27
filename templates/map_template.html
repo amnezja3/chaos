@@ -1830,6 +1830,7 @@
         map.on('zoomend', scheduleZoomReturn);
         map.on('dragstart movestart zoomstart', () => {
             if (!programmaticMapMove) clearZoomReturn();
+            if (typeof closeTerritoryTooltips === 'function') closeTerritoryTooltips();
         });
         map.on('dragend moveend', scheduleZoomReturn);
         map.createPane('territoryPane');
@@ -2031,7 +2032,8 @@
                 fillOpacity: isEncircled ? 0.26 : (isMine ? 0.13 : 0.20),
                 weight: isEncircled ? 4 : (isMine ? 2 : 3),
                 dashArray: isEncircled ? '4 5' : (isMine ? null : '8 6'),
-                interactive: true
+                interactive: true,
+                bubblingMouseEvents: false
             };
         }
 
@@ -2041,7 +2043,35 @@
             const ownerClan = window.escapeMapText(area.owner_clan || 'brak');
             const status = window.escapeMapText(area.status || 'active');
             const size = Math.round(Number(area.area_size || 0));
-            return `${area.is_mine ? 'Twoje pole' : 'Pole gracza'}: ${ownerNick}<br>Login: ${ownerUsername}<br>Klan: ${ownerClan}<br>Status: ${status}<br>Pow.: ${size} m²`;
+            return `${area.is_mine ? 'Twoje pole' : 'Pole gracza'}: ${ownerNick}<br>Login: ${ownerUsername}<br>Klan: ${ownerClan}<br>Status: ${status}<br>Pow.: ${size} m&sup2;`;
+        }
+
+        function bindTerritoryTooltip(layer, content) {
+            if (!layer || typeof layer.bindTooltip !== 'function') return;
+            layer.bindTooltip(content, {
+                sticky: false,
+                direction: 'top',
+                opacity: 0.95
+            });
+            if (typeof layer.on === 'function') {
+                layer.on('mouseout remove', () => {
+                    if (typeof layer.closeTooltip === 'function') layer.closeTooltip();
+                });
+            }
+        }
+
+        function closeTerritoryTooltips() {
+            if (map && typeof map.closeTooltip === 'function') {
+                map.closeTooltip();
+            }
+            ['playerAreaLayers', 'conflictAreaLayers'].forEach(name => {
+                (window[name] || []).forEach(layer => {
+                    if (layer && typeof layer.closeTooltip === 'function') {
+                        layer.closeTooltip();
+                    }
+                });
+            });
+            cleanupLegacyPlayerAreaTooltipDom();
         }
 
         function renderTerritoryAreaLayer(area = {}) {
@@ -2059,10 +2089,7 @@
             polygon._chaosTerritoryId = territoryId;
             polygon._chaosTerritorySnapshot = { ...area, territory_id: territoryId };
             polygon.addTo(map);
-            polygon.bindTooltip(territoryTooltip(area), {
-                sticky: true,
-                opacity: 0.95
-            });
+            bindTerritoryTooltip(polygon, territoryTooltip(area));
             window.territoryAreaLayers[territoryId] = {
                 id: territoryId,
                 layer: polygon,
@@ -2098,14 +2125,12 @@
                     fillOpacity: 0.18,
                     weight: 3,
                     dashArray: '3 5',
-                    interactive: true
+                    interactive: true,
+                    bubblingMouseEvents: false
                 }));
                 polygon._chaosTerritoryConflictId = `${conflict.id || conflict.conflict_key || 'conflict'}:${index}`;
                 polygon.addTo(map);
-                polygon.bindTooltip(`Konflikt terytorium<br>Uczestnicy: ${participants || 'brak'}<br>Strefa: ${index + 1}`, {
-                    sticky: true,
-                    opacity: 0.95
-                });
+                bindTerritoryTooltip(polygon, `Konflikt terytorium<br>Uczestnicy: ${participants || 'brak'}<br>Strefa: ${index + 1}`);
                 window.territoryConflictLayers[polygon._chaosTerritoryConflictId] = {
                     id: polygon._chaosTerritoryConflictId,
                     layer: polygon,
@@ -2201,6 +2226,8 @@
 
             const latSpan = Math.max(...lats) - Math.min(...lats);
             const lngSpan = Math.max(...lngs) - Math.min(...lngs);
+            const uniquePoints = new Set(points.map(point => `${Number(point[0]).toFixed(6)}:${Number(point[1]).toFixed(6)}`));
+            if (uniquePoints.size < 3) return false;
             return latSpan <= 0.25 && lngSpan <= 0.25;
         }
 
@@ -5076,6 +5103,7 @@
             window.updateMapLoadingStatus = function(message) {
                 const status = window.ensureMapLoadingStatus();
                 const overlay = window.ensureMapGlitchOverlay();
+                if (typeof closeTerritoryTooltips === 'function') closeTerritoryTooltips();
                 const elapsed = window.mapLoadingState.startedAt ? performance.now() - window.mapLoadingState.startedAt : 0;
                 const log = window.pickMapGhostSystemLog(message, elapsed);
                 if (window.mapLoadingState.text) {
@@ -5098,6 +5126,7 @@
             window.beginMapLoading = function(message) {
                 const state = window.mapLoadingState;
                 const token = `map-load-${++state.seq}`;
+                if (typeof closeTerritoryTooltips === 'function') closeTerritoryTooltips();
                 state.active.set(token, message || 'Synchronizacja mapy...');
                 if (!state.startedAt || state.active.size === 1) {
                     state.startedAt = performance.now();
@@ -6937,12 +6966,7 @@
                 if (typeof entry.layer.setStyle === 'function') {
                     entry.layer.setStyle(territoryLayerStyle(nextArea));
                 }
-                if (typeof entry.layer.bindTooltip === 'function') {
-                    entry.layer.bindTooltip(territoryTooltip(nextArea), {
-                        sticky: true,
-                        opacity: 0.95
-                    });
-                }
+                bindTerritoryTooltip(entry.layer, territoryTooltip(nextArea));
                 window.territoryAreaLayers[territoryId] = entry;
                 return true;
             };
