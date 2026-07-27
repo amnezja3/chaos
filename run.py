@@ -19527,12 +19527,10 @@ def map_player_areas():
         print(f"[WARN] map player areas list failed: {exc}", flush=True)
         player_areas_warnings.append("areas_unavailable")
         all_areas = []
-    try:
-        if refresh_stale_territory_polygons(all_areas):
-            all_areas = safe_player_areas(territory_store.list_player_areas())
-    except Exception as exc:
-        print(f"[WARN] map player areas stale refresh skipped: {exc}", flush=True)
-        player_areas_warnings.append("stale_refresh_skipped")
+    # Keep this endpoint strictly read-only. Rebuilding stale polygons here can
+    # run the full encirclement resolver during map boot and timeout a worker.
+    if any(area.get("needs_rebuild") or area.get("stale") for area in all_areas):
+        player_areas_warnings.append("stale_refresh_deferred")
 
     try:
         active_conflicts = get_active_conflicts_for_player(username)
@@ -19622,50 +19620,48 @@ def map_player_areas():
             "created_at": intruder.get("created_at"),
         })
 
+    conflict_areas = []
+    revealed_conflict_targets = []
+    captured_conflict_pillars = []
+    for conflict in active_conflicts_payload:
+        if not isinstance(conflict, dict):
+            player_areas_warnings.append("invalid_conflict_payload_skipped")
+            continue
+        conflict_meta = {
+            "conflict_id": conflict.get("id"),
+            "participants": conflict.get("participants", []),
+            "participant_usernames": conflict.get("participant_usernames", []),
+            "participant_names": conflict.get("participant_names", []),
+            "participants_display": conflict.get("participants_display", ""),
+        }
+        conflict_areas.append({
+            "id": conflict.get("id"),
+            "participants": conflict.get("participants", []),
+            "participant_usernames": conflict.get("participant_usernames", []),
+            "participant_names": conflict.get("participant_names", []),
+            "participant_profiles": conflict.get("participant_profiles", []),
+            "participants_display": conflict.get("participants_display", ""),
+            "intersection": conflict.get("intersection", []),
+            "intersections": conflict.get("intersections", []),
+            "updated_at": conflict.get("updated_at"),
+        })
+        for item in (conflict.get("targets") or []):
+            if not isinstance(item, dict):
+                player_areas_warnings.append("invalid_conflict_target_skipped")
+                continue
+            target_payload = {**item, **conflict_meta}
+            revealed_conflict_targets.append(target_payload)
+            if item.get("captured") or item.get("status") == "captured":
+                captured_conflict_pillars.append(target_payload)
+
     return jsonify({
         "areas": areas,
         "player_areas": areas,
         "intruders": intruders,
         "territory_conflicts": active_conflicts_payload,
-        "conflict_areas": [
-            {
-                "id": conflict.get("id"),
-                "participants": conflict.get("participants", []),
-                "participant_usernames": conflict.get("participant_usernames", []),
-                "participant_names": conflict.get("participant_names", []),
-                "participant_profiles": conflict.get("participant_profiles", []),
-                "participants_display": conflict.get("participants_display", ""),
-                "intersection": conflict.get("intersection", []),
-                "intersections": conflict.get("intersections", []),
-                "updated_at": conflict.get("updated_at"),
-            }
-            for conflict in active_conflicts_payload
-        ],
-        "revealed_conflict_targets": [
-            {
-                **item,
-                "conflict_id": conflict.get("id"),
-                "participants": conflict.get("participants", []),
-                "participant_usernames": conflict.get("participant_usernames", []),
-                "participant_names": conflict.get("participant_names", []),
-                "participants_display": conflict.get("participants_display", ""),
-            }
-            for conflict in active_conflicts_payload
-            for item in (conflict.get("targets") or [])
-        ],
-        "captured_conflict_pillars": [
-            {
-                **item,
-                "conflict_id": conflict.get("id"),
-                "participants": conflict.get("participants", []),
-                "participant_usernames": conflict.get("participant_usernames", []),
-                "participant_names": conflict.get("participant_names", []),
-                "participants_display": conflict.get("participants_display", ""),
-            }
-            for conflict in active_conflicts_payload
-            for item in (conflict.get("targets") or [])
-            if item.get("captured") or item.get("status") == "captured"
-        ],
+        "conflict_areas": conflict_areas,
+        "revealed_conflict_targets": revealed_conflict_targets,
+        "captured_conflict_pillars": captured_conflict_pillars,
         "contested_targets": contested_targets,
         "warnings": player_areas_warnings,
         "player": {

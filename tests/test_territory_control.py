@@ -349,7 +349,6 @@ class TerritoryControlTest(unittest.TestCase):
                 patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run.user_store, "get_profile", side_effect=fake_profile), \
                 patch.object(run.mail_store, "is_accepted_contact", return_value=False), \
-                patch.object(run, "refresh_stale_territory_polygons", return_value=False), \
                 patch.object(run, "get_active_conflicts_for_player", return_value=[]), \
                 patch.object(run, "contested_targets_from_active_conflicts", return_value=[]):
             response = client.get("/api/map/player-areas")
@@ -379,6 +378,7 @@ class TerritoryControlTest(unittest.TestCase):
                 {"lat": 52.0, "lng": 21.002},
             ],
             "area_size": 4000,
+            "stale": True,
         }]
 
         class FragileTerritoryStoreForMap:
@@ -392,7 +392,7 @@ class TerritoryControlTest(unittest.TestCase):
         with patch.object(run, "territory_store", FragileTerritoryStoreForMap()), \
                 patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run.user_store, "get_profile", return_value=profile), \
-                patch.object(run, "refresh_stale_territory_polygons", side_effect=RuntimeError("rebuild busy")), \
+                patch.object(run, "refresh_stale_territory_polygons", side_effect=AssertionError("read endpoint must not rebuild")), \
                 patch.object(run, "get_active_conflicts_for_player", side_effect=RuntimeError("conflict store busy")):
             response = client.get("/api/map/player-areas")
 
@@ -400,7 +400,7 @@ class TerritoryControlTest(unittest.TestCase):
         payload = response.get_json()
         self.assertEqual(len(payload["areas"]), 1)
         self.assertEqual(payload["areas"][0]["id"], "alice-area")
-        self.assertIn("stale_refresh_skipped", payload["warnings"])
+        self.assertIn("stale_refresh_deferred", payload["warnings"])
         self.assertIn("conflicts_unavailable", payload["warnings"])
         self.assertIn("intruders_unavailable", payload["warnings"])
 
