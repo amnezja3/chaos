@@ -2951,6 +2951,60 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(targets[0]["foreign_area_id"], 2)
         self.assertEqual(targets[0]["my_area_id"], 1)
 
+    def test_contested_targets_include_foreign_cluster_nodes_outside_overlap(self):
+        conflict = {
+            "id": 78,
+            "participants": ["main", "other"],
+            "area_ids": [1, 2],
+            "targets": [],
+        }
+        areas = [
+            {
+                "id": 1,
+                "owner_username": "main",
+                "status": "active",
+                "vertices": [
+                    {"lat": 52.0, "lng": 21.0},
+                    {"lat": 52.0, "lng": 21.02},
+                    {"lat": 52.02, "lng": 21.02},
+                    {"lat": 52.02, "lng": 21.0},
+                ],
+            },
+            {
+                "id": 2,
+                "owner_username": "other",
+                "status": "active",
+                "vertices": [
+                    {"lat": 52.01, "lng": 21.01},
+                    {"lat": 52.01, "lng": 21.04},
+                    {"lat": 52.04, "lng": 21.04},
+                    {"lat": 52.04, "lng": 21.01},
+                ],
+            },
+        ]
+
+        class FakeTerritoryStore:
+            def list_captured_targets(self, owner, stationary=True):
+                if owner == "other":
+                    return [
+                        {
+                            "lat": 52.03,
+                            "lng": 21.03,
+                            "label": "Enemy Pillar Outside Overlap",
+                            "source_type": "parcel_locker",
+                        }
+                    ]
+                return []
+
+        with patch.object(run, "territory_store", FakeTerritoryStore()), \
+                patch.object(run.user_store, "get_profile", return_value={"username": "other", "nick": "Other"}):
+            targets = run.contested_targets_from_active_conflicts("main", [conflict], areas)
+
+        self.assertEqual(len(targets), 1)
+        self.assertEqual(targets[0]["label"], "Enemy Pillar Outside Overlap")
+        self.assertEqual(targets[0]["foreign_area_id"], 2)
+        self.assertEqual(targets[0]["my_area_id"], 1)
+
     def test_encircled_area_notification_uses_stable_area_key(self):
         area_first = {
             "id": 10,

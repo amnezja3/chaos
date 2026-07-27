@@ -11262,11 +11262,7 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
                     lng = float(target.get("lng", target.get("lon")))
                 except (TypeError, ValueError):
                     continue
-                containing_my_area = next(
-                    (area for area in my_areas if point_in_polygon(lat, lng, area.get("vertices", []))),
-                    None,
-                )
-                if not containing_my_area:
+                if not point_in_polygon(lat, lng, foreign_area.get("vertices", [])):
                     continue
                 add_contested_target(
                     conflict,
@@ -11274,7 +11270,7 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
                     target,
                     extra={
                         "foreign_area_id": foreign_area.get("id"),
-                        "my_area_id": containing_my_area.get("id"),
+                        "my_area_id": my_areas[0].get("id"),
                     },
                 )
     return list(contested.values())
