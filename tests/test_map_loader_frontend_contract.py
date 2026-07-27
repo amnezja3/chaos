@@ -42,6 +42,12 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("Ponawiam:", self.map_template)
         self.assertIn("boot_attempt", self.map_template)
 
+    def test_territory_tooltip_cleanup_does_not_break_map_boot(self):
+        self.assertIn("function closeTerritoryTooltips()", self.map_template)
+        self.assertIn("layer.isTooltipOpen()", self.map_template)
+        self.assertNotIn("map.closeTooltip();", self.map_template)
+        self.assertNotIn("layer.on('mouseout remove'", self.map_template)
+
     def test_travel_action_shows_destination_pulse_until_finished(self):
         self.assertIn("travel-destination-pulse", self.map_template)
         self.assertIn("showTravelDestinationPulse", self.map_template)

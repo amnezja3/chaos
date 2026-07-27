@@ -2054,19 +2054,34 @@
                 opacity: 0.95
             });
             if (typeof layer.on === 'function') {
-                layer.on('mouseout remove', () => {
-                    if (typeof layer.closeTooltip === 'function') layer.closeTooltip();
+                layer.on('mouseout', () => {
+                    const tooltip = typeof layer.getTooltip === 'function' ? layer.getTooltip() : null;
+                    if (
+                        tooltip
+                        && tooltip._map
+                        && typeof layer.isTooltipOpen === 'function'
+                        && layer.isTooltipOpen()
+                        && typeof layer.closeTooltip === 'function'
+                    ) {
+                        layer.closeTooltip();
+                    }
                 });
             }
         }
 
         function closeTerritoryTooltips() {
-            if (map && typeof map.closeTooltip === 'function') {
-                map.closeTooltip();
-            }
             ['playerAreaLayers', 'conflictAreaLayers'].forEach(name => {
                 (window[name] || []).forEach(layer => {
-                    if (layer && typeof layer.closeTooltip === 'function') {
+                    const tooltip = layer && typeof layer.getTooltip === 'function'
+                        ? layer.getTooltip()
+                        : null;
+                    if (
+                        tooltip
+                        && tooltip._map
+                        && typeof layer.isTooltipOpen === 'function'
+                        && layer.isTooltipOpen()
+                        && typeof layer.closeTooltip === 'function'
+                    ) {
                         layer.closeTooltip();
                     }
                 });
