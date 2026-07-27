@@ -360,6 +360,50 @@ class TerritoryControlTest(unittest.TestCase):
         self.assertEqual(inner["status"], "active")
         self.assertFalse(inner["exposed"])
 
+    def test_map_player_areas_survives_optional_read_model_failures(self):
+        profile = {
+            "username": "alice",
+            "nick": "Alice",
+            "level": 4,
+            "clan": "Siatka Widmo",
+            "apps": [],
+            "files": {},
+        }
+        areas = [{
+            "id": "alice-area",
+            "owner_username": "alice",
+            "status": "active",
+            "vertices": [
+                {"lat": 52.0, "lng": 21.0},
+                {"lat": 52.002, "lng": 21.0},
+                {"lat": 52.0, "lng": 21.002},
+            ],
+            "area_size": 4000,
+        }]
+
+        class FragileTerritoryStoreForMap:
+            def list_player_areas(self):
+                return list(areas)
+
+            def list_recent_area_intruders(self, username):
+                raise RuntimeError("intruder store unavailable")
+
+        client = self._client_with_user("alice")
+        with patch.object(run, "territory_store", FragileTerritoryStoreForMap()), \
+                patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run, "refresh_stale_territory_polygons", side_effect=RuntimeError("rebuild busy")), \
+                patch.object(run, "get_active_conflicts_for_player", side_effect=RuntimeError("conflict store busy")):
+            response = client.get("/api/map/player-areas")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(len(payload["areas"]), 1)
+        self.assertEqual(payload["areas"][0]["id"], "alice-area")
+        self.assertIn("stale_refresh_skipped", payload["warnings"])
+        self.assertIn("conflicts_unavailable", payload["warnings"])
+        self.assertIn("intruders_unavailable", payload["warnings"])
+
     def test_full_encirclement_transfers_cluster_members_and_preserves_outside_points(self):
         path = self._temp_db()
         try:

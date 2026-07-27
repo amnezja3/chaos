@@ -19520,16 +19520,39 @@ def map_player_areas():
 
     profile = sync_session_profile(rebuild_territory=False)
     username = session["user"]
-    all_areas = safe_player_areas(territory_store.list_player_areas())
-    if refresh_stale_territory_polygons(all_areas):
+    player_areas_warnings = []
+    try:
         all_areas = safe_player_areas(territory_store.list_player_areas())
+    except Exception as exc:
+        print(f"[WARN] map player areas list failed: {exc}", flush=True)
+        player_areas_warnings.append("areas_unavailable")
+        all_areas = []
+    try:
+        if refresh_stale_territory_polygons(all_areas):
+            all_areas = safe_player_areas(territory_store.list_player_areas())
+    except Exception as exc:
+        print(f"[WARN] map player areas stale refresh skipped: {exc}", flush=True)
+        player_areas_warnings.append("stale_refresh_skipped")
 
-    active_conflicts = get_active_conflicts_for_player(username)
-    active_conflicts_payload = [
-        enrich_conflict_payload(conflict)
-        for conflict in active_conflicts
-    ]
-    contested_targets = contested_targets_from_active_conflicts(username, active_conflicts, all_areas)
+    try:
+        active_conflicts = get_active_conflicts_for_player(username)
+    except Exception as exc:
+        print(f"[WARN] map player areas conflicts skipped: {exc}", flush=True)
+        player_areas_warnings.append("conflicts_unavailable")
+        active_conflicts = []
+    active_conflicts_payload = []
+    for conflict in active_conflicts:
+        try:
+            active_conflicts_payload.append(enrich_conflict_payload(conflict))
+        except Exception as exc:
+            print(f"[WARN] map player areas conflict enrich skipped: {exc}", flush=True)
+            player_areas_warnings.append("conflict_enrich_skipped")
+    try:
+        contested_targets = contested_targets_from_active_conflicts(username, active_conflicts, all_areas)
+    except Exception as exc:
+        print(f"[WARN] map player areas contested targets skipped: {exc}", flush=True)
+        player_areas_warnings.append("contested_targets_unavailable")
+        contested_targets = []
     areas = []
     owner_profile_cache = {username: profile}
     for area in all_areas:
@@ -19539,7 +19562,11 @@ def map_player_areas():
         owner_username = clean_area.get("owner_username")
         owner_profile = owner_profile_cache.get(owner_username)
         if owner_profile is None:
-            owner_profile = user_store.get_profile(owner_username)
+            try:
+                owner_profile = user_store.get_profile(owner_username)
+            except Exception as exc:
+                print(f"[WARN] map player area owner profile skipped: {owner_username} {exc}", flush=True)
+                owner_profile = None
             owner_profile_cache[owner_username] = owner_profile
         if not owner_profile and owner_username != username:
             continue
@@ -19574,8 +19601,17 @@ def map_player_areas():
         })
 
     intruders = []
-    for intruder in territory_store.list_recent_area_intruders(username):
-        intruder_profile = user_store.get_profile(intruder.get("username"))
+    try:
+        recent_intruders = territory_store.list_recent_area_intruders(username)
+    except Exception as exc:
+        print(f"[WARN] map player areas intruders skipped: {exc}", flush=True)
+        player_areas_warnings.append("intruders_unavailable")
+        recent_intruders = []
+    for intruder in recent_intruders:
+        try:
+            intruder_profile = user_store.get_profile(intruder.get("username"))
+        except Exception:
+            intruder_profile = None
         intruders.append({
             "area_id": intruder.get("area_id"),
             "username": intruder.get("username"),
@@ -19631,6 +19667,7 @@ def map_player_areas():
             if item.get("captured") or item.get("status") == "captured"
         ],
         "contested_targets": contested_targets,
+        "warnings": player_areas_warnings,
         "player": {
             "level": get_player_level(profile),
             "action_range": get_player_action_range(profile),
