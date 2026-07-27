@@ -326,7 +326,7 @@ class TerritoryControlTest(unittest.TestCase):
                     {"lat": 52.0010, "lng": 21.0005},
                     {"lat": 52.0008, "lng": 21.0010},
                 ],
-                "area_size": 1000,
+                "area_size": "legacy dirty size",
             },
         ]
 

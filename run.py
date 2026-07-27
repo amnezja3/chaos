@@ -4611,21 +4611,25 @@ def territory_area_inside_area(inner_area, outer_area):
     )
 
 
+def territory_area_size_value(area):
+    try:
+        return float((area or {}).get("area_size") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def territory_area_encircled_by_protected_owner(area, all_areas, profile_cache=None):
     owner_username = str((area or {}).get("owner_username") or "").strip()
     if not owner_username:
         return False
-    area_size = float((area or {}).get("area_size") or 0)
+    area_size = territory_area_size_value(area)
     for other_area in all_areas or []:
         if str(other_area.get("id") or "") == str((area or {}).get("id") or ""):
             continue
         other_owner = str(other_area.get("owner_username") or "").strip()
         if not territory_owners_are_protected_relation(owner_username, other_owner, profile_cache=profile_cache):
             continue
-        try:
-            other_size = float(other_area.get("area_size") or 0)
-        except (TypeError, ValueError):
-            other_size = 0
+        other_size = territory_area_size_value(other_area)
         if other_size <= area_size:
             continue
         if territory_area_inside_area(area, other_area):
@@ -19542,12 +19546,18 @@ def map_player_areas():
         if not owner_profile:
             owner_profile = profile if owner_username == username else {}
         status = clean_area.get("status", "active")
-        if status == "encircled" and territory_area_encircled_by_protected_owner(
-            clean_area,
-            all_areas,
-            profile_cache=owner_profile_cache,
-        ):
-            status = "active"
+        if status == "encircled":
+            try:
+                if territory_area_encircled_by_protected_owner(
+                    clean_area,
+                    all_areas,
+                    profile_cache=owner_profile_cache,
+                ):
+                    status = "active"
+            except Exception:
+                # This is a tooltip/read-model correction only. Bad legacy
+                # territory data must not break the critical map boot path.
+                pass
         areas.append({
             "id": clean_area.get("id"),
             "owner_username": owner_username,
