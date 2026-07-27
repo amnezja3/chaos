@@ -4563,6 +4563,76 @@ def territory_area_cluster_members(store, area):
     }
 
 
+def _territory_relation_profile(username, profile_cache=None):
+    username = str(username or "").strip()
+    if not username:
+        return {}
+    if profile_cache is not None and username in profile_cache:
+        return profile_cache.get(username) or {}
+    try:
+        profile = user_store.get_profile(username) or {}
+    except Exception:
+        profile = {}
+    if profile_cache is not None:
+        profile_cache[username] = profile
+    return profile
+
+
+def territory_owners_are_protected_relation(username_a, username_b, profile_cache=None):
+    username_a = str(username_a or "").strip()
+    username_b = str(username_b or "").strip()
+    if not username_a or not username_b or username_a == username_b:
+        return False
+
+    profile_a = _territory_relation_profile(username_a, profile_cache=profile_cache)
+    profile_b = _territory_relation_profile(username_b, profile_cache=profile_cache)
+    clan_a = get_profile_clan(profile_a)
+    clan_b = get_profile_clan(profile_b)
+    if clan_a and clan_b and clan_a == clan_b:
+        return True
+
+    try:
+        return bool(
+            mail_store.is_accepted_contact(username_a, username_b)
+            or mail_store.is_accepted_contact(username_b, username_a)
+        )
+    except Exception:
+        return False
+
+
+def territory_area_inside_area(inner_area, outer_area):
+    inner_vertices = (inner_area or {}).get("vertices") or []
+    outer_vertices = (outer_area or {}).get("vertices") or []
+    if len(inner_vertices) < 3 or len(outer_vertices) < 3:
+        return False
+    return all(
+        territory_point_in_polygon_or_boundary(vertex, outer_vertices)
+        for vertex in inner_vertices
+    )
+
+
+def territory_area_encircled_by_protected_owner(area, all_areas, profile_cache=None):
+    owner_username = str((area or {}).get("owner_username") or "").strip()
+    if not owner_username:
+        return False
+    area_size = float((area or {}).get("area_size") or 0)
+    for other_area in all_areas or []:
+        if str(other_area.get("id") or "") == str((area or {}).get("id") or ""):
+            continue
+        other_owner = str(other_area.get("owner_username") or "").strip()
+        if not territory_owners_are_protected_relation(owner_username, other_owner, profile_cache=profile_cache):
+            continue
+        try:
+            other_size = float(other_area.get("area_size") or 0)
+        except (TypeError, ValueError):
+            other_size = 0
+        if other_size <= area_size:
+            continue
+        if territory_area_inside_area(area, other_area):
+            return True
+    return False
+
+
 class TerritoryEncirclementResolver:
     """Resolves full cluster encirclement without becoming a new territory store."""
 
@@ -4608,6 +4678,8 @@ class TerritoryEncirclementResolver:
         attacker_owner = str((attacker or {}).get("owner_username") or "").strip()
         defender_owner = str((defender or {}).get("owner_username") or "").strip()
         if not attacker_owner or not defender_owner or attacker_owner == defender_owner:
+            return False
+        if territory_owners_are_protected_relation(attacker_owner, defender_owner):
             return False
         attacker_vertices = (attacker or {}).get("vertices") or []
         defender_vertices = (defender or {}).get("vertices") or []
@@ -19455,17 +19527,27 @@ def map_player_areas():
     ]
     contested_targets = contested_targets_from_active_conflicts(username, active_conflicts, all_areas)
     areas = []
+    owner_profile_cache = {username: profile}
     for area in all_areas:
         clean_area = normalize_player_area(area)
         if not clean_area:
             continue
         owner_username = clean_area.get("owner_username")
-        owner_profile = user_store.get_profile(owner_username)
+        owner_profile = owner_profile_cache.get(owner_username)
+        if owner_profile is None:
+            owner_profile = user_store.get_profile(owner_username)
+            owner_profile_cache[owner_username] = owner_profile
         if not owner_profile and owner_username != username:
             continue
         if not owner_profile:
             owner_profile = profile if owner_username == username else {}
         status = clean_area.get("status", "active")
+        if status == "encircled" and territory_area_encircled_by_protected_owner(
+            clean_area,
+            all_areas,
+            profile_cache=owner_profile_cache,
+        ):
+            status = "active"
         areas.append({
             "id": clean_area.get("id"),
             "owner_username": owner_username,
