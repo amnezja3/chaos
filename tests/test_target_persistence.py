@@ -2901,6 +2901,9 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
             "participants": ["main", "other"],
             "area_ids": [1, 2],
             "targets": [],
+            "intersections": [[
+                [52.01, 21.01], [52.01, 21.02], [52.02, 21.02], [52.02, 21.01],
+            ]],
         }
         areas = [
             {
@@ -2951,12 +2954,15 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(targets[0]["foreign_area_id"], 2)
         self.assertEqual(targets[0]["my_area_id"], 1)
 
-    def test_contested_targets_include_foreign_cluster_nodes_outside_overlap(self):
+    def test_contested_targets_exclude_foreign_nodes_outside_conflict_geometry(self):
         conflict = {
             "id": 78,
             "participants": ["main", "other"],
             "area_ids": [1, 2],
             "targets": [],
+            "intersections": [[
+                [52.01, 21.01], [52.01, 21.02], [52.02, 21.02], [52.02, 21.01],
+            ]],
         }
         areas = [
             {
@@ -3000,10 +3006,7 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
                 patch.object(run.user_store, "get_profile", return_value={"username": "other", "nick": "Other"}):
             targets = run.contested_targets_from_active_conflicts("main", [conflict], areas)
 
-        self.assertEqual(len(targets), 1)
-        self.assertEqual(targets[0]["label"], "Enemy Pillar Outside Overlap")
-        self.assertEqual(targets[0]["foreign_area_id"], 2)
-        self.assertEqual(targets[0]["my_area_id"], 1)
+        self.assertEqual(targets, [])
 
     def test_contested_targets_recover_from_stale_legacy_area_ids(self):
         conflict = {
@@ -3011,6 +3014,9 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
             "participants": ["main", "other"],
             "area_ids": [101, 102],
             "targets": [],
+            "intersections": [[
+                [52.01, 21.01], [52.01, 21.025], [52.025, 21.025], [52.025, 21.01],
+            ]],
         }
         areas = [
             {

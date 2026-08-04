@@ -11501,6 +11501,29 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
     owner_profiles = {}
     owner_targets = {}
 
+    def conflict_front_geometries(conflict):
+        raw_geometries = conflict.get("intersections") or []
+        if not raw_geometries and conflict.get("intersection"):
+            raw_geometries = [conflict.get("intersection")]
+        normalized = []
+        for geometry in raw_geometries:
+            vertices = []
+            for vertex in geometry or []:
+                if isinstance(vertex, dict):
+                    lat = vertex.get("lat")
+                    lng = vertex.get("lng", vertex.get("lon"))
+                elif isinstance(vertex, (list, tuple)) and len(vertex) >= 2:
+                    lat, lng = vertex[0], vertex[1]
+                else:
+                    continue
+                try:
+                    vertices.append({"lat": float(lat), "lng": float(lng)})
+                except (TypeError, ValueError):
+                    continue
+            if len(vertices) >= 3:
+                normalized.append(vertices)
+        return normalized
+
     def add_contested_target(conflict, owner_username, target, item=None, extra=None):
         owner_username = str(owner_username or "").strip()
         if not owner_username or owner_username == username:
@@ -11513,6 +11536,12 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
             lat = float(target.get("lat", (item or {}).get("lat")))
             lng = float(target.get("lng", target.get("lon", (item or {}).get("lng", (item or {}).get("lon")))))
         except (TypeError, ValueError):
+            return
+
+        front_geometries = conflict_front_geometries(conflict)
+        if front_geometries and not any(
+            point_in_polygon(lat, lng, geometry) for geometry in front_geometries
+        ):
             return
 
         target = dict(target)

@@ -10644,3 +10644,10 @@ markerem innera. Dla konfliktow legacy ze starymi `area_ids` read model
 odnajduje aktualne aktywne obszary uczestnikow bez zapisu i rebuilda, dzieki
 czemu odzyskuje pozostale innery rowniez dla Victim Pickera. Trzy celowane
 testy area-id recovery: OK.
+
+Fallback `area_ids` zostal nastepnie zawężony do kanonicznej geometrii frontu:
+target uczestnika trafia do `territory_contest` tylko, gdy jego punkt lezy w
+jednym z `intersections` aktywnego konfliktu. Aktualne obszary uczestnikow
+sluza jedynie do odzyskania wlasciciela i kandydatow po rebuildzie; nie sa
+granica ujawniania. Zapobiega to pokazywaniu innerow atakujacego i atakowanego
+poza spornym obszarem. Dwanascie celowanych testow projekcji i filtrowania - OK.
