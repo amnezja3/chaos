@@ -2298,17 +2298,35 @@
                 const id = String((pillar || {}).target_id || target.target_id || target.id || '').trim();
                 if (id && reconcileTerritoryPillar(snapshot, pillar)) pillarIds.push(id);
             });
-            if (snapshot.complete !== false && previous) {
-                (previous.frontIds || []).filter(id => !frontIds.includes(id))
+            const publishedGeometryReplacesPrevious = Boolean(previous)
+                && String(snapshot.geometry_status || '').toLowerCase() === 'published'
+                && geometryVersion > Number(previous.geometryVersion || 0);
+            if (previous && (snapshot.complete !== false || publishedGeometryReplacesPrevious)) {
+                const trackedConflictFrontIds = publishedGeometryReplacesPrevious
+                    ? Object.keys(window.territoryFrontLayers).filter(id => (
+                        String((window.territoryFrontLayers[id] || {}).conflictId || '') === conflictId
+                    ))
+                    : (previous.frontIds || []);
+                trackedConflictFrontIds.filter(id => !frontIds.includes(id))
                     .forEach(id => removeTerritoryRegistryLayer(window.territoryFrontLayers, id));
+            }
+            if (snapshot.complete !== false && previous) {
                 (previous.pillarIds || []).filter(id => !pillarIds.includes(id))
                     .forEach(id => removeTerritoryRegistryLayer(window.territoryConflictPillarLayers, id));
             }
+            const registeredFrontIds = snapshot.complete !== false || publishedGeometryReplacesPrevious
+                ? frontIds
+                : Array.from(new Set([...(previous ? previous.frontIds || [] : []), ...frontIds]));
+            const registeredPillarIds = snapshot.complete !== false
+                ? pillarIds
+                : Array.from(new Set([...(previous ? previous.pillarIds || [] : []), ...pillarIds]));
             window.territoryConflictRegistry[conflictId] = {
                 snapshotVersion: version,
                 conflictVersion,
                 geometryVersion,
-                frontIds, pillarIds, snapshot
+                frontIds: registeredFrontIds,
+                pillarIds: registeredPillarIds,
+                snapshot
             };
             return true;
         }

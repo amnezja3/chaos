@@ -10646,6 +10646,13 @@ timeoutem/SIGKILL podczas przebudowy uczestnikow i geometrii. Worker emituje
 wynik jako `[TERRITORY_WORKER]`, a request wpis
 `[TERRITORY_CONSOLIDATION_QUEUED]`.
 
+Po pierwszej publikacji z workera usunieto widmo poprzedniej geometrii.
+Niepelny snapshot zachowuje teraz identyfikatory juz narysowanych frontow,
+zamiast tracic do nich referencje. Jednoczesnie nowsza geometria ze statusem
+`published` jest autorytatywna dla frontow nawet przy `complete=false`: usuwa
+poprzednie polygon-y i pozostawia w rejestrze tylko nowa geometrie. Filary
+nadal sa usuwane wylacznie przez kompletny snapshot lub jawny status removal.
+
 Snapshot produkcyjny po nieudanej zmianie wykazal `conflict_version=1` i nadal
 `contested/robot`, wiec przejecie nie weszlo do domeny konfliktu. Ujednolicono
 referencje dynamicznych celow: `conflict_id` preferuje stabilne ID, zachowujac
