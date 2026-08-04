@@ -10701,3 +10701,19 @@ geometrii `clean` i `published` jako autorytatywna publikacje nowego frontu.
 Walidacja audytu 130.8.1-130.8.5: 44 testy identity, map cutover i Territory
 Control - OK;
 `py_compile` oraz `git diff --check` - OK.
+
+Kolejny produkcyjny timeout `/gonna-win` wykazal, ze mimo asynchronicznej
+konsolidacji request konfliktowy nadal wykonywal trzy kosztowne przebudowy pol
+graczy i resolver otoczenia. Dla przejecia filaru przeniesiono je do workera:
+
+* request zapisuje transfer celu, domenowe przejecie filaru i kolejke;
+* worker przebudowuje obu uczestnikow, publikuje front, odswieza statystyki i
+  progresje profili oraz wykonuje powiadomienia otoczenia;
+* zwykle przejecia poza konfliktem zachowuja dotychczasowa synchroniczna
+  sciezke;
+* kolejka ma krotkie okno settle po `pillar_transfer_persisted`, aby worker nie
+  mogl odczytac stanu pomiedzy zapisem celu atakujacego a usunieciem go
+  obroncy.
+
+Walidacja: 44 testy identity, map cutover i Territory Control - OK;
+`py_compile` oraz `git diff --check` - OK.

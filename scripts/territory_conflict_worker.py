@@ -13,7 +13,14 @@ import run  # noqa: E402
 
 
 def process_once():
-    candidates = run.territory_conflict_store.list_rebuild_candidates(limit=1)
+    settle_seconds = max(
+        1.0,
+        float(os.environ.get("CHAOS_TERRITORY_WORKER_SETTLE_SECONDS", "3")),
+    )
+    candidates = run.territory_conflict_store.list_rebuild_candidates(
+        limit=1,
+        min_age_seconds=settle_seconds,
+    )
     if not candidates:
         return False
     conflict_id = candidates[0]["conflict_id"]
@@ -23,11 +30,14 @@ def process_once():
         run_encirclement=True,
         lease_seconds=300,
     )
+    finalized_profiles = []
+    if result.get("ok"):
+        finalized_profiles = run.finalize_conflict_rebuild_profiles(conflict_id)
     print(
         "[TERRITORY_WORKER] "
         f"conflict_id={conflict_id} ok={bool(result.get('ok'))} "
         f"changed={bool(result.get('changed'))} reason={result.get('reason')} "
-        f"elapsed_ms={result.get('elapsed_ms')}",
+        f"elapsed_ms={result.get('elapsed_ms')} profiles={finalized_profiles}",
         flush=True,
     )
     return True

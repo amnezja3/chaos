@@ -4610,6 +4610,46 @@ def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
     return results[-1] if results else {"ok": False, "reason": "pass_limit"}
 
 
+def finalize_conflict_rebuild_profiles(conflict_id):
+    """Refresh participant territory stats after the worker published geometry."""
+    conflict = territory_conflict_store.get_by_key(conflict_id) or {}
+    actor_username = str(conflict.get("last_actor_username") or "")
+    summaries = []
+    for username in sorted(set(conflict.get("participants") or [])):
+        profile = user_store.get_profile(username) or {}
+        if not profile:
+            continue
+        areas = territory_store.list_player_areas(username)
+        if username == actor_username:
+            progression = apply_territory_progression(profile, areas)
+        else:
+            refresh_territory_stats_snapshot(profile, areas)
+            progression = {"levels_gained": 0}
+        profile["hacked"] = territory_store.list_captured_targets(username)
+        profile["captured_targets_source"] = "sqlite"
+        user_store.save_profile(profile)
+        levels_gained = int((progression or {}).get("levels_gained") or 0)
+        if levels_gained:
+            rebuild_player_areas_with_territory_delta(
+                username,
+                profile.get("level", 1),
+                reason="territory_progression",
+                resolve_encirclements=False,
+            )
+            request_conflict_rebuild(
+                conflict.get("conflict_id") or conflict_id,
+                reason="territory_progression",
+                requested_version=conflict.get("conflict_version"),
+            )
+        summaries.append({
+            "username": username,
+            "areas": len(areas),
+            "levels_gained": levels_gained,
+        })
+    notify_encircled_area_owners()
+    return summaries
+
+
 def rebuild_conflict_polygons(participants, actor_username=None, source_event="conflict_rebuild"):
     rebuilt = {}
     for participant in sorted({name for name in (participants or []) if name}):
@@ -22504,15 +22544,27 @@ def gonna_win():
                     f"ID zgloszenia: {vulnerability_report.get('id')}"
                 )
             )
+        for captured_conflict in captured_conflicts:
+            request_conflict_rebuild(
+                captured_conflict.get("conflict_id") or captured_conflict.get("id"),
+                reason="pillar_transfer_persisted",
+                requested_version=captured_conflict.get("conflict_version"),
+            )
+        defer_conflict_rebuild = bool(captured_conflicts)
         step_started_at = time.perf_counter()
-        rebuilt_areas = rebuild_player_areas_with_territory_delta(
-            session["user"],
-            profile.get("level", 1),
-            reason="pillar_captured",
+        rebuilt_areas = (
+            territory_store.list_player_areas(session["user"])
+            if defer_conflict_rebuild
+            else rebuild_player_areas_with_territory_delta(
+                session["user"],
+                profile.get("level", 1),
+                reason="pillar_captured",
+            )
         )
         app_flow_debug_timed(
             flow_id,
-            "gonna_win_rebuild_player_areas_done",
+            "gonna_win_rebuild_player_areas_deferred" if defer_conflict_rebuild
+            else "gonna_win_rebuild_player_areas_done",
             app_flow_started_at,
             step_started_at,
             user=session["user"],
@@ -22521,16 +22573,22 @@ def gonna_win():
         if contest_owner_username and contest_owner_username != session["user"]:
             owner_profile = user_store.get_profile(contest_owner_username) or {}
             step_started_at = time.perf_counter()
-            owner_areas = rebuild_player_areas_with_territory_delta(
-                contest_owner_username,
-                owner_profile.get("level", 1),
-                reason="pillar_lost",
+            owner_areas = (
+                territory_store.list_player_areas(contest_owner_username)
+                if defer_conflict_rebuild
+                else rebuild_player_areas_with_territory_delta(
+                    contest_owner_username,
+                    owner_profile.get("level", 1),
+                    reason="pillar_lost",
+                )
             )
-            refresh_territory_stats_snapshot(owner_profile, owner_areas)
-            user_store.save_profile(owner_profile)
+            if not defer_conflict_rebuild:
+                refresh_territory_stats_snapshot(owner_profile, owner_areas)
+                user_store.save_profile(owner_profile)
             app_flow_debug_timed(
                 flow_id,
-                "gonna_win_owner_rebuild_done",
+                "gonna_win_owner_rebuild_deferred" if defer_conflict_rebuild
+                else "gonna_win_owner_rebuild_done",
                 app_flow_started_at,
                 step_started_at,
                 owner=contest_owner_username,
@@ -22542,7 +22600,7 @@ def gonna_win():
                 contest_owner_username,
                 "danger",
                 "Utrata punktu terytorium",
-                f"{attacker_name} przejal twoj obiekt {target_label}. Terytorium zostalo przebudowane."
+                f"{attacker_name} przejal twoj obiekt {target_label}. Terytorium jest przebudowywane."
             )
             add_cyberner_direct_notification(
                 contest_owner_username,
@@ -22554,24 +22612,29 @@ def gonna_win():
                     f"Pozycja: {captured_target.get('lat')}, {captured_target.get('lng')}"
                 )
             )
-            step_started_at = time.perf_counter()
-            rebuilt_areas = rebuild_player_areas_with_territory_delta(
-                session["user"],
-                profile.get("level", 1),
-                reason="pillar_captured_owner_rebuild",
-            )
-            app_flow_debug_timed(
-                flow_id,
-                "gonna_win_attacker_rebuild_after_owner_done",
-                app_flow_started_at,
-                step_started_at,
-                user=session["user"],
-                areas=len(rebuilt_areas or []),
-            )
+            if not defer_conflict_rebuild:
+                step_started_at = time.perf_counter()
+                rebuilt_areas = rebuild_player_areas_with_territory_delta(
+                    session["user"],
+                    profile.get("level", 1),
+                    reason="pillar_captured_owner_rebuild",
+                )
+                app_flow_debug_timed(
+                    flow_id,
+                    "gonna_win_attacker_rebuild_after_owner_done",
+                    app_flow_started_at,
+                    step_started_at,
+                    user=session["user"],
+                    areas=len(rebuilt_areas or []),
+                )
             profile["hacked"] = territory_store.list_captured_targets(session["user"])
             hacked_targets = profile["hacked"]
         step_started_at = time.perf_counter()
-        progression = apply_territory_progression(profile, rebuilt_areas)
+        progression = (
+            {"deferred": True, "levels_gained": 0}
+            if defer_conflict_rebuild
+            else apply_territory_progression(profile, rebuilt_areas)
+        )
         app_flow_debug_timed(
             flow_id,
             "gonna_win_apply_territory_progression_done",
@@ -22620,10 +22683,12 @@ def gonna_win():
                 results=conflict_consolidation_summary,
             )
         step_started_at = time.perf_counter()
-        notify_encircled_area_owners()
+        if not defer_conflict_rebuild:
+            notify_encircled_area_owners()
         app_flow_debug_timed(
             flow_id,
-            "gonna_win_notify_encircled_done",
+            "gonna_win_notify_encircled_deferred" if defer_conflict_rebuild
+            else "gonna_win_notify_encircled_done",
             app_flow_started_at,
             step_started_at,
         )
@@ -22649,18 +22714,22 @@ def gonna_win():
         session["profile"] = profile
 
         step_started_at = time.perf_counter()
-        mgr.update_profile({
+        capture_profile_update = {
             "hacked": hacked_targets,
             "targets": profile.get("targets", []),
             "aimed_target": {},
-            "level": profile["level"],
-            "respect": profile["respect"],
-            "exp": profile["exp"],
             "captured_targets_source": "sqlite",
-            "territory_stats": profile["territory_stats"],
             "system_messages": profile["system_messages"],
             "operations": profile.get("operations", []),
-        })
+        }
+        if not defer_conflict_rebuild:
+            capture_profile_update.update({
+                "level": profile["level"],
+                "respect": profile["respect"],
+                "exp": profile["exp"],
+                "territory_stats": profile["territory_stats"],
+            })
+        mgr.update_profile(capture_profile_update)
         app_flow_debug_timed(
             flow_id,
             "gonna_win_capture_profile_update_done",
