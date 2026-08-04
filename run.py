@@ -2803,7 +2803,21 @@ def project_territory_conflict_snapshot(snapshot):
         front["front_id"] = str(front.get("front_id") or f"{conflict_id}:front:{index}")
         front["geometry"] = front.get("geometry") or []
         fronts.append(front)
-    pillars = [dict(item) for item in (snapshot.get("pillars") or []) if isinstance(item, dict)]
+    pillars = []
+    for source in snapshot.get("pillars") or []:
+        if not isinstance(source, dict):
+            continue
+        pillar = dict(source)
+        public_target = pillar.get("public_target")
+        if not isinstance(public_target, dict):
+            public_target = {}
+        target = pillar.get("target")
+        if not isinstance(target, dict):
+            nested_target = public_target.get("target")
+            target = nested_target if isinstance(nested_target, dict) else public_target
+        pillar["target"] = dict(target)
+        pillar["target"].setdefault("target_id", pillar.get("target_id"))
+        pillars.append(pillar)
     version = int(snapshot.get("snapshot_version") or snapshot.get("geometry_version") or 0)
     geometry_status = str(
         snapshot.get("geometry_status") or conflict.get("geometry_status") or "unknown"

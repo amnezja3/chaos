@@ -10623,3 +10623,16 @@ domknieta lokalnie:
 * konflikty legacy bez wpisu w `territory_conflict_snapshots` otrzymuja lekki,
   tylko do odczytu fallback z `intersections`, rejestru frontow i `targets`;
   request mapy nadal nie uruchamia rebuildow.
+
+Po diagnostyce produkcyjnego payloadu (`fronts=1`, `pillars=1`,
+`contested=0`) poprawiono dwa dodatkowe bledy kontraktu:
+
+* Leaflet akceptuje geometrie frontu zarowno jako `{lat, lng}`, jak i
+  kanoniczne pary `[lat, lng]`; wczesniej tablicowe wierzcholki byly w calosci
+  odrzucane przez `normalizeMapVertex()`;
+* projekcja snapshotu rozpakowuje `public_target.target` do kanonicznego pola
+  `target`, przywracajac wspolrzedne markera filaru oraz kwalifikacje obcego
+  filaru do `contested_targets` i trybu `territory_contest`.
+
+Walidacja po poprawce: 43 testy identity, map cutover i Territory Control - OK;
+`py_compile` oraz `git diff --check` - OK.

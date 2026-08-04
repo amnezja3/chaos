@@ -41,6 +41,27 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertEqual(targets[0]["target_id"], projected["pillars"][0]["target_id"])
         self.assertEqual(captured, [])
 
+    def test_projection_unwraps_registry_public_target_for_map_and_inners(self):
+        snapshot = self.snapshot()
+        snapshot["pillars"] = [{
+            "target_id": "pillar-1",
+            "owner_username": "bob",
+            "status": "contested",
+            "public_target": {
+                "target_id": "pillar-1",
+                "target": {"target_id": "pillar-1", "lat": 52.0, "lng": 21.0, "label": "Inner"},
+            },
+        }]
+
+        projected = run.project_territory_conflict_snapshot(snapshot)
+        conflicts, _, _, _ = run.legacy_conflict_fields_from_snapshots([projected])
+        with mock.patch.object(run.user_store, "get_profile", return_value={}):
+            contested = run.contested_targets_from_active_conflicts("alice", conflicts, areas=[])
+
+        self.assertEqual(projected["pillars"][0]["target"]["lat"], 52.0)
+        self.assertEqual(len(contested), 1)
+        self.assertEqual(contested[0]["target_mode"], "territory_contest")
+
     def test_conflict_delta_keeps_complete_canonical_snapshot(self):
         payload = _conflict_payload(self.snapshot(), reason="pillar_captured")
 
@@ -119,6 +140,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("reconcileTerritoryConflictSnapshots", source)
         self.assertIn("territory_conflict_snapshot_mode", source)
         self.assertNotIn("!version || snapshot.complete === false", source)
+        self.assertIn("if (Array.isArray(vertex))", source)
 
 
 if __name__ == "__main__":
