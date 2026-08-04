@@ -10637,6 +10637,20 @@ Po diagnostyce produkcyjnego payloadu (`fronts=1`, `pillars=1`,
 Walidacja po poprawce: 43 testy identity, map cutover i Territory Control - OK;
 `py_compile` oraz `git diff --check` - OK.
 
+Diagnostyke konsolidacji uniezalezniono od flagi stdout backendu. `/gonna-win`
+zwraca teraz skrocone `territory_conflict_consolidation` (`ok`, `changed`,
+`reason`, wersje i `pending_newer`), a backend zawsze emituje do stdout wpis
+`[TERRITORY_CONSOLIDATION]`. Pozwala to odroznic brak wejscia w sciezke,
+utracony lease, no-op oraz udana publikacje bez szukania w logu debugowym.
+31 testow identity i map cutover - OK.
+
+Snapshot produkcyjny po nieudanej zmianie wykazal `conflict_version=1` i nadal
+`contested/robot`, wiec przejecie nie weszlo do domeny konfliktu. Ujednolicono
+referencje dynamicznych celow: `conflict_id` preferuje stabilne ID, zachowujac
+`legacy_conflict_id`, a capture odczytuje kolejno stable, canonical i legacy.
+Odpowiedz `/gonna-win` zawiera tez `territory_conflict_capture`, a stdout wpis
+`[TERRITORY_CAPTURE]`, co rozdziela blad capture od bledu konsolidacji.
+
 Kolejna diagnostyka widoku produkcyjnego wykazala, ze cleanup legacy usuwal
 kanoniczny polygon po tooltipie `Konflikt terytorium`. Warstwy frontu i filaru
 otrzymaly jawne oznaczenie rejestru, a filar wiekszy, widoczny pierscien pod

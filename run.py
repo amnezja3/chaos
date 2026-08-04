@@ -4674,7 +4674,11 @@ def capture_conflict_pillar(captured_target, captured_by_username,
     if not captured_target or not captured_by_username:
         return []
 
-    captured_conflict_id = captured_target.get("conflict_id")
+    captured_conflict_id = (
+        captured_target.get("stable_conflict_id")
+        or captured_target.get("conflict_id")
+        or captured_target.get("legacy_conflict_id")
+    )
     target_id = territory_conflict_store.stable_target_id(captured_target)
     conflict_reference = captured_conflict_id
 
@@ -11566,8 +11570,9 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
             "owner_clan": get_profile_clan(owner_profile),
             "target_mode": "territory_contest",
             "contest_owner_username": owner_username,
-            "conflict_id": conflict.get("id"),
-            "stable_conflict_id": conflict.get("conflict_id"),
+            "conflict_id": conflict.get("conflict_id") or conflict.get("id"),
+            "legacy_conflict_id": conflict.get("id"),
+            "stable_conflict_id": conflict.get("conflict_id") or conflict.get("id"),
             "source_type": target.get("source_type") or "territory_contest",
         })
         if extra:
@@ -22205,6 +22210,8 @@ def gonna_win():
     progression = None
     captured_target_response = None
     captured_conflicts = []
+    conflict_consolidation_summary = []
+    conflict_capture_summary = None
 
     if percent_off >= 70 and all_actions_allowed:
         app_flow_debug(
@@ -22336,6 +22343,27 @@ def gonna_win():
                 captured_by_username=session["user"],
                 previous_owner_username=contest_owner_username,
                 action_id=pillar_capture_action_id or None,
+            )
+            conflict_capture_summary = {
+                "attempted": True,
+                "target_id": captured_target.get("target_id"),
+                "node_role": captured_target.get("node_role"),
+                "conflict_id": (
+                    captured_target.get("stable_conflict_id")
+                    or captured_target.get("conflict_id")
+                    or captured_target.get("legacy_conflict_id")
+                ),
+                "changed": bool(captured_conflicts),
+                "affected_conflicts": [
+                    conflict.get("conflict_id") or conflict.get("id")
+                    for conflict in captured_conflicts
+                ],
+            }
+            print(
+                "[TERRITORY_CAPTURE] "
+                f"user={session.get('user')} result="
+                f"{json.dumps(conflict_capture_summary, ensure_ascii=False)}",
+                flush=True,
             )
             app_flow_debug_timed(
                 flow_id,
@@ -22601,6 +22629,37 @@ def gonna_win():
                     rebuild_participants=False,
                     run_encirclement=False,
                 ))
+            conflict_consolidation_summary = [
+                {
+                    "conflict_id": (
+                        (result.get("snapshot") or {}).get("conflict", {}).get("conflict_id")
+                        if isinstance(result, dict) else None
+                    ),
+                    "ok": bool(result.get("ok")) if isinstance(result, dict) else False,
+                    "changed": bool(result.get("changed")) if isinstance(result, dict) else False,
+                    "reason": result.get("reason") if isinstance(result, dict) else "invalid_result",
+                    "pending_newer": bool(result.get("pending_newer")) if isinstance(result, dict) else False,
+                    "snapshot_version": (
+                        (result.get("snapshot") or {}).get("snapshot_version")
+                        if isinstance(result, dict) else None
+                    ),
+                    "geometry_version": (
+                        (result.get("snapshot") or {}).get("geometry_version")
+                        if isinstance(result, dict) else None
+                    ),
+                    "conflict_version": (
+                        (result.get("snapshot") or {}).get("conflict_version")
+                        if isinstance(result, dict) else None
+                    ),
+                }
+                for result in consolidation_results
+            ]
+            print(
+                "[TERRITORY_CONSOLIDATION] "
+                f"user={session.get('user')} results="
+                f"{json.dumps(conflict_consolidation_summary, ensure_ascii=False)}",
+                flush=True,
+            )
             app_flow_debug_timed(
                 flow_id,
                 "gonna_win_conflict_consolidation_done",
@@ -22710,6 +22769,8 @@ def gonna_win():
         "player_areas_count": len(rebuilt_areas) if rebuilt_areas is not None else None,
         "progression": progression,
         "created_operations": created_operations,
+        "territory_conflict_consolidation": conflict_consolidation_summary,
+        "territory_conflict_capture": conflict_capture_summary,
     }
     finish_gonna_win_receipt(payload)
     return jsonify(payload)

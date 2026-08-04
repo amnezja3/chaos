@@ -2895,6 +2895,24 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(targets[0]["contest_owner_username"], "other")
         self.assertEqual(targets[0]["conflict_id"], 42)
 
+    def test_contested_target_prefers_stable_conflict_id(self):
+        conflict = {
+            "id": 42,
+            "conflict_id": "conflict-stable-42",
+            "participants": ["main", "other"],
+            "targets": [{
+                "owner_username": "other",
+                "status": "contested",
+                "target": {"lat": 52.1, "lng": 21.2, "label": "Stable Pillar"},
+            }],
+        }
+
+        with patch.object(run.user_store, "get_profile", return_value={}):
+            targets = run.contested_targets_from_active_conflicts("main", [conflict], areas=[])
+
+        self.assertEqual(targets[0]["conflict_id"], "conflict-stable-42")
+        self.assertEqual(targets[0]["legacy_conflict_id"], 42)
+
     def test_contested_targets_from_active_conflicts_derives_missing_inner_from_area_ids(self):
         conflict = {
             "id": 77,

@@ -126,6 +126,14 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertNotIn("refresh_stale_territory_polygons", source)
         self.assertNotIn("rebuild_player_areas_with_territory_delta", source)
 
+    def test_capture_response_exposes_conflict_consolidation_diagnostics(self):
+        source = inspect.getsource(run.gonna_win)
+
+        self.assertIn("territory_conflict_consolidation", source)
+        self.assertIn("territory_conflict_capture", source)
+        self.assertIn("[TERRITORY_CAPTURE]", source)
+        self.assertIn("[TERRITORY_CONSOLIDATION]", source)
+
     def test_frontend_has_monotonic_snapshot_registry_contract(self):
         with open("templates/map_template.html", encoding="utf-8") as handle:
             source = handle.read()
