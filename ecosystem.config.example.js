@@ -31,6 +31,16 @@ module.exports = {
         BUILD_TAG: "v0.3.4-stable",
         GIT_COMMIT: ""
       }
+    },
+    {
+      name: "chaos-territory-worker",
+      cwd: __dirname,
+      script: ".venv/bin/python",
+      args: "scripts/territory_conflict_worker.py",
+      interpreter: "none",
+      autorestart: true,
+      max_restarts: 20,
+      restart_delay: 2000
     }
   ]
 };

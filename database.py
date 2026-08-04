@@ -2706,6 +2706,24 @@ class TerritoryConflictStore:
                 "reason": row["reason"],
             }
 
+    def list_rebuild_candidates(self, limit=10):
+        """Return pending or expired rebuilds without claiming them."""
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT conflict_id, requested_version, status, reason, lease_until,
+                       attempts, updated_at
+                FROM territory_conflict_rebuilds
+                WHERE status = 'pending'
+                   OR (status = 'running' AND (lease_until IS NULL OR lease_until <= ?))
+                ORDER BY requested_at, updated_at, conflict_id
+                LIMIT ?
+                """,
+                (now, max(1, int(limit or 1))),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
     @staticmethod
     def _front_row(row):
         return {

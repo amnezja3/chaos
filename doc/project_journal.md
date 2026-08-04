@@ -10638,11 +10638,13 @@ Walidacja po poprawce: 43 testy identity, map cutover i Territory Control - OK;
 `py_compile` oraz `git diff --check` - OK.
 
 Diagnostyke konsolidacji uniezalezniono od flagi stdout backendu. `/gonna-win`
-zwraca teraz skrocone `territory_conflict_consolidation` (`ok`, `changed`,
-`reason`, wersje i `pending_newer`), a backend zawsze emituje do stdout wpis
-`[TERRITORY_CONSOLIDATION]`. Pozwala to odroznic brak wejscia w sciezke,
-utracony lease, no-op oraz udana publikacje bez szukania w logu debugowym.
-31 testow identity i map cutover - OK.
+zwraca diagnostyke `territory_conflict_capture` i informacje o zakolejkowanej
+konsolidacji. Ciezka publikacja geometrii nie jest wykonywana w requestcie
+hakowania: trwaly wpis `territory_conflict_rebuilds` odbiera osobny proces
+`scripts/territory_conflict_worker.py`. Chroni to workery Gunicorna przed
+timeoutem/SIGKILL podczas przebudowy uczestnikow i geometrii. Worker emituje
+wynik jako `[TERRITORY_WORKER]`, a request wpis
+`[TERRITORY_CONSOLIDATION_QUEUED]`.
 
 Snapshot produkcyjny po nieudanej zmianie wykazal `conflict_version=1` i nadal
 `contested/robot`, wiec przejecie nie weszlo do domeny konfliktu. Ujednolicono

@@ -22617,56 +22617,28 @@ def gonna_win():
             )
         if captured_conflicts:
             step_started_at = time.perf_counter()
-            final_conflict_areas = territory_store.list_player_areas()
-            final_detection_plans = build_territory_conflict_detection_plan(final_conflict_areas)
-            consolidation_results = []
-            for captured_conflict in captured_conflicts:
-                conflict_id = captured_conflict.get("conflict_id") or captured_conflict.get("id")
-                consolidation_results.append(consolidate_conflict_rebuild(
-                    conflict_id,
-                    prebuilt_areas=final_conflict_areas,
-                    prebuilt_detection_plans=final_detection_plans,
-                    rebuild_participants=False,
-                    run_encirclement=False,
-                ))
             conflict_consolidation_summary = [
                 {
-                    "conflict_id": (
-                        (result.get("snapshot") or {}).get("conflict", {}).get("conflict_id")
-                        if isinstance(result, dict) else None
-                    ),
-                    "ok": bool(result.get("ok")) if isinstance(result, dict) else False,
-                    "changed": bool(result.get("changed")) if isinstance(result, dict) else False,
-                    "reason": result.get("reason") if isinstance(result, dict) else "invalid_result",
-                    "pending_newer": bool(result.get("pending_newer")) if isinstance(result, dict) else False,
-                    "snapshot_version": (
-                        (result.get("snapshot") or {}).get("snapshot_version")
-                        if isinstance(result, dict) else None
-                    ),
-                    "geometry_version": (
-                        (result.get("snapshot") or {}).get("geometry_version")
-                        if isinstance(result, dict) else None
-                    ),
-                    "conflict_version": (
-                        (result.get("snapshot") or {}).get("conflict_version")
-                        if isinstance(result, dict) else None
-                    ),
+                    "conflict_id": conflict.get("conflict_id") or conflict.get("id"),
+                    "queued": True,
+                    "conflict_version": conflict.get("conflict_version"),
+                    "geometry_status": conflict.get("geometry_status"),
                 }
-                for result in consolidation_results
+                for conflict in captured_conflicts
             ]
             print(
-                "[TERRITORY_CONSOLIDATION] "
+                "[TERRITORY_CONSOLIDATION_QUEUED] "
                 f"user={session.get('user')} results="
                 f"{json.dumps(conflict_consolidation_summary, ensure_ascii=False)}",
                 flush=True,
             )
             app_flow_debug_timed(
                 flow_id,
-                "gonna_win_conflict_consolidation_done",
+                "gonna_win_conflict_consolidation_queued",
                 app_flow_started_at,
                 step_started_at,
                 conflicts=len(captured_conflicts),
-                results=consolidation_results,
+                results=conflict_consolidation_summary,
             )
         step_started_at = time.perf_counter()
         notify_encircled_area_owners()

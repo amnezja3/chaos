@@ -170,6 +170,10 @@ class TerritoryConflictIdentityTests(unittest.TestCase):
             sum(event["type"] == "conflict.rebuild_requested" for event in events),
             1,
         )
+        candidates = self.store.list_rebuild_candidates(limit=1)
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0]["conflict_id"], conflict["conflict_id"])
+        self.assertEqual(candidates[0]["status"], "pending")
         claim = self.store.claim_rebuild(conflict["conflict_id"], "worker-after-capture")
         self.assertIsNotNone(claim)
         self.assertEqual(claim["processing_version"], captured["conflict"]["conflict_version"])
