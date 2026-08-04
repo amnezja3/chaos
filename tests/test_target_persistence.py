@@ -2954,7 +2954,7 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(targets[0]["foreign_area_id"], 2)
         self.assertEqual(targets[0]["my_area_id"], 1)
 
-    def test_contested_targets_exclude_foreign_nodes_outside_conflict_geometry(self):
+    def test_contested_targets_include_foreign_cluster_pillar_outside_overlap(self):
         conflict = {
             "id": 78,
             "participants": ["main", "other"],
@@ -2990,12 +2990,12 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         ]
 
         class FakeTerritoryStore:
-            def list_captured_targets(self, owner, stationary=True):
+            def list_captured_targets(self, owner, stationary=None):
                 if owner == "other":
                     return [
                         {
-                            "lat": 52.03,
-                            "lng": 21.03,
+                            "lat": 52.04,
+                            "lng": 21.04,
                             "label": "Enemy Pillar Outside Overlap",
                             "source_type": "parcel_locker",
                         }
@@ -3006,7 +3006,10 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
                 patch.object(run.user_store, "get_profile", return_value={"username": "other", "nick": "Other"}):
             targets = run.contested_targets_from_active_conflicts("main", [conflict], areas)
 
-        self.assertEqual(targets, [])
+        self.assertEqual(len(targets), 1)
+        self.assertEqual(targets[0]["label"], "Enemy Pillar Outside Overlap")
+        self.assertEqual(targets[0]["node_role"], "pillar")
+        self.assertEqual(targets[0]["foreign_area_id"], 2)
 
     def test_contested_targets_recover_from_stale_legacy_area_ids(self):
         conflict = {
@@ -3036,7 +3039,7 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         ]
 
         class FakeTerritoryStore:
-            def list_captured_targets(self, owner, stationary=True):
+            def list_captured_targets(self, owner, stationary=None):
                 return [{"lat": 52.02, "lng": 21.02, "label": "Recovered Inner"}] if owner == "other" else []
 
         with patch.object(run, "territory_store", FakeTerritoryStore()), \

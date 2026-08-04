@@ -11499,7 +11499,6 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
         areas = safe_player_areas(territory_store.list_player_areas())
     contested = {}
     owner_profiles = {}
-    owner_targets = {}
 
     def conflict_front_geometries(conflict):
         raw_geometries = conflict.get("intersections") or []
@@ -11539,7 +11538,8 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
             return
 
         front_geometries = conflict_front_geometries(conflict)
-        if front_geometries and not any(
+        is_cluster_member = bool((extra or {}).get("conflict_cluster_member"))
+        if front_geometries and not is_cluster_member and not any(
             point_in_polygon(lat, lng, geometry) for geometry in front_geometries
         ):
             return
@@ -11606,10 +11606,27 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
             # rebuild. Recover the current participant areas read-only; the
             # conflict/front identity still decides whether these owners are
             # in the same active cycle.
+            front_geometries = conflict_front_geometries(conflict)
+
+            def area_touches_front(area):
+                vertices = area.get("vertices") or []
+                return any(
+                    any(
+                        territory_point_in_polygon_or_boundary(vertex, vertices)
+                        for vertex in geometry
+                    )
+                    or any(
+                        territory_point_in_polygon_or_boundary(vertex, geometry)
+                        for vertex in vertices
+                    )
+                    for geometry in front_geometries
+                )
+
             participant_areas = [
                 area for area in areas or []
                 if area.get("status", "active") == "active"
                 and area.get("owner_username") in participants
+                and (not front_geometries or area_touches_front(area))
             ]
             my_areas = [area for area in participant_areas if area.get("owner_username") == username]
             foreign_areas = [area for area in participant_areas if area.get("owner_username") != username]
@@ -11620,9 +11637,17 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
             owner_username = str(foreign_area.get("owner_username") or "").strip()
             if not owner_username or owner_username == username:
                 continue
-            if owner_username not in owner_targets:
-                owner_targets[owner_username] = territory_store.list_captured_targets(owner_username, stationary=True)
-            for target in owner_targets.get(owner_username) or []:
+            members = territory_area_cluster_members(territory_store, foreign_area)
+            role_by_position = {
+                target_position_key(target): role
+                for role, targets in (
+                    ("pillar", members.get("pillars") or []),
+                    ("inner", members.get("inners") or []),
+                )
+                for target in targets
+                if target_position_key(target)
+            }
+            for target in members.get("objects") or []:
                 key = target_coord_key(target)
                 if not key or key in contested:
                     continue
@@ -11633,8 +11658,6 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
                     lng = float(target.get("lng", target.get("lon")))
                 except (TypeError, ValueError):
                     continue
-                if not point_in_polygon(lat, lng, foreign_area.get("vertices", [])):
-                    continue
                 add_contested_target(
                     conflict,
                     owner_username,
@@ -11642,6 +11665,8 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
                     extra={
                         "foreign_area_id": foreign_area.get("id"),
                         "my_area_id": my_areas[0].get("id"),
+                        "node_role": role_by_position.get(target_position_key(target), "inner"),
+                        "conflict_cluster_member": True,
                     },
                 )
     return list(contested.values())

@@ -10645,9 +10645,11 @@ odnajduje aktualne aktywne obszary uczestnikow bez zapisu i rebuilda, dzieki
 czemu odzyskuje pozostale innery rowniez dla Victim Pickera. Trzy celowane
 testy area-id recovery: OK.
 
-Fallback `area_ids` zostal nastepnie zawężony do kanonicznej geometrii frontu:
-target uczestnika trafia do `territory_contest` tylko, gdy jego punkt lezy w
-jednym z `intersections` aktywnego konfliktu. Aktualne obszary uczestnikow
-sluza jedynie do odzyskania wlasciciela i kandydatow po rebuildzie; nie sa
-granica ujawniania. Zapobiega to pokazywaniu innerow atakujacego i atakowanego
-poza spornym obszarem. Dwanascie celowanych testow projekcji i filtrowania - OK.
+Fallback `area_ids` zostal nastepnie powiazany z kanoniczna geometria frontu.
+Front sluzy do wskazania aktualnych klastrow uczestniczacych w konflikcie, a
+backendowy `territory_area_cluster_members()` rozroznia ich filary i innery.
+Do `territory_contest` trafiaja wszystkie wezly wylacznie obcego klastra
+uczestniczacego w danym froncie, takze filary graniczne poza samym polygonem
+przeciecia, ktorych przejecie realnie redukuje pole przeciwnika. Wlasne wezly i
+wezly innych klastrow nie sa ujawniane. Dwanascie celowanych testow projekcji
+i filtrowania - OK.
