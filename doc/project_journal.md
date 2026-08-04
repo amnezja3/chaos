@@ -10684,10 +10684,20 @@ konczyl na osobnych rebuildach obszarow i detekcji. Poprawiono:
 
 * zlecenie rebuilda jest zapisywane atomowo w tej samej transakcji co zmiana
   wlasciciela filaru i wzrost `conflict_version`;
-* po finalnej przebudowie obu uczestnikow `/gonna-win` pobiera obszary raz,
+* `/gonna-win` nie materializuje konfliktu po posrednim rebuildzie jednej
+  strony; osobny worker przebudowuje obu uczestnikow, pobiera obszary raz,
   buduje jeden plan detekcji i wywoluje `consolidate_conflict_rebuild()`;
 * udana publikacja podnosi wersje geometrii/snapshotu i emituje kompletny
   `territory.conflict_changed` do obu uczestnikow bez reloadu mapy.
 
-Walidacja: 43 testy identity, map cutover i Territory Control - OK;
+Audyt po produkcyjnym przejeciu wykryl, ze pozostawione dwa wywolania
+`detect_territory_conflicts()` w `/gonna-win` lamaly ten kontrakt: pierwsze
+materializowalo stan po rebuildzie atakujacego, zanim przebudowano obrone, i
+moglo przedwczesnie zamknac cykl jako stale/no-front. Oba wywolania usunieto;
+request zapisuje transfer i rebuildy pol graczy, natomiast jedynym publisherem
+nowej geometrii konfliktu jest koordynator workera. Frontend traktuje statusy
+geometrii `clean` i `published` jako autorytatywna publikacje nowego frontu.
+
+Walidacja audytu 130.8.1-130.8.5: 44 testy identity, map cutover i Territory
+Control - OK;
 `py_compile` oraz `git diff --check` - OK.

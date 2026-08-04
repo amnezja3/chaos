@@ -134,6 +134,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("[TERRITORY_CAPTURE]", source)
         self.assertIn("[TERRITORY_CONSOLIDATION_QUEUED]", source)
         self.assertNotIn("consolidate_conflict_rebuild(", source)
+        self.assertNotIn("detect_territory_conflicts(", source)
 
     def test_frontend_has_monotonic_snapshot_registry_contract(self):
         with open("templates/map_template.html", encoding="utf-8") as handle:

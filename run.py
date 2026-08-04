@@ -22518,20 +22518,6 @@ def gonna_win():
             user=session["user"],
             areas=len(rebuilt_areas or []),
         )
-        step_started_at = time.perf_counter()
-        all_areas_after_capture = territory_store.list_player_areas()
-        detect_territory_conflicts(
-            actor_username=session["user"],
-            source_event="pillar_captured",
-            areas=all_areas_after_capture
-        )
-        app_flow_debug_timed(
-            flow_id,
-            "gonna_win_detect_territory_conflicts_done",
-            app_flow_started_at,
-            step_started_at,
-            areas=len(all_areas_after_capture or []),
-        )
         if contest_owner_username and contest_owner_username != session["user"]:
             owner_profile = user_store.get_profile(contest_owner_username) or {}
             step_started_at = time.perf_counter()
@@ -22542,20 +22528,13 @@ def gonna_win():
             )
             refresh_territory_stats_snapshot(owner_profile, owner_areas)
             user_store.save_profile(owner_profile)
-            all_areas_after_owner_rebuild = territory_store.list_player_areas()
-            detect_territory_conflicts(
-                actor_username=contest_owner_username,
-                source_event="pillar_lost",
-                areas=all_areas_after_owner_rebuild
-            )
             app_flow_debug_timed(
                 flow_id,
-                "gonna_win_owner_rebuild_and_conflicts_done",
+                "gonna_win_owner_rebuild_done",
                 app_flow_started_at,
                 step_started_at,
                 owner=contest_owner_username,
                 owner_areas=len(owner_areas or []),
-                all_areas=len(all_areas_after_owner_rebuild or []),
             )
             attacker_name = profile.get("nick") or session["user"]
             target_label = display_target_label(captured_target)

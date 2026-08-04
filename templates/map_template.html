@@ -2299,7 +2299,7 @@
                 if (id && reconcileTerritoryPillar(snapshot, pillar)) pillarIds.push(id);
             });
             const publishedGeometryReplacesPrevious = Boolean(previous)
-                && String(snapshot.geometry_status || '').toLowerCase() === 'published'
+                && ['clean', 'published'].includes(String(snapshot.geometry_status || '').toLowerCase())
                 && geometryVersion > Number(previous.geometryVersion || 0);
             if (previous && (snapshot.complete !== false || publishedGeometryReplacesPrevious)) {
                 const trackedConflictFrontIds = publishedGeometryReplacesPrevious
