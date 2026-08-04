@@ -10611,3 +10611,15 @@ Walidacja:
 * `git diff --check`: OK, pozostaje istniejacy warning CRLF/LF dla
   `templates/map_template.html`;
 * commit i deploy nie zostaly wykonane.
+
+Regresja renderowania wykryta po wdrozeniu kontraktu swiezosci zostala
+domknieta lokalnie:
+
+* frontend nie odrzuca juz calego konfliktu tylko dlatego, ze snapshot jest
+  oznaczony `complete=false`; wyswietla ostatnia poprawna geometrie i biezace
+  filary, ale nie usuwa elementow brakujacych w niepelnym payloadzie;
+* delta z ta sama wersja geometrii, ale nowszym `conflict_version`, aktualizuje
+  stan filaru zamiast zostac odrzucona jako duplikat;
+* konflikty legacy bez wpisu w `territory_conflict_snapshots` otrzymuja lekki,
+  tylko do odczytu fallback z `intersections`, rejestru frontow i `targets`;
+  request mapy nadal nie uruchamia rebuildow.

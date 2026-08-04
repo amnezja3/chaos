@@ -2269,13 +2269,18 @@
             ensureTerritoryConflictRegistries();
             const conflictId = String(snapshot.conflict_id || '').trim();
             const version = territorySnapshotVersion(snapshot);
-            if (!conflictId || !version || snapshot.complete === false) return false;
+            if (!conflictId || !version) return false;
             const previous = window.territoryConflictRegistry[conflictId];
             const conflictVersion = Number(snapshot.conflict_version || 0);
             const geometryVersion = Number(snapshot.geometry_version || 0);
-            if (previous && Number(previous.snapshotVersion || 0) >= version) return true;
+            if (previous && Number(previous.snapshotVersion || 0) > version) return true;
             if (previous && conflictVersion < Number(previous.conflictVersion || 0)) return false;
             if (previous && geometryVersion < Number(previous.geometryVersion || 0)) return false;
+            if (previous
+                && Number(previous.snapshotVersion || 0) === version
+                && conflictVersion <= Number(previous.conflictVersion || 0)
+                && geometryVersion <= Number(previous.geometryVersion || 0)
+                && Boolean((previous.snapshot || {}).complete) === Boolean(snapshot.complete)) return true;
             if (['closed', 'removed', 'resolved', 'cancelled'].includes(String(snapshot.status || '').toLowerCase())) {
                 removeTerritoryConflictSnapshot(conflictId);
                 return true;
@@ -7111,11 +7116,15 @@
                     const currentVersion = Number(
                         ((window.territoryConflictRegistry[conflictId] || {}).snapshotVersion) || 0
                     );
-                    if (!conflictId || !incomingVersion || snapshot.complete === false) {
+                    if (!conflictId || !incomingVersion) {
                         window.requestTerritorySnapshotRecovery('incomplete_territory_conflict_delta');
                         return false;
                     }
-                    if (incomingVersion <= currentVersion) return true;
+                    const current = window.territoryConflictRegistry[conflictId] || {};
+                    const incomingConflictVersion = Number(snapshot.conflict_version || 0);
+                    if (incomingVersion < currentVersion) return true;
+                    if (incomingVersion === currentVersion
+                        && incomingConflictVersion <= Number(current.conflictVersion || 0)) return true;
                     if (currentVersion && incomingVersion > currentVersion + 1) {
                         window.requestTerritorySnapshotRecovery('territory_conflict_version_gap');
                         return false;

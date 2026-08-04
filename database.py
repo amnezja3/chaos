@@ -2761,23 +2761,46 @@ class TerritoryConflictStore:
         if not isinstance(conflict, dict):
             return snapshot
 
-        state = dict(snapshot) if isinstance(snapshot, dict) else {
-            "fronts": [],
+        published_snapshot = isinstance(snapshot, dict)
+        fallback_fronts = self.list_fronts(conflict.get("conflict_id"), active_only=True)
+        if not fallback_fronts:
+            fallback_fronts = [
+                {
+                    "front_id": "front_legacy_" + hashlib.sha1(
+                        f"{conflict.get('conflict_id')}:{index}".encode("utf-8")
+                    ).hexdigest()[:16],
+                    "conflict_id": conflict.get("conflict_id"),
+                    "status": "active",
+                    "geometry_version": int(conflict.get("geometry_version") or 0),
+                    "participant_key": conflict.get("participant_key"),
+                    "area_ids": conflict.get("area_ids") or [],
+                    "pillar_ids": [],
+                    "geometry": geometry,
+                    "parent_front_ids": [],
+                }
+                for index, geometry in enumerate(conflict.get("intersections") or [])
+                if isinstance(geometry, list) and len(geometry) >= 3
+            ]
+        state = dict(snapshot) if published_snapshot else {
+            "fronts": fallback_fronts,
             "geometries": [],
-            "snapshot_version": 0,
+            "snapshot_version": max(1, int(conflict.get("geometry_version") or 0)),
             "geometry_version": int(conflict.get("geometry_version") or 0),
             "generated_at": conflict.get("updated_at"),
         }
         geometry_status = str(conflict.get("geometry_status") or "").lower()
         snapshot_conflict_version = int(state.get("conflict_version") or 0)
         current_conflict_version = int(conflict.get("conflict_version") or 0)
-        complete = (
+        complete = published_snapshot and (
             geometry_status in {"clean", "published"}
             and snapshot_conflict_version >= current_conflict_version
         )
+        pillars = self.list_pillars(conflict.get("conflict_id"))
+        if not pillars:
+            pillars = [dict(item) for item in (conflict.get("targets") or []) if isinstance(item, dict)]
         state.update({
             "conflict": conflict,
-            "pillars": self.list_pillars(conflict.get("conflict_id")),
+            "pillars": pillars,
             "conflict_version": current_conflict_version,
             "geometry_status": geometry_status or "unknown",
             "complete": complete,

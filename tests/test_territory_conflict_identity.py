@@ -407,6 +407,17 @@ class TerritoryConflictIdentityTests(unittest.TestCase):
             snapshot["snapshot_version"],
         )
 
+    def test_legacy_conflict_without_snapshot_has_read_only_render_fallback(self):
+        conflict = self.store.upsert_conflict(self.payload(targets=[self.pillar("pillar-a")]))
+
+        state = self.store.latest_snapshot_state(conflict["conflict_id"])
+
+        self.assertFalse(state["complete"])
+        self.assertGreaterEqual(state["snapshot_version"], 1)
+        self.assertEqual(len(state["fronts"]), 1)
+        self.assertTrue(state["fronts"][0]["front_id"].startswith("front_legacy_"))
+        self.assertEqual(state["pillars"][0]["target_id"], "pillar-a")
+
     def test_front_split_and_merge_preserve_parent_lineage(self):
         conflict = self.store.upsert_conflict(self.payload())
         self.store.request_rebuild(conflict["conflict_id"], "initial", 1)

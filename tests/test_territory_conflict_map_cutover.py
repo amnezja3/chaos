@@ -113,11 +113,12 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("window.territoryFrontLayers", source)
         self.assertIn("window.territoryConflictPillarLayers", source)
         self.assertIn("territory_conflict_version_gap", source)
-        self.assertIn("incomingVersion <= currentVersion", source)
+        self.assertIn("incomingVersion < currentVersion", source)
         self.assertIn("conflictVersion < Number(previous.conflictVersion", source)
         self.assertIn("geometryVersion < Number(previous.geometryVersion", source)
         self.assertIn("reconcileTerritoryConflictSnapshots", source)
         self.assertIn("territory_conflict_snapshot_mode", source)
+        self.assertNotIn("!version || snapshot.complete === false", source)
 
 
 if __name__ == "__main__":
