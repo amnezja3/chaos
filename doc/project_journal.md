@@ -10653,3 +10653,18 @@ w danym froncie, jezeli ich punkt znajduje sie wewnatrz albo na granicy
 polygonu konfliktu. Wlasne wezly, wezly innych klastrow oraz filary i innery na
 niepokrytej czesci pola nie sa ujawniane. Dwanascie celowanych testow projekcji
 i filtrowania - OK.
+
+Test przejecia filaru ujawnil brak wykonania koordynatora geometrii. Metoda
+`capture_pillar()` zapisywala event `conflict.rebuild_requested`, ale nie
+tworzyla odpowiadajacego rekordu w trwalej kolejce rebuildow, a `/gonna-win`
+konczyl na osobnych rebuildach obszarow i detekcji. Poprawiono:
+
+* zlecenie rebuilda jest zapisywane atomowo w tej samej transakcji co zmiana
+  wlasciciela filaru i wzrost `conflict_version`;
+* po finalnej przebudowie obu uczestnikow `/gonna-win` pobiera obszary raz,
+  buduje jeden plan detekcji i wywoluje `consolidate_conflict_rebuild()`;
+* udana publikacja podnosi wersje geometrii/snapshotu i emituje kompletny
+  `territory.conflict_changed` do obu uczestnikow bez reloadu mapy.
+
+Walidacja: 43 testy identity, map cutover i Territory Control - OK;
+`py_compile` oraz `git diff --check` - OK.

@@ -170,6 +170,9 @@ class TerritoryConflictIdentityTests(unittest.TestCase):
             sum(event["type"] == "conflict.rebuild_requested" for event in events),
             1,
         )
+        claim = self.store.claim_rebuild(conflict["conflict_id"], "worker-after-capture")
+        self.assertIsNotNone(claim)
+        self.assertEqual(claim["processing_version"], captured["conflict"]["conflict_version"])
 
     def test_stale_geometry_snapshot_cannot_revert_captured_pillar(self):
         initial_target = self.pillar("pillar-a")

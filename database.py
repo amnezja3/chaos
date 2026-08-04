@@ -2608,23 +2608,18 @@ class TerritoryConflictStore:
                 "created_at": row["created_at"],
             } for row in rows]
 
-    def request_rebuild(self, conflict_reference, reason, requested_version):
-        """Persist the highest requested input version for a conflict."""
-        now = utc_now()
-        with db_connect(self.db_path) as conn:
-            conflict_row = self._find_reference_row(conn, conflict_reference)
-            if not conflict_row:
-                return None
-            conflict_id = str(conflict_row["conflict_id"] or conflict_row["id"])
-            requested_version = max(1, int(requested_version or 1))
-            row = conn.execute(
+    def _request_rebuild_in_conn(self, conn, conflict_id, reason, requested_version, now=None):
+        now = now or utc_now()
+        conflict_id = str(conflict_id)
+        requested_version = max(1, int(requested_version or 1))
+        row = conn.execute(
                 "SELECT * FROM territory_conflict_rebuilds WHERE conflict_id = ?",
                 (conflict_id,),
             ).fetchone()
-            if row:
-                highest = max(int(row["requested_version"] or 0), requested_version)
-                status = "running" if row["status"] == "running" else "pending"
-                conn.execute(
+        if row:
+            highest = max(int(row["requested_version"] or 0), requested_version)
+            status = "running" if row["status"] == "running" else "pending"
+            conn.execute(
                     """
                     UPDATE territory_conflict_rebuilds
                     SET requested_version = ?, status = ?, reason = ?,
@@ -2633,8 +2628,8 @@ class TerritoryConflictStore:
                     """,
                     (highest, status, str(reason or "conflict_change"), now, now, conflict_id),
                 )
-            else:
-                conn.execute(
+        else:
+            conn.execute(
                     """
                     INSERT INTO territory_conflict_rebuilds
                         (conflict_id, requested_version, status, reason,
@@ -2643,11 +2638,22 @@ class TerritoryConflictStore:
                     """,
                     (conflict_id, requested_version, str(reason or "conflict_change"), now, now),
                 )
-            return {
-                "conflict_id": conflict_id,
-                "requested_version": highest if row else requested_version,
-                "status": status if row else "pending",
-            }
+        return {
+            "conflict_id": conflict_id,
+            "requested_version": highest if row else requested_version,
+            "status": status if row else "pending",
+        }
+
+    def request_rebuild(self, conflict_reference, reason, requested_version):
+        """Persist the highest requested input version for a conflict."""
+        with db_connect(self.db_path) as conn:
+            conflict_row = self._find_reference_row(conn, conflict_reference)
+            if not conflict_row:
+                return None
+            conflict_id = str(conflict_row["conflict_id"] or conflict_row["id"])
+            return self._request_rebuild_in_conn(
+                conn, conflict_id, reason, requested_version
+            )
 
     def claim_rebuild(self, conflict_reference, lease_owner, lease_seconds=120):
         """Claim a durable rebuild lease; expired leases are safe to take over."""
@@ -3178,6 +3184,13 @@ class TerritoryConflictStore:
             self._record_event(conn, "conflict.rebuild_requested", conflict["conflict_id"], target_id,
                                next_version, conflict["geometry_version"], actor, action_id,
                                {"reason": "pillar_captured"})
+            self._request_rebuild_in_conn(
+                conn,
+                conflict["conflict_id"],
+                reason="pillar_captured",
+                requested_version=next_version,
+                now=now,
+            )
             if receipt_id:
                 self._record_event(conn, "conflict.pillar_capture.receipt", conflict["conflict_id"],
                                    target_id, next_version, conflict["geometry_version"], actor,

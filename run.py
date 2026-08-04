@@ -22204,6 +22204,7 @@ def gonna_win():
     rebuilt_areas = None
     progression = None
     captured_target_response = None
+    captured_conflicts = []
 
     if percent_off >= 70 and all_actions_allowed:
         app_flow_debug(
@@ -22585,6 +22586,28 @@ def gonna_win():
                 step_started_at,
                 user=session["user"],
                 areas=len(rebuilt_areas or []),
+            )
+        if captured_conflicts:
+            step_started_at = time.perf_counter()
+            final_conflict_areas = territory_store.list_player_areas()
+            final_detection_plans = build_territory_conflict_detection_plan(final_conflict_areas)
+            consolidation_results = []
+            for captured_conflict in captured_conflicts:
+                conflict_id = captured_conflict.get("conflict_id") or captured_conflict.get("id")
+                consolidation_results.append(consolidate_conflict_rebuild(
+                    conflict_id,
+                    prebuilt_areas=final_conflict_areas,
+                    prebuilt_detection_plans=final_detection_plans,
+                    rebuild_participants=False,
+                    run_encirclement=False,
+                ))
+            app_flow_debug_timed(
+                flow_id,
+                "gonna_win_conflict_consolidation_done",
+                app_flow_started_at,
+                step_started_at,
+                conflicts=len(captured_conflicts),
+                results=consolidation_results,
             )
         step_started_at = time.perf_counter()
         notify_encircled_area_owners()
