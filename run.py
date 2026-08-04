@@ -11495,6 +11495,8 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
     if not username:
         return []
     conflicts = conflicts if conflicts is not None else territory_conflict_store.list_active_for_player(username)
+    if areas is None:
+        areas = safe_player_areas(territory_store.list_player_areas())
     contested = {}
     owner_profiles = {}
     owner_targets = {}
@@ -11569,10 +11571,20 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
             if str(area.get("id")) in conflict_area_ids and area.get("status", "active") == "active"
         ]
         my_areas = [area for area in conflict_areas if area.get("owner_username") == username]
-        if not my_areas:
-            continue
         foreign_areas = [area for area in conflict_areas if area.get("owner_username") != username]
-        if not foreign_areas:
+        if not my_areas or not foreign_areas:
+            # Legacy conflicts may retain area ids from before a territory
+            # rebuild. Recover the current participant areas read-only; the
+            # conflict/front identity still decides whether these owners are
+            # in the same active cycle.
+            participant_areas = [
+                area for area in areas or []
+                if area.get("status", "active") == "active"
+                and area.get("owner_username") in participants
+            ]
+            my_areas = [area for area in participant_areas if area.get("owner_username") == username]
+            foreign_areas = [area for area in participant_areas if area.get("owner_username") != username]
+        if not my_areas or not foreign_areas:
             continue
 
         for foreign_area in foreign_areas:

@@ -3005,6 +3005,40 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(targets[0]["foreign_area_id"], 2)
         self.assertEqual(targets[0]["my_area_id"], 1)
 
+    def test_contested_targets_recover_from_stale_legacy_area_ids(self):
+        conflict = {
+            "id": 79,
+            "participants": ["main", "other"],
+            "area_ids": [101, 102],
+            "targets": [],
+        }
+        areas = [
+            {
+                "id": 1, "owner_username": "main", "status": "active",
+                "vertices": [
+                    {"lat": 52.0, "lng": 21.0}, {"lat": 52.0, "lng": 21.02},
+                    {"lat": 52.02, "lng": 21.02}, {"lat": 52.02, "lng": 21.0},
+                ],
+            },
+            {
+                "id": 2, "owner_username": "other", "status": "active",
+                "vertices": [
+                    {"lat": 52.01, "lng": 21.01}, {"lat": 52.01, "lng": 21.03},
+                    {"lat": 52.03, "lng": 21.03}, {"lat": 52.03, "lng": 21.01},
+                ],
+            },
+        ]
+
+        class FakeTerritoryStore:
+            def list_captured_targets(self, owner, stationary=True):
+                return [{"lat": 52.02, "lng": 21.02, "label": "Recovered Inner"}] if owner == "other" else []
+
+        with patch.object(run, "territory_store", FakeTerritoryStore()), \
+                patch.object(run.user_store, "get_profile", return_value={}):
+            targets = run.contested_targets_from_active_conflicts("main", [conflict], areas)
+
+        self.assertEqual([target["label"] for target in targets], ["Recovered Inner"])
+
     def test_capture_conflict_pillar_registers_initial_target_missing_from_snapshot(self):
         conflict = {
             "id": 79,

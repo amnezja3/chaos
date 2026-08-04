@@ -10636,3 +10636,11 @@ Po diagnostyce produkcyjnego payloadu (`fronts=1`, `pillars=1`,
 
 Walidacja po poprawce: 43 testy identity, map cutover i Territory Control - OK;
 `py_compile` oraz `git diff --check` - OK.
+
+Kolejna diagnostyka widoku produkcyjnego wykazala, ze cleanup legacy usuwal
+kanoniczny polygon po tooltipie `Konflikt terytorium`. Warstwy frontu i filaru
+otrzymaly jawne oznaczenie rejestru, a filar wiekszy, widoczny pierscien pod
+markerem innera. Dla konfliktow legacy ze starymi `area_ids` read model
+odnajduje aktualne aktywne obszary uczestnikow bez zapisu i rebuilda, dzieki
+czemu odzyskuje pozostale innery rowniez dla Victim Pickera. Trzy celowane
+testy area-id recovery: OK.

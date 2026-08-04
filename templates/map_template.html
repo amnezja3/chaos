@@ -2222,6 +2222,7 @@
                 fillOpacity: 0.18, weight: 3, dashArray: '3 5',
                 interactive: true, bubblingMouseEvents: false
             }).addTo(map);
+            layer._chaosLayerRegistry = 'territoryFrontLayers';
             layer._chaosTerritoryConflictId = String(snapshot.conflict_id || '');
             layer._chaosTerritoryFrontId = frontId;
             bindTerritoryTooltip(layer, territoryConflictTooltip(snapshot, frontIndex));
@@ -2255,9 +2256,10 @@
                 return true;
             }
             const layer = L.circleMarker(point, {
-                pane: 'territoryPane', radius: 10, color: '#b8ff28', fillColor: '#162a0a',
-                fillOpacity: 0.72, weight: 3, interactive: true
+                pane: 'territoryPane', radius: 20, color: '#f6ff00', fillColor: '#162a0a',
+                fillOpacity: 0.32, weight: 4, interactive: true
             }).addTo(map);
+            layer._chaosLayerRegistry = 'territoryConflictPillarLayers';
             layer._chaosTerritoryConflictId = String(snapshot.conflict_id || '');
             layer._chaosTerritoryPillarId = targetId;
             bindTerritoryTooltip(layer, tooltip);

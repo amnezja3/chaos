@@ -141,6 +141,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("territory_conflict_snapshot_mode", source)
         self.assertNotIn("!version || snapshot.complete === false", source)
         self.assertIn("if (Array.isArray(vertex))", source)
+        self.assertIn("layer._chaosLayerRegistry = 'territoryFrontLayers'", source)
 
 
 if __name__ == "__main__":
