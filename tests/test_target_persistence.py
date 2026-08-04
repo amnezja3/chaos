@@ -2954,7 +2954,7 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(targets[0]["foreign_area_id"], 2)
         self.assertEqual(targets[0]["my_area_id"], 1)
 
-    def test_contested_targets_include_foreign_cluster_pillar_outside_overlap(self):
+    def test_contested_targets_exclude_foreign_cluster_pillar_outside_overlap(self):
         conflict = {
             "id": 78,
             "participants": ["main", "other"],
@@ -3006,10 +3006,7 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
                 patch.object(run.user_store, "get_profile", return_value={"username": "other", "nick": "Other"}):
             targets = run.contested_targets_from_active_conflicts("main", [conflict], areas)
 
-        self.assertEqual(len(targets), 1)
-        self.assertEqual(targets[0]["label"], "Enemy Pillar Outside Overlap")
-        self.assertEqual(targets[0]["node_role"], "pillar")
-        self.assertEqual(targets[0]["foreign_area_id"], 2)
+        self.assertEqual(targets, [])
 
     def test_contested_targets_recover_from_stale_legacy_area_ids(self):
         conflict = {

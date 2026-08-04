@@ -11538,9 +11538,11 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
             return
 
         front_geometries = conflict_front_geometries(conflict)
-        is_cluster_member = bool((extra or {}).get("conflict_cluster_member"))
-        if front_geometries and not is_cluster_member and not any(
-            point_in_polygon(lat, lng, geometry) for geometry in front_geometries
+        if front_geometries and not any(
+            territory_point_in_polygon_or_boundary(
+                {"lat": lat, "lng": lng}, geometry
+            )
+            for geometry in front_geometries
         ):
             return
 
@@ -11666,7 +11668,6 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
                         "foreign_area_id": foreign_area.get("id"),
                         "my_area_id": my_areas[0].get("id"),
                         "node_role": role_by_position.get(target_position_key(target), "inner"),
-                        "conflict_cluster_member": True,
                     },
                 )
     return list(contested.values())

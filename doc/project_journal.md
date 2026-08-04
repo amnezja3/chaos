@@ -10648,8 +10648,8 @@ testy area-id recovery: OK.
 Fallback `area_ids` zostal nastepnie powiazany z kanoniczna geometria frontu.
 Front sluzy do wskazania aktualnych klastrow uczestniczacych w konflikcie, a
 backendowy `territory_area_cluster_members()` rozroznia ich filary i innery.
-Do `territory_contest` trafiaja wszystkie wezly wylacznie obcego klastra
-uczestniczacego w danym froncie, takze filary graniczne poza samym polygonem
-przeciecia, ktorych przejecie realnie redukuje pole przeciwnika. Wlasne wezly i
-wezly innych klastrow nie sa ujawniane. Dwanascie celowanych testow projekcji
+Do `territory_contest` trafiaja wezly wylacznie obcego klastra uczestniczacego
+w danym froncie, jezeli ich punkt znajduje sie wewnatrz albo na granicy
+polygonu konfliktu. Wlasne wezly, wezly innych klastrow oraz filary i innery na
+niepokrytej czesci pola nie sa ujawniane. Dwanascie celowanych testow projekcji
 i filtrowania - OK.
