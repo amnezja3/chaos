@@ -996,6 +996,7 @@ def blacknet_conflict_target_snapshot(conflict, target):
         "target_type": target.get("target_type") or target.get("source_type") or "",
         "status": target.get("status") or conflict.get("status") or "",
         "conflict_id": conflict.get("id") or "",
+        "stable_conflict_id": conflict.get("conflict_id") or "",
         "conflict_key": conflict.get("conflict_key") or conflict.get("id") or "",
         "participants": [str(item) for item in participants[:8] if item],
     }
@@ -2768,11 +2769,105 @@ def record_territory_areas_delta(username, areas, reason="territory_rebuild"):
 
 def record_territory_conflict_delta(conflict, reason="territory_conflict"):
     try:
-        return territory_delta_publisher.record_conflict_changed(conflict, reason=reason)
+        reference = (conflict or {}).get("conflict_id") or (conflict or {}).get("conflict_key")
+        snapshot = territory_conflict_store.latest_snapshot_state(reference) if reference else None
+        return territory_delta_publisher.record_conflict_changed(
+            snapshot if isinstance(snapshot, dict) else conflict,
+            reason=reason,
+        )
     except Exception as exc:
         conflict_key = (conflict or {}).get("conflict_key") if isinstance(conflict, dict) else "-"
         print(f"[DELTA] territory.conflict_changed failed for {conflict_key}: {exc}", flush=True)
         return []
+
+
+def is_territory_conflict_snapshot_read_enabled():
+    value = os.environ.get("CHAOS_TERRITORY_CONFLICT_SNAPSHOT_READ")
+    if value is None:
+        return True
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def project_territory_conflict_snapshot(snapshot):
+    """Expose the immutable conflict snapshot without rebuilding live geometry."""
+    snapshot = snapshot if isinstance(snapshot, dict) else {}
+    conflict = dict(snapshot.get("conflict") or {})
+    conflict_id = str(conflict.get("conflict_id") or conflict.get("id") or "").strip()
+    if not conflict_id:
+        return None
+    fronts = []
+    for index, source in enumerate(snapshot.get("fronts") or []):
+        if not isinstance(source, dict):
+            continue
+        front = dict(source)
+        front["front_id"] = str(front.get("front_id") or f"{conflict_id}:front:{index}")
+        front["geometry"] = front.get("geometry") or []
+        fronts.append(front)
+    pillars = [dict(item) for item in (snapshot.get("pillars") or []) if isinstance(item, dict)]
+    version = int(snapshot.get("snapshot_version") or snapshot.get("geometry_version") or 0)
+    geometry_status = str(
+        snapshot.get("geometry_status") or conflict.get("geometry_status") or "unknown"
+    ).lower()
+    snapshot_conflict_version = int(snapshot.get("conflict_version") or 0)
+    current_conflict_version = max(
+        int(conflict.get("conflict_version") or 0),
+        snapshot_conflict_version,
+    )
+    complete = snapshot.get("complete")
+    if complete is None:
+        complete = (
+            geometry_status in {"clean", "published"}
+            and version > 0
+            and snapshot_conflict_version >= current_conflict_version
+        )
+    return {
+        "conflict_id": conflict_id,
+        "conflict_key": conflict.get("conflict_key") or conflict_id,
+        "status": conflict.get("status") or "active",
+        "participants": conflict.get("participants") or conflict.get("participant_usernames") or [],
+        "conflict": conflict,
+        "fronts": fronts,
+        "pillars": pillars,
+        "snapshot_version": version,
+        "conflict_version": current_conflict_version,
+        "geometry_version": int(snapshot.get("geometry_version") or version),
+        "generated_at": snapshot.get("generated_at") or conflict.get("updated_at"),
+        "geometry_status": geometry_status,
+        "complete": bool(complete),
+        "recovery_required": bool(snapshot.get("recovery_required", False)),
+    }
+
+
+def legacy_conflict_fields_from_snapshots(snapshots):
+    """Derive transitional map fields from the same canonical snapshots."""
+    conflicts = []
+    conflict_areas = []
+    targets = []
+    captured = []
+    for snapshot in snapshots or []:
+        conflict = dict(snapshot.get("conflict") or {})
+        conflict_id = snapshot.get("conflict_id")
+        fronts = snapshot.get("fronts") or []
+        intersections = [front.get("geometry") or [] for front in fronts if isinstance(front, dict)]
+        conflict.update({
+            "conflict_id": conflict_id,
+            "conflict_key": snapshot.get("conflict_key"),
+            "intersections": intersections,
+            "intersection": intersections[0] if intersections else [],
+            "snapshot_version": snapshot.get("snapshot_version"),
+            "geometry_version": snapshot.get("geometry_version"),
+        })
+        conflict_targets = []
+        for pillar in snapshot.get("pillars") or []:
+            item = {**pillar, "conflict_id": conflict_id, "conflict_key": snapshot.get("conflict_key")}
+            targets.append(item)
+            conflict_targets.append(item)
+            if item.get("captured") or item.get("status") == "captured":
+                captured.append(item)
+        conflict["targets"] = conflict_targets
+        conflicts.append(conflict)
+        conflict_areas.append(conflict)
+    return conflicts, conflict_areas, targets, captured
 
 
 def record_territory_encirclement_delta(attacker_username, defender_username, payload, dedupe_key):
@@ -3196,11 +3291,12 @@ def sync_static_area_intruders_for_owner(owner_username, areas=None, reason="ter
     return synced
 
 
-def rebuild_player_areas_with_territory_delta(username, player_level=1, reason="territory_rebuild"):
+def rebuild_player_areas_with_territory_delta(username, player_level=1, reason="territory_rebuild",
+                                               resolve_encirclements=True):
     areas = territory_store.rebuild_player_areas(username, player_level)
     record_territory_areas_delta(username, areas, reason=reason)
     sync_static_area_intruders_for_owner(username, areas, reason=reason)
-    if not str(reason or "").startswith("territory_encirclement"):
+    if resolve_encirclements and not str(reason or "").startswith("territory_encirclement"):
         try:
             resolve_territory_encirclements_after_change(
                 actor_username=username,
@@ -4074,7 +4170,7 @@ def reveal_conflict_targets_for_group(areas, intersections):
     revealed = {}
     for owner in participants:
         for target in territory_store.list_captured_targets(owner, stationary=True):
-            key = target_coord_key(target)
+            key = territory_conflict_store.stable_target_id(target)
             if not key or key in revealed:
                 continue
             try:
@@ -4088,6 +4184,7 @@ def reveal_conflict_targets_for_group(areas, intersections):
             previous_owner = target.get("previous_owner_username")
             is_captured_conflict_target = bool(previous_owner and previous_owner != owner)
             revealed[key] = {
+                "target_id": key,
                 "owner": owner,
                 "owner_username": owner,
                 "previous_owner": previous_owner,
@@ -4097,6 +4194,7 @@ def reveal_conflict_targets_for_group(areas, intersections):
                 "hacked_by": owner if is_captured_conflict_target else None,
                 "target": {
                     **target,
+                    "target_id": key,
                     "lat": lat,
                     "lng": lng,
                     "lon": lng,
@@ -4106,28 +4204,35 @@ def reveal_conflict_targets_for_group(areas, intersections):
     return list(revealed.values())
 
 
-def merge_conflict_target_statuses(conflict_key, targets):
-    existing_conflict = territory_conflict_store.get_by_key(conflict_key)
+def merge_conflict_target_statuses(conflict_reference, targets):
+    existing_conflict = (
+        conflict_reference
+        if isinstance(conflict_reference, dict)
+        else territory_conflict_store.get_by_key(conflict_reference)
+    )
     if not existing_conflict:
         return targets
 
     existing_targets = existing_conflict.get("targets") or []
+    existing_by_id = {
+        territory_conflict_store.stable_target_id(item): item
+        for item in existing_targets
+    }
     merged = []
-    used_existing = set()
+    used_existing_ids = set()
 
     for item in targets or []:
+        target_id = territory_conflict_store.stable_target_id(item)
         target = item.get("target") or {}
-        matched_index = None
-        matched_item = None
-        for index, existing_item in enumerate(existing_targets):
-            existing_target = existing_item.get("target") or {}
-            if targets_share_position(target, existing_target):
-                matched_index = index
-                matched_item = existing_item
-                break
+        matched_item = existing_by_id.get(target_id)
+        normalized = {
+            **item,
+            "target_id": target_id,
+            "target": {**target, "target_id": target_id},
+        }
 
         if matched_item and (matched_item.get("captured") or matched_item.get("status") == "captured"):
-            preserved = dict(item)
+            preserved = dict(normalized)
             for key in ("previous_owner", "captured", "captured_by", "hacked_by", "status"):
                 if key in matched_item:
                     preserved[key] = matched_item.get(key)
@@ -4136,17 +4241,19 @@ def merge_conflict_target_statuses(conflict_key, targets):
             preserved["target"] = {
                 **(matched_item.get("target") or {}),
                 **target,
+                "target_id": target_id,
                 "owner_username": preserved["owner_username"],
             }
             merged.append(preserved)
-            used_existing.add(matched_index)
+            used_existing_ids.add(target_id)
         else:
-            merged.append(item)
-            if matched_index is not None:
-                used_existing.add(matched_index)
+            merged.append(normalized)
+            if matched_item is not None:
+                used_existing_ids.add(target_id)
 
-    for index, existing_item in enumerate(existing_targets):
-        if index in used_existing:
+    for existing_item in existing_targets:
+        existing_id = territory_conflict_store.stable_target_id(existing_item)
+        if existing_id in used_existing_ids:
             continue
         if existing_item.get("captured") or existing_item.get("status") == "captured":
             merged.append(existing_item)
@@ -4154,15 +4261,10 @@ def merge_conflict_target_statuses(conflict_key, targets):
     return merged
 
 
-def detect_territory_conflicts(actor_username=None, source_event="territory_rebuild", areas=None):
-    areas = areas or territory_store.list_player_areas()
+def build_territory_conflict_detection_plan(areas, actor_username=None):
+    """Build conflict components and fronts without mutating domain state."""
+    areas = list(areas or [])
     active_areas = [area for area in areas if area.get("status", "active") == "active"]
-    conflicts = []
-    active_conflict_keys = set()
-    touched_participants = set()
-    if actor_username:
-        touched_participants.add(actor_username)
-
     overlap_graph = {index: set() for index in range(len(active_areas))}
     pair_intersections = {}
     for index_a, area_a in enumerate(active_areas):
@@ -4184,6 +4286,7 @@ def detect_territory_conflicts(actor_username=None, source_event="territory_rebu
             overlap_graph[index_b].add(index_a)
             pair_intersections[(index_a, index_b)] = contested_area
 
+    plans = []
     visited = set()
     for start_index, linked_indexes in overlap_graph.items():
         if start_index in visited or not linked_indexes:
@@ -4208,6 +4311,7 @@ def detect_territory_conflicts(actor_username=None, source_event="territory_rebu
             continue
 
         intersections = []
+        fronts = []
         for index_a in component:
             for index_b in overlap_graph[index_a]:
                 if index_b not in component or index_a > index_b:
@@ -4215,22 +4319,64 @@ def detect_territory_conflicts(actor_username=None, source_event="territory_rebu
                 intersection = pair_intersections.get((index_a, index_b))
                 if intersection:
                     intersections.append(intersection)
+                    pair_areas = [active_areas[index_a], active_areas[index_b]]
+                    pair_participants = sorted({
+                        area.get("owner_username") for area in pair_areas
+                        if area.get("owner_username")
+                    })
+                    fronts.append({
+                        "participant_key": territory_conflict_store.participant_key(pair_participants),
+                        "area_ids": sorted(str(area.get("id")) for area in pair_areas
+                                           if area.get("id") is not None),
+                        "geometry": intersection,
+                    })
 
         if not intersections:
             continue
 
-        conflict_key = territory_conflict_key(*component_areas)
-        active_conflict_keys.add(conflict_key)
-        touched_participants.update(participants)
+        plans.append({
+            "participants": participants,
+            "participant_key": territory_conflict_store.participant_key(participants),
+            "geometry_conflict_key": territory_conflict_key(*component_areas),
+            "area_ids": [area.get("id") for area in component_areas if area.get("id") is not None],
+            "component_areas": component_areas,
+            "intersections": intersections,
+            "fronts": fronts,
+        })
+
+    return plans
+
+
+def materialize_territory_conflict_plans(plans, actor_username=None,
+                                         source_event="territory_rebuild",
+                                         publish_deltas=True):
+    """Attach pure detection plans to durable conflict cycles."""
+    conflicts = []
+    for plan in plans or []:
+        participants = plan["participants"]
+        geometry_conflict_key = plan["geometry_conflict_key"]
+        participant_key = plan["participant_key"]
+        component_area_ids = plan["area_ids"]
+        component_areas = plan["component_areas"]
+        intersections = plan["intersections"]
+        existing_conflict = territory_conflict_store.select_open_conflict(
+            participant_key,
+            conflict_key=geometry_conflict_key,
+            area_ids=component_area_ids,
+        )
         targets = merge_conflict_target_statuses(
-            conflict_key,
+            existing_conflict or geometry_conflict_key,
             reveal_conflict_targets_for_group(component_areas, intersections)
         )
 
+        previous_conflict_version = int((existing_conflict or {}).get("conflict_version") or 0)
+        previous_geometry_version = int((existing_conflict or {}).get("geometry_version") or 0)
         conflict = territory_conflict_store.upsert_conflict({
-            "conflict_key": conflict_key,
+            "conflict_id": (existing_conflict or {}).get("conflict_id"),
+            "conflict_key": geometry_conflict_key,
+            "legacy_conflict_key": geometry_conflict_key,
             "participants": participants,
-            "area_ids": [area.get("id") for area in component_areas if area.get("id") is not None],
+            "area_ids": component_area_ids,
             "intersection": intersections[0],
             "intersections": intersections,
             "targets": targets,
@@ -4239,14 +4385,44 @@ def detect_territory_conflicts(actor_username=None, source_event="territory_rebu
             "source_event": source_event,
         })
         conflicts.append(conflict)
-        record_territory_conflict_delta(conflict, reason=source_event)
+        if publish_deltas and (
+            int(conflict.get("conflict_version") or 0) != previous_conflict_version
+            or int(conflict.get("geometry_version") or 0) != previous_geometry_version
+        ):
+            record_territory_conflict_delta(conflict, reason=source_event)
+
+    return conflicts
+
+
+def detect_territory_conflicts(actor_username=None, source_event="territory_rebuild", areas=None):
+    """Compatibility publisher built on top of the pure detection plan."""
+    areas = areas or territory_store.list_player_areas()
+    plans = build_territory_conflict_detection_plan(areas, actor_username=actor_username)
+    conflicts = materialize_territory_conflict_plans(
+        plans,
+        actor_username=actor_username,
+        source_event=source_event,
+        publish_deltas=True,
+    )
+    active_conflict_keys = {
+        str(conflict.get("conflict_id") or conflict.get("id"))
+        for conflict in conflicts
+    }
+    touched_participants = {actor_username} if actor_username else set()
+    for plan in plans:
+        touched_participants.update(plan.get("participants") or [])
 
     if touched_participants:
-        territory_conflict_store.deactivate_stale_for_participants(
+        resolved_conflicts = territory_conflict_store.deactivate_stale_for_participants(
             touched_participants,
             active_conflict_keys,
             source_event=f"{source_event}:stale_resolved"
         )
+        for resolved_conflict in resolved_conflicts:
+            record_territory_conflict_delta(
+                resolved_conflict,
+                reason=f"{source_event}:stale_resolved",
+            )
 
     return conflicts
 
@@ -4290,6 +4466,136 @@ def enrich_conflict_payload(conflict):
     }
 
 
+def request_conflict_rebuild(conflict_id, reason, requested_version=None):
+    """Persist a rebuild request while retaining the highest input version."""
+    conflict = territory_conflict_store.get_by_key(conflict_id)
+    if not conflict:
+        return None
+    version = requested_version
+    if version is None:
+        version = conflict.get("conflict_version") or 1
+    return territory_conflict_store.request_rebuild(
+        conflict.get("conflict_id") or conflict_id,
+        reason=reason,
+        requested_version=version,
+    )
+
+
+def _conflict_front_plans(conflict, detection_plans):
+    conflict_participants = set(conflict.get("participants") or [])
+    conflict_area_ids = {str(item) for item in (conflict.get("area_ids") or [])}
+    pillars = territory_conflict_store.list_pillars(conflict.get("conflict_id"))
+    pillar_ids = sorted(str(pillar.get("target_id")) for pillar in pillars if pillar.get("target_id"))
+    selected = []
+    for plan in detection_plans:
+        plan_participants = set(plan.get("participants") or [])
+        plan_area_ids = {str(item) for item in (plan.get("area_ids") or [])}
+        if plan_participants != conflict_participants and not (plan_area_ids & conflict_area_ids):
+            continue
+        for front in plan.get("fronts") or []:
+            selected.append({**front, "pillar_ids": pillar_ids})
+    return selected
+
+
+def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
+                                 prebuilt_detection_plans=None,
+                                 rebuild_participants=True, run_encirclement=True,
+                                 lease_seconds=180):
+    """Run one durable, version-aware conflict geometry consolidation."""
+    lease_owner = f"{os.getpid()}:{threading.get_ident()}:{time.time_ns()}"
+    results = []
+    for _pass_index in range(4):
+        claim = territory_conflict_store.claim_rebuild(
+            conflict_id, lease_owner=lease_owner, lease_seconds=lease_seconds
+        )
+        if not claim:
+            return results[-1] if results else {"ok": False, "reason": "lease_unavailable"}
+        conflict = claim["conflict"]
+        started = time.perf_counter()
+        timings = {
+            "participant_rebuild": 0,
+            "area_fetch": 0,
+            "detection": 0,
+            "front_plan": 0,
+            "publication": 0,
+        }
+        try:
+            phase_started = time.perf_counter()
+            if rebuild_participants:
+                for participant in sorted(set(conflict.get("participants") or [])):
+                    profile = user_store.get_profile(participant) or {}
+                    if not profile:
+                        continue
+                    rebuild_player_areas_with_territory_delta(
+                        participant,
+                        profile.get("level", 1),
+                        reason=f"conflict_consolidation:{conflict.get('conflict_id')}",
+                        resolve_encirclements=False,
+                    )
+            timings["participant_rebuild"] = int((time.perf_counter() - phase_started) * 1000)
+
+            phase_started = time.perf_counter()
+            areas = list(prebuilt_areas) if prebuilt_areas is not None else territory_store.list_player_areas()
+            timings["area_fetch"] = int((time.perf_counter() - phase_started) * 1000)
+
+            phase_started = time.perf_counter()
+            detection_plans = (
+                list(prebuilt_detection_plans)
+                if prebuilt_detection_plans is not None
+                else build_territory_conflict_detection_plan(areas)
+            )
+            timings["detection"] = int((time.perf_counter() - phase_started) * 1000)
+
+            phase_started = time.perf_counter()
+            front_plans = _conflict_front_plans(conflict, detection_plans)
+            timings["front_plan"] = int((time.perf_counter() - phase_started) * 1000)
+
+            phase_started = time.perf_counter()
+            published = territory_conflict_store.publish_rebuild(
+                conflict.get("conflict_id"),
+                lease_owner=lease_owner,
+                processing_version=claim["processing_version"],
+                front_plans=front_plans,
+                resolve=not bool(front_plans),
+                resolution_reason="no_active_fronts" if not front_plans else "",
+            )
+            timings["publication"] = int((time.perf_counter() - phase_started) * 1000)
+            published["elapsed_ms"] = int((time.perf_counter() - started) * 1000)
+            published["timings_ms"] = {**timings, "total": published["elapsed_ms"]}
+            results.append(published)
+            if published.get("ok") and published.get("changed"):
+                snapshot = published.get("snapshot") or {}
+                snapshot_conflict = snapshot.get("conflict") or conflict
+                record_territory_conflict_delta(snapshot_conflict, reason="conflict_consolidated")
+            if not published.get("pending_newer"):
+                if run_encirclement and published.get("ok"):
+                    resolve_territory_encirclements_after_change(
+                        actor_username=(conflict.get("last_actor_username") or None),
+                        changed_territory_id=None,
+                        reason="conflict_consolidated",
+                    )
+                return published
+            prebuilt_areas = None
+            prebuilt_detection_plans = None
+            rebuild_participants = True
+        except Exception as exc:
+            territory_conflict_store.fail_rebuild(
+                conflict.get("conflict_id"), lease_owner,
+                claim["processing_version"], exc,
+            )
+            return {
+                "ok": False,
+                "reason": "rebuild_failed",
+                "error": str(exc),
+                "elapsed_ms": int((time.perf_counter() - started) * 1000),
+                "timings_ms": {
+                    **timings,
+                    "total": int((time.perf_counter() - started) * 1000),
+                },
+            }
+    return results[-1] if results else {"ok": False, "reason": "pass_limit"}
+
+
 def rebuild_conflict_polygons(participants, actor_username=None, source_event="conflict_rebuild"):
     rebuilt = {}
     for participant in sorted({name for name in (participants or []) if name}):
@@ -4300,108 +4606,91 @@ def rebuild_conflict_polygons(participants, actor_username=None, source_event="c
             participant,
             participant_profile.get("level", 1),
             reason=source_event,
+            resolve_encirclements=False,
         )
 
     all_areas = territory_store.list_player_areas()
-    for participant in rebuilt:
-        detect_territory_conflicts(
-            actor_username=actor_username or participant,
-            source_event=source_event,
-            areas=all_areas
+    detection_plans = build_territory_conflict_detection_plan(
+        all_areas,
+        actor_username=actor_username,
+    )
+    detected_conflicts = materialize_territory_conflict_plans(
+        detection_plans,
+        actor_username=actor_username,
+        source_event=source_event,
+        publish_deltas=False,
+    )
+    conflicts_by_id = {
+        str(conflict.get("conflict_id") or conflict.get("id")): conflict
+        for conflict in detected_conflicts
+    }
+    # Existing cycles missing from the new plan must be consolidated to a
+    # successful no-front snapshot instead of being resolved speculatively.
+    for participant in sorted({name for name in (participants or []) if name}):
+        for conflict in territory_conflict_store.list_active_for_player(participant):
+            conflict_id = str(conflict.get("conflict_id") or conflict.get("id"))
+            conflicts_by_id.setdefault(conflict_id, conflict)
+
+    for conflict in conflicts_by_id.values():
+        conflict_id = conflict.get("conflict_id") or conflict.get("id")
+        request_conflict_rebuild(
+            conflict_id,
+            reason=source_event,
+            requested_version=conflict.get("conflict_version"),
+        )
+        consolidate_conflict_rebuild(
+            conflict_id,
+            prebuilt_areas=all_areas,
+            prebuilt_detection_plans=detection_plans,
+            rebuild_participants=False,
+            run_encirclement=False,
+        )
+    if rebuilt:
+        resolve_territory_encirclements_after_change(
+            actor_username=actor_username,
+            changed_territory_id=None,
+            reason=source_event,
         )
 
     return rebuilt
 
 
-def capture_conflict_pillar(captured_target, captured_by_username, previous_owner_username=None):
+def capture_conflict_pillar(captured_target, captured_by_username,
+                            previous_owner_username=None, action_id=None):
     if not captured_target or not captured_by_username:
         return []
 
-    affected_conflicts = []
-    affected_participants = {captured_by_username}
     captured_conflict_id = captured_target.get("conflict_id")
-    if previous_owner_username:
-        affected_participants.add(previous_owner_username)
+    target_id = territory_conflict_store.stable_target_id(captured_target)
+    conflict_reference = captured_conflict_id
 
-    for conflict in territory_conflict_store.list_active():
-        conflict_id = conflict.get("id")
-        if captured_conflict_id is not None and str(conflict_id) != str(captured_conflict_id):
-            continue
-        participants = set(conflict.get("participants") or [])
-        if captured_by_username not in participants and previous_owner_username not in participants:
-            continue
-
-        changed = False
-        updated_targets = []
-        for item in conflict.get("targets") or []:
-            target = item.get("target") or {}
-            if targets_share_position(target, captured_target):
-                updated_item = {
-                    **item,
-                    "owner": captured_by_username,
-                    "owner_username": captured_by_username,
-                    "previous_owner": previous_owner_username or item.get("owner_username") or item.get("owner"),
-                    "status": "captured",
-                    "captured": True,
-                    "captured_by": captured_by_username,
-                    "hacked_by": captured_by_username,
-                    "target": {
-                        **target,
-                        **captured_target,
-                        "owner_username": captured_by_username,
-                    },
-                }
-                updated_targets.append(updated_item)
-                changed = True
-            else:
-                updated_targets.append(item)
-
-        # A pillar selected from the full foreign cluster may initiate the
-        # conflict without belonging to its original overlap snapshot. Once
-        # captured, keep it in the exact conflict named by the target so the
-        # captured-pillar layer does not lose it during the next rebuild.
-        if not changed and captured_conflict_id is not None:
-            normalized_target = {
-                **captured_target,
-                "owner_username": captured_by_username,
+    if conflict_reference in (None, ""):
+        for conflict in territory_conflict_store.list_active():
+            pillar_ids = {
+                pillar.get("target_id")
+                for pillar in territory_conflict_store.list_pillars(
+                    conflict.get("conflict_id") or conflict.get("id")
+                )
             }
-            updated_targets.append({
-                "owner": captured_by_username,
-                "owner_username": captured_by_username,
-                "previous_owner": previous_owner_username,
-                "status": "captured",
-                "captured": True,
-                "captured_by": captured_by_username,
-                "hacked_by": captured_by_username,
-                "target": normalized_target,
-            })
-            changed = True
+            if target_id in pillar_ids:
+                conflict_reference = conflict.get("conflict_id") or conflict.get("id")
+                break
+    if conflict_reference in (None, ""):
+        return []
 
-        if not changed:
-            continue
-
-        participants.add(captured_by_username)
-        if previous_owner_username:
-            participants.add(previous_owner_username)
-        affected_participants.update(participants)
-        updated_conflict = territory_conflict_store.upsert_conflict({
-            **conflict,
-            "participants": sorted(participants),
-            "targets": updated_targets,
-            "last_actor_username": captured_by_username,
-            "source_event": "pillar_captured",
-            "status": "active",
-        })
-        affected_conflicts.append(updated_conflict)
-        record_territory_conflict_delta(updated_conflict, reason="pillar_captured")
-
-    rebuild_conflict_polygons(
-        affected_participants,
-        actor_username=captured_by_username,
-        source_event="conflict_pillar_captured"
+    result = territory_conflict_store.capture_pillar(
+        conflict_reference,
+        target_id,
+        captured_target,
+        captured_by_username,
+        previous_owner_username=previous_owner_username,
+        action_id=action_id,
     )
-
-    return affected_conflicts
+    conflict = result.get("conflict") if isinstance(result, dict) else None
+    if isinstance(result, dict) and result.get("ok") and result.get("changed") and conflict:
+        record_territory_conflict_delta(conflict, reason="pillar_captured")
+        return [conflict]
+    return []
 
 
 def target_position_key(target, precision=5):
@@ -4891,7 +5180,8 @@ class TerritoryEncirclementResolver:
                 continue
             updated = self.conflict_store.upsert_conflict({
                 **conflict,
-                "status": "resolved_by_encirclement",
+                "status": "resolved",
+                "resolution_reason": "encirclement",
                 "source_event": "territory_encirclement",
                 "last_actor_username": attacker.get("owner_username") or "",
             })
@@ -11230,6 +11520,7 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
             "target_mode": "territory_contest",
             "contest_owner_username": owner_username,
             "conflict_id": conflict.get("id"),
+            "stable_conflict_id": conflict.get("conflict_id"),
             "source_type": target.get("source_type") or "territory_contest",
         })
         if extra:
@@ -19539,8 +19830,8 @@ def map_player_areas():
     if "user" not in session:
         return jsonify({"error": "Nie jesteś zalogowany"}), 401
 
-    profile = sync_session_profile(rebuild_territory=False)
     username = session["user"]
+    profile = user_store.get_profile(username) or {}
     player_areas_warnings = []
     try:
         all_areas = safe_player_areas(territory_store.list_player_areas())
@@ -19553,21 +19844,69 @@ def map_player_areas():
     if any(area.get("needs_rebuild") or area.get("stale") for area in all_areas):
         player_areas_warnings.append("stale_refresh_deferred")
 
-    try:
-        active_conflicts = get_active_conflicts_for_player(username)
-    except Exception as exc:
-        print(f"[WARN] map player areas conflicts skipped: {exc}", flush=True)
-        player_areas_warnings.append("conflicts_unavailable")
-        active_conflicts = []
+    conflict_snapshot_mode = is_territory_conflict_snapshot_read_enabled()
+    territory_conflict_snapshots = []
     active_conflicts_payload = []
-    for conflict in active_conflicts:
+    if conflict_snapshot_mode:
         try:
-            active_conflicts_payload.append(enrich_conflict_payload(conflict))
+            territory_conflict_snapshots = [
+                projected
+                for projected in (
+                    project_territory_conflict_snapshot(snapshot)
+                    for snapshot in territory_conflict_store.list_latest_snapshots_for_player(username)
+                )
+                if projected
+            ]
+            (
+                active_conflicts_payload,
+                conflict_areas,
+                revealed_conflict_targets,
+                captured_conflict_pillars,
+            ) = legacy_conflict_fields_from_snapshots(territory_conflict_snapshots)
         except Exception as exc:
-            print(f"[WARN] map player areas conflict enrich skipped: {exc}", flush=True)
-            player_areas_warnings.append("conflict_enrich_skipped")
+            print(f"[WARN] map conflict snapshots skipped: {exc}", flush=True)
+            player_areas_warnings.append("conflict_snapshots_unavailable")
+            active_conflicts_payload = []
+            conflict_areas = []
+            revealed_conflict_targets = []
+            captured_conflict_pillars = []
+    else:
+        try:
+            active_conflicts = get_active_conflicts_for_player(username)
+        except Exception as exc:
+            print(f"[WARN] map player areas conflicts skipped: {exc}", flush=True)
+            player_areas_warnings.append("conflicts_unavailable")
+            active_conflicts = []
+        for conflict in active_conflicts:
+            try:
+                active_conflicts_payload.append(enrich_conflict_payload(conflict))
+            except Exception as exc:
+                print(f"[WARN] map player areas conflict enrich skipped: {exc}", flush=True)
+                player_areas_warnings.append("conflict_enrich_skipped")
+        conflict_areas = []
+        revealed_conflict_targets = []
+        captured_conflict_pillars = []
+        for conflict in active_conflicts_payload:
+            if not isinstance(conflict, dict):
+                continue
+            conflict_areas.append(conflict)
+            for item in (conflict.get("targets") or []):
+                if not isinstance(item, dict):
+                    continue
+                target_payload = {
+                    **item,
+                    "conflict_id": conflict.get("conflict_id") or conflict.get("id"),
+                    "conflict_key": conflict.get("conflict_key"),
+                }
+                revealed_conflict_targets.append(target_payload)
+                if item.get("captured") or item.get("status") == "captured":
+                    captured_conflict_pillars.append(target_payload)
     try:
-        contested_targets = contested_targets_from_active_conflicts(username, active_conflicts, all_areas)
+        contested_targets = contested_targets_from_active_conflicts(
+            username,
+            active_conflicts_payload,
+            all_areas,
+        )
     except Exception as exc:
         print(f"[WARN] map player areas contested targets skipped: {exc}", flush=True)
         player_areas_warnings.append("contested_targets_unavailable")
@@ -19641,45 +19980,13 @@ def map_player_areas():
             "created_at": intruder.get("created_at"),
         })
 
-    conflict_areas = []
-    revealed_conflict_targets = []
-    captured_conflict_pillars = []
-    for conflict in active_conflicts_payload:
-        if not isinstance(conflict, dict):
-            player_areas_warnings.append("invalid_conflict_payload_skipped")
-            continue
-        conflict_meta = {
-            "conflict_id": conflict.get("id"),
-            "participants": conflict.get("participants", []),
-            "participant_usernames": conflict.get("participant_usernames", []),
-            "participant_names": conflict.get("participant_names", []),
-            "participants_display": conflict.get("participants_display", ""),
-        }
-        conflict_areas.append({
-            "id": conflict.get("id"),
-            "participants": conflict.get("participants", []),
-            "participant_usernames": conflict.get("participant_usernames", []),
-            "participant_names": conflict.get("participant_names", []),
-            "participant_profiles": conflict.get("participant_profiles", []),
-            "participants_display": conflict.get("participants_display", ""),
-            "intersection": conflict.get("intersection", []),
-            "intersections": conflict.get("intersections", []),
-            "updated_at": conflict.get("updated_at"),
-        })
-        for item in (conflict.get("targets") or []):
-            if not isinstance(item, dict):
-                player_areas_warnings.append("invalid_conflict_target_skipped")
-                continue
-            target_payload = {**item, **conflict_meta}
-            revealed_conflict_targets.append(target_payload)
-            if item.get("captured") or item.get("status") == "captured":
-                captured_conflict_pillars.append(target_payload)
-
     return jsonify({
         "areas": areas,
         "player_areas": areas,
         "intruders": intruders,
         "territory_conflicts": active_conflicts_payload,
+        "territory_conflict_snapshots": territory_conflict_snapshots,
+        "territory_conflict_snapshot_mode": conflict_snapshot_mode,
         "conflict_areas": conflict_areas,
         "revealed_conflict_targets": revealed_conflict_targets,
         "captured_conflict_pillars": captured_conflict_pillars,
@@ -21925,6 +22232,39 @@ def gonna_win():
             step_started_at,
             target_id=build_operation_target_id(captured_target),
         )
+        pillar_capture_action_id = gonna_win_receipt_key or launch_receipt
+        if not pillar_capture_action_id and flow_id:
+            pillar_capture_seed = "|".join([
+                "gonna_win_pillar_capture",
+                str(session.get("user") or ""),
+                str(flow_id),
+                str(app_id or ""),
+                str(choice_id if choice_id is not None else "auto"),
+                str(captured_target.get("conflict_id") or ""),
+                str(captured_target.get("target_id") or ""),
+            ])
+            pillar_capture_action_id = (
+                "gonna_win_pillar_capture:"
+                + hashlib.sha1(pillar_capture_seed.encode("utf-8")).hexdigest()[:32]
+            )
+        if captured_target_mode == "territory_contest" or captured_target.get("conflict_id"):
+            step_started_at = time.perf_counter()
+            captured_conflicts = capture_conflict_pillar(
+                captured_target,
+                captured_by_username=session["user"],
+                previous_owner_username=contest_owner_username,
+                action_id=pillar_capture_action_id or None,
+            )
+            app_flow_debug_timed(
+                flow_id,
+                "gonna_win_capture_conflict_pillar_done",
+                app_flow_started_at,
+                step_started_at,
+                target_id=captured_target.get("target_id"),
+                conflict_id=captured_target.get("conflict_id"),
+                changed=bool(captured_conflicts),
+                action_id=pillar_capture_action_id,
+            )
         captured_target_response = dict(captured_target)
         step_started_at = time.perf_counter()
         safe_ghostnetwork_on_target_hacked(
@@ -22092,11 +22432,6 @@ def gonna_win():
             )
             refresh_territory_stats_snapshot(owner_profile, owner_areas)
             user_store.save_profile(owner_profile)
-            capture_conflict_pillar(
-                captured_target,
-                captured_by_username=session["user"],
-                previous_owner_username=contest_owner_username
-            )
             all_areas_after_owner_rebuild = territory_store.list_player_areas()
             detect_territory_conflicts(
                 actor_username=contest_owner_username,

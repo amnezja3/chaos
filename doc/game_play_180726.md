@@ -13483,6 +13483,1112 @@ Wskaźnik nadal musi komunikować oczekiwanie, nawet bez pełnej animacji.
 * preloader dla innych graczy i NPC.
 
 
+# Sprinty 130.8.1–130.8.4 — refaktor konfliktów terytorialnych
+
+## Wspólny cel
+
+Przebudować wyłącznie domenę konfliktów terytorialnych i jej projekcję na mapę.
+
+Nie przebudowujemy całego systemu terytoriów, zasad tworzenia klastrów, przejmowania zwykłych obiektów ani geometrii pól graczy.
+
+Po zakończeniu serii sprintów:
+
+* konflikt posiada stabilny `conflict_id`,
+* geometria nie określa tożsamości konfliktu,
+* filary są przechowywane po stabilnym `target_id`,
+* przejęcie filaru nie przebudowuje wielokrotnie całej domeny,
+* konflikt i geometria posiadają niezależne wersje,
+* backend publikuje spójny snapshot konfliktu,
+* frontend aktualizuje warstwy po stabilnych identyfikatorach,
+* starszy snapshot nie może nadpisać nowszego,
+* awaria przebudowy nie usuwa ostatniej poprawnej projekcji.
+
+## Obowiązkowe artefakty przed każdym sprintem
+
+Przed rozpoczęciem każdego sprintu 130.8.x należy ponownie sprawdzić spójność z:
+
+* `doc/clans_machines.md`,
+* `doc/ghostnetwork_architecture.md`,
+* `doc/ghost_control_suite_contract_audit.md`,
+* `doc/victim_picker_audit.md`,
+* `doc/incidents_npc_technical_architecture.md`,
+* aktualnym kontraktem delt terytoriów i mapy.
+
+## Niezmienniki gameplayowe serii
+
+Refaktor nie może zmienić ani amputować:
+
+* czterech etapów hackowania filaru, `actions_allowed`, zabezpieczeń celu, postępu i finalnego przejęcia,
+* możliwości wybrania filaru lub innera konfliktu w Victim Pickerze i uruchomienia akcji `territory_contest`,
+* aktywnych operacji, incydentów i `aimed_target` wskazujących na konflikt albo filar,
+* reguł odbicia filaru, nagród, RSP, plików, komunikatów i deduplikacji efektów,
+* semantyki ALARM/KOLIZJA oraz liczników konfliktów w Territory Control,
+* pełnego otoczenia klastra, ochrony pól znajomych i członków tego samego klanu oraz transferu po poprawnym otoczeniu,
+* rozróżnienia kanonicznej własności terytorium od tymczasowej projekcji obszaru spornego,
+* zdarzeń i projekcji używanych przez GhostNetwork, BlackNet, Cyberner, Radio i narracyjny outbox,
+* działania istniejących snapshotów startowych i recovery mapy.
+
+Filar nie może zniknąć tylko dlatego, że po zmianie geometrii znalazł się poza aktualnym polygonem frontu. Jeżeli nadal należy do aktywnego konfliktu lub prowadzi do obcego klastra, pozostaje w rejestrze i musi być osiągalny przez istniejące interfejsy gameplayowe.
+
+## Strategia wdrożenia bez amputacji
+
+Każdy etap musi posiadać feature flagę i kill switch. Migracja działa idempotentnie, a przed przełączeniem zapisu wykonywane jest porównanie shadow starego i nowego modelu. Odczyt mapy zawsze może wrócić do ostatniego poprawnego snapshotu; nie wolno uruchamiać ciężkiej naprawy ani pełnej przebudowy w `GET /api/map/player-areas`.
+
+Koordynacja przebudowy nie może opierać się na pamięci procesu. Przy wielu workerach Gunicorna kolejka, lease, deduplikacja i wersja żądania muszą być trwałe i współdzielone.
+
+## Kolejność analizy kodu
+
+Kod należy czytać w tej kolejności:
+
+1. `detect_territory_conflicts()` — `run.py:4157`
+2. `territory_conflict_key()` — `run.py:3989`
+3. `build_contested_area()` — `run.py:3994`
+4. `merge_conflict_target_statuses()` — `run.py:4109`
+5. `capture_conflict_pillar()` — `run.py:4316`
+6. `rebuild_conflict_polygons()` — `run.py:4293`
+7. `TerritoryConflictStore` — `database.py:1763`
+8. `/api/map/player-areas` — `run.py:19537`
+9. `refreshPlayerAreas()` — `map_template.html:6989`
+
+`un.py` z wcześniejszego odnośnika traktujemy jako literówkę — endpoint znajduje się w `run.py`.
+
+---
+
+# Sprint 130.8.1 — Stabilna tożsamość i lifecycle konfliktu
+
+## Cel
+
+Oddzielić tożsamość konfliktu od jego aktualnej geometrii, nie zmieniając jeszcze zachowania gameplayu ani sposobu renderowania mapy.
+
+Po tym sprincie ponowne przeliczenie tych samych pól nie może tworzyć nowego konfliktu tylko dlatego, że zmieniły się wierzchołki polygonu.
+
+## Problem obecnej implementacji
+
+Obecny `territory_conflict_key()` buduje klucz z:
+
+* właściciela pola,
+* wszystkich wierzchołków pola,
+* aktualnej kolejności i wartości współrzędnych.
+
+Zmiana geometrii oznacza więc zmianę `conflict_key`.
+
+W konsekwencji system może:
+
+* utworzyć nowy rekord dla istniejącego konfliktu,
+* oznaczyć poprzedni konflikt jako nieaktualny,
+* utracić powiązanie z historią filarów,
+* wygenerować kilka konfliktów reprezentujących ten sam spór.
+
+## Zakres
+
+### 1. Nowy kontrakt rekordu konfliktu
+
+`TerritoryConflictStore` powinien przechowywać co najmniej:
+
+* `conflict_id`,
+* `conflict_key`,
+* `legacy_conflict_key`,
+* `participant_key`,
+* `participants`,
+* `status`,
+* `conflict_version`,
+* `geometry_version`,
+* `geometry_status`,
+* `created_at`,
+* `updated_at`,
+* `resolved_at`,
+* `closed_at`,
+* `last_actor_username`,
+* `source_event`.
+
+`conflict_id` jest trwałym identyfikatorem rekordu.
+
+`participant_key` jest deterministyczną, posortowaną sygnaturą stron konfliktu. Nie może zawierać geometrii.
+
+`legacy_conflict_key` może przechowywać stary klucz zależny od polygonów wyłącznie na potrzeby migracji i diagnostyki.
+
+### 2. Lifecycle konfliktu
+
+Wprowadzamy jawne statusy:
+
+* `detected`,
+* `active`,
+* `changing`,
+* `resolving`,
+* `resolved`,
+* `closed`.
+
+W tym sprincie istniejący runtime może nadal używać głównie `active` i `resolved`, ale store oraz normalizatory muszą już akceptować pełny lifecycle.
+
+### 3. Wersjonowanie
+
+Każdy konflikt otrzymuje:
+
+* `conflict_version`, początkowo `1`,
+* `geometry_version`, początkowo `1` dla istniejącej opublikowanej geometrii.
+
+`conflict_version` zwiększa się po zmianie domenowej.
+
+`geometry_version` zwiększa się wyłącznie po opublikowaniu nowej geometrii.
+
+Samo ponowne wykrycie identycznego stanu nie może zwiększać żadnej wersji.
+
+### 4. Odszukiwanie trwającego konfliktu
+
+`detect_territory_conflicts()` nie powinno już zaczynać od szukania rekordu wyłącznie przez klucz zawierający geometrię.
+
+Detekcja powinna:
+
+1. wyznaczyć uczestników,
+2. zbudować `participant_key`,
+3. poszukać aktywnego lub zmieniającego się konfliktu dla tej sygnatury,
+4. zachować jego `conflict_id`,
+5. dopiero potem zaktualizować bieżący opis geometrii.
+
+Nowy `conflict_id` powstaje tylko wtedy, gdy:
+
+* nie istnieje ciągły, niezakończony konflikt tych stron,
+* poprzedni konflikt ma status `closed`,
+* wykryto rzeczywiście nowy spór.
+
+### 5. Migracja istniejących rekordów
+
+Dla istniejących konfliktów należy:
+
+* zachować dotychczasowe `id` jako `conflict_id`, jeżeli jest stabilne i unikalne,
+* utworzyć `participant_key`,
+* przenieść obecny `conflict_key` do `legacy_conflict_key`,
+* ustawić brakujące wersje,
+* ustawić poprawny lifecycle,
+* nie usuwać historii ani obecnych targetów.
+
+Migracja musi być idempotentna.
+
+### 6. Zgodność przejściowa
+
+Istniejące funkcje i endpointy nadal mogą otrzymywać:
+
+* `id`,
+* `conflict_key`,
+* `intersection`,
+* `intersections`,
+* `targets`.
+
+Nowe pola są dodawane obok starego kontraktu.
+
+Frontend nie jest jeszcze zmieniany.
+
+### 7. Ciągłość referencji i lifecycle legacy
+
+`participant_key` służy do znalezienia kandydata konfliktu, ale nie jest samodzielnym globalnym identyfikatorem. Nie może połączyć nowego sporu z konfliktem już zamkniętym ani skleić niezależnych cykli konfliktu.
+
+Migracja zachowuje aliasy pozwalające rozwiązać stare `conflict_key` i `id` w:
+
+* aktywnych operacjach i incydentach,
+* `aimed_target` i targetach mapowych,
+* projekcji Victim Pickera i Territory Control,
+* zdarzeniach, ledgerze i topologii GhostNetworku.
+
+Stan `resolved_by_encirclement` nie może zostać zgubiony. W nowym lifecycle jest reprezentowany jako `status = resolved` z jawnym `resolution_reason = encirclement` albo przez zgodnościowy alias o identycznej semantyce.
+
+## Testy
+
+Należy dodać testy potwierdzające, że:
+
+* zmiana wierzchołków nie zmienia `conflict_id`,
+* zmiana kolejności pól nie zmienia `participant_key`,
+* ponowna detekcja nie tworzy duplikatu,
+* ponowna detekcja identycznego stanu nie zwiększa wersji,
+* konflikt zamknięty nie jest ponownie otwierany,
+* nowy spór po zamknięciu otrzymuje nowy `conflict_id`,
+* migracja starych rekordów może zostać wykonana wielokrotnie,
+* aktywna operacja i incydent nadal rozwiązują stare ID do tego samego konfliktu,
+* konflikt rozwiązany przez otoczenie zachowuje przyczynę rozwiązania,
+* migracja nie emituje ponownie nagród, komunikatów ani zdarzeń GhostNetworku.
+
+## Kryteria zakończenia
+
+Sprint jest zakończony, gdy:
+
+* geometria nie uczestniczy w tworzeniu `conflict_id`,
+* istniejący konflikt zachowuje identyfikator po przebudowie pól,
+* stare payloady mapy nadal działają,
+* gameplay przejmowania filarów nie został jeszcze zmieniony,
+* nie występuje migracyjne tworzenie duplikatów.
+
+## Poza zakresem
+
+* osobna tabela filarów,
+* fronty konfliktu,
+* konsolidacja geometrii,
+* zmiany w `refreshPlayerAreas()`,
+* delty konfliktów stosowane bezpośrednio na mapie.
+
+---
+
+# Sprint 130.8.2 — Rejestr filarów i atomowe przejęcie
+
+## Cel
+
+Oddzielić stan filarów od geometrii i od głównego dokumentu konfliktu.
+
+Po tym sprincie przejęcie filaru ma aktualizować jeden rekord filaru oraz wersję konfliktu, zamiast przeszukiwać i przepisywać całą listę `targets`.
+
+## Problem obecnej implementacji
+
+Obecne `capture_conflict_pillar()`:
+
+* przegląda wszystkie aktywne konflikty,
+* dopasowuje filar po współrzędnych,
+* przebudowuje całą tablicę `targets`,
+* ponownie zapisuje cały konflikt,
+* po zapisie uruchamia pełną przebudowę polygonów uczestników.
+
+Dodatkowo `merge_conflict_target_statuses()` zachowuje historię przejęcia przez dopasowanie pozycji, więc przesunięcie, zaokrąglenie lub zmiana etykiety może rozłączyć ten sam obiekt od jego wcześniejszego stanu.
+
+## Zakres
+
+### 1. Stabilny `target_id`
+
+Każdy filar konfliktu musi posiadać stabilny `target_id`.
+
+Źródłem `target_id` powinien być istniejący identyfikator gameplayowego obiektu, na przykład:
+
+* `vulnerability_id`,
+* identyfikator przejętego targetu,
+* stabilny identyfikator POI,
+* istniejący `build_operation_target_id()` jako kontrolowany fallback.
+
+Współrzędne nie mogą być podstawowym identyfikatorem filaru.
+
+### 2. Rejestr filarów konfliktu
+
+W `TerritoryConflictStore` lub w osobnym store należy utworzyć rekord filaru zawierający:
+
+* `conflict_id`,
+* `target_id`,
+* opcjonalny `front_id`,
+* `owner_username`,
+* `previous_owner_username`,
+* `attacker_username`,
+* `status`,
+* `captured`,
+* `captured_by`,
+* `last_changed_version`,
+* `geometry_applied_version`,
+* `created_at`,
+* `updated_at`,
+* `captured_at`,
+* snapshot publicznych danych targetu.
+
+Unikalność:
+
+```text
+UNIQUE(conflict_id, target_id)
+```
+
+### 3. Migracja obecnych `targets`
+
+Obecne elementy `conflict.targets` należy przenieść do rejestru filarów.
+
+Migracja:
+
+* ustala `target_id`,
+* zachowuje właściciela i historię przejęcia,
+* nie tworzy dwóch rekordów dla tego samego targetu,
+* zostawia zgodnościową projekcję `targets` dla starego endpointu.
+
+Po migracji tablica `targets` nie jest już źródłem prawdy.
+
+### 4. Nowe zachowanie `merge_conflict_target_statuses()`
+
+Funkcja nie powinna dalej scalać historii po współrzędnych.
+
+Docelowo powinna zostać:
+
+* zastąpiona projekcją rejestru filarów,
+* albo ograniczona do zgodnościowej normalizacji starych danych.
+
+Stan filaru jest pobierany po:
+
+```text
+conflict_id + target_id
+```
+
+### 5. Atomowe `capture_conflict_pillar()`
+
+Operacja przejęcia wykonuje jedną transakcję:
+
+1. odczytuje konflikt po `conflict_id`,
+2. sprawdza, czy konflikt jest aktywny,
+3. odczytuje filar po `target_id`,
+4. weryfikuje aktualnego właściciela,
+5. aktualizuje wyłącznie rekord filaru,
+6. zwiększa `conflict_version`,
+7. ustawia konflikt na `changing`,
+8. ustawia `geometry_status = dirty`,
+9. zapisuje zdarzenie przejęcia,
+10. rejestruje jedno żądanie przebudowy.
+
+Operacja nie może wykonywać bezpośrednio pełnej pętli przebudowy wszystkich uczestników.
+
+### 6. Idempotencja przejęcia
+
+Przejęcie musi posiadać `action_id`, `receipt_id` albo deterministyczny klucz operacji.
+
+Ponowienie tej samej operacji:
+
+* zwraca wcześniejszy wynik,
+* nie podbija wersji,
+* nie dopisuje drugiej historii,
+* nie emituje drugiego zdarzenia,
+* nie uruchamia drugiej przebudowy.
+
+### 7. Zdarzenia domenowe
+
+Minimalny zestaw:
+
+* `conflict.pillar_registered`,
+* `conflict.pillar_captured`,
+* `conflict.pillar_recaptured`,
+* `conflict.updated`,
+* `conflict.rebuild_requested`.
+
+Każde zdarzenie zawiera:
+
+* `conflict_id`,
+* `target_id`,
+* `conflict_version`,
+* `geometry_version`,
+* `actor_username`,
+* `event_id`.
+
+### 8. Zgodnościowa projekcja
+
+Stare miejsca korzystające z `conflict.targets` otrzymują listę zbudowaną z rejestru filarów.
+
+Nie wolno utrzymywać dwóch niezależnych źródeł prawdy.
+
+### 9. Niezmienniki gameplayu filaru
+
+Rejestr filarów przechowuje również stabilne dane potrzebne przez istniejący runtime: `source_type`, źródłowy identyfikator targetu, `foreign_area_id`, właściciela klastra, pozycję oraz publiczny snapshot etykiety. Zmiana `front_id` nie zmienia `target_id`.
+
+Przejęcie filaru nie może skracać ścieżki gameplayowej. Nadal obowiązują:
+
+* kolejne etapy narzędzi i kropki `actions_allowed`,
+* aktualizacja zabezpieczeń oraz prawdy celu,
+* utworzenie i zakończenie właściwej operacji,
+* pojedynczy efekt pliku, nagrody, RSP i wiadomości,
+* odbicie filaru przez drugą stronę.
+
+Aktywne operacje rozpoczęte przed migracją muszą zakończyć się na tym samym `target_id`. Ponowienie requestu, replay zdarzenia albo recapture nie może podwoić efektów gameplayowych.
+
+## Testy
+
+Należy sprawdzić:
+
+* przejęcie filaru po `target_id`,
+* brak zależności od etykiety i współrzędnych,
+* ponowienie tego samego przejęcia,
+* próbę przejęcia już przejętego filaru,
+* odbicie filaru,
+* aktualizację tylko jednego rekordu,
+* dokładnie jeden wzrost `conflict_version`,
+* brak zmiany `geometry_version`,
+* ustawienie `geometry_status = dirty`,
+* jedną emisję `conflict.rebuild_requested`,
+* zachowanie filaru po przesunięciu go między frontami albo poza bieżący overlap,
+* pełny cykl czterech etapów hackowania z mapy, terminala i pulpitu,
+* zachowanie aktywnej operacji przez migrację rejestru,
+* brak podwójnych plików, nagród, RSP i komunikatów po retry lub recapture,
+* poprawny kandydat `territory_contest` w Victim Pickerze.
+
+## Kryteria zakończenia
+
+Sprint jest zakończony, gdy:
+
+* filary posiadają własny rejestr,
+* `conflict.targets` jest tylko projekcją,
+* przejęcie filaru jest atomowe i idempotentne,
+* przejęcie nie uruchamia bezpośrednio starej wielokrotnej pętli detekcji,
+* geometria może chwilowo pozostać w poprzedniej wersji, ale konflikt jawnie informuje, że wymaga przebudowy.
+
+## Poza zakresem
+
+* docelowe fronty,
+* podział i łączenie frontów,
+* atomowy snapshot geometrii,
+* bezpośrednie aktualizacje warstw mapy.
+
+## Status implementacji
+
+Status: zrealizowany.
+
+Implementacja pozostaje zgodna z kontraktami `clans_machines.md` oraz
+`ghostnetwork_architecture.md` i nie rozpoczyna zakresu Sprintu 130.8.3.
+
+Wdrożono:
+
+* kanoniczny rejestr `territory_conflict_pillars` z unikalnością
+  `(conflict_id, target_id)` oraz zgodnościową projekcją `conflict.targets`;
+* idempotentną migrację legacy `targets`, zachowującą właściciela, historię
+  przejęcia, publiczny snapshot oraz stabilny `target_id`;
+* scalanie stanu wyłącznie po `target_id`; zmiana współrzędnych lub etykiety
+  nie zmienia tożsamości filaru ani nie cofa przejęcia;
+* atomowe przejęcie i odbicie pojedynczego filaru z jednym wzrostem
+  `conflict_version`, bez zmiany `geometry_version`;
+* ustawienie konfliktu na `changing`, geometrii na `dirty` oraz pojedyncze
+  zdarzenie `conflict.rebuild_requested`;
+* receipt oparty na jawnej tożsamości akcji. Retry tej samej akcji jest
+  no-op, natomiast późniejsze prawdziwe odbicie bez `action_id` nie jest
+  blokowane trwałym, sztucznym kluczem;
+* zapis stanu filaru przed przebudową terytorium w ścieżce `/gonna-win`, aby
+  spóźniony snapshot geometrii nie mógł przywrócić starego właściciela;
+* zdarzenia `conflict.pillar_registered`, `conflict.pillar_captured`,
+  `conflict.pillar_recaptured`, `conflict.updated` i
+  `conflict.rebuild_requested`.
+
+Testy kontraktu obejmują dokładne przejęcie po `target_id`, niezależność od
+współrzędnych, retry, próbę ponownego przejęcia już posiadanego filaru,
+recapture, ochronę przed cofnięciem stanu przez stary snapshot geometrii,
+wersjonowanie oraz liczbę żądań przebudowy.
+
+---
+
+# Sprint 130.8.3 — Konsolidacja geometrii, fronty i atomowy snapshot
+
+## Cel
+
+Zastąpić wielokrotne przebudowy jedną skonsolidowaną operacją dla konkretnego konfliktu.
+
+Po tym sprincie seria zmian filarów ma prowadzić do jednej publikacji spójnej geometrii.
+
+## Problem obecnej implementacji
+
+Obecne `rebuild_conflict_polygons()`:
+
+1. przebudowuje pola każdego uczestnika,
+2. pobiera jeden wspólny zestaw obszarów,
+3. uruchamia `detect_territory_conflicts()` osobno dla każdego uczestnika.
+
+Ta sama geometria może być więc analizowana wiele razy, a każdy przebieg może:
+
+* wykonać `upsert`,
+* opublikować deltę,
+* dezaktywować konflikt uznany chwilowo za stary,
+* zapisać inną wersję targetów.
+
+## Zakres
+
+### 1. Koordynator przebudowy
+
+Wprowadzamy pojedynczy punkt wejścia, przykładowo:
+
+```text
+request_conflict_rebuild(conflict_id, reason, requested_version)
+consolidate_conflict_rebuild(conflict_id)
+```
+
+Koordynator:
+
+* deduplikuje żądania,
+* nie pozwala na dwie równoległe przebudowy tego samego konfliktu,
+* zapamiętuje najwyższą żądaną `conflict_version`,
+* wykonuje jedną przebudowę,
+* uruchamia kolejny przebieg tylko wtedy, gdy podczas pracy pojawiła się nowsza zmiana.
+
+### 2. Jedna detekcja po serii zmian
+
+Nie wykonujemy `detect_territory_conflicts()` osobno dla każdego uczestnika.
+
+Przebudowa:
+
+1. pobiera konflikt,
+2. blokuje jego wersję wejściową,
+3. pobiera aktualnych uczestników i filary,
+4. przebudowuje wymagane pola graczy,
+5. pobiera obszary jeden raz,
+6. buduje graf przecięć jeden raz,
+7. wyznacza wszystkie fronty konfliktu,
+8. zapisuje wynik jako jeden snapshot.
+
+### 3. Oddzielenie detekcji od publikacji
+
+`build_contested_area()` pozostaje funkcją geometryczną.
+
+Nie może:
+
+* tworzyć konfliktu,
+* zmieniać lifecycle,
+* zapisywać filarów,
+* emitować delt.
+
+`detect_territory_conflicts()` powinno zwracać wynik detekcji albo plan zmian.
+
+Dopiero warstwa domenowa decyduje:
+
+* czy kontynuować konflikt,
+* czy utworzyć nowy konflikt,
+* czy zamknąć front,
+* czy rozwiązać konflikt.
+
+### 4. Rekordy frontów
+
+Każdy konflikt może posiadać wiele frontów.
+
+Rekord frontu przechowuje:
+
+* `front_id`,
+* `conflict_id`,
+* `status`,
+* `geometry_version`,
+* `participant_key`,
+* `area_ids`,
+* `pillar_ids`,
+* `geometry`,
+* `parent_front_ids`,
+* `created_at`,
+* `updated_at`,
+* `closed_at`.
+
+Front zachowuje `front_id`, jeżeli nowa geometria jest ciągłą aktualizacją tego samego obszaru sporu.
+
+Jeżeli front:
+
+* dzieli się — staremu frontowi nadajemy status `split`, a nowe fronty wskazują `parent_front_ids`,
+* łączy się — stare fronty otrzymują status `merged`, a nowy front wskazuje ich identyfikatory,
+* znika — otrzymuje status `closed`.
+
+### 5. Dopasowanie frontów
+
+Dopasowanie starego i nowego frontu może korzystać z geometrii, ale geometria nie może być identyfikatorem.
+
+Należy porównać między innymi:
+
+* uczestników,
+* powiązane `area_ids`,
+* powiązane `target_id`,
+* stopień nakładania geometrii,
+* ciągłość z poprzednią wersją.
+
+Indeks tablicy nie jest tożsamością frontu.
+
+### 6. Atomowy snapshot
+
+Publikowany snapshot konfliktu zawiera:
+
+* rekord konfliktu,
+* aktywne fronty,
+* filary,
+* geometrie,
+* `conflict_version`,
+* `geometry_version`,
+* `snapshot_version`,
+* `generated_at`.
+
+Zapis snapshotu jest atomowy.
+
+Dopiero po poprawnym zapisie:
+
+* zwiększamy `geometry_version`,
+* ustawiamy `geometry_status = clean`,
+* zmieniamy `resolving` na `active`,
+* publikujemy deltę.
+
+Jeżeli przebudowa zakończy się błędem:
+
+* poprzedni snapshot pozostaje aktywny,
+* `geometry_version` nie rośnie,
+* konflikt pozostaje `changing` albo otrzymuje `rebuild_failed`,
+* nowe żądanie może ponowić przebudowę.
+
+### 7. Zakończenie konfliktu
+
+Brak polygonu w jednym nieudanym przebiegu nie zamyka konfliktu.
+
+Konflikt przechodzi do `resolved` dopiero po poprawnie zakończonej konsolidacji potwierdzającej, że:
+
+* nie istnieje żaden aktywny front,
+* strony nie posiadają już wspólnego obszaru sporu,
+* warunki konfliktu rzeczywiście wygasły.
+
+### 8. Publikowane zdarzenia
+
+Minimalny zestaw:
+
+* `conflict.rebuild_started`,
+* `conflict.front_created`,
+* `conflict.front_updated`,
+* `conflict.front_split`,
+* `conflict.front_merged`,
+* `conflict.front_closed`,
+* `conflict.geometry_rebuilt`,
+* `conflict.rebuild_failed`,
+* `conflict.resolved`.
+
+### 9. Trwały koordynator dla wielu workerów
+
+Żądania przebudowy, lease wykonawcy, najwyższa oczekująca wersja i deduplikacja muszą być zapisane w trwałym store. Dwa workery nie mogą równolegle publikować geometrii tej samej wersji, a śmierć workera nie może na stałe zablokować konfliktu.
+
+Koordynator działa poza endpointem odczytowym mapy. Brak gotowej nowej geometrii oznacza publikację ostatniego poprawnego snapshotu z informacją o stanie `dirty/changing`, a nie ciężki fallback w requestcie.
+
+### 10. Otoczenie, relacje chronione i własność
+
+Konsolidacja po zmianie terytorium uruchamia dokładnie jeden przebieg reguł otoczenia. Musi zachować:
+
+* ochronę pól znajomych i członków tego samego klanu,
+* atomowy transfer pełnego klastra po rzeczywistym otoczeniu,
+* usunięcie wkładu rozwiązanych frontów i konfliktów,
+* `resolution_reason = encirclement`,
+* jedną deltę, audit i zestaw powiadomień.
+
+Obszar sporny pozostaje nakładką. Nie wolno odejmować go od kanonicznego pola właściciela przed poprawnym przejęciem albo rozwiązaniem konfliktu.
+
+### 11. Budżet wydajności i zdarzenia downstream
+
+Detekcja ogranicza kandydatów przestrzennie do zmienionych klastrów i ich sąsiedztwa. Nie wykonuje pełnego porównania wszystkich pól świata dla każdego filaru. Należy mierzyć czas detekcji, budowy grafu, konsolidacji i publikacji snapshotu.
+
+Zdarzenia zachowują stabilne identyfikatory dla Territory Control, incydentów i GhostNetworku. Replay albo scalanie frontów nie może tworzyć drugiego wpisu ledgeru, sygnału BlackNetu ani nagrody.
+
+## Testy
+
+Należy sprawdzić:
+
+* wiele żądań przebudowy tego samego konfliktu,
+* dwie zmiany filarów podczas jednej przebudowy,
+* jedną publikację dla jednej wersji,
+* brak równoległych przebudów,
+* wzrost `geometry_version` dopiero po sukcesie,
+* pozostawienie starego snapshotu po błędzie,
+* przesunięcie istniejącego frontu,
+* podział jednego frontu na dwa,
+* połączenie dwóch frontów,
+* zamknięcie frontu,
+* brak fałszywego rozwiązania konfliktu po błędzie geometrii,
+* wyścig dwóch workerów i przejęcie wygasłego lease,
+* deduplikację wielu żądań tej samej oraz kolejnych wersji,
+* chronioną relację klan/znajomy i pełne otoczenie obcego klastra,
+* pozostawienie kanonicznej własności podczas aktywnego sporu,
+* brak podwójnych zdarzeń GhostNetworku i incydentów,
+* czas konsolidacji dla dużego konfliktu w ustalonym budżecie.
+
+## Kryteria zakończenia
+
+Sprint jest zakończony, gdy:
+
+* `rebuild_conflict_polygons()` nie wykonuje detekcji osobno dla każdego uczestnika,
+* istnieje jedna konsolidacja na konflikt i wersję,
+* fronty posiadają stabilne identyfikatory,
+* geometria i filary są publikowane w jednym snapshotcie,
+* poprzednia poprawna geometria przeżywa błąd przebudowy,
+* nie występują wielokrotne delty tego samego wyniku.
+
+## Poza zakresem
+
+* docelowy patch warstw Leaflet,
+* bezpośrednie stosowanie wszystkich delt na froncie,
+* usuwanie starego formatu payloadu endpointu.
+
+## Decision po realizacji
+
+Status: complete / backend foundation.
+
+Wdrożono trwały, wersjonowany koordynator przebudowy konfliktu z deduplikacją
+żądań, wyłącznym lease, przejęciem wygasłego lease i ponownym przebiegiem tylko
+dla nowszej oczekującej wersji. Seria zmian przebudowuje pola uczestników,
+pobiera obszary i buduje plan detekcji jeden raz, a następnie publikuje każdy
+konflikt przez atomowy snapshot magazynu.
+
+Fronty otrzymały stabilne `front_id`, historię rodziców oraz stany
+`split`, `merged` i `closed`. Publikacja no-op nie podnosi wersji i nie emituje
+drugiego zdarzenia. Błąd przebudowy pozostawia ostatni poprawny snapshot i nie
+podnosi `geometry_version`. Reguły otoczenia uruchamiane są raz po całej serii,
+z zachowaniem ochrony znajomych i członków klanu.
+
+Koordynator zwraca pomiary faz: przebudowa uczestników, pobranie obszarów,
+detekcja, przygotowanie frontów, publikacja oraz czas całkowity. Zachowano
+zgodność z `clans_machines.md` i `ghostnetwork_architecture.md`: konflikt jest
+nakładką na kanoniczną własność, a GhostNetwork otrzymuje wyłącznie stabilne
+zdarzenia po udanej publikacji.
+
+Frontend, endpoint mapy i warstwy Leaflet nie zostały przełączone. Cutover i
+recovery po stabilnych identyfikatorach pozostają zakresem Sprintu 130.8.4.
+
+---
+
+# Sprint 130.8.4 — Projekcja API, delty i stabilne warstwy mapy
+
+## Cel
+
+Przestawić `/api/map/player-areas` i `refreshPlayerAreas()` na spójny, wersjonowany snapshot konfliktów oraz aktualizację warstw po stabilnych identyfikatorach.
+
+Po tym sprincie zmiana jednego frontu lub filaru nie może powodować migania i pełnego kasowania wszystkich warstw konfliktów.
+
+## Problem obecnej implementacji
+
+Obecny frontend:
+
+* po `territory.conflict_changed` nie aktualizuje konfliktu,
+* uruchamia pełny snapshot recovery,
+* podczas każdego `refreshPlayerAreas()` usuwa wszystkie obszary konfliktów,
+* usuwa wszystkie markery contested i captured,
+* tworzy warstwy ponownie,
+* identyfikuje strefę jako `conflict_id:index`.
+
+Indeks nie jest stabilny. Po zmianie kolejności tablic frontend może uznać istniejący front za nowy.
+
+## Zakres
+
+### 1. Kontrakt snapshotu endpointu
+
+`/api/map/player-areas` pozostaje endpointem tylko do odczytu.
+
+Nie może:
+
+* wykrywać konfliktów,
+* przebudowywać geometrii,
+* zmieniać lifecycle,
+* naprawiać targetów podczas odczytu.
+
+Endpoint pobiera ostatni opublikowany snapshot.
+
+Minimalny kontrakt konfliktu:
+
+```json
+{
+  "conflict_id": "conflict_...",
+  "status": "active",
+  "conflict_version": 14,
+  "geometry_version": 8,
+  "snapshot_version": 22,
+  "participants": [],
+  "fronts": [],
+  "pillars": [],
+  "generated_at": "..."
+}
+```
+
+Minimalny kontrakt frontu:
+
+```json
+{
+  "front_id": "front_...",
+  "conflict_id": "conflict_...",
+  "status": "active",
+  "geometry_version": 8,
+  "geometry": [],
+  "participant_ids": [],
+  "pillar_ids": []
+}
+```
+
+Minimalny kontrakt filaru:
+
+```json
+{
+  "target_id": "target_...",
+  "conflict_id": "conflict_...",
+  "front_id": "front_...",
+  "status": "captured",
+  "owner_username": "...",
+  "previous_owner_username": "...",
+  "last_changed_version": 14,
+  "target": {}
+}
+```
+
+### 2. Zgodność payloadu
+
+Przez okres przejściowy endpoint może nadal zwracać:
+
+* `territory_conflicts`,
+* `conflict_areas`,
+* `revealed_conflict_targets`,
+* `captured_conflict_pillars`.
+
+Pola te muszą być jednak generowane z jednego snapshotu.
+
+Nie wolno osobno odczytywać filarów, frontów i geometrii z różnych wersji.
+
+### 3. Rejestry frontendowe
+
+Frontend utrzymuje osobne rejestry:
+
+```text
+territoryConflictRegistry[conflict_id]
+territoryFrontLayers[front_id]
+territoryConflictPillarLayers[target_id]
+```
+
+Nie używamy już:
+
+```text
+conflict_id:index
+```
+
+jako tożsamości warstwy.
+
+### 4. Aktualizacja frontów
+
+Dla każdego frontu frontend wykonuje:
+
+* brak lokalnej warstwy — tworzy warstwę,
+* istnieje warstwa i wersja jest nowsza — wywołuje `setLatLngs()`,
+* wersja jest identyczna — nic nie robi,
+* snapshot jest starszy — odrzuca zmianę,
+* status `closed` — usuwa wskazany `front_id`.
+
+Nie wolno usuwać wszystkich warstw przed rozpoczęciem aktualizacji.
+
+### 5. Aktualizacja filarów
+
+Markery filarów są aktualizowane po `target_id`.
+
+Zmiana właściciela:
+
+* zmienia styl istniejącego markera,
+* aktualizuje tooltip,
+* zachowuje tę samą instancję warstwy, jeżeli pozycja się nie zmieniła.
+
+Usunięcie filaru następuje tylko po jawnej informacji:
+
+* `removed`,
+* `detached`,
+* `resolved`.
+
+### 6. Obsługa delt
+
+`territory.conflict_changed` nie powinno automatycznie oznaczać pełnego recovery.
+
+Delta powinna zawierać:
+
+* `conflict_id`,
+* `conflict_version`,
+* `geometry_version`,
+* `snapshot_version`,
+* rodzaj zmiany,
+* zmienione fronty,
+* zmienione filary,
+* zamknięte identyfikatory.
+
+Frontend stosuje deltę, jeżeli posiada wymagany poprzedni stan.
+
+Recovery snapshotu jest uruchamiane tylko wtedy, gdy:
+
+* brakuje konfliktu lub frontu wymaganego przez deltę,
+* wykryto lukę wersji,
+* payload jest niepełny,
+* lokalna wersja jest spoza retencji,
+* backend jawnie zwrócił `recovery_required`.
+
+### 7. Monotoniczność wersji
+
+Frontend przechowuje ostatnie wersje per konflikt.
+
+Odrzuca:
+
+* starszy `conflict_version`,
+* starszy `geometry_version`,
+* starszy `snapshot_version`.
+
+Nowy stan domenowy z niezmienioną geometrią może zaktualizować filary bez ruszania polygonu.
+
+### 8. Zachowanie UI
+
+Aktualizacja konfliktu nie może:
+
+* zmienić środka ani zoomu mapy,
+* zamknąć niezwiązanego tooltipa,
+* usunąć zaznaczenia konfliktu,
+* resetować wszystkich animacji,
+* powodować migania wszystkich polygonów,
+* kasować markerów niezwiązanych z konfliktem.
+
+### 9. Usunięcie starej ścieżki
+
+Po przejściu testów należy usunąć:
+
+* pełne czyszczenie `conflictAreaLayers` przy każdej zmianie konfliktu,
+* indeks jako część identyfikatora frontu,
+* automatyczny snapshot recovery dla każdej delty konfliktu,
+* martwy kod znajdujący się po `return` w pętlach renderujących terytoria i konflikty.
+
+Pełne czyszczenie może pozostać wyłącznie jako jawny tryb recovery lub inicjalny bootstrap mapy.
+
+### 10. Konsumenci poza Leafletem
+
+Przełączenie projekcji obejmuje test zgodności wszystkich istniejących konsumentów:
+
+* Victim Picker nadal pokazuje filary i innery jako `territory_contest`,
+* Territory Control pokazuje prawdziwe ALARM/KOLIZJA i liczniki per klaster,
+* Operation Control zachowuje odwołania aktywnych operacji i incydentów,
+* `aimed_target` i pasek CEL nie cofają się do nieaktualnego konfliktu,
+* GhostNetwork, BlackNet, Cyberner, Radio i outbox otrzymują jeden spójny wynik bez duplikatów.
+
+### 11. Cutover, recovery i bezpieczeństwo bootu
+
+Nowa projekcja jest najpierw uruchamiana w trybie shadow i porównywana ze starą pod kątem liczby konfliktów, frontów, filarów, właścicieli oraz stanów przejęcia. Cutover następuje dopiero po zgodności scenariuszy gameplayowych.
+
+Brudny albo nieudany rebuild nie blokuje bootu mapy. Endpoint zwraca ostatni poprawny snapshot i jawny stan świeżości. Rollback feature flagi nie usuwa nowych danych i pozwala wrócić do starej projekcji bez utraty postępu.
+
+## Testy
+
+Należy sprawdzić:
+
+* inicjalny bootstrap mapy,
+* aktualizację jednego frontu,
+* dodanie frontu,
+* zamknięcie frontu,
+* zmianę stanu jednego filaru,
+* przejęcie i odbicie filaru,
+* odrzucenie starszego snapshotu,
+* wykrycie luki wersji,
+* recovery po brakującej warstwie,
+* zachowanie zoomu i środka mapy,
+* brak migania pozostałych konfliktów,
+* brak duplikatów po snapshot + delta,
+* mapę desktopową i mobilną,
+* Victim Picker i wszystkie etapy `territory_contest`,
+* flagi i liczniki Territory Control,
+* aktywną operację podczas cutoveru i recovery,
+* pełne otoczenie klastra oraz relację chronioną,
+* ciągłość GhostNetworku i brak podwójnego RSP,
+* ostatni poprawny snapshot po błędzie rebuilda,
+* boot mapy podczas stanu `dirty/changing`,
+* shadow compare oraz rollback feature flagi.
+
+## Kryteria zakończenia
+
+Sprint jest zakończony, gdy:
+
+* endpoint publikuje jeden spójny snapshot konfliktów,
+* frontend używa `conflict_id`, `front_id` i `target_id`,
+* normalna delta nie powoduje pełnego odświeżenia mapy,
+* warstwy są aktualizowane, a nie kasowane i tworzone od początku,
+* starsze wersje są odrzucane,
+* pełny snapshot służy bootstrapowi i recovery, a nie każdej zmianie.
+
+## Realizacja Sprintu 130.8.4
+
+Status: zakończony.
+
+Wdrożono:
+
+* `/api/map/player-areas` jest ścieżką tylko do odczytu i pobiera ostatnie
+  opublikowane, atomowe snapshoty konfliktów bez detekcji, przebudowy,
+  `sync_session_profile()` ani naprawiania świata podczas requestu;
+* endpoint publikuje kanoniczne `territory_conflict_snapshots`, a przejściowe
+  pola legacy generuje z dokładnie tych samych snapshotów;
+* dodano flagę cutoveru pozwalającą wrócić do starej projekcji bez usuwania
+  nowych danych i bez utraty postępu;
+* frontend utrzymuje rejestry po `conflict_id`, `front_id` i `target_id`,
+  aktualizuje istniejące warstwy przez `setLatLngs()` i `setLatLng()` oraz
+  usuwa wyłącznie jawnie zamknięte lub brakujące elementy konfliktu;
+* delta `territory.conflict_changed` przenosi kompletny snapshot i aktualizuje
+  tylko wskazany konflikt; starsze wersje snapshotu, domeny i geometrii są
+  odrzucane, a recovery uruchamia się dla luki albo niepełnego payloadu;
+* zachowano kompatybilność Victim Pickera, Territory Control, Operation
+  Control i konsumentów GhostNetworku przez wspólną projekcję legacy;
+* zwykła delta nie zmienia środka ani zoomu mapy i nie wykonuje pełnego
+  kasowania kanonicznych warstw konfliktów.
+
+Walidacja:
+
+* sprawdzono zgodność z `clans_machines.md` oraz
+  `ghostnetwork_architecture.md`: konflikt nadal jest nakładką, a read model
+  nie zmienia kanonicznej własności ani lifecycle;
+* `python -m py_compile database.py run.py response_network/territory_delta.py`:
+  OK;
+* 42 testy identity, Territory Control, territory delta i map cutover: OK;
+* testy obejmują spójność snapshotu i pól legacy, read-only endpoint,
+  kompletność delty, stabilne rejestry, wersjonowanie oraz recovery;
+* nie wykonano commita ani deployu.
+
+---
+
+# Reguły obowiązujące we wszystkich czterech sprintach
+
+## Brak lokalnych protez
+
+Nie dodawać nowych wyjątków opartych na:
+
+* współrzędnych jako tożsamości,
+* kolejności elementów tablicy,
+* etykiecie targetu,
+* aktualnym polygonie,
+* indeksie frontu,
+* ponownym dopisywaniu przejętego targetu do całego dokumentu konfliktu.
+
+## Read model nie zmienia świata
+
+`/api/map/player-areas` pozostaje ścieżką tylko do odczytu.
+
+Naprawy, migracje, detekcja i przebudowy mają działać przed publikacją snapshotu, a nie podczas otwierania mapy.
+
+## Zachowanie źródła prawdy
+
+Źródłami prawdy są:
+
+* rekord konfliktu,
+* rejestr frontów,
+* rejestr filarów,
+* opublikowany snapshot.
+
+Warstwa Leaflet jest wyłącznie projekcją.
+
+## Kolejność wersji
+
+Po przejęciu filaru:
+
+```text
+conflict_version += 1
+geometry_version bez zmiany
+geometry_status = dirty
+```
+
+Po udanej konsolidacji:
+
+```text
+geometry_version += 1
+snapshot_version += 1
+geometry_status = clean
+```
+
+Po błędzie konsolidacji:
+
+```text
+geometry_version bez zmiany
+poprzedni snapshot pozostaje aktywny
+```
+
+## Granica całego refaktoru
+
+Po Sprincie 130.8.4 nie powinien pozostać mechanizm, w którym:
+
+```text
+aktualna geometria
+→ tworzy tożsamość konfliktu
+→ odtwarza historię filarów
+→ decyduje o lifecycle
+→ wymusza pełny rerender mapy
+```
+
+Docelowy przepływ powinien wyglądać tak:
+
+```text
+zmiana filaru lub terytorium
+→ aktualizacja domeny konfliktu
+→ wzrost conflict_version
+→ jedno żądanie konsolidacji
+→ nowy atomowy snapshot
+→ wzrost geometry_version
+→ delta po stabilnych identyfikatorach
+→ punktowa aktualizacja mapy
+```
+
+
+
+
 > Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.
 
 # Sprint 131 — GhostNetwork Suite: audyt widoczności części i integracja z Territory Control

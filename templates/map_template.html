@@ -2159,6 +2159,167 @@
             window.territoryConflictLayers = {};
         }
 
+        function ensureTerritoryConflictRegistries() {
+            window.territoryConflictRegistry = window.territoryConflictRegistry || {};
+            window.territoryFrontLayers = window.territoryFrontLayers || {};
+            window.territoryConflictPillarLayers = window.territoryConflictPillarLayers || {};
+        }
+
+        function removeTerritoryRegistryLayer(registry, id) {
+            const entry = registry && registry[id];
+            if (!entry) return;
+            const layer = entry.layer || entry;
+            if (layer && map && typeof map.removeLayer === 'function' && map.hasLayer(layer)) {
+                map.removeLayer(layer);
+            }
+            delete registry[id];
+        }
+
+        function removeTerritoryConflictSnapshot(conflictId) {
+            ensureTerritoryConflictRegistries();
+            const entry = window.territoryConflictRegistry[conflictId] || {};
+            (entry.frontIds || []).forEach(id => removeTerritoryRegistryLayer(window.territoryFrontLayers, id));
+            (entry.pillarIds || []).forEach(id => removeTerritoryRegistryLayer(window.territoryConflictPillarLayers, id));
+            delete window.territoryConflictRegistry[conflictId];
+        }
+
+        function territorySnapshotVersion(snapshot = {}) {
+            return Number(snapshot.snapshot_version || snapshot.snapshotVersion || 0);
+        }
+
+        function territoryConflictTooltip(snapshot = {}, frontIndex = 0) {
+            const conflict = snapshot.conflict || snapshot;
+            const participants = (snapshot.participants || conflict.participants || conflict.participant_names || [])
+                .map(name => window.escapeMapText(name))
+                .join(', ');
+            return `Konflikt terytorium<br>Uczestnicy: ${participants || 'brak'}<br>Strefa: ${frontIndex + 1}`;
+        }
+
+        function reconcileTerritoryFront(snapshot, front, frontIndex) {
+            const frontId = String(front.front_id || '').trim();
+            if (!frontId) return false;
+            if (['closed', 'removed', 'resolved'].includes(String(front.status || '').toLowerCase())) {
+                removeTerritoryRegistryLayer(window.territoryFrontLayers, frontId);
+                return true;
+            }
+            const points = (front.geometry || []).map(normalizeMapVertex).filter(Boolean);
+            if (points.length < 3 || !isSaneTerritoryPolygon(points)) return false;
+            const version = Number(front.geometry_version || snapshot.geometry_version || territorySnapshotVersion(snapshot));
+            const existing = window.territoryFrontLayers[frontId];
+            if (existing && Number(existing.version || 0) > version) return true;
+            if (existing && existing.layer) {
+                if (Number(existing.version || 0) < version && typeof existing.layer.setLatLngs === 'function') {
+                    existing.layer.setLatLngs(points);
+                    existing.layer.redraw && existing.layer.redraw();
+                }
+                existing.version = Math.max(Number(existing.version || 0), version);
+                existing.front = front;
+                bindTerritoryTooltip(existing.layer, territoryConflictTooltip(snapshot, frontIndex));
+                return true;
+            }
+            const layer = L.polygon(points, {
+                pane: 'territoryPane', color: '#ffb300', fillColor: '#ff8a00',
+                fillOpacity: 0.18, weight: 3, dashArray: '3 5',
+                interactive: true, bubblingMouseEvents: false
+            }).addTo(map);
+            layer._chaosTerritoryConflictId = String(snapshot.conflict_id || '');
+            layer._chaosTerritoryFrontId = frontId;
+            bindTerritoryTooltip(layer, territoryConflictTooltip(snapshot, frontIndex));
+            window.territoryFrontLayers[frontId] = { layer, version, front, conflictId: snapshot.conflict_id };
+            return true;
+        }
+
+        function reconcileTerritoryPillar(snapshot, pillar) {
+            const target = pillar.target || pillar.public_target || pillar;
+            const targetId = String(pillar.target_id || target.target_id || target.id || '').trim();
+            if (!targetId) return false;
+            if (pillar.removed || ['removed', 'detached', 'resolved'].includes(String(pillar.status || '').toLowerCase())) {
+                removeTerritoryRegistryLayer(window.territoryConflictPillarLayers, targetId);
+                return true;
+            }
+            const point = normalizeMapLatLngPair(target.lat, target.lng !== undefined ? target.lng : target.lon);
+            if (!point) return false;
+            const version = Number(pillar.last_changed_version || snapshot.conflict_version || territorySnapshotVersion(snapshot));
+            const existing = window.territoryConflictPillarLayers[targetId];
+            const label = window.escapeMapText(target.label || target.name || targetId);
+            const owner = window.escapeMapText(pillar.owner_username || pillar.captured_by || target.owner_username || 'unknown');
+            const tooltip = `Filar konfliktu: ${label}<br>Wlasciciel: ${owner}`;
+            if (existing && Number(existing.version || 0) > version) return true;
+            if (existing && existing.layer) {
+                if (Number(existing.version || 0) < version && typeof existing.layer.setLatLng === 'function') {
+                    existing.layer.setLatLng(point);
+                }
+                existing.version = Math.max(Number(existing.version || 0), version);
+                existing.pillar = pillar;
+                bindTerritoryTooltip(existing.layer, tooltip);
+                return true;
+            }
+            const layer = L.circleMarker(point, {
+                pane: 'territoryPane', radius: 10, color: '#b8ff28', fillColor: '#162a0a',
+                fillOpacity: 0.72, weight: 3, interactive: true
+            }).addTo(map);
+            layer._chaosTerritoryConflictId = String(snapshot.conflict_id || '');
+            layer._chaosTerritoryPillarId = targetId;
+            bindTerritoryTooltip(layer, tooltip);
+            window.territoryConflictPillarLayers[targetId] = { layer, version, pillar, conflictId: snapshot.conflict_id };
+            return true;
+        }
+
+        function reconcileTerritoryConflictSnapshot(snapshot = {}) {
+            ensureTerritoryConflictRegistries();
+            const conflictId = String(snapshot.conflict_id || '').trim();
+            const version = territorySnapshotVersion(snapshot);
+            if (!conflictId || !version || snapshot.complete === false) return false;
+            const previous = window.territoryConflictRegistry[conflictId];
+            const conflictVersion = Number(snapshot.conflict_version || 0);
+            const geometryVersion = Number(snapshot.geometry_version || 0);
+            if (previous && Number(previous.snapshotVersion || 0) >= version) return true;
+            if (previous && conflictVersion < Number(previous.conflictVersion || 0)) return false;
+            if (previous && geometryVersion < Number(previous.geometryVersion || 0)) return false;
+            if (['closed', 'removed', 'resolved', 'cancelled'].includes(String(snapshot.status || '').toLowerCase())) {
+                removeTerritoryConflictSnapshot(conflictId);
+                return true;
+            }
+            const frontIds = [];
+            const pillarIds = [];
+            (snapshot.fronts || []).forEach((front, index) => {
+                const id = String((front || {}).front_id || '').trim();
+                if (id && reconcileTerritoryFront(snapshot, front, index)) frontIds.push(id);
+            });
+            (snapshot.pillars || []).forEach(pillar => {
+                const target = (pillar || {}).target || (pillar || {}).public_target || pillar || {};
+                const id = String((pillar || {}).target_id || target.target_id || target.id || '').trim();
+                if (id && reconcileTerritoryPillar(snapshot, pillar)) pillarIds.push(id);
+            });
+            if (snapshot.complete !== false && previous) {
+                (previous.frontIds || []).filter(id => !frontIds.includes(id))
+                    .forEach(id => removeTerritoryRegistryLayer(window.territoryFrontLayers, id));
+                (previous.pillarIds || []).filter(id => !pillarIds.includes(id))
+                    .forEach(id => removeTerritoryRegistryLayer(window.territoryConflictPillarLayers, id));
+            }
+            window.territoryConflictRegistry[conflictId] = {
+                snapshotVersion: version,
+                conflictVersion,
+                geometryVersion,
+                frontIds, pillarIds, snapshot
+            };
+            return true;
+        }
+
+        function reconcileTerritoryConflictSnapshots(snapshots = [], removeMissing = false) {
+            ensureTerritoryConflictRegistries();
+            const present = new Set();
+            (snapshots || []).forEach(snapshot => {
+                const id = String((snapshot || {}).conflict_id || '').trim();
+                if (id) present.add(id);
+                reconcileTerritoryConflictSnapshot(snapshot);
+            });
+            if (removeMissing) {
+                Object.keys(window.territoryConflictRegistry).filter(id => !present.has(id))
+                    .forEach(removeTerritoryConflictSnapshot);
+            }
+        }
+
         function getLayerTooltipText(layer) {
             if (!layer || typeof layer.getTooltip !== 'function') return '';
             const tooltip = layer.getTooltip();
@@ -6943,7 +7104,27 @@
                 const type = String((event && event.type) || payload.type || '');
 
                 if (type === 'territory.conflict_changed') {
-                    window.requestTerritorySnapshotRecovery('territory_conflict_changed');
+                    const snapshot = payload.snapshot || payload;
+                    const conflictId = String(snapshot.conflict_id || (event && event.entity_id) || '').trim();
+                    const incomingVersion = territorySnapshotVersion(snapshot);
+                    ensureTerritoryConflictRegistries();
+                    const currentVersion = Number(
+                        ((window.territoryConflictRegistry[conflictId] || {}).snapshotVersion) || 0
+                    );
+                    if (!conflictId || !incomingVersion || snapshot.complete === false) {
+                        window.requestTerritorySnapshotRecovery('incomplete_territory_conflict_delta');
+                        return false;
+                    }
+                    if (incomingVersion <= currentVersion) return true;
+                    if (currentVersion && incomingVersion > currentVersion + 1) {
+                        window.requestTerritorySnapshotRecovery('territory_conflict_version_gap');
+                        return false;
+                    }
+                    if (!reconcileTerritoryConflictSnapshot(snapshot)) {
+                        window.requestTerritorySnapshotRecovery('invalid_territory_conflict_delta');
+                        return false;
+                    }
+                    invalidateMapAfterLayerUpdate();
                     return true;
                 }
 
@@ -7018,82 +7199,15 @@
                     clearLayerArray('capturedConflictPillarLayers');
                     resetTerritoryLayerRegistries();
 
-                    (data.areas || []).forEach(area => {
-                        renderTerritoryAreaLayer(area);
-                        return;
-                        const points = (area.vertices || [])
-                            .map(vertex => [parseFloat(vertex.lat), parseFloat(vertex.lng)])
-                            .filter(point => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
-                        if (points.length < 3) return;
-                        if (!isSaneTerritoryPolygon(points)) {
-                            console.warn('[map] Pominieto podejrzane terytorium', area.owner_username, points);
-                            return;
-                        }
+                    (data.areas || []).forEach(renderTerritoryAreaLayer);
 
-                        const isEncircled = area.status === 'encircled';
-                        const color = isEncircled ? '#ffcc33' : (area.is_mine ? '#26ff6a' : '#ff4b4b');
-                        const fillColor = isEncircled ? '#b88700' : (area.is_mine ? '#0aa83d' : '#b62020');
-                        const polygon = registerLayerInArray('playerAreaLayers', L.polygon(points, {
-                            pane: 'territoryPane',
-                            color,
-                            fillColor,
-                            fillOpacity: isEncircled ? 0.26 : (area.is_mine ? 0.13 : 0.20),
-                            weight: isEncircled ? 4 : (area.is_mine ? 2 : 3),
-                            dashArray: isEncircled ? '4 5' : (area.is_mine ? null : '8 6'),
-                            interactive: true
-                        }));
-                        polygon.addTo(map);
-                        const owner = window.escapeMapText(area.owner_nick || area.owner_username || 'unknown');
-                        const status = window.escapeMapText(area.status || 'active');
-                        const size = Math.round(Number(area.area_size || 0));
-                        const ownerNick = window.escapeMapText(area.owner_nick || area.owner_username || 'unknown');
-                        const ownerUsername = window.escapeMapText(area.owner_username || 'unknown');
-                        const ownerClan = window.escapeMapText(area.owner_clan || 'brak');
-                        polygon.bindTooltip(`${area.is_mine ? 'Twoje pole' : 'Pole gracza'}: ${ownerNick}<br>Login: ${ownerUsername}<br>Klan: ${ownerClan}<br>Status: ${status}<br>Pow.: ${size} m²`, {
-                            sticky: true,
-                            opacity: 0.95
-                        });
-                    });
-
-                    (data.conflict_areas || []).forEach(conflict => {
-                        renderTerritoryConflictLayer(conflict);
-                        return;
-                        const intersections = conflict.intersections && conflict.intersections.length
-                            ? conflict.intersections
-                            : [conflict.intersection || []];
-                        const participants = conflict.participants_display
-                            ? window.escapeMapText(conflict.participants_display)
-                            : (conflict.participant_names || conflict.participants || [])
-                                .map(name => window.escapeMapText(name))
-                                .join(', ');
-
-                        intersections.forEach((intersection, index) => {
-                            const points = (intersection || [])
-                                .map(vertex => [parseFloat(vertex.lat), parseFloat(vertex.lng)])
-                                .filter(point => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
-                            if (points.length < 3) return;
-                            if (!isSaneTerritoryPolygon(points)) {
-                                console.warn('[map] Pominieto podejrzany konflikt terytorium', conflict.id, points);
-                                return;
-                            }
-
-                            const polygon = registerLayerInArray('conflictAreaLayers', L.polygon(points, {
-                                pane: 'territoryPane',
-                                color: '#ffb300',
-                                fillColor: '#ff8a00',
-                                fillOpacity: 0.18,
-                                weight: 3,
-                                dashArray: '3 5',
-                                interactive: true
-                            }));
-                            polygon.addTo(map);
-
-                            polygon.bindTooltip(`Konflikt terytorium<br>Uczestnicy: ${participants || 'brak'}<br>Strefa: ${index + 1}`, {
-                                sticky: true,
-                                opacity: 0.95
-                            });
-                        });
-                    });
+                    if (data.territory_conflict_snapshot_mode) {
+                        reconcileTerritoryConflictSnapshots(data.territory_conflict_snapshots || [], true);
+                    } else {
+                        ensureTerritoryConflictRegistries();
+                        Object.keys(window.territoryConflictRegistry).forEach(removeTerritoryConflictSnapshot);
+                        (data.conflict_areas || []).forEach(renderTerritoryConflictLayer);
+                    }
 
                     (data.contested_targets || []).forEach(target => {
                         const point = normalizeMapLatLngPair(target.lat, target.lng !== undefined ? target.lng : target.lon);
@@ -7138,6 +7252,7 @@
                         registerLayerInArray('contestedTargetLayers', marker);
                     });
 
+                    if (!data.territory_conflict_snapshot_mode) {
                     (data.captured_conflict_pillars || []).forEach(item => {
                         const target = item.target || item;
                         const point = normalizeMapLatLngPair(target.lat, target.lng !== undefined ? target.lng : target.lon);
@@ -7163,6 +7278,7 @@
                         });
                         registerLayerInArray('capturedConflictPillarLayers', marker);
                     });
+                    }
 
                     invalidateMapAfterLayerUpdate();
                     return true;

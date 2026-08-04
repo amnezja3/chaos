@@ -368,6 +368,9 @@ def init_db(db_path=DB_PATH):
             CREATE TABLE IF NOT EXISTS territory_conflicts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 conflict_key TEXT NOT NULL UNIQUE,
+                conflict_id TEXT,
+                legacy_conflict_key TEXT NOT NULL DEFAULT '',
+                participant_key TEXT NOT NULL DEFAULT '',
                 player_a_username TEXT NOT NULL,
                 player_b_username TEXT NOT NULL,
                 area_a_id INTEGER,
@@ -378,10 +381,16 @@ def init_db(db_path=DB_PATH):
                 intersections_json TEXT NOT NULL DEFAULT '[]',
                 targets_json TEXT NOT NULL DEFAULT '[]',
                 status TEXT NOT NULL DEFAULT 'active',
+                conflict_version INTEGER NOT NULL DEFAULT 1,
+                geometry_version INTEGER NOT NULL DEFAULT 1,
+                geometry_status TEXT NOT NULL DEFAULT 'published',
+                resolution_reason TEXT NOT NULL DEFAULT '',
                 last_actor_username TEXT NOT NULL DEFAULT '',
                 source_event TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                resolved_at TEXT,
+                closed_at TEXT
             )
             """
         )
@@ -395,6 +404,191 @@ def init_db(db_path=DB_PATH):
             conn.execute("ALTER TABLE territory_conflicts ADD COLUMN area_ids_json TEXT NOT NULL DEFAULT '[]'")
         if "intersections_json" not in conflict_columns:
             conn.execute("ALTER TABLE territory_conflicts ADD COLUMN intersections_json TEXT NOT NULL DEFAULT '[]'")
+        conflict_migration_columns = {
+            "conflict_id": "TEXT",
+            "legacy_conflict_key": "TEXT NOT NULL DEFAULT ''",
+            "participant_key": "TEXT NOT NULL DEFAULT ''",
+            "conflict_version": "INTEGER NOT NULL DEFAULT 1",
+            "geometry_version": "INTEGER NOT NULL DEFAULT 1",
+            "geometry_status": "TEXT NOT NULL DEFAULT 'published'",
+            "resolution_reason": "TEXT NOT NULL DEFAULT ''",
+            "resolved_at": "TEXT",
+            "closed_at": "TEXT",
+        }
+        for column_name, column_sql in conflict_migration_columns.items():
+            if column_name not in conflict_columns:
+                conn.execute(
+                    f"ALTER TABLE territory_conflicts ADD COLUMN {column_name} {column_sql}"
+                )
+
+        legacy_conflicts = conn.execute(
+            """
+            SELECT id, conflict_key, conflict_id, legacy_conflict_key,
+                   participant_key, participants_json,
+                   player_a_username, player_b_username, status,
+                   resolution_reason, resolved_at, updated_at
+            FROM territory_conflicts
+            """
+        ).fetchall()
+        for row in legacy_conflicts:
+            participants = loads_json(row["participants_json"], []) or [
+                row["player_a_username"],
+                row["player_b_username"],
+            ]
+            participants = sorted({str(item) for item in participants if item})
+            participant_key = "::".join(participants)
+            status = str(row["status"] or "active")
+            resolution_reason = str(row["resolution_reason"] or "")
+            if status == "resolved_by_encirclement":
+                status = "resolved"
+                resolution_reason = resolution_reason or "encirclement"
+            resolved_at = row["resolved_at"]
+            if status in {"resolved", "closed"} and not resolved_at:
+                resolved_at = row["updated_at"]
+            conn.execute(
+                """
+                UPDATE territory_conflicts
+                SET conflict_id = ?,
+                    legacy_conflict_key = ?,
+                    participant_key = ?,
+                    status = ?,
+                    resolution_reason = ?,
+                    resolved_at = ?
+                WHERE id = ?
+                """,
+                (
+                    str(row["conflict_id"] or row["id"]),
+                    str(row["legacy_conflict_key"] or row["conflict_key"]),
+                    str(row["participant_key"] or participant_key),
+                    status,
+                    resolution_reason,
+                    resolved_at,
+                    row["id"],
+                ),
+            )
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_territory_conflicts_conflict_id "
+            "ON territory_conflicts(conflict_id) WHERE conflict_id IS NOT NULL AND conflict_id != ''"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_territory_conflicts_participant_status "
+            "ON territory_conflicts(participant_key, status, updated_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_territory_conflicts_legacy_key "
+            "ON territory_conflicts(legacy_conflict_key)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS territory_conflict_pillars (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                conflict_id TEXT NOT NULL,
+                target_id TEXT NOT NULL,
+                front_id TEXT NOT NULL DEFAULT '',
+                owner_username TEXT NOT NULL DEFAULT '',
+                previous_owner_username TEXT NOT NULL DEFAULT '',
+                attacker_username TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'contested',
+                captured INTEGER NOT NULL DEFAULT 0,
+                captured_by TEXT NOT NULL DEFAULT '',
+                last_changed_version INTEGER NOT NULL DEFAULT 1,
+                geometry_applied_version INTEGER NOT NULL DEFAULT 0,
+                public_target_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                captured_at TEXT,
+                UNIQUE(conflict_id, target_id)
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_conflict_pillars_conflict "
+            "ON territory_conflict_pillars(conflict_id, updated_at)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS territory_conflict_events (
+                event_id TEXT PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                conflict_id TEXT NOT NULL,
+                target_id TEXT NOT NULL DEFAULT '',
+                action_id TEXT NOT NULL DEFAULT '',
+                conflict_version INTEGER NOT NULL,
+                geometry_version INTEGER NOT NULL,
+                actor_username TEXT NOT NULL DEFAULT '',
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_conflict_events_conflict "
+            "ON territory_conflict_events(conflict_id, created_at)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS territory_conflict_rebuilds (
+                conflict_id TEXT PRIMARY KEY,
+                requested_version INTEGER NOT NULL DEFAULT 0,
+                processing_version INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'pending',
+                reason TEXT NOT NULL DEFAULT '',
+                lease_owner TEXT NOT NULL DEFAULT '',
+                lease_until TEXT,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT NOT NULL DEFAULT '',
+                requested_at TEXT NOT NULL,
+                started_at TEXT,
+                completed_at TEXT,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_conflict_rebuilds_status "
+            "ON territory_conflict_rebuilds(status, lease_until, updated_at)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS territory_conflict_fronts (
+                front_id TEXT PRIMARY KEY,
+                conflict_id TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                geometry_version INTEGER NOT NULL DEFAULT 0,
+                participant_key TEXT NOT NULL DEFAULT '',
+                area_ids_json TEXT NOT NULL DEFAULT '[]',
+                pillar_ids_json TEXT NOT NULL DEFAULT '[]',
+                geometry_json TEXT NOT NULL DEFAULT '[]',
+                parent_front_ids_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                closed_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_conflict_fronts_conflict_status "
+            "ON territory_conflict_fronts(conflict_id, status, updated_at)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS territory_conflict_snapshots (
+                snapshot_id TEXT PRIMARY KEY,
+                conflict_id TEXT NOT NULL,
+                snapshot_version INTEGER NOT NULL,
+                conflict_version INTEGER NOT NULL,
+                geometry_version INTEGER NOT NULL,
+                payload_json TEXT NOT NULL,
+                generated_at TEXT NOT NULL,
+                UNIQUE(conflict_id, snapshot_version),
+                UNIQUE(conflict_id, geometry_version)
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_conflict_snapshots_latest "
+            "ON territory_conflict_snapshots(conflict_id, snapshot_version DESC)"
+        )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS reported_vulnerabilities (
@@ -1761,9 +1955,12 @@ class TerritoryStore:
 
 
 class TerritoryConflictStore:
+    OPEN_STATUSES = ("detected", "active", "changing", "resolving")
+
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
         init_db(self.db_path)
+        self._migrate_legacy_pillars()
 
     @staticmethod
     def _row_to_conflict(row):
@@ -1781,7 +1978,10 @@ class TerritoryConflictStore:
             intersections = [intersection] if intersection else []
         return {
             "id": row["id"],
+            "conflict_id": str(row["conflict_id"] or row["id"]),
             "conflict_key": row["conflict_key"],
+            "legacy_conflict_key": row["legacy_conflict_key"] or row["conflict_key"],
+            "participant_key": row["participant_key"] or "::".join(sorted(participants)),
             "participant_usernames": participants,
             "primary_participant_usernames": [row["player_a_username"], row["player_b_username"]],
             "player_a_username": row["player_a_username"],
@@ -1795,11 +1995,356 @@ class TerritoryConflictStore:
             "intersections": intersections,
             "targets": loads_json(row["targets_json"], []),
             "status": row["status"],
+            "conflict_version": int(row["conflict_version"] or 1),
+            "geometry_version": int(row["geometry_version"] or 1),
+            "geometry_status": row["geometry_status"] or "published",
+            "resolution_reason": row["resolution_reason"] or "",
             "last_actor_username": row["last_actor_username"],
             "source_event": row["source_event"],
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
+            "resolved_at": row["resolved_at"],
+            "closed_at": row["closed_at"],
         }
+
+    @staticmethod
+    def participant_key(participants):
+        return "::".join(sorted({str(item) for item in (participants or []) if item}))
+
+    @staticmethod
+    def _same_json(left, right):
+        return loads_json(dumps_json(left), None) == loads_json(dumps_json(right), None)
+
+    def _pillar_domain_signature(self, targets):
+        """Compare pillar gameplay state without treating geometry as identity."""
+        signature = []
+        for item in targets or []:
+            item = item or {}
+            target = item.get("target") if isinstance(item.get("target"), dict) else {}
+            signature.append({
+                "target_id": self.stable_target_id(item),
+                "front_id": str(item.get("front_id") or target.get("front_id") or ""),
+                "owner_username": str(
+                    item.get("owner_username") or item.get("owner") or
+                    target.get("owner_username") or ""
+                ),
+                "previous_owner_username": str(
+                    item.get("previous_owner_username") or item.get("previous_owner") or ""
+                ),
+                "status": str(item.get("status") or "contested"),
+                "captured": bool(item.get("captured") or item.get("status") == "captured"),
+                "captured_by": str(item.get("captured_by") or item.get("hacked_by") or ""),
+            })
+        return sorted(signature, key=lambda item: item["target_id"])
+
+    def _effective_targets(self, existing_targets, incoming_targets):
+        """Refresh public target data while preserving monotonic capture state."""
+        existing_by_id = {
+            self.stable_target_id(item): copy.deepcopy(item or {})
+            for item in (existing_targets or [])
+        }
+        effective = []
+        seen = set()
+        for incoming in incoming_targets or []:
+            incoming = copy.deepcopy(incoming or {})
+            target_id = self.stable_target_id(incoming)
+            stored = existing_by_id.get(target_id)
+            if stored and bool(stored.get("captured") or stored.get("status") == "captured"):
+                refreshed_target = incoming.get("target") if isinstance(incoming.get("target"), dict) else {}
+                stored_target = stored.get("target") if isinstance(stored.get("target"), dict) else {}
+                incoming.update({
+                    "target_id": target_id,
+                    "owner": stored.get("owner_username") or stored.get("owner") or "",
+                    "owner_username": stored.get("owner_username") or stored.get("owner") or "",
+                    "previous_owner": stored.get("previous_owner_username") or stored.get("previous_owner") or "",
+                    "previous_owner_username": stored.get("previous_owner_username") or stored.get("previous_owner") or "",
+                    "status": stored.get("status") or "captured",
+                    "captured": True,
+                    "captured_by": stored.get("captured_by") or stored.get("hacked_by") or "",
+                    "hacked_by": stored.get("captured_by") or stored.get("hacked_by") or "",
+                })
+                incoming["target"] = {
+                    **stored_target,
+                    **refreshed_target,
+                    "target_id": target_id,
+                    "owner_username": incoming["owner_username"],
+                }
+            else:
+                incoming["target_id"] = target_id
+                if isinstance(incoming.get("target"), dict):
+                    incoming["target"]["target_id"] = target_id
+            effective.append(incoming)
+            seen.add(target_id)
+        for target_id, stored in existing_by_id.items():
+            if target_id not in seen:
+                effective.append(stored)
+        return effective
+
+    @staticmethod
+    def stable_target_id(item):
+        item = item or {}
+        target = item.get("target") if isinstance(item.get("target"), dict) else item
+        explicit_target_id = target.get("target_id") or item.get("target_id")
+        if explicit_target_id not in (None, ""):
+            return str(explicit_target_id)
+        for key, prefix in (
+            ("vulnerability_id", "vulnerability"),
+            ("captured_target_id", "captured"),
+            ("poi_id", "poi"),
+            ("source_target_id", "source"),
+            ("source_id", "source"),
+            ("id", "target"),
+        ):
+            value = target.get(key) or item.get(key)
+            if value not in (None, ""):
+                value = str(value)
+                return value if ":" in value else f"{prefix}:{value}"
+        legacy = {
+            "source_type": target.get("source_type") or item.get("source_type") or "unknown",
+            "label": target.get("label") or target.get("name") or item.get("label") or "",
+            "lat": target.get("lat"),
+            "lng": target.get("lng", target.get("lon")),
+        }
+        digest = hashlib.sha256(dumps_json(legacy).encode("utf-8")).hexdigest()[:20]
+        return f"legacy:{digest}"
+
+    def _migrate_legacy_pillars(self):
+        """Populate the pillar registry from the legacy targets projection once."""
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT * FROM territory_conflicts ORDER BY id"
+            ).fetchall()
+            for row in rows:
+                conflict = self._row_to_conflict(row)
+                legacy_targets = conflict.get("targets") or []
+                if not legacy_targets:
+                    continue
+                self._sync_pillars(
+                    conn,
+                    conflict["conflict_id"],
+                    legacy_targets,
+                    conflict["conflict_version"],
+                    conflict["geometry_version"],
+                    actor_username=conflict.get("last_actor_username") or "migration",
+                )
+                projected = self._project_targets(
+                    conn, conflict["conflict_id"], legacy_targets
+                )
+                conn.execute(
+                    "UPDATE territory_conflicts SET targets_json = ? WHERE id = ?",
+                    (dumps_json(projected), conflict["id"]),
+                )
+
+    @staticmethod
+    def _row_to_pillar(row):
+        if not row:
+            return None
+        return {
+            "id": row["id"],
+            "conflict_id": row["conflict_id"],
+            "target_id": row["target_id"],
+            "front_id": row["front_id"],
+            "owner_username": row["owner_username"],
+            "previous_owner_username": row["previous_owner_username"],
+            "attacker_username": row["attacker_username"],
+            "status": row["status"],
+            "captured": bool(row["captured"]),
+            "captured_by": row["captured_by"],
+            "last_changed_version": int(row["last_changed_version"] or 1),
+            "geometry_applied_version": int(row["geometry_applied_version"] or 0),
+            "public_target": loads_json(row["public_target_json"], {}),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "captured_at": row["captured_at"],
+        }
+
+    def _project_targets(self, conn, conflict_id, fallback=None):
+        rows = conn.execute(
+            "SELECT * FROM territory_conflict_pillars WHERE conflict_id = ? ORDER BY id",
+            (str(conflict_id),),
+        ).fetchall()
+        if not rows:
+            return list(fallback or [])
+        return [loads_json(row["public_target_json"], {}) for row in rows]
+
+    def _conflict_from_row(self, conn, row):
+        conflict = self._row_to_conflict(row)
+        if conflict:
+            conflict["targets"] = self._project_targets(
+                conn, conflict["conflict_id"], conflict.get("targets")
+            )
+        return conflict
+
+    def _record_event(self, conn, event_type, conflict_id, target_id,
+                      conflict_version, geometry_version, actor_username="",
+                      action_id="", payload=None, event_id=None):
+        event_id = event_id or (
+            f"{event_type}:{conflict_id}:{target_id}:{conflict_version}"
+        )
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO territory_conflict_events
+                (event_id, event_type, conflict_id, target_id, action_id,
+                 conflict_version, geometry_version, actor_username,
+                 payload_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (event_id, event_type, str(conflict_id), str(target_id or ""),
+             str(action_id or ""), int(conflict_version), int(geometry_version),
+             str(actor_username or ""), dumps_json(payload or {}), utc_now()),
+        )
+        return event_id
+
+    def _sync_pillars(self, conn, conflict_id, targets, conflict_version,
+                      geometry_version, actor_username=""):
+        now = utc_now()
+        for item in targets or []:
+            target_id = self.stable_target_id(item)
+            normalized = copy.deepcopy(item or {})
+            normalized["target_id"] = target_id
+            target = normalized.get("target")
+            if isinstance(target, dict):
+                target["target_id"] = target_id
+            existing = conn.execute(
+                "SELECT * FROM territory_conflict_pillars WHERE conflict_id = ? AND target_id = ?",
+                (str(conflict_id), target_id),
+            ).fetchone()
+            owner = str(normalized.get("owner_username") or normalized.get("owner") or "")
+            captured = bool(normalized.get("captured") or normalized.get("status") == "captured")
+            if existing:
+                stored = self._row_to_pillar(existing)
+                if stored["captured"]:
+                    normalized.update({
+                        "owner": stored["owner_username"],
+                        "owner_username": stored["owner_username"],
+                        "previous_owner": stored["previous_owner_username"],
+                        "status": stored["status"],
+                        "captured": True,
+                        "captured_by": stored["captured_by"],
+                        "hacked_by": stored["captured_by"],
+                    })
+                    if isinstance(normalized.get("target"), dict):
+                        normalized["target"]["owner_username"] = stored["owner_username"]
+                    conn.execute(
+                        "UPDATE territory_conflict_pillars SET public_target_json = ?, updated_at = ? "
+                        "WHERE id = ?",
+                        (dumps_json(normalized), now, existing["id"]),
+                    )
+                else:
+                    conn.execute(
+                        """
+                        UPDATE territory_conflict_pillars SET
+                            front_id = ?, owner_username = ?, previous_owner_username = ?,
+                            attacker_username = ?, status = ?, captured = ?, captured_by = ?,
+                            last_changed_version = ?, public_target_json = ?, updated_at = ?,
+                            captured_at = ?
+                        WHERE id = ?
+                        """,
+                        (str(normalized.get("front_id") or ""), owner,
+                         str(normalized.get("previous_owner_username") or normalized.get("previous_owner") or ""),
+                         str(actor_username or ""), str(normalized.get("status") or "contested"),
+                         int(captured), str(normalized.get("captured_by") or normalized.get("hacked_by") or ""),
+                         int(conflict_version), dumps_json(normalized), now,
+                         now if captured else None, existing["id"]),
+                    )
+                continue
+            conn.execute(
+                """
+                INSERT INTO territory_conflict_pillars
+                    (conflict_id, target_id, front_id, owner_username,
+                     previous_owner_username, attacker_username, status, captured,
+                     captured_by, last_changed_version, geometry_applied_version,
+                     public_target_json, created_at, updated_at, captured_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (str(conflict_id), target_id, str(normalized.get("front_id") or ""), owner,
+                 str(normalized.get("previous_owner") or ""), str(actor_username or ""),
+                 str(normalized.get("status") or "contested"), int(captured),
+                 str(normalized.get("captured_by") or ""), int(conflict_version),
+                 int(geometry_version), dumps_json(normalized), now, now,
+                 now if captured else None),
+            )
+            self._record_event(
+                conn, "conflict.pillar_registered", conflict_id, target_id,
+                conflict_version, geometry_version, actor_username=actor_username,
+            )
+
+    def _find_reference_row(self, conn, reference):
+        if reference in (None, ""):
+            return None
+        value = str(reference)
+        return conn.execute(
+            """
+            SELECT * FROM territory_conflicts
+            WHERE conflict_id = ? OR conflict_key = ? OR legacy_conflict_key = ?
+               OR CAST(id AS TEXT) = ?
+            ORDER BY CASE WHEN conflict_id = ? THEN 0 WHEN conflict_key = ? THEN 1 ELSE 2 END,
+                     id DESC
+            LIMIT 1
+            """,
+            (value, value, value, value, value, value),
+        ).fetchone()
+
+    def get_open_by_participant_key(self, participant_key):
+        conflicts = self.list_open_by_participant_key(participant_key)
+        return conflicts[0] if conflicts else None
+
+    def list_open_by_participant_key(self, participant_key):
+        placeholders = ",".join("?" for _ in self.OPEN_STATUSES)
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM territory_conflicts
+                WHERE participant_key = ? AND status IN ({placeholders})
+                ORDER BY updated_at DESC, id DESC
+                """,
+                (participant_key, *self.OPEN_STATUSES),
+            ).fetchall()
+            return [self._conflict_from_row(conn, row) for row in rows]
+
+    def select_open_conflict(self, participant_key, conflict_key=None, area_ids=None):
+        """Find the current cycle without treating participants as its identity."""
+        candidates = self.list_open_by_participant_key(participant_key)
+        if not candidates:
+            return None
+
+        # A single open cycle is unambiguous. Geometry is mutable and may be
+        # temporarily absent or completely replaced during consolidation, so
+        # requiring an alias/area overlap here would create a new conflict_id
+        # for the same continuing participant cycle.
+        if len(candidates) == 1:
+            return candidates[0]
+
+        geometry_reference = str(conflict_key or "")
+        if geometry_reference:
+            for candidate in candidates:
+                aliases = {
+                    str(candidate.get("conflict_key") or ""),
+                    str(candidate.get("legacy_conflict_key") or ""),
+                }
+                if geometry_reference in aliases:
+                    return candidate
+
+        incoming_area_ids = {
+            str(area_id) for area_id in (area_ids or []) if area_id is not None
+        }
+        if not incoming_area_ids:
+            return None
+
+        ranked = []
+        for candidate in candidates:
+            candidate_area_ids = {
+                str(area_id)
+                for area_id in (candidate.get("area_ids") or [])
+                if area_id is not None
+            }
+            overlap = len(incoming_area_ids & candidate_area_ids)
+            if overlap:
+                ranked.append((overlap, candidate))
+        if not ranked:
+            return None
+        ranked.sort(key=lambda item: (item[0], int(item[1].get("id") or 0)), reverse=True)
+        return ranked[0][1]
 
     def upsert_conflict(self, conflict):
         participants = sorted({
@@ -1825,57 +2370,183 @@ class TerritoryConflictStore:
             intersections = [conflict.get("intersection")]
 
         now = utc_now()
-        data = {
-            "conflict_key": str(conflict.get("conflict_key") or ""),
-            "player_a_username": participants[0],
-            "player_b_username": participants[1],
-            "area_a_id": area_ids[0] if area_ids else None,
-            "area_b_id": area_ids[1] if len(area_ids) > 1 else None,
-            "participants_json": dumps_json(participants),
-            "area_ids_json": dumps_json(area_ids),
-            "intersection_json": dumps_json(conflict.get("intersection") or (intersections[0] if intersections else [])),
-            "intersections_json": dumps_json(intersections),
-            "targets_json": dumps_json(conflict.get("targets") or []),
-            "status": str(conflict.get("status") or "active"),
-            "last_actor_username": str(conflict.get("last_actor_username") or ""),
-            "source_event": str(conflict.get("source_event") or ""),
-            "created_at": now,
-            "updated_at": now,
-        }
-        if not data["conflict_key"]:
+        participant_key = self.participant_key(participants)
+        geometry_key = str(
+            conflict.get("legacy_conflict_key") or conflict.get("conflict_key") or ""
+        )
+        if not geometry_key:
             raise ValueError("Territory conflict requires conflict_key.")
 
         with db_connect(self.db_path) as conn:
-            conn.execute(
+            explicit_reference = conflict.get("conflict_id") or conflict.get("id")
+            row = self._find_reference_row(conn, explicit_reference)
+            if row is None:
+                candidate = self.select_open_conflict(
+                    participant_key,
+                    conflict_key=conflict.get("conflict_key"),
+                    area_ids=area_ids,
+                )
+                if candidate:
+                    row = self._find_reference_row(conn, candidate.get("conflict_id"))
+
+            existing = self._conflict_from_row(conn, row) if row else None
+            requested_status = str(conflict.get("status") or "active")
+            resolution_reason = str(conflict.get("resolution_reason") or "")
+            if requested_status == "resolved_by_encirclement":
+                requested_status = "resolved"
+                resolution_reason = resolution_reason or "encirclement"
+
+            if existing and existing["status"] in {"resolved", "closed"}:
+                # Explicit legacy references may inspect a closed cycle, but never reopen it.
+                if requested_status in self.OPEN_STATUSES:
+                    existing = None
+                    row = None
+
+            incoming_targets = list(conflict.get("targets") or [])
+            effective_targets = self._effective_targets(
+                existing.get("targets") if existing else [], incoming_targets
+            )
+
+            data = {
+                "conflict_key": existing["conflict_key"] if existing else geometry_key,
+                "conflict_id": existing["conflict_id"] if existing else f"territory_conflict_{secrets.token_hex(8)}",
+                "legacy_conflict_key": existing["legacy_conflict_key"] if existing else geometry_key,
+                "participant_key": participant_key,
+                "player_a_username": participants[0],
+                "player_b_username": participants[1],
+                "area_a_id": area_ids[0] if area_ids else None,
+                "area_b_id": area_ids[1] if len(area_ids) > 1 else None,
+                "participants_json": dumps_json(participants),
+                "area_ids_json": dumps_json(area_ids),
+                "intersection_json": dumps_json(conflict.get("intersection") or (intersections[0] if intersections else [])),
+                "intersections_json": dumps_json(intersections),
+                "targets_json": dumps_json(effective_targets),
+                "status": requested_status,
+                "geometry_status": str(conflict.get("geometry_status") or "published"),
+                "resolution_reason": resolution_reason,
+                "last_actor_username": str(conflict.get("last_actor_username") or ""),
+                "source_event": str(conflict.get("source_event") or ""),
+                "created_at": existing["created_at"] if existing else now,
+                "updated_at": now,
+                "resolved_at": existing.get("resolved_at") if existing else None,
+                "closed_at": existing.get("closed_at") if existing else None,
+            }
+
+            if data["status"] in {"resolved", "closed"} and not data["resolved_at"]:
+                data["resolved_at"] = now
+            if data["status"] == "closed" and not data["closed_at"]:
+                data["closed_at"] = now
+
+            geometry_changed = not existing or any((
+                existing.get("area_ids") != area_ids,
+                not self._same_json(existing.get("intersections") or [], intersections),
+                existing.get("geometry_status") != data["geometry_status"],
+            ))
+            domain_changed = not existing or any((
+                existing.get("participants") != participants,
+                self._pillar_domain_signature(existing.get("targets") or []) !=
+                self._pillar_domain_signature(effective_targets),
+                existing.get("status") != data["status"],
+                existing.get("resolution_reason") != data["resolution_reason"],
+            ))
+            data["conflict_version"] = (
+                (existing.get("conflict_version", 1) + 1) if existing and domain_changed
+                else (existing.get("conflict_version", 1) if existing else 1)
+            )
+            data["geometry_version"] = (
+                (existing.get("geometry_version", 1) + 1) if existing and geometry_changed
+                else (existing.get("geometry_version", 1) if existing else 1)
+            )
+
+            if existing and not domain_changed and not geometry_changed:
+                self._sync_pillars(
+                    conn, existing["conflict_id"], incoming_targets,
+                    existing["conflict_version"], existing["geometry_version"],
+                    actor_username=data["last_actor_username"],
+                )
+                projected = self._project_targets(conn, existing["conflict_id"], existing["targets"])
+                conn.execute(
+                    "UPDATE territory_conflicts SET targets_json = ? WHERE id = ?",
+                    (dumps_json(projected), existing["id"]),
+                )
+                existing["targets"] = projected
+                return existing
+
+            if not existing:
+                base_key = data["conflict_key"]
+                suffix = 1
+                while conn.execute(
+                    "SELECT 1 FROM territory_conflicts WHERE conflict_key = ?", (data["conflict_key"],)
+                ).fetchone():
+                    suffix += 1
+                    data["conflict_key"] = f"{base_key}:cycle:{suffix}"
+                conn.execute(
                 """
                 INSERT INTO territory_conflicts
-                    (conflict_key, player_a_username, player_b_username, area_a_id, area_b_id,
+                    (conflict_key, conflict_id, legacy_conflict_key, participant_key,
+                     player_a_username, player_b_username, area_a_id, area_b_id,
                      participants_json, area_ids_json, intersection_json, intersections_json,
-                     targets_json, status, last_actor_username, source_event, created_at, updated_at)
+                     targets_json, status, conflict_version, geometry_version, geometry_status,
+                     resolution_reason, last_actor_username, source_event, created_at, updated_at,
+                     resolved_at, closed_at)
                 VALUES
-                    (:conflict_key, :player_a_username, :player_b_username, :area_a_id, :area_b_id,
+                    (:conflict_key, :conflict_id, :legacy_conflict_key, :participant_key,
+                     :player_a_username, :player_b_username, :area_a_id, :area_b_id,
                      :participants_json, :area_ids_json, :intersection_json, :intersections_json,
-                     :targets_json, :status, :last_actor_username, :source_event, :created_at, :updated_at)
-                ON CONFLICT(conflict_key) DO UPDATE SET
-                    area_a_id = excluded.area_a_id,
-                    area_b_id = excluded.area_b_id,
-                    participants_json = excluded.participants_json,
-                    area_ids_json = excluded.area_ids_json,
-                    intersection_json = excluded.intersection_json,
-                    intersections_json = excluded.intersections_json,
-                    targets_json = excluded.targets_json,
-                    status = excluded.status,
-                    last_actor_username = excluded.last_actor_username,
-                    source_event = excluded.source_event,
-                    updated_at = excluded.updated_at
+                     :targets_json, :status, :conflict_version, :geometry_version, :geometry_status,
+                     :resolution_reason, :last_actor_username, :source_event, :created_at, :updated_at,
+                     :resolved_at, :closed_at)
                 """,
-                data,
+                    data,
+                )
+            else:
+                data["id"] = existing["id"]
+                conn.execute(
+                """
+                UPDATE territory_conflicts SET
+                    participant_key = :participant_key,
+                    player_a_username = :player_a_username,
+                    player_b_username = :player_b_username,
+                    area_a_id = :area_a_id,
+                    area_b_id = :area_b_id,
+                    participants_json = :participants_json,
+                    area_ids_json = :area_ids_json,
+                    intersection_json = :intersection_json,
+                    intersections_json = :intersections_json,
+                    targets_json = :targets_json,
+                    status = :status,
+                    conflict_version = :conflict_version,
+                    geometry_version = :geometry_version,
+                    geometry_status = :geometry_status,
+                    resolution_reason = :resolution_reason,
+                    last_actor_username = :last_actor_username,
+                    source_event = :source_event,
+                    updated_at = :updated_at,
+                    resolved_at = :resolved_at,
+                    closed_at = :closed_at
+                WHERE id = :id
+                """,
+                    data,
+                )
+            row = conn.execute(
+                "SELECT * FROM territory_conflicts WHERE conflict_id = ?",
+                (data["conflict_id"],),
+            ).fetchone()
+            self._sync_pillars(
+                conn, data["conflict_id"], incoming_targets,
+                data["conflict_version"], data["geometry_version"],
+                actor_username=data["last_actor_username"],
+            )
+            projected = self._project_targets(conn, data["conflict_id"], effective_targets)
+            conn.execute(
+                "UPDATE territory_conflicts SET targets_json = ? WHERE conflict_id = ?",
+                (dumps_json(projected), data["conflict_id"]),
             )
             row = conn.execute(
-                "SELECT * FROM territory_conflicts WHERE conflict_key = ?",
-                (data["conflict_key"],),
+                "SELECT * FROM territory_conflicts WHERE conflict_id = ?",
+                (data["conflict_id"],),
             ).fetchone()
-            return self._row_to_conflict(row)
+            return self._conflict_from_row(conn, row)
 
     def list_active_for_player(self, username):
         with db_connect(self.db_path) as conn:
@@ -1883,7 +2554,7 @@ class TerritoryConflictStore:
                 """
                 SELECT *
                 FROM territory_conflicts
-                WHERE status = 'active'
+                WHERE status IN ('detected', 'active', 'changing', 'resolving')
                     AND (
                         player_a_username = ?
                         OR player_b_username = ?
@@ -1893,15 +2564,612 @@ class TerritoryConflictStore:
                 """,
                 (username, username, f'%"{username}"%'),
             ).fetchall()
-            return [self._row_to_conflict(row) for row in rows]
+            return [self._conflict_from_row(conn, row) for row in rows]
 
     def get_by_key(self, conflict_key):
         with db_connect(self.db_path) as conn:
+            row = self._find_reference_row(conn, conflict_key)
+            return self._conflict_from_row(conn, row) if row else None
+
+    def list_pillars(self, conflict_reference):
+        with db_connect(self.db_path) as conn:
+            conflict_row = self._find_reference_row(conn, conflict_reference)
+            if not conflict_row:
+                return []
+            rows = conn.execute(
+                "SELECT * FROM territory_conflict_pillars WHERE conflict_id = ? ORDER BY id",
+                (str(conflict_row["conflict_id"] or conflict_row["id"]),),
+            ).fetchall()
+            return [self._row_to_pillar(row) for row in rows]
+
+    def list_events(self, conflict_reference, event_type=None):
+        with db_connect(self.db_path) as conn:
+            conflict_row = self._find_reference_row(conn, conflict_reference)
+            if not conflict_row:
+                return []
+            conflict_id = str(conflict_row["conflict_id"] or conflict_row["id"])
+            sql = "SELECT * FROM territory_conflict_events WHERE conflict_id = ?"
+            params = [conflict_id]
+            if event_type:
+                sql += " AND event_type = ?"
+                params.append(str(event_type))
+            sql += " ORDER BY created_at, event_id"
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [{
+                "event_id": row["event_id"],
+                "type": row["event_type"],
+                "conflict_id": row["conflict_id"],
+                "target_id": row["target_id"],
+                "action_id": row["action_id"],
+                "conflict_version": int(row["conflict_version"]),
+                "geometry_version": int(row["geometry_version"]),
+                "actor_username": row["actor_username"],
+                "payload": loads_json(row["payload_json"], {}),
+                "created_at": row["created_at"],
+            } for row in rows]
+
+    def request_rebuild(self, conflict_reference, reason, requested_version):
+        """Persist the highest requested input version for a conflict."""
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conflict_row = self._find_reference_row(conn, conflict_reference)
+            if not conflict_row:
+                return None
+            conflict_id = str(conflict_row["conflict_id"] or conflict_row["id"])
+            requested_version = max(1, int(requested_version or 1))
             row = conn.execute(
-                "SELECT * FROM territory_conflicts WHERE conflict_key = ?",
-                (conflict_key,),
+                "SELECT * FROM territory_conflict_rebuilds WHERE conflict_id = ?",
+                (conflict_id,),
             ).fetchone()
-            return self._row_to_conflict(row) if row else None
+            if row:
+                highest = max(int(row["requested_version"] or 0), requested_version)
+                status = "running" if row["status"] == "running" else "pending"
+                conn.execute(
+                    """
+                    UPDATE territory_conflict_rebuilds
+                    SET requested_version = ?, status = ?, reason = ?,
+                        requested_at = ?, updated_at = ?
+                    WHERE conflict_id = ?
+                    """,
+                    (highest, status, str(reason or "conflict_change"), now, now, conflict_id),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO territory_conflict_rebuilds
+                        (conflict_id, requested_version, status, reason,
+                         requested_at, updated_at)
+                    VALUES (?, ?, 'pending', ?, ?, ?)
+                    """,
+                    (conflict_id, requested_version, str(reason or "conflict_change"), now, now),
+                )
+            return {
+                "conflict_id": conflict_id,
+                "requested_version": highest if row else requested_version,
+                "status": status if row else "pending",
+            }
+
+    def claim_rebuild(self, conflict_reference, lease_owner, lease_seconds=120):
+        """Claim a durable rebuild lease; expired leases are safe to take over."""
+        now = utc_now()
+        lease_until = (datetime.utcnow() + timedelta(seconds=max(10, int(lease_seconds)))).isoformat(timespec="seconds")
+        with db_connect(self.db_path) as conn:
+            conflict_row = self._find_reference_row(conn, conflict_reference)
+            if not conflict_row:
+                return None
+            conflict_id = str(conflict_row["conflict_id"] or conflict_row["id"])
+            row = conn.execute(
+                "SELECT * FROM territory_conflict_rebuilds WHERE conflict_id = ?",
+                (conflict_id,),
+            ).fetchone()
+            if not row:
+                return None
+            lease_active = (
+                row["status"] == "running" and row["lease_until"] and
+                str(row["lease_until"]) > now and row["lease_owner"] != str(lease_owner)
+            )
+            if lease_active:
+                return None
+            processing_version = int(row["requested_version"] or 0)
+            cursor = conn.execute(
+                """
+                UPDATE territory_conflict_rebuilds
+                SET status = 'running', processing_version = ?, lease_owner = ?,
+                    lease_until = ?, attempts = attempts + 1,
+                    started_at = ?, updated_at = ?, last_error = ''
+                WHERE conflict_id = ?
+                  AND (status != 'running' OR lease_until IS NULL OR lease_until <= ? OR lease_owner = ?)
+                """,
+                (processing_version, str(lease_owner), lease_until, now, now,
+                 conflict_id, now, str(lease_owner)),
+            )
+            if cursor.rowcount != 1:
+                return None
+            conflict = self._conflict_from_row(conn, conflict_row)
+            self._record_event(
+                conn, "conflict.rebuild_started", conflict_id, "",
+                processing_version, conflict["geometry_version"],
+                payload={"lease_owner": str(lease_owner), "reason": row["reason"]},
+                event_id=f"conflict.rebuild_started:{conflict_id}:{processing_version}",
+            )
+            return {
+                "conflict": conflict,
+                "processing_version": processing_version,
+                "lease_owner": str(lease_owner),
+                "lease_until": lease_until,
+                "reason": row["reason"],
+            }
+
+    @staticmethod
+    def _front_row(row):
+        return {
+            "front_id": row["front_id"],
+            "conflict_id": row["conflict_id"],
+            "status": row["status"],
+            "geometry_version": int(row["geometry_version"] or 0),
+            "participant_key": row["participant_key"],
+            "area_ids": loads_json(row["area_ids_json"], []),
+            "pillar_ids": loads_json(row["pillar_ids_json"], []),
+            "geometry": loads_json(row["geometry_json"], []),
+            "parent_front_ids": loads_json(row["parent_front_ids_json"], []),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "closed_at": row["closed_at"],
+        }
+
+    @staticmethod
+    def _front_signature(front):
+        """Canonical shape used to detect a geometry publication no-op."""
+        return (
+            str(front.get("participant_key") or ""),
+            tuple(sorted(str(item) for item in (front.get("area_ids") or []))),
+            tuple(sorted(str(item) for item in (front.get("pillar_ids") or []))),
+            json.dumps(front.get("geometry") or [], ensure_ascii=False,
+                       sort_keys=True, separators=(",", ":")),
+        )
+
+    def list_fronts(self, conflict_reference, active_only=False):
+        with db_connect(self.db_path) as conn:
+            conflict_row = self._find_reference_row(conn, conflict_reference)
+            if not conflict_row:
+                return []
+            conflict_id = str(conflict_row["conflict_id"] or conflict_row["id"])
+            sql = "SELECT * FROM territory_conflict_fronts WHERE conflict_id = ?"
+            params = [conflict_id]
+            if active_only:
+                sql += " AND status = 'active'"
+            sql += " ORDER BY created_at, front_id"
+            return [self._front_row(row) for row in conn.execute(sql, tuple(params)).fetchall()]
+
+    def latest_snapshot(self, conflict_reference):
+        with db_connect(self.db_path) as conn:
+            conflict_row = self._find_reference_row(conn, conflict_reference)
+            if not conflict_row:
+                return None
+            conflict_id = str(conflict_row["conflict_id"] or conflict_row["id"])
+            row = conn.execute(
+                """SELECT * FROM territory_conflict_snapshots
+                   WHERE conflict_id = ? ORDER BY snapshot_version DESC LIMIT 1""",
+                (conflict_id,),
+            ).fetchone()
+            return loads_json(row["payload_json"], {}) if row else None
+
+    def latest_snapshot_state(self, conflict_reference):
+        """Overlay live domain freshness on the last immutable geometry snapshot."""
+        snapshot = self.latest_snapshot(conflict_reference)
+        conflict = self.get_by_key(conflict_reference)
+        if not isinstance(conflict, dict):
+            return snapshot
+
+        state = dict(snapshot) if isinstance(snapshot, dict) else {
+            "fronts": [],
+            "geometries": [],
+            "snapshot_version": 0,
+            "geometry_version": int(conflict.get("geometry_version") or 0),
+            "generated_at": conflict.get("updated_at"),
+        }
+        geometry_status = str(conflict.get("geometry_status") or "").lower()
+        snapshot_conflict_version = int(state.get("conflict_version") or 0)
+        current_conflict_version = int(conflict.get("conflict_version") or 0)
+        complete = (
+            geometry_status in {"clean", "published"}
+            and snapshot_conflict_version >= current_conflict_version
+        )
+        state.update({
+            "conflict": conflict,
+            "pillars": self.list_pillars(conflict.get("conflict_id")),
+            "conflict_version": current_conflict_version,
+            "geometry_status": geometry_status or "unknown",
+            "complete": complete,
+            "recovery_required": geometry_status == "rebuild_failed",
+        })
+        return state
+
+    def list_latest_snapshots_for_player(self, username):
+        """Return one immutable, latest snapshot for each active player conflict."""
+        snapshots = []
+        for conflict in self.list_active_for_player(username):
+            snapshot = self.latest_snapshot_state(
+                conflict.get("conflict_id") or conflict.get("conflict_key")
+            )
+            if isinstance(snapshot, dict):
+                snapshots.append(snapshot)
+        return sorted(
+            snapshots,
+            key=lambda item: (
+                str(item.get("generated_at") or ""),
+                str((item.get("conflict") or {}).get("conflict_id") or ""),
+            ),
+            reverse=True,
+        )
+
+    def publish_rebuild(self, conflict_reference, lease_owner, processing_version, front_plans,
+                        resolve=False, resolution_reason=""):
+        """Atomically publish fronts, conflict geometry and one immutable snapshot."""
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conflict_row = self._find_reference_row(conn, conflict_reference)
+            if not conflict_row:
+                return {"ok": False, "reason": "conflict_not_found"}
+            conflict = self._conflict_from_row(conn, conflict_row)
+            conflict_id = conflict["conflict_id"]
+            request_row = conn.execute(
+                "SELECT * FROM territory_conflict_rebuilds WHERE conflict_id = ?",
+                (conflict_id,),
+            ).fetchone()
+            if (not request_row or request_row["status"] != "running" or
+                    request_row["lease_owner"] != str(lease_owner) or
+                    int(request_row["processing_version"] or 0) != int(processing_version)):
+                return {"ok": False, "reason": "lease_lost"}
+
+            old_rows = conn.execute(
+                "SELECT * FROM territory_conflict_fronts WHERE conflict_id = ? AND status = 'active'",
+                (conflict_id,),
+            ).fetchall()
+            old_fronts = [self._front_row(row) for row in old_rows]
+            latest_snapshot_row = conn.execute(
+                """SELECT payload_json FROM territory_conflict_snapshots
+                   WHERE conflict_id = ? ORDER BY snapshot_version DESC LIMIT 1""",
+                (conflict_id,),
+            ).fetchone()
+            old_signatures = sorted(self._front_signature(front) for front in old_fronts)
+            plan_signatures = sorted(self._front_signature({
+                "participant_key": plan.get("participant_key") or conflict["participant_key"],
+                "area_ids": plan.get("area_ids") or [],
+                "pillar_ids": plan.get("pillar_ids") or [],
+                "geometry": plan.get("geometry") or [],
+            }) for plan in (front_plans or []))
+            same_resolution = bool(resolve) == (conflict.get("status") == "resolved")
+            if latest_snapshot_row and same_resolution and old_signatures == plan_signatures:
+                latest_request_row = conn.execute(
+                    "SELECT requested_version FROM territory_conflict_rebuilds WHERE conflict_id = ?",
+                    (conflict_id,),
+                ).fetchone()
+                pending_newer = int(latest_request_row["requested_version"] or 0) > int(processing_version)
+                conn.execute(
+                    """
+                    UPDATE territory_conflict_rebuilds
+                    SET status = ?, lease_owner = '', lease_until = NULL,
+                        completed_at = ?, updated_at = ?
+                    WHERE conflict_id = ?
+                    """,
+                    ("pending" if pending_newer else "complete", now, now, conflict_id),
+                )
+                return {
+                    "ok": True,
+                    "changed": False,
+                    "snapshot": loads_json(latest_snapshot_row["payload_json"], {}),
+                    "pending_newer": pending_newer,
+                }
+            unmatched_old = {front["front_id"]: front for front in old_fronts}
+            geometry_version = int(conflict["geometry_version"] or 0) + 1
+            published_fronts = []
+
+            planned_fronts = []
+            parent_usage = {front["front_id"]: 0 for front in old_fronts}
+            for plan in front_plans or []:
+                plan_areas = {str(item) for item in (plan.get("area_ids") or [])}
+                plan_pillars = {str(item) for item in (plan.get("pillar_ids") or [])}
+                candidates = []
+                for old in old_fronts:
+                    area_overlap = len(plan_areas & {str(item) for item in old["area_ids"]})
+                    pillar_overlap = len(plan_pillars & {str(item) for item in old["pillar_ids"]})
+                    if old["participant_key"] == plan.get("participant_key") and (area_overlap or pillar_overlap):
+                        candidates.append((area_overlap + pillar_overlap, old))
+                candidates.sort(key=lambda item: (item[0], item[1]["front_id"]), reverse=True)
+                parent_ids = [item[1]["front_id"] for item in candidates]
+                for parent_id in parent_ids:
+                    parent_usage[parent_id] += 1
+                planned_fronts.append((plan, candidates, parent_ids))
+
+            for plan, candidates, parent_ids in planned_fronts:
+                matched = None
+                if len(parent_ids) == 1 and parent_usage[parent_ids[0]] == 1:
+                    matched = candidates[0][1]
+                front_id = matched["front_id"] if matched else f"front_{secrets.token_hex(8)}"
+                if matched:
+                    unmatched_old.pop(front_id, None)
+                created_at = matched["created_at"] if matched else now
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO territory_conflict_fronts
+                        (front_id, conflict_id, status, geometry_version, participant_key,
+                         area_ids_json, pillar_ids_json, geometry_json,
+                         parent_front_ids_json, created_at, updated_at, closed_at)
+                    VALUES (?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+                    """,
+                    (front_id, conflict_id, geometry_version,
+                     str(plan.get("participant_key") or conflict["participant_key"]),
+                     dumps_json(plan.get("area_ids") or []), dumps_json(plan.get("pillar_ids") or []),
+                     dumps_json(plan.get("geometry") or []), dumps_json(parent_ids),
+                     created_at, now),
+                )
+                event_type = "conflict.front_updated" if matched else "conflict.front_created"
+                if len(parent_ids) > 1:
+                    event_type = "conflict.front_merged"
+                elif len(parent_ids) == 1 and parent_usage[parent_ids[0]] > 1:
+                    event_type = "conflict.front_split"
+                self._record_event(
+                    conn, event_type, conflict_id, front_id, processing_version, geometry_version,
+                    payload={"parent_front_ids": parent_ids},
+                    event_id=f"{event_type}:{conflict_id}:{front_id}:{geometry_version}",
+                )
+                published_fronts.append(self._front_row(conn.execute(
+                    "SELECT * FROM territory_conflict_fronts WHERE front_id = ?", (front_id,)
+                ).fetchone()))
+
+            for old in unmatched_old.values():
+                child_count = sum(
+                    1 for front in published_fronts
+                    if old["front_id"] in front["parent_front_ids"]
+                )
+                status = "split" if child_count > 1 else ("merged" if child_count == 1 else "closed")
+                conn.execute(
+                    "UPDATE territory_conflict_fronts SET status = ?, updated_at = ?, closed_at = ? WHERE front_id = ?",
+                    (status, now, now, old["front_id"]),
+                )
+                event_type = {
+                    "split": "conflict.front_split",
+                    "merged": "conflict.front_merged",
+                    "closed": "conflict.front_closed",
+                }[status]
+                self._record_event(
+                    conn, event_type, conflict_id, old["front_id"], processing_version, geometry_version,
+                    event_id=f"{event_type}:{conflict_id}:{old['front_id']}:{geometry_version}",
+                )
+
+            status = "resolved" if resolve else "active"
+            geometry_status = "clean"
+            resolved_at = now if resolve else conflict.get("resolved_at")
+            conn.execute(
+                """
+                UPDATE territory_conflicts
+                SET status = ?, geometry_version = ?, geometry_status = ?,
+                    resolution_reason = ?, resolved_at = ?, updated_at = ?
+                WHERE conflict_id = ?
+                """,
+                (status, geometry_version, geometry_status,
+                 str(resolution_reason or ("geometry_disappeared" if resolve else "")),
+                 resolved_at, now, conflict_id),
+            )
+            updated = self._conflict_from_row(conn, conn.execute(
+                "SELECT * FROM territory_conflicts WHERE conflict_id = ?", (conflict_id,)
+            ).fetchone())
+            snapshot_version = geometry_version
+            payload = {
+                "conflict": updated,
+                "fronts": published_fronts,
+                "geometries": [front["geometry"] for front in published_fronts],
+                "pillars": [self._row_to_pillar(row) for row in conn.execute(
+                    "SELECT * FROM territory_conflict_pillars WHERE conflict_id = ? ORDER BY id", (conflict_id,)
+                ).fetchall()],
+                "conflict_version": int(processing_version),
+                "geometry_version": geometry_version,
+                "snapshot_version": snapshot_version,
+                "generated_at": now,
+            }
+            conn.execute(
+                """INSERT INTO territory_conflict_snapshots
+                   (snapshot_id, conflict_id, snapshot_version, conflict_version,
+                    geometry_version, payload_json, generated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (f"snapshot:{conflict_id}:{snapshot_version}", conflict_id, snapshot_version,
+                 int(processing_version), geometry_version, dumps_json(payload), now),
+            )
+            event_type = "conflict.resolved" if resolve else "conflict.geometry_rebuilt"
+            self._record_event(
+                conn, event_type, conflict_id, "", processing_version, geometry_version,
+                payload={"snapshot_version": snapshot_version},
+                event_id=f"{event_type}:{conflict_id}:{geometry_version}",
+            )
+            latest_request_row = conn.execute(
+                "SELECT requested_version FROM territory_conflict_rebuilds WHERE conflict_id = ?",
+                (conflict_id,),
+            ).fetchone()
+            pending_newer = int(latest_request_row["requested_version"] or 0) > int(processing_version)
+            conn.execute(
+                """
+                UPDATE territory_conflict_rebuilds
+                SET status = ?, lease_owner = '', lease_until = NULL,
+                    completed_at = ?, updated_at = ?
+                WHERE conflict_id = ?
+                """,
+                ("pending" if pending_newer else "complete", now, now, conflict_id),
+            )
+            return {"ok": True, "changed": True, "snapshot": payload, "pending_newer": pending_newer}
+
+    def fail_rebuild(self, conflict_reference, lease_owner, processing_version, error):
+        """Release the lease without replacing the last valid geometry snapshot."""
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conflict_row = self._find_reference_row(conn, conflict_reference)
+            if not conflict_row:
+                return False
+            conflict = self._conflict_from_row(conn, conflict_row)
+            request_row = conn.execute(
+                "SELECT * FROM territory_conflict_rebuilds WHERE conflict_id = ?",
+                (conflict["conflict_id"],),
+            ).fetchone()
+            if not request_row or request_row["lease_owner"] != str(lease_owner):
+                return False
+            conn.execute(
+                """UPDATE territory_conflict_rebuilds
+                   SET status = 'pending', lease_owner = '', lease_until = NULL,
+                       last_error = ?, updated_at = ? WHERE conflict_id = ?""",
+                (str(error)[:1000], now, conflict["conflict_id"]),
+            )
+            conn.execute(
+                "UPDATE territory_conflicts SET status = 'changing', geometry_status = 'rebuild_failed', updated_at = ? WHERE conflict_id = ?",
+                (now, conflict["conflict_id"]),
+            )
+            self._record_event(
+                conn, "conflict.rebuild_failed", conflict["conflict_id"], "",
+                processing_version, conflict["geometry_version"],
+                payload={"error": str(error)[:1000]},
+                event_id=f"conflict.rebuild_failed:{conflict['conflict_id']}:{processing_version}:{request_row['attempts']}",
+            )
+            return True
+
+    def capture_pillar(self, conflict_reference, target_id, captured_target,
+                       captured_by_username, previous_owner_username=None,
+                       action_id=None):
+        target_id = str(target_id or self.stable_target_id(captured_target))
+        actor = str(captured_by_username or "")
+        action_id = str(action_id or "").strip()
+        receipt_id = f"conflict.pillar_capture.receipt:{action_id}" if action_id else None
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conflict_row = self._find_reference_row(conn, conflict_reference)
+            if not conflict_row:
+                return {"ok": False, "reason": "conflict_not_found", "target_id": target_id}
+            conflict = self._conflict_from_row(conn, conflict_row)
+            if conflict["status"] not in self.OPEN_STATUSES:
+                return {"ok": False, "reason": "conflict_not_active", "target_id": target_id}
+
+            duplicate = None
+            if receipt_id:
+                duplicate = conn.execute(
+                    "SELECT 1 FROM territory_conflict_events WHERE event_id = ?",
+                    (receipt_id,),
+                ).fetchone()
+            if duplicate:
+                return {
+                    "ok": True, "duplicate": True, "changed": False,
+                    "conflict": conflict, "target_id": target_id,
+                }
+
+            pillar_row = conn.execute(
+                "SELECT * FROM territory_conflict_pillars WHERE conflict_id = ? AND target_id = ?",
+                (conflict["conflict_id"], target_id),
+            ).fetchone()
+            if not pillar_row:
+                seed_item = copy.deepcopy(captured_target or {})
+                if "target" not in seed_item:
+                    seed_item = {
+                        "owner": previous_owner_username or seed_item.get("owner_username") or "",
+                        "owner_username": previous_owner_username or seed_item.get("owner_username") or "",
+                        "status": "contested",
+                        "captured": False,
+                        "target": seed_item,
+                    }
+                self._sync_pillars(
+                    conn, conflict["conflict_id"], [seed_item],
+                    conflict["conflict_version"], conflict["geometry_version"], actor,
+                )
+                pillar_row = conn.execute(
+                    "SELECT * FROM territory_conflict_pillars WHERE conflict_id = ? AND target_id = ?",
+                    (conflict["conflict_id"], target_id),
+                ).fetchone()
+            if not pillar_row:
+                return {"ok": False, "reason": "pillar_not_found", "target_id": target_id}
+
+            pillar = self._row_to_pillar(pillar_row)
+            if pillar["captured"] and pillar["captured_by"] == actor:
+                if receipt_id:
+                    self._record_event(
+                        conn, "conflict.pillar_capture.receipt", conflict["conflict_id"],
+                        target_id, conflict["conflict_version"], conflict["geometry_version"],
+                        actor_username=actor, action_id=action_id, event_id=receipt_id,
+                        payload={"changed": False, "reason": "already_captured"},
+                    )
+                return {
+                    "ok": True, "duplicate": False, "changed": False,
+                    "reason": "already_captured", "conflict": conflict,
+                    "pillar": pillar, "target_id": target_id,
+                }
+
+            next_version = int(conflict["conflict_version"]) + 1
+            previous_owner = str(
+                previous_owner_username or pillar["owner_username"] or
+                pillar["previous_owner_username"] or ""
+            )
+            recaptured = bool(pillar["captured"] and pillar["captured_by"] and pillar["captured_by"] != actor)
+            public_target = copy.deepcopy(pillar["public_target"] or {})
+            if "target" not in public_target:
+                public_target = {"target": public_target}
+            public_target.update({
+                "target_id": target_id,
+                "owner": actor,
+                "owner_username": actor,
+                "previous_owner": previous_owner,
+                "status": "captured",
+                "captured": True,
+                "captured_by": actor,
+                "hacked_by": actor,
+            })
+            public_target["target"] = {
+                **(public_target.get("target") or {}),
+                **((captured_target or {}).get("target") or captured_target or {}),
+                "target_id": target_id,
+                "owner_username": actor,
+            }
+            conn.execute(
+                """
+                UPDATE territory_conflict_pillars SET
+                    owner_username = ?, previous_owner_username = ?,
+                    attacker_username = ?, status = 'captured', captured = 1,
+                    captured_by = ?, last_changed_version = ?,
+                    public_target_json = ?, updated_at = ?, captured_at = ?
+                WHERE id = ?
+                """,
+                (actor, previous_owner, actor, actor, next_version,
+                 dumps_json(public_target), now, now, pillar["id"]),
+            )
+            projected = self._project_targets(conn, conflict["conflict_id"], [])
+            conn.execute(
+                """
+                UPDATE territory_conflicts SET targets_json = ?, status = 'changing',
+                    conflict_version = ?, geometry_status = 'dirty',
+                    last_actor_username = ?, source_event = 'pillar_captured', updated_at = ?
+                WHERE id = ?
+                """,
+                (dumps_json(projected), next_version, actor, now, conflict["id"]),
+            )
+            event_type = "conflict.pillar_recaptured" if recaptured else "conflict.pillar_captured"
+            payload = {"previous_owner_username": previous_owner, "captured_by": actor}
+            self._record_event(conn, event_type, conflict["conflict_id"], target_id,
+                               next_version, conflict["geometry_version"], actor, action_id, payload)
+            self._record_event(conn, "conflict.updated", conflict["conflict_id"], target_id,
+                               next_version, conflict["geometry_version"], actor, action_id,
+                               {"geometry_status": "dirty"})
+            self._record_event(conn, "conflict.rebuild_requested", conflict["conflict_id"], target_id,
+                               next_version, conflict["geometry_version"], actor, action_id,
+                               {"reason": "pillar_captured"})
+            if receipt_id:
+                self._record_event(conn, "conflict.pillar_capture.receipt", conflict["conflict_id"],
+                                   target_id, next_version, conflict["geometry_version"], actor,
+                                   action_id, {"changed": True}, event_id=receipt_id)
+            updated_row = conn.execute(
+                "SELECT * FROM territory_conflicts WHERE id = ?", (conflict["id"],)
+            ).fetchone()
+            return {
+                "ok": True, "duplicate": False, "changed": True,
+                "conflict": self._conflict_from_row(conn, updated_row),
+                "pillar": self._row_to_pillar(conn.execute(
+                    "SELECT * FROM territory_conflict_pillars WHERE id = ?", (pillar["id"],)
+                ).fetchone()),
+                "target_id": target_id,
+            }
 
     def list_active(self):
         with db_connect(self.db_path) as conn:
@@ -1909,11 +3177,11 @@ class TerritoryConflictStore:
                 """
                 SELECT *
                 FROM territory_conflicts
-                WHERE status = 'active'
+                WHERE status IN ('detected', 'active', 'changing', 'resolving')
                 ORDER BY updated_at DESC, id DESC
                 """
             ).fetchall()
-            return [self._row_to_conflict(row) for row in rows]
+            return [self._conflict_from_row(conn, row) for row in rows]
 
     def deactivate_stale_for_participants(self, participants, active_keys, source_event="conflict_refresh"):
         participants = {str(participant) for participant in (participants or []) if participant}
@@ -1926,35 +3194,47 @@ class TerritoryConflictStore:
                 """
                 SELECT *
                 FROM territory_conflicts
-                WHERE status = 'active'
+                WHERE status IN ('detected', 'active', 'changing', 'resolving')
                 """
             ).fetchall()
 
             stale_ids = []
             for row in rows:
-                conflict = self._row_to_conflict(row)
+                conflict = self._conflict_from_row(conn, row)
                 conflict_participants = set(conflict.get("participants") or [])
                 if not participants & conflict_participants:
                     continue
-                if conflict.get("conflict_key") in active_keys:
+                if ({str(conflict.get("conflict_id")), str(conflict.get("conflict_key")),
+                     str(conflict.get("legacy_conflict_key"))} & active_keys):
                     continue
                 stale_ids.append(conflict.get("id"))
 
             if not stale_ids:
-                return 0
+                return []
 
             placeholders = ",".join("?" for _ in stale_ids)
             conn.execute(
                 f"""
                 UPDATE territory_conflicts
                 SET status = 'resolved',
+                    conflict_version = conflict_version + 1,
+                    resolution_reason = CASE
+                        WHEN resolution_reason IS NULL OR resolution_reason = ''
+                        THEN 'geometry_disappeared'
+                        ELSE resolution_reason
+                    END,
+                    resolved_at = COALESCE(resolved_at, ?),
                     source_event = ?,
                     updated_at = ?
                 WHERE id IN ({placeholders})
                 """,
-                [source_event, utc_now(), *stale_ids],
+                [utc_now(), source_event, utc_now(), *stale_ids],
             )
-            return len(stale_ids)
+            resolved_rows = conn.execute(
+                f"SELECT * FROM territory_conflicts WHERE id IN ({placeholders})",
+                stale_ids,
+            ).fetchall()
+            return [self._conflict_from_row(conn, row) for row in resolved_rows]
 
     def delete_user_data(self, username):
         with db_connect(self.db_path) as conn:

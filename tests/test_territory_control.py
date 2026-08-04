@@ -393,7 +393,11 @@ class TerritoryControlTest(unittest.TestCase):
                 patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run.user_store, "get_profile", return_value=profile), \
                 patch.object(run, "refresh_stale_territory_polygons", side_effect=AssertionError("read endpoint must not rebuild")), \
-                patch.object(run, "get_active_conflicts_for_player", side_effect=RuntimeError("conflict store busy")):
+                patch.object(
+                    run.territory_conflict_store,
+                    "list_latest_snapshots_for_player",
+                    side_effect=RuntimeError("conflict snapshot store busy"),
+                ):
             response = client.get("/api/map/player-areas")
 
         self.assertEqual(response.status_code, 200)
@@ -401,7 +405,7 @@ class TerritoryControlTest(unittest.TestCase):
         self.assertEqual(len(payload["areas"]), 1)
         self.assertEqual(payload["areas"][0]["id"], "alice-area")
         self.assertIn("stale_refresh_deferred", payload["warnings"])
-        self.assertIn("conflicts_unavailable", payload["warnings"])
+        self.assertIn("conflict_snapshots_unavailable", payload["warnings"])
         self.assertIn("intruders_unavailable", payload["warnings"])
 
     def test_full_encirclement_transfers_cluster_members_and_preserves_outside_points(self):
@@ -457,7 +461,9 @@ class TerritoryControlTest(unittest.TestCase):
             self.assertEqual(bob_labels, {"B-outside"})
             self.assertEqual(store.list_player_areas("bob"), [])
             self.assertGreaterEqual(len(store.list_player_areas("alice")), 1)
-            self.assertEqual(conflict_store.get_by_key("alice-bob-test")["status"], "resolved_by_encirclement")
+            resolved_conflict = conflict_store.get_by_key("alice-bob-test")
+            self.assertEqual(resolved_conflict["status"], "resolved")
+            self.assertEqual(resolved_conflict["resolution_reason"], "encirclement")
 
             with patch.object(run, "load_profile_readonly", return_value={"level": 3}):
                 repeated = run.TerritoryEncirclementResolver(store, conflict_store).detect_encircled_clusters(apply=True)

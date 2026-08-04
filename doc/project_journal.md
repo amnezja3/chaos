@@ -10445,3 +10445,169 @@ Status:
 * portfel ma teraz audytowalna podstawe do pozniejszego wyrownania salda;
 * kolejne optymalizacje powinny isc w kierunku dalszego wyjmowania goracych
   danych z duzego profilu JSON do osobnych tabel i lekkich read modeli.
+
+## Sprint 130.8.1 - Stabilna tozsamosc konfliktow terytorialnych
+
+Przed rozpoczeciem wykonano pelny backup silnika:
+
+* `data/backups/engine_pre_sprint_130_8_1_20260804_002344.zip`.
+
+Wdrozone:
+
+* rozszerzono `territory_conflicts` o stabilny `conflict_id`, alias legacy,
+  `participant_key`, wersje domeny i geometrii, status geometrii, powody
+  rozwiazania oraz znaczniki czasu cyklu zycia;
+* dodano idempotentna migracje istniejacych konfliktow i zgodnosc odczytu po
+  `conflict_id`, aktualnym kluczu geometrii, kluczu legacy oraz dawnym `id`;
+* lifecycle konfliktu rozroznia stany aktywne i zamkniete, a zakonczony cykl
+  nie moze zostac ponownie otwarty przez kolejny rebuild;
+* `participant_key` jest tylko indeksem kandydatow. Kontynuacja cyklu wymaga
+  zgodnego aliasu geometrii albo rzeczywistego nakladania `area_ids`, dzieki
+  czemu rozlaczne fronty tych samych uczestnikow zachowuja osobne identity;
+* zmiana samej geometrii podnosi `geometry_version`, zmiana domenowa podnosi
+  `conflict_version`, a zapis no-op nie zmienia zadnej wersji;
+* stare `resolved_by_encirclement` migruje do `resolved` z
+  `resolution_reason=encirclement`;
+* wygasniecie nieobecnej geometrii rozwiazuje tylko odpowiadajacy jej cykl i
+  emituje delte dopiero po rzeczywistej zmianie wersji;
+* payloady runtime zachowuja aliasy kompatybilnosci dla obecnych konsumentow.
+
+Walidacja:
+
+* `python -m py_compile database.py run.py`: OK;
+* 31 testow kontraktu identity, Territory Control, territory delta i read
+  modelu: OK;
+* pokryto stabilnosc ID po zmianie geometrii, dwa rozlaczne fronty tych samych
+  uczestnikow, no-op, wersjonowanie, zamkniecie i nowy cykl, aliasy legacy,
+  migracje idempotentna oraz encirclement;
+* `git diff --check`: OK.
+
+Poza zakresem pozostaja filary, fronty, przebudowa renderowania mapy oraz
+cutover frontend/API. Te elementy naleza do Sprintow 130.8.2-130.8.4.
+
+## Sprint 130.8.2 - Rejestr filarow i atomowe przejecie
+
+Wdrozone:
+
+* utworzono kanoniczny rejestr filarow konfliktu z unikalnym kluczem
+  `(conflict_id, target_id)`; `conflict.targets` pozostaje projekcja dla
+  zgodnosci ze starymi konsumentami;
+* migracja legacy zachowuje wlasciciela, historie przejecia, publiczne dane
+  targetu oraz stabilna tozsamosc aktywnych filarow;
+* usunieto dopasowywanie historii filaru po wspolrzednych - geometria i label
+  moga sie zmienic bez utraty stanu domenowego;
+* przejecie aktualizuje jeden filar, podnosi `conflict_version` raz, nie
+  zmienia `geometry_version`, oznacza geometrie jako `dirty` i rejestruje
+  jedno zadanie przebudowy;
+* retry tej samej akcji jest deduplikowane przez receipt, a pozniejsze
+  prawdziwe odbicie filaru pozostaje dozwolone;
+* sciezka `/gonna-win` zapisuje przejecie filaru przed rebuildem geometrii,
+  dzieki czemu stary snapshot nie moze cofnac wyniku hackowania;
+* zachowano etapy narzedzi, `actions_allowed`, operacje, pliki, nagrody, RSP
+  i komunikaty istniejacego gameplayu.
+
+Zgodnosc sprawdzono z `clans_machines.md` i
+`ghostnetwork_architecture.md`. Fronty, konsolidacja przebudow oraz atomowa
+publikacja geometrii pozostaja wylacznie zakresem Sprintu 130.8.3.
+
+## Sprint 130.8.3 - Konsolidacja geometrii, fronty i atomowy snapshot
+
+Wdrozone:
+
+* dodano trwaly koordynator przebudowy konfliktu z najwyzsza oczekujaca
+  wersja, deduplikacja, wylacznym lease oraz przejeciem pracy po wygasnieciu
+  lease poprzedniego workera;
+* seria zmian uczestnikow pobiera obszary i buduje plan detekcji jeden raz;
+  ten sam plan zasila konsolidacje wszystkich konfliktow serii;
+* nowsza wersja zgloszona podczas publikacji uruchamia kolejny, swiezy
+  przebieg zamiast publikowac stary wynik;
+* rozdzielono czysta detekcje geometrii od materializacji cyklu konfliktu i
+  publikacji zdarzen;
+* fronty maja stabilne identyfikatory, lineage rodzicow oraz obsluge
+  aktualizacji, podzialu, polaczenia i zamkniecia;
+* konflikt, aktywne fronty, filary, geometrie i wersje sa publikowane jako
+  jeden atomowy snapshot;
+* no-op nie podnosi wersji ani nie emituje drugiego zdarzenia, a blad zachowuje
+  ostatni poprawny snapshot i nie podnosi `geometry_version`;
+* otoczenie uruchamiane jest jeden raz po calej serii, z zachowaniem ochrony
+  znajomych i czlonkow klanu;
+* wynik koordynatora zawiera pomiary przebudowy uczestnikow, pobrania obszarow,
+  detekcji, planowania frontow, publikacji i czasu calkowitego.
+
+Zgodnosc sprawdzono z `clans_machines.md` i
+`ghostnetwork_architecture.md`: konflikt pozostaje nakladka, nie zmienia
+kanonicznej wlasnosci przed przejeciem, a downstream otrzymuje zdarzenie
+dopiero po udanej publikacji stabilnego snapshotu.
+
+Walidacja:
+
+* pierwszy przebieg uruchomil 33 testy kontraktu konfliktow i Territory
+  Control; wykryl jedna nieprecyzyjna asercje kolejnosci frontow, poprawiona na
+  sprawdzanie konkretnego `parent_front_id`;
+* finalny rerun wykonano po przywroceniu interpretera Python 3.11.9:
+  `python -m unittest tests.test_territory_conflict_identity tests.test_territory_control`
+  uruchomil 33 testy i zakonczyl sie wynikiem `OK`;
+* `database.py` i `run.py` przeszly `python -m py_compile`;
+* `git diff --check` wykonano bez bledow formatowania.
+
+Frontend mapy, format endpointu i cutover warstw Leaflet pozostaja poza tym
+sprintem i naleza do Sprintu 130.8.4.
+
+## Sprint 130.8.4 - Projekcja API, delty i stabilne warstwy mapy
+
+Wdrozone:
+
+* `/api/map/player-areas` zostal przelaczony na read-only odczyt ostatnich
+  atomowych snapshotow konfliktow; endpoint nie wykrywa konfliktow, nie
+  przebudowuje geometrii i nie wywoluje `sync_session_profile()`;
+* kanoniczny payload konfliktu i pola kompatybilnosci legacy powstaja z tego
+  samego snapshotu, bez mieszania wersji frontow i filarow;
+* dodano stabilne rejestry Leaflet po `conflict_id`, `front_id` i `target_id`;
+  istniejace polygony i markery sa latane punktowo zamiast odtwarzane przy
+  kazdej delcie;
+* `territory.conflict_changed` przenosi kompletny snapshot, odrzuca stare
+  wersje snapshotu, domeny i geometrii oraz uruchamia recovery tylko przy
+  luce albo niepelnych danych;
+* zachowano przejsciowa projekcje legacy i feature flag rollbacku, dlatego
+  cutover nie usuwa nowych danych ani postepu konfliktow;
+* zgodnosc gameplayu sprawdzono z `clans_machines.md` i
+  `ghostnetwork_architecture.md`.
+
+Walidacja:
+
+* Python 3.11.9: `py_compile` dla `database.py`, `run.py` i
+  `response_network/territory_delta.py` - OK;
+* 42 testy kontraktu identity, Territory Control, territory delta i map
+  cutover - OK;
+* potwierdzono read-only endpoint, jeden wspolny snapshot, kompletna delte,
+  stabilne rejestry, monotoniczne wersje i recovery po luce;
+* commit i deploy nie zostaly wykonane.
+
+## Sprint 130.8.5 - Domkniecie spojnosci konfliktow po audycie
+
+Wdrozone:
+
+* delta po przejeciu filaru korzysta z biezacego stanu domenowego nalozonego
+  na ostatnia poprawna geometrie, zamiast publikowac stary konflikt zapisany
+  wewnatrz immutable snapshotu;
+* read model snapshotu publikuje jawne `geometry_status`, `complete` oraz
+  `recovery_required`; stan `dirty`, `changing` albo `rebuild_failed` nie jest
+  przedstawiany frontendowi jako kompletny;
+* brak pierwszego opublikowanego snapshotu daje jawny, niekompletny stan bez
+  uruchamiania przebudowy w `/api/map/player-areas`;
+* pojedynczy otwarty cykl uczestnikow zachowuje `conflict_id` po calkowitej
+  zmianie geometrii; rozdzielenie geometrii nalezy do stabilnych `front_id`;
+* deduplikacja `territory.conflict_changed` uzywa stabilnego `conflict_id`, a
+  nie zmiennego aliasu `conflict_key`;
+* dodano testy regresyjne dirty snapshotu, publikacji live state, stabilnego
+  identity po zmianie geometrii i dedupe po `conflict_id`.
+
+Walidacja:
+
+* `python -m py_compile database.py run.py response_network/territory_delta.py`:
+  OK;
+* `python -m unittest tests.test_territory_conflict_identity tests.test_territory_conflict_map_cutover tests.test_territory_control`:
+  41 testow, OK;
+* `git diff --check`: OK, pozostaje istniejacy warning CRLF/LF dla
+  `templates/map_template.html`;
+* commit i deploy nie zostaly wykonane.
