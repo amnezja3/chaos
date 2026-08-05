@@ -10827,3 +10827,10 @@ wyliczonego overlapu. Takie obiekty nie trafialy do rejestru przy starcie, wiec
 nie mogly pojawic sie rowniez w kolejnych fazach. Kwalifikacja uzywa teraz
 domenowego `territory_point_in_polygon_or_boundary` z tolerancja. Worker loguje
 `[TERRITORY_CONFLICT_TARGETS]` z wersja, liczba, rolami i stabilnymi ID targetow.
+
+Diagnostyka snapshotu potwierdzila nastepnie cztery poprawne rekordy i cztery
+warstwy Leaflet `attached=true`, ale cutover 130.8.4 renderowal je jako surowe
+SVG `circleMarker` bez ikony celu i bez menu hackowania. Kanoniczne filary oraz
+innery uzywaja teraz widocznego `L.marker` z ikona konfliktowa, wysokim
+`zIndexOffset` i pelnym payloadem `territory_contest`. Stare circle markery sa
+zastepowane przy reconcile bez potrzeby globalnego reloadu mapy.

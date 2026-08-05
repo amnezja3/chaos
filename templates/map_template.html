@@ -2242,28 +2242,77 @@
             const point = normalizeMapLatLngPair(target.lat, target.lng !== undefined ? target.lng : target.lon);
             if (!point) return false;
             const version = Number(pillar.last_changed_version || snapshot.conflict_version || territorySnapshotVersion(snapshot));
-            const existing = window.territoryConflictPillarLayers[targetId];
+            let existing = window.territoryConflictPillarLayers[targetId];
             const label = window.escapeMapText(target.label || target.name || targetId);
             const owner = window.escapeMapText(pillar.owner_username || pillar.captured_by || target.owner_username || 'unknown');
-            const tooltip = `Filar konfliktu: ${label}<br>Wlasciciel: ${owner}`;
+            const nodeRole = String(pillar.node_role || target.node_role || 'pillar');
+            const roleLabel = nodeRole === 'inner' ? 'Inner konfliktu' : 'Filar konfliktu';
+            const tooltip = `${roleLabel}: ${label}<br>Wlasciciel: ${owner}`;
+            const icon = target.icon || '!';
+            const markerTarget = normalizeMapMenuTarget({
+                ...target,
+                target_id: targetId,
+                conflict_id: snapshot.conflict_id,
+                stable_conflict_id: snapshot.conflict_id,
+                target_mode: 'territory_contest',
+                contest_owner_username: pillar.owner_username || pillar.captured_by || target.owner_username,
+                owner_username: pillar.owner_username || pillar.captured_by || target.owner_username,
+                node_role: nodeRole,
+                label: target.label || target.name || targetId,
+                name: target.name || target.label || targetId,
+                icon
+            });
             if (existing && Number(existing.version || 0) > version) return true;
+            if (existing && existing.layer && !existing.layer._chaosTerritoryInteractiveMarker) {
+                removeTerritoryRegistryLayer(window.territoryConflictPillarLayers, targetId);
+                existing = null;
+            }
             if (existing && existing.layer) {
                 if (Number(existing.version || 0) < version && typeof existing.layer.setLatLng === 'function') {
                     existing.layer.setLatLng(point);
                 }
+                existing.layer.setIcon(L.divIcon({
+                    className: 'territory-contest-target',
+                    html: `
+                        <div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-10px);font-family:monospace;color:#ff4b4b;text-shadow:0 1px 2px #000;">
+                            <div style="font-size:10px;background:rgba(35,0,0,0.86);padding:1px 5px;border:1px solid #ff4b4b;margin-bottom:2px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</div>
+                            <div style="width:32px;height:32px;border-radius:50%;border:2px solid #ff4b4b;background:#210707;display:flex;align-items:center;justify-content:center;font-size:18px;">${window.escapeMapText(icon)}</div>
+                        </div>
+                    `,
+                    iconSize: [74, 62], iconAnchor: [37, 56], popupAnchor: [0, -48]
+                }));
                 existing.version = Math.max(Number(existing.version || 0), version);
                 existing.pillar = pillar;
                 bindTerritoryTooltip(existing.layer, tooltip);
+                existing.layer.off('contextmenu');
+                existing.layer.on('contextmenu', function(e) {
+                    consumeMapContextEvent(e);
+                    showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerTarget, icon, markerTarget.label, 'territoryConflictPillarMarker');
+                });
                 return true;
             }
-            const layer = L.circleMarker(point, {
-                pane: 'territoryPane', radius: 20, color: '#f6ff00', fillColor: '#162a0a',
-                fillOpacity: 0.32, weight: 4, interactive: true
+            const layer = L.marker(point, {
+                zIndexOffset: 920,
+                icon: L.divIcon({
+                    className: 'territory-contest-target',
+                    html: `
+                        <div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-10px);font-family:monospace;color:#ff4b4b;text-shadow:0 1px 2px #000;">
+                            <div style="font-size:10px;background:rgba(35,0,0,0.86);padding:1px 5px;border:1px solid #ff4b4b;margin-bottom:2px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</div>
+                            <div style="width:32px;height:32px;border-radius:50%;border:2px solid #ff4b4b;background:#210707;display:flex;align-items:center;justify-content:center;font-size:18px;">${window.escapeMapText(icon)}</div>
+                        </div>
+                    `,
+                    iconSize: [74, 62], iconAnchor: [37, 56], popupAnchor: [0, -48]
+                })
             }).addTo(map);
+            layer._chaosTerritoryInteractiveMarker = true;
             layer._chaosLayerRegistry = 'territoryConflictPillarLayers';
             layer._chaosTerritoryConflictId = String(snapshot.conflict_id || '');
             layer._chaosTerritoryPillarId = targetId;
             bindTerritoryTooltip(layer, tooltip);
+            layer.on('contextmenu', function(e) {
+                consumeMapContextEvent(e);
+                showHackingMenuForMarker(e.containerPoint.x, e.containerPoint.y, markerTarget, icon, markerTarget.label, 'territoryConflictPillarMarker');
+            });
             window.territoryConflictPillarLayers[targetId] = { layer, version, pillar, conflictId: snapshot.conflict_id };
             return true;
         }
@@ -2276,6 +2325,11 @@
             const previous = window.territoryConflictRegistry[conflictId];
             const conflictVersion = Number(snapshot.conflict_version || 0);
             const geometryVersion = Number(snapshot.geometry_version || 0);
+            const hasLegacyPillarLayers = Object.values(window.territoryConflictPillarLayers || {}).some(entry => (
+                String((entry || {}).conflictId || '') === conflictId
+                && entry.layer
+                && !entry.layer._chaosTerritoryInteractiveMarker
+            ));
             if (previous && Number(previous.snapshotVersion || 0) > version) return true;
             if (previous && conflictVersion < Number(previous.conflictVersion || 0)) return false;
             if (previous && geometryVersion < Number(previous.geometryVersion || 0)) return false;
@@ -2283,7 +2337,8 @@
                 && Number(previous.snapshotVersion || 0) === version
                 && conflictVersion <= Number(previous.conflictVersion || 0)
                 && geometryVersion <= Number(previous.geometryVersion || 0)
-                && Boolean((previous.snapshot || {}).complete) === Boolean(snapshot.complete)) return true;
+                && Boolean((previous.snapshot || {}).complete) === Boolean(snapshot.complete)
+                && !hasLegacyPillarLayers) return true;
             if (['closed', 'removed', 'resolved', 'cancelled'].includes(String(snapshot.status || '').toLowerCase())) {
                 removeTerritoryConflictSnapshot(conflictId);
                 return true;
