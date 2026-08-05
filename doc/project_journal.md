@@ -10814,8 +10814,9 @@ nawet jesli finalny obrys frontu nie zmienil wspolrzednych.
 
 Kontratak ujawnil drugi brak w konsolidacji: worker liczyl nowe przecięcia i
 fronty, ale nie synchronizowal rejestru filarow z geometria uzyta do publikacji.
-Nowe filary pozostawaly poza snapshotem, a stare nieprzejete wpisy mogly byc
-chwilowo projektowane z poprzedniej wersji. Przed atomowa publikacja worker
-teraz ujawnia filary z aktualnych przecięć, rejestruje nowe oraz oznacza stare,
-nieprzejete i nieobecne jako `detached`. Zmiana listy `pillar_ids` uczestniczy w
-podpisie frontu, wiec wymusza publikacje zgodnego frontu i snapshotu.
+Nowe filary pozostawaly poza snapshotem, a stare wpisy byly projektowane z
+poprzedniej wersji. Przed atomowa publikacja worker teraz klasyfikuje aktualne
+`pillar` i `inner` z klastrow uczestnikow, ujawnia obiekty w nowych przecięciach
+i dopisuje je do stabilnego rejestru. Historyczne filary nie sa odpinane tylko
+dlatego, ze wyszly poza biezacy polygon frontu, zgodnie z niezmiennikiem 130.8.
+Zmiana listy `pillar_ids` wymusza publikacje zgodnego frontu i snapshotu.

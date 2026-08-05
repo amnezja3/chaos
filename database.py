@@ -2597,39 +2597,11 @@ class TerritoryConflictStore:
                 int(conflict_version or 0),
             )
             incoming = list(targets or [])
-            incoming_ids = {
-                self.stable_target_id(item) for item in incoming if item
-            }
             self._sync_pillars(
                 conn, conflict_id, incoming, effective_version,
                 int(conflict.get("geometry_version") or 0),
                 actor_username=actor_username,
             )
-            rows = conn.execute(
-                "SELECT * FROM territory_conflict_pillars WHERE conflict_id = ?",
-                (conflict_id,),
-            ).fetchall()
-            for row in rows:
-                pillar = self._row_to_pillar(row)
-                if pillar["target_id"] in incoming_ids or pillar["captured"]:
-                    continue
-                public_target = copy.deepcopy(pillar.get("public_target") or {})
-                public_target.update({"status": "detached", "removed": True})
-                conn.execute(
-                    """
-                    UPDATE territory_conflict_pillars
-                    SET status = 'detached', last_changed_version = ?,
-                        public_target_json = ?, updated_at = ?
-                    WHERE id = ?
-                    """,
-                    (effective_version, dumps_json(public_target), now, pillar["id"]),
-                )
-                self._record_event(
-                    conn, "conflict.pillar_detached", conflict_id,
-                    pillar["target_id"], effective_version,
-                    int(conflict.get("geometry_version") or 0),
-                    actor_username=actor_username,
-                )
             projected = self._project_targets(conn, conflict_id, incoming)
             conn.execute(
                 "UPDATE territory_conflicts SET targets_json = ?, updated_at = ? WHERE conflict_id = ?",

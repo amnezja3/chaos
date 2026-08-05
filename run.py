@@ -4176,14 +4176,22 @@ def reveal_conflict_targets_for_group(areas, intersections):
     if not areas or not intersections:
         return []
 
-    participants = sorted({
-        area.get("owner_username")
-        for area in areas
-        if area.get("owner_username")
-    })
     revealed = {}
-    for owner in participants:
-        for target in territory_store.list_captured_targets(owner, stationary=True):
+    for area in areas:
+        owner = str(area.get("owner_username") or "").strip()
+        if not owner:
+            continue
+        members = territory_area_cluster_members(territory_store, area)
+        role_by_position = {
+            target_position_key(target): role
+            for role, targets in (
+                ("pillar", members.get("pillars") or []),
+                ("inner", members.get("inners") or []),
+            )
+            for target in targets
+            if target_position_key(target)
+        }
+        for target in members.get("objects") or []:
             key = territory_conflict_store.stable_target_id(target)
             if not key or key in revealed:
                 continue
@@ -4197,11 +4205,13 @@ def reveal_conflict_targets_for_group(areas, intersections):
 
             previous_owner = target.get("previous_owner_username")
             is_captured_conflict_target = bool(previous_owner and previous_owner != owner)
+            node_role = role_by_position.get(target_position_key(target), "inner")
             revealed[key] = {
                 "target_id": key,
                 "owner": owner,
                 "owner_username": owner,
                 "previous_owner": previous_owner,
+                "node_role": node_role,
                 "status": "captured" if is_captured_conflict_target else "contested",
                 "captured": is_captured_conflict_target,
                 "captured_by": owner if is_captured_conflict_target else None,
@@ -4212,6 +4222,7 @@ def reveal_conflict_targets_for_group(areas, intersections):
                     "lat": lat,
                     "lng": lng,
                     "lon": lng,
+                    "node_role": node_role,
                 },
             }
 

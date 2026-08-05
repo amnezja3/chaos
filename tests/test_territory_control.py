@@ -47,6 +47,37 @@ class TerritoryControlTest(unittest.TestCase):
                 except PermissionError:
                     pass
 
+    def test_conflict_reveal_uses_current_cluster_pillars_and_inners(self):
+        pillar = captured("Pillar", 52.01, 21.01)
+        pillar["target_id"] = "pillar-current"
+        inner = captured("Inner", 52.02, 21.02)
+        inner.update({"target_id": "inner-current", "stationary": False})
+        area = {
+            "id": 1,
+            "owner_username": "alice",
+            "vertices": [
+                {"lat": 52.0, "lng": 21.0},
+                {"lat": 52.1, "lng": 21.0},
+                {"lat": 52.0, "lng": 21.1},
+            ],
+        }
+        intersection = [
+            {"lat": 52.0, "lng": 21.0},
+            {"lat": 52.1, "lng": 21.0},
+            {"lat": 52.0, "lng": 21.1},
+        ]
+        with patch.object(run, "territory_area_cluster_members", return_value={
+            "pillars": [pillar],
+            "inners": [inner],
+            "objects": [pillar, inner],
+            "valid": True,
+        }):
+            revealed = run.reveal_conflict_targets_for_group([area], [intersection])
+
+        by_id = {item["target_id"]: item for item in revealed}
+        self.assertEqual(by_id["pillar-current"]["node_role"], "pillar")
+        self.assertEqual(by_id["inner-current"]["node_role"], "inner")
+
     def _client_with_user(self, username="alice"):
         client = run.app.test_client()
         with client.session_transaction() as sess:
