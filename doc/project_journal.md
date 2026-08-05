@@ -10736,3 +10736,14 @@ geometrii.
 
 Walidacja: 46 testow identity, map cutover i Territory Control - OK;
 `py_compile` oraz `git diff --check` - OK.
+
+Produkcja ujawnila, ze pierwsza wersja absorpcji ograniczala kandydatow do
+`stationary=True`. Pomijalo to przejmowalne kamery, klientow i inne obiekty,
+ktore nie uczestnicza w budowie polygonu. Rozdzielono oba kontrakty:
+`stationary` nadal decyduje o geometrii terytorium, ale wszystkie obiekty
+przeciwnika znajdujace sie wewnatrz pola atakujacego podlegaja transferowi
+wlasnosci i pozniejszemu zabezpieczeniu.
+
+Worker otrzymal tez tryb recovery `--enqueue <conflict_id>`, ktory korzysta z
+normalnej trwalej kolejki i pozwala ponownie skonsolidowac juz istniejacy cykl
+bez recznej edycji SQLite.

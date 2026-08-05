@@ -5015,7 +5015,10 @@ def absorb_conflict_objects_inside_attacker_territory(conflict):
     for defender_username in sorted(participants - {attacker_username}):
         if territory_owners_are_protected_relation(attacker_username, defender_username):
             continue
-        for target in territory_store.list_captured_targets(defender_username, stationary=True):
+        # Ownership absorption covers every capturable object inside the
+        # attacker's field. `stationary` decides whether an object builds
+        # territory geometry; it must not decide whether ownership transfers.
+        for target in territory_store.list_captured_targets(defender_username):
             if not any(
                 territory_point_in_polygon_or_boundary(target, area.get("vertices") or [])
                 for area in attacker_areas

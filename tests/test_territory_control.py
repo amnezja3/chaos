@@ -99,6 +99,8 @@ class TerritoryControlTest(unittest.TestCase):
                 store.save_captured_target("alice", target)
             inner = captured("B inner", 52.0005, 21.0005)
             inner["target_id"] = "bob-inner"
+            inner["generated"] = True
+            inner["stationary"] = False
             store.save_captured_target("bob", inner)
             alice_areas = store.rebuild_player_areas("alice", player_level=3)
             conflict = conflict_store.upsert_conflict({

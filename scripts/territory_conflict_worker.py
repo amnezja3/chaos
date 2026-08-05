@@ -44,6 +44,19 @@ def process_once():
 
 
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--enqueue":
+        conflict_id = sys.argv[2]
+        conflict = run.territory_conflict_store.get_by_key(conflict_id)
+        if not conflict:
+            print(f"[TERRITORY_WORKER] enqueue failed conflict_id={conflict_id} reason=not_found", flush=True)
+            raise SystemExit(1)
+        queued = run.request_conflict_rebuild(
+            conflict.get("conflict_id") or conflict_id,
+            reason="manual_recovery",
+            requested_version=conflict.get("conflict_version"),
+        )
+        print(f"[TERRITORY_WORKER] enqueued conflict_id={conflict_id} result={queued}", flush=True)
+        return
     idle_seconds = max(1.0, float(os.environ.get("CHAOS_TERRITORY_WORKER_IDLE_SECONDS", "2")))
     print("[TERRITORY_WORKER] started", flush=True)
     while True:
