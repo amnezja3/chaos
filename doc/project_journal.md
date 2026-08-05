@@ -10778,3 +10778,11 @@ Odpowiedz `/gonna-win` 409 `invalid_target` pozostaje poprawnym konfliktem
 stanu, ale aplikacja hakujaca nie przedstawia jej juz jako bledu polaczenia.
 Pokazuje ostrzezenie o zmianie celu, odswieza toolbar i mape oraz sugeruje
 ponowne uruchomienie aplikacji na swiezym snapshotcie.
+
+Diagnostyka produkcyjna rozdzielila brak pola i aktorow od backendu. Endpoint
+zwracal duzy, poprawny klaster atakujacego, ale frontend odrzucal go lokalnym
+limitem rozciaglosci `0.25` stopnia przed wpisaniem do `territoryAreaLayers`.
+Bezpiecznik podniesiono do `1.0` stopnia; nadal odcina on przypadkowe geometrie
+o skali regionalnej/swiatowej. Pierwszy snapshot aktorow przeniesiono z bootu
+opcjonalnego do sekwencji startowej mapy, a jego odswiezenie moze dokonczyc sie
+podczas krotkiej pauzy pozostalych snapshotow wywolanej akcja hackowania.

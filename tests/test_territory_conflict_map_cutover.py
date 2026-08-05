@@ -166,6 +166,14 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("if (Array.isArray(vertex))", source)
         self.assertIn("layer._chaosLayerRegistry = 'territoryFrontLayers'", source)
 
+    def test_frontend_keeps_large_valid_territories_and_boots_player_actors(self):
+        with open("templates/map_template.html", encoding="utf-8") as handle:
+            source = handle.read()
+
+        self.assertIn("latSpan <= 1.0 && lngSpan <= 1.0", source)
+        self.assertIn("'player_actors', window.refreshPlayerActors", source)
+        self.assertIn("allowDuringPause: true", source)
+
 
 if __name__ == "__main__":
     unittest.main()

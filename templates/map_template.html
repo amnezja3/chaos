@@ -2430,7 +2430,9 @@
             const lngSpan = Math.max(...lngs) - Math.min(...lngs);
             const uniquePoints = new Set(points.map(point => `${Number(point[0]).toFixed(6)}:${Number(point[1]).toFixed(6)}`));
             if (uniquePoints.size < 3) return false;
-            return latSpan <= 0.25 && lngSpan <= 0.25;
+            // Duze, poprawne klastry terytorium potrafia przekroczyc 0.25 stopnia.
+            // Limit nadal odcina geometrie obejmujace przypadkiem znaczna czesc swiata.
+            return latSpan <= 1.0 && lngSpan <= 1.0;
         }
 
         function normalizeMapLatLngPair(latValue, lngValue) {
@@ -5476,7 +5478,6 @@
                         await window.bootStep('Snikery reakcji', 'npc', window.refreshResponseNpcCapsules, { total: 1, index: 0, silent: true });
                     })(),
                     window.bootStep('Podatnosci klanow', 'clan_vulnerabilities', window.refreshClanVulnerabilities, { total: 1, index: 0, silent: true }),
-                    window.bootStep('Gracze na mapie', 'player_actors', window.refreshPlayerActors, { total: 1, index: 0, silent: true }),
                     (typeof window.loadGhostNetworkSnapshot === 'function'
                         ? window.bootStep('GhostNetwork', 'ghostnetwork', function() {
                             return window.loadGhostNetworkSnapshot({ boot: true });
@@ -5494,7 +5495,7 @@
                 disableMapGameplay();
                 showMapPreloader('Inicjalizacja mapy...', 0);
                 await waitForMapBootPaint();
-                const criticalTotal = 8;
+                const criticalTotal = 9;
                 try {
                     await window.bootStep('Inicjalizacja mapy', 'base_map', null, { critical: true, total: criticalTotal, index: 0 });
                     await window.bootStep('Warstwa bazowa', 'base_tiles', null, { critical: true, total: criticalTotal, index: 1 });
@@ -5509,10 +5510,15 @@
                         timeoutMs: 420000,
                         progressIntervalMs: 3500
                     });
+                    await window.bootStep('Gracze na mapie', 'player_actors', window.refreshPlayerActors, {
+                        total: criticalTotal,
+                        index: 5,
+                        silent: true
+                    });
                     normalizeBootLoadedScopes().add('captured_targets');
-                    await window.bootStep('Przejete cele', 'captured_targets', null, { critical: true, total: criticalTotal, index: 5 });
-                    await window.bootStep('Recovery delt', 'delta_recovery', null, { critical: true, total: criticalTotal, index: 6 });
-                    await window.bootStep('Delta-feed mapy', 'delta_feed_ready', null, { critical: true, total: criticalTotal, index: 7 });
+                    await window.bootStep('Przejete cele', 'captured_targets', null, { critical: true, total: criticalTotal, index: 6 });
+                    await window.bootStep('Recovery delt', 'delta_recovery', null, { critical: true, total: criticalTotal, index: 7 });
+                    await window.bootStep('Delta-feed mapy', 'delta_feed_ready', null, { critical: true, total: criticalTotal, index: 8 });
                     enableMapGameplay();
                     updateMapBootOverlay('Mapa gotowa.', 100);
                     setTimeout(hideMapPreloader, 220);
@@ -6824,7 +6830,10 @@
             window.refreshPlayerActors = async function() {
                 const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
                 try {
-                    const snapshot = await window.fetchMapSnapshot('player_actors', '/api/map/player-actors', { timeoutMs: 10000 });
+                    const snapshot = await window.fetchMapSnapshot('player_actors', '/api/map/player-actors', {
+                        timeoutMs: 10000,
+                        allowDuringPause: true
+                    });
                     if (snapshot.skipped || snapshot.aborted) return false;
                     const res = snapshot.res;
                     if (res.status === 401) {
@@ -6966,7 +6975,9 @@
                 const state = window.mapRefreshState;
                 const scopeKey = String(scope || 'map');
                 const isCriticalBoot = Boolean(options.critical || (window.mapBootState && window.mapBootState.loading && !window.mapBootState.ready));
-                if (!isCriticalBoot && state.paused) {
+                const allowDuringPause = Boolean(options.allowDuringPause);
+                const protectFromOptionalAbort = isCriticalBoot || allowDuringPause;
+                if (!isCriticalBoot && !allowDuringPause && state.paused) {
                     return { skipped: true, reason: state.pauseReason || 'paused' };
                 }
                 if (state.inFlight[scopeKey]) {
@@ -6997,7 +7008,7 @@
                 const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
                 state.inFlight[scopeKey] = true;
                 state.controllers[scopeKey] = controller;
-                state.critical[scopeKey] = isCriticalBoot;
+                state.critical[scopeKey] = protectFromOptionalAbort;
 
                 try {
                     const res = await fetch(url, { signal: controller.signal });
