@@ -102,6 +102,9 @@ class TerritoryControlTest(unittest.TestCase):
             inner["generated"] = True
             inner["stationary"] = False
             store.save_captured_target("bob", inner)
+            trigger = captured("B trigger", 52.01, 21.01)
+            trigger["target_id"] = "bob-trigger"
+            store.save_captured_target("bob", trigger)
             alice_areas = store.rebuild_player_areas("alice", player_level=3)
             conflict = conflict_store.upsert_conflict({
                 "conflict_key": "absorption-test",
@@ -109,7 +112,10 @@ class TerritoryControlTest(unittest.TestCase):
                 "area_ids": [alice_areas[0]["id"] if alice_areas[0].get("id") else "alice", "bob"],
                 "intersection": alice_areas[0]["vertices"],
                 "intersections": [alice_areas[0]["vertices"]],
-                "targets": [{"target_id": "bob-inner", "owner_username": "bob", "target": inner}],
+                "targets": [
+                    {"target_id": "bob-inner", "owner_username": "bob", "target": inner},
+                    {"target_id": "bob-trigger", "owner_username": "bob", "target": trigger},
+                ],
                 "status": "active",
                 "last_actor_username": "alice",
             })
@@ -119,14 +125,24 @@ class TerritoryControlTest(unittest.TestCase):
                     patch.object(run.user_store, "get_profile", side_effect=lambda username: {
                         "username": username, "clan": "alpha" if username == "alice" else "beta"
                     }):
+                self.assertEqual(run.absorb_conflict_objects_inside_attacker_territory(conflict), [])
+                captured_trigger = conflict_store.capture_pillar(
+                    conflict["conflict_id"], "bob-trigger", trigger, "alice",
+                    previous_owner_username="bob", action_id="test-trigger-capture",
+                )
+                self.assertTrue(captured_trigger["changed"])
+                conflict = conflict_store.get_by_key(conflict["conflict_id"])
                 absorbed = run.absorb_conflict_objects_inside_attacker_territory(conflict)
 
             self.assertEqual([item["label"] for item in absorbed], ["B inner"])
-            self.assertEqual(store.list_captured_targets("bob"), [])
+            self.assertEqual(
+                {item["label"] for item in store.list_captured_targets("bob")},
+                {"B trigger"},
+            )
             self.assertIn("B inner", {item["label"] for item in store.list_captured_targets("alice")})
-            pillar = conflict_store.list_pillars(conflict["conflict_id"])[0]
-            self.assertTrue(pillar["captured"])
-            self.assertEqual(pillar["captured_by"], "alice")
+            pillars = conflict_store.list_pillars(conflict["conflict_id"])
+            self.assertTrue(all(pillar["captured"] for pillar in pillars))
+            self.assertEqual({pillar["captured_by"] for pillar in pillars}, {"alice"})
         finally:
             self._cleanup(path)
 

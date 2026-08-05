@@ -10757,3 +10757,9 @@ Detekcja respektuje ochrone wylacznie tego samego klanu; relacja friends nie
 blokuje utworzenia konfliktu.
 Tryb recovery `--discover <username>` pozwala zakolejkowac taki brakujacy cykl
 dla juz istniejacego overlapu bez wykonywania kolejnego hacku.
+
+Pierwsze produkcyjne discovery ujawnilo zbyt wczesna absorpcje: sam overlap
+przenosil obiekty i usuwal front bez walki. Absorpcja wymaga teraz dowodu w
+kanonicznym rejestrze filarow, ze ostatni atakujacy rzeczywiscie przejal co
+najmniej jeden filar. Discovery tylko tworzy pole walki i ujawnia cele;
+automatyczny transfer pozostalych obiektow moze nastapic dopiero po hacku.

@@ -5026,6 +5026,16 @@ def absorb_conflict_objects_inside_attacker_territory(conflict):
     }
     if not attacker_username or attacker_username not in participants:
         return []
+    conflict_reference = conflict.get("conflict_id") or conflict.get("id")
+    captured_by_attacker = any(
+        bool(pillar.get("captured"))
+        and str(pillar.get("captured_by") or "") == attacker_username
+        for pillar in territory_conflict_store.list_pillars(conflict_reference)
+    )
+    if not captured_by_attacker:
+        # Discovery only exposes a battlefield. Automatic ownership transfer
+        # is legal after an actual pillar capture, never on first overlap.
+        return []
 
     all_areas = safe_player_areas(territory_store.list_player_areas())
     attacker_areas = [
@@ -5057,7 +5067,7 @@ def absorb_conflict_objects_inside_attacker_territory(conflict):
                 "previous_owner": defender_username,
                 "previous_owner_username": defender_username,
                 "capture_reason": "territory_conflict_absorption",
-                "conflict_id": conflict.get("conflict_id") or conflict.get("id"),
+                "conflict_id": conflict_reference,
             })
             removed = territory_store.remove_captured_target(
                 defender_username,
@@ -5076,13 +5086,13 @@ def absorb_conflict_objects_inside_attacker_territory(conflict):
             saved = territory_store.save_captured_target(attacker_username, transferred)
             target_id = territory_conflict_store.stable_target_id(saved)
             territory_conflict_store.capture_pillar(
-                conflict.get("conflict_id") or conflict.get("id"),
+                conflict_reference,
                 target_id,
                 saved,
                 attacker_username,
                 previous_owner_username=defender_username,
                 action_id=(
-                    f"territory_absorption:{conflict.get('conflict_id') or conflict.get('id')}:"
+                    f"territory_absorption:{conflict_reference}:"
                     f"{target_id}:{conflict.get('conflict_version') or 0}"
                 ),
             )
