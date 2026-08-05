@@ -44,6 +44,15 @@ def process_once():
 
 
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--discover":
+        actor_username = sys.argv[2]
+        conflicts = run.discover_and_queue_new_territory_conflicts(actor_username)
+        print(
+            f"[TERRITORY_WORKER] discovery actor={actor_username} "
+            f"conflicts={[item.get('conflict_id') or item.get('id') for item in conflicts]}",
+            flush=True,
+        )
+        return
     if len(sys.argv) == 3 and sys.argv[1] == "--enqueue":
         conflict_id = sys.argv[2]
         conflict = run.territory_conflict_store.get_by_key(conflict_id)

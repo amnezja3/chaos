@@ -10747,3 +10747,13 @@ wlasnosci i pozniejszemu zabezpieczeniu.
 Worker otrzymal tez tryb recovery `--enqueue <conflict_id>`, ktory korzysta z
 normalnej trwalej kolejki i pozwala ponownie skonsolidowac juz istniejacy cykl
 bez recznej edycji SQLite.
+
+Po usunieciu posredniej detekcji z `/gonna-win` ujawnila sie luka inicjalizacji:
+worker potrafil konsolidowac istniejacy `conflict_id`, ale zadna lekka sciezka
+nie zakladala pierwszego cyklu dla nowego overlapu. Dla przejecia spoza
+istniejacego konfliktu request wykonuje teraz jeden read plan po zapisanym polu,
+materializuje nowe identity bez publikowania delty i zleca geometrie workerowi.
+Detekcja respektuje ochrone wylacznie tego samego klanu; relacja friends nie
+blokuje utworzenia konfliktu.
+Tryb recovery `--discover <username>` pozwala zakolejkowac taki brakujacy cykl
+dla juz istniejacego overlapu bez wykonywania kolejnego hacku.

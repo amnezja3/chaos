@@ -4502,6 +4502,31 @@ def request_conflict_rebuild(conflict_id, reason, requested_version=None):
     )
 
 
+def discover_and_queue_new_territory_conflicts(actor_username):
+    """Materialize new overlap cycles, leaving geometry publication to the worker."""
+    areas = territory_store.list_player_areas()
+    plans = build_territory_conflict_detection_plan(
+        areas,
+        actor_username=actor_username,
+    )
+    conflicts = materialize_territory_conflict_plans(
+        plans,
+        actor_username=actor_username,
+        source_event="territory_conflict_discovered",
+        publish_deltas=False,
+    )
+    queued = []
+    for conflict in conflicts:
+        request = request_conflict_rebuild(
+            conflict.get("conflict_id") or conflict.get("id"),
+            reason="territory_conflict_discovered",
+            requested_version=conflict.get("conflict_version"),
+        )
+        if request:
+            queued.append(conflict)
+    return queued
+
+
 def _conflict_front_plans(conflict, detection_plans):
     conflict_participants = set(conflict.get("participants") or [])
     conflict_area_ids = {str(item) for item in (conflict.get("area_ids") or [])}
@@ -22749,6 +22774,18 @@ def gonna_win():
                 step_started_at,
                 user=session["user"],
                 areas=len(rebuilt_areas or []),
+            )
+        if not captured_conflicts:
+            step_started_at = time.perf_counter()
+            discovered_conflicts = discover_and_queue_new_territory_conflicts(session["user"])
+            if discovered_conflicts:
+                captured_conflicts = discovered_conflicts
+            app_flow_debug_timed(
+                flow_id,
+                "gonna_win_conflict_discovery_queued",
+                app_flow_started_at,
+                step_started_at,
+                conflicts=len(discovered_conflicts),
             )
         if captured_conflicts:
             step_started_at = time.perf_counter()
