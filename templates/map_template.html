@@ -6755,7 +6755,15 @@
                 const key = menuActor.username || menuActor.nick;
                 const lat = parseFloat(menuActor.lat);
                 const lng = parseFloat(menuActor.lng);
-                if (!key || Number.isNaN(lat) || Number.isNaN(lng)) return null;
+                if (!key || Number.isNaN(lat) || Number.isNaN(lng)) {
+                    console.warn('[map actors] marker rejected: invalid identity or position', {
+                        key,
+                        lat: menuActor.lat,
+                        lng: menuActor.lng,
+                        actor: menuActor
+                    });
+                    return null;
+                }
 
                 if (!window.playerActorMarkers[key]) {
                     const marker = L.marker([lat, lng], { icon: window.buildPlayerActorIcon(menuActor) }).addTo(map);
@@ -6764,6 +6772,15 @@
                     window.bindPlayerActorMarkerContextMenu(marker, menuActor, key);
                     window.playerActorMarkers[key] = marker;
                     window.auditPlayerActorMarkerBounds(marker, menuActor);
+                    console.info('[map actors] marker created', {
+                        key,
+                        relation: menuActor.relation,
+                        lat,
+                        lng,
+                        attached: map.hasLayer(marker),
+                        inside_view: map.getBounds().contains(marker.getLatLng()),
+                        pane: marker.options.pane || 'markerPane'
+                    });
                     return key;
                 }
 
@@ -6785,6 +6802,15 @@
                 marker._playerActorSnapshot = menuActor;
                 window.bindPlayerActorMarkerContextMenu(marker, menuActor, key);
                 window.auditPlayerActorMarkerBounds(marker, menuActor);
+                console.info('[map actors] marker updated', {
+                    key,
+                    relation: menuActor.relation,
+                    lat,
+                    lng,
+                    attached: map.hasLayer(marker),
+                    inside_view: map.getBounds().contains(marker.getLatLng()),
+                    pane: marker.options.pane || 'markerPane'
+                });
                 return key;
             };
 
@@ -6794,6 +6820,7 @@
                     removeMapLayerSafe(window.playerActorMarkers[key]);
                 }
                 delete window.playerActorMarkers[key];
+                console.info('[map actors] marker removed', { key });
                 return true;
             };
 
@@ -6810,8 +6837,15 @@
 
             window.renderPlayerActors = function(actors) {
                 const visible = new Set();
+                const incoming = Array.isArray(actors) ? actors : [];
 
-                (actors || []).forEach(actor => {
+                console.info('[map actors] render start', {
+                    incoming: incoming.length,
+                    existing: Object.keys(window.playerActorMarkers || {}).length,
+                    usernames: incoming.map(actor => actor && (actor.username || actor.nick)).filter(Boolean)
+                });
+
+                incoming.forEach(actor => {
                     const key = window.upsertPlayerActorMarker(actor);
                     if (key) visible.add(key);
                 });
@@ -6821,16 +6855,26 @@
                         window.removePlayerActorMarker(key);
                     }
                 });
+                console.info('[map actors] render complete', {
+                    visible: Array.from(visible),
+                    registry: Object.keys(window.playerActorMarkers || {})
+                });
             };
 
             window.refreshPlayerActors = async function() {
                 if (window.playerActorRefreshPromise) {
+                    console.info('[map actors] joining in-flight refresh');
                     return window.playerActorRefreshPromise;
                 }
                 const refreshPromise = (async function() {
+                    const startedAt = performance.now();
                     const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 45000);
+                    console.info('[map actors] refresh started', {
+                        timeout_ms: 45000,
+                        map_ready: Boolean(window.mapBootState && window.mapBootState.ready)
+                    });
                     try {
                         // Aktorzy maja niezalezny single-flight: boot opcjonalny i
                         // timer dolaczaja do jednego requestu zamiast go dublowac.
@@ -6838,20 +6882,35 @@
                             cache: 'no-store',
                             signal: controller.signal
                         });
+                        console.info('[map actors] response received', {
+                            status: res.status,
+                            ok: res.ok,
+                            elapsed_ms: Math.round(performance.now() - startedAt)
+                        });
                         if (res.status === 401) {
                             stopMapRefreshTimers();
                             return false;
                         }
                         if (!res.ok) return false;
                         const data = await res.json();
+                        console.info('[map actors] payload decoded', {
+                            actors: Array.isArray(data.player_actors) ? data.player_actors.length : 0,
+                            elapsed_ms: Math.round(performance.now() - startedAt)
+                        });
                         window.renderPlayerActors(data.player_actors || []);
                         invalidateMapAfterLayerUpdate();
                         return true;
                     } catch (err) {
                         if (err && err.name === 'AbortError') {
-                            console.warn('Player actor refresh timed out after 45s');
+                            console.warn('[map actors] refresh timed out', {
+                                timeout_ms: 45000,
+                                elapsed_ms: Math.round(performance.now() - startedAt)
+                            });
                         } else {
-                            console.warn('Player actor refresh failed', err);
+                            console.warn('[map actors] refresh failed', {
+                                elapsed_ms: Math.round(performance.now() - startedAt),
+                                error: err
+                            });
                         }
                         return false;
                     } finally {

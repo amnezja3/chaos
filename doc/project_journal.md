@@ -10793,3 +10793,6 @@ Odswiezenie jest wiec opcjonalne dla bootu mapy, ma limit 45 sekund i lokalny
 single-flight, przez co boot oraz timer nie dubluja kosztownego requestu.
 Sam endpoint `/api/map/player-actors` przestal wywolywac zapisujacy
 `sync_session_profile`; do relacji i pozycji uzywa czystego odczytu profilu.
+Frontend loguje teraz caly pipeline pod prefiksem `[map actors]`: single-flight,
+czas i status HTTP, liczbe rekordow, utworzenie/aktualizacje/usuniecie markera,
+przynaleznosc do mapy i aktualnego viewportu oraz finalny stan rejestru.

@@ -177,6 +177,9 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("signal: controller.signal", source)
         self.assertIn("window.playerActorRefreshPromise", source)
         self.assertIn("controller.abort(), 45000", source)
+        self.assertIn("[map actors] response received", source)
+        self.assertIn("[map actors] marker created", source)
+        self.assertIn("[map actors] render complete", source)
 
 
 if __name__ == "__main__":
