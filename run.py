@@ -19945,7 +19945,9 @@ def map_player_actors():
         return jsonify({"error": "Nie jestes zalogowany"}), 401
 
     viewer_username = session["user"]
-    viewer_profile = sync_session_profile(rebuild_territory=False)
+    # Snapshot mapy jest read-only. Pelna synchronizacja profilu zapisuje runtime
+    # i potrafi blokowac workera dluzej niz budzet odswiezenia aktorow.
+    viewer_profile = user_store.get_profile(viewer_username) or {}
     actors_by_username = {}
     aimed_target = viewer_profile.get("aimed_target") or {}
     aimed_player_username = (

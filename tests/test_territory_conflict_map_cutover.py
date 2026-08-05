@@ -145,6 +145,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn('actor_profile.get("current_position")', source)
         self.assertIn("territory_point_in_polygon_or_boundary", source)
         self.assertIn("viewer_areas", source)
+        self.assertNotIn("sync_session_profile", source)
 
     def test_frontend_has_monotonic_snapshot_registry_contract(self):
         with open("templates/map_template.html", encoding="utf-8") as handle:
@@ -174,6 +175,8 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("'player_actors', window.refreshPlayerActors", source)
         self.assertIn("fetch('/api/map/player-actors'", source)
         self.assertIn("signal: controller.signal", source)
+        self.assertIn("window.playerActorRefreshPromise", source)
+        self.assertIn("controller.abort(), 45000", source)
 
 
 if __name__ == "__main__":

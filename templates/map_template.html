@@ -5478,6 +5478,7 @@
                         await window.bootStep('Snikery reakcji', 'npc', window.refreshResponseNpcCapsules, { total: 1, index: 0, silent: true });
                     })(),
                     window.bootStep('Podatnosci klanow', 'clan_vulnerabilities', window.refreshClanVulnerabilities, { total: 1, index: 0, silent: true }),
+                    window.bootStep('Gracze na mapie', 'player_actors', window.refreshPlayerActors, { total: 1, index: 0, silent: true }),
                     (typeof window.loadGhostNetworkSnapshot === 'function'
                         ? window.bootStep('GhostNetwork', 'ghostnetwork', function() {
                             return window.loadGhostNetworkSnapshot({ boot: true });
@@ -5495,7 +5496,7 @@
                 disableMapGameplay();
                 showMapPreloader('Inicjalizacja mapy...', 0);
                 await waitForMapBootPaint();
-                const criticalTotal = 9;
+                const criticalTotal = 8;
                 try {
                     await window.bootStep('Inicjalizacja mapy', 'base_map', null, { critical: true, total: criticalTotal, index: 0 });
                     await window.bootStep('Warstwa bazowa', 'base_tiles', null, { critical: true, total: criticalTotal, index: 1 });
@@ -5510,15 +5511,10 @@
                         timeoutMs: 420000,
                         progressIntervalMs: 3500
                     });
-                    await window.bootStep('Gracze na mapie', 'player_actors', window.refreshPlayerActors, {
-                        total: criticalTotal,
-                        index: 5,
-                        silent: true
-                    });
                     normalizeBootLoadedScopes().add('captured_targets');
-                    await window.bootStep('Przejete cele', 'captured_targets', null, { critical: true, total: criticalTotal, index: 6 });
-                    await window.bootStep('Recovery delt', 'delta_recovery', null, { critical: true, total: criticalTotal, index: 7 });
-                    await window.bootStep('Delta-feed mapy', 'delta_feed_ready', null, { critical: true, total: criticalTotal, index: 8 });
+                    await window.bootStep('Przejete cele', 'captured_targets', null, { critical: true, total: criticalTotal, index: 5 });
+                    await window.bootStep('Recovery delt', 'delta_recovery', null, { critical: true, total: criticalTotal, index: 6 });
+                    await window.bootStep('Delta-feed mapy', 'delta_feed_ready', null, { critical: true, total: criticalTotal, index: 7 });
                     enableMapGameplay();
                     updateMapBootOverlay('Mapa gotowa.', 100);
                     setTimeout(hideMapPreloader, 220);
@@ -6828,33 +6824,48 @@
             };
 
             window.refreshPlayerActors = async function() {
-                const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
-                try {
-                    // Aktorzy sa lekkim snapshotem gameplayowym. Nie wspoldziela
-                    // blokady inFlight z ciezszymi snapshotami mapy, bo kolizja
-                    // bootu z timerem mogla pozostawic pusta warstwe.
-                    const res = await fetch('/api/map/player-actors', {
-                        cache: 'no-store',
-                        signal: controller.signal
-                    });
-                    if (res.status === 401) {
-                        stopMapRefreshTimers();
+                if (window.playerActorRefreshPromise) {
+                    return window.playerActorRefreshPromise;
+                }
+                const refreshPromise = (async function() {
+                    const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 45000);
+                    try {
+                        // Aktorzy maja niezalezny single-flight: boot opcjonalny i
+                        // timer dolaczaja do jednego requestu zamiast go dublowac.
+                        const res = await fetch('/api/map/player-actors', {
+                            cache: 'no-store',
+                            signal: controller.signal
+                        });
+                        if (res.status === 401) {
+                            stopMapRefreshTimers();
+                            return false;
+                        }
+                        if (!res.ok) return false;
+                        const data = await res.json();
+                        window.renderPlayerActors(data.player_actors || []);
+                        invalidateMapAfterLayerUpdate();
+                        return true;
+                    } catch (err) {
+                        if (err && err.name === 'AbortError') {
+                            console.warn('Player actor refresh timed out after 45s');
+                        } else {
+                            console.warn('Player actor refresh failed', err);
+                        }
                         return false;
+                    } finally {
+                        clearTimeout(timeoutId);
+                        window.endMapLoading(loadingToken);
                     }
-                    if (!res.ok) return false;
-                    const data = await res.json();
-                    window.renderPlayerActors(data.player_actors || []);
-
-                    invalidateMapAfterLayerUpdate();
-                    return true;
-                } catch (err) {
-                    console.warn('Player actor refresh failed', err);
-                    return false;
+                })();
+                window.playerActorRefreshPromise = refreshPromise;
+                try {
+                    return await refreshPromise;
                 } finally {
-                    clearTimeout(timeoutId);
-                    window.endMapLoading(loadingToken);
+                    if (window.playerActorRefreshPromise === refreshPromise) {
+                        window.playerActorRefreshPromise = null;
+                    }
                 }
             };
 

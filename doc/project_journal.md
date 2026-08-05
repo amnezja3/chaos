@@ -10788,3 +10788,8 @@ opcjonalnego do sekwencji startowej mapy. Produkcyjna diagnostyka wykazala
 dodatkowo, ze wspolna blokada `inFlight` potrafila pozostawic `player_actors`
 bez renderu po kolizji bootu z timerem. Lekki snapshot aktorow korzysta teraz
 z niezaleznego odswiezenia i nie jest zaglodzony przez ciezsze snapshoty mapy.
+Pierwszy limit 10 sekund okazal sie krotszy od produkcyjnego czasu odpowiedzi.
+Odswiezenie jest wiec opcjonalne dla bootu mapy, ma limit 45 sekund i lokalny
+single-flight, przez co boot oraz timer nie dubluja kosztownego requestu.
+Sam endpoint `/api/map/player-actors` przestal wywolywac zapisujacy
+`sync_session_profile`; do relacji i pozycji uzywa czystego odczytu profilu.
