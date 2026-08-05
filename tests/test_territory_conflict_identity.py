@@ -389,6 +389,38 @@ class TerritoryConflictIdentityTests(unittest.TestCase):
             1,
         )
 
+    def test_same_front_after_pillar_capture_publishes_fresh_domain_snapshot(self):
+        pillar = self.pillar("pillar-a")
+        conflict = self.store.upsert_conflict(self.payload(targets=[pillar]))
+        self.store.request_rebuild(conflict["conflict_id"], "initial", 1)
+        lease = self.store.claim_rebuild(conflict["conflict_id"], "worker-a")
+        initial = self.store.publish_rebuild(
+            conflict["conflict_id"], "worker-a", lease["processing_version"],
+            [self.front_plan()],
+        )
+
+        captured = self.store.capture_pillar(
+            conflict["conflict_id"], "pillar-a", pillar,
+            "bob", previous_owner_username="alice", action_id="capture-1",
+        )
+        capture_version = captured["conflict"]["conflict_version"]
+        capture_lease = self.store.claim_rebuild(conflict["conflict_id"], "worker-b")
+        rebuilt = self.store.publish_rebuild(
+            conflict["conflict_id"], "worker-b", capture_lease["processing_version"],
+            [self.front_plan()],
+        )
+
+        self.assertTrue(rebuilt["ok"])
+        self.assertTrue(rebuilt["changed"])
+        self.assertGreater(
+            rebuilt["snapshot"]["snapshot_version"],
+            initial["snapshot"]["snapshot_version"],
+        )
+        self.assertEqual(rebuilt["snapshot"]["conflict_version"], capture_version)
+        state = self.store.latest_snapshot_state(conflict["conflict_id"])
+        self.assertTrue(state["complete"])
+        self.assertEqual(state["geometry_status"], "clean")
+
     def test_failed_rebuild_preserves_last_valid_snapshot(self):
         conflict = self.store.upsert_conflict(self.payload())
         self.store.request_rebuild(conflict["conflict_id"], "initial", 1)

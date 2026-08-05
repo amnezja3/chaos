@@ -2883,6 +2883,10 @@ class TerritoryConflictStore:
                    WHERE conflict_id = ? ORDER BY snapshot_version DESC LIMIT 1""",
                 (conflict_id,),
             ).fetchone()
+            latest_snapshot_payload = (
+                loads_json(latest_snapshot_row["payload_json"], {})
+                if latest_snapshot_row else {}
+            )
             old_signatures = sorted(self._front_signature(front) for front in old_fronts)
             plan_signatures = sorted(self._front_signature({
                 "participant_key": plan.get("participant_key") or conflict["participant_key"],
@@ -2891,7 +2895,17 @@ class TerritoryConflictStore:
                 "geometry": plan.get("geometry") or [],
             }) for plan in (front_plans or []))
             same_resolution = bool(resolve) == (conflict.get("status") == "resolved")
-            if latest_snapshot_row and same_resolution and old_signatures == plan_signatures:
+            snapshot_covers_processing_version = (
+                int(latest_snapshot_payload.get("conflict_version") or 0)
+                >= int(processing_version)
+            )
+            live_geometry_is_clean = str(
+                conflict.get("geometry_status") or ""
+            ).lower() in {"clean", "published"}
+            if (latest_snapshot_row and same_resolution
+                    and old_signatures == plan_signatures
+                    and snapshot_covers_processing_version
+                    and live_geometry_is_clean):
                 latest_request_row = conn.execute(
                     "SELECT requested_version FROM territory_conflict_rebuilds WHERE conflict_id = ?",
                     (conflict_id,),
@@ -2909,7 +2923,7 @@ class TerritoryConflictStore:
                 return {
                     "ok": True,
                     "changed": False,
-                    "snapshot": loads_json(latest_snapshot_row["payload_json"], {}),
+                    "snapshot": latest_snapshot_payload,
                     "pending_newer": pending_newer,
                 }
             unmatched_old = {front["front_id"]: front for front in old_fronts}

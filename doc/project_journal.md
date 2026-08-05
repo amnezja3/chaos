@@ -10802,3 +10802,12 @@ Snapshot porownuje aktualne pozycje profili z aktualnymi polygonami widza,
 wiec ujawnia tez gracza objetego polem dopiero po przebudowie geometrii.
 Priorytet prezentacji to: ten sam klan jako `Crew`, zaakceptowany kontakt z
 obcego klanu jako `friend`, a pozostaly gracz na polu jako `intruder`.
+
+Kolejny test produkcyjny ujawnil falszywy no-op publikacji konfliktu. Gdy po
+przejeciu filaru podpis geometrii frontu pozostawal taki sam, worker zwracal
+poprzedni snapshot bez sprawdzenia, ze jego `conflict_version` jest starszy od
+przetwarzanej wersji i ze domena nadal ma status `dirty`. Zadanie moglo zostac
+oznaczone jako zakonczone, podczas gdy frontend zachowywal stary front.
+No-op jest teraz dozwolony tylko dla snapshotu obejmujacego przetwarzana wersje
+i czystej domeny. Zmiana filaru zawsze publikuje swiezy, kompletny snapshot,
+nawet jesli finalny obrys frontu nie zmienil wspolrzednych.
