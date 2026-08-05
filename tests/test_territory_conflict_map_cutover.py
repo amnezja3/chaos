@@ -139,12 +139,14 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn('"deferred": True', source)
         self.assertIn("discover_and_queue_new_territory_conflicts", source)
 
-    def test_player_actor_snapshot_accepts_new_position_and_stale_intruder_area_id(self):
+    def test_player_actor_snapshot_projects_current_positions_on_current_territory(self):
         source = inspect.getsource(run.map_player_actors)
 
         self.assertIn('actor_profile.get("current_position")', source)
         self.assertIn("territory_point_in_polygon_or_boundary", source)
         self.assertIn("viewer_areas", source)
+        self.assertIn("user_store.list_profiles()", source)
+        self.assertNotIn("list_recent_area_intruders", source)
         self.assertNotIn("sync_session_profile", source)
 
     def test_frontend_has_monotonic_snapshot_registry_contract(self):

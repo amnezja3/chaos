@@ -13537,13 +13537,13 @@ def resolve_player_actor_relation(viewer_profile, actor_profile, context=None):
     if actor_username and actor_username == viewer_username:
         return "self"
 
-    if context.get("is_friend"):
-        return "friend"
-
     viewer_clan = get_profile_clan(viewer_profile)
     actor_clan = get_profile_clan(actor_profile)
     if viewer_clan and actor_clan and viewer_clan == actor_clan:
         return "same_clan"
+
+    if context.get("is_friend"):
+        return "friend"
 
     if context.get("is_intruder"):
         return "intruder"
@@ -19956,7 +19956,6 @@ def map_player_actors():
         else None
     )
     territory_counts = {}
-    viewer_area_ids = set()
     viewer_areas = []
     try:
         for area in territory_store.list_player_areas():
@@ -19968,9 +19967,6 @@ def map_player_actors():
                 territory_counts[owner_username] = territory_counts.get(owner_username, 0) + 1
             if owner_username == viewer_username and clean_area.get("status", "active") == "active":
                 viewer_areas.append(clean_area)
-                area_id = clean_area.get("id")
-                if area_id is not None:
-                    viewer_area_ids.add(str(area_id))
     except Exception as exc:
         print(f"Nie udalo sie policzyc terytoriow player_actor: {exc}")
 
@@ -20044,50 +20040,57 @@ def map_player_actors():
             context=context,
         )
 
-    for contact in mail_store.list_accepted_contacts(viewer_username):
-        actor_profile = user_store.get_profile(contact.get("name", ""))
-        if not actor_profile:
+    accepted_contacts = {
+        contact.get("name"): contact.get("status", "offline")
+        for contact in mail_store.list_accepted_contacts(viewer_username)
+        if contact.get("name")
+    }
+    viewer_clan = get_profile_clan(viewer_profile)
+
+    # Widocznosc aktora wynika z aktualnej pozycji i aktualnej geometrii, a nie
+    # z krotkotrwalego eventu intruder_enter. Dzieki temu rebuild pola ujawnia
+    # gracza, ktorego pozycja zostala objeta nowym terytorium.
+    for actor_profile in user_store.list_profiles():
+        actor_username = actor_profile.get("username")
+        if not actor_username or actor_username == viewer_username:
             continue
         position = (
             actor_profile.get("current_position")
             or actor_profile.get("curently_possition")
             or {}
         )
-        merge_actor(
-            actor_profile,
-            position.get("lat"),
-            position.get("lng"),
-            "friend",
-            {
-                "is_friend": True,
-                "contact_status": contact.get("status", "offline"),
-            },
-        )
-
-    for intruder in territory_store.list_recent_area_intruders(viewer_username):
-        intruder_area_id = intruder.get("area_id")
-        if intruder_area_id is not None and str(intruder_area_id) not in viewer_area_ids:
-            intruder_position = {"lat": intruder.get("lat"), "lng": intruder.get("lng")}
-            if not any(
-                territory_point_in_polygon_or_boundary(
-                    intruder_position,
-                    area.get("vertices") or [],
-                )
-                for area in viewer_areas
-            ):
-                continue
-        actor_profile = user_store.get_profile(intruder.get("username"))
-        if not actor_profile:
+        lat = position.get("lat")
+        lng = position.get("lng", position.get("lon"))
+        if lat in (None, 0, 0.0) or lng in (None, 0, 0.0):
             continue
+
+        actor_clan = get_profile_clan(actor_profile)
+        is_crew = bool(viewer_clan and actor_clan and viewer_clan == actor_clan)
+        is_friend = actor_username in accepted_contacts
+        actor_position = {"lat": lat, "lng": lng}
+        is_inside_viewer_area = any(
+            territory_point_in_polygon_or_boundary(
+                actor_position,
+                area.get("vertices") or [],
+            )
+            for area in viewer_areas
+        )
+        if not (is_crew or is_friend or is_inside_viewer_area):
+            continue
+
+        is_intruder = bool(is_inside_viewer_area and not is_crew and not is_friend)
+        source = "crew" if is_crew else ("friend" if is_friend else "intruder")
         merge_actor(
             actor_profile,
-            intruder.get("lat"),
-            intruder.get("lng"),
-            "intruder",
+            lat,
+            lng,
+            source,
             {
-                "is_intruder": True,
-                "area_id": intruder.get("area_id"),
-                "created_at": intruder.get("created_at"),
+                "is_crew": is_crew,
+                "is_friend": is_friend,
+                "is_intruder": is_intruder,
+                "inside_viewer_territory": is_inside_viewer_area,
+                "contact_status": accepted_contacts.get(actor_username, "offline"),
             },
         )
 

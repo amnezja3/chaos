@@ -3261,13 +3261,13 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(profile["captured_targets_source"], "sqlite")
         self.assertFalse(fake_store.synced)
 
-    def test_player_actor_relation_prefers_friend_context(self):
+    def test_player_actor_relation_prefers_crew_over_friend_context(self):
         viewer = {"username": "neo", "clan": "VIREX"}
         actor = {"username": "trinity", "clan": "VIREX"}
 
         relation = resolve_player_actor_relation(viewer, actor, {"is_friend": True})
 
-        self.assertEqual(relation, "friend")
+        self.assertEqual(relation, "same_clan")
 
     def test_player_actor_actions_disable_friend_targeting(self):
         actor = build_player_actor(

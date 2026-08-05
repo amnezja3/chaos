@@ -10796,3 +10796,9 @@ Sam endpoint `/api/map/player-actors` przestal wywolywac zapisujacy
 Frontend loguje teraz caly pipeline pod prefiksem `[map actors]`: single-flight,
 czas i status HTTP, liczbe rekordow, utworzenie/aktualizacje/usuniecie markera,
 przynaleznosc do mapy i aktualnego viewportu oraz finalny stan rejestru.
+
+Widocznosc aktorow nie zalezy juz od wygasajacego eventu `intruder_enter`.
+Snapshot porownuje aktualne pozycje profili z aktualnymi polygonami widza,
+wiec ujawnia tez gracza objetego polem dopiero po przebudowie geometrii.
+Priorytet prezentacji to: ten sam klan jako `Crew`, zaakceptowany kontakt z
+obcego klanu jako `friend`, a pozostaly gracz na polu jako `intruder`.

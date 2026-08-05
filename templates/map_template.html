@@ -6310,7 +6310,7 @@
             window.playerActorRelationLabels = {
                 friend: 'Znajomy',
                 intruder: 'Intruz na twoim terenie',
-                same_clan: 'Twoj klan',
+                same_clan: 'Crew',
                 enemy_clan: 'Wrogi klan',
                 neutral: 'Gracz',
                 self: 'Ty'
@@ -6663,11 +6663,12 @@
                 const sources = (actor.context && actor.context.sources) || [];
                 const isIntruder = actor.relation === 'intruder' || sources.includes('intruder');
                 const isFriend = actor.relation === 'friend' || sources.includes('friend');
+                const isCrew = actor.relation === 'same_clan' || sources.includes('crew');
                 const isTarget = Boolean(actor.target_status || (actor.context && actor.context.is_marked_target));
                 const markerWidth = 68;
                 const markerHeight = isTarget ? 76 : 58;
                 const name = window.escapeMapText(actor.nick || actor.username || 'gracz');
-                const color = isIntruder ? '#ff4b4b' : (isFriend ? '#26ff6a' : '#d8ff80');
+                const color = isIntruder ? '#ff4b4b' : (isCrew ? '#53d8ff' : (isFriend ? '#26ff6a' : '#d8ff80'));
                 const background = isIntruder ? '#210707' : '#111';
                 const fallback = isIntruder ? '!' : '@';
                 const avatar = actor.avatar
