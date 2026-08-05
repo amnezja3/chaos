@@ -53,6 +53,81 @@ class TerritoryControlTest(unittest.TestCase):
             sess["user"] = username
         return client
 
+    def test_conflict_detection_ignores_same_clan_but_not_friends(self):
+        areas = [
+            {
+                "id": "alice-area", "owner_username": "alice", "status": "active",
+                "vertices": [
+                    {"lat": 52.0, "lng": 21.0},
+                    {"lat": 52.002, "lng": 21.0},
+                    {"lat": 52.0, "lng": 21.002},
+                ],
+            },
+            {
+                "id": "bob-area", "owner_username": "bob", "status": "active",
+                "vertices": [
+                    {"lat": 52.0005, "lng": 21.0002},
+                    {"lat": 52.0015, "lng": 21.0002},
+                    {"lat": 52.0005, "lng": 21.0015},
+                ],
+            },
+        ]
+
+        with patch.object(run.user_store, "get_profile", side_effect=lambda username: {
+            "username": username, "clan": "same-clan"
+        }):
+            self.assertEqual(run.build_territory_conflict_detection_plan(areas), [])
+
+        with patch.object(run.user_store, "get_profile", side_effect=lambda username: {
+            "username": username, "clan": "alpha" if username == "alice" else "beta"
+        }), patch.object(run.mail_store, "is_accepted_contact", return_value=True):
+            plans = run.build_territory_conflict_detection_plan(areas)
+
+        self.assertEqual(len(plans), 1)
+        self.assertEqual(plans[0]["participants"], ["alice", "bob"])
+
+    def test_conflict_absorbs_foreign_object_left_inside_attacker_area(self):
+        path = self._temp_db()
+        try:
+            store = TerritoryStore(db_path=str(path))
+            conflict_store = TerritoryConflictStore(db_path=str(path))
+            for target in [
+                captured("A1", 52.0, 21.0),
+                captured("A2", 52.002, 21.0),
+                captured("A3", 52.0, 21.002),
+            ]:
+                store.save_captured_target("alice", target)
+            inner = captured("B inner", 52.0005, 21.0005)
+            inner["target_id"] = "bob-inner"
+            store.save_captured_target("bob", inner)
+            alice_areas = store.rebuild_player_areas("alice", player_level=3)
+            conflict = conflict_store.upsert_conflict({
+                "conflict_key": "absorption-test",
+                "participants": ["alice", "bob"],
+                "area_ids": [alice_areas[0]["id"] if alice_areas[0].get("id") else "alice", "bob"],
+                "intersection": alice_areas[0]["vertices"],
+                "intersections": [alice_areas[0]["vertices"]],
+                "targets": [{"target_id": "bob-inner", "owner_username": "bob", "target": inner}],
+                "status": "active",
+                "last_actor_username": "alice",
+            })
+
+            with patch.object(run, "territory_store", store), \
+                    patch.object(run, "territory_conflict_store", conflict_store), \
+                    patch.object(run.user_store, "get_profile", side_effect=lambda username: {
+                        "username": username, "clan": "alpha" if username == "alice" else "beta"
+                    }):
+                absorbed = run.absorb_conflict_objects_inside_attacker_territory(conflict)
+
+            self.assertEqual([item["label"] for item in absorbed], ["B inner"])
+            self.assertEqual(store.list_captured_targets("bob"), [])
+            self.assertIn("B inner", {item["label"] for item in store.list_captured_targets("alice")})
+            pillar = conflict_store.list_pillars(conflict["conflict_id"])[0]
+            self.assertTrue(pillar["captured"])
+            self.assertEqual(pillar["captured_by"], "alice")
+        finally:
+            self._cleanup(path)
+
     def test_one_and_two_pillars_are_alone_without_cluster(self):
         path = self._temp_db()
         try:

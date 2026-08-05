@@ -10717,3 +10717,22 @@ graczy i resolver otoczenia. Dla przejecia filaru przeniesiono je do workera:
 
 Walidacja: 44 testy identity, map cutover i Territory Control - OK;
 `py_compile` oraz `git diff --check` - OK.
+
+Audyt strategicznych relacji i redukcji frontu wykryl dwa brakujace kontrakty:
+
+* zaakceptowany kontakt (`friends`) byl traktowany przez resolver jak ochrona
+  klanowa, przez co mogl blokowac przejecie i otoczenie mimo roznych klanow;
+* po redukcji pola nie istnial etap przejmujacy pojedyncze obiekty obroncy,
+  ktore pozostaly wewnatrz aktywnego pola atakujacego.
+
+Ochrona terytorialna dotyczy teraz wylacznie graczy tego samego klanu. Znajomi
+z roznych klanow moga tworzyc konflikt i atakowac swoje terytoria. Czlonkowie
+jednego klanu nie tworza miedzy soba frontu i zachowuja mozliwosc zagniezdzania
+pol. Worker konfliktu po przebudowie uczestnikow absorbuje obce obiekty nadal
+leżące w polu ostatniego atakujacego, przenosi ich kanoniczna wlasnosc oraz
+aktualizuje rejestr filarow. Kazda absorpcja podnosi wersje domeny i zleca
+kolejny przebieg, dlatego finalny snapshot powstaje dopiero z ustabilizowanej
+geometrii.
+
+Walidacja: 46 testow identity, map cutover i Territory Control - OK;
+`py_compile` oraz `git diff --check` - OK.
