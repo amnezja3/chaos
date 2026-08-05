@@ -6829,13 +6829,16 @@
 
             window.refreshPlayerActors = async function() {
                 const loadingToken = window.beginMapLoading('Synchronizacja mapy...');
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
                 try {
-                    const snapshot = await window.fetchMapSnapshot('player_actors', '/api/map/player-actors', {
-                        timeoutMs: 10000,
-                        allowDuringPause: true
+                    // Aktorzy sa lekkim snapshotem gameplayowym. Nie wspoldziela
+                    // blokady inFlight z ciezszymi snapshotami mapy, bo kolizja
+                    // bootu z timerem mogla pozostawic pusta warstwe.
+                    const res = await fetch('/api/map/player-actors', {
+                        cache: 'no-store',
+                        signal: controller.signal
                     });
-                    if (snapshot.skipped || snapshot.aborted) return false;
-                    const res = snapshot.res;
                     if (res.status === 401) {
                         stopMapRefreshTimers();
                         return false;
@@ -6850,6 +6853,7 @@
                     console.warn('Player actor refresh failed', err);
                     return false;
                 } finally {
+                    clearTimeout(timeoutId);
                     window.endMapLoading(loadingToken);
                 }
             };
@@ -6975,9 +6979,7 @@
                 const state = window.mapRefreshState;
                 const scopeKey = String(scope || 'map');
                 const isCriticalBoot = Boolean(options.critical || (window.mapBootState && window.mapBootState.loading && !window.mapBootState.ready));
-                const allowDuringPause = Boolean(options.allowDuringPause);
-                const protectFromOptionalAbort = isCriticalBoot || allowDuringPause;
-                if (!isCriticalBoot && !allowDuringPause && state.paused) {
+                if (!isCriticalBoot && state.paused) {
                     return { skipped: true, reason: state.pauseReason || 'paused' };
                 }
                 if (state.inFlight[scopeKey]) {
@@ -7008,7 +7010,7 @@
                 const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
                 state.inFlight[scopeKey] = true;
                 state.controllers[scopeKey] = controller;
-                state.critical[scopeKey] = protectFromOptionalAbort;
+                state.critical[scopeKey] = isCriticalBoot;
 
                 try {
                     const res = await fetch(url, { signal: controller.signal });

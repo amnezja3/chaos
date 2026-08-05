@@ -172,7 +172,8 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
 
         self.assertIn("latSpan <= 1.0 && lngSpan <= 1.0", source)
         self.assertIn("'player_actors', window.refreshPlayerActors", source)
-        self.assertIn("allowDuringPause: true", source)
+        self.assertIn("fetch('/api/map/player-actors'", source)
+        self.assertIn("signal: controller.signal", source)
 
 
 if __name__ == "__main__":

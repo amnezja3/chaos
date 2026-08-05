@@ -10784,5 +10784,7 @@ zwracal duzy, poprawny klaster atakujacego, ale frontend odrzucal go lokalnym
 limitem rozciaglosci `0.25` stopnia przed wpisaniem do `territoryAreaLayers`.
 Bezpiecznik podniesiono do `1.0` stopnia; nadal odcina on przypadkowe geometrie
 o skali regionalnej/swiatowej. Pierwszy snapshot aktorow przeniesiono z bootu
-opcjonalnego do sekwencji startowej mapy, a jego odswiezenie moze dokonczyc sie
-podczas krotkiej pauzy pozostalych snapshotow wywolanej akcja hackowania.
+opcjonalnego do sekwencji startowej mapy. Produkcyjna diagnostyka wykazala
+dodatkowo, ze wspolna blokada `inFlight` potrafila pozostawic `player_actors`
+bez renderu po kolizji bootu z timerem. Lekki snapshot aktorow korzysta teraz
+z niezaleznego odswiezenia i nie jest zaglodzony przez ciezsze snapshoty mapy.
