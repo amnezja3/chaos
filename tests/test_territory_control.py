@@ -50,7 +50,9 @@ class TerritoryControlTest(unittest.TestCase):
     def test_conflict_reveal_uses_current_cluster_pillars_and_inners(self):
         pillar = captured("Pillar", 52.01, 21.01)
         pillar["target_id"] = "pillar-current"
-        inner = captured("Inner", 52.02, 21.02)
+        # Punkt lezy dokladnie na przekatnej granicy trojkata. Musi zostac
+        # ujawniony tak samo jak punkt wewnatrz polygonu.
+        inner = captured("Inner", 52.05, 21.05)
         inner.update({"target_id": "inner-current", "stationary": False})
         area = {
             "id": 1,

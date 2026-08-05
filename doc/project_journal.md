@@ -10820,3 +10820,10 @@ poprzedniej wersji. Przed atomowa publikacja worker teraz klasyfikuje aktualne
 i dopisuje je do stabilnego rejestru. Historyczne filary nie sa odpinane tylko
 dlatego, ze wyszly poza biezacy polygon frontu, zgodnie z niezmiennikiem 130.8.
 Zmiana listy `pillar_ids` wymusza publikacje zgodnego frontu i snapshotu.
+
+Audyt momentu utworzenia konfliktu wykryl dodatkowo scisly test
+`point_in_polygon`, ktory odrzucal filary i innery lezace dokladnie na granicy
+wyliczonego overlapu. Takie obiekty nie trafialy do rejestru przy starcie, wiec
+nie mogly pojawic sie rowniez w kolejnych fazach. Kwalifikacja uzywa teraz
+domenowego `territory_point_in_polygon_or_boundary` z tolerancja. Worker loguje
+`[TERRITORY_CONFLICT_TARGETS]` z wersja, liczba, rolami i stabilnymi ID targetow.

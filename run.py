@@ -4200,7 +4200,13 @@ def reveal_conflict_targets_for_group(areas, intersections):
                 lng = float(target.get("lng", target.get("lon")))
             except (TypeError, ValueError):
                 continue
-            if not any(point_in_polygon(lat, lng, intersection) for intersection in intersections if len(intersection or []) >= 3):
+            if not any(
+                territory_point_in_polygon_or_boundary(
+                    {"lat": lat, "lng": lng}, intersection
+                )
+                for intersection in intersections
+                if len(intersection or []) >= 3
+            ):
                 continue
 
             previous_owner = target.get("previous_owner_username")
@@ -4649,6 +4655,22 @@ def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
 
             phase_started = time.perf_counter()
             rebuild_targets = _conflict_rebuild_targets(conflict, detection_plans)
+            target_role_counts = {}
+            for item in rebuild_targets:
+                role = str(
+                    item.get("node_role")
+                    or (item.get("target") or {}).get("node_role")
+                    or "unknown"
+                )
+                target_role_counts[role] = target_role_counts.get(role, 0) + 1
+            print(
+                "[TERRITORY_CONFLICT_TARGETS] "
+                f"conflict_id={conflict.get('conflict_id')} "
+                f"processing_version={claim['processing_version']} "
+                f"count={len(rebuild_targets)} roles={target_role_counts} "
+                f"target_ids={[item.get('target_id') for item in rebuild_targets]}",
+                flush=True,
+            )
             territory_conflict_store.reconcile_rebuild_pillars(
                 conflict.get("conflict_id"),
                 rebuild_targets,
