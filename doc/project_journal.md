@@ -10811,3 +10811,11 @@ oznaczone jako zakonczone, podczas gdy frontend zachowywal stary front.
 No-op jest teraz dozwolony tylko dla snapshotu obejmujacego przetwarzana wersje
 i czystej domeny. Zmiana filaru zawsze publikuje swiezy, kompletny snapshot,
 nawet jesli finalny obrys frontu nie zmienil wspolrzednych.
+
+Kontratak ujawnil drugi brak w konsolidacji: worker liczyl nowe przecięcia i
+fronty, ale nie synchronizowal rejestru filarow z geometria uzyta do publikacji.
+Nowe filary pozostawaly poza snapshotem, a stare nieprzejete wpisy mogly byc
+chwilowo projektowane z poprzedniej wersji. Przed atomowa publikacja worker
+teraz ujawnia filary z aktualnych przecięć, rejestruje nowe oraz oznacza stare,
+nieprzejete i nieobecne jako `detached`. Zmiana listy `pillar_ids` uczestniczy w
+podpisie frontu, wiec wymusza publikacje zgodnego frontu i snapshotu.

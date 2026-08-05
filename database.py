@@ -2582,6 +2582,64 @@ class TerritoryConflictStore:
             ).fetchall()
             return [self._row_to_pillar(row) for row in rows]
 
+    def reconcile_rebuild_pillars(self, conflict_reference, targets,
+                                  conflict_version, actor_username=""):
+        """Apply pillars discovered from the same geometry used by publication."""
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conflict_row = self._find_reference_row(conn, conflict_reference)
+            if not conflict_row:
+                return []
+            conflict = self._conflict_from_row(conn, conflict_row)
+            conflict_id = conflict["conflict_id"]
+            effective_version = max(
+                int(conflict.get("conflict_version") or 0),
+                int(conflict_version or 0),
+            )
+            incoming = list(targets or [])
+            incoming_ids = {
+                self.stable_target_id(item) for item in incoming if item
+            }
+            self._sync_pillars(
+                conn, conflict_id, incoming, effective_version,
+                int(conflict.get("geometry_version") or 0),
+                actor_username=actor_username,
+            )
+            rows = conn.execute(
+                "SELECT * FROM territory_conflict_pillars WHERE conflict_id = ?",
+                (conflict_id,),
+            ).fetchall()
+            for row in rows:
+                pillar = self._row_to_pillar(row)
+                if pillar["target_id"] in incoming_ids or pillar["captured"]:
+                    continue
+                public_target = copy.deepcopy(pillar.get("public_target") or {})
+                public_target.update({"status": "detached", "removed": True})
+                conn.execute(
+                    """
+                    UPDATE territory_conflict_pillars
+                    SET status = 'detached', last_changed_version = ?,
+                        public_target_json = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (effective_version, dumps_json(public_target), now, pillar["id"]),
+                )
+                self._record_event(
+                    conn, "conflict.pillar_detached", conflict_id,
+                    pillar["target_id"], effective_version,
+                    int(conflict.get("geometry_version") or 0),
+                    actor_username=actor_username,
+                )
+            projected = self._project_targets(conn, conflict_id, incoming)
+            conn.execute(
+                "UPDATE territory_conflicts SET targets_json = ?, updated_at = ? WHERE conflict_id = ?",
+                (dumps_json(projected), now, conflict_id),
+            )
+            return [self._row_to_pillar(row) for row in conn.execute(
+                "SELECT * FROM territory_conflict_pillars WHERE conflict_id = ? ORDER BY id",
+                (conflict_id,),
+            ).fetchall()]
+
     def list_events(self, conflict_reference, event_type=None):
         with db_connect(self.db_path) as conn:
             conflict_row = self._find_reference_row(conn, conflict_reference)

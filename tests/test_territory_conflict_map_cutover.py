@@ -139,6 +139,10 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn('"deferred": True', source)
         self.assertIn("discover_and_queue_new_territory_conflicts", source)
 
+        consolidation_source = inspect.getsource(run.consolidate_conflict_rebuild)
+        self.assertIn("_conflict_rebuild_targets", consolidation_source)
+        self.assertIn("reconcile_rebuild_pillars", consolidation_source)
+
     def test_player_actor_snapshot_projects_current_positions_on_current_territory(self):
         source = inspect.getsource(run.map_player_actors)
 

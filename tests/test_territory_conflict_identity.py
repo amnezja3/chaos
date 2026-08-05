@@ -421,6 +421,32 @@ class TerritoryConflictIdentityTests(unittest.TestCase):
         self.assertTrue(state["complete"])
         self.assertEqual(state["geometry_status"], "clean")
 
+    def test_rebuild_pillar_reconcile_adds_new_and_detaches_old_uncaptured_target(self):
+        pillar_a = self.pillar("pillar-a")
+        pillar_b = self.pillar("pillar-b", lat=52.05, lng=21.05)
+        conflict = self.store.upsert_conflict(self.payload(targets=[pillar_a]))
+
+        reconciled = self.store.reconcile_rebuild_pillars(
+            conflict["conflict_id"], [pillar_b],
+            conflict["conflict_version"], actor_username="bob",
+        )
+
+        by_id = {pillar["target_id"]: pillar for pillar in reconciled}
+        self.assertEqual(by_id["pillar-a"]["status"], "detached")
+        self.assertTrue(by_id["pillar-a"]["public_target"]["removed"])
+        self.assertEqual(by_id["pillar-b"]["status"], "contested")
+        projected = {
+            item["target_id"]: item
+            for item in self.store.get_by_key(conflict["conflict_id"])["targets"]
+        }
+        self.assertIn("pillar-a", projected)
+        self.assertIn("pillar-b", projected)
+
+        events = self.store.list_events(
+            conflict["conflict_id"], "conflict.pillar_detached"
+        )
+        self.assertEqual(len(events), 1)
+
     def test_failed_rebuild_preserves_last_valid_snapshot(self):
         conflict = self.store.upsert_conflict(self.payload())
         self.store.request_rebuild(conflict["conflict_id"], "initial", 1)

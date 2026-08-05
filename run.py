@@ -4531,7 +4531,12 @@ def _conflict_front_plans(conflict, detection_plans):
     conflict_participants = set(conflict.get("participants") or [])
     conflict_area_ids = {str(item) for item in (conflict.get("area_ids") or [])}
     pillars = territory_conflict_store.list_pillars(conflict.get("conflict_id"))
-    pillar_ids = sorted(str(pillar.get("target_id")) for pillar in pillars if pillar.get("target_id"))
+    pillar_ids = sorted(
+        str(pillar.get("target_id"))
+        for pillar in pillars
+        if pillar.get("target_id")
+        and str(pillar.get("status") or "").lower() not in {"detached", "removed", "resolved"}
+    )
     selected = []
     for plan in detection_plans:
         plan_participants = set(plan.get("participants") or [])
@@ -4541,6 +4546,27 @@ def _conflict_front_plans(conflict, detection_plans):
         for front in plan.get("fronts") or []:
             selected.append({**front, "pillar_ids": pillar_ids})
     return selected
+
+
+def _conflict_rebuild_targets(conflict, detection_plans):
+    conflict_participants = set(conflict.get("participants") or [])
+    conflict_area_ids = {str(item) for item in (conflict.get("area_ids") or [])}
+    component_areas = []
+    intersections = []
+    seen_area_ids = set()
+    for plan in detection_plans or []:
+        plan_participants = set(plan.get("participants") or [])
+        plan_area_ids = {str(item) for item in (plan.get("area_ids") or [])}
+        if plan_participants != conflict_participants and not (plan_area_ids & conflict_area_ids):
+            continue
+        for area in plan.get("component_areas") or []:
+            area_key = str(area.get("id") or id(area))
+            if area_key not in seen_area_ids:
+                seen_area_ids.add(area_key)
+                component_areas.append(area)
+        intersections.extend(plan.get("intersections") or [])
+    revealed = reveal_conflict_targets_for_group(component_areas, intersections)
+    return merge_conflict_target_statuses(conflict, revealed)
 
 
 def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
@@ -4611,6 +4637,13 @@ def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
             timings["detection"] = int((time.perf_counter() - phase_started) * 1000)
 
             phase_started = time.perf_counter()
+            rebuild_targets = _conflict_rebuild_targets(conflict, detection_plans)
+            territory_conflict_store.reconcile_rebuild_pillars(
+                conflict.get("conflict_id"),
+                rebuild_targets,
+                claim["processing_version"],
+                actor_username=conflict.get("last_actor_username") or "",
+            )
             front_plans = _conflict_front_plans(conflict, detection_plans)
             timings["front_plan"] = int((time.perf_counter() - phase_started) * 1000)
 
