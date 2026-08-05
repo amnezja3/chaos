@@ -3735,8 +3735,15 @@ async function app_progressbar_random(id, levels) {
             const stopWaitLog = startAppWaitLog(app);
             notifyGonnaWin(id, app).then(success => {
                 stopWaitLog();
-                result.textContent = success ? (level.result_success || "Operacja zako\u0144czona.") : (level.result_failure || "Operacja nie powiod\u0142a si\u0119.");
-                result.style.color = success ? "#0f0" : "#f33";
+                const runtimeResult = app && app._lastGonnaWinResult;
+                const staleTarget = runtimeResult && runtimeResult.blocked
+                    && runtimeResult.reason === 'invalid_target';
+                result.textContent = success
+                    ? (level.result_success || "Operacja zako\u0144czona.")
+                    : (staleTarget
+                        ? "Cel zmieni\u0142 si\u0119 przed potwierdzeniem. Od\u015bwie\u017c cel i uruchom aplikacj\u0119 ponownie."
+                        : (level.result_failure || "Operacja nie powiod\u0142a si\u0119."));
+                result.style.color = success ? "#0f0" : (staleTarget ? "#ffcc33" : "#f33");
                 if (success) {
                     scheduleOperationalAppAutoClose(app);
                 }
@@ -3779,6 +3786,7 @@ async function notifyGonnaWin(appId, appWindow = null) {
             })
         });
         const data = await response.json();
+        if (appWindow) appWindow._lastGonnaWinResult = data;
         if (data.player_hack_access) {
             refreshPlayerHackAccess(data.player_hack_access);
         }
@@ -3790,6 +3798,12 @@ async function notifyGonnaWin(appId, appWindow = null) {
         if (data.success && data.captured_target) {
             notifyOpenMapsTargetHacked(data.captured_target);
             refreshToolbarProfile();
+        }
+        if (response.status === 409 && data.blocked && data.reason === 'invalid_target') {
+            console.info('[gonna-win] Cel zmienil sie przed potwierdzeniem runtime', data.target || {});
+            refreshToolbarProfile();
+            notifyOpenMapsOperationsChanged();
+            return false;
         }
         return data.success === true;
     }).catch(err => {

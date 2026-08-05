@@ -10763,3 +10763,18 @@ przenosil obiekty i usuwal front bez walki. Absorpcja wymaga teraz dowodu w
 kanonicznym rejestrze filarow, ze ostatni atakujacy rzeczywiscie przejal co
 najmniej jeden filar. Discovery tylko tworzy pole walki i ujawnia cele;
 automatyczny transfer pozostalych obiektow moze nastapic dopiero po hacku.
+
+Audyt produkcyjny po poprawnym utworzeniu frontu wykryl trzy niezalezne
+regresje prezentacji. Kanoniczny polygon pola gracza nie mial znacznika
+`_chaosLayerRegistry`, wiec cleanup warstw legacy usuwal go po tooltipie
+`Pole gracza`, mimo ze store i Territory Control nadal widzialy klaster.
+Znajomi byli odczytywani tylko ze starego `curently_possition`, a intruzi po
+rebuildzie pola byli odrzucani przez nieaktualne `area_id`. Polygon otrzymal
+znacznik rejestru; aktorzy preferuja `current_position` z fallbackiem legacy,
+a stary identyfikator pola intruza jest odzyskiwany przez sprawdzenie jego
+pozycji w aktualnej geometrii gracza.
+
+Odpowiedz `/gonna-win` 409 `invalid_target` pozostaje poprawnym konfliktem
+stanu, ale aplikacja hakujaca nie przedstawia jej juz jako bledu polaczenia.
+Pokazuje ostrzezenie o zmianie celu, odswieza toolbar i mape oraz sugeruje
+ponowne uruchomienie aplikacji na swiezym snapshotcie.

@@ -19917,7 +19917,11 @@ def map_friends():
         if not friend_profile:
             continue
 
-        position = friend_profile.get("curently_possition", {}) or {}
+        position = (
+            friend_profile.get("current_position")
+            or friend_profile.get("curently_possition")
+            or {}
+        )
         lat = position.get("lat")
         lng = position.get("lng")
         if lat in (None, 0, 0.0) or lng in (None, 0, 0.0):
@@ -19951,6 +19955,7 @@ def map_player_actors():
     )
     territory_counts = {}
     viewer_area_ids = set()
+    viewer_areas = []
     try:
         for area in territory_store.list_player_areas():
             clean_area = normalize_player_area(area)
@@ -19960,6 +19965,7 @@ def map_player_actors():
             if owner_username:
                 territory_counts[owner_username] = territory_counts.get(owner_username, 0) + 1
             if owner_username == viewer_username and clean_area.get("status", "active") == "active":
+                viewer_areas.append(clean_area)
                 area_id = clean_area.get("id")
                 if area_id is not None:
                     viewer_area_ids.add(str(area_id))
@@ -20040,7 +20046,11 @@ def map_player_actors():
         actor_profile = user_store.get_profile(contact.get("name", ""))
         if not actor_profile:
             continue
-        position = actor_profile.get("curently_possition", {}) or {}
+        position = (
+            actor_profile.get("current_position")
+            or actor_profile.get("curently_possition")
+            or {}
+        )
         merge_actor(
             actor_profile,
             position.get("lat"),
@@ -20055,7 +20065,15 @@ def map_player_actors():
     for intruder in territory_store.list_recent_area_intruders(viewer_username):
         intruder_area_id = intruder.get("area_id")
         if intruder_area_id is not None and str(intruder_area_id) not in viewer_area_ids:
-            continue
+            intruder_position = {"lat": intruder.get("lat"), "lng": intruder.get("lng")}
+            if not any(
+                territory_point_in_polygon_or_boundary(
+                    intruder_position,
+                    area.get("vertices") or [],
+                )
+                for area in viewer_areas
+            ):
+                continue
         actor_profile = user_store.get_profile(intruder.get("username"))
         if not actor_profile:
             continue

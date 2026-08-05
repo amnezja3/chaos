@@ -139,6 +139,13 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn('"deferred": True', source)
         self.assertIn("discover_and_queue_new_territory_conflicts", source)
 
+    def test_player_actor_snapshot_accepts_new_position_and_stale_intruder_area_id(self):
+        source = inspect.getsource(run.map_player_actors)
+
+        self.assertIn('actor_profile.get("current_position")', source)
+        self.assertIn("territory_point_in_polygon_or_boundary", source)
+        self.assertIn("viewer_areas", source)
+
     def test_frontend_has_monotonic_snapshot_registry_contract(self):
         with open("templates/map_template.html", encoding="utf-8") as handle:
             source = handle.read()
@@ -151,6 +158,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("conflictVersion < Number(previous.conflictVersion", source)
         self.assertIn("publishedGeometryReplacesPrevious", source)
         self.assertIn("registeredFrontIds", source)
+        self.assertIn("polygon._chaosLayerRegistry = 'territoryAreaLayers'", source)
         self.assertIn("geometryVersion < Number(previous.geometryVersion", source)
         self.assertIn("reconcileTerritoryConflictSnapshots", source)
         self.assertIn("territory_conflict_snapshot_mode", source)

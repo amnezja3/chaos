@@ -2101,6 +2101,7 @@
             }
 
             const polygon = registerLayerInArray('playerAreaLayers', L.polygon(points, territoryLayerStyle(area)));
+            polygon._chaosLayerRegistry = 'territoryAreaLayers';
             polygon._chaosTerritoryId = territoryId;
             polygon._chaosTerritorySnapshot = { ...area, territory_id: territoryId };
             polygon.addTo(map);
