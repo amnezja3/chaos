@@ -10857,3 +10857,10 @@ front krawedz i pozostawac niedostepny przez wszystkie kolejne rebuildy.
 Kwalifikacja ujawnia teraz rowniez filary, ktorych sasiednia krawedz klastra
 przecina aktualny front. Nie ujawnia calego klastra: odlegle filary pozostaja
 ukryte, a innery nadal wymagaja polozenia wewnatrz obszaru spornego.
+
+Produkcja potwierdzila trzy aktywne `contested` filary w kompletnym snapshocie,
+ale pusty `territoryConflictPillarLayers`. Monotoniczna bramka frontendu
+pomijala ponowne zastosowanie snapshotu o tej samej wersji bez sprawdzenia,
+czy kanoniczne warstwy nadal sa dolaczone do Leaflet. Reconcile wylicza teraz
+oczekiwane aktywne fronty i nieprzejete filary. Brak dowolnej warstwy omija
+skrot wersji i odtwarza rejestr z aktualnego snapshotu.

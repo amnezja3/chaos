@@ -2368,6 +2368,28 @@
                 && entry.layer
                 && !entry.layer._chaosTerritoryInteractiveMarker
             ));
+            const expectedFrontIds = (snapshot.fronts || [])
+                .filter(front => !['closed', 'removed', 'resolved'].includes(String((front || {}).status || '').toLowerCase()))
+                .map(front => String((front || {}).front_id || '').trim())
+                .filter(Boolean);
+            const expectedPillarIds = (snapshot.pillars || [])
+                .filter(pillar => (
+                    !(pillar || {}).removed
+                    && !(pillar || {}).captured
+                    && !['captured', 'removed', 'detached', 'resolved'].includes(String((pillar || {}).status || '').toLowerCase())
+                ))
+                .map(pillar => {
+                    const target = (pillar || {}).target || (pillar || {}).public_target || pillar || {};
+                    return String((pillar || {}).target_id || target.target_id || target.id || '').trim();
+                })
+                .filter(Boolean);
+            const hasMissingCanonicalLayers = expectedFrontIds.some(id => {
+                const entry = window.territoryFrontLayers[id];
+                return !entry || !entry.layer || !map.hasLayer(entry.layer);
+            }) || expectedPillarIds.some(id => {
+                const entry = window.territoryConflictPillarLayers[id];
+                return !entry || !entry.layer || !map.hasLayer(entry.layer);
+            });
             if (previous && Number(previous.snapshotVersion || 0) > version) return true;
             if (previous && conflictVersion < Number(previous.conflictVersion || 0)) return false;
             if (previous && geometryVersion < Number(previous.geometryVersion || 0)) return false;
@@ -2376,7 +2398,8 @@
                 && conflictVersion <= Number(previous.conflictVersion || 0)
                 && geometryVersion <= Number(previous.geometryVersion || 0)
                 && Boolean((previous.snapshot || {}).complete) === Boolean(snapshot.complete)
-                && !hasLegacyPillarLayers) return true;
+                && !hasLegacyPillarLayers
+                && !hasMissingCanonicalLayers) return true;
             if (['closed', 'removed', 'resolved', 'cancelled'].includes(String(snapshot.status || '').toLowerCase())) {
                 removeTerritoryConflictSnapshot(conflictId);
                 return true;

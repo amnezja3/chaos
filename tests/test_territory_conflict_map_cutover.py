@@ -175,6 +175,8 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("layer._chaosTerritoryInteractiveMarker = true", source)
         self.assertIn("'territoryConflictPillarMarker'", source)
         self.assertIn("hasLegacyPillarLayers", source)
+        self.assertIn("hasMissingCanonicalLayers", source)
+        self.assertIn("expectedPillarIds", source)
         self.assertNotIn("const layer = L.circleMarker(point", source)
 
     def test_frontend_keeps_large_valid_territories_and_boots_player_actors(self):
