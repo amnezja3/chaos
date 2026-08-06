@@ -83,7 +83,7 @@ class TerritoryControlTest(unittest.TestCase):
     def test_conflict_reveals_boundary_pillar_supporting_front_from_outside(self):
         supporting = captured("Supporting", 52.0, 21.0)
         supporting["target_id"] = "pillar-supporting"
-        remote = captured("Remote", 52.1, 21.0)
+        remote = captured("Remote", 52.01, 21.0)
         remote["target_id"] = "pillar-remote"
         outside_inner = captured("Outside inner", 52.08, 21.01)
         outside_inner.update({"target_id": "inner-outside", "stationary": False})
@@ -92,18 +92,18 @@ class TerritoryControlTest(unittest.TestCase):
             "owner_username": "alice",
             "vertices": [
                 {"lat": 52.0, "lng": 21.0},
-                {"lat": 52.0, "lng": 21.1},
-                {"lat": 52.1, "lng": 21.1},
-                {"lat": 52.1, "lng": 21.0},
+                {"lat": 52.0, "lng": 21.01},
+                {"lat": 52.01, "lng": 21.01},
+                {"lat": 52.01, "lng": 21.0},
             ],
         }
         # Front przecina krawedz miedzy pierwszym i drugim filarem, ale oba
         # filary leza poza samym polygonem overlapu.
         intersection = [
-            {"lat": 51.999, "lng": 21.04},
-            {"lat": 52.001, "lng": 21.04},
-            {"lat": 52.001, "lng": 21.06},
-            {"lat": 51.999, "lng": 21.06},
+            {"lat": 51.999, "lng": 21.004},
+            {"lat": 52.001, "lng": 21.004},
+            {"lat": 52.001, "lng": 21.006},
+            {"lat": 51.999, "lng": 21.006},
         ]
         with patch.object(run, "territory_area_cluster_members", return_value={
             "pillars": [supporting, remote],
@@ -117,6 +117,39 @@ class TerritoryControlTest(unittest.TestCase):
         self.assertIn("pillar-supporting", by_id)
         self.assertNotIn("pillar-remote", by_id)
         self.assertNotIn("inner-outside", by_id)
+
+    def test_conflict_does_not_reveal_remote_edge_anchor(self):
+        remote = captured("Remote support", 52.0, 21.0)
+        remote["target_id"] = "pillar-remote-support"
+        area = {
+            "id": 1,
+            "owner_username": "alice",
+            "vertices": [
+                {"lat": 52.0, "lng": 21.0},
+                {"lat": 52.0, "lng": 21.1},
+                {"lat": 52.1, "lng": 21.1},
+                {"lat": 52.1, "lng": 21.0},
+            ],
+        }
+        intersection = [
+            {"lat": 51.999, "lng": 21.049},
+            {"lat": 52.001, "lng": 21.049},
+            {"lat": 52.001, "lng": 21.051},
+            {"lat": 51.999, "lng": 21.051},
+        ]
+        with patch.object(run, "territory_area_cluster_members", return_value={
+            "pillars": [remote], "inners": [], "objects": [remote], "valid": True,
+        }):
+            revealed, diagnostics = run.reveal_conflict_targets_for_group(
+                [area], [intersection], return_diagnostics=True
+            )
+
+        self.assertEqual(revealed, [])
+        self.assertEqual(diagnostics[0]["target_id"], "pillar-remote-support")
+        self.assertGreater(
+            diagnostics[0]["distance_meters"],
+            run.TERRITORY_CONFLICT_REVEAL_MAX_DISTANCE_METERS,
+        )
 
     def _client_with_user(self, username="alice"):
         client = run.app.test_client()
@@ -189,6 +222,41 @@ class TerritoryControlTest(unittest.TestCase):
             reason="periodic_consistency_reconcile",
             requested_version=4,
         )
+
+    def test_conflict_plan_selection_rejects_remote_same_participants_front(self):
+        conflict = {
+            "conflict_id": "conflict-local",
+            "participants": ["alice", "bob"],
+            "area_ids": ["old-a", "old-b"],
+        }
+        local_geometry = [
+            {"lat": 52.0, "lng": 21.0},
+            {"lat": 52.002, "lng": 21.0},
+            {"lat": 52.0, "lng": 21.002},
+        ]
+        remote_geometry = [
+            {"lat": 52.1, "lng": 21.1},
+            {"lat": 52.102, "lng": 21.1},
+            {"lat": 52.1, "lng": 21.102},
+        ]
+        local_plan = {
+            "participants": ["alice", "bob"],
+            "area_ids": ["new-a", "new-b"],
+            "intersections": [local_geometry],
+        }
+        remote_plan = {
+            "participants": ["alice", "bob"],
+            "area_ids": ["remote-a", "remote-b"],
+            "intersections": [remote_geometry],
+        }
+        with patch.object(run.territory_conflict_store, "list_fronts", return_value=[{
+            "front_id": "front-local", "geometry": local_geometry,
+        }]):
+            selected = run._matching_conflict_detection_plans(
+                conflict, [local_plan, remote_plan]
+            )
+
+        self.assertEqual(selected, [local_plan])
 
     def test_single_pillar_capture_does_not_absorb_foreign_inner(self):
         path = self._temp_db()

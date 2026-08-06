@@ -4172,11 +4172,56 @@ def reveal_conflict_targets(area_a, area_b, contested_area):
     return list(revealed.values())
 
 
-def reveal_conflict_targets_for_group(areas, intersections):
+TERRITORY_CONFLICT_REVEAL_MAX_DISTANCE_METERS = max(
+    100.0,
+    float(os.environ.get("CHAOS_TERRITORY_CONFLICT_REVEAL_MAX_DISTANCE_METERS", "1000")),
+)
+
+
+def territory_point_to_segment_distance_meters(point, start, end):
+    """Approximate local point/segment distance without a geometry dependency."""
+    lat = float(point.get("lat"))
+    lng = float(point.get("lng", point.get("lon")))
+    start_lat = float(start.get("lat"))
+    start_lng = float(start.get("lng", start.get("lon")))
+    end_lat = float(end.get("lat"))
+    end_lng = float(end.get("lng", end.get("lon")))
+    mean_lat = math.radians((lat + start_lat + end_lat) / 3.0)
+    scale_x = 111320.0 * max(0.01, math.cos(mean_lat))
+    scale_y = 110540.0
+    px, py = lng * scale_x, lat * scale_y
+    ax, ay = start_lng * scale_x, start_lat * scale_y
+    bx, by = end_lng * scale_x, end_lat * scale_y
+    dx, dy = bx - ax, by - ay
+    if dx == 0 and dy == 0:
+        return math.hypot(px - ax, py - ay)
+    ratio = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
+    return math.hypot(px - (ax + ratio * dx), py - (ay + ratio * dy))
+
+
+def territory_point_to_front_distance_meters(point, intersections):
+    distances = []
+    for intersection in intersections or []:
+        if len(intersection or []) < 3:
+            continue
+        if territory_point_in_polygon_or_boundary(point, intersection):
+            return 0.0
+        for index, start in enumerate(intersection):
+            try:
+                distances.append(territory_point_to_segment_distance_meters(
+                    point, start, intersection[(index + 1) % len(intersection)]
+                ))
+            except (AttributeError, TypeError, ValueError):
+                continue
+    return min(distances) if distances else float("inf")
+
+
+def reveal_conflict_targets_for_group(areas, intersections, return_diagnostics=False):
     if not areas or not intersections:
-        return []
+        return ([], []) if return_diagnostics else []
 
     revealed = {}
+    remote_supports = {}
     for area in areas:
         owner = str(area.get("owner_username") or "").strip()
         if not owner:
@@ -4229,6 +4274,19 @@ def reveal_conflict_targets_for_group(areas, intersections):
                     for front_index, front_start in enumerate(intersection)
                     for front_end in [intersection[(front_index + 1) % len(intersection)]]
                 )
+                if supports_front and not inside_front:
+                    distance = territory_point_to_front_distance_meters(
+                        {"lat": lat, "lng": lng}, intersections
+                    )
+                    if distance > TERRITORY_CONFLICT_REVEAL_MAX_DISTANCE_METERS:
+                        remote_supports[key] = {
+                            "target_id": key,
+                            "owner_username": owner,
+                            "target": {**target, "lat": lat, "lng": lng, "lon": lng},
+                            "distance_meters": round(distance, 1),
+                            "reason": "remote_front_support",
+                        }
+                        supports_front = False
             if not inside_front and not supports_front:
                 continue
 
@@ -4254,7 +4312,10 @@ def reveal_conflict_targets_for_group(areas, intersections):
                 },
             }
 
-    return list(revealed.values())
+    result = list(revealed.values())
+    if return_diagnostics:
+        return result, list(remote_supports.values())
+    return result
 
 
 def merge_conflict_target_statuses(conflict_reference, targets):
@@ -4566,9 +4627,57 @@ def discover_and_queue_new_territory_conflicts(actor_username):
     return queued
 
 
-def _conflict_front_plans(conflict, detection_plans):
+def _matching_conflict_detection_plans(conflict, detection_plans):
     conflict_participants = set(conflict.get("participants") or [])
     conflict_area_ids = {str(item) for item in (conflict.get("area_ids") or [])}
+    candidates = []
+    area_matches = []
+    for plan in detection_plans or []:
+        plan_participants = set(plan.get("participants") or [])
+        plan_area_ids = {str(item) for item in (plan.get("area_ids") or [])}
+        if plan_participants != conflict_participants and not (plan_area_ids & conflict_area_ids):
+            continue
+        candidates.append(plan)
+        if plan_area_ids & conflict_area_ids:
+            area_matches.append(plan)
+    if area_matches:
+        return area_matches
+
+    published_fronts = territory_conflict_store.list_fronts(
+        conflict.get("conflict_id") or conflict.get("id"), active_only=True
+    )
+    spatial_matches = []
+    for plan in candidates:
+        plan_geometries = plan.get("intersections") or []
+        continuous = False
+        for front in published_fronts:
+            old_geometry = front.get("geometry") or []
+            for geometry in plan_geometries:
+                if len(old_geometry) < 3 or len(geometry or []) < 3:
+                    continue
+                if polygons_intersect(old_geometry, geometry):
+                    continuous = True
+                    break
+                distance = min(
+                    [territory_point_to_front_distance_meters(vertex, [old_geometry]) for vertex in geometry]
+                    + [territory_point_to_front_distance_meters(vertex, [geometry]) for vertex in old_geometry]
+                )
+                if distance <= TERRITORY_CONFLICT_REVEAL_MAX_DISTANCE_METERS:
+                    continuous = True
+                    break
+            if continuous:
+                break
+        if continuous:
+            spatial_matches.append(plan)
+    if spatial_matches:
+        return spatial_matches
+    # A single candidate is an unambiguous geometry replacement for the same
+    # participant cycle. Several remote candidates require area/front
+    # continuity; otherwise joining them would leak targets across the city.
+    return candidates if len(candidates) == 1 else []
+
+
+def _conflict_front_plans(conflict, detection_plans):
     pillars = territory_conflict_store.list_pillars(conflict.get("conflict_id"))
     pillar_ids = sorted(
         str(pillar.get("target_id"))
@@ -4577,35 +4686,30 @@ def _conflict_front_plans(conflict, detection_plans):
         and str(pillar.get("status") or "").lower() not in {"detached", "removed", "resolved"}
     )
     selected = []
-    for plan in detection_plans:
-        plan_participants = set(plan.get("participants") or [])
-        plan_area_ids = {str(item) for item in (plan.get("area_ids") or [])}
-        if plan_participants != conflict_participants and not (plan_area_ids & conflict_area_ids):
-            continue
+    for plan in _matching_conflict_detection_plans(conflict, detection_plans):
         for front in plan.get("fronts") or []:
             selected.append({**front, "pillar_ids": pillar_ids})
     return selected
 
 
 def _conflict_rebuild_targets(conflict, detection_plans):
-    conflict_participants = set(conflict.get("participants") or [])
-    conflict_area_ids = {str(item) for item in (conflict.get("area_ids") or [])}
+    component_areas, intersections = _conflict_rebuild_scope(conflict, detection_plans)
+    revealed = reveal_conflict_targets_for_group(component_areas, intersections)
+    return merge_conflict_target_statuses(conflict, revealed)
+
+
+def _conflict_rebuild_scope(conflict, detection_plans):
     component_areas = []
     intersections = []
     seen_area_ids = set()
-    for plan in detection_plans or []:
-        plan_participants = set(plan.get("participants") or [])
-        plan_area_ids = {str(item) for item in (plan.get("area_ids") or [])}
-        if plan_participants != conflict_participants and not (plan_area_ids & conflict_area_ids):
-            continue
+    for plan in _matching_conflict_detection_plans(conflict, detection_plans):
         for area in plan.get("component_areas") or []:
             area_key = str(area.get("id") or id(area))
             if area_key not in seen_area_ids:
                 seen_area_ids.add(area_key)
                 component_areas.append(area)
         intersections.extend(plan.get("intersections") or [])
-    revealed = reveal_conflict_targets_for_group(component_areas, intersections)
-    return merge_conflict_target_statuses(conflict, revealed)
+    return component_areas, intersections
 
 
 def reconcile_active_territory_conflicts(reduce_unlinkable=True):
@@ -4623,6 +4727,10 @@ def reconcile_active_territory_conflicts(reduce_unlinkable=True):
         if not conflict_id:
             continue
         expected = _conflict_rebuild_targets(conflict, detection_plans)
+        component_areas, intersections = _conflict_rebuild_scope(conflict, detection_plans)
+        _revealed_now, remote_supports = reveal_conflict_targets_for_group(
+            component_areas, intersections, return_diagnostics=True
+        )
         expected_active = {}
         unlinkable = []
         for item in expected:
@@ -4670,7 +4778,11 @@ def reconcile_active_territory_conflicts(reduce_unlinkable=True):
 
         reduced = []
         if reduce_unlinkable:
-            for item, reason in unlinkable:
+            reduction_candidates = list(unlinkable) + [
+                (item, item.get("reason") or "remote_front_support")
+                for item in remote_supports
+            ]
+            for item, reason in reduction_candidates:
                 target = copy.deepcopy(item.get("target") or item.get("public_target") or item)
                 owner = str(item.get("owner_username") or item.get("owner") or target.get("owner_username") or "")
                 if not owner or target.get("lat") is None or target.get("lng", target.get("lon")) is None:
@@ -4679,6 +4791,13 @@ def reconcile_active_territory_conflicts(reduce_unlinkable=True):
                 target["territory_reconcile_reason"] = reason
                 territory_store.save_captured_target(owner, target)
                 reduced.append(territory_conflict_store.stable_target_id(target))
+            if reduced:
+                territory_conflict_store.detach_rebuild_pillars(
+                    conflict_id,
+                    reduced,
+                    conflict.get("conflict_version"),
+                    reason="periodic_consistency_reconcile",
+                )
 
         needs_rebuild = bool(missing_ids or ownership_mismatches or reduced)
         if needs_rebuild:
@@ -4694,6 +4813,10 @@ def reconcile_active_territory_conflicts(reduce_unlinkable=True):
             "missing_ids": missing_ids,
             "ownership_mismatches": ownership_mismatches,
             "reduced_ids": reduced,
+            "remote_supports": [
+                {"target_id": item.get("target_id"), "distance_meters": item.get("distance_meters")}
+                for item in remote_supports
+            ],
             "action": "field_reduced" if reduced else ("rebuild_queued" if needs_rebuild else "ok"),
         }
         reports.append(report)

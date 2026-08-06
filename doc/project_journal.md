@@ -10886,3 +10886,15 @@ rebuild redukuje pole, wiec niedostepny cel nie moze dalej podtrzymywac
 terytorium. Worker loguje raport `[TERRITORY_RECONCILE]` z akcja `ok`,
 `rebuild_queued` albo `field_reduced`. Interwal konfiguruje
 `CHAOS_TERRITORY_RECONCILE_SECONDS` z bezpiecznym minimum 60 sekund.
+
+Pierwszy przebieg watchdog-a ujawnil, ze niezalezny audyt nadal dziedziczyl
+dwie anomalie selektora konfliktu. Matematyczne przeciecie dlugiej krawedzi
+hull ujawnialo jej koniec oddalony o kilka kilometrow, a warunek tych samych
+uczestnikow dolaczal do jednego przebiegu wszystkie odlegle fronty tej samej
+pary graczy. Selektor wymaga teraz ciaglosci `area_id` albo przestrzennej
+ciaglosci z opublikowanym frontem; sami uczestnicy wystarczaja tylko przy
+jednym jednoznacznym kandydacie. Filar wspierajacy krawedz jest ujawniany
+wylacznie w pasie do 1000 m od frontu. Dalsza kotwica otrzymuje status
+`detached`, pozostaje obiektem gracza, ale przestaje budowac geometrie, po czym
+worker publikuje zredukowane pole. Prog mozna stroic przez
+`CHAOS_TERRITORY_CONFLICT_REVEAL_MAX_DISTANCE_METERS`.

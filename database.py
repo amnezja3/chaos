@@ -2683,6 +2683,58 @@ class TerritoryConflictStore:
                 (conflict_id,),
             ).fetchall()]
 
+    def detach_rebuild_pillars(self, conflict_reference, target_ids,
+                               conflict_version, reason="consistency_reconcile"):
+        """Detach explicitly invalid geometry anchors without deleting objects."""
+        target_ids = sorted({str(item or "").strip() for item in target_ids if str(item or "").strip()})
+        if not target_ids:
+            return []
+        now = utc_now()
+        detached = []
+        with db_connect(self.db_path) as conn:
+            conflict_row = self._find_reference_row(conn, conflict_reference)
+            if not conflict_row:
+                return []
+            conflict = self._conflict_from_row(conn, conflict_row)
+            conflict_id = conflict["conflict_id"]
+            effective_version = max(
+                int(conflict.get("conflict_version") or 0),
+                int(conflict_version or 0),
+            )
+            for target_id in target_ids:
+                row = conn.execute(
+                    "SELECT * FROM territory_conflict_pillars WHERE conflict_id = ? AND target_id = ?",
+                    (conflict_id, target_id),
+                ).fetchone()
+                if not row or bool(row["captured"]):
+                    continue
+                public_target = loads_json(row["public_target_json"], {})
+                public_target["status"] = "detached"
+                public_target["removed"] = True
+                public_target["detach_reason"] = str(reason or "consistency_reconcile")
+                conn.execute(
+                    """
+                    UPDATE territory_conflict_pillars SET
+                        status = 'detached', last_changed_version = ?,
+                        public_target_json = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (effective_version, dumps_json(public_target), now, row["id"]),
+                )
+                self._record_event(
+                    conn, "conflict.pillar_detached", conflict_id, target_id,
+                    effective_version, int(conflict.get("geometry_version") or 0),
+                    payload={"reason": str(reason or "consistency_reconcile")},
+                )
+                detached.append(target_id)
+            if detached:
+                projected = self._project_targets(conn, conflict_id, conflict.get("targets"))
+                conn.execute(
+                    "UPDATE territory_conflicts SET targets_json = ?, updated_at = ? WHERE conflict_id = ?",
+                    (dumps_json(projected), now, conflict_id),
+                )
+        return detached
+
     def list_events(self, conflict_reference, event_type=None):
         with db_connect(self.db_path) as conn:
             conflict_row = self._find_reference_row(conn, conflict_reference)
