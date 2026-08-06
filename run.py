@@ -4624,22 +4624,12 @@ def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
                     )
             timings["participant_rebuild"] = int((time.perf_counter() - phase_started) * 1000)
 
-            phase_started = time.perf_counter()
-            absorbed = absorb_conflict_objects_inside_attacker_territory(conflict)
-            if absorbed:
-                for participant in sorted(set(conflict.get("participants") or [])):
-                    profile = user_store.get_profile(participant) or {}
-                    if not profile:
-                        continue
-                    rebuild_player_areas_with_territory_delta(
-                        participant,
-                        profile.get("level", 1),
-                        reason=f"conflict_absorption:{conflict.get('conflict_id')}",
-                        resolve_encirclements=False,
-                    )
-                prebuilt_areas = None
-                prebuilt_detection_plans = None
-            timings["object_absorption"] = int((time.perf_counter() - phase_started) * 1000)
+            # Ownership transfer belongs exclusively to the full-cluster
+            # encirclement resolver. A captured conflict pillar may shrink or
+            # collapse a field, but it must never absorb every foreign object
+            # merely because those objects happen to lie in the attacker's
+            # current polygon.
+            timings["object_absorption"] = 0
 
             phase_started = time.perf_counter()
             areas = list(prebuilt_areas) if prebuilt_areas is not None else territory_store.list_player_areas()
@@ -5079,91 +5069,6 @@ def territory_owners_are_protected_relation(username_a, username_b, profile_cach
     if clan_a and clan_b and clan_a == clan_b:
         return True
     return False
-
-
-def absorb_conflict_objects_inside_attacker_territory(conflict):
-    """Transfer foreign conflict objects left inside the attacker's active field."""
-    conflict = conflict or {}
-    attacker_username = str(conflict.get("last_actor_username") or "").strip()
-    participants = {
-        str(username).strip()
-        for username in (conflict.get("participants") or [])
-        if str(username).strip()
-    }
-    if not attacker_username or attacker_username not in participants:
-        return []
-    conflict_reference = conflict.get("conflict_id") or conflict.get("id")
-    captured_by_attacker = any(
-        bool(pillar.get("captured"))
-        and str(pillar.get("captured_by") or "") == attacker_username
-        for pillar in territory_conflict_store.list_pillars(conflict_reference)
-    )
-    if not captured_by_attacker:
-        # Discovery only exposes a battlefield. Automatic ownership transfer
-        # is legal after an actual pillar capture, never on first overlap.
-        return []
-
-    all_areas = safe_player_areas(territory_store.list_player_areas())
-    attacker_areas = [
-        area for area in all_areas
-        if area.get("status", "active") == "active"
-        and str(area.get("owner_username") or "") == attacker_username
-    ]
-    if not attacker_areas:
-        return []
-
-    captured = []
-    for defender_username in sorted(participants - {attacker_username}):
-        if territory_owners_are_protected_relation(attacker_username, defender_username):
-            continue
-        # Ownership absorption covers every capturable object inside the
-        # attacker's field. `stationary` decides whether an object builds
-        # territory geometry; it must not decide whether ownership transfers.
-        for target in territory_store.list_captured_targets(defender_username):
-            if not any(
-                territory_point_in_polygon_or_boundary(target, area.get("vertices") or [])
-                for area in attacker_areas
-            ):
-                continue
-            transferred = copy.deepcopy(target)
-            transferred.update({
-                "owner_username": attacker_username,
-                "owner": attacker_username,
-                "captured_by": attacker_username,
-                "previous_owner": defender_username,
-                "previous_owner_username": defender_username,
-                "capture_reason": "territory_conflict_absorption",
-                "conflict_id": conflict_reference,
-            })
-            removed = territory_store.remove_captured_target(
-                defender_username,
-                target.get("lat"),
-                target.get("lng", target.get("lon")),
-                target.get("label"),
-            )
-            if not removed:
-                removed = territory_store.remove_captured_target(
-                    defender_username,
-                    target.get("lat"),
-                    target.get("lng", target.get("lon")),
-                )
-            if not removed:
-                continue
-            saved = territory_store.save_captured_target(attacker_username, transferred)
-            target_id = territory_conflict_store.stable_target_id(saved)
-            territory_conflict_store.capture_pillar(
-                conflict_reference,
-                target_id,
-                saved,
-                attacker_username,
-                previous_owner_username=defender_username,
-                action_id=(
-                    f"territory_absorption:{conflict_reference}:"
-                    f"{target_id}:{conflict.get('conflict_version') or 0}"
-                ),
-            )
-            captured.append(saved)
-    return captured
 
 
 def territory_area_inside_area(inner_area, outer_area):

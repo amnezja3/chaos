@@ -10834,3 +10834,17 @@ SVG `circleMarker` bez ikony celu i bez menu hackowania. Kanoniczne filary oraz
 innery uzywaja teraz widocznego `L.marker` z ikona konfliktowa, wysokim
 `zIndexOffset` i pelnym payloadem `territory_contest`. Stare circle markery sa
 zastepowane przy reconcile bez potrzeby globalnego reloadu mapy.
+
+Testy kolejnych przejec ujawnily, ze pomocnicza absorpcja konfliktu lamala
+podstawowy lifecycle klastra. Po przejeciu jednego filaru przepisywala ona
+wszystkie obiekty obroncy znajdujace sie w aktualnym polu atakujacego, mimo ze
+nie zostal spelniony warunek pelnego okrazenia. Ten skrot zostal usuniety z
+konsolidacji. Transfer calego klastra wykonuje teraz wylacznie domenowy
+`TerritoryEncirclementResolver`; utrata trzeciego filaru nadal prawidlowo
+rozpuszcza polygon, pozostawia dwa filary `alone` i nie awansuje innerow.
+
+Delta przejecia usuwa teraz od razu konfliktowa reprezentacje filaru po
+stabilnym ID albo wspolrzednych. Reconcile snapshotu rowniez nie renderuje
+rekordow `captured` jako aktywnych celow konfliktowych. Eliminuje to widmo
+starego filaru oraz chwilowe dublowanie przejetego obiektu przed publikacja
+czystego snapshotu workera.

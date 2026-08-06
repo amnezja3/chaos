@@ -2166,6 +2166,44 @@
             window.territoryConflictPillarLayers = window.territoryConflictPillarLayers || {};
         }
 
+        function removeCapturedTerritoryConflictPillar(target = {}, explicitTargetId = '') {
+            ensureTerritoryConflictRegistries();
+            const candidateIds = new Set([
+                explicitTargetId,
+                target.target_id,
+                target.id,
+                typeof targetStableId === 'function' ? targetStableId(target) : ''
+            ].map(value => String(value || '').trim()).filter(Boolean));
+            const point = normalizeMapLatLngPair(
+                target.lat,
+                target.lng !== undefined ? target.lng : target.lon
+            );
+            let removed = false;
+            Object.entries(window.territoryConflictPillarLayers || {}).forEach(([id, entry]) => {
+                const pillarTarget = (entry && entry.pillar && (
+                    entry.pillar.target || entry.pillar.public_target || entry.pillar
+                )) || {};
+                const pillarPoint = normalizeMapLatLngPair(
+                    pillarTarget.lat,
+                    pillarTarget.lng !== undefined ? pillarTarget.lng : pillarTarget.lon
+                );
+                const samePoint = point && pillarPoint
+                    && Math.abs(point[0] - pillarPoint[0]) < 0.000001
+                    && Math.abs(point[1] - pillarPoint[1]) < 0.000001;
+                if (!candidateIds.has(String(id)) && !samePoint) return;
+                removeTerritoryRegistryLayer(window.territoryConflictPillarLayers, id);
+                removed = true;
+            });
+            if (removed) {
+                Object.values(window.territoryConflictRegistry || {}).forEach(entry => {
+                    entry.pillarIds = (entry.pillarIds || []).filter(id => (
+                        window.territoryConflictPillarLayers[id]
+                    ));
+                });
+            }
+            return removed;
+        }
+
         function removeTerritoryRegistryLayer(registry, id) {
             const entry = registry && registry[id];
             if (!entry) return;
@@ -2235,7 +2273,7 @@
             const target = pillar.target || pillar.public_target || pillar;
             const targetId = String(pillar.target_id || target.target_id || target.id || '').trim();
             if (!targetId) return false;
-            if (pillar.removed || ['removed', 'detached', 'resolved'].includes(String(pillar.status || '').toLowerCase())) {
+            if (pillar.removed || pillar.captured || ['captured', 'removed', 'detached', 'resolved'].includes(String(pillar.status || '').toLowerCase())) {
                 removeTerritoryRegistryLayer(window.territoryConflictPillarLayers, targetId);
                 return true;
             }
@@ -2757,6 +2795,7 @@
             const label = mapTargetDisplayLabel(target, "TARGET");
 
             if (captured) {
+                removeCapturedTerritoryConflictPillar(target, targetId);
                 removeTargetMarkerForTarget(target);
                 addInteractiveHackedMarker(target);
                 if (typeof window.refreshPlayerAreasAfterTargetCapture === 'function') {
@@ -3042,6 +3081,7 @@
                 window.profileData.hacked.push(target);
             }
             window.profileData.aimed_target = {};
+            removeCapturedTerritoryConflictPillar(target, target.target_id || target.id || '');
             removeTargetMarkerForTarget(target);
             addInteractiveHackedMarker(target);
             if (typeof window.refreshPlayerAreasAfterTargetCapture === 'function') {

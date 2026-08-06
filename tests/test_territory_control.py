@@ -119,7 +119,7 @@ class TerritoryControlTest(unittest.TestCase):
         self.assertEqual(len(plans), 1)
         self.assertEqual(plans[0]["participants"], ["alice", "bob"])
 
-    def test_conflict_absorbs_foreign_object_left_inside_attacker_area(self):
+    def test_single_pillar_capture_does_not_absorb_foreign_inner(self):
         path = self._temp_db()
         try:
             store = TerritoryStore(db_path=str(path))
@@ -158,24 +158,24 @@ class TerritoryControlTest(unittest.TestCase):
                     patch.object(run.user_store, "get_profile", side_effect=lambda username: {
                         "username": username, "clan": "alpha" if username == "alice" else "beta"
                     }):
-                self.assertEqual(run.absorb_conflict_objects_inside_attacker_territory(conflict), [])
                 captured_trigger = conflict_store.capture_pillar(
                     conflict["conflict_id"], "bob-trigger", trigger, "alice",
                     previous_owner_username="bob", action_id="test-trigger-capture",
                 )
                 self.assertTrue(captured_trigger["changed"])
-                conflict = conflict_store.get_by_key(conflict["conflict_id"])
-                absorbed = run.absorb_conflict_objects_inside_attacker_territory(conflict)
+                resolver = run.TerritoryEncirclementResolver(store, conflict_store)
+                resolved = resolver.detect_encircled_clusters(
+                    apply=True, actor_username="alice"
+                )
 
-            self.assertEqual([item["label"] for item in absorbed], ["B inner"])
+            self.assertEqual(resolved, [])
             self.assertEqual(
                 {item["label"] for item in store.list_captured_targets("bob")},
-                {"B trigger"},
+                {"B inner", "B trigger"},
             )
-            self.assertIn("B inner", {item["label"] for item in store.list_captured_targets("alice")})
+            self.assertNotIn("B inner", {item["label"] for item in store.list_captured_targets("alice")})
             pillars = conflict_store.list_pillars(conflict["conflict_id"])
-            self.assertTrue(all(pillar["captured"] for pillar in pillars))
-            self.assertEqual({pillar["captured_by"] for pillar in pillars}, {"alice"})
+            self.assertEqual(sum(bool(pillar["captured"]) for pillar in pillars), 1)
         finally:
             self._cleanup(path)
 
