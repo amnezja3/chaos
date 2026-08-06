@@ -80,6 +80,44 @@ class TerritoryControlTest(unittest.TestCase):
         self.assertEqual(by_id["pillar-current"]["node_role"], "pillar")
         self.assertEqual(by_id["inner-current"]["node_role"], "inner")
 
+    def test_conflict_reveals_boundary_pillar_supporting_front_from_outside(self):
+        supporting = captured("Supporting", 52.0, 21.0)
+        supporting["target_id"] = "pillar-supporting"
+        remote = captured("Remote", 52.1, 21.0)
+        remote["target_id"] = "pillar-remote"
+        outside_inner = captured("Outside inner", 52.08, 21.01)
+        outside_inner.update({"target_id": "inner-outside", "stationary": False})
+        area = {
+            "id": 1,
+            "owner_username": "alice",
+            "vertices": [
+                {"lat": 52.0, "lng": 21.0},
+                {"lat": 52.0, "lng": 21.1},
+                {"lat": 52.1, "lng": 21.1},
+                {"lat": 52.1, "lng": 21.0},
+            ],
+        }
+        # Front przecina krawedz miedzy pierwszym i drugim filarem, ale oba
+        # filary leza poza samym polygonem overlapu.
+        intersection = [
+            {"lat": 51.999, "lng": 21.04},
+            {"lat": 52.001, "lng": 21.04},
+            {"lat": 52.001, "lng": 21.06},
+            {"lat": 51.999, "lng": 21.06},
+        ]
+        with patch.object(run, "territory_area_cluster_members", return_value={
+            "pillars": [supporting, remote],
+            "inners": [outside_inner],
+            "objects": [supporting, remote, outside_inner],
+            "valid": True,
+        }):
+            revealed = run.reveal_conflict_targets_for_group([area], [intersection])
+
+        by_id = {item["target_id"]: item for item in revealed}
+        self.assertIn("pillar-supporting", by_id)
+        self.assertNotIn("pillar-remote", by_id)
+        self.assertNotIn("inner-outside", by_id)
+
     def _client_with_user(self, username="alice"):
         client = run.app.test_client()
         with client.session_transaction() as sess:

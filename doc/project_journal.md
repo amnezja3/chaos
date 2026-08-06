@@ -10848,3 +10848,12 @@ stabilnym ID albo wspolrzednych. Reconcile snapshotu rowniez nie renderuje
 rekordow `captured` jako aktywnych celow konfliktowych. Eliminuje to widmo
 starego filaru oraz chwilowe dublowanie przejetego obiektu przed publikacja
 czystego snapshotu workera.
+
+Kolejny dlugi atak potwierdzil rozjazd pomiedzy geometria klastra a
+kwalifikacja celow konfliktu. Builder pola uzywal filarow bedacych koncami
+krawedzi hull, lecz ujawnianie przyjmowalo tylko obiekty fizycznie lezace w
+polygonie overlapu. Filar tuz poza overlapem mogl wiec podtrzymywac przecinajaca
+front krawedz i pozostawac niedostepny przez wszystkie kolejne rebuildy.
+Kwalifikacja ujawnia teraz rowniez filary, ktorych sasiednia krawedz klastra
+przecina aktualny front. Nie ujawnia calego klastra: odlegle filary pozostaja
+ukryte, a innery nadal wymagaja polozenia wewnatrz obszaru spornego.

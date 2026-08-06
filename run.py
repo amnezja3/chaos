@@ -4191,6 +4191,11 @@ def reveal_conflict_targets_for_group(areas, intersections):
             for target in targets
             if target_position_key(target)
         }
+        vertex_index_by_position = {
+            target_position_key(vertex): index
+            for index, vertex in enumerate(area.get("vertices") or [])
+            if target_position_key(vertex)
+        }
         for target in members.get("objects") or []:
             key = territory_conflict_store.stable_target_id(target)
             if not key or key in revealed:
@@ -4200,18 +4205,35 @@ def reveal_conflict_targets_for_group(areas, intersections):
                 lng = float(target.get("lng", target.get("lon")))
             except (TypeError, ValueError):
                 continue
-            if not any(
+            inside_front = any(
                 territory_point_in_polygon_or_boundary(
                     {"lat": lat, "lng": lng}, intersection
                 )
                 for intersection in intersections
                 if len(intersection or []) >= 3
-            ):
+            )
+            node_role = role_by_position.get(target_position_key(target), "inner")
+            supports_front = False
+            vertex_index = vertex_index_by_position.get(target_position_key(target))
+            area_vertices = area.get("vertices") or []
+            if node_role == "pillar" and vertex_index is not None and len(area_vertices) >= 3:
+                adjacent_edges = (
+                    (area_vertices[vertex_index - 1], area_vertices[vertex_index]),
+                    (area_vertices[vertex_index], area_vertices[(vertex_index + 1) % len(area_vertices)]),
+                )
+                supports_front = any(
+                    _segments_intersect(edge_start, edge_end, front_start, front_end)
+                    for intersection in intersections
+                    if len(intersection or []) >= 3
+                    for edge_start, edge_end in adjacent_edges
+                    for front_index, front_start in enumerate(intersection)
+                    for front_end in [intersection[(front_index + 1) % len(intersection)]]
+                )
+            if not inside_front and not supports_front:
                 continue
 
             previous_owner = target.get("previous_owner_username")
             is_captured_conflict_target = bool(previous_owner and previous_owner != owner)
-            node_role = role_by_position.get(target_position_key(target), "inner")
             revealed[key] = {
                 "target_id": key,
                 "owner": owner,
