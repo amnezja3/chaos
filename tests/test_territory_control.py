@@ -223,6 +223,38 @@ class TerritoryControlTest(unittest.TestCase):
             requested_version=4,
         )
 
+    def test_periodic_reconciler_never_reduces_remote_supports(self):
+        conflict = {
+            "conflict_id": "conflict-read-only-watchdog",
+            "participants": ["alice", "bob"],
+            "conflict_version": 7,
+            "status": "active",
+        }
+        remote = captured("Remote support", 52.08, 21.08)
+        remote["target_id"] = "pillar-remote"
+        diagnostics = [{
+            "target_id": "pillar-remote",
+            "distance_meters": 5619.1,
+            "target": remote,
+        }]
+        with patch.object(run.territory_store, "list_player_areas", return_value=[]), \
+                patch.object(run.territory_store, "list_all_captured_targets", return_value=[remote]), \
+                patch.object(run.territory_store, "save_captured_target") as save, \
+                patch.object(run.territory_conflict_store, "list_active", return_value=[conflict]), \
+                patch.object(run.territory_conflict_store, "list_pillars", return_value=[]), \
+                patch.object(run, "build_territory_conflict_detection_plan", return_value=[]), \
+                patch.object(run, "_conflict_rebuild_targets", return_value=[]), \
+                patch.object(run, "_conflict_rebuild_scope", return_value=([], [])), \
+                patch.object(run, "reveal_conflict_targets_for_group", return_value=([], diagnostics)), \
+                patch.object(run, "request_conflict_rebuild") as enqueue:
+            reports = run.reconcile_active_territory_conflicts(reduce_unlinkable=True)
+
+        self.assertEqual(reports[0]["action"], "remote_anomaly")
+        self.assertEqual(reports[0]["reduced_ids"], [])
+        self.assertEqual(reports[0]["deferred_remote_ids"], ["pillar-remote"])
+        save.assert_not_called()
+        enqueue.assert_not_called()
+
     def test_conflict_plan_selection_rejects_remote_same_participants_front(self):
         conflict = {
             "conflict_id": "conflict-local",
@@ -257,6 +289,33 @@ class TerritoryControlTest(unittest.TestCase):
             )
 
         self.assertEqual(selected, [local_plan])
+
+    def test_reconcile_rollback_restores_stationary_geometry_target(self):
+        conflict = {
+            "conflict_id": "conflict-rollback",
+            "participants": ["alice", "bob"],
+            "conflict_version": 8,
+        }
+        reduced = captured("Reduced", 52.0, 21.0)
+        reduced.update({
+            "target_id": "pillar-reduced",
+            "stationary": False,
+            "territory_reconcile_reason": "remote_front_support",
+        })
+        with patch.object(run.territory_conflict_store, "list_active", return_value=[conflict]), \
+                patch.object(run.territory_store, "list_captured_targets", side_effect=lambda owner: [reduced] if owner == "bob" else []), \
+                patch.object(run.territory_store, "save_captured_target", side_effect=lambda owner, target: target) as save, \
+                patch.object(run.user_store, "get_profile", return_value={"level": 3}), \
+                patch.object(run, "rebuild_player_areas_with_territory_delta", return_value=[]) as rebuild, \
+                patch.object(run, "request_conflict_rebuild", return_value={}) as enqueue:
+            restored = run.restore_territory_reconcile_targets()
+
+        self.assertEqual(restored, {"bob": ["pillar-reduced"]})
+        recovered = save.call_args.args[1]
+        self.assertTrue(recovered["stationary"])
+        self.assertNotIn("territory_reconcile_reason", recovered)
+        rebuild.assert_called_once()
+        enqueue.assert_called_once()
 
     def test_single_pillar_capture_does_not_absorb_foreign_inner(self):
         path = self._temp_db()

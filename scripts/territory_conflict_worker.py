@@ -72,13 +72,17 @@ def main():
         float(os.environ.get("CHAOS_TERRITORY_RECONCILE_SECONDS", "180")),
     )
     next_reconcile_at = time.monotonic()
-    print("[TERRITORY_WORKER] started", flush=True)
+    restored = run.restore_territory_reconcile_targets()
+    print(
+        f"[TERRITORY_WORKER] started reconcile_rollback={restored}",
+        flush=True,
+    )
     while True:
         try:
             now = time.monotonic()
             if now >= next_reconcile_at:
                 started = time.perf_counter()
-                reports = run.reconcile_active_territory_conflicts(reduce_unlinkable=True)
+                reports = run.reconcile_active_territory_conflicts(reduce_unlinkable=False)
                 print(
                     f"[TERRITORY_WORKER] reconcile conflicts={len(reports)} "
                     f"elapsed_ms={int((time.perf_counter() - started) * 1000)}",

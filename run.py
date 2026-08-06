@@ -4712,7 +4712,60 @@ def _conflict_rebuild_scope(conflict, detection_plans):
     return component_areas, intersections
 
 
-def reconcile_active_territory_conflicts(reduce_unlinkable=True):
+def restore_territory_reconcile_targets(conflict_id=None):
+    """Undo geometry mutations made by the experimental field reducer."""
+    conflicts = (
+        [territory_conflict_store.get_by_key(conflict_id)]
+        if conflict_id else territory_conflict_store.list_active()
+    )
+    participants = {
+        str(username)
+        for conflict in conflicts if conflict
+        for username in (conflict.get("participants") or [])
+        if username
+    }
+    restored_by_owner = {}
+    for owner in sorted(participants):
+        restored = []
+        for target in territory_store.list_captured_targets(owner):
+            if not str(target.get("territory_reconcile_reason") or "").strip():
+                continue
+            recovered = copy.deepcopy(target)
+            recovered["stationary"] = not bool(recovered.get("generated", False))
+            recovered.pop("territory_reconcile_reason", None)
+            territory_store.save_captured_target(owner, recovered)
+            restored.append(territory_conflict_store.stable_target_id(recovered))
+        if not restored:
+            continue
+        profile = user_store.get_profile(owner) or {}
+        rebuild_player_areas_with_territory_delta(
+            owner,
+            profile.get("level", 1),
+            reason="territory_reconcile_rollback",
+            resolve_encirclements=False,
+        )
+        restored_by_owner[owner] = restored
+    if not restored_by_owner:
+        return {}
+    restored_owners = set(restored_by_owner)
+    for conflict in conflicts:
+        if not conflict:
+            continue
+        if restored_owners.intersection(conflict.get("participants") or []):
+            request_conflict_rebuild(
+                conflict.get("conflict_id") or conflict.get("id"),
+                reason="territory_reconcile_rollback",
+                requested_version=conflict.get("conflict_version"),
+            )
+    print(
+        f"[TERRITORY_RECONCILE_ROLLBACK] "
+        f"{json.dumps(restored_by_owner, ensure_ascii=False)}",
+        flush=True,
+    )
+    return restored_by_owner
+
+
+def reconcile_active_territory_conflicts(reduce_unlinkable=False):
     """Audit active conflicts against current field geometry outside request paths."""
     areas = safe_player_areas(territory_store.list_player_areas())
     detection_plans = build_territory_conflict_detection_plan(areas)
@@ -4776,28 +4829,17 @@ def reconcile_active_territory_conflicts(reduce_unlinkable=True):
             if actual_owner and actual_owner != str(pillar.get("owner_username") or ""):
                 ownership_mismatches.append(target_id)
 
+        # Hard safety boundary: the periodic audit is never allowed to mutate
+        # captured targets or territory geometry. Keep the legacy argument so
+        # an older worker process cannot crash during a rolling update, but
+        # deliberately ignore requests to reduce anchors.
         reduced = []
-        if reduce_unlinkable:
-            reduction_candidates = list(unlinkable) + [
-                (item, item.get("reason") or "remote_front_support")
-                for item in remote_supports
-            ]
-            for item, reason in reduction_candidates:
-                target = copy.deepcopy(item.get("target") or item.get("public_target") or item)
-                owner = str(item.get("owner_username") or item.get("owner") or target.get("owner_username") or "")
-                if not owner or target.get("lat") is None or target.get("lng", target.get("lon")) is None:
-                    continue
-                target["stationary"] = False
-                target["territory_reconcile_reason"] = reason
-                territory_store.save_captured_target(owner, target)
-                reduced.append(territory_conflict_store.stable_target_id(target))
-            if reduced:
-                territory_conflict_store.detach_rebuild_pillars(
-                    conflict_id,
-                    reduced,
-                    conflict.get("conflict_version"),
-                    reason="periodic_consistency_reconcile",
-                )
+        deferred_remote_ids = [
+            territory_conflict_store.stable_target_id(
+                item.get("target") or item.get("public_target") or item
+            )
+            for item in [entry for entry, _reason in unlinkable] + list(remote_supports)
+        ]
 
         needs_rebuild = bool(missing_ids or ownership_mismatches or reduced)
         if needs_rebuild:
@@ -4817,7 +4859,11 @@ def reconcile_active_territory_conflicts(reduce_unlinkable=True):
                 {"target_id": item.get("target_id"), "distance_meters": item.get("distance_meters")}
                 for item in remote_supports
             ],
-            "action": "field_reduced" if reduced else ("rebuild_queued" if needs_rebuild else "ok"),
+            "deferred_remote_ids": deferred_remote_ids,
+            "action": (
+                "rebuild_queued" if needs_rebuild
+                else ("remote_anomaly" if deferred_remote_ids else "ok")
+            ),
         }
         reports.append(report)
         print(f"[TERRITORY_RECONCILE] {json.dumps(report, ensure_ascii=False)}", flush=True)

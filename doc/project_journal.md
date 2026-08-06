@@ -10898,3 +10898,34 @@ wylacznie w pasie do 1000 m od frontu. Dalsza kotwica otrzymuje status
 `detached`, pozostaje obiektem gracza, ale przestaje budowac geometrie, po czym
 worker publikuje zredukowane pole. Prog mozna stroic przez
 `CHAOS_TERRITORY_CONFLICT_REVEAL_MAX_DISTANCE_METERS`.
+
+Produkcja pokazala kaskadowe odslanianie kolejnych warstw hull: po pierwszej
+technicznej redukcji watchdog znajdowal nastepne odlegle kotwice i mogl bez
+udzialu gracza stopniowo zlozyc duze terytorium. Fallback zostal ograniczony
+do jednej redukcji na `conflict_version`. Kolejne odlegle podpory sa raportowane
+jako `deferred_remote_ids` z akcja `awaiting_gameplay`; dopiero prawdziwe
+przejecie albo odbicie filaru podnosi wersje i zezwala na nastepna punktowa
+korekte. Zachowuje to recovery martwych kotwic bez automatycznego przejmowania
+miasta warstwa po warstwie.
+
+Weryfikacja geometrii po produkcyjnej redukcji wykazala, ze nawet ograniczony
+fallback zmieniajacy `stationary` ingeruje zbyt gleboko w hull i moze
+opublikowac nieprawidlowy front. Automatyczna redukcja zostala wycofana.
+Przy starcie worker odtwarza `stationary` dla wszystkich obiektow oznaczonych
+`territory_reconcile_reason`, przebudowuje pola ich wlascicieli i kolejkuje
+ponowna konsolidacje. Dalszy watchdog dziala read-only wobec kotwic: naprawia
+brakujace powiazania przez rebuild, natomiast odlegle podpory raportuje jako
+`remote_anomaly` bez zmiany obiektu lub geometrii. Redukcja pola wymaga odtad
+jawnej, osobno zaprojektowanej operacji domenowej z mozliwoscia rollbacku.
+
+Pelny log produkcyjny potwierdzil skale skutkow starego fallbacku: przy tej
+samej `conflict_version=7` liczba kotwic pola `main` spadla z 199 do 187, a
+worker cyklicznie emitowal `action=field_reduced`. W logu nie bylo jeszcze
+zdarzenia `[TERRITORY_RECONCILE_ROLLBACK]`, wiec pracowala wersja sprzed
+recovery. Granica bezpieczenstwa zostala przeniesiona rowniez do funkcji
+domenowej: `reconcile_active_territory_conflicts()` ignoruje pozostawiony dla
+zgodnosci argument `reduce_unlinkable` i nigdy nie zapisuje targetow ani nie
+przebudowuje geometrii przez redukcje. Nawet starszy skrypt wywolujacy funkcje
+z `True` moze odtad tylko raportowac `remote_anomaly` lub kolejkowac zwykly
+rebuild. Jedyna automatyczna mutacja pozostaje jawny startup rollback,
+odtwarzajacy obiekty oznaczone przez wadliwy reconciler.
