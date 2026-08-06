@@ -10864,3 +10864,13 @@ pomijala ponowne zastosowanie snapshotu o tej samej wersji bez sprawdzenia,
 czy kanoniczne warstwy nadal sa dolaczone do Leaflet. Reconcile wylicza teraz
 oczekiwane aktywne fronty i nieprzejete filary. Brak dowolnej warstwy omija
 skrot wersji i odtwarza rejestr z aktualnego snapshotu.
+
+Martwy marker `contested` ujawnil stan po czesciowo zakonczonym capture:
+kanoniczny store obiektow wskazywal juz nowego wlasciciela, ale nieprzejety
+rekord filaru pozostal w konflikcie. `/hack-action` slusznie zwracal wtedy
+`duplicate`, podczas gdy mapa nadal wystawiala cel starego wlasciciela.
+Konsolidacja porownuje teraz brakujace aktywne filary z aktualnym store'em
+wlasnosci. Zmiana wlasciciela na innego uczestnika odzyskuje atomowy stan
+`captured` i zapisuje zdarzenie recovery. No-op publikacji porownuje dodatkowo
+status, wlasciciela i `captured_by` filarow, dlatego naprawiony stan zawsze
+trafia do nowego snapshotu nawet bez zmiany obrysu frontu.

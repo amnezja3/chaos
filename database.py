@@ -2602,6 +2602,77 @@ class TerritoryConflictStore:
                 int(conflict.get("geometry_version") or 0),
                 actor_username=actor_username,
             )
+            incoming_ids = {self.stable_target_id(item) for item in incoming}
+            participants = set(conflict.get("participants") or [])
+            stale_rows = conn.execute(
+                "SELECT * FROM territory_conflict_pillars "
+                "WHERE conflict_id = ? AND captured = 0",
+                (conflict_id,),
+            ).fetchall()
+            for row in stale_rows:
+                if str(row["target_id"]) in incoming_ids:
+                    continue
+                stored = self._row_to_pillar(row)
+                public_target = loads_json(row["public_target_json"], {})
+                target = public_target.get("target") or public_target.get("public_target") or public_target
+                try:
+                    lat = float(target.get("lat"))
+                    lng = float(target.get("lng", target.get("lon")))
+                except (AttributeError, TypeError, ValueError):
+                    continue
+                owner_row = conn.execute(
+                    """
+                    SELECT owner_username, target_json FROM captured_targets
+                    WHERE ROUND(lat, 5) = ROUND(?, 5)
+                      AND ROUND(lng, 5) = ROUND(?, 5)
+                    ORDER BY updated_at DESC LIMIT 1
+                    """,
+                    (lat, lng),
+                ).fetchone()
+                current_owner = str(owner_row["owner_username"] or "") if owner_row else ""
+                if (
+                    not current_owner
+                    or current_owner == stored["owner_username"]
+                    or current_owner not in participants
+                ):
+                    continue
+                current_target = loads_json(owner_row["target_json"], {})
+                public_target.update({
+                    "owner": current_owner,
+                    "owner_username": current_owner,
+                    "previous_owner": stored["owner_username"],
+                    "status": "captured",
+                    "captured": True,
+                    "captured_by": current_owner,
+                    "hacked_by": current_owner,
+                })
+                public_target["target"] = {
+                    **target,
+                    **current_target,
+                    "target_id": stored["target_id"],
+                    "owner_username": current_owner,
+                }
+                conn.execute(
+                    """
+                    UPDATE territory_conflict_pillars SET
+                        owner_username = ?, previous_owner_username = ?,
+                        attacker_username = ?, status = 'captured', captured = 1,
+                        captured_by = ?, last_changed_version = ?,
+                        public_target_json = ?, updated_at = ?, captured_at = ?
+                    WHERE id = ?
+                    """,
+                    (current_owner, stored["owner_username"], current_owner,
+                     current_owner, effective_version, dumps_json(public_target),
+                     now, now, row["id"]),
+                )
+                self._record_event(
+                    conn, "conflict.pillar_captured", conflict_id,
+                    stored["target_id"], effective_version,
+                    int(conflict.get("geometry_version") or 0),
+                    actor_username=current_owner,
+                    action_id=f"reconcile_owner:{conflict_id}:{stored['target_id']}:{effective_version}",
+                    payload={"recovered_from_owner_store": True},
+                )
             projected = self._project_targets(conn, conflict_id, incoming)
             conn.execute(
                 "UPDATE territory_conflicts SET targets_json = ?, updated_at = ? WHERE conflict_id = ?",
@@ -2924,6 +2995,26 @@ class TerritoryConflictStore:
                 "pillar_ids": plan.get("pillar_ids") or [],
                 "geometry": plan.get("geometry") or [],
             }) for plan in (front_plans or []))
+            live_pillars = [self._row_to_pillar(row) for row in conn.execute(
+                "SELECT * FROM territory_conflict_pillars WHERE conflict_id = ? ORDER BY id",
+                (conflict_id,),
+            ).fetchall()]
+
+            def pillar_state_signature(pillar):
+                return (
+                    str((pillar or {}).get("target_id") or ""),
+                    str((pillar or {}).get("status") or ""),
+                    bool((pillar or {}).get("captured")),
+                    str((pillar or {}).get("owner_username") or ""),
+                    str((pillar or {}).get("captured_by") or ""),
+                )
+
+            live_pillar_signatures = sorted(pillar_state_signature(item) for item in live_pillars)
+            snapshot_pillar_signatures = sorted(
+                pillar_state_signature(item)
+                for item in (latest_snapshot_payload.get("pillars") or [])
+            )
+            same_pillar_state = live_pillar_signatures == snapshot_pillar_signatures
             same_resolution = bool(resolve) == (conflict.get("status") == "resolved")
             snapshot_covers_processing_version = (
                 int(latest_snapshot_payload.get("conflict_version") or 0)
@@ -2934,6 +3025,7 @@ class TerritoryConflictStore:
             ).lower() in {"clean", "published"}
             if (latest_snapshot_row and same_resolution
                     and old_signatures == plan_signatures
+                    and same_pillar_state
                     and snapshot_covers_processing_version
                     and live_geometry_is_clean):
                 latest_request_row = conn.execute(

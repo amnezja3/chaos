@@ -4,7 +4,7 @@ import time
 import unittest
 from pathlib import Path
 
-from database import TerritoryConflictStore
+from database import TerritoryConflictStore, TerritoryStore
 
 
 class TerritoryConflictIdentityTests(unittest.TestCase):
@@ -107,6 +107,36 @@ class TerritoryConflictIdentityTests(unittest.TestCase):
             {item["target_id"] for item in conflict["targets"]},
             {"pillar-a", "pillar-b"},
         )
+
+    def test_rebuild_recovers_captured_pillar_from_current_owner_store(self):
+        territory_store = TerritoryStore(db_path=str(self.path))
+        original = self.pillar("pillar-a", owner="bob")
+        conflict = self.store.upsert_conflict(self.payload(
+            participants=["alice", "bob"], targets=[original]
+        ))
+        transferred = dict(original["target"])
+        transferred.update({
+            "label": "pillar-a",
+            "name": "pillar-a",
+            "owner_username": "alice",
+            "previous_owner_username": "bob",
+            "stationary": True,
+        })
+        territory_store.save_captured_target("alice", transferred)
+
+        pillars = self.store.reconcile_rebuild_pillars(
+            conflict["conflict_id"], [],
+            conflict["conflict_version"], actor_username="alice",
+        )
+
+        self.assertEqual(len(pillars), 1)
+        self.assertTrue(pillars[0]["captured"])
+        self.assertEqual(pillars[0]["status"], "captured")
+        self.assertEqual(pillars[0]["owner_username"], "alice")
+        self.assertEqual(pillars[0]["previous_owner_username"], "bob")
+        events = self.store.list_events(conflict["conflict_id"], "conflict.pillar_captured")
+        self.assertEqual(len(events), 1)
+        self.assertTrue(events[0]["payload"]["recovered_from_owner_store"])
 
     def test_capture_is_exact_and_action_receipt_is_idempotent(self):
         conflict = self.store.upsert_conflict(self.payload(targets=[
