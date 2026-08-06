@@ -10874,3 +10874,15 @@ wlasnosci. Zmiana wlasciciela na innego uczestnika odzyskuje atomowy stan
 `captured` i zapisuje zdarzenie recovery. No-op publikacji porownuje dodatkowo
 status, wlasciciela i `captured_by` filarow, dlatego naprawiony stan zawsze
 trafia do nowego snapshotu nawet bez zmiany obrysu frontu.
+
+Domkniecie etapu konfliktow przenosi wykrywanie dlugotrwalych rozbieznosci do
+okresowego reconciler-a workera. Co domyslnie 180 sekund porownuje on aktualne
+polygon-y i filary wspierajace front z aktywnym rejestrem konfliktu oraz
+kanonicznym store'em wlasnosci. Brakujacy widoczny filar albo rozjazd
+wlasciciela kolejkuje zwykla konsolidacje poza requestem mapy. Jezeli kotwica
+nie ma poprawnych wspolrzednych/tozsamosci albo stabilne ID koliduje z innym
+punktem, fallback zachowuje obiekt, ale ustawia go jako niestacjonarny; kolejny
+rebuild redukuje pole, wiec niedostepny cel nie moze dalej podtrzymywac
+terytorium. Worker loguje raport `[TERRITORY_RECONCILE]` z akcja `ok`,
+`rebuild_queued` albo `field_reduced`. Interwal konfiguruje
+`CHAOS_TERRITORY_RECONCILE_SECONDS` z bezpiecznym minimum 60 sekund.

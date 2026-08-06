@@ -4608,6 +4608,99 @@ def _conflict_rebuild_targets(conflict, detection_plans):
     return merge_conflict_target_statuses(conflict, revealed)
 
 
+def reconcile_active_territory_conflicts(reduce_unlinkable=True):
+    """Audit active conflicts against current field geometry outside request paths."""
+    areas = safe_player_areas(territory_store.list_player_areas())
+    detection_plans = build_territory_conflict_detection_plan(areas)
+    current_owner_by_position = {
+        target_position_key(target): str(target.get("owner_username") or "")
+        for target in territory_store.list_all_captured_targets()
+        if target_position_key(target)
+    }
+    reports = []
+    for conflict in territory_conflict_store.list_active():
+        conflict_id = str(conflict.get("conflict_id") or conflict.get("id") or "")
+        if not conflict_id:
+            continue
+        expected = _conflict_rebuild_targets(conflict, detection_plans)
+        expected_active = {}
+        unlinkable = []
+        for item in expected:
+            if item.get("captured") or str(item.get("status") or "").lower() == "captured":
+                continue
+            target = item.get("target") or item.get("public_target") or item
+            target_id = str(item.get("target_id") or territory_conflict_store.stable_target_id(item) or "").strip()
+            try:
+                float(target.get("lat"))
+                float(target.get("lng", target.get("lon")))
+            except (AttributeError, TypeError, ValueError):
+                unlinkable.append((item, "invalid_coordinates"))
+                continue
+            if not target_id:
+                unlinkable.append((item, "missing_target_id"))
+                continue
+            previous = expected_active.get(target_id)
+            if previous and target_position_key(previous.get("target") or previous) != target_position_key(target):
+                unlinkable.append((item, "target_id_collision"))
+                continue
+            expected_active[target_id] = item
+
+        registered = territory_conflict_store.list_pillars(conflict_id)
+        registered_active = {
+            str(item.get("target_id")): item
+            for item in registered
+            if not item.get("captured")
+            and str(item.get("status") or "").lower() not in {"captured", "removed", "detached", "resolved"}
+        }
+        missing_ids = sorted(set(expected_active) - set(registered_active))
+        ownership_mismatches = []
+        for target_id, pillar in registered_active.items():
+            public_target = pillar.get("public_target") or {}
+            target = public_target.get("target") or public_target
+            try:
+                lat = float(target.get("lat"))
+                lng = float(target.get("lng", target.get("lon")))
+            except (AttributeError, TypeError, ValueError):
+                continue
+            actual_owner = current_owner_by_position.get(
+                target_position_key({"lat": lat, "lng": lng}), ""
+            )
+            if actual_owner and actual_owner != str(pillar.get("owner_username") or ""):
+                ownership_mismatches.append(target_id)
+
+        reduced = []
+        if reduce_unlinkable:
+            for item, reason in unlinkable:
+                target = copy.deepcopy(item.get("target") or item.get("public_target") or item)
+                owner = str(item.get("owner_username") or item.get("owner") or target.get("owner_username") or "")
+                if not owner or target.get("lat") is None or target.get("lng", target.get("lon")) is None:
+                    continue
+                target["stationary"] = False
+                target["territory_reconcile_reason"] = reason
+                territory_store.save_captured_target(owner, target)
+                reduced.append(territory_conflict_store.stable_target_id(target))
+
+        needs_rebuild = bool(missing_ids or ownership_mismatches or reduced)
+        if needs_rebuild:
+            request_conflict_rebuild(
+                conflict_id,
+                reason="periodic_consistency_reconcile",
+                requested_version=conflict.get("conflict_version"),
+            )
+        report = {
+            "conflict_id": conflict_id,
+            "expected_active": len(expected_active),
+            "registered_active": len(registered_active),
+            "missing_ids": missing_ids,
+            "ownership_mismatches": ownership_mismatches,
+            "reduced_ids": reduced,
+            "action": "field_reduced" if reduced else ("rebuild_queued" if needs_rebuild else "ok"),
+        }
+        reports.append(report)
+        print(f"[TERRITORY_RECONCILE] {json.dumps(report, ensure_ascii=False)}", flush=True)
+    return reports
+
+
 def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
                                  prebuilt_detection_plans=None,
                                  rebuild_participants=True, run_encirclement=True,

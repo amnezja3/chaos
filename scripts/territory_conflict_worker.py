@@ -67,9 +67,24 @@ def main():
         print(f"[TERRITORY_WORKER] enqueued conflict_id={conflict_id} result={queued}", flush=True)
         return
     idle_seconds = max(1.0, float(os.environ.get("CHAOS_TERRITORY_WORKER_IDLE_SECONDS", "2")))
+    reconcile_seconds = max(
+        60.0,
+        float(os.environ.get("CHAOS_TERRITORY_RECONCILE_SECONDS", "180")),
+    )
+    next_reconcile_at = time.monotonic()
     print("[TERRITORY_WORKER] started", flush=True)
     while True:
         try:
+            now = time.monotonic()
+            if now >= next_reconcile_at:
+                started = time.perf_counter()
+                reports = run.reconcile_active_territory_conflicts(reduce_unlinkable=True)
+                print(
+                    f"[TERRITORY_WORKER] reconcile conflicts={len(reports)} "
+                    f"elapsed_ms={int((time.perf_counter() - started) * 1000)}",
+                    flush=True,
+                )
+                next_reconcile_at = now + reconcile_seconds
             if not process_once():
                 time.sleep(idle_seconds)
         except KeyboardInterrupt:

@@ -157,6 +157,39 @@ class TerritoryControlTest(unittest.TestCase):
         self.assertEqual(len(plans), 1)
         self.assertEqual(plans[0]["participants"], ["alice", "bob"])
 
+    def test_periodic_reconciler_queues_missing_visible_pillar(self):
+        conflict = {
+            "conflict_id": "conflict-watchdog",
+            "participants": ["alice", "bob"],
+            "conflict_version": 4,
+            "status": "active",
+        }
+        target = captured("Missing", 52.0, 21.0)
+        target["target_id"] = "pillar-missing"
+        expected = [{
+            "target_id": "pillar-missing",
+            "owner_username": "bob",
+            "status": "contested",
+            "captured": False,
+            "target": target,
+        }]
+        with patch.object(run.territory_store, "list_player_areas", return_value=[]), \
+                patch.object(run.territory_store, "list_all_captured_targets", return_value=[]), \
+                patch.object(run.territory_conflict_store, "list_active", return_value=[conflict]), \
+                patch.object(run.territory_conflict_store, "list_pillars", return_value=[]), \
+                patch.object(run, "build_territory_conflict_detection_plan", return_value=[]), \
+                patch.object(run, "_conflict_rebuild_targets", return_value=expected), \
+                patch.object(run, "request_conflict_rebuild", return_value={}) as enqueue:
+            reports = run.reconcile_active_territory_conflicts(reduce_unlinkable=True)
+
+        self.assertEqual(reports[0]["missing_ids"], ["pillar-missing"])
+        self.assertEqual(reports[0]["action"], "rebuild_queued")
+        enqueue.assert_called_once_with(
+            "conflict-watchdog",
+            reason="periodic_consistency_reconcile",
+            requested_version=4,
+        )
+
     def test_single_pillar_capture_does_not_absorb_foreign_inner(self):
         path = self._temp_db()
         try:
