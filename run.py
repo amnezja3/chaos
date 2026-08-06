@@ -2788,7 +2788,7 @@ def is_territory_conflict_snapshot_read_enabled():
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
-def project_territory_conflict_snapshot(snapshot):
+def project_territory_conflict_snapshot(snapshot, viewer_username=""):
     """Expose the immutable conflict snapshot without rebuilding live geometry."""
     snapshot = snapshot if isinstance(snapshot, dict) else {}
     conflict = dict(snapshot.get("conflict") or {})
@@ -2804,6 +2804,7 @@ def project_territory_conflict_snapshot(snapshot):
         front["geometry"] = front.get("geometry") or []
         fronts.append(front)
     pillars = []
+    viewer_username = str(viewer_username or "").strip()
     for source in snapshot.get("pillars") or []:
         if not isinstance(source, dict):
             continue
@@ -2817,6 +2818,18 @@ def project_territory_conflict_snapshot(snapshot):
             target = nested_target if isinstance(nested_target, dict) else public_target
         pillar["target"] = dict(target)
         pillar["target"].setdefault("target_id", pillar.get("target_id"))
+        captured = bool(pillar.get("captured") or pillar.get("status") == "captured")
+        captured_by = str(
+            pillar.get("captured_by") or pillar.get("hacked_by")
+            or pillar.get("owner_username") or pillar["target"].get("owner_username") or ""
+        ).strip()
+        # Capture is canonical history, while attackability is relative to the
+        # recipient. The opponent must see this node as a counter-attack target.
+        if captured and viewer_username and captured_by != viewer_username:
+            pillar["canonical_status"] = pillar.get("status") or "captured"
+            pillar["canonical_captured"] = True
+            pillar["status"] = "contested"
+            pillar["captured"] = False
         pillars.append(pillar)
     version = int(snapshot.get("snapshot_version") or snapshot.get("geometry_version") or 0)
     geometry_status = str(
@@ -16916,7 +16929,8 @@ def map_view():
         map_html=Markup(map_html),
         folium_css=Markup('<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />'),
         folium_js=Markup('<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>'),
-        profile=profile_template_payload(profile)
+        profile=profile_template_payload(profile),
+        map_viewer_username=session.get("user", "")
     )
 
 
@@ -20384,7 +20398,7 @@ def map_player_areas():
             territory_conflict_snapshots = [
                 projected
                 for projected in (
-                    project_territory_conflict_snapshot(snapshot)
+                    project_territory_conflict_snapshot(snapshot, viewer_username=username)
                     for snapshot in territory_conflict_store.list_latest_snapshots_for_player(username)
                 )
                 if projected

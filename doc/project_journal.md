@@ -10929,3 +10929,13 @@ przebudowuje geometrii przez redukcje. Nawet starszy skrypt wywolujacy funkcje
 z `True` moze odtad tylko raportowac `remote_anomaly` lub kolejkowac zwykly
 rebuild. Jedyna automatyczna mutacja pozostaje jawny startup rollback,
 odtwarzajacy obiekty oznaczone przez wadliwy reconciler.
+
+Test mapy z perspektywy broniacego ujawnil osobny blad projekcji: kanoniczny
+status `captured` byl interpretowany przez frontend identycznie dla obu stron
+i zawsze usuwal marker. Dlatego obiekt przejety przez `main` znikal nie tylko
+u `main`, ale rowniez u `neo1`, mimo ze dla `neo1` powinien byc dostepnym celem
+kontrataku. Snapshot HTTP oraz obsluga delt projektuja teraz capture wzgledem
+odbiorcy. Aktualny posiadacz nadal widzi stan zakonczony, a przeciwnik dostaje
+ten sam filar jako `contested`, z zachowanymi polami `canonical_captured` i
+`canonical_status` do diagnostyki. Reconciler workera pozostaje read-only;
+problem nie lezal w braku rekordu, tylko w jego odbiorczej interpretacji.

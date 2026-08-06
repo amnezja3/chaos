@@ -1600,10 +1600,16 @@
   <script id="profile-data" type="application/json">
     {{ profile | tojson }}
   </script>
+  <script id="map-viewer-data" type="application/json">
+    {{ map_viewer_username | tojson }}
+  </script>
 
   <script>
     window.profileData = JSON.parse(
       document.getElementById("profile-data").textContent
+    );
+    window.mapViewerUsername = JSON.parse(
+      document.getElementById("map-viewer-data").textContent
     );
   </script>
 
@@ -2226,6 +2232,23 @@
             return Number(snapshot.snapshot_version || snapshot.snapshotVersion || 0);
         }
 
+        function territoryPillarForViewer(pillar = {}) {
+            const target = pillar.target || pillar.public_target || pillar;
+            const viewer = String(window.mapViewerUsername || '').trim();
+            const captured = Boolean(pillar.captured || String(pillar.status || '').toLowerCase() === 'captured');
+            const capturedBy = String(
+                pillar.captured_by || pillar.hacked_by || pillar.owner_username || target.owner_username || ''
+            ).trim();
+            if (!captured || !viewer || capturedBy === viewer) return pillar;
+            return {
+                ...pillar,
+                canonical_status: pillar.canonical_status || pillar.status || 'captured',
+                canonical_captured: true,
+                status: 'contested',
+                captured: false
+            };
+        }
+
         function territoryConflictTooltip(snapshot = {}, frontIndex = 0) {
             const conflict = snapshot.conflict || snapshot;
             const participants = (snapshot.participants || conflict.participants || conflict.participant_names || [])
@@ -2270,6 +2293,7 @@
         }
 
         function reconcileTerritoryPillar(snapshot, pillar) {
+            pillar = territoryPillarForViewer(pillar);
             const target = pillar.target || pillar.public_target || pillar;
             const targetId = String(pillar.target_id || target.target_id || target.id || '').trim();
             if (!targetId) return false;
@@ -2373,6 +2397,7 @@
                 .map(front => String((front || {}).front_id || '').trim())
                 .filter(Boolean);
             const expectedPillarIds = (snapshot.pillars || [])
+                .map(territoryPillarForViewer)
                 .filter(pillar => (
                     !(pillar || {}).removed
                     && !(pillar || {}).captured
@@ -2410,7 +2435,7 @@
                 const id = String((front || {}).front_id || '').trim();
                 if (id && reconcileTerritoryFront(snapshot, front, index)) frontIds.push(id);
             });
-            (snapshot.pillars || []).forEach(pillar => {
+            (snapshot.pillars || []).map(territoryPillarForViewer).forEach(pillar => {
                 const target = (pillar || {}).target || (pillar || {}).public_target || pillar || {};
                 const id = String((pillar || {}).target_id || target.target_id || target.id || '').trim();
                 if (id && reconcileTerritoryPillar(snapshot, pillar)) pillarIds.push(id);

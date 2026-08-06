@@ -62,6 +62,28 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertEqual(len(contested), 1)
         self.assertEqual(contested[0]["target_mode"], "territory_contest")
 
+    def test_captured_pillar_is_attackable_only_for_opposing_participant(self):
+        snapshot = self.snapshot()
+        snapshot["pillars"] = [{
+            "target_id": "pillar-captured",
+            "owner_username": "alice",
+            "captured_by": "alice",
+            "captured": True,
+            "status": "captured",
+            "public_target": {
+                "target": {"lat": 52.0, "lng": 21.0, "label": "Counter target"},
+            },
+        }]
+
+        holder_view = run.project_territory_conflict_snapshot(snapshot, viewer_username="alice")
+        opponent_view = run.project_territory_conflict_snapshot(snapshot, viewer_username="bob")
+
+        self.assertTrue(holder_view["pillars"][0]["captured"])
+        self.assertEqual(holder_view["pillars"][0]["status"], "captured")
+        self.assertFalse(opponent_view["pillars"][0]["captured"])
+        self.assertEqual(opponent_view["pillars"][0]["status"], "contested")
+        self.assertTrue(opponent_view["pillars"][0]["canonical_captured"])
+
     def test_conflict_delta_keeps_complete_canonical_snapshot(self):
         payload = _conflict_payload(self.snapshot(), reason="pillar_captured")
 
@@ -177,6 +199,8 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("hasLegacyPillarLayers", source)
         self.assertIn("hasMissingCanonicalLayers", source)
         self.assertIn("expectedPillarIds", source)
+        self.assertIn("territoryPillarForViewer", source)
+        self.assertIn("window.mapViewerUsername", source)
         self.assertNotIn("const layer = L.circleMarker(point", source)
 
     def test_frontend_keeps_large_valid_territories_and_boots_player_actors(self):
