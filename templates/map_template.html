@@ -2236,10 +2236,10 @@
             const target = pillar.target || pillar.public_target || pillar;
             const viewer = String(window.mapViewerUsername || '').trim();
             const captured = Boolean(pillar.captured || String(pillar.status || '').toLowerCase() === 'captured');
-            const capturedBy = String(
-                pillar.captured_by || pillar.hacked_by || pillar.owner_username || target.owner_username || ''
-            ).trim();
-            if (!captured || !viewer || capturedBy === viewer) return pillar;
+            const currentOwner = String(pillar.owner_username || target.owner_username || '').trim();
+            const capturedBy = String(pillar.captured_by || pillar.hacked_by || '').trim();
+            const captureHolder = currentOwner || capturedBy;
+            if (!captured || !viewer || captureHolder === viewer) return pillar;
             return {
                 ...pillar,
                 canonical_status: pillar.canonical_status || pillar.status || 'captured',
@@ -2247,6 +2247,13 @@
                 status: 'contested',
                 captured: false
             };
+        }
+
+        function territoryPillarIsOwnedByViewer(pillar = {}) {
+            const target = pillar.target || pillar.public_target || pillar;
+            const viewer = String(window.mapViewerUsername || '').trim();
+            const currentOwner = String(pillar.owner_username || target.owner_username || '').trim();
+            return Boolean(viewer && currentOwner && currentOwner === viewer);
         }
 
         function territoryConflictTooltip(snapshot = {}, frontIndex = 0) {
@@ -2297,6 +2304,10 @@
             const target = pillar.target || pillar.public_target || pillar;
             const targetId = String(pillar.target_id || target.target_id || target.id || '').trim();
             if (!targetId) return false;
+            if (territoryPillarIsOwnedByViewer(pillar)) {
+                removeTerritoryRegistryLayer(window.territoryConflictPillarLayers, targetId);
+                return true;
+            }
             if (pillar.removed || pillar.captured || ['captured', 'removed', 'detached', 'resolved'].includes(String(pillar.status || '').toLowerCase())) {
                 removeTerritoryRegistryLayer(window.territoryConflictPillarLayers, targetId);
                 return true;
@@ -2398,6 +2409,7 @@
                 .filter(Boolean);
             const expectedPillarIds = (snapshot.pillars || [])
                 .map(territoryPillarForViewer)
+                .filter(pillar => !territoryPillarIsOwnedByViewer(pillar))
                 .filter(pillar => (
                     !(pillar || {}).removed
                     && !(pillar || {}).captured

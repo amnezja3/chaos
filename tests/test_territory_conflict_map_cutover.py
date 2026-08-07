@@ -84,6 +84,27 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertEqual(opponent_view["pillars"][0]["status"], "contested")
         self.assertTrue(opponent_view["pillars"][0]["canonical_captured"])
 
+    def test_current_owner_hides_conflict_marker_when_captured_by_is_stale(self):
+        snapshot = self.snapshot()
+        snapshot["pillars"] = [{
+            "target_id": "pillar-stale-capture-actor",
+            "owner_username": "alice",
+            "captured_by": "bob",
+            "captured": True,
+            "status": "captured",
+            "public_target": {
+                "target": {"lat": 52.0, "lng": 21.0, "label": "Owned target"},
+            },
+        }]
+
+        holder_view = run.project_territory_conflict_snapshot(snapshot, viewer_username="alice")
+        opponent_view = run.project_territory_conflict_snapshot(snapshot, viewer_username="bob")
+
+        self.assertTrue(holder_view["pillars"][0]["captured"])
+        self.assertEqual(holder_view["pillars"][0]["status"], "captured")
+        self.assertFalse(opponent_view["pillars"][0]["captured"])
+        self.assertEqual(opponent_view["pillars"][0]["status"], "contested")
+
     def test_conflict_delta_keeps_complete_canonical_snapshot(self):
         payload = _conflict_payload(self.snapshot(), reason="pillar_captured")
 
@@ -200,6 +221,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("hasMissingCanonicalLayers", source)
         self.assertIn("expectedPillarIds", source)
         self.assertIn("territoryPillarForViewer", source)
+        self.assertIn("territoryPillarIsOwnedByViewer", source)
         self.assertIn("window.mapViewerUsername", source)
         self.assertNotIn("const layer = L.circleMarker(point", source)
 

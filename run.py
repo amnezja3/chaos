@@ -2819,13 +2819,14 @@ def project_territory_conflict_snapshot(snapshot, viewer_username=""):
         pillar["target"] = dict(target)
         pillar["target"].setdefault("target_id", pillar.get("target_id"))
         captured = bool(pillar.get("captured") or pillar.get("status") == "captured")
-        captured_by = str(
-            pillar.get("captured_by") or pillar.get("hacked_by")
-            or pillar.get("owner_username") or pillar["target"].get("owner_username") or ""
+        current_owner = str(
+            pillar.get("owner_username") or pillar["target"].get("owner_username") or ""
         ).strip()
+        captured_by = str(pillar.get("captured_by") or pillar.get("hacked_by") or "").strip()
+        capture_holder = current_owner or captured_by
         # Capture is canonical history, while attackability is relative to the
         # recipient. The opponent must see this node as a counter-attack target.
-        if captured and viewer_username and captured_by != viewer_username:
+        if captured and viewer_username and capture_holder != viewer_username:
             pillar["canonical_status"] = pillar.get("status") or "captured"
             pillar["canonical_captured"] = True
             pillar["status"] = "contested"
