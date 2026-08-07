@@ -10939,3 +10939,12 @@ odbiorcy. Aktualny posiadacz nadal widzi stan zakonczony, a przeciwnik dostaje
 ten sam filar jako `contested`, z zachowanymi polami `canonical_captured` i
 `canonical_status` do diagnostyki. Reconciler workera pozostaje read-only;
 problem nie lezal w braku rekordu, tylko w jego odbiorczej interpretacji.
+
+Kolejny test kontrataku pokazal, ze historyczny przejety filar moze po
+konsolidacji wrocic jako `inner`: merge celowo zachowuje monotoniczna historie
+capture, nawet gdy obiekt nie nalezy juz do aktualnego zbioru ujawnionego przez
+geometrie. Projekcja mapy stosuje odtad waski straznik przestrzenny: `inner`
+jest publikowany i renderowany tylko wtedy, gdy jego punkt lezy wewnatrz lub
+na granicy aktualnego opublikowanego frontu. Filary wspierajace krawedz nie sa
+tym filtrem obejmowane. Okresowy reconciler raportuje takie historyczne wpisy
+jako `outside_inner_ids`, pozostajac read-only wobec rejestru i geometrii.

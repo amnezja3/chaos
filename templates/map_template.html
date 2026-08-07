@@ -2256,6 +2256,39 @@
             return Boolean(viewer && currentOwner && currentOwner === viewer);
         }
 
+        function territoryPointInPolygonOrBoundary(point, geometry = []) {
+            const normalizedPoint = normalizeMapLatLngPair(point[0], point[1]);
+            const vertices = geometry.map(normalizeMapVertex).filter(Boolean);
+            if (!normalizedPoint || vertices.length < 3) return false;
+            const [lat, lng] = normalizedPoint;
+            let inside = false;
+            for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+                const [aLat, aLng] = vertices[j];
+                const [bLat, bLng] = vertices[i];
+                const cross = (lng - aLng) * (bLat - aLat) - (lat - aLat) * (bLng - aLng);
+                const onSegment = Math.abs(cross) <= 1e-10
+                    && lat >= Math.min(aLat, bLat) - 1e-10 && lat <= Math.max(aLat, bLat) + 1e-10
+                    && lng >= Math.min(aLng, bLng) - 1e-10 && lng <= Math.max(aLng, bLng) + 1e-10;
+                if (onSegment) return true;
+                const crossesRay = ((aLng > lng) !== (bLng > lng))
+                    && (lat < (bLat - aLat) * (lng - aLng) / (bLng - aLng) + aLat);
+                if (crossesRay) inside = !inside;
+            }
+            return inside;
+        }
+
+        function territoryInnerInsideSnapshotFront(snapshot = {}, pillar = {}) {
+            const target = pillar.target || pillar.public_target || pillar;
+            const nodeRole = String(pillar.node_role || target.node_role || 'pillar').toLowerCase();
+            if (nodeRole !== 'inner') return true;
+            const point = normalizeMapLatLngPair(target.lat, target.lng !== undefined ? target.lng : target.lon);
+            const fronts = (snapshot.fronts || [])
+                .map(front => (front && front.geometry) || [])
+                .filter(geometry => geometry.length >= 3);
+            if (!point || !fronts.length) return !fronts.length;
+            return fronts.some(geometry => territoryPointInPolygonOrBoundary(point, geometry));
+        }
+
         function territoryConflictTooltip(snapshot = {}, frontIndex = 0) {
             const conflict = snapshot.conflict || snapshot;
             const participants = (snapshot.participants || conflict.participants || conflict.participant_names || [])
@@ -2304,6 +2337,10 @@
             const target = pillar.target || pillar.public_target || pillar;
             const targetId = String(pillar.target_id || target.target_id || target.id || '').trim();
             if (!targetId) return false;
+            if (!territoryInnerInsideSnapshotFront(snapshot, pillar)) {
+                removeTerritoryRegistryLayer(window.territoryConflictPillarLayers, targetId);
+                return true;
+            }
             if (territoryPillarIsOwnedByViewer(pillar)) {
                 removeTerritoryRegistryLayer(window.territoryConflictPillarLayers, targetId);
                 return true;
@@ -2410,6 +2447,7 @@
             const expectedPillarIds = (snapshot.pillars || [])
                 .map(territoryPillarForViewer)
                 .filter(pillar => !territoryPillarIsOwnedByViewer(pillar))
+                .filter(pillar => territoryInnerInsideSnapshotFront(snapshot, pillar))
                 .filter(pillar => (
                     !(pillar || {}).removed
                     && !(pillar || {}).captured

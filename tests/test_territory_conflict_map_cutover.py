@@ -105,6 +105,28 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertFalse(opponent_view["pillars"][0]["captured"])
         self.assertEqual(opponent_view["pillars"][0]["status"], "contested")
 
+    def test_projection_drops_historical_inner_outside_published_front(self):
+        snapshot = self.snapshot()
+        snapshot["pillars"] = [{
+            "target_id": "stale-inner",
+            "owner_username": "alice",
+            "captured_by": "alice",
+            "captured": True,
+            "status": "captured",
+            "public_target": {
+                "target": {
+                    "lat": 52.2,
+                    "lng": 21.2,
+                    "label": "Historical inner",
+                    "node_role": "inner",
+                },
+            },
+        }]
+
+        projected = run.project_territory_conflict_snapshot(snapshot, viewer_username="bob")
+
+        self.assertEqual(projected["pillars"], [])
+
     def test_conflict_delta_keeps_complete_canonical_snapshot(self):
         payload = _conflict_payload(self.snapshot(), reason="pillar_captured")
 
@@ -222,6 +244,8 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("expectedPillarIds", source)
         self.assertIn("territoryPillarForViewer", source)
         self.assertIn("territoryPillarIsOwnedByViewer", source)
+        self.assertIn("territoryInnerInsideSnapshotFront", source)
+        self.assertIn("territoryPointInPolygonOrBoundary", source)
         self.assertIn("window.mapViewerUsername", source)
         self.assertNotIn("const layer = L.circleMarker(point", source)
 

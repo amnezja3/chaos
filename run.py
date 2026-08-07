@@ -2818,6 +2818,18 @@ def project_territory_conflict_snapshot(snapshot, viewer_username=""):
             target = nested_target if isinstance(nested_target, dict) else public_target
         pillar["target"] = dict(target)
         pillar["target"].setdefault("target_id", pillar.get("target_id"))
+        node_role = str(pillar.get("node_role") or pillar["target"].get("node_role") or "pillar").lower()
+        if node_role == "inner" and fronts:
+            try:
+                inside_published_front = any(
+                    territory_point_in_polygon_or_boundary(pillar["target"], front.get("geometry") or [])
+                    for front in fronts
+                    if len(front.get("geometry") or []) >= 3
+                )
+            except (AttributeError, TypeError, ValueError):
+                inside_published_front = False
+            if not inside_published_front:
+                continue
         captured = bool(pillar.get("captured") or pillar.get("status") == "captured")
         current_owner = str(
             pillar.get("owner_username") or pillar["target"].get("owner_username") or ""
@@ -4829,6 +4841,7 @@ def reconcile_active_territory_conflicts(reduce_unlinkable=False):
         }
         missing_ids = sorted(set(expected_active) - set(registered_active))
         ownership_mismatches = []
+        outside_inner_ids = []
         for target_id, pillar in registered_active.items():
             public_target = pillar.get("public_target") or {}
             target = public_target.get("target") or public_target
@@ -4842,6 +4855,24 @@ def reconcile_active_territory_conflicts(reduce_unlinkable=False):
             )
             if actual_owner and actual_owner != str(pillar.get("owner_username") or ""):
                 ownership_mismatches.append(target_id)
+        for pillar in registered:
+            if str(pillar.get("status") or "").lower() in {"removed", "detached", "resolved"}:
+                continue
+            public_target = pillar.get("public_target") or {}
+            target = public_target.get("target") or public_target
+            node_role = str(pillar.get("node_role") or target.get("node_role") or "pillar").lower()
+            if node_role != "inner" or not intersections:
+                continue
+            try:
+                point = {"lat": float(target.get("lat")), "lng": float(target.get("lng", target.get("lon")))}
+            except (AttributeError, TypeError, ValueError):
+                continue
+            if not any(
+                territory_point_in_polygon_or_boundary(point, geometry)
+                for geometry in intersections
+                if len(geometry or []) >= 3
+            ):
+                outside_inner_ids.append(str(pillar.get("target_id") or ""))
 
         # Hard safety boundary: the periodic audit is never allowed to mutate
         # captured targets or territory geometry. Keep the legacy argument so
@@ -4868,6 +4899,7 @@ def reconcile_active_territory_conflicts(reduce_unlinkable=False):
             "registered_active": len(registered_active),
             "missing_ids": missing_ids,
             "ownership_mismatches": ownership_mismatches,
+            "outside_inner_ids": sorted(outside_inner_ids),
             "reduced_ids": reduced,
             "remote_supports": [
                 {"target_id": item.get("target_id"), "distance_meters": item.get("distance_meters")}
@@ -4876,7 +4908,8 @@ def reconcile_active_territory_conflicts(reduce_unlinkable=False):
             "deferred_remote_ids": deferred_remote_ids,
             "action": (
                 "rebuild_queued" if needs_rebuild
-                else ("remote_anomaly" if deferred_remote_ids else "ok")
+                else ("remote_anomaly" if deferred_remote_ids
+                      else ("inner_geometry_anomaly" if outside_inner_ids else "ok"))
             ),
         }
         reports.append(report)
