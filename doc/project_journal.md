@@ -10958,3 +10958,14 @@ starsze oraz wykrywa luki, lecz snapshot o tej samej wersji trafia teraz do
 kanonicznego reconciler-a. Jego `hasMissingCanonicalLayers` odtwarza tylko
 brakujace fronty i filary, zachowujac monotonicznosc oraz filtry wlasciciela i
 geometrii innerow.
+
+Atak trzeciego gracza na pole po wczesniejszym konflikcie ujawnil wyciek
+tozsamosci cyklu przez marker celu. Obiekt mogl zachowac `conflict_id` starego
+konfliktu `main-neo1`; capture wykonywany przez `trolu2` byl wtedy mylnie
+zapisywany do starego cyklu. Niepusty wynik `captured_conflicts` pomijal
+discovery nowego przeciecia, mimo ze pola roznych klanow mialy poprawny
+trzypunktowy overlap. `capture_conflict_pillar()` wymaga teraz, aby aktor byl
+uczestnikiem wskazanego konfliktu, rowniez podczas wyszukiwania po `target_id`.
+Stara referencja trzeciej strony jest raportowana jako
+`[TERRITORY_CAPTURE_STALE_CONFLICT]` i zwraca pusty wynik, dzieki czemu zwykla
+sciezka po capture materializuje oraz kolejkuje nowy konflikt aktualnej pary.
