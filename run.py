@@ -23240,10 +23240,24 @@ def gonna_win():
                 "exp": profile["exp"],
                 "territory_stats": profile["territory_stats"],
             })
-        mgr.update_profile(capture_profile_update)
+        if defer_conflict_rebuild:
+            # The conflict worker owns the durable profile mirror after a pillar
+            # transfer. The request has already committed the captured target,
+            # target runtime state and rebuild job. Serializing the complete,
+            # often very large profile here can outlive the Gunicorn timeout
+            # after the gameplay transaction has succeeded.
+            print(
+                "[TERRITORY_CAPTURE_PROFILE_SYNC_DEFERRED] "
+                f"user={session.get('user')} conflicts="
+                f"{[item.get('conflict_id') or item.get('id') for item in captured_conflicts]}",
+                flush=True,
+            )
+        else:
+            mgr.update_profile(capture_profile_update)
         app_flow_debug_timed(
             flow_id,
-            "gonna_win_capture_profile_update_done",
+            "gonna_win_capture_profile_update_deferred" if defer_conflict_rebuild
+            else "gonna_win_capture_profile_update_done",
             app_flow_started_at,
             step_started_at,
             hacked=len(hacked_targets or []),

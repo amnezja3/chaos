@@ -10979,3 +10979,12 @@ przechowuje teraz niemutowalna tozsamosc celu z chwili startu. Backend uznaje
 spozniona opcje za idempotentny sukces bez efektow ubocznych wyłącznie wtedy,
 gdy ten dokladny cel jest juz zapisany jako przejety przez aktualnego gracza.
 Zwykle puste, zmienione lub obce cele nadal dostaja blokade `invalid_target`.
+
+Traceback z kolejnego testu potwierdzil niezalezna przyczyne odpowiedzi 500:
+po poprawnym transferze filaru `/gonna-win` przekraczal timeout Gunicorna przy
+ponownej serializacji calego profilu w `mgr.update_profile()`. Dla capture
+naleacego do aktywnego konfliktu koncowy mirror profilu jest teraz odroczony
+do workera, ktory juz odpowiada za finalizacje profili obu uczestnikow.
+Request nadal atomowo zapisuje transfer celu, runtime `captured` i rebuild job,
+ale nie powtarza kosztownego zapisu duzego blobu profilu po sukcesie gameplay.
+Zwykle przejecia poza konfliktem zachowuja synchroniczny zapis profilu.

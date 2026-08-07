@@ -202,6 +202,8 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertNotIn("detect_territory_conflicts(", source)
         self.assertIn("defer_conflict_rebuild", source)
         self.assertIn('"deferred": True', source)
+        self.assertIn("TERRITORY_CAPTURE_PROFILE_SYNC_DEFERRED", source)
+        self.assertIn("if defer_conflict_rebuild", source)
         self.assertIn("discover_and_queue_new_territory_conflicts", source)
 
         consolidation_source = inspect.getsource(run.consolidate_conflict_rebuild)
