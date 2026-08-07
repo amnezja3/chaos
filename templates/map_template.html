@@ -7422,10 +7422,11 @@
                         return false;
                     }
                     const current = window.territoryConflictRegistry[conflictId] || {};
-                    const incomingConflictVersion = Number(snapshot.conflict_version || 0);
                     if (incomingVersion < currentVersion) return true;
-                    if (incomingVersion === currentVersion
-                        && incomingConflictVersion <= Number(current.conflictVersion || 0)) return true;
+                    // Equal-version deltas still need reconciliation. Capture
+                    // removes one pillar locally, while the worker may need to
+                    // restore another layer from the same canonical snapshot.
+                    // The inner reconciler owns monotonic and missing-layer guards.
                     if (currentVersion && incomingVersion > currentVersion + 1) {
                         window.requestTerritorySnapshotRecovery('territory_conflict_version_gap');
                         return false;

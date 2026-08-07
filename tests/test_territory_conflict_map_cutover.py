@@ -227,6 +227,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("window.territoryConflictPillarLayers", source)
         self.assertIn("territory_conflict_version_gap", source)
         self.assertIn("incomingVersion < currentVersion", source)
+        self.assertNotIn("incomingVersion === currentVersion\n                        && incomingConflictVersion", source)
         self.assertIn("conflictVersion < Number(previous.conflictVersion", source)
         self.assertIn("publishedGeometryReplacesPrevious", source)
         self.assertIn("registeredFrontIds", source)

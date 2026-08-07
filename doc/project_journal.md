@@ -10948,3 +10948,13 @@ jest publikowany i renderowany tylko wtedy, gdy jego punkt lezy wewnatrz lub
 na granicy aktualnego opublikowanego frontu. Filary wspierajace krawedz nie sa
 tym filtrem obejmowane. Okresowy reconciler raportuje takie historyczne wpisy
 jako `outside_inner_ids`, pozostajac read-only wobec rejestru i geometrii.
+
+Test pelnego przejecia konfliktu ujawnil ostatnia luke w odswiezaniu warstw.
+Po capture frontend punktowo usuwal marker filaru, ale delta workera z ta sama
+wersja snapshotu byla zatrzymywana przez zewnetrzny skrot `equal version`
+jeszcze przed uruchomieniem reconcile. Ponowne otwarcie mapy naprawialo stan,
+bo pelny snapshot omijal ten skrot. Zewnetrzna bramka odrzuca nadal wersje
+starsze oraz wykrywa luki, lecz snapshot o tej samej wersji trafia teraz do
+kanonicznego reconciler-a. Jego `hasMissingCanonicalLayers` odtwarza tylko
+brakujace fronty i filary, zachowujac monotonicznosc oraz filtry wlasciciela i
+geometrii innerow.
