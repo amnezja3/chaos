@@ -1494,13 +1494,22 @@ function buildApplicationLaunchContext(appData = {}) {
         ""
     ).trim();
     const launchKey = launchReceipt || `${flowId || "manual"}:${appId || name}`;
+    const aimedTarget = ((toolbarProfile || {}).aimed_target || {});
+    const expectedTarget = hasToolbarAimedTarget(aimedTarget) ? {
+        target_id: aimedTarget.target_id || aimedTarget.id || "",
+        lat: aimedTarget.lat,
+        lng: aimedTarget.lng !== undefined ? aimedTarget.lng : aimedTarget.lon,
+        label: aimedTarget.label || aimedTarget.display_label || aimedTarget.name || aimedTarget.title || "",
+        target_mode: aimedTarget.target_mode || ""
+    } : null;
     return {
         flow_id: flowId,
         launch_key: launchKey,
         launch_receipt: launchReceipt,
         source: String(appData._source || appData.source || "").trim(),
         app_id: appId,
-        app_name: name
+        app_name: name,
+        expected_target: expectedTarget
     };
 }
 
@@ -1509,13 +1518,22 @@ function currentApplicationLaunchContext(appWindow = null) {
     const dataset = appWindow && appWindow.dataset ? appWindow.dataset : {};
     const flowId = getCurrentAppFlowId(dataset.appFlowId || pending.flow_id || "");
     const appId = String(dataset.appId || pending.app_id || "").trim();
+    let expectedTarget = pending.expected_target || null;
+    if (dataset.expectedTarget) {
+        try {
+            expectedTarget = JSON.parse(dataset.expectedTarget);
+        } catch (error) {
+            console.warn('[gonna-win] Nieprawidlowy zapis celu startowego aplikacji', error);
+        }
+    }
     return {
         flow_id: flowId,
         launch_key: String(dataset.launchQueueKey || pending.launch_key || `${flowId || "manual"}:${appId}`).trim(),
         launch_receipt: String(dataset.launchReceipt || pending.launch_receipt || "").trim(),
         source: String(dataset.launchSource || pending.source || "").trim(),
         app_id: appId,
-        app_name: String(dataset.appTitle || pending.app_name || "").trim()
+        app_name: String(dataset.appTitle || pending.app_name || "").trim(),
+        expected_target: expectedTarget
     };
 }
 
@@ -1529,6 +1547,9 @@ function applyApplicationLaunchContext(appWindow, fallbackAppData = {}) {
     appWindow.dataset.launchQueueKey = context.launch_key || "";
     appWindow.dataset.launchReceipt = context.launch_receipt || "";
     appWindow.dataset.launchSource = context.source || "";
+    appWindow.dataset.expectedTarget = context.expected_target
+        ? JSON.stringify(context.expected_target)
+        : "";
     return currentApplicationLaunchContext(appWindow);
 }
 
@@ -3782,7 +3803,8 @@ async function notifyGonnaWin(appId, appWindow = null) {
                 _flow_id: flowId,
                 launch_key: context.launch_key,
                 launch_receipt: context.launch_receipt,
-                launch_source: context.source
+                launch_source: context.source,
+                expected_target: context.expected_target
             })
         });
         const data = await response.json();
@@ -5735,7 +5757,8 @@ function notifyAppMapOperationStarted(appData) {
                 _flow_id: flowId,
                 launch_key: context.launch_key,
                 launch_receipt: context.launch_receipt,
-                launch_source: context.source
+                launch_source: context.source,
+                expected_target: context.expected_target
             })
         });
         const data = await response.json();
@@ -5788,7 +5811,8 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
                 _flow_id: flowId,
                 launch_key: context.launch_key,
                 launch_receipt: context.launch_receipt,
-                launch_source: context.source
+                launch_source: context.source,
+                expected_target: context.expected_target
             })
         });
         const data = await response.json();

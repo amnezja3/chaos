@@ -10969,3 +10969,13 @@ uczestnikiem wskazanego konfliktu, rowniez podczas wyszukiwania po `target_id`.
 Stara referencja trzeciej strony jest raportowana jako
 `[TERRITORY_CAPTURE_STALE_CONFLICT]` i zwraca pusty wynik, dzieki czemu zwykla
 sciezka po capture materializuje oraz kolejkuje nowy konflikt aktualnej pary.
+
+Test ostatniego kroku hakowania ujawnil wyscig w kolejce `/gonna-win`.
+Pierwsza z zakolejkowanych opcji mogla przejac cel, przebudowac terytorium i
+wyczyscic `aimed_target`, zanim pozniejsza opcja tego samego okna dotarla do
+backendu. Pozniejsza odpowiedz 409 byla technicznie poprawna dla pustego celu,
+ale mylnie konczyla aplikacje bledem po faktycznym sukcesie. Okno aplikacji
+przechowuje teraz niemutowalna tozsamosc celu z chwili startu. Backend uznaje
+spozniona opcje za idempotentny sukces bez efektow ubocznych wyłącznie wtedy,
+gdy ten dokladny cel jest juz zapisany jako przejety przez aktualnego gracza.
+Zwykle puste, zmienione lub obce cele nadal dostaja blokade `invalid_target`.

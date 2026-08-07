@@ -2447,6 +2447,80 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertIn("root", FakeProfileManager.created_for)
         self.assertNotIn("owner_a", FakeProfileManager.created_for)
 
+    def test_gonna_win_treats_late_choice_for_already_captured_target_as_success(self):
+        expected_target = {
+            "target_id": "map:52.1:21.2:Target",
+            "lat": 52.1,
+            "lng": 21.2,
+            "label": "Target",
+        }
+        captured_target = {
+            **expected_target,
+            "owner_username": "root",
+            "captured": True,
+        }
+        profile = {
+            "username": "root",
+            "apps": [{
+                "id": "gps_tool",
+                "name": "GPS Tool",
+                "map_actions": ["trace_gps"],
+                "levels": [{"options": []}],
+            }],
+            "aimed_target": {},
+        }
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "root"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(
+                    run,
+                    "find_owned_captured_target_for_runtime_target",
+                    return_value=captured_target,
+                ), \
+                patch.object(run, "apply_app_map_actions_to_aimed_target") as apply_actions:
+            response = client.post("/gonna-win", json={
+                "app_id": "gps_tool",
+                "choice_id": "late-choice",
+                "expected_target": expected_target,
+            })
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["success"])
+        self.assertTrue(payload["superseded_by_capture"])
+        self.assertTrue(payload["duplicate"])
+        self.assertEqual(payload["captured_target"], captured_target)
+        self.assertEqual(payload["created_operations"], [])
+        apply_actions.assert_not_called()
+
+    def test_gonna_win_keeps_invalid_target_conflict_without_matching_capture(self):
+        expected_target = {"lat": 52.1, "lng": 21.2, "label": "Target"}
+        profile = {
+            "username": "root",
+            "apps": [{
+                "id": "gps_tool",
+                "name": "GPS Tool",
+                "map_actions": ["trace_gps"],
+                "levels": [{"options": []}],
+            }],
+            "aimed_target": {},
+        }
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "root"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "find_owned_captured_target_for_runtime_target", return_value=None):
+            response = client.post("/gonna-win", json={
+                "app_id": "gps_tool",
+                "expected_target": expected_target,
+            })
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.get_json()["reason"], "invalid_target")
+
     def test_gonna_win_marks_app_map_actions_on_aimed_target(self):
         class FakeProfileManager:
             updates = []

@@ -22377,6 +22377,7 @@ def gonna_win():
         or ""
     ).strip()[:160]
     launch_source = str(data.get("launch_source") or data.get("source") or "").strip()[:64]
+    expected_target = data.get("expected_target") if isinstance(data.get("expected_target"), dict) else {}
     gonna_win_receipt_key = ""
     if launch_receipt and app_id and session.get("user"):
         receipt_scope = "operation_only" if operation_only else f"choice:{choice_id if choice_id is not None else 'auto'}"
@@ -22504,6 +22505,31 @@ def gonna_win():
         or as_list(normalized_app_for_guard.get("operation_types"))
     )
     if app_requires_map_target and not target_has_stable_runtime_identity(profile.get("aimed_target")):
+        already_captured_target = find_owned_captured_target_for_runtime_target(
+            session.get("user"),
+            expected_target,
+        )
+        if already_captured_target:
+            payload = {
+                "success": True,
+                "duplicate": True,
+                "superseded_by_capture": True,
+                "message": "Cel zostal juz przejety przez wczesniejsza akcje.",
+                "target": {},
+                "captured_target": already_captured_target,
+                "actions_allowed_marked": [],
+                "created_operations": [],
+            }
+            app_flow_debug(
+                flow_id,
+                "gonna_win_superseded_by_capture",
+                started_at=app_flow_started_at,
+                app_id=app_id,
+                choice_id=choice_id,
+                target_id=build_operation_target_id(expected_target),
+            )
+            finish_gonna_win_receipt(payload, status_code=200, status=AppActionReceiptStore.STATUS_EFFECT_APPLIED)
+            return jsonify(payload), 200
         app_flow_debug(
             flow_id,
             "gonna_win_reject_invalid_target",
