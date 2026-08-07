@@ -208,6 +208,30 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("_conflict_rebuild_targets", consolidation_source)
         self.assertIn("reconcile_rebuild_pillars", consolidation_source)
 
+    def test_stale_conflict_id_does_not_capture_pillar_for_third_party(self):
+        stale_conflict = {
+            "conflict_id": "old-main-neo1",
+            "participants": ["main", "neo1"],
+            "status": "active",
+        }
+        target = {
+            "target_id": "pillar-from-old-cycle",
+            "conflict_id": "old-main-neo1",
+            "lat": 52.32,
+            "lng": 21.0,
+        }
+        with mock.patch.object(
+            run.territory_conflict_store, "get_by_key", return_value=stale_conflict
+        ), mock.patch.object(run.territory_conflict_store, "capture_pillar") as capture:
+            affected = run.capture_conflict_pillar(
+                target,
+                captured_by_username="trolu2",
+                previous_owner_username="main",
+            )
+
+        self.assertEqual(affected, [])
+        capture.assert_not_called()
+
     def test_player_actor_snapshot_projects_current_positions_on_current_territory(self):
         source = inspect.getsource(run.map_player_actors)
 

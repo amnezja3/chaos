@@ -5161,6 +5161,11 @@ def capture_conflict_pillar(captured_target, captured_by_username,
 
     if conflict_reference in (None, ""):
         for conflict in territory_conflict_store.list_active():
+            participants = {
+                str(item) for item in (conflict.get("participants") or []) if item
+            }
+            if captured_by_username not in participants:
+                continue
             pillar_ids = {
                 pillar.get("target_id")
                 for pillar in territory_conflict_store.list_pillars(
@@ -5171,6 +5176,20 @@ def capture_conflict_pillar(captured_target, captured_by_username,
                 conflict_reference = conflict.get("conflict_id") or conflict.get("id")
                 break
     if conflict_reference in (None, ""):
+        return []
+
+    referenced_conflict = territory_conflict_store.get_by_key(conflict_reference)
+    participants = {
+        str(item) for item in ((referenced_conflict or {}).get("participants") or []) if item
+    }
+    if referenced_conflict and captured_by_username not in participants:
+        print(
+            "[TERRITORY_CAPTURE_STALE_CONFLICT] "
+            f"actor={captured_by_username} conflict_id="
+            f"{referenced_conflict.get('conflict_id') or referenced_conflict.get('id')} "
+            f"target_id={target_id} participants={sorted(participants)}",
+            flush=True,
+        )
         return []
 
     result = territory_conflict_store.capture_pillar(
