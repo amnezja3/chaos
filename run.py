@@ -15276,7 +15276,7 @@ def redirect_missing_profile_to_login():
     return redirect(url_for("index"))
 
 
-def sync_session_profile(rebuild_territory=True):
+def sync_session_profile(rebuild_territory=True, persist_normalization=True):
     username = session.get("user")
     if not username:
         return None
@@ -15292,16 +15292,17 @@ def sync_session_profile(rebuild_territory=True):
         normalize_files_inventory(profile)
         normalize_runtime_profile_defaults(profile)
         apply_runtime_stores_to_profile(username, profile)
-        UserProfileManager(username).update_profile({
-            "storage_capacity": profile.get("storage_capacity"),
-            "storage_used": profile.get("storage_used"),
-            "storage_unit": profile.get("storage_unit", "MB"),
-            "storage_soft_limit": True,
-            "storage_over_limit": profile.get("storage_over_limit", False),
-            "storage_upgrades": profile.get("storage_upgrades", []),
-            "googleplex_products": profile.get("googleplex_products", []),
-            "product_purchases": profile.get("product_purchases", []),
-        })
+        if persist_normalization:
+            UserProfileManager(username).update_profile({
+                "storage_capacity": profile.get("storage_capacity"),
+                "storage_used": profile.get("storage_used"),
+                "storage_unit": profile.get("storage_unit", "MB"),
+                "storage_soft_limit": True,
+                "storage_over_limit": profile.get("storage_over_limit", False),
+                "storage_upgrades": profile.get("storage_upgrades", []),
+                "googleplex_products": profile.get("googleplex_products", []),
+                "product_purchases": profile.get("product_purchases", []),
+            })
         session["profile"] = profile
         return profile
 
@@ -22461,7 +22462,7 @@ def gonna_win():
     # ] # DEV LISTA
 
     step_started_at = time.perf_counter()
-    profile = sync_session_profile()
+    profile = sync_session_profile(rebuild_territory=False, persist_normalization=False)
     app_flow_debug_timed(
         flow_id,
         "gonna_win_sync_session_profile",
@@ -23161,6 +23162,11 @@ def gonna_win():
             discovered_conflicts = discover_and_queue_new_territory_conflicts(session["user"])
             if discovered_conflicts:
                 captured_conflicts = discovered_conflicts
+                # A conflict discovered only after the target transfer must use
+                # the same worker-owned finalization path as a conflict already
+                # attached to the pillar. Keeping the pre-discovery False value
+                # here ran the full encirclement resolver inside /gonna-win.
+                defer_conflict_rebuild = True
             app_flow_debug_timed(
                 flow_id,
                 "gonna_win_conflict_discovery_queued",

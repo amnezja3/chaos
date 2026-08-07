@@ -10988,3 +10988,20 @@ do workera, ktory juz odpowiada za finalizacje profili obu uczestnikow.
 Request nadal atomowo zapisuje transfer celu, runtime `captured` i rebuild job,
 ale nie powtarza kosztownego zapisu duzego blobu profilu po sukcesie gameplay.
 Zwykle przejecia poza konfliktem zachowuja synchroniczny zapis profilu.
+
+Kolejny traceback ujawnil wariant discovery po transferze: konflikt, ktory nie
+byl jeszcze przypiety do filaru, zostawal poprawnie znaleziony i zakolejkowany,
+ale flaga `defer_conflict_rebuild` zachowywala wartosc sprzed discovery. Request
+uruchamial przez to pelny resolver otoczenia i timeoutowal podczas odczytow
+relacji profili. Udane discovery przelacza teraz request na te sama finalizacje
+worker-owned co konflikt znany przed capture; resolver nie wraca do
+`/gonna-win` tylko dlatego, ze konflikt powstal kilka krokow pozniej.
+
+Logi calej sekwencji aplikacji pokazaly jeszcze wspolny koszt kazdej kropki:
+`/gonna-win` zaczynal od pelnego `sync_session_profile()`, a wiec wykonywal
+rebuild terytorium, zapis normalizacyjny calego profilu i resolver otoczenia
+przed zastosowaniem pojedynczej opcji. Endpoint pobiera teraz profil przez
+wariant bez rebuilda i bez zapisu normalizacyjnego. Runtime celu, operacji i
+ekwipunku nadal jest nakladany ze store'ow, a wlasciwy efekt aplikacji zachowuje
+dotychczasowy zapis. Usunieto jedynie kosztowna mutacje wstepna powtarzana dla
+kazdego przycisku.
