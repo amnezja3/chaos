@@ -2170,6 +2170,86 @@
             window.territoryConflictRegistry = window.territoryConflictRegistry || {};
             window.territoryFrontLayers = window.territoryFrontLayers || {};
             window.territoryConflictPillarLayers = window.territoryConflictPillarLayers || {};
+            window.territoryEngagementRegistry = window.territoryEngagementRegistry || {};
+            window.territoryEngagementLayers = window.territoryEngagementLayers || {};
+        }
+
+        function removeTerritoryEngagementSnapshot(engagementId) {
+            ensureTerritoryConflictRegistries();
+            const entry = window.territoryEngagementRegistry[engagementId] || {};
+            (entry.layerIds || []).forEach(id => removeTerritoryRegistryLayer(
+                window.territoryEngagementLayers, id
+            ));
+            delete window.territoryEngagementRegistry[engagementId];
+        }
+
+        function reconcileTerritoryEngagementSnapshot(snapshot = {}) {
+            ensureTerritoryConflictRegistries();
+            const engagementId = String(snapshot.engagement_id || '').trim();
+            const version = Number(snapshot.snapshot_version || 0);
+            if (!engagementId || !version) return false;
+            const previous = window.territoryEngagementRegistry[engagementId];
+            if (previous && Number(previous.snapshotVersion || 0) > version) return true;
+            if (snapshot.recovery_required || snapshot.complete === false) return false;
+            if (['resolved', 'closed'].includes(String(snapshot.status || '').toLowerCase())) {
+                removeTerritoryEngagementSnapshot(engagementId);
+                return true;
+            }
+            const geometryVersion = Number(snapshot.geometry_version || version);
+            const layerIds = [];
+            (snapshot.geometry || []).forEach((geometry, index) => {
+                const points = (geometry || []).map(normalizeMapVertex).filter(Boolean);
+                if (points.length < 3 || !isSaneTerritoryPolygon(points)) return;
+                const layerId = `${engagementId}:geometry:${index}`;
+                layerIds.push(layerId);
+                const existing = window.territoryEngagementLayers[layerId];
+                const participants = (snapshot.participant_usernames || [])
+                    .map(value => window.escapeMapText(value)).join(', ');
+                const tooltip = `Multi-konflikt<br>Uczestnicy: ${participants || 'brak'}`;
+                if (existing && existing.layer) {
+                    if (Number(existing.version || 0) < geometryVersion) {
+                        existing.layer.setLatLngs(points);
+                        existing.layer.redraw && existing.layer.redraw();
+                    }
+                    existing.version = Math.max(Number(existing.version || 0), geometryVersion);
+                    bindTerritoryTooltip(existing.layer, tooltip);
+                    return;
+                }
+                const layer = L.polygon(points, {
+                    pane: 'territoryPane', color: '#d500f9', fillColor: '#7c00ff',
+                    fillOpacity: 0.12, weight: 4, dashArray: '8 5',
+                    interactive: true, bubblingMouseEvents: false
+                }).addTo(map);
+                layer._chaosLayerRegistry = 'territoryEngagementLayers';
+                layer._chaosTerritoryEngagementId = engagementId;
+                bindTerritoryTooltip(layer, tooltip);
+                window.territoryEngagementLayers[layerId] = {
+                    layer, version: geometryVersion, engagementId, snapshot
+                };
+            });
+            if (!(snapshot.geometry || []).length) return false;
+            if (previous) {
+                (previous.layerIds || []).filter(id => !layerIds.includes(id))
+                    .forEach(id => removeTerritoryRegistryLayer(window.territoryEngagementLayers, id));
+            }
+            window.territoryEngagementRegistry[engagementId] = {
+                snapshotVersion: version, geometryVersion, layerIds, snapshot
+            };
+            return layerIds.length > 0;
+        }
+
+        function reconcileTerritoryEngagementSnapshots(snapshots = [], removeMissing = false) {
+            ensureTerritoryConflictRegistries();
+            const present = new Set();
+            (snapshots || []).forEach(snapshot => {
+                const id = String((snapshot || {}).engagement_id || '').trim();
+                if (id) present.add(id);
+                reconcileTerritoryEngagementSnapshot(snapshot);
+            });
+            if (removeMissing) {
+                Object.keys(window.territoryEngagementRegistry).filter(id => !present.has(id))
+                    .forEach(removeTerritoryEngagementSnapshot);
+            }
         }
 
         function removeCapturedTerritoryConflictPillar(target = {}, explicitTargetId = '') {
@@ -7439,6 +7519,31 @@
                     return true;
                 }
 
+                if (type === 'territory.engagement_changed') {
+                    const snapshot = payload.snapshot || payload;
+                    const engagementId = String(snapshot.engagement_id || (event && event.entity_id) || '').trim();
+                    const incomingVersion = Number(snapshot.snapshot_version || 0);
+                    ensureTerritoryConflictRegistries();
+                    const current = window.territoryEngagementRegistry[engagementId] || {};
+                    const currentVersion = Number(current.snapshotVersion || 0);
+                    if (!engagementId || !incomingVersion || snapshot.recovery_required) {
+                        window.requestTerritorySnapshotRecovery('incomplete_territory_engagement_delta');
+                        return false;
+                    }
+                    if (incomingVersion < currentVersion) return true;
+                    if (currentVersion && incomingVersion > currentVersion + 1) {
+                        window.requestTerritorySnapshotRecovery('territory_engagement_version_gap');
+                        return false;
+                    }
+                    // Equal version is intentional recovery when a Leaflet layer disappeared.
+                    if (!reconcileTerritoryEngagementSnapshot(snapshot)) {
+                        window.requestTerritorySnapshotRecovery('invalid_territory_engagement_delta');
+                        return false;
+                    }
+                    invalidateMapAfterLayerUpdate();
+                    return true;
+                }
+
                 if (type !== 'territory.updated' && event && event.scope !== 'territory') {
                     return false;
                 }
@@ -7514,9 +7619,11 @@
 
                     if (data.territory_conflict_snapshot_mode) {
                         reconcileTerritoryConflictSnapshots(data.territory_conflict_snapshots || [], true);
+                        reconcileTerritoryEngagementSnapshots(data.territory_engagement_snapshots || [], true);
                     } else {
                         ensureTerritoryConflictRegistries();
                         Object.keys(window.territoryConflictRegistry).forEach(removeTerritoryConflictSnapshot);
+                        Object.keys(window.territoryEngagementRegistry).forEach(removeTerritoryEngagementSnapshot);
                         (data.conflict_areas || []).forEach(renderTerritoryConflictLayer);
                     }
 

@@ -11005,3 +11005,95 @@ wariant bez rebuilda i bez zapisu normalizacyjnego. Runtime celu, operacji i
 ekwipunku nadal jest nakladany ze store'ow, a wlasciwy efekt aplikacji zachowuje
 dotychczasowy zapis. Usunieto jedynie kosztowna mutacje wstepna powtarzana dla
 kazdego przycisku.
+
+Przeprowadzono audyt planu sprintow 130.8.5.1-130.8.5.5 dotyczacych walk
+wielostronnych. Aktualny detektor buduje jeden konflikt dla calego spojnego
+komponentu pol i moze rozszerzyc `participant_key` ponad dwie osoby, podczas
+gdy docelowy model wymaga stabilnych konfliktow 1v1 oraz osobnej nakladki
+engagement. Plan uzupelniono o bilateralizacje detekcji, migracje istniejacych
+rekordow wieloosobowych, membership front-engagement many-to-many, spatial
+prefilter, stabilne ID wielu rozlacznych stref, zasady zmiany klanu, atomowy
+CAS capture, reconciliation set, osobna delte i registry Leaflet. Reconciler
+pozostaje read-only. Dodano wspolny Documentation Gate wymagajacy Decision,
+journalu, migracji/rollbacku i aktualizacji dokumentow klanowych,
+GhostNetwork oraz Response Network, gdy dany kontrakt zostanie zmieniony.
+
+Rozpoczęto sprint 130.8.5.1 od bezpiecznego shadow audit. Dodano czysty
+detektor wspólnej powierzchni opublikowanych frontów niezależnych konfliktów.
+Detektor odrzuca snapshoty incomplete/dirty/failed, styczność punktową i
+krawędziową, używa bbox sweep przed geometrią oraz rozdziela niepołączone
+strefy. Raportuje członków, fronty, klany, wersje źródłowe, bbox i powierzchnię,
+a zastane konflikty wieloosobowe wystawia jako anomalie z aliasami par do
+późniejszej migracji. Worker wykonuje audyt okresowo (domyślnie 180 s) i ma
+jednorazowy tryb `--audit-multi`; okresowy log jest skrócony bez pełnych
+współrzędnych. Nie powstał store, delta ani mutacja gameplay. Lokalny odczyt
+nie znalazł aktywnych snapshotów (`0/0/0`), a 69 testów celowanych przeszło OK.
+
+Zrealizowano warstwę persistence sprintu 130.8.5.2. Dodano addytywny schemat
+engagementów, many-to-many membership frontów oraz globalny lease publikacji
+batcha. Stabilne ID cyklu nie zależy od hasha geometrii; matcher używa
+ciągłości konfliktów/frontów i przestrzeni, obsługuje równoległe rozłączne
+strefy, join/leave oraz dwupublikacyjną histerezę. No-op nie zapisuje rekordu i
+nie zwiększa wersji. Worker po okresowym detektorze publikuje dokładnie jeden
+batch engagementów, a log pozostaje skrócony bez geometrii.
+
+Domknięto zaległy warunek wejścia z 130.8.5.1: detekcja pól tworzy teraz osobny
+plan dla każdej wrogiej pary, zamiast jednego `territory_conflict` dla całego
+spójnego komponentu właścicieli. Engagement nie zmienia własności frontu,
+tożsamości konfliktu, capture ani delt. Migracja jest addytywna; rollback to
+zatrzymanie workera i cofnięcie kodu, z pozostawieniem nieużywanych tabel.
+Snapshot niekompletny chroni ostatni poprawny membership i nie przesuwa
+histerezy. Walidacja: 78 testów terytorialnych zakończonych OK.
+
+Zrealizowano politykę projekcji sprintu 130.8.5.3 bez włączania multi-capture.
+Backend rozdziela `viewer_relation` (crew/friend/intruder) od
+`combat_relation` (protected_same_clan/hostile). Znajomy obcego klanu może być
+przeciwnikiem strategicznym, wspólny niepusty klan zachowuje immunitet, a
+gracze bez klanu są oddzielnymi grupami. Target innego konfliktu jest widoczny
+wyłącznie we wspólnej geometrii engagementu. Jedna projekcja zasila mapowe
+`contested_targets`, Victim Picker i `visible_targets` Territory Control;
+aktorzy uczestników są ujawniani według tej samej geometrii i relacji.
+
+Kanoniczny lookup capture pozostaje ograniczony do bezpośredniego konfliktu,
+więc sprint nie omija CAS planowanego w 130.8.5.4. GhostNetwork nie otrzymał
+nowych eventów ani audience. Walidacja objęła 85 testów terytorialnych `OK`.
+
+Rozpoczęto sprint 130.8.5.4 od atomowej granicy ownership. Dodano kanoniczny,
+wersjonowany rekord celu, receipt capture i trwały reconciliation set zapisane
+w jednej transakcji SQLite. Pierwszy capture wygrywa, konkurencyjny request
+otrzymuje `target_state_changed`, a replay tego samego action ID nie wykonuje
+ponownie transferu ani efektów. Początkowy owner jest odczytywany z
+`captured_targets`, nie z requestu. Worker przejmuje set jednym lease, rozszerza
+go tylko o konflikty zawierające ten sam target i ich engagementy, przelicza
+rebuildy bez delt cząstkowych i publikuje delty po powodzeniu całego zestawu.
+Capture przez engagement został włączony dopiero za CAS. Test dwóch równoległych
+atakujących potwierdza jednego zwycięzcę i jednego przegranego bez drugiego
+transferu; pełny pakiet testów terytorialnych zakończył się OK.
+
+Rozpoczęto 130.8.5.4.1 od dwóch izolowanych uszczelnień po audycie. Bootstrap
+ownership nie ufa już `expected_owner_username`: osierocony historyczny target
+kończy się trwałym `canonical_owner_missing`, bez transferu, setu i efektów.
+Ownership dla projekcji mapy jest pobierany jednym requestowym batchem zamiast
+N+1 połączeń SQLite. Dodano test brakującego ownera oraz spójnego batch snapshotu.
+Walidacja etapu: 91 testów terytorialnych, `py_compile` i `diff --check` OK.
+Sprint pozostaje otwarty do czasu wdrożenia effects outbox, engagement rebuild
+i rzeczywistego publication gate.
+
+W drugim etapie 130.8.5.4.1 dodano trwały publication gate konfliktów. Set
+zapamiętuje ostatnią publiczną wersję snapshotu przed rebuildem, również dla
+konfliktów odkrytych dopiero przez worker. `/api/map/player-areas` podczas
+`pending/processing` czyta poprzedni kompletny snapshot i odsłania nowe wersje
+dopiero po `published`. Worker przelicza teraz engagement bezpośrednio po
+frontach bazowych i nie publikuje setu po błędzie engagement coordinatora.
+Test gate potwierdza utrzymanie starej wersji i jej zwolnienie po publikacji.
+
+Rozpoczeto 130.8.5.5 po jawnym odlozeniu effects outboxa do oddzielnej
+implementacji. Dodano per-viewer snapshot engagementu do read-only bootu mapy
+oraz osobna delte `territory.engagement_changed`. Dedupe opiera sie na
+`engagement_id` i `snapshot_version`; odbiorcami sa uczestnicy i crew ich
+klanow, bez rozszerzania audience na znajomych obcego klanu. Worker publikuje
+delte po zwyklym reconcile, a reconciliation set dopiero po zwolnieniu gate.
+Frontend dostal osobne registry i warstwy Leaflet engagementu, monotoniczny
+guard, recovery przy luce wersji oraz equal-version repair brakujacej warstwy.
+Warstwy bazowych konfliktow 1v1 nie sa przez ten reconcile usuwane. Regresja
+93 testow terytorialnych przeszla OK; cutover produkcyjny pozostaje otwarty.

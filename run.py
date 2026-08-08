@@ -22,7 +22,7 @@ from flask_session import Session
 from poiFetchClass import POIFetcher
 import Haversine
 from profileManagment import UserProfileManager, authenticate_user
-from database import AppActionReceiptStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore
+from database import AppActionReceiptStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryTargetOwnershipStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore
 import requests
 from config import (
     APP_VERSION,
@@ -70,6 +70,8 @@ mail_store = MailStore()
 user_store = UserStore()
 territory_store = TerritoryStore()
 territory_conflict_store = TerritoryConflictStore()
+territory_conflict_engagement_store = TerritoryConflictEngagementStore()
+territory_target_ownership_store = TerritoryTargetOwnershipStore()
 vulnerability_store = VulnerabilityStore()
 wallet_store = WalletStore()
 player_hack_access_store = PlayerHackAccessStore()
@@ -2781,11 +2783,100 @@ def record_territory_conflict_delta(conflict, reason="territory_conflict"):
         return []
 
 
+def territory_engagement_audience(engagement):
+    """Participants plus their current crew; social friendship grants no audience."""
+    participants = {str(item) for item in (engagement or {}).get("participant_usernames") or [] if item}
+    participant_clans = {
+        get_profile_clan(user_store.get_profile(username) or {})
+        for username in participants
+    }
+    participant_clans.discard("")
+    audience = set(participants)
+    if participant_clans:
+        for profile in user_store.list_profiles():
+            if get_profile_clan(profile or {}) in participant_clans and (profile or {}).get("username"):
+                audience.add(str(profile["username"]))
+    return sorted(audience)
+
+
+def project_territory_engagement_snapshot(engagement, viewer_username=""):
+    engagement = dict(engagement or {})
+    engagement_id = str(engagement.get("engagement_id") or "").strip()
+    viewer_username = str(viewer_username or "").strip()
+    geometries = [
+        geometry for geometry in (engagement.get("geometry") or [])
+        if isinstance(geometry, list) and len(geometry) >= 3
+    ]
+    participants = [str(item) for item in engagement.get("participant_usernames") or [] if item]
+    relations = {
+        username: territory_combat_relation(viewer_username, username)
+        for username in participants
+    }
+    is_participant = viewer_username in participants
+    is_crew = any(relation == "protected_same_clan" for relation in relations.values())
+    if not engagement_id or not viewer_username or not (is_participant or is_crew):
+        return None
+    return {
+        **engagement,
+        "geometry": geometries,
+        "participant_usernames": participants,
+        "combat_relations": relations,
+        "viewer_relation": "participant" if is_participant else "crew",
+        "complete": bool(geometries) or engagement.get("status") in {"resolved", "closed"},
+        "recovery_required": False,
+        "changed_targets": [], "removed_targets": [],
+        "changed_fronts": [], "removed_fronts": [],
+    }
+
+
+def record_territory_engagement_delta(engagement, reason="territory_engagement"):
+    events = []
+    try:
+        for username in territory_engagement_audience(engagement):
+            projected = project_territory_engagement_snapshot(engagement, username)
+            if projected:
+                events.extend(territory_delta_publisher.record_engagement_changed(
+                    projected, usernames=[username], reason=reason,
+                ))
+    except Exception as exc:
+        print(f"[DELTA] territory.engagement_changed failed: {exc}", flush=True)
+    return events
+
+
 def is_territory_conflict_snapshot_read_enabled():
     value = os.environ.get("CHAOS_TERRITORY_CONFLICT_SNAPSHOT_READ")
     if value is None:
         return True
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def list_public_territory_conflict_snapshots(username, latest_snapshots=None):
+    """Read the last complete world while a reconciliation set is gated."""
+    caps = territory_target_ownership_store.unpublished_snapshot_caps()
+    snapshots = []
+    latest_snapshots = list(
+        latest_snapshots if latest_snapshots is not None
+        else territory_conflict_store.list_latest_snapshots_for_player(username)
+    )
+    for latest in latest_snapshots:
+        conflict = latest.get("conflict") or {}
+        conflict_id = str(conflict.get("conflict_id") or conflict.get("id") or "")
+        if conflict_id in caps:
+            snapshot = territory_conflict_store.snapshot_at_or_before(
+                conflict_id, caps[conflict_id]
+            )
+        else:
+            snapshot = latest
+        if isinstance(snapshot, dict):
+            snapshots.append(snapshot)
+    return sorted(
+        snapshots,
+        key=lambda item: (
+            str(item.get("generated_at") or ""),
+            str((item.get("conflict") or {}).get("conflict_id") or ""),
+        ),
+        reverse=True,
+    )
 
 
 def project_territory_conflict_snapshot(snapshot, viewer_username=""):
@@ -4156,6 +4247,262 @@ def build_contested_area(area_a, area_b):
     return _hull_vertices(points)
 
 
+def _territory_polygon_bbox(vertices):
+    points = _dedupe_polygon_vertices(vertices)
+    if len(points) < 3:
+        return None
+    lats = [float(point["lat"]) for point in points]
+    lngs = [float(point["lng"]) for point in points]
+    return {
+        "min_lat": min(lats), "min_lng": min(lngs),
+        "max_lat": max(lats), "max_lng": max(lngs),
+    }
+
+
+def _territory_bboxes_overlap(left, right):
+    return bool(left and right and not (
+        left["max_lat"] < right["min_lat"]
+        or right["max_lat"] < left["min_lat"]
+        or left["max_lng"] < right["min_lng"]
+        or right["max_lng"] < left["min_lng"]
+    ))
+
+
+def _territory_polygon_area_sqm(vertices):
+    """Approximate small map polygons in a local metric projection."""
+    points = _dedupe_polygon_vertices(vertices)
+    if len(points) < 3:
+        return 0.0
+    mean_lat = math.radians(sum(point["lat"] for point in points) / len(points))
+    scale_x = 111320.0 * max(0.01, math.cos(mean_lat))
+    scale_y = 110540.0
+    origin_lat = points[0]["lat"]
+    origin_lng = points[0]["lng"]
+    area = 0.0
+    for index, point in enumerate(points):
+        following = points[(index + 1) % len(points)]
+        point_x = (float(point["lng"]) - origin_lng) * scale_x
+        point_y = (float(point["lat"]) - origin_lat) * scale_y
+        following_x = (float(following["lng"]) - origin_lng) * scale_x
+        following_y = (float(following["lat"]) - origin_lat) * scale_y
+        area += (
+            point_x * following_y - following_x * point_y
+        )
+    return abs(area) / 2.0
+
+
+def detect_multi_conflict_candidates(snapshots, profile_lookup=None,
+                                     minimum_overlap_area_sqm=1.0):
+    """Audit published 1v1 fronts for shared positive-area combat zones.
+
+    This is deliberately pure: it does not write conflict state, enqueue a
+    rebuild or publish a delta. Persistent engagements belong to 130.8.5.2.
+    """
+    snapshots = list(snapshots or [])
+    profile_lookup = profile_lookup or (lambda username: user_store.get_profile(username) or {})
+    eligible_fronts = []
+    skipped_snapshots = []
+    legacy_multi = []
+    profile_cache = {}
+
+    for source in snapshots or []:
+        snapshot = source if isinstance(source, dict) else {}
+        conflict = snapshot.get("conflict") if isinstance(snapshot.get("conflict"), dict) else {}
+        conflict_id = str(
+            snapshot.get("conflict_id") or conflict.get("conflict_id") or conflict.get("id") or ""
+        ).strip()
+        participants = sorted({str(item) for item in (
+            snapshot.get("participants") or conflict.get("participants") or
+            conflict.get("participant_usernames") or []
+        ) if item})
+        if len(participants) > 2:
+            legacy_multi.append({
+                "conflict_id": conflict_id,
+                "participant_key": conflict.get("participant_key") or
+                    territory_conflict_store.participant_key(participants),
+                "participants": participants,
+                "pair_aliases": [
+                    territory_conflict_store.participant_key((left, right))
+                    for left_index, left in enumerate(participants)
+                    for right in participants[left_index + 1:]
+                ],
+            })
+        geometry_status = str(
+            snapshot.get("geometry_status") or conflict.get("geometry_status") or ""
+        ).lower()
+        if (not conflict_id or not snapshot.get("complete") or
+                geometry_status not in {"clean", "published"} or
+                str(snapshot.get("status") or conflict.get("status") or "active") != "active"):
+            skipped_snapshots.append({
+                "conflict_id": conflict_id,
+                "complete": bool(snapshot.get("complete")),
+                "geometry_status": geometry_status or "unknown",
+            })
+            continue
+        for index, front in enumerate(snapshot.get("fronts") or []):
+            if not isinstance(front, dict) or str(front.get("status") or "active") != "active":
+                continue
+            geometry = _dedupe_polygon_vertices(front.get("geometry") or [])
+            bbox = _territory_polygon_bbox(geometry)
+            if not bbox or _territory_polygon_area_sqm(geometry) < minimum_overlap_area_sqm:
+                continue
+            front_participants = [
+                item for item in str(front.get("participant_key") or "").split("::") if item
+            ] or participants
+            eligible_fronts.append({
+                "conflict_id": conflict_id,
+                "front_id": str(front.get("front_id") or f"{conflict_id}:front:{index}"),
+                "participants": sorted(set(front_participants)),
+                "geometry": geometry,
+                "bbox": bbox,
+                "snapshot_version": int(snapshot.get("snapshot_version") or 0),
+                "conflict_version": int(snapshot.get("conflict_version") or 0),
+                "geometry_version": int(snapshot.get("geometry_version") or 0),
+            })
+
+    eligible_fronts.sort(key=lambda item: item["bbox"]["min_lng"])
+    overlap_records = []
+    bbox_comparisons = 0
+    geometry_comparisons = 0
+    for left_index, left in enumerate(eligible_fronts):
+        for right in eligible_fronts[left_index + 1:]:
+            if right["bbox"]["min_lng"] > left["bbox"]["max_lng"]:
+                break
+            if left["conflict_id"] == right["conflict_id"]:
+                continue
+            bbox_comparisons += 1
+            if not _territory_bboxes_overlap(left["bbox"], right["bbox"]):
+                continue
+            geometry_comparisons += 1
+            overlap = build_contested_area(
+                {"vertices": left["geometry"]}, {"vertices": right["geometry"]}
+            )
+            overlap_area = _territory_polygon_area_sqm(overlap)
+            if len(overlap) < 3 or overlap_area < minimum_overlap_area_sqm:
+                continue
+            overlap_records.append({
+                "fronts": (left, right), "geometry": overlap,
+                "area": overlap_area, "bbox": _territory_polygon_bbox(overlap),
+            })
+
+    overlap_graph = {index: set() for index in range(len(overlap_records))}
+    for left_index, left in enumerate(overlap_records):
+        for right_index in range(left_index + 1, len(overlap_records)):
+            right = overlap_records[right_index]
+            if (_territory_bboxes_overlap(left["bbox"], right["bbox"])
+                    and polygons_intersect(left["geometry"], right["geometry"])):
+                overlap_graph[left_index].add(right_index)
+                overlap_graph[right_index].add(left_index)
+
+    candidates = []
+    visited = set()
+    for start_index in overlap_graph:
+        if start_index in visited:
+            continue
+        stack = [start_index]
+        component = set()
+        while stack:
+            current = stack.pop()
+            if current in component:
+                continue
+            component.add(current)
+            stack.extend(overlap_graph[current] - component)
+        visited.update(component)
+        records = [overlap_records[index] for index in sorted(component)]
+        member_fronts = {
+            front["front_id"]: front
+            for record in records for front in record["fronts"]
+        }
+        usernames = sorted({
+            username for front in member_fronts.values()
+            for username in front["participants"]
+        })
+        clan_groups = {}
+        participant_clans = {}
+        for username in usernames:
+            if username not in profile_cache:
+                profile_cache[username] = profile_lookup(username) or {}
+            clan = str(profile_cache[username].get("clan") or "").strip()
+            participant_clans[username] = clan
+            group_key = f"clan:{clan}" if clan else f"player:{username}"
+            clan_groups.setdefault(group_key, []).append(username)
+        bboxes = [record["bbox"] for record in records]
+        candidates.append({
+            "member_conflict_ids": sorted({front["conflict_id"] for front in member_fronts.values()}),
+            "member_front_ids": sorted(member_fronts),
+            "member_front_memberships": sorted(
+                [
+                    {"conflict_id": front["conflict_id"], "front_id": front["front_id"]}
+                    for front in member_fronts.values()
+                ],
+                key=lambda item: (item["conflict_id"], item["front_id"]),
+            ),
+            "participant_usernames": usernames,
+            "participant_clans": participant_clans,
+            "hostile_clan_groups": clan_groups,
+            "overlap_geometry": [record["geometry"] for record in records],
+            "overlap_area": sum(record["area"] for record in records),
+            "overlap_bbox": {
+                "min_lat": min(item["min_lat"] for item in bboxes),
+                "min_lng": min(item["min_lng"] for item in bboxes),
+                "max_lat": max(item["max_lat"] for item in bboxes),
+                "max_lng": max(item["max_lng"] for item in bboxes),
+            },
+            "candidate_status": "shadow_detected",
+            "detection_reason": "published_front_positive_area_overlap",
+            "source_snapshot_versions": {
+                front["conflict_id"]: {
+                    "snapshot_version": front["snapshot_version"],
+                    "conflict_version": front["conflict_version"],
+                    "geometry_version": front["geometry_version"],
+                } for front in member_fronts.values()
+            },
+        })
+
+    return {
+        "candidates": candidates,
+        "legacy_multi_participant_conflicts": legacy_multi,
+        "skipped_snapshots": skipped_snapshots,
+        "metrics": {
+            "snapshots_seen": len(snapshots),
+            "eligible_fronts": len(eligible_fronts),
+            "bbox_comparisons": bbox_comparisons,
+            "geometry_comparisons": geometry_comparisons,
+            "positive_overlaps": len(overlap_records),
+            "candidates": len(candidates),
+        },
+        "mutations": 0,
+    }
+
+
+def audit_active_multi_conflict_candidates():
+    """Build the worker shadow report from canonical latest snapshots."""
+    snapshots = []
+    for conflict in territory_conflict_store.list_active():
+        reference = conflict.get("conflict_id") or conflict.get("conflict_key")
+        snapshot = territory_conflict_store.latest_snapshot_state(reference)
+        if isinstance(snapshot, dict):
+            snapshots.append(snapshot)
+    return detect_multi_conflict_candidates(snapshots)
+
+
+def reconcile_active_multi_conflict_engagements(lease_owner=None, publish_delta=True):
+    """Persist one complete shadow-detector batch under the engagement lease."""
+    report = audit_active_multi_conflict_candidates()
+    lease_owner = lease_owner or f"{os.getpid()}:{threading.get_ident()}:{time.time_ns()}"
+    publication = territory_conflict_engagement_store.reconcile_candidates(
+        report.get("candidates") or [], lease_owner=lease_owner, lease_seconds=120,
+        protected_conflict_ids=[
+            item.get("conflict_id") for item in (report.get("skipped_snapshots") or [])
+            if isinstance(item, dict) and item.get("conflict_id")
+        ],
+    )
+    if publish_delta and publication.get("ok"):
+        for engagement in publication.get("changed") or []:
+            record_territory_engagement_delta(engagement, reason="engagement_reconciled")
+    return {"audit": report, "publication": publication}
+
+
 def reveal_conflict_targets(area_a, area_b, contested_area):
     if len(contested_area or []) < 3:
         return []
@@ -4402,11 +4749,10 @@ def merge_conflict_target_statuses(conflict_reference, targets):
 
 
 def build_territory_conflict_detection_plan(areas, actor_username=None):
-    """Build conflict components and fronts without mutating domain state."""
+    """Build one independent conflict plan for each hostile owner pair."""
     areas = list(areas or [])
     active_areas = [area for area in areas if area.get("status", "active") == "active"]
-    overlap_graph = {index: set() for index in range(len(active_areas))}
-    pair_intersections = {}
+    bilateral = {}
     profile_cache = {}
     for index_a, area_a in enumerate(active_areas):
         for index_b in range(index_a + 1, len(active_areas)):
@@ -4429,66 +4775,44 @@ def build_territory_conflict_detection_plan(areas, actor_username=None):
             if len(contested_area) < 3:
                 continue
 
-            overlap_graph[index_a].add(index_b)
-            overlap_graph[index_b].add(index_a)
-            pair_intersections[(index_a, index_b)] = contested_area
+            participants = sorted({
+                str(area_a.get("owner_username") or ""),
+                str(area_b.get("owner_username") or ""),
+            })
+            if len(participants) != 2 or not all(participants):
+                continue
+            participant_key = territory_conflict_store.participant_key(participants)
+            group = bilateral.setdefault(participant_key, {
+                "participants": participants,
+                "area_indexes": set(),
+                "intersections": [],
+                "fronts": [],
+            })
+            group["area_indexes"].update((index_a, index_b))
+            group["intersections"].append(contested_area)
+            pair_areas = [area_a, area_b]
+            group["fronts"].append({
+                "participant_key": participant_key,
+                "area_ids": sorted(
+                    str(area.get("id")) for area in pair_areas
+                    if area.get("id") is not None
+                ),
+                "geometry": contested_area,
+            })
 
     plans = []
-    visited = set()
-    for start_index, linked_indexes in overlap_graph.items():
-        if start_index in visited or not linked_indexes:
-            continue
-        stack = [start_index]
-        component = set()
-        while stack:
-            current = stack.pop()
-            if current in component:
-                continue
-            component.add(current)
-            stack.extend(overlap_graph[current] - component)
-        visited.update(component)
-
-        component_areas = [active_areas[index] for index in sorted(component)]
-        participants = sorted({
-            area.get("owner_username")
-            for area in component_areas
-            if area.get("owner_username")
-        })
-        if len(participants) < 2:
-            continue
-
-        intersections = []
-        fronts = []
-        for index_a in component:
-            for index_b in overlap_graph[index_a]:
-                if index_b not in component or index_a > index_b:
-                    continue
-                intersection = pair_intersections.get((index_a, index_b))
-                if intersection:
-                    intersections.append(intersection)
-                    pair_areas = [active_areas[index_a], active_areas[index_b]]
-                    pair_participants = sorted({
-                        area.get("owner_username") for area in pair_areas
-                        if area.get("owner_username")
-                    })
-                    fronts.append({
-                        "participant_key": territory_conflict_store.participant_key(pair_participants),
-                        "area_ids": sorted(str(area.get("id")) for area in pair_areas
-                                           if area.get("id") is not None),
-                        "geometry": intersection,
-                    })
-
-        if not intersections:
-            continue
-
+    for participant_key, group in sorted(bilateral.items()):
+        component_areas = [
+            active_areas[index] for index in sorted(group["area_indexes"])
+        ]
         plans.append({
-            "participants": participants,
-            "participant_key": territory_conflict_store.participant_key(participants),
+            "participants": group["participants"],
+            "participant_key": participant_key,
             "geometry_conflict_key": territory_conflict_key(*component_areas),
             "area_ids": [area.get("id") for area in component_areas if area.get("id") is not None],
             "component_areas": component_areas,
-            "intersections": intersections,
-            "fronts": fronts,
+            "intersections": group["intersections"],
+            "fronts": group["fronts"],
         })
 
     return plans
@@ -4920,7 +5244,7 @@ def reconcile_active_territory_conflicts(reduce_unlinkable=False):
 def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
                                  prebuilt_detection_plans=None,
                                  rebuild_participants=True, run_encirclement=True,
-                                 lease_seconds=180):
+                                 lease_seconds=180, publish_delta=True):
     """Run one durable, version-aware conflict geometry consolidation."""
     lease_owner = f"{os.getpid()}:{threading.get_ident()}:{time.time_ns()}"
     results = []
@@ -5014,7 +5338,7 @@ def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
             published["elapsed_ms"] = int((time.perf_counter() - started) * 1000)
             published["timings_ms"] = {**timings, "total": published["elapsed_ms"]}
             results.append(published)
-            if published.get("ok") and published.get("changed"):
+            if publish_delta and published.get("ok") and published.get("changed"):
                 snapshot = published.get("snapshot") or {}
                 snapshot_conflict = snapshot.get("conflict") or conflict
                 record_territory_conflict_delta(snapshot_conflict, reason="conflict_consolidated")
@@ -5045,6 +5369,109 @@ def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
                 },
             }
     return results[-1] if results else {"ok": False, "reason": "pass_limit"}
+
+
+def process_territory_reconciliation_set(lease_owner, lease_seconds=300):
+    """Apply one durable capture outbox to only target-dependent conflicts."""
+    claim = territory_target_ownership_store.claim_reconciliation_set(
+        lease_owner, lease_seconds=lease_seconds
+    )
+    if not claim:
+        return None
+    target_id = claim["target_id"]
+    touched_conflict_ids = set(claim.get("conflict_ids") or [])
+    touched_engagement_ids = set(claim.get("engagement_ids") or [])
+    canonical = territory_target_ownership_store.get(target_id) or {}
+    captured_target = dict(canonical.get("target") or {})
+    try:
+        for conflict in territory_conflict_store.list_active():
+            conflict_id = str(conflict.get("conflict_id") or conflict.get("id") or "")
+            pillar_ids = {
+                str(item.get("target_id") or "")
+                for item in territory_conflict_store.list_pillars(conflict_id)
+            }
+            if target_id in pillar_ids:
+                touched_conflict_ids.add(conflict_id)
+        for engagement in territory_conflict_engagement_store.list_active():
+            members = {str(item) for item in engagement.get("member_conflict_ids") or []}
+            if members.intersection(touched_conflict_ids):
+                touched_engagement_ids.add(str(engagement.get("engagement_id") or ""))
+
+        territory_target_ownership_store.extend_reconciliation_scope(
+            claim["set_id"],
+            conflict_ids=touched_conflict_ids,
+            engagement_ids=touched_engagement_ids,
+        )
+
+        results = []
+        for conflict_id in sorted(touched_conflict_ids):
+            conflict = territory_conflict_store.get_by_key(conflict_id)
+            if not conflict:
+                continue
+            capture_result = territory_conflict_store.capture_pillar(
+                conflict_id, target_id, captured_target,
+                claim["winner_username"],
+                previous_owner_username=captured_target.get("previous_owner_username"),
+                action_id=f"{claim['set_id']}:{conflict_id}",
+            )
+            if capture_result.get("ok") and capture_result.get("conflict"):
+                current = capture_result["conflict"]
+                request_conflict_rebuild(
+                    conflict_id, reason=f"reconciliation_set:{claim['set_id']}",
+                    requested_version=current.get("conflict_version"),
+                )
+            result = consolidate_conflict_rebuild(
+                conflict_id, rebuild_participants=True, run_encirclement=False,
+                lease_seconds=lease_seconds, publish_delta=False,
+            )
+            results.append({"conflict_id": conflict_id, **result})
+            if not result.get("ok"):
+                raise RuntimeError(f"conflict_rebuild_failed:{conflict_id}:{result.get('reason')}")
+
+        engagement_batch = reconcile_active_multi_conflict_engagements(
+            lease_owner=f"{lease_owner}:{claim['set_id']}", publish_delta=False,
+        )
+        engagement_publication = engagement_batch.get("publication") or {}
+        if not engagement_publication.get("ok"):
+            raise RuntimeError(
+                f"engagement_rebuild_failed:{engagement_publication.get('reason')}"
+            )
+        touched_engagement_ids.update(
+            str(item.get("engagement_id") or "")
+            for item in (engagement_publication.get("changed") or [])
+            if item.get("engagement_id")
+        )
+
+        territory_target_ownership_store.finish_reconciliation_set(
+            claim["set_id"], lease_owner, ok=True
+        )
+        for conflict_id in sorted(touched_conflict_ids):
+            conflict = territory_conflict_store.get_by_key(conflict_id)
+            if conflict:
+                record_territory_conflict_delta(
+                    conflict, reason=f"reconciliation_set_published:{claim['set_id']}"
+                )
+        for engagement_id in sorted(touched_engagement_ids):
+            engagement = territory_conflict_engagement_store.get(engagement_id)
+            if engagement:
+                record_territory_engagement_delta(
+                    engagement, reason=f"reconciliation_set_published:{claim['set_id']}"
+                )
+        print(
+            "[TERRITORY_RECONCILIATION_SET] "
+            f"set_id={claim['set_id']} target_id={target_id} "
+            f"winner={claim['winner_username']} "
+            f"conflict_ids={sorted(touched_conflict_ids)} "
+            f"engagement_ids={sorted(touched_engagement_ids)} status=published",
+            flush=True,
+        )
+        return {**claim, "ok": True, "conflict_ids": sorted(touched_conflict_ids),
+                "engagement_ids": sorted(touched_engagement_ids), "results": results}
+    except Exception as exc:
+        territory_target_ownership_store.finish_reconciliation_set(
+            claim["set_id"], lease_owner, ok=False, error=str(exc)
+        )
+        return {**claim, "ok": False, "error": str(exc)}
 
 
 def finalize_conflict_rebuild_profiles(conflict_id):
@@ -5147,7 +5574,8 @@ def rebuild_conflict_polygons(participants, actor_username=None, source_event="c
 
 
 def capture_conflict_pillar(captured_target, captured_by_username,
-                            previous_owner_username=None, action_id=None):
+                            previous_owner_username=None, action_id=None,
+                            publish_delta=True):
     if not captured_target or not captured_by_username:
         return []
 
@@ -5202,7 +5630,8 @@ def capture_conflict_pillar(captured_target, captured_by_username,
     )
     conflict = result.get("conflict") if isinstance(result, dict) else None
     if isinstance(result, dict) and result.get("ok") and result.get("changed") and conflict:
-        record_territory_conflict_delta(conflict, reason="pillar_captured")
+        if publish_delta:
+            record_territory_conflict_delta(conflict, reason="pillar_captured")
         return [conflict]
     return []
 
@@ -5419,6 +5848,158 @@ def territory_owners_are_protected_relation(username_a, username_b, profile_cach
     if clan_a and clan_b and clan_a == clan_b:
         return True
     return False
+
+
+def territory_combat_relation(viewer_username, owner_username, profile_cache=None):
+    """Single strategic relation policy: only self and a shared clan are immune."""
+    viewer_username = str(viewer_username or "").strip()
+    owner_username = str(owner_username or "").strip()
+    if not viewer_username or not owner_username:
+        return "unknown"
+    if viewer_username == owner_username:
+        return "self"
+    if territory_owners_are_protected_relation(
+        viewer_username, owner_username, profile_cache=profile_cache
+    ):
+        return "protected_same_clan"
+    return "hostile"
+
+
+def territory_viewer_relation(viewer_username, owner_username, profile_cache=None,
+                              accepted_contacts=None):
+    combat_relation = territory_combat_relation(
+        viewer_username, owner_username, profile_cache=profile_cache
+    )
+    if combat_relation == "self":
+        return "self"
+    if combat_relation == "protected_same_clan":
+        return "crew"
+    accepted_contacts = accepted_contacts if accepted_contacts is not None else set()
+    if owner_username in accepted_contacts:
+        return "friend"
+    return "intruder"
+
+
+def build_territory_engagement_visibility_context(viewer_username):
+    """Read one canonical visibility context shared by map and control apps."""
+    viewer_username = str(viewer_username or "").strip()
+    profile_cache = {}
+    accepted_contacts = {
+        str(item.get("name") or "")
+        for item in mail_store.list_accepted_contacts(viewer_username)
+        if item.get("name")
+    }
+    engagements = []
+    member_conflict_ids = set()
+    for engagement in territory_conflict_engagement_store.list_active():
+        if engagement.get("status") not in {"active", "changing"}:
+            continue
+        if viewer_username not in set(engagement.get("participant_usernames") or []):
+            continue
+        geometries = [
+            geometry for geometry in (engagement.get("geometry") or [])
+            if isinstance(geometry, list) and len(geometry) >= 3
+        ]
+        if not geometries:
+            continue
+        projected = {**engagement, "geometry": geometries}
+        engagements.append(projected)
+        member_conflict_ids.update(engagement.get("member_conflict_ids") or [])
+    return {
+        "viewer_username": viewer_username,
+        "profile_cache": profile_cache,
+        "accepted_contacts": accepted_contacts,
+        "engagements": engagements,
+        "member_conflict_ids": {str(item) for item in member_conflict_ids if item},
+        "ownership_by_target_id": territory_target_ownership_store.list_map(),
+    }
+
+
+def project_territory_target_visibility(viewer_username, owner_username, point,
+                                        source_conflict_ids=None, direct_conflict=False,
+                                        context=None):
+    """Canonical target projection for map, Victim Picker and Territory Control."""
+    context = context or build_territory_engagement_visibility_context(viewer_username)
+    source_conflict_ids = {
+        str(item) for item in (source_conflict_ids or []) if item
+    }
+    combat_relation = territory_combat_relation(
+        viewer_username, owner_username, profile_cache=context.get("profile_cache")
+    )
+    viewer_relation = territory_viewer_relation(
+        viewer_username, owner_username,
+        profile_cache=context.get("profile_cache"),
+        accepted_contacts=context.get("accepted_contacts"),
+    )
+    engagement_ids = []
+    for engagement in context.get("engagements") or []:
+        if not source_conflict_ids.intersection(engagement.get("member_conflict_ids") or []):
+            continue
+        if any(
+            territory_point_in_polygon_or_boundary(point, geometry)
+            for geometry in (engagement.get("geometry") or [])
+        ):
+            engagement_ids.append(engagement.get("engagement_id"))
+    engagement_ids = sorted({str(item) for item in engagement_ids if item})
+    hostile = combat_relation == "hostile"
+    visible = bool(hostile and (direct_conflict or engagement_ids))
+    if combat_relation == "self":
+        reason = "self_target"
+    elif combat_relation == "protected_same_clan":
+        reason = "same_clan_immunity"
+    elif direct_conflict:
+        reason = "direct_conflict"
+    elif engagement_ids:
+        reason = "shared_engagement_geometry"
+    else:
+        reason = "outside_viewer_conflict_and_engagement"
+    return {
+        "viewer_relation": viewer_relation,
+        "combat_relation": combat_relation,
+        "visible": visible,
+        "attackable": visible,
+        "visibility_reason": reason,
+        "engagement_ids": engagement_ids,
+        "source_conflict_ids": sorted(source_conflict_ids),
+    }
+
+
+def project_territory_actor_visibility(viewer_username, actor_username, point,
+                                       context=None):
+    context = context or build_territory_engagement_visibility_context(viewer_username)
+    combat_relation = territory_combat_relation(
+        viewer_username, actor_username, profile_cache=context.get("profile_cache")
+    )
+    viewer_relation = territory_viewer_relation(
+        viewer_username, actor_username,
+        profile_cache=context.get("profile_cache"),
+        accepted_contacts=context.get("accepted_contacts"),
+    )
+    engagement_ids = []
+    for engagement in context.get("engagements") or []:
+        if actor_username not in set(engagement.get("participant_usernames") or []):
+            continue
+        if any(
+            territory_point_in_polygon_or_boundary(point, geometry)
+            for geometry in (engagement.get("geometry") or [])
+        ):
+            engagement_ids.append(engagement.get("engagement_id"))
+    return {
+        "viewer_relation": viewer_relation,
+        "combat_relation": combat_relation,
+        "visible": bool(engagement_ids),
+        "attackable": bool(engagement_ids and combat_relation == "hostile"),
+        "visibility_reason": (
+            "shared_engagement_geometry" if engagement_ids else "outside_engagement"
+        ),
+        "engagement_ids": sorted({str(item) for item in engagement_ids if item}),
+        "source_conflict_ids": sorted({
+            str(conflict_id)
+            for engagement in (context.get("engagements") or [])
+            if engagement.get("engagement_id") in engagement_ids
+            for conflict_id in (engagement.get("member_conflict_ids") or [])
+        }),
+    }
 
 
 def territory_area_inside_area(inner_area, outer_area):
@@ -11983,11 +12564,33 @@ def find_contested_targets_for_player(username, areas=None):
     return list(contested.values())
 
 
-def contested_targets_from_active_conflicts(username, conflicts=None, areas=None):
+def contested_targets_from_active_conflicts(username, conflicts=None, areas=None,
+                                            include_engagement=True):
     username = str(username or "").strip()
     if not username:
         return []
-    conflicts = conflicts if conflicts is not None else territory_conflict_store.list_active_for_player(username)
+    conflicts = list(
+        conflicts if conflicts is not None
+        else territory_conflict_store.list_active_for_player(username)
+    )
+    visibility_context = build_territory_engagement_visibility_context(username)
+    if not include_engagement:
+        visibility_context = {
+            **visibility_context,
+            "engagements": [],
+            "member_conflict_ids": set(),
+        }
+    direct_conflict_ids = {
+        str(conflict.get("conflict_id") or conflict.get("id") or "")
+        for conflict in conflicts if isinstance(conflict, dict)
+    }
+    known_conflict_ids = set(direct_conflict_ids)
+    for conflict in territory_conflict_store.list_active():
+        conflict_id = str(conflict.get("conflict_id") or conflict.get("id") or "")
+        if (conflict_id in visibility_context["member_conflict_ids"]
+                and conflict_id not in known_conflict_ids):
+            conflicts.append(conflict)
+            known_conflict_ids.add(conflict_id)
     if areas is None:
         areas = safe_player_areas(territory_store.list_player_areas())
     contested = {}
@@ -12030,6 +12633,18 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
         except (TypeError, ValueError):
             return
 
+        conflict_id = str(conflict.get("conflict_id") or conflict.get("id") or "")
+        visibility = project_territory_target_visibility(
+            username,
+            owner_username,
+            {"lat": lat, "lng": lng},
+            source_conflict_ids=[conflict_id],
+            direct_conflict=conflict_id in direct_conflict_ids,
+            context=visibility_context,
+        )
+        if not visibility["visible"]:
+            return
+
         front_geometries = conflict_front_geometries(conflict)
         if front_geometries and not any(
             territory_point_in_polygon_or_boundary(
@@ -12063,14 +12678,28 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
             "legacy_conflict_id": conflict.get("id"),
             "stable_conflict_id": conflict.get("conflict_id") or conflict.get("id"),
             "source_type": target.get("source_type") or "territory_contest",
+            **visibility,
         })
+        canonical_target_id = territory_conflict_store.stable_target_id(target)
+        target["target_id"] = canonical_target_id
+        ownership = (visibility_context.get("ownership_by_target_id") or {}).get(
+            canonical_target_id
+        )
+        target["expected_owner_username"] = (
+            ownership.get("owner_username") if ownership else owner_username
+        )
+        target["ownership_version"] = (
+            ownership.get("ownership_version") if ownership else None
+        )
         if extra:
             target.update(extra)
         contested[key] = target
 
     for conflict in conflicts or []:
         participants = set(conflict.get("participants") or conflict.get("participant_usernames") or [])
-        if username not in participants:
+        conflict_id = str(conflict.get("conflict_id") or conflict.get("id") or "")
+        if (username not in participants
+                and conflict_id not in visibility_context["member_conflict_ids"]):
             continue
         for item in conflict.get("targets") or []:
             if not isinstance(item, dict):
@@ -12169,7 +12798,9 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
 
 def find_contested_target(username, lat, lng, label=None):
     areas = safe_player_areas(territory_store.list_player_areas())
-    for target in contested_targets_from_active_conflicts(username, areas=areas):
+    for target in contested_targets_from_active_conflicts(
+        username, areas=areas, include_engagement=True
+    ):
         if round(float(target.get("lat")), 5) != round(float(lat), 5):
             continue
         if round(float(target.get("lng", target.get("lon"))), 5) != round(float(lng), 5):
@@ -13878,6 +14509,7 @@ def resolve_player_actor_actions(viewer_username, actor_data, relation):
     is_same_clan = relation == "same_clan"
     is_pending = bool(actor_data.get("is_pending_contact"))
     is_marked_target = bool(actor_data.get("is_marked_target"))
+    combat_hostile = actor_data.get("combat_relation") == "hostile"
 
     return {
         "add_friend": player_actor_action(
@@ -13893,8 +14525,8 @@ def resolve_player_actor_actions(viewer_username, actor_data, relation):
             "Nie mozna przelac HC samemu sobie.",
         ),
         "mark_target": player_actor_action(
-            not is_self and not is_friend and not is_same_clan and not is_marked_target,
-            "Ten gracz jest juz celem." if is_marked_target else "Nie mozna oznaczac siebie, znajomych ani swojego klanu.",
+            not is_self and not is_same_clan and combat_hostile and not is_marked_target,
+            "Ten gracz jest juz celem." if is_marked_target else "Cel nie jest aktualnie legalnym przeciwnikiem strategicznym.",
         ),
         "profile": player_actor_action(
             not is_self,
@@ -13924,6 +14556,15 @@ def build_player_actor(viewer_username, actor_data, relation=None, context=None)
         "territory_count": actor_data.get("territory_count", context.get("territory_count")),
         "target_status": actor_data.get("target_status") or context.get("target_status") or "",
         "relation": relation,
+        "viewer_relation": context.get("viewer_relation") or (
+            "crew" if relation == "same_clan" else relation
+        ),
+        "combat_relation": context.get("combat_relation"),
+        "visible": context.get("visible", True),
+        "attackable": context.get("attackable", False),
+        "visibility_reason": context.get("visibility_reason") or context.get("source") or "",
+        "engagement_ids": list(context.get("engagement_ids") or []),
+        "source_conflict_ids": list(context.get("source_conflict_ids") or []),
         "context": context,
         "actions": resolve_player_actor_actions(
             viewer_username,
@@ -13931,6 +14572,7 @@ def build_player_actor(viewer_username, actor_data, relation=None, context=None)
                 "username": username,
                 "is_pending_contact": actor_data.get("is_pending_contact") or context.get("is_pending_contact"),
                 "is_marked_target": actor_data.get("is_marked_target") or context.get("is_marked_target"),
+                "combat_relation": context.get("combat_relation"),
             },
             relation
         ),
@@ -14055,6 +14697,13 @@ def build_victim_picker_candidate(viewer_profile, raw_target, candidate_source, 
         "is_aimed": bool(is_aimed),
         "focus": focus,
         "teleport": teleport,
+        "viewer_relation": target.get("viewer_relation"),
+        "combat_relation": target.get("combat_relation"),
+        "visible": target.get("visible"),
+        "attackable": target.get("attackable"),
+        "visibility_reason": target.get("visibility_reason"),
+        "engagement_ids": list(target.get("engagement_ids") or []),
+        "source_conflict_ids": list(target.get("source_conflict_ids") or []),
         "raw_ref": {
             "target_username": target.get("target_username") or target.get("username"),
             "vulnerability_id": target.get("vulnerability_id"),
@@ -14438,7 +15087,7 @@ def territory_control_target_in_area(target, area):
         return False
 
 
-def territory_control_area_threat(username, area, conflicts):
+def territory_control_area_threat(username, area, conflicts, visible_targets=None):
     area_id = area.get("id")
     related = []
     attacked_positions = set()
@@ -14485,6 +15134,10 @@ def territory_control_area_threat(username, area, conflicts):
             "collision": bool(related),
             "attacked": False,
         },
+        "visible_targets": [
+            target for target in (visible_targets or [])
+            if territory_control_target_in_area(target, area)
+        ],
     }
 
 
@@ -14512,6 +15165,7 @@ def build_territory_control_snapshot(username, profile=None):
     captured_targets = territory_store.list_captured_targets(username)
     own_areas = safe_player_areas(territory_store.list_player_areas(username))
     conflicts = get_active_conflicts_for_player(username)
+    visible_conflict_targets = contested_targets_from_active_conflicts(username)
 
     assigned_keys = set()
     clusters = []
@@ -14551,7 +15205,9 @@ def build_territory_control_snapshot(username, profile=None):
             "lat": float(area.get("centroid_lat")),
             "lng": float(area.get("centroid_lng")),
         }
-        threat = territory_control_area_threat(username, area, conflicts)
+        threat = territory_control_area_threat(
+            username, area, conflicts, visible_targets=visible_conflict_targets
+        )
         attacked_pillars_count = sum(
             1 for pillar in pillars
             if target_position_key(pillar) in threat["attacked_positions"]
@@ -20369,6 +21025,9 @@ def map_player_actors():
         if contact.get("name")
     }
     viewer_clan = get_profile_clan(viewer_profile)
+    engagement_visibility_context = build_territory_engagement_visibility_context(
+        viewer_username
+    )
 
     # Widocznosc aktora wynika z aktualnej pozycji i aktualnej geometrii, a nie
     # z krotkotrwalego eventu intruder_enter. Dzieki temu rebuild pola ujawnia
@@ -20398,10 +21057,43 @@ def map_player_actors():
             )
             for area in viewer_areas
         )
-        if not (is_crew or is_friend or is_inside_viewer_area):
+        actor_visibility = project_territory_actor_visibility(
+            viewer_username,
+            actor_username,
+            actor_position,
+            context=engagement_visibility_context,
+        )
+        if not (is_crew or is_friend or is_inside_viewer_area or actor_visibility["visible"]):
             continue
 
-        is_intruder = bool(is_inside_viewer_area and not is_crew and not is_friend)
+        if is_crew:
+            actor_visibility.update({
+                "visible": True, "attackable": False,
+                "visibility_reason": "same_clan_crew",
+            })
+        elif is_friend and not actor_visibility["visible"]:
+            actor_visibility.update({
+                "visible": True,
+                "attackable": bool(
+                    is_inside_viewer_area
+                    and actor_visibility["combat_relation"] == "hostile"
+                ),
+                "visibility_reason": (
+                    "social_friend_inside_viewer_territory"
+                    if is_inside_viewer_area else "social_friend"
+                ),
+            })
+        elif is_inside_viewer_area:
+            actor_visibility.update({
+                "visible": True,
+                "attackable": actor_visibility["combat_relation"] == "hostile",
+                "visibility_reason": "inside_viewer_territory",
+            })
+
+        is_intruder = bool(
+            (is_inside_viewer_area or actor_visibility["visible"])
+            and not is_crew and not is_friend
+        )
         source = "crew" if is_crew else ("friend" if is_friend else "intruder")
         merge_actor(
             actor_profile,
@@ -20414,6 +21106,7 @@ def map_player_actors():
                 "is_intruder": is_intruder,
                 "inside_viewer_territory": is_inside_viewer_area,
                 "contact_status": accepted_contacts.get(actor_username, "offline"),
+                **actor_visibility,
             },
         )
 
@@ -20446,6 +21139,7 @@ def map_player_areas():
 
     conflict_snapshot_mode = is_territory_conflict_snapshot_read_enabled()
     territory_conflict_snapshots = []
+    territory_engagement_snapshots = []
     active_conflicts_payload = []
     if conflict_snapshot_mode:
         try:
@@ -20453,7 +21147,10 @@ def map_player_areas():
                 projected
                 for projected in (
                     project_territory_conflict_snapshot(snapshot, viewer_username=username)
-                    for snapshot in territory_conflict_store.list_latest_snapshots_for_player(username)
+                    for snapshot in list_public_territory_conflict_snapshots(
+                        username,
+                        territory_conflict_store.list_latest_snapshots_for_player(username),
+                    )
                 )
                 if projected
             ]
@@ -20463,6 +21160,12 @@ def map_player_areas():
                 revealed_conflict_targets,
                 captured_conflict_pillars,
             ) = legacy_conflict_fields_from_snapshots(territory_conflict_snapshots)
+            territory_engagement_snapshots = [
+                projected for projected in (
+                    project_territory_engagement_snapshot(item, username)
+                    for item in territory_conflict_engagement_store.list_active()
+                ) if projected
+            ]
         except Exception as exc:
             print(f"[WARN] map conflict snapshots skipped: {exc}", flush=True)
             player_areas_warnings.append("conflict_snapshots_unavailable")
@@ -20586,6 +21289,7 @@ def map_player_areas():
         "intruders": intruders,
         "territory_conflicts": active_conflicts_payload,
         "territory_conflict_snapshots": territory_conflict_snapshots,
+        "territory_engagement_snapshots": territory_engagement_snapshots,
         "territory_conflict_snapshot_mode": conflict_snapshot_mode,
         "conflict_areas": conflict_areas,
         "revealed_conflict_targets": revealed_conflict_targets,
@@ -22853,7 +23557,82 @@ def gonna_win():
         if not captured_target.get("target_id"):
             captured_target["target_id"] = build_operation_target_id(captured_target)
         step_started_at = time.perf_counter()
-        captured_target = territory_store.save_captured_target(session["user"], captured_target)
+        capture_cas_result = None
+        if captured_target_mode == "territory_contest" or captured_target.get("conflict_id"):
+            capture_action_id = gonna_win_receipt_key or launch_receipt
+            if not capture_action_id:
+                capture_action_seed = "|".join([
+                    "territory_target_capture",
+                    str(session.get("user") or ""), str(flow_id or ""),
+                    str(app_id or ""), str(choice_id if choice_id is not None else "auto"),
+                    str(captured_target.get("target_id") or ""),
+                ])
+                capture_action_id = "territory_capture:" + hashlib.sha1(
+                    capture_action_seed.encode("utf-8")
+                ).hexdigest()[:32]
+            source_conflict_ids = list(captured_target.get("source_conflict_ids") or [])
+            stable_conflict_id = (
+                captured_target.get("stable_conflict_id")
+                or captured_target.get("conflict_id")
+                or captured_target.get("legacy_conflict_id")
+            )
+            if stable_conflict_id:
+                source_conflict_ids.append(stable_conflict_id)
+            capture_cas_result = territory_target_ownership_store.capture(
+                action_id=capture_action_id,
+                target_id=captured_target.get("target_id"),
+                attacker_username=session["user"],
+                expected_owner_username=(
+                    captured_target.get("expected_owner_username")
+                    or contest_owner_username
+                    or captured_target.get("previous_owner_username")
+                    or ""
+                ),
+                expected_version=captured_target.get("ownership_version"),
+                target=captured_target,
+                conflict_ids=source_conflict_ids,
+                engagement_ids=captured_target.get("engagement_ids") or [],
+            )
+            if capture_cas_result.get("result") in {
+                "target_state_changed", "canonical_owner_missing"
+            }:
+                capture_reason = capture_cas_result.get("result")
+                payload = {
+                    "success": False,
+                    "blocked": True,
+                    "reason": capture_reason,
+                    "message": (
+                        "Brak kanonicznego wlasciciela celu. Capture zostal zatrzymany."
+                        if capture_reason == "canonical_owner_missing"
+                        else "Stan celu zmienil sie podczas ataku. Odswiez mape przed ponowna proba."
+                    ),
+                    "target_id": capture_cas_result.get("target_id"),
+                    "current_owner_username": capture_cas_result.get("current_owner_username"),
+                    "ownership_version": capture_cas_result.get("ownership_version"),
+                    "created_operations": [],
+                }
+                finish_gonna_win_receipt(
+                    payload, status_code=409,
+                    status=AppActionReceiptStore.STATUS_FAILED,
+                )
+                return jsonify(payload), 409
+            captured_target = dict(capture_cas_result.get("target") or captured_target)
+            if capture_cas_result.get("duplicate"):
+                payload = {
+                    "success": True,
+                    "duplicate": True,
+                    "idempotent_replay": True,
+                    "captured_target": captured_target,
+                    "target": {},
+                    "ownership_version": capture_cas_result.get("ownership_version"),
+                    "reconciliation_set_id": capture_cas_result.get("set_id"),
+                    "actions_allowed_marked": [],
+                    "created_operations": [],
+                }
+                finish_gonna_win_receipt(payload)
+                return jsonify(payload), 200
+        else:
+            captured_target = territory_store.save_captured_target(session["user"], captured_target)
         app_flow_debug_timed(
             flow_id,
             "gonna_win_save_captured_target_done",
@@ -22883,6 +23662,7 @@ def gonna_win():
                 captured_by_username=session["user"],
                 previous_owner_username=contest_owner_username,
                 action_id=pillar_capture_action_id or None,
+                publish_delta=not bool(capture_cas_result),
             )
             conflict_capture_summary = {
                 "attempted": True,

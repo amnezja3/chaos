@@ -8,6 +8,7 @@ from .territory_context_reader import TerritoryContextReader, _bbox_for_vertices
 TERRITORY_SCOPE = "territory"
 TERRITORY_UPDATED = "territory.updated"
 TERRITORY_CONFLICT_CHANGED = "territory.conflict_changed"
+TERRITORY_ENGAGEMENT_CHANGED = "territory.engagement_changed"
 
 
 def _territory_id_for_area(area):
@@ -101,6 +102,35 @@ def _conflict_payload(conflict, reason=""):
     return payload
 
 
+def _engagement_payload(engagement, reason=""):
+    engagement = dict(engagement or {})
+    geometry = [
+        list(item) for item in (engagement.get("geometry") or [])
+        if isinstance(item, list)
+    ]
+    snapshot_version = int(engagement.get("snapshot_version") or 0)
+    return {
+        "engagement_id": _clean_text(engagement.get("engagement_id")),
+        "engagement_version": int(engagement.get("engagement_version") or 0),
+        "geometry_version": int(engagement.get("geometry_version") or 0),
+        "snapshot_version": snapshot_version,
+        "version": snapshot_version,
+        "status": _clean_text(engagement.get("status"), "active"),
+        "member_conflict_ids": list(engagement.get("member_conflict_ids") or []),
+        "participant_usernames": list(engagement.get("participant_usernames") or []),
+        "changed_targets": list(engagement.get("changed_targets") or []),
+        "removed_targets": list(engagement.get("removed_targets") or []),
+        "changed_fronts": list(engagement.get("changed_fronts") or []),
+        "removed_fronts": list(engagement.get("removed_fronts") or []),
+        "geometry": geometry,
+        "complete": bool(engagement.get("complete", True)),
+        "recovery_required": bool(engagement.get("recovery_required", False)),
+        "viewer_relation": engagement.get("viewer_relation"),
+        "combat_relations": dict(engagement.get("combat_relations") or {}),
+        "reason": _clean_text(reason),
+    }
+
+
 class TerritoryDeltaPublisher:
     """Publishes territory deltas into the existing GameStateDeltaBus."""
 
@@ -156,6 +186,33 @@ class TerritoryDeltaPublisher:
                 TERRITORY_CONFLICT_CHANGED,
                 payload,
                 entity_id=str(conflict_id),
+                dedupe_key=key,
+            ))
+        return events
+
+    def record_engagement_changed(self, engagement, usernames=None, reason=""):
+        payload = _engagement_payload(engagement, reason=reason)
+        engagement_id = payload.get("engagement_id")
+        if not engagement_id or not payload.get("snapshot_version"):
+            return []
+        audience = sorted({
+            _clean_text(item) for item in (
+                usernames if usernames is not None else payload.get("participant_usernames") or []
+            ) if _clean_text(item)
+        })
+        events = []
+        for username in audience:
+            key = "territory:engagement:{username}:{engagement_id}:{version}".format(
+                username=username,
+                engagement_id=engagement_id,
+                version=payload["snapshot_version"],
+            )
+            events.append(self.delta_bus.record_change(
+                username,
+                TERRITORY_SCOPE,
+                TERRITORY_ENGAGEMENT_CHANGED,
+                payload,
+                entity_id=engagement_id,
                 dedupe_key=key,
             ))
         return events

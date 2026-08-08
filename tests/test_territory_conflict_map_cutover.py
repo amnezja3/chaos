@@ -182,6 +182,33 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertEqual(first_key, second_key)
         self.assertIn("conflict-1", first_key)
 
+    def test_engagement_delta_dedupe_uses_stable_engagement_id_and_version(self):
+        bus = mock.Mock()
+        publisher = TerritoryDeltaPublisher(delta_bus=bus)
+        engagement = {
+            "engagement_id": "engagement-1",
+            "snapshot_version": 7,
+            "engagement_version": 4,
+            "geometry_version": 6,
+            "participant_usernames": ["a", "b"],
+            "geometry": [[
+                {"lat": 52.0, "lng": 21.0},
+                {"lat": 52.0, "lng": 21.01},
+                {"lat": 52.01, "lng": 21.0},
+            ]],
+        }
+
+        publisher.record_engagement_changed(engagement, usernames=["a"], reason="first")
+        publisher.record_engagement_changed(
+            {**engagement, "participant_usernames": ["b", "a", "c"]},
+            usernames=["a"], reason="second",
+        )
+
+        first_key = bus.record_change.call_args_list[0].kwargs["dedupe_key"]
+        second_key = bus.record_change.call_args_list[1].kwargs["dedupe_key"]
+        self.assertEqual(first_key, second_key)
+        self.assertIn("engagement-1:7", first_key)
+
     def test_player_areas_endpoint_is_read_only(self):
         source = inspect.getsource(run.map_player_areas)
 
@@ -277,6 +304,13 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("territoryPointInPolygonOrBoundary", source)
         self.assertIn("window.mapViewerUsername", source)
         self.assertNotIn("const layer = L.circleMarker(point", source)
+
+        self.assertIn("window.territoryEngagementRegistry", source)
+        self.assertIn("window.territoryEngagementLayers", source)
+        self.assertIn("territory.engagement_changed", source)
+        self.assertIn("territory_engagement_version_gap", source)
+        self.assertIn("reconcileTerritoryEngagementSnapshots", source)
+        self.assertIn("data.territory_engagement_snapshots", source)
 
     def test_frontend_keeps_large_valid_territories_and_boots_player_actors(self):
         with open("templates/map_template.html", encoding="utf-8") as handle:

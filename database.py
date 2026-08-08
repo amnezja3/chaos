@@ -591,6 +591,137 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS territory_conflict_engagements (
+                engagement_id TEXT PRIMARY KEY,
+                status TEXT NOT NULL DEFAULT 'detected',
+                member_conflict_ids_json TEXT NOT NULL DEFAULT '[]',
+                member_front_ids_json TEXT NOT NULL DEFAULT '[]',
+                participant_usernames_json TEXT NOT NULL DEFAULT '[]',
+                hostile_clan_groups_json TEXT NOT NULL DEFAULT '{}',
+                geometry_json TEXT NOT NULL DEFAULT '[]',
+                overlap_bbox_json TEXT NOT NULL DEFAULT '{}',
+                engagement_version INTEGER NOT NULL DEFAULT 1,
+                geometry_version INTEGER NOT NULL DEFAULT 1,
+                snapshot_version INTEGER NOT NULL DEFAULT 1,
+                missed_publications INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                resolved_at TEXT,
+                closed_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_conflict_engagements_status "
+            "ON territory_conflict_engagements(status, updated_at)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS territory_conflict_engagement_members (
+                engagement_id TEXT NOT NULL,
+                conflict_id TEXT NOT NULL,
+                front_id TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                joined_at TEXT NOT NULL,
+                left_at TEXT,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (engagement_id, conflict_id, front_id)
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_conflict_engagement_members_source "
+            "ON territory_conflict_engagement_members(conflict_id, front_id, status)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS territory_conflict_engagement_coordinator (
+                coordinator_key TEXT PRIMARY KEY,
+                lease_owner TEXT NOT NULL DEFAULT '',
+                lease_until TEXT,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS territory_target_ownership (
+                target_id TEXT PRIMARY KEY,
+                owner_username TEXT NOT NULL,
+                ownership_version INTEGER NOT NULL DEFAULT 1,
+                lat REAL NOT NULL,
+                lng REAL NOT NULL,
+                label TEXT NOT NULL DEFAULT '',
+                target_json TEXT NOT NULL DEFAULT '{}',
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS territory_target_capture_receipts (
+                action_id TEXT PRIMARY KEY,
+                target_id TEXT NOT NULL,
+                attacker_username TEXT NOT NULL,
+                expected_owner_username TEXT NOT NULL DEFAULT '',
+                expected_version INTEGER,
+                result TEXT NOT NULL,
+                winner_username TEXT NOT NULL DEFAULT '',
+                ownership_version INTEGER NOT NULL DEFAULT 0,
+                set_id TEXT NOT NULL DEFAULT '',
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS territory_conflict_reconciliation_sets (
+                set_id TEXT PRIMARY KEY,
+                target_id TEXT NOT NULL,
+                winner_username TEXT NOT NULL,
+                ownership_version INTEGER NOT NULL,
+                conflict_ids_json TEXT NOT NULL DEFAULT '[]',
+                engagement_ids_json TEXT NOT NULL DEFAULT '[]',
+                status TEXT NOT NULL DEFAULT 'pending',
+                requested_version INTEGER NOT NULL DEFAULT 1,
+                processing_version INTEGER NOT NULL DEFAULT 0,
+                lease_owner TEXT NOT NULL DEFAULT '',
+                lease_until REAL NOT NULL DEFAULT 0,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                error TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                published_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_target_capture_receipts_target "
+            "ON territory_target_capture_receipts(target_id, created_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_reconciliation_sets_status "
+            "ON territory_conflict_reconciliation_sets(status, lease_until, updated_at)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS territory_reconciliation_snapshot_gates (
+                set_id TEXT NOT NULL,
+                conflict_id TEXT NOT NULL,
+                public_snapshot_version INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(set_id, conflict_id)
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_reconciliation_snapshot_gates_conflict "
+            "ON territory_reconciliation_snapshot_gates(conflict_id, set_id)"
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS reported_vulnerabilities (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 target_lat REAL NOT NULL,
@@ -1954,6 +2085,714 @@ class TerritoryStore:
             )
 
 
+class TerritoryConflictEngagementStore:
+    OPEN_STATUSES = ("detected", "active", "changing", "resolving")
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def _row(row):
+        if not row:
+            return None
+        return {
+            "engagement_id": row["engagement_id"],
+            "status": row["status"],
+            "member_conflict_ids": loads_json(row["member_conflict_ids_json"], []),
+            "member_front_ids": loads_json(row["member_front_ids_json"], []),
+            "participant_usernames": loads_json(row["participant_usernames_json"], []),
+            "hostile_clan_groups": loads_json(row["hostile_clan_groups_json"], {}),
+            "geometry": loads_json(row["geometry_json"], []),
+            "overlap_bbox": loads_json(row["overlap_bbox_json"], {}),
+            "engagement_version": int(row["engagement_version"] or 0),
+            "geometry_version": int(row["geometry_version"] or 0),
+            "snapshot_version": int(row["snapshot_version"] or 0),
+            "missed_publications": int(row["missed_publications"] or 0),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "resolved_at": row["resolved_at"],
+            "closed_at": row["closed_at"],
+        }
+
+    @staticmethod
+    def _bbox_overlap_area(left, right):
+        if not isinstance(left, dict) or not isinstance(right, dict):
+            return 0.0
+        try:
+            lat_span = min(float(left["max_lat"]), float(right["max_lat"])) - max(
+                float(left["min_lat"]), float(right["min_lat"])
+            )
+            lng_span = min(float(left["max_lng"]), float(right["max_lng"])) - max(
+                float(left["min_lng"]), float(right["min_lng"])
+            )
+        except (KeyError, TypeError, ValueError):
+            return 0.0
+        return max(0.0, lat_span) * max(0.0, lng_span)
+
+    @staticmethod
+    def _candidate_values(candidate):
+        return {
+            "member_conflict_ids": sorted({
+                str(item) for item in (candidate.get("member_conflict_ids") or []) if item
+            }),
+            "member_front_ids": sorted({
+                str(item) for item in (candidate.get("member_front_ids") or []) if item
+            }),
+            "participant_usernames": sorted({
+                str(item) for item in (candidate.get("participant_usernames") or []) if item
+            }),
+            "hostile_clan_groups": candidate.get("hostile_clan_groups") or {},
+            "geometry": candidate.get("overlap_geometry") or candidate.get("geometry") or [],
+            "overlap_bbox": candidate.get("overlap_bbox") or {},
+            "memberships": sorted(
+                [
+                    {
+                        "conflict_id": str(item.get("conflict_id") or ""),
+                        "front_id": str(item.get("front_id") or ""),
+                    }
+                    for item in (candidate.get("member_front_memberships") or [])
+                    if isinstance(item, dict) and item.get("conflict_id") and item.get("front_id")
+                ],
+                key=lambda item: (item["conflict_id"], item["front_id"]),
+            ),
+        }
+
+    def list_active(self):
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT * FROM territory_conflict_engagements "
+                "WHERE status IN ('detected','active','changing','resolving') "
+                "ORDER BY created_at, engagement_id"
+            ).fetchall()
+            return [self._row(row) for row in rows]
+
+    def get(self, engagement_id):
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM territory_conflict_engagements WHERE engagement_id = ?",
+                (str(engagement_id),),
+            ).fetchone()
+            return self._row(row)
+
+    def list_members(self, engagement_id, active_only=False):
+        with db_connect(self.db_path) as conn:
+            sql = (
+                "SELECT * FROM territory_conflict_engagement_members "
+                "WHERE engagement_id = ?"
+            )
+            params = [str(engagement_id)]
+            if active_only:
+                sql += " AND status = 'active'"
+            sql += " ORDER BY conflict_id, front_id"
+            return [dict(row) for row in conn.execute(sql, tuple(params)).fetchall()]
+
+    def _claim_coordinator(self, conn, lease_owner, lease_seconds):
+        now = utc_now()
+        lease_until = (
+            datetime.utcnow() + timedelta(seconds=max(10, int(lease_seconds)))
+        ).isoformat(timespec="seconds")
+        conn.execute(
+            "INSERT OR IGNORE INTO territory_conflict_engagement_coordinator "
+            "(coordinator_key, lease_owner, lease_until, updated_at) VALUES ('global', '', NULL, ?)",
+            (now,),
+        )
+        cursor = conn.execute(
+            """
+            UPDATE territory_conflict_engagement_coordinator
+            SET lease_owner = ?, lease_until = ?, updated_at = ?
+            WHERE coordinator_key = 'global'
+              AND (lease_owner = ? OR lease_until IS NULL OR lease_until <= ?)
+            """,
+            (str(lease_owner), lease_until, now, str(lease_owner), now),
+        )
+        return cursor.rowcount == 1
+
+    def reconcile_candidates(self, candidates, lease_owner, lease_seconds=120,
+                             protected_conflict_ids=None):
+        """Publish one detector batch under a durable global coordinator lease."""
+        candidates = [self._candidate_values(item) for item in (candidates or [])]
+        protected_conflict_ids = {
+            str(item) for item in (protected_conflict_ids or []) if item
+        }
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            if not self._claim_coordinator(conn, lease_owner, lease_seconds):
+                return {"ok": False, "reason": "lease_busy", "changed": []}
+            open_rows = conn.execute(
+                "SELECT * FROM territory_conflict_engagements "
+                "WHERE status IN ('detected','active','changing','resolving')"
+            ).fetchall()
+            open_engagements = [self._row(row) for row in open_rows]
+            available = {item["engagement_id"]: item for item in open_engagements}
+            changed = []
+
+            for candidate in candidates:
+                candidate_conflicts = set(candidate["member_conflict_ids"])
+                candidate_fronts = set(candidate["member_front_ids"])
+                matches = []
+                for engagement in available.values():
+                    conflict_overlap = len(
+                        candidate_conflicts & set(engagement["member_conflict_ids"])
+                    )
+                    if not conflict_overlap:
+                        continue
+                    spatial_overlap = self._bbox_overlap_area(
+                        candidate["overlap_bbox"], engagement["overlap_bbox"]
+                    )
+                    if spatial_overlap <= 0:
+                        continue
+                    front_overlap = len(candidate_fronts & set(engagement["member_front_ids"]))
+                    matches.append((conflict_overlap, front_overlap, spatial_overlap, engagement))
+                matches.sort(
+                    key=lambda item: (item[0], item[1], item[2], item[3]["engagement_id"]),
+                    reverse=True,
+                )
+                previous = matches[0][3] if matches else None
+                engagement_id = (
+                    previous["engagement_id"]
+                    if previous else f"territory_engagement_{secrets.token_hex(8)}"
+                )
+                if previous:
+                    available.pop(engagement_id, None)
+                domain_changed = bool(previous and (
+                    previous["status"] != "active"
+                    or previous["member_conflict_ids"] != candidate["member_conflict_ids"]
+                    or previous["member_front_ids"] != candidate["member_front_ids"]
+                    or previous["participant_usernames"] != candidate["participant_usernames"]
+                    or previous["hostile_clan_groups"] != candidate["hostile_clan_groups"]
+                ))
+                geometry_changed = bool(previous and (
+                    previous["geometry"] != candidate["geometry"]
+                    or previous["overlap_bbox"] != candidate["overlap_bbox"]
+                ))
+                is_new = previous is None
+                if (previous and not domain_changed and not geometry_changed
+                        and previous["missed_publications"] == 0):
+                    continue
+                engagement_version = 1 if is_new else previous["engagement_version"] + int(domain_changed)
+                geometry_version = 1 if is_new else previous["geometry_version"] + int(geometry_changed)
+                snapshot_version = 1 if is_new else previous["snapshot_version"] + int(
+                    domain_changed or geometry_changed
+                )
+                created_at = now if is_new else previous["created_at"]
+                conn.execute(
+                    """
+                    INSERT INTO territory_conflict_engagements
+                        (engagement_id, status, member_conflict_ids_json,
+                         member_front_ids_json, participant_usernames_json,
+                         hostile_clan_groups_json, geometry_json, overlap_bbox_json,
+                         engagement_version, geometry_version, snapshot_version,
+                         missed_publications, created_at, updated_at, resolved_at, closed_at)
+                    VALUES (?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NULL, NULL)
+                    ON CONFLICT(engagement_id) DO UPDATE SET
+                        status = excluded.status,
+                        member_conflict_ids_json = excluded.member_conflict_ids_json,
+                        member_front_ids_json = excluded.member_front_ids_json,
+                        participant_usernames_json = excluded.participant_usernames_json,
+                        hostile_clan_groups_json = excluded.hostile_clan_groups_json,
+                        geometry_json = excluded.geometry_json,
+                        overlap_bbox_json = excluded.overlap_bbox_json,
+                        engagement_version = excluded.engagement_version,
+                        geometry_version = excluded.geometry_version,
+                        snapshot_version = excluded.snapshot_version,
+                        missed_publications = 0, updated_at = excluded.updated_at,
+                        resolved_at = NULL, closed_at = NULL
+                    """,
+                    (
+                        engagement_id, dumps_json(candidate["member_conflict_ids"]),
+                        dumps_json(candidate["member_front_ids"]),
+                        dumps_json(candidate["participant_usernames"]),
+                        dumps_json(candidate["hostile_clan_groups"]),
+                        dumps_json(candidate["geometry"]), dumps_json(candidate["overlap_bbox"]),
+                        engagement_version, geometry_version, snapshot_version,
+                        created_at, now,
+                    ),
+                )
+                active_members = {
+                    (item["conflict_id"], item["front_id"]) for item in candidate["memberships"]
+                }
+                stored_members = conn.execute(
+                    "SELECT * FROM territory_conflict_engagement_members WHERE engagement_id = ?",
+                    (engagement_id,),
+                ).fetchall()
+                for member in stored_members:
+                    key = (member["conflict_id"], member["front_id"])
+                    if key not in active_members and member["status"] == "active":
+                        conn.execute(
+                            "UPDATE territory_conflict_engagement_members "
+                            "SET status = 'left', left_at = ?, updated_at = ? "
+                            "WHERE engagement_id = ? AND conflict_id = ? AND front_id = ?",
+                            (now, now, engagement_id, *key),
+                        )
+                for conflict_id, front_id in active_members:
+                    conn.execute(
+                        """
+                        INSERT INTO territory_conflict_engagement_members
+                            (engagement_id, conflict_id, front_id, status,
+                             joined_at, left_at, updated_at)
+                        VALUES (?, ?, ?, 'active', ?, NULL, ?)
+                        ON CONFLICT(engagement_id, conflict_id, front_id) DO UPDATE SET
+                            status = 'active', left_at = NULL, updated_at = excluded.updated_at
+                        """,
+                        (engagement_id, conflict_id, front_id, now, now),
+                    )
+                if is_new or domain_changed or geometry_changed:
+                    changed.append(self._row(conn.execute(
+                        "SELECT * FROM territory_conflict_engagements WHERE engagement_id = ?",
+                        (engagement_id,),
+                    ).fetchone()))
+
+            for engagement in available.values():
+                if protected_conflict_ids & set(engagement["member_conflict_ids"]):
+                    continue
+                missed = engagement["missed_publications"] + 1
+                status = "changing" if missed == 1 else "resolved"
+                engagement_version = engagement["engagement_version"] + 1
+                snapshot_version = engagement["snapshot_version"] + 1
+                resolved_at = now if status == "resolved" else None
+                conn.execute(
+                    """
+                    UPDATE territory_conflict_engagements
+                    SET status = ?, missed_publications = ?, engagement_version = ?,
+                        snapshot_version = ?, updated_at = ?, resolved_at = ?
+                    WHERE engagement_id = ?
+                    """,
+                    (status, missed, engagement_version, snapshot_version,
+                     now, resolved_at, engagement["engagement_id"]),
+                )
+                if status == "resolved":
+                    conn.execute(
+                        "UPDATE territory_conflict_engagement_members "
+                        "SET status = 'left', left_at = ?, updated_at = ? "
+                        "WHERE engagement_id = ? AND status = 'active'",
+                        (now, now, engagement["engagement_id"]),
+                    )
+                changed.append(self._row(conn.execute(
+                    "SELECT * FROM territory_conflict_engagements WHERE engagement_id = ?",
+                    (engagement["engagement_id"],),
+                ).fetchone()))
+
+            conn.execute(
+                "UPDATE territory_conflict_engagement_coordinator "
+                "SET lease_owner = '', lease_until = NULL, updated_at = ? "
+                "WHERE coordinator_key = 'global' AND lease_owner = ?",
+                (now, str(lease_owner)),
+            )
+            return {"ok": True, "changed": changed, "candidates": len(candidates)}
+
+
+class TerritoryTargetOwnershipStore:
+    """Canonical CAS boundary for stationary territory target ownership."""
+
+    RESULT_CAPTURED = "captured"
+    RESULT_TARGET_STATE_CHANGED = "target_state_changed"
+    RESULT_CANONICAL_OWNER_MISSING = "canonical_owner_missing"
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def _row_payload(row):
+        if not row:
+            return None
+        return {
+            "target_id": row["target_id"],
+            "owner_username": row["owner_username"],
+            "ownership_version": int(row["ownership_version"] or 0),
+            "lat": float(row["lat"]),
+            "lng": float(row["lng"]),
+            "label": row["label"],
+            "target": loads_json(row["target_json"], {}),
+            "updated_at": row["updated_at"],
+        }
+
+    @staticmethod
+    def _receipt_payload(row):
+        if not row:
+            return None
+        payload = loads_json(row["payload_json"], {})
+        payload.update({
+            "duplicate": True,
+            "result": row["result"],
+            "target_id": row["target_id"],
+            "winner_username": row["winner_username"],
+            "ownership_version": int(row["ownership_version"] or 0),
+            "set_id": row["set_id"],
+        })
+        return payload
+
+    def get(self, target_id):
+        with db_connect(self.db_path) as conn:
+            return self._row_payload(conn.execute(
+                "SELECT * FROM territory_target_ownership WHERE target_id = ?",
+                (str(target_id),),
+            ).fetchone())
+
+    def list_map(self):
+        """Return one request-scoped ownership snapshot without per-target reads."""
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT * FROM territory_target_ownership ORDER BY target_id"
+            ).fetchall()
+            return {
+                row["target_id"]: self._row_payload(row)
+                for row in rows
+            }
+
+    def capture(self, action_id, target_id, attacker_username, expected_owner_username,
+                target, expected_version=None, conflict_ids=None, engagement_ids=None):
+        """Capture once and durably enqueue the exact reconciliation scope."""
+        action_id = str(action_id or "").strip()
+        target_id = str(target_id or "").strip()
+        attacker_username = str(attacker_username or "").strip()
+        expected_owner_username = str(expected_owner_username or "").strip()
+        if not action_id or not target_id or not attacker_username:
+            raise ValueError("action_id, target_id and attacker_username are required")
+        normalized = copy.deepcopy(target or {})
+        lat = float(normalized.get("lat"))
+        lng = float(normalized.get("lng", normalized.get("lon")))
+        label = str(normalized.get("label") or "")
+        conflict_ids = sorted({str(value) for value in (conflict_ids or []) if value})
+        engagement_ids = sorted({str(value) for value in (engagement_ids or []) if value})
+        now = utc_now()
+
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            receipt = conn.execute(
+                "SELECT * FROM territory_target_capture_receipts WHERE action_id = ?",
+                (action_id,),
+            ).fetchone()
+            if receipt:
+                return self._receipt_payload(receipt)
+
+            current = conn.execute(
+                "SELECT * FROM territory_target_ownership WHERE target_id = ?",
+                (target_id,),
+            ).fetchone()
+            if not current:
+                source_row = conn.execute(
+                    """
+                    SELECT owner_username, target_json
+                    FROM captured_targets
+                    WHERE ROUND(lat, 5) = ROUND(?, 5)
+                      AND ROUND(lng, 5) = ROUND(?, 5)
+                    ORDER BY updated_at DESC, id DESC
+                    LIMIT 1
+                    """,
+                    (lat, lng),
+                ).fetchone()
+                initial_owner = str(
+                    (source_row["owner_username"] if source_row else "") or ""
+                )
+                if not initial_owner:
+                    payload = {
+                        "ok": False,
+                        "result": self.RESULT_CANONICAL_OWNER_MISSING,
+                        "target_id": target_id,
+                        "expected_owner_username": expected_owner_username,
+                        "current_owner_username": "",
+                        "ownership_version": 0,
+                        "winner_username": "",
+                        "set_id": "",
+                        "duplicate": False,
+                    }
+                    conn.execute(
+                        """
+                        INSERT INTO territory_target_capture_receipts
+                            (action_id, target_id, attacker_username,
+                             expected_owner_username, expected_version, result,
+                             winner_username, ownership_version, set_id,
+                             payload_json, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, '', 0, '', ?, ?, ?)
+                        """,
+                        (action_id, target_id, attacker_username,
+                         expected_owner_username,
+                         int(expected_version) if expected_version not in (None, "") else None,
+                         self.RESULT_CANONICAL_OWNER_MISSING,
+                         dumps_json(payload), now, now),
+                    )
+                    return payload
+                initial_target = (
+                    loads_json(source_row["target_json"], normalized)
+                    if source_row else normalized
+                )
+                conn.execute(
+                    """
+                    INSERT INTO territory_target_ownership
+                        (target_id, owner_username, ownership_version, lat, lng,
+                         label, target_json, updated_at)
+                    VALUES (?, ?, 1, ?, ?, ?, ?, ?)
+                    """,
+                    (target_id, initial_owner, lat, lng, label,
+                     dumps_json(initial_target), now),
+                )
+                current = conn.execute(
+                    "SELECT * FROM territory_target_ownership WHERE target_id = ?",
+                    (target_id,),
+                ).fetchone()
+
+            current_owner = str(current["owner_username"] or "")
+            current_version = int(current["ownership_version"] or 0)
+            version_matches = expected_version in (None, "") or int(expected_version) == current_version
+            owner_matches = current_owner == expected_owner_username
+            if not owner_matches or not version_matches:
+                payload = {
+                    "ok": False,
+                    "result": self.RESULT_TARGET_STATE_CHANGED,
+                    "target_id": target_id,
+                    "expected_owner_username": expected_owner_username,
+                    "current_owner_username": current_owner,
+                    "ownership_version": current_version,
+                    "winner_username": current_owner,
+                    "set_id": "",
+                    "duplicate": False,
+                }
+                conn.execute(
+                    """
+                    INSERT INTO territory_target_capture_receipts
+                        (action_id, target_id, attacker_username,
+                         expected_owner_username, expected_version, result,
+                         winner_username, ownership_version, set_id, payload_json,
+                         created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)
+                    """,
+                    (action_id, target_id, attacker_username, expected_owner_username,
+                     int(expected_version) if expected_version not in (None, "") else None,
+                     self.RESULT_TARGET_STATE_CHANGED, current_owner, current_version,
+                     dumps_json(payload), now, now),
+                )
+                return payload
+
+            next_version = current_version + 1
+            normalized["owner_username"] = attacker_username
+            normalized["ownership_version"] = next_version
+            normalized["target_id"] = target_id
+            normalized["lat"] = lat
+            normalized["lng"] = lng
+            normalized["lon"] = lng
+            set_seed = f"{target_id}|{next_version}"
+            set_id = "territory_reconcile_" + hashlib.sha1(set_seed.encode("utf-8")).hexdigest()[:20]
+            cursor = conn.execute(
+                """
+                UPDATE territory_target_ownership
+                SET owner_username = ?, ownership_version = ?, lat = ?, lng = ?,
+                    label = ?, target_json = ?, updated_at = ?
+                WHERE target_id = ? AND owner_username = ? AND ownership_version = ?
+                """,
+                (attacker_username, next_version, lat, lng, label,
+                 dumps_json(normalized), now, target_id, current_owner, current_version),
+            )
+            if cursor.rowcount != 1:
+                raise sqlite3.IntegrityError("territory ownership CAS lost")
+
+            conn.execute(
+                "DELETE FROM captured_targets WHERE ROUND(lat, 5) = ROUND(?, 5) "
+                "AND ROUND(lng, 5) = ROUND(?, 5)",
+                (lat, lng),
+            )
+            conn.execute(
+                """
+                INSERT INTO captured_targets
+                    (owner_username, lat, lng, label, name, icon, source_type,
+                     generated, stationary, target_json, captured_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (attacker_username, lat, lng, label,
+                 str(normalized.get("name") or label), str(normalized.get("icon") or ""),
+                 str(normalized.get("source_type") or ""),
+                 1 if normalized.get("generated") else 0,
+                 1 if normalized.get("stationary", not normalized.get("generated")) else 0,
+                 dumps_json(normalized), str(normalized.get("captured_at") or now), now),
+            )
+            conn.execute(
+                """
+                INSERT INTO territory_conflict_reconciliation_sets
+                    (set_id, target_id, winner_username, ownership_version,
+                     conflict_ids_json, engagement_ids_json, status,
+                     requested_version, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+                ON CONFLICT(set_id) DO UPDATE SET
+                    conflict_ids_json = excluded.conflict_ids_json,
+                    engagement_ids_json = excluded.engagement_ids_json,
+                    requested_version = MAX(requested_version, excluded.requested_version),
+                    updated_at = excluded.updated_at
+                """,
+                (set_id, target_id, attacker_username, next_version,
+                 dumps_json(conflict_ids), dumps_json(engagement_ids),
+                 next_version, now, now),
+            )
+            for conflict_id in conflict_ids:
+                latest = conn.execute(
+                    "SELECT MAX(snapshot_version) AS version "
+                    "FROM territory_conflict_snapshots WHERE conflict_id = ?",
+                    (conflict_id,),
+                ).fetchone()
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO territory_reconciliation_snapshot_gates
+                        (set_id, conflict_id, public_snapshot_version, created_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (set_id, conflict_id, int((latest or {})["version"] or 0), now),
+                )
+            payload = {
+                "ok": True,
+                "result": self.RESULT_CAPTURED,
+                "target_id": target_id,
+                "winner_username": attacker_username,
+                "previous_owner_username": current_owner,
+                "ownership_version": next_version,
+                "set_id": set_id,
+                "target": normalized,
+                "duplicate": False,
+            }
+            conn.execute(
+                """
+                INSERT INTO territory_target_capture_receipts
+                    (action_id, target_id, attacker_username,
+                     expected_owner_username, expected_version, result,
+                     winner_username, ownership_version, set_id, payload_json,
+                     created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (action_id, target_id, attacker_username, expected_owner_username,
+                 int(expected_version) if expected_version not in (None, "") else None,
+                 self.RESULT_CAPTURED, attacker_username, next_version, set_id,
+                 dumps_json(payload), now, now),
+            )
+            return payload
+
+    def extend_reconciliation_scope(self, set_id, conflict_ids=None, engagement_ids=None):
+        conflict_ids = sorted({str(value) for value in (conflict_ids or []) if value})
+        engagement_ids = sorted({str(value) for value in (engagement_ids or []) if value})
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT * FROM territory_conflict_reconciliation_sets WHERE set_id = ?",
+                (str(set_id),),
+            ).fetchone()
+            if not row:
+                return False
+            merged_conflicts = sorted(set(loads_json(row["conflict_ids_json"], [])) | set(conflict_ids))
+            merged_engagements = sorted(set(loads_json(row["engagement_ids_json"], [])) | set(engagement_ids))
+            for conflict_id in merged_conflicts:
+                latest = conn.execute(
+                    "SELECT MAX(snapshot_version) AS version "
+                    "FROM territory_conflict_snapshots WHERE conflict_id = ?",
+                    (conflict_id,),
+                ).fetchone()
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO territory_reconciliation_snapshot_gates
+                        (set_id, conflict_id, public_snapshot_version, created_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (str(set_id), conflict_id, int((latest or {})["version"] or 0), now),
+                )
+            conn.execute(
+                """
+                UPDATE territory_conflict_reconciliation_sets
+                SET conflict_ids_json = ?, engagement_ids_json = ?, updated_at = ?
+                WHERE set_id = ?
+                """,
+                (dumps_json(merged_conflicts), dumps_json(merged_engagements), now, str(set_id)),
+            )
+            return True
+
+    def public_snapshot_version(self, conflict_id):
+        """Return a snapshot cap while any reconciliation set is unpublished."""
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT MIN(g.public_snapshot_version) AS version
+                FROM territory_reconciliation_snapshot_gates g
+                JOIN territory_conflict_reconciliation_sets s ON s.set_id = g.set_id
+                WHERE g.conflict_id = ? AND s.status IN ('pending', 'processing')
+                """,
+                (str(conflict_id),),
+            ).fetchone()
+            if not row or row["version"] is None:
+                return None
+            return int(row["version"] or 0)
+
+    def unpublished_snapshot_caps(self):
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT g.conflict_id, MIN(g.public_snapshot_version) AS version
+                FROM territory_reconciliation_snapshot_gates g
+                JOIN territory_conflict_reconciliation_sets s ON s.set_id = g.set_id
+                WHERE s.status IN ('pending', 'processing')
+                GROUP BY g.conflict_id
+                """
+            ).fetchall()
+            return {row["conflict_id"]: int(row["version"] or 0) for row in rows}
+
+    def claim_reconciliation_set(self, lease_owner, lease_seconds=300):
+        now_ts = time.time()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """
+                SELECT * FROM territory_conflict_reconciliation_sets
+                WHERE status IN ('pending', 'processing')
+                  AND (status = 'pending' OR lease_until <= ?)
+                ORDER BY created_at, set_id LIMIT 1
+                """,
+                (now_ts,),
+            ).fetchone()
+            if not row:
+                return None
+            conn.execute(
+                """
+                UPDATE territory_conflict_reconciliation_sets
+                SET status = 'processing', processing_version = requested_version,
+                    lease_owner = ?, lease_until = ?, attempts = attempts + 1,
+                    updated_at = ? WHERE set_id = ?
+                """,
+                (str(lease_owner), now_ts + max(1, int(lease_seconds)), utc_now(), row["set_id"]),
+            )
+            claimed = conn.execute(
+                "SELECT * FROM territory_conflict_reconciliation_sets WHERE set_id = ?",
+                (row["set_id"],),
+            ).fetchone()
+            return self._reconciliation_payload(claimed)
+
+    @staticmethod
+    def _reconciliation_payload(row):
+        if not row:
+            return None
+        return {
+            "set_id": row["set_id"], "target_id": row["target_id"],
+            "winner_username": row["winner_username"],
+            "ownership_version": int(row["ownership_version"] or 0),
+            "conflict_ids": loads_json(row["conflict_ids_json"], []),
+            "engagement_ids": loads_json(row["engagement_ids_json"], []),
+            "status": row["status"],
+            "requested_version": int(row["requested_version"] or 0),
+            "processing_version": int(row["processing_version"] or 0),
+            "attempts": int(row["attempts"] or 0),
+        }
+
+    def finish_reconciliation_set(self, set_id, lease_owner, ok=True, error=""):
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                UPDATE territory_conflict_reconciliation_sets
+                SET status = ?, lease_owner = '', lease_until = 0, error = ?,
+                    updated_at = ?, published_at = CASE WHEN ? THEN ? ELSE published_at END
+                WHERE set_id = ? AND lease_owner = ?
+                """,
+                ("published" if ok else "pending", str(error or ""), now,
+                 1 if ok else 0, now, str(set_id), str(lease_owner)),
+            )
+            return cursor.rowcount == 1
+
+
 class TerritoryConflictStore:
     OPEN_STATUSES = ("detected", "active", "changing", "resolving")
 
@@ -2932,6 +3771,22 @@ class TerritoryConflictStore:
                 """SELECT * FROM territory_conflict_snapshots
                    WHERE conflict_id = ? ORDER BY snapshot_version DESC LIMIT 1""",
                 (conflict_id,),
+            ).fetchone()
+            return loads_json(row["payload_json"], {}) if row else None
+
+    def snapshot_at_or_before(self, conflict_reference, snapshot_version):
+        with db_connect(self.db_path) as conn:
+            conflict_row = self._find_reference_row(conn, conflict_reference)
+            if not conflict_row:
+                return None
+            conflict_id = str(conflict_row["conflict_id"] or conflict_row["id"])
+            row = conn.execute(
+                """
+                SELECT * FROM territory_conflict_snapshots
+                WHERE conflict_id = ? AND snapshot_version <= ?
+                ORDER BY snapshot_version DESC LIMIT 1
+                """,
+                (conflict_id, int(snapshot_version or 0)),
             ).fetchone()
             return loads_json(row["payload_json"], {}) if row else None
 

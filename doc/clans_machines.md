@@ -4047,4 +4047,19 @@ Ma odpowiedzieć tylko na najważniejsze pytania:
 Najważniejsze zdanie onboardingu brzmi:
 
 > Przesłaliśmy zapis świata, który przegrał. Ty masz stworzyć decyzje, których ten świat nigdy nie podjął.
+## Multi-conflict: relacja społeczna a bojowa (sprint 130.8.5.3)
+
+Widoczność wspólnej strefy rozdziela relację prezentacyjną od immunitetu:
+
+```text
+crew     = ten sam niepusty klan, brak celu bojowego
+friend   = zaakceptowany kontakt z obcego klanu, nadal hostile
+intruder = pozostały uczestnik obcego klanu, hostile
+```
+
+Dwaj gracze bez klanu nie są automatycznie crew. Każdy tworzy własną grupę
+bojową. Tylko zgodny, niepusty identyfikator klanu blokuje wzajemne filary,
+innery i akcje strategiczne. Zmiana klanu jest oceniana na aktualnych profilach
+przy projekcji oraz przy kolejnej kanonicznej przebudowie; nie zmienia historii
+capture ani wcześniejszych eventów.
 

@@ -1,4 +1,5 @@
 import os
+import json
 import sys
 import time
 import traceback
@@ -12,7 +13,62 @@ os.chdir(PROJECT_ROOT)
 import run  # noqa: E402
 
 
+def compact_multi_audit_report(report):
+    """Keep periodic logs useful without dumping full polygon coordinates."""
+    publication = report.get("publication") or {}
+    return {
+        "metrics": report.get("metrics") or {},
+        "mutations": int(report.get("mutations") or 0),
+        "publication": {
+            "ok": publication.get("ok"),
+            "reason": publication.get("reason"),
+            "candidates": publication.get("candidates"),
+            "changed": [
+                {
+                    "engagement_id": item.get("engagement_id"),
+                    "status": item.get("status"),
+                    "engagement_version": item.get("engagement_version"),
+                    "geometry_version": item.get("geometry_version"),
+                    "snapshot_version": item.get("snapshot_version"),
+                }
+                for item in (publication.get("changed") or [])
+            ],
+        },
+        "candidates": [
+            {
+                key: candidate.get(key)
+                for key in (
+                    "member_conflict_ids", "member_front_ids",
+                    "participant_usernames", "participant_clans",
+                    "hostile_clan_groups", "overlap_area", "overlap_bbox",
+                    "candidate_status", "detection_reason",
+                    "source_snapshot_versions",
+                )
+            }
+            for candidate in (report.get("candidates") or [])
+        ],
+        "legacy_multi_participant_conflicts":
+            report.get("legacy_multi_participant_conflicts") or [],
+        "skipped_snapshots": report.get("skipped_snapshots") or [],
+    }
+
+
 def process_once():
+    reconciliation = run.process_territory_reconciliation_set(
+        lease_owner=f"territory-set-worker:{os.getpid()}",
+        lease_seconds=300,
+    )
+    if reconciliation is not None:
+        print(
+            "[TERRITORY_WORKER] "
+            f"set_id={reconciliation.get('set_id')} ok={bool(reconciliation.get('ok'))} "
+            f"target_id={reconciliation.get('target_id')} "
+            f"winner={reconciliation.get('winner_username')} "
+            f"conflict_ids={reconciliation.get('conflict_ids') or []} "
+            f"engagement_ids={reconciliation.get('engagement_ids') or []}",
+            flush=True,
+        )
+        return True
     settle_seconds = max(
         1.0,
         float(os.environ.get("CHAOS_TERRITORY_WORKER_SETTLE_SECONDS", "3")),
@@ -44,6 +100,10 @@ def process_once():
 
 
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] == "--audit-multi":
+        report = run.audit_active_multi_conflict_candidates()
+        print(f"[TERRITORY_MULTI_AUDIT] {json.dumps(report, ensure_ascii=False)}", flush=True)
+        return
     if len(sys.argv) == 3 and sys.argv[1] == "--discover":
         actor_username = sys.argv[2]
         conflicts = run.discover_and_queue_new_territory_conflicts(actor_username)
@@ -71,7 +131,12 @@ def main():
         60.0,
         float(os.environ.get("CHAOS_TERRITORY_RECONCILE_SECONDS", "180")),
     )
+    multi_audit_seconds = max(
+        60.0,
+        float(os.environ.get("CHAOS_TERRITORY_MULTI_AUDIT_SECONDS", "180")),
+    )
     next_reconcile_at = time.monotonic()
+    next_multi_audit_at = time.monotonic()
     restored = run.restore_territory_reconcile_targets()
     print(
         f"[TERRITORY_WORKER] started reconcile_rollback={restored}",
@@ -89,6 +154,22 @@ def main():
                     flush=True,
                 )
                 next_reconcile_at = now + reconcile_seconds
+            if now >= next_multi_audit_at:
+                started = time.perf_counter()
+                batch = run.reconcile_active_multi_conflict_engagements(
+                    lease_owner=f"territory-worker:{os.getpid()}"
+                )
+                report = batch["audit"]
+                report["metrics"]["elapsed_ms"] = int(
+                    (time.perf_counter() - started) * 1000
+                )
+                report["publication"] = batch["publication"]
+                print(
+                    "[TERRITORY_MULTI_AUDIT] "
+                    f"{json.dumps(compact_multi_audit_report(report), ensure_ascii=False)}",
+                    flush=True,
+                )
+                next_multi_audit_at = now + multi_audit_seconds
             if not process_once():
                 time.sleep(idle_seconds)
         except KeyboardInterrupt:

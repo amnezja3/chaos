@@ -14587,6 +14587,2282 @@ zmiana filaru lub terytorium
 ```
 
 
+# Sprint 130.8.5 — Conflict Contract Hardening
+
+## Cel sprintu
+
+Domknąć kontrakt konfliktów terytorialnych po wdrożeniu Sprintów `130.8.1–130.8.4`.
+
+Sprint nie przebudowuje ponownie domeny konfliktów i nie zmienia zasad gameplayu. Jego zadaniem jest usunięcie pozostałych nieszczelności pomiędzy:
+
+* stabilną tożsamością konfliktu,
+* aktualnym stanem filarów,
+* opublikowanym snapshotem,
+* deltami wysyłanymi do klientów,
+* recovery frontendu,
+* wersją kodu rzeczywiście działającą na workerach.
+
+Po zakończeniu sprintu konflikt musi zachowywać ten sam `conflict_id` przez cały aktywny cykl, a frontend musi zawsze otrzymywać jednoznaczną informację, czy przekazany stan jest kompletny, aktualny i bezpieczny do zastosowania.
+
+---
+
+## Stan wejściowy
+
+Kod się kompiluje, a podstawowe testy konfliktów, mapy i Territory Control przechodzą.
+
+Potwierdzone lokalnie:
+
+* `python -m py_compile database.py run.py response_network\territory_delta.py`
+* `python -m unittest tests.test_territory_conflict_identity tests.test_territory_conflict_map_cutover tests.test_territory_control`
+* 37 testów zakończonych powodzeniem,
+* `git diff --check` bez błędów,
+* wyłącznie ostrzeżenie o zmianie końców linii `CRLF → LF` w `templates/map_template.html`.
+
+Rdzeń refaktoru jest poprawny, ale pozostały cztery realne nieszczelności kontraktu:
+
+1. delta po przejęciu filaru może publikować stary snapshot,
+2. wybór otwartego konfliktu nadal może zależeć od geometrii,
+3. snapshot zawsze deklaruje `complete: true`,
+4. deduplikacja delt używa `conflict_key` zamiast `conflict_id`.
+
+---
+
+# 1. Świeża delta po przejęciu filaru
+
+## Problem
+
+`record_territory_conflict_delta()` próbuje najpierw pobrać `latest_snapshot(reference)`.
+
+Jeżeli filar został właśnie przejęty, konflikt może już posiadać:
+
+* nowy `conflict_version`,
+* stan `changing`,
+* `geometry_status = dirty`,
+* zaktualizowany rekord filaru,
+
+ale ostatni opublikowany snapshot nadal przedstawia poprzednią geometrię i poprzedni stan filarów.
+
+W takim przypadku delta może wysłać frontendowi stary snapshot jako bieżący.
+
+Objawy:
+
+* zhakowany filar znika z mapy,
+* marker wraca do poprzedniego stanu,
+* stara geometria pozostaje do ponownego otwarcia mapy,
+* frontend nie wie, że otrzymał stan sprzed przejęcia.
+
+## Wymagane zachowanie
+
+Delta konfliktu musi rozróżniać:
+
+* aktualny stan domenowy,
+* ostatnią poprawną geometrię,
+* ostatni kompletny snapshot.
+
+Po przejęciu filaru delta powinna zawierać aktualny stan filaru i aktualną wersję konfliktu nawet wtedy, gdy geometria nie została jeszcze przebudowana.
+
+Nie wolno przedstawiać starego snapshotu jako aktualnego kompletnego stanu.
+
+## Zakres implementacji
+
+`record_territory_conflict_delta()` powinno:
+
+1. odczytać aktualny rekord konfliktu,
+2. odczytać aktualne filary z rejestru po `conflict_id`,
+3. porównać `conflict_version` ze snapshotem,
+4. sprawdzić `geometry_status`,
+5. określić kompletność payloadu,
+6. dopiero wtedy zdecydować, czy użyć:
+
+   * pełnego aktualnego snapshotu,
+   * domenowej delty z ostatnią poprawną geometrią,
+   * sygnału `recovery_required`.
+
+Jeżeli snapshot ma starszy `conflict_version` niż aktualny konflikt:
+
+* nie może zostać opublikowany jako `complete`,
+* jego geometria może zostać dołączona wyłącznie jako `last_valid_geometry`,
+* aktualne filary muszą pochodzić z rejestru filarów,
+* payload musi informować, że rebuild jest w toku.
+
+## Docelowy kontrakt delty po capture
+
+Payload powinien zawierać co najmniej:
+
+* `conflict_id`,
+* `conflict_version`,
+* `geometry_version`,
+* `snapshot_version`,
+* `status`,
+* `geometry_status`,
+* `complete`,
+* `recovery_required`,
+* `changed_pillars`,
+* `fronts`,
+* `last_valid_geometry`,
+* `reason`.
+
+Przykładowa semantyka:
+
+* `complete: false`,
+* `geometry_status: dirty`,
+* `recovery_required: false`,
+* aktualny filar w `changed_pillars`,
+* ostatnia poprawna geometria pozostaje widoczna,
+* frontend oczekuje na późniejszą deltę `geometry_rebuilt`.
+
+Frontend nie powinien usuwać aktualnej geometrii tylko dlatego, że snapshot domenowy jest niekompletny.
+
+---
+
+# 2. Stabilne wybieranie otwartego konfliktu
+
+## Problem
+
+`select_open_conflict()` nadal próbuje odnaleźć konflikt głównie przez:
+
+* `conflict_key`,
+* `area_ids`,
+* referencje zależne od aktualnej geometrii.
+
+Jeżeli po zmianie terytoriów nie ma dopasowania po tych polach, funkcja może zwrócić `None`, mimo że istnieje aktywny konflikt tych samych uczestników.
+
+Może to spowodować:
+
+* utworzenie nowego `conflict_id`,
+* rozdzielenie historii jednego konfliktu,
+* utratę ciągłości filarów,
+* duplikaty aktywnych konfliktów,
+* błędne rozdzielenie zdarzeń i snapshotów.
+
+## Wymagane zachowanie
+
+Otwarty konflikt musi być wybierany przede wszystkim po stabilnej tożsamości domenowej.
+
+Kolejność dopasowania:
+
+1. jawny `conflict_id`,
+2. aktywny `participant_key`,
+3. ciągłość lifecycle konfliktu,
+4. dopiero pomocniczo `conflict_key`,
+5. pomocniczo `area_ids`,
+6. pomocniczo sygnatura geometrii.
+
+Geometria i aktualne `area_ids` nie mogą być warunkiem zachowania istniejącego `conflict_id`.
+
+## Reguły `participant_key`
+
+`participant_key`:
+
+* zawiera posortowanych uczestników,
+* nie zawiera wierzchołków polygonu,
+* nie zawiera `area_ids`,
+* nie zależy od kolejności wejścia,
+* nie zmienia się przy przesunięciu granicy,
+* nie zmienia się po przejęciu filaru.
+
+Przykładowa postać:
+
+`player_a::player_b`
+
+Dla konfliktu wielostronnego:
+
+`player_a::player_b::player_c`
+
+## Zasady wyboru konfliktu
+
+`select_open_conflict()` powinno zwrócić istniejący konflikt, jeżeli:
+
+* status konfliktu jest jednym z:
+
+  * `detected`,
+  * `active`,
+  * `changing`,
+  * `resolving`,
+* `participant_key` jest zgodny,
+* konflikt nie został jawnie zamknięty,
+* nie istnieje nowszy otwarty cykl dla tych samych uczestników.
+
+Nowy konflikt może zostać utworzony dopiero wtedy, gdy:
+
+* poprzedni konflikt ma status `closed`,
+* poprzedni cykl został faktycznie zakończony,
+* nie istnieje żaden otwarty konflikt o tym samym `participant_key`.
+
+## Ochrona przed duplikatami
+
+Store powinien zabezpieczać sytuację, w której dwa workery jednocześnie próbują utworzyć konflikt dla tych samych uczestników.
+
+Wymagane jest trwałe zabezpieczenie bazodanowe, na przykład:
+
+* unikalny indeks dla otwartego `participant_key`,
+* transakcja z ponownym odczytem po konflikcie zapisu,
+* blokada lub compare-and-swap na poziomie store.
+
+Blokada wyłącznie w pamięci procesu nie wystarcza przy wielu workerach.
+
+---
+
+# 3. Prawdziwy status kompletności snapshotu
+
+## Problem
+
+`project_territory_conflict_snapshot()` zawsze zwraca:
+
+`complete: true`
+
+Nawet jeżeli konflikt jest:
+
+* `changing`,
+* `resolving`,
+* `dirty`,
+* po nieudanym rebuildzie,
+* ze snapshotem starszym od bieżącego `conflict_version`.
+
+Frontend posiada mechanizm recovery dla niekompletnego stanu, ale backend praktycznie nie dostarcza mu poprawnego sygnału.
+
+## Wymagane zachowanie
+
+`complete` musi być wartością wyliczaną z rzeczywistego stanu konfliktu.
+
+Snapshot jest kompletny tylko wtedy, gdy:
+
+* posiada rekord konfliktu,
+* posiada wszystkie aktywne fronty,
+* posiada wszystkie aktualne filary,
+* snapshot odpowiada bieżącemu `conflict_version`,
+* geometria odpowiada zadeklarowanemu `geometry_version`,
+* `geometry_status = clean`,
+* rebuild nie jest w toku,
+* ostatnia przebudowa nie zakończyła się błędem,
+* snapshot został atomowo opublikowany.
+
+## Minimalne pola diagnostyczne
+
+Snapshot powinien zawierać:
+
+* `complete`,
+* `geometry_status`,
+* `rebuild_status`,
+* `recovery_required`,
+* `last_valid_snapshot_version`,
+* `last_valid_geometry_version`,
+* `current_conflict_version`,
+* `snapshot_conflict_version`,
+* `rebuild_requested_version`,
+* `rebuild_error`,
+* `generated_at`.
+
+## Przykładowe stany
+
+### Stan kompletny
+
+* `complete: true`
+* `geometry_status: clean`
+* `recovery_required: false`
+* `snapshot_conflict_version == conflict_version`
+
+### Capture przed rebuildem
+
+* `complete: false`
+* `geometry_status: dirty`
+* `recovery_required: false`
+* aktualne filary są dostępne
+* ostatnia poprawna geometria pozostaje dostępna
+
+### Rebuild w toku
+
+* `complete: false`
+* `geometry_status: rebuilding`
+* `recovery_required: false`
+* frontend zachowuje ostatnią poprawną geometrię
+
+### Rebuild zakończony błędem
+
+* `complete: false`
+* `geometry_status: failed`
+* `recovery_required` zależy od dostępności poprzedniego snapshotu
+* `last_valid_snapshot` pozostaje aktywny
+
+### Brak spójnego snapshotu
+
+* `complete: false`
+* `recovery_required: true`
+* frontend uruchamia pełne recovery
+
+## Zachowanie frontendu
+
+Frontend nie może interpretować `complete: false` jako polecenia natychmiastowego usunięcia konfliktu.
+
+Powinien:
+
+* zastosować aktualne zmiany filarów,
+* zachować ostatnią poprawną geometrię,
+* oznaczyć konflikt jako oczekujący na synchronizację,
+* wykonać recovery tylko przy `recovery_required: true` albo wykrytej luce wersji.
+
+---
+
+# 4. Deduplikacja delt po `conflict_id`
+
+## Problem
+
+Deduplikacja w `territory_delta.py` korzysta z `conflict_key`.
+
+`conflict_key` może być:
+
+* kluczem legacy,
+* kluczem cyklu,
+* wartością zależną od poprzedniego modelu,
+* wartością zmieniającą się po rebuildzie.
+
+W rezultacie dwa zdarzenia tego samego konfliktu mogą otrzymać różne klucze deduplikacji.
+
+## Wymagane zachowanie
+
+Podstawą tożsamości delty jest zawsze stabilny `conflict_id`.
+
+Dedupe key powinien uwzględniać:
+
+* `conflict_id`,
+* typ zdarzenia,
+* `conflict_version`,
+* `geometry_version`,
+* opcjonalny `target_id`,
+* opcjonalny `front_id`.
+
+Przykładowa semantyka:
+
+`territory:conflict:<conflict_id>:<event_type>:cv<conflict_version>:gv<geometry_version>`
+
+Dla filaru:
+
+`territory:conflict:<conflict_id>:pillar:<target_id>:cv<conflict_version>`
+
+Dla frontu:
+
+`territory:conflict:<conflict_id>:front:<front_id>:gv<geometry_version>`
+
+`conflict_key` może pozostać w payloadzie diagnostycznym, ale nie może sterować deduplikacją.
+
+## Wymagania dodatkowe
+
+Ponowienie publikacji tej samej wersji:
+
+* nie tworzy drugiej delty,
+* nie wywołuje drugiego efektu gameplayowego,
+* nie uruchamia drugiej nagrody,
+* nie powoduje drugiej aktualizacji filaru,
+* nie generuje drugiego sygnału dla konsumentów.
+
+---
+
+# 5. Ostatni poprawny snapshot
+
+## Cel
+
+Zapewnić, że konflikt zawsze posiada jednoznacznie wskazany ostatni kompletny snapshot, do którego można wrócić po błędzie.
+
+## Wymagany kontrakt
+
+Store powinien jawnie przechowywać:
+
+* `latest_snapshot_version`,
+* `latest_complete_snapshot_version`,
+* `latest_complete_geometry_version`,
+* `latest_complete_conflict_version`,
+* `latest_rebuild_status`,
+* `latest_rebuild_error`,
+* `latest_rebuild_started_at`,
+* `latest_rebuild_finished_at`.
+
+Nie wolno nadpisywać ostatniego poprawnego snapshotu niekompletnym wynikiem.
+
+## Publikacja
+
+Nowy snapshot zostaje oznaczony jako ostatni poprawny dopiero po:
+
+1. zapisaniu konfliktu,
+2. zapisaniu frontów,
+3. zapisaniu filarów,
+4. zapisaniu geometrii,
+5. sprawdzeniu wersji,
+6. zakończeniu transakcji,
+7. walidacji kompletności.
+
+Jeżeli którykolwiek etap zawiedzie:
+
+* poprzedni kompletny snapshot pozostaje aktywny,
+* nowa wersja otrzymuje status `failed`,
+* frontend dostaje aktualny stan domenowy i poprzednią geometrię,
+* `geometry_version` nie zostaje fałszywie zwiększone.
+
+---
+
+# 6. Trwała koordynacja pomiędzy workerami
+
+## Problem
+
+Poprawność konfliktów nie może zależeć od blokad w pamięci pojedynczego procesu.
+
+Przy kilku workerach możliwe są:
+
+* dwa równoległe rebuildy,
+* podwójne utworzenie konfliktu,
+* nadpisanie nowszego snapshotu starszym,
+* podwójna publikacja delt,
+* utrata żądania przebudowy.
+
+## Wymagane zachowanie
+
+Koordynacja rebuildów musi być trwała.
+
+Rekord koordynacji powinien przechowywać:
+
+* `conflict_id`,
+* `requested_version`,
+* `processing_version`,
+* `completed_version`,
+* `worker_id`,
+* `lease_until`,
+* `status`,
+* `attempt_count`,
+* `last_error`,
+* `updated_at`.
+
+Worker może rozpocząć rebuild tylko wtedy, gdy:
+
+* uzyska lease,
+* nie istnieje aktywny lease innego workera,
+* jego `requested_version` nie jest starsze od `completed_version`.
+
+Po wygaśnięciu lease inny worker może bezpiecznie przejąć zadanie.
+
+Zapis wyniku musi sprawdzić, czy przetwarzana wersja nadal jest aktualna.
+
+Starszy worker nie może nadpisać wyniku nowszego rebuilda.
+
+---
+
+# 7. Bezpieczny cutover i rollback
+
+## Cel
+
+Zapewnić, że poprawki kontraktu mogą zostać wdrożone bez ryzyka uszkodzenia aktywnych konfliktów.
+
+## Feature flag
+
+Należy wprowadzić flagę, przykładowo:
+
+`TERRITORY_CONFLICT_CONTRACT_V2`
+
+Tryby:
+
+* `off` — stary odczyt kontraktu,
+* `shadow` — nowy kontrakt jest wyliczany i walidowany, ale nie steruje frontendem,
+* `on` — nowy kontrakt jest źródłem payloadów i delt.
+
+## Shadow validation
+
+W trybie `shadow` należy porównywać:
+
+* `conflict_id`,
+* uczestników,
+* liczbę filarów,
+* właścicieli filarów,
+* `conflict_version`,
+* `geometry_version`,
+* liczbę frontów,
+* kompletność snapshotu.
+
+Rozbieżności trafiają do logów diagnostycznych, ale nie zmieniają gameplayu.
+
+## Rollback
+
+Rollback do poprzedniego trybu nie może:
+
+* usuwać nowych danych,
+* cofać wersji konfliktu,
+* przywracać starego właściciela filaru,
+* odtwarzać efektów gameplayowych.
+
+Po rollbacku stary read model powinien być budowany z nowego źródła prawdy albo z ostatniego kompletnego snapshotu.
+
+Nie wolno wracać do mutowania konfliktu przez endpoint mapy.
+
+---
+
+# 8. Weryfikacja działającego deploymentu
+
+## Problem operacyjny
+
+Lokalny `/api/map/player-areas` nie uruchamia już `refresh_stale_territory_polygons()`.
+
+Jeżeli stack produkcyjny nadal pokazuje wywołanie tej funkcji z endpointu mapy, oznacza to:
+
+* stary kod na serwerze,
+* nieprzeładowany worker,
+* częściowo wdrożoną wersję,
+* różne wersje kodu pomiędzy workerami.
+
+## Wymagane zabezpieczenia
+
+Endpoint diagnostyczny lub log startowy workera powinien pokazywać:
+
+* commit hash,
+* build tag,
+* PID workera,
+* czas uruchomienia,
+* wersję schematu konfliktów,
+* stan feature flagi,
+* identyfikator wdrożenia.
+
+Każda odpowiedź `/api/map/player-areas` powinna opcjonalnie zawierać diagnostykę w trybie dev:
+
+* `app_version`,
+* `git_commit`,
+* `worker_pid`,
+* `conflict_contract_version`.
+
+Po wdrożeniu wszystkie workery muszą raportować tę samą wersję.
+
+## Procedura deploymentu
+
+1. uruchomić migracje,
+2. włączyć tryb `shadow`,
+3. przeładować wszystkie workery,
+4. zweryfikować commit na każdym workerze,
+5. uruchomić testy smoke,
+6. sprawdzić logi rozbieżności,
+7. przełączyć flagę na `on`,
+8. wykonać test przejęcia filaru,
+9. sprawdzić snapshot i deltę,
+10. pozostawić możliwość natychmiastowego przełączenia na `shadow` lub `off`.
+
+---
+
+# 9. Testy regresyjne
+
+## Stabilna tożsamość
+
+Dodać testy:
+
+* konflikt zachowuje `conflict_id` po zmianie `area_ids`,
+* konflikt zachowuje `conflict_id` po zmianie polygonu,
+* konflikt zachowuje `conflict_id` po zmianie kolejności uczestników,
+* dwa workery nie tworzą dwóch konfliktów,
+* zamknięty konflikt nie zostaje ponownie otwarty,
+* nowy cykl otrzymuje nowy `conflict_id`.
+
+## Capture i delta
+
+Dodać testy:
+
+* capture zwiększa `conflict_version`,
+* capture nie zwiększa `geometry_version`,
+* delta zawiera aktualny filar,
+* delta nie przedstawia starego snapshotu jako kompletnego,
+* stara geometria pozostaje jako `last_valid_geometry`,
+* po rebuildzie przychodzi kompletna delta,
+* ponowienie capture nie publikuje drugiej delty.
+
+## Snapshot completeness
+
+Dodać testy dla stanów:
+
+* `clean`,
+* `dirty`,
+* `rebuilding`,
+* `failed`,
+* brak snapshotu,
+* snapshot starszy niż konflikt,
+* snapshot zgodny z konfliktem.
+
+## Deduplikacja
+
+Dodać testy:
+
+* zmiana `conflict_key` nie zmienia tożsamości delty,
+* ta sama wersja konfliktu nie publikuje się drugi raz,
+* zmiana filaru posiada dedupe po `target_id`,
+* zmiana frontu posiada dedupe po `front_id`.
+
+## Rebuild pomiędzy workerami
+
+Dodać testy:
+
+* jeden worker uzyskuje lease,
+* drugi worker nie zaczyna tego samego rebuilda,
+* wygasły lease może zostać przejęty,
+* starszy worker nie nadpisuje nowszej wersji,
+* nowe żądanie podczas rebuilda powoduje kolejny przebieg,
+* błąd nie usuwa ostatniego kompletnego snapshotu.
+
+## Frontend
+
+Dodać testy:
+
+* `complete: false` nie usuwa geometrii,
+* aktualny filar jest aktualizowany mimo starej geometrii,
+* `recovery_required: false` nie uruchamia pełnego recovery,
+* `recovery_required: true` uruchamia recovery,
+* starsza delta jest odrzucana,
+* kompletna delta po rebuildzie zamyka stan oczekiwania.
+
+## Gameplay i konsumenci
+
+Należy ponownie uruchomić regresje dla:
+
+* pełnego cyklu hakowania filaru,
+* `actions_allowed`,
+* `aimed_target`,
+* aktywnych operacji,
+* incydentów,
+* Victim Pickera,
+* `territory_contest`,
+* Territory Control,
+* etykiet `ALARM` i `KOLIZJA`,
+* encirclement całego klastra,
+* relacji chronionych,
+* nagród i RSP,
+* generowania plików,
+* deduplikacji efektów,
+* GhostNetwork,
+* BlackNetu,
+* Cybernera,
+* Radia.
+
+---
+
+# 10. Kryteria zakończenia sprintu
+
+Sprint `130.8.5` jest zakończony, gdy:
+
+* otwarty konflikt jest wybierany po stabilnym `conflict_id` lub `participant_key`,
+* zmiana geometrii nie tworzy nowego konfliktu,
+* delta po capture zawiera aktualny stan filaru,
+* stary snapshot nie jest publikowany jako kompletny,
+* `complete` odzwierciedla rzeczywisty stan konfliktu,
+* deduplikacja delt używa `conflict_id`,
+* ostatni kompletny snapshot jest zachowywany po błędzie,
+* rebuildy są koordynowane pomiędzy workerami,
+* starszy worker nie może nadpisać nowszego wyniku,
+* frontend zachowuje ostatnią poprawną geometrię podczas dirty/rebuilding,
+* recovery jest uruchamiane tylko wtedy, gdy jest rzeczywiście wymagane,
+* wszystkie workery działają na tej samej wersji kodu,
+* cutover można bezpiecznie wycofać bez utraty danych i efektów gameplayowych,
+* pełne testy konfliktów i zależnych konsumentów przechodzą.
+
+---
+
+# Poza zakresem
+
+Sprint nie obejmuje:
+
+* ponownego projektowania geometrii terytoriów,
+* zmiany zasad powstawania klastrów,
+* zmiany balansu przejmowania filarów,
+* przebudowy nagród,
+* nowego interfejsu konfliktów,
+* nowej wizualizacji frontów,
+* zmian lore,
+* rozszerzania GhostNetwork o nowe mechaniki.
+
+To jest sprint stabilizacyjny i kontraktowy.
+
+Nie dodajemy nowych funkcji, dopóki bieżący konflikt nie posiada jednoznacznej tożsamości, aktualnych filarów, prawidłowej kompletności snapshotu i bezpiecznej publikacji pomiędzy workerami.
+
+Tak — rozbiłbym to dokładnie w tej kolejności: najpierw czysta detekcja bez wpływu na gameplay, potem trwała nakładka `engagement`, następnie widoczność i relacje, później atomowy capture wielostronny, a na końcu frontend i pełny cutover.
+
+## Audyt spójności serii 130.8.5.1-130.8.5.5 z aktualnym runtime
+
+Audyt kodu przed implementacją wykazał, że wersjonowanie, fronty, snapshoty,
+delty i workerowy rebuild nadają się do rozszerzenia, ale obecna detekcja nie
+realizuje jeszcze najważniejszej granicy tej serii.
+
+`build_territory_conflict_detection_plan()` buduje graf nakładających się pól,
+łączy cały spójny komponent i tworzy jeden plan z sumą uczestników. Następnie
+`materialize_territory_conflict_plans()` zapisuje go jako jeden
+`territory_conflict`, którego `participant_key` może zawierać więcej niż dwóch
+graczy. Jest to sprzeczne z docelową zasadą:
+
+```text
+1 konflikt 1v1 = 1 stabilny conflict_id
+```
+
+Sprint `130.8.5.1` musi więc rozdzielić detekcję par pól i konfliktów
+bilateralnych od detekcji nakładania ich opublikowanych frontów. Engagement nie
+może powstawać bezpośrednio z obecnego wieloosobowego komponentu pól.
+
+Audyt potwierdził elementy, które należy zachować:
+
+* `conflict_id`, `front_id`, wersje i snapshoty nie zależą od geometrii;
+* `territory_owners_are_protected_relation()` chroni obecnie wyłącznie członków
+  tego samego klanu; znajomość nie daje immunitetu strategicznego;
+* `/api/map/player-areas` pozostaje read-only, a przebudowy wykonuje worker;
+* projekcja per viewer jest właściwą granicą widoczności, ale musi stać się
+  wspólną polityką mapy, Victim Pickera i Territory Control;
+* engagement wymaga osobnego typu delty i osobnego registry warstw;
+* reconciler pozostaje diagnostyczny i read-only — nie zmienia ownership ani
+  geometrii.
+
+Istniejące otwarte rekordy z więcej niż dwoma uczestnikami wymagają migracji.
+Nie wolno ich przemianować na engagement ani usunąć. Shadow audit wskazuje
+pary/fronty składające się na rekord, a migracja tworzy stabilne konflikty
+bilateralne z aliasami starego ID dla operacji, incydentów i aimed targetów,
+bez ponownego capture, nagród i hooków downstream.
+
+### Wspólny Documentation Gate
+
+Każdy sprint `130.8.5.x` kończy się aktualizacją dokumentacji w tym samym
+wdrożeniu co kod:
+
+* `doc/game_play_180726.md` — Decision, rzeczywisty kontrakt i odchylenia;
+* `doc/project_journal.md` — zmiany, testy, migracje, flagi i produkcyjne logi;
+* `doc/clans_machines.md` — zmiany immunitetu, crew lub własności;
+* `doc/ghostnetwork_architecture.md` — nowe eventy, audience i hooki;
+* dokumenty Response Network/incydentów — zmiany routingu incydentów/aktorów.
+
+Brak Decision, opisu migracji/rollbacku i wyników regresji oznacza sprint
+niezamknięty.
+
+# Sprint 130.8.5.1 — Multi-Conflict Detection Audit
+
+## Cel
+
+Dodać czystą, diagnostyczną detekcję sytuacji, w której dwa lub więcej niezależnych konfliktów 1v1 zaczyna współdzielić realny obszar walki.
+
+Sprint nie zmienia gameplayu i nie tworzy jeszcze trwałego multi-conflict.
+
+Bazowe konflikty pozostają całkowicie niezależne:
+
+```text
+A ↔ D
+B ↔ D
+```
+
+Ich:
+
+```text
+conflict_id
+participant_key
+front_id
+versions
+pillars
+inners
+lifecycle
+```
+
+nie mogą zostać zmienione przez pojawienie się dodatkowego uczestnika.
+
+## Detekcja
+
+Po opublikowaniu frontów konfliktów worker analizuje ich geometrię.
+
+Potencjalny multi-conflict istnieje tylko wtedy, gdy fronty różnych aktywnych konfliktów mają wspólny obszar o dodatniej powierzchni.
+
+Nie wystarcza:
+
+```text
+dotknięcie krawędzi
+wspólny punkt
+styczność polygonów
+chwilowe przecięcie pojedynczej linii
+```
+
+Przykład:
+
+```text
+A ↔ D ─────┐
+           │ wspólny obszar
+B ↔ D ─────┘
+```
+
+Analizowany jest wyłącznie wspólny obszar frontów, nie całe terytoria A, B i D.
+
+Przed detekcją engagement obecny plan komponentowy należy rozłożyć na wrogie
+pary właścicieli. Każda para otrzymuje osobny kandydat konfliktu bazowego i
+dwuelementowy `participant_key`. Graf komponentów może pozostać optymalizacją
+przestrzenną, ale nie może być tożsamością konfliktu.
+
+Detekcja engagement działa tylko na frontach ze snapshotów `complete=true` i
+`geometry_status in {clean, published}`. Snapshot dirty/changing/failed nie
+tworzy membership; zachowuje ostatni poprawny wynik do recovery.
+
+Wspólna strefa jest spójnym komponentem polygonów overlapu. Łańcuch overlapów
+może utworzyć jeden engagement tylko wtedy, gdy jego wspólne strefy są
+przestrzennie połączone. Dwie rozłączne strefy tych samych konfliktów tworzą
+dwa kandydaty. Bbox/spatial prefilter jest obowiązkowy — bez pełnego O(n^2)
+dla frontów całego świata.
+
+## Wynik diagnostyczny
+
+Detektor powinien zwracać raport zawierający:
+
+```text
+member_conflict_ids
+participant_usernames
+participant_clans
+hostile_clan_groups
+overlap_geometry
+overlap_area
+candidate_status
+detection_reason
+source_snapshot_versions
+member_front_ids
+overlap_bbox
+```
+
+Bez zapisu nowego bytu domenowego.
+
+## Szczególnie sprawdzić
+
+Obecny mechanizm grupowania konfliktów potrafi tworzyć połączone komponenty wielu uczestników.
+
+W tym sprincie należy upewnić się, że taka detekcja:
+
+```text
+nie scala conflict_id
+nie rozszerza participant_key
+nie przenosi filarów pomiędzy konfliktami
+nie zamyka istniejących konfliktów
+```
+
+## Testy
+
+Scenariusze:
+
+```text
+A-D i B-D bez kontaktu → brak multi
+A-D i B-D stykają się punktem → brak multi
+A-D i B-D dotykają krawędzią → brak multi
+A-D i B-D nakładają się powierzchnią → kandydat multi
+A-D odsuwa się → kandydat znika
+trzy konflikty nakładają się → jeden wspólny kandydat
+dwa rozłączne overlapy tych samych konfliktów → dwa kandydaty
+niekompletny snapshot frontu → brak nowego membership
+stary konflikt z trzema uczestnikami → raport par i aliasów migracyjnych
+```
+
+## Dokumentacja i artefakty audytu
+
+Decision i journal zapisują liczbę zastanych konfliktów wieloosobowych, plan
+migracji, budżet detekcji, liczbę porównań po prefilterze oraz przykładowe
+`member_conflict_ids`, `member_front_ids` i wersje źródłowe. Shadow mode musi
+potwierdzić brak mutacji, delt i efektów gameplay.
+
+## Koniec sprintu
+
+Sprint jest zakończony, gdy worker potrafi wiarygodnie powiedzieć:
+
+> te konflikty pozostają niezależne, ale w tym konkretnym miejscu ich fronty tworzą wspólną strefę walki.
+
+Bez jakiejkolwiek zmiany gameplayu.
+
+## Decision 130.8.5.1 — shadow detector (2026-08-08)
+
+Pierwszy etap wdrożono wyłącznie jako obserwator. `run.py` analizuje najnowsze
+snapshoty aktywnych konfliktów i dopuszcza tylko `complete=true` oraz
+`geometry_status=clean|published`. Fronty różnych `conflict_id` przechodzą
+najpierw przez sweep po bbox, a dopiero potem przez obliczenie polygonu
+overlapu. Kandydat wymaga dodatniej powierzchni co najmniej 1 m²; punkt i
+wspólna krawędź nie tworzą multi-conflict. Przestrzennie połączone overlapy są
+grupowane, a rozłączne strefy pozostają osobnymi kandydatami.
+
+Raport zawiera wymagane identyfikatory konfliktów/frontów, uczestników i ich
+klany, wersje źródłowe, bbox, powierzchnię i geometrię. Okresowy log workera
+pomija pełne współrzędne, aby nie rozdmuchiwać logów; pełny raport można
+uruchomić jednorazowo przez:
+
+```bash
+./.venv/bin/python scripts/territory_conflict_worker.py --audit-multi
+```
+
+Worker uruchamia shadow audit domyślnie co 180 sekund; interwał kontroluje
+`CHAOS_TERRITORY_MULTI_AUDIT_SECONDS` (minimum 60 s). Raport jawnie zwraca
+`mutations=0`: nie zapisuje engagement, nie publikuje delt, nie kolejkuje
+rebuildów i nie zmienia bazowych konfliktów. Zastane rekordy z więcej niż
+dwoma uczestnikami są raportowane osobno wraz z parami aliasów migracyjnych.
+
+Lokalna baza audytowa 2026-08-08 nie zawierała aktywnych konfliktów:
+`snapshots_seen=0`, `legacy_multi_participant_conflicts=0`, kandydatów `0`.
+Test syntetyczny potwierdził bbox prefilter i pełny kontrakt raportu. Migracja
+historycznych rekordów wieloosobowych pozostaje świadomie poza shadow mode;
+przed 130.8.5.2 wymaga osobnego dry-runu na kopii danych produkcyjnych oraz
+rollbacku do niezmienionych rekordów bazowych.
+
+Walidacja: 69 testów celowanych (w tym 7 nowych scenariuszy multi-conflict)
+zakończonych `OK`. Ten etap nie zmienia immunitetu klanowego, audience/eventów,
+mapy ani routingu Response Network, dlatego dokumenty tych kontraktów nie
+wymagają jeszcze aktualizacji.
+
+---
+
+# Sprint 130.8.5.2 — Persistent Multi-Conflict Engagement
+
+## Cel
+
+Na podstawie detektora z `130.8.5.1` utworzyć osobny trwały byt domenowy reprezentujący wspólną strefę walki.
+
+Nie tworzymy nowego wieloosobowego `territory_conflict`.
+
+Wprowadzamy:
+
+```text
+territory_conflict_engagement
+```
+
+## Model
+
+Minimalny rekord:
+
+```text
+engagement_id
+status
+
+member_conflict_ids
+participant_usernames
+hostile_clan_groups
+
+geometry
+
+engagement_version
+geometry_version
+snapshot_version
+
+created_at
+updated_at
+resolved_at
+```
+
+Członkostwo jest osobną relacją many-to-many:
+
+```text
+territory_conflict_engagement_members
+
+engagement_id
+conflict_id
+front_id
+status
+joined_at
+left_at
+```
+
+Pojedyncze pole `engagement_id` na froncie nie może być jedyną relacją. Ten sam
+front może uczestniczyć w dwóch rozłącznych strefach.
+
+`engagement_id` jest stabilny przez cały czas istnienia tej konkretnej wspólnej strefy.
+
+ID nie jest hashem geometrii ani bieżącej listy członków. Dopasowanie kolejnej
+publikacji korzysta z ciągłości `member_conflict_ids`, `member_front_ids`,
+overlapu przestrzennego i lifecycle. Zamknięty cykl nie jest ponownie otwierany.
+
+## Najważniejsza zasada
+
+Bazowy front nadal należy do:
+
+```text
+conflict_id
+```
+
+i jest kojarzony przez tabelę członkostwa z jednym lub wieloma:
+
+```text
+engagement_id
+```
+
+Engagement nie przejmuje własności frontu.
+
+Czyli:
+
+```text
+front A-D
+ ├── conflict_id = A-D
+ └── engagement_id = XYZ
+
+front B-D
+ ├── conflict_id = B-D
+ └── engagement_id = XYZ
+```
+
+## Lifecycle
+
+Proponowane statusy:
+
+```text
+detected
+active
+changing
+resolving
+resolved
+closed
+```
+
+## Wejście
+
+Engagement powstaje, gdy przez poprawną publikację geometrii zostanie potwierdzony wspólny obszar co najmniej dwóch konfliktów.
+
+## Aktualizacja
+
+Dołączenie kolejnego konfliktu:
+
+```text
+A-D
+B-D
+C-D
+```
+
+aktualizuje `member_conflict_ids`, ale:
+
+```text
+nie zmienia conflict_id A-D
+nie zmienia conflict_id B-D
+nie zmienia participant_key bazowych konfliktów
+```
+
+## Wyjście
+
+Engagement zostaje rozwiązany, gdy fronty przestają posiadać wspólną powierzchnię.
+
+Wprowadzamy histerezę:
+
+```text
+brak overlapu w pierwszej publikacji
+→ engagement pozostaje changing
+
+brak overlapu w drugiej kolejnej zgodnej publikacji
+→ resolved
+```
+
+Zapobiega to miganiu przy granicznych polygonach.
+
+## Konflikty bazowe po rozwiązaniu
+
+Rozwiązanie engagement nie rozwiązuje automatycznie:
+
+```text
+A ↔ D
+B ↔ D
+```
+
+Jeżeli nadal posiadają własne fronty, wracają po prostu do zwykłego trybu 1v1.
+
+## Testy
+
+Obowiązkowo:
+
+```text
+stabilność engagement_id
+dołączenie konfliktu
+odłączenie konfliktu
+histereza
+split wspólnej geometrii
+ponowne połączenie
+brak zmiany conflict_id
+brak zmiany participant_key
+równoległe engagementy z tym samym zestawem konfliktów
+lease dwóch workerów i przejęcie wygasłego lease
+no-op bez wzrostu wersji i bez drugiej delty
+migracja wieloosobowego rekordu bez efektów gameplay
+```
+
+## Koordynator i dokumentacja
+
+Engagement posiada trwałą kolejkę/lease albo jawnie uczestniczy w jednym batchu
+koordynatora konfliktów. Nie uruchamiamy jego rekursywnej przebudowy osobno z
+każdego konfliktu członkowskiego. Publikacja następuje raz po ukończeniu batcha
+frontów. Decision dokumentuje schemat, indeksy, migrację, rollback, lifecycle,
+wersje i dopasowanie stabilnego ID.
+
+## Decision 130.8.5.2 — persistent engagement (2026-08-08)
+
+Wprowadzono osobny store oraz tabele:
+
+```text
+territory_conflict_engagements
+territory_conflict_engagement_members
+territory_conflict_engagement_coordinator
+```
+
+Pierwsza przechowuje lifecycle, zbiory członków, geometrię, bbox i trzy wersje.
+Druga jest relacją many-to-many `(engagement_id, conflict_id, front_id)` z
+historią `joined_at/left_at`; front nie otrzymał pola właścicielskiego
+`engagement_id`. Indeksy obsługują aktywny lifecycle oraz wyszukiwanie
+membership po `(conflict_id, front_id, status)`. Trzecia tabela zapewnia jeden
+globalny lease publikacji batcha. Lease wygasły może zostać przejęty, a
+równoległy aktywny worker dostaje `lease_busy`.
+
+Stabilne `engagement_id` jest losową tożsamością cyklu, nie hashem geometrii.
+Kolejna publikacja dopasowuje otwarty cykl przez wspólne `conflict_id`,
+ciągłość `front_id` i dodatni overlap bbox. Jedno otwarte engagement może być
+dopasowane tylko raz w batchu, dzięki czemu split tworzy drugi równoległy byt.
+Rozwiązany cykl nie jest otwierany ponownie. Zmiana członkostwa/statusu podnosi
+`engagement_version`, zmiana geometrii `geometry_version`, a każda z nich
+`snapshot_version`. Identyczny batch jest prawdziwym no-op: nie zapisuje
+rekordu i nie podnosi żadnej wersji.
+
+Brak kandydata po pierwszej zgodnej publikacji ustawia `changing` i licznik 1.
+Drugi kolejny brak ustawia `resolved` oraz zamyka aktywne membershipy. Powrót
+overlapu przed drugim brakiem przywraca ten sam cykl do `active`. Rozwiązanie
+engagement nie zmienia lifecycle konfliktów bazowych.
+Snapshot incomplete/dirty/failed chroni powiązane engagementy: nie tworzy
+nowego membership i nie zwiększa licznika braku, więc zachowany zostaje
+ostatni poprawny stan recovery.
+
+Przed włączeniem persistence domknięto bilateralizację wejścia: graf pól służy
+wyłącznie wykrywaniu przestrzennemu, a `build_territory_conflict_detection_plan`
+zwraca osobny plan dla każdej wrogiej pary właścicieli. Istniejące konflikty
+1v1 zachowują dobór po `participant_key`; zastany rekord wieloosobowy jest
+raportowany przez 130.8.5.1 i przy kolejnej kanonicznej detekcji zostaje
+zastąpiony planami par bez przepisywania historii capture do engagement.
+
+Migracja schematu jest addytywna (`CREATE TABLE/INDEX IF NOT EXISTS`). Rollback
+polega na zatrzymaniu workera i cofnięciu kodu; nowe tabele mogą pozostać
+nieaktywne i nie są czytane przez dotychczasowy gameplay. Ich usunięcie nie
+jest wymagane i nie powinno być wykonywane automatycznie. Sprint nie publikuje
+jeszcze delt engagement ani nie zmienia widoczności/capture — to zakres
+130.8.5.3–130.8.5.5.
+
+Walidacja: 78 testów celowanych `OK`, w tym stabilność ID, join/leave,
+histereza, recovery, split i równoległe engagementy, przejęcie wygasłego
+lease, no-op wersji, brak zmiany `conflict_id/participant_key` oraz
+bilateralizacja trzyosobowego komponentu.
+
+---
+
+# Sprint 130.8.5.3 — Multi-Conflict Visibility & Clan Rules
+
+## Cel
+
+Określić dokładnie, co każdy uczestnik widzi i co może zaatakować we wspólnej strefie.
+
+Nie zmieniamy jeszcze capture.
+
+## Reguła relacji bojowej
+
+Jedyną relacją zapewniającą immunitet strategiczny jest wspólny klan.
+
+Relacja społeczna nie blokuje walki.
+
+```text
+ten sam gracz        → brak celu
+ten sam klan         → brak celu
+
+znajomy, obcy klan   → cel
+neutralny, obcy klan → cel
+wróg, obcy klan      → cel
+```
+
+Znajomy pozostaje `friend`, ale nadal może być przeciwnikiem strategicznym.
+
+Gracz bez klanu stanowi własną grupę bojową; dwa puste kody klanu nie dają
+immunitetu. Zmiana klanu podczas aktywnego konfliktu jest oceniana przy kolejnej
+kanonicznej przebudowie: wspólny klan wyłącza nowe hostile edges i cele między
+graczami, ale nie przepisuje historii capture ani starych eventów.
+
+## Widoczność aktorów
+
+Aktor może być pokazany jako:
+
+```text
+crew
+friend
+intruder
+```
+
+`crew` oznacza własny klan.
+
+`friend` oznacza relację społeczną z obcym klanem.
+
+`intruder` oznacza pozostałych obcych uczestników.
+
+## Widoczność celów
+
+Gracz widzi:
+
+```text
+filary i innery obrońcy swojego konfliktu
++
+filary i innery innych wrogich klanów
+znajdujące się we wspólnej geometrii engagement
+```
+
+Nie widzi jako celów:
+
+```text
+filarów własnego klanu
+innerów własnego klanu
+historycznych targetów
+targetów sąsiedniego konfliktu poza engagement
+```
+
+## Ważna granica
+
+Jeżeli B walczy z D kilometr dalej, A nie dostaje celów B tylko dlatego, że oba konflikty dotyczą D.
+
+Cel B staje się widoczny dla A dopiero wtedy, gdy znajdzie się w aktywnej wspólnej strefie.
+
+## Niezmiennik widoczności
+
+Obiekt, który realnie podtrzymuje aktywny front multi-conflict, nie może być jednocześnie:
+
+```text
+wrogi
+hakowalny według domeny
+niewidoczny dla wszystkich przeciwników
+```
+
+Jeżeli jest częścią aktywnej walki, musi istnieć przynajmniej jedna wroga strona mogąca go zobaczyć i zaatakować.
+
+To domyka również wcześniejszy problem niewidocznych filarów.
+
+## Territory Control / Victim Picker
+
+Oba narzędzia muszą korzystać z tej samej projekcji widoczności.
+
+Nie może wystąpić sytuacja:
+
+```text
+mapa → target niewidoczny
+Victim Picker → target widoczny
+Territory Control → jeszcze inny status
+```
+
+## Testy
+
+Scenariusze:
+
+```text
+same clan
+friend different clan
+neutral different clan
+enemy different clan
+
+target inside engagement
+target outside engagement
+
+pillar
+inner
+actor
+
+Victim Picker
+Territory Control
+map
+```
+
+Wszystkie projekcje muszą zgadzać się co do tego samego obiektu.
+
+## Jedna polityka i dokumentacja
+
+Reguły trafiają do jednej backendowej polityki projekcji, nie do warunków
+rozsianych po endpointach i JavaScript. Wynik celu zawiera co najmniej:
+
+```text
+viewer_relation
+combat_relation
+visible
+attackable
+visibility_reason
+engagement_ids
+source_conflict_ids
+```
+
+Mapa, Territory Control i Victim Picker konsumują ten sam wynik. Decision oraz
+`clans_machines.md` opisują rozdzielenie `friend` od relacji bojowej.
+`ghostnetwork_architecture.md` dokumentuje audience, jeżeli projekcja zasila
+zdarzenia GhostNetwork.
+
+## Decision 130.8.5.3 — wspólna polityka widoczności (2026-08-08)
+
+Dodano jedną backendową politykę rozdzielającą dwie osie relacji:
+
+```text
+viewer_relation = self | crew | friend | intruder
+combat_relation = self | protected_same_clan | hostile
+```
+
+`friend` nie daje immunitetu strategicznego. Wspólny niepusty klan daje
+`protected_same_clan`; gracze bez klanu są osobnymi grupami i pozostają wobec
+siebie `hostile`. Aktualny profil jest odczytywany przy projekcji, dlatego
+zmiana klanu od razu ukrywa cele nowego crew, a kolejna kanoniczna detekcja
+usuwa również hostile edge bez przepisywania historii capture.
+
+Każdy projektowany target i aktor otrzymuje:
+
+```text
+viewer_relation
+combat_relation
+visible
+attackable
+visibility_reason
+engagement_ids
+source_conflict_ids
+```
+
+Bezpośrednie cele konfliktu 1v1 zachowują dotychczasową widoczność. Cel z
+innego konfliktu jest dokładany wyłącznie, gdy jego `conflict_id` należy do
+aktywnego/changing engagementu widza, punkt leży w opublikowanej wspólnej
+geometrii i właściciel nie jest członkiem jego klanu. Sam wspólny obrońca albo
+odległy konflikt nie wystarcza. Ta sama lista `contested_targets` zasila mapę i
+Victim Picker; Territory Control otrzymuje ją jako `visible_targets` w threat
+obszaru. Victim Picker nie usuwa już pól polityki podczas serializacji.
+
+Aktor będący uczestnikiem engagementu jest ujawniany w jego geometrii. Crew
+pozostaje nieatakowalne, znajomy obcego klanu zachowuje etykietę `friend`, ale
+ma bojowe `hostile`, a pozostali są `intruder`. Akcja oznaczenia celu korzysta
+z `combat_relation`, a nie z samej relacji społecznej.
+
+Sprint nie zmienia jeszcze transferu własności. Lookup używany przez capture
+wywołuje projekcję z `include_engagement=false`; wielostronny target jest więc
+widoczny diagnostycznie i w narzędziach, ale jego atomowe przejęcie zostaje
+włączone dopiero wraz z CAS i reconciliation set w 130.8.5.4.
+
+Nie dodano audience ani eventów GhostNetwork, więc
+`ghostnetwork_architecture.md` pozostaje bez zmiany. Zmieniony kontrakt klanowy
+opisano w `clans_machines.md`. Walidacja: 85 testów terytorialnych `OK`, w tym
+spójność mapy, Victim Picker i Territory Control dla tego samego celu.
+
+---
+
+# Sprint 130.8.5.4 — Atomic Multi-Party Capture & Reconciliation
+
+## Cel
+
+Obsłużyć sytuację, w której kilku graczy może atakować ten sam obiekt i capture jednego uczestnika wpływa równocześnie na kilka konfliktów.
+
+To jest sprint gameplayowy całej serii.
+
+## Zasada
+
+Capture jest atomowym transferem własności.
+
+Pierwszy poprawnie zapisany transfer wygrywa.
+
+Przykład:
+
+```text
+A → filar D
+B → filar D
+```
+
+Jeżeli A zapisze capture pierwszy:
+
+```text
+D → A
+```
+
+Żądanie B nie może ponownie wykonać:
+
+```text
+D → B
+```
+
+na podstawie starego stanu.
+
+B otrzymuje kontrolowany rezultat:
+
+```text
+target_state_changed
+```
+
+bez:
+
+```text
+500
+podwójnego RSP
+podwójnych plików
+podwójnego capture
+podwójnych efektów
+```
+
+Atomowość wymaga compare-and-swap na kanonicznym rekordzie celu. Klient
+przekazuje oczekiwane `target_id`, ownera i znaną wersję, ale backend porównuje
+je z aktualnym store. Transfer, event capture, idempotency receipt i enqueue
+reconciliation set są jedną transakcją albo korzystają z trwałego outboxa.
+
+## Stan po capture
+
+Obiekt może później zostać zaatakowany przez B, ale już jako:
+
+```text
+owner = A
+```
+
+i tylko wtedy, gdy aktualna geometria engagement czyni go legalnym celem B.
+
+## Reconciliation set
+
+Po capture worker ustala cały zestaw struktur dotkniętych transferem.
+
+Przykład:
+
+```text
+A-D
+B-D
+engagement A-B-D
+```
+
+Capture może wymagać przebudowy:
+
+```text
+A-D
+B-D
+```
+
+a jeżeli powstanie bezpośredni spór A-B:
+
+```text
+A-B
+```
+
+oraz:
+
+```text
+engagement
+```
+
+## Ważna zasada
+
+Nie publikujemy częściowego rezultatu typu:
+
+```text
+A już widzi nowy stan
+B jeszcze stary
+D już stracił filar
+engagement nadal używa starego ownera
+```
+
+Worker najpierw przelicza dotknięty zestaw, a dopiero później publikuje wynik.
+
+Reconciliation set otrzymuje stabilny `set_id`, najwyższą żądaną wersję i jeden
+lease. Snapshoty mogą być zapisywane kolejno, ale delty stają się widoczne
+dopiero po znaczniku `published` całego zestawu. Recovery wznawia ten sam set i
+nie tworzy nowego capture.
+
+## Redukcja pola
+
+Obiekt może podtrzymywać pole tylko wtedy, gdy:
+
+```text
+ma kanonicznego właściciela
+jest aktywnym filarem lub innerem
+należy do aktualnej geometrii
+jest dostępny jako cel dla przynajmniej jednej wrogiej strony
+```
+
+Niewidoczny historyczny obiekt nie może trzymać pola.
+
+## Konflikty niezależne
+
+Capture w engagement nie daje prawa do przebudowania wszystkich konfliktów uczestnika.
+
+Przebudowywany jest wyłącznie:
+
+```text
+dotknięty konflikt
+inne konflikty zależne od tego samego transferu
+aktywny engagement
+```
+
+Front poza engagement pozostaje niezależny.
+
+## Encirclement
+
+Otoczenie nadal jest osobną mechaniczną przyczyną przejęcia całego klastra.
+
+Multi-conflict nie oznacza automatycznego wchłaniania wszystkich pól znajdujących się we wspólnej strefie.
+
+## Efekty gameplayowe
+
+Każdy capture musi nadal zachowywać istniejące zabezpieczenia:
+
+```text
+RSP
+nagrody
+pliki
+operations
+incidents
+aimed_target
+actions_allowed
+GhostNetwork hooks
+BlackNet
+Cyberner
+Radio
+```
+
+Efekt zostaje wykonany dokładnie raz dla zwycięskiego transferu.
+
+## Reconciler bezpieczeństwa
+
+Okresowy reconciler pozostaje ostatnim bezpiecznikiem.
+
+Co kilka minut może sprawdzić:
+
+```text
+ownership
+geometry
+visible pillars
+visible inners
+engagement membership
+```
+
+i wykrywać niemożliwe stany.
+
+Nie jest jednak główną ścieżką gameplayu.
+
+Reconciler wyłącznie raportuje i kolejkuje kanoniczny rebuild. Nie zmienia
+ownership, nie redukuje polygonów i nie przepisuje pillar/inner samodzielnie.
+
+## Testy
+
+Najważniejsze:
+
+```text
+A i B atakują D jednocześnie
+A wygrywa zapis
+B dostaje target_state_changed
+
+capture A tworzy front A-B
+capture A nie tworzy frontu A-B
+
+capture wpływa na dwa konflikty
+capture nie wpływa na odległy konflikt
+
+retry request
+worker crash
+duplicate job
+reconciliation
+```
+
+Plus regresje istniejącego 1v1.
+
+## Stan implementacji 130.8.5.4
+
+Capture celu terytorialnego przechodzi przez kanoniczny rekord
+`territory_target_ownership` i atomowy compare-and-swap. Bootstrap ownera jest
+wykonywany z `captured_targets`, a nie z payloadu klienta. Zwycieski zapis
+zwieksza `ownership_version`, aktualizuje projekcje kompatybilnosci i w tej
+samej transakcji zapisuje receipt oraz trwaly reconciliation set. Powtorzenie
+tego samego `action_id` zwraca idempotentny wynik, natomiast konkurencyjny
+request oparty na poprzednim ownerze lub wersji konczy sie kontrolowanym
+`target_state_changed` przed nagrodami i pozostanymi efektami gameplay.
+
+Worker w pierwszej kolejnosci odbiera reconciliation set. Zakres rozszerza
+wylacznie o aktywne konflikty zawierajace ten sam `target_id` oraz engagementy
+tych konfliktow. Rebuildy zestawu nie publikuja delt czastkowych; delty sa
+emitowane dopiero po poprawnym przeliczeniu calego zestawu. Lease i stabilny
+`set_id` pochodzacy z `target_id + ownership_version` pozwalaja wznowic ten sam
+outbox bez ponownego capture. Encirclement pozostaje poza ta sciezka.
+
+Wlaczono capture celow ujawnionych przez engagement dopiero po podpieciu CAS.
+Projekcja celu przekazuje `expected_owner_username` i `ownership_version`, ale
+backend nadal rozstrzyga na podstawie aktualnego store.
+
+## Dokumentacja i obserwowalność
+
+Decision opisuje `target_state_changed`, retry oraz idempotentny sukces. Journal
+zawiera test crash/replay i brak podwójnych nagród. Logi używają `set_id`,
+`target_id`, zwycięskiego ownera oraz dotkniętych `conflict_id` i
+`engagement_id`, bez logowania całych profili.
+
+---
+
+Tak — `130.8.5.4.1` powinien być sprintem domykającym atomowość całego multi-party capture, czyli nie zmieniać już mechaniki walki, tylko zagwarantować, że capture, efekty gameplayowe, reconciliation, engagement i publikacja snapshotów kończą się razem albo są bezpiecznie wznawiane po awarii.
+
+# Sprint 130.8.5.4.1 — Atomic Capture Completion & Reconciliation Gate
+
+## Cel
+
+Domknąć kontrakt Sprintu `130.8.5.4` po audycie multi-party capture.
+
+Fundament jest już poprawny:
+
+* pierwszy poprawny capture wygrywa,
+* canonical ownership jest chroniony przez CAS,
+* drugi atakujący nie może przejąć celu na podstawie starego stanu,
+* istnieją receipt i lease,
+* reconciliation set potrafi zebrać konflikty dotknięte transferem.
+
+Brakuje jednak gwarancji, że cały proces zostanie zakończony dokładnie raz i że żaden gracz nie zobaczy stanu znajdującego się w połowie przebudowy.
+
+Sprint nie zmienia zasad walki. Uszczelnia wykonanie istniejącego kontraktu.
+
+---
+
+## 1. Exactly-once dla efektów capture
+
+### Problem
+
+Aktualnie canonical ownership i receipt capture mogą zostać zapisane wcześniej niż pozostałe efekty gameplayowe.
+
+Możliwy przebieg:
+
+1. A przejmuje filar D.
+2. Ownership zostaje poprawnie zmieniony z D na A.
+3. Receipt potwierdza wykonany capture.
+4. Proces pada przed wykonaniem części dalszych efektów.
+5. Request zostaje ponowiony.
+6. System widzi istniejący receipt i traktuje operację jako duplicate.
+7. Brakujące efekty nie są już wykonywane.
+
+W efekcie ownership jest poprawny, ale mogą nie zostać wykonane:
+
+* RSP,
+* nagrody,
+* pliki,
+* aktualizacja profilu,
+* GhostNetwork hooks,
+* BlackNet,
+* Cyberner,
+* Radio,
+* inne efekty powiązane z udanym capture.
+
+To łamie zasadę „capture wykonał się dokładnie raz”.
+
+### Docelowe zachowanie
+
+Capture i jego efekty muszą tworzyć jeden trwały proces.
+
+Po zapisaniu transferu system musi wiedzieć nie tylko:
+
+> capture wykonany
+
+ale również:
+
+> które efekty tego capture zostały już wykonane.
+
+Jeżeli proces padnie po zmianie ownership, ponowienie operacji nie wykonuje capture drugi raz, ale kontynuuje niedokończone efekty.
+
+### Wymagany kontrakt
+
+Dla capture musi istnieć trwały zestaw efektów/outbox powiązany z jednym capture receipt.
+
+Powinien rozróżniać przynajmniej:
+
+* ownership committed,
+* gameplay effects pending,
+* gameplay effects processing,
+* gameplay effects completed,
+* reconciliation queued,
+* reconciliation completed,
+* publication completed.
+
+Każdy efekt posiada własny klucz deduplikacji.
+
+Retry:
+
+* nie powtarza transferu ownership,
+* nie powtarza ukończonych efektów,
+* wykonuje wyłącznie brakujące elementy,
+* kończy ten sam capture lifecycle.
+
+### Najważniejszy niezmiennik
+
+Jeżeli canonical ownership wskazuje już nowego właściciela w wyniku konkretnego capture, ten capture musi być możliwy do doprowadzenia do stanu `completed` nawet po restarcie workera lub procesu HTTP.
+
+---
+
+# 2. Engagement jako część reconciliation set
+
+## Problem
+
+Reconciliation set zna obecnie `engagement_ids`, ale faktycznie przebudowuje tylko bazowe konflikty.
+
+Po capture możemy więc mieć:
+
+* A–D już przebudowane,
+* B–D już przebudowane,
+* ownership już zmieniony,
+* ale engagement A–B–D nadal prezentuje poprzednią geometrię albo membership.
+
+Engagement dogania świat dopiero przy późniejszym okresowym audycie.
+
+Przez kilka minut może więc istnieć poprawny stan konfliktów bazowych i nieaktualna wspólna strefa walki.
+
+### Docelowe zachowanie
+
+Engagement należy do tego samego reconciliation set co konflikty dotknięte transferem.
+
+Jeżeli capture wpływa na:
+
+* konflikt A–D,
+* konflikt B–D,
+* engagement A–B–D,
+
+to cały zestaw traktujemy jako jeden logiczny rezultat.
+
+Worker musi w tym samym przebiegu:
+
+1. przebudować konflikty bazowe,
+2. pobrać ich nowe opublikowane fronty,
+3. ponownie policzyć membership engagement,
+4. ponownie policzyć jego geometrię,
+5. ustalić widoczność celów,
+6. przygotować jeden spójny wynik zestawu.
+
+Okresowy audit pozostaje zabezpieczeniem, a nie normalnym mechanizmem aktualizacji engagement po capture.
+
+---
+
+# 3. Publication Gate dla snapshotów
+
+## Problem
+
+Delty są już wstrzymywane do zakończenia reconciliation set, ale same snapshoty poszczególnych konfliktów mogą być zapisywane wcześniej.
+
+Przykładowo:
+
+1. przebudowany zostaje A–D,
+2. jego nowy snapshot staje się dostępny,
+3. B–D jeszcze się liczy,
+4. engagement nadal posiada poprzedni stan,
+5. klient wykonuje pełny polling `/api/map/player-areas`,
+6. otrzymuje mieszankę starego i nowego świata.
+
+Czyli event stream może być spójny, ale read model nadal może ujawnić częściowy wynik.
+
+### Docelowe zachowanie
+
+Reconciliation set otrzymuje własną granicę publikacji.
+
+Snapshot może zostać:
+
+* obliczony,
+* zapisany jako przygotowany,
+* zwalidowany,
+
+ale nie może stać się bieżącym publicznym snapshotem przed ukończeniem całego zestawu.
+
+Dopiero gdy gotowe są wszystkie:
+
+* dotknięte konflikty,
+* fronty,
+* engagementy,
+* projekcje wymagane przez capture,
+
+reconciliation set przechodzi do `published`.
+
+Wtedy wszystkie nowe snapshoty stają się widoczne jako jedna wersja logicznego świata.
+
+### Read-only mapa
+
+`/api/map/player-areas` nadal niczego nie przebudowuje.
+
+Powinien jednak czytać wyłącznie:
+
+* ostatni opublikowany komplet,
+* albo ostatni poprawny snapshot sprzed aktualnie trwającego reconciliation.
+
+Nie może zobaczyć snapshotu oznaczonego jako przygotowywany przez nieukończony set.
+
+### Awaria w połowie
+
+Jeżeli worker padnie po przebudowaniu dwóch z trzech elementów:
+
+* żaden częściowy wynik nie staje się publiczny,
+* poprzednie snapshoty nadal reprezentują świat,
+* retry przejmuje ten sam reconciliation set,
+* brakujące elementy są dokańczane,
+* dopiero potem następuje publication gate.
+
+---
+
+# 4. Canonical owner musi pochodzić ze źródła prawdy
+
+## Problem
+
+Dla historycznych albo osieroconych filarów może nie istnieć poprawny wpis w `captured_targets`.
+
+W takim przypadku bootstrap ownership może obecnie przyjąć `expected_owner_username` przekazany przez request.
+
+To jest niebezpieczne, bo dane klienta stają się wtedy źródłem początkowego ownership.
+
+Właśnie przy starych filarach, które wcześniej sprawiały problemy podczas konfliktów, może to doprowadzić do ustanowienia właściciela na podstawie nieaktualnego requestu.
+
+### Docelowe zachowanie
+
+Brak canonical ownera nie oznacza:
+
+> uwierz klientowi.
+
+Oznacza:
+
+> stan celu jest niekompletny i capture nie może zostać wykonany.
+
+Jeżeli ownership nie może zostać potwierdzony z kanonicznego źródła, operacja kończy się kontrolowanym stanem:
+
+`canonical_owner_missing`
+
+Nie wykonujemy:
+
+* capture,
+* nagród,
+* RSP,
+* plików,
+* GhostNetwork hooks,
+* reconciliation transferu.
+
+Taki przypadek trafia do diagnostyki/reconciliation jako istniejąca niespójność świata.
+
+### Zasada
+
+`expected_owner_username` jest warunkiem compare-and-swap.
+
+Nie jest źródłem własności.
+
+---
+
+# 5. Batch ownership lookup dla projekcji mapy
+
+## Problem
+
+Przy budowaniu projekcji konfliktu mapa pobiera wersję ownership osobnym odczytem dla każdego ujawnionego celu.
+
+Mały konflikt tego nie pokazuje, ale przy większej wojnie:
+
+* wiele frontów,
+* engagement,
+* kilkadziesiąt filarów,
+* innery kilku graczy,
+
+może ponownie stworzyć koszt N+1 na `/api/map/player-areas`.
+
+To jest szczególnie niepożądane, ponieważ endpoint mapy został już odchudzony i pozostaje krytycznym read modelem.
+
+### Docelowe zachowanie
+
+Ownership potrzebny dla całej odpowiedzi powinien zostać pobrany jako jeden zestaw.
+
+W obrębie pojedynczego requestu:
+
+1. zbierane są wszystkie wymagane `target_id`,
+2. wykonywany jest jeden odczyt ownership,
+3. tworzona jest lokalna mapa wyników,
+4. wszystkie projekcje korzystają z tego samego snapshotu danych.
+
+Dzięki temu jeden target posiada tę samą wersję ownership we wszystkich miejscach tego samego response.
+
+Nie tworzymy globalnego cache mogącego być starszym od canonical store. Wystarczy spójny cache requestowy/batch read.
+
+---
+
+# 6. Pełny lifecycle reconciliation set
+
+Po tym sprincie reconciliation set powinien reprezentować cały proces:
+
+* capture committed,
+* effects pending,
+* effects completed,
+* base conflicts rebuilding,
+* engagements rebuilding,
+* snapshots prepared,
+* validation completed,
+* published,
+* completed.
+
+Awaria na dowolnym etapie nie tworzy nowego procesu.
+
+Worker wznawia ten sam set.
+
+`set_id` pozostaje stabilny od capture aż do końca publikacji.
+
+---
+
+# 7. Reconciler okresowy
+
+Reconciler nadal pozostaje dodatkowym zabezpieczeniem.
+
+Sprawdza między innymi:
+
+* ownership,
+* filary,
+* innery,
+* geometrię,
+* membership engagement,
+* niedokończone capture effects,
+* reconciliation sets pozostawione po awarii.
+
+Nie wykonuje jednak alternatywnej logiki gameplayu.
+
+Jeżeli wykryje niedokończony proces, kolejkuje jego kanoniczne wznowienie.
+
+Nie wykonuje drugiego capture i nie przyznaje efektów poza outboxem.
+
+---
+
+# 8. Testy wymagane do zamknięcia 130.8.5.4
+
+Dotychczasowe testy równoległego capture, CAS i lease pozostają, ale sprint musi dodać scenariusze awaryjne.
+
+### Crash po CAS
+
+Scenariusz:
+
+* ownership zmieniony,
+* proces pada przed RSP/nagrodami/hookami,
+* retry,
+* ownership nie zmienia się ponownie,
+* brakujące efekty zostają wykonane,
+* każdy efekt dokładnie raz.
+
+### Crash podczas efektów
+
+Część efektów wykonana, część nie.
+
+Po retry:
+
+* wykonane nie powtarzają się,
+* brakujące dochodzą,
+* końcowy stan jest identyczny jak przy przebiegu bez awarii.
+
+### Crash w reconciliation set
+
+* pierwszy konflikt przebudowany,
+* drugi nie,
+* engagement nie,
+* worker pada.
+
+Klient nadal widzi poprzedni kompletny stan.
+
+Retry kończy set i dopiero wtedy publikuje nową wersję.
+
+### Engagement
+
+Capture zmienia fronty bazowe i engagement.
+
+Test musi potwierdzić, że po publikacji engagement odpowiada tym samym wersjom świata co konflikty członkowskie.
+
+### Polling podczas rebuilda
+
+W trakcie niedokończonego reconciliation:
+
+* pełny endpoint mapy nie pokazuje częściowego stanu,
+* delta nie wychodzi przed publication gate.
+
+### Missing owner
+
+Historyczny filar bez canonical ownership:
+
+* nie przyjmuje ownera z requestu,
+* zwraca `canonical_owner_missing`,
+* brak efektów capture.
+
+### Batch ownership
+
+Duży konflikt z wieloma targetami:
+
+* ownership pobierany zbiorczo,
+* brak liczby zapytań rosnącej liniowo z liczbą targetów,
+* wszystkie projekcje używają tego samego wyniku requestu.
+
+---
+
+# 9. Regresja gameplayu
+
+Po zmianach ponownie sprawdzić:
+
+* zwykły capture 1v1,
+* jednoczesny atak A i B na D,
+* `target_state_changed`,
+* inner → pillar,
+* redukcję terytorium,
+* encirclement,
+* aimed target,
+* actions allowed,
+* Victim Picker,
+* Territory Control,
+* aktywne operacje i incydenty,
+* RSP i nagrody,
+* generowanie plików,
+* GhostNetwork,
+* BlackNet,
+* Cyberner,
+* Radio,
+* restart workera w trakcie capture,
+* restart workera w trakcie reconciliation.
+
+Najważniejsze jest potwierdzenie, że uszczelnienie transakcyjności nie zmienia samej mechaniki konfliktu.
+
+---
+
+# Kryteria zakończenia
+
+Sprint `130.8.5.4.1` jest zamknięty dopiero wtedy, gdy:
+
+* ownership capture może zostać wykonany tylko raz,
+* wszystkie efekty udanego capture ostatecznie wykonują się dokładnie raz,
+* retry po crashu wznawia brakujące efekty,
+* engagement jest elementem tego samego reconciliation set,
+* reconciliation set posiada wspólny publication gate,
+* endpoint mapy nie może zobaczyć częściowego zestawu,
+* stary kompletny snapshot pozostaje publiczny do czasu ukończenia nowego,
+* brak canonical ownera blokuje capture kontrolowanym wynikiem,
+* dane requestu nigdy nie ustanawiają ownership,
+* ownership mapy pobierany jest batchowo,
+* crash na każdym etapie można bezpiecznie wznowić,
+* brak podwójnych nagród, RSP, plików i hooków,
+* testy awarii i recovery przechodzą.
+
+## Stan implementacji 130.8.5.4.1 — etap 1
+
+Usunięto możliwość ustanowienia początkowego ownership na podstawie
+`expected_owner_username` z requestu. Jeżeli kanoniczny owner nie istnieje ani
+w `territory_target_ownership`, ani w źródłowym `captured_targets`, CAS zapisuje
+idempotentny receipt z wynikiem `canonical_owner_missing` i nie tworzy
+reconciliation set. Endpoint zwraca kontrolowane 409 przed capture i efektami.
+
+Projekcja widoczności pobiera ownership jednym odczytem `list_map()` na kontekst
+requestu. Wszystkie targety odpowiedzi korzystają z tej samej mapy wersji;
+usunięto otwieranie osobnego połączenia SQLite dla każdego filaru/innera.
+
+Etap nie zamyka sprintu. Effects outbox, engagement rebuild w tym samym set oraz
+publication gate snapshotów pozostają kolejnymi obowiązkowymi krokami 4.1.
+
+## Stan implementacji 130.8.5.4.1 — etap 2
+
+Reconciliation set posiada teraz trwałe snapshot gates. Przy dodaniu konfliktu
+do setu zapamiętywana jest ostatnia publiczna `snapshot_version`; konflikty
+odkryte przez worker są dopisywane do scope przed pierwszym rebuildem. Dopóki
+set ma status `pending` albo `processing`, read-only endpoint mapy otrzymuje
+snapshot nie nowszy niż zapamiętana wersja. Po `published` gate automatycznie
+odsłania najnowszy komplet. Endpoint nadal nie wykonuje żadnego rebuilda.
+
+Worker po przeliczeniu wszystkich konfliktów uruchamia kanoniczny detector i
+publikację engagementów w tym samym przebiegu setu. Nie kończy setu, jeżeli
+engagement publication nie uzyska `ok`. Okresowy audit pozostaje recovery, a
+nie normalną ścieżką capture.
+
+Sprint nadal pozostaje otwarty wyłącznie na trwały effects outbox i testy
+crash/replay poszczególnych efektów capture.
+
+Dopiero po tym można uczciwie uznać `130.8.5.4` za zamknięty i przejść do `130.8.5.5`, bo wtedy multi-conflict będzie już nie tylko poprawny przy idealnym przebiegu, ale również odporny na dokładnie te sytuacje, które potem naprawdę zdarzają się przy kilku workerach, retry i długich wojnach na mapie.
+
+
+---
+
+# Sprint 130.8.5.5 — Multi-Conflict Map, Deltas & Cutover
+
+## Cel
+
+Włączyć multi-conflict do normalnego runtime gry bez zastępowania istniejących warstw konfliktów.
+
+## Warstwa mapy
+
+Engagement otrzymuje osobną projekcję.
+
+Mapa pokazuje równolegle:
+
+```text
+terytoria
+bazowe fronty 1v1
+multi-conflict engagement
+filary
+innery
+aktorów
+incydenty
+```
+
+Warstwa engagement nie może usuwać ani zastępować frontów bazowych.
+
+## Stabilne identyfikatory
+
+Frontend aktualizuje:
+
+```text
+conflict_id
+front_id
+engagement_id
+target_id
+```
+
+nie:
+
+```text
+indeksy tablic
+kolejność elementów
+geometrię jako ID
+```
+
+## Delta engagement
+
+Minimalnie:
+
+```text
+engagement_id
+engagement_version
+geometry_version
+snapshot_version
+status
+
+member_conflict_ids
+participant_usernames
+
+changed_targets
+removed_targets
+changed_fronts
+removed_fronts
+
+geometry
+complete
+recovery_required
+```
+
+Osobny typ zdarzenia:
+
+```text
+territory.engagement_changed
+```
+
+Deduplikacja używa `engagement_id` i wersji, nie geometrii ani listy
+uczestników. Audience obejmuje uczestników bazowych konfliktów oraz jawnie
+wyliczonych odbiorców crew. Payload jest projekcją per viewer albo odsyła do
+bezpiecznego snapshotu odbiorcy.
+
+## Jedna projekcja per viewer
+
+Backend przygotowuje wynik względem konkretnego gracza.
+
+Dzięki temu frontend nie podejmuje samodzielnie decyzji:
+
+```text
+czy to crew?
+czy friend?
+czy hostile?
+czy można hackować?
+```
+
+Dostaje już wynik projekcji.
+
+Frontend utrzymuje osobne registry, np. `territoryEngagementLayers`. Reconcile
+engagement nie usuwa wpisów z registry bazowych frontów, markerów ani warstw
+terytoriów. Equal-version recovery stosuje mechanizm brakujących warstw znany z
+ustabilizowanego konfliktu 1v1.
+
+## Recovery
+
+Pełny snapshot pozostaje mechanizmem:
+
+```text
+boot
+recovery
+version gap
+corruption recovery
+```
+
+Normalna zmiana engagement powinna być obsługiwana deltą.
+
+## Cutover
+
+Wdrożenie etapami:
+
+```text
+1. shadow detection
+2. engagement store aktywny bez UI
+3. projekcja widoczności w diagnostyce
+4. multi-party capture
+5. engagement delta
+6. mapa
+7. pełny runtime
+```
+
+W każdym etapie zwykły konflikt 1v1 musi pozostać grywalny bez engagement.
+
+## Stan implementacji — 2026-08-08
+
+Rozpoczęto etapy 5-6 addytywnie. Backend publikuje osobny
+`territory.engagement_changed`, deduplikowany przez stabilne `engagement_id` i
+`snapshot_version`. Payload jest projektowany per viewer; audience obejmuje
+uczestników i crew ich aktualnych klanów, ale nie znajomych z obcych klanów.
+Endpoint mapy zwraca `territory_engagement_snapshots` obok niezmienionych
+snapshotów konfliktów 1v1.
+
+Frontend utrzymuje wyłącznie dla tej projekcji osobne registry
+`territoryEngagementRegistry` i `territoryEngagementLayers`. Boot/recovery
+rekoncyliuje pełny zestaw, zwykła zmiana idzie deltą, luka wersji uruchamia
+snapshot recovery, a equal-version odtwarza brakującą warstwę Leaflet.
+Usunięcie engagement nie usuwa frontów, filarów ani pól bazowego konfliktu.
+
+Effects outbox pozostaje świadomie poza zakresem tego sprintu jako oddzielna
+implementacja. Pełny runtime/cutover produkcyjny i test macierzy końcowej nadal
+pozostają otwarte.
+
+## Regresja końcowa
+
+Przed zamknięciem serii należy przetestować co najmniej:
+
+```text
+1v1 bez engagement
+1v1 → multi → 1v1
+A-D + B-D
+A-D + B-D + C-D
+
+ten sam klan
+friend obcego klanu
+neutral
+enemy
+
+simultaneous capture
+encirclement
+redukcję pola
+inner → pillar
+
+Victim Picker
+Territory Control
+aimed_target
+actions_allowed
+
+operations
+incidents
+RSP
+files
+
+GhostNetwork
+BlackNet
+Cyberner
+Radio
+
+map bootstrap
+delta
+recovery
+reload mapy
+kilka workerów
+rozłączne engagementy tych samych konfliktów
+zmianę klanu podczas engagement
+stary klient bez obsługi engagement
+```
+
+## Dokumentacja cutoveru
+
+Decision zawiera flagi wdrożeniowe, kolejność włączenia, rollback do samego
+1v1, kontrakt snapshot/delta i wynik testu produkcyjnego. Journal odnotowuje
+czasy bootu i delt, liczbę warstw Leaflet oraz brak rebuildów w endpointach
+mapy. Po cutoverze aktualizujemy dokumenty downstream ze wspólnego
+Documentation Gate.
+
+## Kryterium zamknięcia całej serii
+
+Po `130.8.5.5` obowiązuje jedna podstawowa zasada:
+
+```text
+1 konflikt 1v1
+=
+1 stabilny conflict_id
+```
+
+Niezależnie od tego, ilu dodatkowych graczy pojawia się obok.
+
+Jeżeli kilka takich konfliktów zaczyna współdzielić pole walki:
+
+```text
+conflict A-D ─┐
+              ├─ engagement XYZ
+conflict B-D ─┘
+```
+
+Engagement koordynuje ich wspólną część, ale nie staje się właścicielem historii, filarów ani tożsamości bazowych konfliktów.
+
+To jest najważniejsza granica architektoniczna całych pięciu sprintów — dzięki niej możemy rozwinąć walkę do wielu graczy, nie rozwalając stabilności `conflict_id`, nad którą siedzieliśmy tyle czasu.
+
 
 
 > Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.
