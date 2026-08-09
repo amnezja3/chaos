@@ -288,6 +288,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("registeredFrontIds", source)
         self.assertIn("polygon._chaosLayerRegistry = 'territoryAreaLayers'", source)
         self.assertIn("territoryClanPalette", source)
+        self.assertIn("'phantom mesh': { stroke: '#00CFA6'", source)
         self.assertIn("territoryViewerClan", source)
         self.assertIn("window.mapViewerClan", source)
         self.assertIn("(isMine || isCrew) ? null : '8 6'", source)

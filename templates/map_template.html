@@ -2030,15 +2030,26 @@
 
         const territoryClanPalette = Object.freeze({
             'straznicy ladu': { stroke: '#238BFF', fill: '#1665BD' },
+            'sentinel core': { stroke: '#238BFF', fill: '#1665BD' },
             'echo wolnosci': { stroke: '#FFD43B', fill: '#C79C00' },
+            'nova anarch': { stroke: '#FFD43B', fill: '#C79C00' },
             'virex': { stroke: '#E53935', fill: '#A91F24' },
             'virex korporacja': { stroke: '#E53935', fill: '#A91F24' },
-            'siatka widmo': { stroke: '#00CFA6', fill: '#008F78' }
+            'virex conglomerate': { stroke: '#E53935', fill: '#A91F24' },
+            'siatka widmo': { stroke: '#00CFA6', fill: '#008F78' },
+            'phantom mesh': { stroke: '#00CFA6', fill: '#008F78' }
         });
 
         function normalizeTerritoryClanName(value) {
-            return String(value || '').trim().toLowerCase()
+            const normalized = String(value || '').trim().toLowerCase()
                 .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            return ({
+                'sentinel core': 'straznicy ladu',
+                'nova anarch': 'echo wolnosci',
+                'virex conglomerate': 'virex',
+                'virex korporacja': 'virex',
+                'phantom mesh': 'siatka widmo'
+            })[normalized] || normalized;
         }
 
         function territoryViewerClan() {
