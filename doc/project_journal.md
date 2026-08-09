@@ -11312,3 +11312,14 @@ Po zamknięciu MVP usunięto historyczny przełącznik
 `CHAOS_PROVISIONAL_APP_LAUNCH_ENABLED` pozostaje, ponieważ steruje inną granicą
 runtime: szybkim oknem provisional i pre-execution schedulerem. Nie dodano nowych
 zmiennych środowiskowych.
+
+Naprawiono deterministyczny timeout bootu pulpitu na `/api/profile`. Route
+`/desktop` i snapshot `/api/profile` nie uruchamiają już pełnego rebuilda
+terytorium ani zapisu normalizacji podczas odczytu. Odczyt nadal nakłada runtime
+store i odświeża operacje, natomiast geometria pozostaje odpowiedzialnością
+dedykowanego workera. `/api/profile` nie wywołuje również pełnego
+`refresh_and_persist_operations`; pobiera operacje ze store i oblicza ich pola
+czasowe wyłącznie na kopii odpowiedzi, bez zapisu całego profilu. Frontend
+współdzieli równoległe wywołania `/api/profile`
+tylko na czas trwania requestu, co usuwa bootowy stampede bez cache'owania
+profilu między kolejnymi odświeżeniami.

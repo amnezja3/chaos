@@ -16329,7 +16329,12 @@ def desktop():
     if not user:
         return redirect(url_for("index"))
 
-    profile = sync_session_profile()
+    profile = sync_session_profile(
+        rebuild_territory=False,
+        persist_normalization=False,
+    )
+    if not isinstance(profile, dict):
+        return redirect_missing_profile_to_login()
     return render_template(
         "linux.html",
         user=user,
@@ -19129,8 +19134,28 @@ def api_profile():
         return jsonify({"error": "Brak danych użytkownika"}), 401
 
     snapshot_started_at = blacknet_utc_now()
-    profile = sync_session_profile()
-    profile = refresh_and_persist_operations(session["user"], profile)
+    profile = sync_session_profile(
+        rebuild_territory=False,
+        persist_normalization=False,
+    )
+    if not isinstance(profile, dict):
+        session.clear()
+        return jsonify({"error": "Brak danych uzytkownika"}), 401
+    try:
+        stored_operations = player_operation_store.list_operations(
+            session["user"],
+            include_terminal=True,
+        )
+    except Exception as exc:
+        print(f"[PROFILE] operation snapshot fallback user={session['user']} error={exc}", flush=True)
+        stored_operations = []
+    snapshot_operations = stored_operations or profile.get("operations", []) or []
+    operation_now_ts = datetime.now(timezone.utc).timestamp()
+    profile["operations"] = [
+        refresh_operation_runtime(operation, now_ts=operation_now_ts)
+        for operation in snapshot_operations
+        if isinstance(operation, dict)
+    ]
     profile["desktop_settings"] = normalize_desktop_settings(profile.get("desktop_settings"))
     profile["dev_mode"] = is_dev_mode_enabled()
     profile["app_version"] = APP_VERSION

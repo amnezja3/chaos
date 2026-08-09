@@ -9164,23 +9164,31 @@ async function createProfile() {
 }
 
 
+let userProfileRequestPromise = null;
+
 async function getUserProfile() {
+    if (userProfileRequestPromise) return userProfileRequestPromise;
     const snapshotClientRequestedMs = Date.now();
-    try {
-        const res = await fetch('/api/profile');
-        if (res.status === 401) {
-            desktopSessionActive = false;
+    userProfileRequestPromise = (async () => {
+        try {
+            const res = await fetch('/api/profile');
+            if (res.status === 401) {
+                desktopSessionActive = false;
+                return null;
+            }
+            if (!res.ok) throw new Error(`Nieprawidłowy response (${res.status})`);
+            const data = await res.json();
+            data.snapshot_client_requested_ms = snapshotClientRequestedMs;
+            data.snapshot_client_received_ms = Date.now();
+            return data;
+        } catch (err) {
+            console.error("❌ Błąd pobierania profilu użytkownika:", err);
             return null;
+        } finally {
+            userProfileRequestPromise = null;
         }
-        if (!res.ok) throw new Error("Nieprawidłowy response");
-        const data = await res.json();
-        data.snapshot_client_requested_ms = snapshotClientRequestedMs;
-        data.snapshot_client_received_ms = Date.now();
-        return data;
-    } catch (err) {
-        console.error("❌ Błąd pobierania profilu użytkownika:", err);
-        return null;
-    }
+    })();
+    return userProfileRequestPromise;
 }
 
 function rememberProcessedDelta(key) {
