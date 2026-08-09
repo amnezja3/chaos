@@ -35,6 +35,7 @@ from config import (
     DEFAULT_STORAGE_CAPACITY_MB,
     FLASK_SESSION_CONFIG,
     OPERATION_FEEDBACK_FLAGS,
+    PROVISIONAL_APP_LAUNCH_ENABLED,
     PERF_LOG_ENDPOINTS,
     PERF_LOG_MIN_MS,
     PERF_LOG_MIN_SIZE,
@@ -16335,6 +16336,7 @@ def desktop():
         inventory=profile["inventory"],
         profile=profile,
         operation_feedback_flags=OPERATION_FEEDBACK_FLAGS,
+        provisional_app_launch_flags={"enabled": PROVISIONAL_APP_LAUNCH_ENABLED},
     )
 
 
@@ -18186,7 +18188,8 @@ def hack_action():
                 "canonical_action": canonical_action
             }), 409
 
-        if len(preflight_matched_apps) > 1:
+        if len(preflight_matched_apps) > 1 or PROVISIONAL_APP_LAUNCH_ENABLED:
+            auto_select = len(preflight_matched_apps) == 1
             app_flow_debug(
                 flow_id,
                 "hack_action_return_tool_selection_preflight",
@@ -18207,7 +18210,12 @@ def hack_action():
             return jsonify({
                 "success": True,
                 "tool_selection_required": True,
-                "status": "Wybierz narzędzie z katalogu /tools.",
+                "auto_select": auto_select,
+                "status": (
+                    "Przygotowano jedyne pasujace narzedzie."
+                    if auto_select
+                    else "Wybierz narzędzie z katalogu /tools."
+                ),
                 "map_action_id": action,
                 "canonical_action": canonical_action,
                 "app_match_source": preflight_match_source,

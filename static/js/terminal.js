@@ -1482,6 +1482,277 @@ function buildApplicationWindowLaunchKey(id, type) {
     return `${String(type || "app").trim().toLowerCase()}:${String(id || "").trim().toLowerCase()}`;
 }
 
+function readProvisionalAppLaunchFlags() {
+    const node = document.getElementById("provisional-app-launch-config");
+    if (!node) return { enabled: false };
+    try {
+        const parsed = JSON.parse(node.textContent || "{}");
+        return { enabled: parsed.enabled === true };
+    } catch (error) {
+        console.warn("[app launch] Nieprawidlowy provisional launch config", error);
+        return { enabled: false };
+    }
+}
+
+const provisionalAppLaunchFlags = readProvisionalAppLaunchFlags();
+const provisionalApplicationSessions = new Map();
+let provisionalApplicationTombstones = [];
+let activeProvisionalHydrationSession = null;
+const PROVISIONAL_APPLICATION_TOMBSTONE_TTL_MS = 120000;
+
+function normalizeLaunchCorrelation(value) {
+    return String(value || "").trim().toLowerCase();
+}
+
+function provisionalSessionMatchesLaunch(session, item = {}) {
+    if (!session) return false;
+    const receipt = normalizeLaunchCorrelation(item.receipt);
+    if (receipt && normalizeLaunchCorrelation(session.receipt) === receipt) return true;
+    const appId = normalizeLaunchCorrelation(item.app_id || item.id || item.name);
+    const clientKey = normalizeLaunchCorrelation(item.client_action_key);
+    if (clientKey && appId
+        && normalizeLaunchCorrelation(session.clientActionKey) === clientKey
+        && normalizeLaunchCorrelation(session.appId) === appId) return true;
+    return Boolean(appId
+        && normalizeLaunchCorrelation(session.appId) === appId
+        && normalizeLaunchCorrelation(session.flowId) === normalizeLaunchCorrelation(item.flow_id)
+        && normalizeLaunchCorrelation(session.action) === normalizeLaunchCorrelation(item.action));
+}
+
+function pruneProvisionalApplicationTombstones() {
+    const now = Date.now();
+    provisionalApplicationTombstones = provisionalApplicationTombstones.filter(item => item.expiresAt > now);
+}
+
+function resolveProvisionalApplicationLaunch(item = {}) {
+    if (!provisionalAppLaunchFlags.enabled) return { outcome: "not_found", session: null };
+    pruneProvisionalApplicationTombstones();
+    if (provisionalApplicationTombstones.some(tombstone => provisionalSessionMatchesLaunch(tombstone, item))) {
+        return { outcome: "tombstoned", session: null };
+    }
+    const matches = Array.from(provisionalApplicationSessions.values())
+        .filter(session => !session.disposed && provisionalSessionMatchesLaunch(session, item));
+    return matches.length === 1
+        ? { outcome: "hydrated", session: matches[0] }
+        : { outcome: "not_found", session: null };
+}
+
+function bindProvisionalApplicationReceipt(session, item = {}) {
+    if (!session || session.disposed) return;
+    session.receipt = String(item.receipt || session.receipt || "").trim();
+    session.clientActionKey = String(item.client_action_key || session.clientActionKey || "").trim();
+    session.action = String(item.action || session.action || "").trim();
+}
+
+function buildProvisionalLaunchSessionKey(selection = {}, appData = {}) {
+    const pending = selection.pending_action || {};
+    const flowId = getHackFlowId(selection);
+    const clientKey = String(pending._client_action_key || selection.pending_request_key || flowId || "manual").trim();
+    const appId = String(appData.id || appData.name || "app").trim();
+    return `${clientKey}:${appId}`;
+}
+
+function updateProvisionalApplicationSession(session, state, message = "") {
+    if (!session || session.disposed) return;
+    session.state = state;
+    const appWindow = session.appWindow;
+    if (!appWindow || !appWindow.isConnected) return;
+    appWindow.dataset.provisionalState = state;
+    const status = appWindow.querySelector(".provisional-app-status");
+    if (status) status.textContent = message || state;
+}
+
+function disposeProvisionalApplicationSession(session, reason = "window_closed") {
+    if (!session || session.disposed) return;
+    session.disposed = true;
+    session.state = "disposed";
+    provisionalApplicationSessions.delete(session.sessionKey);
+    provisionalApplicationTombstones.push({
+        receipt: session.receipt || "",
+        clientActionKey: session.clientActionKey || "",
+        appId: session.appId || "",
+        flowId: session.flowId || "",
+        action: session.action || "",
+        expiresAt: Date.now() + PROVISIONAL_APPLICATION_TOMBSTONE_TTL_MS
+    });
+    appFlowTrace(session.flowId, "provisional_app_disposed", {
+        app_id: session.appId,
+        session_key: session.sessionKey,
+        reason
+    });
+}
+
+function beginProvisionalLaunch(selection = {}, appData = {}) {
+    if (!provisionalAppLaunchFlags.enabled) return null;
+    const sessionKey = buildProvisionalLaunchSessionKey(selection, appData);
+    const existing = provisionalApplicationSessions.get(sessionKey);
+    if (existing && !existing.disposed && existing.appWindow?.isConnected) {
+        bringWindowToFront(existing.appWindow);
+        return existing;
+    }
+
+    const pending = selection.pending_action || {};
+    const flowId = getHackFlowId(selection);
+    const appId = String(appData.id || appData.name || "").trim();
+    const appName = String(appData.name || appData.id || "Aplikacja").trim();
+    const projectedContent = window.OperationFeedbackSystem
+        ? window.OperationFeedbackSystem.projectApplicationContent(appData)
+        : null;
+    const safeDescription = projectedContent?.legacy?.transition?.[0]
+        || "Przygotowanie lokalnego srodowiska aplikacji.";
+    const position = findAvailablePosition(460, 280);
+    const appWindow = document.createElement("div");
+    appWindow.className = "app-window provisional-app-window";
+    appWindow.dataset.appId = appId;
+    appWindow.dataset.appTitle = appName;
+    appWindow.dataset.appInterface = String(appData.interface || "provisional");
+    appWindow.dataset.appFlowId = flowId;
+    appWindow.dataset.launchSource = "map";
+    appWindow.dataset.provisionalSessionKey = sessionKey;
+    appWindow.dataset.provisionalState = "launching";
+    appWindow.style.top = `${position.top}px`;
+    appWindow.style.left = `${position.left}px`;
+    appWindow.style.width = "460px";
+    appWindow.style.maxWidth = "calc(100vw - 24px)";
+    appWindow.innerHTML = `
+        <div class="title-bar">
+            ${escapeHTML(appName)}
+            <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
+        </div>
+        <div class="app-content provisional-app-content">
+            <div class="provisional-app-heading">
+                <span class="provisional-app-icon">${escapeHTML(appData.icon || "\u{1F6E0}\uFE0F")}</span>
+                <div>
+                    <strong>${escapeHTML(appName)}</strong>
+                    <span>${escapeHTML(safeDescription)}</span>
+                </div>
+            </div>
+            <div class="provisional-app-activity" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div class="provisional-app-status" role="status">Inicjalizacja lokalnego profilu...</div>
+            ${pending.label ? `<div class="provisional-app-target">Cel: ${escapeHTML(pending.label)}</div>` : ""}
+        </div>
+    `;
+
+    const context = buildApplicationLaunchContext({
+        ...appData,
+        _flow_id: flowId,
+        _source: "map",
+        _map_action_id: pending.action || selection.map_action_id || selection.canonical_action || ""
+    });
+    const session = {
+        sessionKey,
+        appId,
+        flowId,
+        appWindow,
+        context,
+        clientActionKey: String(pending._client_action_key || selection.pending_request_key || "").trim(),
+        action: String(pending.action || selection.map_action_id || selection.canonical_action || "").trim(),
+        receipt: "",
+        state: "launching",
+        disposed: false
+    };
+    appWindow._provisionalApplicationSession = session;
+    appWindow._operationFeedbackLaunchContext = Object.freeze({
+        action_key: context.action_key || "",
+        security_state: context.security_state || {},
+        application_content: context.application_content || null
+    });
+    appWindow.dataset.expectedTarget = pending
+        ? JSON.stringify({
+            lat: pending.lat,
+            lng: pending.lng,
+            label: pending.label || pending.name || "",
+            target_mode: pending.target_mode || ""
+        })
+        : "";
+    appWindow.querySelector(".close-btn")?.addEventListener("click", () => {
+        disposeProvisionalApplicationSession(session, "window_closed");
+        appWindow.remove();
+    });
+    provisionalApplicationSessions.set(sessionKey, session);
+    document.body.appendChild(appWindow);
+    makeDraggable(appWindow);
+    bringWindowToFront(appWindow);
+    appFlowTrace(flowId, "provisional_app_created", {
+        app_id: appId,
+        session_key: sessionKey,
+        action: context.action_key,
+        source: "map"
+    });
+    return session;
+}
+
+window.beginProvisionalLaunch = beginProvisionalLaunch;
+
+function consumeProvisionalHydrationWindow(id, type) {
+    const session = activeProvisionalHydrationSession;
+    activeProvisionalHydrationSession = null;
+    if (!session || session.disposed || !session.appWindow?.isConnected) return null;
+    if (normalizeLaunchCorrelation(session.appId) !== normalizeLaunchCorrelation(id)) return null;
+    const app = session.appWindow;
+    updateProvisionalApplicationSession(session, "hydrating", "Ladowanie autorytatywnej aplikacji...");
+    app.className = "app-window";
+    app.style.removeProperty("width");
+    app.style.removeProperty("max-width");
+    app.dataset.appInterface = type;
+    app.dataset.provisionalState = "hydrating";
+    return app;
+}
+
+function beginApplicationRenderLaunch(id, type) {
+    const hydrationSession = activeProvisionalHydrationSession;
+    if (hydrationSession
+        && !hydrationSession.disposed
+        && hydrationSession.appWindow?.isConnected
+        && normalizeLaunchCorrelation(hydrationSession.appId) === normalizeLaunchCorrelation(id)) {
+        return true;
+    }
+    return beginApplicationWindowLaunch(id, type);
+}
+
+function prepareApplicationRenderWindow(id, type) {
+    const hydrated = consumeProvisionalHydrationWindow(id, type);
+    const app = hydrated || document.createElement("div");
+    app.className = "app-window";
+    app.dataset.launchKey = buildApplicationWindowLaunchKey(id, type);
+    app.dataset.appFlowId = getCurrentAppFlowId();
+    app.dataset.appId = id;
+    app.dataset.appInterface = type;
+    applyApplicationLaunchContext(app, { id, interface: type });
+    if (!hydrated) {
+        const position = findAvailablePosition();
+        app.style.top = `${position.top}px`;
+        app.style.left = `${position.left}px`;
+    }
+    return { app, hydrated: Boolean(hydrated) };
+}
+
+function finishApplicationRenderWindow(app, hydrated) {
+    if (!app.isConnected) document.body.appendChild(app);
+    if (!hydrated) makeDraggable(app);
+    const session = app._provisionalApplicationSession;
+    if (session && !session.disposed) {
+        updateProvisionalApplicationSession(session, "presenting", "Ladowanie zawartosci aplikacji...");
+        updateProvisionalApplicationSession(session, "interactive", "Aplikacja gotowa.");
+    }
+}
+
+function hydrateProvisionalApplicationSession(session, appData, item = {}) {
+    if (!session || session.disposed || !session.appWindow?.isConnected) return "tombstoned";
+    bindProvisionalApplicationReceipt(session, item);
+    activeProvisionalHydrationSession = session;
+    try {
+        launchApplicationEffect(appData);
+        if (activeProvisionalHydrationSession === session) activeProvisionalHydrationSession = null;
+        return "hydrated";
+    } catch (error) {
+        activeProvisionalHydrationSession = null;
+        updateProvisionalApplicationSession(session, "failed", "Nie udalo sie zaladowac aplikacji.");
+        console.error("[app launch] Hydration failed", error);
+        return "failed";
+    }
+}
+
 function buildApplicationLaunchContext(appData = {}) {
     const flowId = getCurrentAppFlowId(appData._flow_id || appData.flow_id || appData.debug_flow?.flow_id || "");
     const appId = String(appData.id || appData.app_id || "").trim();
@@ -2301,7 +2572,6 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
             body: JSON.stringify({ input: value })
         });
         const data = await res.json();
-
         if (data.clear) {
             content.innerHTML = '';
             return true;
@@ -2732,6 +3002,10 @@ function startAppWaitLog(container, options = {}) {
 }
 
 function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } = {}) {
+    const provisionalSession = appWindow?._provisionalApplicationSession;
+    if (provisionalSession && !provisionalSession.disposed) {
+        updateProvisionalApplicationSession(provisionalSession, "executing", "Operacja w toku...");
+    }
     const context = currentApplicationLaunchContext(appWindow);
     const ofs = window.OperationFeedbackSystem;
     let session = null;
@@ -2764,10 +3038,16 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
         complete(payload) {
             stopLegacy();
             if (session) session.complete(payload);
+            if (provisionalSession && !provisionalSession.disposed) {
+                updateProvisionalApplicationSession(provisionalSession, "completing", "Finalizacja wyniku...");
+            }
         },
         fail(reason) {
             stopLegacy();
             if (session) session.fail(reason);
+            if (provisionalSession && !provisionalSession.disposed) {
+                updateProvisionalApplicationSession(provisionalSession, "failed", "Operacja zakonczona bledem.");
+            }
         }
     };
 }
@@ -2787,6 +3067,7 @@ function startLegacyAppWaitUnlessFeedbackEnabled(appWindow) {
 function disposeOperationFeedbackWindow(appWindow, reason = "window_closed") {
     const ofs = window.OperationFeedbackSystem;
     if (ofs) ofs.disposeWindowSession(appWindow, reason);
+    disposeProvisionalApplicationSession(appWindow?._provisionalApplicationSession, reason);
 }
 
 function formatHackAccessTime(seconds) {
@@ -3719,23 +4000,14 @@ function createTerminal() {
 }
 
 function app_window(id, levels) {
-    if (!beginApplicationWindowLaunch(id, "window")) return null;
+    if (!beginApplicationRenderLaunch(id, "window")) return null;
     const safeLevels = Array.isArray(levels) ? levels : [];
     const level = safeLevels[0] || {};
     const items = Array.isArray(level.list) && level.list.length
         ? level.list
         : [`Aplikacja ${id} uruchomiona.`];
     const windowButtons = Array.isArray(level.buttons) ? level.buttons : [];
-    const app = document.createElement('div');
-    app.className = 'app-window';
-    app.dataset.launchKey = buildApplicationWindowLaunchKey(id, "window");
-    app.dataset.appFlowId = getCurrentAppFlowId();
-    app.dataset.appId = id;
-    app.dataset.appInterface = "window";
-    applyApplicationLaunchContext(app, { id, interface: "window" });
-    const position = findAvailablePosition();
-    app.style.top = `${position.top}px`;
-    app.style.left = `${position.left}px`;
+    const { app, hydrated } = prepareApplicationRenderWindow(id, "window");
 
     app.innerHTML = `
         <div class="title-bar">${escapeHTML(id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
@@ -3753,8 +4025,7 @@ function app_window(id, levels) {
         </div>
     `;
 
-    document.body.appendChild(app);
-    makeDraggable(app);
+    finishApplicationRenderWindow(app, hydrated);
     app.querySelector('.close-btn').addEventListener('click', () => {
         disposeOperationFeedbackWindow(app, "window_closed");
         app.remove();
@@ -3801,22 +4072,13 @@ function app_window(id, levels) {
 }
 
 async function app_progressbar_random(id, levels) {
-    if (!beginApplicationWindowLaunch(id, "progressbar_random")) return null;
+    if (!beginApplicationRenderLaunch(id, "progressbar_random")) return null;
     const safeLevels = Array.isArray(levels) ? levels : [];
     const level = safeLevels[0] || {};
     const steps = Array.isArray(level.steps) && level.steps.length
         ? level.steps
         : ["Inicjalizacja modułu...", "Wykonanie operacji...", "Finalizacja..."];
-    const app = document.createElement('div');
-    app.className = 'app-window';
-    app.dataset.launchKey = buildApplicationWindowLaunchKey(id, "progressbar_random");
-    app.dataset.appFlowId = getCurrentAppFlowId();
-    app.dataset.appId = id;
-    app.dataset.appInterface = "progressbar_random";
-    applyApplicationLaunchContext(app, { id, interface: "progressbar_random" });
-    const position = findAvailablePosition();
-    app.style.top = `${position.top}px`;
-    app.style.left = `${position.left}px`;
+    const { app, hydrated } = prepareApplicationRenderWindow(id, "progressbar_random");
 
     app.innerHTML = `
         <div class="title-bar">${escapeHTML(level.title || id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
@@ -3828,8 +4090,7 @@ async function app_progressbar_random(id, levels) {
             <div class="result-msg" style="margin-top: 10px; font-weight: bold;"></div>
         </div>
     `;
-    document.body.appendChild(app);
-    makeDraggable(app);
+    finishApplicationRenderWindow(app, hydrated);
     app.querySelector('.close-btn').addEventListener('click', () => {
         disposeOperationFeedbackWindow(app, "window_closed");
         app.remove();
@@ -5995,30 +6256,20 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
 }
 
 function app_terminal(id, levels) {
-    if (!beginApplicationWindowLaunch(id, "terminal")) return null;
+    if (!beginApplicationRenderLaunch(id, "terminal")) return null;
     const safeLevels = Array.isArray(levels) ? levels : [];
     const level = safeLevels[0] || {};
     const logs = Array.isArray(level.logs) ? level.logs : [];
     const commands = level.command ? [level.command, ...logs] : (logs.length ? logs : [`./${id}.sh`, "Raport zapisany."]);
 
-    const app = document.createElement('div');
-    app.className = 'app-window';
-    app.dataset.launchKey = buildApplicationWindowLaunchKey(id, "terminal");
-    app.dataset.appFlowId = getCurrentAppFlowId();
-    app.dataset.appId = id;
-    app.dataset.appInterface = "terminal";
-    applyApplicationLaunchContext(app, { id, interface: "terminal" });
-    const position = findAvailablePosition();
-    app.style.top = `${position.top}px`;
-    app.style.left = `${position.left}px`;
+    const { app, hydrated } = prepareApplicationRenderWindow(id, "terminal");
     app.innerHTML = `
         <div class="title-bar">${escapeHTML(id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content app-terminal-content">
             <div class="terminal-log app-terminal-log"></div>
         </div>
     `;
-    document.body.appendChild(app);
-    makeDraggable(app);
+    finishApplicationRenderWindow(app, hydrated);
     app.querySelector('.close-btn').addEventListener('click', () => {
         disposeOperationFeedbackWindow(app, "window_closed");
         app.remove();
@@ -6099,22 +6350,13 @@ function app_terminal(id, levels) {
 }
 
 function app_button_choices(id, levels) {
-    if (!beginApplicationWindowLaunch(id, "button_choices")) return null;
+    if (!beginApplicationRenderLaunch(id, "button_choices")) return null;
     const safeLevels = Array.isArray(levels) ? levels : [];
     const lvl = safeLevels[0] || {};
     const options = Array.isArray(lvl.options) && lvl.options.length
         ? lvl.options.map((option, index) => normalizeButtonChoiceOption(option, index))
         : [{ id: 0, label: "Wykonaj", effect: {} }];
-    const app = document.createElement('div');
-    app.className = 'app-window';
-    app.dataset.launchKey = buildApplicationWindowLaunchKey(id, "button_choices");
-    app.dataset.appFlowId = getCurrentAppFlowId();
-    app.dataset.appId = id;
-    app.dataset.appInterface = "button_choices";
-    applyApplicationLaunchContext(app, { id, interface: "button_choices" });
-    const position = findAvailablePosition();
-    app.style.top = `${position.top}px`;
-    app.style.left = `${position.left}px`;
+    const { app, hydrated } = prepareApplicationRenderWindow(id, "button_choices");
 
     app.innerHTML = `
         <div class="title-bar">${escapeHTML(id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
@@ -6132,8 +6374,7 @@ function app_button_choices(id, levels) {
         </div>
     `;
 
-    document.body.appendChild(app);
-    makeDraggable(app);
+    finishApplicationRenderWindow(app, hydrated);
     app.querySelector('.close-btn').addEventListener('click', () => {
         disposeOperationFeedbackWindow(app, "window_closed");
         app.remove();
@@ -11738,7 +11979,10 @@ async function selectMapActionTool(appId) {
         return;
     }
 
-    const app = selection.matching_apps.find(item => String(item.id || "") === String(appId || ""));
+    const app = selection.matching_apps.find(item => (
+        String(item.id || "") === String(appId || "")
+        || String(item.name || "") === String(appId || "")
+    ));
     if (!app) {
         hackFlowDebug(getHackFlowId(selection), "desktop", "tool_picker_app_not_found", { appId });
         addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", "To narz\u0119dzie nie pasuje do aktywnej akcji.");
@@ -11746,6 +11990,7 @@ async function selectMapActionTool(appId) {
     }
 
     let stopPickerWaitLog = null;
+    let provisionalSession = null;
     try {
         selection.in_flight = true;
         const flowId = getHackFlowId(selection);
@@ -11771,6 +12016,12 @@ async function selectMapActionTool(appId) {
         }
         window.__pendingMapToolSelectionKeys.add(selectionRequestKey);
         selection.pending_request_key = selectionRequestKey;
+        try {
+            provisionalSession = beginProvisionalLaunch(selection, app);
+        } catch (error) {
+            console.warn("[app launch] Nie udalo sie utworzyc provisional window", error);
+            provisionalSession = null;
+        }
         notifyOpenMapsHackActionStarted(flowId, {
             ...selection.pending_action,
             selected_app_id: app.id,
@@ -11796,6 +12047,15 @@ async function selectMapActionTool(appId) {
             })
         });
         const data = await res.json();
+        const queuedApp = (Array.isArray(data.added_apps) ? data.added_apps : []).find(item => {
+            const queuedId = String(item?.app_id || item?.id || item?.name || "").trim();
+            return normalizeLaunchCorrelation(queuedId) === normalizeLaunchCorrelation(app.id || app.name);
+        });
+        if (queuedApp) bindProvisionalApplicationReceipt(provisionalSession, {
+            receipt: queuedApp.receipt,
+            client_action_key: queuedApp.client_action_key || clientActionHeaderKey,
+            action: queuedApp.action || selection.pending_action?.action
+        });
         appFlowTrace(flowId, "tool_picker_hack_action_response", {
             app_id: app.id,
             app_name: app.name,
@@ -11815,12 +12075,22 @@ async function selectMapActionTool(appId) {
             debug_flow: data.debug_flow || null
         });
         if (!res.ok || data.blocked) {
+            updateProvisionalApplicationSession(
+                provisionalSession,
+                "failed",
+                data.status || "Backend odrzucil uruchomienie aplikacji."
+            );
             addSystemMessage("warning", "\u{1F6E0}\uFE0F Narz\u0119dzia", data.status || "Nie uda\u0142o si\u0119 uruchomi\u0107 narz\u0119dzia.");
             selection.in_flight = false;
             updateMapToolPickerBusyState(false);
             return;
         }
         if (data.duplicate) {
+            updateProvisionalApplicationSession(
+                provisionalSession,
+                "booting",
+                "Oczekiwanie na stan aplikacji..."
+            );
             hackFlowDebug(flowId, "desktop", "tool_picker_duplicate_response", {
                 idempotent_replay: Boolean(data.idempotent_replay),
                 status: data.status || ""
@@ -11835,6 +12105,11 @@ async function selectMapActionTool(appId) {
 
         window.activeToolSelection = null;
         closeMapToolPicker(false);
+        updateProvisionalApplicationSession(
+            provisionalSession,
+            "booting",
+            "Aplikacja przyjeta. Oczekiwanie na runtime..."
+        );
         if (data.target) {
             updateToolbarAimedTarget(data.target);
             appFlowTrace(flowId, "toolbar_dot_updated_from_tool_picker", {
@@ -11855,6 +12130,11 @@ async function selectMapActionTool(appId) {
             app_name: app.name
         });
     } catch (err) {
+        updateProvisionalApplicationSession(
+            provisionalSession,
+            "failed",
+            "Blad polaczenia podczas uruchamiania aplikacji."
+        );
         hackFlowDebug(selection ? getHackFlowId(selection) : "", "desktop", "tool_picker_error", {
             message: err && err.message ? err.message : String(err)
         });
@@ -11992,6 +12272,20 @@ window.openToolSelectionForMapAction = async function(payload) {
         action: window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || "",
         matching_apps: (window.activeToolSelection.matching_apps || []).map(app => app && (app.id || app.name))
     });
+    if (
+        provisionalAppLaunchFlags.enabled
+        && payload?.auto_select === true
+        && window.activeToolSelection.matching_apps.length === 1
+    ) {
+        const onlyApp = window.activeToolSelection.matching_apps[0];
+        appFlowTrace(flowId, "tool_picker_auto_select", {
+            action: window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || "",
+            app_id: onlyApp.id || "",
+            app_name: onlyApp.name || ""
+        });
+        await selectMapActionTool(onlyApp.id || onlyApp.name || "");
+        return;
+    }
     const title = window.activeToolSelection.map_action_id || window.activeToolSelection.canonical_action || "akcja";
     addSystemMessage("info", "\u{1F6E0}\uFE0F Wyb\u00f3r narz\u0119dzia", `Wybierz narz\u0119dzie dla: ${title}`);
     createMapToolPicker(window.activeToolSelection);
@@ -14003,19 +14297,22 @@ function normalizeLaunchQueueItem(rawItem) {
         const flowId = getCurrentAppFlowId(rawItem.flow_id || rawItem._flow_id || "");
         const appId = String(rawItem.app_id || rawItem.id || "").trim();
         const action = String(rawItem.action || rawItem.map_action_id || rawItem.action_key || "").trim();
-        const receipt = String(
+        const explicitReceipt = String(
             rawItem.receipt ||
             rawItem.launch_receipt ||
             rawItem.launch_key ||
             rawItem.idempotency_key ||
             ""
-        ).trim() || `${flowId || "manual"}:${appId || name}`;
+        ).trim();
+        const receipt = explicitReceipt || `${flowId || "manual"}:${appId || name}`;
         return {
             name,
             flow_id: flowId,
             app_id: appId,
             action,
             receipt,
+            client_action_key: String(rawItem.client_action_key || rawItem.client_key || "").trim(),
+            has_explicit_receipt: Boolean(explicitReceipt),
             raw: rawItem
         };
     }
@@ -14027,6 +14324,8 @@ function normalizeLaunchQueueItem(rawItem) {
         app_id: "",
         action: "",
         receipt: `${flowId || "manual"}:${name}`,
+        client_action_key: "",
+        has_explicit_receipt: false,
         raw: rawItem
     };
 }
@@ -14078,25 +14377,36 @@ async function pollLaunchQueue() {
                 apps: appsToLaunch
             });
             const uniqueAppsToLaunch = [];
-            const seenLaunchNames = new Set();
+            const seenLegacyLaunchNames = new Set();
+            const seenLaunchReceipts = new Set();
             for (const rawItem of appsToLaunch) {
                 const item = normalizeLaunchQueueItem(rawItem);
                 const name = item.name;
                 const flowId = item.flow_id || window.__lastHackFlowId || "";
+                const resolution = resolveProvisionalApplicationLaunch(item);
+                if (resolution.outcome === "tombstoned") {
+                    shouldSkipLaunchQueueReceipt(item.receipt, item);
+                    appFlowTrace(flowId, "provisional_app_late_launch_blocked", { name, receipt: item.receipt });
+                    continue;
+                }
+                item.provisionalSession = resolution.session;
+                const legacyNameSeen = !item.has_explicit_receipt && seenLegacyLaunchNames.has(name);
                 if (
                     !name ||
-                    seenLaunchNames.has(name) ||
+                    seenLaunchReceipts.has(item.receipt) ||
+                    legacyNameSeen ||
                     shouldSkipLaunchQueueReceipt(item.receipt, item) ||
-                    shouldSkipRecentLaunchQueueApp(name, flowId)
+                    (!item.has_explicit_receipt && shouldSkipRecentLaunchQueueApp(name, flowId))
                 ) {
                     hackFlowDebug(flowId, "desktop", "launch_queue_skip_app", {
                         name,
                         receipt: item.receipt,
-                        seen: seenLaunchNames.has(name)
+                        seen: seenLaunchReceipts.has(item.receipt) || legacyNameSeen
                     });
                     continue;
                 }
-                seenLaunchNames.add(name);
+                seenLaunchReceipts.add(item.receipt);
+                if (!item.has_explicit_receipt) seenLegacyLaunchNames.add(name);
                 uniqueAppsToLaunch.push(item);
             }
             for (const item of uniqueAppsToLaunch) {
@@ -14147,6 +14457,7 @@ async function pollLaunchQueue() {
                     appData._launch_key = item.receipt;
                     appData._source = 'launch_queue';
                     appData._map_action_id = item.action;
+                    appData._client_action_key = item.client_action_key;
                     const id = appData.id;
                     const levels = appData.levels;
                     const type = appData.interface;
@@ -14164,6 +14475,18 @@ async function pollLaunchQueue() {
                             interface: type,
                             receipt: item.receipt
                         });
+                        const currentResolution = item.provisionalSession && !item.provisionalSession.disposed
+                            ? { outcome: "hydrated", session: item.provisionalSession }
+                            : resolveProvisionalApplicationLaunch(item);
+                        if (currentResolution.outcome === "tombstoned") {
+                            appFlowTrace(flowId, "provisional_app_late_launch_blocked", { name, receipt: item.receipt });
+                            return;
+                        }
+                        if (currentResolution.outcome === "hydrated") {
+                            const outcome = hydrateProvisionalApplicationSession(currentResolution.session, appData, item);
+                            appFlowTrace(flowId, "provisional_app_hydration", { name, receipt: item.receipt, outcome });
+                            return;
+                        }
                         launchApplicationEffect(appData);
                     };
 

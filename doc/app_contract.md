@@ -774,3 +774,41 @@ globalny fallback OFS
 
 Autorski content może wypełniać neutralne sloty i potwierdzony completion.
 Security content jest używany tylko dla pary dopuszczonej przez profil operacji.
+
+## Map launch discovery i provisional snapshot — 130.8.6.3.1
+
+Przy włączonym `CHAOS_PROVISIONAL_APP_LAUNCH_ENABLED` mapowy `/hack-action`
+bez `selected_app_id` jest read-only discovery. Backend używa istniejącego
+`get_apps_for_map_action()` i zwraca `matching_apps` przez
+`serialize_tool_selection_app()` zarówno dla jednego, jak i wielu kandydatów.
+
+Przy jednym kandydacie odpowiedź zawiera `auto_select=true`. Frontend pomija
+picker, ale nie pomija wykonawczego requestu: tworzy provisional window i wysyła
+ten sam pending action z jawnym `selected_app_id`. Snapshot discovery może
+zasilić wyłącznie bezpieczny launch shell; nie jest potwierdzeniem uruchomienia,
+wyniku ani pełnym kontraktem runtime aplikacji.
+
+Provisional shell używa nazwy, ikony, interfejsu i semantycznie przefiltrowanego
+opisu. Nie wykonuje `/gonna-win`, nie renderuje gameplayowych `buttons/options`
+i nie uruchamia operacji. Autorytatywny pełny `applicationEffect` nadal pochodzi
+z `launch_queue → /command`; jego hydration jest zakresem 130.8.6.3.2.
+
+Flaga jest domyślnie wyłączona. Flag-off zachowuje dotychczasowe zachowanie:
+jedna aplikacja przechodzi bezpośrednio do wykonania, a wiele otwiera picker.
+
+## Launcher hydration i lifecycle — 130.8.6.3.2
+
+Przy aktywnym provisional launch wpis `launch_queue` jest korelowany z lokalną
+sesją w kolejności: dokładny `receipt`, `client_action_key + app_id`, a na końcu
+jednoznaczne `flow_id + app_id + action`. `applicationEffect` hydratuje ten sam
+element `.app-window`; nie powstaje drugi egzemplarz okna. Wszystkie cztery
+interfejsy (`window`, `progressbar_random`, `terminal`, `button_choices`)
+korzystają ze wspólnego adaptera, zachowując autorski content i gameplayowe
+przyciski.
+
+Powtórzony receipt jest ignorowany. Zamknięcie okna zapisuje krótkotrwały
+tombstone, który blokuje jego wskrzeszenie przez opóźniony polling. Brak zgodnej
+sesji i tombstone pozostawia dotychczasowy legacy renderer jako fallback.
+Sesja przechodzi przez fazy `launching`, `booting`, `hydrating`, `presenting`,
+`interactive`, `executing`, `completing` oraz `failed/disposed`. OFS korzysta z
+tego samego okna i nadal kończy prezentację wyłącznie prawdziwym payloadem.

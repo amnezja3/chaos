@@ -36,6 +36,11 @@ OPERATION_FEEDBACK_FLAGS = {
     "scan_ports": env_bool("CHAOS_OPERATION_FEEDBACK_SCAN_PORTS", False),
 }
 
+PROVISIONAL_APP_LAUNCH_ENABLED = env_bool(
+    "CHAOS_PROVISIONAL_APP_LAUNCH_ENABLED",
+    False,
+)
+
 
 FLASK_SESSION_CONFIG = {
     "SESSION_TYPE": os.environ.get("CHAOS_SESSION_TYPE", "filesystem"),

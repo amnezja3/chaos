@@ -3434,6 +3434,56 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(payload["pending_action"]["_flow_id"], "test-flow")
         readonly.assert_called_once()
 
+    def test_hack_action_single_tool_discovery_is_readonly_when_provisional_enabled(self):
+        profile = {
+            "username": "tester",
+            "nick": "Tester",
+            "apps": [
+                {
+                    "id": "sniff_only",
+                    "name": "Sniff Only",
+                    "type": "sniffer",
+                    "interface": "button_choices",
+                    "description": "Quiet network probe",
+                    "map_actions": ["sniff"],
+                    "map_actions_source": "manual",
+                },
+            ],
+            "files": {},
+            "curently_possition": {"lat": 52.2297, "lng": 21.0122},
+            "aimed_target": {},
+        }
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "tester"
+
+        with patch.object(run, "PROVISIONAL_APP_LAUNCH_ENABLED", True), \
+             patch.object(run, "load_profile_readonly", return_value=profile) as readonly, \
+             patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")), \
+             patch.object(run, "find_contested_target", return_value=None), \
+             patch.object(run, "find_foreign_area_for_point", return_value=None), \
+             patch.object(run, "create_operations_for_app_action", side_effect=AssertionError("operation should not run")), \
+             patch.object(run, "begin_hack_action_idempotency", side_effect=AssertionError("receipt should not start")):
+            response = client.post("/hack-action", json={
+                "action": "sniff",
+                "lat": 52.1,
+                "lng": 21.2,
+                "label": "Target",
+                "icon": "X",
+                "_flow_id": "single-flow",
+                "_client_action_key": "single-client-key",
+            })
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["tool_selection_required"])
+        self.assertTrue(payload["auto_select"])
+        self.assertEqual([app["id"] for app in payload["matching_apps"]], ["sniff_only"])
+        self.assertEqual(payload["matching_apps"][0]["description"], "Quiet network probe")
+        self.assertEqual(payload["pending_action"]["_flow_id"], "single-flow")
+        self.assertEqual(payload["pending_action"]["_client_action_key"], "single-client-key")
+        readonly.assert_called_once()
+
     def test_legacy_trace_gps_app_gets_operation_type(self):
         app = normalize_app_contract({
             "id": "gps_tracker_v1",

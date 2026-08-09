@@ -8021,3 +8021,77 @@ form button:hover {
     transition: none !important;
   }
 }
+.provisional-app-window {
+  min-height: 220px;
+  border-color: rgba(70, 255, 142, 0.8);
+  box-shadow: 0 0 24px rgba(30, 255, 120, 0.18);
+}
+
+.provisional-app-content {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.provisional-app-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.provisional-app-heading > div {
+  display: grid;
+  gap: 4px;
+}
+
+.provisional-app-heading span {
+  color: #9ab7a3;
+  font-size: 12px;
+}
+
+.provisional-app-icon {
+  font-size: 30px !important;
+}
+
+.provisional-app-activity {
+  display: flex;
+  gap: 6px;
+}
+
+.provisional-app-activity span {
+  width: 34px;
+  height: 4px;
+  background: #1fff78;
+  animation: provisional-app-pulse 1.2s ease-in-out infinite;
+}
+
+.provisional-app-activity span:nth-child(2) { animation-delay: 0.16s; }
+.provisional-app-activity span:nth-child(3) { animation-delay: 0.32s; }
+
+.provisional-app-status,
+.provisional-app-target {
+  color: #b8ffca;
+  font-family: monospace;
+}
+
+.provisional-app-target {
+  color: #89a991;
+  font-size: 12px;
+}
+
+.provisional-app-window[data-provisional-state="failed"] {
+  border-color: #ff5d5d;
+}
+
+.provisional-app-window[data-provisional-state="failed"] .provisional-app-status {
+  color: #ff7777;
+}
+
+@keyframes provisional-app-pulse {
+  0%, 100% { opacity: 0.25; transform: scaleX(0.7); }
+  50% { opacity: 1; transform: scaleX(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .provisional-app-activity span { animation: none; }
+}

@@ -17583,6 +17583,950 @@ zapisano w `doc/operation_feedback_spike_01_results.md`. Dwie syntetyczne
 aplikacje zachowują odmienne głosy bez duplikowania profilu lub schedulera;
 `MASKUJ` wpływa na kilka kolejnych scen.
 
+
+# Sprint 130.8.6.3.1 — Unified Launch Context + Provisional Application Window
+
+## Cel
+
+Usunąć czarną dziurę występującą pomiędzy wyborem aplikacji przez użytkownika a faktycznym uruchomieniem jej przez launcher.
+
+Obecnie dla operacji uruchamianych z mapy przebieg wygląda w uproszczeniu:
+
+```text
+map action
+→ map pending
+→ application picker
+→ wybór aplikacji
+→ długie oczekiwanie na launcher
+→ pojawienie się aplikacji
+→ OFS
+→ payload
+```
+
+OFS obsługuje już oczekiwanie po uruchomieniu aplikacji, ale nie obsługuje czasu pomiędzy:
+
+```text
+picker
+→ launcher
+```
+
+Celem sprintu jest przeniesienie momentu pojawienia się aplikacji na frontend.
+
+Po wyborze narzędzia użytkownik powinien zobaczyć jego okno natychmiast, korzystając z danych aplikacji już dostępnych lokalnie.
+
+Backend nadal pozostaje źródłem prawdy dla faktycznego uruchomienia aplikacji.
+
+## Dostosowanie do aktualnego runtime CHAOS
+
+Audyt kodu wykazał, że obecna czarna dziura nie jest pojedynczym oczekiwaniem
+na „launcher”. Mapowy flow przechodzi dziś przez:
+
+```text
+/hack-action
+→ zapis do transient launch_queue
+→ polling /launch-queue (do 10 s)
+→ /command z source=launch_queue
+→ applicationEffect
+→ launchApplicationEffect()
+→ app_window / app_progressbar_random / app_terminal / app_button_choices
+```
+
+Sprint nie zastępuje tego autorytatywnego łańcucha. Dodaje lokalne okno po
+read-only preflighcie, ale przed wykonawczym requestem `/hack-action` z
+`selected_app_id`. Wynik `applicationEffect` pozostaje do hydracji w
+`130.8.6.3.2`.
+
+Obecnie preflight kończy się odpowiedzią tylko przy wielu dopasowaniach. Przy
+jednej aplikacji ten sam request przechodzi od razu do mutacji i kolejki, więc
+frontend nie dostaje chwili na bezpieczne utworzenie okna. 6.3.1 ujednolica tę
+granicę: request bez `selected_app_id` jest wyłącznie discovery/preflightem i
+zwraca jeden albo wiele bezpiecznych snapshotów; mutacja zaczyna się dopiero w
+requestcie z jawnym `selected_app_id`.
+
+Zakres implementacyjny 6.3.1 obejmuje najpierw mapowy flow, bo tam występuje
+realna luka UX. `desktop`, `start_menu` i `terminal` muszą być poprawnymi
+wartościami kontraktu, ale ich pełny cutover nie jest warunkiem zamknięcia tego
+sprintu.
+
+---
+
+## 1. Unified Launch Context
+
+Wprowadzić wspólny frontendowy kontekst uruchomienia aplikacji.
+
+Powinien on rozróżniać co najmniej źródło startu:
+
+```text
+map
+desktop
+start_menu
+terminal
+```
+
+Kontekst nie powinien tworzyć osobnych ścieżek runtime dla każdego źródła.
+
+Ma normalizować wejście do wspólnego launch flow.
+
+Powinien zawierać dostępne informacje, np.:
+
+```text
+launch_source
+app_id
+app_snapshot
+target_snapshot
+requested_action
+flow_id
+launch_receipt, jeśli już istnieje
+```
+
+Zakres informacji zależy od źródła uruchomienia.
+
+Brak celu nie jest błędem.
+
+---
+
+## 2. Uruchomienie z mapy
+
+W przypadku uruchomienia z mapy frontend zna:
+
+* wybraną akcję,
+* target,
+* listę pasujących aplikacji,
+* aplikację wybraną w pickerze,
+* jej podstawowy snapshot.
+
+Po kliknięciu `Użyj` w pickerze:
+
+1. picker kończy własny pending state;
+2. frontend natychmiast tworzy okno wybranej aplikacji;
+3. okno przechodzi do lokalnego stanu `launching`;
+4. request launchera trwa równolegle;
+5. użytkownik nie pozostaje bez aktywnego UI.
+
+Launcher nie powinien już być warunkiem utworzenia pierwszego widocznego okna.
+
+Obie mapowe ścieżki muszą wejść do tej samej funkcji `beginProvisionalLaunch`:
+
+### Kilka pasujących aplikacji
+
+```text
+matching_apps.length > 1
+→ picker
+→ Użyj
+→ provisional window
+→ /hack-action
+```
+
+### Dokładnie jedna pasująca aplikacja
+
+```text
+matching_apps.length === 1
+→ bez pickera
+→ automatyczny wybór jedynej aplikacji
+→ provisional window natychmiast
+→ wykonawczy /hack-action z selected_app_id
+```
+
+Brak pickera nie może oznaczać starego oczekiwania na `launch_queue`. Skrót
+pomija wyłącznie ekran wyboru, a nie launch context, idempotencję, provisional
+session ani request backendowy. Dla zera pasujących aplikacji pozostaje
+dotychczasowy komunikat/fallback.
+
+W obu wariantach okno powstaje po odpowiedzi discovery, ale przed rozpoczęciem
+oczekiwania na odpowiedź wykonawczego `/hack-action`. Samo jego utworzenie nie może wykonywać `/gonna-win`,
+`notifyGonnaWin`, `operation_only`, `/command` ani drugiego `/hack-action`.
+
+Frontend nie odtwarza backendowych reguł dopasowania aplikacji. Jedyny
+kandydat musi pochodzić z tego samego `get_apps_for_map_action()` i
+`serialize_tool_selection_app()`, które obsługują picker. Odpowiedź może jawnie
+oznaczyć `auto_select: true`; nie jest to potwierdzenie launchu ani sukcesu.
+
+---
+
+## 3. Provisional Application Window
+
+Powstające lokalnie okno jest początkowo `provisional`.
+
+Oznacza to:
+
+> użytkownik poprosił o uruchomienie tej aplikacji, ale backend jeszcze nie potwierdził pełnego launch state.
+
+Provisional window może korzystać wyłącznie z danych znanych frontendowi.
+
+Może pokazać:
+
+* nazwę aplikacji,
+* ikonę,
+* autora, jeśli jest dostępny,
+* opis,
+* rodzaj interfejsu,
+* podstawowy content autora,
+* lokalny launch/boot feedback.
+
+Nie może jeszcze prezentować jako prawdziwych informacji wymagających odpowiedzi launchera.
+
+Provisional window jest rejestrowane w pamięci pod stabilnym lokalnym kluczem
+sesji. Dla mapy klucz powstaje z istniejącego `flow_id` / `_client_action_key`
+oraz `app_id`, a po odpowiedzi może zostać związany z `launch_receipt`.
+
+Nie używamy jako tożsamości samego `interface:app_id`, tytułu ani nazwy.
+Obecne `beginApplicationWindowLaunch()` deduplikuje okna po `interface:app_id`;
+ta ochrona pozostaje dla legacy, ale nie może być rejestrem provisional
+session ani blokować dwóch niezależnych launchy tej samej aplikacji.
+
+---
+
+## 4. Pierwsza faza prezentacji — Launch
+
+Po utworzeniu okna uruchamiana jest krótka prezentacja launch.
+
+Nie jest ona jeszcze operacją hackowania.
+
+Jej zadaniem jest przejście pomiędzy:
+
+```text
+wybrałem aplikację
+```
+
+a:
+
+```text
+aplikacja została przygotowana do działania
+```
+
+Przykładowy charakter prezentacji:
+
+```text
+V-MAP
+created by admin
+
+inicjalizacja środowiska
+ładowanie lokalnego profilu
+przygotowanie interfejsu
+```
+
+Treści muszą wynikać z rzeczywiście znanych frontendowi danych albo bezpiecznej globalnej biblioteki launch.
+
+Nie wolno symulować:
+
+```text
+backend connected
+launch confirmed
+remote session established
+```
+
+jeżeli nie zostało to faktycznie potwierdzone.
+
+W 6.3.1 launch/boot jest minimalnym, bezpiecznym shellem. Pełne rozkładanie
+contentu autora, fazy lifecycle i przejście do OFS należą do 6.3.2. Dzięki temu
+nie budujemy tymczasowego drugiego schedulera tylko po to, aby usunąć lukę UX.
+
+---
+
+## 5. Boot jako scena frontendowa
+
+Po fazie launch może rozpocząć się `boot`.
+
+Boot nie powinien być starym sztywnym loaderem aplikacji.
+
+Powinien korzystać z tego samego kierunku prezentacyjnego co OFS:
+
+* krótkie sceny,
+* content autora,
+* zmienne rytmy,
+* brak nieskończonego logu,
+* brak fikcyjnego procentu postępu.
+
+Dopuszczalny jest wizualny activity bar lub segmentowy loader, ale nie powinien sugerować rzeczywistego procentowego postępu, jeżeli takiej informacji nie dostarcza backend.
+
+---
+
+## 6. Content autora
+
+Na etapie provisional można wykorzystać bezpieczne elementy istniejącego snapshotu aplikacji:
+
+```text
+title
+description
+text
+command
+logs
+list
+steps
+```
+
+Ich wykorzystanie zależy od interfejsu.
+
+Content autora nadal podlega regułom bezpieczeństwa semantycznego.
+
+Nie wolno przed potwierdzeniem runtime wyświetlać jako fakt:
+
+```text
+success
+failure
+target compromised
+security disabled
+operation completed
+```
+
+---
+
+## 7. Rozróżnienie celu operacji
+
+Launch context powinien zachowywać informację, dlaczego aplikacja została uruchomiona.
+
+Szczególnie przy uruchomieniu z mapy nie wystarcza samo:
+
+```text
+app_id
+```
+
+Potrzebny jest kontekst:
+
+```text
+target
++
+requested action
++
+capability aplikacji
+```
+
+Ta sama aplikacja może w przyszłości być wykorzystywana w różnych kontekstach celu.
+
+Nie należy wyprowadzać działania wyłącznie z nazwy aplikacji.
+
+---
+
+## 8. Uruchomienie z desktopu i terminala
+
+Sprint nie musi jeszcze domykać pełnej logiki działania tych źródeł, ale Unified Launch Context musi być zaprojektowany tak, aby ich później nie traktować jako osobnych runtime'ów.
+
+Uruchomienie z desktopu:
+
+* okno aplikacji może pojawić się natychmiast;
+* jeżeli istnieje aktywny cel, może zostać dołączony do launch context;
+* jeżeli celu brak, aplikacja uruchamia się w neutralnym kontekście.
+
+Uruchomienie z terminala:
+
+* powinno finalnie przechodzić przez ten sam launch lifecycle;
+* terminal jest wyłącznie innym źródłem intencji uruchomienia.
+
+---
+
+## 9. Boundaries
+
+Sprint nie zmienia:
+
+* wyniku gameplayu,
+* działania `/gonna-win`,
+* receiptów,
+* idempotencji,
+* mechaniki hackowania celu,
+* działania Centrum Operacji,
+* reguł pełnego przejęcia obiektu.
+
+Nie wdrażamy jeszcze całej generalizacji 12 operacji.
+
+Nie przebudowujemy jeszcze trzech rendererów.
+
+Nie zmieniamy formatu `launch_queue`, atomowego consume w store ani pollingu
+na push. Nie wykonujemy ciężkich operacji w preflighcie i nie przenosimy autorytatywnego launchu
+do frontendu. Zamknięcie provisional window sprząta prezentację, ale nie
+anuluje już wysłanego `/hack-action`; późniejszy wynik obsłuży tombstone/fallback
+zdefiniowany w 6.3.2.
+
+Całość pozostaje za osobną, domyślnie wyłączoną flagą provisional launch.
+Awaria tworzenia shella ma pozwolić przejść istniejącemu flow do klasycznego
+okna z `applicationEffect`.
+
+## 10. Plan wejścia w kod i testy
+
+Najbardziej wrażliwe miejsca tego sprintu:
+
+* `run.py` — read-only preflight `/hack-action`, także dla jednego kandydata;
+* `templates/map_template.html` — rozpoznanie wyniku discovery i przekazanie go
+  do desktopu bez kopiowania reguł aplikacji;
+* `static/js/terminal.js` — wspólna ścieżka manualnego i automatycznego wyboru,
+  launch context, provisional registry, cleanup i feature flag;
+* istniejące testy idempotencji `/hack-action` — muszą potwierdzić, że discovery
+  nie zapisuje idempotency result, nie tworzy operacji i nie dotyka celu;
+* nowe testy frontendowe — dokładnie jedno okno przed requestem wykonawczym,
+  0/1/wiele aplikacji, podwójny klik, zamknięcie oraz flaga off.
+
+Nie wykonujemy testu wyłącznie przez liczenie okien. Asercje obejmują liczbę
+requestów, `selected_app_id`, `flow_id`, client action key, stan registry oraz
+brak `/gonna-win` przed wejściem aplikacji w prawdziwą interakcję.
+
+---
+
+## 11. Dokumentacja
+
+Sprint musi zaktualizować:
+
+* `operation_feedback_system_production.md`,
+* `project_journal.md`,
+* dokumentację launchera aplikacji,
+* dokumentację AppForge / kontraktu aplikacji, jeżeli wykorzystanie snapshotu lub `levels` zostanie doprecyzowane,
+* dokumentację runtime aplikacji,
+* dokumentację map action flow, jeżeli zmienia się relacja picker → launcher → app window.
+
+Dokumentacja ma przedstawiać rzeczywisty flow po sprincie, a nie historyczny model, w którym launcher zawsze tworzy okno dopiero po własnej odpowiedzi.
+
+---
+
+## Definition of Done
+
+Sprint jest gotowy, gdy:
+
+1. wybór aplikacji w pickerze natychmiast tworzy provisional window;
+2. użytkownik nie pozostaje w czarnej dziurze podczas oczekiwania na launcher;
+3. launcher nadal wykonuje swój dotychczasowy autorytatywny proces;
+4. provisional window używa tylko danych dostępnych frontendowi;
+5. istnieje wspólny `launch context`;
+6. źródło launchu jest jawnie rozróżniane;
+7. boot aplikacji może rozpocząć się przed odpowiedzią launchera;
+8. nie pojawia się fałszywe potwierdzenie launchu;
+9. awaria provisional UI nie blokuje requestu;
+10. zamknięcie provisional window poprawnie czyści jego lokalny lifecycle;
+11. działający `scan_ports` z `130.8.6.3` pozostaje bez regresji;
+12. ścieżka z jedną pasującą aplikacją omija picker i natychmiast tworzy ten sam typ provisional session;
+13. skrót jednej aplikacji nie wykonuje dodatkowego requestu gameplayowego;
+14. dwa niezależne flow tej samej aplikacji nie są utożsamiane po samym `interface:app_id`;
+15. wykonawczy request `/hack-action` rozpoczyna się niezależnie od powodzenia animacji provisional;
+16. flaga off zachowuje obecny picker/launch_queue/applicationEffect flow;
+17. request bez `selected_app_id` nie mutuje celu i zwraca jednoznaczny discovery wynik także dla jednej aplikacji;
+18. frontend nie duplikuje backendowych reguł `get_apps_for_map_action()`;
+19. dokumentacja odpowiada nowemu flow.
+
+## Stan realizacji — 2026-08-09
+
+Sprint zaimplementowany za domyślnie wyłączoną flagą
+`CHAOS_PROVISIONAL_APP_LAUNCH_ENABLED`.
+
+Backend zwraca read-only discovery także dla jednego kandydata i oznacza go
+`auto_select=true`. Desktop kieruje auto-select oraz wybór z pickera przez
+wspólne `selectMapActionTool()`, tworzy lokalny provisional shell przed
+wykonawczym `/hack-action`, przechowuje sesję pod client action key + app id i
+sprząta ją przy zamknięciu. Awaria shella nie blokuje requestu. Content opisu
+przechodzi przez filtr OFS, a shell nie wywołuje `/gonna-win`.
+
+Hydration przez `applicationEffect`, tombstone i eliminacja późniejszego
+klasycznego duplikatu pozostają świadomie w 130.8.6.3.2. Z tego powodu flaga
+6.3.1 nie jest jeszcze kandydatem do samodzielnego produkcyjnego cutoveru.
+
+---
+
+# Sprint 130.8.6.3.2 — Launcher Hydration + Unified Application Presentation Lifecycle
+
+## Cel
+
+Połączyć nowy provisional launch z istniejącym OFS tak, aby aplikacja posiadała jeden ciągły frontendowy lifecycle od chwili wyboru przez użytkownika aż do prawdziwego wyniku.
+
+Docelowy przebieg:
+
+```text
+launch intent
+→ provisional window
+→ launch
+→ boot
+→ launcher hydration
+→ author content
+→ gameplay interaction
+→ operation feedback
+→ payload
+→ result
+```
+
+Nie tworzymy kolejnego loadera.
+
+Budujemy jeden prezentacyjny lifecycle aplikacji.
+
+## Dostosowanie do aktualnego runtime CHAOS
+
+W CHAOS hydration nie przychodzi jako osobny endpoint. Autorytatywnym
+materiałem jest obecny `applicationEffect`, otrzymany po consume
+`/launch-queue` i wykonaniu `/command`. `pollLaunchQueue()` nie może od razu
+wołać klasycznego `launchApplicationEffect(appData)`, jeżeli istnieje zgodna
+provisional session. Najpierw próbuje:
+
+```text
+normalizeLaunchQueueItem
+→ resolve provisional session po receipt/flow/app
+→ hydrate istniejące okno
+→ dopiero przy braku zgodnej sesji legacy launchApplicationEffect
+```
+
+Nie zmieniamy backendowego kontraktu `/command` ani `applicationEffect`, jeśli
+audyt implementacyjny nie wykaże braku pola niezbędnego do jednoznacznej
+korelacji. Preferujemy istniejące `receipt`, `flow_id`, `app_id` i action.
+
+---
+
+## 1. Launcher przestaje tworzyć drugi egzemplarz okna
+
+Jeżeli frontend utworzył już provisional window dla danego launch flow, odpowiedź launchera nie może uruchomić drugiego klasycznego okna.
+
+Launcher powinien odnaleźć istniejącą sesję i wykonać jej `hydration`.
+
+Czyli:
+
+```text
+provisional app
++
+authoritative launch payload
+=
+hydrated app
+```
+
+Nie:
+
+```text
+provisional app
++
+new app window
+```
+
+---
+
+## 2. Tożsamość launch session
+
+Hydration musi odnaleźć dokładnie tę sesję, której dotyczy odpowiedź.
+
+Należy wykorzystać stabilne identyfikatory istniejącego flow.
+
+Nie wolno opierać tego wyłącznie o:
+
+* nazwę aplikacji,
+* tekst tytułu,
+* indeks okna,
+* target label.
+
+Równoległe uruchomienie dwóch takich samych aplikacji nie może prowadzić do hydracji złego okna.
+
+Korelacja ma następujący priorytet:
+
+```text
+launch_receipt
+→ dokładny local launch key (_client_action_key + app_id)
+→ flow_id + app_id + requested_action, tylko gdy wynik jest jednoznaczny
+→ brak dopasowania i bezpieczny fallback
+```
+
+`recentLaunchQueueReceipts`, `recentLaunchQueueApps` i
+`beginApplicationWindowLaunch` pozostają zabezpieczeniami przed replayem, ale
+nie mogą skonsumować odpowiedzi przed próbą hydracji. Potrzebny jest jawny
+rejestr sesji oraz krótkotrwały tombstone po dispose.
+
+---
+
+## 3. Hydration
+
+Po nadejściu odpowiedzi launchera provisional session zostaje wzbogacona o autorytatywne informacje.
+
+Mogą to być m.in.:
+
+* rzeczywisty launch state,
+* wybrany level,
+* pełniejszy content aplikacji,
+* parametry runtime,
+* informacje wymagane przez dalszą interakcję.
+
+Hydration nie resetuje całego okna.
+
+Nie powinno być wizualnego:
+
+```text
+stare okno znika
+→ nowe okno pojawia się od zera
+```
+
+Aktualne okno ma płynnie przejść do kolejnej fazy.
+
+Hydration jest idempotentna. Powtórzony receipt aktualizuje najwyżej tę samą
+sesję i nie resetuje scen, nie duplikuje przycisków, nie odpala ponownie
+`notifyGonnaWin` oraz nie tworzy drugiego OFS.
+
+---
+
+## 4. Jeden Application Presentation Lifecycle
+
+Wprowadzamy jawne fazy prezentacji aplikacji.
+
+Proponowany model MVP:
+
+```text
+launching
+booting
+hydrating
+presenting
+interactive
+executing
+completing
+failed
+disposed
+```
+
+Nie musi to być osobny gameplay state machine.
+
+Jest to frontendowy lifecycle prezentacji.
+
+Lifecycle ma jednego właściciela per launch session. OFS zachowuje własny
+wewnętrzny lifecycle requestu, ale jest podpinany wyłącznie w fazie
+`executing`; nie powstają dwa konkurencyjne schedulery piszące do tego samego
+kontenera. Każde przejście fazy musi być walidowane, logowane przez istniejący
+`APP_FLOW` i odporne na callback po `disposed`.
+
+Każda faza odpowiada na inne pytanie.
+
+### `launching`
+
+Użytkownik wyraził intencję uruchomienia aplikacji.
+
+### `booting`
+
+Frontend prezentuje lokalny boot z danych, które posiada.
+
+### `hydrating`
+
+Odpowiedź launchera jest łączona z istniejącą sesją.
+
+### `presenting`
+
+Pokazywany jest właściwy content autora aplikacji.
+
+### `interactive`
+
+Pojawiają się prawdziwe elementy interakcji aplikacji, np. gameplayowe buttons/options.
+
+### `executing`
+
+Po wysłaniu właściwego requestu działania uruchamia się Operation Feedback System.
+
+### `completing`
+
+Przyszedł autorytatywny payload.
+
+### `failed`
+
+Prawdziwy błąd.
+
+### `disposed`
+
+Sesja zakończona i nie może już zmieniać DOM.
+
+---
+
+## 5. Content autora jako część lifecycle
+
+Content autora nie powinien być jednym statycznym ekranem pojawiającym się po boot.
+
+Powinien stać się materiałem używanym przez prezentacyjny runtime.
+
+Przykład:
+
+autor podał:
+
+* nazwę,
+* opis,
+* trzy logi,
+* dwa steps,
+* trzy gameplayowe buttons.
+
+Frontend może rozłożyć to na:
+
+```text
+launch
+→ title + author
+→ description
+→ boot
+→ log 1
+→ log 2
+→ transition
+→ log 3
+→ rzeczywiste buttons
+```
+
+Nie oznacza to losowego przepisywania intencji autora.
+
+Renderer i scheduler jedynie organizują jego content w czasie.
+
+---
+
+## 6. Gameplay buttons pozostają gameplay buttons
+
+Istniejące:
+
+```text
+buttons
+options
+```
+
+nie stają się automatycznie wyborami narracyjnymi OFS.
+
+Po wejściu w fazę `interactive` pojawiają się jako rzeczywiste elementy aplikacji.
+
+Dopiero ich użycie może uruchomić właściwy request działania.
+
+Narracyjne `feedback.* choices` pozostają osobnym mechanizmem prezentacyjnym.
+
+---
+
+## 7. Przejście do istniejącego OFS
+
+Po wykonaniu prawdziwej akcji użytkownika aplikacja przechodzi do:
+
+```text
+executing
+```
+
+i uruchamia działający już engine OFS.
+
+W przypadku `scan_ports` powinien zostać wykorzystany mechanizm zatwierdzony decyzją `GO` po `130.8.6.3`.
+
+Nie tworzymy drugiego systemu oczekiwania.
+
+Nowy lifecycle po prostu przekazuje kontrolę istniejącemu OFS.
+
+---
+
+## 8. Launch source a operation context
+
+Lifecycle powinien zachowywać źródło uruchomienia i context operacji przez cały przebieg.
+
+### Map
+
+Mamy jawny:
+
+```text
+target
+requested action
+selected app
+```
+
+### Desktop / Start
+
+Aplikacja może zostać uruchomiona bez targetu.
+
+Jeżeli istnieje aktywny target, frontend może próbować zbudować operation context na podstawie rzeczywiście dostępnych danych aplikacji i celu.
+
+Nie należy zgadywać operacji wyłącznie po nazwie aplikacji.
+
+### Terminal
+
+Docelowo ten sam model.
+
+Źródło jest inne.
+
+Lifecycle pozostaje ten sam.
+
+---
+
+## 9. Capability resolution
+
+Sprint powinien przygotować miejsce na rozpoznanie, do czego dana aplikacja jest używana w aktualnym kontekście.
+
+Nie chodzi jeszcze o pełną przebudowę systemu hackowania.
+
+Chodzi o to, aby runtime nie zakładał:
+
+```text
+aplikacja X = zawsze action Y
+```
+
+Jeżeli aplikacja posiada kilka możliwości albo jest uruchomiona na celu o określonych właściwościach, operation context powinien móc określić właściwą ścieżkę.
+
+W przypadku braku jednoznacznego kontekstu stosowany jest bezpieczny tryb domyślny lub neutralny.
+
+---
+
+## 10. Brak zmiany gameplayu
+
+Nowy presentation lifecycle nie decyduje:
+
+* czy obiekt jest w pełni shakowany,
+* które „kropki” zostały przejęte,
+* czy obiekt może być filarem,
+* czy generuje pliki,
+* jaki daje loot,
+* czy operacja się udała.
+
+Może natomiast użyć znanego frontendowi kontekstu tych elementów do dobrania właściwej prezentacji.
+
+Prawda gameplayowa pozostaje backendowa.
+
+---
+
+## 11. Failure paths
+
+Trzeba rozróżnić:
+
+### Launcher failure
+
+Provisional window już istnieje, ale launcher odrzuca uruchomienie.
+
+Okno przechodzi do `failed` i pokazuje rzeczywisty błąd.
+
+Nie udaje, że aplikacja została poprawnie uruchomiona.
+
+### Window closed
+
+Session zostaje disposed.
+
+Późniejsza odpowiedź launchera nie może odtworzyć zamkniętego okna bez jawnej reguły runtime.
+
+### Hydration mismatch
+
+Jeżeli odpowiedzi nie da się jednoznacznie powiązać z provisional session, system nie powinien zgadywać.
+
+Uruchamia diagnostykę/fallback zgodnie z istniejącymi zasadami.
+
+### Jedna aplikacja bez pickera
+
+Automatyczny wybór korzysta z identycznej hydration i failure path jak wybór
+manualny. Jeżeli `/hack-action` odrzuci start, provisional window pokazuje
+rzeczywisty błąd i nie czeka bez końca na wpis, który nigdy nie trafi do
+`launch_queue`.
+
+### Launch queue replay lub opóźniony polling
+
+Powtórzony receipt nie tworzy okna. Późna odpowiedź hydratuje aktywną sesję;
+jeżeli sesja ma tombstone po świadomym zamknięciu, nie zostaje wskrzeszona.
+Brak sesji i brak tombstone uruchamia dotychczasowy legacy renderer.
+
+---
+
+## 12. Fallback
+
+Jeżeli Unified Application Presentation Lifecycle nie może zostać użyty:
+
+* requesty pozostają bez zmian,
+* możliwy jest powrót do klasycznego launch flow,
+* gameplay nie jest blokowany.
+
+Nie usuwamy jeszcze legacy launch UI.
+
+Fallback jest jednokierunkowy dla pojedynczego receiptu: albo hydration, albo
+legacy launch. Nigdy oba. Błąd warstwy prezentacyjnej nie może usuwać wpisu z
+kolejki przed wykorzystaniem autorytatywnego `applicationEffect`.
+
+## 13. Plan wejścia w kod i testy
+
+Najbardziej wrażliwe miejsca tego sprintu:
+
+* `static/js/terminal.js` — `pollLaunchQueue()`, kolejność receipt dedupe,
+  `launchApplicationEffect()`, `beginApplicationWindowLaunch()` i cztery
+  istniejące renderery aplikacji;
+* `static/js/operation_feedback.js` — wyłącznie granica start/complete/dispose;
+  OFS nie przejmuje odpowiedzialności za launcher registry;
+* `static/css/style.css` — stan provisional/hydrating bez fikcyjnego procentu;
+* testy kontrolowanego pollingu i Promise — hydration przed/po zamknięciu,
+  replay, mismatch, dwa równoległe okna tej samej aplikacji i flaga off;
+* regresja czterech interfejsów oraz `scan_ports`, ze szczególnym sprawdzeniem
+  `button_choices`, bo jego buttons/options są gameplayem, nie narracją.
+
+Test ręczny obejmuje co najmniej: jedną aplikację bez pickera, kilka aplikacji
+z pickerem, polling natychmiastowy i bliski 10 s, zamknięcie przed hydration,
+ponowiony receipt oraz dwa równoległe flow tej samej aplikacji.
+
+---
+
+## 14. Dokumentacja
+
+Sprint aktualizuje obowiązkowo:
+
+* `operation_feedback_system_production.md`,
+* `project_journal.md`,
+* dokumentację launchera,
+* dokumentację runtime aplikacji,
+* dokumentację AppForge,
+* dokumentację terminalowego launch flow,
+* dokumentację mapowego picker flow,
+* dokumentację desktop/start-menu launch flow,
+* pozostałe pliki opisujące lifecycle, które zmieniła implementacja.
+
+Po tym sprincie dokumentacja powinna już opisywać aplikację jako jeden frontendowy lifecycle, a nie osobne niezależne etapy launchera, bootu i OFS.
+
+---
+
+## Definition of Done
+
+Sprint jest gotowy, gdy:
+
+1. odpowiedź launchera hydratuje istniejące provisional window;
+2. launcher nie tworzy duplikatu aplikacji;
+3. istnieje jeden spójny lifecycle prezentacji;
+4. boot płynnie przechodzi do contentu autora;
+5. content autora może zostać rozłożony na sceny;
+6. prawdziwe gameplayowe buttons/options pojawiają się dopiero we właściwej fazie;
+7. po wykonaniu działania aplikacja przechodzi do istniejącego OFS;
+8. payload nadal ma absolutny priorytet;
+9. source `map / desktop / terminal` nie wymusza trzech osobnych runtime'ów;
+10. operation context może zachować target i requested action;
+11. zamknięcie okna poprawnie kończy cały lifecycle;
+12. późna odpowiedź launchera nie ożywia disposed session;
+13. brak jednoznacznego kontekstu nie powoduje losowego przypisania operacji;
+14. istniejący `scan_ports` pozostaje zgodny z wynikiem `GO`;
+15. wszystkie nowe ścieżki posiadają fallback;
+16. auto-launch jednej pasującej aplikacji hydratuje to samo okno bez pickera;
+17. powtórzony receipt nie duplikuje okna, contentu, przycisków ani requestu;
+18. kilka równoległych launchy tej samej aplikacji hydratuje właściwe sesje;
+19. hydracja jest próbowana przed legacy dedupe/launch;
+20. aktywny tombstone blokuje wskrzeszenie świadomie zamkniętego okna;
+21. testy obejmują discovery dla 0/1/wielu aplikacji, wykonawczą odpowiedź `/hack-action` oraz polling 0–10 s;
+22. dokumentacja odpowiada rzeczywistej implementacji.
+
+---
+
+# Efekt po 130.8.6.3.2
+
+Przed zmianą:
+
+```text
+MAP
+→ picker
+→ .......... czarna dziura ..........
+→ aplikacja
+→ OFS
+→ wynik
+```
+
+## Stan implementacji 130.8.6.3.2
+
+Sprint zaimplementowano za istniejącą, domyślnie wyłączoną flagą
+`CHAOS_PROVISIONAL_APP_LAUNCH_ENABLED`. `pollLaunchQueue()` rozstrzyga sesję
+przed legacy launch i hydratuje dokładnie ten provisional DOM. Korelacja używa
+receiptu, local client action key i jednoznacznego fallbacku flow/app/action.
+Jawny tombstone przez 120 sekund blokuje późne wskrzeszenie zamkniętego okna.
+
+Cztery istniejące renderery korzystają ze wspólnego adaptera okna, więc nie
+powielają contentu, przycisków ani requestów. `button_choices` zachowuje
+autorytatywne options autora. Faza `executing/completing/failed` jest spięta z
+istniejącą granicą OFS, a brak lokalnej sesji nadal prowadzi do legacy renderera.
+Backendowy format kolejki, `/command`, `/gonna-win` i źródło prawdy gameplayu
+nie zostały zmienione.
+
+Po zmianie:
+
+```text
+MAP
+→ picker
+→ aplikacja pojawia się natychmiast
+→ launch
+→ boot
+→ hydration
+→ content autora
+→ interaction
+→ OFS
+→ wynik
+```
+
+Dla desktopu i terminala będzie można następnie wejść w ten sam lifecycle od odpowiedniego punktu.
+
+Dopiero po tym rozszerzeniu sensowne będzie przejście do `130.8.6.4` i generalizacja rendererów, ponieważ wtedy renderer będzie obsługiwał nie tylko „oczekiwanie po kliknięciu”, ale pełny prezentacyjny runtime aplikacji.
+
+
+
 ---
 
 # Sprint 130.8.6.4 — Renderer Abstraction: terminal / button_choice / window

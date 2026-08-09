@@ -11185,3 +11185,46 @@ timeout/default, wpływ presentation state na dalsze sceny, priorytet contentu,
 trzy profile czasu oraz natychmiastowe zatrzymanie renderera przez payload.
 `py_compile`, oba `node --check` i `git diff --check` zakończone `OK`; pozostał
 wyłącznie warning konwersji CRLF/LF dla `static/css/style.css`.
+
+Po audycie aktualnego launch flow dostosowano zakresy planowanych sprintów
+130.8.6.3.1–130.8.6.3.2 do runtime CHAOS. Provisional window ma powstawać po
+read-only discovery, lecz przed wykonawczym `/hack-action` z `selected_app_id`,
+natomiast późniejszy `applicationEffect` z łańcucha
+`launch_queue → /command` ma hydratować istniejącą sesję zamiast tworzyć drugie
+okno. Dla dokładnie jednej pasującej aplikacji picker zostanie pominięty, ale
+backend zwróci tego samego rodzaju bezpieczny snapshot co dla pickera, a
+auto-launch przejdzie przez ten sam launch context, provisional registry,
+wykonawczy request i hydration. Dopisano granice dotyczące receiptów, replayu, równoległych
+launchy tej samej aplikacji, tombstone po dispose oraz fallbacku do legacy.
+
+Zrealizowano sprint 130.8.6.3.1 za domyślnie wyłączoną flagą
+`CHAOS_PROVISIONAL_APP_LAUNCH_ENABLED`. `/hack-action` bez `selected_app_id`
+zwraca teraz przy aktywnej fladze read-only discovery również dla jednego
+kandydata (`auto_select=true`). Frontend pomija wtedy picker, ale kieruje wybór
+przez wspólne `selectMapActionTool()`: provisional shell powstaje przed
+wykonawczym requestem, ma stabilny klucz client action + app id, lokalny cleanup
+i stany `launching / awaiting_launcher / failed / disposed`. Shell nie wykonuje
+requestu gameplayowego, a awaria prezentacji nie blokuje `/hack-action`.
+
+Walidacja 130.8.6.3.1: 5 testów nowego kontraktu, 15 testów OFS i 32 testy
+idempotencji zakończone `OK`; oba testy read-only preflightu również `OK`.
+Deterministyczny test Node OFS, `node --check terminal.js` i `py_compile` dla
+`config.py`/`run.py` zakończone `OK`. Pełny historyczny
+`tests.test_target_persistence` nadal ma 13 rozjazdów poza ścieżką sprintu
+(m.in. stare fake store'y, map-profile JSON, BlackNet i rozszerzone recovery
+scopes); nie były naprawiane w ramach launch flow. Hydration i eliminacja
+późniejszego duplikatu okna pozostają w 130.8.6.3.2, więc flaga 6.3.1 pozostaje
+wyłączona do czasu następnego sprintu.
+
+Zrealizowano sprint 130.8.6.3.2. Autorytatywny `applicationEffect` z
+`launch_queue → /command` hydratuje teraz istniejące provisional window zamiast
+tworzyć drugi egzemplarz. Registry rozróżnia równoległe uruchomienia tej samej
+aplikacji przez receipt lub client action key, a tombstone blokuje późny launch
+po świadomym zamknięciu. Wspólny adapter obejmuje `window`,
+`progressbar_random`, `terminal` i `button_choices`; autorski content oraz
+gameplayowe przyciski pozostają źródłem prawdy.
+
+Lifecycle sesji został spięty z OFS: hydration przechodzi przez presenting i
+interactive, request przez executing, a payload/błąd przez completing/failed.
+Flag-off oraz brak zgodnej sesji zachowują legacy renderer. Backend, kolejka,
+`/gonna-win` i mechanika gameplayu nie zostały rozszerzone.

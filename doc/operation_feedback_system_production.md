@@ -888,6 +888,27 @@ włącza automatycznie OFS na produkcji.
 
 ## 23. Plan wdrożenia
 
+Przed generalizacją rendererów w `130.8.6.4` realizujemy dwa sprinty spinające
+OFS z rzeczywistym launcherem CHAOS:
+
+* `130.8.6.3.1` — mapowy Unified Launch Context i provisional window tworzone
+  po read-only discovery, przed wykonawczym `/hack-action`; przy jednej
+  pasującej aplikacji backend zwraca jawnego kandydata, picker jest pomijany,
+  ale używany jest ten sam selected-app launch flow;
+* `130.8.6.3.2` — idempotentna hydration istniejącego okna przez
+  `applicationEffect` z `/launch-queue → /command`, bez drugiego okna i bez
+  drugiego requestu gameplayowego.
+
+Oba sprinty zachowują legacy launch jako rollback. Discovery bez
+`selected_app_id` zostaje ujednolicone dla jednego i wielu kandydatów, ale
+sprinty nie zmieniają `/gonna-win`, receiptów, wyniku operacji ani backendu jako
+źródła prawdy.
+
+Stan 130.8.6.3.1: zaimplementowany za domyślnie wyłączoną flagą
+`CHAOS_PROVISIONAL_APP_LAUNCH_ENABLED`. Provisional registry i auto-select są
+gotowe; produkcyjne włączenie czeka na hydration z 130.8.6.3.2, aby późniejszy
+`applicationEffect` nie tworzył drugiego klasycznego okna.
+
 ### Etap 0 — kontrakt
 
 * schema i validator;
