@@ -14,6 +14,7 @@ let toolbarTargetHackedEffectTimer = null;
 let toolbarTargetLocalOverride = null;
 const toolbarTargetHackedEffectKeys = new Set();
 let desktopSessionActive = true;
+let userProfileRequestPromise = null;
 let desktopRenderedApps = [];
 const recentApplicationWindowLaunches = new Map();
 const recentLaunchQueueReceipts = new Map();
@@ -9163,8 +9164,6 @@ async function createProfile() {
     });
 }
 
-
-let userProfileRequestPromise = null;
 
 async function getUserProfile() {
     if (userProfileRequestPromise) return userProfileRequestPromise;

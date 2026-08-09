@@ -31,10 +31,13 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
 
     def test_frontend_coalesces_concurrent_profile_requests(self):
         terminal = Path("static/js/terminal.js").read_text(encoding="utf-8")
-        start = terminal.index("let userProfileRequestPromise = null")
+        declaration = terminal.index("let userProfileRequestPromise = null")
+        first_boot_call = terminal.index("const profileData = await getUserProfile()")
+        start = terminal.index("async function getUserProfile()")
         end = terminal.index("function rememberProcessedDelta", start)
         helper = terminal[start:end]
 
+        self.assertLess(declaration, first_boot_call)
         self.assertIn("if (userProfileRequestPromise) return userProfileRequestPromise", helper)
         self.assertEqual(helper.count("fetch('/api/profile')"), 1)
         self.assertIn("userProfileRequestPromise = null", helper)
