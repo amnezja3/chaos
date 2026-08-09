@@ -756,3 +756,21 @@ par spoza tej macierzy ani traktować brakującego klucza security jako `false`.
 Profile `instant`, `short`, `medium`, `long` i `very_long` są wybierane według
 faktycznego czasu requestu. Nie reprezentują procentu wykonania. Payload zawsze
 czyści scheduler przed publikacją completion.
+
+### Interactive MVP i content aplikacji — 130.8.6.3
+
+Wybory narracyjne mają identyfikator `feedback.*`, `effect_scope=presentation`,
+timeout, default i mutację zgodną z `presentation_state_schema`. Nie są
+`choice_id` aplikacji, nie wykonują requestu i nie zmieniają gameplayu.
+
+OFS przechowuje prywatną projekcję contentu w pamięci okna. Nie zapisuje jej w
+dataset ani nie wysyła do backendu. Kolejność źródeł:
+
+```text
+zwalidowany feedback_content
+legacy levels bez buttons/options
+globalny fallback OFS
+```
+
+Autorski content może wypełniać neutralne sloty i potwierdzony completion.
+Security content jest używany tylko dla pary dopuszczonej przez profil operacji.

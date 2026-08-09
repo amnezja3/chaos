@@ -17561,6 +17561,28 @@ Po `130.8.6.3` mamy działający `scan_ports` MVP oraz potwierdzony albo odrzuco
 
 Dopiero `GO` otwiera sprint `130.8.6.4`.
 
+## Status realizacji — 2026-08-09
+
+`OFS-SPIKE-01` zakończony decyzją architektoniczną `GO`. Decyzja otwiera
+generalizację w `130.8.6.4`, ale nie włącza produkcyjnego cutoveru.
+
+Dodano trzy wybory `feedback.*` z timeoutem i domyślną wartością. Mutacje są
+walidowane przez `presentation_state_schema`, istnieją tylko w sesji i znikają
+przy dispose. Payload czyści countdown, blokuje przyciski i uniemożliwia dalszy
+render. OFS nie posiada ścieżki `/gonna-win`, a dane wyboru nie trafiają do body
+istniejącego requestu.
+
+Prywatny snapshot contentu aplikacji korzysta z priorytetu
+`app_structured -> app_legacy -> global_fallback`. Projekcja legacy obejmuje
+neutralne pola `command/logs/list/steps/text/description`, pomija gameplayowe
+`buttons/options`, filtruje HTML, fałszywy sukces i zdarzenia transportowe.
+Completion autora jest używany dopiero po prawdziwym payloadzie.
+
+Deterministyczne przebiegi szybki, średni i długi oraz listę świadomych luk
+zapisano w `doc/operation_feedback_spike_01_results.md`. Dwie syntetyczne
+aplikacje zachowują odmienne głosy bez duplikowania profilu lub schedulera;
+`MASKUJ` wpływa na kilka kolejnych scen.
+
 ---
 
 # Sprint 130.8.6.4 — Renderer Abstraction: terminal / button_choice / window

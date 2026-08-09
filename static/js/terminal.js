@@ -1516,6 +1516,9 @@ function buildApplicationLaunchContext(appData = {}) {
             targetMatchesLaunch ? aimedTarget.security : null
         )
         : {};
+    const applicationContent = window.OperationFeedbackSystem
+        ? window.OperationFeedbackSystem.projectApplicationContent(appData)
+        : null;
     return {
         flow_id: flowId,
         launch_key: launchKey,
@@ -1525,7 +1528,8 @@ function buildApplicationLaunchContext(appData = {}) {
         app_name: name,
         expected_target: expectedTarget,
         action_key: actionKey,
-        security_state: securityState
+        security_state: securityState,
+        application_content: applicationContent
     };
 }
 
@@ -1554,7 +1558,8 @@ function currentApplicationLaunchContext(appWindow = null) {
         app_name: String(dataset.appTitle || pending.app_name || "").trim(),
         expected_target: expectedTarget,
         action_key: String(feedbackContext.action_key || pending.action_key || "").trim(),
-        security_state: feedbackContext.security_state || pending.security_state || {}
+        security_state: feedbackContext.security_state || pending.security_state || {},
+        application_content: feedbackContext.application_content || pending.application_content || null
     };
 }
 
@@ -1573,7 +1578,8 @@ function applyApplicationLaunchContext(appWindow, fallbackAppData = {}) {
         : "";
     appWindow._operationFeedbackLaunchContext = Object.freeze({
         action_key: String(context.action_key || "").trim(),
-        security_state: context.security_state || {}
+        security_state: context.security_state || {},
+        application_content: context.application_content || null
     });
     return currentApplicationLaunchContext(appWindow);
 }
@@ -2741,6 +2747,7 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
             rendererHost: appWindow?.querySelector?.('.app-content') || null,
             appWindow,
             securityState: context.security_state,
+            applicationContent: context.application_content,
             onTrace: (eventName, details) => appFlowTrace(context.flow_id, eventName, {
                 app_id: appId,
                 ...details

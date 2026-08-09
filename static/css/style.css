@@ -7972,6 +7972,48 @@ form button:hover {
   color: #ffd0d0;
 }
 
+.operation-feedback-choice {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(114, 255, 152, 0.35);
+}
+
+.operation-feedback-choice[hidden] {
+  display: none;
+}
+
+.operation-feedback-choice-prompt {
+  margin-bottom: 7px;
+  color: #fff;
+  font-weight: 700;
+}
+
+.operation-feedback-choice-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.operation-feedback-choice-buttons button {
+  padding: 5px 9px;
+  border: 1px solid #27d86c;
+  background: rgba(0, 30, 14, 0.95);
+  color: #b8ffc8;
+  font: inherit;
+  cursor: pointer;
+}
+
+.operation-feedback-choice-buttons button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.operation-feedback-choice-countdown {
+  margin-top: 6px;
+  color: #8fb99b;
+  font-size: 0.9em;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .operation-feedback-panel,
   .operation-feedback-panel * {

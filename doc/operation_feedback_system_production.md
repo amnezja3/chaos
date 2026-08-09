@@ -1,15 +1,17 @@
 # Operation Feedback System — artefakt produkcyjny
 
-Status: `PRODUCTION ARCHITECTURE DRAFT`
+Status: `IMPLEMENTATION CONTRACT — OFS-SPIKE-01 GO`
 
 Wersja kontraktu: `1.0.0`
 
 Data decyzji: `2026-08-09`
 
-Stan implementacji: rdzeń `130.8.6.1` i composer `130.8.6.2` istnieją jako
-domyślnie wyłączony spike `scan_ports`. Roboczy profil ma jawne mapowanie
-security/interactions, anti-repeat i adaptacyjne profile czasu; nie jest to
-produkcyjny cutover ani zgoda na generalizację.
+Stan implementacji: sprinty `130.8.6.1–130.8.6.3` domknęły domyślnie wyłączony
+spike `scan_ports`. Potwierdzono choices, lokalny presentation state, content
+autora, trzy profile przebiegu i payload priority. Wynik `GO` pozwala rozpocząć
+generalizację 6.4; nie jest to produkcyjny cutover.
+
+Raport spike'a: `doc/operation_feedback_spike_01_results.md`.
 
 Dokument źródłowy: `doc/Operation_Feedback_System.md` — materiał burzowy,
 niebędący kontraktem implementacyjnym.

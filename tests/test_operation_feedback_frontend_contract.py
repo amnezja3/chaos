@@ -54,6 +54,8 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         choice = self.function_source("async function sendGonnaWinRequest", "function app_terminal")
         self.assertNotIn("security_state:", notify)
         self.assertNotIn("security_state:", choice)
+        self.assertNotIn("application_content:", notify)
+        self.assertNotIn("application_content:", choice)
 
     def test_existing_request_paths_are_wrapped_not_duplicated(self):
         notify = self.function_source("async function notifyGonnaWin", "function notifyOpenMapsTargetHacked")
@@ -122,7 +124,10 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("history.last_security", self.feedback)
         self.assertIn("history.last_line", self.feedback)
         self.assertIn("durationProfileFor(config, elapsedMs)", self.feedback)
-        self.assertIn("this.clearTimers();\n            this.transition(\"completing\")", self.feedback)
+        self.assertIn(
+            "this.clearTimers();\n            this.clearChoice(true);\n            this.transition(\"completing\")",
+            self.feedback,
+        )
         self.assertIn(
             'if (this.disposed || this.state !== "running") return;',
             self.feedback,
@@ -143,6 +148,33 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertIn("operation feedback composer OK", result.stdout)
+
+    def test_three_presentation_choices_are_local_only(self):
+        operation = self.profile["operations"]["scan_ports"]
+        self.assertEqual(len(operation["choice_pools"]), 3)
+        for choice_id in operation["choice_pools"]:
+            self.assertTrue(choice_id.startswith("feedback."))
+            choice = self.profile["choice_library"][choice_id]
+            self.assertEqual(choice["effect_scope"], "presentation")
+            self.assertTrue(any(
+                option["value"] == choice["default_value"]
+                for option in choice["options"]
+            ))
+        self.assertIn("feedback_choice_resolved", self.feedback)
+        self.assertNotIn("/gonna-win", self.feedback)
+
+    def test_application_content_is_private_and_does_not_reuse_gameplay_choices(self):
+        self.assertIn("projectApplicationContent(appData)", self.terminal)
+        self.assertIn("application_content: applicationContent", self.terminal)
+        self.assertNotIn("dataset.applicationContent", self.terminal)
+        self.assertIn("level.list", self.feedback)
+        self.assertIn("level.logs", self.feedback)
+        self.assertIn("level.steps", self.feedback)
+        self.assertNotIn("level.buttons", self.feedback)
+        self.assertNotIn("level.options", self.feedback)
+        self.assertIn("app_structured", self.feedback)
+        self.assertIn("app_legacy", self.feedback)
+        self.assertIn("global_fallback", self.feedback)
 
 
 if __name__ == "__main__":

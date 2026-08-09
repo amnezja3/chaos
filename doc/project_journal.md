@@ -11162,3 +11162,26 @@ Walidacja 130.8.6.2: 13 testów kontraktu i composera oraz 32 testy idempotencji
 hack-action zakończone `OK`. Deterministyczny test Node potwierdził co najmniej
 trzy różne sceny, anti-repeat i przejścia profili czasu. `py_compile`, oba
 `node --check` i `git diff --check` zakończone `OK`.
+
+Zrealizowano kluczowy sprint 130.8.6.3 i zamknięto `OFS-SPIKE-01` decyzją `GO`.
+Dodano trzy lokalne wybory narracyjne z timeoutem, defaultem i walidowaną
+mutacją presentation state. Aktywny wybór nie zatrzymuje scen, nie wykonuje
+requestu, a payload natychmiast kończy countdown i blokuje UI. Stan jest
+czyszczony przy dispose.
+
+Runtime otrzymał prywatną projekcję contentu autora z priorytetem structured,
+legacy, global fallback. Legacy używa tylko neutralnych pól i pomija istniejące
+buttons/options. Filtr odrzuca HTML oraz przedwczesny sukces, capture, awarię
+transportu i wyłączenie zabezpieczeń. Dwie aplikacje zachowały odmienne głosy
+na jednym profilu `scan_ports`; MASKUJ zmienił kilka kolejnych scen.
+
+Trzy deterministyczne transkrypty, kryteria decyzji i świadome luki zapisano w
+`doc/operation_feedback_spike_01_results.md`. GO otwiera wyłącznie 130.8.6.4;
+flagi pozostają wyłączone domyślnie i nie wykonano cutoveru.
+
+Walidacja 130.8.6.3: 15 testów kontraktu OFS oraz 32 testy idempotencji
+hack-action zakończone `OK`. Deterministyczny test Node potwierdził wybory,
+timeout/default, wpływ presentation state na dalsze sceny, priorytet contentu,
+trzy profile czasu oraz natychmiastowe zatrzymanie renderera przez payload.
+`py_compile`, oba `node --check` i `git diff --check` zakończone `OK`; pozostał
+wyłącznie warning konwersji CRLF/LF dla `static/css/style.css`.

@@ -29,9 +29,15 @@
       "max_lines": 3,
       "pause_ms": [850, 1350],
       "transition": "replace",
-      "allow_choice": false,
+      "allow_choice": true,
       "operation_lines": ["Wysylanie niskopoziomowej sondy.", "Sprawdzanie odpowiedzi uslug.", "Porownywanie sygnatur portow."],
-      "transition_lines": ["Weryfikacja odpowiedzi trwa.", "Sonda przechodzi do kolejnego zakresu."]
+      "transition_lines": [
+        "Weryfikacja odpowiedzi trwa.",
+        "Sonda przechodzi do kolejnego zakresu.",
+        {"text": "Maskowana sonda utrzymuje niski profil widocznosci.", "when": {"scan_mode": "masked"}},
+        {"text": "Cichy rytm ogranicza czestotliwosc kolejnej sondy.", "when": {"probe_mode": "quiet"}},
+        {"text": "Szybki rytm przygotowuje rozszerzony zakres.", "when": {"probe_mode": "fast"}}
+      ]
     },
     "security_contact": {
       "sequence": ["operation", "security", "security", "transition"],
@@ -39,9 +45,13 @@
       "max_lines": 4,
       "pause_ms": [1000, 1550],
       "transition": "replace",
-      "allow_choice": false,
+      "allow_choice": true,
       "operation_lines": ["Wykryto warstwe kontroli ruchu.", "Analiza zabezpieczen celu.", "Sonda negocjuje bezpieczna trase."],
-      "transition_lines": ["Kontakt techniczny pozostaje aktywny.", "Odpowiedz przekazana do weryfikacji."]
+      "transition_lines": [
+        "Kontakt techniczny pozostaje aktywny.",
+        "Odpowiedz przekazana do weryfikacji.",
+        {"text": "Kolejny kontakt wykorzysta maskowana trase.", "when": {"scan_mode": "masked"}}
+      ]
     },
     "verification": {
       "sequence": ["operation", "security", "transition"],
@@ -49,9 +59,15 @@
       "max_lines": 3,
       "pause_ms": [1100, 1700],
       "transition": "replace",
-      "allow_choice": false,
+      "allow_choice": true,
       "operation_lines": ["Porzadkowanie odpowiedzi skanera.", "Weryfikacja spojnosci sygnatur.", "Korelacja wykrytych uslug."],
-      "transition_lines": ["Oczekiwanie na potwierdzenie runtime.", "Wynik pozostaje niepotwierdzony."]
+      "transition_lines": [
+        "Oczekiwanie na potwierdzenie runtime.",
+        "Wynik pozostaje niepotwierdzony.",
+        {"text": "Powtorna weryfikacja zostala przygotowana.", "when": {"verification_mode": "repeat"}},
+        {"text": "Dodatkowa weryfikacja zostala pominieta w prezentacji.", "when": {"verification_mode": "skip"}},
+        {"text": "Weryfikacja zachowuje maskowany profil sondy.", "when": {"scan_mode": "masked"}}
+      ]
     },
     "payload_wait": {
       "sequence": ["operation", "transition"],
@@ -75,9 +91,18 @@
     "firewall": {
       "label": "firewall",
       "interactions": {
-        "probe": ["Sonda odpytuje reguly firewalla.", "Odczyt odpowiedzi filtra pakietow."],
+        "probe": [
+          "Sonda odpytuje reguly firewalla.",
+          "Odczyt odpowiedzi filtra pakietow.",
+          {"text": "Cicha sonda ogranicza czestotliwosc zapytan.", "when": {"scan_mode": "masked"}},
+          {"text": "Szybka sekwencja rozszerza zakres sondy.", "when": {"probe_mode": "fast"}}
+        ],
         "bypass": ["Proba obejscia filtra zostala uruchomiona.", "Alternatywny kanal jest sprawdzany."],
-        "route": ["Wybrano trase omijajaca filtr.", "Sonda przechodzi przez trase alternatywna."]
+        "route": [
+          "Wybrano trase omijajaca filtr.",
+          "Sonda przechodzi przez trase alternatywna.",
+          {"text": "Maskowana sekwencja przechodzi trasa o niskiej widocznosci.", "when": {"scan_mode": "masked"}}
+        ]
       }
     },
     "firewall_core": {
@@ -111,7 +136,41 @@
   "transport_library": {
     "response_delayed": ["Odpowiedz runtime trwa dluzej niz zwykle."]
   },
-  "choice_library": {},
+  "choice_library": {
+    "feedback.scan_ports.visibility": {
+      "choice_id": "feedback.scan_ports.visibility",
+      "effect_scope": "presentation",
+      "prompt": "Widocznosc sondy",
+      "options": [
+        {"value": "masked", "label": "MASKUJ", "set": {"scan_mode": "masked"}},
+        {"value": "standard", "label": "KONTYNUUJ", "set": {"scan_mode": "standard"}}
+      ],
+      "timeout_ms": 8000,
+      "default_value": "standard"
+    },
+    "feedback.scan_ports.pace": {
+      "choice_id": "feedback.scan_ports.pace",
+      "effect_scope": "presentation",
+      "prompt": "Rytm prezentacji sondy",
+      "options": [
+        {"value": "quiet", "label": "TRYB CICHY", "set": {"probe_mode": "quiet"}},
+        {"value": "fast", "label": "TRYB SZYBKI", "set": {"probe_mode": "fast"}}
+      ],
+      "timeout_ms": 7000,
+      "default_value": "quiet"
+    },
+    "feedback.scan_ports.verification": {
+      "choice_id": "feedback.scan_ports.verification",
+      "effect_scope": "presentation",
+      "prompt": "Sposob weryfikacji",
+      "options": [
+        {"value": "repeat", "label": "PONOW", "set": {"verification_mode": "repeat"}},
+        {"value": "skip", "label": "POMIN", "set": {"verification_mode": "skip"}}
+      ],
+      "timeout_ms": 6000,
+      "default_value": "repeat"
+    }
+  },
   "completion_library": {
     "default": {"success": ["Runtime potwierdzil powodzenie."], "failure": ["Runtime zwrocil wynik operacji."]}
   },
@@ -133,8 +192,16 @@
         "system_visibility": ["probe"],
         "vpn_blocker": ["probe", "route"]
       },
-      "choice_pools": [],
-      "presentation_state_schema": {},
+      "choice_pools": [
+        "feedback.scan_ports.visibility",
+        "feedback.scan_ports.pace",
+        "feedback.scan_ports.verification"
+      ],
+      "presentation_state_schema": {
+        "scan_mode": ["standard", "masked"],
+        "probe_mode": ["quiet", "fast"],
+        "verification_mode": ["repeat", "skip"]
+      },
       "completion_pool": "default",
       "failure_pool": "default"
     }

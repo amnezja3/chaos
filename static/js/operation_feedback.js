@@ -100,6 +100,42 @@
                 }
             });
         });
+        const stateSchema = ensureObject(profile.presentation_state_schema, "presentation state schema");
+        Object.values(config.security_library).forEach(security => {
+            Object.values((security && security.interactions) || {}).forEach(variants => {
+                (Array.isArray(variants) ? variants : []).forEach(variant => {
+                    Object.entries((variant && typeof variant === "object" && variant.when) || {}).forEach(([key, value]) => {
+                        if (!Array.isArray(stateSchema[key]) || !stateSchema[key].includes(value)) {
+                            throw new Error("OFS variant references undeclared presentation state");
+                        }
+                    });
+                });
+            });
+        });
+        if (!Array.isArray(profile.choice_pools) || profile.choice_pools.length < 3) {
+            throw new Error("OFS scan_ports requires three presentation choices");
+        }
+        profile.choice_pools.forEach(choiceId => {
+            const choice = ensureObject(config.choice_library[choiceId], `choice ${choiceId}`);
+            if (!choiceId.startsWith("feedback.") || choice.choice_id !== choiceId
+                || choice.effect_scope !== "presentation") {
+                throw new Error(`OFS invalid presentation choice ${choiceId}`);
+            }
+            if (!Array.isArray(choice.options) || choice.options.length < 2
+                || !Number.isFinite(choice.timeout_ms) || choice.timeout_ms <= 0 || choice.timeout_ms > 30000) {
+                throw new Error(`OFS invalid choice contract ${choiceId}`);
+            }
+            if (!choice.options.some(option => option.value === choice.default_value)) {
+                throw new Error(`OFS choice ${choiceId} has no valid default`);
+            }
+            choice.options.forEach(option => {
+                Object.entries(ensureObject(option.set, `choice ${choiceId} mutation`)).forEach(([key, value]) => {
+                    if (!Array.isArray(stateSchema[key]) || !stateSchema[key].includes(value)) {
+                        throw new Error(`OFS choice ${choiceId} mutates undeclared state`);
+                    }
+                });
+            });
+        });
         const validatePlainText = value => {
             if (typeof value === "string" && /<[^>]+>/.test(value)) {
                 throw new Error("OFS content must be plain text");
@@ -150,7 +186,43 @@
         return selected;
     }
 
-    function composeScene({ config, profile, securityState, history, elapsedMs, random = Math.random }) {
+    function variantMatchesState(variant, presentationState) {
+        if (!variant || typeof variant !== "object" || Array.isArray(variant)) return true;
+        const when = variant.when;
+        if (!when || typeof when !== "object") return true;
+        return Object.entries(when).every(([key, value]) => presentationState[key] === value);
+    }
+
+    function eligibleVariantTexts(variants, presentationState) {
+        const eligible = (Array.isArray(variants) ? variants : []).filter(
+            variant => variantMatchesState(variant, presentationState)
+        );
+        const conditional = eligible.filter(
+            variant => variant && typeof variant === "object" && !Array.isArray(variant) && variant.when
+        );
+        const preferred = conditional.length ? conditional : eligible;
+        return preferred.map(variant => typeof variant === "string" ? variant : variant.text).filter(Boolean);
+    }
+
+    function applicationLines(applicationContent, slot, presentationState) {
+        const structured = applicationContent && applicationContent.structured;
+        const structuredLines = structured
+            ? eligibleVariantTexts(structured[slot], presentationState)
+            : [];
+        if (structuredLines.length) return { lines: structuredLines, source: "app_structured" };
+        const legacyLines = applicationContent && applicationContent.legacy
+            ? applicationContent.legacy[slot]
+            : [];
+        if (Array.isArray(legacyLines) && legacyLines.length) {
+            return { lines: legacyLines, source: "app_legacy" };
+        }
+        return { lines: [], source: "global_fallback" };
+    }
+
+    function composeScene({
+        config, profile, securityState, history, elapsedMs, random = Math.random,
+        presentationState = {}, applicationContent = null
+    }) {
         const duration = durationProfileFor(config, elapsedMs);
         const allowedScenes = duration.scene_pool.filter(sceneId => profile.scene_pools.includes(sceneId));
         const sceneId = randomItem(allowedScenes, random, history.last_scene)
@@ -159,20 +231,38 @@
         if (!scene) throw new Error("OFS composer has no valid scene");
 
         const activeSecurity = Object.keys(profile.security).filter(key => securityState[key] === true);
+        const sceneOperationLines = eligibleVariantTexts(scene.operation_lines, presentationState);
+        const sceneTransitionLines = eligibleVariantTexts(scene.transition_lines, presentationState);
         const lines = [];
+        const contentSources = [];
         scene.sequence.forEach(role => {
             let line = null;
             if (role === "security" && activeSecurity.length) {
                 const securityKey = randomItem(activeSecurity, random, history.last_security);
                 const allowedInteractions = profile.security[securityKey];
                 const interaction = randomItem(allowedInteractions, random);
-                const variants = config.security_library[securityKey].interactions[interaction];
-                line = chooseLine(variants, history, random);
+                const structuredSecurity = applicationContent && applicationContent.structured
+                    && applicationContent.structured.security
+                    && applicationContent.structured.security[securityKey];
+                const appVariants = structuredSecurity && structuredSecurity[interaction]
+                    ? eligibleVariantTexts(structuredSecurity[interaction], presentationState)
+                    : [];
+                const globalVariants = eligibleVariantTexts(
+                    config.security_library[securityKey].interactions[interaction],
+                    presentationState
+                );
+                line = chooseLine(appVariants.length ? appVariants : globalVariants, history, random);
+                contentSources.push(appVariants.length ? "app_structured" : "global_fallback");
                 history.last_security = securityKey;
             } else if (role === "transition") {
-                line = chooseLine(scene.transition_lines, history, random);
+                const content = applicationLines(applicationContent, "transition", presentationState);
+                line = chooseLine(content.lines.length ? content.lines : sceneTransitionLines, history, random);
+                contentSources.push(content.lines.length ? content.source : "global_fallback");
             } else {
-                line = chooseLine(scene.operation_lines, history, random);
+                const slot = sceneId === "boot" ? "boot" : "operation";
+                const content = applicationLines(applicationContent, slot, presentationState);
+                line = chooseLine(content.lines.length ? content.lines : sceneOperationLines, history, random);
+                contentSources.push(content.lines.length ? content.source : "global_fallback");
             }
             if (line && lines[lines.length - 1] !== line) lines.push(line);
         });
@@ -181,8 +271,8 @@
         const maxLines = Math.max(minLines, Number(scene.max_lines || config.defaults.max_lines || 5));
         let fillAttempts = 0;
         while (lines.length < minLines && fillAttempts < 12) {
-            const fallbackLine = chooseLine(scene.operation_lines, history, random)
-                || chooseLine(scene.transition_lines, history, random);
+            const fallbackLine = chooseLine(sceneOperationLines, history, random)
+                || chooseLine(sceneTransitionLines, history, random);
             if (fallbackLine && lines[lines.length - 1] !== fallbackLine) lines.push(fallbackLine);
             fillAttempts += 1;
         }
@@ -194,7 +284,11 @@
             lines: lines.slice(0, maxLines),
             min_lines: minLines,
             delay_ms: delayMs,
-            transition: scene.transition || "replace"
+            transition: scene.transition || "replace",
+            allow_choice: scene.allow_choice === true,
+            content_source: contentSources.includes("app_structured")
+                ? "app_structured"
+                : (contentSources.includes("app_legacy") ? "app_legacy" : "global_fallback")
         };
     }
 
@@ -223,6 +317,91 @@
         return Object.freeze(normalized);
     }
 
+    function safeContentText(value, { allowOutcome = false } = {}) {
+        if (typeof value !== "string") return null;
+        const text = value.trim().replace(/\s+/g, " ").slice(0, 240);
+        if (!text || /<[^>]+>/.test(text)) return null;
+        if (!allowOutcome && /(sukces|success|captur|przej[eę]|owned|disabled|wy[lł][aą]cz|connection lost|timeout|packet loss|worker restart|reconnect)/i.test(text)) {
+            return null;
+        }
+        return text;
+    }
+
+    function safeContentLines(values, options = {}) {
+        const source = Array.isArray(values) ? values : (values ? [values] : []);
+        return source.map(value => safeContentText(value, options)).filter(Boolean).slice(0, 20);
+    }
+
+    function sanitizeStructuredVariants(values) {
+        const source = Array.isArray(values) ? values : [];
+        return source.map(value => {
+            if (typeof value === "string") return safeContentText(value);
+            if (!value || typeof value !== "object") return null;
+            const text = safeContentText(value.text);
+            const when = value.when && typeof value.when === "object" && !Array.isArray(value.when)
+                ? Object.fromEntries(Object.entries(value.when).map(([key, item]) => [String(key), String(item)]))
+                : null;
+            return text ? { text, when } : null;
+        }).filter(Boolean).slice(0, 20);
+    }
+
+    function deepFreeze(value) {
+        if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+        Object.values(value).forEach(deepFreeze);
+        return Object.freeze(value);
+    }
+
+    function projectApplicationContent(appData = {}) {
+        const levels = Array.isArray(appData.levels) ? appData.levels : [];
+        const level = levels[0] && typeof levels[0] === "object" ? levels[0] : {};
+        const legacy = {
+            boot: safeContentLines([level.command]),
+            operation: safeContentLines([
+                ...(Array.isArray(level.list) ? level.list : []),
+                ...(Array.isArray(level.logs) ? level.logs : []),
+                ...(Array.isArray(level.steps) ? level.steps : [])
+            ]),
+            transition: safeContentLines([level.text, level.description, appData.description]),
+            completion: {
+                success: safeContentLines([level.result_success], { allowOutcome: true }),
+                failure: safeContentLines([level.result_failure], { allowOutcome: true })
+            }
+        };
+        const rawStructured = appData.feedback_content;
+        let structured = null;
+        if (rawStructured && rawStructured.schema_version === "1.0.0") {
+            const sceneLines = rawStructured.scene_lines || {};
+            const security = {};
+            Object.entries(rawStructured.security || {}).forEach(([securityKey, interactions]) => {
+                if (!CANONICAL_SECURITY_KEYS.has(securityKey) || !interactions || typeof interactions !== "object") return;
+                security[securityKey] = {};
+                Object.entries(interactions).forEach(([interaction, variants]) => {
+                    security[securityKey][interaction] = sanitizeStructuredVariants(variants);
+                });
+            });
+            structured = {
+                boot: sanitizeStructuredVariants(sceneLines.boot),
+                operation: sanitizeStructuredVariants(sceneLines.operation),
+                transition: sanitizeStructuredVariants(sceneLines.transition),
+                security,
+                completion: {
+                    success: safeContentLines(rawStructured.completion && rawStructured.completion.success, { allowOutcome: true }),
+                    failure: safeContentLines(rawStructured.completion && rawStructured.completion.failure, { allowOutcome: true })
+                }
+            };
+        }
+        return deepFreeze({
+            title: safeContentText(
+                (rawStructured && rawStructured.labels && rawStructured.labels.session_title)
+                || level.title || appData.name || appData.id,
+                { allowOutcome: true }
+            ) || "OPERATION FEEDBACK",
+            structured,
+            legacy,
+            interface: String(appData.interface || "")
+        });
+    }
+
     function isEnabled(actionKey, flags = readFlags()) {
         const action = String(actionKey || "").trim();
         return flags.enabled === true && action === "scan_ports" && flags.scan_ports === true;
@@ -238,6 +417,7 @@
             this.rendererHost = options.rendererHost || null;
             this.appWindow = options.appWindow || null;
             this.securityState = sanitizeSecurityState(options.securityState);
+            this.applicationContent = options.applicationContent || projectApplicationContent({});
             this.clock = options.clock || global;
             this.now = typeof options.now === "function" ? options.now : () => global.performance.now();
             this.random = typeof options.random === "function" ? options.random : Math.random;
@@ -251,6 +431,11 @@
             this.profile = null;
             this.startedAt = 0;
             this.history = { last_scene: null, last_security: null, last_line: null };
+            this.presentationState = {};
+            this.askedChoices = new Set();
+            this.activeChoice = null;
+            this.choiceTimeoutId = null;
+            this.choiceTickId = null;
             sessionSequence += 1;
             this.sessionId = `${this.flowId || "local"}:${this.launchReceipt || this.appId || "app"}:${sessionSequence}`;
         }
@@ -286,6 +471,8 @@
         clearTimers() {
             this.timers.forEach(timerId => this.clock.clearTimeout(timerId));
             this.timers.clear();
+            this.choiceTimeoutId = null;
+            this.choiceTickId = null;
         }
 
         ensurePanel() {
@@ -300,7 +487,7 @@
 
             const title = global.document.createElement("div");
             title.className = "operation-feedback-title";
-            title.textContent = "OPERATION FEEDBACK";
+            title.textContent = this.applicationContent.title || "OPERATION FEEDBACK";
             panel.appendChild(title);
 
             const status = global.document.createElement("div");
@@ -310,6 +497,11 @@
             const lines = global.document.createElement("div");
             lines.className = "operation-feedback-lines";
             panel.appendChild(lines);
+
+            const choice = global.document.createElement("div");
+            choice.className = "operation-feedback-choice";
+            choice.hidden = true;
+            panel.appendChild(choice);
 
             this.rendererHost.appendChild(panel);
             this.panel = panel;
@@ -329,6 +521,124 @@
                 line.textContent = String(item || "");
                 lines.appendChild(line);
             });
+        }
+
+        cancelTimer(timerId) {
+            if (timerId === null || timerId === undefined) return;
+            this.clock.clearTimeout(timerId);
+            this.timers.delete(timerId);
+        }
+
+        clearChoice(disableOnly = false) {
+            this.cancelTimer(this.choiceTimeoutId);
+            this.cancelTimer(this.choiceTickId);
+            this.choiceTimeoutId = null;
+            this.choiceTickId = null;
+            const container = this.panel && this.panel.querySelector(".operation-feedback-choice");
+            if (container) {
+                container.querySelectorAll("button").forEach(button => {
+                    button.disabled = true;
+                });
+                if (!disableOnly) {
+                    container.replaceChildren();
+                    container.hidden = true;
+                }
+            }
+            this.activeChoice = null;
+        }
+
+        resolveChoice(value, reason = "user") {
+            if (this.disposed || !this.activeChoice
+                || (this.state !== "running" && this.state !== "awaiting_payload")) return false;
+            const choice = this.activeChoice;
+            const option = choice.options.find(item => item.value === value);
+            if (!option) return false;
+            const schema = this.profile.presentation_state_schema || {};
+            const mutations = option.set || {};
+            for (const [key, nextValue] of Object.entries(mutations)) {
+                if (!Array.isArray(schema[key]) || !schema[key].includes(nextValue)) return false;
+            }
+            Object.assign(this.presentationState, mutations);
+            this.cancelTimer(this.choiceTimeoutId);
+            this.cancelTimer(this.choiceTickId);
+            this.choiceTimeoutId = null;
+            this.choiceTickId = null;
+            const container = this.panel && this.panel.querySelector(".operation-feedback-choice");
+            if (container) {
+                container.querySelectorAll("button").forEach(button => {
+                    button.disabled = true;
+                });
+                const countdown = container.querySelector(".operation-feedback-choice-countdown");
+                if (countdown) countdown.textContent = reason === "timeout" ? "Wybrano domyslnie." : "Wybor zapisany lokalnie.";
+            }
+            this.trace("feedback_choice_resolved", {
+                choice_id: choice.choice_id,
+                choice_value: option.value,
+                completion_reason: reason
+            });
+            this.activeChoice = null;
+            this.setTimer(() => {
+                if (!this.disposed && !this.activeChoice && container) {
+                    container.replaceChildren();
+                    container.hidden = true;
+                }
+            }, 450);
+            return true;
+        }
+
+        renderChoice(choice) {
+            if (!choice || this.activeChoice || this.disposed) return;
+            const container = this.panel && this.panel.querySelector(".operation-feedback-choice");
+            if (!container) return;
+            this.activeChoice = choice;
+            this.askedChoices.add(choice.choice_id);
+            container.replaceChildren();
+            container.hidden = false;
+
+            const prompt = global.document.createElement("div");
+            prompt.className = "operation-feedback-choice-prompt";
+            prompt.textContent = choice.prompt;
+            container.appendChild(prompt);
+
+            const buttons = global.document.createElement("div");
+            buttons.className = "operation-feedback-choice-buttons";
+            choice.options.forEach(option => {
+                const button = global.document.createElement("button");
+                button.type = "button";
+                button.dataset.feedbackChoice = choice.choice_id;
+                button.dataset.feedbackValue = option.value;
+                button.textContent = option.label;
+                button.addEventListener("click", () => this.resolveChoice(option.value, "user"));
+                buttons.appendChild(button);
+            });
+            container.appendChild(buttons);
+
+            const countdown = global.document.createElement("div");
+            countdown.className = "operation-feedback-choice-countdown";
+            container.appendChild(countdown);
+            const deadline = this.now() + choice.timeout_ms;
+            const updateCountdown = () => {
+                if (this.disposed || this.activeChoice !== choice) return;
+                const seconds = Math.max(0, Math.ceil((deadline - this.now()) / 1000));
+                countdown.textContent = `Domyslny wybor za ${seconds}s`;
+                if (seconds > 0) this.choiceTickId = this.setTimer(updateCountdown, 1000);
+            };
+            updateCountdown();
+            this.choiceTimeoutId = this.setTimer(
+                () => this.resolveChoice(choice.default_value, "timeout"),
+                choice.timeout_ms
+            );
+            this.trace("feedback_choice_presented", { choice_id: choice.choice_id });
+        }
+
+        maybePresentChoice(scene) {
+            if (!scene.allow_choice || this.activeChoice || scene.duration_profile === "instant") return;
+            if (scene.duration_profile === "short" && this.askedChoices.size >= 1) return;
+            const choiceId = randomItem(
+                this.profile.choice_pools.filter(id => !this.askedChoices.has(id)),
+                this.random
+            );
+            if (choiceId) this.renderChoice(this.config.choice_library[choiceId]);
         }
 
         start() {
@@ -379,15 +689,19 @@
                 securityState: this.securityState,
                 history: this.history,
                 elapsedMs,
-                random: this.random
+                random: this.random,
+                presentationState: this.presentationState,
+                applicationContent: this.applicationContent
             });
             if (this.state === "awaiting_payload") this.transition("running");
             this.render("Operacja w toku...", scene.lines);
             this.trace("feedback_scene_started", {
                 scene_id: scene.scene_id,
                 duration_profile: scene.duration_profile,
-                elapsed_ms: Math.round(elapsedMs)
+                elapsed_ms: Math.round(elapsedMs),
+                content_source: scene.content_source
             });
+            this.maybePresentChoice(scene);
             this.setTimer(() => {
                 if (this.disposed || this.state !== "running") return;
                 this.renderNextScene();
@@ -397,14 +711,26 @@
         complete(payload = {}) {
             if (this.disposed || TERMINAL_STATES.has(this.state)) return;
             this.clearTimers();
+            this.clearChoice(true);
             this.transition("completing");
             const success = payload && payload.success === true;
             const completion = this.config && this.profile
                 ? this.config.completion_library[this.profile.completion_pool]
                 : null;
-            const completionLines = completion
+            const structuredCompletion = this.applicationContent.structured
+                && this.applicationContent.structured.completion
+                && this.applicationContent.structured.completion[success ? "success" : "failure"];
+            const legacyCompletion = this.applicationContent.legacy
+                && this.applicationContent.legacy.completion
+                && this.applicationContent.legacy.completion[success ? "success" : "failure"];
+            const fallbackCompletion = completion
                 ? (success ? completion.success : completion.failure)
                 : null;
+            const completionLines = structuredCompletion && structuredCompletion.length
+                ? structuredCompletion
+                : (legacyCompletion && legacyCompletion.length
+                    ? legacyCompletion
+                    : fallbackCompletion);
             this.render(success ? "Potwierdzono wynik." : "Operacja zakonczona.", [
                 randomItem(completionLines, this.random)
                     || (success ? "Runtime potwierdzil powodzenie." : "Runtime zwrocil wynik operacji.")
@@ -416,6 +742,7 @@
         fail(reason = "request_failed") {
             if (this.disposed || TERMINAL_STATES.has(this.state)) return;
             this.clearTimers();
+            this.clearChoice(true);
             this.transition("failed");
             const failurePool = this.config && this.profile
                 ? this.config.failure_library[this.profile.failure_pool]
@@ -430,6 +757,7 @@
         cancel(reason = "cancelled") {
             if (this.disposed) return;
             this.clearTimers();
+            this.clearChoice(true);
             if (this.state === "completing" || this.state === "failed") {
                 this.dispose(reason);
                 return;
@@ -442,8 +770,10 @@
         dispose(reason = "disposed") {
             if (this.disposed) return;
             this.clearTimers();
+            this.clearChoice(true);
             if (this.state !== "disposed") this.transition("disposed");
             this.disposed = true;
+            this.presentationState = {};
             if (this.panel && this.panel.isConnected) this.panel.remove();
             if (this.appWindow && this.appWindow._operationFeedbackSession === this) {
                 this.appWindow._operationFeedbackSession = null;
@@ -480,6 +810,7 @@
         isEnabled,
         readFlags,
         sanitizeSecurityState,
+        projectApplicationContent,
         validateFeedbackConfig,
         loadFeedbackConfig,
         durationProfileFor,
