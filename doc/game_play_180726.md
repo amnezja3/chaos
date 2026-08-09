@@ -18525,9 +18525,126 @@ Dla desktopu i terminala będzie można następnie wejść w ten sam lifecycle o
 
 Dopiero po tym rozszerzeniu sensowne będzie przejście do `130.8.6.4` i generalizacja rendererów, ponieważ wtedy renderer będzie obsługiwał nie tylko „oczekiwanie po kliknięciu”, ale pełny prezentacyjny runtime aplikacji.
 
+# Sprint 130.8.6.3.3 — Pre-Execution Scene System
 
+## Status
 
----
+Rozpoczęty. Pierwszy etap composera i handoff do hydration jest zaimplementowany
+za istniejącą, domyślnie wyłączoną flagą `CHAOS_PROVISIONAL_APP_LAUNCH_ENABLED`.
+
+## Cel
+
+Zapewnić prezentację od utworzenia provisional window do hydration, bez
+sugerowania postępu lub wyniku, którego backend jeszcze nie potwierdził.
+
+```text
+map action
+→ read-only discovery
+→ provisional window
+→ pre-execution scenes
+→ applicationEffect hydration
+→ autorski interface i content
+→ interakcja gameplayowa
+→ OFS podczas /gonna-win
+→ autorytatywny wynik
+```
+
+## Granice odpowiedzialności
+
+Provisional presentation w `terminal.js` jest właścicielem faz `launching`,
+`booting`, `hydrating`, `presenting` i `interactive`. Korzysta z lokalnego
+snapshotu discovery, targetu, requested action i bezpiecznej projekcji contentu
+autora. Nie wykonuje operacji gameplayowej.
+
+OFS w `operation_feedback.js` zaczyna się przy prawdziwym requestcie
+`/gonna-win` i jest właścicielem fazy `executing`. Sprint nie dodaje drugiego
+schedulera do OFS ani scen launchera do profilu `scan_ports`.
+
+Backend pozostaje właścicielem launch queue, hydration payloadu, operacji i
+wyniku. Sprint nie zmienia endpointów, receiptów ani idempotencji.
+
+## Kontrakt scen
+
+| Rodzina | Faza | Dozwolona treść |
+|---|---|---|
+| `app_identity` | launching | nazwa, opis i ikona aplikacji |
+| `local_init` | booting | lokalne przygotowanie interface |
+| `context_bind` | booting | target i requested action |
+| `runtime_prepare` | booting | gotowość lokalnego widoku |
+| `hydration_wait` | booting | neutralne oczekiwanie na launcher |
+| `ready` | hydrating/presenting | tylko po `applicationEffect` |
+
+Pre-execution nie komunikuje rozpoczęcia skanu lub exploita, wyniku, capture,
+błędu transportu bez sygnału, wyłączenia zabezpieczenia ani procentu postępu.
+Pulsujące segmenty oznaczają aktywność, nie progress.
+
+## Content
+
+Priorytet: snapshot discovery → bezpieczny opis autora → interface → target i
+requested action → neutralny fallback.
+
+Gameplayowe `buttons/options`, completion i wykonawcze logi nie są renderowane
+przed hydration. Pełny content autora przychodzi w `applicationEffect` i jest
+renderowany przez istniejący interface w tym samym DOM.
+
+## Scheduler i handoff
+
+Scheduler jest lokalny dla provisional session i nie współdzieli stanu z OFS.
+
+* hydration natychmiast przerywa scenę i nie czeka na animację;
+* `hydration_wait` zwalnia maksymalnie do jednego ekranu na 9 sekund;
+* dispose czyści timer;
+* callback sprawdza sesję i DOM;
+* równoległe uruchomienia mają niezależne schedulery;
+* tombstone z 6.3.2 blokuje późne wskrzeszenie.
+
+`applicationEffect` zawsze wygrywa:
+
+```text
+stop pre-execution timer
+→ ten sam app-window
+→ hydration
+→ autorski renderer
+→ interactive albo executing
+```
+
+## Fallback
+
+Błąd composera pozostawia prosty provisional shell i nie blokuje
+`/hack-action`, launch queue ani legacy renderera. Flaga wyłączona zachowuje
+dotychczasowy launch flow.
+
+## Zakres
+
+1. Lokalny composer i anulowalny scheduler w provisional registry.
+2. Viewport scen w istniejącym provisional window.
+3. Cleanup przy hydration, dispose i błędzie.
+4. Bezpieczna projekcja aplikacji, targetu, akcji i interface.
+5. Handoff do czterech rendererów bez zmiany gameplayu.
+6. Testy pollingu, zamknięcia, replayu i równoległych sesji.
+7. Dokumentacja lifecycle i AppForge content boundary.
+
+Poza zakresem: generalizacja rendererów 6.4, push/nowy endpoint, procentowy
+progress, zmiana wyniku, profile każdej aplikacji i security przed `/gonna-win`.
+
+## Test ręczny
+
+Sprawdzić jedną aplikację bez pickera, wybór z pickera, cztery interface,
+hydration po około 1 s i po co najmniej 20 s, zamknięcie przed hydration, dwa
+równoległe uruchomienia tej samej aplikacji, `scan_ports` z OFS i flag-off.
+
+## Definition of Done
+
+1. Provisional window pokazuje znaczące sceny zamiast samego activity indicator.
+2. Sceny korzystają z aplikacji, interface, targetu i requested action.
+3. Content autora jest filtrowany semantycznie.
+4. Nie pojawia się fałszywy progress, wynik ani stan transportu.
+5. Hydration zatrzymuje scheduler, a długie oczekiwanie nie zalewa UI.
+6. Dispose usuwa wszystkie timery.
+7. Przyciski gameplayowe pojawiają się dopiero z autorytatywnym rendererem.
+8. Jeden viewport ma jednego właściciela prezentacji.
+9. Cztery interface i `scan_ports` nie mają regresji.
+10. Flaga off, legacy fallback, testy i dokumentacja odpowiadają kodowi.
 
 # Sprint 130.8.6.4 — Renderer Abstraction: terminal / button_choice / window
 

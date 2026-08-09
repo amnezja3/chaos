@@ -114,6 +114,43 @@ class ProvisionalApplicationLaunchContractTest(unittest.TestCase):
         self.assertIn('"completing"', source)
         self.assertIn('"failed"', source)
 
+    def test_pre_execution_scenes_are_local_and_do_not_issue_gameplay_requests(self):
+        source = self.function_source(
+            "function buildPreExecutionScenes",
+            "function disposeProvisionalApplicationSession",
+        )
+        for family in ("app_identity", "local_init", "context_bind", "runtime_prepare", "hydration_wait"):
+            self.assertIn(f'family: "{family}"', source)
+        self.assertNotIn("fetch(", source)
+        self.assertNotIn("notifyGonnaWin", source)
+        self.assertNotIn("sendGonnaWinRequest", source)
+        self.assertIn("Math.min(9000", source)
+
+    def test_hydration_and_dispose_stop_pre_execution_scheduler(self):
+        consume = self.function_source(
+            "function consumeProvisionalHydrationWindow",
+            "function beginApplicationRenderLaunch",
+        )
+        dispose = self.function_source(
+            "function disposeProvisionalApplicationSession",
+            "function beginProvisionalLaunch",
+        )
+        self.assertIn('stopPreExecutionPresentation(session, "hydration")', consume)
+        self.assertIn("stopPreExecutionPresentation(session, reason)", dispose)
+        self.assertLess(
+            consume.index("stopPreExecutionPresentation"),
+            consume.index('updateProvisionalApplicationSession(session, "hydrating"'),
+        )
+
+    def test_pre_execution_viewport_starts_after_window_is_attached(self):
+        source = self.function_source(
+            "function beginProvisionalLaunch",
+            "window.beginProvisionalLaunch = beginProvisionalLaunch",
+        )
+        self.assertIn('class="provisional-app-scenes"', source)
+        self.assertIn("startPreExecutionPresentation", source)
+        self.assertLess(source.index("document.body.appendChild(appWindow)"), source.index("startPreExecutionPresentation"))
+
 
 if __name__ == "__main__":
     unittest.main()

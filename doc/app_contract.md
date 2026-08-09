@@ -812,3 +812,15 @@ sesji i tombstone pozostawia dotychczasowy legacy renderer jako fallback.
 Sesja przechodzi przez fazy `launching`, `booting`, `hydrating`, `presenting`,
 `interactive`, `executing`, `completing` oraz `failed/disposed`. OFS korzysta z
 tego samego okna i nadal kończy prezentację wyłącznie prawdziwym payloadem.
+
+## Pre-execution presentation — 130.8.6.3.3
+
+Provisional session może prezentować lokalne sceny `app_identity`, `local_init`,
+`context_bind`, `runtime_prepare` i `hydration_wait`. Sceny korzystają wyłącznie
+z discovery snapshotu i nie wykonują requestów gameplayowych. Opis autora jest
+pokazywany jako metadana profilu, a nie jako potwierdzone działanie.
+
+Każda sesja posiada własny timer. Hydration oraz dispose zatrzymują go przed
+zmianą viewportu. `applicationEffect` zawsze przejmuje ten sam DOM natychmiast;
+pre-execution nie opóźnia renderera ani OFS. Przy wyłączonej fladze lub błędzie
+composera pozostaje dotychczasowy fallback.

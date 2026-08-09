@@ -11228,3 +11228,14 @@ Lifecycle sesji został spięty z OFS: hydration przechodzi przez presenting i
 interactive, request przez executing, a payload/błąd przez completing/failed.
 Flag-off oraz brak zgodnej sesji zachowują legacy renderer. Backend, kolejka,
 `/gonna-win` i mechanika gameplayu nie zostały rozszerzone.
+
+Rozpoczęto sprint 130.8.6.3.3. Zakres został skrócony do lokalnego
+Pre-Execution Scene System zgodnego z architekturą po 6.3.2: provisional
+registry odpowiada za launching/booting, OFS zaczyna się dopiero przy
+wykonawczym `/gonna-win`, a backend nadal jest jedynym źródłem prawdy.
+
+Pierwszy etap dodaje rodziny `app_identity`, `local_init`, `context_bind`,
+`runtime_prepare` i adaptacyjne `hydration_wait`. Sceny używają aplikacji,
+interface, targetu, requested action i bezpiecznego opisu autora. Nie wykonują
+requestu ani nie deklarują postępu. Hydration i dispose natychmiast czyszczą
+timer; błąd pozostawia prosty provisional shell.

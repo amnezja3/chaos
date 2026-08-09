@@ -1562,8 +1562,90 @@ function updateProvisionalApplicationSession(session, state, message = "") {
     if (status) status.textContent = message || state;
 }
 
+function buildPreExecutionScenes(appData = {}, pending = {}, projectedContent = null) {
+    const appName = String(appData.name || appData.id || "Aplikacja").trim();
+    const interfaceType = String(appData.interface || "window").trim().toLowerCase();
+    const targetLabel = String(pending.label || pending.name || "").trim();
+    const action = String(pending.action || "").trim();
+    const authorDescription = String(
+        projectedContent?.legacy?.transition?.[0] || appData.description || ""
+    ).trim();
+    const interfaceLines = {
+        terminal: "Przygotowanie lokalnej sesji terminalowej.",
+        progressbar_random: "Ladowanie etapow aplikacji.",
+        button_choices: "Przygotowanie interfejsu decyzji.",
+        window: "Przygotowanie widoku aplikacji."
+    };
+    const scenes = [
+        { phase: "launching", family: "app_identity", lines: [appName, authorDescription ? `Profil autora: ${authorDescription}` : ""].filter(Boolean) },
+        { phase: "booting", family: "local_init", lines: ["Inicjalizacja lokalnego profilu.", interfaceLines[interfaceType] || interfaceLines.window] }
+    ];
+    if (targetLabel || action) {
+        scenes.push({
+            phase: "booting",
+            family: "context_bind",
+            lines: [targetLabel ? `Cel: ${targetLabel}` : "", action ? `Profil dzialania: ${action}` : ""].filter(Boolean)
+        });
+    }
+    scenes.push(
+        { phase: "booting", family: "runtime_prepare", lines: ["Lokalny kontekst aplikacji jest gotowy.", "Oczekiwanie na autorytatywny stan uruchomienia."] },
+        { phase: "booting", family: "hydration_wait", lines: ["Utrzymanie kontekstu aplikacji.", "Oczekiwanie na stan launchera."] }
+    );
+    return scenes;
+}
+
+function stopPreExecutionPresentation(session, reason = "handoff") {
+    const presentation = session?.preExecutionPresentation;
+    if (!presentation || presentation.stopped) return;
+    presentation.stopped = true;
+    if (presentation.timerId) window.clearTimeout(presentation.timerId);
+    appFlowTrace(session.flowId, "pre_execution_stopped", {
+        app_id: session.appId,
+        family: presentation.currentFamily || "",
+        reason
+    });
+}
+
+function startPreExecutionPresentation(session, appData = {}, pending = {}, projectedContent = null) {
+    if (!session || session.disposed || !session.appWindow?.isConnected) return null;
+    const viewport = session.appWindow.querySelector(".provisional-app-scenes");
+    if (!viewport) return null;
+    const scenes = buildPreExecutionScenes(appData, pending, projectedContent);
+    const presentation = { scenes, index: 0, timerId: null, stopped: false, currentFamily: "" };
+    session.preExecutionPresentation = presentation;
+
+    const renderNext = () => {
+        if (presentation.stopped || session.disposed || !session.appWindow?.isConnected) return;
+        const sceneIndex = Math.min(presentation.index, scenes.length - 1);
+        const scene = scenes[sceneIndex];
+        presentation.currentFamily = scene.family;
+        updateProvisionalApplicationSession(session, scene.phase, scene.lines[0] || "");
+        viewport.dataset.sceneFamily = scene.family;
+        viewport.replaceChildren(...scene.lines.map(line => {
+            const node = document.createElement("div");
+            node.className = "provisional-app-scene-line";
+            node.textContent = line;
+            return node;
+        }));
+        appFlowTrace(session.flowId, "pre_execution_scene", {
+            app_id: session.appId,
+            family: scene.family,
+            index: presentation.index
+        });
+        presentation.index += 1;
+        const waiting = presentation.index >= scenes.length;
+        const delay = waiting
+            ? Math.min(9000, 4000 + (presentation.index - scenes.length) * 1500)
+            : (presentation.index === 1 ? 1400 : 2400);
+        presentation.timerId = window.setTimeout(renderNext, delay);
+    };
+    renderNext();
+    return presentation;
+}
+
 function disposeProvisionalApplicationSession(session, reason = "window_closed") {
     if (!session || session.disposed) return;
+    stopPreExecutionPresentation(session, reason);
     session.disposed = true;
     session.state = "disposed";
     provisionalApplicationSessions.delete(session.sessionKey);
@@ -1629,6 +1711,7 @@ function beginProvisionalLaunch(selection = {}, appData = {}) {
             </div>
             <div class="provisional-app-activity" aria-hidden="true"><span></span><span></span><span></span></div>
             <div class="provisional-app-status" role="status">Inicjalizacja lokalnego profilu...</div>
+            <div class="provisional-app-scenes" aria-live="polite"></div>
             ${pending.label ? `<div class="provisional-app-target">Cel: ${escapeHTML(pending.label)}</div>` : ""}
         </div>
     `;
@@ -1673,6 +1756,7 @@ function beginProvisionalLaunch(selection = {}, appData = {}) {
     document.body.appendChild(appWindow);
     makeDraggable(appWindow);
     bringWindowToFront(appWindow);
+    startPreExecutionPresentation(session, appData, pending, projectedContent);
     appFlowTrace(flowId, "provisional_app_created", {
         app_id: appId,
         session_key: sessionKey,
@@ -1689,6 +1773,7 @@ function consumeProvisionalHydrationWindow(id, type) {
     activeProvisionalHydrationSession = null;
     if (!session || session.disposed || !session.appWindow?.isConnected) return null;
     if (normalizeLaunchCorrelation(session.appId) !== normalizeLaunchCorrelation(id)) return null;
+    stopPreExecutionPresentation(session, "hydration");
     const app = session.appWindow;
     updateProvisionalApplicationSession(session, "hydrating", "Ladowanie autorytatywnej aplikacji...");
     app.className = "app-window";
