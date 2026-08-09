@@ -34,6 +34,7 @@ from config import (
     DEFAULT_CREATOR_POWER,
     DEFAULT_STORAGE_CAPACITY_MB,
     FLASK_SESSION_CONFIG,
+    OPERATION_FEEDBACK_FLAGS,
     PERF_LOG_ENDPOINTS,
     PERF_LOG_MIN_MS,
     PERF_LOG_MIN_SIZE,
@@ -16328,7 +16329,13 @@ def desktop():
         return redirect(url_for("index"))
 
     profile = sync_session_profile()
-    return render_template("linux.html", user=user, inventory=profile["inventory"], profile=profile)
+    return render_template(
+        "linux.html",
+        user=user,
+        inventory=profile["inventory"],
+        profile=profile,
+        operation_feedback_flags=OPERATION_FEEDBACK_FLAGS,
+    )
 
 
 def require_dev_admin():

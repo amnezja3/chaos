@@ -31,6 +31,12 @@ def env_float(name, default):
 APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v0.3.4-dev"
 
 
+OPERATION_FEEDBACK_FLAGS = {
+    "enabled": env_bool("CHAOS_OPERATION_FEEDBACK_ENABLED", False),
+    "scan_ports": env_bool("CHAOS_OPERATION_FEEDBACK_SCAN_PORTS", False),
+}
+
+
 FLASK_SESSION_CONFIG = {
     "SESSION_TYPE": os.environ.get("CHAOS_SESSION_TYPE", "filesystem"),
     "SESSION_FILE_DIR": os.environ.get(

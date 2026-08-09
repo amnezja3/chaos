@@ -1502,6 +1502,20 @@ function buildApplicationLaunchContext(appData = {}) {
         label: aimedTarget.label || aimedTarget.display_label || aimedTarget.name || aimedTarget.title || "",
         target_mode: aimedTarget.target_mode || ""
     } : null;
+    const actionKey = String(
+        appData._map_action_id ||
+        appData.map_action_id ||
+        appData.action_key ||
+        ""
+    ).trim();
+    const targetMatchesLaunch = Boolean(
+        expectedTarget && toolbarTargetMatchesCaptured(aimedTarget, expectedTarget)
+    );
+    const securityState = window.OperationFeedbackSystem
+        ? window.OperationFeedbackSystem.sanitizeSecurityState(
+            targetMatchesLaunch ? aimedTarget.security : null
+        )
+        : {};
     return {
         flow_id: flowId,
         launch_key: launchKey,
@@ -1509,13 +1523,18 @@ function buildApplicationLaunchContext(appData = {}) {
         source: String(appData._source || appData.source || "").trim(),
         app_id: appId,
         app_name: name,
-        expected_target: expectedTarget
+        expected_target: expectedTarget,
+        action_key: actionKey,
+        security_state: securityState
     };
 }
 
 function currentApplicationLaunchContext(appWindow = null) {
     const pending = window.__pendingApplicationLaunchContext || {};
     const dataset = appWindow && appWindow.dataset ? appWindow.dataset : {};
+    const feedbackContext = appWindow && appWindow._operationFeedbackLaunchContext
+        ? appWindow._operationFeedbackLaunchContext
+        : {};
     const flowId = getCurrentAppFlowId(dataset.appFlowId || pending.flow_id || "");
     const appId = String(dataset.appId || pending.app_id || "").trim();
     let expectedTarget = pending.expected_target || null;
@@ -1533,7 +1552,9 @@ function currentApplicationLaunchContext(appWindow = null) {
         source: String(dataset.launchSource || pending.source || "").trim(),
         app_id: appId,
         app_name: String(dataset.appTitle || pending.app_name || "").trim(),
-        expected_target: expectedTarget
+        expected_target: expectedTarget,
+        action_key: String(feedbackContext.action_key || pending.action_key || "").trim(),
+        security_state: feedbackContext.security_state || pending.security_state || {}
     };
 }
 
@@ -1550,6 +1571,10 @@ function applyApplicationLaunchContext(appWindow, fallbackAppData = {}) {
     appWindow.dataset.expectedTarget = context.expected_target
         ? JSON.stringify(context.expected_target)
         : "";
+    appWindow._operationFeedbackLaunchContext = Object.freeze({
+        action_key: String(context.action_key || "").trim(),
+        security_state: context.security_state || {}
+    });
     return currentApplicationLaunchContext(appWindow);
 }
 
@@ -1671,6 +1696,7 @@ function scheduleOperationalAppAutoClose(appWindow) {
             app_id: appWindow.dataset.appId || "",
             interface: appWindow.dataset.appInterface || ""
         });
+        disposeOperationFeedbackWindow(appWindow, "auto_close");
         appWindow.remove();
         if (typeof renderRunningApps === "function") {
             renderRunningApps();
@@ -2699,6 +2725,63 @@ function startAppWaitLog(container, options = {}) {
     };
 }
 
+function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } = {}) {
+    const context = currentApplicationLaunchContext(appWindow);
+    const ofs = window.OperationFeedbackSystem;
+    let session = null;
+    let stopLegacy = () => {};
+
+    if (ofs && ofs.isEnabled(context.action_key)) {
+        session = ofs.createSession({
+            actionKey: context.action_key,
+            presentationMode: "button_choice",
+            appId,
+            flowId: context.flow_id,
+            launchReceipt: context.launch_receipt,
+            rendererHost: appWindow?.querySelector?.('.app-content') || null,
+            appWindow,
+            securityState: context.security_state,
+            onTrace: (eventName, details) => appFlowTrace(context.flow_id, eventName, {
+                app_id: appId,
+                ...details
+            })
+        });
+    }
+
+    if (!session && legacyWait) {
+        stopLegacy = startAppWaitLog(appWindow);
+    }
+
+    return {
+        session,
+        complete(payload) {
+            stopLegacy();
+            if (session) session.complete(payload);
+        },
+        fail(reason) {
+            stopLegacy();
+            if (session) session.fail(reason);
+        }
+    };
+}
+
+function startLegacyAppWaitUnlessFeedbackEnabled(appWindow) {
+    const context = currentApplicationLaunchContext(appWindow);
+    const ofs = window.OperationFeedbackSystem;
+    if (ofs && ofs.isEnabled(context.action_key)) return () => {};
+    if (appWindow) appWindow._legacyAppWaitActive = true;
+    const stopWaitLog = startAppWaitLog(appWindow);
+    return () => {
+        stopWaitLog();
+        if (appWindow) appWindow._legacyAppWaitActive = false;
+    };
+}
+
+function disposeOperationFeedbackWindow(appWindow, reason = "window_closed") {
+    const ofs = window.OperationFeedbackSystem;
+    if (ofs) ofs.disposeWindowSession(appWindow, reason);
+}
+
 function formatHackAccessTime(seconds) {
     const safeSeconds = Math.max(0, Number(seconds) || 0);
     const mins = Math.floor(safeSeconds / 60);
@@ -3665,7 +3748,11 @@ function app_window(id, levels) {
 
     document.body.appendChild(app);
     makeDraggable(app);
-    app.querySelector('.close-btn').addEventListener('click', () => app.remove());
+    app.querySelector('.close-btn').addEventListener('click', () => {
+        disposeOperationFeedbackWindow(app, "window_closed");
+        app.remove();
+    });
+    appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "window" });
 
     const resultBox = app.querySelector('.choice-result');
     const buttons = app.querySelectorAll('.button-row button');
@@ -3682,7 +3769,7 @@ function app_window(id, levels) {
                 label
             });
             setAppButtonGroupPending(buttons, btn, true);
-            const stopWaitLog = startAppWaitLog(app);
+            const stopWaitLog = startLegacyAppWaitUnlessFeedbackEnabled(app);
             try {
                 const response = await sendGonnaWinRequest(id, action, app);
                 const success = response.success === true;
@@ -3736,7 +3823,10 @@ async function app_progressbar_random(id, levels) {
     `;
     document.body.appendChild(app);
     makeDraggable(app);
-    app.querySelector('.close-btn').addEventListener('click', () => app.remove());
+    app.querySelector('.close-btn').addEventListener('click', () => {
+        disposeOperationFeedbackWindow(app, "window_closed");
+        app.remove();
+    });
     appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "progressbar_random" });
 
     const fill = app.querySelector('.progress-fill');
@@ -3753,8 +3843,8 @@ async function app_progressbar_random(id, levels) {
             // <- tutaj korzystamy z odpowiedzi
             result.textContent = "Oczekiwanie na potwierdzenie runtime...";
             result.style.color = "#9cff1a";
-            const stopWaitLog = startAppWaitLog(app);
-            notifyGonnaWin(id, app).then(success => {
+            const stopWaitLog = startLegacyAppWaitUnlessFeedbackEnabled(app);
+            notifyGonnaWin(id, app, { legacyWait: false }).then(success => {
                 stopWaitLog();
                 const runtimeResult = app && app._lastGonnaWinResult;
                 const staleTarget = runtimeResult && runtimeResult.blocked
@@ -3785,29 +3875,59 @@ async function app_progressbar_random(id, levels) {
     }
 
 
-    runNextStep();
+    const feedbackContext = currentApplicationLaunchContext(app);
+    const feedbackEnabled = Boolean(
+        window.OperationFeedbackSystem
+        && window.OperationFeedbackSystem.isEnabled(feedbackContext.action_key)
+    );
+    if (feedbackEnabled) {
+        result.textContent = "Oczekiwanie na potwierdzenie runtime...";
+        result.style.color = "#9cff1a";
+        notifyGonnaWin(id, app, { legacyWait: false }).then(success => {
+            const runtimeResult = app && app._lastGonnaWinResult;
+            const staleTarget = runtimeResult && runtimeResult.blocked
+                && runtimeResult.reason === 'invalid_target';
+            result.textContent = success
+                ? (level.result_success || "Operacja zako\u0144czona.")
+                : (staleTarget
+                    ? "Cel zmieni\u0142 si\u0119 przed potwierdzeniem. Od\u015bwie\u017c cel i uruchom aplikacj\u0119 ponownie."
+                    : (level.result_failure || "Operacja nie powiod\u0142a si\u0119."));
+            result.style.color = success ? "#0f0" : (staleTarget ? "#ffcc33" : "#f33");
+            if (success) scheduleOperationalAppAutoClose(app);
+        });
+    } else {
+        runNextStep();
+    }
 }
 
-async function notifyGonnaWin(appId, appWindow = null) {
+async function notifyGonnaWin(appId, appWindow = null, { legacyWait = false } = {}) {
     const context = currentApplicationLaunchContext(appWindow);
     const flowId = context.flow_id;
     return enqueueGonnaWinRequest(async () => {
-        const response = await fetch('/gonna-win', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Hack-Flow-Id': flowId
-            },
-            body: JSON.stringify({
-                app_id: appId,
-                _flow_id: flowId,
-                launch_key: context.launch_key,
-                launch_receipt: context.launch_receipt,
-                launch_source: context.source,
-                expected_target: context.expected_target
-            })
-        });
-        const data = await response.json();
+        const feedback = beginOperationFeedbackRequest(appWindow, appId, { legacyWait });
+        let response;
+        let data;
+        try {
+            response = await fetch('/gonna-win', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Hack-Flow-Id': flowId
+                },
+                body: JSON.stringify({
+                    app_id: appId,
+                    _flow_id: flowId,
+                    launch_key: context.launch_key,
+                    launch_receipt: context.launch_receipt,
+                    launch_source: context.source,
+                    expected_target: context.expected_target
+                })
+            });
+            data = await response.json();
+        } catch (error) {
+            feedback.fail(error && error.name ? error.name : "request_failed");
+            throw error;
+        }
         if (appWindow) appWindow._lastGonnaWinResult = data;
         if (data.player_hack_access) {
             refreshPlayerHackAccess(data.player_hack_access);
@@ -3821,6 +3941,7 @@ async function notifyGonnaWin(appId, appWindow = null) {
             notifyOpenMapsTargetHacked(data.captured_target);
             refreshToolbarProfile();
         }
+        feedback.complete(data);
         if (response.status === 409 && data.blocked && data.reason === 'invalid_target') {
             console.info('[gonna-win] Cel zmienil sie przed potwierdzeniem runtime', data.target || {});
             refreshToolbarProfile();
@@ -5799,23 +5920,33 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
             queue_wait_ms: Math.round(performance.now() - queuedAt)
         });
         const startedAt = performance.now();
-        const response = await fetch('/gonna-win', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Hack-Flow-Id': flowId
-            },
-            body: JSON.stringify({
-                app_id: appId,
-                choice_id: choiceId,
-                _flow_id: flowId,
-                launch_key: context.launch_key,
-                launch_receipt: context.launch_receipt,
-                launch_source: context.source,
-                expected_target: context.expected_target
-            })
+        const feedback = beginOperationFeedbackRequest(appWindow, appId, {
+            legacyWait: !(appWindow && appWindow._legacyAppWaitActive)
         });
-        const data = await response.json();
+        let response;
+        let data;
+        try {
+            response = await fetch('/gonna-win', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Hack-Flow-Id': flowId
+                },
+                body: JSON.stringify({
+                    app_id: appId,
+                    choice_id: choiceId,
+                    _flow_id: flowId,
+                    launch_key: context.launch_key,
+                    launch_receipt: context.launch_receipt,
+                    launch_source: context.source,
+                    expected_target: context.expected_target
+                })
+            });
+            data = await response.json();
+        } catch (error) {
+            feedback.fail(error && error.name ? error.name : "request_failed");
+            throw error;
+        }
         appFlowTrace(flowId, "app_option_response", {
             app_id: appId,
             choice_id: choiceId,
@@ -5848,6 +5979,7 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
                 target_label: data.captured_target.label || data.captured_target.display_label || data.captured_target.name || ""
             });
         }
+        feedback.complete(data);
         return data;
     }).catch(error => {
         console.error("Błąd komunikacji z backendem:", error);
@@ -5869,7 +6001,6 @@ function app_terminal(id, levels) {
     app.dataset.appId = id;
     app.dataset.appInterface = "terminal";
     applyApplicationLaunchContext(app, { id, interface: "terminal" });
-    notifyGonnaWin(id, app);
     const position = findAvailablePosition();
     app.style.top = `${position.top}px`;
     app.style.left = `${position.left}px`;
@@ -5881,7 +6012,12 @@ function app_terminal(id, levels) {
     `;
     document.body.appendChild(app);
     makeDraggable(app);
-    app.querySelector('.close-btn').addEventListener('click', () => app.remove());
+    app.querySelector('.close-btn').addEventListener('click', () => {
+        disposeOperationFeedbackWindow(app, "window_closed");
+        app.remove();
+    });
+    appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "terminal" });
+    notifyGonnaWin(id, app, { legacyWait: false });
 
     const log = app.querySelector('.terminal-log');
     let commandIndex = 0;
@@ -5991,7 +6127,10 @@ function app_button_choices(id, levels) {
 
     document.body.appendChild(app);
     makeDraggable(app);
-    app.querySelector('.close-btn').addEventListener('click', () => app.remove());
+    app.querySelector('.close-btn').addEventListener('click', () => {
+        disposeOperationFeedbackWindow(app, "window_closed");
+        app.remove();
+    });
 
     const buttons = app.querySelectorAll('.choice-btn');
     const resultBox = app.querySelector('.choice-result');
@@ -6008,7 +6147,7 @@ function app_button_choices(id, levels) {
                 label: choiceLabel
             });
             setAppButtonGroupPending(buttons, btn, true);
-            const stopWaitLog = startAppWaitLog(app);
+            const stopWaitLog = startLegacyAppWaitUnlessFeedbackEnabled(app);
             try {
                 const response = await sendGonnaWinRequest(id, optId, app);
                 const success = response.success === true;
@@ -13856,6 +13995,7 @@ function normalizeLaunchQueueItem(rawItem) {
         const name = String(rawItem.name || rawItem.app_name || rawItem.command || "").trim();
         const flowId = getCurrentAppFlowId(rawItem.flow_id || rawItem._flow_id || "");
         const appId = String(rawItem.app_id || rawItem.id || "").trim();
+        const action = String(rawItem.action || rawItem.map_action_id || rawItem.action_key || "").trim();
         const receipt = String(
             rawItem.receipt ||
             rawItem.launch_receipt ||
@@ -13867,6 +14007,7 @@ function normalizeLaunchQueueItem(rawItem) {
             name,
             flow_id: flowId,
             app_id: appId,
+            action,
             receipt,
             raw: rawItem
         };
@@ -13877,6 +14018,7 @@ function normalizeLaunchQueueItem(rawItem) {
         name,
         flow_id: flowId,
         app_id: "",
+        action: "",
         receipt: `${flowId || "manual"}:${name}`,
         raw: rawItem
     };
@@ -13997,6 +14139,7 @@ async function pollLaunchQueue() {
                     appData._launch_receipt = item.receipt;
                     appData._launch_key = item.receipt;
                     appData._source = 'launch_queue';
+                    appData._map_action_id = item.action;
                     const id = appData.id;
                     const levels = appData.levels;
                     const type = appData.interface;

@@ -11106,3 +11106,41 @@ Ustalono kanoniczna palete terytoriow klanowych: Straznicy `#238BFF`, Echo
 zielone. Pole crew uzywa koloru klanu i ciaglego obrysu, a pole obcego klanu
 koloru klanu i obrysu przerywanego. Pomaranczowy 1v1 i fioletowy multi-conflict
 pozostaja niezaleznymi nakladkami.
+
+## 2026-08-09 — przygotowanie bloku 130.8.6 OFS
+
+Zsynchronizowano plan sprintów `130.8.6.1–130.8.6.6` z kontraktem Operation
+Feedback System i aktualnym runtime aplikacji. `OFS-SPIKE-01` będzie realizowany
+jako implementacyjny prototyp `scan_ports` w sprintach `130.8.6.1–130.8.6.3`,
+wyłącznie za domyślnie wyłączonymi feature flags. Bramka `GO / REVISE` po
+`130.8.6.3` otwiera albo zatrzymuje generalizację engine'u; nie oznacza
+automatycznego produkcyjnego cutoveru.
+
+Ustalono, że lokalny `security_state` pochodzi z jednorazowej, kanonicznie
+filtrowanej projekcji `toolbarProfile.aimed_target.security`, tylko po zgodności
+z `expected_target`. Snapshot nie trafia do `/gonna-win`, DOM ani telemetry, a
+brak danych oznacza `unknown`. Testy przebiegów szybkiego, średniego i długiego
+użyją wstrzykiwanego zegara/timerów i kontrolowanych Promise; produkcyjny
+endpoint nie otrzyma sztucznego delay ani debugowej ścieżki czasowej.
+
+Integracja 130.8.6.1 użyje jednego wrappera wokół istniejących punktów
+`/gonna-win`: terminal zachowa start natychmiastowy, window/button choices
+zaczekają na wybór gameplayowy, a progressbar przy aktywnym OFS przestanie
+opóźniać request fikcyjnymi krokami. Ścieżka flag-off pozostaje bez zmian;
+wrapper zachowuje kolejkę, flow, receipt, expected target i pojedynczy request.
+
+Zrealizowano sprint 130.8.6.1 jako domyślnie wyłączony spike `scan_ports`.
+Frontend otrzymał lifecycle `OperationFeedbackSession`, minimalny renderer,
+session-owned timery i cleanup. Obie istniejące ścieżki `/gonna-win` korzystają
+ze wspólnego adaptera, ale nadal wykonują dokładnie jeden request. Payload
+pozostaje autorytatywny i aktualizuje obecny runtime bez czekania na animację.
+
+Launch queue zachowuje `action`, a lokalny, zamrożony `security_state` powstaje
+tylko dla zgodnego aimed targetu. Nie trafia do body requestu ani datasetu DOM.
+Przy wyłączonych flagach lub nieudanym starcie renderer wraca do legacy pending
+UI. `progressbar_random` omija sztuczne kroki wyłącznie przy aktywnym OFS.
+
+Walidacja 130.8.6.1: 7 nowych testów kontraktu OFS oraz 32 testy idempotencji
+hack-action zakończone `OK`; `py_compile` dla `config.py` i `run.py`, oba
+`node --check` oraz `git diff --check` również `OK`. Pozostaje wyłącznie warning
+konwersji CRLF/LF dla `static/css/style.css`.

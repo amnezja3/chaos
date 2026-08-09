@@ -16863,6 +16863,1250 @@ Engagement koordynuje ich wspólną część, ale nie staje się właścicielem 
 
 To jest najważniejsza granica architektoniczna całych pięciu sprintów — dzięki niej możemy rozwinąć walkę do wielu graczy, nie rozwalając stabilności `conflict_id`, nad którą siedzieliśmy tyle czasu.
 
+# Sprint 130.8.6 — Operation Feedback System MVP
+
+Zakres sprintów `130.8.6.1–130.8.6.6`.
+
+## Decyzja wykonawcza dla CHAOS
+
+Sprinty `130.8.6.1–130.8.6.3` są jednym **implementacyjnym spike'em**
+`OFS-SPIKE-01`, działającym wyłącznie za domyślnie wyłączonymi feature flags.
+Nie wykonujemy wcześniej osobnego ręcznego proof-of-concept i nie włączamy OFS
+produkcyjnie przed decyzją `GO`.
+
+Znaczenie bramki:
+
+```text
+130.8.6.1–130.8.6.3 = prototyp runtime za flagą
+GO                 = można generalizować engine w 130.8.6.4–130.8.6.6
+REVISE             = zatrzymujemy blok i poprawiamy kontrakt/prototyp
+```
+
+`GO` nie oznacza automatycznego produkcyjnego cutoveru. Włączenie produkcyjne
+pozostaje osobną decyzją po testach, z zachowaniem legacy pending UI jako
+rollbacku.
+
+## Źródło security state
+
+OFS nie dodaje security do body `/gonna-win` i nie wykonuje dodatkowego requestu.
+Przy starcie okna sesja bierze lokalny snapshot z:
+
+```text
+toolbarProfile.aimed_target.security
+```
+
+Snapshot jest używany tylko wtedy, gdy aktualny `aimed_target` odpowiada
+`expected_target` zapisanemu w launch context. Projekcja dopuszcza wyłącznie
+kanoniczne klucze security znane OFS oraz wartości `true`, `false`, `unknown`.
+Brak klucza, brak celu lub zmiana tożsamości celu oznacza `unknown`, nigdy
+`disabled`.
+
+Snapshot:
+
+* istnieje tylko w lokalnej sesji OFS;
+* nie trafia do datasetu DOM, telemetry ani requestu gameplayowego;
+* nie jest odświeżany w trakcie tej samej sesji;
+* służy do filtrowania narracji, a nie do rozstrzygania gameplayu.
+
+## Deterministyczne testy czasu
+
+Przebiegi szybki, średni i długi testujemy przez wstrzykiwany zegar/timery oraz
+kontrolowane Promise odpowiedzi w testach frontendowych. Produkcyjny
+`/gonna-win` nie otrzymuje debug delay, dodatkowego endpointu ani sztucznego
+timeoutu. Ręczne testy rzeczywistych opóźnień są uzupełnieniem, nie podstawą
+walidacji schedulera.
+
+Celem całego bloku nie jest jeszcze stworzenie kompletnej biblioteki treści dla wszystkich 12 operacji.
+
+Celem jest zbudowanie, sprawdzenie i ustabilizowanie **silnika OFS**, który potrafi:
+
+* uruchomić feedback równolegle z `/gonna-win`,
+* składać sceny z danych,
+* reagować na prawdziwy payload,
+* obsługiwać trzy typy prezentacji,
+* respektować `security -> interactions`,
+* obsługiwać lokalny `presentation_state`,
+* wykorzystywać content autora aplikacji,
+* bezpiecznie fallbackować do starego pending UI,
+* działać dla wszystkich 12 `action_key`.
+
+Równolegle z implementacją każdy sprint musi aktualizować dokumentację powiązaną z OFS i rzeczywistym runtime aplikacji.
+
+Obowiązkowo aktualizowane są co najmniej:
+
+* `operation_feedback_system_production.md` — główny kontrakt architektury, lifecycle, scheduler, renderery, struktura danych, fallback i zasady integracji OFS;
+* `project_journal.md` — zapis wykonanych zmian, decyzji architektonicznych, wyników testów, zmian zakresu oraz statusu kolejnych etapów `130.8.6.x`;
+* dokumentacja AppForge i kontraktu aplikacji — jeżeli sprint zmienia sposób wykorzystania `interface`, `levels`, `feedback_content`, contentu autora, `buttons`, `options`, `progressbar_random` albo sposobu uruchamiania aplikacji;
+* dokumentacja runtime aplikacji — jeżeli zmienia się lifecycle okna, integracja z `/gonna-win`, obsługa pending state, cleanup, cancellation, completion, failure albo publikacja wyniku;
+* dokumentacja map actions i kontraktu operacji — jeżeli zmienia się mapowanie `action_key`, presentation mode, security, interactions albo sposób przekazywania kontekstu operacji do aplikacji;
+* dokumentacja frontendowego flow / `APP_FLOW` — jeżeli sprint dodaje telemetry, nowe zdarzenia sesji OFS albo zmienia istniejący przebieg uruchomienia aplikacji;
+* pozostałe istniejące pliki dokumentacji bezpośrednio opisujące element runtime'u zmieniany w danym sprincie.
+
+Dokumentacja musi być aktualizowana razem z kodem, a nie zbiorczo po zakończeniu całego bloku. Po każdym sprincie `130.8.6.x` opis w dokumentach ma odpowiadać faktycznie zaimplementowanemu stanowi.
+
+Jeżeli implementacja wymusi zmianę wcześniejszego założenia z `operation_feedback_system_production.md`, zmiana musi zostać najpierw jawnie opisana jako decyzja kontraktowa i odnotowana w `project_journal.md`. Nie należy zostawiać lokalnych wyjątków w kodzie, które nie istnieją w dokumentacji.
+
+Po zakończeniu `130.8.6.6` dokumentacja ma przedstawiać rzeczywisty stan produkcyjnego MVP OFS, w szczególności:
+
+* aktualny lifecycle sesji,
+* strukturę `operation_feedback.v1.json`,
+* trzy renderery,
+* kontrakt `security -> interactions`,
+* `presentation_state`,
+* integrację z contentem autora aplikacji,
+* fallback i feature flags,
+* telemetry,
+* integrację z `/gonna-win`,
+* zasady cleanup i cancellation,
+* profile wszystkich 12 `action_key`.
+
+Pełne ręczne uzupełnienie słownika treści dla wszystkich operacji będzie osobnym sprintem po zakończeniu `130.8.6.6`. Ten późniejszy sprint rozszerza content według ustalonego kontraktu, ale nie powinien już wymagać przebudowy architektury OFS.
+
+
+---
+
+# Sprint 130.8.6.1 — OFS Core + scan_ports Session
+
+## Cel
+
+Zbudować minimalny działający rdzeń Operation Feedback System i uruchomić go wyłącznie dla `scan_ports`.
+
+To jest pierwszy techniczny krok implementacyjnego `OFS-SPIKE-01`. Powstaje
+minimalny engine runtime, ale pozostaje nieaktywny bez jawnego włączenia obu
+flag i nie stanowi jeszcze zgody na produkcyjny cutover.
+
+Nie budujemy jeszcze pełnego systemu scen ani rozbudowanego UI.
+
+Najpierw udowadniamy podstawową rzecz:
+
+> OFS może działać równolegle z `/gonna-win`, zostać przerwany payloadem w dowolnym momencie i nie wpływać na gameplay.
+
+## Zakres
+
+Powstaje podstawowy `OperationFeedbackSession`.
+
+Sesja otrzymuje minimum:
+
+```text
+session_id
+action_key
+presentation_mode
+app_id
+flow_id
+launch_receipt
+renderer_host
+security_state
+```
+
+`security_state` jest niemutowalną, lokalną projekcją opisaną w decyzji dla
+całego bloku. Sesja nie może pobrać go ponownie ani zastąpić snapshotem innego
+celu po zmianie `aimed_target`.
+
+Obsługiwany jest lifecycle:
+
+```text
+idle
+starting
+running
+awaiting_payload
+completing
+failed
+cancelled
+disposed
+```
+
+Na tym etapie można technicznie uprościć wewnętrzną implementację, ale zachowanie zewnętrzne musi odpowiadać temu kontraktowi.
+
+## Integracja z `/gonna-win`
+
+Dla `scan_ports`:
+
+1. użytkownik uruchamia aplikację,
+2. tworzona jest OFS Session,
+3. request `/gonna-win` startuje natychmiast,
+4. OFS rozpoczyna prezentację,
+5. payload albo błąd kończy OFS,
+6. obecny handler `/gonna-win` publikuje wynik dokładnie jak przed zmianą.
+
+Completion OFS nie może wstrzymać publikacji payloadu. Jeżeli pokazujemy krótką
+animację końcową, działa ona obok aktualizacji wyniku i może zostać natychmiast
+przerwana przez cleanup okna.
+
+### Adapter do obecnych interfejsów
+
+OFS owija istniejący punkt wysłania requestu; nie tworzy drugiej ścieżki
+`/gonna-win`:
+
+* `terminal` — zastępuje bezpośredni start `notifyGonnaWin()` wspólnym wrapperem
+  session + request;
+* `window` i `button_choices` — sesja startuje dopiero po istniejącym wyborze
+  gameplayowym, bez przejmowania jego `choice_id`;
+* `progressbar_random` — przy aktywnym OFS fikcyjne kroki nie blokują już startu
+  requestu; request i sesja zaczynają się razem, a stary progress pozostaje
+  wyłącznie ścieżką flag-off/fallback;
+* presentation mode `button_choice` nie zmienia `app.interface` ani kontraktu
+  launchera — renderer OFS montuje się w istniejącym viewporcie.
+
+Wspólny wrapper musi zachować aktualne `flow_id`, `launch_key`,
+`launch_receipt`, `expected_target`, kolejkę/idempotencję oraz dokładnie jeden
+request na rzeczywisty wybór aplikacji.
+
+OFS nie może:
+
+* opóźniać requestu,
+* wykonywać własnego requestu gameplayowego,
+* zmieniać body requestu,
+* interpretować gameplayu,
+* zatrzymywać publikacji wyniku.
+
+## Minimalny renderer
+
+Na tym etapie tylko `button_choice`, ponieważ pierwszym profilem jest `scan_ports`.
+
+Renderer powinien już działać w istniejącym viewporcie aplikacji.
+
+Nie tworzymy nowego okna.
+
+Minimalna scena może zawierać:
+
+* tytuł/stan,
+* 2–5 linii,
+* clear/replace,
+* completion.
+
+Jeszcze bez rozbudowanej dramaturgii.
+
+## Cancellation
+
+Każdy delay, timeout i callback musi być związany z sesją.
+
+Po:
+
+```text
+payload
+error
+window_closed
+new_request
+dispose
+```
+
+stara sesja nie może już zmienić DOM.
+
+To jest jeden z głównych warunków sprintu.
+
+## Fallback
+
+Jeżeli:
+
+* profil nie istnieje,
+* renderer nie istnieje,
+* OFS rzuci wyjątek,
+* host został usunięty,
+
+frontend natychmiast wraca do obecnego pending UI.
+
+Request `/gonna-win` działa dalej.
+
+## Feature flag
+
+Wprowadzić minimum:
+
+```text
+CHAOS_OPERATION_FEEDBACK_ENABLED
+CHAOS_OPERATION_FEEDBACK_SCAN_PORTS
+```
+
+Domyślnie wyłączone.
+
+## Wynik sprintu
+
+Po `130.8.6.1` można uruchomić `scan_ports` i zobaczyć prostą prezentację OFS trwającą dokładnie tyle, ile faktycznie trwa request.
+
+Szybka odpowiedź kończy ją szybko.
+
+Długa odpowiedź pozwala jej pracować dalej.
+
+Zamknięcie okna pozostawia czysty runtime.
+
+Gameplay pozostaje bez zmian.
+
+## Status realizacji — 2026-08-09
+
+Zrealizowano rdzeń spike'a za dwiema domyślnie wyłączonymi flagami. Dodano
+`OperationFeedbackSession`, minimalny renderer `button_choice`, lifecycle,
+session-owned timery i cleanup dla `payload`, błędu, zamknięcia okna, nowego
+requestu oraz auto-close.
+
+Istniejące ścieżki `notifyGonnaWin()` i `sendGonnaWinRequest()` zostały owinięte
+adapterem bez dodawania drugiego requestu. `window` i `button_choices` startują
+sesję po wyborze, `terminal` po zamontowaniu okna, a `progressbar_random` przy
+aktywnym OFS nie opóźnia requestu fikcyjnymi krokami. Przy flag-off albo błędzie
+startu OFS pozostaje dotychczasowy pending UI.
+
+Akcja mapy jest zachowywana w launch queue. Lokalny `security_state` jest
+zamrożoną projekcją zgodnego `aimed_target`, nie trafia do body `/gonna-win` ani
+do datasetu DOM. Payload jest publikowany przez dotychczasowe handlery przed
+krótkim wizualnym domknięciem sesji.
+
+---
+
+# Sprint 130.8.6.2 — Scene Composer + Security Matrix
+
+## Cel
+
+Zamienić prostą prezentację z poprzedniego sprintu w rzeczywiście składany z danych przebieg `scan_ports`.
+
+To jest właściwy środek `OFS-SPIKE-01`.
+
+Silnik ma przestać odtwarzać gotową sekwencję i zacząć komponować sceny według ograniczeń.
+
+## Kontrakt JSON MVP
+
+Powstaje roboczy:
+
+```text
+static/data/operation_feedback.v1.json
+```
+
+Na tym etapie plik może zawierać tylko dane potrzebne dla `scan_ports`.
+
+Minimalne sekcje:
+
+```text
+defaults
+duration_profiles
+scene_library
+security_library
+choice_library
+completion_library
+failure_library
+operations
+```
+
+`transport_library` może istnieć w wersji minimalnej.
+
+## Scene library
+
+Scena opisuje dramaturgię, a nie technikę operacji.
+
+Przykładowe rodziny MVP:
+
+```text
+boot
+probe
+security_contact
+verification
+payload_wait
+```
+
+Scena określa np.:
+
+```text
+sequence
+min_lines
+max_lines
+pause range
+transition
+allow_choice
+```
+
+Nie zawiera wiedzy o firewallu ani konkretnym celu.
+
+## Security library
+
+Dla `scan_ports` wystarczą minimum trzy zabezpieczenia.
+
+Proponowany zestaw:
+
+```text
+scan_detection
+firewall
+firewall_core
+```
+
+Opcjonalnie:
+
+```text
+network_anomaly_detection
+system_visibility
+vpn_blocker
+```
+
+Najważniejsza jest jawna macierz:
+
+```text
+scan_detection
+    -> probe
+    -> detect
+
+firewall
+    -> probe
+    -> bypass
+    -> route
+
+firewall_core
+    -> probe
+    -> enumerate
+```
+
+Nie istnieje niezależne:
+
+```text
+security_keys[]
+interaction_types[]
+```
+
+które scheduler później dowolnie łączy.
+
+Scheduler zawsze robi:
+
+```text
+security
+-> interaction dozwolony dla tego security
+-> wariant treści
+```
+
+## Composer
+
+Scheduler powinien już potrafić:
+
+* wybierać rodzinę sceny,
+* unikać identycznej sceny dwa razy z rzędu,
+* dobrać właściwe security,
+* dobrać właściwą interaction,
+* wybrać wariant tekstu,
+* dobrać timing,
+* sprawdzić cancellation przed i po `await`,
+* zakończyć wszystko natychmiast po payloadzie.
+
+## Anti-repeat MVP
+
+Wystarczy krótka lokalna historia:
+
+```text
+last_scene
+last_security
+last_line
+```
+
+Nie budujemy jeszcze skomplikowanego algorytmu różnorodności.
+
+Chodzi o wyeliminowanie najbardziej widocznych powtórzeń.
+
+## Profile czasu
+
+Silnik zaczyna adaptować zachowanie do czasu, który faktycznie upłynął.
+
+Minimum:
+
+```text
+instant
+short
+medium
+long
+very_long
+```
+
+Nie zakładamy z góry, ile potrwa request.
+
+Scheduler jedynie zmienia dostępne pule scen zależnie od `elapsed_ms`.
+
+Przykład:
+
+pierwsze sekundy:
+
+```text
+boot
+probe
+```
+
+później:
+
+```text
+security_contact
+verification
+```
+
+jeszcze później:
+
+```text
+payload_wait
+```
+
+## Payload priority
+
+Payload musi przerwać:
+
+* delay,
+* scenę,
+* wybór kolejnej sceny,
+* przejście,
+* pending render.
+
+Po payloadzie scheduler nie może wygenerować nawet jednej kolejnej linii.
+
+## Wynik sprintu
+
+Po `130.8.6.2` wielokrotne uruchomienie `scan_ports` powinno już generować kilka różnych, ale technicznie zgodnych przebiegów.
+
+Nie chodzi jeszcze o piękne treści.
+
+Chodzi o udowodnienie kompozycji.
+
+---
+
+# Sprint 130.8.6.3 — Interactive scan_ports + Presentation State + GO/REVISE
+
+## Cel
+
+Domknąć `OFS-SPIKE-01` jako działający MVP.
+
+Dodajemy prawdziwe narracyjne decyzje użytkownika, lokalny `presentation_state`, content aplikacji oraz testujemy, czy model rzeczywiście daje różnorodne i sensowne przebiegi.
+
+Po tym sprincie musi zapaść decyzja:
+
+```text
+GO
+```
+
+albo:
+
+```text
+REVISE
+```
+
+dla dalszej architektury.
+
+## Choice library
+
+Dodać minimum trzy narracyjne wybory dla `scan_ports`.
+
+Przykładowe kierunki:
+
+```text
+MASKUJ / KONTYNUUJ
+PONÓW / POMIŃ
+TRYB CICHY / TRYB SZYBKI
+```
+
+Nie muszą to być dokładnie te teksty.
+
+Każdy choice posiada:
+
+```text
+choice_id
+effect_scope = presentation
+options
+timeout_ms
+default_value
+presentation_state mutation
+```
+
+Każdy `choice_id` ma prefix:
+
+```text
+feedback.
+```
+
+## Timeout
+
+Brak reakcji użytkownika:
+
+* nie zatrzymuje sceny,
+* wybiera default,
+* zapisuje wynik lokalnie,
+* przechodzi dalej.
+
+Payload podczas countdownu:
+
+* natychmiast blokuje przyciski,
+* kończy countdown,
+* przechodzi do completion.
+
+## Presentation state
+
+MVP musi udowodnić, że wybór użytkownika wpływa na dalszą narrację.
+
+Przykład:
+
+```text
+MASKUJ
+```
+
+ustawia:
+
+```text
+scan_mode = masked
+```
+
+i przez następne sceny scheduler może preferować warianty:
+
+```text
+masked probe sequence
+reduced probe frequency
+low visibility route
+```
+
+Jeżeli user wybierze:
+
+```text
+KONTYNUUJ
+```
+
+takie warianty nie powinny się pojawiać.
+
+Ten stan:
+
+* nie trafia do backendu,
+* nie trafia do trwałego storage,
+* nie zmienia kosztu,
+* nie zmienia wyniku,
+* nie zmienia czasu gameplayowego,
+* znika po `dispose`.
+
+## Content autora aplikacji
+
+W tym sprincie sprawdzamy także drugą bardzo ważną część modelu.
+
+Minimum dwie różne aplikacje obsługujące `scan_ports` powinny korzystać z jednego profilu technicznego OFS, ale zachowywać inny charakter.
+
+Na MVP można wykorzystać projekcję istniejącego `levels`:
+
+```text
+title
+text
+description
+command
+logs
+list
+steps
+```
+
+Content autora może wypełniać neutralne sloty:
+
+```text
+boot
+operation
+transition
+```
+
+ale nie może sam stwierdzać sukcesu ani tworzyć security/interactions spoza profilu.
+
+## Test trzech przebiegów
+
+Wygenerować i obejrzeć minimum:
+
+### szybki
+
+Backend odpowiada w kilka sekund.
+
+### średni
+
+Backend odpowiada po kilkunastu/kilkudziesięciu sekundach.
+
+### długi
+
+Backend pozostaje pending wystarczająco długo, żeby wejść w dodatkowe security/verification/payload_wait.
+
+Każdy przebieg musi:
+
+* być rozpoznawalny jako `scan_ports`,
+* wyglądać inaczej,
+* nie kłamać o stanie backendu,
+* nie używać obcego security,
+* poprawnie reagować na wybory.
+
+## GO / REVISE
+
+`GO`, jeżeli:
+
+1. scheduler potrafi stworzyć co najmniej trzy różne sensowne przebiegi;
+2. nie potrzeba specjalnych hardcoded scenariuszy;
+3. security i dramaturgia pozostają rozdzielone;
+4. wybory zmieniają lokalną narrację;
+5. content dwóch aplikacji nadaje im różny charakter;
+6. payload może przerwać każdą scenę;
+7. silnik nie wpływa na wynik `/gonna-win`.
+
+Jeżeli którykolwiek z fundamentów wymaga wyjątków per aplikacja albo per scena:
+
+```text
+REVISE
+```
+
+i najpierw poprawiamy kontrakt.
+
+## Wynik sprintu
+
+Po `130.8.6.3` mamy działający `scan_ports` MVP oraz potwierdzony albo odrzucony model architektoniczny.
+
+Dopiero `GO` otwiera sprint `130.8.6.4`.
+
+---
+
+# Sprint 130.8.6.4 — Renderer Abstraction: terminal / button_choice / window
+
+## Cel
+
+Oderwać engine od `scan_ports` i renderer `button_choice` od konkretnej operacji.
+
+Zbudować trzy uniwersalne tryby prezentacji OFS.
+
+Od tego momentu engine nie może wiedzieć, czy obsługuje port scanner, exploit, kamerę czy samochód.
+
+## Renderer `button_choice`
+
+Istniejący MVP zostaje oczyszczony z logiki `scan_ports`.
+
+Renderer odpowiada wyłącznie za:
+
+* linie kontekstu,
+* prompt,
+* przyciski,
+* countdown,
+* blokadę po payloadzie,
+* clear/replace.
+
+Nie wybiera security ani tekstów.
+
+## Renderer `terminal`
+
+Powstaje uniwersalny terminal OFS.
+
+Zasady:
+
+* 3–6 widocznych linii,
+* brak nieskończonego scrolla,
+* sceny zastępują się lub częściowo czyszczą,
+* brak narracyjnych wyborów,
+* obsługa `replace`, `clear`, `fade`, `append_short`.
+
+Renderer nie posiada własnych logów operacyjnych.
+
+Wszystko pochodzi ze słownika/contentu.
+
+## Renderer `window`
+
+Powstaje renderer bardziej panelowy.
+
+Powinien obsługiwać stabilne elementy typu:
+
+```text
+title
+stage
+channel
+source
+activity
+status
+```
+
+Nie musi mieć dokładnie takich pól w każdej aplikacji.
+
+Ma posiadać uniwersalny mechanizm slotów.
+
+Nie tworzy fikcyjnego progressu.
+
+## `progressbar_random`
+
+Legacy `progressbar_random` zostaje przygotowany do mapowania na `window`.
+
+Jeżeli brak prawdziwego procentu backendowego:
+
+```text
+0–100%
+```
+
+nie jest pokazywane.
+
+Zamiast tego pokazywany jest etap/aktywność.
+
+## Reduced motion
+
+Wszystkie trzy renderery respektują:
+
+```text
+prefers-reduced-motion
+```
+
+Wtedy:
+
+* brak agresywnych fade,
+* brak pulsowania,
+* brak szybkich animacji,
+* informacje pozostają czytelne.
+
+## Wynik sprintu
+
+Po `130.8.6.4` ten sam scheduler może wysłać scenę do dowolnego z trzech rendererów bez wiedzy o strukturze konkretnej aplikacji.
+
+`scan_ports` pozostaje działającą regresją.
+
+---
+
+# Sprint 130.8.6.5 — Generalizacja na 12 action_key + profile skeleton
+
+## Cel
+
+Rozszerzyć engine z jednego `scan_ports` na pełny katalog 12 operacji, ale bez ręcznego produkowania kompletnej biblioteki treści.
+
+Powstaje **struktura profili**, a nie pełny content.
+
+## Obsługiwane action keys
+
+```text
+scan_ports
+exploit
+sniff
+trace
+trace_gps
+trace_device
+mic_sniff
+atm_logs
+install_sniffer
+camera_stream
+camera_shutdown
+car_hack
+```
+
+Każdy `action_key` musi:
+
+* posiadać profil,
+* posiadać presentation mode,
+* posiadać macierz `security -> interactions`,
+* posiadać podstawowe scene pools,
+* posiadać completion/failure,
+* przejść walidację.
+
+## Profile mogą być ubogie
+
+Na tym etapie pozostałe 11 operacji mogą mieć minimalną liczbę wariantów.
+
+Np.:
+
+* 1–2 boot,
+* 1–2 operation,
+* kilka security lines,
+* jeden fallback,
+* completion/failure.
+
+Nie produkujemy jeszcze finalnych 5–10 wariantów na każdą kategorię.
+
+To będzie osobna praca nad słownikiem.
+
+## Presentation mapping
+
+Docelowe MVP:
+
+```text
+scan_ports         -> button_choice
+exploit            -> terminal
+sniff              -> terminal
+trace              -> window
+trace_gps          -> window
+trace_device       -> window
+mic_sniff          -> terminal
+atm_logs           -> terminal
+install_sniffer    -> button_choice
+camera_stream      -> window
+camera_shutdown    -> button_choice
+car_hack           -> button_choice
+```
+
+## Security matrix
+
+Każda operacja dostaje jawny skeleton właściwych połączeń.
+
+Nie wolno na tym etapie wracać do globalnych luźnych list.
+
+Przykład:
+
+```text
+exploit:
+    kernel_guard:
+        probe
+        bypass
+        verify
+
+    memory_guard:
+        probe
+        inject
+        verify
+```
+
+Dokładne treści mogą być jeszcze fallbackowe.
+
+## Validator
+
+Walidator powinien teraz sprawdzać wszystkie 12 profili.
+
+Minimum:
+
+* istniejący renderer,
+* istniejąca scena,
+* istniejące security,
+* istniejąca interaction,
+* poprawna para security/interactions,
+* poprawne choice,
+* poprawny `presentation_state_schema`,
+* brak HTML,
+* poprawny timing.
+
+Uszkodzenie jednego profilu nie może wyłączyć całego OFS.
+
+Wyłączana/fallbackowana jest konkretna operacja.
+
+## Feature flags
+
+System powinien umożliwiać osobne włączanie profili.
+
+Nie muszą powstać ręcznie nazwane flagi dla wszystkich 12, jeżeli obecna infrastruktura pozwala przekazać mapę enabled operations.
+
+Ważne jest zachowanie:
+
+```text
+global OFS
++
+operation-specific enable
+```
+
+## Wynik sprintu
+
+Po `130.8.6.5` wszystkie 12 akcji można technicznie przepuścić przez jeden engine.
+
+Nie wszystkie muszą jeszcze wyglądać pięknie.
+
+Mają działać poprawnie semantycznie i infrastrukturalnie.
+
+---
+
+# Sprint 130.8.6.6 — Full MVP Cutover Architecture + Content Contract
+
+## Cel
+
+Domknąć OFS jako gotową platformę pod dalsze ręczne wypełnianie słownika.
+
+Nie rozbudowujemy już mechaniki engine'u.
+
+Porządkujemy integrację, fallbacki, content autora, telemetry, testy i strukturę danych tak, żeby kolejny sprint mógł być praktycznie „content sprintem”.
+
+## Priorytet contentu
+
+Silnik musi obsługiwać kolejność:
+
+```text
+app_structured
+-> app_legacy
+-> global_fallback
+```
+
+### `app_structured`
+
+Jeżeli aplikacja posiada przyszły:
+
+```text
+feedback_content
+```
+
+korzystamy z niego.
+
+### `app_legacy`
+
+Jeżeli nie:
+
+bezpiecznie projektujemy istniejące:
+
+```text
+title
+text
+description
+command
+logs
+list
+steps
+```
+
+### `global_fallback`
+
+Jeżeli content aplikacji jest pusty albo niepoprawny:
+
+korzystamy z OFS global library.
+
+## Ważna granica gameplayowa
+
+Istniejące:
+
+```text
+buttons
+options
+```
+
+należące do aplikacji nie mogą automatycznie zostać potraktowane jako wybory OFS.
+
+Narracyjne wybory pochodzą wyłącznie z:
+
+```text
+choice_library
+```
+
+i mają prefix:
+
+```text
+feedback.
+```
+
+## Transport events
+
+Domknąć rozdzielenie narracji i prawdziwego transportu.
+
+Losowane:
+
+```text
+probe
+verification
+bypass attempt
+channel selection
+correlation
+```
+
+Wyłącznie prawdziwe:
+
+```text
+network_error
+offline
+http_error
+invalid_payload
+aborted
+retry
+response_delayed
+```
+
+W szczególności nie wolno generować dla klimatu:
+
+```text
+connection lost
+packet loss
+worker restart
+reconnect
+retry
+```
+
+jeżeli runtime tego nie potwierdził.
+
+## Completion / failure
+
+Completion pojawia się dopiero po prawdziwym payloadzie.
+
+Failure rozróżnia:
+
+```text
+gameplay failure
+HTTP failure
+network failure
+invalid response
+abort
+```
+
+OFS nie interpretuje domenowych statusów typu:
+
+```text
+duplicate
+superseded_by_capture
+invalid_target
+target_state_changed
+```
+
+Pozostają w istniejącym runtime.
+
+## Telemetria
+
+Wpiąć minimalny zestaw do `APP_FLOW`:
+
+```text
+feedback_session_started
+feedback_profile_loaded
+feedback_scene_started
+feedback_choice_shown
+feedback_choice_selected
+feedback_choice_timed_out
+feedback_extended_wait_entered
+feedback_payload_received
+feedback_failed
+feedback_cancelled
+feedback_disposed
+```
+
+Bez payloadu, współrzędnych i security celu.
+
+Przydatne szczególnie:
+
+```text
+action_key
+presentation_mode
+scene_id
+content_source
+elapsed_ms
+completion_reason
+```
+
+## Cleanup
+
+Po każdym zakończeniu musi być gwarancja:
+
+* brak timerów,
+* brak intervali,
+* brak aktywnych button handlerów OFS,
+* brak callbacków modyfikujących usunięty DOM,
+* brak pozostawionego presentation state.
+
+## Legacy coexistence
+
+Nie usuwamy jeszcze:
+
+```text
+APP_WAIT_LOG_MESSAGES
+startAppWaitLog()
+legacy spinnerów
+progressbar_random
+```
+
+jeżeli są potrzebne jako fallback.
+
+OFS przejmuje tylko operacje, dla których profil jest aktywny i poprawny.
+
+Legacy wygaszamy dopiero po osobnym pełnym cutoverze.
+
+## Test końcowy MVP
+
+Przetestować przynajmniej:
+
+* wszystkie 12 `action_key`,
+* wszystkie trzy presentation modes,
+* szybki payload <300 ms,
+* 5 s,
+* 30 s,
+* 90 s,
+* 180 s,
+* payload podczas choice,
+* zamknięcie okna,
+* kilka równoległych aplikacji,
+* HTTP error,
+* non-JSON response,
+* network reject,
+* invalid profile,
+* invalid app content,
+* reduced motion,
+* mobile.
+
+Najważniejsza regresja:
+
+> wynik `/gonna-win` z OFS i bez OFS musi być identyczny.
+
+## Wynik sprintu
+
+Po `130.8.6.6` mamy:
+
+* jeden wspólny engine,
+* jeden scheduler,
+* trzy renderery,
+* 12 profili operacji,
+* validator,
+* cancellation lifecycle,
+* presentation state,
+* content projection,
+* telemetry,
+* fallback,
+* feature flags,
+* działający `scan_ports` z pełniejszym MVP contentem,
+* minimalne profile pozostałych operacji.
+
+OFS jest wtedy gotowy infrastrukturalnie.
+
+---
+
+# Następny osobny sprint — OFS Content Population
+
+Nie należy mieszać go z `130.8.6.1–130.8.6.6`.
+
+Jego zadaniem będzie już przede wszystkim ręczne uzupełnienie:
+
+```text
+operation_feedback.v1.json
+```
+
+według gotowej struktury.
+
+Czyli:
+
+* więcej wariantów security interactions,
+* więcej scen,
+* więcej przejść,
+* więcej pytań,
+* różne tone/style,
+* warianty zależne od presentation state,
+* autorski feedback content aplikacji,
+* anti-repeat content,
+* dopracowanie polskich/angielskich komunikatów,
+* ręczna kontrola semantyczna.
+
+Dzięki temu w sprintach `130.8.6.x` nie mieszamy dwóch różnych problemów:
+
+**budowy maszyny**
+
+oraz
+
+**pisania paliwa dla tej maszyny**.
+
+Najpierw udowadniamy, że mechanizm poprawnie składa treść.
+
+Dopiero później produkujemy dużą bibliotekę treści.
+
+---
+
+# Logika całego 130.8.6 w jednym ciągu
+
+```text
+130.8.6.1
+Session + lifecycle + /gonna-win + cancellation
+
+        ↓
+
+130.8.6.2
+JSON + scenes + security matrix + scheduler
+
+        ↓
+
+130.8.6.3
+choices + presentation_state + app content + GO
+
+        ↓
+
+130.8.6.4
+3 uniwersalne renderery
+
+        ↓
+
+130.8.6.5
+12 action_key + profile skeletons + validator
+
+        ↓
+
+130.8.6.6
+content contract + telemetry + fallback + pełny MVP
+```
+
+Po tym:
+
+```text
+ENGINE GOTOWY
+↓
+OSOBNY SPRINT
+↓
+RĘCZNE WYPEŁNIENIE SŁOWNIKA
+↓
+TESTY NARRACJI
+↓
+CUTOVER KOLEJNYCH OPERACJI
+```
 
 
 > Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.

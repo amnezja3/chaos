@@ -726,3 +726,21 @@ Decision:
 ## TODO_DECISION
 
 * Czy `internal_recon_state` zostaje nazwą stanu rozpoznania dla wszystkich scannerów, czy powstanie kilka typów stanów rozpoznania.
+
+## Operation Feedback adapter — 130.8.6.1
+
+OFS jest opcjonalnym adapterem prezentacji wokół istniejącego requestu
+`/gonna-win`; nie jest nowym `app.interface` i nie zmienia kontraktu aplikacji.
+
+W spike'u obsługiwane jest wyłącznie `map_action_id=scan_ports`, po włączeniu
+obu flag:
+
+```text
+CHAOS_OPERATION_FEEDBACK_ENABLED
+CHAOS_OPERATION_FEEDBACK_SCAN_PORTS
+```
+
+Launcher przekazuje lokalnie `action_key` i zamrożony `security_state` do okna
+aplikacji. Dane prezentacyjne nie są dodawane do requestu gameplayowego.
+`flow_id`, receipt, `choice_id`, expected target, kolejka i idempotencja
+pozostają własnością obecnego runtime. Flag-off zachowuje legacy UI.

@@ -7935,3 +7935,47 @@ form button:hover {
 .browser-window.browser-narrow .googolplex-card-footer button {
   width: 100%;
 }
+
+.operation-feedback-panel {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #27d86c;
+  background: rgba(0, 20, 10, 0.94);
+  color: #b8ffc8;
+  font-family: monospace;
+  line-height: 1.45;
+}
+
+.operation-feedback-title {
+  margin-bottom: 6px;
+  color: #72ff98;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.operation-feedback-status {
+  margin-bottom: 5px;
+  color: #fff;
+}
+
+.operation-feedback-line::before {
+  content: "> ";
+  color: #27d86c;
+}
+
+.operation-feedback-panel[data-tone="success"] {
+  border-color: #74ff9b;
+}
+
+.operation-feedback-panel[data-tone="failure"] {
+  border-color: #ff5757;
+  color: #ffd0d0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .operation-feedback-panel,
+  .operation-feedback-panel * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

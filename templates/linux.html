@@ -22,7 +22,11 @@
   <div id="desktop-icons"></div>
   <div id="system-toast-container"></div>
 
+  <script id="operation-feedback-config" type="application/json">
+    {{ operation_feedback_flags | tojson }}
+  </script>
   <script src="{{ url_for('static', filename='js/ghost_radio.js') }}?v=radio-stream-4"></script>
+  <script src="{{ url_for('static', filename='js/operation_feedback.js') }}"></script>
   <script src="{{ url_for('static', filename='js/terminal.js') }}"></script>
 </body>
 </html>
