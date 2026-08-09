@@ -338,7 +338,8 @@ Object.entries(expectedModes).forEach(([actionKey, expectedMode]) => {
 });
 assert.strictEqual(ofs.isEnabled("exploit", {enabled: true, enabled_actions: ["exploit"]}), true);
 assert.strictEqual(ofs.isEnabled("sniff", {enabled: true, enabled_actions: ["exploit"]}), false);
-assert.strictEqual(ofs.isEnabled("scan_ports", {enabled: true, scan_ports: true}), true);
+assert.strictEqual(ofs.isEnabled("scan_ports", {enabled: true, enabled_actions: ["scan_ports"]}), true);
+assert.strictEqual(ofs.isEnabled("scan_ports", {enabled: true, enabled_actions: []}), false);
 
 const provisionalTimeline = config.provisional_timelines.launch_150s;
 assert.strictEqual(provisionalTimeline.stages[0].start_after_ms, 0);

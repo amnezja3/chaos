@@ -26,7 +26,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
 
     def test_feature_flags_are_disabled_by_default_and_reach_desktop(self):
         self.assertIn('env_bool("CHAOS_OPERATION_FEEDBACK_ENABLED", False)', self.config)
-        self.assertIn('env_bool("CHAOS_OPERATION_FEEDBACK_SCAN_PORTS", False)', self.config)
+        self.assertNotIn("CHAOS_OPERATION_FEEDBACK_SCAN_PORTS", self.config)
         self.assertIn('id="operation-feedback-config"', self.template)
         self.assertLess(
             self.template.index("js/operation_feedback.js"),
@@ -35,7 +35,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
 
     def test_feedback_actions_have_global_and_per_operation_flags(self):
         self.assertIn('env_csv("CHAOS_OPERATION_FEEDBACK_ACTIONS")', self.config)
-        self.assertIn('flags.scan_ports === true', self.feedback)
+        self.assertNotIn("flags.scan_ports", self.feedback)
         self.assertIn("enabled_actions", self.feedback)
         self.assertIn('flags.enabled === true', self.feedback)
 

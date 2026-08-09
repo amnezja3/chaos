@@ -818,9 +818,15 @@ Flagi:
 
 ```text
 CHAOS_OPERATION_FEEDBACK_ENABLED
-CHAOS_OPERATION_FEEDBACK_SCAN_PORTS
-CHAOS_OPERATION_FEEDBACK_DEBUG
+CHAOS_OPERATION_FEEDBACK_ACTIONS
+CHAOS_PROVISIONAL_APP_LAUNCH_ENABLED
 ```
+
+`CHAOS_OPERATION_FEEDBACK_ENABLED` jest globalnym bezpiecznikiem wykonawczego
+OFS. `CHAOS_OPERATION_FEEDBACK_ACTIONS` jest allowlistą action keys, a
+`CHAOS_PROVISIONAL_APP_LAUNCH_ENABLED` niezależnie kontroluje szybkie okno i
+scheduler pre-execution. Historyczna flaga MVP tylko dla `scan_ports` została
+usunięta. Domyślnie system jest wyłączony, a allowlista pusta.
 
 Frontend otrzymuje bezpieczną projekcję flag. Domyślnie wszystkie są `false`.
 

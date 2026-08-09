@@ -42,7 +42,6 @@ APP_VERSION = os.environ.get("APP_VERSION") or os.environ.get("BUILD_TAG") or "v
 
 OPERATION_FEEDBACK_FLAGS = {
     "enabled": env_bool("CHAOS_OPERATION_FEEDBACK_ENABLED", False),
-    "scan_ports": env_bool("CHAOS_OPERATION_FEEDBACK_SCAN_PORTS", False),
     "enabled_actions": env_csv("CHAOS_OPERATION_FEEDBACK_ACTIONS"),
 }
 

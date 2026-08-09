@@ -723,19 +723,18 @@
 
     function readFlags() {
         const node = global.document && global.document.getElementById(CONFIG_ELEMENT_ID);
-        if (!node) return { enabled: false, scan_ports: false, enabled_actions: [] };
+        if (!node) return { enabled: false, enabled_actions: [] };
         try {
             const parsed = JSON.parse(node.textContent || "{}");
             return {
                 enabled: parsed.enabled === true,
-                scan_ports: parsed.scan_ports === true,
                 enabled_actions: Array.isArray(parsed.enabled_actions)
                     ? parsed.enabled_actions.map(value => String(value || "").trim()).filter(Boolean)
                     : []
             };
         } catch (error) {
             console.warn("[OFS] Nieprawidlowy config; pozostaje legacy pending UI", error);
-            return { enabled: false, scan_ports: false, enabled_actions: [] };
+            return { enabled: false, enabled_actions: [] };
         }
     }
 
@@ -837,7 +836,6 @@
     function isEnabled(actionKey, flags = readFlags()) {
         const action = String(actionKey || "").trim();
         const enabledActions = new Set(Array.isArray(flags.enabled_actions) ? flags.enabled_actions : []);
-        if (flags.scan_ports === true) enabledActions.add("scan_ports");
         return flags.enabled === true
             && Object.prototype.hasOwnProperty.call(ACTION_PRESENTATION_MODES, action)
             && enabledActions.has(action);

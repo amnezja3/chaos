@@ -11304,3 +11304,11 @@ zdarzenia telemetryczne choice/provisional. Naprawiono również runtime flag
 per-action: `enabled_actions` nie jest już tracone podczas odczytu konfiguracji
 z DOM. Backend i requesty gameplayowe nie zostały zmienione. Dokument produkcyjny
 otrzymał instrukcję ręcznej edycji JSON.
+
+Po zamknięciu MVP usunięto historyczny przełącznik
+`CHAOS_OPERATION_FEEDBACK_SCAN_PORTS`. OFS ma teraz jeden globalny bezpiecznik
+`CHAOS_OPERATION_FEEDBACK_ENABLED` i jedną allowlistę
+`CHAOS_OPERATION_FEEDBACK_ACTIONS`. Oddzielna flaga
+`CHAOS_PROVISIONAL_APP_LAUNCH_ENABLED` pozostaje, ponieważ steruje inną granicą
+runtime: szybkim oknem provisional i pre-execution schedulerem. Nie dodano nowych
+zmiennych środowiskowych.

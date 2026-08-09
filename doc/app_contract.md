@@ -737,7 +737,7 @@ obu flag:
 
 ```text
 CHAOS_OPERATION_FEEDBACK_ENABLED
-CHAOS_OPERATION_FEEDBACK_SCAN_PORTS
+CHAOS_OPERATION_FEEDBACK_ACTIONS=scan_ports
 ```
 
 Launcher przekazuje lokalnie `action_key` i zamrożony `security_state` do okna
@@ -863,5 +863,6 @@ CHAOS_OPERATION_FEEDBACK_ENABLED=1
 CHAOS_OPERATION_FEEDBACK_ACTIONS=exploit,sniff,trace
 ```
 
-`CHAOS_OPERATION_FEEDBACK_SCAN_PORTS=1` pozostaje zgodnym wstecz skrótem dla
-`scan_ports`.
+Historyczny skrót MVP `CHAOS_OPERATION_FEEDBACK_SCAN_PORTS` został usunięty.
+Każda akcja, również `scan_ports`, jest włączana przez wspólną allowlistę
+`CHAOS_OPERATION_FEEDBACK_ACTIONS`.
