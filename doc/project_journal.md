@@ -11323,3 +11323,9 @@ czasowe wyłącznie na kopii odpowiedzi, bez zapisu całego profilu. Frontend
 współdzieli równoległe wywołania `/api/profile`
 tylko na czas trwania requestu, co usuwa bootowy stampede bez cache'owania
 profilu między kolejnymi odświeżeniami.
+# 2026-08-10 - hot path `/hack-action` bez pełnego reloadu profili
+
+- Zidentyfikowano timeout `POST /hack-action` w `set_player_aimed_target()` po zapisie canonical target runtime: legacy `UserProfileManager.update_profile()` wykonywał dla małej zmiany pełne `list_profiles()`, `deepcopy()` dużego profilu, zapis i ponowny reload wszystkich profili.
+- `set_player_aimed_target()` zachowuje projekcję legacy (`aimed_target`, kolejka aplikacji, operacje i risk events), ale zapisuje już załadowany profil bez cyklu `UserProfileManager`; tryb `append/clear` kolejki pozostaje jawnie przekazywany do `UserStore`.
+- `/hack-action` nie tworzy już `UserProfileManager` tylko po to, aby usunąć wybrany punkt z `targets`; filtr wykonuje się na profilu w pamięci przed pojedynczym zapisem.
+- Dodano regresję potwierdzającą zapis targetu i semantykę `launch_queue=append` bez uruchamiania ciężkiego managera.

@@ -6619,10 +6619,22 @@ def set_player_aimed_target(username, profile, aimed_target, update_fields=None,
     fields = dict(update_fields or {})
     fields = merge_latest_profile_runtime_fields(username, fields)
     fields["aimed_target"] = aimed_target
-    UserProfileManager(username).update_profile(fields)
     for key, value in fields.items():
         profile[key] = value
     profile["aimed_target"] = aimed_target
+    # The target has its canonical runtime record in PlayerTargetRuntimeStore.
+    # Keep the legacy profile projection for compatibility, but persist the
+    # already loaded profile only once. UserProfileManager would reload every
+    # profile, deepcopy the large player document, save it and repeat the full
+    # reload after this small update; on production profiles that can exhaust a
+    # sync gunicorn worker's timeout.
+    profile_to_save = dict(profile)
+    if "launch_queue" in fields:
+        queue = fields.get("launch_queue")
+        profile_to_save["_launch_queue_write_mode"] = (
+            "clear" if isinstance(queue, list) and not queue else "append"
+        )
+    user_store.save_profile(profile_to_save)
     if aimed_target:
         safe_ghostnetwork_on_target_aimed(username, profile, aimed_target, reason=reason)
     return aimed_target
@@ -18829,15 +18841,6 @@ def hack_action():
         same_target=same_target,
         previous_target_id=build_operation_target_id(previous_target or {}),
     )
-    step_started_at = time.perf_counter()
-    mgr = UserProfileManager(session["user"])
-    app_flow_debug_timed(
-        flow_id,
-        "hack_action_profile_manager_ready",
-        app_flow_started_at,
-        step_started_at,
-        user=session["user"],
-    )
     target_branch_started_at = time.perf_counter()
     if same_target:
         if "actions_allowed" not in previous_target:
@@ -18871,7 +18874,11 @@ def hack_action():
 
     else:
         remove_started_at = time.perf_counter()
-        mgr.remove_from_list_by_coords("targets", lat, lng, label=label)
+        profile["targets"], _ = filter_targets_by_position(
+            profile.get("targets", []),
+            {"lat": lat, "lng": lng, "label": label},
+            match_label=True,
+        )
         app_flow_debug_timed(
             flow_id,
             "hack_action_target_remove_old_coords_done",

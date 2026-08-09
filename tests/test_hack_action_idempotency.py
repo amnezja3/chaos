@@ -526,7 +526,7 @@ class HackActionIdempotencyTests(unittest.TestCase):
 
         with patch.object(run.territory_store, "list_captured_targets", return_value=[captured]), \
             patch.object(run, "merge_latest_profile_runtime_fields", side_effect=lambda _username, fields: fields), \
-            patch.object(run, "UserProfileManager") as manager_class, \
+            patch.object(run.user_store, "save_profile") as save_profile, \
             patch.object(run, "safe_ghostnetwork_on_target_aimed") as ghost_hook:
             result = run.set_player_aimed_target(
                 "main",
@@ -537,10 +537,11 @@ class HackActionIdempotencyTests(unittest.TestCase):
 
         self.assertEqual(result, {})
         self.assertEqual(profile["aimed_target"], {})
-        manager_class.return_value.update_profile.assert_called_once()
-        saved_fields = manager_class.return_value.update_profile.call_args.args[0]
-        self.assertEqual(saved_fields["aimed_target"], {})
-        self.assertEqual(saved_fields["launch_queue"], ["V-MAP"])
+        save_profile.assert_called_once()
+        saved_profile = save_profile.call_args.args[0]
+        self.assertEqual(saved_profile["aimed_target"], {})
+        self.assertEqual(saved_profile["launch_queue"], ["V-MAP"])
+        self.assertEqual(saved_profile["_launch_queue_write_mode"], "append")
         ghost_hook.assert_not_called()
 
     def test_normalize_profile_position_update_writes_legacy_and_canonical_fields(self):
