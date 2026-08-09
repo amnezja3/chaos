@@ -21298,6 +21298,7 @@ def map_player_areas():
         "warnings": player_areas_warnings,
         "player": {
             "level": get_player_level(profile),
+            "clan": get_profile_clan(profile),
             "action_range": get_player_action_range(profile),
             "map_zoom": get_player_map_zoom(profile),
             "min_map_zoom": get_player_min_map_zoom(profile)

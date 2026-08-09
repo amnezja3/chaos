@@ -1,6 +1,22 @@
 
 # CHAOS — klany, maszyny i GhostNetwork
 
+## Kanoniczna paleta klanów na mapie
+
+Kolory terytoriów identyfikują klan właściciela:
+
+* Strażnicy Ładu — niebieski `#238BFF`;
+* Echo Wolności — żółty `#FFD43B`;
+* VIREX — czerwony `#E53935`;
+* Siatka Widmo — turkusowy `#00CFA6`.
+
+Własne terytorium gracza pozostaje zielone niezależnie od klanu. Terytorium
+innego członka tego samego klanu używa koloru klanu i ciągłego obrysu, takiego
+jak własne pole. Terytorium obcego klanu używa koloru właściciela oraz obrysu
+przerywanego. Pomarańczowy jest zarezerwowany dla konfliktu 1v1, a fioletowy
+dla warstwy multi-conflict; nakładki konfliktów mają pierwszeństwo wizualne
+nad kolorem bazowego terytorium.
+
 ## 1. Kanon świata i oś czasu
 
 ## Świat w 2026 roku
@@ -4062,4 +4078,3 @@ bojową. Tylko zgodny, niepusty identyfikator klanu blokuje wzajemne filary,
 innery i akcje strategiczne. Zmiana klanu jest oceniana na aktualnych profilach
 przy projekcji oraz przy kolejnej kanonicznej przebudowie; nie zmienia historii
 capture ani wcześniejszych eventów.
-

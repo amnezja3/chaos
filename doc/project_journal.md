@@ -11097,3 +11097,12 @@ Frontend dostal osobne registry i warstwy Leaflet engagementu, monotoniczny
 guard, recovery przy luce wersji oraz equal-version repair brakujacej warstwy.
 Warstwy bazowych konfliktow 1v1 nie sa przez ten reconcile usuwane. Regresja
 93 testow terytorialnych przeszla OK; cutover produkcyjny pozostaje otwarty.
+
+Po 15 godzinach testu produkcyjnego multi-conflictu i ponad 100 operacjach nie
+stwierdzono regresji gameplay. Dwa opoznione rebuildy przy jednoczesnej duzej
+przebudowie pozostaja obserwacja operacyjna bez potwierdzonego bledu kodu.
+Ustalono kanoniczna palete terytoriow klanowych: Straznicy `#238BFF`, Echo
+`#FFD43B`, VIREX `#E53935`, Siatka Widmo `#00CFA6`. Wlasne pole pozostaje
+zielone. Pole crew uzywa koloru klanu i ciaglego obrysu, a pole obcego klanu
+koloru klanu i obrysu przerywanego. Pomaranczowy 1v1 i fioletowy multi-conflict
+pozostaja niezaleznymi nakladkami.

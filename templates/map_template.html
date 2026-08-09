@@ -2028,16 +2028,42 @@
             return `${owner}:${lat}:${lng}`;
         }
 
+        const territoryClanPalette = Object.freeze({
+            'straznicy ladu': { stroke: '#238BFF', fill: '#1665BD' },
+            'echo wolnosci': { stroke: '#FFD43B', fill: '#C79C00' },
+            'virex': { stroke: '#E53935', fill: '#A91F24' },
+            'virex korporacja': { stroke: '#E53935', fill: '#A91F24' },
+            'siatka widmo': { stroke: '#00CFA6', fill: '#008F78' }
+        });
+
+        function normalizeTerritoryClanName(value) {
+            return String(value || '').trim().toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+
+        function territoryViewerClan() {
+            const profile = window.profileData || {};
+            const fraction = profile.fraction && typeof profile.fraction === 'object'
+                ? profile.fraction.name
+                : '';
+            return normalizeTerritoryClanName(window.mapViewerClan || profile.clan || fraction || '');
+        }
+
         function territoryLayerStyle(area = {}) {
             const isMine = area.is_mine === true;
             const isEncircled = area.status === 'encircled';
+            const ownerClan = normalizeTerritoryClanName(area.owner_clan || '');
+            const isCrew = Boolean(!isMine && ownerClan && ownerClan === territoryViewerClan());
+            const clanColors = territoryClanPalette[ownerClan] || {
+                stroke: '#ff4b4b', fill: '#b62020'
+            };
             return {
                 pane: 'territoryPane',
-                color: isEncircled ? '#ffcc33' : (isMine ? '#26ff6a' : '#ff4b4b'),
-                fillColor: isEncircled ? '#b88700' : (isMine ? '#0aa83d' : '#b62020'),
+                color: isEncircled ? '#ffcc33' : (isMine ? '#26ff6a' : clanColors.stroke),
+                fillColor: isEncircled ? '#b88700' : (isMine ? '#0aa83d' : clanColors.fill),
                 fillOpacity: isEncircled ? 0.26 : (isMine ? 0.13 : 0.20),
-                weight: isEncircled ? 4 : (isMine ? 2 : 3),
-                dashArray: isEncircled ? '4 5' : (isMine ? null : '8 6'),
+                weight: isEncircled ? 4 : (isMine ? 2 : (isCrew ? 2 : 3)),
+                dashArray: isEncircled ? '4 5' : ((isMine || isCrew) ? null : '8 6'),
                 interactive: true,
                 bubblingMouseEvents: false
             };
@@ -7614,6 +7640,8 @@
                     clearLayerArray('conflictAreaLayers');
                     clearLayerArray('capturedConflictPillarLayers');
                     resetTerritoryLayerRegistries();
+
+                    window.mapViewerClan = String((data.player || {}).clan || window.mapViewerClan || '');
 
                     (data.areas || []).forEach(renderTerritoryAreaLayer);
 
