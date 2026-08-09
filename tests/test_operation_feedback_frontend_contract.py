@@ -1,7 +1,11 @@
 import json
+import os
 import subprocess
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+from config import env_csv, env_float
 
 
 class OperationFeedbackFrontendContractTest(unittest.TestCase):
@@ -29,10 +33,54 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
             self.template.index("js/terminal.js"),
         )
 
-    def test_scan_ports_is_the_only_enabled_action_in_spike(self):
-        self.assertIn('action === "scan_ports"', self.feedback)
+    def test_feedback_actions_have_global_and_per_operation_flags(self):
+        self.assertIn('env_csv("CHAOS_OPERATION_FEEDBACK_ACTIONS")', self.config)
         self.assertIn('flags.scan_ports === true', self.feedback)
+        self.assertIn("enabled_actions", self.feedback)
         self.assertIn('flags.enabled === true', self.feedback)
+
+    def test_csv_flag_helper_does_not_regress_float_config(self):
+        with patch.dict(os.environ, {
+            "OFS_TEST_ACTIONS": " exploit,trace,exploit ",
+            "OFS_TEST_FLOAT": "1.25",
+        }, clear=False):
+            self.assertEqual(env_csv("OFS_TEST_ACTIONS"), ["exploit", "trace"])
+            self.assertEqual(env_float("OFS_TEST_FLOAT", 0), 1.25)
+
+    def test_all_twelve_operation_profiles_are_valid_skeletons(self):
+        expected_modes = {
+            "scan_ports": "button_choice",
+            "exploit": "terminal",
+            "sniff": "terminal",
+            "trace": "window",
+            "trace_gps": "window",
+            "trace_device": "window",
+            "mic_sniff": "terminal",
+            "atm_logs": "terminal",
+            "install_sniffer": "button_choice",
+            "camera_stream": "window",
+            "camera_shutdown": "button_choice",
+            "car_hack": "button_choice",
+        }
+        self.assertEqual(set(self.profile["operations"]), set(expected_modes))
+        for action_key, mode in expected_modes.items():
+            profile = self.profile["operations"][action_key]
+            self.assertTrue(profile["enabled"])
+            self.assertEqual(profile["action_key"], action_key)
+            self.assertEqual(profile["default_presentation_mode"], mode)
+            self.assertIn(mode, profile["presentation_modes"])
+            self.assertTrue(profile["security"])
+            self.assertTrue(profile["scene_pools"])
+            self.assertEqual(profile["provisional_profile"]["timeline_profile"], "launch_150s")
+            self.assertIn("extended_wait", profile["provisional_profile"]["scene_pool"])
+
+    def test_launch_150s_skeleton_covers_extended_wait(self):
+        timeline = self.profile["provisional_timelines"]["launch_150s"]
+        self.assertGreaterEqual(timeline["min_coverage_ms"], 150000)
+        starts = [stage["start_after_ms"] for stage in timeline["stages"]]
+        self.assertEqual(starts, sorted(starts))
+        self.assertGreaterEqual(starts[-1], 150000)
+        self.assertEqual(timeline["stages"][-1]["family"], "extended_wait")
 
     def test_session_owns_lifecycle_timers_and_cleanup(self):
         for state in (
@@ -84,7 +132,8 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
 
     def test_scan_ports_profile_has_required_mvp_libraries(self):
         required = {
-            "defaults", "duration_profiles", "scene_library", "security_library",
+            "defaults", "duration_profiles", "provisional_timelines",
+            "provisional_scene_library", "scene_library", "security_library",
             "transport_library", "choice_library", "completion_library",
             "failure_library", "operations",
         }
@@ -96,6 +145,22 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertNotIn("interaction_types", operation)
         self.assertGreaterEqual(len(operation["scene_pools"]), 2)
         self.assertGreaterEqual(len(operation["security"]), 3)
+
+    def test_provisional_package_covers_150_seconds_and_is_manually_editable(self):
+        timeline = self.profile["provisional_timelines"]["launch_150s"]
+        starts = [stage["start_after_ms"] for stage in timeline["stages"]]
+        self.assertEqual(starts, sorted(starts))
+        self.assertEqual(starts[-1], 150000)
+        self.assertEqual(len(timeline["stages"]), 15)
+        self.assertEqual(timeline["extended_wait_ms"], [12000, 20000])
+        library = self.profile["provisional_scene_library"]
+        for stage in timeline["stages"]:
+            scene = library[stage["scene_id"]]
+            self.assertTrue(scene["cancelable"])
+            self.assertTrue(scene["voices"])
+        self.assertGreaterEqual(len(library["extended_wait"]["voices"]["default"]), 3)
+        self.assertIn("composeProvisionalScene", self.feedback)
+        self.assertIn("feedback_extended_wait_entered", self.terminal)
 
     def test_security_matrix_only_references_existing_variants(self):
         operation = self.profile["operations"]["scan_ports"]
@@ -123,7 +188,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("history.last_scene", self.feedback)
         self.assertIn("history.last_security", self.feedback)
         self.assertIn("history.last_line", self.feedback)
-        self.assertIn("durationProfileFor(config, elapsedMs)", self.feedback)
+        self.assertIn("durationProfileFor(config, elapsedMs, profile)", self.feedback)
         self.assertIn(
             "this.clearTimers();\n            this.clearChoice(true);\n            this.transition(\"completing\")",
             self.feedback,
@@ -138,6 +203,8 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn('Object.prototype.hasOwnProperty.call(profile, "interaction_types")', self.feedback)
         self.assertIn("OFS invalid pair", self.feedback)
         self.assertIn("OFS content must be plain text", self.feedback)
+        self.assertIn("validation_error", self.feedback)
+        self.assertIn("Profil ${operationId} wylaczony", self.feedback)
 
     def test_composer_builds_varied_valid_scenes(self):
         result = subprocess.run(
@@ -160,7 +227,9 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
                 option["value"] == choice["default_value"]
                 for option in choice["options"]
             ))
-        self.assertIn("feedback_choice_resolved", self.feedback)
+        self.assertIn("feedback_choice_shown", self.feedback)
+        self.assertIn("feedback_choice_selected", self.feedback)
+        self.assertIn("feedback_choice_timed_out", self.feedback)
         self.assertNotIn("/gonna-win", self.feedback)
 
     def test_application_content_is_private_and_does_not_reuse_gameplay_choices(self):
@@ -175,6 +244,46 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("app_structured", self.feedback)
         self.assertIn("app_legacy", self.feedback)
         self.assertIn("global_fallback", self.feedback)
+
+    def test_scene_envelope_and_provisional_renderer_are_separate_from_execution_session(self):
+        self.assertIn('const PRESENTATION_MODES = new Set(["ofs_provisional", "terminal", "button_choice", "window"])', self.feedback)
+        self.assertIn("function createSceneEnvelope", self.feedback)
+        self.assertIn("class ProvisionalSceneRenderer", self.feedback)
+        self.assertIn('normalizedMode === "ofs_provisional"', self.feedback)
+        self.assertIn('presentation_mode: "ofs_provisional"', self.terminal)
+        self.assertIn('createPresentationRenderer?.("ofs_provisional"', self.terminal)
+        provisional_source = self.feedback[
+            self.feedback.index("class ProvisionalSceneRenderer"):
+            self.feedback.index("function createPresentationRenderer")
+        ]
+        self.assertNotIn("fetch(", provisional_source)
+        self.assertNotIn("/gonna-win", provisional_source)
+        self.assertNotIn("securityState", provisional_source)
+
+    def test_execution_renderers_share_envelope_and_keep_choices_isolated(self):
+        for class_name in (
+            "ExecutionSceneRenderer",
+            "TerminalSceneRenderer",
+            "ButtonChoiceSceneRenderer",
+            "WindowSceneRenderer",
+        ):
+            self.assertIn(f"class {class_name}", self.feedback)
+        self.assertIn('normalizedMode === "terminal"', self.feedback)
+        self.assertIn('normalizedMode === "button_choice"', self.feedback)
+        self.assertIn('normalizedMode === "window"', self.feedback)
+        self.assertIn('normalized === "progressbar_random"', self.feedback)
+        terminal_source = self.feedback[
+            self.feedback.index("class TerminalSceneRenderer"):
+            self.feedback.index("class ButtonChoiceSceneRenderer")
+        ]
+        window_source = self.feedback[
+            self.feedback.index("class WindowSceneRenderer"):
+            self.feedback.index("function createPresentationRenderer")
+        ]
+        self.assertNotIn("operation-feedback-choice", terminal_source)
+        self.assertNotIn("operation-feedback-choice", window_source)
+        self.assertIn('this.presentationMode !== "button_choice"', self.feedback)
+        self.assertIn("this.renderer.render({", self.feedback)
 
 
 if __name__ == "__main__":

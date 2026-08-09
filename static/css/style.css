@@ -7963,6 +7963,70 @@ form button:hover {
   color: #27d86c;
 }
 
+.operation-feedback-terminal .operation-feedback-lines {
+  min-height: 5.8em;
+  max-height: 9em;
+  overflow: hidden;
+}
+
+.operation-feedback-window {
+  font-family: inherit;
+  background: rgba(5, 20, 13, 0.96);
+}
+
+.operation-feedback-window .operation-feedback-lines {
+  display: grid;
+  gap: 5px;
+}
+
+.operation-feedback-window .operation-feedback-line {
+  padding: 4px 6px;
+  border-left: 2px solid rgba(39, 216, 108, 0.55);
+  background: rgba(39, 216, 108, 0.06);
+}
+
+.operation-feedback-window .operation-feedback-line::before {
+  content: "";
+}
+
+.operation-feedback-slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.operation-feedback-slots[hidden] {
+  display: none;
+}
+
+.operation-feedback-slot {
+  display: grid;
+  gap: 2px;
+  padding: 5px 7px;
+  border: 1px solid rgba(39, 216, 108, 0.25);
+}
+
+.operation-feedback-slot-label {
+  color: #73a982;
+  font-size: 0.72em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.operation-feedback-slot-value {
+  color: #d9ffe2;
+}
+
+.operation-feedback-panel[data-scene-transition="fade"] .operation-feedback-lines {
+  animation: operation-feedback-fade 180ms ease-out;
+}
+
+@keyframes operation-feedback-fade {
+  from { opacity: 0.35; }
+  to { opacity: 1; }
+}
+
 .operation-feedback-panel[data-tone="success"] {
   border-color: #74ff9b;
 }
@@ -8084,6 +8148,15 @@ form button:hover {
   color: #b9ffc7;
 }
 
+.provisional-app-scenes[data-scene-transition="fade"] .provisional-app-scene-line {
+  animation: ofs-provisional-scene-fade 240ms ease-out;
+}
+
+@keyframes ofs-provisional-scene-fade {
+  from { opacity: 0.35; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .provisional-app-scene-line + .provisional-app-scene-line {
   margin-top: 5px;
   color: #7fdc93;
@@ -8109,4 +8182,5 @@ form button:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .provisional-app-activity span { animation: none; }
+  .provisional-app-scenes .provisional-app-scene-line { animation: none; }
 }

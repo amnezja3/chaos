@@ -1,91 +1,1755 @@
 {
   "schema_version": "1.0.0",
-  "content_version": "2026.08.09.2",
+  "content_version": "2026.08.09.5",
   "defaults": {
-    "scene_delay_ms": [900, 1600],
+    "scene_delay_ms": [
+      900,
+      1600
+    ],
     "max_lines": 5
   },
   "duration_profiles": {
-    "instant": {"min_elapsed_ms": 0, "scene_pool": ["boot", "probe"]},
-    "short": {"min_elapsed_ms": 4000, "scene_pool": ["probe", "security_contact"]},
-    "medium": {"min_elapsed_ms": 15000, "scene_pool": ["security_contact", "verification"]},
-    "long": {"min_elapsed_ms": 40000, "scene_pool": ["security_contact", "verification", "payload_wait"]},
-    "very_long": {"min_elapsed_ms": 90000, "scene_pool": ["verification", "payload_wait"]}
+    "instant": {
+      "min_elapsed_ms": 0,
+      "scene_pool": [
+        "boot",
+        "probe"
+      ]
+    },
+    "short": {
+      "min_elapsed_ms": 4000,
+      "scene_pool": [
+        "probe",
+        "security_contact"
+      ]
+    },
+    "medium": {
+      "min_elapsed_ms": 15000,
+      "scene_pool": [
+        "security_contact",
+        "verification"
+      ]
+    },
+    "long": {
+      "min_elapsed_ms": 40000,
+      "scene_pool": [
+        "security_contact",
+        "verification",
+        "payload_wait"
+      ]
+    },
+    "very_long": {
+      "min_elapsed_ms": 90000,
+      "scene_pool": [
+        "verification",
+        "payload_wait"
+      ]
+    }
+  },
+  "provisional_timelines": {
+    "launch_150s": {
+      "min_coverage_ms": 150000,
+      "extended_wait_ms": [
+        12000,
+        20000
+      ],
+      "stages": [
+        {
+          "scene_id": "app_identity",
+          "family": "app_identity",
+          "start_after_ms": 0
+        },
+        {
+          "scene_id": "local_init",
+          "family": "local_init",
+          "start_after_ms": 3000
+        },
+        {
+          "scene_id": "interface_boot",
+          "family": "interface_boot",
+          "start_after_ms": 8000
+        },
+        {
+          "scene_id": "author_manifest",
+          "family": "author_manifest",
+          "start_after_ms": 14000
+        },
+        {
+          "scene_id": "context_target",
+          "family": "context_bind",
+          "start_after_ms": 21000
+        },
+        {
+          "scene_id": "context_action",
+          "family": "context_bind",
+          "start_after_ms": 29000
+        },
+        {
+          "scene_id": "module_boot",
+          "family": "module_boot",
+          "start_after_ms": 38000
+        },
+        {
+          "scene_id": "local_validation_1",
+          "family": "local_validation",
+          "start_after_ms": 48000
+        },
+        {
+          "scene_id": "runtime_prepare_1",
+          "family": "runtime_prepare",
+          "start_after_ms": 60000
+        },
+        {
+          "scene_id": "author_content",
+          "family": "author_content",
+          "start_after_ms": 73000
+        },
+        {
+          "scene_id": "local_validation_2",
+          "family": "local_validation",
+          "start_after_ms": 88000
+        },
+        {
+          "scene_id": "runtime_prepare_2",
+          "family": "runtime_prepare",
+          "start_after_ms": 104000
+        },
+        {
+          "scene_id": "launcher_sync",
+          "family": "launcher_sync",
+          "start_after_ms": 121000
+        },
+        {
+          "scene_id": "hydration_wait",
+          "family": "hydration_wait",
+          "start_after_ms": 138000
+        },
+        {
+          "scene_id": "extended_wait",
+          "family": "extended_wait",
+          "start_after_ms": 150000
+        }
+      ]
+    }
+  },
+  "provisional_scene_library": {
+    "app_identity": {
+      "phase": "launching",
+      "transition": "replace",
+      "cancelable": true,
+      "voices": {
+        "default": [
+          [
+            "{app_title}",
+            "Przygotowanie lokalnej prezentacji aplikacji."
+          ],
+          [
+            "Uruchamianie {app_title}.",
+            "Profil aplikacji zostal rozpoznany."
+          ],
+          [
+            "{app_title}",
+            "Lokalny profil aplikacji jest przygotowywany."
+          ],
+          [
+            "Start {app_title}.",
+            "Odczyt podstawowych danych narzedzia."
+          ],
+          [
+            "{app_title}",
+            "Tworzenie lokalnego kontekstu uruchomienia."
+          ],
+          [
+            "Rozruch {app_title}.",
+            "Warstwa prezentacji zostala otwarta."
+          ],
+          [
+            "{app_title}",
+            "Przygotowanie sesji aplikacji na desktopie."
+          ],
+          [
+            "Lokalne uruchomienie {app_title}.",
+            "Interfejs oczekuje na dalszy stan runtime."
+          ],
+          [
+            "{app_title}",
+            "Identyfikacja aplikacji zakonczona lokalnie."
+          ],
+          [
+            "Przygotowanie {app_title}.",
+            "Dane startowe sa dostepne w lokalnym snapshotcie."
+          ]
+        ]
+      }
+    },
+    "local_init": {
+      "phase": "booting",
+      "transition": "replace",
+      "cancelable": true,
+      "voices": {
+        "default": [
+          [
+            "Inicjalizacja lokalnego profilu.",
+            "Przygotowanie bezpiecznego kontekstu prezentacji."
+          ],
+          [
+            "Lokalna sesja zostala otwarta.",
+            "Porzadkowanie danych startowych."
+          ],
+          [
+            "Inicjalizacja sesji prezentacji.",
+            "Lokalne dane startowe sa porzadkowane."
+          ],
+          [
+            "Przygotowanie lokalnego runtime UI.",
+            "Kontekst aplikacji pozostaje odizolowany."
+          ],
+          [
+            "Otwieranie lokalnego srodowiska.",
+            "Weryfikacja podstawowych danych prezentacji."
+          ],
+          [
+            "Sesja startowa jest aktywna.",
+            "Przygotowanie danych do kolejnych scen."
+          ],
+          [
+            "Budowanie lokalnego stanu aplikacji.",
+            "Brak zmian w stanie backendu."
+          ],
+          [
+            "Przygotowanie kontenera aplikacji.",
+            "Warstwa startowa pozostaje lokalna."
+          ],
+          [
+            "Lokalny kontekst zostal utworzony.",
+            "Porzadkowanie manifestu i interfejsu."
+          ],
+          [
+            "Rozruch warstwy prezentacyjnej.",
+            "Autorytatywny stan nie jest jeszcze interpretowany."
+          ]
+        ]
+      }
+    },
+    "interface_boot": {
+      "phase": "booting",
+      "transition": "fade",
+      "cancelable": true,
+      "voices": {
+        "terminal": [
+          [
+            "Montowanie bufora terminala.",
+            "Kanal polecen pozostaje lokalny."
+          ],
+          [
+            "Przygotowanie viewportu terminala.",
+            "Bufor wyjscia jest montowany lokalnie."
+          ],
+          [
+            "Otwieranie lokalnej konsoli.",
+            "Komendy runtime pozostaja jeszcze nieaktywne."
+          ],
+          [
+            "Montowanie sesji terminalowej.",
+            "Historia polecen pozostaje lokalna."
+          ],
+          [
+            "Przygotowanie kursora i bufora.",
+            "Terminal oczekuje na hydration."
+          ],
+          [
+            "Lokalny shell aplikacji jest tworzony.",
+            "Brak komend wysylanych do backendu."
+          ],
+          [
+            "Warstwa terminala jest gotowa do scen startowych.",
+            "Runtime nie zostal jeszcze przejety."
+          ],
+          [
+            "Przygotowanie lokalnego strumienia tekstowego.",
+            "Bufor pozostaje odizolowany."
+          ],
+          [
+            "Terminal otrzymuje kontener prezentacji.",
+            "Oczekiwanie na dalszy stan aplikacji."
+          ],
+          [
+            "Lokalny renderer terminala jest gotowy.",
+            "Sesja nie wykonuje requestow."
+          ]
+        ],
+        "button_choices": [
+          [
+            "Przygotowanie interfejsu decyzji.",
+            "Opcje pozostaja nieaktywne do czasu hydracji."
+          ],
+          [
+            "Montowanie panelu decyzji.",
+            "Przyciski gameplayowe pozostaja jeszcze ukryte."
+          ],
+          [
+            "Przygotowanie interfejsu wyboru.",
+            "Lokalne kontrolki sa nieaktywne."
+          ],
+          [
+            "Tworzenie kontenera pytan.",
+            "Decyzje runtime nie sa jeszcze dostepne."
+          ],
+          [
+            "Panel button choices jest przygotowywany.",
+            "Hydracja zdecyduje o aktywnych opcjach."
+          ],
+          [
+            "Przygotowanie lokalnego viewportu decyzji.",
+            "Brak wysylania wyborow do backendu."
+          ],
+          [
+            "Renderer przyciskowy jest montowany.",
+            "Gameplayowe options pozostaja odseparowane."
+          ],
+          [
+            "Lokalny panel wyboru jest gotowy.",
+            "Oczekiwanie na content runtime."
+          ],
+          [
+            "Przygotowanie warstwy interakcji.",
+            "Przyciski pozostaja zablokowane do hydration."
+          ],
+          [
+            "Interfejs decyzji zostal otwarty lokalnie.",
+            "Sesja nadal pozostaje provisional."
+          ]
+        ],
+        "window": [
+          [
+            "Przygotowanie widoku aplikacji.",
+            "Komponenty okna sa montowane lokalnie."
+          ],
+          [
+            "Montowanie panelu aplikacji.",
+            "Pola widoku sa przygotowywane lokalnie."
+          ],
+          [
+            "Tworzenie viewportu okienkowego.",
+            "Komponenty oczekuja na dane runtime."
+          ],
+          [
+            "Przygotowanie lokalnego panelu stanu.",
+            "Widok pozostaje tymczasowy."
+          ],
+          [
+            "Okno otrzymuje podstawowy layout.",
+            "Hydracja moze zaktualizowac pola bez restartu."
+          ],
+          [
+            "Renderer window jest przygotowywany.",
+            "Stan backendu nie jest jeszcze prezentowany."
+          ],
+          [
+            "Montowanie lokalnych sekcji widoku.",
+            "Pola dynamiczne pozostaja oczekujace."
+          ],
+          [
+            "Przygotowanie panelu informacyjnego.",
+            "Viewport zachowuje jeden kontekst launchu."
+          ],
+          [
+            "Warstwa okna jest gotowa do scen startowych.",
+            "Brak fikcyjnego postepu."
+          ],
+          [
+            "Lokalny widok aplikacji zostal utworzony.",
+            "Oczekiwanie na autorytatywna hydracje."
+          ]
+        ],
+        "progressbar_random": [
+          [
+            "Ladowanie etapow aplikacji.",
+            "Pasek prezentuje lokalny postep startu."
+          ],
+          [
+            "Przygotowanie warstwy aktywnosci.",
+            "Wskaznik nie reprezentuje procentu backendu."
+          ],
+          [
+            "Montowanie lokalnego widoku etapow.",
+            "Aktywnosc nie jest miara wyniku operacji."
+          ],
+          [
+            "Przygotowanie panelu startowego.",
+            "Wskaznik pozostaje wyłącznie prezentacyjny."
+          ],
+          [
+            "Lokalna warstwa activity jest gotowa.",
+            "Brak autorytatywnego procentu postepu."
+          ],
+          [
+            "Tworzenie widoku etapow aplikacji.",
+            "Runtime nie przekazal wartosci procentowej."
+          ],
+          [
+            "Przygotowanie aktywnego wskaznika startu.",
+            "Nie interpretuje on wyniku backendu."
+          ],
+          [
+            "Montowanie legacy activity view.",
+            "Prezentacja zostanie mapowana na stan okna."
+          ],
+          [
+            "Lokalny wskaznik jest aktywny.",
+            "Postep pozostaje nieokreslony."
+          ],
+          [
+            "Warstwa etapow zostala przygotowana.",
+            "Oczekiwanie na hydration."
+          ]
+        ],
+        "default": [
+          [
+            "Przygotowanie interfejsu aplikacji.",
+            "Widok oczekuje na dane runtime."
+          ],
+          [
+            "Montowanie lokalnego interfejsu.",
+            "Widok oczekuje na dalsze dane."
+          ],
+          [
+            "Przygotowanie viewportu aplikacji.",
+            "Stan pozostaje provisional."
+          ],
+          [
+            "Tworzenie lokalnej warstwy UI.",
+            "Hydracja moze przejac widok."
+          ],
+          [
+            "Przygotowanie interfejsu startowego.",
+            "Brak autorytatywnego wyniku."
+          ],
+          [
+            "Lokalny renderer jest inicjalizowany.",
+            "Sesja pozostaje cancelowalna."
+          ],
+          [
+            "Przygotowanie kontenera prezentacji.",
+            "Runtime nie zostal jeszcze odebrany."
+          ],
+          [
+            "Widok aplikacji jest montowany.",
+            "Dane backendu pozostaja oczekujace."
+          ],
+          [
+            "Warstwa UI jest gotowa lokalnie.",
+            "Oczekiwanie na kolejna faze."
+          ],
+          [
+            "Przygotowanie podstawowego layoutu.",
+            "Prezentacja nie wykonuje requestow."
+          ]
+        ]
+      }
+    },
+    "author_manifest": {
+      "phase": "booting",
+      "transition": "append_short",
+      "cancelable": true,
+      "voices": {
+        "default": [
+          [
+            "Manifest autora zostal wczytany.",
+            "{description}"
+          ],
+          [
+            "Profil narzedzia jest gotowy.",
+            "Interfejs autora: {interface}."
+          ],
+          [
+            "Odczyt manifestu aplikacji.",
+            "{description}"
+          ],
+          [
+            "Manifest autora jest dostepny lokalnie.",
+            "Interfejs: {interface}."
+          ],
+          [
+            "Wczytano opis narzedzia.",
+            "{description}"
+          ],
+          [
+            "Profil autora zostal rozpoznany.",
+            "Tryb interfejsu: {interface}."
+          ],
+          [
+            "Przygotowanie tresci manifestu.",
+            "{description}"
+          ],
+          [
+            "Warstwa autora jest gotowa do prezentacji.",
+            "Interfejs: {interface}."
+          ],
+          [
+            "Odczyt lokalnej definicji aplikacji.",
+            "{description}"
+          ],
+          [
+            "Manifest pozostaje zrodlem charakteru aplikacji.",
+            "Widok: {interface}."
+          ]
+        ]
+      }
+    },
+    "context_target": {
+      "phase": "booting",
+      "transition": "replace",
+      "cancelable": true,
+      "voices": {
+        "default": [
+          [
+            "Wiazanie lokalnego kontekstu celu.",
+            "Cel: {target_label}."
+          ],
+          [
+            "Kontekst celu zostal przygotowany.",
+            "Oznaczenie: {target_label}."
+          ],
+          [
+            "Przygotowanie lokalnego kontekstu celu.",
+            "Cel: {target_label}."
+          ],
+          [
+            "Wiazanie etykiety celu.",
+            "Wybrano: {target_label}."
+          ],
+          [
+            "Kontekst celu pozostaje lokalny.",
+            "Target: {target_label}."
+          ],
+          [
+            "Odczyt celu z launch context.",
+            "Oznaczenie: {target_label}."
+          ],
+          [
+            "Przypisanie celu do sesji prezentacji.",
+            "Cel: {target_label}."
+          ],
+          [
+            "Lokalny target context jest gotowy.",
+            "Wybrany cel: {target_label}."
+          ],
+          [
+            "Sesja zachowuje kontekst celu.",
+            "Target label: {target_label}."
+          ],
+          [
+            "Przygotowanie widoku dla wskazanego celu.",
+            "{target_label}."
+          ]
+        ]
+      }
+    },
+    "context_action": {
+      "phase": "booting",
+      "transition": "replace",
+      "cancelable": true,
+      "voices": {
+        "default": [
+          [
+            "Wiazanie profilu dzialania.",
+            "Akcja: {action_label}."
+          ],
+          [
+            "Profil operacji zostal wybrany.",
+            "Tryb: {action_label}."
+          ],
+          [
+            "Przygotowanie lokalnego profilu akcji.",
+            "Akcja: {action_label}."
+          ],
+          [
+            "Wiazanie requested action.",
+            "Tryb: {action_label}."
+          ],
+          [
+            "Kontekst dzialania zostal rozpoznany.",
+            "Akcja: {action_label}."
+          ],
+          [
+            "Sesja zachowuje profil operacji.",
+            "Wybrano: {action_label}."
+          ],
+          [
+            "Lokalna prezentacja zna requested action.",
+            "Tryb: {action_label}."
+          ],
+          [
+            "Przygotowanie scen dla kontekstu dzialania.",
+            "Akcja: {action_label}."
+          ],
+          [
+            "Profil akcji jest dostepny lokalnie.",
+            "{action_label}."
+          ],
+          [
+            "Kontekst operacyjny zostal przypisany.",
+            "Requested action: {action_label}."
+          ]
+        ]
+      }
+    },
+    "module_boot": {
+      "phase": "booting",
+      "transition": "fade",
+      "cancelable": true,
+      "voices": {
+        "terminal": [
+          [
+            "Ladowanie lokalnych polecen narzedzia.",
+            "Historia terminala pozostaje odizolowana."
+          ],
+          [
+            "Ladowanie lokalnych komend aplikacji.",
+            "Bufor pozostaje odizolowany od backendu."
+          ],
+          [
+            "Przygotowanie komend terminalowych.",
+            "Nie sa jeszcze wykonywane zdalnie."
+          ],
+          [
+            "Montowanie modulow terminala.",
+            "Historia pozostaje lokalna."
+          ],
+          [
+            "Przygotowanie lokalnego zestawu polecen.",
+            "Runtime nie zostal jeszcze zhydratowany."
+          ],
+          [
+            "Warstwa komend jest gotowa.",
+            "Oczekiwanie na stan aplikacji."
+          ],
+          [
+            "Ladowanie lokalnego profilu terminala.",
+            "Brak operacji wysylanych do celu."
+          ],
+          [
+            "Przygotowanie modułu konsoli.",
+            "Sesja pozostaje provisional."
+          ],
+          [
+            "Terminal laduje komponenty prezentacji.",
+            "Komendy gameplayowe sa jeszcze nieaktywne."
+          ],
+          [
+            "Moduly terminala sa gotowe lokalnie.",
+            "Hydracja moze przejac sesje."
+          ]
+        ],
+        "button_choices": [
+          [
+            "Ladowanie lokalnych kontrolek wyboru.",
+            "Decyzje nie zmieniaja stanu backendu."
+          ],
+          [
+            "Przygotowanie lokalnych kontrolek decyzji.",
+            "Gameplayowe wybory pozostaja nieaktywne."
+          ],
+          [
+            "Ladowanie panelu opcji.",
+            "Hydracja okresli prawdziwe przyciski."
+          ],
+          [
+            "Montowanie warstwy wyboru.",
+            "Lokalne opcje narracyjne sa odseparowane."
+          ],
+          [
+            "Przygotowanie kontrolera przyciskow.",
+            "Brak wysylania decyzji na tym etapie."
+          ],
+          [
+            "Panel decyzji laduje komponenty lokalne.",
+            "Stan backendu pozostaje nieznany."
+          ],
+          [
+            "Przygotowanie warstwy interakcji.",
+            "Gameplay czeka na hydration."
+          ],
+          [
+            "Lokalne kontrolki sa przygotowywane.",
+            "Opcje autora nie zostaly jeszcze aktywowane."
+          ],
+          [
+            "Renderer button choice laduje modul.",
+            "Sesja pozostaje provisional."
+          ],
+          [
+            "Interfejs wyboru jest gotowy lokalnie.",
+            "Prawdziwe buttons pojawia sie pozniej."
+          ]
+        ],
+        "window": [
+          [
+            "Montowanie modulow widoku.",
+            "Warstwa aplikacji oczekuje na hydracje."
+          ],
+          [
+            "Ladowanie modulow widoku.",
+            "Pola pozostaja lokalne do hydration."
+          ],
+          [
+            "Montowanie sekcji okna.",
+            "Dynamiczne wartosci nie sa jeszcze autorytatywne."
+          ],
+          [
+            "Przygotowanie paneli aplikacji.",
+            "Widok nie interpretuje stanu backendu."
+          ],
+          [
+            "Lokalne moduly window sa inicjalizowane.",
+            "Oczekiwanie na content runtime."
+          ],
+          [
+            "Przygotowanie pol statusowych.",
+            "Ich wartosci pojawia sie po hydration."
+          ],
+          [
+            "Montowanie lokalnego dashboardu.",
+            "Sesja nadal pozostaje provisional."
+          ],
+          [
+            "Warstwa panelowa jest przygotowywana.",
+            "Brak fikcyjnego wyniku."
+          ],
+          [
+            "Ladowanie komponentow widoku aplikacji.",
+            "Runtime moze je zaktualizowac bez restartu."
+          ],
+          [
+            "Moduly okna sa gotowe lokalnie.",
+            "Oczekiwanie na przejecie przez hydration."
+          ]
+        ],
+        "progressbar_random": [
+          [
+            "Aktywacja kolejnego modulu.",
+            "Lokalny wskaznik pozostaje orientacyjny."
+          ],
+          [
+            "Przygotowanie kolejnych etapow widoku.",
+            "Wskaznik nie jest procentem backendu."
+          ],
+          [
+            "Ladowanie lokalnej sekwencji aktywnosci.",
+            "Nie oznacza ona stopnia wykonania operacji."
+          ],
+          [
+            "Montowanie etapow aplikacji.",
+            "Postep pozostaje nieautorytatywny."
+          ],
+          [
+            "Przygotowanie legacy steps.",
+            "Sa traktowane jako material prezentacyjny."
+          ],
+          [
+            "Lokalne etapy sa gotowe.",
+            "Runtime nie przekazal procentowego postepu."
+          ],
+          [
+            "Przygotowanie activity view.",
+            "Wartosc nie jest interpretowana jako wynik."
+          ],
+          [
+            "Ladowanie sekwencji startowej.",
+            "Wskaznik pozostaje neutralny."
+          ],
+          [
+            "Moduly widoku etapowego sa przygotowywane.",
+            "Oczekiwanie na hydration."
+          ],
+          [
+            "Warstwa aktywnosci jest gotowa lokalnie.",
+            "Brak potwierdzonego stanu backendu."
+          ]
+        ],
+        "default": [
+          [
+            "Ladowanie modulow aplikacji.",
+            "Stan lokalny pozostaje tymczasowy."
+          ],
+          [
+            "Ladowanie lokalnych modulow aplikacji.",
+            "Stan pozostaje provisional."
+          ],
+          [
+            "Przygotowanie komponentow narzedzia.",
+            "Oczekiwanie na hydration."
+          ],
+          [
+            "Montowanie modulow prezentacji.",
+            "Brak autorytatywnego wyniku."
+          ],
+          [
+            "Lokalny runtime UI laduje komponenty.",
+            "Nie zmienia to stanu gameplayu."
+          ],
+          [
+            "Przygotowanie funkcji widoku.",
+            "Sesja nadal jest cancelowalna."
+          ],
+          [
+            "Ladowanie warstwy aplikacji.",
+            "Backend pozostaje zrodlem prawdy."
+          ],
+          [
+            "Komponenty lokalne sa przygotowywane.",
+            "Hydracja moze nadejsc w dowolnym momencie."
+          ],
+          [
+            "Moduly aplikacji sa inicjalizowane.",
+            "Stan celu nie jest interpretowany lokalnie."
+          ],
+          [
+            "Warstwa narzedzia jest gotowa lokalnie.",
+            "Oczekiwanie na dalszy runtime."
+          ]
+        ]
+      }
+    },
+    "local_validation_1": {
+      "phase": "booting",
+      "transition": "replace",
+      "cancelable": true,
+      "voices": {
+        "default": [
+          [
+            "Walidacja lokalnego kontraktu.",
+            "Sprawdzanie spojnosci danych prezentacji."
+          ],
+          [
+            "Kontrola danych startowych.",
+            "Nie wykryto jeszcze autorytatywnego wyniku."
+          ],
+          [
+            "Sprawdzanie lokalnego envelope.",
+            "Dane prezentacji pozostaja spojne."
+          ],
+          [
+            "Kontrola kontraktu sceny.",
+            "Brak autorytatywnego wyniku na tym etapie."
+          ],
+          [
+            "Walidacja lokalnych danych aplikacji.",
+            "Sesja moze kontynuowac prezentacje."
+          ],
+          [
+            "Sprawdzanie pol wymaganych przez renderer.",
+            "Stan gameplayu pozostaje poza ta warstwa."
+          ],
+          [
+            "Kontrola lokalnego snapshotu.",
+            "Nie wykryto potrzeby przerwania prezentacji."
+          ],
+          [
+            "Walidacja danych startowych trwa.",
+            "Backend nadal zachowuje zrodlo prawdy."
+          ],
+          [
+            "Sprawdzanie zgodnosci launch context.",
+            "Prezentacja nie interpretuje wyniku."
+          ],
+          [
+            "Kontrola lokalnej sesji.",
+            "Dane sa gotowe do kolejnego etapu."
+          ]
+        ]
+      }
+    },
+    "runtime_prepare_1": {
+      "phase": "booting",
+      "transition": "fade",
+      "cancelable": true,
+      "voices": {
+        "default": [
+          [
+            "Przygotowanie przejecia przez runtime.",
+            "Lokalny ekran pozostaje aktywny."
+          ],
+          [
+            "Kanal hydracji jest przygotowywany.",
+            "Oczekiwanie na payload aplikacji."
+          ],
+          [
+            "Przygotowanie punktu hydracji.",
+            "Widok pozostaje aktywny lokalnie."
+          ],
+          [
+            "Warstwa prezentacji oczekuje na przekazanie runtime.",
+            "Sesja pozostaje gotowa."
+          ],
+          [
+            "Przygotowanie przejscia do stanu autorytatywnego.",
+            "Lokalny viewport jest utrzymywany."
+          ],
+          [
+            "Kontekst launchu pozostaje aktywny.",
+            "Hydracja moze nadejsc w dowolnym momencie."
+          ],
+          [
+            "Przygotowanie odbioru applicationEffect.",
+            "Prezentacja pozostaje cancelowalna."
+          ],
+          [
+            "Runtime UI utrzymuje stan startowy.",
+            "Oczekiwanie na dane launchera."
+          ],
+          [
+            "Przygotowanie kolejnej fazy aplikacji.",
+            "Payload launchera ma pierwszenstwo."
+          ],
+          [
+            "Lokalna sesja jest gotowa do hydracji.",
+            "Widok nie blokuje procesu launchu."
+          ]
+        ]
+      }
+    },
+    "author_content": {
+      "phase": "booting",
+      "transition": "append_short",
+      "cancelable": true,
+      "voices": {
+        "default": [
+          [
+            "Wczytywanie bezpiecznej tresci autora.",
+            "{description}"
+          ],
+          [
+            "Prezentacja korzysta z manifestu aplikacji.",
+            "Tresci pozostaja lokalne do czasu hydracji."
+          ],
+          [
+            "Przygotowanie autorskiej warstwy aplikacji.",
+            "{description}"
+          ],
+          [
+            "Tresci autora sa projektowane do aktywnej sceny.",
+            "Interfejs: {interface}."
+          ],
+          [
+            "Odczyt lokalnego contentu autora.",
+            "{description}"
+          ],
+          [
+            "Manifest aplikacji nadaje charakter prezentacji.",
+            "Widok: {interface}."
+          ],
+          [
+            "Przygotowanie bezpiecznej projekcji contentu.",
+            "{description}"
+          ],
+          [
+            "Autorska narracja jest dostepna lokalnie.",
+            "Interfejs pozostaje: {interface}."
+          ],
+          [
+            "Warstwa contentu jest przygotowywana.",
+            "{description}"
+          ],
+          [
+            "Tresci aplikacji pozostaja oddzielone od prawdy gameplayowej.",
+            "Tryb: {interface}."
+          ]
+        ]
+      }
+    },
+    "local_validation_2": {
+      "phase": "booting",
+      "transition": "replace",
+      "cancelable": true,
+      "voices": {
+        "default": [
+          [
+            "Ponowna kontrola spojnosci prezentacji.",
+            "Sesja nadal oczekuje na runtime."
+          ],
+          [
+            "Weryfikacja lokalnego kontekstu.",
+            "Brak potwierdzonego wyniku operacji."
+          ],
+          [
+            "Druga kontrola lokalnego envelope.",
+            "Sesja pozostaje spojna."
+          ],
+          [
+            "Ponowna walidacja danych prezentacji.",
+            "Brak autorytatywnego wyniku."
+          ],
+          [
+            "Sprawdzanie stanu lokalnej sesji.",
+            "Prezentacja moze byc kontynuowana."
+          ],
+          [
+            "Kontrola launch context przed kolejna faza.",
+            "Stan celu nie jest zmieniany lokalnie."
+          ],
+          [
+            "Walidacja aktywnego viewportu.",
+            "Sesja zachowuje jednego wlasciciela prezentacji."
+          ],
+          [
+            "Sprawdzanie danych przed hydracja.",
+            "Runtime nadal nie zostal zinterpretowany."
+          ],
+          [
+            "Kontrola spojnosci contentu i interfejsu.",
+            "Brak potwierdzonego wyniku operacji."
+          ],
+          [
+            "Ponowne sprawdzenie kontekstu aplikacji.",
+            "Warstwa lokalna pozostaje gotowa."
+          ]
+        ]
+      }
+    },
+    "runtime_prepare_2": {
+      "phase": "booting",
+      "transition": "fade",
+      "cancelable": true,
+      "voices": {
+        "default": [
+          [
+            "Utrzymanie gotowosci do hydracji.",
+            "Payload backendu ma pierwszenstwo przed animacja."
+          ],
+          [
+            "Lokalny runtime prezentacji pozostaje gotowy.",
+            "Oczekiwanie na stan launchera."
+          ],
+          [
+            "Utrzymanie punktu przejecia przez runtime.",
+            "Widok pozostaje gotowy."
+          ],
+          [
+            "Przygotowanie do poznej hydracji.",
+            "Payload nadal ma absolutny priorytet."
+          ],
+          [
+            "Warstwa startowa utrzymuje aktywny kontekst.",
+            "Oczekiwanie na applicationEffect."
+          ],
+          [
+            "Sesja pozostaje gotowa do przekazania sterowania.",
+            "Frontend nie blokuje launchera."
+          ],
+          [
+            "Przygotowanie finalnego etapu provisional.",
+            "Autorytatywny stan moze przerwac scene."
+          ],
+          [
+            "Utrzymanie lokalnego runtime prezentacji.",
+            "Brak potwierdzonego stanu backendu."
+          ],
+          [
+            "Widok oczekuje na przejecie przez hydration.",
+            "Scena pozostaje cancelowalna."
+          ],
+          [
+            "Kontekst aplikacji jest utrzymywany.",
+            "Launcher moze zakonczyc provisional w dowolnym momencie."
+          ]
+        ]
+      }
+    },
+    "launcher_sync": {
+      "phase": "booting",
+      "transition": "replace",
+      "cancelable": true,
+      "voices": {
+        "default": [
+          [
+            "Synchronizacja z launcherem.",
+            "Korelacja sesji aplikacji trwa."
+          ],
+          [
+            "Launcher utrzymuje kontekst uruchomienia.",
+            "Sprawdzanie identyfikatora sesji."
+          ],
+          [
+            "Korelacja z launcherem jest aktywna.",
+            "Sesja oczekuje na zgodny identyfikator."
+          ],
+          [
+            "Sprawdzanie powiazania launch flow.",
+            "Widok zachowuje lokalny kontekst."
+          ],
+          [
+            "Launcher jest oczekiwanym zrodlem hydracji.",
+            "Trwa korelacja sesji."
+          ],
+          [
+            "Weryfikacja identyfikatora launchu.",
+            "Prezentacja pozostaje aktywna."
+          ],
+          [
+            "Przygotowanie polaczenia provisional z applicationEffect.",
+            "Korelacja nie zmienia gameplayu."
+          ],
+          [
+            "Sesja oczekuje na zgodny receipt.",
+            "Brak dopasowania nie jest zgadywany lokalnie."
+          ],
+          [
+            "Sprawdzanie flow i aplikacji.",
+            "Hydracja nastapi tylko dla zgodnej sesji."
+          ],
+          [
+            "Launcher nadal przetwarza uruchomienie.",
+            "Lokalny viewport pozostaje gotowy."
+          ]
+        ]
+      }
+    },
+    "hydration_wait": {
+      "phase": "booting",
+      "transition": "fade",
+      "cancelable": true,
+      "voices": {
+        "default": [
+          [
+            "Oczekiwanie na hydracje aplikacji.",
+            "Widok zostanie zastapiony po nadejsciu payloadu."
+          ],
+          [
+            "Kontekst aplikacji pozostaje aktywny.",
+            "Autorytatywny stan nie zostal jeszcze odebrany."
+          ],
+          [
+            "Widok oczekuje na applicationEffect.",
+            "Hydracja moze zastapic scene natychmiast."
+          ],
+          [
+            "Provisional session pozostaje aktywna.",
+            "Autorytatywny stan nie zostal jeszcze odebrany."
+          ],
+          [
+            "Oczekiwanie na zgodna odpowiedz launchera.",
+            "Stan lokalny pozostaje tymczasowy."
+          ],
+          [
+            "Hydration pending.",
+            "Viewport zachowuje kontekst aplikacji."
+          ],
+          [
+            "Sesja startowa pozostaje gotowa.",
+            "Prawdziwy stan runtime ma pierwszenstwo."
+          ],
+          [
+            "Lokalna prezentacja jest utrzymywana.",
+            "Oczekiwanie na dane autorytatywne."
+          ],
+          [
+            "Hydracja nadal oczekuje.",
+            "Brak zmian w stanie celu."
+          ],
+          [
+            "Warstwa provisional pozostaje aktywna.",
+            "Launcher nie przekazal jeszcze finalnego kontekstu."
+          ]
+        ]
+      }
+    },
+    "extended_wait": {
+      "phase": "booting",
+      "transition": "append_short",
+      "cancelable": true,
+      "voices": {
+        "terminal": [
+          [
+            "Terminal utrzymuje lokalna sesje.",
+            "Oczekiwanie na odpowiedz runtime."
+          ],
+          [
+            "Bufor polecen pozostaje gotowy.",
+            "Brak nowego payloadu."
+          ],
+          [
+            "Kanal terminala nadal oczekuje.",
+            "Stan celu nie jest interpretowany lokalnie."
+          ],
+          [
+            "Sesja terminala pozostaje otwarta.",
+            "Runtime nadal nie przekazal nowego stanu."
+          ],
+          [
+            "Terminal utrzymuje aktywny viewport.",
+            "Oczekiwanie na zgodny payload launchera."
+          ],
+          [
+            "Bufor lokalny pozostaje gotowy.",
+            "Brak autorytatywnej zmiany stanu."
+          ],
+          [
+            "Konsola utrzymuje kontekst aplikacji.",
+            "Hydracja nadal oczekuje."
+          ],
+          [
+            "Lokalna sesja terminalowa jest aktywna.",
+            "Brak nowego applicationEffect."
+          ],
+          [
+            "Terminal pozostaje w trybie oczekiwania.",
+            "Stan celu nie jest modyfikowany lokalnie."
+          ],
+          [
+            "Bufor wyjscia pozostaje gotowy.",
+            "Oczekiwanie na przejecie przez runtime."
+          ]
+        ],
+        "button_choices": [
+          [
+            "Panel decyzji oczekuje na dane.",
+            "Opcje nie zostaly jeszcze aktywowane."
+          ],
+          [
+            "Lokalny wybor pozostaje wstrzymany.",
+            "Oczekiwanie na runtime."
+          ],
+          [
+            "Interfejs decyzji utrzymuje kontekst.",
+            "Brak potwierdzonego wyniku."
+          ],
+          [
+            "Panel decyzji pozostaje gotowy.",
+            "Gameplayowe opcje nadal oczekuja na hydration."
+          ],
+          [
+            "Interfejs wyboru utrzymuje lokalny kontekst.",
+            "Brak aktywnych decyzji backendowych."
+          ],
+          [
+            "Kontrolki pozostaja w stanie oczekiwania.",
+            "Runtime nie przekazal jeszcze opcji."
+          ],
+          [
+            "Sesja button choice pozostaje aktywna.",
+            "Prawdziwe przyciski nadal sa wstrzymane."
+          ],
+          [
+            "Panel wyboru oczekuje na applicationEffect.",
+            "Brak potwierdzonej interakcji."
+          ],
+          [
+            "Lokalny viewport decyzji jest gotowy.",
+            "Hydracja nadal oczekuje."
+          ],
+          [
+            "Interfejs przyciskowy utrzymuje sesje.",
+            "Stan backendu pozostaje nieodebrany."
+          ]
+        ],
+        "window": [
+          [
+            "Okno aplikacji pozostaje gotowe.",
+            "Oczekiwanie na autorytatywny payload."
+          ],
+          [
+            "Widok lokalny utrzymuje kontekst.",
+            "Hydracja nadal oczekuje."
+          ],
+          [
+            "Warstwa aplikacji jest aktywna.",
+            "Brak nowego stanu runtime."
+          ],
+          [
+            "Okno utrzymuje aktywny kontekst.",
+            "Runtime nadal nie przekazal nowego stanu."
+          ],
+          [
+            "Panel aplikacji pozostaje gotowy.",
+            "Hydracja oczekuje na zgodny payload."
+          ],
+          [
+            "Widok zachowuje lokalne dane.",
+            "Brak autorytatywnej aktualizacji."
+          ],
+          [
+            "Warstwa window pozostaje aktywna.",
+            "Oczekiwanie na applicationEffect."
+          ],
+          [
+            "Viewport aplikacji utrzymuje sesje.",
+            "Runtime nie przekazal jeszcze danych."
+          ],
+          [
+            "Panel pozostaje w stanie oczekiwania.",
+            "Brak potwierdzonej zmiany stanu."
+          ],
+          [
+            "Okno aplikacji jest nadal aktywne.",
+            "Hydracja moze nadejsc w dowolnym momencie."
+          ]
+        ],
+        "progressbar_random": [
+          [
+            "Lokalny wskaznik pozostaje aktywny.",
+            "Oczekiwanie na dane aplikacji."
+          ],
+          [
+            "Etap startowy nadal trwa.",
+            "Postep nie oznacza wyniku operacji."
+          ],
+          [
+            "Prezentacja startowa jest podtrzymywana.",
+            "Runtime nie przekazal jeszcze payloadu."
+          ],
+          [
+            "Warstwa aktywnosci pozostaje widoczna.",
+            "Nie reprezentuje procentu backendu."
+          ],
+          [
+            "Lokalne etapy sa nadal aktywne.",
+            "Oczekiwanie na dane runtime."
+          ],
+          [
+            "Wskaznik utrzymuje sygnal aktywnosci.",
+            "Brak autorytatywnego postepu procentowego."
+          ],
+          [
+            "Prezentacja startowa pozostaje aktywna.",
+            "Hydracja nadal oczekuje."
+          ],
+          [
+            "Widok etapowy utrzymuje kontekst.",
+            "Runtime nie przekazal nowego stanu."
+          ],
+          [
+            "Lokalny activity indicator pozostaje gotowy.",
+            "Nie oznacza wyniku operacji."
+          ],
+          [
+            "Warstwa etapow oczekuje na przejecie.",
+            "Brak potwierdzonego progressu backendu."
+          ]
+        ],
+        "default": [
+          [
+            "Sesja aplikacji pozostaje aktywna.",
+            "Oczekiwanie na runtime."
+          ],
+          [
+            "Utrzymanie lokalnego kontekstu.",
+            "Brak potwierdzonego wyniku."
+          ],
+          [
+            "Prezentacja oczekuje na hydracje.",
+            "Stan celu pozostaje bez zmian lokalnych."
+          ],
+          [
+            "Sesja aplikacji nadal oczekuje.",
+            "Runtime nie przekazal nowego stanu."
+          ],
+          [
+            "Lokalny kontekst pozostaje aktywny.",
+            "Hydracja nadal oczekuje."
+          ],
+          [
+            "Prezentacja jest podtrzymywana.",
+            "Brak autorytatywnej aktualizacji."
+          ],
+          [
+            "Warstwa aplikacji pozostaje gotowa.",
+            "Oczekiwanie na applicationEffect."
+          ],
+          [
+            "Viewport utrzymuje sesje startowa.",
+            "Stan backendu pozostaje nieodebrany."
+          ],
+          [
+            "Lokalna prezentacja czeka na runtime.",
+            "Brak potwierdzonego wyniku."
+          ],
+          [
+            "Sesja pozostaje w neutralnym oczekiwaniu.",
+            "Hydracja moze przerwac scene w dowolnym momencie."
+          ]
+        ]
+      }
+    }
   },
   "scene_library": {
     "boot": {
-      "sequence": ["operation", "operation", "transition"],
+      "sequence": [
+        "operation",
+        "operation",
+        "transition"
+      ],
       "min_lines": 3,
       "max_lines": 3,
-      "pause_ms": [700, 1100],
+      "pause_ms": [
+        700,
+        1100
+      ],
       "transition": "replace",
       "allow_choice": false,
-      "operation_lines": ["Inicjalizacja sondy portow.", "Budowanie lokalnego profilu skanu.", "Kalibracja kanalu rozpoznania."],
-      "transition_lines": ["Przejscie do aktywnej sondy.", "Trasa skanu gotowa."]
+      "operation_lines": [
+        "Inicjalizacja sondy portow.",
+        "Budowanie lokalnego profilu skanu.",
+        "Kalibracja kanalu rozpoznania.",
+        "Przygotowanie lokalnego zakresu skanu.",
+        "Ladowanie profilu rozpoznania uslug.",
+        "Porzadkowanie parametrow sondy.",
+        "Przygotowanie lokalnego bufora odpowiedzi.",
+        "Skaner buduje kontekst wykonawczy.",
+        "Profil enumeracji jest przygotowywany.",
+        "Lokalny kanal skanu przechodzi do stanu gotowosci."
+      ],
+      "transition_lines": [
+        "Przejscie do aktywnej sondy.",
+        "Trasa skanu gotowa.",
+        "Skaner przechodzi do sondowania.",
+        "Profil skanu zostal przygotowany do kolejnego etapu.",
+        "Lokalna inicjalizacja sondy zakonczona.",
+        "Przejscie do rozpoznania odpowiedzi uslug.",
+        "Sonda jest gotowa do kolejnej sceny.",
+        "Kontekst skanera przekazany do etapu aktywnego.",
+        "Rozpoznanie moze przejsc do sondy.",
+        "Kolejna scena skanera jest gotowa."
+      ]
     },
     "probe": {
-      "sequence": ["operation", "security", "transition"],
+      "sequence": [
+        "operation",
+        "security",
+        "transition"
+      ],
       "min_lines": 3,
       "max_lines": 3,
-      "pause_ms": [850, 1350],
+      "pause_ms": [
+        850,
+        1350
+      ],
       "transition": "replace",
       "allow_choice": true,
-      "operation_lines": ["Wysylanie niskopoziomowej sondy.", "Sprawdzanie odpowiedzi uslug.", "Porownywanie sygnatur portow."],
+      "operation_lines": [
+        "Wysylanie niskopoziomowej sondy.",
+        "Sprawdzanie odpowiedzi uslug.",
+        "Porownywanie sygnatur portow.",
+        "Sonda porownuje odpowiedzi kolejnych uslug.",
+        "Rozpoznanie sprawdza widoczne endpointy.",
+        "Skaner analizuje lokalny wzorzec odpowiedzi.",
+        "Kolejna sekwencja sondy zostala przygotowana.",
+        "Profil skanu porownuje sygnatury uslug.",
+        "Sonda sprawdza dostepny zakres odpowiedzi.",
+        "Rozpoznanie utrzymuje aktywny kanal sondy."
+      ],
       "transition_lines": [
         "Weryfikacja odpowiedzi trwa.",
         "Sonda przechodzi do kolejnego zakresu.",
-        {"text": "Maskowana sonda utrzymuje niski profil widocznosci.", "when": {"scan_mode": "masked"}},
-        {"text": "Cichy rytm ogranicza czestotliwosc kolejnej sondy.", "when": {"probe_mode": "quiet"}},
-        {"text": "Szybki rytm przygotowuje rozszerzony zakres.", "when": {"probe_mode": "fast"}}
+        {
+          "text": "Maskowana sonda utrzymuje niski profil widocznosci.",
+          "when": {
+            "scan_mode": "masked"
+          }
+        },
+        {
+          "text": "Cichy rytm ogranicza czestotliwosc kolejnej sondy.",
+          "when": {
+            "probe_mode": "quiet"
+          }
+        },
+        {
+          "text": "Szybki rytm przygotowuje rozszerzony zakres.",
+          "when": {
+            "probe_mode": "fast"
+          }
+        },
+        "Odpowiedzi sondy sa porzadkowane.",
+        "Kolejny zakres zostal przygotowany.",
+        "Sonda utrzymuje lokalny kontekst rozpoznania.",
+        "Wynik sondy przechodzi do kolejnej sceny.",
+        "Kanal rozpoznania pozostaje aktywny."
       ]
     },
     "security_contact": {
-      "sequence": ["operation", "security", "security", "transition"],
+      "sequence": [
+        "operation",
+        "security",
+        "security",
+        "transition"
+      ],
       "min_lines": 3,
       "max_lines": 4,
-      "pause_ms": [1000, 1550],
+      "pause_ms": [
+        1000,
+        1550
+      ],
       "transition": "replace",
       "allow_choice": true,
-      "operation_lines": ["Wykryto warstwe kontroli ruchu.", "Analiza zabezpieczen celu.", "Sonda negocjuje bezpieczna trase."],
+      "operation_lines": [
+        "Wykryto warstwe kontroli ruchu.",
+        "Analiza zabezpieczen celu.",
+        "Sonda negocjuje bezpieczna trase.",
+        "Skaner porownuje reakcje warstwy ochronnej.",
+        "Kontakt z warstwa kontroli jest analizowany.",
+        "Rozpoznanie utrzymuje techniczny kontakt z celem.",
+        "Sonda sprawdza odpowiedz warstwy ochronnej.",
+        "Warstwa kontroli zostala wlaczona do lokalnej analizy.",
+        "Skaner porzadkuje odpowiedzi zabezpieczen.",
+        "Kontakt techniczny przechodzi do kolejnego etapu."
+      ],
       "transition_lines": [
         "Kontakt techniczny pozostaje aktywny.",
         "Odpowiedz przekazana do weryfikacji.",
-        {"text": "Kolejny kontakt wykorzysta maskowana trase.", "when": {"scan_mode": "masked"}}
+        {
+          "text": "Kolejny kontakt wykorzysta maskowana trase.",
+          "when": {
+            "scan_mode": "masked"
+          }
+        },
+        "Reakcja zabezpieczenia zostala przekazana dalej.",
+        "Kolejna analiza wykorzysta obserwowana odpowiedz.",
+        "Warstwa techniczna pozostaje w obserwacji.",
+        "Kontakt nie potwierdza zmiany stanu celu.",
+        "Odpowiedz ochrony przechodzi do weryfikacji.",
+        "Skaner zachowuje kontekst kontaktu technicznego.",
+        "Kolejny etap otrzyma zebrana obserwacje."
       ]
     },
     "verification": {
-      "sequence": ["operation", "security", "transition"],
+      "sequence": [
+        "operation",
+        "security",
+        "transition"
+      ],
       "min_lines": 3,
       "max_lines": 3,
-      "pause_ms": [1100, 1700],
+      "pause_ms": [
+        1100,
+        1700
+      ],
       "transition": "replace",
       "allow_choice": true,
-      "operation_lines": ["Porzadkowanie odpowiedzi skanera.", "Weryfikacja spojnosci sygnatur.", "Korelacja wykrytych uslug."],
+      "operation_lines": [
+        "Porzadkowanie odpowiedzi skanera.",
+        "Weryfikacja spojnosci sygnatur.",
+        "Korelacja wykrytych uslug.",
+        "Skaner porownuje zebrane obserwacje.",
+        "Weryfikacja techniczna porzadkuje odpowiedzi.",
+        "Profil uslug jest sprawdzany pod katem spojnosci.",
+        "Lokalna analiza porownuje sygnatury odpowiedzi.",
+        "Skaner przygotowuje material do finalnej interpretacji runtime.",
+        "Zebrane dane sa korelowane lokalnie.",
+        "Weryfikacja utrzymuje wynik w stanie niepotwierdzonym."
+      ],
       "transition_lines": [
         "Oczekiwanie na potwierdzenie runtime.",
         "Wynik pozostaje niepotwierdzony.",
-        {"text": "Powtorna weryfikacja zostala przygotowana.", "when": {"verification_mode": "repeat"}},
-        {"text": "Dodatkowa weryfikacja zostala pominieta w prezentacji.", "when": {"verification_mode": "skip"}},
-        {"text": "Weryfikacja zachowuje maskowany profil sondy.", "when": {"scan_mode": "masked"}}
+        {
+          "text": "Powtorna weryfikacja zostala przygotowana.",
+          "when": {
+            "verification_mode": "repeat"
+          }
+        },
+        {
+          "text": "Dodatkowa weryfikacja zostala pominieta w prezentacji.",
+          "when": {
+            "verification_mode": "skip"
+          }
+        },
+        {
+          "text": "Weryfikacja zachowuje maskowany profil sondy.",
+          "when": {
+            "scan_mode": "masked"
+          }
+        },
+        "Lokalna weryfikacja pozostaje aktywna.",
+        "Zebrane obserwacje oczekuja na runtime.",
+        "Wynik nadal wymaga autorytatywnej odpowiedzi.",
+        "Kolejna scena zachowa stan niepotwierdzony.",
+        "Analiza nie zmienia lokalnie stanu celu."
       ]
     },
     "payload_wait": {
-      "sequence": ["operation", "transition"],
+      "sequence": [
+        "operation",
+        "transition"
+      ],
       "min_lines": 2,
       "max_lines": 2,
-      "pause_ms": [1400, 2200],
+      "pause_ms": [
+        1400,
+        2200
+      ],
       "transition": "replace",
       "allow_choice": false,
-      "operation_lines": ["Sesja skanu pozostaje aktywna.", "Runtime nadal przetwarza odpowiedz."],
-      "transition_lines": ["Brak potwierdzonego wyniku.", "Oczekiwanie bez zmiany stanu celu."]
+      "operation_lines": [
+        "Sesja skanu pozostaje aktywna.",
+        "Runtime nadal przetwarza odpowiedz.",
+        "Sesja wykonawcza pozostaje aktywna.",
+        "Frontend oczekuje na autorytatywna odpowiedz.",
+        "Runtime nadal przetwarza operacje.",
+        "Warstwa wykonawcza utrzymuje kontekst requestu.",
+        "OFS pozostaje aktywny do nadejscia payloadu.",
+        "Operacja oczekuje na wynik backendu.",
+        "Sesja zachowuje stan oczekiwania.",
+        "Brak nowego payloadu dla aktywnej operacji."
+      ],
+      "transition_lines": [
+        "Brak potwierdzonego wyniku.",
+        "Oczekiwanie bez zmiany stanu celu.",
+        "Wynik pozostaje po stronie backendu.",
+        "Frontend nie interpretuje stanu celu.",
+        "Oczekiwanie trwa bez deklarowania postepu.",
+        "Payload moze zakonczyc scene w dowolnym momencie.",
+        "Brak autorytatywnej zmiany stanu.",
+        "Sesja pozostaje gotowa na completion.",
+        "OFS nie deklaruje lokalnego wyniku.",
+        "Kolejny etap zalezy od odpowiedzi runtime."
+      ]
+    },
+    "operation_boot": {
+      "sequence": [
+        "operation",
+        "operation",
+        "transition"
+      ],
+      "min_lines": 3,
+      "max_lines": 3,
+      "pause_ms": [
+        800,
+        1300
+      ],
+      "transition": "replace",
+      "allow_choice": false,
+      "operation_lines": [
+        "Inicjalizacja profilu operacji.",
+        "Lokalny kontekst narzedzia jest przygotowywany.",
+        "Przygotowanie lokalnej sesji wykonawczej.",
+        "Ladowanie kontekstu wybranej operacji.",
+        "Warstwa wykonawcza tworzy lokalny profil.",
+        "Przygotowanie danych wejscia do operacji.",
+        "Sesja OFS przechodzi do fazy aktywnej.",
+        "Kontekst narzedzia jest porzadkowany.",
+        "Przygotowanie pierwszej sceny wykonawczej.",
+        "Lokalny profil operacji jest gotowy do kontaktu."
+      ],
+      "transition_lines": [
+        "Sesja wykonawcza zostala otwarta.",
+        "Przejscie do aktywnego etapu.",
+        "Operacja przechodzi do kolejnego etapu.",
+        "Kontekst wykonawczy pozostaje aktywny.",
+        "Pierwsza scena operacyjna zostala przygotowana.",
+        "Warstwa wykonawcza przechodzi do kontaktu.",
+        "Sesja zachowuje lokalny kontekst narzedzia.",
+        "Kolejny etap moze wykorzystac profil operacji.",
+        "Runtime pozostaje zrodlem prawdziwego wyniku.",
+        "OFS przechodzi do aktywnej prezentacji."
+      ]
+    },
+    "operation_contact": {
+      "sequence": [
+        "operation",
+        "security",
+        "transition"
+      ],
+      "min_lines": 3,
+      "max_lines": 3,
+      "pause_ms": [
+        950,
+        1500
+      ],
+      "transition": "replace",
+      "allow_choice": false,
+      "operation_lines": [
+        "Operacja utrzymuje kontakt z celem.",
+        "Analiza lokalnego kontekstu trwa.",
+        "Narzedzie analizuje odpowiedz aktualnej warstwy.",
+        "Kontakt operacyjny pozostaje aktywny.",
+        "Lokalny profil operacji porownuje reakcje celu.",
+        "Warstwa techniczna jest obserwowana.",
+        "OFS utrzymuje kontekst kontaktu.",
+        "Operacja przygotowuje kolejna interakcje.",
+        "Odpowiedz techniczna trafia do lokalnej analizy.",
+        "Narzedzie pozostaje w aktywnym etapie kontaktu."
+      ],
+      "transition_lines": [
+        "Kolejny etap zostal przygotowany.",
+        "Odpowiedz pozostaje w weryfikacji.",
+        "Kontakt przechodzi do kolejnej sceny.",
+        "Zebrana obserwacja pozostaje lokalna.",
+        "Nastepny etap zachowa kontekst operacji.",
+        "Odpowiedz nadal nie jest wynikiem gameplayowym.",
+        "Warstwa techniczna przechodzi do weryfikacji.",
+        "OFS utrzymuje stan niepotwierdzony.",
+        "Kolejna scena moze wykorzystac obserwowany sygnal.",
+        "Operacja pozostaje aktywna."
+      ]
+    },
+    "operation_verify": {
+      "sequence": [
+        "operation",
+        "security",
+        "transition"
+      ],
+      "min_lines": 3,
+      "max_lines": 3,
+      "pause_ms": [
+        1100,
+        1800
+      ],
+      "transition": "replace",
+      "allow_choice": false,
+      "operation_lines": [
+        "Weryfikacja spojnosci operacji.",
+        "Porzadkowanie odpowiedzi narzedzia.",
+        "Lokalna weryfikacja porzadkuje odpowiedzi.",
+        "Narzedzie porownuje zebrany kontekst.",
+        "Sesja wykonawcza sprawdza spojnosci obserwacji.",
+        "OFS przygotowuje wynik do oczekiwania na runtime.",
+        "Zebrane sygnaly sa korelowane lokalnie.",
+        "Weryfikacja pozostaje bez deklarowania wyniku.",
+        "Narzedzie utrzymuje stan analizy.",
+        "Kontekst operacji przechodzi przez kontrole spojnosci."
+      ],
+      "transition_lines": [
+        "Wynik pozostaje niepotwierdzony.",
+        "Oczekiwanie na autorytatywny payload.",
+        "Autorytatywny wynik nadal nalezy do backendu.",
+        "Weryfikacja pozostaje lokalna.",
+        "Sesja oczekuje na payload runtime.",
+        "Brak potwierdzonej zmiany stanu celu.",
+        "OFS nie interpretuje sukcesu przed payloadem.",
+        "Kolejny etap pozostaje zależny od backendu.",
+        "Wynik lokalny nie jest publikowany.",
+        "Operacja pozostaje w stanie oczekiwania."
+      ]
     }
   },
   "security_library": {
     "scan_detection": {
       "label": "detekcja skanu",
       "interactions": {
-        "probe": ["Sonda testuje prog detekcji.", "Sygnatura skanu zostala rozpoznana lokalnie."],
-        "detect": ["Odpowiedz detektora zaobserwowana.", "Weryfikacja reakcji detektora trwa."]
+        "probe": [
+          "Sonda testuje prog detekcji.",
+          "Sygnatura skanu zostala rozpoznana lokalnie.",
+          "Sonda sprawdza odpowiedz warstwy: detekcja skanu.",
+          "Profil narzedzia odpytuje: detekcja skanu.",
+          "Lokalna sonda mierzy reakcje: detekcja skanu.",
+          "Warstwa detekcja skanu zostala wlaczona do sondowania.",
+          "Sonda porownuje odpowiedzi warstwy detekcja skanu.",
+          "Narzedzie obserwuje reakcje: detekcja skanu.",
+          "Kolejna proba sondy obejmuje warstwe detekcja skanu.",
+          "Profil operacji sprawdza granice: detekcja skanu."
+        ],
+        "detect": [
+          "Odpowiedz detektora zaobserwowana.",
+          "Weryfikacja reakcji detektora trwa.",
+          "Reakcja warstwy detekcja skanu zostala zaobserwowana.",
+          "Narzedzie wykrylo odpowiedz warstwy detekcja skanu.",
+          "Sygnal z warstwy detekcja skanu trafia do lokalnej analizy.",
+          "Odpowiedz detekcja skanu jest porownywana z poprzednia obserwacja.",
+          "Monitorowanie reakcji warstwy detekcja skanu trwa.",
+          "Lokalna analiza rejestruje odpowiedz: detekcja skanu.",
+          "Warstwa detekcja skanu odpowiada na obserwowany kontakt.",
+          "Narzedzie porzadkuje reakcje: detekcja skanu."
+        ]
       }
     },
     "firewall": {
@@ -94,47 +1758,687 @@
         "probe": [
           "Sonda odpytuje reguly firewalla.",
           "Odczyt odpowiedzi filtra pakietow.",
-          {"text": "Cicha sonda ogranicza czestotliwosc zapytan.", "when": {"scan_mode": "masked"}},
-          {"text": "Szybka sekwencja rozszerza zakres sondy.", "when": {"probe_mode": "fast"}}
+          {
+            "text": "Cicha sonda ogranicza czestotliwosc zapytan.",
+            "when": {
+              "scan_mode": "masked"
+            }
+          },
+          {
+            "text": "Szybka sekwencja rozszerza zakres sondy.",
+            "when": {
+              "probe_mode": "fast"
+            }
+          },
+          "Sonda sprawdza odpowiedz warstwy: firewall.",
+          "Profil narzedzia odpytuje: firewall.",
+          "Lokalna sonda mierzy reakcje: firewall.",
+          "Warstwa firewall zostala wlaczona do sondowania.",
+          "Sonda porownuje odpowiedzi warstwy firewall.",
+          "Narzedzie obserwuje reakcje: firewall."
         ],
-        "bypass": ["Proba obejscia filtra zostala uruchomiona.", "Alternatywny kanal jest sprawdzany."],
+        "bypass": [
+          "Proba obejscia filtra zostala uruchomiona.",
+          "Alternatywny kanal jest sprawdzany.",
+          "Przygotowanie alternatywnej sciezki wobec warstwy firewall.",
+          "Narzedzie testuje obejscie warstwy firewall.",
+          "Alternatywny wariant kontaktu z firewall jest sprawdzany.",
+          "Profil operacji przygotowuje probe obejscia: firewall.",
+          "Warstwa firewall jest analizowana pod katem alternatywnej sciezki.",
+          "OFS prezentuje probe obejscia warstwy firewall.",
+          "Narzedzie zmienia lokalny wariant kontaktu z firewall.",
+          "Testowana jest inna sciezka wobec: firewall."
+        ],
         "route": [
           "Wybrano trase omijajaca filtr.",
           "Sonda przechodzi przez trase alternatywna.",
-          {"text": "Maskowana sekwencja przechodzi trasa o niskiej widocznosci.", "when": {"scan_mode": "masked"}}
+          {
+            "text": "Maskowana sekwencja przechodzi trasa o niskiej widocznosci.",
+            "when": {
+              "scan_mode": "masked"
+            }
+          },
+          "Testowana jest alternatywna trasa wobec warstwy firewall.",
+          "Narzedzie przygotowuje inny kanal dla: firewall.",
+          "Profil operacji zmienia lokalna trase kontaktu z firewall.",
+          "Alternatywny kanal dla firewall jest sprawdzany.",
+          "Kolejna sekwencja wykorzystuje inna trase wobec firewall.",
+          "Warstwa firewall jest analizowana z innego kierunku.",
+          "Lokalna trasa kontaktu z firewall zostala przelaczona."
         ]
       }
     },
     "firewall_core": {
       "label": "rdzen firewalla",
       "interactions": {
-        "probe": ["Sonda dotarla do rdzenia filtra.", "Sprawdzanie odpowiedzi rdzenia firewalla."],
-        "enumerate": ["Enumeracja regul rdzenia trwa.", "Katalogowanie sygnatur filtra rdzeniowego."]
+        "probe": [
+          "Sonda dotarla do rdzenia filtra.",
+          "Sprawdzanie odpowiedzi rdzenia firewalla.",
+          "Sonda sprawdza odpowiedz warstwy: rdzen firewalla.",
+          "Profil narzedzia odpytuje: rdzen firewalla.",
+          "Lokalna sonda mierzy reakcje: rdzen firewalla.",
+          "Warstwa rdzen firewalla zostala wlaczona do sondowania.",
+          "Sonda porownuje odpowiedzi warstwy rdzen firewalla.",
+          "Narzedzie obserwuje reakcje: rdzen firewalla.",
+          "Kolejna proba sondy obejmuje warstwe rdzen firewalla.",
+          "Profil operacji sprawdza granice: rdzen firewalla."
+        ],
+        "enumerate": [
+          "Enumeracja regul rdzenia trwa.",
+          "Katalogowanie sygnatur filtra rdzeniowego.",
+          "Katalogowanie dostepnych odpowiedzi warstwy rdzen firewalla.",
+          "Narzedzie enumeruje widoczne elementy: rdzen firewalla.",
+          "Profil operacji porzadkuje sygnatury warstwy rdzen firewalla.",
+          "Trwa lokalna enumeracja: rdzen firewalla.",
+          "Kolejne elementy warstwy rdzen firewalla sa katalogowane.",
+          "Narzedzie porownuje dostepne wpisy: rdzen firewalla.",
+          "Enumeracja warstwy rdzen firewalla pozostaje aktywna.",
+          "Lokalny katalog warstwy rdzen firewalla jest uzupelniany."
+        ]
       }
     },
     "network_anomaly_detection": {
       "label": "detekcja anomalii",
       "interactions": {
-        "detect": ["Monitor anomalii zarejestrowal probe.", "Analiza reakcji monitora anomalii."],
-        "probe": ["Sonda mierzy prog anomalii sieciowej."]
+        "detect": [
+          "Monitor anomalii zarejestrowal probe.",
+          "Analiza reakcji monitora anomalii.",
+          "Reakcja warstwy detekcja anomalii zostala zaobserwowana.",
+          "Narzedzie wykrylo odpowiedz warstwy detekcja anomalii.",
+          "Sygnal z warstwy detekcja anomalii trafia do lokalnej analizy.",
+          "Odpowiedz detekcja anomalii jest porownywana z poprzednia obserwacja.",
+          "Monitorowanie reakcji warstwy detekcja anomalii trwa.",
+          "Lokalna analiza rejestruje odpowiedz: detekcja anomalii.",
+          "Warstwa detekcja anomalii odpowiada na obserwowany kontakt.",
+          "Narzedzie porzadkuje reakcje: detekcja anomalii."
+        ],
+        "probe": [
+          "Sonda mierzy prog anomalii sieciowej.",
+          "Sonda sprawdza odpowiedz warstwy: detekcja anomalii.",
+          "Profil narzedzia odpytuje: detekcja anomalii.",
+          "Lokalna sonda mierzy reakcje: detekcja anomalii.",
+          "Warstwa detekcja anomalii zostala wlaczona do sondowania.",
+          "Sonda porownuje odpowiedzi warstwy detekcja anomalii.",
+          "Narzedzie obserwuje reakcje: detekcja anomalii.",
+          "Kolejna proba sondy obejmuje warstwe detekcja anomalii.",
+          "Profil operacji sprawdza granice: detekcja anomalii.",
+          "Odpowiedz warstwy detekcja anomalii jest zbierana do analizy."
+        ]
       }
     },
     "system_visibility": {
       "label": "widocznosc systemu",
       "interactions": {
-        "probe": ["Sprawdzanie zakresu widocznosci uslug.", "Sonda porownuje widoczne endpointy."]
+        "probe": [
+          "Sprawdzanie zakresu widocznosci uslug.",
+          "Sonda porownuje widoczne endpointy.",
+          "Sonda sprawdza odpowiedz warstwy: widocznosc systemu.",
+          "Profil narzedzia odpytuje: widocznosc systemu.",
+          "Lokalna sonda mierzy reakcje: widocznosc systemu.",
+          "Warstwa widocznosc systemu zostala wlaczona do sondowania.",
+          "Sonda porownuje odpowiedzi warstwy widocznosc systemu.",
+          "Narzedzie obserwuje reakcje: widocznosc systemu.",
+          "Kolejna proba sondy obejmuje warstwe widocznosc systemu.",
+          "Profil operacji sprawdza granice: widocznosc systemu."
+        ]
       }
     },
     "vpn_blocker": {
       "label": "blokada VPN",
       "interactions": {
-        "probe": ["Sonda sprawdza blokade tunelu.", "Odpowiedz blokady VPN zostala zaobserwowana."],
-        "route": ["Testowana jest trasa poza blokada VPN."]
+        "probe": [
+          "Sonda sprawdza blokade tunelu.",
+          "Odpowiedz blokady VPN zostala zaobserwowana.",
+          "Sonda sprawdza odpowiedz warstwy: blokada VPN.",
+          "Profil narzedzia odpytuje: blokada VPN.",
+          "Lokalna sonda mierzy reakcje: blokada VPN.",
+          "Warstwa blokada VPN zostala wlaczona do sondowania.",
+          "Sonda porownuje odpowiedzi warstwy blokada VPN.",
+          "Narzedzie obserwuje reakcje: blokada VPN.",
+          "Kolejna proba sondy obejmuje warstwe blokada VPN.",
+          "Profil operacji sprawdza granice: blokada VPN."
+        ],
+        "route": [
+          "Testowana jest trasa poza blokada VPN.",
+          "Testowana jest alternatywna trasa wobec warstwy blokada VPN.",
+          "Narzedzie przygotowuje inny kanal dla: blokada VPN.",
+          "Profil operacji zmienia lokalna trase kontaktu z blokada VPN.",
+          "Alternatywny kanal dla blokada VPN jest sprawdzany.",
+          "Kolejna sekwencja wykorzystuje inna trase wobec blokada VPN.",
+          "Warstwa blokada VPN jest analizowana z innego kierunku.",
+          "Lokalna trasa kontaktu z blokada VPN zostala przelaczona.",
+          "Narzedzie porownuje warianty trasy dla blokada VPN.",
+          "Nowy kanal wobec blokada VPN pozostaje w weryfikacji."
+        ]
+      }
+    },
+    "exploit_protection": {
+      "label": "ochrona exploitow",
+      "interactions": {
+        "probe": [
+          "Profil ochrony jest sondowany.",
+          "Sonda sprawdza odpowiedz warstwy: ochrona exploitow.",
+          "Profil narzedzia odpytuje: ochrona exploitow.",
+          "Lokalna sonda mierzy reakcje: ochrona exploitow.",
+          "Warstwa ochrona exploitow zostala wlaczona do sondowania.",
+          "Sonda porownuje odpowiedzi warstwy ochrona exploitow.",
+          "Narzedzie obserwuje reakcje: ochrona exploitow.",
+          "Kolejna proba sondy obejmuje warstwe ochrona exploitow.",
+          "Profil operacji sprawdza granice: ochrona exploitow.",
+          "Odpowiedz warstwy ochrona exploitow jest zbierana do analizy."
+        ],
+        "bypass": [
+          "Przygotowanie alternatywnej sciezki wykonania.",
+          "Przygotowanie alternatywnej sciezki wobec warstwy ochrona exploitow.",
+          "Narzedzie testuje obejscie warstwy ochrona exploitow.",
+          "Alternatywny wariant kontaktu z ochrona exploitow jest sprawdzany.",
+          "Profil operacji przygotowuje probe obejscia: ochrona exploitow.",
+          "Warstwa ochrona exploitow jest analizowana pod katem alternatywnej sciezki.",
+          "OFS prezentuje probe obejscia warstwy ochrona exploitow.",
+          "Narzedzie zmienia lokalny wariant kontaktu z ochrona exploitow.",
+          "Testowana jest inna sciezka wobec: ochrona exploitow.",
+          "Kolejna proba uwzglednia obejscie warstwy ochrona exploitow."
+        ],
+        "verify": [
+          "Weryfikacja reakcji ochrony trwa.",
+          "Weryfikacja reakcji warstwy ochrona exploitow trwa.",
+          "Narzedzie sprawdza spojnosci odpowiedzi: ochrona exploitow.",
+          "Profil operacji porownuje obserwacje warstwy ochrona exploitow.",
+          "Odpowiedz ochrona exploitow pozostaje w lokalnej weryfikacji.",
+          "Kolejny etap sprawdza kontekst warstwy ochrona exploitow.",
+          "Narzedzie weryfikuje zebrane sygnaly: ochrona exploitow.",
+          "Warstwa ochrona exploitow pozostaje w stanie niepotwierdzonym.",
+          "Lokalna kontrola odpowiedzi ochrona exploitow jest aktywna.",
+          "OFS porzadkuje obserwacje warstwy ochrona exploitow."
+        ]
+      }
+    },
+    "kernel_guard": {
+      "label": "ochrona jadra",
+      "interactions": {
+        "probe": [
+          "Sonda sprawdza granice ochrony jadra.",
+          "Sonda sprawdza odpowiedz warstwy: ochrona jadra.",
+          "Profil narzedzia odpytuje: ochrona jadra.",
+          "Lokalna sonda mierzy reakcje: ochrona jadra.",
+          "Warstwa ochrona jadra zostala wlaczona do sondowania.",
+          "Sonda porownuje odpowiedzi warstwy ochrona jadra.",
+          "Narzedzie obserwuje reakcje: ochrona jadra.",
+          "Kolejna proba sondy obejmuje warstwe ochrona jadra.",
+          "Profil operacji sprawdza granice: ochrona jadra.",
+          "Odpowiedz warstwy ochrona jadra jest zbierana do analizy."
+        ],
+        "bypass": [
+          "Testowana jest kontrolowana sciezka obejscia.",
+          "Przygotowanie alternatywnej sciezki wobec warstwy ochrona jadra.",
+          "Narzedzie testuje obejscie warstwy ochrona jadra.",
+          "Alternatywny wariant kontaktu z ochrona jadra jest sprawdzany.",
+          "Profil operacji przygotowuje probe obejscia: ochrona jadra.",
+          "Warstwa ochrona jadra jest analizowana pod katem alternatywnej sciezki.",
+          "OFS prezentuje probe obejscia warstwy ochrona jadra.",
+          "Narzedzie zmienia lokalny wariant kontaktu z ochrona jadra.",
+          "Testowana jest inna sciezka wobec: ochrona jadra.",
+          "Kolejna proba uwzglednia obejscie warstwy ochrona jadra."
+        ],
+        "verify": [
+          "Odpowiedz ochrony jadra jest weryfikowana.",
+          "Weryfikacja reakcji warstwy ochrona jadra trwa.",
+          "Narzedzie sprawdza spojnosci odpowiedzi: ochrona jadra.",
+          "Profil operacji porownuje obserwacje warstwy ochrona jadra.",
+          "Odpowiedz ochrona jadra pozostaje w lokalnej weryfikacji.",
+          "Kolejny etap sprawdza kontekst warstwy ochrona jadra.",
+          "Narzedzie weryfikuje zebrane sygnaly: ochrona jadra.",
+          "Warstwa ochrona jadra pozostaje w stanie niepotwierdzonym.",
+          "Lokalna kontrola odpowiedzi ochrona jadra jest aktywna.",
+          "OFS porzadkuje obserwacje warstwy ochrona jadra."
+        ],
+        "control": [
+          "Kanal kontroli pozostaje w negocjacji.",
+          "Kanal kontroli wobec ochrona jadra jest analizowany.",
+          "Narzedzie przygotowuje lokalny profil sterowania: ochrona jadra.",
+          "Warstwa ochrona jadra pozostaje w negocjacji kanalu kontroli.",
+          "Lokalny kontekst control dla ochrona jadra jest porzadkowany.",
+          "Profil operacji sprawdza kanal sterujacy: ochrona jadra.",
+          "Narzedzie porownuje warianty kontroli wobec ochrona jadra.",
+          "Kolejna sekwencja control uwzglednia warstwe ochrona jadra.",
+          "OFS prezentuje przygotowanie kanalu kontroli dla ochrona jadra.",
+          "Stan sterowania ochrona jadra nie jest jeszcze potwierdzony."
+        ]
+      }
+    },
+    "memory_guard": {
+      "label": "ochrona pamieci",
+      "interactions": {
+        "probe": [
+          "Analiza granic chronionej pamieci.",
+          "Sonda sprawdza odpowiedz warstwy: ochrona pamieci.",
+          "Profil narzedzia odpytuje: ochrona pamieci.",
+          "Lokalna sonda mierzy reakcje: ochrona pamieci.",
+          "Warstwa ochrona pamieci zostala wlaczona do sondowania.",
+          "Sonda porownuje odpowiedzi warstwy ochrona pamieci.",
+          "Narzedzie obserwuje reakcje: ochrona pamieci.",
+          "Kolejna proba sondy obejmuje warstwe ochrona pamieci.",
+          "Profil operacji sprawdza granice: ochrona pamieci.",
+          "Odpowiedz warstwy ochrona pamieci jest zbierana do analizy."
+        ],
+        "inject": [
+          "Przygotowanie kontrolowanej sekwencji w pamieci.",
+          "Przygotowanie kontrolowanej sekwencji wobec warstwy ochrona pamieci.",
+          "Narzedzie buduje lokalny wariant injekcji dla ochrona pamieci.",
+          "Sekwencja injekcji wobec ochrona pamieci pozostaje w przygotowaniu.",
+          "Profil operacji sprawdza mozliwosc dolaczenia sekwencji do ochrona pamieci.",
+          "Lokalna proba injekcji uwzglednia warstwe ochrona pamieci.",
+          "Narzedzie przygotowuje punkt wejscia wobec: ochrona pamieci.",
+          "Sekwencja wykonawcza dla ochrona pamieci jest porzadkowana.",
+          "Warstwa ochrona pamieci jest analizowana przed proba injekcji.",
+          "Kolejny wariant injekcji wobec ochrona pamieci trafia do weryfikacji."
+        ],
+        "verify": [
+          "Weryfikacja stanu pamieci trwa.",
+          "Weryfikacja reakcji warstwy ochrona pamieci trwa.",
+          "Narzedzie sprawdza spojnosci odpowiedzi: ochrona pamieci.",
+          "Profil operacji porownuje obserwacje warstwy ochrona pamieci.",
+          "Odpowiedz ochrona pamieci pozostaje w lokalnej weryfikacji.",
+          "Kolejny etap sprawdza kontekst warstwy ochrona pamieci.",
+          "Narzedzie weryfikuje zebrane sygnaly: ochrona pamieci.",
+          "Warstwa ochrona pamieci pozostaje w stanie niepotwierdzonym.",
+          "Lokalna kontrola odpowiedzi ochrona pamieci jest aktywna.",
+          "OFS porzadkuje obserwacje warstwy ochrona pamieci."
+        ],
+        "hide": [
+          "Sekwencja ogranicza lokalna widocznosc.",
+          "Profil operacji ogranicza lokalna widocznosc wobec ochrona pamieci.",
+          "Narzedzie przygotowuje mniej widoczny wariant kontaktu z ochrona pamieci.",
+          "Warstwa ochrona pamieci jest uwzgledniana w lokalnym maskowaniu.",
+          "Sekwencja wobec ochrona pamieci przechodzi w tryb ograniczonej widocznosci.",
+          "Lokalny profil maskowania dla ochrona pamieci jest przygotowywany.",
+          "Narzedzie zmniejsza ekspozycje prezentowanej sekwencji wobec ochrona pamieci.",
+          "Kolejny wariant kontaktu z ochrona pamieci wykorzystuje lokalne maskowanie.",
+          "OFS utrzymuje niski profil prezentacji wobec ochrona pamieci.",
+          "Maskowany wariant dla ochrona pamieci pozostaje w weryfikacji."
+        ]
+      }
+    },
+    "process_monitor": {
+      "label": "monitor procesow",
+      "interactions": {
+        "probe": [
+          "Monitor procesow jest sondowany.",
+          "Sonda sprawdza odpowiedz warstwy: monitor procesow.",
+          "Profil narzedzia odpytuje: monitor procesow.",
+          "Lokalna sonda mierzy reakcje: monitor procesow.",
+          "Warstwa monitor procesow zostala wlaczona do sondowania.",
+          "Sonda porownuje odpowiedzi warstwy monitor procesow.",
+          "Narzedzie obserwuje reakcje: monitor procesow.",
+          "Kolejna proba sondy obejmuje warstwe monitor procesow.",
+          "Profil operacji sprawdza granice: monitor procesow.",
+          "Odpowiedz warstwy monitor procesow jest zbierana do analizy."
+        ],
+        "inject": [
+          "Przygotowanie dolaczenia do procesu.",
+          "Przygotowanie kontrolowanej sekwencji wobec warstwy monitor procesow.",
+          "Narzedzie buduje lokalny wariant injekcji dla monitor procesow.",
+          "Sekwencja injekcji wobec monitor procesow pozostaje w przygotowaniu.",
+          "Profil operacji sprawdza mozliwosc dolaczenia sekwencji do monitor procesow.",
+          "Lokalna proba injekcji uwzglednia warstwe monitor procesow.",
+          "Narzedzie przygotowuje punkt wejscia wobec: monitor procesow.",
+          "Sekwencja wykonawcza dla monitor procesow jest porzadkowana.",
+          "Warstwa monitor procesow jest analizowana przed proba injekcji.",
+          "Kolejny wariant injekcji wobec monitor procesow trafia do weryfikacji."
+        ],
+        "persist": [
+          "Walidacja ciaglosci procesu trwa.",
+          "Walidacja ciaglosci lokalnego procesu wobec monitor procesow.",
+          "Narzedzie sprawdza warunki utrzymania kontekstu przy monitor procesow.",
+          "Profil operacji analizuje ciaglosc wobec warstwy monitor procesow.",
+          "Lokalny wariant utrzymania procesu przy monitor procesow jest weryfikowany.",
+          "Warstwa monitor procesow pozostaje w analizie ciaglosci.",
+          "Narzedzie przygotowuje utrzymanie sesji wobec monitor procesow.",
+          "Kolejny etap sprawdza stabilnosc kontekstu przy monitor procesow.",
+          "OFS prezentuje walidacje ciaglosci wobec monitor procesow.",
+          "Profil procesu przy monitor procesow pozostaje niepotwierdzony."
+        ],
+        "hide": [
+          "Profil procesu ogranicza widocznosc.",
+          "Profil operacji ogranicza lokalna widocznosc wobec monitor procesow.",
+          "Narzedzie przygotowuje mniej widoczny wariant kontaktu z monitor procesow.",
+          "Warstwa monitor procesow jest uwzgledniana w lokalnym maskowaniu.",
+          "Sekwencja wobec monitor procesow przechodzi w tryb ograniczonej widocznosci.",
+          "Lokalny profil maskowania dla monitor procesow jest przygotowywany.",
+          "Narzedzie zmniejsza ekspozycje prezentowanej sekwencji wobec monitor procesow.",
+          "Kolejny wariant kontaktu z monitor procesow wykorzystuje lokalne maskowanie.",
+          "OFS utrzymuje niski profil prezentacji wobec monitor procesow.",
+          "Maskowany wariant dla monitor procesow pozostaje w weryfikacji."
+        ],
+        "attach": [
+          "Kanal dolaczenia jest negocjowany.",
+          "Przygotowanie lokalnego dolaczenia do warstwy monitor procesow.",
+          "Narzedzie negocjuje punkt dolaczenia wobec monitor procesow.",
+          "Profil operacji sprawdza kanal dolaczenia: monitor procesow.",
+          "Lokalny wariant attach dla monitor procesow jest przygotowywany.",
+          "Warstwa monitor procesow jest analizowana przed dolaczeniem.",
+          "Narzedzie porzadkuje kontekst dolaczenia do monitor procesow.",
+          "Kolejna proba attach uwzglednia warstwe monitor procesow.",
+          "Punkt dolaczenia wobec monitor procesow pozostaje w weryfikacji.",
+          "OFS prezentuje negocjacje dolaczenia do monitor procesow."
+        ],
+        "interrupt": [
+          "Przygotowanie kontrolowanego przerwania.",
+          "Przygotowanie kontrolowanego przerwania wobec monitor procesow.",
+          "Narzedzie analizuje punkt przerwania warstwy monitor procesow.",
+          "Sekwencja interrupt dla monitor procesow jest przygotowywana lokalnie.",
+          "Profil operacji sprawdza warunki przerwania: monitor procesow.",
+          "Warstwa monitor procesow pozostaje w analizie przed przerwaniem.",
+          "Kolejny wariant interrupt wobec monitor procesow trafia do weryfikacji.",
+          "Narzedzie porzadkuje sekwencje przerwania dla monitor procesow.",
+          "OFS prezentuje przygotowanie interrupt wobec monitor procesow.",
+          "Punkt przerwania warstwy monitor procesow nie jest jeszcze potwierdzony."
+        ],
+        "terminate": [
+          "Sekwencja zakonczenia jest weryfikowana.",
+          "Sekwencja zakonczenia wobec monitor procesow jest przygotowywana.",
+          "Narzedzie sprawdza warunki terminate dla monitor procesow.",
+          "Profil operacji analizuje punkt zakonczenia: monitor procesow.",
+          "Lokalny wariant terminate wobec monitor procesow trafia do weryfikacji.",
+          "Warstwa monitor procesow pozostaje aktywna podczas przygotowania sekwencji.",
+          "Narzedzie porzadkuje procedure zakonczenia dla monitor procesow.",
+          "Kolejna proba terminate uwzglednia warstwe monitor procesow.",
+          "OFS prezentuje przygotowanie zakonczenia wobec monitor procesow.",
+          "Stan monitor procesow nie jest lokalnie deklarowany jako zakonczony."
+        ],
+        "verify": [
+          "Stan procesu pozostaje w weryfikacji.",
+          "Weryfikacja reakcji warstwy monitor procesow trwa.",
+          "Narzedzie sprawdza spojnosci odpowiedzi: monitor procesow.",
+          "Profil operacji porownuje obserwacje warstwy monitor procesow.",
+          "Odpowiedz monitor procesow pozostaje w lokalnej weryfikacji.",
+          "Kolejny etap sprawdza kontekst warstwy monitor procesow.",
+          "Narzedzie weryfikuje zebrane sygnaly: monitor procesow.",
+          "Warstwa monitor procesow pozostaje w stanie niepotwierdzonym.",
+          "Lokalna kontrola odpowiedzi monitor procesow jest aktywna.",
+          "OFS porzadkuje obserwacje warstwy monitor procesow."
+        ]
+      }
+    },
+    "activity_monitor": {
+      "label": "monitor aktywnosci",
+      "interactions": {
+        "detect": [
+          "Reakcja monitora aktywnosci zostala zaobserwowana.",
+          "Reakcja warstwy monitor aktywnosci zostala zaobserwowana.",
+          "Narzedzie wykrylo odpowiedz warstwy monitor aktywnosci.",
+          "Sygnal z warstwy monitor aktywnosci trafia do lokalnej analizy.",
+          "Odpowiedz monitor aktywnosci jest porownywana z poprzednia obserwacja.",
+          "Monitorowanie reakcji warstwy monitor aktywnosci trwa.",
+          "Lokalna analiza rejestruje odpowiedz: monitor aktywnosci.",
+          "Warstwa monitor aktywnosci odpowiada na obserwowany kontakt.",
+          "Narzedzie porzadkuje reakcje: monitor aktywnosci.",
+          "Odpowiedz warstwy monitor aktywnosci pozostaje w obserwacji."
+        ],
+        "probe": [
+          "Sonda mierzy prog aktywnosci.",
+          "Sonda sprawdza odpowiedz warstwy: monitor aktywnosci.",
+          "Profil narzedzia odpytuje: monitor aktywnosci.",
+          "Lokalna sonda mierzy reakcje: monitor aktywnosci.",
+          "Warstwa monitor aktywnosci zostala wlaczona do sondowania.",
+          "Sonda porownuje odpowiedzi warstwy monitor aktywnosci.",
+          "Narzedzie obserwuje reakcje: monitor aktywnosci.",
+          "Kolejna proba sondy obejmuje warstwe monitor aktywnosci.",
+          "Profil operacji sprawdza granice: monitor aktywnosci.",
+          "Odpowiedz warstwy monitor aktywnosci jest zbierana do analizy."
+        ],
+        "route": [
+          "Alternatywny kanal aktywnosci jest sprawdzany.",
+          "Testowana jest alternatywna trasa wobec warstwy monitor aktywnosci.",
+          "Narzedzie przygotowuje inny kanal dla: monitor aktywnosci.",
+          "Profil operacji zmienia lokalna trase kontaktu z monitor aktywnosci.",
+          "Alternatywny kanal dla monitor aktywnosci jest sprawdzany.",
+          "Kolejna sekwencja wykorzystuje inna trase wobec monitor aktywnosci.",
+          "Warstwa monitor aktywnosci jest analizowana z innego kierunku.",
+          "Lokalna trasa kontaktu z monitor aktywnosci zostala przelaczona.",
+          "Narzedzie porownuje warianty trasy dla monitor aktywnosci.",
+          "Nowy kanal wobec monitor aktywnosci pozostaje w weryfikacji."
+        ],
+        "verify": [
+          "Korelacja aktywnosci trwa.",
+          "Weryfikacja reakcji warstwy monitor aktywnosci trwa.",
+          "Narzedzie sprawdza spojnosci odpowiedzi: monitor aktywnosci.",
+          "Profil operacji porownuje obserwacje warstwy monitor aktywnosci.",
+          "Odpowiedz monitor aktywnosci pozostaje w lokalnej weryfikacji.",
+          "Kolejny etap sprawdza kontekst warstwy monitor aktywnosci.",
+          "Narzedzie weryfikuje zebrane sygnaly: monitor aktywnosci.",
+          "Warstwa monitor aktywnosci pozostaje w stanie niepotwierdzonym.",
+          "Lokalna kontrola odpowiedzi monitor aktywnosci jest aktywna.",
+          "OFS porzadkuje obserwacje warstwy monitor aktywnosci."
+        ]
+      }
+    },
+    "player_tracking": {
+      "label": "sledzenie pozycji",
+      "interactions": {
+        "locate": [
+          "Korelacja sygnalu pozycji trwa.",
+          "Narzedzie koreluje lokalny punkt odniesienia dla sledzenie pozycji.",
+          "Profil operacji przygotowuje lokalizacje wobec sledzenie pozycji.",
+          "Warstwa sledzenie pozycji dostarcza obserwacje do korelacji pozycji.",
+          "Lokalna analiza punktu dla sledzenie pozycji pozostaje aktywna.",
+          "Narzedzie porownuje sygnaly lokalizacyjne: sledzenie pozycji.",
+          "Kolejna korelacja obejmuje warstwe sledzenie pozycji.",
+          "Profil lokalizacji wobec sledzenie pozycji jest porzadkowany.",
+          "OFS prezentuje lokalna korelacje dla sledzenie pozycji.",
+          "Punkt odniesienia sledzenie pozycji pozostaje w weryfikacji."
+        ],
+        "trace": [
+          "Budowanie lokalnego sladu celu.",
+          "Budowanie lokalnego sladu wobec warstwy sledzenie pozycji.",
+          "Narzedzie koreluje kolejne obserwacje: sledzenie pozycji.",
+          "Profil trace porzadkuje sygnaly warstwy sledzenie pozycji.",
+          "Lokalny slad wobec sledzenie pozycji jest uzupelniany.",
+          "Kolejne punkty obserwacji sledzenie pozycji trafiaja do korelacji.",
+          "Narzedzie analizuje ciaglosc sladu: sledzenie pozycji.",
+          "Warstwa sledzenie pozycji pozostaje w aktywnym trace.",
+          "OFS prezentuje budowanie sladu dla sledzenie pozycji.",
+          "Kontekst trace wobec sledzenie pozycji pozostaje niepotwierdzony."
+        ],
+        "verify": [
+          "Weryfikacja punktu odniesienia.",
+          "Weryfikacja reakcji warstwy sledzenie pozycji trwa.",
+          "Narzedzie sprawdza spojnosci odpowiedzi: sledzenie pozycji.",
+          "Profil operacji porownuje obserwacje warstwy sledzenie pozycji.",
+          "Odpowiedz sledzenie pozycji pozostaje w lokalnej weryfikacji.",
+          "Kolejny etap sprawdza kontekst warstwy sledzenie pozycji.",
+          "Narzedzie weryfikuje zebrane sygnaly: sledzenie pozycji.",
+          "Warstwa sledzenie pozycji pozostaje w stanie niepotwierdzonym.",
+          "Lokalna kontrola odpowiedzi sledzenie pozycji jest aktywna.",
+          "OFS porzadkuje obserwacje warstwy sledzenie pozycji."
+        ]
+      }
+    },
+    "log_guardian": {
+      "label": "ochrona logow",
+      "interactions": {
+        "probe": [
+          "Sonda sprawdza warstwe ochrony logow.",
+          "Sonda sprawdza odpowiedz warstwy: ochrona logow.",
+          "Profil narzedzia odpytuje: ochrona logow.",
+          "Lokalna sonda mierzy reakcje: ochrona logow.",
+          "Warstwa ochrona logow zostala wlaczona do sondowania.",
+          "Sonda porownuje odpowiedzi warstwy ochrona logow.",
+          "Narzedzie obserwuje reakcje: ochrona logow.",
+          "Kolejna proba sondy obejmuje warstwe ochrona logow.",
+          "Profil operacji sprawdza granice: ochrona logow.",
+          "Odpowiedz warstwy ochrona logow jest zbierana do analizy."
+        ],
+        "enumerate": [
+          "Katalogowanie dostepnych strumieni logow.",
+          "Katalogowanie dostepnych odpowiedzi warstwy ochrona logow.",
+          "Narzedzie enumeruje widoczne elementy: ochrona logow.",
+          "Profil operacji porzadkuje sygnatury warstwy ochrona logow.",
+          "Trwa lokalna enumeracja: ochrona logow.",
+          "Kolejne elementy warstwy ochrona logow sa katalogowane.",
+          "Narzedzie porownuje dostepne wpisy: ochrona logow.",
+          "Enumeracja warstwy ochrona logow pozostaje aktywna.",
+          "Lokalny katalog warstwy ochrona logow jest uzupelniany.",
+          "Profil narzedzia zbiera widoczne elementy: ochrona logow."
+        ],
+        "extract": [
+          "Przygotowanie kontrolowanego odczytu.",
+          "Przygotowanie kontrolowanego odczytu warstwy ochrona logow.",
+          "Narzedzie porzadkuje dostepny strumien: ochrona logow.",
+          "Profil operacji analizuje dane dostepne przez ochrona logow.",
+          "Lokalny wariant odczytu ochrona logow jest przygotowywany.",
+          "Warstwa ochrona logow pozostaje w analizie przed odczytem.",
+          "Narzedzie kataloguje fragmenty dostepne przez ochrona logow.",
+          "Kolejna proba odczytu uwzglednia warstwe ochrona logow.",
+          "OFS prezentuje przygotowanie extract wobec ochrona logow.",
+          "Odczyt ochrona logow pozostaje niepotwierdzony przez backend."
+        ],
+        "verify": [
+          "Spojnosc strumienia logow jest weryfikowana.",
+          "Weryfikacja reakcji warstwy ochrona logow trwa.",
+          "Narzedzie sprawdza spojnosci odpowiedzi: ochrona logow.",
+          "Profil operacji porownuje obserwacje warstwy ochrona logow.",
+          "Odpowiedz ochrona logow pozostaje w lokalnej weryfikacji.",
+          "Kolejny etap sprawdza kontekst warstwy ochrona logow.",
+          "Narzedzie weryfikuje zebrane sygnaly: ochrona logow.",
+          "Warstwa ochrona logow pozostaje w stanie niepotwierdzonym.",
+          "Lokalna kontrola odpowiedzi ochrona logow jest aktywna.",
+          "OFS porzadkuje obserwacje warstwy ochrona logow."
+        ]
+      }
+    },
+    "system_integrity_check": {
+      "label": "kontrola integralnosci",
+      "interactions": {
+        "probe": [
+          "Kontrola integralnosci jest sondowana.",
+          "Sonda sprawdza odpowiedz warstwy: kontrola integralnosci.",
+          "Profil narzedzia odpytuje: kontrola integralnosci.",
+          "Lokalna sonda mierzy reakcje: kontrola integralnosci.",
+          "Warstwa kontrola integralnosci zostala wlaczona do sondowania.",
+          "Sonda porownuje odpowiedzi warstwy kontrola integralnosci.",
+          "Narzedzie obserwuje reakcje: kontrola integralnosci.",
+          "Kolejna proba sondy obejmuje warstwe kontrola integralnosci.",
+          "Profil operacji sprawdza granice: kontrola integralnosci.",
+          "Odpowiedz warstwy kontrola integralnosci jest zbierana do analizy."
+        ],
+        "override": [
+          "Przygotowanie lokalnej sekwencji sterujacej.",
+          "Przygotowanie lokalnej sekwencji override wobec kontrola integralnosci.",
+          "Narzedzie analizuje kanal sterujacy warstwy kontrola integralnosci.",
+          "Profil operacji przygotowuje wariant override: kontrola integralnosci.",
+          "Lokalna sekwencja sterujaca dla kontrola integralnosci jest weryfikowana.",
+          "Warstwa kontrola integralnosci pozostaje w analizie przed override.",
+          "Narzedzie porzadkuje kontekst sterowania: kontrola integralnosci.",
+          "Kolejny wariant override uwzglednia warstwe kontrola integralnosci.",
+          "OFS prezentuje probe sterujaca wobec kontrola integralnosci.",
+          "Override dla kontrola integralnosci nie zostal jeszcze potwierdzony."
+        ],
+        "control": [
+          "Kanal sterowania jest weryfikowany.",
+          "Kanal kontroli wobec kontrola integralnosci jest analizowany.",
+          "Narzedzie przygotowuje lokalny profil sterowania: kontrola integralnosci.",
+          "Warstwa kontrola integralnosci pozostaje w negocjacji kanalu kontroli.",
+          "Lokalny kontekst control dla kontrola integralnosci jest porzadkowany.",
+          "Profil operacji sprawdza kanal sterujacy: kontrola integralnosci.",
+          "Narzedzie porownuje warianty kontroli wobec kontrola integralnosci.",
+          "Kolejna sekwencja control uwzglednia warstwe kontrola integralnosci.",
+          "OFS prezentuje przygotowanie kanalu kontroli dla kontrola integralnosci.",
+          "Stan sterowania kontrola integralnosci nie jest jeszcze potwierdzony."
+        ],
+        "verify": [
+          "Stan integralnosci pozostaje w weryfikacji.",
+          "Weryfikacja reakcji warstwy kontrola integralnosci trwa.",
+          "Narzedzie sprawdza spojnosci odpowiedzi: kontrola integralnosci.",
+          "Profil operacji porownuje obserwacje warstwy kontrola integralnosci.",
+          "Odpowiedz kontrola integralnosci pozostaje w lokalnej weryfikacji.",
+          "Kolejny etap sprawdza kontekst warstwy kontrola integralnosci.",
+          "Narzedzie weryfikuje zebrane sygnaly: kontrola integralnosci.",
+          "Warstwa kontrola integralnosci pozostaje w stanie niepotwierdzonym.",
+          "Lokalna kontrola odpowiedzi kontrola integralnosci jest aktywna.",
+          "OFS porzadkuje obserwacje warstwy kontrola integralnosci."
+        ]
+      }
+    },
+    "os_hardening": {
+      "label": "wzmocnienie systemu",
+      "interactions": {
+        "probe": [
+          "Profil wzmocnienia systemu jest sondowany.",
+          "Sonda sprawdza odpowiedz warstwy: wzmocnienie systemu.",
+          "Profil narzedzia odpytuje: wzmocnienie systemu.",
+          "Lokalna sonda mierzy reakcje: wzmocnienie systemu.",
+          "Warstwa wzmocnienie systemu zostala wlaczona do sondowania.",
+          "Sonda porownuje odpowiedzi warstwy wzmocnienie systemu.",
+          "Narzedzie obserwuje reakcje: wzmocnienie systemu.",
+          "Kolejna proba sondy obejmuje warstwe wzmocnienie systemu.",
+          "Profil operacji sprawdza granice: wzmocnienie systemu.",
+          "Odpowiedz warstwy wzmocnienie systemu jest zbierana do analizy."
+        ],
+        "bypass": [
+          "Alternatywna sciezka systemowa jest sprawdzana.",
+          "Przygotowanie alternatywnej sciezki wobec warstwy wzmocnienie systemu.",
+          "Narzedzie testuje obejscie warstwy wzmocnienie systemu.",
+          "Alternatywny wariant kontaktu z wzmocnienie systemu jest sprawdzany.",
+          "Profil operacji przygotowuje probe obejscia: wzmocnienie systemu.",
+          "Warstwa wzmocnienie systemu jest analizowana pod katem alternatywnej sciezki.",
+          "OFS prezentuje probe obejscia warstwy wzmocnienie systemu.",
+          "Narzedzie zmienia lokalny wariant kontaktu z wzmocnienie systemu.",
+          "Testowana jest inna sciezka wobec: wzmocnienie systemu.",
+          "Kolejna proba uwzglednia obejscie warstwy wzmocnienie systemu."
+        ],
+        "interrupt": [
+          "Sekwencja przerwania jest przygotowywana.",
+          "Przygotowanie kontrolowanego przerwania wobec wzmocnienie systemu.",
+          "Narzedzie analizuje punkt przerwania warstwy wzmocnienie systemu.",
+          "Sekwencja interrupt dla wzmocnienie systemu jest przygotowywana lokalnie.",
+          "Profil operacji sprawdza warunki przerwania: wzmocnienie systemu.",
+          "Warstwa wzmocnienie systemu pozostaje w analizie przed przerwaniem.",
+          "Kolejny wariant interrupt wobec wzmocnienie systemu trafia do weryfikacji.",
+          "Narzedzie porzadkuje sekwencje przerwania dla wzmocnienie systemu.",
+          "OFS prezentuje przygotowanie interrupt wobec wzmocnienie systemu.",
+          "Punkt przerwania warstwy wzmocnienie systemu nie jest jeszcze potwierdzony."
+        ],
+        "override": [
+          "Lokalny kanal sterujacy jest negocjowany.",
+          "Przygotowanie lokalnej sekwencji override wobec wzmocnienie systemu.",
+          "Narzedzie analizuje kanal sterujacy warstwy wzmocnienie systemu.",
+          "Profil operacji przygotowuje wariant override: wzmocnienie systemu.",
+          "Lokalna sekwencja sterujaca dla wzmocnienie systemu jest weryfikowana.",
+          "Warstwa wzmocnienie systemu pozostaje w analizie przed override.",
+          "Narzedzie porzadkuje kontekst sterowania: wzmocnienie systemu.",
+          "Kolejny wariant override uwzglednia warstwe wzmocnienie systemu.",
+          "OFS prezentuje probe sterujaca wobec wzmocnienie systemu.",
+          "Override dla wzmocnienie systemu nie zostal jeszcze potwierdzony."
+        ],
+        "verify": [
+          "Odpowiedz systemu pozostaje w weryfikacji.",
+          "Weryfikacja reakcji warstwy wzmocnienie systemu trwa.",
+          "Narzedzie sprawdza spojnosci odpowiedzi: wzmocnienie systemu.",
+          "Profil operacji porownuje obserwacje warstwy wzmocnienie systemu.",
+          "Odpowiedz wzmocnienie systemu pozostaje w lokalnej weryfikacji.",
+          "Kolejny etap sprawdza kontekst warstwy wzmocnienie systemu.",
+          "Narzedzie weryfikuje zebrane sygnaly: wzmocnienie systemu.",
+          "Warstwa wzmocnienie systemu pozostaje w stanie niepotwierdzonym.",
+          "Lokalna kontrola odpowiedzi wzmocnienie systemu jest aktywna.",
+          "OFS porzadkuje obserwacje warstwy wzmocnienie systemu."
+        ]
       }
     }
   },
   "transport_library": {
-    "response_delayed": ["Odpowiedz runtime trwa dluzej niz zwykle."]
+    "response_delayed": [
+      "Odpowiedz runtime trwa dluzej niz zwykle.",
+      "Autorytatywna odpowiedz runtime przekroczyla zwykly czas oczekiwania.",
+      "Request pozostaje aktywny dluzej niz standardowy prog.",
+      "Runtime nadal nie zakonczyl aktywnego requestu.",
+      "Czas odpowiedzi przekroczyl prog response_delayed.",
+      "Operacja nadal oczekuje na odpowiedz backendu.",
+      "Aktywny request pozostaje bez finalnego payloadu.",
+      "Runtime przekroczyl oczekiwany czas odpowiedzi.",
+      "Backend nadal przetwarza aktywna operacje.",
+      "Odpowiedz serwera pozostaje opozniona."
+    ]
   },
   "choice_library": {
     "feedback.scan_ports.visibility": {
@@ -142,8 +2446,20 @@
       "effect_scope": "presentation",
       "prompt": "Widocznosc sondy",
       "options": [
-        {"value": "masked", "label": "MASKUJ", "set": {"scan_mode": "masked"}},
-        {"value": "standard", "label": "KONTYNUUJ", "set": {"scan_mode": "standard"}}
+        {
+          "value": "masked",
+          "label": "MASKUJ",
+          "set": {
+            "scan_mode": "masked"
+          }
+        },
+        {
+          "value": "standard",
+          "label": "KONTYNUUJ",
+          "set": {
+            "scan_mode": "standard"
+          }
+        }
       ],
       "timeout_ms": 8000,
       "default_value": "standard"
@@ -153,8 +2469,20 @@
       "effect_scope": "presentation",
       "prompt": "Rytm prezentacji sondy",
       "options": [
-        {"value": "quiet", "label": "TRYB CICHY", "set": {"probe_mode": "quiet"}},
-        {"value": "fast", "label": "TRYB SZYBKI", "set": {"probe_mode": "fast"}}
+        {
+          "value": "quiet",
+          "label": "TRYB CICHY",
+          "set": {
+            "probe_mode": "quiet"
+          }
+        },
+        {
+          "value": "fast",
+          "label": "TRYB SZYBKI",
+          "set": {
+            "probe_mode": "fast"
+          }
+        }
       ],
       "timeout_ms": 7000,
       "default_value": "quiet"
@@ -164,33 +2492,210 @@
       "effect_scope": "presentation",
       "prompt": "Sposob weryfikacji",
       "options": [
-        {"value": "repeat", "label": "PONOW", "set": {"verification_mode": "repeat"}},
-        {"value": "skip", "label": "POMIN", "set": {"verification_mode": "skip"}}
+        {
+          "value": "repeat",
+          "label": "PONOW",
+          "set": {
+            "verification_mode": "repeat"
+          }
+        },
+        {
+          "value": "skip",
+          "label": "POMIN",
+          "set": {
+            "verification_mode": "skip"
+          }
+        }
       ],
       "timeout_ms": 6000,
       "default_value": "repeat"
     }
   },
   "completion_library": {
-    "default": {"success": ["Runtime potwierdzil powodzenie."], "failure": ["Runtime zwrocil wynik operacji."]}
+    "default": {
+      "success": [
+        "Runtime potwierdzil powodzenie.",
+        "Backend potwierdzil powodzenie operacji.",
+        "Autorytatywny payload potwierdzil sukces.",
+        "Runtime zwrocil potwierdzony wynik pozytywny.",
+        "Operacja zostala potwierdzona przez backend.",
+        "Payload runtime potwierdzil wykonanie.",
+        "Stan koncowy zostal potwierdzony autorytatywnie.",
+        "Backend zakonczyl operacje wynikiem pozytywnym.",
+        "Odebrano potwierdzony completion operacji.",
+        "Runtime potwierdzil finalny sukces requestu."
+      ],
+      "failure": [
+        "Runtime zwrocil wynik operacji.",
+        "Runtime zwrocil potwierdzony wynik negatywny.",
+        "Backend zakonczyl operacje bez powodzenia.",
+        "Autorytatywny payload nie potwierdzil sukcesu.",
+        "Operacja otrzymala negatywny wynik runtime.",
+        "Backend potwierdzil niepowodzenie operacji.",
+        "Finalny payload wskazal wynik negatywny.",
+        "Runtime zakonczyl request bez potwierdzenia powodzenia.",
+        "Odebrano autorytatywny failure operacji.",
+        "Stan koncowy zostal zwrocony przez backend jako negatywny."
+      ]
+    }
   },
   "failure_library": {
-    "default": ["Operacja nie zostala potwierdzona."]
+    "default": [
+      "Operacja nie zostala potwierdzona.",
+      "Backend nie potwierdzil wykonania operacji.",
+      "Autorytatywny wynik nie potwierdzil powodzenia.",
+      "Runtime zakonczyl operacje bez pozytywnego wyniku.",
+      "Operacja otrzymala potwierdzony wynik negatywny.",
+      "Finalny stan nie potwierdzil wykonania.",
+      "Runtime zwrocil wynik wymagajacy zakonczenia operacji.",
+      "Backend zakonczyl aktywny request bez sukcesu.",
+      "Odebrano negatywny wynik autorytatywny.",
+      "Operacja zostala zakonczona bez potwierdzenia powodzenia."
+    ],
+    "gameplay_failure": [
+      "Runtime odrzucil wykonanie operacji.",
+      "Backend odrzucil wykonanie z powodow gameplayowych.",
+      "Runtime potwierdzil gameplay failure.",
+      "Reguly gameplayu nie pozwolily zakonczyc operacji powodzeniem.",
+      "Autorytatywny wynik gameplayowy odrzucil operacje.",
+      "Backend zakonczyl request wynikiem gameplay failure.",
+      "Stan gry nie potwierdzil wykonania operacji.",
+      "Runtime zwrocil negatywny rezultat gameplayowy.",
+      "Operacja zostala odrzucona przez autorytatywne reguly gry.",
+      "Payload potwierdzil niepowodzenie gameplayowe."
+    ],
+    "http_error": [
+      "Serwer zwrocil blad odpowiedzi HTTP.",
+      "Serwer zakonczyl request bledem HTTP.",
+      "Odebrano niepoprawny status HTTP dla aktywnego requestu.",
+      "Runtime zwrocil odpowiedz HTTP spoza zakresu sukcesu.",
+      "Request zakonczyl sie potwierdzonym bledem protokolu HTTP.",
+      "Warstwa HTTP zwrocila blad odpowiedzi.",
+      "Backend odpowiedzial kodem HTTP oznaczajacym blad.",
+      "Aktywna operacja otrzymala blad HTTP.",
+      "Serwer zwrocil status HTTP wymagajacy sciezki failure.",
+      "Odebrano autorytatywny blad HTTP."
+    ],
+    "network_error": [
+      "Nie udalo sie nawiazac polaczenia z runtime.",
+      "Request sieciowy zostal odrzucony.",
+      "Polaczenie sieciowe nie pozwolilo odebrac odpowiedzi.",
+      "Fetch zakonczyl sie potwierdzonym bledem sieci.",
+      "Runtime nie byl osiagalny przez aktywny kanal sieciowy.",
+      "Warstwa sieciowa przerwala aktywny request.",
+      "Nie odebrano odpowiedzi z powodu bledu polaczenia.",
+      "Aktywna operacja napotkala rzeczywisty network error.",
+      "Polaczenie z backendem zakonczylo sie bledem.",
+      "Request nie mogl zostac zakonczony z powodu bledu sieci."
+    ],
+    "invalid_response": [
+      "Runtime zwrocil nieprawidlowa odpowiedz.",
+      "Odebrana odpowiedz nie spelnia kontraktu runtime.",
+      "Payload backendu nie przeszedl walidacji.",
+      "Runtime zwrocil odpowiedz o nieprawidlowej strukturze.",
+      "Odebrany payload nie moze zostac bezpiecznie zinterpretowany.",
+      "Walidacja odpowiedzi runtime zakonczyla sie bledem.",
+      "Backend zwrocil dane niezgodne z oczekiwanym kontraktem.",
+      "Odpowiedz nie zawiera poprawnego payloadu aplikacji.",
+      "Runtime zwrocil nieprawidlowa reprezentacje wyniku.",
+      "Aktywna operacja otrzymala invalid response."
+    ],
+    "abort": [
+      "Operacja zostala przerwana.",
+      "Aktywny request zostal rzeczywiscie anulowany.",
+      "Runtime request zakonczyl sie sygnalem abort.",
+      "Operacja zostala przerwana przez kontroler anulowania.",
+      "Odebrano potwierdzony sygnal przerwania requestu.",
+      "Aktywna sesja wykonawcza zostala anulowana.",
+      "Request zakonczyl sie przez jawny abort.",
+      "Warstwa wykonawcza otrzymala sygnal anulowania.",
+      "Operacja nie bedzie kontynuowana po abort.",
+      "Kontroler sesji zakonczyl aktywny request."
+    ]
   },
   "operations": {
     "scan_ports": {
       "action_key": "scan_ports",
       "enabled": true,
-      "presentation_modes": ["button_choice"],
+      "presentation_modes": [
+        "button_choice"
+      ],
       "default_presentation_mode": "button_choice",
-      "scene_pools": ["boot", "probe", "security_contact", "verification", "payload_wait"],
+      "scene_pools": [
+        "boot",
+        "probe",
+        "security_contact",
+        "verification",
+        "payload_wait"
+      ],
+      "duration_scene_pools": {
+        "instant": [
+          "boot",
+          "probe"
+        ],
+        "short": [
+          "probe",
+          "security_contact"
+        ],
+        "medium": [
+          "security_contact",
+          "verification"
+        ],
+        "long": [
+          "security_contact",
+          "verification",
+          "payload_wait"
+        ],
+        "very_long": [
+          "verification",
+          "payload_wait"
+        ]
+      },
+      "provisional_profile": {
+        "scene_pool": [
+          "app_identity",
+          "local_init",
+          "interface_boot",
+          "context_bind",
+          "author_manifest",
+          "module_boot",
+          "local_validation",
+          "runtime_prepare",
+          "author_content",
+          "launcher_sync",
+          "hydration_wait",
+          "extended_wait"
+        ],
+        "interface_voice": "button_choices",
+        "target_context": "map_target",
+        "author_content_policy": "safe_projection",
+        "timeline_profile": "launch_150s"
+      },
       "security": {
-        "scan_detection": ["probe", "detect"],
-        "firewall": ["probe", "bypass", "route"],
-        "firewall_core": ["probe", "enumerate"],
-        "network_anomaly_detection": ["detect", "probe"],
-        "system_visibility": ["probe"],
-        "vpn_blocker": ["probe", "route"]
+        "scan_detection": [
+          "probe",
+          "detect"
+        ],
+        "firewall": [
+          "probe",
+          "bypass",
+          "route"
+        ],
+        "firewall_core": [
+          "probe",
+          "enumerate"
+        ],
+        "network_anomaly_detection": [
+          "detect",
+          "probe"
+        ],
+        "system_visibility": [
+          "probe"
+        ],
+        "vpn_blocker": [
+          "probe",
+          "route"
+        ]
       },
       "choice_pools": [
         "feedback.scan_ports.visibility",
@@ -198,10 +2703,845 @@
         "feedback.scan_ports.verification"
       ],
       "presentation_state_schema": {
-        "scan_mode": ["standard", "masked"],
-        "probe_mode": ["quiet", "fast"],
-        "verification_mode": ["repeat", "skip"]
+        "scan_mode": [
+          "standard",
+          "masked"
+        ],
+        "probe_mode": [
+          "quiet",
+          "fast"
+        ],
+        "verification_mode": [
+          "repeat",
+          "skip"
+        ]
       },
+      "completion_pool": "default",
+      "failure_pool": "default"
+    },
+    "exploit": {
+      "action_key": "exploit",
+      "enabled": true,
+      "presentation_modes": [
+        "terminal"
+      ],
+      "default_presentation_mode": "terminal",
+      "scene_pools": [
+        "operation_boot",
+        "operation_contact",
+        "operation_verify",
+        "payload_wait"
+      ],
+      "duration_scene_pools": {
+        "instant": [
+          "operation_boot"
+        ],
+        "short": [
+          "operation_contact"
+        ],
+        "medium": [
+          "operation_contact",
+          "operation_verify"
+        ],
+        "long": [
+          "operation_verify",
+          "payload_wait"
+        ],
+        "very_long": [
+          "operation_verify",
+          "payload_wait"
+        ]
+      },
+      "provisional_profile": {
+        "scene_pool": [
+          "app_identity",
+          "local_init",
+          "interface_boot",
+          "context_bind",
+          "author_manifest",
+          "module_boot",
+          "local_validation",
+          "runtime_prepare",
+          "author_content",
+          "launcher_sync",
+          "hydration_wait",
+          "extended_wait"
+        ],
+        "interface_voice": "terminal",
+        "target_context": "map_target",
+        "author_content_policy": "safe_projection",
+        "timeline_profile": "launch_150s"
+      },
+      "security": {
+        "exploit_protection": [
+          "probe",
+          "bypass",
+          "verify"
+        ],
+        "kernel_guard": [
+          "probe",
+          "bypass",
+          "verify"
+        ],
+        "memory_guard": [
+          "probe",
+          "inject",
+          "verify"
+        ]
+      },
+      "choice_pools": [],
+      "presentation_state_schema": {},
+      "completion_pool": "default",
+      "failure_pool": "default"
+    },
+    "sniff": {
+      "action_key": "sniff",
+      "enabled": true,
+      "presentation_modes": [
+        "terminal"
+      ],
+      "default_presentation_mode": "terminal",
+      "scene_pools": [
+        "operation_boot",
+        "operation_contact",
+        "operation_verify",
+        "payload_wait"
+      ],
+      "duration_scene_pools": {
+        "instant": [
+          "operation_boot"
+        ],
+        "short": [
+          "operation_contact"
+        ],
+        "medium": [
+          "operation_contact",
+          "operation_verify"
+        ],
+        "long": [
+          "operation_verify",
+          "payload_wait"
+        ],
+        "very_long": [
+          "operation_verify",
+          "payload_wait"
+        ]
+      },
+      "provisional_profile": {
+        "scene_pool": [
+          "app_identity",
+          "local_init",
+          "interface_boot",
+          "context_bind",
+          "author_manifest",
+          "module_boot",
+          "local_validation",
+          "runtime_prepare",
+          "author_content",
+          "launcher_sync",
+          "hydration_wait",
+          "extended_wait"
+        ],
+        "interface_voice": "terminal",
+        "target_context": "map_target",
+        "author_content_policy": "safe_projection",
+        "timeline_profile": "launch_150s"
+      },
+      "security": {
+        "network_anomaly_detection": [
+          "detect",
+          "probe"
+        ],
+        "activity_monitor": [
+          "detect",
+          "probe",
+          "route"
+        ],
+        "firewall": [
+          "probe",
+          "route"
+        ]
+      },
+      "choice_pools": [],
+      "presentation_state_schema": {},
+      "completion_pool": "default",
+      "failure_pool": "default"
+    },
+    "trace": {
+      "action_key": "trace",
+      "enabled": true,
+      "presentation_modes": [
+        "window"
+      ],
+      "default_presentation_mode": "window",
+      "scene_pools": [
+        "operation_boot",
+        "operation_contact",
+        "operation_verify",
+        "payload_wait"
+      ],
+      "duration_scene_pools": {
+        "instant": [
+          "operation_boot"
+        ],
+        "short": [
+          "operation_contact"
+        ],
+        "medium": [
+          "operation_contact",
+          "operation_verify"
+        ],
+        "long": [
+          "operation_verify",
+          "payload_wait"
+        ],
+        "very_long": [
+          "operation_verify",
+          "payload_wait"
+        ]
+      },
+      "provisional_profile": {
+        "scene_pool": [
+          "app_identity",
+          "local_init",
+          "interface_boot",
+          "context_bind",
+          "author_manifest",
+          "module_boot",
+          "local_validation",
+          "runtime_prepare",
+          "author_content",
+          "launcher_sync",
+          "hydration_wait",
+          "extended_wait"
+        ],
+        "interface_voice": "window",
+        "target_context": "map_target",
+        "author_content_policy": "safe_projection",
+        "timeline_profile": "launch_150s"
+      },
+      "security": {
+        "player_tracking": [
+          "trace",
+          "verify"
+        ],
+        "activity_monitor": [
+          "detect",
+          "route",
+          "verify"
+        ],
+        "system_visibility": [
+          "probe"
+        ]
+      },
+      "choice_pools": [],
+      "presentation_state_schema": {},
+      "completion_pool": "default",
+      "failure_pool": "default"
+    },
+    "trace_gps": {
+      "action_key": "trace_gps",
+      "enabled": true,
+      "presentation_modes": [
+        "window"
+      ],
+      "default_presentation_mode": "window",
+      "scene_pools": [
+        "operation_boot",
+        "operation_contact",
+        "operation_verify",
+        "payload_wait"
+      ],
+      "duration_scene_pools": {
+        "instant": [
+          "operation_boot"
+        ],
+        "short": [
+          "operation_contact"
+        ],
+        "medium": [
+          "operation_contact",
+          "operation_verify"
+        ],
+        "long": [
+          "operation_verify",
+          "payload_wait"
+        ],
+        "very_long": [
+          "operation_verify",
+          "payload_wait"
+        ]
+      },
+      "provisional_profile": {
+        "scene_pool": [
+          "app_identity",
+          "local_init",
+          "interface_boot",
+          "context_bind",
+          "author_manifest",
+          "module_boot",
+          "local_validation",
+          "runtime_prepare",
+          "author_content",
+          "launcher_sync",
+          "hydration_wait",
+          "extended_wait"
+        ],
+        "interface_voice": "window",
+        "target_context": "position_target",
+        "author_content_policy": "safe_projection",
+        "timeline_profile": "launch_150s"
+      },
+      "security": {
+        "player_tracking": [
+          "locate",
+          "trace",
+          "verify"
+        ],
+        "activity_monitor": [
+          "detect",
+          "verify"
+        ],
+        "vpn_blocker": [
+          "probe",
+          "route"
+        ]
+      },
+      "choice_pools": [],
+      "presentation_state_schema": {},
+      "completion_pool": "default",
+      "failure_pool": "default"
+    },
+    "trace_device": {
+      "action_key": "trace_device",
+      "enabled": true,
+      "presentation_modes": [
+        "window"
+      ],
+      "default_presentation_mode": "window",
+      "scene_pools": [
+        "operation_boot",
+        "operation_contact",
+        "operation_verify",
+        "payload_wait"
+      ],
+      "duration_scene_pools": {
+        "instant": [
+          "operation_boot"
+        ],
+        "short": [
+          "operation_contact"
+        ],
+        "medium": [
+          "operation_contact",
+          "operation_verify"
+        ],
+        "long": [
+          "operation_verify",
+          "payload_wait"
+        ],
+        "very_long": [
+          "operation_verify",
+          "payload_wait"
+        ]
+      },
+      "provisional_profile": {
+        "scene_pool": [
+          "app_identity",
+          "local_init",
+          "interface_boot",
+          "context_bind",
+          "author_manifest",
+          "module_boot",
+          "local_validation",
+          "runtime_prepare",
+          "author_content",
+          "launcher_sync",
+          "hydration_wait",
+          "extended_wait"
+        ],
+        "interface_voice": "window",
+        "target_context": "device_target",
+        "author_content_policy": "safe_projection",
+        "timeline_profile": "launch_150s"
+      },
+      "security": {
+        "player_tracking": [
+          "locate",
+          "trace",
+          "verify"
+        ],
+        "system_visibility": [
+          "probe"
+        ],
+        "network_anomaly_detection": [
+          "detect",
+          "probe"
+        ]
+      },
+      "choice_pools": [],
+      "presentation_state_schema": {},
+      "completion_pool": "default",
+      "failure_pool": "default"
+    },
+    "mic_sniff": {
+      "action_key": "mic_sniff",
+      "enabled": true,
+      "presentation_modes": [
+        "terminal"
+      ],
+      "default_presentation_mode": "terminal",
+      "scene_pools": [
+        "operation_boot",
+        "operation_contact",
+        "operation_verify",
+        "payload_wait"
+      ],
+      "duration_scene_pools": {
+        "instant": [
+          "operation_boot"
+        ],
+        "short": [
+          "operation_contact"
+        ],
+        "medium": [
+          "operation_contact",
+          "operation_verify"
+        ],
+        "long": [
+          "operation_verify",
+          "payload_wait"
+        ],
+        "very_long": [
+          "operation_verify",
+          "payload_wait"
+        ]
+      },
+      "provisional_profile": {
+        "scene_pool": [
+          "app_identity",
+          "local_init",
+          "interface_boot",
+          "context_bind",
+          "author_manifest",
+          "module_boot",
+          "local_validation",
+          "runtime_prepare",
+          "author_content",
+          "launcher_sync",
+          "hydration_wait",
+          "extended_wait"
+        ],
+        "interface_voice": "terminal",
+        "target_context": "device_target",
+        "author_content_policy": "safe_projection",
+        "timeline_profile": "launch_150s"
+      },
+      "security": {
+        "activity_monitor": [
+          "detect",
+          "probe",
+          "verify"
+        ],
+        "process_monitor": [
+          "probe",
+          "attach",
+          "hide",
+          "verify"
+        ],
+        "memory_guard": [
+          "probe",
+          "hide",
+          "verify"
+        ]
+      },
+      "choice_pools": [],
+      "presentation_state_schema": {},
+      "completion_pool": "default",
+      "failure_pool": "default"
+    },
+    "atm_logs": {
+      "action_key": "atm_logs",
+      "enabled": true,
+      "presentation_modes": [
+        "terminal"
+      ],
+      "default_presentation_mode": "terminal",
+      "scene_pools": [
+        "operation_boot",
+        "operation_contact",
+        "operation_verify",
+        "payload_wait"
+      ],
+      "duration_scene_pools": {
+        "instant": [
+          "operation_boot"
+        ],
+        "short": [
+          "operation_contact"
+        ],
+        "medium": [
+          "operation_contact",
+          "operation_verify"
+        ],
+        "long": [
+          "operation_verify",
+          "payload_wait"
+        ],
+        "very_long": [
+          "operation_verify",
+          "payload_wait"
+        ]
+      },
+      "provisional_profile": {
+        "scene_pool": [
+          "app_identity",
+          "local_init",
+          "interface_boot",
+          "context_bind",
+          "author_manifest",
+          "module_boot",
+          "local_validation",
+          "runtime_prepare",
+          "author_content",
+          "launcher_sync",
+          "hydration_wait",
+          "extended_wait"
+        ],
+        "interface_voice": "terminal",
+        "target_context": "atm_target",
+        "author_content_policy": "safe_projection",
+        "timeline_profile": "launch_150s"
+      },
+      "security": {
+        "log_guardian": [
+          "probe",
+          "enumerate",
+          "extract",
+          "verify"
+        ],
+        "firewall": [
+          "probe",
+          "bypass",
+          "route"
+        ],
+        "system_integrity_check": [
+          "probe",
+          "verify"
+        ]
+      },
+      "choice_pools": [],
+      "presentation_state_schema": {},
+      "completion_pool": "default",
+      "failure_pool": "default"
+    },
+    "install_sniffer": {
+      "action_key": "install_sniffer",
+      "enabled": true,
+      "presentation_modes": [
+        "button_choice"
+      ],
+      "default_presentation_mode": "button_choice",
+      "scene_pools": [
+        "operation_boot",
+        "operation_contact",
+        "operation_verify",
+        "payload_wait"
+      ],
+      "duration_scene_pools": {
+        "instant": [
+          "operation_boot"
+        ],
+        "short": [
+          "operation_contact"
+        ],
+        "medium": [
+          "operation_contact",
+          "operation_verify"
+        ],
+        "long": [
+          "operation_verify",
+          "payload_wait"
+        ],
+        "very_long": [
+          "operation_verify",
+          "payload_wait"
+        ]
+      },
+      "provisional_profile": {
+        "scene_pool": [
+          "app_identity",
+          "local_init",
+          "interface_boot",
+          "context_bind",
+          "author_manifest",
+          "module_boot",
+          "local_validation",
+          "runtime_prepare",
+          "author_content",
+          "launcher_sync",
+          "hydration_wait",
+          "extended_wait"
+        ],
+        "interface_voice": "button_choices",
+        "target_context": "map_target",
+        "author_content_policy": "safe_projection",
+        "timeline_profile": "launch_150s"
+      },
+      "security": {
+        "process_monitor": [
+          "probe",
+          "inject",
+          "persist",
+          "hide",
+          "attach",
+          "verify"
+        ],
+        "memory_guard": [
+          "probe",
+          "inject",
+          "hide",
+          "verify"
+        ],
+        "kernel_guard": [
+          "probe",
+          "bypass",
+          "verify"
+        ]
+      },
+      "choice_pools": [],
+      "presentation_state_schema": {},
+      "completion_pool": "default",
+      "failure_pool": "default"
+    },
+    "camera_stream": {
+      "action_key": "camera_stream",
+      "enabled": true,
+      "presentation_modes": [
+        "window"
+      ],
+      "default_presentation_mode": "window",
+      "scene_pools": [
+        "operation_boot",
+        "operation_contact",
+        "operation_verify",
+        "payload_wait"
+      ],
+      "duration_scene_pools": {
+        "instant": [
+          "operation_boot"
+        ],
+        "short": [
+          "operation_contact"
+        ],
+        "medium": [
+          "operation_contact",
+          "operation_verify"
+        ],
+        "long": [
+          "operation_verify",
+          "payload_wait"
+        ],
+        "very_long": [
+          "operation_verify",
+          "payload_wait"
+        ]
+      },
+      "provisional_profile": {
+        "scene_pool": [
+          "app_identity",
+          "local_init",
+          "interface_boot",
+          "context_bind",
+          "author_manifest",
+          "module_boot",
+          "local_validation",
+          "runtime_prepare",
+          "author_content",
+          "launcher_sync",
+          "hydration_wait",
+          "extended_wait"
+        ],
+        "interface_voice": "window",
+        "target_context": "camera_target",
+        "author_content_policy": "safe_projection",
+        "timeline_profile": "launch_150s"
+      },
+      "security": {
+        "system_visibility": [
+          "probe"
+        ],
+        "process_monitor": [
+          "probe",
+          "attach",
+          "verify"
+        ],
+        "network_anomaly_detection": [
+          "detect",
+          "probe"
+        ]
+      },
+      "choice_pools": [],
+      "presentation_state_schema": {},
+      "completion_pool": "default",
+      "failure_pool": "default"
+    },
+    "camera_shutdown": {
+      "action_key": "camera_shutdown",
+      "enabled": true,
+      "presentation_modes": [
+        "button_choice"
+      ],
+      "default_presentation_mode": "button_choice",
+      "scene_pools": [
+        "operation_boot",
+        "operation_contact",
+        "operation_verify",
+        "payload_wait"
+      ],
+      "duration_scene_pools": {
+        "instant": [
+          "operation_boot"
+        ],
+        "short": [
+          "operation_contact"
+        ],
+        "medium": [
+          "operation_contact",
+          "operation_verify"
+        ],
+        "long": [
+          "operation_verify",
+          "payload_wait"
+        ],
+        "very_long": [
+          "operation_verify",
+          "payload_wait"
+        ]
+      },
+      "provisional_profile": {
+        "scene_pool": [
+          "app_identity",
+          "local_init",
+          "interface_boot",
+          "context_bind",
+          "author_manifest",
+          "module_boot",
+          "local_validation",
+          "runtime_prepare",
+          "author_content",
+          "launcher_sync",
+          "hydration_wait",
+          "extended_wait"
+        ],
+        "interface_voice": "button_choices",
+        "target_context": "camera_target",
+        "author_content_policy": "safe_projection",
+        "timeline_profile": "launch_150s"
+      },
+      "security": {
+        "system_integrity_check": [
+          "probe",
+          "override",
+          "verify"
+        ],
+        "process_monitor": [
+          "probe",
+          "interrupt",
+          "terminate",
+          "verify"
+        ],
+        "os_hardening": [
+          "probe",
+          "interrupt",
+          "override",
+          "verify"
+        ]
+      },
+      "choice_pools": [],
+      "presentation_state_schema": {},
+      "completion_pool": "default",
+      "failure_pool": "default"
+    },
+    "car_hack": {
+      "action_key": "car_hack",
+      "enabled": true,
+      "presentation_modes": [
+        "button_choice"
+      ],
+      "default_presentation_mode": "button_choice",
+      "scene_pools": [
+        "operation_boot",
+        "operation_contact",
+        "operation_verify",
+        "payload_wait"
+      ],
+      "duration_scene_pools": {
+        "instant": [
+          "operation_boot"
+        ],
+        "short": [
+          "operation_contact"
+        ],
+        "medium": [
+          "operation_contact",
+          "operation_verify"
+        ],
+        "long": [
+          "operation_verify",
+          "payload_wait"
+        ],
+        "very_long": [
+          "operation_verify",
+          "payload_wait"
+        ]
+      },
+      "provisional_profile": {
+        "scene_pool": [
+          "app_identity",
+          "local_init",
+          "interface_boot",
+          "context_bind",
+          "author_manifest",
+          "module_boot",
+          "local_validation",
+          "runtime_prepare",
+          "author_content",
+          "launcher_sync",
+          "hydration_wait",
+          "extended_wait"
+        ],
+        "interface_voice": "button_choices",
+        "target_context": "car_target",
+        "author_content_policy": "safe_projection",
+        "timeline_profile": "launch_150s"
+      },
+      "security": {
+        "exploit_protection": [
+          "probe",
+          "bypass",
+          "verify"
+        ],
+        "system_integrity_check": [
+          "probe",
+          "override",
+          "control",
+          "verify"
+        ],
+        "kernel_guard": [
+          "probe",
+          "bypass",
+          "control",
+          "verify"
+        ],
+        "memory_guard": [
+          "probe",
+          "inject",
+          "verify"
+        ]
+      },
+      "choice_pools": [],
+      "presentation_state_schema": {},
       "completion_pool": "default",
       "failure_pool": "default"
     }

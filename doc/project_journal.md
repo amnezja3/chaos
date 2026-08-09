@@ -11239,3 +11239,68 @@ Pierwszy etap dodaje rodziny `app_identity`, `local_init`, `context_bind`,
 interface, targetu, requested action i bezpiecznego opisu autora. Nie wykonują
 requestu ani nie deklarują postępu. Hydration i dispose natychmiast czyszczą
 timer; błąd pozostawia prosty provisional shell.
+
+Bazowy etap 130.8.6.3.3 uznano za wystarczający. Dalszy lift przeniesiono do
+6.4–6.6. Roadmapa otrzymała oddzielny tryb `ofs_provisional`, profile dla 12
+action keys oraz produkcyjny timeline `launch_150s`. 6.6 ma dostarczyć konkretne
+sceny od identity do hydration wait przez minimum 150 sekund i neutralną rotację
+extended wait po tej granicy. Scheduler provisional pozostaje oddzielony od OFS
+wykonawczego i nie wykonuje requestów gameplayowych.
+
+Rozpoczęto 130.8.6.4. Moduł OFS otrzymał wspólny, walidowany scene envelope oraz
+fabrykę rendererów. Pierwszy adapter `ofs_provisional` przejął viewport scen
+launchera, obsługuje cztery przejścia, ma wyłącznego właściciela DOM i nie ma
+dostępu do requestów ani security. Prosty renderer z 6.3.3 pozostaje lokalnym
+fallbackiem. Wykonawcze adaptery terminal/button_choice/window nie zostały
+jeszcze przełączone.
+
+Zakończono 130.8.6.4. `OperationFeedbackSession` nie buduje już bezpośrednio
+DOM prezentacji, tylko deleguje walidowany scene envelope do jednego z adapterów
+`terminal`, `button_choice` lub `window`. Adapter `ofs_provisional` pozostaje
+oddzielony od sesji wykonawczej i kończy pracę przed autorytatywną hydration.
+
+Wszystkie renderery mają wyłączne ownership viewportu, wspólne przejścia
+`replace / clear / fade / append_short` i cleanup przy dispose. Wyłącznie
+`button_choice` renderuje lokalne wybory. `window` otrzymał neutralne sloty, a
+legacy `progressbar_random` jawnie mapuje się do tego trybu bez generowania
+fikcyjnego postępu. Produkcyjny `scan_ports` pozostaje na `button_choice`; dobór
+trybów dla pozostałych operacji pozostawiono sprintowi 6.5.
+
+Walidacja 130.8.6.4: 29 testów kontraktowych Pythona zakończone `OK`.
+Deterministyczny test Node wyrenderował wszystkie trzy adaptery wykonawcze,
+sprawdził izolację choice, sloty `window`, limit `append_short`, ownership i
+cleanup. `node --check` dla `operation_feedback.js` i `terminal.js` oraz
+`git diff --check` zakończone `OK`; pozostał wyłącznie znany warning CRLF/LF
+dla `static/css/style.css`.
+
+Zakończono 130.8.6.5. Katalog `operation_feedback.v1.json` został rozszerzony
+z jednego `scan_ports` do 12 profili operacji. Każdy profil posiada mapowanie
+renderera, własne pule czasu, jawną macierz security/interactions,
+completion/failure oraz oddzielony `provisional_profile` wskazujący skeleton
+`launch_150s`. Generyczne sceny wykonawcze pozostają celowo minimalne do czasu
+content sprintu 6.6.
+
+Walidator nie jest już zaszyty pod `scan_ports`. Sprawdza komplet profili,
+renderery, sceny, security, choice/state, timing i zabronione pola provisional.
+Błąd pojedynczego profilu nadaje tylko jemu `enabled=false` z
+`validation_error`; runtime zwalnia jego renderer i wraca do legacy pending UI.
+Wybór trybu prezentacji wynika z `action_key`.
+
+Flagi otrzymały listę `CHAOS_OPERATION_FEEDBACK_ACTIONS`, przy zachowaniu
+zgodności `CHAOS_OPERATION_FEEDBACK_SCAN_PORTS`. Walidacja 6.5: 32 testy
+kontraktowych Pythona, composer wszystkich 12 profili w Node, `py_compile`, oba
+`node --check` i `git diff --check` zakończone `OK`. Pozostał wyłącznie znany
+warning CRLF/LF dla `static/css/style.css`.
+
+Zakończono lokalną implementację 130.8.6.6. Provisional scheduler korzysta teraz
+z `provisional_timelines.launch_150s` i piętnastu konkretnych, przerywalnych scen
+od 0 do 150 sekund. Po tej granicy neutralny `extended_wait` rotuje co 12–20 s
+bez bezpośredniego powtórzenia wariantu. Hydration, payload i zamknięcie okna
+nadal natychmiast zatrzymują prezentację.
+
+Dodano bibliotekę głosów dla terminal/button_choices/window/progressbar_random,
+bezpieczne placeholdery discovery, klasyfikację prawdziwych failure oraz pełne
+zdarzenia telemetryczne choice/provisional. Naprawiono również runtime flag
+per-action: `enabled_actions` nie jest już tracone podczas odczytu konfiguracji
+z DOM. Backend i requesty gameplayowe nie zostały zmienione. Dokument produkcyjny
+otrzymał instrukcję ręcznej edycji JSON.

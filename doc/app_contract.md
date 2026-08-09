@@ -824,3 +824,44 @@ Każda sesja posiada własny timer. Hydration oraz dispose zatrzymują go przed
 zmianą viewportu. `applicationEffect` zawsze przejmuje ten sam DOM natychmiast;
 pre-execution nie opóźnia renderera ani OFS. Przy wyłączonej fladze lub błędzie
 composera pozostaje dotychczasowy fallback.
+
+### Scene envelope i `ofs_provisional` — 130.8.6.4
+
+Renderer otrzymuje zamrożony envelope zawierający `presentation_mode`, `phase`,
+`scene_id`, `status`, `lines`, opcjonalne `slots`, `transition`, `tone` i
+`content_source`. Renderer
+nie wybiera tekstów i nie zna security ani endpointów. Jeden viewport może mieć
+jednego właściciela; kolejny renderer nie może pisać do niego przed dispose.
+
+`ofs_provisional` obsługuje fazę launch/hydration. Adaptery wykonawcze
+`terminal`, `button_choice` i `window` korzystają z tego samego envelope, lecz
+nie współdzielą schedulera provisional. Tylko `button_choice` ma lokalne wybory
+prezentacyjne. `window` obsługuje neutralne sloty i jest docelowym mapowaniem
+legacy `progressbar_random`, bez fikcyjnego procentu. Wszystkie adaptery
+obsługują `replace`, `clear`, `fade` i `append_short`, respektują reduced
+motion oraz zwalniają wyłączne ownership viewportu przy `dispose`.
+
+### Profile operacji — 130.8.6.5
+
+OFS rozpoznaje dokładnie 12 kluczy: `scan_ports`, `exploit`, `sniff`, `trace`,
+`trace_gps`, `trace_device`, `mic_sniff`, `atm_logs`, `install_sniffer`,
+`camera_stream`, `camera_shutdown`, `car_hack`. Każdy profil deklaruje
+`default_presentation_mode`, `scene_pools`, `duration_scene_pools`, jawną
+macierz `security`, choice/state, completion/failure oraz `provisional_profile`.
+
+`provisional_profile` wskazuje `launch_150s`, interface voice, kontekst celu i
+politykę contentu autora. Nie może posiadać security, completion, failure ani
+choice. Uszkodzenie jednego profilu nie unieważnia wspólnej konfiguracji:
+profil otrzymuje `enabled=false` i `validation_error`, a jego sesja przechodzi do
+legacy UI.
+
+Aktywacja wymaga flagi globalnej oraz wpisu akcji na liście rozdzielonej
+przecinkami:
+
+```text
+CHAOS_OPERATION_FEEDBACK_ENABLED=1
+CHAOS_OPERATION_FEEDBACK_ACTIONS=exploit,sniff,trace
+```
+
+`CHAOS_OPERATION_FEEDBACK_SCAN_PORTS=1` pozostaje zgodnym wstecz skrótem dla
+`scan_ports`.

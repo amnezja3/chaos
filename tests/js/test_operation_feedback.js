@@ -6,14 +6,15 @@ const vm = require("vm");
 
 const source = fs.readFileSync("static/js/operation_feedback.js", "utf8");
 const profileData = JSON.parse(fs.readFileSync("static/data/operation_feedback.v1.json", "utf8"));
+const testConsole = {log: console.log, error: console.error, warn() {}};
 const sandbox = {
     window: {
         document: null,
-        console,
+        console: testConsole,
         performance: { now: () => 0 },
         fetch: () => Promise.reject(new Error("fetch disabled in composer test"))
     },
-    console,
+    console: testConsole,
     Math,
     Object,
     Array,
@@ -26,6 +27,131 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox);
 
 const ofs = sandbox.window.OperationFeedbackSystem;
+class FakeNode {
+    constructor(tagName = "div") {
+        this.tagName = tagName;
+        this.className = "";
+        this.dataset = {};
+        this.children = [];
+        this.parentNode = null;
+        this.isConnected = true;
+        this.hidden = false;
+        this.textContent = "";
+    }
+    appendChild(node) {
+        node.parentNode = this;
+        node.isConnected = true;
+        this.children.push(node);
+        return node;
+    }
+    replaceChildren(...nodes) {
+        this.children.forEach(node => { node.parentNode = null; node.isConnected = false; });
+        this.children = [];
+        nodes.forEach(node => this.appendChild(node));
+    }
+    querySelector(selector) {
+        const className = selector.startsWith(".") ? selector.slice(1) : "";
+        for (const child of this.children) {
+            if (String(child.className).split(/\s+/).includes(className)) return child;
+            const nested = child.querySelector(selector);
+            if (nested) return nested;
+        }
+        return null;
+    }
+    querySelectorAll(selector) {
+        const found = [];
+        const className = selector.startsWith(".") ? selector.slice(1) : "";
+        this.children.forEach(child => {
+            if ((selector === "button" && child.tagName === "button")
+                || String(child.className).split(/\s+/).includes(className)) found.push(child);
+            found.push(...child.querySelectorAll(selector));
+        });
+        return found;
+    }
+    setAttribute() {}
+    addEventListener() {}
+    remove() {
+        if (this.parentNode) {
+            this.parentNode.children = this.parentNode.children.filter(child => child !== this);
+        }
+        this.parentNode = null;
+        this.isConnected = false;
+    }
+    get firstElementChild() { return this.children[0] || null; }
+}
+sandbox.window.document = {createElement: tagName => new FakeNode(tagName)};
+const provisionalEnvelope = ofs.createSceneEnvelope({
+    presentation_mode: "ofs_provisional",
+    phase: "booting",
+    scene_id: "local_init",
+    lines: ["Inicjalizacja lokalnego profilu.", "Przygotowanie widoku aplikacji."],
+    transition: "replace",
+    content_source: "local_fallback"
+});
+assert.strictEqual(provisionalEnvelope.presentation_mode, "ofs_provisional");
+assert.strictEqual(provisionalEnvelope.lines.length, 2);
+assert.ok(Object.isFrozen(provisionalEnvelope));
+assert.ok(Object.isFrozen(provisionalEnvelope.lines));
+assert.throws(
+    () => ofs.createSceneEnvelope({presentation_mode: "unknown", lines: ["test"]}),
+    /unsupported presentation mode/
+);
+assert.throws(
+    () => ofs.createSceneEnvelope({presentation_mode: "ofs_provisional", transition: "progress", lines: ["test"]}),
+    /unsupported scene transition/
+);
+const executionRenderers = ["terminal", "button_choice", "window"].map(mode =>
+    ofs.createPresentationRenderer(mode, {})
+);
+assert.deepStrictEqual(
+    executionRenderers.map(renderer => renderer.presentationMode),
+    ["terminal", "button_choice", "window"]
+);
+executionRenderers.forEach(renderer => renderer.dispose());
+assert.strictEqual(ofs.createPresentationRenderer("unknown", {}), null);
+assert.strictEqual(ofs.presentationModeForInterface("progressbar_random"), "window");
+assert.strictEqual(ofs.presentationModeForInterface("terminal"), "terminal");
+assert.strictEqual(ofs.presentationModeForInterface("button_choices"), "button_choice");
+assert.strictEqual(ofs.presentationModeForInterface("unsupported"), null);
+for (const mode of ["terminal", "button_choice", "window"]) {
+    const host = new FakeNode("main");
+    const renderer = ofs.createPresentationRenderer(mode, {
+        host,
+        sessionId: `test:${mode}`,
+        applicationContent: {title: `TEST ${mode}`}
+    });
+    assert.strictEqual(renderer.render({
+        phase: "running",
+        scene_id: "probe",
+        status: "Operacja w toku",
+        lines: ["Linia A", "Linia B"],
+        transition: "replace"
+    }), true);
+    assert.strictEqual(host.dataset.presentationOwner, renderer.owner);
+    assert.strictEqual(renderer.panel.querySelector(".operation-feedback-lines").children.length, 2);
+    assert.strictEqual(Boolean(renderer.choiceContainer()), mode === "button_choice");
+    renderer.render({
+        phase: "running",
+        scene_id: "follow_up",
+        status: "Dalsza praca",
+        lines: ["C", "D", "E", "F", "G", "H"],
+        slots: mode === "window" ? {stage: "probe", activity: "local"} : {},
+        transition: "append_short"
+    });
+    assert.strictEqual(renderer.panel.querySelector(".operation-feedback-lines").children.length, 6);
+    if (mode === "window") {
+        assert.strictEqual(renderer.panel.querySelector(".operation-feedback-slots").children.length, 2);
+    }
+    renderer.dispose();
+    assert.strictEqual(host.dataset.presentationOwner, undefined);
+}
+const occupiedHost = {isConnected: true, dataset: {presentationOwner: "other:1"}};
+const provisionalRenderer = ofs.createPresentationRenderer("ofs_provisional", {host: occupiedHost});
+assert.throws(
+    () => provisionalRenderer.render(provisionalEnvelope),
+    /already has an owner/
+);
+provisionalRenderer.dispose();
 const config = ofs.validateFeedbackConfig(profileData);
 const operation = config.operations.scan_ports;
 const securityState = ofs.sanitizeSecurityState({
@@ -179,7 +305,73 @@ assert.strictEqual(fakeTimers.size, 1); // tylko kontrolowany dispose completion
 
 const invalidMutationConfig = JSON.parse(JSON.stringify(profileData));
 invalidMutationConfig.choice_library["feedback.scan_ports.visibility"].options[0].set = {gameplay_power: 999};
-assert.throws(() => ofs.validateFeedbackConfig(invalidMutationConfig), /undeclared state/);
+const isolatedInvalidConfig = ofs.validateFeedbackConfig(invalidMutationConfig);
+assert.strictEqual(isolatedInvalidConfig.operations.scan_ports.enabled, false);
+assert.match(isolatedInvalidConfig.operations.scan_ports.validation_error, /undeclared state/);
+assert.strictEqual(isolatedInvalidConfig.operations.exploit.enabled, true);
+
+const expectedModes = {
+    scan_ports: "button_choice", exploit: "terminal", sniff: "terminal",
+    trace: "window", trace_gps: "window", trace_device: "window",
+    mic_sniff: "terminal", atm_logs: "terminal", install_sniffer: "button_choice",
+    camera_stream: "window", camera_shutdown: "button_choice", car_hack: "button_choice"
+};
+assert.strictEqual(Object.keys(config.operations).length, 12);
+Object.entries(expectedModes).forEach(([actionKey, expectedMode]) => {
+    const profile = config.operations[actionKey];
+    assert.strictEqual(profile.enabled, true, profile.validation_error);
+    assert.strictEqual(profile.default_presentation_mode, expectedMode);
+    assert.strictEqual(ofs.presentationModeForAction(actionKey), expectedMode);
+    assert.strictEqual(profile.provisional_profile.timeline_profile, "launch_150s");
+    assert.ok(profile.provisional_profile.scene_pool.includes("extended_wait"));
+    const scene = ofs.composeScene({
+        config,
+        profile,
+        securityState: Object.fromEntries(Object.keys(profile.security).map(key => [key, true])),
+        history: {last_scene: null, last_security: null, last_line: null},
+        elapsedMs: 16000,
+        random: () => 0,
+        applicationContent: voiceA,
+        presentationState: {}
+    });
+    assert.ok(scene.lines.length >= 2);
+});
+assert.strictEqual(ofs.isEnabled("exploit", {enabled: true, enabled_actions: ["exploit"]}), true);
+assert.strictEqual(ofs.isEnabled("sniff", {enabled: true, enabled_actions: ["exploit"]}), false);
+assert.strictEqual(ofs.isEnabled("scan_ports", {enabled: true, scan_ports: true}), true);
+
+const provisionalTimeline = config.provisional_timelines.launch_150s;
+assert.strictEqual(provisionalTimeline.stages[0].start_after_ms, 0);
+assert.strictEqual(provisionalTimeline.stages.at(-1).start_after_ms, 150000);
+assert.strictEqual(provisionalTimeline.stages.length, 15);
+const provisionalProfile = config.operations.scan_ports;
+const provisionalContext = {
+    app_title: "Port Sentinel",
+    description: "Lokalny skaner portow",
+    interface: "button_choices",
+    target_label: "POI-TEST",
+    action_label: "scan_ports"
+};
+const firstProvisional = ofs.composeProvisionalScene({
+    config, profile: provisionalProfile, stage: provisionalTimeline.stages[0],
+    context: provisionalContext, history: {}, random: () => 0
+});
+assert.ok(firstProvisional.lines.some(line => line.includes("Port Sentinel")));
+assert.ok(!firstProvisional.lines.some(line => /undefined/.test(line)));
+const extendedStage = provisionalTimeline.stages.at(-1);
+const extendedA = ofs.composeProvisionalScene({
+    config, profile: provisionalProfile, stage: extendedStage,
+    context: provisionalContext, history: {}, random: () => 0
+});
+const extendedB = ofs.composeProvisionalScene({
+    config, profile: provisionalProfile, stage: extendedStage,
+    context: provisionalContext, history: {last_variant: extendedA.variant_key}, random: () => 0
+});
+assert.notStrictEqual(extendedA.variant_key, extendedB.variant_key);
+
+const invalidPlaceholderConfig = JSON.parse(JSON.stringify(profileData));
+invalidPlaceholderConfig.provisional_scene_library.app_identity.voices.default[0][0] = "{owner_username}";
+assert.throws(() => ofs.validateFeedbackConfig(invalidPlaceholderConfig), /forbidden placeholder/);
 
 function buildTranscript(elapsedValues, applicationContent, presentationState = {}) {
     const localHistory = {last_scene: null, last_security: null, last_line: null};
@@ -233,6 +425,25 @@ if (process.argv.includes("--transcripts")) {
     await Promise.resolve();
     assert.strictEqual(deferredSession.state, "completing");
     assert.ok(!traceEvents.includes("feedback_scene_started"));
+
+    const fallbackConfig = JSON.parse(JSON.stringify(profileData));
+    fallbackConfig.operations.exploit.default_presentation_mode = "window";
+    let fallbackCalled = false;
+    const invalidProfileSession = new ofs.OperationFeedbackSession({
+        actionKey: "exploit",
+        presentationMode: "terminal",
+        applicationContent: voiceA,
+        clock: fakeClock,
+        now: () => 0,
+        configLoader: () => fallbackConfig,
+        onProfileUnavailable: () => { fallbackCalled = true; }
+    });
+    invalidProfileSession.render = () => {};
+    invalidProfileSession.start();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.strictEqual(fallbackCalled, true);
+    assert.strictEqual(invalidProfileSession.disposed, true);
     console.log("operation feedback composer OK");
 })().catch(error => {
     console.error(error);

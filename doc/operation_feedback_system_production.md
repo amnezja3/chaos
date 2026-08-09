@@ -898,6 +898,16 @@ OFS z rzeczywistym launcherem CHAOS:
 * `130.8.6.3.2` — idempotentna hydration istniejącego okna przez
   `applicationEffect` z `/launch-queue → /command`, bez drugiego okna i bez
   drugiego requestu gameplayowego.
+* `130.8.6.3.3` — bazowy lokalny composer scen pre-execution i natychmiastowy
+  handoff przy hydration;
+* `130.8.6.4` — zakończone: `ofs_provisional`, `terminal`, `button_choice` i
+  `window` korzystają ze wspólnego scene envelope bez łączenia schedulerów
+  launch i execution; `progressbar_random` mapuje się na `window` bez fikcyjnego
+  procentu;
+* `130.8.6.5` — zakończone: profile execution/provisional dla 12 action keys,
+  izolowany fallback błędnego profilu i timeline skeleton `launch_150s`;
+* `130.8.6.6` — produkcyjny pakiet konkretnych scen na minimum 150 sekund,
+  neutralny extended wait oraz validator pokrycia czasu i semantyki.
 
 Oba sprinty zachowują legacy launch jako rollback. Discovery bez
 `selected_app_id` zostaje ujednolicone dla jednego i wielu kandydatów, ale
@@ -1065,7 +1075,46 @@ Moduł 1.0 jest gotowy, gdy:
 * kreatory potrafią zapisać, zwalidować i podejrzeć `feedback_content`;
 * feature flags i rollback zostały sprawdzone na środowisku produkcyjnym.
 
-## 28. Niezmienne zasady
+## 28. Ręczna edycja `operation_feedback.v1.json`
+
+Plik ma dwie niezależne warstwy prezentacji:
+
+* `provisional_timelines.launch_150s` określa kolejność i czas scen przed
+  hydration. Każdy wpis ma unikalne `scene_id`, logiczną `family` oraz
+  `start_after_ms` liczone od otwarcia provisional window;
+* `provisional_scene_library` zawiera treść wskazaną przez `scene_id`. Scena ma
+  `phase`, `transition`, obowiązkowe `cancelable: true` oraz `voices`;
+* `scene_library` zawiera sceny wykonawcze po rozpoczęciu requestu;
+* `security_library` przechowuje techniczne warianty security/interactions;
+* `choice_library` zawiera wyłącznie lokalne wybory narracyjne `feedback.*`;
+* `completion_library` i `failure_library` są używane dopiero po rzeczywistym
+  payloadzie albo błędzie transportu;
+* `operations` mapuje 12 `action_key` na renderer, pule scen, macierz security i
+  `provisional_profile`.
+
+W `voices` każda wartość jest listą wariantów, a wariant listą linii:
+
+```json
+"module_boot": {
+  "phase": "booting",
+  "transition": "fade",
+  "cancelable": true,
+  "voices": {
+    "terminal": [["Linia A.", "Linia B."], ["Wariant 2."]],
+    "default": [["Neutralny fallback."]]
+  }
+}
+```
+
+Dozwolone głosy: `default`, `terminal`, `button_choices`, `window` i
+`progressbar_random`. Dozwolone placeholdery: `{app_title}`, `{description}`,
+`{interface}`, `{target_label}`, `{action_label}`. Nie wolno dodawać HTML,
+wyniku operacji, fikcyjnych błędów transportu ani danych gameplay/security.
+`extended_wait` musi mieć minimum trzy warianty i jest rotowany co 12–20 s.
+Zmiana czasu nie może cofnąć kolejności etapów ani skrócić pokrycia poniżej
+150000 ms. Błędny profil operacji jest izolowany i wraca do legacy UI.
+
+## 29. Niezmienne zasady
 
 ```text
 Backend jest źródłem prawdy.

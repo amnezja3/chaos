@@ -18529,8 +18529,9 @@ Dopiero po tym rozszerzeniu sensowne będzie przejście do `130.8.6.4` i general
 
 ## Status
 
-Rozpoczęty. Pierwszy etap composera i handoff do hydration jest zaimplementowany
+Etap bazowy zamknięty. Composer i handoff do hydration są zaimplementowane
 za istniejącą, domyślnie wyłączoną flagą `CHAOS_PROVISIONAL_APP_LAUNCH_ENABLED`.
+Dalszy lift rendererów, profili i contentu przechodzi do 6.4–6.6.
 
 ## Cel
 
@@ -18646,15 +18647,52 @@ równoległe uruchomienia tej samej aplikacji, `scan_ports` z OFS i flag-off.
 9. Cztery interface i `scan_ports` nie mają regresji.
 10. Flaga off, legacy fallback, testy i dokumentacja odpowiadają kodowi.
 
-# Sprint 130.8.6.4 — Renderer Abstraction: terminal / button_choice / window
+# Sprint 130.8.6.4 — Renderer Abstraction: ofs_provisional / terminal / button_choice / window
+
+## Status
+
+Zakończony. Wspólny scene envelope obsługują cztery odseparowane
+renderery: `ofs_provisional`, `terminal`, `button_choice` i `window`.
+`OperationFeedbackSession` deleguje DOM do fabryki rendererów, a dotychczasowy
+`scan_ports` zachowuje tryb `button_choice` bez cutoveru pozostałych akcji.
 
 ## Cel
 
 Oderwać engine od `scan_ports` i renderer `button_choice` od konkretnej operacji.
 
-Zbudować trzy uniwersalne tryby prezentacji OFS.
+Zbudować cztery uniwersalne tryby prezentacji. `terminal`, `button_choice` i
+`window` obsługują wykonawczy OFS. `ofs_provisional` obsługuje wyłącznie czas od
+lokalnego launch intentu do autorytatywnej hydration.
 
 Od tego momentu engine nie może wiedzieć, czy obsługuje port scanner, exploit, kamerę czy samochód.
+
+## Tryb `ofs_provisional`
+
+`ofs_provisional` jest adapterem Application Presentation Lifecycle, a nie
+sesją wykonawczą `/gonna-win`. Korzysta z provisional registry z 6.3.1–6.3.3 i
+posiada własny renderer scen przed wykonaniem.
+
+Renderer odpowiada za:
+
+* sceny `app_identity`, `local_init`, `module_boot`, `context_bind`,
+  `author_manifest`, `runtime_prepare`, `launcher_sync`, `hydration_wait`;
+* jeden viewport wewnątrz istniejącego provisional window;
+* przejścia `replace`, `clear`, `fade` i `append_short`;
+* natychmiastowy stop przy hydration, failure lub dispose;
+* zachowanie tego samego DOM podczas handoffu do właściwego interface;
+* reduced motion i neutralny extended wait.
+
+Nie odpowiada za security interactions, choices, wynik, transport ani request
+gameplayowy. Nie może używać completion/failure bez prawdziwego sygnału.
+
+Kontrakt rendererów zostaje rozdzielony:
+
+```text
+ofs_provisional → launch/boot/hydration wait
+terminal        → executing
+button_choice   → executing + presentation choices
+window          → executing/panel state
+```
 
 ## Renderer `button_choice`
 
@@ -18724,7 +18762,7 @@ Zamiast tego pokazywany jest etap/aktywność.
 
 ## Reduced motion
 
-Wszystkie trzy renderery respektują:
+Wszystkie cztery renderery respektują:
 
 ```text
 prefers-reduced-motion
@@ -18739,13 +18777,38 @@ Wtedy:
 
 ## Wynik sprintu
 
-Po `130.8.6.4` ten sam scheduler może wysłać scenę do dowolnego z trzech rendererów bez wiedzy o strukturze konkretnej aplikacji.
+Po `130.8.6.4` scene envelope może zostać skierowany do właściwego z czterech
+rendererów bez wiedzy o strukturze konkretnej aplikacji. Scheduler provisional
+i scheduler wykonawczy pozostają oddzielne i nigdy nie piszą jednocześnie do
+jednego viewportu.
 
 `scan_ports` pozostaje działającą regresją.
+
+## Realizacja
+
+* renderer nie wybiera scen ani security; otrzymuje wyłącznie walidowany,
+  zamrożony envelope;
+* `terminal` utrzymuje krótki bufor bez nieskończonego scrolla;
+* `button_choice` jako jedyny posiada prompt, przyciski i countdown;
+* `window` posiada neutralne sloty `key -> value` i nie generuje procentu;
+* `progressbar_random` ma jawne mapowanie kompatybilności do `window`;
+* każdy viewport posiada jednego właściciela, zwalnianego przez `dispose`;
+* wszystkie tryby obsługują `replace`, `clear`, `fade`, `append_short` oraz
+  `prefers-reduced-motion`;
+* błąd fabryki/renderera pozostawia istniejący legacy pending UI.
+
+Sprint 6.4 nie przełącza jeszcze profili innych operacji. Dobór rendererów
+dla 12 `action_key` należy do 6.5.
 
 ---
 
 # Sprint 130.8.6.5 — Generalizacja na 12 action_key + profile skeleton
+
+## Status
+
+Zakończony. Wszystkie 12 `action_key` posiada walidowany profil wykonawczy,
+macierz security, mapowanie renderera i oddzielny skeleton provisional
+`launch_150s`. Pełny content osi 150 sekund pozostaje zakresem 6.6.
 
 ## Cel
 
@@ -18814,6 +18877,46 @@ camera_shutdown    -> button_choice
 car_hack           -> button_choice
 ```
 
+Każdy profil operacji otrzymuje dodatkowo `provisional_profile`, niezależny od
+wykonawczego `presentation_mode`. Pozwala to uruchomić `ofs_provisional` przed
+hydration niezależnie od tego, czy właściwa aplikacja później przejdzie do
+terminala, panelu czy wyborów.
+
+Minimalny skeleton:
+
+```text
+action_key
+  provisional_profile
+    scene_pool
+    interface_voice
+    target_context
+    author_content_policy
+    timeline_profile: launch_150s
+  execution_profile
+    presentation_mode
+    security -> interactions
+```
+
+`provisional_profile` nie zawiera security matrix, completion ani gameplayowych
+choice. Walidator musi odrzucić takie pola w tej gałęzi.
+
+## Pokrycie czasu provisional
+
+Każdy z 12 profili wskazuje sekwencję zdolną utrzymać sensowną prezentację przez
+minimum 150 sekund bez sztucznego progressu. W 6.5 wystarcza skeleton i fallback
+rodzin scen; konkretne warianty tekstowe zostaną domknięte w 6.6.
+
+Wymagane przedziały:
+
+```text
+0–15 s    identity + local init
+15–45 s   interface/module boot + context bind
+45–90 s   author manifest + local validation
+90–120 s  runtime prepare + launcher sync
+120–150 s hydration wait o zwalniającym rytmie
+>150 s    extended wait bez limitu czasu i bez fikcyjnego błędu
+```
+
 ## Security matrix
 
 Każda operacja dostaje jawny skeleton właściwych połączeń.
@@ -18879,9 +18982,32 @@ Nie wszystkie muszą jeszcze wyglądać pięknie.
 
 Mają działać poprawnie semantycznie i infrastrukturalnie.
 
+Każda z nich posiada również walidowany skeleton `ofs_provisional`, więc długi
+launch nie wraca do jednego migającego komunikatu.
+
+## Realizacja
+
+* `operation_feedback.v1.json` zawiera 12 profili oraz wspólny timeline
+  `launch_150s` od `app_identity` do `extended_wait`;
+* każda operacja posiada `duration_scene_pools`, jawną macierz
+  `security -> interactions`, completion/failure i deklarację renderera;
+* `provisional_profile` nie może zawierać security, choice ani wyniku;
+* validator sprawdza wszystkie profile i zastępuje wyłącznie uszkodzony
+  profil wpisem `enabled=false + validation_error`;
+* błąd profilu podczas sesji zwalnia renderer i uruchamia legacy fallback;
+* wybór renderera wynika z `action_key`, a nie z przypadkowego interface
+  aplikacji; `scan_ports` pozostaje na `button_choice`;
+* flaga globalna jest uzupełniona listą
+  `CHAOS_OPERATION_FEEDBACK_ACTIONS`, a stara flaga
+  `CHAOS_OPERATION_FEEDBACK_SCAN_PORTS` pozostaje kompatybilna;
+* generyczne sceny 6.5 są celowo ubogie. Produkcyjna różnorodność treści
+  i pełne pre-execution 150 s należą do 6.6.
+
 ---
 
 # Sprint 130.8.6.6 — Full MVP Cutover Architecture + Content Contract
+
+**Status: zakończony lokalnie 2026-08-09; oczekuje na test produkcyjny i stopniowy cutover flagami.**
 
 ## Cel
 
@@ -18890,6 +19016,56 @@ Domknąć OFS jako gotową platformę pod dalsze ręczne wypełnianie słownika.
 Nie rozbudowujemy już mechaniki engine'u.
 
 Porządkujemy integrację, fallbacki, content autora, telemetry, testy i strukturę danych tak, żeby kolejny sprint mógł być praktycznie „content sprintem”.
+
+## Pakiet `ofs_provisional.launch_150s`
+
+Domknąć pierwszy produkcyjny pakiet konkretnych scen pre-execution. Pakiet ma
+pokrywać co najmniej 150 sekund, ale nie zakłada, że hydration nastąpi dopiero na
+końcu. Każda scena jest przerywalna, a payload zawsze wygrywa.
+
+Minimalna oś scen:
+
+| Czas orientacyjny | Rodzina | Przykładowa treść |
+|---:|---|---|
+| 0 s | `app_identity` | `{app_title}` / `Profil autora: {description}` |
+| 3 s | `local_init` | `Inicjalizacja lokalnego profilu.` |
+| 8 s | `interface_boot` | `Przygotowanie widoku {interface}.` |
+| 14 s | `author_manifest` | `Odczyt manifestu aplikacji.` |
+| 21 s | `context_bind` | `Cel: {target_label}` |
+| 29 s | `context_bind` | `Profil działania: {action_label}` |
+| 38 s | `module_boot` | `Przygotowanie lokalnych modułów narzędzia.` |
+| 48 s | `local_validation` | `Walidacja lokalnej konfiguracji.` |
+| 60 s | `runtime_prepare` | `Budowanie widoku sesji.` |
+| 73 s | `author_content` | `Ładowanie bezpiecznego contentu autora.` |
+| 88 s | `local_validation` | `Sprawdzanie spójności lokalnego profilu.` |
+| 104 s | `runtime_prepare` | `Lokalny kontekst aplikacji jest gotowy.` |
+| 121 s | `launcher_sync` | `Oczekiwanie na stan launchera.` |
+| 138 s | `hydration_wait` | `Utrzymanie kontekstu aplikacji.` |
+| 150 s | `extended_wait` | `Autorytatywny stan uruchomienia pozostaje oczekiwany.` |
+
+Po 150 sekundach renderer rotuje neutralne warianty `extended_wait` co 12–20
+sekund. Nie zwiększa częstotliwości i nie powtarza tej samej linii bezpośrednio.
+
+Pakiet musi zawierać warianty głosu dla:
+
+* `terminal` — sesja, manifest, lokalny profil poleceń;
+* `button_choices` — przygotowanie interfejsu decyzji bez pokazywania options;
+* `window` — przygotowanie panelu i slotów;
+* legacy `progressbar_random` — etapy/aktywność bez wartości procentowej.
+
+Placeholdery są ograniczone do danych discovery: `app_title`, `description`,
+`interface`, `target_label`, `action_label`. Brak wartości usuwa linię lub używa
+neutralnego fallbacku; nie wolno renderować `undefined` ani pustego celu.
+
+Validator sprawdza:
+
+* pokrycie timeline do co najmniej 150 sekund;
+* monotoniczny `start_after_ms`;
+* dozwolone rodziny i placeholdery;
+* brak completion/security/transport fiction;
+* co najmniej trzy neutralne warianty extended wait;
+* timing extended wait 12–20 sekund;
+* natychmiastową cancelowalność każdej sceny.
 
 ## Priorytet contentu
 
@@ -19083,11 +19259,13 @@ Przetestować przynajmniej:
 
 * wszystkie 12 `action_key`,
 * wszystkie trzy presentation modes,
+* `ofs_provisional` dla wszystkich 12 action keys,
 * szybki payload <300 ms,
 * 5 s,
 * 30 s,
 * 90 s,
 * 180 s,
+* hydration na granicach 1 s, 14 s, 60 s, 149 s i po 150 s,
 * payload podczas choice,
 * zamknięcie okna,
 * kilka równoległych aplikacji,
@@ -19108,8 +19286,8 @@ Najważniejsza regresja:
 Po `130.8.6.6` mamy:
 
 * jeden wspólny engine,
-* jeden scheduler,
-* trzy renderery,
+* dwa rozdzielone schedulery: provisional i execution,
+* cztery renderery, w tym oddzielny `ofs_provisional`,
 * 12 profili operacji,
 * validator,
 * cancellation lifecycle,
@@ -19119,17 +19297,20 @@ Po `130.8.6.6` mamy:
 * fallback,
 * feature flags,
 * działający `scan_ports` z pełniejszym MVP contentem,
-* minimalne profile pozostałych operacji.
+* minimalne profile pozostałych operacji,
+* pakiet konkretnych scen provisional na minimum 150 sekund oraz extended wait.
 
 OFS jest wtedy gotowy infrastrukturalnie.
 
 ---
 
-# Następny osobny sprint — OFS Content Population
+# Następny osobny sprint — OFS Execution Content Population
 
 Nie należy mieszać go z `130.8.6.1–130.8.6.6`.
 
-Jego zadaniem będzie już przede wszystkim ręczne uzupełnienie:
+Jego zadaniem będzie ręczne uzupełnienie treści wykonawczej. Produkcyjny pakiet
+`ofs_provisional.launch_150s` powstaje wcześniej w 6.6 i nie jest odkładany do
+tego sprintu.
 
 ```text
 operation_feedback.v1.json
@@ -19178,22 +19359,22 @@ JSON + scenes + security matrix + scheduler
         ↓
 
 130.8.6.3
-choices + presentation_state + app content + GO
+choices + app content + provisional lifecycle/hydration + bazowe pre-execution
 
         ↓
 
 130.8.6.4
-3 uniwersalne renderery
+4 renderery, w tym oddzielny ofs_provisional
 
         ↓
 
 130.8.6.5
-12 action_key + profile skeletons + validator
+12 action_key + execution/provisional profile skeletons + validator
 
         ↓
 
 130.8.6.6
-content contract + telemetry + fallback + pełny MVP
+launch_150s + content contract + telemetry + fallback + pełny MVP
 ```
 
 Po tym:

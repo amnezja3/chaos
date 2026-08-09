@@ -1598,7 +1598,16 @@ function stopPreExecutionPresentation(session, reason = "handoff") {
     const presentation = session?.preExecutionPresentation;
     if (!presentation || presentation.stopped) return;
     presentation.stopped = true;
-    if (presentation.timerId) window.clearTimeout(presentation.timerId);
+    if (presentation.timerId !== null) window.clearTimeout(presentation.timerId);
+    presentation.renderer?.dispose?.();
+    if (reason !== "hydration") {
+        appFlowTrace(session.flowId, "feedback_cancelled", {
+            app_id: session.appId,
+            action: session.action,
+            mode: "ofs_provisional",
+            completion_reason: reason
+        });
+    }
     appFlowTrace(session.flowId, "pre_execution_stopped", {
         app_id: session.appId,
         family: presentation.currentFamily || "",
@@ -1610,36 +1619,125 @@ function startPreExecutionPresentation(session, appData = {}, pending = {}, proj
     if (!session || session.disposed || !session.appWindow?.isConnected) return null;
     const viewport = session.appWindow.querySelector(".provisional-app-scenes");
     if (!viewport) return null;
-    const scenes = buildPreExecutionScenes(appData, pending, projectedContent);
-    const presentation = { scenes, index: 0, timerId: null, stopped: false, currentFamily: "" };
+    const fallbackScenes = buildPreExecutionScenes(appData, pending, projectedContent);
+    let renderer = null;
+    try {
+        renderer = window.OperationFeedbackSystem?.createPresentationRenderer?.("ofs_provisional", {
+            host: viewport,
+            appWindow: session.appWindow
+        }) || null;
+    } catch (error) {
+        console.warn("[app launch] Provisional renderer fallback", error);
+    }
+    const presentation = {
+        renderer,
+        index: 0,
+        timerId: null,
+        stopped: false,
+        currentFamily: "",
+        startedAt: performance.now(),
+        lastVariant: ""
+    };
     session.preExecutionPresentation = presentation;
 
-    const renderNext = () => {
+    const renderScene = scene => {
         if (presentation.stopped || session.disposed || !session.appWindow?.isConnected) return;
-        const sceneIndex = Math.min(presentation.index, scenes.length - 1);
-        const scene = scenes[sceneIndex];
         presentation.currentFamily = scene.family;
         updateProvisionalApplicationSession(session, scene.phase, scene.lines[0] || "");
-        viewport.dataset.sceneFamily = scene.family;
-        viewport.replaceChildren(...scene.lines.map(line => {
-            const node = document.createElement("div");
-            node.className = "provisional-app-scene-line";
-            node.textContent = line;
-            return node;
-        }));
-        appFlowTrace(session.flowId, "pre_execution_scene", {
-            app_id: session.appId,
-            family: scene.family,
-            index: presentation.index
+        const rendered = renderer?.render?.({
+            presentation_mode: "ofs_provisional",
+            phase: scene.phase,
+            scene_id: scene.scene_id || scene.family,
+            status: scene.lines[0] || "",
+            lines: scene.lines,
+            transition: scene.transition || (scene.family === "hydration_wait" ? "fade" : "replace"),
+            tone: "pending",
+            content_source: scene.content_source || (scene.family === "app_identity" ? "app_snapshot" : "local_fallback")
         });
-        presentation.index += 1;
-        const waiting = presentation.index >= scenes.length;
-        const delay = waiting
-            ? Math.min(9000, 4000 + (presentation.index - scenes.length) * 1500)
-            : (presentation.index === 1 ? 1400 : 2400);
-        presentation.timerId = window.setTimeout(renderNext, delay);
+        if (!rendered) {
+            viewport.dataset.sceneFamily = scene.family;
+            viewport.replaceChildren(...scene.lines.map(line => {
+                const node = document.createElement("div");
+                node.className = "provisional-app-scene-line";
+                node.textContent = line;
+                return node;
+            }));
+        }
+        appFlowTrace(session.flowId, "feedback_scene_started", {
+            app_id: session.appId,
+            action: session.action,
+            mode: "ofs_provisional",
+            scene_id: scene.scene_id || scene.family,
+            content_source: scene.content_source || "local_fallback",
+            elapsed_ms: Math.round(performance.now() - presentation.startedAt)
+        });
     };
-    renderNext();
+
+    renderScene({ ...fallbackScenes[0], scene_id: "app_identity_fallback" });
+    window.OperationFeedbackSystem?.loadFeedbackConfig?.().then(config => {
+        if (presentation.stopped || session.disposed) return;
+        const profile = config.operations?.[session.action];
+        if (!profile || profile.enabled !== true) return;
+        appFlowTrace(session.flowId, "feedback_profile_loaded", {
+            app_id: session.appId,
+            action: session.action,
+            mode: "ofs_provisional"
+        });
+        const timeline = config.provisional_timelines[profile.provisional_profile.timeline_profile];
+        const stages = timeline.stages;
+        const sceneContext = {
+            app_title: String(appData.name || appData.id || "Aplikacja"),
+            description: String(projectedContent?.legacy?.transition?.[0] || appData.description || ""),
+            interface: String(appData.interface || profile.provisional_profile.interface_voice || "window").toLowerCase(),
+            target_label: String(pending.label || pending.name || ""),
+            action_label: String(pending.action || session.action || "")
+        };
+        const schedule = index => {
+            if (presentation.stopped || session.disposed || !session.appWindow?.isConnected) return;
+            const stage = stages[index];
+            const isExtended = index >= stages.length;
+            const activeStage = isExtended ? stages[stages.length - 1] : stage;
+            const elapsed = performance.now() - presentation.startedAt;
+            const dueAt = isExtended ? elapsed : Number(activeStage.start_after_ms);
+            const delay = Math.max(0, dueAt - elapsed);
+            presentation.timerId = window.setTimeout(() => {
+                if (presentation.stopped || session.disposed) return;
+                try {
+                    const scene = window.OperationFeedbackSystem.composeProvisionalScene({
+                        config,
+                        profile,
+                        stage: activeStage,
+                        context: sceneContext,
+                        history: { last_variant: presentation.lastVariant }
+                    });
+                    presentation.lastVariant = scene.variant_key;
+                    presentation.index = index;
+                    renderScene(scene);
+                    if (activeStage.family === "extended_wait" && !presentation.extendedWaitEntered) {
+                        presentation.extendedWaitEntered = true;
+                        appFlowTrace(session.flowId, "feedback_extended_wait_entered", {
+                            app_id: session.appId,
+                            action: session.action,
+                            mode: "ofs_provisional",
+                            elapsed_ms: Math.round(performance.now() - presentation.startedAt)
+                        });
+                    }
+                } catch (error) {
+                    console.warn("[app launch] Provisional scene fallback", error);
+                }
+                if (isExtended || index === stages.length - 1) {
+                    const [minWait, maxWait] = timeline.extended_wait_ms;
+                    const wait = Math.round(minWait + Math.random() * (maxWait - minWait));
+                    presentation.timerId = window.setTimeout(() => schedule(stages.length), wait);
+                } else {
+                    schedule(index + 1);
+                }
+            }, delay);
+        };
+        schedule(0);
+    }).catch(error => {
+        console.warn("[app launch] Provisional content unavailable; local fallback remains", error);
+    });
     return presentation;
 }
 
@@ -1656,6 +1754,12 @@ function disposeProvisionalApplicationSession(session, reason = "window_closed")
         flowId: session.flowId || "",
         action: session.action || "",
         expiresAt: Date.now() + PROVISIONAL_APPLICATION_TOMBSTONE_TTL_MS
+    });
+    appFlowTrace(session.flowId, "feedback_disposed", {
+        app_id: session.appId,
+        action: session.action,
+        mode: "ofs_provisional",
+        completion_reason: reason
     });
     appFlowTrace(session.flowId, "provisional_app_disposed", {
         app_id: session.appId,
@@ -1757,6 +1861,11 @@ function beginProvisionalLaunch(selection = {}, appData = {}) {
     makeDraggable(appWindow);
     bringWindowToFront(appWindow);
     startPreExecutionPresentation(session, appData, pending, projectedContent);
+    appFlowTrace(flowId, "feedback_session_started", {
+        app_id: appId,
+        action: context.action_key,
+        mode: "ofs_provisional"
+    });
     appFlowTrace(flowId, "provisional_app_created", {
         app_id: appId,
         session_key: sessionKey,
@@ -1773,6 +1882,12 @@ function consumeProvisionalHydrationWindow(id, type) {
     activeProvisionalHydrationSession = null;
     if (!session || session.disposed || !session.appWindow?.isConnected) return null;
     if (normalizeLaunchCorrelation(session.appId) !== normalizeLaunchCorrelation(id)) return null;
+    appFlowTrace(session.flowId, "feedback_payload_received", {
+        app_id: session.appId,
+        action: session.action,
+        mode: "ofs_provisional",
+        completion_reason: "hydration"
+    });
     stopPreExecutionPresentation(session, "hydration");
     const app = session.appWindow;
     updateProvisionalApplicationSession(session, "hydrating", "Ladowanie autorytatywnej aplikacji...");
@@ -3095,11 +3210,20 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
     const ofs = window.OperationFeedbackSystem;
     let session = null;
     let stopLegacy = () => {};
+    let legacyStarted = false;
+    const startLegacyFallback = () => {
+        if (!legacyWait || legacyStarted) return;
+        legacyStarted = true;
+        stopLegacy = startAppWaitLog(appWindow);
+    };
 
     if (ofs && ofs.isEnabled(context.action_key)) {
         session = ofs.createSession({
             actionKey: context.action_key,
-            presentationMode: "button_choice",
+            presentationMode: ofs.presentationModeForAction(
+                context.action_key,
+                context.application_content?.interface || appWindow?.dataset?.appInterface || ""
+            ),
             appId,
             flowId: context.flow_id,
             launchReceipt: context.launch_receipt,
@@ -3107,6 +3231,7 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
             appWindow,
             securityState: context.security_state,
             applicationContent: context.application_content,
+            onProfileUnavailable: startLegacyFallback,
             onTrace: (eventName, details) => appFlowTrace(context.flow_id, eventName, {
                 app_id: appId,
                 ...details
@@ -3115,7 +3240,7 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
     }
 
     if (!session && legacyWait) {
-        stopLegacy = startAppWaitLog(appWindow);
+        startLegacyFallback();
     }
 
     return {
