@@ -744,3 +744,15 @@ Launcher przekazuje lokalnie `action_key` i zamrożony `security_state` do okna
 aplikacji. Dane prezentacyjne nie są dodawane do requestu gameplayowego.
 `flow_id`, receipt, `choice_id`, expected target, kolejka i idempotencja
 pozostają własnością obecnego runtime. Flag-off zachowuje legacy UI.
+
+### Scene composer — 130.8.6.2
+
+Profil `scan_ports` jest ładowany z
+`static/data/operation_feedback.v1.json`. `scene_library` definiuje dramaturgię,
+`security_library` warianty techniczne, a `operations.scan_ports.security`
+jedyną dozwoloną macierz `security -> interactions`. Scheduler nie może tworzyć
+par spoza tej macierzy ani traktować brakującego klucza security jako `false`.
+
+Profile `instant`, `short`, `medium`, `long` i `very_long` są wybierane według
+faktycznego czasu requestu. Nie reprezentują procentu wykonania. Payload zawsze
+czyści scheduler przed publikacją completion.

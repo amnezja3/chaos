@@ -1,3 +1,5 @@
+import json
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -9,6 +11,9 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         cls.template = Path("templates/linux.html").read_text(encoding="utf-8")
         cls.feedback = Path("static/js/operation_feedback.js").read_text(encoding="utf-8")
         cls.terminal = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        cls.profile = json.loads(
+            Path("static/data/operation_feedback.v1.json").read_text(encoding="utf-8")
+        )
 
     def function_source(self, start_marker, end_marker):
         start = self.terminal.index(start_marker)
@@ -74,6 +79,70 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
             self.terminal,
         )
         self.assertIn("appData._map_action_id = item.action", self.terminal)
+
+    def test_scan_ports_profile_has_required_mvp_libraries(self):
+        required = {
+            "defaults", "duration_profiles", "scene_library", "security_library",
+            "transport_library", "choice_library", "completion_library",
+            "failure_library", "operations",
+        }
+        self.assertTrue(required.issubset(self.profile))
+        self.assertEqual(self.profile["schema_version"], "1.0.0")
+        operation = self.profile["operations"]["scan_ports"]
+        self.assertEqual(operation["action_key"], "scan_ports")
+        self.assertNotIn("security_keys", operation)
+        self.assertNotIn("interaction_types", operation)
+        self.assertGreaterEqual(len(operation["scene_pools"]), 2)
+        self.assertGreaterEqual(len(operation["security"]), 3)
+
+    def test_security_matrix_only_references_existing_variants(self):
+        operation = self.profile["operations"]["scan_ports"]
+        library = self.profile["security_library"]
+        for security_key, interactions in operation["security"].items():
+            self.assertIn(security_key, library)
+            for interaction in interactions:
+                variants = library[security_key]["interactions"].get(interaction)
+                self.assertIsInstance(variants, list)
+                self.assertTrue(variants)
+
+    def test_duration_profiles_reference_allowed_scenes_monotonically(self):
+        operation = self.profile["operations"]["scan_ports"]
+        allowed = set(operation["scene_pools"])
+        thresholds = []
+        for duration in self.profile["duration_profiles"].values():
+            thresholds.append(duration["min_elapsed_ms"])
+            self.assertTrue(set(duration["scene_pool"]).issubset(allowed))
+        self.assertEqual(thresholds, sorted(thresholds))
+        self.assertEqual(set(self.profile["duration_profiles"]), {
+            "instant", "short", "medium", "long", "very_long",
+        })
+
+    def test_composer_has_anti_repeat_and_payload_priority_guards(self):
+        self.assertIn("history.last_scene", self.feedback)
+        self.assertIn("history.last_security", self.feedback)
+        self.assertIn("history.last_line", self.feedback)
+        self.assertIn("durationProfileFor(config, elapsedMs)", self.feedback)
+        self.assertIn("this.clearTimers();\n            this.transition(\"completing\")", self.feedback)
+        self.assertIn(
+            'if (this.disposed || this.state !== "running") return;',
+            self.feedback,
+        )
+
+    def test_validator_rejects_cross_product_profile_and_html(self):
+        self.assertIn('Object.prototype.hasOwnProperty.call(profile, "security_keys")', self.feedback)
+        self.assertIn('Object.prototype.hasOwnProperty.call(profile, "interaction_types")', self.feedback)
+        self.assertIn("OFS invalid pair", self.feedback)
+        self.assertIn("OFS content must be plain text", self.feedback)
+
+    def test_composer_builds_varied_valid_scenes(self):
+        result = subprocess.run(
+            ["node", "tests/js/test_operation_feedback.js"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertIn("operation feedback composer OK", result.stdout)
 
 
 if __name__ == "__main__":

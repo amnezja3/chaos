@@ -6,8 +6,10 @@ Wersja kontraktu: `1.0.0`
 
 Data decyzji: `2026-08-09`
 
-Stan implementacji: rdzeń `130.8.6.1` istnieje jako domyślnie wyłączony spike
-`scan_ports`; nie jest to produkcyjny cutover ani zgoda na generalizację.
+Stan implementacji: rdzeń `130.8.6.1` i composer `130.8.6.2` istnieją jako
+domyślnie wyłączony spike `scan_ports`. Roboczy profil ma jawne mapowanie
+security/interactions, anti-repeat i adaptacyjne profile czasu; nie jest to
+produkcyjny cutover ani zgoda na generalizację.
 
 Dokument źródłowy: `doc/Operation_Feedback_System.md` — materiał burzowy,
 niebędący kontraktem implementacyjnym.

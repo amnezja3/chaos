@@ -1,0 +1,142 @@
+{
+  "schema_version": "1.0.0",
+  "content_version": "2026.08.09.2",
+  "defaults": {
+    "scene_delay_ms": [900, 1600],
+    "max_lines": 5
+  },
+  "duration_profiles": {
+    "instant": {"min_elapsed_ms": 0, "scene_pool": ["boot", "probe"]},
+    "short": {"min_elapsed_ms": 4000, "scene_pool": ["probe", "security_contact"]},
+    "medium": {"min_elapsed_ms": 15000, "scene_pool": ["security_contact", "verification"]},
+    "long": {"min_elapsed_ms": 40000, "scene_pool": ["security_contact", "verification", "payload_wait"]},
+    "very_long": {"min_elapsed_ms": 90000, "scene_pool": ["verification", "payload_wait"]}
+  },
+  "scene_library": {
+    "boot": {
+      "sequence": ["operation", "operation", "transition"],
+      "min_lines": 3,
+      "max_lines": 3,
+      "pause_ms": [700, 1100],
+      "transition": "replace",
+      "allow_choice": false,
+      "operation_lines": ["Inicjalizacja sondy portow.", "Budowanie lokalnego profilu skanu.", "Kalibracja kanalu rozpoznania."],
+      "transition_lines": ["Przejscie do aktywnej sondy.", "Trasa skanu gotowa."]
+    },
+    "probe": {
+      "sequence": ["operation", "security", "transition"],
+      "min_lines": 3,
+      "max_lines": 3,
+      "pause_ms": [850, 1350],
+      "transition": "replace",
+      "allow_choice": false,
+      "operation_lines": ["Wysylanie niskopoziomowej sondy.", "Sprawdzanie odpowiedzi uslug.", "Porownywanie sygnatur portow."],
+      "transition_lines": ["Weryfikacja odpowiedzi trwa.", "Sonda przechodzi do kolejnego zakresu."]
+    },
+    "security_contact": {
+      "sequence": ["operation", "security", "security", "transition"],
+      "min_lines": 3,
+      "max_lines": 4,
+      "pause_ms": [1000, 1550],
+      "transition": "replace",
+      "allow_choice": false,
+      "operation_lines": ["Wykryto warstwe kontroli ruchu.", "Analiza zabezpieczen celu.", "Sonda negocjuje bezpieczna trase."],
+      "transition_lines": ["Kontakt techniczny pozostaje aktywny.", "Odpowiedz przekazana do weryfikacji."]
+    },
+    "verification": {
+      "sequence": ["operation", "security", "transition"],
+      "min_lines": 3,
+      "max_lines": 3,
+      "pause_ms": [1100, 1700],
+      "transition": "replace",
+      "allow_choice": false,
+      "operation_lines": ["Porzadkowanie odpowiedzi skanera.", "Weryfikacja spojnosci sygnatur.", "Korelacja wykrytych uslug."],
+      "transition_lines": ["Oczekiwanie na potwierdzenie runtime.", "Wynik pozostaje niepotwierdzony."]
+    },
+    "payload_wait": {
+      "sequence": ["operation", "transition"],
+      "min_lines": 2,
+      "max_lines": 2,
+      "pause_ms": [1400, 2200],
+      "transition": "replace",
+      "allow_choice": false,
+      "operation_lines": ["Sesja skanu pozostaje aktywna.", "Runtime nadal przetwarza odpowiedz."],
+      "transition_lines": ["Brak potwierdzonego wyniku.", "Oczekiwanie bez zmiany stanu celu."]
+    }
+  },
+  "security_library": {
+    "scan_detection": {
+      "label": "detekcja skanu",
+      "interactions": {
+        "probe": ["Sonda testuje prog detekcji.", "Sygnatura skanu zostala rozpoznana lokalnie."],
+        "detect": ["Odpowiedz detektora zaobserwowana.", "Weryfikacja reakcji detektora trwa."]
+      }
+    },
+    "firewall": {
+      "label": "firewall",
+      "interactions": {
+        "probe": ["Sonda odpytuje reguly firewalla.", "Odczyt odpowiedzi filtra pakietow."],
+        "bypass": ["Proba obejscia filtra zostala uruchomiona.", "Alternatywny kanal jest sprawdzany."],
+        "route": ["Wybrano trase omijajaca filtr.", "Sonda przechodzi przez trase alternatywna."]
+      }
+    },
+    "firewall_core": {
+      "label": "rdzen firewalla",
+      "interactions": {
+        "probe": ["Sonda dotarla do rdzenia filtra.", "Sprawdzanie odpowiedzi rdzenia firewalla."],
+        "enumerate": ["Enumeracja regul rdzenia trwa.", "Katalogowanie sygnatur filtra rdzeniowego."]
+      }
+    },
+    "network_anomaly_detection": {
+      "label": "detekcja anomalii",
+      "interactions": {
+        "detect": ["Monitor anomalii zarejestrowal probe.", "Analiza reakcji monitora anomalii."],
+        "probe": ["Sonda mierzy prog anomalii sieciowej."]
+      }
+    },
+    "system_visibility": {
+      "label": "widocznosc systemu",
+      "interactions": {
+        "probe": ["Sprawdzanie zakresu widocznosci uslug.", "Sonda porownuje widoczne endpointy."]
+      }
+    },
+    "vpn_blocker": {
+      "label": "blokada VPN",
+      "interactions": {
+        "probe": ["Sonda sprawdza blokade tunelu.", "Odpowiedz blokady VPN zostala zaobserwowana."],
+        "route": ["Testowana jest trasa poza blokada VPN."]
+      }
+    }
+  },
+  "transport_library": {
+    "response_delayed": ["Odpowiedz runtime trwa dluzej niz zwykle."]
+  },
+  "choice_library": {},
+  "completion_library": {
+    "default": {"success": ["Runtime potwierdzil powodzenie."], "failure": ["Runtime zwrocil wynik operacji."]}
+  },
+  "failure_library": {
+    "default": ["Operacja nie zostala potwierdzona."]
+  },
+  "operations": {
+    "scan_ports": {
+      "action_key": "scan_ports",
+      "enabled": true,
+      "presentation_modes": ["button_choice"],
+      "default_presentation_mode": "button_choice",
+      "scene_pools": ["boot", "probe", "security_contact", "verification", "payload_wait"],
+      "security": {
+        "scan_detection": ["probe", "detect"],
+        "firewall": ["probe", "bypass", "route"],
+        "firewall_core": ["probe", "enumerate"],
+        "network_anomaly_detection": ["detect", "probe"],
+        "system_visibility": ["probe"],
+        "vpn_blocker": ["probe", "route"]
+      },
+      "choice_pools": [],
+      "presentation_state_schema": {},
+      "completion_pool": "default",
+      "failure_pool": "default"
+    }
+  }
+}

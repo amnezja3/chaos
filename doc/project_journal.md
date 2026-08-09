@@ -11144,3 +11144,21 @@ Walidacja 130.8.6.1: 7 nowych testów kontraktu OFS oraz 32 testy idempotencji
 hack-action zakończone `OK`; `py_compile` dla `config.py` i `run.py`, oba
 `node --check` oraz `git diff --check` również `OK`. Pozostaje wyłącznie warning
 konwersji CRLF/LF dla `static/css/style.css`.
+
+Zrealizowano sprint 130.8.6.2 dla wyłączonego domyślnie spike'a `scan_ports`.
+Dodano wersjonowany JSON z bibliotekami scen, security, completion/failure,
+minimalnym transportem i profilem operacji. Jawna macierz obejmuje sześć
+security i wyłącznie przypisane im interactions. Walidator odrzuca brakujące
+referencje, niezależne listy security/interactions, nieprawidłowe timingi,
+nieobsługiwane role oraz HTML.
+
+Composer korzysta z profili czasu opartych o realny elapsed time, dobiera sceny
+i techniczne warianty z anti-repeat `last_scene/last_security/last_line`.
+Payload i błąd czyszczą wszystkie timery; nierozwiązany loader oraz każdy
+callback sprawdzają stan sesji przed dotknięciem DOM. Content autora i wybory
+narracyjne pozostają zgodnie z planem w 130.8.6.3.
+
+Walidacja 130.8.6.2: 13 testów kontraktu i composera oraz 32 testy idempotencji
+hack-action zakończone `OK`. Deterministyczny test Node potwierdził co najmniej
+trzy różne sceny, anti-repeat i przejścia profili czasu. `py_compile`, oba
+`node --check` i `git diff --check` zakończone `OK`.

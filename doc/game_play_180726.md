@@ -17353,6 +17353,25 @@ Nie chodzi jeszcze o piękne treści.
 
 Chodzi o udowodnienie kompozycji.
 
+## Status realizacji — 2026-08-09
+
+Zrealizowano roboczy kontrakt `static/data/operation_feedback.v1.json` wyłącznie
+dla `scan_ports`. Plik zawiera wymagane biblioteki, pięć adaptacyjnych profili
+czasu, pięć rodzin scen i jawną macierz sześciu zabezpieczeń. Interakcje są
+wybierane dopiero po security; profil nie posiada niezależnych list tworzących
+przypadkowy iloczyn kombinacji.
+
+Session ładuje i waliduje profil asynchronicznie, a composer dobiera scenę,
+security, dozwoloną interaction, wariant tekstu i timing. Krótka historia
+`last_scene`, `last_security`, `last_line` ogranicza bezpośrednie powtórzenia.
+Brak aktywnego, znanego security prowadzi do neutralnej linii operacyjnej, nie
+do zgadywania stanu zabezpieczenia.
+
+Każdy callback schedulera pozostaje własnością sesji. Payload lub błąd najpierw
+czyści timery i zmienia stan, a nierozwiązany loader i callbacki sprawdzają stan
+przed renderem. Biblioteka transportowa nie jest losowana; w tym sprincie służy
+wyłącznie jako przygotowany kontrakt dla prawdziwych sygnałów runtime.
+
 ---
 
 # Sprint 130.8.6.3 — Interactive scan_ports + Presentation State + GO/REVISE
