@@ -65,6 +65,8 @@ FLASK_SESSION_CONFIG = {
 
 
 PERF_LOG_ENDPOINTS = {
+    "/desktop",
+    "/api/profile",
     "/api/operations",
     "/api/map/player-areas",
     "/api/map/player-actors",

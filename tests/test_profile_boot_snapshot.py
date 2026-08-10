@@ -14,6 +14,7 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
 
         self.assertIn("rebuild_territory=False", endpoint)
         self.assertIn("persist_normalization=False", endpoint)
+        self.assertIn("cache_in_session=False", endpoint)
         self.assertNotIn("rebuild_player_areas_with_territory_delta", endpoint)
         self.assertNotIn("refresh_and_persist_operations", endpoint)
         self.assertIn("player_operation_store.list_operations", endpoint)
@@ -24,10 +25,27 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         end = self.source.index("def require_dev_admin", start)
         endpoint = self.source[start:end]
 
-        self.assertIn("rebuild_territory=False", endpoint)
-        self.assertIn("persist_normalization=False", endpoint)
+        self.assertIn('session.pop("profile", None)', endpoint)
+        self.assertIn("user_store.username_exists(user)", endpoint)
+        self.assertNotIn("sync_session_profile", endpoint)
         self.assertNotIn("rebuild_player_areas_with_territory_delta", endpoint)
         self.assertIn("redirect_missing_profile_to_login", endpoint)
+
+    def test_desktop_template_does_not_receive_full_profile(self):
+        start = self.source.index('@app.route("/desktop")')
+        end = self.source.index("def require_dev_admin", start)
+        endpoint = self.source[start:end]
+
+        self.assertNotIn("inventory=", endpoint)
+        self.assertNotIn("profile=profile", endpoint)
+
+    def test_lightweight_sync_can_skip_filesystem_session_cache(self):
+        start = self.source.index("def sync_session_profile")
+        end = self.source.index("def merge_captured_targets_into_profile", start)
+        helper = self.source[start:end]
+
+        self.assertIn("cache_in_session=True", helper)
+        self.assertGreaterEqual(helper.count("if cache_in_session:"), 2)
 
     def test_login_redirect_does_not_load_or_copy_full_profile(self):
         start = self.source.index('@app.route("/", methods=["GET", "POST"])')

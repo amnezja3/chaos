@@ -15946,7 +15946,7 @@ def redirect_missing_profile_to_login():
     return redirect(url_for("index"))
 
 
-def sync_session_profile(rebuild_territory=True, persist_normalization=True):
+def sync_session_profile(rebuild_territory=True, persist_normalization=True, cache_in_session=True):
     username = session.get("user")
     if not username:
         return None
@@ -15973,7 +15973,8 @@ def sync_session_profile(rebuild_territory=True, persist_normalization=True):
                 "googleplex_products": profile.get("googleplex_products", []),
                 "product_purchases": profile.get("product_purchases", []),
             })
-        session["profile"] = profile
+        if cache_in_session:
+            session["profile"] = profile
         return profile
 
     try:
@@ -16023,7 +16024,8 @@ def sync_session_profile(rebuild_territory=True, persist_normalization=True):
         "product_purchases": profile.get("product_purchases", []),
     })
     notify_encircled_area_owners()
-    session["profile"] = profile
+    if cache_in_session:
+        session["profile"] = profile
     return profile
 
 
@@ -16334,17 +16336,16 @@ def desktop():
     if not user:
         return redirect(url_for("index"))
 
-    profile = sync_session_profile(
-        rebuild_territory=False,
-        persist_normalization=False,
-    )
-    if not isinstance(profile, dict):
+    # Desktop HTML only mounts the shell; the browser obtains the authoritative
+    # profile once from /api/profile after the preloader is visible. Keeping a
+    # full profile in the filesystem session made this response serialize the
+    # largest player payload before any boot UI could be shown.
+    session.pop("profile", None)
+    if not user_store.username_exists(user):
         return redirect_missing_profile_to_login()
     return render_template(
         "linux.html",
         user=user,
-        inventory=profile["inventory"],
-        profile=profile,
         operation_feedback_flags=OPERATION_FEEDBACK_FLAGS,
         provisional_app_launch_flags={"enabled": PROVISIONAL_APP_LAUNCH_ENABLED},
     )
@@ -19143,6 +19144,7 @@ def api_profile():
     profile = sync_session_profile(
         rebuild_territory=False,
         persist_normalization=False,
+        cache_in_session=False,
     )
     if not isinstance(profile, dict):
         session.clear()
