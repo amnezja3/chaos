@@ -269,6 +269,23 @@ class CybernerCutoverMigrationTest(unittest.TestCase):
         self.assertIn(("carol", "clan", "red", 1), [tuple(row) for row in cursors])
         self.assertIn(("bob", "clan", "blue", 0), [tuple(row) for row in cursors])
 
+    def test_cutover_dry_run_reports_005_dependency_without_writing_schema(self):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute("DROP TABLE cyberner_channel_cursors")
+            conn.execute("DROP TABLE cyberner_clan_messages")
+            conn.execute("DROP TABLE cyberner_world_messages")
+            result = self.migration_006.migrate(conn, apply=False)
+            tables = {
+                row[0] for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+
+        self.assertEqual(result["status"], "ready_after_005")
+        self.assertEqual(result["prerequisite"], "005")
+        self.assertNotIn("cyberner_world_messages", tables)
+
 
 if __name__ == "__main__":
     unittest.main()

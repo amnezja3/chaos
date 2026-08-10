@@ -11405,3 +11405,7 @@ spójności legacy/shared, izolację awarii kanału w bootstrapie, lekki preview
 `WORLD`, test równoległych zapisów oraz runbook wdrożenia i rollbacku. Legacy
 `chat_messages` pozostaje nienaruszone; produkcyjna migracja i przełączenie flag
 pozostają świadomą operacją operatora.
+
+Hotfix dry-run: migracja `006` raportuje teraz `ready_after_005`, gdy podczas
+bez-zapisowego planowania nie istnieją jeszcze tabele tworzone przez `005`.
+Tryb `--apply` nadal twardo wymaga wykonanej wcześniej migracji `005`.

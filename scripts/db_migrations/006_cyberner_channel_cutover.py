@@ -74,6 +74,24 @@ def migrate(conn, apply=False):
     }
     missing_tables = sorted(name for name in required if not _table_exists(conn, name))
     if missing_tables:
+        if not apply:
+            # In a full dry-run migration 005 is inspected immediately before
+            # this migration, but it intentionally performs no schema writes.
+            # Report the dependency instead of making the read-only plan fail.
+            return {
+                "prerequisite": "005",
+                "prerequisite_tables_missing": missing_tables,
+                "legacy_clan_rows_scanned": len(conn.execute(
+                    "SELECT id FROM chat_messages "
+                    "WHERE scope='channel' AND peer_name LIKE 'clan:%'"
+                ).fetchall()) if _table_exists(conn, "chat_messages") else 0,
+                "canonical_clan_messages": None,
+                "clan_messages_to_insert": None,
+                "cursor_users": None,
+                "cursor_policy": "migrated_history_read",
+                "write_mode": False,
+                "status": "ready_after_005",
+            }
         raise RuntimeError(f"Migration 005 must run first; missing: {', '.join(missing_tables)}")
 
     candidates = _legacy_clan_candidates(conn)
