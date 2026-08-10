@@ -11329,3 +11329,9 @@ profilu między kolejnymi odświeżeniami.
 - `set_player_aimed_target()` zachowuje projekcję legacy (`aimed_target`, kolejka aplikacji, operacje i risk events), ale zapisuje już załadowany profil bez cyklu `UserProfileManager`; tryb `append/clear` kolejki pozostaje jawnie przekazywany do `UserStore`.
 - `/hack-action` nie tworzy już `UserProfileManager` tylko po to, aby usunąć wybrany punkt z `targets`; filtr wykonuje się na profilu w pamięci przed pojedynczym zapisem.
 - Dodano regresję potwierdzającą zapis targetu i semantykę `launch_queue=append` bez uruchamiania ciężkiego managera.
+
+## OFS: desktop, Menu Start i terminal
+
+- Uzupełniono wspólny launch context o rozpoznawanie `action_key` bezpośrednio z kontraktu aplikacji (`map_actions`), gdy launch nie pochodzi z mapowej kolejki i nie posiada `_map_action_id`.
+- Ikony desktopu/Menu Start oraz oba wejścia terminalowe przekazują teraz jawne źródło launchu i korzystają ze wspólnego adaptera. Dzięki temu wykonawczy request `/gonna-win` uruchamia OFS zamiast starego migającego wait logu także poza mapowym pickerem.
+- CAS przejęcia celu traktuje spóźnione, odrębne potwierdzenie tego samego zwycięzcy jako idempotentny sukces. Prawdziwy wyścig wygrany przez innego gracza nadal zwraca `target_state_changed`/409.

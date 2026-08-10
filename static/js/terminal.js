@@ -1954,6 +1954,27 @@ function hydrateProvisionalApplicationSession(session, appData, item = {}) {
     }
 }
 
+function resolveApplicationFeedbackAction(appData = {}) {
+    const explicit = String(
+        appData._map_action_id ||
+        appData.map_action_id ||
+        appData.action_key ||
+        ""
+    ).trim();
+    if (explicit) return explicit;
+    const mapActions = Array.isArray(appData.map_actions) ? appData.map_actions : [];
+    return String(mapActions.find(Boolean) || "").trim();
+}
+
+function launchApplicationFromEntry(appData = {}, source = "desktop_menu") {
+    const launchData = {
+        ...appData,
+        _source: String(appData._source || source || "desktop_menu").trim(),
+        _map_action_id: resolveApplicationFeedbackAction(appData)
+    };
+    return launchApplicationEffect(launchData);
+}
+
 function buildApplicationLaunchContext(appData = {}) {
     const flowId = getCurrentAppFlowId(appData._flow_id || appData.flow_id || appData.debug_flow?.flow_id || "");
     const appId = String(appData.id || appData.app_id || "").trim();
@@ -1974,12 +1995,7 @@ function buildApplicationLaunchContext(appData = {}) {
         label: aimedTarget.label || aimedTarget.display_label || aimedTarget.name || aimedTarget.title || "",
         target_mode: aimedTarget.target_mode || ""
     } : null;
-    const actionKey = String(
-        appData._map_action_id ||
-        appData.map_action_id ||
-        appData.action_key ||
-        ""
-    ).trim();
+    const actionKey = resolveApplicationFeedbackAction(appData);
     const targetMatchesLaunch = Boolean(
         expectedTarget && toolbarTargetMatchesCaptured(aimedTarget, expectedTarget)
     );
@@ -2189,7 +2205,7 @@ async function buildIconsFromJsonWithCommand(jsonData) {
         const name = app.name;
 
         try {
-            const action = () => launchApplicationEffect(app);
+            const action = () => launchApplicationFromEntry(app, "desktop_menu");
             icons.push({
                 icon: getLauncherAppIcon(app),
                 label: name,
@@ -2456,7 +2472,7 @@ function attachTerminalInputHandler(input, content) {
                 content.appendChild(conDiv);
 
                 // 👇 Uruchom aplikację
-                launchApplicationEffect(app);
+                launchApplicationFromEntry(app, "terminal");
             }
 
             // 👇 Dopiero teraz tworzysz nową linię terminala
@@ -2827,7 +2843,7 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
                 appendSystemTerminalOutput(content, consoleEffect.replace(/\n/g, "<br>"), "system-terminal-console-effect");
             }
 
-            launchApplicationEffect(app);
+            launchApplicationFromEntry(app, "terminal");
         }
 
         return true;

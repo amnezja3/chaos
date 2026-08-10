@@ -2535,6 +2535,41 @@ class TerritoryTargetOwnershipStore:
 
             current_owner = str(current["owner_username"] or "")
             current_version = int(current["ownership_version"] or 0)
+            if current_owner == attacker_username:
+                # A late final application step may arrive after an earlier
+                # request from the same attacker already committed capture.
+                # This is an idempotent success, not a multi-attacker CAS loss.
+                set_seed = f"{target_id}|{current_version}"
+                set_id = "territory_reconcile_" + hashlib.sha1(
+                    set_seed.encode("utf-8")
+                ).hexdigest()[:20]
+                current_target = loads_json(current["target_json"], normalized)
+                payload = {
+                    "ok": True,
+                    "result": self.RESULT_CAPTURED,
+                    "target_id": target_id,
+                    "current_owner_username": current_owner,
+                    "ownership_version": current_version,
+                    "winner_username": current_owner,
+                    "set_id": set_id,
+                    "target": current_target,
+                    "duplicate": True,
+                }
+                conn.execute(
+                    """
+                    INSERT INTO territory_target_capture_receipts
+                        (action_id, target_id, attacker_username,
+                         expected_owner_username, expected_version, result,
+                         winner_username, ownership_version, set_id, payload_json,
+                         created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (action_id, target_id, attacker_username, expected_owner_username,
+                     int(expected_version) if expected_version not in (None, "") else None,
+                     self.RESULT_CAPTURED, current_owner, current_version, set_id,
+                     dumps_json(payload), now, now),
+                )
+                return payload
             version_matches = expected_version in (None, "") or int(expected_version) == current_version
             owner_matches = current_owner == expected_owner_username
             if not owner_matches or not version_matches:

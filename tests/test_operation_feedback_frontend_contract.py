@@ -130,6 +130,23 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         )
         self.assertIn("appData._map_action_id = item.action", self.terminal)
 
+    def test_desktop_menu_and_terminal_resolve_feedback_action_from_app_contract(self):
+        resolver = self.function_source(
+            "function resolveApplicationFeedbackAction",
+            "function buildApplicationLaunchContext",
+        )
+        context = self.function_source(
+            "function buildApplicationLaunchContext",
+            "function currentApplicationLaunchContext",
+        )
+        self.assertIn("appData.map_actions", resolver)
+        self.assertIn("resolveApplicationFeedbackAction(appData)", context)
+        self.assertIn('launchApplicationFromEntry(app, "desktop_menu")', self.terminal)
+        self.assertEqual(
+            self.terminal.count('launchApplicationFromEntry(app, "terminal")'),
+            2,
+        )
+
     def test_scan_ports_profile_has_required_mvp_libraries(self):
         required = {
             "defaults", "duration_profiles", "provisional_timelines",

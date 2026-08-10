@@ -79,6 +79,26 @@ class TerritoryMultiCaptureTests(unittest.TestCase):
         self.assertEqual(first["set_id"], replay["set_id"])
         self.assertEqual(2, self.store.get(self.target["target_id"])["ownership_version"])
 
+    def test_late_distinct_action_from_same_winner_is_idempotent_success(self):
+        first = self.store.capture(
+            "action:first", self.target["target_id"], "alice", "defender", self.target,
+            conflict_ids=["conflict:a"],
+        )
+        late = self.store.capture(
+            "action:late", self.target["target_id"], "alice", "defender", self.target,
+            expected_version=1,
+            conflict_ids=["conflict:a"],
+        )
+
+        self.assertEqual("captured", late["result"])
+        self.assertTrue(late["duplicate"])
+        self.assertEqual("alice", late["winner_username"])
+        self.assertEqual(first["set_id"], late["set_id"])
+        self.assertEqual(2, self.store.get(self.target["target_id"])["ownership_version"])
+        self.assertEqual(late["set_id"], self.store.capture(
+            "action:late", self.target["target_id"], "alice", "defender", self.target,
+        )["set_id"])
+
     def test_stale_version_is_rejected_without_new_reconciliation_set(self):
         first = self.store.capture(
             "action:one", self.target["target_id"], "alice", "defender", self.target,
