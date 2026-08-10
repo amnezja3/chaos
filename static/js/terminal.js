@@ -1895,6 +1895,10 @@ function consumeProvisionalHydrationWindow(id, type) {
     app.className = "app-window";
     app.style.removeProperty("width");
     app.style.removeProperty("max-width");
+    // The authoritative renderer replaces the provisional title bar. Its old
+    // drag listener disappears with that DOM node, so allow the new handle to
+    // be bound after hydration.
+    delete app.dataset.draggableBound;
     app.dataset.appInterface = type;
     app.dataset.provisionalState = "hydrating";
     return app;
@@ -1930,7 +1934,7 @@ function prepareApplicationRenderWindow(id, type) {
 
 function finishApplicationRenderWindow(app, hydrated) {
     if (!app.isConnected) document.body.appendChild(app);
-    if (!hydrated) makeDraggable(app);
+    makeDraggable(app);
     const session = app._provisionalApplicationSession;
     if (session && !session.disposed) {
         updateProvisionalApplicationSession(session, "presenting", "Ladowanie zawartosci aplikacji...");

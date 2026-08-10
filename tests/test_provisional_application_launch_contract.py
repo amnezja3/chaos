@@ -88,6 +88,19 @@ class ProvisionalApplicationLaunchContractTest(unittest.TestCase):
         for interface in ("window", "progressbar_random", "terminal", "button_choices"):
             self.assertIn(f'prepareApplicationRenderWindow(id, "{interface}")', self.terminal)
 
+    def test_hydration_rebinds_drag_handle_replaced_by_authoritative_renderer(self):
+        consume = self.function_source(
+            "function consumeProvisionalHydrationWindow",
+            "function beginApplicationRenderLaunch",
+        )
+        finish = self.function_source(
+            "function finishApplicationRenderWindow",
+            "function hydrateProvisionalApplicationSession",
+        )
+        self.assertIn("delete app.dataset.draggableBound", consume)
+        self.assertIn("makeDraggable(app)", finish)
+        self.assertNotIn("if (!hydrated) makeDraggable(app)", finish)
+
     def test_receipt_client_key_and_tombstone_protect_parallel_and_late_launches(self):
         resolver = self.function_source(
             "function provisionalSessionMatchesLaunch",
