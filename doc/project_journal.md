@@ -11337,3 +11337,8 @@ profilu między kolejnymi odświeżeniami.
 - CAS przejęcia celu traktuje spóźnione, odrębne potwierdzenie tego samego zwycięzcy jako idempotentny sukces. Prawdziwy wyścig wygrany przez innego gracza nadal zwraca `target_state_changed`/409.
 - Renderer OFS nie korzysta już z `String.prototype.replaceAll`; etykiety scen używają składni zgodnej ze starszym Node uruchamiającym serwerowy test composera.
 - Test composera OFS nie korzysta z `Array.prototype.at()`, którego nie obsługuje wersja Node dostępna na serwerze produkcyjnym.
+
+## Login bez podwójnego ładowania profilu
+
+- Usunięto `set_profile_session()` z POST logowania i finalizacji rejestracji. Funkcja przed redirectem tworzyła `UserProfileManager`, wykonywała `list_profiles()`, synchronizację template'u oraz pełne kopie dużych profili.
+- Po uwierzytelnieniu sesja zapisuje wyłącznie `user` i czyści starą projekcję `profile`. Aktualny, read-only snapshot jest pobierany jeden raz przez `/desktop`, bez rebuildu terytorium i bez zapisu normalizacji.

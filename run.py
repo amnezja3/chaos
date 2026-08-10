@@ -16053,17 +16053,6 @@ def merge_captured_targets_into_profile(username, profile):
     profile["captured_targets_source"] = "sqlite"
     return True
 
-def set_profile_session():
-    username = session.get("user")
-    if not username:
-        return None
-
-    mgr = UserProfileManager(username)
-    profile = mgr.get_profile(strip_sensitive=True)
-    session["profile"] = profile
-
-
-
 def get_apps_for_action(apps, action):
     def has_any(value_list, keywords):
         return any(v in value_list for v in keywords)
@@ -16196,7 +16185,11 @@ def index():
 
         if authenticate_user(username, password):
             session["user"] = username
-            set_profile_session()
+            # /desktop loads the current read-only boot snapshot immediately
+            # after this redirect. Do not construct UserProfileManager here:
+            # it scans, normalizes and deep-copies all large player profiles
+            # before the browser can even display the desktop preloader.
+            session.pop("profile", None)
             return redirect(url_for("desktop"))
 
         return render_template("login.html", error="❌ Nieprawidłowe dane logowania")
@@ -16324,7 +16317,7 @@ def api_register_finalize():
         })
 
         session["user"] = username
-        set_profile_session()
+        session.pop("profile", None)
         return jsonify(success=True, redirect="/desktop")
 
     except Exception as e:

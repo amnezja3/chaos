@@ -29,6 +29,17 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         self.assertNotIn("rebuild_player_areas_with_territory_delta", endpoint)
         self.assertIn("redirect_missing_profile_to_login", endpoint)
 
+    def test_login_redirect_does_not_load_or_copy_full_profile(self):
+        start = self.source.index('@app.route("/", methods=["GET", "POST"])')
+        end = self.source.index('@app.route("/register")', start)
+        endpoint = self.source[start:end]
+
+        self.assertIn('session["user"] = username', endpoint)
+        self.assertIn('session.pop("profile", None)', endpoint)
+        self.assertNotIn("UserProfileManager", endpoint)
+        self.assertNotIn("sync_session_profile", endpoint)
+        self.assertNotIn("set_profile_session", endpoint)
+
     def test_frontend_coalesces_concurrent_profile_requests(self):
         terminal = Path("static/js/terminal.js").read_text(encoding="utf-8")
         declaration = terminal.index("let userProfileRequestPromise = null")
