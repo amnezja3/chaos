@@ -16186,8 +16186,8 @@ def index():
         if authenticate_user(username, password):
             session["user"] = username
             # /desktop loads the current read-only boot snapshot immediately
-            # after this redirect. Do not construct UserProfileManager here:
-            # it scans, normalizes and deep-copies all large player profiles
+            # after this redirect. Do not construct the legacy profile manager
+            # here: it scans, normalizes and deep-copies all large player profiles
             # before the browser can even display the desktop preloader.
             session.pop("profile", None)
             return redirect(url_for("desktop"))
