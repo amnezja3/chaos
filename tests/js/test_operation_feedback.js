@@ -343,7 +343,10 @@ assert.strictEqual(ofs.isEnabled("scan_ports", {enabled: true, enabled_actions: 
 
 const provisionalTimeline = config.provisional_timelines.launch_150s;
 assert.strictEqual(provisionalTimeline.stages[0].start_after_ms, 0);
-assert.strictEqual(provisionalTimeline.stages.at(-1).start_after_ms, 150000);
+assert.strictEqual(
+    provisionalTimeline.stages[provisionalTimeline.stages.length - 1].start_after_ms,
+    150000
+);
 assert.strictEqual(provisionalTimeline.stages.length, 15);
 const provisionalProfile = config.operations.scan_ports;
 const provisionalContext = {
@@ -359,7 +362,7 @@ const firstProvisional = ofs.composeProvisionalScene({
 });
 assert.ok(firstProvisional.lines.some(line => line.includes("Port Sentinel")));
 assert.ok(!firstProvisional.lines.some(line => /undefined/.test(line)));
-const extendedStage = provisionalTimeline.stages.at(-1);
+const extendedStage = provisionalTimeline.stages[provisionalTimeline.stages.length - 1];
 const extendedA = ofs.composeProvisionalScene({
     config, profile: provisionalProfile, stage: extendedStage,
     context: provisionalContext, history: {}, random: () => 0

@@ -11336,3 +11336,4 @@ profilu między kolejnymi odświeżeniami.
 - Ikony desktopu/Menu Start oraz oba wejścia terminalowe przekazują teraz jawne źródło launchu i korzystają ze wspólnego adaptera. Dzięki temu wykonawczy request `/gonna-win` uruchamia OFS zamiast starego migającego wait logu także poza mapowym pickerem.
 - CAS przejęcia celu traktuje spóźnione, odrębne potwierdzenie tego samego zwycięzcy jako idempotentny sukces. Prawdziwy wyścig wygrany przez innego gracza nadal zwraca `target_state_changed`/409.
 - Renderer OFS nie korzysta już z `String.prototype.replaceAll`; etykiety scen używają składni zgodnej ze starszym Node uruchamiającym serwerowy test composera.
+- Test composera OFS nie korzysta z `Array.prototype.at()`, którego nie obsługuje wersja Node dostępna na serwerze produkcyjnym.
