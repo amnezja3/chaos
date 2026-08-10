@@ -2441,6 +2441,11 @@ function attachTerminalInputHandler(input, content) {
                 return;
             }
 
+            if (data.terminalGeolocationRequest) {
+                await handleTerminalGeolocationRequest(content, data.terminalGeolocationRequest);
+                return;
+            }
+
             if (data.closeTerminal) {
                 setTimeout(() => {
                     content.closest('.terminal')?.remove();
@@ -2742,6 +2747,62 @@ async function handleTerminalTeleport(content, teleport) {
     return true;
 }
 
+function terminalGeolocationErrorMessage(error) {
+    const code = Number(error?.code);
+    if (code === 1) {
+        return "Lokalizacja odrzucona. Zezwol na dostep w ustawieniach witryny i ponow komende.";
+    }
+    if (code === 2) {
+        return "Nie mozna ustalic aktualnej lokalizacji urzadzenia.";
+    }
+    if (code === 3) {
+        return "Uplynal limit czasu pobierania lokalizacji. Sprobuj ponownie.";
+    }
+    return "Pobranie lokalizacji urzadzenia nie powiodlo sie.";
+}
+
+async function handleTerminalGeolocationRequest(content, request = {}) {
+    if (request?.purpose !== "teleport") {
+        appendSystemTerminalOutput(content, "Nieobslugiwane zadanie lokalizacji terminala.");
+        return false;
+    }
+    if (!window.isSecureContext || !navigator.geolocation) {
+        appendSystemTerminalOutput(
+            content,
+            "Geolokalizacja jest niedostepna. Wymagane jest bezpieczne polaczenie HTTPS i obsluga lokalizacji w przegladarce."
+        );
+        return false;
+    }
+
+    appendSystemTerminalOutput(content, "Czekam na zgode przegladarki i aktualna lokalizacje...");
+    let position;
+    try {
+        position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 30000
+            });
+        });
+    } catch (error) {
+        appendSystemTerminalOutput(content, terminalGeolocationErrorMessage(error));
+        return false;
+    }
+
+    const lat = Number(position?.coords?.latitude);
+    const lng = Number(position?.coords?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        appendSystemTerminalOutput(content, "Przegladarka nie zwrocila poprawnych wspolrzednych.");
+        return false;
+    }
+    const accuracy = Number(position?.coords?.accuracy);
+    const label = request?.label || "Aktualna lokalizacja urzadzenia";
+    if (Number.isFinite(accuracy)) {
+        appendSystemTerminalOutput(content, `Lokalizacja pobrana (dokladnosc ok. ${Math.round(accuracy)} m).`);
+    }
+    return handleTerminalTeleport(content, { lat, lng, label, accuracy });
+}
+
 async function executeSystemTerminalCommand(value, input, content, { echo = true } = {}) {
     if (echo) {
         appendSystemTerminalCommand(content, value);
@@ -2812,6 +2873,11 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
         if (data.terminalTeleport) {
             stopLoader();
             return await handleTerminalTeleport(content, data.terminalTeleport);
+        }
+
+        if (data.terminalGeolocationRequest) {
+            stopLoader();
+            return await handleTerminalGeolocationRequest(content, data.terminalGeolocationRequest);
         }
 
         if (data.closeTerminal) {

@@ -208,6 +208,8 @@ def _format_help():
         "  log [system|ghost|market] show recent logs",
         "  apps                 list installed apps",
         "  map/browser/files/profile/settings open system apps",
+        "  teleport <lat:lon>   teleport to coordinates",
+        "  teleport cur:loc     teleport to device location",
         "",
         "Network:",
         "  ip / ipa / ip a      show pseudo interface state",
@@ -446,7 +448,15 @@ def _builtin_command(tokens, original_text, profile):
     if cmd == "teleport":
         coord_arg = original_text.partition(" ")[2].strip()
         if not coord_arg:
-            return {"response": "usage: teleport <lat:lon>"}
+            return {"response": "usage: teleport <lat:lon|cur:loc>"}
+        if coord_arg.lower() == "cur:loc":
+            return {
+                "terminalGeolocationRequest": {
+                    "purpose": "teleport",
+                    "label": "Aktualna lokalizacja urzadzenia",
+                },
+                "response": "Oczekiwanie na zgode dostepu do lokalizacji...",
+            }
         match = COORDINATE_PAIR_RE.match(coord_arg)
         if not match:
             return {"response": "teleport: podaj wspolrzedne w formacie lat:lon, np. teleport 52.2297:21.0122"}

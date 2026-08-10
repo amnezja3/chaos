@@ -17157,6 +17157,12 @@ def command():
             "terminalTeleport": result.get("terminalTeleport"),
         })
 
+    if result.get("terminalGeolocationRequest"):
+        return jsonify({
+            "response": result.get("response", "Oczekiwanie na lokalizacje urzadzenia."),
+            "terminalGeolocationRequest": result.get("terminalGeolocationRequest"),
+        })
+
     if result.get("confirm_userdel"):
         username_to_delete = result["confirm_userdel"]
         return jsonify({
