@@ -3314,7 +3314,9 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
             appId,
             flowId: context.flow_id,
             launchReceipt: context.launch_receipt,
-            rendererHost: appWindow?.querySelector?.('.app-content') || null,
+            rendererHost: appWindow?.querySelector?.('.operation-feedback-host')
+                || appWindow?.querySelector?.('.app-content')
+                || null,
             appWindow,
             securityState: context.security_state,
             applicationContent: context.application_content,
@@ -4385,6 +4387,7 @@ async function app_progressbar_random(id, levels) {
                 <div class="progress-fill" style="background: #0f0; height: 100%; width: 0%; transition: width 0.2s;"></div>
             </div>
             <div class="result-msg" style="margin-top: 10px; font-weight: bold;"></div>
+            <div class="operation-feedback-host"></div>
         </div>
     `;
     finishApplicationRenderWindow(app, hydrated);
@@ -4440,29 +4443,10 @@ async function app_progressbar_random(id, levels) {
     }
 
 
-    const feedbackContext = currentApplicationLaunchContext(app);
-    const feedbackEnabled = Boolean(
-        window.OperationFeedbackSystem
-        && window.OperationFeedbackSystem.isEnabled(feedbackContext.action_key)
-    );
-    if (feedbackEnabled) {
-        result.textContent = "Oczekiwanie na potwierdzenie runtime...";
-        result.style.color = "#9cff1a";
-        notifyGonnaWin(id, app, { legacyWait: false }).then(success => {
-            const runtimeResult = app && app._lastGonnaWinResult;
-            const staleTarget = runtimeResult && runtimeResult.blocked
-                && runtimeResult.reason === 'invalid_target';
-            result.textContent = success
-                ? (level.result_success || "Operacja zako\u0144czona.")
-                : (staleTarget
-                    ? "Cel zmieni\u0142 si\u0119 przed potwierdzeniem. Od\u015bwie\u017c cel i uruchom aplikacj\u0119 ponownie."
-                    : (level.result_failure || "Operacja nie powiod\u0142a si\u0119."));
-            result.style.color = success ? "#0f0" : (staleTarget ? "#ffcc33" : "#f33");
-            if (success) scheduleOperationalAppAutoClose(app);
-        });
-    } else {
-        runNextStep();
-    }
+    // The application's authored progress is part of its interface contract.
+    // OFS augments the final backend request in a separate viewport and must
+    // not skip or replace these steps.
+    runNextStep();
 }
 
 async function notifyGonnaWin(appId, appWindow = null, { legacyWait = false } = {}) {
@@ -12324,6 +12308,17 @@ async function selectMapActionTool(appId) {
         } catch (error) {
             console.warn("[app launch] Nie udalo sie utworzyc provisional window", error);
             provisionalSession = null;
+        }
+        if (provisionalSession?.appWindow?.isConnected) {
+            // The provisional window has taken over presentation. Keep the
+            // selection object alive for the request, but remove the picker
+            // immediately instead of leaving two competing launch windows.
+            closeMapToolPicker(false);
+            appFlowTrace(flowId, "tool_picker_closed_on_provisional", {
+                app_id: app.id,
+                app_name: app.name,
+                session_key: provisionalSession.sessionKey
+            });
         }
         notifyOpenMapsHackActionStarted(flowId, {
             ...selection.pending_action,

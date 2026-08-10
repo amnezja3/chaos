@@ -117,11 +117,15 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("feedback.fail", notify)
         self.assertIn("feedback.fail", choice)
 
-    def test_progressbar_keeps_legacy_path_when_feedback_is_off(self):
+    def test_progressbar_keeps_authored_steps_and_separate_feedback_viewport(self):
         progress = self.function_source("async function app_progressbar_random", "async function notifyGonnaWin")
-        self.assertIn("if (feedbackEnabled)", progress)
         self.assertIn("runNextStep();", progress)
-        self.assertIn("OperationFeedbackSystem.isEnabled(feedbackContext.action_key)", progress)
+        self.assertIn('class="operation-feedback-host"', progress)
+        feedback = self.function_source(
+            "function beginOperationFeedbackRequest",
+            "function startLegacyAppWaitUnlessFeedbackEnabled",
+        )
+        self.assertIn("querySelector?.('.operation-feedback-host')", feedback)
 
     def test_launch_queue_preserves_map_action_for_feedback_profile(self):
         self.assertIn(

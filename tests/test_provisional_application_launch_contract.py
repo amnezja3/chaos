@@ -51,6 +51,18 @@ class ProvisionalApplicationLaunchContractTest(unittest.TestCase):
             "function closeMapToolPicker",
         )
         self.assertLess(source.index("beginProvisionalLaunch(selection, app)"), source.index("fetch('/hack-action'"))
+
+    def test_tool_picker_closes_when_provisional_window_takes_over(self):
+        source = self.function_source(
+            "async function selectMapActionTool",
+            "function closeMapToolPicker",
+        )
+        created = source.index("provisionalSession = beginProvisionalLaunch(selection, app)")
+        closed = source.index("closeMapToolPicker(false)", created)
+        request = source.index("fetch('/hack-action'", created)
+        self.assertLess(created, closed)
+        self.assertLess(closed, request)
+        self.assertIn("provisionalSession?.appWindow?.isConnected", source)
         self.assertIn("selected_app_id: app.id", source)
         self.assertIn("updateProvisionalApplicationSession", source)
 
