@@ -11409,3 +11409,7 @@ pozostają świadomą operacją operatora.
 Hotfix dry-run: migracja `006` raportuje teraz `ready_after_005`, gdy podczas
 bez-zapisowego planowania nie istnieją jeszcze tabele tworzone przez `005`.
 Tryb `--apply` nadal twardo wymaga wykonanej wcześniej migracji `005`.
+
+Runner migracji otrzymał selektor `--only`. Cutover Cybernera wykonuje wyłącznie
+`005,006`, dzięki czemu oczekujące migracje profili `002`–`004` nie zostaną
+przypadkowo zastosowane podczas dzisiejszego wdrożenia.

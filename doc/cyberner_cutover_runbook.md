@@ -28,8 +28,12 @@ Migracje są addytywne i nie usuwają tabeli `chat_messages` ani danych legacy.
 5. Uruchomić migracje:
 
    ```bash
-   ./.venv/bin/python scripts/db_migrations/run_migrations.py --db data/game.sqlite3 --apply
+   ./.venv/bin/python scripts/db_migrations/run_migrations.py --db data/game.sqlite3 --only 005,006 --apply
    ```
+
+   Produkcyjny cutover Cybernera używa `--only 005,006`. Nie wolno przy okazji
+   zastosować starszych, oczekujących migracji profili `002`–`004` bez ich
+   osobnego audytu.
 
 6. Zweryfikować read modele i cursory:
 

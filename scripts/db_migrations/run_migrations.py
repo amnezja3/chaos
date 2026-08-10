@@ -93,7 +93,8 @@ def record_migration(conn, module, path, notes=""):
     )
 
 
-def run(db_path, migrations_dir, apply=False):
+def run(db_path, migrations_dir, apply=False, only_ids=None):
+    only_ids = {str(item).strip() for item in (only_ids or []) if str(item).strip()}
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         ensure_schema_migrations(conn)
@@ -101,6 +102,8 @@ def run(db_path, migrations_dir, apply=False):
         results = []
         for path in migration_files(migrations_dir):
             module = load_migration(path)
+            if only_ids and str(module.MIGRATION_ID) not in only_ids:
+                continue
             already = module.MIGRATION_ID in applied
             result = {
                 "id": module.MIGRATION_ID,
@@ -127,14 +130,35 @@ def main():
     parser.add_argument("--db", default="data/game.sqlite3", help="SQLite database path.")
     parser.add_argument("--migrations-dir", default="scripts/db_migrations")
     parser.add_argument("--apply", action="store_true", help="Write migration changes.")
+    parser.add_argument(
+        "--only",
+        default="",
+        help="Comma-separated migration IDs to inspect/apply, for example 005,006.",
+    )
     args = parser.parse_args()
 
     db_path = Path(args.db)
     if not db_path.exists():
         raise SystemExit(f"Database not found: {db_path}")
 
-    results = run(db_path, args.migrations_dir, apply=args.apply)
+    only_ids = [item.strip() for item in args.only.split(",") if item.strip()]
+    if only_ids:
+        available_ids = {
+            str(load_migration(path).MIGRATION_ID)
+            for path in migration_files(args.migrations_dir)
+        }
+        unknown_ids = sorted(set(only_ids) - available_ids)
+        if unknown_ids:
+            raise SystemExit(f"Unknown migration IDs: {', '.join(unknown_ids)}")
+    results = run(
+        db_path,
+        args.migrations_dir,
+        apply=args.apply,
+        only_ids=only_ids,
+    )
     print(f"CHAOS migration runner mode={'apply' if args.apply else 'dry-run'}")
+    if only_ids:
+        print(f"Selected migrations: {','.join(only_ids)}")
     for item in results:
         print(f"{item['status']:>8} {item['id']} {item['name']}")
         if item["details"]:
