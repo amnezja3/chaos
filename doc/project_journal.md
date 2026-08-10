@@ -11413,3 +11413,10 @@ Tryb `--apply` nadal twardo wymaga wykonanej wcześniej migracji `005`.
 Runner migracji otrzymał selektor `--only`. Cutover Cybernera wykonuje wyłącznie
 `005,006`, dzięki czemu oczekujące migracje profili `002`–`004` nie zostaną
 przypadkowo zastosowane podczas dzisiejszego wdrożenia.
+## 2026-08-10 — Cyberner: porządek historii i układ rozmowy
+
+Usunięto trzy wpisy demonstracyjne z czasów prototypu Cybernera. Addytywna,
+idempotentna migracja `007` czyści wyłącznie ich dokładne pary nadawca/temat w
+legacy oraz shared `WORLD` i zeruje dawny seed `messages`. Renderer przestał
+traktować zwykłą wiadomość na kanale `WORLD` jak komunikat systemowy: cudze
+wiadomości są po lewej, własne po prawej, a źródła systemowe pozostają na środku.

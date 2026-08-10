@@ -13868,7 +13868,14 @@ function createEmailClient() {
     const isSystemMessage = (msg) => {
         const sender = String(messageSenderLabel(msg)).toLowerCase();
         const sourceKey = cybernerSourceKeyForMessage(msg, false);
-        return msg.system === true || isWorldSourceKey(sourceKey) || sender === "system" || sender === "ghost system";
+        const systemSourceKeys = new Set([
+            "system", "ai", "ghost_exchange", "mission", "blacknet",
+            "marketplace", "faction", "drone", "bike"
+        ]);
+        return msg.system === true
+            || systemSourceKeys.has(sourceKey)
+            || sender === "system"
+            || sender === "ghost system";
     };
     const isMailNarrow = () => term.classList.contains('mail-window-narrow')
         || term.classList.contains('browser-narrow')

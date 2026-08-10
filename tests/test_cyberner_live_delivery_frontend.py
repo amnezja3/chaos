@@ -31,6 +31,13 @@ class CybernerLiveDeliveryFrontendContractTest(unittest.TestCase):
         self.assertIn("scheduleMailRefresh", self.source)
         self.assertNotIn("setInterval(refreshThreads, CYBERNER_THREAD_REFRESH_INTERVAL_MS)", self.source)
 
+    def test_world_players_are_not_classified_as_system_messages(self):
+        self.assertIn('const systemSourceKeys = new Set([', self.source)
+        self.assertIn('systemSourceKeys.has(sourceKey)', self.source)
+        system_block = self.source.split("const systemSourceKeys = new Set([", 1)[1].split("]);", 1)[0]
+        self.assertNotIn('"world"', system_block)
+        self.assertNotIn('"clan"', system_block)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 import sqlite3
 import tempfile
@@ -25,6 +26,14 @@ def load_channel_migration():
 def load_cutover_migration():
     path = Path("scripts/db_migrations/006_cyberner_channel_cutover.py")
     spec = importlib.util.spec_from_file_location("cyberner_channel_migration_006", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_prototype_cleanup_migration():
+    path = Path("scripts/db_migrations/007_cyberner_remove_prototype_messages.py")
+    spec = importlib.util.spec_from_file_location("cyberner_channel_migration_007", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -220,6 +229,7 @@ class CybernerCutoverMigrationTest(unittest.TestCase):
         MailStore(self.db_path)
         self.migration_005 = load_channel_migration()
         self.migration_006 = load_cutover_migration()
+        self.migration_007 = load_prototype_cleanup_migration()
 
     def tearDown(self):
         for suffix in ("", "-wal", "-shm"):
@@ -285,6 +295,36 @@ class CybernerCutoverMigrationTest(unittest.TestCase):
         self.assertEqual(result["status"], "ready_after_005")
         self.assertEqual(result["prerequisite"], "005")
         self.assertNotIn("cyberner_world_messages", tables)
+
+    def test_prototype_cleanup_removes_only_exact_mock_messages(self):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            self.migration_005.migrate(conn, apply=True)
+            conn.executemany(
+                """
+                INSERT INTO cyberner_world_messages
+                    (message_id, sender_username, subject, body, created_at, client_message_id)
+                VALUES (?, ?, ?, ?, 'now', NULL)
+                """,
+                [
+                    ("mock-1", "System", "Aktualizacja patcha 1.03", "mock"),
+                    ("mock-2", "H4x0rKira", "Widziałeś to?", "mock"),
+                    ("real-1", "alice", "Aktualizacja patcha 1.03", "real"),
+                ],
+            )
+            dry_run = self.migration_007.migrate(conn, apply=False)
+            applied = self.migration_007.migrate(conn, apply=True)
+            remaining = conn.execute(
+                "SELECT message_id FROM cyberner_world_messages ORDER BY message_id"
+            ).fetchall()
+            resource = conn.execute(
+                "SELECT value_json FROM json_resources WHERE key='messages'"
+            ).fetchone()
+
+        self.assertEqual(dry_run["shared_rows_to_delete"], 2)
+        self.assertEqual(applied["shared_rows_to_delete"], 2)
+        self.assertEqual([row[0] for row in remaining], ["real-1"])
+        self.assertEqual(json.loads(resource[0]), [])
 
 
 if __name__ == "__main__":
