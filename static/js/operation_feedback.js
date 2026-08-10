@@ -276,7 +276,7 @@
                 slot.dataset.slot = key;
                 const label = global.document.createElement("span");
                 label.className = "operation-feedback-slot-label";
-                label.textContent = key.replaceAll("_", " ");
+                label.textContent = String(key).replace(/_/g, " ");
                 const content = global.document.createElement("span");
                 content.className = "operation-feedback-slot-value";
                 content.textContent = value;
