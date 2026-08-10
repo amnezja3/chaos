@@ -199,6 +199,89 @@ def init_db(db_path=DB_PATH):
             conn.execute("ALTER TABLE chat_messages ADD COLUMN read_at TEXT")
         conn.execute(
             """
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_thread
+            ON chat_messages(owner_username, scope, peer_name, id)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_unread
+            ON chat_messages(owner_username, scope, peer_name, read_at)
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cyberner_world_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id TEXT NOT NULL UNIQUE,
+                sender_username TEXT NOT NULL,
+                subject TEXT NOT NULL DEFAULT '',
+                body TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                client_message_id TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_cyberner_world_messages_created
+            ON cyberner_world_messages(id, created_at)
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_cyberner_world_messages_client
+            ON cyberner_world_messages(sender_username, client_message_id)
+            WHERE client_message_id IS NOT NULL
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cyberner_clan_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id TEXT NOT NULL UNIQUE,
+                clan_key TEXT NOT NULL,
+                sender_username TEXT NOT NULL,
+                subject TEXT NOT NULL DEFAULT '',
+                body TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                client_message_id TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_cyberner_clan_messages_channel
+            ON cyberner_clan_messages(clan_key, id)
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_cyberner_clan_messages_client
+            ON cyberner_clan_messages(clan_key, sender_username, client_message_id)
+            WHERE client_message_id IS NOT NULL
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cyberner_channel_cursors (
+                username TEXT NOT NULL,
+                channel_type TEXT NOT NULL,
+                channel_key TEXT NOT NULL,
+                last_read_message_id INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(username, channel_type, channel_key)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_cyberner_channel_cursors_channel
+            ON cyberner_channel_cursors(channel_type, channel_key, username)
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS mail_presence (
                 username TEXT PRIMARY KEY,
                 last_seen_at TEXT NOT NULL
@@ -1067,6 +1150,41 @@ class UserStore:
         with db_connect(self.db_path) as conn:
             rows = conn.execute("SELECT profile_json FROM users ORDER BY id").fetchall()
             return [loads_json(row["profile_json"], {}) for row in rows]
+
+    def list_usernames(self):
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute("SELECT username FROM users ORDER BY id").fetchall()
+            return [row["username"] for row in rows if row["username"]]
+
+    def has_user(self, username):
+        if not username:
+            return False
+        with db_connect(self.db_path) as conn:
+            return conn.execute(
+                "SELECT 1 FROM users WHERE username = ?",
+                (username,),
+            ).fetchone() is not None
+
+    def list_usernames_by_clan(self, clan_key):
+        clan_key = str(clan_key or "").strip()
+        if not clan_key:
+            return []
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT username, profile_json FROM users ORDER BY id"
+            ).fetchall()
+        usernames = []
+        for row in rows:
+            profile = loads_json(row["profile_json"], {})
+            profile_clan = str(
+                profile.get("clan_id")
+                or profile.get("clan")
+                or profile.get("clan_name")
+                or ""
+            ).strip()
+            if profile_clan == clan_key and row["username"]:
+                usernames.append(row["username"])
+        return usernames
 
     def get_profile(self, username):
         with db_connect(self.db_path) as conn:
@@ -6737,6 +6855,346 @@ class PlayerPositionStore:
     def clear_all(self):
         with db_connect(self.db_path) as conn:
             conn.execute("DELETE FROM player_positions")
+
+
+CYBERNER_MESSAGE_PAGE_LIMIT = 100
+CYBERNER_MESSAGE_PAGE_LIMIT_MAX = 200
+
+
+def _cyberner_message_page_limit(limit):
+    try:
+        normalized = int(limit or CYBERNER_MESSAGE_PAGE_LIMIT)
+    except (TypeError, ValueError):
+        normalized = CYBERNER_MESSAGE_PAGE_LIMIT
+    return max(1, min(CYBERNER_MESSAGE_PAGE_LIMIT_MAX, normalized))
+
+
+def _cyberner_message_id(prefix):
+    return f"{prefix}_{secrets.token_hex(16)}"
+
+
+def _cyberner_message_payload(row, channel, channel_key):
+    if not row:
+        return None
+    payload = {
+        "id": int(row["id"]),
+        "message_id": row["message_id"],
+        "channel": channel,
+        "channel_key": channel_key,
+        "sender": row["sender_username"],
+        "sender_username": row["sender_username"],
+        "subject": row["subject"],
+        "body": row["body"],
+        "created_at": row["created_at"],
+    }
+    if row["client_message_id"]:
+        payload["client_message_id"] = row["client_message_id"]
+    return payload
+
+
+class CybernerWorldStore:
+    CHANNEL = "world"
+    CHANNEL_KEY = "global"
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    def add_message(self, sender_username, body, subject="", client_message_id=None,
+                    message_id=None, created_at=None):
+        sender_username = str(sender_username or "").strip()
+        body = str(body or "").strip()
+        if not sender_username:
+            raise ValueError("Sender username is required.")
+        if not body:
+            raise ValueError("Message body is required.")
+        subject = str(subject or "").strip()
+        client_message_id = str(client_message_id or "").strip() or None
+        message_id = str(message_id or "").strip() or _cyberner_message_id("cyberner_world")
+        created_at = str(created_at or "").strip() or utc_now()
+
+        with db_connect(self.db_path) as conn:
+            if client_message_id:
+                existing = conn.execute(
+                    """
+                    SELECT id, message_id, sender_username, subject, body, created_at, client_message_id
+                    FROM cyberner_world_messages
+                    WHERE sender_username = ? AND client_message_id = ?
+                    """,
+                    (sender_username, client_message_id),
+                ).fetchone()
+                if existing:
+                    return _cyberner_message_payload(existing, self.CHANNEL, self.CHANNEL_KEY), False
+            try:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO cyberner_world_messages
+                        (message_id, sender_username, subject, body, created_at, client_message_id)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (message_id, sender_username, subject, body, created_at, client_message_id),
+                )
+            except sqlite3.IntegrityError:
+                if not client_message_id:
+                    raise
+                existing = conn.execute(
+                    """
+                    SELECT id, message_id, sender_username, subject, body, created_at, client_message_id
+                    FROM cyberner_world_messages
+                    WHERE sender_username = ? AND client_message_id = ?
+                    """,
+                    (sender_username, client_message_id),
+                ).fetchone()
+                if not existing:
+                    raise
+                return _cyberner_message_payload(existing, self.CHANNEL, self.CHANNEL_KEY), False
+            row = conn.execute(
+                """
+                SELECT id, message_id, sender_username, subject, body, created_at, client_message_id
+                FROM cyberner_world_messages WHERE id = ?
+                """,
+                (cursor.lastrowid,),
+            ).fetchone()
+            return _cyberner_message_payload(row, self.CHANNEL, self.CHANNEL_KEY), True
+
+    def list_messages(self, after_id=None, before_id=None, limit=CYBERNER_MESSAGE_PAGE_LIMIT):
+        if after_id not in (None, "") and before_id not in (None, ""):
+            raise ValueError("Use either after_id or before_id.")
+        limit = _cyberner_message_page_limit(limit)
+        where = ""
+        params = []
+        descending = before_id not in (None, "") or after_id in (None, "")
+        if after_id not in (None, ""):
+            where = "WHERE id > ?"
+            params.append(max(0, int(after_id)))
+            descending = False
+        elif before_id not in (None, ""):
+            where = "WHERE id < ?"
+            params.append(max(0, int(before_id)))
+        params.append(limit)
+        order = "DESC" if descending else "ASC"
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT id, message_id, sender_username, subject, body, created_at, client_message_id
+                FROM cyberner_world_messages
+                {where}
+                ORDER BY id {order}
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+        if descending:
+            rows = list(reversed(rows))
+        return [_cyberner_message_payload(row, self.CHANNEL, self.CHANNEL_KEY) for row in rows]
+
+    def latest_message_id(self):
+        with db_connect(self.db_path) as conn:
+            row = conn.execute("SELECT MAX(id) AS latest_id FROM cyberner_world_messages").fetchone()
+            return int(row["latest_id"] or 0)
+
+    def count_after(self, message_id):
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS count FROM cyberner_world_messages WHERE id > ?",
+                (max(0, int(message_id or 0)),),
+            ).fetchone()
+            return int(row["count"] or 0)
+
+
+class CybernerClanStore:
+    CHANNEL = "clan"
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def normalize_clan_key(clan_key):
+        normalized = str(clan_key or "").strip()
+        if not normalized:
+            raise ValueError("Clan key is required.")
+        return normalized
+
+    def add_message(self, clan_key, sender_username, body, subject="", client_message_id=None,
+                    message_id=None, created_at=None):
+        clan_key = self.normalize_clan_key(clan_key)
+        sender_username = str(sender_username or "").strip()
+        body = str(body or "").strip()
+        if not sender_username:
+            raise ValueError("Sender username is required.")
+        if not body:
+            raise ValueError("Message body is required.")
+        subject = str(subject or "").strip()
+        client_message_id = str(client_message_id or "").strip() or None
+        message_id = str(message_id or "").strip() or _cyberner_message_id("cyberner_clan")
+        created_at = str(created_at or "").strip() or utc_now()
+
+        with db_connect(self.db_path) as conn:
+            if client_message_id:
+                existing = conn.execute(
+                    """
+                    SELECT id, message_id, clan_key, sender_username, subject, body, created_at, client_message_id
+                    FROM cyberner_clan_messages
+                    WHERE clan_key = ? AND sender_username = ? AND client_message_id = ?
+                    """,
+                    (clan_key, sender_username, client_message_id),
+                ).fetchone()
+                if existing:
+                    return _cyberner_message_payload(existing, self.CHANNEL, clan_key), False
+            try:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO cyberner_clan_messages
+                        (message_id, clan_key, sender_username, subject, body, created_at, client_message_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (message_id, clan_key, sender_username, subject, body, created_at, client_message_id),
+                )
+            except sqlite3.IntegrityError:
+                if not client_message_id:
+                    raise
+                existing = conn.execute(
+                    """
+                    SELECT id, message_id, clan_key, sender_username, subject, body, created_at, client_message_id
+                    FROM cyberner_clan_messages
+                    WHERE clan_key = ? AND sender_username = ? AND client_message_id = ?
+                    """,
+                    (clan_key, sender_username, client_message_id),
+                ).fetchone()
+                if not existing:
+                    raise
+                return _cyberner_message_payload(existing, self.CHANNEL, clan_key), False
+            row = conn.execute(
+                """
+                SELECT id, message_id, clan_key, sender_username, subject, body, created_at, client_message_id
+                FROM cyberner_clan_messages WHERE id = ?
+                """,
+                (cursor.lastrowid,),
+            ).fetchone()
+            return _cyberner_message_payload(row, self.CHANNEL, clan_key), True
+
+    def list_messages(self, clan_key, after_id=None, before_id=None, limit=CYBERNER_MESSAGE_PAGE_LIMIT):
+        clan_key = self.normalize_clan_key(clan_key)
+        if after_id not in (None, "") and before_id not in (None, ""):
+            raise ValueError("Use either after_id or before_id.")
+        limit = _cyberner_message_page_limit(limit)
+        clauses = ["clan_key = ?"]
+        params = [clan_key]
+        descending = before_id not in (None, "") or after_id in (None, "")
+        if after_id not in (None, ""):
+            clauses.append("id > ?")
+            params.append(max(0, int(after_id)))
+            descending = False
+        elif before_id not in (None, ""):
+            clauses.append("id < ?")
+            params.append(max(0, int(before_id)))
+        params.append(limit)
+        order = "DESC" if descending else "ASC"
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT id, message_id, clan_key, sender_username, subject, body, created_at, client_message_id
+                FROM cyberner_clan_messages
+                WHERE {' AND '.join(clauses)}
+                ORDER BY id {order}
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+        if descending:
+            rows = list(reversed(rows))
+        return [_cyberner_message_payload(row, self.CHANNEL, clan_key) for row in rows]
+
+    def latest_message_id(self, clan_key):
+        clan_key = self.normalize_clan_key(clan_key)
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT MAX(id) AS latest_id FROM cyberner_clan_messages WHERE clan_key = ?",
+                (clan_key,),
+            ).fetchone()
+            return int(row["latest_id"] or 0)
+
+    def count_after(self, clan_key, message_id):
+        clan_key = self.normalize_clan_key(clan_key)
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS count FROM cyberner_clan_messages
+                WHERE clan_key = ? AND id > ?
+                """,
+                (clan_key, max(0, int(message_id or 0))),
+            ).fetchone()
+            return int(row["count"] or 0)
+
+
+class CybernerChannelCursorStore:
+    CHANNEL_TYPES = {"world", "clan"}
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @classmethod
+    def normalize_identity(cls, username, channel_type, channel_key):
+        username = str(username or "").strip()
+        channel_type = str(channel_type or "").strip().lower()
+        channel_key = str(channel_key or "").strip()
+        if not username:
+            raise ValueError("Username is required.")
+        if channel_type not in cls.CHANNEL_TYPES:
+            raise ValueError("Unsupported shared Cyberner channel type.")
+        if not channel_key:
+            raise ValueError("Channel key is required.")
+        return username, channel_type, channel_key
+
+    def get(self, username, channel_type, channel_key):
+        username, channel_type, channel_key = self.normalize_identity(username, channel_type, channel_key)
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT username, channel_type, channel_key, last_read_message_id, updated_at
+                FROM cyberner_channel_cursors
+                WHERE username = ? AND channel_type = ? AND channel_key = ?
+                """,
+                (username, channel_type, channel_key),
+            ).fetchone()
+        if not row:
+            return {
+                "username": username,
+                "channel_type": channel_type,
+                "channel_key": channel_key,
+                "last_read_message_id": 0,
+                "updated_at": None,
+            }
+        return {
+            "username": row["username"],
+            "channel_type": row["channel_type"],
+            "channel_key": row["channel_key"],
+            "last_read_message_id": int(row["last_read_message_id"] or 0),
+            "updated_at": row["updated_at"],
+        }
+
+    def advance(self, username, channel_type, channel_key, message_id):
+        username, channel_type, channel_key = self.normalize_identity(username, channel_type, channel_key)
+        message_id = max(0, int(message_id or 0))
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO cyberner_channel_cursors
+                    (username, channel_type, channel_key, last_read_message_id, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(username, channel_type, channel_key) DO UPDATE SET
+                    last_read_message_id = MAX(last_read_message_id, excluded.last_read_message_id),
+                    updated_at = CASE
+                        WHEN excluded.last_read_message_id > last_read_message_id THEN excluded.updated_at
+                        ELSE updated_at
+                    END
+                """,
+                (username, channel_type, channel_key, message_id, now),
+            )
+        return self.get(username, channel_type, channel_key)
 
 
 class MailStore:

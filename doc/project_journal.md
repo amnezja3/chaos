@@ -11342,3 +11342,66 @@ profilu między kolejnymi odświeżeniami.
 
 - Usunięto `set_profile_session()` z POST logowania i finalizacji rejestracji. Funkcja przed redirectem tworzyła `UserProfileManager`, wykonywała `list_profiles()`, synchronizację template'u oraz pełne kopie dużych profili.
 - Po uwierzytelnieniu sesja zapisuje wyłącznie `user` i czyści starą projekcję `profile`. Aktualny, read-only snapshot jest pobierany jeden raz przez `/desktop`, bez rebuildu terytorium i bez zapisu normalizacji.
+
+# 2026-08-10 - Sprint 130.8.7.1: niezależne store'y kanałów Cybernera
+
+- Dodano addytywne tabele i store'y dla wspólnego kanału `WORLD`, kanałów
+  klanowych oraz per-user cursorów odczytu. Wiadomość grupowa ma jeden rekord
+  kanoniczny zamiast kopii fan-out w profilach użytkowników.
+- Indeksy pokrywają stabilne stronicowanie po `id`, odczyt kanału klanowego,
+  unread po cursorze i idempotencję ponowionych wysłań przez
+  `client_message_id`.
+- Dodano powtarzalną migrację `005_cyberner_channel_stores.py`. Migracja nie
+  usuwa danych legacy, deduplikuje historyczny fan-out `group/global`, a jej
+  domyślny dry-run nie wykonuje zapisów.
+- Nie przełączono endpointów, delt ani frontendu Cybernera. Nie ustalono też
+  jeszcze startowego cursora dla historii po cutover; te granice należą do
+  sprintów 130.8.7.2–130.8.7.4.
+- Dodano sześć testów kontraktowych obejmujących schemat, izolację klanów,
+  idempotencję, paginację, monotoniczne cursory oraz ponowne uruchomienie
+  migracji. Migracja nie została zastosowana do lokalnej ani produkcyjnej bazy.
+
+# 2026-08-10 - Sprint 130.8.7.2: routing i atomowy send Cybernera
+
+- `GET/POST /api/chats/messages` otrzymały jawny router rozdzielający `WORLD`,
+  `KLAN`, `ZNAJOMI` i `DIRECT`. Legacy `group/global` jest normalizowane do
+  WORLD bez używania listy kontaktów, a kanał klanowy wymaga zgodności z
+  aktualnym klanem profilu.
+- Wspólne kanały zapisują jedną wiadomość i obsługują idempotentny
+  `client_message_id`. Odpowiedź zawiera stabilny `message_id`, informację o
+  replayu, kanoniczny kanał i dane potrzebne do recovery po cursorze.
+- Commit wiadomości jest granicą sukcesu requestu. Toasty wykonywane są
+  best-effort dopiero po commicie, a ich awaria nie wywołuje ponownego zapisu.
+- Powiadomienia Cybernera przeniesiono z pełnego zapisu `profile_json` do
+  `SystemMessageStore`. `ZNAJOMI` i `DIRECT` zachowują dotychczasowy lokalny
+  model wiadomości i relacji.
+- Routing shared store jest domyślnie wyłączony i chroniony globalną flagą oraz
+  flagami WORLD/KLAN. Nie wykonano migracji bazy, cutoveru produkcyjnego,
+  commita ani deployu.
+
+# 2026-08-10 - Sprint 130.8.7.3: live delivery i recovery Cybernera
+
+- Dodano stabilne zdarzenie `cyberner.message_created` publikowane dopiero po
+  commicie wiadomości. Event zawiera pełną wiadomość oraz kanoniczny kanał,
+  dzięki czemu otwarty Cyberner może renderować ją bez oczekiwania na polling.
+- Audience WORLD i KLAN jest wyliczane zgodnie ze shared store; obcy klan nie
+  otrzymuje delty. Ścieżka z wyłączonym store zachowuje legacy odbiorców i nie
+  rozszerza widoczności danych podczas rollbacku.
+- Formularz Cybernera wysyła `client_message_id` i zachowuje go po
+  niejednoznacznym błędzie sieciowym. Frontend deduplikuje wiadomości po
+  `message_id`, natychmiast aktualizuje otwarty thread i potwierdza cursor przez
+  recovery GET.
+- Ochrona wersji scala snapshot rozpoczęty przed nowszą deltą. Bootstrap i
+  historia mają niezależny `inFlight`, sekwencję oraz `AbortController`, a
+  zamknięcie okna przerywa requesty.
+- Polling Cybernera nie używa już nakładającego się `setInterval`; kolejny
+  refresh jest planowany dopiero po zakończeniu poprzedniego. Live delivery
+  pozostaje domyślnie wyłączone do kontrolowanego cutoveru.
+## 2026-08-10 — Sprint 130.8.7.4: Cyberner cutover ready
+
+Domknięto przygotowanie produkcyjnego cutoveru kanałów Cybernera bez aktywacji
+flag. Dodano migrację historii `KLAN` i baseline cursorów, read-only audyt
+spójności legacy/shared, izolację awarii kanału w bootstrapie, lekki preview
+`WORLD`, test równoległych zapisów oraz runbook wdrożenia i rollbacku. Legacy
+`chat_messages` pozostaje nienaruszone; produkcyjna migracja i przełączenie flag
+pozostają świadomą operacją operatora.

@@ -22,10 +22,11 @@ from flask_session import Session
 from poiFetchClass import POIFetcher
 import Haversine
 from profileManagment import UserProfileManager, authenticate_user
-from database import AppActionReceiptStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryTargetOwnershipStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore
+from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryTargetOwnershipStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore
 import requests
 from config import (
     APP_VERSION,
+    CYBERNER_CHANNEL_STORE_FLAGS,
     DEFAULT_APP_DISK_USAGE_MB,
     DEFAULT_APP_FILE_SIZE_MB,
     DEFAULT_APP_PRICE_HINT_HC,
@@ -69,6 +70,9 @@ tag_filters = ["shop", "amenity", "office"]
 fetcher = POIFetcher(tag_filters=tag_filters)
 resources_store = JsonResourceStore()
 mail_store = MailStore()
+cyberner_world_store = CybernerWorldStore()
+cyberner_clan_store = CybernerClanStore()
+cyberner_channel_cursor_store = CybernerChannelCursorStore()
 user_store = UserStore()
 territory_store = TerritoryStore()
 territory_conflict_store = TerritoryConflictStore()
@@ -311,7 +315,7 @@ def mail_delta_thread_key(scope, peer_name):
 
 
 def mail_delta_payload(username, scope=None, peer_name=None, message=None, reason=""):
-    unread_counts = mail_store.unread_counts(username)
+    unread_counts = cyberner_unread_counts(username)
     payload = {
         "unread_counts": unread_counts,
     }
@@ -387,6 +391,213 @@ def latest_mail_message(username, scope, peer_name):
     if not messages:
         return None
     return messages[-1]
+
+
+def cyberner_shared_store_enabled(channel):
+    channel = str(channel or "").strip().lower()
+    return bool(
+        CYBERNER_CHANNEL_STORE_FLAGS.get("enabled")
+        and CYBERNER_CHANNEL_STORE_FLAGS.get(channel)
+    )
+
+
+def normalize_cyberner_route(scope, peer_name, profile=None):
+    scope = str(scope or "group").strip().lower()
+    peer_name = str(peer_name or "").strip()
+    lowered_peer = peer_name.lower()
+
+    if scope == "world" or (scope == "group" and lowered_peer in {"", "global"}):
+        return {
+            "channel": "world", "source": "world", "scope": "world",
+            "peer": "global", "channel_key": "global", "store_key": "global",
+        }
+
+    if scope == "clan" or (scope == "channel" and lowered_peer.startswith("clan:")):
+        clan_key = get_profile_clan(profile or {})
+        requested = peer_name.split(":", 1)[1].strip() if ":" in peer_name else clan_key
+        if not clan_key or requested != clan_key:
+            raise ValueError("Kanal klanu jest niedostepny.")
+        return {
+            "channel": "clan", "source": "clan", "scope": "clan",
+            "peer": f"clan:{clan_key}", "channel_key": f"clan:{clan_key}",
+            "store_key": clan_key,
+        }
+
+    if scope == "channel" and lowered_peer == "friends":
+        return {
+            "channel": "friends", "source": "friends", "scope": "channel",
+            "peer": "friends", "channel_key": f"friends:{profile.get('username') or ''}",
+            "store_key": "friends",
+        }
+
+    if scope == "direct":
+        if not peer_name:
+            raise ValueError("Brak odbiorcy rozmowy prywatnej.")
+        return {
+            "channel": "direct", "source": "player", "scope": "direct",
+            "peer": peer_name, "channel_key": f"direct:{peer_name}",
+            "store_key": peer_name,
+        }
+
+    raise ValueError("Nieznany kanal Cybernera.")
+
+
+def cyberner_legacy_scope_peer(route):
+    if route["channel"] == "world":
+        return "group", "global"
+    if route["channel"] == "clan":
+        return "channel", route["peer"]
+    return route["scope"], route["peer"]
+
+
+def cyberner_unread_counts(username, profile=None, channel_states=None):
+    counts = mail_store.unread_counts(username)
+    if cyberner_shared_store_enabled("world"):
+        try:
+            cursor = cyberner_channel_cursor_store.get(username, "world", "global")
+            counts["group"] = cyberner_world_store.count_after(cursor["last_read_message_id"])
+        except Exception as exc:
+            if isinstance(channel_states, dict):
+                channel_states["world"] = {"available": False, "error": "read_failed"}
+            print(f"[CYBERNER_READ] channel=world user={username} operation=unread error={exc}")
+    if cyberner_shared_store_enabled("clan"):
+        profile = profile or load_profile_readonly(username, strip_sensitive=True) or {}
+        clan_key = get_profile_clan(profile)
+        if clan_key:
+            try:
+                cursor = cyberner_channel_cursor_store.get(username, "clan", clan_key)
+                counts.setdefault("channel", {})[f"clan:{clan_key}"] = (
+                    cyberner_clan_store.count_after(clan_key, cursor["last_read_message_id"])
+                )
+            except Exception as exc:
+                if isinstance(channel_states, dict):
+                    channel_states["clan"] = {"available": False, "error": "read_failed"}
+                print(f"[CYBERNER_READ] channel=clan user={username} operation=unread error={exc}")
+    return counts
+
+
+def cyberner_list_route_messages(username, route, limit=100, after_id=None, before_id=None):
+    channel = route["channel"]
+    if channel == "world" and cyberner_shared_store_enabled("world"):
+        return cyberner_world_store.list_messages(after_id=after_id, before_id=before_id, limit=limit)
+    if channel == "clan" and cyberner_shared_store_enabled("clan"):
+        return cyberner_clan_store.list_messages(
+            route["store_key"], after_id=after_id, before_id=before_id, limit=limit
+        )
+    legacy_scope, legacy_peer = cyberner_legacy_scope_peer(route)
+    return mail_store.list_messages(username, legacy_scope, legacy_peer, limit=limit)
+
+
+def cyberner_mark_route_read(username, route, messages=None):
+    channel = route["channel"]
+    if channel == "world" and cyberner_shared_store_enabled("world"):
+        latest_id = max((int(item.get("id") or 0) for item in messages or []), default=0)
+        return cyberner_channel_cursor_store.advance(username, "world", "global", latest_id)
+    if channel == "clan" and cyberner_shared_store_enabled("clan"):
+        latest_id = max((int(item.get("id") or 0) for item in messages or []), default=0)
+        return cyberner_channel_cursor_store.advance(username, "clan", route["store_key"], latest_id)
+    legacy_scope, legacy_peer = cyberner_legacy_scope_peer(route)
+    mail_store.mark_thread_read(username, legacy_scope, legacy_peer)
+    return None
+
+
+def cyberner_route_recipients(username, profile, route):
+    channel = route["channel"]
+    if channel == "world" and cyberner_shared_store_enabled("world"):
+        return [name for name in user_store.list_usernames() if name != username]
+    if channel == "clan" and cyberner_shared_store_enabled("clan"):
+        return [
+            name for name in user_store.list_usernames_by_clan(route["store_key"])
+            if name != username
+        ]
+    legacy_scope, legacy_peer = cyberner_legacy_scope_peer(route)
+    return cyberner_message_recipients(username, profile, legacy_scope, legacy_peer)
+
+
+def cyberner_store_message(username, profile, route, body, subject="", client_message_id=None):
+    channel = route["channel"]
+    if channel == "world" and cyberner_shared_store_enabled("world"):
+        return cyberner_world_store.add_message(
+            username, body, subject=subject, client_message_id=client_message_id
+        )
+    if channel == "clan" and cyberner_shared_store_enabled("clan"):
+        return cyberner_clan_store.add_message(
+            route["store_key"], username, body, subject=subject,
+            client_message_id=client_message_id,
+        )
+
+    legacy_scope, legacy_peer = cyberner_legacy_scope_peer(route)
+    recipients = cyberner_message_recipients(username, profile, legacy_scope, legacy_peer)
+    mail_store.add_message(
+        username,
+        legacy_scope,
+        legacy_peer,
+        username,
+        body,
+        subject=subject,
+        auto_add_contact=legacy_scope == "direct" and not mail_store.is_contact(username, legacy_peer),
+        channel_recipients=recipients if legacy_scope == "channel" else None,
+    )
+    message = latest_mail_message(username, legacy_scope, legacy_peer)
+    return message, True
+
+
+def canonical_cyberner_message(message, route):
+    message = dict(message or {})
+    stable_id = str(message.get("message_id") or "").strip()
+    if not stable_id:
+        signature = "|".join([
+            str(route.get("channel") or ""),
+            str(route.get("channel_key") or ""),
+            str(message.get("sender") or ""),
+            str(message.get("created_at") or ""),
+            str(message.get("subject") or ""),
+            str(message.get("body") or ""),
+        ])
+        stable_id = "cyberner_legacy_" + hashlib.sha1(signature.encode("utf-8", errors="ignore")).hexdigest()[:24]
+    return {
+        "id": message.get("id"),
+        "message_id": stable_id,
+        "source": route["source"],
+        "channel": route["channel"],
+        "channel_key": route["channel_key"],
+        "scope": route["scope"],
+        "peer": route["peer"],
+        "sender": message.get("sender") or message.get("sender_username"),
+        "subject": message.get("subject") or "",
+        "body": message.get("body") or "",
+        "created_at": message.get("created_at"),
+    }
+
+
+def record_cyberner_message_created(username, route, message):
+    if not CYBERNER_CHANNEL_STORE_FLAGS.get("live_delivery"):
+        return None
+    payload_message = canonical_cyberner_message(message, route)
+    message_id = payload_message["message_id"]
+    try:
+        return delta_bus.record_change(
+            username,
+            "mail",
+            "cyberner.message_created",
+            {
+                "message": payload_message,
+                "message_id": message_id,
+                "source": route["source"],
+                "channel": route["channel"],
+                "channel_key": route["channel_key"],
+                "scope": route["scope"],
+                "peer": route["peer"],
+            },
+            entity_id=message_id,
+            dedupe_key=f"cyberner:message_created:{username}:{message_id}",
+        )
+    except Exception as exc:
+        print(
+            f"[CYBERNER_DELTA] message_id={message_id} channel={route['channel']} "
+            f"recipient={username} error={exc}"
+        )
+        return None
 
 
 def record_ghost_exchange_delta(username, profile, sales=None, reason=""):
@@ -12928,21 +13139,19 @@ def cyberner_notification_text(source):
     return "Nowa wiadomosc."
 
 
-def add_cyberner_notification_to_user(username, scope, peer_name, sender):
+def add_cyberner_notification_to_user(username, scope, peer_name, sender, message_id=""):
     if not username:
         return False
-    profile = user_store.get_profile(username)
-    if not profile:
+    if not user_store.has_user(username):
         return False
 
     source = cyberner_notification_source(scope, peer_name, sender)
     title = cyberner_notification_title(source, scope, peer_name, sender)
-    messages = profile.get("system_messages", [])
-    if not isinstance(messages, list):
-        messages = []
-    new_id = max([m.get("id", 0) for m in messages if isinstance(m, dict)], default=0) + 1
-    messages.append({
-        "id": new_id,
+    channel_key = mail_delta_thread_key(scope, peer_name)
+    notice_key = str(message_id or runtime_file_now())
+    message, created = system_message_store.add_message(username, {
+        "message_id": f"cyberner_notice_{hashlib.sha1(f'{username}:{channel_key}:{sender}:{notice_key}'.encode()).hexdigest()[:18]}",
+        "dedupe_key": f"cyberner:{username}:{channel_key}:{notice_key}",
         "type": "info",
         "notification_type": "cyberner",
         "source": source,
@@ -12952,10 +13161,8 @@ def add_cyberner_notification_to_user(username, scope, peer_name, sender):
         "title": title,
         "text": cyberner_notification_text(source),
         "status": "new",
-    })
-    profile["system_messages"] = messages
-    user_store.save_profile(profile)
-    return True
+    }, source="cyberner")
+    return bool(message and created)
 
 
 def add_cyberner_direct_notification(username, peer_name, sender, subject, body):
@@ -22372,7 +22579,21 @@ def mail_bootstrap():
     contacts = mail_store.list_contacts(username)
     accepted_contacts = mail_store.list_accepted_contacts(username)
     pending_threads = mail_store.list_pending_threads(username)
-    group_messages = mail_store.list_messages(username, "group", "global")
+    world_route = normalize_cyberner_route("group", "global", profile)
+    channel_states = {
+        "world": {"available": True},
+        "friends": {"available": True},
+    }
+    if get_profile_clan(profile):
+        channel_states["clan"] = {"available": True}
+    try:
+        # Bootstrap carries only the preview. Full history belongs to the
+        # selected-channel endpoint and cannot delay the whole communicator.
+        group_messages = cyberner_list_route_messages(username, world_route, limit=1)
+    except Exception as exc:
+        group_messages = []
+        channel_states["world"] = {"available": False, "error": "read_failed"}
+        print(f"[CYBERNER_READ] channel=world user={username} operation=bootstrap error={exc}")
     group_active_count = mail_store.group_active_count(username)
 
     return jsonify({
@@ -22381,8 +22602,9 @@ def mail_bootstrap():
         "contacts": contacts,
         "pending_threads": pending_threads,
         "group_messages": group_messages,
-        "unread_counts": mail_store.unread_counts(username),
-        "group_active_count": group_active_count
+        "unread_counts": cyberner_unread_counts(username, profile, channel_states),
+        "group_active_count": group_active_count,
+        "channel_states": channel_states,
     })
 
 @app.route("/api/contacts", methods=["POST"])
@@ -22490,28 +22712,41 @@ def chat_messages():
         return jsonify({"error": "profile_not_found"}), 401
     username = ensure_mail_seed(profile)
     scope = request.args.get("scope", "group")
-    peer_name = request.args.get("peer", "global" if scope == "group" else "")
+    peer_name = request.args.get("peer", "global" if scope in {"group", "world"} else "")
 
     try:
-        if scope == "channel":
-            cyberner_channel_recipients(username, profile, peer_name)
-        messages = mail_store.list_messages(username, scope, peer_name)
-        mail_store.mark_thread_read(username, scope, peer_name)
+        route = normalize_cyberner_route(scope, peer_name, profile)
+        if route["channel"] == "friends":
+            cyberner_channel_recipients(username, profile, route["peer"])
+        limit = request.args.get("limit", 100)
+        after_id = request.args.get("after_id")
+        before_id = request.args.get("before_id")
+        messages = cyberner_list_route_messages(
+            username, route, limit=limit, after_id=after_id, before_id=before_id
+        )
+        cursor = cyberner_mark_route_read(username, route, messages)
+        legacy_scope, legacy_peer = cyberner_legacy_scope_peer(route)
         record_mail_delta(
             username,
             "mail.unread_changed",
-            scope=scope,
-            peer_name=peer_name,
+            scope=legacy_scope,
+            peer_name=legacy_peer,
             reason="thread_read",
-            dedupe_key=f"mail:unread_read:{username}:{mail_delta_thread_key(scope, peer_name)}:{runtime_file_now()}",
+            dedupe_key=f"mail:unread_read:{username}:{mail_delta_thread_key(legacy_scope, legacy_peer)}:{runtime_file_now()}",
         )
-    except ValueError as e:
+    except (TypeError, ValueError) as e:
         return jsonify({"error": str(e)}), 400
 
     return jsonify({
         "messages": messages,
-        "unread_counts": mail_store.unread_counts(username),
-        "group_active_count": mail_store.group_active_count(username)
+        "channel": route,
+        "cursor": cursor,
+        "unread_counts": cyberner_unread_counts(username, profile),
+        "group_active_count": mail_store.group_active_count(username),
+        "recovery": {
+            "store": "shared" if cyberner_shared_store_enabled(route["channel"]) else "legacy",
+            "after_id": max((int(item.get("id") or 0) for item in messages), default=0),
+        },
     })
 
 @app.route("/api/chats/messages", methods=["POST"])
@@ -22528,59 +22763,87 @@ def send_chat_message():
     username = ensure_mail_seed(profile)
     data = request.get_json() or {}
     scope = data.get("scope", "group")
-    peer_name = data.get("peer", "global" if scope == "group" else "")
+    peer_name = data.get("peer", "global" if scope in {"group", "world"} else "")
     body = data.get("body", "")
+    subject = data.get("subject", "")
+    client_message_id = str(data.get("client_message_id") or "").strip() or None
 
     try:
-        channel_recipients = None
-        notification_recipients = cyberner_message_recipients(username, profile, scope, peer_name)
-        if scope == "channel":
-            channel_recipients = notification_recipients
-        auto_add_contact = scope == "direct" and not mail_store.is_contact(username, peer_name)
-        mail_store.add_message(
-            username,
-            scope,
-            peer_name,
-            username,
-            body,
-            auto_add_contact=auto_add_contact,
-            channel_recipients=channel_recipients,
+        route = normalize_cyberner_route(scope, peer_name, profile)
+        notification_recipients = cyberner_route_recipients(username, profile, route)
+        committed_message, created = cyberner_store_message(
+            username, profile, route, body, subject=subject,
+            client_message_id=client_message_id,
         )
-        sender_message = latest_mail_message(username, scope, "global" if scope == "group" else peer_name)
+        if route["channel"] == "world" and cyberner_shared_store_enabled("world"):
+            cyberner_channel_cursor_store.advance(
+                username, "world", "global", committed_message.get("id")
+            )
+        elif route["channel"] == "clan" and cyberner_shared_store_enabled("clan"):
+            cyberner_channel_cursor_store.advance(
+                username, "clan", route["store_key"], committed_message.get("id")
+            )
+        legacy_scope, legacy_peer = cyberner_legacy_scope_peer(route)
         record_mail_thread_update(
             username,
-            scope,
-            "global" if scope == "group" else peer_name,
-            message=sender_message,
+            legacy_scope,
+            legacy_peer,
+            message=committed_message,
             reason="message_sent",
         )
+        for recipient_name in notification_recipients if created else []:
+            try:
+                add_cyberner_notification_to_user(
+                    recipient_name, legacy_scope, legacy_peer, username,
+                    message_id=(committed_message or {}).get("message_id") or (committed_message or {}).get("id"),
+                )
+                if route["channel"] in {"friends", "direct"}:
+                    recipient_peer = username if route["channel"] == "direct" else legacy_peer
+                    recipient_message = latest_mail_message(recipient_name, legacy_scope, recipient_peer)
+                    record_mail_thread_update(
+                        recipient_name, legacy_scope, recipient_peer,
+                        message=recipient_message, reason="message_received",
+                    )
+            except Exception as notify_exc:
+                print(
+                    f"[CYBERNER_NOTIFY] message_id={(committed_message or {}).get('message_id') or (committed_message or {}).get('id')} "
+                    f"channel={route['channel']} recipient={recipient_name} error={notify_exc}"
+                )
+        if route["channel"] in {"world", "clan"} and cyberner_shared_store_enabled(route["channel"]):
+            record_cyberner_message_created(username, route, committed_message)
         for recipient_name in notification_recipients:
-            add_cyberner_notification_to_user(
-                recipient_name,
-                scope,
-                "global" if scope == "group" else peer_name,
-                username,
-            )
-            recipient_peer = "global" if scope == "group" else (username if scope == "direct" else peer_name)
-            recipient_message = latest_mail_message(recipient_name, scope, recipient_peer)
-            record_mail_thread_update(
-                recipient_name,
-                scope,
-                recipient_peer,
-                message=recipient_message,
-                reason="message_received",
-            )
+            recipient_route = dict(route)
+            if route["channel"] == "direct":
+                recipient_route.update({
+                    "peer": username,
+                    "channel_key": f"direct:{username}",
+                    "store_key": username,
+                })
+            record_cyberner_message_created(recipient_name, recipient_route, committed_message)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
-    messages = mail_store.list_messages(username, scope, "global" if scope == "group" else peer_name)
+    messages = cyberner_list_route_messages(username, route)
+    print(
+        f"[CYBERNER_SEND] message_id={(committed_message or {}).get('message_id') or (committed_message or {}).get('id')} "
+        f"channel={route['channel']} channel_key={route['channel_key']} sender={username} "
+        f"recipient_count={len(notification_recipients)} stored={bool(created)} duplicate={not bool(created)}"
+    )
     return jsonify({
         "success": True,
+        "message": committed_message,
+        "message_id": (committed_message or {}).get("message_id") or (committed_message or {}).get("id"),
+        "idempotent_replay": not bool(created),
+        "channel": route,
         "messages": messages,
         "contacts": mail_store.list_contacts(username),
         "pending_threads": mail_store.list_pending_threads(username),
-        "unread_counts": mail_store.unread_counts(username),
-        "group_active_count": mail_store.group_active_count(username)
+        "unread_counts": cyberner_unread_counts(username, profile),
+        "group_active_count": mail_store.group_active_count(username),
+        "recovery": {
+            "store": "shared" if cyberner_shared_store_enabled(route["channel"]) else "legacy",
+            "after_id": max((int(item.get("id") or 0) for item in messages), default=0),
+        },
     })
 
 @app.route('/system-messages')

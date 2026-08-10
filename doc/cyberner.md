@@ -2,6 +2,16 @@
 
 Cyberner to diegetyczna nazwa komunikatora w CHAOS.
 
+## Stan runtime po Sprincie 130.8.7
+
+Docelowym źródłem prawdy dla `WORLD` jest `CybernerWorldStore`, a dla `KLAN`
+`CybernerClanStore`. `ZNAJOMI` i rozmowy direct świadomie pozostają w lokalnym
+`MailStore`. Shared kanały mają cursory per użytkownik, idempotencję po
+`client_message_id` i dostawę live przez delta-feed; polling służy do recovery.
+
+Cutover jest chroniony niezależnymi flagami globalną, `WORLD`, `KLAN` i live
+delivery. Szczegóły migracji i rollbacku: `doc/cyberner_cutover_runbook.md`.
+
 Od Fazy E aplikacja widoczna wcześniej jako Email / Skrzynka mailowa zmienia
 tożsamość na Cyberner. Technicznie nadal korzysta z istniejącego `mail_store`,
 kontaktów i endpointów wiadomości, ale w świecie gry przestaje być zwykłą
@@ -183,11 +193,13 @@ oraz kanału `KLAN`, zamiast budować własne komunikatory.
 
 ## Zasady integracji
 
-Cyberner nie tworzy nowego backendu.
+Cyberner nie tworzy osobnego inboxa per funkcja. Kanały współdzielone mają
+jednak własne, kanoniczne store'y zamiast legacy fanoutu kopii per odbiorca.
 
 Cyberner korzysta z istniejących systemów:
 
-* `mail_store`,
+* `mail_store` dla `ZNAJOMI`, direct i kompatybilności legacy,
+* `cyberner_world_store` i `cyberner_clan_store` dla wspólnych strumieni,
 * `/api/mail/bootstrap`,
 * `/api/chats/messages`,
 * `/api/contacts`,

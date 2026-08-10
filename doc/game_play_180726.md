@@ -19391,6 +19391,649 @@ TESTY NARRACJI
 CUTOVER KOLEJNYCH OPERACJI
 ```
 
+---
+
+# Sprint 130.8.7 — Cyberner Channel Delivery Isolation & Recovery
+
+Sprint naprawczy po audycie niedochodzących wiadomości na kanale `WORLD` i
+pozostałych kanałach grupowych.
+
+## Problem
+
+Obecny Cyberner prezentuje trzy niezależne kanały:
+
+* `WORLD`,
+* `KLAN`,
+* `ZNAJOMI`.
+
+Pod spodem nie są one jednak wystarczająco odseparowane. `WORLD` korzysta z
+legacy `scope = group`, ale wiadomości są kopiowane wyłącznie do kontaktów
+nadawcy. Kanał opisany jako publiczny nie obejmuje więc całej gry. Kanały
+grupowe korzystają również z zapisu wielu kopii wiadomości, ciężkich zapisów
+pełnych profili oraz wspólnej ścieżki powiadomień. Awaria jednego odbiorcy może
+pozostawić zapis wiadomości bez delty, zwrócić błąd nadawcy albo zatrzymać
+powiadamianie kolejnych odbiorców.
+
+Frontend odbiera delty wątków, ale otwarty kanał nie renderuje od razu nowej
+wiadomości. Czeka na okresowy bootstrap i kolejny request historii. Daje to
+wrażenie, że wiadomość nie dotarła, mimo że została już zapisana.
+
+## Cel
+
+Rozdzielić kanały według ich prawdziwego zasięgu i źródła prawdy:
+
+```text
+WORLD
+→ jeden globalny strumień całej gry
+→ osobna tabela
+
+KLAN
+→ jeden strumień dla całego klanu
+→ osobna tabela
+
+ZNAJOMI
+→ lokalny kanał profilu gracza
+→ odbiorcy wyznaczani z zaakceptowanych relacji
+→ istniejący per-user inbox/fan-out
+
+DIRECT
+→ istniejący prywatny thread
+→ bez zmian kontraktu
+```
+
+Kanały muszą działać niezależnie. Błąd, przeciążenie albo brak uprawnień w
+jednym kanale nie może blokować wysłania, odczytu ani odświeżenia innego.
+
+
+# Podział implementacyjny:
+  * 130.8.7.1 — tabele, store’y, indeksy i migracja.
+  * 130.8.7.2 — routing oraz atomowe wysyłanie.
+  * 130.8.7.3 — live delty i frontend recovery.
+  * 130.8.7.4 — cutover, testy produkcyjne i rollback.
+
+
+## 1. Twardy kontrakt kanałów
+
+### WORLD
+
+`WORLD` jest publicznym kanałem całej gry.
+
+Każdy istniejący, aktywny profil może:
+
+* odczytać wspólną historię,
+* wysłać wiadomość,
+* otrzymać deltę nowej wiadomości,
+* utrzymywać własny stan przeczytania.
+
+Lista kontaktów, klan i status przyjaźni nie mogą wpływać na widoczność
+wiadomości `WORLD`.
+
+Wiadomość jest zapisywana jeden raz. Nie wolno tworzyć jednej kopii na profil.
+
+### KLAN
+
+`KLAN` jest wspólnym kanałem wszystkich aktualnych członków jednego klanu.
+
+Uprawnienie do zapisu i odczytu wynika z aktualnego `clan_id` albo stabilnego
+klucza klanu profilu. Nick, nazwa prezentacyjna i lista kontaktów nie mogą być
+kluczem autoryzacji.
+
+Wiadomość jest zapisywana jeden raz dla klanu. Zmiana klanu natychmiast zmienia
+dostęp do kanału:
+
+* po odejściu gracz nie odczytuje dalszych wiadomości starego klanu,
+* po dołączeniu odczytuje kanał nowego klanu zgodnie z ustaloną polityką
+  historii,
+* gracz bez klanu nie może wysyłać ani pobierać kanału `KLAN`.
+
+### ZNAJOMI
+
+`ZNAJOMI` pozostają kanałem lokalnym względem nadawcy.
+
+Odbiorcy są snapshotem zaakceptowanych, wzajemnych relacji w chwili wysłania.
+Kanał nie jest globalnym pokojem posiadającym jedną stałą listę członków.
+
+Wiadomość może nadal korzystać z per-user fan-out w istniejącym
+`chat_messages`, ale:
+
+* trafia tylko do zaakceptowanych znajomych,
+* nie trafia do kontaktów jednostronnych ani pending,
+* nie zależy od tabel `WORLD` i `KLAN`,
+* awaria powiadomienia jednego znajomego nie cofa zapisu dla pozostałych.
+
+### DIRECT
+
+Prywatne rozmowy zachowują:
+
+```text
+scope = direct
+peer_name = username
+```
+
+Sprint nie przebudowuje poprawnie działających rozmów prywatnych ani contact
+flow.
+
+## 2. Model danych
+
+### cyberner_world_messages
+
+Minimalny kontrakt:
+
+```text
+id                  INTEGER PRIMARY KEY
+message_id          TEXT UNIQUE NOT NULL
+sender_username     TEXT NOT NULL
+subject             TEXT NOT NULL DEFAULT ''
+body                TEXT NOT NULL
+created_at          TEXT NOT NULL
+client_message_id   TEXT
+```
+
+`client_message_id` albo równoważny klucz idempotencji zabezpiecza ponowienie
+requestu po timeout lub zerwanym połączeniu.
+
+### cyberner_clan_messages
+
+Minimalny kontrakt:
+
+```text
+id                  INTEGER PRIMARY KEY
+message_id          TEXT UNIQUE NOT NULL
+clan_key            TEXT NOT NULL
+sender_username     TEXT NOT NULL
+subject             TEXT NOT NULL DEFAULT ''
+body                TEXT NOT NULL
+created_at          TEXT NOT NULL
+client_message_id   TEXT
+```
+
+Wymagany indeks:
+
+```text
+(clan_key, id)
+```
+
+Idempotencja musi być ograniczona co najmniej do nadawcy i kanału, aby dwa
+klany nie kolidowały tym samym kluczem klienta.
+
+### cyberner_channel_cursors
+
+Wspólne wiadomości nie mogą używać `read_at` na rekordzie wiadomości, ponieważ
+każdy gracz czyta je niezależnie.
+
+Minimalny kontrakt kursora:
+
+```text
+username            TEXT NOT NULL
+channel_type        TEXT NOT NULL
+channel_key         TEXT NOT NULL
+last_read_message_id INTEGER NOT NULL DEFAULT 0
+updated_at          TEXT NOT NULL
+PRIMARY KEY (username, channel_type, channel_key)
+```
+
+Przykłady:
+
+```text
+main | world | global       | 481
+neo1 | clan  | Echo Wolnosci | 92
+```
+
+`ZNAJOMI` i `DIRECT` pozostają na lokalnym `read_at` w `chat_messages`.
+
+## 3. Store'y
+
+Dodać jawne, małe store'y:
+
+```text
+CybernerWorldStore
+CybernerClanStore
+CybernerChannelCursorStore
+```
+
+Nie tworzyć jednego store'a z rozgałęzieniem wszystkich zasad w środku.
+
+Każdy store odpowiada tylko za:
+
+* idempotentny zapis,
+* stronicowany odczyt,
+* kursor `after_id` / `before_id`,
+* limit historii,
+* stabilny `message_id`.
+
+Store nie zapisuje profilu, nie buduje kontaktów i nie publikuje toastów.
+
+## 4. Routing backendu
+
+Endpoint może pozostać wspólny:
+
+```text
+GET  /api/chats/messages
+POST /api/chats/messages
+```
+
+ale router musi jawnie delegować:
+
+```text
+scope=world lub legacy group/global
+→ CybernerWorldStore
+
+scope=clan / channel=clan
+→ CybernerClanStore
+
+scope=channel / peer=friends
+→ lokalny fan-out ZNAJOMI
+
+scope=direct
+→ istniejący MailStore
+```
+
+Legacy `scope=group, peer=global` może być przyjmowane na wejściu, ale po
+normalizacji nie może uruchamiać logiki kontaktów.
+
+Backend ma zwracać kanoniczny kontrakt:
+
+```json
+{
+  "source": "world",
+  "channel": "world",
+  "scope": "world",
+  "peer": "global"
+}
+```
+
+Frontend nie powinien zgadywać rodzaju kanału z tytułu.
+
+## 5. Atomowość wysłania
+
+Request wysłania ma trzy fazy:
+
+```text
+1. autoryzacja i normalizacja kanału
+2. atomowy, idempotentny zapis wiadomości
+3. best-effort publikacja delt i powiadomień po commit
+```
+
+Sukces gameplayowy oznacza commit wiadomości, nie sukces każdego toasta.
+
+Po commicie awaria delty albo powiadomienia:
+
+* nie zmienia odpowiedzi na fałszywy błąd wysłania,
+* nie powoduje ponownego zapisu wiadomości,
+* jest logowana z `message_id`, kanałem i odbiorcą,
+* zostaje naprawiona przez polling/recovery.
+
+Nie wolno zapisywać `system_messages` przez odczyt i zapis pełnego profilu dla
+każdego odbiorcy. Powiadomienia korzystają z istniejącego lekkiego
+`SystemMessageStore` albo są generowane z delty kanału.
+
+## 6. Delty
+
+Każdy zapis publikuje stabilne zdarzenie:
+
+```text
+cyberner.message_created
+```
+
+Minimalny payload:
+
+```json
+{
+  "message_id": "...",
+  "channel": "world|clan|friends|direct",
+  "channel_key": "global|clan:<id>|friends:<sender>|direct:<peer>",
+  "sender": "...",
+  "subject": "...",
+  "body": "...",
+  "created_at": "..."
+}
+```
+
+Zasady audience:
+
+* `WORLD` — wszyscy gracze; dopuszczalny jest globalny cursor/feed bez
+  materializowania eventu osobno dla każdego profilu,
+* `KLAN` — aktualni członkowie wskazanego klanu,
+* `ZNAJOMI` — snapshot zaakceptowanych odbiorców z chwili wysłania,
+* `DIRECT` — nadawca i odbiorca.
+
+Delta zawiera pełną wiadomość potrzebną rendererowi. Nie może być wyłącznie
+sygnałem zmiany podglądu wątku.
+
+## 7. Frontend i natychmiastowe dostarczenie
+
+Po odebraniu `cyberner.message_created` frontend:
+
+1. sprawdza stabilny `message_id`,
+2. deduplikuje wiadomość,
+3. aktualizuje preview i unread,
+4. jeżeli właściwy kanał jest otwarty — od razu dokłada wiadomość do DOM,
+5. zachowuje pozycję scrolla,
+6. aktualizuje kursor przeczytania, jeżeli użytkownik faktycznie widzi thread.
+
+Okresowy polling pozostaje recovery, a nie główną drogą dostarczenia.
+
+Refresh Cybernera musi mieć:
+
+* jeden request `inFlight` na typ snapshotu,
+* ochronę przed odpowiedzią starszą od już zastosowanej wersji,
+* `AbortController` przy zamknięciu okna,
+* `try/catch/finally`,
+* brak nakładających się interwałów,
+* osobny błąd per kanał bez czyszczenia pozostałych danych.
+
+## 8. Bootstrap
+
+`/api/mail/bootstrap` nie pobiera pełnej historii każdego kanału.
+
+Zwraca:
+
+* definicje dostępnych kanałów,
+* ostatni preview każdego kanału,
+* unread per kanał,
+* stabilne wersje/cursory,
+* kontakty i pending threads dla lokalnej części społecznej.
+
+Historia jest pobierana dopiero po otwarciu kanału.
+
+Awaria odczytu `WORLD` nie usuwa `KLAN`, `ZNAJOMI` ani `DIRECT` z UI. Każdy
+kanał ma własny stan:
+
+```text
+ready | loading | stale | recovery | unavailable
+```
+
+## 9. Unread
+
+### WORLD i KLAN
+
+Unread wynika z różnicy pomiędzy:
+
+```text
+latest_message_id
+last_read_message_id użytkownika
+```
+
+Nie wykonujemy pełnego `COUNT(*)` przy każdym dziesięciosekundowym bootstrapie,
+jeżeli wystarczy licznik lub zakres identyfikatorów.
+
+### ZNAJOMI i DIRECT
+
+Pozostaje lokalne `read_at`, ale zapytania muszą posiadać indeksy zgodne z:
+
+```text
+(owner_username, scope, peer_name, id)
+(owner_username, scope, peer_name, read_at)
+```
+
+## 10. Migracja
+
+Migracja jest addytywna i odwracalna.
+
+1. Utworzyć nowe tabele i indeksy.
+2. Zachować odczyt legacy `group/global` jako recovery.
+3. Jednorazowo skopiować unikalną historię `WORLD` z per-user
+   `chat_messages` do `cyberner_world_messages`.
+4. Deduplikować legacy kopie po stabilnym zestawie pól albo wygenerowanym
+   kluczu migracji.
+5. Nie usuwać starych rekordów w tym sprincie.
+6. Włączyć nowy zapis za flagą.
+7. Po walidacji przełączyć odczyt.
+
+Flagi:
+
+```text
+CHAOS_CYBERNER_CHANNEL_STORE_ENABLED
+CHAOS_CYBERNER_WORLD_STORE_ENABLED
+CHAOS_CYBERNER_CLAN_STORE_ENABLED
+CHAOS_CYBERNER_LIVE_DELIVERY_ENABLED
+```
+
+`ZNAJOMI` nie wymagają flagi nowej tabeli, ponieważ pozostają lokalną ścieżką.
+
+## 11. Obserwowalność
+
+Log wysłania:
+
+```text
+[CYBERNER_SEND]
+message_id=
+channel=
+channel_key=
+sender=
+recipient_count=
+stored=true|false
+duplicate=true|false
+delta_published=
+elapsed_ms=
+```
+
+Log recovery:
+
+```text
+[CYBERNER_RECOVERY]
+channel=
+after_id=
+fetched=
+deduplicated=
+cursor_updated=
+elapsed_ms=
+```
+
+Metryki:
+
+* czas request → commit,
+* commit → delta,
+* delta → render,
+* liczba duplikatów idempotency,
+* liczba recovery fetch,
+* liczba błędów per kanał,
+* liczba aktywnych klientów Cybernera.
+
+## 12. Testy
+
+### Macierz odbiorców
+
+* `WORLD` dociera do gracza bez kontaktu z nadawcą.
+* `WORLD` dociera do gracza z innego klanu.
+* `WORLD` nie tworzy kopii per profil.
+* `KLAN` dociera do wszystkich członków tego samego klanu.
+* `KLAN` nie dociera do obcego klanu ani gracza bez klanu.
+* `ZNAJOMI` docierają wyłącznie do relacji wzajemnie zaakceptowanych.
+* `ZNAJOMI` nie docierają do pending ani kontaktu jednostronnego.
+* `DIRECT` zachowuje dotychczasowe działanie.
+
+### Niezależność
+
+* awaria store'a `WORLD` nie blokuje `KLAN`, `ZNAJOMI` ani `DIRECT`,
+* awaria store'a `KLAN` nie blokuje `WORLD`,
+* błąd powiadomienia odbiorcy nie zmienia zapisanego wyniku,
+* błąd jednej delty nie przerywa publikacji pozostałych,
+* bootstrap częściowy zachowuje działające kanały.
+
+### Idempotencja i kolejność
+
+* ponowienie tego samego `client_message_id` zapisuje jedną wiadomość,
+* wiadomości mają stabilną kolejność po `id`,
+* delta i recovery nie tworzą duplikatu w DOM,
+* starszy snapshot nie nadpisuje nowszej delty,
+* równoczesne wysłanie wielu graczy nie gubi wiadomości.
+
+### Unread
+
+* każdy gracz ma niezależny kursor `WORLD`,
+* każdy członek klanu ma niezależny kursor `KLAN`,
+* odczyt jednego kanału nie zeruje unread innego,
+* otwarty i widoczny kanał aktualizuje kursor,
+* kanał działający w tle zwiększa unread.
+
+### Wydajność
+
+* setki odbiorców `WORLD` nie powodują setek zapisów profilu,
+* wysłanie `WORLD` wykonuje jeden zapis wiadomości,
+* bootstrap nie skanuje całej tabeli wiadomości,
+* polling nie nakłada requestów,
+* test dużej historii potwierdza użycie indeksów.
+
+## 13. Kolejność implementacji
+
+### 130.8.7.1 — Stores and additive migration
+
+* tabele `WORLD`, `KLAN` i cursorów,
+* indeksy,
+* modele wiadomości,
+* idempotencja,
+* narzędzie migracji legacy bez kasowania danych.
+
+Stan implementacji 2026-08-10: zakończony lokalnie.
+
+* `database.py` tworzy addytywnie tabele `cyberner_world_messages`,
+  `cyberner_clan_messages` i `cyberner_channel_cursors` wraz z indeksami pod
+  historię, unread oraz idempotencję `client_message_id`.
+* `CybernerWorldStore` zapisuje jedną kopię wiadomości dla całej gry, a
+  `CybernerClanStore` jedną kopię dla stabilnego klucza klanu. Oba store'y mają
+  stabilną paginację po `id`, odczyt najnowszego okna i licznik wiadomości po
+  cursorze.
+* `CybernerChannelCursorStore` utrzymuje niezależny, monotoniczny cursor dla
+  pary użytkownik–kanał. Cursor nie może cofnąć się przy spóźnionym zapisie.
+* Migracja `005_cyberner_channel_stores.py` jest powtarzalna i nie kasuje
+  legacy `chat_messages`. Rozpoznaje stare kopie fan-out kanału globalnego i
+  zapisuje pojedynczy rekord kanoniczny; tryb dry-run nie zapisuje danych.
+* Polityka startowego unread po migracji zostaje świadomie odłożona do cutover
+  130.8.7.4. Migracja 7.1 nie przesuwa cursorów i nie oznacza historii jako
+  przeczytanej.
+* Endpointy Cybernera nadal korzystają z legacy routingu. Ich przełączenie nie
+  należy do 7.1 i rozpocznie się dopiero w 130.8.7.2.
+* Walidacja celowana: sześć testów store'ów, izolacji klanów, paginacji,
+  idempotencji, cursorów i powtarzalnej migracji przechodzi lokalnie.
+
+### 130.8.7.2 — Backend routing and atomic send
+
+* jawny router kanałów,
+* niezależna autoryzacja,
+* zapis przed notyfikacją,
+* brak pełnych zapisów profilu,
+* recovery-compatible response.
+
+Stan implementacji 2026-08-10: zakończony lokalnie, domyślnie za wyłączonymi
+flagami shared store.
+
+* Wspólne endpointy `GET/POST /api/chats/messages` normalizują wejście przez
+  jawny router. `group/global` oraz `scope=world` prowadzą do `WORLD`, aktualny
+  `clan:<klucz>` do store'u klanu, `channel/friends` pozostaje lokalnym
+  fan-outem zaakceptowanych znajomych, a `direct` zachowuje `MailStore`.
+* Autoryzacja `KLAN` porównuje żądany stabilny klucz z aktualnym klanem profilu.
+  Gracz spoza klanu nie może odczytać ani zapisać jego kanału.
+* Przy włączonych flagach `WORLD` i `KLAN` zapisują dokładnie jeden rekord.
+  Opcjonalny `client_message_id` zapewnia idempotentny retry, a odpowiedź
+  zwraca `message_id`, `idempotent_replay`, kanoniczny opis kanału i cursor
+  recovery.
+* Commit wiadomości następuje przed toastami i deltami kompatybilności. Awaria
+  pojedynczego powiadomienia jest logowana z `message_id`, ale nie zmienia
+  udanego requestu w fałszywy błąd ani nie ponawia zapisu.
+* Powiadomienia Cybernera używają lekkiego `SystemMessageStore`; ścieżka nie
+  zapisuje już pełnego `profile_json` każdego odbiorcy. Lista odbiorców WORLD
+  pochodzi z tabeli użytkowników, a KLAN z bieżącego członkostwa.
+* Odczyt wspólnego kanału przesuwa wyłącznie jego monotoniczny cursor danego
+  użytkownika. Unread WORLD i KLAN jest liczony niezależnie; odczyt jednego nie
+  zeruje drugiego ani lokalnych kanałów.
+* Nowy routing jest chroniony przez `CHAOS_CYBERNER_CHANNEL_STORE_ENABLED` oraz
+  flagi per kanał. Przy wyłączonym bezpieczniku endpoint zachowuje dotychczasową
+  ścieżkę legacy, dzięki czemu wdrożenie kodu nie wykonuje automatycznego
+  cutoveru danych.
+* Live event `cyberner.message_created`, frontendowy `client_message_id` i
+  dedupe DOM pozostają zakresem 130.8.7.3.
+
+### 130.8.7.3 — Live deltas and frontend recovery
+
+* `cyberner.message_created`,
+* natychmiastowy render otwartego kanału,
+* dedupe po `message_id`,
+* `inFlight`, wersje i AbortController,
+* polling jako recovery.
+
+Stan implementacji 2026-08-10: zakończony lokalnie, nadal za wyłączoną flagą
+`CHAOS_CYBERNER_LIVE_DELIVERY_ENABLED`.
+
+* Po commicie backend publikuje `cyberner.message_created` z pełną kanoniczną
+  wiadomością. Payload zawiera stabilne `message_id`, kanał, `channel_key`,
+  nadawcę, temat, treść i czas, więc renderer nie musi dociągać danych przed
+  pierwszym pokazaniem wiadomości.
+* Audience WORLD obejmuje wszystkich użytkowników tylko przy aktywnym shared
+  store. KLAN obejmuje wyłącznie bieżących członków tego klanu. Przy rollbacku
+  do legacy WORLD zachowuje dawny zakres kontaktów i nie ujawnia wiadomości
+  profilom, które nie otrzymały kopii legacy.
+* Awaria publikacji delty po commicie jest logowana per odbiorca i nie zmienia
+  sukcesu wysłania. Ponowienie requestu może bezpiecznie ponowić publikację,
+  ponieważ dedupe delty zawiera odbiorcę i stabilne `message_id`.
+* Frontend nadaje każdej próbie wysłania `client_message_id`. Ten sam klucz jest
+  zachowany po niejednoznacznym błędzie transportowym i czyszczony dopiero po
+  potwierdzonym sukcesie albo jednoznacznym błędzie 4xx.
+* Otwarty kanał renderuje pełną deltę natychmiast, deduplikuje po `message_id`,
+  zachowuje scroll i uruchamia cichy GET jako potwierdzenie cursora. Snapshot
+  rozpoczęty przed nowszą deltą jest scalany, a nie może nadpisać wiadomości
+  dostarczonej później.
+* Bootstrap i historia mają osobne stany `inFlight`, wersje requestów oraz
+  `AbortController`. Zmiana threadu abortuje starszy request historii, a
+  zamknięcie okna abortuje oba typy requestów.
+* Nakładający się `setInterval` został zastąpiony rekurencyjnym `setTimeout`:
+  następny polling zaczyna się dopiero po zakończeniu poprzedniego. Polling i
+  `/api/mail/bootstrap` pozostają ścieżką recovery, a nie live delivery.
+* Globalny delta-feed przekazuje do klienta także wersję eventu. Chroni ona
+  lokalny stan przed odpowiedzią snapshotu rozpoczętego przed deltą.
+
+### 130.8.7.4 — Cutover and production audit
+
+* porównanie legacy i nowych read modeli,
+* migracja produkcyjna,
+* flagowany cutover,
+* test wielu równoczesnych graczy,
+* obserwowalność i plan rollbacku,
+* aktualizacja `doc/cyberner.md`, `doc/cyberner_channels_audit.md` oraz
+  `doc/project_journal.md` zgodnie z faktycznie wdrożonym stanem.
+
+Stan implementacji: **DONE / READY FOR CONTROLLED CUTOVER**.
+
+* Migracja `006` przenosi deduplikowaną historię `KLAN`, a istniejącym graczom
+  zakłada baseline cursorów `WORLD` i właściwego klanu. Dane legacy nie są
+  usuwane.
+* `scripts/audit_cyberner_cutover.py --strict` porównuje kanoniczną historię
+  legacy ze shared stores i sprawdza pokrycie cursorów przed aktywacją flag.
+* Bootstrap pobiera tylko preview `WORLD`. Błąd odczytu jednego shared kanału
+  jest raportowany w `channel_states` i nie blokuje pozostałych kanałów.
+* Test współbieżności potwierdza jeden zapis dla retry tego samego
+  `client_message_id` oraz niezależne zapisy wielu graczy.
+* Sekwencję wdrożenia, obserwowalność i ograniczenia rollbacku opisuje
+  `doc/cyberner_cutover_runbook.md`. Sprint nie przełącza flag produkcyjnych.
+
+## Poza zakresem
+
+Sprint nie dodaje:
+
+* szyfrowania rozmów,
+* moderacji i banów kanału,
+* edycji i usuwania wiadomości,
+* reakcji, załączników i typing indicators,
+* nowych kanałów frakcji, rynku albo operacji,
+* narracyjnego outboxa,
+* przebudowy rozmów prywatnych.
+
+## DoD
+
+Sprint jest zakończony, gdy:
+
+1. `WORLD` jest jednym prawdziwie globalnym strumieniem całej gry.
+2. `KLAN` jest jednym strumieniem całego właściwego klanu.
+3. `ZNAJOMI` działają lokalnie i niezależnie według zaakceptowanych relacji.
+4. Awaria jednego kanału nie blokuje pozostałych.
+5. Wiadomość zapisana po stronie backendu nie kończy się fałszywym błędem z
+   powodu późniejszej notyfikacji.
+6. Otwarty Cyberner pokazuje nową wiadomość bez oczekiwania na pełny bootstrap.
+7. Polling potrafi odzyskać pominiętą deltę bez duplikatu.
+8. Unread jest niezależny per użytkownik i per kanał.
+9. Produkcyjna migracja nie usuwa legacy historii i posiada rollback przez
+   feature flags.
+---
 
 > Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.
 

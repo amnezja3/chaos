@@ -29,7 +29,11 @@ module.exports = {
         PYTHONUNBUFFERED: "1",
         APP_VERSION: "v0.3.4-stable",
         BUILD_TAG: "v0.3.4-stable",
-        GIT_COMMIT: ""
+        GIT_COMMIT: "",
+        CHAOS_CYBERNER_CHANNEL_STORE_ENABLED: "0",
+        CHAOS_CYBERNER_WORLD_STORE_ENABLED: "0",
+        CHAOS_CYBERNER_CLAN_STORE_ENABLED: "0",
+        CHAOS_CYBERNER_LIVE_DELIVERY_ENABLED: "0"
       }
     },
     {

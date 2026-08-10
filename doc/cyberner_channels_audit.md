@@ -1,5 +1,17 @@
 # Cyberner Channels Audit
 
+## Aktualizacja 130.8.7.4
+
+Historyczny audyt poniżej opisuje punkt wyjścia. Aktualny model rozdziela trzy
+niezależne ścieżki: globalny `WORLD` w jednym shared store, klanowy `KLAN` w
+store izolowanym przez `clan_key` oraz lokalnych `ZNAJOMYCH` w `MailStore`.
+Kanały shared nie są fanoutowane do profili graczy.
+
+Migracje `005` i `006` są addytywne. Pierwsza tworzy schemat i migruje `WORLD`,
+druga migruje `KLAN` oraz zakłada baseline cursorów. Audyt przed aktywacją flag
+wykonuje `scripts/audit_cyberner_cutover.py --strict`. Awaria preview/unread
+jednego kanału jest izolowana w bootstrapie przez `channel_states`.
+
 Sprint 45 — Cyberner Channels Audit + UX Contract.
 
 ## Cel

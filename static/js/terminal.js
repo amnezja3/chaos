@@ -9529,7 +9529,7 @@ async function applyDelta(event) {
         return true;
     }
     if (event.scope === "mail" || String(event.type || "").startsWith("mail.")) {
-        updateCybernerDeltaViews(event.payload || {});
+        updateCybernerDeltaViews({ ...(event.payload || {}), delta_version: event.version || 0 });
         return true;
     }
     if (event.scope === "ghost_exchange" || String(event.type || "").startsWith("ghost_exchange.")) {
@@ -13658,6 +13658,16 @@ function createEmailClient() {
     let currentChat = { scope: "group", peer: "global", source: "world", channel: "world", title: "WORLD" };
     let mailMobileView = "list";
     let mailSending = false;
+    let mailClosed = false;
+    let currentMessages = [];
+    let pendingSend = null;
+    let mailRefreshTimer = null;
+    let latestMailDeltaVersion = 0;
+    const messageIds = new Set();
+    const requestState = {
+        bootstrap: { inFlight: null, controller: null, version: 0 },
+        messages: { inFlight: null, controller: null, version: 0, key: "" }
+    };
     const requestedInitialPeer = window.pendingEmailPeer || "";
     const requestedInitialThread = window.pendingCybernerThread;
     window.pendingEmailPeer = "";
@@ -13793,6 +13803,57 @@ function createEmailClient() {
     };
     const isNearMessageBottom = () => messagesBox.scrollHeight - messagesBox.scrollTop - messagesBox.clientHeight < 48;
     const messageSenderLabel = (msg) => msg.sender || msg.from || "System";
+    const messageStableId = (msg) => {
+        if (!msg || typeof msg !== "object") return "";
+        if (msg.message_id) return String(msg.message_id);
+        return [msg.scope || "", msg.peer_name || msg.peer || "", msg.id || "", msg.sender || "", msg.created_at || ""].join(":");
+    };
+    const replaceCurrentMessages = (messages) => {
+        currentMessages = [];
+        messageIds.clear();
+        (Array.isArray(messages) ? messages : []).forEach(message => {
+            const messageId = messageStableId(message);
+            if (messageId && messageIds.has(messageId)) return;
+            if (messageId) messageIds.add(messageId);
+            currentMessages.push(message);
+        });
+        return currentMessages;
+    };
+    const appendCurrentMessage = (message) => {
+        const messageId = messageStableId(message);
+        if (messageId && messageIds.has(messageId)) return false;
+        if (messageId) messageIds.add(messageId);
+        currentMessages.push(message);
+        return true;
+    };
+    const mergeMessages = (...collections) => {
+        const merged = [];
+        const seen = new Set();
+        collections.forEach(collection => {
+            (Array.isArray(collection) ? collection : []).forEach(message => {
+                const messageId = messageStableId(message);
+                if (messageId && seen.has(messageId)) return;
+                if (messageId) seen.add(messageId);
+                merged.push(message);
+            });
+        });
+        return merged;
+    };
+    const currentChatMatchesMessage = (message) => {
+        if (!message || typeof message !== "object") return false;
+        const messageChannel = message.channel || (message.scope === "world" || message.scope === "group" ? "world" : null);
+        if (currentChat.channel || messageChannel) {
+            return String(currentChat.channel || "") === String(messageChannel || "");
+        }
+        return String(currentChat.scope || "") === String(message.scope || "")
+            && String(currentChat.peer || "") === String(message.peer || message.peer_name || "");
+    };
+    const createClientMessageId = () => {
+        if (window.crypto && typeof window.crypto.randomUUID === "function") {
+            return window.crypto.randomUUID();
+        }
+        return `cyberner-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    };
     const cybernerSourceKeyForMessage = (msg, own = false) => {
         if (own) return "own";
         if (msg && typeof msg === "object") {
@@ -14011,6 +14072,7 @@ function createEmailClient() {
     };
 
     const applyMailDeltaPayload = (payload = {}) => {
+        latestMailDeltaVersion = Math.max(latestMailDeltaVersion, Number(payload.delta_version || 0));
         if (Array.isArray(payload.channels)) {
             channels = normalizeCybernerChannels(payload.channels);
         }
@@ -14029,6 +14091,28 @@ function createEmailClient() {
         if (payload.unread_counts && typeof payload.unread_counts === "object") {
             unreadCounts = payload.unread_counts;
         }
+        const liveMessage = payload.message && typeof payload.message === "object"
+            ? payload.message
+            : null;
+        if (liveMessage) {
+            const isOpen = currentChatMatchesMessage(liveMessage) && shouldRefreshVisibleChat();
+            if (isOpen && appendCurrentMessage(liveMessage)) {
+                renderMessages(currentMessages, isNearMessageBottom());
+                setTimeout(() => loadMessages({ recovery: true, preserveScroll: true }), 0);
+            } else if (!isOpen && messageSenderLabel(liveMessage) !== currentUser) {
+                if (liveMessage.channel === "world") {
+                    unreadCounts.group = Number(unreadCounts.group || 0) + 1;
+                } else if (liveMessage.channel === "clan" || liveMessage.channel === "friends") {
+                    const peer = liveMessage.peer || payload.peer;
+                    unreadCounts.channel = unreadCounts.channel || {};
+                    unreadCounts.channel[peer] = Number(unreadCounts.channel[peer] || 0) + 1;
+                } else if (liveMessage.channel === "direct") {
+                    const peer = liveMessage.peer || liveMessage.sender;
+                    unreadCounts.direct = unreadCounts.direct || {};
+                    unreadCounts.direct[peer] = Number(unreadCounts.direct[peer] || 0) + 1;
+                }
+            }
+        }
         const thread = payload.thread && typeof payload.thread === "object" ? payload.thread : null;
         if (thread) {
             const scope = thread.scope || payload.scope || "direct";
@@ -14036,7 +14120,9 @@ function createEmailClient() {
             const key = `${scope}:${peer}`;
             threadSummaries.set(key, thread);
             if (scope === "group") {
-                groupMessages = [thread];
+                const threadId = messageStableId(thread);
+                const existing = new Set(groupMessages.map(messageStableId));
+                if (!threadId || !existing.has(threadId)) groupMessages = [...groupMessages, thread];
             } else if (scope === "channel") {
                 channels = normalizeCybernerChannels(channels).map(channel => {
                     if (String(channel.peer || "") !== String(peer || "")) return channel;
@@ -14069,13 +14155,14 @@ function createEmailClient() {
 
     const renderMessages = (messages, forceScroll = false) => {
         const shouldStickToBottom = forceScroll || isNearMessageBottom();
+        replaceCurrentMessages(messages);
         messagesBox.innerHTML = "";
-        if (!messages.length) {
+        if (!currentMessages.length) {
             messagesBox.innerHTML = `<div class="mail-empty">Brak wiadomosci. Zacznij rozmowe.</div>`;
             return;
         }
 
-        messages.forEach(msg => {
+        currentMessages.forEach(msg => {
             const item = document.createElement('div');
             const sender = messageSenderLabel(msg);
             const own = sender === currentUser;
@@ -14103,21 +14190,51 @@ function createEmailClient() {
         }
     };
 
-    const loadMessages = async () => {
-        if (!document.body.contains(term)) return;
+    const loadMessages = async (options = {}) => {
+        if (mailClosed || !document.body.contains(term)) return null;
+        const requestKey = `${currentChat.scope}:${currentChat.peer}`;
+        const state = requestState.messages;
+        if (state.inFlight && state.key === requestKey) return state.inFlight;
+        if (state.controller) state.controller.abort();
+        const controller = new AbortController();
+        const version = ++state.version;
+        const startedDeltaVersion = latestMailDeltaVersion;
+        state.controller = controller;
+        state.key = requestKey;
         const params = new URLSearchParams({
             scope: currentChat.scope,
             peer: currentChat.peer
         });
-        const res = await fetch(`/api/chats/messages?${params.toString()}`);
-        const data = await res.json();
-        unreadCounts = data.unread_counts || unreadCounts;
-        groupActiveCount = data.group_active_count ?? groupActiveCount;
-        if (currentChat.scope === "group") {
-            groupMessages = data.messages || groupMessages;
-        }
-        renderContacts();
-        renderMessages(data.messages || []);
+        const task = (async () => {
+            try {
+                const scrollTop = messagesBox.scrollTop;
+                const res = await fetch(`/api/chats/messages?${params.toString()}`, { signal: controller.signal });
+                if (!res.ok) throw new Error(`Cyberner messages HTTP ${res.status}`);
+                const data = await res.json();
+                if (mailClosed || version !== state.version || requestKey !== `${currentChat.scope}:${currentChat.peer}`) return null;
+                unreadCounts = data.unread_counts || unreadCounts;
+                groupActiveCount = data.group_active_count ?? groupActiveCount;
+                const responseMessages = startedDeltaVersion < latestMailDeltaVersion
+                    ? mergeMessages(data.messages, currentMessages)
+                    : (data.messages || []);
+                if (currentChat.scope === "group") groupMessages = responseMessages;
+                renderContacts();
+                renderMessages(responseMessages);
+                if (options.preserveScroll && !isNearMessageBottom()) messagesBox.scrollTop = scrollTop;
+                return data;
+            } catch (err) {
+                if (err && err.name === "AbortError") return null;
+                console.warn("Cyberner message recovery failed", err);
+                return null;
+            } finally {
+                if (version === state.version) {
+                    state.inFlight = null;
+                    state.controller = null;
+                }
+            }
+        })();
+        state.inFlight = task;
+        return task;
     };
 
     const openDirectChat = async (name) => {
@@ -14151,46 +14268,54 @@ function createEmailClient() {
         await loadMessages();
     };
 
-    const bootstrap = async () => {
-        if (!document.body.contains(term)) return;
-        const res = await fetch('/api/mail/bootstrap');
-        const data = await res.json();
-        currentUser = data.username || "";
-        channels = normalizeCybernerChannels(data.channels);
-        contacts = data.contacts || [];
-        pendingThreads = data.pending_threads || [];
-        unreadCounts = data.unread_counts || unreadCounts;
-        groupActiveCount = data.group_active_count ?? groupActiveCount;
-        groupMessages = data.group_messages || groupMessages;
-        renderContacts();
-        if (requestedInitialPeer) {
-            await openDirectChat(requestedInitialPeer);
-            return;
-        }
-        if (requestedInitialThread) {
-            await openCybernerThread(requestedInitialThread);
-            return;
-        }
-        if (shouldRefreshVisibleChat()) {
-            await loadMessages();
-        }
+    const refreshThreads = async (initial = false) => {
+        if (mailClosed || !document.body.contains(term)) return null;
+        const state = requestState.bootstrap;
+        if (state.inFlight) return state.inFlight;
+        const controller = new AbortController();
+        const version = ++state.version;
+        const startedDeltaVersion = latestMailDeltaVersion;
+        state.controller = controller;
+        const task = (async () => {
+            try {
+                const res = await fetch('/api/mail/bootstrap', { signal: controller.signal });
+                if (!res.ok) throw new Error(`Cyberner bootstrap HTTP ${res.status}`);
+                const data = await res.json();
+                if (mailClosed || version !== state.version) return null;
+                currentUser = data.username || currentUser;
+                channels = normalizeCybernerChannels(data.channels);
+                contacts = data.contacts || [];
+                pendingThreads = data.pending_threads || [];
+                unreadCounts = data.unread_counts || unreadCounts;
+                groupActiveCount = data.group_active_count ?? groupActiveCount;
+                groupMessages = startedDeltaVersion < latestMailDeltaVersion
+                    ? mergeMessages(data.group_messages, groupMessages)
+                    : (data.group_messages || groupMessages);
+                renderContacts();
+                if (initial && requestedInitialPeer) {
+                    await openDirectChat(requestedInitialPeer);
+                } else if (initial && requestedInitialThread) {
+                    await openCybernerThread(requestedInitialThread);
+                } else if (shouldRefreshVisibleChat()) {
+                    await loadMessages({ recovery: !initial, preserveScroll: !initial });
+                }
+                return data;
+            } catch (err) {
+                if (err && err.name === "AbortError") return null;
+                console.warn("Cyberner bootstrap recovery failed", err);
+                return null;
+            } finally {
+                if (version === state.version) {
+                    state.inFlight = null;
+                    state.controller = null;
+                }
+            }
+        })();
+        state.inFlight = task;
+        return task;
     };
 
-    const refreshThreads = async () => {
-        if (!document.body.contains(term)) return;
-        const res = await fetch('/api/mail/bootstrap');
-        const data = await res.json();
-        channels = normalizeCybernerChannels(data.channels);
-        contacts = data.contacts || [];
-        pendingThreads = data.pending_threads || [];
-        unreadCounts = data.unread_counts || unreadCounts;
-        groupActiveCount = data.group_active_count ?? groupActiveCount;
-        groupMessages = data.group_messages || groupMessages;
-        renderContacts();
-        if (shouldRefreshVisibleChat()) {
-            await loadMessages();
-        }
-    };
+    const bootstrap = () => refreshThreads(true);
 
     backBtn.addEventListener('click', () => {
         setMailMobileView("list");
@@ -14268,6 +14393,10 @@ function createEmailClient() {
 
         mailSending = true;
         updateComposerState();
+        const sendKey = `${currentChat.scope}:${currentChat.peer}:${body}`;
+        if (!pendingSend || pendingSend.key !== sendKey) {
+            pendingSend = { key: sendKey, clientMessageId: createClientMessageId() };
+        }
         try {
             const res = await fetch('/api/chats/messages', {
                 method: 'POST',
@@ -14275,15 +14404,18 @@ function createEmailClient() {
                 body: JSON.stringify({
                     scope: currentChat.scope,
                     peer: currentChat.peer,
-                    body
+                    body,
+                    client_message_id: pendingSend.clientMessageId
                 })
             });
             const data = await res.json();
             if (data.error) {
+                if (res.status >= 400 && res.status < 500) pendingSend = null;
                 addSystemMessage("warning", "Cyberner", data.error);
                 return;
             }
             if (data.messages) {
+                pendingSend = null;
                 contacts = data.contacts || contacts;
                 pendingThreads = data.pending_threads || pendingThreads;
                 unreadCounts = data.unread_counts || unreadCounts;
@@ -14320,9 +14452,22 @@ function createEmailClient() {
         mailResizeObserver = new ResizeObserver(updateMailNarrowMode);
         mailResizeObserver.observe(term);
     }
-    const mailRefreshTimer = setInterval(refreshThreads, CYBERNER_THREAD_REFRESH_INTERVAL_MS);
+    const scheduleMailRefresh = () => {
+        if (mailClosed) return;
+        mailRefreshTimer = setTimeout(async () => {
+            await refreshThreads(false);
+            scheduleMailRefresh();
+        }, CYBERNER_THREAD_REFRESH_INTERVAL_MS);
+    };
+    scheduleMailRefresh();
     term.querySelector('.close-btn').addEventListener('click', () => {
-        clearInterval(mailRefreshTimer);
+        mailClosed = true;
+        clearTimeout(mailRefreshTimer);
+        Object.values(requestState).forEach(state => {
+            if (state.controller) state.controller.abort();
+            state.inFlight = null;
+            state.controller = null;
+        });
         window.activeCybernerThread = null;
         window.removeEventListener('resize', mailResizeHandler);
         if (window.visualViewport) {

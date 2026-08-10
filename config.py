@@ -50,6 +50,13 @@ PROVISIONAL_APP_LAUNCH_ENABLED = env_bool(
     False,
 )
 
+CYBERNER_CHANNEL_STORE_FLAGS = {
+    "enabled": env_bool("CHAOS_CYBERNER_CHANNEL_STORE_ENABLED", False),
+    "world": env_bool("CHAOS_CYBERNER_WORLD_STORE_ENABLED", False),
+    "clan": env_bool("CHAOS_CYBERNER_CLAN_STORE_ENABLED", False),
+    "live_delivery": env_bool("CHAOS_CYBERNER_LIVE_DELIVERY_ENABLED", False),
+}
+
 
 FLASK_SESSION_CONFIG = {
     "SESSION_TYPE": os.environ.get("CHAOS_SESSION_TYPE", "filesystem"),
