@@ -11422,3 +11422,6 @@ traktować zwykłą wiadomość na kanale `WORLD` jak komunikat systemowy: cudze
 wiadomości są po lewej, własne po prawej, a źródła systemowe pozostają na środku.
 Lewa kolumna ma jeden wspólny scroll; kanały, rozmowy i nowe wątki są sekcjami
 tego samego strumienia, rozdzielonymi linią zamiast niezależnych scrollbarów.
+Na ekranach narrow formularz dodania znajomego pozostaje na samej górze, a
+wspólny scroll zajmuje całą pozostałą wysokość i zawiera jawne sekcje `Kanały`,
+`Znajomi` oraz `Nowe`.

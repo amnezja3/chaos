@@ -4012,6 +4012,10 @@ form button:hover {
   overflow: hidden;
 }
 
+.mail-sidebar .mail-contact-search {
+  flex: 0 0 auto;
+}
+
 .mail-sidebar-scroll {
   min-height: 0;
   overflow-y: auto;

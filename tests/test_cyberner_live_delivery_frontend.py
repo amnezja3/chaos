@@ -41,6 +41,9 @@ class CybernerLiveDeliveryFrontendContractTest(unittest.TestCase):
     def test_sidebar_uses_one_shared_scroll_container(self):
         self.assertIn('class="mail-sidebar-scroll"', self.source)
         self.assertGreaterEqual(self.source.count('class="mail-sidebar-section"'), 2)
+        sidebar = self.source.split('<div class="mail-sidebar">', 1)[1].split('<div class="mail-main mail-chat">', 1)[0]
+        self.assertLess(sidebar.index('mail-contact-search'), sidebar.index('mail-sidebar-scroll'))
+        self.assertIn('<div class="mail-section-title">Znajomi</div>', sidebar)
 
 
 if __name__ == "__main__":
