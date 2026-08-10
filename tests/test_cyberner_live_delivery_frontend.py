@@ -38,6 +38,10 @@ class CybernerLiveDeliveryFrontendContractTest(unittest.TestCase):
         self.assertNotIn('"world"', system_block)
         self.assertNotIn('"clan"', system_block)
 
+    def test_sidebar_uses_one_shared_scroll_container(self):
+        self.assertIn('class="mail-sidebar-scroll"', self.source)
+        self.assertGreaterEqual(self.source.count('class="mail-sidebar-section"'), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

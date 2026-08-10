@@ -13592,17 +13592,23 @@ function createEmailClient() {
         <div class="mail-app" data-mobile-view="list">
             <div class="mail-sidebar">
                 <div class="mail-sidebar-title">Cyberner</div>
-                <div class="mail-section-title">Kanały</div>
-                <div id="${terminalId}-channels" class="mail-channel-list mail-conversation-list"></div>
-                <div class="mail-section-title">Rozmowy</div>
-                <form id="${terminalId}-contact-form" class="mail-contact-form mail-add-contact">
-                    <input id="${terminalId}-contact-input" type="text" placeholder="Nick znajomego" autocomplete="off">
-                    <button type="submit">Dodaj</button>
-                </form>
-                <div id="${terminalId}-contacts" class="mail-contact-list mail-conversation-list"></div>
-                <div id="${terminalId}-pending-wrap" class="mail-pending-wrap" style="display:none;">
-                    <div class="mail-section-title">Nowe</div>
-                    <div id="${terminalId}-pending" class="mail-contact-list mail-conversation-list"></div>
+                <div class="mail-sidebar-scroll">
+                    <section class="mail-sidebar-section">
+                        <div class="mail-section-title">Kanały</div>
+                        <div id="${terminalId}-channels" class="mail-channel-list mail-conversation-list"></div>
+                    </section>
+                    <section class="mail-sidebar-section">
+                        <div class="mail-section-title">Rozmowy</div>
+                        <form id="${terminalId}-contact-form" class="mail-contact-form mail-add-contact">
+                            <input id="${terminalId}-contact-input" type="text" placeholder="Nick znajomego" autocomplete="off">
+                            <button type="submit">Dodaj</button>
+                        </form>
+                        <div id="${terminalId}-contacts" class="mail-contact-list mail-conversation-list"></div>
+                    </section>
+                    <section id="${terminalId}-pending-wrap" class="mail-pending-wrap mail-sidebar-section" style="display:none;">
+                        <div class="mail-section-title">Nowe</div>
+                        <div id="${terminalId}-pending" class="mail-contact-list mail-conversation-list"></div>
+                    </section>
                 </div>
             </div>
             <div class="mail-main mail-chat">

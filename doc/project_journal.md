@@ -11420,3 +11420,5 @@ idempotentna migracja `007` czyści wyłącznie ich dokładne pary nadawca/temat
 legacy oraz shared `WORLD` i zeruje dawny seed `messages`. Renderer przestał
 traktować zwykłą wiadomość na kanale `WORLD` jak komunikat systemowy: cudze
 wiadomości są po lewej, własne po prawej, a źródła systemowe pozostają na środku.
+Lewa kolumna ma jeden wspólny scroll; kanały, rozmowy i nowe wątki są sekcjami
+tego samego strumienia, rozdzielonymi linią zamiast niezależnych scrollbarów.

@@ -33,16 +33,28 @@
   box-shadow: inset -10px 0 22px rgba(0, 255, 102, 0.035);
   padding: 10px;
   display: grid;
-  grid-template-rows:
-    auto
-    auto
-    minmax(142px, 0.55fr)
-    auto
-    auto
-    minmax(118px, 0.55fr)
-    minmax(142px, 0.7fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
   overflow: hidden;
+}
+
+.mail-sidebar-scroll {
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.mail-sidebar-section {
+  min-width: 0;
+  padding: 0 0 12px;
+}
+
+.mail-sidebar-section + .mail-sidebar-section {
+  border-top: 1px solid rgba(0, 255, 102, 0.25);
+  padding-top: 6px;
 }
 
 .mail-sidebar-title {
@@ -144,27 +156,27 @@
   display: grid;
   align-content: start;
   gap: 7px;
-  overflow-y: auto;
-  padding-right: 4px;
+  overflow: visible;
+  padding-right: 0;
 }
 
 .mail-channel-list {
-  min-height: 142px;
+  min-height: 0;
 }
 
 .mail-contact-list {
-  min-height: 118px;
+  min-height: 0;
 }
 
 .mail-pending-wrap {
-  min-height: 142px;
+  min-height: 0;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .mail-pending-wrap.is-visible {
   display: grid !important;
-  grid-template-rows: auto minmax(112px, 1fr);
+  grid-template-rows: auto auto;
   gap: 8px;
 }
 
