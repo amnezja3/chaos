@@ -1085,15 +1085,28 @@ class UserStore:
             raise ValueError("Profile must contain username.")
 
         launch_queue_write_mode = str(profile.pop("_launch_queue_write_mode", "") or "").strip()
-        ensure_password_hash(profile)
         now = utc_now()
         with db_connect(self.db_path) as conn:
             current_row = conn.execute(
-                "SELECT profile_json FROM users WHERE username = ?",
+                "SELECT password, salt, profile_json FROM users WHERE username = ?",
                 (username,),
             ).fetchone()
             current_profile = loads_json(current_row["profile_json"], {}) if current_row else {}
             if current_profile:
+                # Read-only/API snapshots deliberately omit credentials. Saving such
+                # a snapshot must not turn the omission into an empty password.
+                incoming_password = str(profile.get("password") or "")
+                if not incoming_password:
+                    profile["password"] = str(
+                        current_row["password"]
+                        or current_profile.get("password")
+                        or ""
+                    )
+                    profile["salt"] = str(
+                        current_row["salt"]
+                        or current_profile.get("salt")
+                        or ""
+                    )
                 if launch_queue_write_mode == "clear":
                     profile["launch_queue"] = []
                 elif launch_queue_write_mode == "append":
@@ -1105,6 +1118,8 @@ class UserStore:
                     # launch_queue is a transient app-launch bus. A slow full-profile
                     # write must not resurrect apps that /launch-queue already consumed.
                     profile["launch_queue"] = current_profile.get("launch_queue", [])
+
+            ensure_password_hash(profile)
 
             conn.execute(
                 """
