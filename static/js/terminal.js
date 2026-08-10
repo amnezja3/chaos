@@ -9249,6 +9249,11 @@ async function getUserProfile() {
             const data = await res.json();
             data.snapshot_client_requested_ms = snapshotClientRequestedMs;
             data.snapshot_client_received_ms = Date.now();
+            // /api/profile is the authoritative player snapshot. The first
+            // desktop request may fail or be delayed while the backend boots;
+            // a later successful refresh must also repair the persistent
+            // toolbar, not only the window that requested the profile.
+            setToolbarProfile(data);
             return data;
         } catch (err) {
             console.error("❌ Błąd pobierania profilu użytkownika:", err);

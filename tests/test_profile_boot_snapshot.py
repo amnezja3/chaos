@@ -47,6 +47,16 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         self.assertIn("cache_in_session=True", helper)
         self.assertGreaterEqual(helper.count("if cache_in_session:"), 2)
 
+    def test_successful_profile_refresh_repairs_toolbar_snapshot(self):
+        terminal_source = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        start = terminal_source.index("async function getUserProfile()")
+        end = terminal_source.index("function rememberProcessedDelta", start)
+        helper = terminal_source[start:end]
+
+        self.assertIn("const data = await res.json();", helper)
+        self.assertIn("setToolbarProfile(data);", helper)
+        self.assertLess(helper.index("setToolbarProfile(data);"), helper.index("return data;"))
+
     def test_login_redirect_does_not_load_or_copy_full_profile(self):
         start = self.source.index('@app.route("/", methods=["GET", "POST"])')
         end = self.source.index('@app.route("/register")', start)
