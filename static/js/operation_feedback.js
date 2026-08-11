@@ -885,6 +885,94 @@
         return Object.freeze(value);
     }
 
+    const BRAND_TITLE_MOTIONS = Object.freeze({
+        terminal: Object.freeze(["type-lock", "blink-sync", "glitch-anchor"]),
+        button_choices: Object.freeze(["icon-lock", "blink-sync", "glitch-anchor"]),
+        button_choice: Object.freeze(["icon-lock", "blink-sync", "glitch-anchor"]),
+        progressbar_random: Object.freeze(["icon-lock", "title-slide", "blink-sync"]),
+        window: Object.freeze(["title-slide", "split-reveal", "icon-lock"])
+    });
+
+    function stableBrandHash(value) {
+        const text = String(value || "");
+        let hash = 2166136261;
+        for (let index = 0; index < text.length; index += 1) {
+            hash ^= text.charCodeAt(index);
+            hash = Math.imul(hash, 16777619);
+        }
+        return hash >>> 0;
+    }
+
+    function normalizeBrandName(value) {
+        return String(value || "Aplikacja").trim().replace(/\s+/g, " ").slice(0, 96) || "Aplikacja";
+    }
+
+    function buildApplicationBrandModel(appData = {}) {
+        const name = normalizeBrandName(appData.title || appData.name || appData.id);
+        const words = name.split(" ").filter(Boolean);
+        const characterCount = Array.from(name).length;
+        const spaceCount = Math.max(0, words.length - 1);
+        const longestWord = words.reduce((maximum, word) => Math.max(maximum, Array.from(word).length), 0);
+        const interfaceName = String(appData.interface || "window").trim().toLowerCase() || "window";
+        const hash = stableBrandHash(`${name}|${interfaceName}`);
+        let titleClass = "multi-word";
+        if (words.length === 1 && characterCount <= 12) titleClass = "compact-mark";
+        else if (words.length === 1 && characterCount <= 18) titleClass = "single-wide";
+        else if (words.length === 2 && characterCount <= 18) titleClass = "word-pair";
+        else if (characterCount > 32 || longestWord > 18) titleClass = "dense-title";
+
+        const estimatedHorizontalUnits = characterCount + (spaceCount * 2);
+        const horizontalSafe = characterCount <= 12 && spaceCount <= 1
+            ? true
+            : characterCount <= 18 && spaceCount <= 1 && estimatedHorizontalUnits <= 20;
+        const logoMode = horizontalSafe ? "horizontal" : "icon_only";
+        const motionPool = BRAND_TITLE_MOTIONS[interfaceName] || BRAND_TITLE_MOTIONS.window;
+        const titleMotion = motionPool[hash % motionPool.length];
+        const weight = [700, 800, 900][(hash >>> 3) % 3];
+        const icon = typeof appData.icon === "string" && appData.icon.trim()
+            ? appData.icon.trim().slice(0, 512)
+            : "▣";
+
+        const durationMs = Math.min(3800, 2250 + (characterCount * 45) + (spaceCount * 120));
+        return deepFreeze({
+            schema_version: "1.0.0",
+            identity_seed: hash.toString(16).padStart(8, "0"),
+            name,
+            icon,
+            interface: interfaceName,
+            name_metrics: {
+                character_count: characterCount,
+                word_count: words.length,
+                space_count: spaceCount,
+                longest_word: longestWord,
+                name_class: titleClass
+            },
+            title_sequence: {
+                layout: logoMode === "horizontal" ? "horizontal-lockup" : "icon-lockup",
+                motion: titleMotion,
+                duration_ms: durationMs,
+                duration_band: durationMs < 2400 ? "short" : (durationMs < 3200 ? "medium" : "long"),
+                readable_ms: 900
+            },
+            author_logo_header: {
+                mode: logoMode === "horizontal" ? "icon_text_horizontal" : "icon_only",
+                font_weight: weight,
+                font_scale: titleClass === "compact-mark" ? "compact" : "standard",
+                icon_text_ratio: logoMode === "horizontal" ? "1:0.72" : "1:0",
+                icon_position: "leading",
+                anchor: "start"
+            },
+            author_footer: {
+                mode: logoMode === "horizontal" ? "signature_compact" : "icon_only",
+                font_weight: weight,
+                font_scale: "micro",
+                icon_text_ratio: logoMode === "horizontal" ? "1:0.58" : "1:0",
+                icon_position: "leading",
+                anchor: "start"
+            }
+        });
+    }
+
     function projectApplicationContent(appData = {}) {
         const levels = Array.isArray(appData.levels) ? appData.levels : [];
         const level = levels[0] && typeof levels[0] === "object" ? levels[0] : {};
@@ -930,6 +1018,7 @@
                 || level.title || appData.name || appData.id,
                 { allowOutcome: true }
             ) || "OPERATION FEEDBACK",
+            icon: typeof appData.icon === "string" ? appData.icon.trim().slice(0, 512) : "",
             structured,
             legacy,
             interface: String(appData.interface || "")
@@ -1431,6 +1520,7 @@
         readFlags,
         sanitizeSecurityState,
         projectApplicationContent,
+        buildApplicationBrandModel,
         validateFeedbackConfig,
         loadFeedbackConfig,
         durationProfileFor,

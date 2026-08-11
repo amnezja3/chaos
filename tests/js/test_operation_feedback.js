@@ -27,6 +27,42 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox);
 
 const ofs = sandbox.window.OperationFeedbackSystem;
+const compactBrand = ofs.buildApplicationBrandModel({
+    name: "V-MAP",
+    icon: "❄️",
+    interface: "terminal"
+});
+const compactBrandAgain = ofs.buildApplicationBrandModel({
+    name: "V-MAP",
+    icon: "❄️",
+    interface: "terminal"
+});
+const pairedBrand = ofs.buildApplicationBrandModel({
+    name: "Trace Compass",
+    icon: "🎯",
+    interface: "window"
+});
+const denseBrand = ofs.buildApplicationBrandModel({
+    name: "Katolicka Szkola Podstawowa Security Console",
+    icon: "🏫",
+    interface: "button_choices"
+});
+const missingBrand = ofs.buildApplicationBrandModel({interface: "progressbar_random"});
+const specialBrand = ofs.buildApplicationBrandModel({name: "Słówko ++", interface: "window"});
+assert.deepStrictEqual(JSON.parse(JSON.stringify(compactBrand)), JSON.parse(JSON.stringify(compactBrandAgain)));
+assert.strictEqual(Object.isFrozen(compactBrand), true);
+assert.strictEqual(compactBrand.name_metrics.name_class, "compact-mark");
+assert.strictEqual(compactBrand.author_logo_header.mode, "icon_text_horizontal");
+assert.strictEqual(pairedBrand.name_metrics.word_count, 2);
+assert.strictEqual(denseBrand.name_metrics.name_class, "dense-title");
+assert.strictEqual(denseBrand.author_logo_header.mode, "icon_only");
+assert.strictEqual(denseBrand.author_footer.mode, "icon_only");
+assert.ok(compactBrand.title_sequence.duration_ms >= 1800);
+assert.ok(compactBrand.title_sequence.duration_ms <= 3800);
+assert.strictEqual(compactBrand.title_sequence.readable_ms, 900);
+assert.strictEqual(missingBrand.name, "Aplikacja");
+assert.strictEqual(missingBrand.icon, "▣");
+assert.strictEqual(specialBrand.name_metrics.word_count, 2);
 class FakeNode {
     constructor(tagName = "div") {
         this.tagName = tagName;

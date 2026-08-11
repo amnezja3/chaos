@@ -19403,7 +19403,7 @@ Pełny kontrakt czterech sprintów znajduje się w
 130.8.6.8  adaptacyjne paczki ofs_provisional dla czterech interface voices
 130.8.6.9  unikatowe template'y button_choice/random_progress/terminal/window
 130.8.6.10 język efektów mapy, eskalacja czasu i production hardening
-130.8.6.11 generator czołówki z ikony i nazwy aplikacji
+130.8.6.11 generator czołówki oraz trwałego brandingu header/footer z ikony i nazwy aplikacji
 ```
 
 Blok nie zmienia gameplayu ani kontraktów aplikacji. Obowiązuje kolejność:

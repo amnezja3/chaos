@@ -1547,6 +1547,18 @@ function readOFSVisualLiftEnabled() {
     }
 }
 const ofsVisualLiftEnabled = readOFSVisualLiftEnabled();
+function readOFSTitleSequenceEnabled() {
+    const node = document.getElementById("operation-feedback-config");
+    if (!node) return true;
+    try {
+        const parsed = JSON.parse(node.textContent || "{}");
+        return parsed.title_sequence_enabled !== false;
+    } catch (error) {
+        console.warn("[OFS] Nieprawidlowy title sequence config", error);
+        return true;
+    }
+}
+const ofsTitleSequenceEnabled = readOFSTitleSequenceEnabled();
 const provisionalApplicationSessions = new Map();
 let provisionalApplicationTombstones = [];
 let activeProvisionalHydrationSession = null;
@@ -1894,6 +1906,9 @@ function beginProvisionalLaunch(selection = {}, appData = {}) {
     appWindow.dataset.launchSource = "map";
     appWindow.dataset.provisionalSessionKey = sessionKey;
     appWindow.dataset.provisionalState = "launching";
+    if (window.OperationFeedbackSystem?.buildApplicationBrandModel) {
+        appWindow._ofsBrandModel = window.OperationFeedbackSystem.buildApplicationBrandModel(appData);
+    }
     appWindow.style.top = `${position.top}px`;
     appWindow.style.left = `${position.left}px`;
     appWindow.style.width = "460px";
@@ -2052,8 +2067,130 @@ function normalizeOFSApplicationTemplate(interfaceName) {
     return "window";
 }
 
+function resolveApplicationBrandModel(app) {
+    if (app?._ofsBrandModel) return app._ofsBrandModel;
+    const context = currentApplicationLaunchContext(app);
+    const content = context.application_content || {};
+    const source = {
+        name: context.app_name || content.title || app?.dataset?.appId || "Aplikacja",
+        icon: content.icon || "",
+        interface: content.interface || app?.dataset?.appInterface || "window"
+    };
+    const ofs = window.OperationFeedbackSystem;
+    app._ofsBrandModel = ofs?.buildApplicationBrandModel
+        ? ofs.buildApplicationBrandModel(source)
+        : Object.freeze({ name: source.name, icon: source.icon || "▣" });
+    return app._ofsBrandModel;
+}
+
+function createApplicationBrandMark(model, placement) {
+    const config = model && model[placement] ? model[placement] : {};
+    const mark = document.createElement("div");
+    mark.className = `ofs-brand-mark ofs-brand-${placement.replace(/_/g, "-")}`;
+    mark.dataset.logoMode = config.mode || "icon_only";
+    mark.dataset.fontScale = config.font_scale || "standard";
+    mark.dataset.anchor = config.anchor || "start";
+    mark.style.setProperty("--ofs-brand-weight", String(config.font_weight || 800));
+
+    const icon = document.createElement("span");
+    icon.className = "ofs-brand-icon";
+    const iconValue = String(model?.icon || "▣");
+    if (/^(?:\/static\/|data:image\/(?:png|gif|jpeg|webp);base64,)/i.test(iconValue)) {
+        const image = document.createElement("img");
+        image.src = iconValue;
+        image.alt = "";
+        icon.appendChild(image);
+    } else {
+        icon.textContent = iconValue;
+    }
+    mark.appendChild(icon);
+
+    const label = document.createElement("span");
+    label.className = "ofs-brand-name";
+    label.textContent = model?.name || "Aplikacja";
+    mark.appendChild(label);
+    mark.setAttribute("aria-label", model?.name || "Aplikacja");
+    mark.title = model?.name || "Aplikacja";
+    return mark;
+}
+
+function prepareApplicationBrandShell(app) {
+    if (!ofsVisualLiftEnabled || !app) return null;
+    const content = app.querySelector(".ofs-author-shell");
+    if (!content || content.dataset.ofsBrandShell === "true") return content;
+    const model = resolveApplicationBrandModel(app);
+    const feedbackHost = content.querySelector(".operation-feedback-host");
+    const authorStage = document.createElement("div");
+    authorStage.className = "ofs-author-stage";
+    Array.from(content.children).forEach(child => {
+        if (child !== feedbackHost) authorStage.appendChild(child);
+    });
+
+    const viewport = document.createElement("div");
+    viewport.className = "ofs-scene-viewport";
+    const titleScene = document.createElement("section");
+    titleScene.className = "ofs-title-sequence";
+    titleScene.dataset.titleClass = model.name_metrics?.name_class || "multi-word";
+    titleScene.dataset.titleMotion = model.title_sequence?.motion || "icon-lock";
+    titleScene.setAttribute("aria-label", `${model.name}. Uruchamianie aplikacji.`);
+    titleScene.appendChild(createApplicationBrandMark(model, "author_logo_header"));
+    if ((model.author_logo_header?.mode || "") === "icon_only") {
+        const fullTitle = document.createElement("strong");
+        fullTitle.className = "ofs-title-full-name";
+        fullTitle.textContent = model.name;
+        titleScene.appendChild(fullTitle);
+    }
+    const titleStatus = document.createElement("span");
+    titleStatus.className = "ofs-title-status";
+    titleStatus.textContent = "INTERFACE READY";
+    titleScene.appendChild(titleStatus);
+    viewport.appendChild(titleScene);
+    viewport.appendChild(authorStage);
+    if (feedbackHost) viewport.appendChild(feedbackHost);
+
+    while (content.firstChild) content.removeChild(content.firstChild);
+    content.appendChild(createApplicationBrandMark(model, "author_logo_header"));
+    content.appendChild(viewport);
+    content.appendChild(createApplicationBrandMark(model, "author_footer"));
+    content.dataset.ofsBrandShell = "true";
+    app.dataset.ofsTitleClass = model.name_metrics?.name_class || "multi-word";
+    app.dataset.ofsTitleMotion = model.title_sequence?.motion || "icon-lock";
+    return content;
+}
+
+function finishApplicationTitleSequence(app, reason = "complete") {
+    if (!app) return;
+    if (app._ofsTitleTimer) {
+        window.clearTimeout(app._ofsTitleTimer);
+        app._ofsTitleTimer = null;
+    }
+    if (app.dataset.ofsTitleActive !== "true") return;
+    delete app.dataset.ofsTitleActive;
+    appFlowTrace(app.dataset.appFlowId, "feedback_title_scene_completed", {
+        app_id: app.dataset.appId || "",
+        completion_reason: reason
+    });
+}
+
+function startApplicationTitleSequence(app) {
+    const model = resolveApplicationBrandModel(app);
+    if (!ofsVisualLiftEnabled || !ofsTitleSequenceEnabled || !model.title_sequence) return;
+    finishApplicationTitleSequence(app, "restarted");
+    app.dataset.ofsTitleActive = "true";
+    appFlowTrace(app.dataset.appFlowId, "feedback_title_scene_started", {
+        app_id: app.dataset.appId || "",
+        title_class: model.name_metrics?.name_class || "multi-word",
+        title_motion: model.title_sequence.motion,
+        duration_ms: model.title_sequence.duration_ms
+    });
+    const reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const duration = reducedMotion ? model.title_sequence.readable_ms : model.title_sequence.duration_ms;
+    app._ofsTitleTimer = window.setTimeout(() => finishApplicationTitleSequence(app, "elapsed"), duration);
+}
+
 function finishApplicationRenderWindow(app, hydrated) {
     if (!app.isConnected) document.body.appendChild(app);
+    prepareApplicationBrandShell(app);
     makeDraggable(app);
     app.dataset.ofsAuthorPresented = "true";
     app.dataset.ofsPhase = "author_intro";
@@ -2068,6 +2205,7 @@ function finishApplicationRenderWindow(app, hydrated) {
         });
         updateProvisionalApplicationSession(session, "interactive", "Aplikacja gotowa.");
     }
+    startApplicationTitleSequence(app);
 }
 
 function hydrateProvisionalApplicationSession(session, appData, item = {}) {
@@ -3380,7 +3518,7 @@ const APP_WAIT_LOG_MESSAGES = [
 function startAppWaitLog(container, options = {}) {
     const root = container && typeof container.querySelector === "function" ? container : null;
     if (!root) return () => {};
-    const content = root.querySelector('.app-content, .map-tool-picker-shell') || root;
+    const content = root.querySelector('.operation-feedback-host, .app-content, .map-tool-picker-shell') || root;
     let log = content.querySelector('.app-wait-log');
     if (!log) {
         log = document.createElement('div');
@@ -3466,6 +3604,7 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
     return {
         session,
         complete(payload) {
+            finishApplicationTitleSequence(appWindow, "payload_received");
             stopLegacy();
             if (session) session.complete(payload);
             const terminalSysinfo = appWindow?.querySelector?.('[data-terminal-sysinfo]');
@@ -3480,6 +3619,7 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
             }
         },
         fail(reason) {
+            finishApplicationTitleSequence(appWindow, "request_failed");
             stopLegacy();
             if (session) session.fail(reason);
             const terminalSysinfo = appWindow?.querySelector?.('[data-terminal-sysinfo]');
@@ -3508,6 +3648,7 @@ function startLegacyAppWaitUnlessFeedbackEnabled(appWindow) {
 }
 
 function disposeOperationFeedbackWindow(appWindow, reason = "window_closed") {
+    finishApplicationTitleSequence(appWindow, reason);
     const ofs = window.OperationFeedbackSystem;
     if (ofs) ofs.disposeWindowSession(appWindow, reason);
     disposeProvisionalApplicationSession(appWindow?._provisionalApplicationSession, reason);

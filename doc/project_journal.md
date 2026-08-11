@@ -11473,3 +11473,18 @@ tego samego strumienia, rozdzielonymi linią zamiast niezależnych scrollbarów.
 Na ekranach narrow formularz dodania znajomego pozostaje na samej górze, a
 wspólny scroll zajmuje całą pozostałą wysokość i zawiera jawne sekcje `Kanały`,
 `Znajomi` oraz `Nowe`.
+
+## 2026-08-11 — Sprint 130.8.6.11: generator czołówki i brandingu aplikacji
+
+- Dodano deterministyczny, niemutowalny model marki budowany z nazwy, ikony i
+  rodziny interface'u. Model klasyfikuje nazwę, wybiera dozwolony ruch oraz
+  bezpieczne tokeny logo bez przyjmowania CSS od autora.
+- Provisional tworzy model raz, a hydration zachowuje go w tym samym oknie.
+  Krótkie nazwy otrzymują poziomy lockup, długie `icon_only` z pełną nazwą
+  zachowaną w czołówce, title i ARIA.
+- Cztery template'y korzystają ze stałego shellu: nieruchomy header i footer
+  otaczają jeden viewport zmieniany pomiędzy czołówką, autorem, OFS i finałem.
+  Timery są lokalne dla okna, reduced motion jest statyczny, a payload przerywa
+  prezentację bez opóźniania requestu.
+- Dodano niezależny rollback `CHAOS_OFS_TITLE_SEQUENCE_ENABLED=0`. Nie wykonano
+  commita ani deployu.

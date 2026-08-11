@@ -344,6 +344,94 @@ najdłuższego słowa oraz stabilny lokalny hash. Hash nie służy do losowania
 wyniku — wybiera jedynie powtarzalny wariant ruchu. Ta sama nazwa i template
 muszą zawsze tworzyć tę samą czołówkę, także po ponownym otwarciu aplikacji.
 
+### Model generowanego brandingu
+
+Generator nie tworzy wyłącznie jednorazowej planszy. Przy hydration buduje jeden
+niemutowalny model identyfikacji aplikacji, wykorzystywany przez czołówkę,
+content autora, execution OFS i finał. Model powstaje raz dla konkretnego okna;
+zmiana sceny nie może ponownie losować proporcji ani położenia logo.
+
+Minimalny kontrakt prezentacyjny:
+
+```json
+{
+  "schema_version": "1.0.0",
+  "identity_seed": "stable-local-hash",
+  "name_metrics": {
+    "character_count": 9,
+    "word_count": 1,
+    "space_count": 0,
+    "longest_word": 9,
+    "name_class": "compact-mark"
+  },
+  "title_sequence": {
+    "layout": "horizontal-lockup",
+    "motion": "icon-lock",
+    "duration_band": "short"
+  },
+  "author_logo_header": {
+    "mode": "icon_text_horizontal",
+    "font_weight": 800,
+    "font_scale": "compact",
+    "icon_text_ratio": "1:0.72",
+    "icon_position": "leading",
+    "anchor": "start"
+  },
+  "author_footer": {
+    "mode": "signature_compact",
+    "font_weight": 700,
+    "font_scale": "micro",
+    "icon_text_ratio": "1:0.58",
+    "icon_position": "leading",
+    "anchor": "end"
+  }
+}
+```
+
+Wartości są tokenami z zamkniętego słownika. Autor aplikacji nie przekazuje
+dowolnego CSS, wymiarów, pozycji ani animacji. `font_weight`, `font_scale`,
+`icon_text_ratio`, `icon_position` i `anchor` są wyliczane deterministycznie z
+nazwy oraz ograniczane przez template interface'u.
+
+### Reguły budowy logo
+
+Budujemy automatyczny lockup z istniejącej ikony i nazwy aplikacji. Nie
+generujemy nowego pliku graficznego i nie modyfikujemy źródłowej ikony.
+
+* krótka nazwa, domyślnie do 12 znaków i maksymalnie jednego odstępu, używa
+  `icon_text_horizontal`: ikona po lewej, napis po prawej na wspólnym baseline;
+* bardzo krótka nazwa jednowyrazowa może dostać większy `font_weight` i bardziej
+  zwarty stosunek ikony do tekstu;
+* nazwa 13–18 znaków może pozostać pozioma tylko wtedy, gdy pomiar szerokości
+  mieści się w bezpiecznym limicie konkretnego template'u;
+* długa, gęsta albo wielowierszowa nazwa używa `icon_only`; pełna nazwa nadal
+  pozostaje w czołówce, title barze, `title` i nazwie dostępnej dla ARIA;
+* brak ikony uruchamia jeden neutralny fallback wspólny dla OFS; brak nazwy
+  tworzy dostępny label `Aplikacja`, ale nie zapisuje go jako nowej nazwy autora;
+* header i footer zawsze korzystają z tej samej ikony, wagi bazowej, proporcji i
+  strony zakotwiczenia. Footer może jedynie zmniejszyć skalę, nie może tworzyć
+  innego logo.
+
+`author_logo_header` jest głównym, spokojnym lockupem widocznym nad sceną autora
+i jako subtelna identyfikacja w execution OFS. `author_footer` jest małą
+sygnaturą przy dolnej krawędzi viewportu. Oba elementy pozostają nieruchome w
+czasie zmiany wewnętrznych scen i nie mogą przesuwać action docku.
+
+### Dziedziczenie brandingu przez show
+
+```text
+title_intro       → duży lockup i animacja wejścia
+author_intro      → author_logo_header + content autora + author_footer
+execution OFS     → mały author_logo_header + sceny OFS + author_footer
+completion/failure→ ten sam lockup, zmienia się wyłącznie prawdziwy tone wyniku
+```
+
+Kolor tonu sukcesu, warningu lub failure nie nadpisuje bazowej tożsamości logo.
+Może jedynie dodać krótkie obramowanie lub impuls do istniejącego lockupu po
+autorytatywnym payloadzie. Provisional przed hydration korzysta z bezpiecznej
+projekcji nazwy i ikony; hydration potwierdza model i nie może spowodować skoku
+geometrii, jeśli dane są identyczne.
+
 ### Klasy kompozycji nazwy
 
 * `compact-mark`: jedno słowo krótsze od ustalonego progu; duży bold, układ
@@ -432,6 +520,12 @@ Macierz kontraktowa:
   znaki specjalne i brak nazwy;
 * cztery template'y oraz pion/kwadrat/poziom/mobile;
 * deterministyczny wariant dla tej samej nazwy;
+* stabilny i identyczny `author_logo_header` oraz `author_footer` we wszystkich
+  fazach jednego okna;
+* granice logo: 12 znaków, przedział 13–18, długa nazwa, wiele spacji, długie
+  słowo bez spacji, brak ikony i brak nazwy;
+* przełączenie `icon_text_horizontal → icon_only` bez zmiany wymiaru okna;
+* tokeny brandingu z allowlisty i brak surowego CSS/HTML w modelu;
 * brak zależności od `app_id`, gameplay payloadu i security state;
 * payload podczas każdej części czołówki;
 * wiele równoległych okien bez wspólnego timera lub ownera;
@@ -450,3 +544,12 @@ template'u, provisional ani OFS.
 DoD: po samej ikonie, nazwie i ruchu można rozpoznać wejście aplikacji; okno nie
 zmienia wymiarów między czołówką, autorem, OFS i finałem; równoległe aplikacje
 rozpoczynają lokalny show natychmiast i nie czekają na wspólną kolejkę requestów.
+
+### Stan realizacji 2026-08-11
+
+Sprint zaimplementowany. Model brandingu jest wyliczany deterministycznie raz na
+okno i przechodzi z provisionala przez hydration. Stały shell zawiera nieruchomy
+`author_logo_header`, wspólny viewport scen oraz `author_footer`; autor, OFS i
+finał wymieniają wyłącznie zawartość viewportu. Czołówka jest lokalną podfazą
+`author_intro`, nie wykonuje requestu i jest przerywana przez autorytatywny payload.
+Rollback: `CHAOS_OFS_TITLE_SEQUENCE_ENABLED=0`.

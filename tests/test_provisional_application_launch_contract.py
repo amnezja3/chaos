@@ -106,6 +106,35 @@ class ProvisionalApplicationLaunchContractTest(unittest.TestCase):
         self.assertIn("readOFSVisualLiftEnabled", self.terminal)
         self.assertIn("ofs-visual-lift-disabled", self.terminal)
 
+    def test_title_sequence_branding_is_independent_and_reuses_hydrated_window(self):
+        self.assertIn('"CHAOS_OFS_TITLE_SEQUENCE_ENABLED"', self.config)
+        self.assertIn("readOFSTitleSequenceEnabled", self.terminal)
+        provisional = self.function_source(
+            "function beginProvisionalLaunch",
+            "window.beginProvisionalLaunch = beginProvisionalLaunch",
+        )
+        finish = self.function_source(
+            "function finishApplicationRenderWindow",
+            "function hydrateProvisionalApplicationSession",
+        )
+        self.assertIn("_ofsBrandModel", provisional)
+        self.assertIn("prepareApplicationBrandShell(app)", finish)
+        self.assertIn("startApplicationTitleSequence(app)", finish)
+
+    def test_title_sequence_does_not_delay_gameplay_request_and_payload_can_interrupt_it(self):
+        title = self.function_source(
+            "function startApplicationTitleSequence",
+            "function finishApplicationRenderWindow",
+        )
+        request = self.function_source(
+            "function beginOperationFeedbackRequest",
+            "function startLegacyAppWaitUnlessFeedbackEnabled",
+        )
+        self.assertNotIn("fetch(", title)
+        self.assertNotIn("sendGonnaWinRequest", title)
+        self.assertIn('finishApplicationTitleSequence(appWindow, "payload_received")', request)
+        self.assertIn('finishApplicationTitleSequence(appWindow, "request_failed")', request)
+
     def test_mobile_toolbar_cycles_registered_windows_without_second_registry(self):
         self.assertIn('id="system-window-tab-button"', self.terminal)
         self.assertIn("function cycleMobileToolbarWindow", self.terminal)
