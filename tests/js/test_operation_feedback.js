@@ -411,6 +411,38 @@ const extendedB = ofs.composeProvisionalScene({
     context: provisionalContext, history: {last_variant: extendedA.variant_key}, random: () => 0
 });
 assert.notStrictEqual(extendedA.variant_key, extendedB.variant_key);
+assert.deepStrictEqual(
+    Object.keys(config.provisional_wait_bands),
+    ["instant", "short", "medium", "long", "extended", "overdue"]
+);
+[
+    [0, "instant"], [1499, "instant"], [1500, "short"], [8000, "medium"],
+    [30000, "long"], [90000, "extended"], [150000, "overdue"]
+].forEach(([elapsedMs, expected]) => {
+    assert.strictEqual(ofs.provisionalWaitBandFor(config, elapsedMs).id, expected);
+});
+const provisionalFamilies = new Set(provisionalTimeline.stages.map(stage => stage.family));
+["terminal", "button_choices", "window", "progressbar_random"].forEach(voice => {
+    provisionalFamilies.forEach(family => {
+        assert.ok(config.provisional_voice_packs[voice][family].length >= 3, `${voice}.${family}`);
+    });
+});
+const rotationHistory = {recent_variants: []};
+const rotated = [0, 1, 2].map(() => {
+    const scene = ofs.composeProvisionalScene({
+        config, profile: provisionalProfile, stage: extendedStage,
+        context: provisionalContext, history: rotationHistory, elapsedMs: 160000, random: () => 0
+    });
+    rotationHistory.recent_variants.push(scene.variant_key);
+    return scene;
+});
+assert.strictEqual(new Set(rotated.map(scene => scene.variant_key)).size, 3);
+assert.ok(rotated.every(scene => scene.content_source === "provisional_voice_pack"));
+assert.ok(rotated.every(scene => scene.wait_band === "overdue"));
+
+const invalidVoicePack = JSON.parse(JSON.stringify(profileData));
+delete invalidVoicePack.provisional_voice_packs.window.context_bind;
+assert.throws(() => ofs.validateFeedbackConfig(invalidVoicePack), /too few variants/);
 
 const invalidPlaceholderConfig = JSON.parse(JSON.stringify(profileData));
 invalidPlaceholderConfig.provisional_scene_library.app_identity.voices.default[0][0] = "{owner_username}";

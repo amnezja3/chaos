@@ -15,6 +15,8 @@
     const PRESENTATION_MODES = new Set(["ofs_provisional", "terminal", "button_choice", "window"]);
     const SCENE_TRANSITIONS = new Set(["replace", "clear", "fade", "append_short"]);
     const PROVISIONAL_VOICES = new Set(["default", "terminal", "button_choices", "window", "progressbar_random"]);
+    const PROVISIONAL_INTERFACE_VOICES = Object.freeze(["terminal", "button_choices", "window", "progressbar_random"]);
+    const PROVISIONAL_WAIT_BANDS = Object.freeze(["instant", "short", "medium", "long", "extended", "overdue"]);
     const PROVISIONAL_PLACEHOLDERS = new Set(["app_title", "description", "interface", "target_label", "action_label"]);
     const PRESENTATION_PHASES = new Set([
         "provisional", "hydrating", "author_intro", "executing", "completing",
@@ -96,7 +98,8 @@
             slots: Object.freeze(slots),
             transition,
             tone: String(value.tone || "pending").trim(),
-            content_source: String(value.content_source || "fallback").trim()
+            content_source: String(value.content_source || "fallback").trim(),
+            wait_band: String(value.wait_band || "").trim()
         });
     }
 
@@ -120,6 +123,7 @@
             this.host.dataset.sceneId = envelope.scene_id;
             this.host.dataset.sceneTransition = envelope.transition;
             this.host.dataset.sceneTone = envelope.tone;
+            if (envelope.wait_band) this.host.dataset.ofsWaitBand = envelope.wait_band;
             if (envelope.transition === "clear") {
                 this.host.replaceChildren();
                 return true;
@@ -331,7 +335,8 @@
         const config = ensureObject(rawConfig, "config");
         if (config.schema_version !== "1.0.0") throw new Error("OFS unsupported schema_version");
         [
-            "defaults", "duration_profiles", "provisional_timelines", "provisional_scene_library", "scene_library",
+            "defaults", "duration_profiles", "provisional_timelines", "provisional_wait_bands",
+            "provisional_voice_packs", "provisional_scene_library", "scene_library",
             "security_library", "transport_library", "choice_library",
             "completion_library", "failure_library", "operations"
         ].forEach(section => ensureObject(config[section], section));
@@ -413,6 +418,33 @@
             throw new Error("OFS launch_150s provisional timeline is incomplete");
         }
         const timelineFamilies = new Set(timeline.stages.map(stage => String(stage.family || "")));
+        const waitBands = Object.entries(config.provisional_wait_bands);
+        if (waitBands.length !== PROVISIONAL_WAIT_BANDS.length
+            || waitBands.some(([id, band], index) => id !== PROVISIONAL_WAIT_BANDS[index]
+                || !Number.isFinite(Number(band.min_elapsed_ms))
+                || (index > 0 && Number(band.min_elapsed_ms) <= Number(waitBands[index - 1][1].min_elapsed_ms)))) {
+            throw new Error("OFS provisional wait bands are invalid");
+        }
+        const validateProvisionalVariants = (variants, label, minimum = 1) => {
+            if (!Array.isArray(variants) || variants.length < minimum) throw new Error(`OFS ${label} has too few variants`);
+            variants.forEach(lines => {
+                if (!Array.isArray(lines) || !lines.length || lines.some(line => typeof line !== "string")) {
+                    throw new Error(`OFS ${label} has invalid content`);
+                }
+                lines.forEach(line => {
+                    if (/(sukces|success|captur|connection lost|packet loss|worker restart|reconnect|retry|firewall|security|zabezpiecze)/i.test(line)) {
+                        throw new Error(`OFS ${label} contains outcome or runtime fiction`);
+                    }
+                    Array.from(line.matchAll(/\{([a-z_]+)\}/g)).forEach(match => {
+                        if (!PROVISIONAL_PLACEHOLDERS.has(match[1])) throw new Error(`OFS forbidden placeholder ${match[1]}`);
+                    });
+                });
+            });
+        };
+        PROVISIONAL_INTERFACE_VOICES.forEach(voice => {
+            const pack = ensureObject(config.provisional_voice_packs[voice], `provisional voice pack ${voice}`);
+            timelineFamilies.forEach(family => validateProvisionalVariants(pack[family], `${voice}.${family}`, 3));
+        });
         const stageIds = new Set();
         timeline.stages.forEach(stage => {
             const sceneId = String(stage.scene_id || "").trim();
@@ -427,22 +459,7 @@
             if (!Object.keys(voices).length || Object.keys(voices).some(voice => !PROVISIONAL_VOICES.has(voice))) {
                 throw new Error(`OFS provisional scene ${sceneId} has invalid voices`);
             }
-            Object.values(voices).forEach(variants => {
-                if (!Array.isArray(variants) || !variants.length) throw new Error(`OFS provisional scene ${sceneId} has no variants`);
-                variants.forEach(lines => {
-                    if (!Array.isArray(lines) || !lines.length || lines.some(line => typeof line !== "string")) {
-                        throw new Error(`OFS provisional scene ${sceneId} has invalid content`);
-                    }
-                    lines.forEach(line => {
-                        if (/(sukces|success|captur|connection lost|packet loss|worker restart|reconnect|retry|firewall|security|zabezpiecze)/i.test(line)) {
-                            throw new Error(`OFS provisional scene ${sceneId} contains outcome or runtime fiction`);
-                        }
-                        Array.from(line.matchAll(/\{([a-z_]+)\}/g)).forEach(match => {
-                            if (!PROVISIONAL_PLACEHOLDERS.has(match[1])) throw new Error(`OFS forbidden placeholder ${match[1]}`);
-                        });
-                    });
-                });
-            });
+            Object.values(voices).forEach(variants => validateProvisionalVariants(variants, `provisional scene ${sceneId}`));
             if (family === "extended_wait" && Math.max(...Object.values(voices).map(variants => variants.length)) < 3) {
                 throw new Error("OFS extended wait requires at least three variants");
             }
@@ -564,7 +581,16 @@
         return profilePromise;
     }
 
-    function composeProvisionalScene({ config, profile, stage, context = {}, history = {}, random = Math.random } = {}) {
+    function provisionalWaitBandFor(config, elapsedMs = 0) {
+        const entries = Object.entries(ensureObject(config && config.provisional_wait_bands, "provisional wait bands"));
+        let selected = entries[0];
+        entries.forEach(entry => {
+            if (Math.max(0, Number(elapsedMs) || 0) >= Number(entry[1].min_elapsed_ms || 0)) selected = entry;
+        });
+        return Object.freeze({ id: selected[0], min_elapsed_ms: Number(selected[1].min_elapsed_ms || 0) });
+    }
+
+    function composeProvisionalScene({ config, profile, stage, context = {}, history = {}, elapsedMs = 0, random = Math.random } = {}) {
         const sceneId = String(stage && stage.scene_id || "").trim();
         const family = String(stage && stage.family || "").trim();
         const definition = ensureObject(config && config.provisional_scene_library && config.provisional_scene_library[sceneId], `provisional scene ${sceneId}`);
@@ -573,11 +599,15 @@
         }
         const actualVoice = String(context.interface || "").trim().toLowerCase();
         const configuredVoice = String(profile.provisional_profile.interface_voice || "default").trim();
-        const voice = PROVISIONAL_VOICES.has(actualVoice) ? actualVoice : configuredVoice;
-        const variants = definition.voices[voice] || definition.voices.default;
-        const previous = String(history.last_variant || "");
-        const candidates = variants.map((lines, index) => ({ lines, key: `${sceneId}:${voice}:${index}` }));
-        const available = candidates.filter(candidate => candidate.key !== previous);
+        const voice = PROVISIONAL_INTERFACE_VOICES.includes(actualVoice) ? actualVoice
+            : (PROVISIONAL_INTERFACE_VOICES.includes(configuredVoice) ? configuredVoice : "default");
+        const packedVariants = config.provisional_voice_packs?.[voice]?.[family];
+        const variants = packedVariants || definition.voices[voice] || definition.voices.default;
+        const sourcePrefix = packedVariants ? "voice_pack" : sceneId;
+        const recent = new Set((Array.isArray(history.recent_variants) ? history.recent_variants : [])
+            .concat(history.last_variant || "").filter(Boolean).map(String));
+        const candidates = variants.map((lines, index) => ({ lines, key: `${sourcePrefix}:${family}:${voice}:${index}` }));
+        const available = candidates.filter(candidate => !recent.has(candidate.key));
         const selected = (available.length ? available : candidates)[Math.floor(random() * (available.length || candidates.length))];
         const values = {
             app_title: safeContentText(context.app_title, { allowOutcome: true }) || "Aplikacja",
@@ -595,8 +625,10 @@
             lines,
             status: lines[0] || "Oczekiwanie na runtime.",
             transition: definition.transition,
-            content_source: family === "author_content" || family === "author_manifest" ? "app_projection" : "global_fallback",
-            variant_key: selected.key
+            content_source: family === "author_content" || family === "author_manifest" ? "app_projection"
+                : (packedVariants ? "provisional_voice_pack" : "global_fallback"),
+            variant_key: selected.key,
+            wait_band: provisionalWaitBandFor(config, elapsedMs).id
         };
     }
 
@@ -1337,6 +1369,7 @@
         durationProfileFor,
         composeScene,
         composeProvisionalScene,
+        provisionalWaitBandFor,
         createSceneEnvelope,
         createPresentationRenderer,
         presentationModeForInterface,

@@ -1663,7 +1663,9 @@ function startPreExecutionPresentation(session, appData = {}, pending = {}, proj
         stopped: false,
         currentFamily: "",
         startedAt: performance.now(),
-        lastVariant: ""
+        lastVariant: "",
+        recentVariants: [],
+        waitBand: "instant"
     };
     session.preExecutionPresentation = presentation;
 
@@ -1679,7 +1681,8 @@ function startPreExecutionPresentation(session, appData = {}, pending = {}, proj
             lines: scene.lines,
             transition: scene.transition || (scene.family === "hydration_wait" ? "fade" : "replace"),
             tone: "pending",
-            content_source: scene.content_source || (scene.family === "app_identity" ? "app_snapshot" : "local_fallback")
+            content_source: scene.content_source || (scene.family === "app_identity" ? "app_snapshot" : "local_fallback"),
+            wait_band: scene.wait_band || presentation.waitBand
         });
         if (!rendered) {
             viewport.dataset.sceneFamily = scene.family;
@@ -1696,6 +1699,7 @@ function startPreExecutionPresentation(session, appData = {}, pending = {}, proj
             mode: "ofs_provisional",
             scene_id: scene.scene_id || scene.family,
             content_source: scene.content_source || "local_fallback",
+            wait_band: scene.wait_band || presentation.waitBand,
             elapsed_ms: Math.round(performance.now() - presentation.startedAt)
         });
     };
@@ -1735,9 +1739,17 @@ function startPreExecutionPresentation(session, appData = {}, pending = {}, proj
                         profile,
                         stage: activeStage,
                         context: sceneContext,
-                        history: { last_variant: presentation.lastVariant }
+                        elapsedMs: Math.max(0, performance.now() - presentation.startedAt),
+                        history: {
+                            last_variant: presentation.lastVariant,
+                            recent_variants: presentation.recentVariants
+                        }
                     });
                     presentation.lastVariant = scene.variant_key;
+                    presentation.recentVariants.push(scene.variant_key);
+                    if (presentation.recentVariants.length > 6) presentation.recentVariants.shift();
+                    presentation.waitBand = scene.wait_band || presentation.waitBand;
+                    viewport.dataset.ofsWaitBand = presentation.waitBand;
                     presentation.index = index;
                     renderScene(scene);
                     if (activeStage.family === "extended_wait" && !presentation.extendedWaitEntered) {

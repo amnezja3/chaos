@@ -4,6 +4,18 @@ Project Journal jest kroniką rozwoju projektu CHAOS.
 
 To nie jest changelog i nie jest dokumentacją techniczną. Jego rolą jest szybkie przekazanie historii projektu: skąd wzięły się obecne decyzje, dlaczego powstały kolejne systemy i w jakim stanie jest roadmapa.
 
+## 2026-08-11 — Sprint 130.8.6.8 Adaptive Provisional Scene Packs
+
+Zaimplementowano cztery kompletne głosy provisional dla `terminal`,
+`button_choices`, `window` i `progressbar_random`. Jeden scheduler klasyfikuje
+rzeczywisty czas oczekiwania w sześciu pasmach, rotuje warianty bez szybkich
+powtórek i zachowuje neutralny fallback.
+
+Walidator kontraktu pilnuje kompletności rodzin, progów czasu, minimalnej liczby
+wariantów i zakazu fikcyjnych wyników/transportu. Pasmo czasu jest widoczne w
+DOM i telemetrii, ale nie wpływa na gameplay, request ani hydration. Test JS
+przechodzi lokalnie; zestaw Python wymaga uruchomienia w środowisku serwera.
+
 ## 2026-08-11 — Sprint 130.8.6.7 OFS lifecycle
 
 Rozpoczęto i lokalnie zrealizowano pierwszy sprint Presentation Lift

@@ -153,6 +153,10 @@ class ProvisionalApplicationLaunchContractTest(unittest.TestCase):
         self.assertIn("timeline.stages", source)
         self.assertIn("Number(activeStage.start_after_ms)", source)
         self.assertIn("composeProvisionalScene", source)
+        self.assertIn("recentVariants", source)
+        self.assertIn("recent_variants", source)
+        self.assertIn("elapsedMs", source)
+        self.assertIn("ofsWaitBand", source)
 
     def test_hydration_and_dispose_stop_pre_execution_scheduler(self):
         consume = self.function_source(

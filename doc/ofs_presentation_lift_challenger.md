@@ -122,6 +122,8 @@ Realizacja:
 
 ## Sprint 130.8.6.8 — Adaptive Provisional Scene Packs
 
+Status: zaimplementowany lokalnie 2026-08-11.
+
 Cel: cztery rozpoznawalne głosy istniejącego `ofs_provisional.launch_150s`,
 dobierane do rzeczywistego czasu oczekiwania.
 
@@ -163,6 +165,18 @@ reduced motion oraz zakaz fikcyjnego transport error/progress.
 
 DoD: każdy interface jest rozpoznawalny przed hydration i obsługuje zarówno
 `200 ms`, jak i kilka minut oczekiwania.
+
+Realizacja:
+
+* `operation_feedback.v1.json` definiuje sześć progów czasu oraz kompletne
+  pakiety `terminal`, `button_choices`, `window` i `progressbar_random`;
+* każdy pakiet pokrywa wszystkie rodziny `launch_150s` co najmniej trzema
+  wariantami, a brak rozpoznanego voice wraca do istniejącego `default`;
+* scheduler wybiera pasmo z faktycznego czasu od otwarcia okna i przekazuje je
+  do envelope, DOM oraz telemetrii bez wpływu na request i hydration;
+* rotacja pamięta sześć ostatnich wariantów i zużywa pulę przed powtórką;
+* walidator odrzuca brakujące rodziny, zbyt małe pule, błędne progi,
+  niedozwolone placeholdery oraz fikcyjny outcome/transport.
 
 ## Sprint 130.8.6.9 — Four Application Presentation Templates
 

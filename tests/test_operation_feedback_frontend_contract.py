@@ -154,6 +154,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
     def test_scan_ports_profile_has_required_mvp_libraries(self):
         required = {
             "defaults", "duration_profiles", "provisional_timelines",
+            "provisional_wait_bands", "provisional_voice_packs",
             "provisional_scene_library", "scene_library", "security_library",
             "transport_library", "choice_library", "completion_library",
             "failure_library", "operations",
@@ -182,6 +183,26 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertGreaterEqual(len(library["extended_wait"]["voices"]["default"]), 3)
         self.assertIn("composeProvisionalScene", self.feedback)
         self.assertIn("feedback_extended_wait_entered", self.terminal)
+
+    def test_adaptive_provisional_voice_packs_cover_every_timeline_family(self):
+        self.assertEqual(list(self.profile["provisional_wait_bands"]), [
+            "instant", "short", "medium", "long", "extended", "overdue",
+        ])
+        self.assertEqual(
+            [band["min_elapsed_ms"] for band in self.profile["provisional_wait_bands"].values()],
+            [0, 1500, 8000, 30000, 90000, 150000],
+        )
+        families = {
+            stage["family"]
+            for stage in self.profile["provisional_timelines"]["launch_150s"]["stages"]
+        }
+        for voice in ("terminal", "button_choices", "window", "progressbar_random"):
+            pack = self.profile["provisional_voice_packs"][voice]
+            self.assertTrue(families.issubset(pack))
+            for family in families:
+                self.assertGreaterEqual(len(pack[family]), 3)
+        self.assertIn("provisionalWaitBandFor", self.feedback)
+        self.assertIn("recent_variants", self.feedback)
 
     def test_security_matrix_only_references_existing_variants(self):
         operation = self.profile["operations"]["scan_ports"]

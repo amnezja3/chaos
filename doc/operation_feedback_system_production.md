@@ -1150,3 +1150,20 @@ Execution timing jest co najmniej trzykrotnie wolniejszy od bazowego, a czas
 sceny dodatkowo uwzględnia liczbę słów. Aktywny choice zamraża rotację scen do
 kliknięcia albo timeoutu. Payload nadal przejmuje stan natychmiast i jako jedyny
 może uruchomić completion/failure.
+
+## 31. Adaptive provisional scene packs — 130.8.6.8
+
+`ofs_provisional` korzysta z jednego schedulera `launch_150s`, ale dobiera treść
+z pakietu odpowiadającego interfejsowi aplikacji. Dostępne voice packi to
+`terminal`, `button_choices`, `window` i `progressbar_random`. Każdy pokrywa
+wszystkie rodziny timeline minimum trzema wariantami. Nierozpoznany voice wraca
+do istniejącego `default` sceny.
+
+Faktyczny czas od otwarcia okna jest klasyfikowany jako `instant`, `short`,
+`medium`, `long`, `extended` albo `overdue`. Pasmo trafia do envelope, datasetu
+hosta i telemetrii, ale nie steruje requestem ani hydration. Scheduler pamięta
+sześć ostatnich wariantów, dzięki czemu zużywa lokalną pulę przed powtórką.
+
+Kontrakt JSON wymaga rosnących progów, kompletu czterech voice packów i minimum
+trzech wariantów dla każdej rodziny timeline. Nadal obowiązuje zakaz fikcyjnego
+wyniku, transport error, security state i procentu postępu.
