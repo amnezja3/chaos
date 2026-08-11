@@ -8,6 +8,18 @@
     ],
     "max_lines": 5
   },
+  "button_choice_defaults": {
+    "choice_pools": [
+      "feedback.operation.posture",
+      "feedback.operation.route",
+      "feedback.operation.verification"
+    ],
+    "presentation_state_schema": {
+      "operation_mode": ["quiet", "forceful"],
+      "route_mode": ["direct", "alternate"],
+      "verification_mode": ["repeat", "continue"]
+    }
+  },
   "duration_profiles": {
     "instant": {
       "min_elapsed_ms": 0,
@@ -1722,7 +1734,7 @@
         1500
       ],
       "transition": "replace",
-      "allow_choice": false,
+      "allow_choice": true,
       "operation_lines": [
         "Operacja utrzymuje kontakt z celem.",
         "Analiza lokalnego kontekstu trwa.",
@@ -1761,7 +1773,7 @@
         1800
       ],
       "transition": "replace",
-      "allow_choice": false,
+      "allow_choice": true,
       "operation_lines": [
         "Weryfikacja spojnosci operacji.",
         "Porzadkowanie odpowiedzi narzedzia.",
@@ -2507,6 +2519,39 @@
     ]
   },
   "choice_library": {
+    "feedback.operation.posture": {
+      "choice_id": "feedback.operation.posture",
+      "effect_scope": "presentation",
+      "prompt": "Profil wykonania",
+      "options": [
+        {"value": "quiet", "label": "CICHO", "set": {"operation_mode": "quiet"}},
+        {"value": "forceful", "label": "SILOWO", "set": {"operation_mode": "forceful"}}
+      ],
+      "timeout_ms": 10000,
+      "default_value": "quiet"
+    },
+    "feedback.operation.route": {
+      "choice_id": "feedback.operation.route",
+      "effect_scope": "presentation",
+      "prompt": "Kanal prezentacji",
+      "options": [
+        {"value": "direct", "label": "BEZPOSREDNIO", "set": {"route_mode": "direct"}},
+        {"value": "alternate", "label": "OBEJSCIE", "set": {"route_mode": "alternate"}}
+      ],
+      "timeout_ms": 10000,
+      "default_value": "direct"
+    },
+    "feedback.operation.verification": {
+      "choice_id": "feedback.operation.verification",
+      "effect_scope": "presentation",
+      "prompt": "Kontrola odpowiedzi",
+      "options": [
+        {"value": "repeat", "label": "PONOW", "set": {"verification_mode": "repeat"}},
+        {"value": "continue", "label": "KONTYNUUJ", "set": {"verification_mode": "continue"}}
+      ],
+      "timeout_ms": 9000,
+      "default_value": "repeat"
+    },
     "feedback.scan_ports.visibility": {
       "choice_id": "feedback.scan_ports.visibility",
       "effect_scope": "presentation",

@@ -146,6 +146,17 @@ assert.deepStrictEqual(
     ["terminal", "button_choice", "window", "progressbar_random"]
 );
 executionRenderers.forEach(renderer => renderer.dispose());
+
+const preservedHost = new FakeNode("main");
+const preservedRenderer = ofs.createPresentationRenderer("button_choice", {host: preservedHost});
+preservedRenderer.render({
+    presentation_mode: "button_choice", status: "DONE", lines: ["payload result"],
+    tone: "success", transition: "replace", scene_id: "completion"
+});
+const preservedPanel = preservedRenderer.panel;
+preservedRenderer.dispose({preservePanel: true});
+assert.strictEqual(preservedPanel.isConnected, true);
+assert.strictEqual(preservedHost.children.includes(preservedPanel), true);
 assert.strictEqual(ofs.createPresentationRenderer("unknown", {}), null);
 assert.strictEqual(ofs.presentationModeForInterface("progressbar_random"), "progressbar_random");
 assert.strictEqual(ofs.presentationModeForInterface("terminal"), "terminal");
@@ -422,9 +433,10 @@ const expectedModes = {
     scan_ports: "button_choice", exploit: "terminal", sniff: "terminal",
     trace: "window", trace_gps: "window", trace_device: "window",
     mic_sniff: "terminal", atm_logs: "terminal", install_sniffer: "button_choice",
+    scan_hotspots: "button_choice", audio_hack: "button_choice",
     camera_stream: "window", camera_shutdown: "button_choice", car_hack: "button_choice"
 };
-assert.strictEqual(Object.keys(config.operations).length, 12);
+assert.strictEqual(Object.keys(config.operations).length, 14);
 Object.entries(expectedModes).forEach(([actionKey, expectedMode]) => {
     const profile = config.operations[actionKey];
     assert.strictEqual(profile.enabled, true, profile.validation_error);
@@ -447,6 +459,8 @@ Object.entries(expectedModes).forEach(([actionKey, expectedMode]) => {
 assert.strictEqual(ofs.isEnabled("exploit", {enabled: true, enabled_actions: ["exploit"]}), true);
 assert.strictEqual(ofs.isEnabled("sniff", {enabled: true, enabled_actions: ["exploit"]}), false);
 assert.strictEqual(ofs.isEnabled("scan_ports", {enabled: true, enabled_actions: ["scan_ports"]}), true);
+assert.strictEqual(ofs.isEnabled("scan_hotspots", {enabled: true, enabled_actions: ["scan_ports"]}), true);
+assert.strictEqual(ofs.isEnabled("audio_hack", {enabled: true, enabled_actions: ["exploit"]}), true);
 assert.strictEqual(ofs.isEnabled("scan_ports", {enabled: true, enabled_actions: []}), false);
 
 const provisionalTimeline = config.provisional_timelines.launch_150s;
@@ -638,6 +652,27 @@ if (process.argv.includes("--transcripts")) {
     assert.ok(reusedAuthorEvents.includes("feedback_execution_started"));
     assert.ok(!reusedAuthorEvents.includes("feedback_author_scene_started"));
     reusedAuthorSession.dispose("test_complete");
+
+    const genericButtonSession = new ofs.OperationFeedbackSession({
+        actionKey: "audio_hack",
+        presentationMode: "button_choice",
+        applicationContent: structuredVoice,
+        authorIntroPresented: true,
+        clock: authorClock,
+        now: () => 16000,
+        configLoader: () => profileData
+    });
+    genericButtonSession.render = () => {};
+    genericButtonSession.renderNextScene = () => {};
+    genericButtonSession.start();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.deepStrictEqual(
+        genericButtonSession.profile.choice_pools,
+        profileData.button_choice_defaults.choice_pools
+    );
+    assert.strictEqual(genericButtonSession.profile.action_key, "audio_hack");
+    genericButtonSession.dispose("test_complete");
     console.log("operation feedback composer OK");
 })().catch(error => {
     console.error(error);

@@ -39,6 +39,19 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertNotIn("flags.scan_ports", self.feedback)
         self.assertIn("enabled_actions", self.feedback)
         self.assertIn('flags.enabled === true', self.feedback)
+        self.assertIn('scan_hotspots: "scan_ports"', self.feedback)
+        self.assertIn('audio_hack: "exploit"', self.feedback)
+        self.assertIn("enabledActions.has(profileAction)", self.feedback)
+
+    def test_button_apps_have_shared_ofs_choice_dictionary(self):
+        defaults = self.profile["button_choice_defaults"]
+        self.assertEqual(len(defaults["choice_pools"]), 3)
+        for choice_id in defaults["choice_pools"]:
+            self.assertIn(choice_id, self.profile["choice_library"])
+        self.assertIn("function profileForPresentation", self.feedback)
+        self.assertIn('presentationMode !== "button_choice"', self.feedback)
+        self.assertTrue(self.profile["scene_library"]["operation_contact"]["allow_choice"])
+        self.assertTrue(self.profile["scene_library"]["operation_verify"]["allow_choice"])
 
     def test_csv_flag_helper_does_not_regress_float_config(self):
         with patch.dict(os.environ, {
@@ -412,6 +425,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn('setApplicationPresentationPhase(session, "author_intro")', self.terminal)
         self.assertIn('app.dataset.ofsAuthorPresented = "true"', self.terminal)
         self.assertIn("authorIntroPresented:", self.terminal)
+        self.assertIn("preservePanel: preserveFinalScene", self.feedback)
 
 
 if __name__ == "__main__":

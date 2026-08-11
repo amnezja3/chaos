@@ -11517,3 +11517,14 @@ wspólny scroll zajmuje całą pozostałą wysokość i zawiera jawne sekcje `Ka
 - Minimalna ekspozycja zwykłej sceny OFS wzrosła do 6 s; dłuższy tekst wydłuża
   ją dalej według liczby słów. Dotychczasowy mnożnik timingów autora nadal
   obowiązuje, więc przyciski i kolejne sceny nie uciekają podczas czytania.
+- Naprawiono faktyczne zachowanie finału: renderer zwalnia ownership sesji, ale
+  nie usuwa panelu `completed/failed`. Ostatnia scena payloadu pozostaje więc pod
+  licznikiem aż do auto-close albo ręcznego zamknięcia okna.
+- Audyt map actions ujawnił brak `scan_hotspots` i `audio_hack` w rejestrze OFS.
+  Obie akcje korzystają teraz z istniejących profili semantycznych odpowiednio
+  `scan_ports` i `exploit`, również gdy produkcyjna lista flag zawiera tylko
+  klucz kanoniczny.
+- Dodano wspólny słownik trzech decyzji prezentacyjnych dla profili bez własnego
+  `choice_pools`. Jest nakładany wyłącznie wtedy, gdy faktyczna aplikacja ma
+  interface `button_choices`; terminal, window i progressbar zachowują swoje
+  renderery. Generyczne sceny kontaktu i weryfikacji dopuszczają teraz te wybory.

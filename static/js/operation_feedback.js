@@ -36,9 +36,15 @@
         mic_sniff: "terminal",
         atm_logs: "terminal",
         install_sniffer: "button_choice",
+        scan_hotspots: "button_choice",
+        audio_hack: "button_choice",
         camera_stream: "window",
         camera_shutdown: "button_choice",
         car_hack: "button_choice"
+    });
+    const PROFILE_ACTION_ALIASES = Object.freeze({
+        scan_hotspots: "scan_ports",
+        audio_hack: "exploit"
     });
     const ALLOWED_TRANSITIONS = {
         idle: new Set(["starting", "cancelled", "disposed"]),
@@ -276,10 +282,10 @@
 
         renderEnvelope() {}
 
-        dispose() {
+        dispose(options = {}) {
             if (this.disposed) return;
             this.disposed = true;
-            if (this.panel && this.panel.isConnected) this.panel.remove();
+            if (options.preservePanel !== true && this.panel && this.panel.isConnected) this.panel.remove();
             if (this.host && this.host.dataset.presentationOwner === this.owner) {
                 delete this.host.dataset.presentationOwner;
             }
@@ -391,7 +397,7 @@
         [
             "defaults", "duration_profiles", "provisional_timelines", "provisional_wait_bands",
             "provisional_voice_packs", "provisional_scene_library", "scene_library",
-            "security_library", "transport_library", "choice_library",
+            "security_library", "transport_library", "choice_library", "button_choice_defaults",
             "completion_library", "failure_library", "operations"
         ].forEach(section => ensureObject(config[section], section));
 
@@ -479,6 +485,30 @@
                 || (index > 0 && Number(band.min_elapsed_ms) <= Number(waitBands[index - 1][1].min_elapsed_ms)))) {
             throw new Error("OFS provisional wait bands are invalid");
         }
+        const buttonDefaults = ensureObject(config.button_choice_defaults, "button choice defaults");
+        const buttonDefaultPools = Array.isArray(buttonDefaults.choice_pools) ? buttonDefaults.choice_pools : [];
+        const buttonDefaultSchema = ensureObject(
+            buttonDefaults.presentation_state_schema,
+            "button choice default state schema"
+        );
+        if (!buttonDefaultPools.length) throw new Error("OFS button choice defaults are empty");
+        buttonDefaultPools.forEach(choiceId => {
+            const choice = ensureObject(config.choice_library[choiceId], `choice ${choiceId}`);
+            if (!choiceId.startsWith("feedback.") || choice.choice_id !== choiceId
+                || choice.effect_scope !== "presentation" || !Array.isArray(choice.options)
+                || choice.options.length < 2 || !Number.isFinite(choice.timeout_ms)
+                || choice.timeout_ms <= 0 || choice.timeout_ms > 30000
+                || !choice.options.some(option => option.value === choice.default_value)) {
+                throw new Error(`OFS invalid default presentation choice ${choiceId}`);
+            }
+            choice.options.forEach(option => {
+                Object.entries(ensureObject(option.set, `choice ${choiceId} mutation`)).forEach(([key, value]) => {
+                    if (!Array.isArray(buttonDefaultSchema[key]) || !buttonDefaultSchema[key].includes(value)) {
+                        throw new Error(`OFS default choice ${choiceId} mutates undeclared state`);
+                    }
+                });
+            });
+        });
         const validateProvisionalVariants = (variants, label, minimum = 1) => {
             if (!Array.isArray(variants) || variants.length < minimum) throw new Error(`OFS ${label} has too few variants`);
             variants.forEach(lines => {
@@ -605,7 +635,19 @@
         const validatedOperations = {};
         Object.keys(ACTION_PRESENTATION_MODES).forEach(operationId => {
             try {
-                validatedOperations[operationId] = validateProfile(operationId, config.operations[operationId]);
+                const profileOperationId = PROFILE_ACTION_ALIASES[operationId] || operationId;
+                const validatedProfile = validateProfile(
+                    profileOperationId,
+                    config.operations[profileOperationId]
+                );
+                validatedOperations[operationId] = profileOperationId === operationId
+                    ? validatedProfile
+                    : {
+                        ...validatedProfile,
+                        action_key: operationId,
+                        default_presentation_mode: ACTION_PRESENTATION_MODES[operationId],
+                        presentation_modes: [ACTION_PRESENTATION_MODES[operationId]]
+                    };
             } catch (error) {
                 console.warn(`[OFS] Profil ${operationId} wylaczony`, error);
                 validatedOperations[operationId] = Object.freeze({
@@ -617,6 +659,21 @@
         });
         config.operations = validatedOperations;
         return config;
+    }
+
+    function profileForPresentation(config, profile, presentationMode) {
+        if (!profile || presentationMode !== "button_choice"
+            || (Array.isArray(profile.choice_pools) && profile.choice_pools.length)) return profile;
+        const defaults = ensureObject(config.button_choice_defaults, "button choice defaults");
+        const choicePools = Array.isArray(defaults.choice_pools) ? defaults.choice_pools.slice() : [];
+        const stateSchema = ensureObject(defaults.presentation_state_schema, "button choice state schema");
+        if (!choicePools.length) throw new Error("OFS button choice defaults are empty");
+        choicePools.forEach(choiceId => ensureObject(config.choice_library[choiceId], `choice ${choiceId}`));
+        return {
+            ...profile,
+            choice_pools: choicePools,
+            presentation_state_schema: {...stateSchema}
+        };
     }
 
     function loadFeedbackConfig() {
@@ -1038,10 +1095,11 @@
 
     function isEnabled(actionKey, flags = readFlags()) {
         const action = String(actionKey || "").trim();
+        const profileAction = PROFILE_ACTION_ALIASES[action] || action;
         const enabledActions = new Set(Array.isArray(flags.enabled_actions) ? flags.enabled_actions : []);
         return flags.enabled === true
             && Object.prototype.hasOwnProperty.call(ACTION_PRESENTATION_MODES, action)
-            && enabledActions.has(action);
+            && (enabledActions.has(action) || enabledActions.has(profileAction));
     }
 
     class OperationFeedbackSession {
@@ -1333,7 +1391,11 @@
             Promise.resolve(this.configLoader()).then(config => {
                 if (this.disposed || this.state !== "running") return;
                 this.config = validateFeedbackConfig(config);
-                this.profile = this.config.operations[this.actionKey];
+                this.profile = profileForPresentation(
+                    this.config,
+                    this.config.operations[this.actionKey],
+                    this.presentationMode
+                );
                 if (!this.profile || this.profile.enabled !== true
                     || this.presentationMode === "ofs_provisional"
                     || !PRESENTATION_MODES.has(this.presentationMode)) {
@@ -1492,7 +1554,9 @@
             if (!preserveFinalScene) this.setPresentationPhase("disposed");
             this.disposed = true;
             this.presentationState = {};
-            if (this.renderer && typeof this.renderer.dispose === "function") this.renderer.dispose();
+            if (this.renderer && typeof this.renderer.dispose === "function") {
+                this.renderer.dispose({preservePanel: preserveFinalScene});
+            }
             this.renderer = null;
             this.panel = null;
             if (this.appWindow && this.appWindow._operationFeedbackSession === this) {
