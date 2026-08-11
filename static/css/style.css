@@ -205,11 +205,7 @@ body {
 
 @media (max-width: 900px), (max-height: 700px) {
   .desktop-sync-status {
-    right: 8px;
-    bottom: 54px;
-    max-width: calc(100vw - 16px);
-    padding: 6px 9px;
-    font-size: 11px;
+    display: none !important;
   }
 }
 

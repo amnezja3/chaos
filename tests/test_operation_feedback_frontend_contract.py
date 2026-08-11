@@ -385,6 +385,14 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
                 source.index("enqueueGonnaWinRequest"),
             )
 
+    def test_mobile_layout_hides_global_desktop_sync_spinner(self):
+        css = Path("static/css/style.css").read_text(encoding="utf-8")
+        mobile_start = css.index("@media (max-width: 900px), (max-height: 700px)")
+        mobile_end = css.index("@media (max-width: 760px)", mobile_start)
+        mobile_css = css[mobile_start:mobile_end]
+        self.assertIn(".desktop-sync-status", mobile_css)
+        self.assertIn("display: none !important", mobile_css)
+
     def test_actual_interface_can_select_its_distinct_execution_renderer(self):
         self.assertIn("!PRESENTATION_MODES.has(this.presentationMode)", self.feedback)
         self.assertNotIn("this.profile.presentation_modes.includes(this.presentationMode)", self.feedback)
