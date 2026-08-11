@@ -11502,3 +11502,18 @@ wspólny scroll zajmuje całą pozostałą wysokość i zawiera jawne sekcje `Ka
   czas prezentacji autora.
 - Finał OFS ma minimum 6,5 s czytelności i pozostaje ostatnią sceną po
   zwolnieniu sesji. Następna akcja usuwa poprzedni panel przed utworzeniem nowego.
+
+### Korekta show i finału OFS po teście produkcyjnym
+
+- Statyczny komunikat auto-close przestał być elementem layoutu. Ostatnim
+  contentem pozostaje autorytatywna scena odpowiedzi requestu, a nad nią działa
+  półprzezroczysta nakładka odliczająca 30 s bez rozpychania okna.
+- Bazowa czołówka trwa 5–12 s, natomiast start z mapy dostaje deterministyczne
+  12–60 s. Provisional zachowuje przerwalność payloadem i został rozciągnięty do
+  180 s, ze scenami trwającymi zwykle 12–18 s.
+- Czołówka, provisional i OFS otrzymały wewnętrzne show: sekwencyjne
+  podświetlanie linii, lokalny jitter ikon i krótkie glitche tekstu. Animacje nie
+  poruszają shellem ani wymiarami viewportu i są wyłączane przez reduced motion.
+- Minimalna ekspozycja zwykłej sceny OFS wzrosła do 6 s; dłuższy tekst wydłuża
+  ją dalej według liczby słów. Dotychczasowy mnożnik timingów autora nadal
+  obowiązuje, więc przyciski i kolejne sceny nie uciekają podczas czytania.

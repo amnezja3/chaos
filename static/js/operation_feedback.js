@@ -23,7 +23,7 @@
         "completed", "failed", "cancelled", "disposed"
     ]);
     const EXECUTION_TIMING_SCALE = 3;
-    const MIN_SCENE_READ_MS = 3000;
+    const MIN_SCENE_READ_MS = 6000;
     const MIN_AUTHOR_READ_MS = 4000;
     const MIN_COMPLETION_READ_MS = 6500;
     const ACTION_PRESENTATION_MODES = Object.freeze({
@@ -64,7 +64,7 @@
     function readableSceneDelay(lines, configuredDelay = 0, minimum = MIN_SCENE_READ_MS) {
         const content = (Array.isArray(lines) ? lines : []).join(" ").trim();
         const wordCount = content ? content.split(/\s+/).length : 0;
-        const readingDelay = Math.max(minimum, 1800 + wordCount * 260);
+        const readingDelay = Math.max(minimum, 3000 + wordCount * 400);
         return Math.max(readingDelay, Math.max(0, Number(configuredDelay) || 0) * EXECUTION_TIMING_SCALE);
     }
 
@@ -462,12 +462,12 @@
             : [];
         const extendedWait = timeline.extended_wait_ms;
         if (!Array.isArray(timeline.stages) || !timeline.stages.length
-            || Number(timeline.min_coverage_ms) < 150000
+            || Number(timeline.min_coverage_ms) < 180000
             || timelineStarts.some((value, index) => !Number.isFinite(value)
                 || (index > 0 && value < timelineStarts[index - 1]))
-            || !timeline.stages.some(stage => Number(stage.start_after_ms) >= 150000)
+            || !timeline.stages.some(stage => Number(stage.start_after_ms) >= 180000)
             || !Array.isArray(extendedWait) || extendedWait.length !== 2
-            || extendedWait[0] < 12000 || extendedWait[1] > 20000
+            || extendedWait[0] < 18000 || extendedWait[1] > 30000
             || extendedWait[0] > extendedWait[1]) {
             throw new Error("OFS launch_150s provisional timeline is incomplete");
         }
@@ -935,7 +935,8 @@
         const authorUsername = normalizeBrandName(appData.creator_username || appData.author_username || "CHAOS SYSTEM");
         const authorNick = normalizeBrandName(appData.creator_nick || appData.author_nick || authorUsername);
 
-        const durationMs = Math.min(3800, 2250 + (characterCount * 45) + (spaceCount * 120));
+        const durationMs = Math.min(12000, 5000 + (characterCount * 180) + (spaceCount * 400));
+        const mapDurationMs = Math.min(60000, 12000 + (hash % 48001));
         return deepFreeze({
             schema_version: "1.0.0",
             identity_seed: hash.toString(16).padStart(8, "0"),
@@ -958,8 +959,9 @@
                 layout: logoMode === "horizontal" ? "horizontal-lockup" : "icon-lockup",
                 motion: titleMotion,
                 duration_ms: durationMs,
-                duration_band: durationMs < 2400 ? "short" : (durationMs < 3200 ? "medium" : "long"),
-                readable_ms: 900
+                map_duration_ms: mapDurationMs,
+                duration_band: durationMs < 7000 ? "short" : (durationMs < 9500 ? "medium" : "long"),
+                readable_ms: 5000
             },
             author_logo_header: {
                 mode: logoMode === "horizontal" ? "icon_text_horizontal" : "icon_only",

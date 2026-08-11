@@ -157,6 +157,16 @@ class ProvisionalApplicationLaunchContractTest(unittest.TestCase):
         self.assertIn('finishApplicationTitleSequence(appWindow, "payload_received")', request)
         self.assertIn('finishApplicationTitleSequence(appWindow, "request_failed")', request)
 
+    def test_finish_keeps_payload_scene_and_uses_countdown_overlay(self):
+        close = self.function_source(
+            "function scheduleOperationalAppAutoClose",
+            "async function buildIconsFromJsonWithCommand",
+        )
+        self.assertIn("app-auto-close-overlay", close)
+        self.assertIn("data-auto-close-seconds", close)
+        self.assertIn("setInterval(updateCountdown, 1000)", close)
+        self.assertNotIn("app-auto-close-notice", close)
+
     def test_mobile_toolbar_cycles_registered_windows_without_second_registry(self):
         self.assertIn('id="system-window-tab-button"', self.terminal)
         self.assertIn("function cycleMobileToolbarWindow", self.terminal)

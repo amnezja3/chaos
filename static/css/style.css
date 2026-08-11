@@ -463,14 +463,29 @@ body {
   animation: app-terminal-spin 820ms linear infinite;
 }
 
-.app-auto-close-notice {
-  margin-top: 12px;
-  padding: 7px 9px;
-  border: 1px solid rgba(101, 255, 120, 0.42);
-  background: rgba(0, 40, 14, 0.48);
-  color: rgba(180, 255, 190, 0.86);
-  font-family: monospace;
-  font-size: 12px;
+.app-auto-close-overlay {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 20;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 8px 11px;
+  border: 1px solid rgba(101, 255, 120, 0.56);
+  background: rgba(0, 18, 8, 0.76);
+  box-shadow: 0 0 18px rgba(20, 255, 90, 0.12);
+  color: rgba(194, 255, 204, 0.9);
+  font: 700 11px/1 monospace;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  backdrop-filter: blur(3px);
+}
+
+.app-auto-close-overlay strong {
+  color: #72ff95;
+  font-size: 18px;
+  text-shadow: 0 0 8px rgba(60, 255, 115, 0.58);
 }
 
 @keyframes app-terminal-cursor {
@@ -8420,6 +8435,7 @@ form button:hover {
 .ofs-brand-mark[data-font-scale="micro"] { font-size: 0.62rem; letter-spacing: 0.09em; }
 
 .ofs-scene-viewport {
+  position: relative;
   display: grid;
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   min-width: 0;
@@ -8497,6 +8513,44 @@ form button:hover {
   letter-spacing: 0.22em;
 }
 
+.ofs-title-show {
+  display: grid;
+  width: min(32rem, 88%);
+  gap: 4px;
+  font: 700 clamp(0.62rem, 1.5vw, 0.78rem)/1.35 monospace;
+  letter-spacing: 0.06em;
+}
+
+.ofs-title-show-line {
+  display: grid;
+  grid-template-columns: 2em minmax(0, 1fr);
+  align-items: center;
+  min-height: 2.2em;
+  padding: 3px 7px;
+  border-left: 1px solid transparent;
+  color: color-mix(in srgb, var(--ofs-accent) 52%, #b9c9be);
+  opacity: 0.42;
+  animation: ofs-title-line-show 8s steps(1, end) infinite;
+}
+
+.ofs-title-show-line:nth-child(2) { animation-delay: 2s; }
+.ofs-title-show-line:nth-child(3) { animation-delay: 4s; }
+.ofs-title-show-line:nth-child(4) { animation-delay: 6s; }
+
+.ofs-title-show-icon {
+  display: inline-grid;
+  place-items: center;
+  color: var(--ofs-accent);
+  text-shadow: 0 0 8px currentColor;
+  animation: ofs-title-show-icon 5.4s steps(1, end) infinite;
+}
+
+.ofs-title-show[data-show-variant="1"] .ofs-title-show-line { animation-duration: 10s; }
+.ofs-title-show[data-show-variant="1"] .ofs-title-show-line:nth-child(2) { animation-delay: 2.5s; }
+.ofs-title-show[data-show-variant="1"] .ofs-title-show-line:nth-child(3) { animation-delay: 5s; }
+.ofs-title-show[data-show-variant="1"] .ofs-title-show-line:nth-child(4) { animation-delay: 7.5s; }
+.ofs-title-show[data-show-variant="2"] .ofs-title-show-icon { animation-duration: 7.2s; }
+
 .ofs-title-full-name {
   display: -webkit-box;
   max-width: min(34rem, 88%);
@@ -8549,11 +8603,26 @@ form button:hover {
   35%, 100% { transform: translate(0); }
 }
 @keyframes ofs-title-type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+@keyframes ofs-title-line-show {
+  0%, 24% { opacity: 1; color: #e6ffec; border-left-color: var(--ofs-accent); background: var(--ofs-accent-soft); text-shadow: 0 0 8px color-mix(in srgb, var(--ofs-accent) 45%, transparent); }
+  25%, 82% { opacity: 0.42; color: color-mix(in srgb, var(--ofs-accent) 52%, #b9c9be); border-left-color: transparent; background: transparent; text-shadow: none; }
+  83% { opacity: 0.9; transform: translateX(1px); filter: contrast(1.35); }
+  85% { transform: translateX(-1px); }
+  87%, 100% { opacity: 0.42; transform: translateX(0); filter: none; }
+}
+@keyframes ofs-title-show-icon {
+  0%, 88%, 100% { transform: translate(0); opacity: 0.78; }
+  90% { transform: translate(1px, -1px); opacity: 1; }
+  92% { transform: translate(-1px, 1px); }
+  94% { transform: translate(0); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .ofs-title-sequence .ofs-brand-mark,
   .ofs-title-sequence .ofs-brand-icon,
-  .ofs-title-sequence .ofs-brand-name { animation: none !important; }
+  .ofs-title-sequence .ofs-brand-name,
+  .ofs-title-show-line,
+  .ofs-title-show-icon { animation: none !important; }
 }
 
 @media (max-width: 620px) {
@@ -8752,6 +8821,22 @@ form button:hover {
 .ofs-scene-role-success .ofs-scene-icon { color: #6dff98; }
 .ofs-scene-role-failure .ofs-scene-icon { color: #ff6262; }
 
+.ofs-visual-lift .provisional-app-scene-line,
+.ofs-visual-lift .operation-feedback-line {
+  opacity: 0.66;
+  animation: ofs-fx-line-focus 12s steps(1, end) infinite;
+}
+.ofs-visual-lift .provisional-app-scene-line:nth-child(2),
+.ofs-visual-lift .operation-feedback-line:nth-child(2) { animation-delay: 3s; }
+.ofs-visual-lift .provisional-app-scene-line:nth-child(3),
+.ofs-visual-lift .operation-feedback-line:nth-child(3) { animation-delay: 6s; }
+.ofs-visual-lift .provisional-app-scene-line:nth-child(4),
+.ofs-visual-lift .operation-feedback-line:nth-child(4) { animation-delay: 9s; }
+.ofs-visual-lift .provisional-app-scene-line .ofs-scene-icon,
+.ofs-visual-lift .operation-feedback-line .ofs-scene-icon {
+  animation: ofs-fx-icon-live 7.6s steps(1, end) infinite;
+}
+
 .ofs-visual-lift .provisional-app-scenes[data-ofs-wait-band="medium"] .provisional-app-scene-line:first-child .ofs-scene-icon {
   animation: ofs-fx-soft-pulse 2.8s ease-in-out infinite;
 }
@@ -8780,6 +8865,29 @@ form button:hover {
 @keyframes ofs-fx-soft-pulse {
   0%, 100% { opacity: 0.72; }
   50% { opacity: 1; }
+}
+@keyframes ofs-fx-line-focus {
+  0%, 24% { opacity: 1; color: #e9ffef; background: color-mix(in srgb, var(--ofs-accent) 12%, transparent); text-shadow: 0 0 7px color-mix(in srgb, var(--ofs-accent) 42%, transparent); }
+  25%, 79% { opacity: 0.62; background: transparent; text-shadow: none; }
+  80% { opacity: 0.94; transform: translateX(1px); filter: contrast(1.35); }
+  82% { transform: translateX(-1px); }
+  84%, 100% { opacity: 0.62; transform: translateX(0); filter: none; }
+}
+@keyframes ofs-fx-icon-live {
+  0%, 87%, 100% { transform: translate(0); filter: none; }
+  89% { transform: translate(1px, -1px); filter: brightness(1.5); }
+  91% { transform: translate(-1px, 1px); }
+  93% { transform: translate(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ofs-visual-lift .provisional-app-scene-line,
+  .ofs-visual-lift .operation-feedback-line,
+  .ofs-visual-lift .provisional-app-scene-line .ofs-scene-icon,
+  .ofs-visual-lift .operation-feedback-line .ofs-scene-icon {
+    animation: none !important;
+    transform: none !important;
+    filter: none !important;
+  }
 }
 @keyframes ofs-fx-micro-jitter {
   0%, 92%, 100% { transform: translate(0, 0); }

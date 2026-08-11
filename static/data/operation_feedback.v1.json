@@ -48,10 +48,10 @@
   },
   "provisional_timelines": {
     "launch_150s": {
-      "min_coverage_ms": 150000,
+      "min_coverage_ms": 180000,
       "extended_wait_ms": [
-        12000,
-        20000
+        18000,
+        30000
       ],
       "stages": [
         {
@@ -62,72 +62,72 @@
         {
           "scene_id": "local_init",
           "family": "local_init",
-          "start_after_ms": 3000
+          "start_after_ms": 12000
         },
         {
           "scene_id": "interface_boot",
           "family": "interface_boot",
-          "start_after_ms": 8000
+          "start_after_ms": 24000
         },
         {
           "scene_id": "author_manifest",
           "family": "author_manifest",
-          "start_after_ms": 14000
+          "start_after_ms": 38000
         },
         {
           "scene_id": "context_target",
           "family": "context_bind",
-          "start_after_ms": 21000
+          "start_after_ms": 52000
         },
         {
           "scene_id": "context_action",
           "family": "context_bind",
-          "start_after_ms": 29000
+          "start_after_ms": 68000
         },
         {
           "scene_id": "module_boot",
           "family": "module_boot",
-          "start_after_ms": 38000
+          "start_after_ms": 84000
         },
         {
           "scene_id": "local_validation_1",
           "family": "local_validation",
-          "start_after_ms": 48000
+          "start_after_ms": 100000
         },
         {
           "scene_id": "runtime_prepare_1",
           "family": "runtime_prepare",
-          "start_after_ms": 60000
+          "start_after_ms": 116000
         },
         {
           "scene_id": "author_content",
           "family": "author_content",
-          "start_after_ms": 73000
+          "start_after_ms": 132000
         },
         {
           "scene_id": "local_validation_2",
           "family": "local_validation",
-          "start_after_ms": 88000
+          "start_after_ms": 146000
         },
         {
           "scene_id": "runtime_prepare_2",
           "family": "runtime_prepare",
-          "start_after_ms": 104000
+          "start_after_ms": 158000
         },
         {
           "scene_id": "launcher_sync",
           "family": "launcher_sync",
-          "start_after_ms": 121000
+          "start_after_ms": 168000
         },
         {
           "scene_id": "hydration_wait",
           "family": "hydration_wait",
-          "start_after_ms": 138000
+          "start_after_ms": 176000
         },
         {
           "scene_id": "extended_wait",
           "family": "extended_wait",
-          "start_after_ms": 150000
+          "start_after_ms": 180000
         }
       ]
     }
@@ -138,7 +138,7 @@
     "medium": {"min_elapsed_ms": 8000},
     "long": {"min_elapsed_ms": 30000},
     "extended": {"min_elapsed_ms": 90000},
-    "overdue": {"min_elapsed_ms": 150000}
+    "overdue": {"min_elapsed_ms": 180000}
   },
   "provisional_voice_packs": {
     "terminal": {

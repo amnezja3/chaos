@@ -77,10 +77,10 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
 
     def test_launch_150s_skeleton_covers_extended_wait(self):
         timeline = self.profile["provisional_timelines"]["launch_150s"]
-        self.assertGreaterEqual(timeline["min_coverage_ms"], 150000)
+        self.assertGreaterEqual(timeline["min_coverage_ms"], 180000)
         starts = [stage["start_after_ms"] for stage in timeline["stages"]]
         self.assertEqual(starts, sorted(starts))
-        self.assertGreaterEqual(starts[-1], 150000)
+        self.assertGreaterEqual(starts[-1], 180000)
         self.assertEqual(timeline["stages"][-1]["family"], "extended_wait")
 
     def test_session_owns_lifecycle_timers_and_cleanup(self):
@@ -171,13 +171,13 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertGreaterEqual(len(operation["scene_pools"]), 2)
         self.assertGreaterEqual(len(operation["security"]), 3)
 
-    def test_provisional_package_covers_150_seconds_and_is_manually_editable(self):
+    def test_provisional_package_covers_180_seconds_and_is_manually_editable(self):
         timeline = self.profile["provisional_timelines"]["launch_150s"]
         starts = [stage["start_after_ms"] for stage in timeline["stages"]]
         self.assertEqual(starts, sorted(starts))
-        self.assertEqual(starts[-1], 150000)
+        self.assertEqual(starts[-1], 180000)
         self.assertEqual(len(timeline["stages"]), 15)
-        self.assertEqual(timeline["extended_wait_ms"], [12000, 20000])
+        self.assertEqual(timeline["extended_wait_ms"], [18000, 30000])
         library = self.profile["provisional_scene_library"]
         for stage in timeline["stages"]:
             scene = library[stage["scene_id"]]
@@ -193,7 +193,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         ])
         self.assertEqual(
             [band["min_elapsed_ms"] for band in self.profile["provisional_wait_bands"].values()],
-            [0, 1500, 8000, 30000, 90000, 150000],
+            [0, 1500, 8000, 30000, 90000, 180000],
         )
         families = {
             stage["family"]

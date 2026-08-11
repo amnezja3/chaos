@@ -2121,6 +2121,33 @@ function createApplicationBrandMark(model, placement) {
     return mark;
 }
 
+function appendApplicationTitleShow(titleScene, model, app) {
+    if (!titleScene || titleScene.querySelector(".ofs-title-show")) return;
+    const show = document.createElement("div");
+    show.className = "ofs-title-show";
+    show.dataset.showVariant = String(parseInt(model?.identity_seed || "0", 16) % 3);
+    const source = app?.dataset?.launchSource === "map" ? "MAP LINK" : "LOCAL LINK";
+    const messages = [
+        ["◉", `IDENTITY / ${model?.name || "APPLICATION"}`],
+        ["⌁", `CHANNEL / ${source}`],
+        ["◇", `AUTHOR / ${model?.author?.nick || "CHAOS SYSTEM"}`],
+        ["◆", "RUNTIME / HANDSHAKE ACTIVE"]
+    ];
+    messages.forEach(([symbol, message]) => {
+        const line = document.createElement("div");
+        line.className = "ofs-title-show-line";
+        const icon = document.createElement("span");
+        icon.className = "ofs-title-show-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = symbol;
+        const text = document.createElement("span");
+        text.textContent = message;
+        line.append(icon, text);
+        show.appendChild(line);
+    });
+    titleScene.appendChild(show);
+}
+
 function prepareProvisionalApplicationTitle(app) {
     if (!ofsVisualLiftEnabled || !ofsTitleSequenceEnabled || !app) return;
     const content = app.querySelector(".provisional-app-content");
@@ -2142,6 +2169,7 @@ function prepareProvisionalApplicationTitle(app) {
     status.className = "ofs-title-status";
     status.textContent = "BOOT INTERFACE";
     titleScene.appendChild(status);
+    appendApplicationTitleShow(titleScene, model, app);
     content.appendChild(titleScene);
 }
 
@@ -2175,6 +2203,7 @@ function prepareApplicationBrandShell(app) {
     titleStatus.className = "ofs-title-status";
     titleStatus.textContent = "INTERFACE READY";
     titleScene.appendChild(titleStatus);
+    appendApplicationTitleShow(titleScene, model, app);
     viewport.appendChild(titleScene);
     viewport.appendChild(authorStage);
     if (feedbackHost) viewport.appendChild(feedbackHost);
@@ -2215,10 +2244,15 @@ function startApplicationTitleSequence(app) {
         app_id: app.dataset.appId || "",
         title_class: model.name_metrics?.name_class || "multi-word",
         title_motion: model.title_sequence.motion,
-        duration_ms: model.title_sequence.duration_ms
+        duration_ms: app.dataset.launchSource === "map"
+            ? model.title_sequence.map_duration_ms
+            : model.title_sequence.duration_ms
     });
     const reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const duration = reducedMotion ? model.title_sequence.readable_ms : model.title_sequence.duration_ms;
+    const configuredDuration = app.dataset.launchSource === "map"
+        ? model.title_sequence.map_duration_ms
+        : model.title_sequence.duration_ms;
+    const duration = reducedMotion ? model.title_sequence.readable_ms : configuredDuration;
     app._ofsTitleEndsAt = performance.now() + duration;
     app._ofsTitleTimer = window.setTimeout(() => finishApplicationTitleSequence(app, "elapsed"), duration);
 }
@@ -2482,15 +2516,27 @@ function scheduleOperationalAppAutoClose(appWindow) {
         timeout_ms: APP_TERMINAL_AUTO_CLOSE_MS
     });
 
-    const content = appWindow.querySelector('.app-content');
-    if (content && !content.querySelector('.app-auto-close-notice')) {
-        const notice = document.createElement('div');
-        notice.className = 'app-auto-close-notice';
-        notice.textContent = 'Okno zamknie sie automatycznie za 30 sekund.';
-        content.appendChild(notice);
+    const viewport = appWindow.querySelector('.ofs-scene-viewport') || appWindow.querySelector('.app-content');
+    let overlay = viewport?.querySelector('.app-auto-close-overlay');
+    if (viewport && !overlay) {
+        overlay = document.createElement('div');
+        overlay.className = 'app-auto-close-overlay';
+        overlay.setAttribute('role', 'timer');
+        overlay.innerHTML = '<span>SESSION CLOSE</span><strong data-auto-close-seconds>30</strong><span>s</span>';
+        viewport.appendChild(overlay);
     }
+    const deadline = Date.now() + APP_TERMINAL_AUTO_CLOSE_MS;
+    const updateCountdown = () => {
+        if (!overlay?.isConnected) return;
+        const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+        const output = overlay.querySelector('[data-auto-close-seconds]');
+        if (output) output.textContent = String(seconds).padStart(2, '0');
+        overlay.setAttribute('aria-label', `Okno zamknie sie za ${seconds} sekund.`);
+    };
+    updateCountdown();
+    appWindow._autoCloseCountdownTimer = window.setInterval(updateCountdown, 1000);
 
-    window.setTimeout(() => {
+    appWindow._autoCloseTimer = window.setTimeout(() => {
         if (!appWindow.isConnected) return;
         appFlowTrace(flowId, "app_auto_closed", {
             app_id: appWindow.dataset.appId || "",
@@ -3684,6 +3730,14 @@ function startLegacyAppWaitUnlessFeedbackEnabled(appWindow) {
 }
 
 function disposeOperationFeedbackWindow(appWindow, reason = "window_closed") {
+    if (appWindow?._autoCloseCountdownTimer) {
+        window.clearInterval(appWindow._autoCloseCountdownTimer);
+        appWindow._autoCloseCountdownTimer = null;
+    }
+    if (appWindow?._autoCloseTimer) {
+        window.clearTimeout(appWindow._autoCloseTimer);
+        appWindow._autoCloseTimer = null;
+    }
     finishApplicationTitleSequence(appWindow, reason);
     const ofs = window.OperationFeedbackSystem;
     if (ofs) ofs.disposeWindowSession(appWindow, reason);

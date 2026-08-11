@@ -57,9 +57,11 @@ assert.strictEqual(pairedBrand.name_metrics.word_count, 2);
 assert.strictEqual(denseBrand.name_metrics.name_class, "dense-title");
 assert.strictEqual(denseBrand.author_logo_header.mode, "icon_only");
 assert.strictEqual(denseBrand.author_footer.mode, "icon_only");
-assert.ok(compactBrand.title_sequence.duration_ms >= 1800);
-assert.ok(compactBrand.title_sequence.duration_ms <= 3800);
-assert.strictEqual(compactBrand.title_sequence.readable_ms, 900);
+assert.ok(compactBrand.title_sequence.duration_ms >= 5000);
+assert.ok(compactBrand.title_sequence.duration_ms <= 12000);
+assert.ok(compactBrand.title_sequence.map_duration_ms >= 12000);
+assert.ok(compactBrand.title_sequence.map_duration_ms <= 60000);
+assert.strictEqual(compactBrand.title_sequence.readable_ms, 5000);
 assert.strictEqual(missingBrand.name, "Aplikacja");
 assert.strictEqual(missingBrand.icon, "▣");
 assert.strictEqual(specialBrand.name_metrics.word_count, 2);
@@ -451,7 +453,7 @@ const provisionalTimeline = config.provisional_timelines.launch_150s;
 assert.strictEqual(provisionalTimeline.stages[0].start_after_ms, 0);
 assert.strictEqual(
     provisionalTimeline.stages[provisionalTimeline.stages.length - 1].start_after_ms,
-    150000
+    180000
 );
 assert.strictEqual(provisionalTimeline.stages.length, 15);
 const provisionalProfile = config.operations.scan_ports;
@@ -484,7 +486,7 @@ assert.deepStrictEqual(
 );
 [
     [0, "instant"], [1499, "instant"], [1500, "short"], [8000, "medium"],
-    [30000, "long"], [90000, "extended"], [150000, "overdue"]
+    [30000, "long"], [90000, "extended"], [180000, "overdue"]
 ].forEach(([elapsedMs, expected]) => {
     assert.strictEqual(ofs.provisionalWaitBandFor(config, elapsedMs).id, expected);
 });
@@ -498,7 +500,7 @@ const rotationHistory = {recent_variants: []};
 const rotated = [0, 1, 2].map(() => {
     const scene = ofs.composeProvisionalScene({
         config, profile: provisionalProfile, stage: extendedStage,
-        context: provisionalContext, history: rotationHistory, elapsedMs: 160000, random: () => 0
+        context: provisionalContext, history: rotationHistory, elapsedMs: 181000, random: () => 0
     });
     rotationHistory.recent_variants.push(scene.variant_key);
     return scene;

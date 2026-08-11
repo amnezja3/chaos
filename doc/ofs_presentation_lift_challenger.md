@@ -367,7 +367,10 @@ Minimalny kontrakt prezentacyjny:
   "title_sequence": {
     "layout": "horizontal-lockup",
     "motion": "icon-lock",
-    "duration_band": "short"
+    "duration_band": "short",
+    "duration_ms": 5000,
+    "map_duration_ms": 12000,
+    "readable_ms": 5000
   },
   "author_logo_header": {
     "mode": "icon_text_horizontal",
@@ -387,6 +390,20 @@ Minimalny kontrakt prezentacyjny:
   }
 }
 ```
+
+Czołówka trwa co najmniej 5 s. Dla uruchomienia z mapy stabilny hash marki
+wybiera czas 12–60 s; nie zmienia to wyniku ani momentu rozpoczęcia requestu.
+Wewnątrz planszy działają cykliczne mikro-sceny identyfikacji, kanału, autora i
+handshake'u. Kolejno podświetlają linie, poruszają wyłącznie ikoną oraz wykonują
+krótki glitch tekstu. Shell i rozmiar okna pozostają nieruchome.
+
+`ofs_provisional.launch_150s` zachowuje nazwę kontraktową, ale jego produkcyjna
+oś ma pokrycie 180 s. Kolejne sceny otrzymują 12–18 s na odczyt, a ich linie
+prowadzą własne, wolne show. Payload nadal natychmiast kończy provisional.
+
+Po autorytatywnym sukcesie lub błędzie ostatnia scena odpowiedzi pozostaje w
+viewportcie. Auto-close nie tworzy następnej sceny: jest półprzezroczystą,
+nieinteraktywną nakładką z odliczaniem sekund nad finałem.
 
 Wartości są tokenami z zamkniętego słownika. Autor aplikacji nie przekazuje
 dowolnego CSS, wymiarów, pozycji ani animacji. `font_weight`, `font_scale`,
