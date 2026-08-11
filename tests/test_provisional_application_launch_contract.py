@@ -149,7 +149,10 @@ class ProvisionalApplicationLaunchContractTest(unittest.TestCase):
         self.assertNotIn("fetch(", source)
         self.assertNotIn("notifyGonnaWin", source)
         self.assertNotIn("sendGonnaWinRequest", source)
-        self.assertIn("Math.min(9000", source)
+        self.assertIn("profile.provisional_profile.timeline_profile", source)
+        self.assertIn("timeline.stages", source)
+        self.assertIn("Number(activeStage.start_after_ms)", source)
+        self.assertIn("composeProvisionalScene", source)
 
     def test_hydration_and_dispose_stop_pre_execution_scheduler(self):
         consume = self.function_source(
