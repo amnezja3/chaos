@@ -328,6 +328,9 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("app-terminal-sysinfo-line", self.terminal)
         self.assertNotIn("app-terminal-spinner", self.function_source("function app_terminal", "function app_button_choices"))
         self.assertIn("prefers-reduced-motion", css)
+        self.assertIn(".ofs-app-template > .title-bar", css)
+        self.assertIn("box-sizing: border-box", css)
+        self.assertIn("overflow: hidden", css)
         terminal_source = self.feedback[
             self.feedback.index("class TerminalSceneRenderer"):
             self.feedback.index("class ButtonChoiceSceneRenderer")
@@ -360,6 +363,24 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn('[data-tone="success"]', css)
         self.assertIn('[data-tone="failure"]', css)
         self.assertIn("prefers-reduced-motion", css)
+        self.assertIn('data-ofs-phase="executing"', css)
+        self.assertIn("height: clamp(420px, 68vh, 680px)", css)
+        self.assertIn("appWindow.dataset.ofsPhase = normalized", self.feedback)
+
+    def test_feedback_starts_before_shared_request_queue(self):
+        notify_source = self.function_source(
+            "async function notifyGonnaWin",
+            "function notifyOpenMapsTargetHacked",
+        )
+        choice_source = self.function_source(
+            "async function sendGonnaWinRequest",
+            "function app_terminal",
+        )
+        for source in (notify_source, choice_source):
+            self.assertLess(
+                source.index("beginOperationFeedbackRequest"),
+                source.index("enqueueGonnaWinRequest"),
+            )
 
     def test_actual_interface_can_select_its_distinct_execution_renderer(self):
         self.assertIn("!PRESENTATION_MODES.has(this.presentationMode)", self.feedback)

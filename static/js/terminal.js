@@ -1582,6 +1582,7 @@ function setApplicationPresentationPhase(session, phase, details = {}) {
     const previous = session.presentationPhase || "";
     session.presentationPhase = normalized;
     const appWindow = session.appWindow;
+    if (appWindow?.dataset) appWindow.dataset.ofsPhase = normalized;
     const host = appWindow?.querySelector?.(".operation-feedback-host")
         || appWindow?.querySelector?.(".provisional-app-scenes")
         || appWindow?.querySelector?.(".app-content");
@@ -2016,6 +2017,7 @@ function finishApplicationRenderWindow(app, hydrated) {
     if (!app.isConnected) document.body.appendChild(app);
     makeDraggable(app);
     app.dataset.ofsAuthorPresented = "true";
+    app.dataset.ofsPhase = "author_intro";
     const session = app._provisionalApplicationSession;
     if (session && !session.disposed) {
         updateProvisionalApplicationSession(session, "presenting", "Ladowanie zawartosci aplikacji...");
@@ -3376,6 +3378,7 @@ function startAppWaitLog(container, options = {}) {
 }
 
 function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } = {}) {
+    if (appWindow?.dataset) appWindow.dataset.ofsPhase = "executing";
     const provisionalSession = appWindow?._provisionalApplicationSession;
     if (provisionalSession && !provisionalSession.disposed) {
         updateProvisionalApplicationSession(provisionalSession, "executing", "Operacja w toku...");
@@ -4570,8 +4573,8 @@ async function app_progressbar_random(id, levels) {
 async function notifyGonnaWin(appId, appWindow = null, { legacyWait = false } = {}) {
     const context = currentApplicationLaunchContext(appWindow);
     const flowId = context.flow_id;
+    const feedback = beginOperationFeedbackRequest(appWindow, appId, { legacyWait });
     return enqueueGonnaWinRequest(async () => {
-        const feedback = beginOperationFeedbackRequest(appWindow, appId, { legacyWait });
         let response;
         let data;
         try {
@@ -6580,6 +6583,9 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
         choice_id: choiceId,
         launch_key: context.launch_key
     });
+    const feedback = beginOperationFeedbackRequest(appWindow, appId, {
+        legacyWait: !(appWindow && appWindow._legacyAppWaitActive)
+    });
     return enqueueGonnaWinRequest(async () => {
         appFlowTrace(flowId, "app_option_request_start", {
             app_id: appId,
@@ -6587,9 +6593,6 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
             queue_wait_ms: Math.round(performance.now() - queuedAt)
         });
         const startedAt = performance.now();
-        const feedback = beginOperationFeedbackRequest(appWindow, appId, {
-            legacyWait: !(appWindow && appWindow._legacyAppWaitActive)
-        });
         let response;
         let data;
         try {

@@ -8207,6 +8207,33 @@ form button:hover {
   --ofs-surface: rgba(0, 14, 8, 0.96);
   --ofs-grid: rgba(79, 255, 139, 0.08);
   min-width: min(420px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: 0;
+  overflow: hidden;
+  width: clamp(440px, 48vw, 720px);
+  height: clamp(420px, 68vh, 680px);
+  display: flex;
+  flex-direction: column;
+}
+
+.ofs-app-template > .title-bar,
+.ofs-app-template > .app-content,
+.ofs-app-template > .provisional-app-content {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.ofs-app-template > .title-bar {
+  flex: 0 0 auto;
+}
+
+.ofs-app-template > .app-content,
+.ofs-app-template > .provisional-app-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .ofs-app-template > .app-content,
@@ -8220,6 +8247,56 @@ form button:hover {
 
 .ofs-app-template .operation-feedback-host {
   min-height: 0;
+  height: 100%;
+  overflow: auto;
+}
+
+.ofs-app-template[data-ofs-phase="author_intro"] .operation-feedback-host,
+.ofs-app-template[data-ofs-phase="hydrating"] .operation-feedback-host {
+  display: none;
+}
+
+.ofs-app-template[data-ofs-phase="executing"] .ofs-author-header,
+.ofs-app-template[data-ofs-phase="executing"] .ofs-author-content,
+.ofs-app-template[data-ofs-phase="executing"] .ofs-author-actions,
+.ofs-app-template[data-ofs-phase="executing"] .ofs-author-result,
+.ofs-app-template[data-ofs-phase="executing"] .ofs-progress-list,
+.ofs-app-template[data-ofs-phase="executing"] .app-terminal-log,
+.ofs-app-template[data-ofs-phase="completing"] .ofs-author-header,
+.ofs-app-template[data-ofs-phase="completing"] .ofs-author-content,
+.ofs-app-template[data-ofs-phase="completing"] .ofs-author-actions,
+.ofs-app-template[data-ofs-phase="completing"] .ofs-author-result,
+.ofs-app-template[data-ofs-phase="completing"] .ofs-progress-list,
+.ofs-app-template[data-ofs-phase="completing"] .app-terminal-log,
+.ofs-app-template[data-ofs-phase="completed"] .ofs-author-header,
+.ofs-app-template[data-ofs-phase="completed"] .ofs-author-content,
+.ofs-app-template[data-ofs-phase="completed"] .ofs-author-actions,
+.ofs-app-template[data-ofs-phase="completed"] .ofs-author-result,
+.ofs-app-template[data-ofs-phase="completed"] .ofs-progress-list,
+.ofs-app-template[data-ofs-phase="completed"] .app-terminal-log,
+.ofs-app-template[data-ofs-phase="failed"] .ofs-author-header,
+.ofs-app-template[data-ofs-phase="failed"] .ofs-author-content,
+.ofs-app-template[data-ofs-phase="failed"] .ofs-author-actions,
+.ofs-app-template[data-ofs-phase="failed"] .ofs-author-result,
+.ofs-app-template[data-ofs-phase="failed"] .ofs-progress-list,
+.ofs-app-template[data-ofs-phase="failed"] .app-terminal-log {
+  display: none;
+}
+
+.ofs-app-template[data-ofs-phase="executing"] .operation-feedback-host,
+.ofs-app-template[data-ofs-phase="completing"] .operation-feedback-host,
+.ofs-app-template[data-ofs-phase="completed"] .operation-feedback-host,
+.ofs-app-template[data-ofs-phase="failed"] .operation-feedback-host {
+  display: block;
+}
+
+.ofs-app-template[data-ofs-phase="executing"] .ofs-author-shell,
+.ofs-app-template[data-ofs-phase="completing"] .ofs-author-shell,
+.ofs-app-template[data-ofs-phase="completed"] .ofs-author-shell,
+.ofs-app-template[data-ofs-phase="failed"] .ofs-author-shell {
+  display: block;
+  height: 100%;
+  overflow: hidden;
 }
 
 .ofs-author-shell {
@@ -8351,7 +8428,7 @@ form button:hover {
 .operation-feedback-progressbar_random .operation-feedback-line::before { content: "▰ "; color: var(--ofs-accent); }
 
 @media (max-width: 620px) {
-  .ofs-app-template { min-width: 0; width: calc(100vw - 16px) !important; max-width: calc(100vw - 16px) !important; }
+  .ofs-app-template { min-width: 0; width: calc(100vw - 16px) !important; max-width: calc(100vw - 16px) !important; height: calc(100vh - 54px); }
   .ofs-author-shell { padding: 10px; gap: 9px; }
   .ofs-author-header { align-items: flex-start; flex-direction: column; gap: 4px; }
   .ofs-author-actions[data-choice-layout="grid"],

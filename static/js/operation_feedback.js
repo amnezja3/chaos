@@ -1012,6 +1012,9 @@
                 this.rendererHost.dataset.ofsPhase = normalized;
                 this.rendererHost.dataset.ofsTemplate = this.presentationMode;
             }
+            if (this.appWindow && this.appWindow.dataset) {
+                this.appWindow.dataset.ofsPhase = normalized;
+            }
             this.trace("feedback_phase_changed", {
                 previous_phase: previous,
                 next_phase: normalized,
