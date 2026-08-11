@@ -404,6 +404,10 @@ session.complete({success: true});
 assert.strictEqual(session.state, "completing");
 assert.strictEqual(session.activeChoice, null);
 assert.strictEqual(fakeTimers.size, 1); // tylko kontrolowany dispose completion
+const completionTimerId = Array.from(fakeTimers.keys())[0];
+fakeClock.run(completionTimerId);
+assert.strictEqual(session.disposed, true);
+assert.strictEqual(session.presentationPhase, "completed");
 
 const invalidMutationConfig = JSON.parse(JSON.stringify(profileData));
 invalidMutationConfig.choice_library["feedback.scan_ports.visibility"].options[0].set = {gameplay_power: 999};

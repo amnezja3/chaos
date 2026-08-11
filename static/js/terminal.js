@@ -1973,6 +1973,8 @@ function beginProvisionalLaunch(selection = {}, appData = {}) {
     });
     provisionalApplicationSessions.set(sessionKey, session);
     document.body.appendChild(appWindow);
+    prepareProvisionalApplicationTitle(appWindow);
+    startApplicationTitleSequence(appWindow);
     setApplicationPresentationPhase(session, "provisional");
     makeDraggable(appWindow);
     bringWindowToFront(appWindow);
@@ -2074,6 +2076,8 @@ function resolveApplicationBrandModel(app) {
     const source = {
         name: context.app_name || content.title || app?.dataset?.appId || "Aplikacja",
         icon: content.icon || "",
+        creator_username: content.creator_username || "",
+        creator_nick: content.creator_nick || "",
         interface: content.interface || app?.dataset?.appInterface || "window"
     };
     const ofs = window.OperationFeedbackSystem;
@@ -2107,11 +2111,38 @@ function createApplicationBrandMark(model, placement) {
 
     const label = document.createElement("span");
     label.className = "ofs-brand-name";
-    label.textContent = model?.name || "Aplikacja";
+    const accessibleLabel = placement === "author_footer"
+        ? (model?.author?.signature || "© CHAOS · Created by CHAOS SYSTEM")
+        : (model?.name || "Aplikacja");
+    label.textContent = accessibleLabel;
     mark.appendChild(label);
-    mark.setAttribute("aria-label", model?.name || "Aplikacja");
-    mark.title = model?.name || "Aplikacja";
+    mark.setAttribute("aria-label", accessibleLabel);
+    mark.title = accessibleLabel;
     return mark;
+}
+
+function prepareProvisionalApplicationTitle(app) {
+    if (!ofsVisualLiftEnabled || !ofsTitleSequenceEnabled || !app) return;
+    const content = app.querySelector(".provisional-app-content");
+    if (!content || content.querySelector(".ofs-provisional-title-sequence")) return;
+    const model = resolveApplicationBrandModel(app);
+    const titleScene = document.createElement("section");
+    titleScene.className = "ofs-title-sequence ofs-provisional-title-sequence";
+    titleScene.dataset.titleClass = model.name_metrics?.name_class || "multi-word";
+    titleScene.dataset.titleMotion = model.title_sequence?.motion || "icon-lock";
+    titleScene.setAttribute("aria-label", `${model.name}. Uruchamianie aplikacji.`);
+    titleScene.appendChild(createApplicationBrandMark(model, "author_logo_header"));
+    if ((model.author_logo_header?.mode || "") === "icon_only") {
+        const fullTitle = document.createElement("strong");
+        fullTitle.className = "ofs-title-full-name";
+        fullTitle.textContent = model.name;
+        titleScene.appendChild(fullTitle);
+    }
+    const status = document.createElement("span");
+    status.className = "ofs-title-status";
+    status.textContent = "BOOT INTERFACE";
+    titleScene.appendChild(status);
+    content.appendChild(titleScene);
 }
 
 function prepareApplicationBrandShell(app) {
@@ -2166,6 +2197,9 @@ function finishApplicationTitleSequence(app, reason = "complete") {
     }
     if (app.dataset.ofsTitleActive !== "true") return;
     delete app.dataset.ofsTitleActive;
+    app._ofsTitlePresented = true;
+    app._ofsAuthorVisibleAt = performance.now();
+    app._ofsTitleEndsAt = 0;
     appFlowTrace(app.dataset.appFlowId, "feedback_title_scene_completed", {
         app_id: app.dataset.appId || "",
         completion_reason: reason
@@ -2175,7 +2209,7 @@ function finishApplicationTitleSequence(app, reason = "complete") {
 function startApplicationTitleSequence(app) {
     const model = resolveApplicationBrandModel(app);
     if (!ofsVisualLiftEnabled || !ofsTitleSequenceEnabled || !model.title_sequence) return;
-    finishApplicationTitleSequence(app, "restarted");
+    if (app._ofsTitlePresented || (app.dataset.ofsTitleActive === "true" && app._ofsTitleTimer)) return;
     app.dataset.ofsTitleActive = "true";
     appFlowTrace(app.dataset.appFlowId, "feedback_title_scene_started", {
         app_id: app.dataset.appId || "",
@@ -2185,6 +2219,7 @@ function startApplicationTitleSequence(app) {
     });
     const reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const duration = reducedMotion ? model.title_sequence.readable_ms : model.title_sequence.duration_ms;
+    app._ofsTitleEndsAt = performance.now() + duration;
     app._ofsTitleTimer = window.setTimeout(() => finishApplicationTitleSequence(app, "elapsed"), duration);
 }
 
@@ -2206,6 +2241,7 @@ function finishApplicationRenderWindow(app, hydrated) {
         updateProvisionalApplicationSession(session, "interactive", "Aplikacja gotowa.");
     }
     startApplicationTitleSequence(app);
+    if (app.dataset.ofsTitleActive !== "true") app._ofsAuthorVisibleAt = performance.now();
 }
 
 function hydrateProvisionalApplicationSession(session, appData, item = {}) {
@@ -4714,8 +4750,16 @@ async function app_progressbar_random(id, levels) {
         }, 180 + Math.floor(Math.random() * 720) + item.index * 45);
         app._authorProgressTimers.push(timerId);
     };
-    authorProgress.forEach(scheduleProgressTick);
-
+    const titleRemainingMs = app.dataset.ofsTitleActive === "true"
+        ? Math.max(0, Number(app._ofsTitleEndsAt || 0) - performance.now())
+        : 0;
+    const authorBreathMs = 3500;
+    const authorStartTimer = window.setTimeout(() => {
+        if (!app.isConnected) return;
+        app._ofsAuthorVisibleAt = performance.now();
+        authorProgress.forEach(scheduleProgressTick);
+    }, titleRemainingMs);
+    app._authorProgressTimers.push(authorStartTimer);
     const requestTimer = window.setTimeout(() => {
         if (!app.isConnected) return;
         result.textContent = "AWAITING PAYLOAD";
@@ -4746,7 +4790,7 @@ async function app_progressbar_random(id, levels) {
             result.textContent = "\u2716 B\u0142\u0105d po\u0142\u0105czenia z serwerem.";
             result.dataset.tone = "failure";
         });
-    }, 2200 + Math.floor(Math.random() * 1800));
+    }, titleRemainingMs + authorBreathMs + Math.floor(Math.random() * 900));
     app._authorProgressTimers.push(requestTimer);
 }
 
@@ -4800,6 +4844,7 @@ async function notifyGonnaWin(appId, appWindow = null, { legacyWait = false } = 
         }
         return data.success === true;
     }).catch(err => {
+        feedback.fail(err && err.name ? err.name : "application_result_processing_failed");
         console.error(`❌ Błąd połączenia z /gonna-win dla ${appId}`, err);
         return false; // default przy błędzie
     });
@@ -6832,6 +6877,7 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
         feedback.complete(data);
         return data;
     }).catch(error => {
+        feedback.fail(error && error.name ? error.name : "application_result_processing_failed");
         console.error("Błąd komunikacji z backendem:", error);
         return { success: false };
     });

@@ -8462,6 +8462,16 @@ form button:hover {
     rgba(0, 10, 5, 0.96);
 }
 
+.provisional-app-content {
+  position: relative;
+}
+
+.ofs-provisional-title-sequence {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+}
+
 .ofs-title-sequence .ofs-brand-mark {
   justify-content: center;
   max-width: 100%;

@@ -25,7 +25,7 @@
     const EXECUTION_TIMING_SCALE = 3;
     const MIN_SCENE_READ_MS = 3000;
     const MIN_AUTHOR_READ_MS = 4000;
-    const MIN_COMPLETION_READ_MS = 4500;
+    const MIN_COMPLETION_READ_MS = 6500;
     const ACTION_PRESENTATION_MODES = Object.freeze({
         scan_ports: "button_choice",
         exploit: "terminal",
@@ -932,6 +932,8 @@
         const icon = typeof appData.icon === "string" && appData.icon.trim()
             ? appData.icon.trim().slice(0, 512)
             : "▣";
+        const authorUsername = normalizeBrandName(appData.creator_username || appData.author_username || "CHAOS SYSTEM");
+        const authorNick = normalizeBrandName(appData.creator_nick || appData.author_nick || authorUsername);
 
         const durationMs = Math.min(3800, 2250 + (characterCount * 45) + (spaceCount * 120));
         return deepFreeze({
@@ -940,6 +942,11 @@
             name,
             icon,
             interface: interfaceName,
+            author: {
+                username: authorUsername,
+                nick: authorNick,
+                signature: `© CHAOS · Created by ${authorNick}`
+            },
             name_metrics: {
                 character_count: characterCount,
                 word_count: words.length,
@@ -1019,6 +1026,8 @@
                 { allowOutcome: true }
             ) || "OPERATION FEEDBACK",
             icon: typeof appData.icon === "string" ? appData.icon.trim().slice(0, 512) : "",
+            creator_username: safeContentText(appData.creator_username, { allowOutcome: true }) || "",
+            creator_nick: safeContentText(appData.creator_nick, { allowOutcome: true }) || "",
             structured,
             legacy,
             interface: String(appData.interface || "")
@@ -1476,8 +1485,9 @@
             if (this.disposed) return;
             this.clearTimers();
             this.clearChoice(true);
+            const preserveFinalScene = this.presentationPhase === "completed" || this.presentationPhase === "failed";
             if (this.state !== "disposed") this.transition("disposed");
-            this.setPresentationPhase("disposed");
+            if (!preserveFinalScene) this.setPresentationPhase("disposed");
             this.disposed = true;
             this.presentationState = {};
             if (this.renderer && typeof this.renderer.dispose === "function") this.renderer.dispose();
@@ -1497,6 +1507,10 @@
         try {
             if (options.appWindow && options.appWindow._operationFeedbackSession) {
                 options.appWindow._operationFeedbackSession.cancel("new_request");
+            }
+            if (options.rendererHost && typeof options.rendererHost.querySelectorAll === "function") {
+                Array.from(options.rendererHost.querySelectorAll(".operation-feedback-panel"))
+                    .forEach(panel => panel.remove());
             }
             const session = new OperationFeedbackSession(options).start();
             if (options.appWindow) options.appWindow._operationFeedbackSession = session;

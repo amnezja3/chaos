@@ -13861,6 +13861,8 @@ def serialize_tool_selection_app(app):
         "quality_score": app.get("quality_score"),
         "reliability": app.get("reliability"),
         "creator_power": app.get("creator_power"),
+        "creator_username": app.get("creator_username"),
+        "creator_nick": app.get("creator_nick"),
         "power_score": app.get("power_score"),
         "price_hint": app.get("price_hint"),
         "balance_tier": app.get("balance_tier"),

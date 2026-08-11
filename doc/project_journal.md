@@ -11488,3 +11488,17 @@ wspólny scroll zajmuje całą pozostałą wysokość i zawiera jawne sekcje `Ka
   prezentację bez opóźniania requestu.
 - Dodano niezależny rollback `CHAOS_OFS_TITLE_SEQUENCE_ENABLED=0`. Nie wykonano
   commita ani deployu.
+
+### Korekta kolejności scen po teście 6.11
+
+- Czołówka jest montowana już w oknie provisional uruchamianym z mapy. Działa
+  jako nieprzezroczysta pierwsza scena, podczas gdy lokalny provisional może
+  przygotowywać się pod spodem; hydration zachowuje ten sam model i timer.
+- Serializacja narzędzia mapowego przenosi `creator_username` i `creator_nick`.
+  Stopka pokazuje teraz sygnaturę `© CHAOS · Created by <nick>`, a nie drugą
+  kopię logo aplikacji.
+- `progressbar_random` otrzymał minimum 3,5 s rzeczywistej ekspozycji autorskich
+  pasków po zniknięciu czołówki. Czas czołówki nie jest już zaliczany jako
+  czas prezentacji autora.
+- Finał OFS ma minimum 6,5 s czytelności i pozostaje ostatnią sceną po
+  zwolnieniu sesji. Następna akcja usuwa poprzedni panel przed utworzeniem nowego.

@@ -121,6 +121,28 @@ class ProvisionalApplicationLaunchContractTest(unittest.TestCase):
         self.assertIn("prepareApplicationBrandShell(app)", finish)
         self.assertIn("startApplicationTitleSequence(app)", finish)
 
+    def test_map_title_precedes_provisional_scenes_and_author_metadata_is_serialized(self):
+        source = self.function_source(
+            "function beginProvisionalLaunch",
+            "window.beginProvisionalLaunch = beginProvisionalLaunch",
+        )
+        self.assertLess(source.index("prepareProvisionalApplicationTitle(appWindow)"), source.index("startPreExecutionPresentation"))
+        self.assertLess(source.index("startApplicationTitleSequence(appWindow)"), source.index("startPreExecutionPresentation"))
+        serializer_start = self.run_source.index("def serialize_tool_selection_app(app):")
+        serializer_end = self.run_source.index("def apply_app_map_actions_to_aimed_target", serializer_start)
+        serializer = self.run_source[serializer_start:serializer_end]
+        self.assertIn('"creator_username"', serializer)
+        self.assertIn('"creator_nick"', serializer)
+
+    def test_progress_author_scene_gets_breath_after_title(self):
+        source = self.function_source(
+            "async function app_progressbar_random",
+            "async function notifyGonnaWin",
+        )
+        self.assertIn("titleRemainingMs", source)
+        self.assertIn("authorBreathMs = 3500", source)
+        self.assertIn("titleRemainingMs + authorBreathMs", source)
+
     def test_title_sequence_does_not_delay_gameplay_request_and_payload_can_interrupt_it(self):
         title = self.function_source(
             "function startApplicationTitleSequence",
