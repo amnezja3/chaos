@@ -601,7 +601,9 @@
         const configuredVoice = String(profile.provisional_profile.interface_voice || "default").trim();
         const voice = PROVISIONAL_INTERFACE_VOICES.includes(actualVoice) ? actualVoice
             : (PROVISIONAL_INTERFACE_VOICES.includes(configuredVoice) ? configuredVoice : "default");
-        const packedVariants = config.provisional_voice_packs?.[voice]?.[family];
+        const voicePacks = config.provisional_voice_packs || {};
+        const voicePack = voicePacks[voice] || {};
+        const packedVariants = voicePack[family];
         const variants = packedVariants || definition.voices[voice] || definition.voices.default;
         const sourcePrefix = packedVariants ? "voice_pack" : sceneId;
         const recent = new Set((Array.isArray(history.recent_variants) ? history.recent_variants : [])
