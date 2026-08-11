@@ -16,6 +16,14 @@
     const SCENE_TRANSITIONS = new Set(["replace", "clear", "fade", "append_short"]);
     const PROVISIONAL_VOICES = new Set(["default", "terminal", "button_choices", "window", "progressbar_random"]);
     const PROVISIONAL_PLACEHOLDERS = new Set(["app_title", "description", "interface", "target_label", "action_label"]);
+    const PRESENTATION_PHASES = new Set([
+        "provisional", "hydrating", "author_intro", "executing", "completing",
+        "completed", "failed", "cancelled", "disposed"
+    ]);
+    const EXECUTION_TIMING_SCALE = 3;
+    const MIN_SCENE_READ_MS = 3000;
+    const MIN_AUTHOR_READ_MS = 4000;
+    const MIN_COMPLETION_READ_MS = 4500;
     const ACTION_PRESENTATION_MODES = Object.freeze({
         scan_ports: "button_choice",
         exploit: "terminal",
@@ -49,6 +57,13 @@
             throw new Error(`OFS invalid ${label}`);
         }
         return value;
+    }
+
+    function readableSceneDelay(lines, configuredDelay = 0, minimum = MIN_SCENE_READ_MS) {
+        const content = (Array.isArray(lines) ? lines : []).join(" ").trim();
+        const wordCount = content ? content.split(/\s+/).length : 0;
+        const readingDelay = Math.max(minimum, 1800 + wordCount * 260);
+        return Math.max(readingDelay, Math.max(0, Number(configuredDelay) || 0) * EXECUTION_TIMING_SCALE);
     }
 
     function createSceneEnvelope(value = {}) {
@@ -853,6 +868,7 @@
             this.renderer = options.renderer || null;
             this.securityState = sanitizeSecurityState(options.securityState);
             this.applicationContent = options.applicationContent || projectApplicationContent({});
+            this.authorIntroPresented = options.authorIntroPresented === true;
             this.clock = options.clock || global;
             this.now = typeof options.now === "function" ? options.now : () => global.performance.now();
             this.random = typeof options.random === "function" ? options.random : Math.random;
@@ -870,6 +886,7 @@
             this.startedAt = 0;
             this.history = { last_scene: null, last_security: null, last_line: null };
             this.presentationState = {};
+            this.presentationPhase = "executing";
             this.askedChoices = new Set();
             this.activeChoice = null;
             this.choiceTimeoutId = null;
@@ -895,6 +912,41 @@
                 state: this.state,
                 ...details
             });
+        }
+
+        setPresentationPhase(nextPhase, details = {}) {
+            const normalized = String(nextPhase || "").trim();
+            if (!PRESENTATION_PHASES.has(normalized)) return false;
+            if (this.presentationPhase === normalized) return true;
+            const previous = this.presentationPhase;
+            this.presentationPhase = normalized;
+            if (this.rendererHost && this.rendererHost.dataset) {
+                this.rendererHost.dataset.ofsPhase = normalized;
+                this.rendererHost.dataset.ofsTemplate = this.presentationMode;
+            }
+            this.trace("feedback_phase_changed", {
+                previous_phase: previous,
+                next_phase: normalized,
+                elapsed_ms: Math.max(0, Math.round(this.now() - this.startedAt)),
+                ...details
+            });
+            return true;
+        }
+
+        authorIntroLines() {
+            const structured = this.applicationContent && this.applicationContent.structured;
+            const legacy = this.applicationContent && this.applicationContent.legacy;
+            const normalize = values => (Array.isArray(values) ? values : [])
+                .map(value => typeof value === "string" ? value : value && value.text)
+                .filter(Boolean);
+            const candidates = [
+                ...normalize(structured && structured.transition),
+                ...normalize(structured && structured.boot),
+                ...normalize(legacy && legacy.transition),
+                ...normalize(legacy && legacy.boot),
+                ...normalize(legacy && legacy.operation)
+            ];
+            return Array.from(new Set(candidates)).slice(0, 4);
         }
 
         setTimer(callback, delayMs) {
@@ -1008,7 +1060,8 @@
                     container.replaceChildren();
                     container.hidden = true;
                 }
-            }, 450);
+                if (!this.disposed && this.state === "running") this.renderNextScene();
+            }, 900);
             return true;
         }
 
@@ -1093,7 +1146,28 @@
                     throw new Error("OFS profile does not support renderer");
                 }
                 this.trace("feedback_profile_loaded", { content_version: this.config.content_version });
-                this.renderNextScene();
+                if (this.authorIntroPresented) {
+                    this.setPresentationPhase("executing");
+                    this.trace("feedback_execution_started", { author_intro_reused: true });
+                    this.renderNextScene();
+                    return;
+                }
+                const authorLines = this.authorIntroLines();
+                this.setPresentationPhase("author_intro");
+                this.render(this.applicationContent.title || "Profil aplikacji", authorLines.length
+                    ? authorLines
+                    : ["Lokalny profil aplikacji jest gotowy."], "pending", "replace", "author_intro");
+                this.trace("feedback_author_scene_started", {
+                    content_source: this.applicationContent.structured ? "app_structured"
+                        : (authorLines.length ? "app_legacy" : "global_fallback")
+                });
+                this.authorIntroPresented = true;
+                this.setTimer(() => {
+                    if (this.disposed || this.state !== "running") return;
+                    this.setPresentationPhase("executing");
+                    this.trace("feedback_execution_started");
+                    this.renderNextScene();
+                }, readableSceneDelay(authorLines, 0, MIN_AUTHOR_READ_MS));
             }).catch(error => {
                 if (this.disposed || this.state !== "running") return;
                 this.trace("feedback_profile_failed", { completion_reason: error.message || "invalid_profile" });
@@ -1108,6 +1182,7 @@
 
         renderNextScene() {
             if (this.disposed || (this.state !== "running" && this.state !== "awaiting_payload")) return;
+            if (this.activeChoice) return;
             const elapsedMs = Math.max(0, this.now() - this.startedAt);
             const scene = composeScene({
                 config: this.config,
@@ -1117,7 +1192,7 @@
                 elapsedMs,
                 random: this.random,
                 presentationState: this.presentationState,
-                applicationContent: this.applicationContent
+                applicationContent: null
             });
             if (this.state === "awaiting_payload") this.transition("running");
             this.render("Operacja w toku...", scene.lines, "pending", "replace", scene.scene_id);
@@ -1128,10 +1203,11 @@
                 content_source: scene.content_source
             });
             this.maybePresentChoice(scene);
+            if (this.activeChoice) return;
             this.setTimer(() => {
                 if (this.disposed || this.state !== "running") return;
                 this.renderNextScene();
-            }, scene.delay_ms);
+            }, readableSceneDelay(scene.lines, scene.delay_ms));
         }
 
         complete(payload = {}) {
@@ -1139,6 +1215,7 @@
             this.clearTimers();
             this.clearChoice(true);
             this.transition("completing");
+            this.setPresentationPhase("completing");
             const success = payload && payload.success === true;
             const completion = this.config && this.profile
                 ? this.config.completion_library[this.profile.completion_pool]
@@ -1162,7 +1239,8 @@
                     || (success ? "Runtime potwierdzil powodzenie." : "Runtime zwrocil wynik operacji.")
             ], success ? "success" : "failure");
             this.trace("feedback_payload_received", { success });
-            this.setTimer(() => this.dispose("payload_complete"), 450);
+            this.setPresentationPhase(success ? "completed" : "failed", { success });
+            this.setTimer(() => this.dispose("payload_complete"), MIN_COMPLETION_READ_MS);
         }
 
         fail(reason = "request_failed") {
@@ -1170,6 +1248,7 @@
             this.clearTimers();
             this.clearChoice(true);
             this.transition("failed");
+            this.setPresentationPhase("failed");
             const normalizedReason = String(reason || "request_failed").toLowerCase();
             const failureCategory = /abort|cancel/.test(normalizedReason) ? "abort"
                 : /json|payload|parse|syntax/.test(normalizedReason) ? "invalid_response"
@@ -1188,7 +1267,7 @@
                 completion_reason: String(reason || "request_failed"),
                 failure_category: failureCategory
             });
-            this.setTimer(() => this.dispose(reason), 450);
+            this.setTimer(() => this.dispose(reason), MIN_COMPLETION_READ_MS);
         }
 
         cancel(reason = "cancelled") {
@@ -1200,6 +1279,7 @@
                 return;
             }
             if (this.state !== "cancelled") this.transition("cancelled");
+            this.setPresentationPhase("cancelled");
             this.trace("feedback_cancelled", { completion_reason: String(reason || "cancelled") });
             this.dispose(reason);
         }
@@ -1209,6 +1289,7 @@
             this.clearTimers();
             this.clearChoice(true);
             if (this.state !== "disposed") this.transition("disposed");
+            this.setPresentationPhase("disposed");
             this.disposed = true;
             this.presentationState = {};
             if (this.renderer && typeof this.renderer.dispose === "function") this.renderer.dispose();

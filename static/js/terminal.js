@@ -1563,6 +1563,32 @@ function updateProvisionalApplicationSession(session, state, message = "") {
     if (status) status.textContent = message || state;
 }
 
+function setApplicationPresentationPhase(session, phase, details = {}) {
+    if (!session || session.disposed) return false;
+    const normalized = String(phase || "").trim();
+    if (!normalized || session.presentationPhase === normalized) return true;
+    const previous = session.presentationPhase || "";
+    session.presentationPhase = normalized;
+    const appWindow = session.appWindow;
+    const host = appWindow?.querySelector?.(".operation-feedback-host")
+        || appWindow?.querySelector?.(".provisional-app-scenes")
+        || appWindow?.querySelector?.(".app-content");
+    if (host?.dataset) {
+        host.dataset.ofsPhase = normalized;
+        host.dataset.ofsTemplate = String(appWindow?.dataset?.appInterface || "");
+    }
+    appFlowTrace(session.flowId, "feedback_phase_changed", {
+        app_id: session.appId,
+        action: session.action,
+        mode: "ofs_provisional",
+        previous_phase: previous,
+        next_phase: normalized,
+        elapsed_ms: session.createdAt ? Math.max(0, Math.round(performance.now() - session.createdAt)) : 0,
+        ...details
+    });
+    return true;
+}
+
 function buildPreExecutionScenes(appData = {}, pending = {}, projectedContent = null) {
     const appName = String(appData.name || appData.id || "Aplikacja").trim();
     const interfaceType = String(appData.interface || "window").trim().toLowerCase();
@@ -1745,6 +1771,7 @@ function startPreExecutionPresentation(session, appData = {}, pending = {}, proj
 function disposeProvisionalApplicationSession(session, reason = "window_closed") {
     if (!session || session.disposed) return;
     stopPreExecutionPresentation(session, reason);
+    setApplicationPresentationPhase(session, "disposed", { completion_reason: reason });
     session.disposed = true;
     session.state = "disposed";
     provisionalApplicationSessions.delete(session.sessionKey);
@@ -1837,6 +1864,8 @@ function beginProvisionalLaunch(selection = {}, appData = {}) {
         action: String(pending.action || selection.map_action_id || selection.canonical_action || "").trim(),
         receipt: "",
         state: "launching",
+        presentationPhase: "",
+        createdAt: performance.now(),
         disposed: false
     };
     appWindow._provisionalApplicationSession = session;
@@ -1859,6 +1888,7 @@ function beginProvisionalLaunch(selection = {}, appData = {}) {
     });
     provisionalApplicationSessions.set(sessionKey, session);
     document.body.appendChild(appWindow);
+    setApplicationPresentationPhase(session, "provisional");
     makeDraggable(appWindow);
     bringWindowToFront(appWindow);
     startPreExecutionPresentation(session, appData, pending, projectedContent);
@@ -1891,6 +1921,13 @@ function consumeProvisionalHydrationWindow(id, type) {
     });
     stopPreExecutionPresentation(session, "hydration");
     const app = session.appWindow;
+    setApplicationPresentationPhase(session, "hydrating", { completion_reason: "hydration" });
+    appFlowTrace(session.flowId, "feedback_provisional_handoff", {
+        app_id: session.appId,
+        action: session.action,
+        mode: "ofs_provisional",
+        elapsed_ms: Math.max(0, Math.round(performance.now() - session.createdAt))
+    });
     updateProvisionalApplicationSession(session, "hydrating", "Ladowanie autorytatywnej aplikacji...");
     app.className = "app-window";
     app.style.removeProperty("width");
@@ -1935,9 +1972,16 @@ function prepareApplicationRenderWindow(id, type) {
 function finishApplicationRenderWindow(app, hydrated) {
     if (!app.isConnected) document.body.appendChild(app);
     makeDraggable(app);
+    app.dataset.ofsAuthorPresented = "true";
     const session = app._provisionalApplicationSession;
     if (session && !session.disposed) {
         updateProvisionalApplicationSession(session, "presenting", "Ladowanie zawartosci aplikacji...");
+        setApplicationPresentationPhase(session, "author_intro");
+        appFlowTrace(session.flowId, "feedback_author_scene_started", {
+            app_id: session.appId,
+            action: session.action,
+            mode: "ofs_provisional"
+        });
         updateProvisionalApplicationSession(session, "interactive", "Aplikacja gotowa.");
     }
 }
@@ -3292,6 +3336,7 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
     const provisionalSession = appWindow?._provisionalApplicationSession;
     if (provisionalSession && !provisionalSession.disposed) {
         updateProvisionalApplicationSession(provisionalSession, "executing", "Operacja w toku...");
+        setApplicationPresentationPhase(provisionalSession, "executing");
     }
     const context = currentApplicationLaunchContext(appWindow);
     const ofs = window.OperationFeedbackSystem;
@@ -3320,6 +3365,7 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
             appWindow,
             securityState: context.security_state,
             applicationContent: context.application_content,
+            authorIntroPresented: appWindow?.dataset?.ofsAuthorPresented === "true",
             onProfileUnavailable: startLegacyFallback,
             onTrace: (eventName, details) => appFlowTrace(context.flow_id, eventName, {
                 app_id: appId,
@@ -3339,6 +3385,7 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
             if (session) session.complete(payload);
             if (provisionalSession && !provisionalSession.disposed) {
                 updateProvisionalApplicationSession(provisionalSession, "completing", "Finalizacja wyniku...");
+                setApplicationPresentationPhase(provisionalSession, "completing");
             }
         },
         fail(reason) {
@@ -3346,6 +3393,7 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
             if (session) session.fail(reason);
             if (provisionalSession && !provisionalSession.disposed) {
                 updateProvisionalApplicationSession(provisionalSession, "failed", "Operacja zakonczona bledem.");
+                setApplicationPresentationPhase(provisionalSession, "failed");
             }
         }
     };

@@ -4,6 +4,17 @@ Project Journal jest kroniką rozwoju projektu CHAOS.
 
 To nie jest changelog i nie jest dokumentacją techniczną. Jego rolą jest szybkie przekazanie historii projektu: skąd wzięły się obecne decyzje, dlaczego powstały kolejne systemy i w jakim stanie jest roadmapa.
 
+## 2026-08-11 — Sprint 130.8.6.7 OFS lifecycle
+
+Rozpoczęto i lokalnie zrealizowano pierwszy sprint Presentation Lift
+Challengera. Provisional, hydration, autorski content, execution oraz completion
+otrzymały jawne fazy bez tworzenia drugiego engine'u. Hydration zachowuje to
+samo okno i uchwyt, a autorski content nie jest powielany przez OFS.
+
+Scheduler wykonawczy respektuje czas czytelności i minimum `×3` wcześniejszego
+timingu. Choice zamraża zmianę sceny do wyboru albo timeoutu. Dodano telemetry
+handoffu/faz oraz kontrakty JS; gameplay i requesty pozostały niezmienione.
+
 CHAOS:
 
 ```text

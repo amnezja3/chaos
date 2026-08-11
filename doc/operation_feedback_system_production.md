@@ -1132,3 +1132,21 @@ Transport error nie jest losowany.
 Payload zawsze wygrywa z animacją.
 Fallback nigdy nie blokuje gry.
 ```
+
+## 30. Presentation lifecycle — 130.8.6.7
+
+Warstwa prezentacji posiada jawne fazy `provisional`, `hydrating`,
+`author_intro`, `executing`, `completing` oraz stany końcowe. Fazy są zapisywane
+wyłącznie na wewnętrznym hoście OFS; zewnętrzne okno i drag handle pozostają
+stabilne.
+
+Hydration zatrzymuje scheduler provisional i przekazuje ten sam window do
+renderera autorytatywnego. Content autora pokazany przez renderer aplikacji jest
+oznaczany jako wykorzystany, dzięki czemu execution OFS nie powiela go. Jeżeli
+sesja nie miała wcześniejszej prezentacji autora, OFS pokazuje jednorazowy,
+bezpieczny `author_intro`.
+
+Execution timing jest co najmniej trzykrotnie wolniejszy od bazowego, a czas
+sceny dodatkowo uwzględnia liczbę słów. Aktywny choice zamraża rotację scen do
+kliknięcia albo timeoutu. Payload nadal przejmuje stan natychmiast i jako jedyny
+może uruchomić completion/failure.

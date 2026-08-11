@@ -306,6 +306,21 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn('this.presentationMode !== "button_choice"', self.feedback)
         self.assertIn("this.renderer.render({", self.feedback)
 
+    def test_presentation_lifecycle_handoff_and_readability_contract(self):
+        self.assertIn("const PRESENTATION_PHASES", self.feedback)
+        self.assertIn("function readableSceneDelay", self.feedback)
+        self.assertIn("EXECUTION_TIMING_SCALE = 3", self.feedback)
+        self.assertIn('this.setPresentationPhase("author_intro")', self.feedback)
+        self.assertIn('this.setPresentationPhase("executing")', self.feedback)
+        self.assertIn("feedback_author_scene_started", self.feedback)
+        self.assertIn("feedback_execution_started", self.feedback)
+        self.assertIn("if (this.activeChoice) return;", self.feedback)
+        self.assertIn("feedback_provisional_handoff", self.terminal)
+        self.assertIn('setApplicationPresentationPhase(session, "hydrating"', self.terminal)
+        self.assertIn('setApplicationPresentationPhase(session, "author_intro")', self.terminal)
+        self.assertIn('app.dataset.ofsAuthorPresented = "true"', self.terminal)
+        self.assertIn("authorIntroPresented:", self.terminal)
+
 
 if __name__ == "__main__":
     unittest.main()

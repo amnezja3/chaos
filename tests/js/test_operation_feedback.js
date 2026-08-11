@@ -240,19 +240,23 @@ assert.ok(!rejectedTranscript.lines.includes("target captured"));
 assert.ok(!rejectedTranscript.lines.includes("structured line"));
 
 const fakeTimers = new Map();
+const fakeTimerDelays = new Map();
 let fakeTimerId = 0;
 const fakeClock = {
-    setTimeout(callback) {
+    setTimeout(callback, delayMs) {
         fakeTimerId += 1;
         fakeTimers.set(fakeTimerId, callback);
+        fakeTimerDelays.set(fakeTimerId, Number(delayMs) || 0);
         return fakeTimerId;
     },
     clearTimeout(timerId) {
         fakeTimers.delete(timerId);
+        fakeTimerDelays.delete(timerId);
     },
     run(timerId) {
         const callback = fakeTimers.get(timerId);
         fakeTimers.delete(timerId);
+        fakeTimerDelays.delete(timerId);
         if (callback) callback();
     }
 };
@@ -295,6 +299,41 @@ const timeoutId = timeoutSession.setTimer(
 fakeClock.run(timeoutId);
 assert.strictEqual(timeoutSession.presentationState.probe_mode, "quiet");
 timeoutSession.dispose("test_complete");
+
+const frozenChoiceSession = new ofs.OperationFeedbackSession({
+    actionKey: "scan_ports",
+    presentationMode: "button_choice",
+    applicationContent: voiceA,
+    clock: fakeClock,
+    now: () => 5000
+});
+frozenChoiceSession.state = "running";
+frozenChoiceSession.config = config;
+frozenChoiceSession.profile = operation;
+frozenChoiceSession.activeChoice = config.choice_library["feedback.scan_ports.visibility"];
+let frozenChoiceRenderCount = 0;
+frozenChoiceSession.render = () => { frozenChoiceRenderCount += 1; };
+frozenChoiceSession.renderNextScene();
+assert.strictEqual(frozenChoiceRenderCount, 0, "active choice must freeze OFS scene rotation");
+frozenChoiceSession.dispose("test_complete");
+
+const phaseHost = new FakeNode("main");
+const phaseEvents = [];
+const phaseSession = new ofs.OperationFeedbackSession({
+    actionKey: "scan_ports",
+    presentationMode: "button_choice",
+    rendererHost: phaseHost,
+    applicationContent: voiceA,
+    clock: fakeClock,
+    now: () => 5000,
+    onTrace: (eventName, details) => phaseEvents.push({eventName, details})
+});
+phaseSession.startedAt = 1000;
+phaseSession.setPresentationPhase("author_intro");
+assert.strictEqual(phaseHost.dataset.ofsPhase, "author_intro");
+assert.strictEqual(phaseHost.dataset.ofsTemplate, "button_choice");
+assert.ok(phaseEvents.some(event => event.eventName === "feedback_phase_changed"));
+phaseSession.dispose("test_complete");
 
 session.activeChoice = config.choice_library["feedback.scan_ports.pace"];
 session.choiceTimeoutId = session.setTimer(() => session.resolveChoice("quiet", "timeout"), 7000);
@@ -448,6 +487,56 @@ if (process.argv.includes("--transcripts")) {
     await Promise.resolve();
     assert.strictEqual(fallbackCalled, true);
     assert.strictEqual(invalidProfileSession.disposed, true);
+
+    const authorTimers = new Map();
+    let authorTimerId = 0;
+    const authorClock = {
+        setTimeout(callback, delayMs) {
+            authorTimerId += 1;
+            authorTimers.set(authorTimerId, {callback, delayMs});
+            return authorTimerId;
+        },
+        clearTimeout(timerId) { authorTimers.delete(timerId); }
+    };
+    const authorEvents = [];
+    const authorSession = new ofs.OperationFeedbackSession({
+        actionKey: "scan_ports",
+        presentationMode: "button_choice",
+        applicationContent: voiceA,
+        clock: authorClock,
+        now: () => 0,
+        configLoader: () => profileData,
+        onTrace: eventName => authorEvents.push(eventName)
+    });
+    authorSession.render = () => {};
+    authorSession.start();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.strictEqual(authorSession.presentationPhase, "author_intro");
+    assert.ok(authorEvents.includes("feedback_author_scene_started"));
+    assert.ok(Array.from(authorTimers.values()).some(timer => timer.delayMs >= 4000));
+    authorSession.dispose("test_complete");
+
+    const reusedAuthorEvents = [];
+    const reusedAuthorSession = new ofs.OperationFeedbackSession({
+        actionKey: "scan_ports",
+        presentationMode: "button_choice",
+        applicationContent: voiceA,
+        authorIntroPresented: true,
+        clock: authorClock,
+        now: () => 0,
+        configLoader: () => profileData,
+        onTrace: eventName => reusedAuthorEvents.push(eventName)
+    });
+    reusedAuthorSession.render = () => {};
+    reusedAuthorSession.renderNextScene = () => {};
+    reusedAuthorSession.start();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.strictEqual(reusedAuthorSession.presentationPhase, "executing");
+    assert.ok(reusedAuthorEvents.includes("feedback_execution_started"));
+    assert.ok(!reusedAuthorEvents.includes("feedback_author_scene_started"));
+    reusedAuthorSession.dispose("test_complete");
     console.log("operation feedback composer OK");
 })().catch(error => {
     console.error(error);

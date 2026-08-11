@@ -19393,6 +19393,26 @@ CUTOVER KOLEJNYCH OPERACJI
 
 ---
 
+# OFS Presentation Lift Challenger — 130.8.6.7–130.8.6.10
+
+Pełny kontrakt czterech sprintów znajduje się w
+`doc/ofs_presentation_lift_challenger.md`.
+
+```text
+130.8.6.7  lifecycle faz, timing i bezpieczny hydration handoff
+130.8.6.8  adaptacyjne paczki ofs_provisional dla czterech interface voices
+130.8.6.9  unikatowe template'y button_choice/random_progress/terminal/window
+130.8.6.10 język efektów mapy, eskalacja czasu i production hardening
+```
+
+Blok nie zmienia gameplayu ani kontraktów aplikacji. Obowiązuje kolejność:
+provisional, hydration, content autora, execution OFS, autorytatywne completion.
+Wszystkie fazy używają jednego shellu właściwego dla typu aplikacji. Execution
+ma timing minimum `×3`, a aktywny choice zamraża content i utrzymuje przyciski
+w stałym action docku do kliknięcia albo timeoutu.
+
+---
+
 # Sprint 130.8.7 — Cyberner Channel Delivery Isolation & Recovery
 
 Sprint naprawczy po audycie niedochodzących wiadomości na kanale `WORLD` i
