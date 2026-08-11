@@ -129,6 +129,11 @@ for (const mode of ["terminal", "button_choice", "window", "progressbar_random"]
     }), true);
     assert.strictEqual(host.dataset.presentationOwner, renderer.owner);
     assert.strictEqual(renderer.panel.querySelector(".operation-feedback-lines").children.length, 2);
+    assert.strictEqual(
+        renderer.panel.querySelector(".operation-feedback-line").dataset.sceneRole,
+        "command"
+    );
+    assert.ok(renderer.panel.querySelector(".ofs-scene-icon"));
     assert.strictEqual(Boolean(renderer.choiceContainer()), mode === "button_choice");
     renderer.render({
         phase: "running",
@@ -145,6 +150,28 @@ for (const mode of ["terminal", "button_choice", "window", "progressbar_random"]
     renderer.dispose();
     assert.strictEqual(host.dataset.presentationOwner, undefined);
 }
+const semanticHost = new FakeNode("main");
+const semanticRenderer = ofs.createPresentationRenderer("ofs_provisional", {host: semanticHost});
+const hydrationEnvelope = ofs.createSceneEnvelope({
+    presentation_mode: "ofs_provisional",
+    phase: "booting",
+    scene_id: "hydration_wait",
+    lines: ["Oczekiwanie na runtime."],
+    transition: "replace",
+    wait_band: "long",
+    content_source: "local_fallback"
+});
+assert.strictEqual(semanticRenderer.render(hydrationEnvelope), true);
+assert.strictEqual(semanticHost.dataset.sceneRole, "checkpoint");
+assert.strictEqual(semanticHost.dataset.ofsWaitBand, "long");
+assert.strictEqual(
+    semanticHost.querySelector(".provisional-app-scene-line").dataset.sceneRole,
+    "checkpoint"
+);
+assert.ok(semanticHost.querySelector(".ofs-scene-icon"));
+semanticRenderer.dispose();
+assert.strictEqual(semanticHost.dataset.ofsWaitBand, undefined);
+assert.strictEqual(semanticHost.dataset.sceneRole, undefined);
 const occupiedHost = {isConnected: true, dataset: {presentationOwner: "other:1"}};
 const provisionalRenderer = ofs.createPresentationRenderer("ofs_provisional", {host: occupiedHost});
 assert.throws(

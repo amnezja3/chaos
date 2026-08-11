@@ -8363,3 +8363,129 @@ form button:hover {
   .ofs-app-template *,
   .ofs-progress-step .progress-fill { animation: none !important; transition: none !important; }
 }
+
+/* OFS 130.8.6.10: map FX language, scoped to the visual-lift host. */
+.ofs-visual-lift .provisional-app-scenes,
+.ofs-visual-lift .operation-feedback-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.ofs-visual-lift .provisional-app-scenes::after,
+.ofs-visual-lift .operation-feedback-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.16;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0,
+    transparent 3px,
+    rgba(112, 255, 156, 0.12) 4px
+  );
+}
+
+.ofs-visual-lift .provisional-app-scenes > *,
+.ofs-visual-lift .operation-feedback-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.ofs-visual-lift .provisional-app-scene-line,
+.ofs-visual-lift .operation-feedback-line {
+  display: grid;
+  grid-template-columns: 2.2em minmax(0, 1fr);
+  align-items: start;
+  gap: 7px;
+}
+
+.ofs-visual-lift .operation-feedback-line::before { content: none; }
+.ofs-scene-icon {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2em;
+  min-height: 1.7em;
+  color: var(--ofs-accent, #27d86c);
+  font: 700 0.8rem monospace;
+  text-shadow: 0 0 7px currentColor;
+}
+.ofs-scene-text { min-width: 0; overflow-wrap: anywhere; }
+.ofs-scene-role-warning .ofs-scene-icon { color: #ffd45c; }
+.ofs-scene-role-success .ofs-scene-icon { color: #6dff98; }
+.ofs-scene-role-failure .ofs-scene-icon { color: #ff6262; }
+
+.ofs-visual-lift .provisional-app-scenes[data-ofs-wait-band="medium"] .provisional-app-scene-line:first-child .ofs-scene-icon {
+  animation: ofs-fx-soft-pulse 2.8s ease-in-out infinite;
+}
+
+.ofs-visual-lift .provisional-app-scenes[data-ofs-wait-band="long"] .provisional-app-scene-line:first-child .ofs-scene-icon {
+  animation: ofs-fx-micro-jitter 3.6s steps(1, end) infinite;
+}
+
+.ofs-visual-lift .provisional-app-scenes[data-ofs-wait-band="extended"][data-scene-transition="fade"] .provisional-app-scene-line:first-child,
+.ofs-visual-lift .provisional-app-scenes[data-ofs-wait-band="overdue"] .provisional-app-scene-line:first-child {
+  animation: ofs-fx-scene-glitch 420ms steps(2, end) 1;
+}
+
+.ofs-visual-lift .provisional-app-scenes[data-ofs-wait-band="overdue"]::after { opacity: 0.27; }
+.ofs-visual-lift .operation-feedback-panel[data-tone="warning"] .operation-feedback-line:first-child .ofs-scene-icon {
+  animation: ofs-fx-warning-pulse 1.6s ease-in-out infinite;
+}
+.ofs-visual-lift .operation-feedback-panel[data-tone="success"]::after {
+  animation: ofs-fx-success-burst 620ms ease-out 1;
+}
+.ofs-visual-lift .operation-feedback-panel[data-tone="failure"]::after {
+  background-color: rgba(255, 45, 45, 0.14);
+  animation: ofs-fx-failure-burst 620ms steps(3, end) 1;
+}
+
+@keyframes ofs-fx-soft-pulse {
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
+}
+@keyframes ofs-fx-micro-jitter {
+  0%, 92%, 100% { transform: translate(0, 0); }
+  94% { transform: translate(1px, 0); }
+  96% { transform: translate(-1px, 1px); }
+  98% { transform: translate(0, -1px); }
+}
+@keyframes ofs-fx-scene-glitch {
+  0% { opacity: 0.32; transform: translateX(0); filter: none; }
+  35% { opacity: 0.85; transform: translateX(2px); filter: contrast(1.25); }
+  65% { transform: translateX(-1px); }
+  100% { opacity: 1; transform: translateX(0); filter: none; }
+}
+@keyframes ofs-fx-warning-pulse {
+  0%, 100% { opacity: 0.7; text-shadow: 0 0 4px currentColor; }
+  50% { opacity: 1; text-shadow: 0 0 11px currentColor; }
+}
+@keyframes ofs-fx-success-burst {
+  0% { opacity: 0.42; background-color: rgba(75, 255, 130, 0.3); }
+  100% { opacity: 0.12; background-color: transparent; }
+}
+@keyframes ofs-fx-failure-burst {
+  0%, 45% { opacity: 0.42; }
+  46%, 75% { opacity: 0.1; }
+  76%, 100% { opacity: 0.24; }
+}
+
+.ofs-visual-lift-disabled .ofs-author-shell { display: block; padding: 10px; color: inherit; }
+.ofs-visual-lift-disabled .ofs-author-header { display: block; border: 0; padding: 0; }
+.ofs-visual-lift-disabled .ofs-author-header > span { display: none; }
+.ofs-visual-lift-disabled .ofs-author-content { min-height: 0; max-height: none; overflow: visible; border: 0; padding: 0; background: none; }
+.ofs-visual-lift-disabled .ofs-author-actions { display: flex; flex-wrap: wrap; min-height: 0; border: 0; padding: 0; background: none; }
+.ofs-visual-lift-disabled .ofs-scene-icon { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ofs-visual-lift .provisional-app-scenes *,
+  .ofs-visual-lift .operation-feedback-panel *,
+  .ofs-visual-lift .provisional-app-scenes::after,
+  .ofs-visual-lift .operation-feedback-panel::after {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}

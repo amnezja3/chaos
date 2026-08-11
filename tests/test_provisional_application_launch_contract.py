@@ -97,8 +97,14 @@ class ProvisionalApplicationLaunchContractTest(unittest.TestCase):
         self.assertIn("const app = session.appWindow", source)
         self.assertIn("prepareApplicationRenderWindow", source)
         self.assertIn("if (!app.isConnected) document.body.appendChild(app)", source)
+        self.assertIn("delete app.dataset.ofsWaitBand", source)
         for interface in ("window", "progressbar_random", "terminal", "button_choices"):
             self.assertIn(f'prepareApplicationRenderWindow(id, "{interface}")', self.terminal)
+
+    def test_visual_lift_has_an_independent_runtime_rollback(self):
+        self.assertIn('"CHAOS_OFS_VISUAL_LIFT_ENABLED"', self.config)
+        self.assertIn("readOFSVisualLiftEnabled", self.terminal)
+        self.assertIn("ofs-visual-lift-disabled", self.terminal)
 
     def test_hydration_rebinds_drag_handle_replaced_by_authoritative_renderer(self):
         consume = self.function_source(

@@ -26,6 +26,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
 
     def test_feature_flags_are_disabled_by_default_and_reach_desktop(self):
         self.assertIn('env_bool("CHAOS_OPERATION_FEEDBACK_ENABLED", False)', self.config)
+        self.assertIn('env_bool("CHAOS_OFS_VISUAL_LIFT_ENABLED", True)', self.config)
         self.assertNotIn("CHAOS_OPERATION_FEEDBACK_SCAN_PORTS", self.config)
         self.assertIn('id="operation-feedback-config"', self.template)
         self.assertLess(
@@ -338,6 +339,31 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertNotIn("operation-feedback-choice", terminal_source)
         self.assertNotIn("operation-feedback-choice", window_source)
         self.assertIn('this.presentationMode !== "button_choice"', self.feedback)
+
+    def test_visual_lift_is_scoped_truthful_and_bounded(self):
+        css = Path("static/css/style.css").read_text(encoding="utf-8")
+        self.assertIn("readOFSVisualLiftEnabled", self.terminal)
+        self.assertIn("ofs-visual-lift-disabled", self.terminal)
+        self.assertIn("delete app.dataset.ofsWaitBand", self.terminal)
+        self.assertIn("delete this.host.dataset.ofsWaitBand", self.feedback)
+        self.assertIn("SCENE_ROLE_ICONS", self.feedback)
+        self.assertIn("semanticRoleForEnvelope", self.feedback)
+        self.assertIn("scene_dom_nodes", self.feedback)
+        self.assertIn("scene_dom_nodes", self.terminal)
+        self.assertIn("level.steps.slice(0, 12)", self.terminal)
+        self.assertNotIn("requestAnimationFrame", self.feedback)
+        self.assertIn('[data-ofs-wait-band="medium"]', css)
+        self.assertIn('[data-ofs-wait-band="long"]', css)
+        self.assertIn('[data-ofs-wait-band="extended"]', css)
+        self.assertIn('[data-ofs-wait-band="overdue"]', css)
+        self.assertIn('[data-tone="warning"]', css)
+        self.assertIn('[data-tone="success"]', css)
+        self.assertIn('[data-tone="failure"]', css)
+        self.assertIn("prefers-reduced-motion", css)
+
+    def test_actual_interface_can_select_its_distinct_execution_renderer(self):
+        self.assertIn("!PRESENTATION_MODES.has(this.presentationMode)", self.feedback)
+        self.assertNotIn("this.profile.presentation_modes.includes(this.presentationMode)", self.feedback)
         self.assertIn("this.renderer.render({", self.feedback)
 
     def test_presentation_lifecycle_handoff_and_readability_contract(self):

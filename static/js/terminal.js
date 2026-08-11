@@ -1496,6 +1496,18 @@ function readProvisionalAppLaunchFlags() {
 }
 
 const provisionalAppLaunchFlags = readProvisionalAppLaunchFlags();
+function readOFSVisualLiftEnabled() {
+    const node = document.getElementById("operation-feedback-config");
+    if (!node) return true;
+    try {
+        const parsed = JSON.parse(node.textContent || "{}");
+        return parsed.visual_lift_enabled !== false;
+    } catch (error) {
+        console.warn("[OFS] Nieprawidlowy visual lift config", error);
+        return true;
+    }
+}
+const ofsVisualLiftEnabled = readOFSVisualLiftEnabled();
 const provisionalApplicationSessions = new Map();
 let provisionalApplicationTombstones = [];
 let activeProvisionalHydrationSession = null;
@@ -1700,6 +1712,8 @@ function startPreExecutionPresentation(session, appData = {}, pending = {}, proj
             scene_id: scene.scene_id || scene.family,
             content_source: scene.content_source || "local_fallback",
             wait_band: scene.wait_band || presentation.waitBand,
+            scene_dom_nodes: viewport.querySelectorAll(".provisional-app-scene-line").length,
+            visual_lift: ofsVisualLiftEnabled,
             elapsed_ms: Math.round(performance.now() - presentation.startedAt)
         });
     };
@@ -1829,7 +1843,9 @@ function beginProvisionalLaunch(selection = {}, appData = {}) {
     const position = findAvailablePosition(460, 280);
     const appWindow = document.createElement("div");
     const provisionalTemplate = normalizeOFSApplicationTemplate(appData.interface);
-    appWindow.className = `app-window provisional-app-window ofs-app-template ofs-template-${provisionalTemplate}`;
+    appWindow.className = ofsVisualLiftEnabled
+        ? `app-window provisional-app-window ofs-app-template ofs-visual-lift ofs-template-${provisionalTemplate}`
+        : "app-window provisional-app-window ofs-visual-lift-disabled";
     appWindow.dataset.ofsTemplate = provisionalTemplate;
     appWindow.dataset.appId = appId;
     appWindow.dataset.appTitle = appName;
@@ -1944,6 +1960,7 @@ function consumeProvisionalHydrationWindow(id, type) {
     });
     updateProvisionalApplicationSession(session, "hydrating", "Ladowanie autorytatywnej aplikacji...");
     app.className = "app-window";
+    delete app.dataset.ofsWaitBand;
     app.style.removeProperty("width");
     app.style.removeProperty("max-width");
     // The authoritative renderer replaces the provisional title bar. Its old
@@ -1970,7 +1987,9 @@ function prepareApplicationRenderWindow(id, type) {
     const hydrated = consumeProvisionalHydrationWindow(id, type);
     const app = hydrated || document.createElement("div");
     const template = normalizeOFSApplicationTemplate(type);
-    app.className = `app-window ofs-app-template ofs-template-${template}`;
+    app.className = ofsVisualLiftEnabled
+        ? `app-window ofs-app-template ofs-visual-lift ofs-template-${template}`
+        : "app-window ofs-visual-lift-disabled";
     app.dataset.ofsTemplate = template;
     app.dataset.launchKey = buildApplicationWindowLaunchKey(id, type);
     app.dataset.appFlowId = getCurrentAppFlowId();
@@ -4460,7 +4479,7 @@ async function app_progressbar_random(id, levels) {
     const safeLevels = Array.isArray(levels) ? levels : [];
     const level = safeLevels[0] || {};
     const steps = Array.isArray(level.steps) && level.steps.length
-        ? level.steps
+        ? level.steps.slice(0, 12)
         : ["Inicjalizacja modułu...", "Wykonanie operacji...", "Finalizacja..."];
     const { app, hydrated } = prepareApplicationRenderWindow(id, "progressbar_random");
 

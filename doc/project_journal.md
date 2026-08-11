@@ -1,5 +1,18 @@
 # CHAOS — Project Journal
 
+## 2026-08-11 — Sprint 130.8.6.10 Map FX Language & Production Hardening
+
+Domknięto Presentation Lift językiem wizualnym mapy CHAOS. Linie provisional i
+execution mają semantyczne ikony, a intensywność oczekiwania narasta w
+kontrolowanych wait bandach. Glitch i jitter nie poruszają całego okna;
+warning, success i failure są powiązane wyłącznie z prawdziwym tonem sceny.
+
+Hydration zeruje efekty oczekiwania, cleanup usuwa metadane, DOM ma limity, a
+rendering nie używa stałej pętli animacyjnej. Dodano telemetrię DOM oraz osobny
+rollback `CHAOS_OFS_VISUAL_LIFT_ENABLED=0`, który nie wyłącza gameplayu ani
+samego OFS. Test JS i kontrola składni przeszły lokalnie; testy Python zostały
+przygotowane do uruchomienia w środowisku serwera.
+
 Project Journal jest kroniką rozwoju projektu CHAOS.
 
 To nie jest changelog i nie jest dokumentacją techniczną. Jego rolą jest szybkie przekazanie historii projektu: skąd wzięły się obecne decyzje, dlaczego powstały kolejne systemy i w jakim stanie jest roadmapa.

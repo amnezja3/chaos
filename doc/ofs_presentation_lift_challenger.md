@@ -271,6 +271,23 @@ Realizacja:
 
 ## Sprint 130.8.6.10 — Map FX Language & Production Hardening
 
+Status realizacji (2026-08-11): zaimplementowany lokalnie, oczekuje na
+potwierdzenie macierzą produkcyjną po wdrożeniu.
+
+Zrealizowano:
+
+* semantyczne role i ikony linii bez HTML pochodzącego z contentu autora;
+* eskalację efektu wyłącznie podczas provisional oraz reset wait bandu przy
+  hydration;
+* warning pulse zależny od prawdziwego tonu `warning` oraz success/failure burst
+  dostępny dopiero w scenie wyniku payloadu;
+* maksymalnie jedną animowaną dekorację albo linię na host, limity bufora scen i
+  kroków progressu oraz cleanup datasetów;
+* telemetrię `scene_dom_nodes` i `visual_lift`;
+* niezależny rollback `CHAOS_OFS_VISUAL_LIFT_ENABLED=0`, który nie wyłącza OFS,
+  provisional ani requestu gameplay;
+* pełne wyłączenie ruchu przez `prefers-reduced-motion` bez utraty treści.
+
 Cel: połączyć aplikacje z językiem mapy CHAOS i bezpiecznie zakończyć cutover.
 
 Wspólne elementy:

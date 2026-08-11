@@ -68,6 +68,43 @@
         return Math.max(readingDelay, Math.max(0, Number(configuredDelay) || 0) * EXECUTION_TIMING_SCALE);
     }
 
+    const SCENE_ROLE_ICONS = Object.freeze({
+        identity: "◉", module: "▣", target: "⌖", author: "✎", command: ">_",
+        decision: "◇", checkpoint: "◆", warning: "!", success: "✓", failure: "×"
+    });
+
+    function semanticRoleForEnvelope(envelope) {
+        const tone = String(envelope.tone || "").toLowerCase();
+        const scene = String(envelope.scene_id || "").toLowerCase();
+        if (tone === "failure") return "failure";
+        if (tone === "success") return "success";
+        if (tone === "warning") return "warning";
+        if (/choice|decision/.test(scene)) return "decision";
+        if (/author/.test(scene)) return "author";
+        if (/target|context/.test(scene)) return "target";
+        if (/validation|checkpoint|sync|hydration|wait/.test(scene)) return "checkpoint";
+        if (/module|boot|init|prepare/.test(scene)) return "module";
+        if (/terminal|command|probe|execute/.test(scene)) return "command";
+        return "identity";
+    }
+
+    function createSemanticSceneLine(envelope, text, className) {
+        const role = semanticRoleForEnvelope(envelope);
+        const line = global.document.createElement("div");
+        line.className = `${className} ofs-scene-role-${role}`;
+        line.dataset.sceneRole = role;
+        const icon = global.document.createElement("span");
+        icon.className = "ofs-scene-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = SCENE_ROLE_ICONS[role];
+        const content = global.document.createElement("span");
+        content.className = "ofs-scene-text";
+        content.textContent = text;
+        line.appendChild(icon);
+        line.appendChild(content);
+        return line;
+    }
+
     function createSceneEnvelope(value = {}) {
         const mode = String(value.presentation_mode || value.mode || "").trim();
         if (!PRESENTATION_MODES.has(mode)) throw new Error("OFS unsupported presentation mode");
@@ -123,17 +160,13 @@
             this.host.dataset.sceneId = envelope.scene_id;
             this.host.dataset.sceneTransition = envelope.transition;
             this.host.dataset.sceneTone = envelope.tone;
+            this.host.dataset.sceneRole = semanticRoleForEnvelope(envelope);
             if (envelope.wait_band) this.host.dataset.ofsWaitBand = envelope.wait_band;
             if (envelope.transition === "clear") {
                 this.host.replaceChildren();
                 return true;
             }
-            const nodes = envelope.lines.map(text => {
-                const line = global.document.createElement("div");
-                line.className = "provisional-app-scene-line";
-                line.textContent = text;
-                return line;
-            });
+            const nodes = envelope.lines.map(text => createSemanticSceneLine(envelope, text, "provisional-app-scene-line"));
             if (envelope.transition === "append_short") {
                 nodes.forEach(node => this.host.appendChild(node));
                 while (this.host.children.length > 6) this.host.firstElementChild.remove();
@@ -148,6 +181,11 @@
             this.disposed = true;
             if (this.host && this.host.dataset.presentationOwner === this.owner) {
                 delete this.host.dataset.presentationOwner;
+                delete this.host.dataset.sceneId;
+                delete this.host.dataset.sceneTransition;
+                delete this.host.dataset.sceneTone;
+                delete this.host.dataset.sceneRole;
+                delete this.host.dataset.ofsWaitBand;
             }
         }
     }
@@ -216,6 +254,7 @@
             panel.dataset.tone = envelope.tone;
             panel.dataset.sceneId = envelope.scene_id;
             panel.dataset.sceneTransition = envelope.transition;
+            panel.dataset.sceneRole = semanticRoleForEnvelope(envelope);
             const status = panel.querySelector(".operation-feedback-status");
             const lines = panel.querySelector(".operation-feedback-lines");
             status.textContent = envelope.status;
@@ -224,12 +263,7 @@
                 this.renderEnvelope(envelope, panel);
                 return true;
             }
-            const nodes = envelope.lines.map(text => {
-                const line = global.document.createElement("div");
-                line.className = "operation-feedback-line";
-                line.textContent = text;
-                return line;
-            });
+            const nodes = envelope.lines.map(text => createSemanticSceneLine(envelope, text, "operation-feedback-line"));
             if (envelope.transition === "append_short") {
                 nodes.forEach(node => lines.appendChild(node));
                 while (lines.children.length > 6) lines.firstElementChild.remove();
@@ -1198,8 +1232,8 @@
                 this.config = validateFeedbackConfig(config);
                 this.profile = this.config.operations[this.actionKey];
                 if (!this.profile || this.profile.enabled !== true
-                    || !Array.isArray(this.profile.presentation_modes)
-                    || !this.profile.presentation_modes.includes(this.presentationMode)) {
+                    || this.presentationMode === "ofs_provisional"
+                    || !PRESENTATION_MODES.has(this.presentationMode)) {
                     throw new Error("OFS profile does not support renderer");
                 }
                 this.trace("feedback_profile_loaded", { content_version: this.config.content_version });
@@ -1257,7 +1291,12 @@
                 scene_id: scene.scene_id,
                 duration_profile: scene.duration_profile,
                 elapsed_ms: Math.round(elapsedMs),
-                content_source: scene.content_source
+                content_source: scene.content_source,
+                scene_dom_nodes: this.rendererHost && typeof this.rendererHost.querySelectorAll === "function"
+                    ? this.rendererHost.querySelectorAll(".operation-feedback-line").length
+                    : 0,
+                visual_lift: Boolean(this.appWindow && this.appWindow.classList
+                    && this.appWindow.classList.contains("ofs-visual-lift"))
             });
             this.maybePresentChoice(scene);
             if (this.activeChoice) return;

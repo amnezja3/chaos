@@ -1183,3 +1183,25 @@ autora, execution OFS i wynik. Template jest wybierany z rzeczywistego
 Completion/failure blokuje autorskie akcje oraz zatrzymuje lokalne timery.
 Request, payload, composer i lifecycle pozostają wspólne. Style są izolowane do
 hosta OFS i mają wariant narrow oraz reduced motion.
+
+## 33. Map FX language i rollback visual liftu — 130.8.6.10
+
+Każda linia sceny otrzymuje rolę semantyczną (`identity`, `module`, `target`,
+`author`, `command`, `decision`, `checkpoint`, `warning`, `success` albo
+`failure`) i lokalną ikonę. Rola opisuje prezentację, nie zmienia contentu ani
+stanu gameplay.
+
+Efekty czasu są ograniczone do provisional. `medium` pulsuje delikatnie,
+`long` porusza jedną ikonę, `extended` i `overdue` wykonują krótki glitch jednej
+linii. Hydration usuwa wait band. W execution animacja warningu wymaga
+prawdziwego tonu `warning`, a burst success/failure może powstać dopiero po
+autorytatywnym payloadzie.
+
+Nie ma pętli `requestAnimationFrame`. Host korzysta z jednej dekoracji CSS,
+bufor scen ma limit sześciu linii, a author progress maksymalnie 12 kroków.
+`dispose` usuwa metadane sceny i wait band. Telemetria zapisuje liczbę węzłów
+sceny oraz stan liftu.
+
+Visual lift ma osobny przełącznik `CHAOS_OFS_VISUAL_LIFT_ENABLED`, domyślnie
+włączony. Ustawienie `0` przywraca prostą prezentację bez wyłączania OFS,
+provisional, hydration ani requestów.
