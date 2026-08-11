@@ -322,3 +322,131 @@ buttons oraz pomiar CPU/DOM.
 
 DoD: cztery template'y są unikatowe i należą do świata CHAOS, efekt narasta z
 czasem bez fałszowania stanu, a lift można wyłączyć bez wyłączania OFS.
+
+## Lift Sprint 130.8.6.11 — Application Title Sequence Generator
+
+Cel: zbudować generowaną czołówkę aplikacji, która płynnie otwiera ten sam,
+stabilny viewport używany później przez content autora, OFS i finał. Nazwa
+aplikacji jest jedynym inicjatorem kompozycji: nie dodajemy ręcznych wariantów
+dla konkretnych aplikacji i nie wiążemy czołówki z gameplayem.
+
+### Wejście generatora
+
+Generator otrzymuje wyłącznie bezpieczne dane prezentacyjne:
+
+* pełną nazwę aplikacji;
+* ikonę aplikacji albo neutralny fallback;
+* rzeczywisty `interface` wybierający rodzinę template'u;
+* opcjonalny krótki opis autora, pokazywany dopiero po czołówce.
+
+Z nazwy wyliczane są: `character_count`, `word_count`, `space_count`, długość
+najdłuższego słowa oraz stabilny lokalny hash. Hash nie służy do losowania
+wyniku — wybiera jedynie powtarzalny wariant ruchu. Ta sama nazwa i template
+muszą zawsze tworzyć tę samą czołówkę, także po ponownym otwarciu aplikacji.
+
+### Klasy kompozycji nazwy
+
+* `compact-mark`: jedno słowo krótsze od ustalonego progu; duży bold, układ
+  poziomy ikona + nazwa;
+* `single-wide`: jedno dłuższe słowo; ikona nad nazwą, kontrolowane zwężenie
+  fontu i skalowanie bez łamania viewportu;
+* `word-pair`: dwa słowa; duża ikona centralna, nazwa pod nią w dwóch logicznych
+  segmentach;
+* `multi-word`: trzy lub więcej słów; mniejsza ikona, blok tytułowy o stałej
+  szerokości i maksymalnie dwóch liniach;
+* `dense-title`: bardzo długa nazwa albo długie słowo bez spacji; bezpieczne
+  skrócenie wizualne, pełna nazwa pozostaje dostępna w `title`/ARIA.
+
+Próg i reguły są wspólne dla wszystkich aplikacji. Niedozwolone są wyjątki po
+`app_id`, ręczne CSS-y dla nazw oraz zmiana tekstu dostarczonego przez autora.
+
+### Rodziny animacji wejścia
+
+Stabilny hash nazwy przypisuje jedną rodzinę w obrębie klasy kompozycji:
+
+1. `icon-lock`: ikona materializuje się, wykonuje krótki lock/pulse, następnie
+   wjeżdża nazwa;
+2. `title-slide`: nazwa wjeżdża poziomo, ikona pojawia się po zakotwiczeniu
+   baseline'u;
+3. `split-reveal`: segmenty wielowyrazowej nazwy odsłaniają się kolejno wokół
+   nieruchomej ikony;
+4. `blink-sync`: ikona i tytuł pojawiają się krótkimi, malejącymi blinkami,
+   kończąc w stabilnym stanie;
+5. `glitch-anchor`: pojedynczy kontrolowany glitch ustala pozycję ikony, potem
+   nazwa jest odsłaniana bez dalszego skakania;
+6. `type-lock`: krótka nazwa składa się znak po znaku, a ikona potwierdza ją
+   jednym impulsem.
+
+Liczba słów i spacji ustala kierunek oraz punkty zakotwiczenia animacji. Długa
+nazwa nie może wykonywać tego samego szerokiego wjazdu co krótki znak. Animacja
+może poruszać ikoną lub wewnętrznym blokiem tytułu, ale nigdy `.app-window`,
+title barem ani pozycją drag/resize.
+
+### Sekwencja scen
+
+```text
+provisional
+→ hydration
+→ title_intro: ikona + wygenerowana kompozycja nazwy
+→ author_intro: treść przygotowana przez autora
+→ po akcji author content zostaje ukryty
+→ execution OFS przejmuje ten sam viewport
+→ completion / failure / transport error
+```
+
+`title_intro` jest podfazą prezentacyjną istniejącego `author_intro`, a nie nowym
+stanem gameplay ani osobnym requestem. Payload zawsze może przerwać czołówkę i
+natychmiast pokazać prawdziwy finał. Czołówka nie może opóźniać requestu.
+
+### Timing i stabilność
+
+* cała czołówka trwa docelowo 1,8–3,8 s zależnie od długości nazwy;
+* nazwa pozostaje w pełni czytelna minimum 900 ms przed przejściem dalej;
+* maksymalnie jedna animowana dekoracja i jeden blok tekstowy naraz;
+* stała wysokość viewportu w pionie, kwadracie i poziomie;
+* content autora ma wewnętrzny scroll i nigdy nie rozpycha okna;
+* równoległe okna posiadają niezależne timery, właścicieli i cleanup;
+* brak `requestAnimationFrame`; animacje CSS są jednorazowe i ograniczone;
+* `prefers-reduced-motion` pokazuje natychmiastową, statyczną kompozycję z tym
+  samym czasem czytelności;
+* zamknięcie, abort, hydration oraz payload czyszczą timery i klasy animacji.
+
+### Style rodzin interface
+
+Generator zachowuje wspólną gramatykę, ale dziedziczy charakter template'u:
+
+* terminal — type-lock, prompt/cursor i sysinfo;
+* button choice — mocny znak, centralny lock i wejście jak panel decyzyjny;
+* window — warstwowe odsłonięcie ikony oraz nagłówka modułu;
+* progressbar random — sekwencja boot/checkpoint bez fikcyjnego procentu wyniku.
+
+Nazwa wybiera wariant czołówki, natomiast `interface` dostarcza kolory, font,
+siatkę i dozwolony zestaw ruchu. Dzięki temu aplikacja zachowuje własną
+tożsamość bez utraty spójności OFS.
+
+### Testy
+
+Macierz kontraktowa:
+
+* nazwy: 1 krótki wyraz, 1 długi wyraz, 2 wyrazy, 3+ wyrazy, bardzo długa nazwa,
+  znaki specjalne i brak nazwy;
+* cztery template'y oraz pion/kwadrat/poziom/mobile;
+* deterministyczny wariant dla tej samej nazwy;
+* brak zależności od `app_id`, gameplay payloadu i security state;
+* payload podczas każdej części czołówki;
+* wiele równoległych okien bez wspólnego timera lub ownera;
+* zamknięcie, abort, failure i ponowne otwarcie;
+* klawiatura, ARIA, pełna nazwa dense-title oraz reduced motion;
+* stały rozmiar `.app-window`, brak prześwitu mapy i brak layout shift;
+* brak drugiego requestu, dodatkowego `/gonna-win`, 409 lub 500 wywołanego
+  prezentacją.
+
+### Rollback i DoD
+
+Czołówka otrzymuje osobną flagę podrzędną wobec visual liftu. Jej wyłączenie
+pomija `title_intro` i przechodzi bezpośrednio do contentu autora, nie wyłączając
+template'u, provisional ani OFS.
+
+DoD: po samej ikonie, nazwie i ruchu można rozpoznać wejście aplikacji; okno nie
+zmienia wymiarów między czołówką, autorem, OFS i finałem; równoległe aplikacje
+rozpoczynają lokalny show natychmiast i nie czekają na wspólną kolejkę requestów.

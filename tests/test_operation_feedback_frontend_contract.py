@@ -365,6 +365,9 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("prefers-reduced-motion", css)
         self.assertIn('data-ofs-phase="executing"', css)
         self.assertIn("height: clamp(420px, 68vh, 680px)", css)
+        self.assertIn('.ofs-app-template[data-mobile-safe-mode="true"]', css)
+        ofs_css = css[css.index("/* OFS 130.8.6.9"):]
+        self.assertNotIn("calc(100vw - 16px) !important", ofs_css)
         self.assertIn("appWindow.dataset.ofsPhase = normalized", self.feedback)
 
     def test_feedback_starts_before_shared_request_queue(self):

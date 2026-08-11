@@ -689,6 +689,9 @@ function ensureSystemToolbar() {
             </button>
             <div id="system-start-menu" hidden></div>
         </div>
+        <button id="system-window-tab-button" type="button" aria-label="Przelacz otwarte okno" title="Przelacz otwarte okno">
+            <span aria-hidden="true">⇥</span>
+        </button>
         <div id="system-running-apps"></div>
         <div id="system-status-strip"></div>
     `;
@@ -696,6 +699,7 @@ function ensureSystemToolbar() {
 
     const startButton = toolbar.querySelector('#system-start-button');
     const startMenu = toolbar.querySelector('#system-start-menu');
+    const windowTabButton = toolbar.querySelector('#system-window-tab-button');
     startButton.addEventListener('click', (event) => {
         event.stopPropagation();
         startMenu.hidden = !startMenu.hidden;
@@ -705,6 +709,7 @@ function ensureSystemToolbar() {
             startMenu.hidden = true;
         }
     });
+    windowTabButton.addEventListener('click', cycleMobileToolbarWindow);
 
     renderStartMenu();
     renderRunningApps();
@@ -1418,6 +1423,41 @@ function bringWindowToFront(win) {
     renderRunningApps();
 }
 
+function connectedRunningWindows() {
+    const windows = [];
+    for (const [id, win] of runningWindows.entries()) {
+        if (!win || !win.isConnected) {
+            runningWindows.delete(id);
+            continue;
+        }
+        windows.push(win);
+    }
+    return windows;
+}
+
+function cycleMobileToolbarWindow() {
+    const windows = connectedRunningWindows();
+    if (!windows.length) return;
+    const activeIndex = windows.findIndex(win => win.classList.contains('active'));
+    const nextIndex = activeIndex >= 0 ? (activeIndex + 1) % windows.length : 0;
+    bringWindowToFront(windows[nextIndex]);
+}
+
+function renderMobileWindowTabButton(windows) {
+    const button = document.getElementById('system-window-tab-button');
+    if (!button) return;
+    const activeIndex = windows.findIndex(win => win.classList.contains('active'));
+    const nextIndex = windows.length ? (activeIndex >= 0 ? (activeIndex + 1) % windows.length : 0) : -1;
+    const nextWindow = nextIndex >= 0 ? windows[nextIndex] : null;
+    const nextTitle = nextWindow ? (nextWindow.dataset.appTitle || getWindowTitle(nextWindow)) : '';
+    button.disabled = windows.length === 0;
+    button.dataset.windowCount = String(windows.length);
+    button.title = nextWindow
+        ? `Nastepne okno: ${nextTitle} (${windows.length})`
+        : 'Brak otwartych okien';
+    button.setAttribute('aria-label', button.title);
+}
+
 function registerWindowInTaskbar(win) {
     if (!win || win.dataset.windowId) return;
 
@@ -1435,9 +1475,8 @@ function renderRunningApps() {
     const box = document.getElementById('system-running-apps');
     if (!box) return;
 
-    for (const [id, win] of runningWindows.entries()) {
-        if (!win.isConnected) runningWindows.delete(id);
-    }
+    const windows = connectedRunningWindows();
+    renderMobileWindowTabButton(windows);
 
     box.innerHTML = "";
     runningWindows.forEach((win, id) => {

@@ -106,6 +106,14 @@ class ProvisionalApplicationLaunchContractTest(unittest.TestCase):
         self.assertIn("readOFSVisualLiftEnabled", self.terminal)
         self.assertIn("ofs-visual-lift-disabled", self.terminal)
 
+    def test_mobile_toolbar_cycles_registered_windows_without_second_registry(self):
+        self.assertIn('id="system-window-tab-button"', self.terminal)
+        self.assertIn("function cycleMobileToolbarWindow", self.terminal)
+        self.assertIn("function connectedRunningWindows", self.terminal)
+        self.assertIn("const windows = connectedRunningWindows()", self.terminal)
+        self.assertIn("bringWindowToFront(windows[nextIndex])", self.terminal)
+        self.assertNotIn("mobileRunningWindows", self.terminal)
+
     def test_hydration_rebinds_drag_handle_replaced_by_authoritative_renderer(self):
         consume = self.function_source(
             "function consumeProvisionalHydrationWindow",

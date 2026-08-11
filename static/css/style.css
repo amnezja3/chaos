@@ -952,6 +952,7 @@ body {
 }
 
 #system-start-button,
+#system-window-tab-button,
 .system-task-button,
 .system-start-item {
   border: 1px solid rgba(90, 255, 135, 0.18);
@@ -959,6 +960,23 @@ body {
   color: #d8ffe0;
   font-family: monospace;
   cursor: pointer;
+}
+
+#system-window-tab-button {
+  display: none;
+  width: 38px;
+  height: 36px;
+  padding: 0;
+  place-items: center;
+  border-color: rgba(139, 255, 62, 0.48);
+  color: #b7ff38;
+  font: 900 1.35rem/1 monospace;
+  text-shadow: 0 0 7px rgba(98, 255, 38, 0.64);
+}
+
+#system-window-tab-button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 #system-start-button {
@@ -7261,7 +7279,7 @@ form button:hover {
   #system-toolbar {
     right: 0;
     height: 46px;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto 38px minmax(0, 1fr);
     gap: 6px;
     padding: 5px 6px 5px 8px;
     border-radius: 0;
@@ -7269,6 +7287,10 @@ form button:hover {
 
   #system-running-apps {
     display: none;
+  }
+
+  #system-window-tab-button {
+    display: inline-grid;
   }
 
   #system-start-button {
@@ -8428,12 +8450,29 @@ form button:hover {
 .operation-feedback-progressbar_random .operation-feedback-line::before { content: "▰ "; color: var(--ofs-accent); }
 
 @media (max-width: 620px) {
-  .ofs-app-template { min-width: 0; width: calc(100vw - 16px) !important; max-width: calc(100vw - 16px) !important; height: calc(100vh - 54px); }
+  .ofs-app-template {
+    min-width: 0;
+    width: 100vw !important;
+    width: 100dvw !important;
+    max-width: 100vw !important;
+    max-width: 100dvw !important;
+    height: calc(100vh - 46px);
+    height: calc(100dvh - 46px);
+    background: var(--ofs-surface);
+  }
   .ofs-author-shell { padding: 10px; gap: 9px; }
   .ofs-author-header { align-items: flex-start; flex-direction: column; gap: 4px; }
   .ofs-author-actions[data-choice-layout="grid"],
   .operation-feedback-choice-buttons[data-choice-layout="grid"] { grid-template-columns: 1fr; }
   .operation-feedback-slots { grid-template-columns: 1fr; }
+}
+
+.ofs-app-template[data-mobile-safe-mode="true"] {
+  width: 100vw !important;
+  width: 100dvw !important;
+  max-width: 100vw !important;
+  max-width: 100dvw !important;
+  background: var(--ofs-surface);
 }
 
 @media (prefers-reduced-motion: reduce) {
