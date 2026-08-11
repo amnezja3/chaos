@@ -323,7 +323,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
             self.assertIn(f".ofs-template-{template}", css)
         self.assertIn("normalizeOFSApplicationTemplate", self.terminal)
         self.assertIn("data-choice-layout", self.terminal)
-        self.assertIn("data-choice-layout", self.feedback)
+        self.assertIn("dataset.choiceLayout", self.feedback)
         self.assertIn("app-terminal-sysinfo-line", self.terminal)
         self.assertNotIn("app-terminal-spinner", self.function_source("function app_terminal", "function app_button_choices"))
         self.assertIn("prefers-reduced-motion", css)
