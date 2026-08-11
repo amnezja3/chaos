@@ -1167,3 +1167,19 @@ sześć ostatnich wariantów, dzięki czemu zużywa lokalną pulę przed powtór
 Kontrakt JSON wymaga rosnących progów, kompletu czterech voice packów i minimum
 trzech wariantów dla każdej rodziny timeline. Nadal obowiązuje zakaz fikcyjnego
 wyniku, transport error, security state i procentu postępu.
+
+## 32. Four application presentation templates — 130.8.6.9
+
+Jedno okno aplikacji zachowuje template od provisional przez hydration, content
+autora, execution OFS i wynik. Template jest wybierany z rzeczywistego
+`interface`, a nie wyłącznie z domyślnego trybu akcji.
+
+* `button-choice` ma stały action dock i układ `single/grid/list`;
+* `progressbar-random` ma osobne, lokalne paski każdej linii autora; procent nie
+  reprezentuje backendu i nie osiąga 100 przed prawdziwym sukcesem;
+* `terminal` utrzymuje bufor poleceń i sysinfo bez starego spinera;
+* `window` utrzymuje panel contentu, drugorzędne akcje i sloty label/value.
+
+Completion/failure blokuje autorskie akcje oraz zatrzymuje lokalne timery.
+Request, payload, composer i lifecycle pozostają wspólne. Style są izolowane do
+hosta OFS i mają wariant narrow oraz reduced motion.

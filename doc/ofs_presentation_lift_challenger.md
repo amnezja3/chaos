@@ -180,6 +180,8 @@ Realizacja:
 
 ## Sprint 130.8.6.9 — Four Application Presentation Templates
 
+Status: zaimplementowany lokalnie 2026-08-11.
+
 Cel: cztery unikatowe layouty CSS i zachowania scen przy wspólnym envelope.
 
 ### `button_choice`
@@ -249,6 +251,23 @@ window z przyciskami i bez slotów, mobile, reduced motion i równoległe aplika
 
 DoD: typ aplikacji można rozpoznać po wyglądzie i ruchu, ale gameplay, payload,
 composer i lifecycle pozostają wspólne.
+
+Realizacja:
+
+* provisional i autorytatywny renderer zachowują na tym samym oknie klasę
+  template'u: `terminal`, `button-choice`, `window` lub `progressbar-random`;
+* `progressbar_random` ma własny execution renderer, a nie alias `window`;
+* button choice rozkłada jedną opcję centralnie, 2–4 w gridzie i 5+ w
+  przewijalnej liście; action dock i content mają niezależną geometrię;
+* terminal zachowuje pisanie poleceń, lecz spinner zastąpiły jawne stany
+  `RUNNING`/`SENT`/`COMPLETE`/`FAILED`;
+* random progress uruchamia osobny, monotoniczny pasek dla każdej linii autora,
+  zatrzymuje go przed końcem do payloadu i dopiero sukces domyka do `100%`;
+* window posiada stabilny author content, action dock, result i sloty OFS;
+* payload blokuje ponowne użycie autorskich przycisków, zatrzymuje timery
+  progresu i nie czeka na zakończenie animacji;
+* CSS jest ograniczony do `.ofs-app-template`, obsługuje małe okna, focus oraz
+  `prefers-reduced-motion`.
 
 ## Sprint 130.8.6.10 — Map FX Language & Production Hardening
 

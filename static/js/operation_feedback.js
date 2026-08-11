@@ -12,7 +12,7 @@
         "background_injection", "memory_guard", "vpn_blocker"
     ]);
     const TERMINAL_STATES = new Set(["disposed"]);
-    const PRESENTATION_MODES = new Set(["ofs_provisional", "terminal", "button_choice", "window"]);
+    const PRESENTATION_MODES = new Set(["ofs_provisional", "terminal", "button_choice", "window", "progressbar_random"]);
     const SCENE_TRANSITIONS = new Set(["replace", "clear", "fade", "append_short"]);
     const PROVISIONAL_VOICES = new Set(["default", "terminal", "button_choices", "window", "progressbar_random"]);
     const PROVISIONAL_INTERFACE_VOICES = Object.freeze(["terminal", "button_choices", "window", "progressbar_random"]);
@@ -179,6 +179,7 @@
             panel.className = `operation-feedback-panel operation-feedback-${this.presentationMode}`;
             panel.dataset.ofsSessionId = this.sessionId;
             panel.dataset.presentationMode = this.presentationMode;
+            panel.dataset.template = this.presentationMode;
             panel.setAttribute("aria-live", "polite");
 
             const title = global.document.createElement("div");
@@ -256,6 +257,12 @@
         constructor(options = {}) {
             super({ ...options, presentationMode: "terminal" });
         }
+
+        renderEnvelope(envelope, panel) {
+            const status = panel.querySelector(".operation-feedback-status");
+            status.dataset.sysinfo = envelope.tone === "failure" ? "FAILED"
+                : (envelope.tone === "success" ? "COMPLETE" : "RUNNING");
+        }
     }
 
     class ButtonChoiceSceneRenderer extends ExecutionSceneRenderer {
@@ -272,6 +279,17 @@
 
         choiceContainer() {
             return this.panel && this.panel.querySelector(".operation-feedback-choice");
+        }
+    }
+
+    class ProgressbarRandomSceneRenderer extends ExecutionSceneRenderer {
+        constructor(options = {}) {
+            super({ ...options, presentationMode: "progressbar_random" });
+        }
+
+        renderEnvelope(envelope, panel) {
+            panel.dataset.executorState = envelope.tone === "failure" ? "failed"
+                : (envelope.tone === "success" ? "complete" : "running");
         }
     }
 
@@ -312,13 +330,15 @@
         if (normalizedMode === "ofs_provisional") return new ProvisionalSceneRenderer(options);
         if (normalizedMode === "terminal") return new TerminalSceneRenderer(options);
         if (normalizedMode === "button_choice") return new ButtonChoiceSceneRenderer(options);
+        if (normalizedMode === "progressbar_random") return new ProgressbarRandomSceneRenderer(options);
         if (normalizedMode === "window") return new WindowSceneRenderer(options);
         return null;
     }
 
     function presentationModeForInterface(interfaceName) {
         const normalized = String(interfaceName || "").trim();
-        if (normalized === "progressbar_random" || normalized === "window") return "window";
+        if (normalized === "progressbar_random") return "progressbar_random";
+        if (normalized === "window") return "window";
         if (normalized === "terminal") return "terminal";
         if (normalized === "button_choices" || normalized === "button_choice") return "button_choice";
         return null;
@@ -326,8 +346,8 @@
 
     function presentationModeForAction(actionKey, interfaceName = "") {
         const action = String(actionKey || "").trim();
-        return ACTION_PRESENTATION_MODES[action]
-            || presentationModeForInterface(interfaceName)
+        return presentationModeForInterface(interfaceName)
+            || ACTION_PRESENTATION_MODES[action]
             || "window";
     }
 
@@ -1115,6 +1135,9 @@
 
             const buttons = global.document.createElement("div");
             buttons.className = "operation-feedback-choice-buttons";
+            buttons.dataset.choiceLayout = choice.options.length === 1 ? "single"
+                : (choice.options.length <= 4 ? "grid" : "list");
+            buttons.dataset.choiceCount = String(choice.options.length);
             choice.options.forEach(option => {
                 const button = global.document.createElement("button");
                 button.type = "button";
@@ -1380,6 +1403,7 @@
         ExecutionSceneRenderer,
         TerminalSceneRenderer,
         ButtonChoiceSceneRenderer,
-        WindowSceneRenderer
+        WindowSceneRenderer,
+        ProgressbarRandomSceneRenderer
     });
 })(window);

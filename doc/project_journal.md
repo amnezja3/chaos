@@ -4,6 +4,18 @@ Project Journal jest kroniką rozwoju projektu CHAOS.
 
 To nie jest changelog i nie jest dokumentacją techniczną. Jego rolą jest szybkie przekazanie historii projektu: skąd wzięły się obecne decyzje, dlaczego powstały kolejne systemy i w jakim stanie jest roadmapa.
 
+## 2026-08-11 — Sprint 130.8.6.9 Four Application Templates
+
+Zastąpiono wspólny, generyczny wygląd czterema template'ami OFS działającymi na
+tym samym oknie od provisional do wyniku. Button choice otrzymał nieruchomy
+action dock, terminal stany sysinfo zamiast spinera, window stabilny panel, a
+progressbar random niezależne paski dla każdej linii autora.
+
+Paski są lokalną prezentacją, zatrzymują się przed końcem i dopiero prawdziwy
+payload sukcesu domyka je do 100%. Failure zatrzymuje animację. Gameplay,
+requesty i lifecycle nie zostały rozgałęzione. Dodano responsywność, focus,
+reduced motion oraz kontrakty czterech rendererów.
+
 ## 2026-08-11 — Sprint 130.8.6.8 Adaptive Provisional Scene Packs
 
 Zaimplementowano cztery kompletne głosy provisional dla `terminal`,

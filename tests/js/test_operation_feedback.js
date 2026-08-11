@@ -100,20 +100,20 @@ assert.throws(
     () => ofs.createSceneEnvelope({presentation_mode: "ofs_provisional", transition: "progress", lines: ["test"]}),
     /unsupported scene transition/
 );
-const executionRenderers = ["terminal", "button_choice", "window"].map(mode =>
+const executionRenderers = ["terminal", "button_choice", "window", "progressbar_random"].map(mode =>
     ofs.createPresentationRenderer(mode, {})
 );
 assert.deepStrictEqual(
     executionRenderers.map(renderer => renderer.presentationMode),
-    ["terminal", "button_choice", "window"]
+    ["terminal", "button_choice", "window", "progressbar_random"]
 );
 executionRenderers.forEach(renderer => renderer.dispose());
 assert.strictEqual(ofs.createPresentationRenderer("unknown", {}), null);
-assert.strictEqual(ofs.presentationModeForInterface("progressbar_random"), "window");
+assert.strictEqual(ofs.presentationModeForInterface("progressbar_random"), "progressbar_random");
 assert.strictEqual(ofs.presentationModeForInterface("terminal"), "terminal");
 assert.strictEqual(ofs.presentationModeForInterface("button_choices"), "button_choice");
 assert.strictEqual(ofs.presentationModeForInterface("unsupported"), null);
-for (const mode of ["terminal", "button_choice", "window"]) {
+for (const mode of ["terminal", "button_choice", "window", "progressbar_random"]) {
     const host = new FakeNode("main");
     const renderer = ofs.createPresentationRenderer(mode, {
         host,

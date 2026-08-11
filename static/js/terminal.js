@@ -1828,7 +1828,9 @@ function beginProvisionalLaunch(selection = {}, appData = {}) {
         || "Przygotowanie lokalnego srodowiska aplikacji.";
     const position = findAvailablePosition(460, 280);
     const appWindow = document.createElement("div");
-    appWindow.className = "app-window provisional-app-window";
+    const provisionalTemplate = normalizeOFSApplicationTemplate(appData.interface);
+    appWindow.className = `app-window provisional-app-window ofs-app-template ofs-template-${provisionalTemplate}`;
+    appWindow.dataset.ofsTemplate = provisionalTemplate;
     appWindow.dataset.appId = appId;
     appWindow.dataset.appTitle = appName;
     appWindow.dataset.appInterface = String(appData.interface || "provisional");
@@ -1967,7 +1969,9 @@ function beginApplicationRenderLaunch(id, type) {
 function prepareApplicationRenderWindow(id, type) {
     const hydrated = consumeProvisionalHydrationWindow(id, type);
     const app = hydrated || document.createElement("div");
-    app.className = "app-window";
+    const template = normalizeOFSApplicationTemplate(type);
+    app.className = `app-window ofs-app-template ofs-template-${template}`;
+    app.dataset.ofsTemplate = template;
     app.dataset.launchKey = buildApplicationWindowLaunchKey(id, type);
     app.dataset.appFlowId = getCurrentAppFlowId();
     app.dataset.appId = id;
@@ -1979,6 +1983,14 @@ function prepareApplicationRenderWindow(id, type) {
         app.style.left = `${position.left}px`;
     }
     return { app, hydrated: Boolean(hydrated) };
+}
+
+function normalizeOFSApplicationTemplate(interfaceName) {
+    const value = String(interfaceName || "").trim().toLowerCase();
+    if (value === "button_choice" || value === "button_choices") return "button-choice";
+    if (value === "progressbar_random" || value === "random_progress") return "progressbar-random";
+    if (value === "terminal") return "terminal";
+    return "window";
 }
 
 function finishApplicationRenderWindow(app, hydrated) {
@@ -3395,6 +3407,12 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
         complete(payload) {
             stopLegacy();
             if (session) session.complete(payload);
+            const terminalSysinfo = appWindow?.querySelector?.('[data-terminal-sysinfo]');
+            if (terminalSysinfo) {
+                const sysinfo = payload && payload.success === false ? "FAILED" : "COMPLETE";
+                terminalSysinfo.dataset.terminalSysinfo = sysinfo;
+                terminalSysinfo.textContent = sysinfo;
+            }
             if (provisionalSession && !provisionalSession.disposed) {
                 updateProvisionalApplicationSession(provisionalSession, "completing", "Finalizacja wyniku...");
                 setApplicationPresentationPhase(provisionalSession, "completing");
@@ -3403,6 +3421,11 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
         fail(reason) {
             stopLegacy();
             if (session) session.fail(reason);
+            const terminalSysinfo = appWindow?.querySelector?.('[data-terminal-sysinfo]');
+            if (terminalSysinfo) {
+                terminalSysinfo.dataset.terminalSysinfo = "FAILED";
+                terminalSysinfo.textContent = "FAILED";
+            }
             if (provisionalSession && !provisionalSession.disposed) {
                 updateProvisionalApplicationSession(provisionalSession, "failed", "Operacja zakonczona bledem.");
                 setApplicationPresentationPhase(provisionalSession, "failed");
@@ -4370,17 +4393,18 @@ function app_window(id, levels) {
 
     app.innerHTML = `
         <div class="title-bar">${escapeHTML(id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
-        <div class="app-content">
-            <h3>${escapeHTML(level.title || 'Aplikacja')}</h3>
-            <ul>${items.map(item => `<li>${escapeHTML(String(item || ''))}</li>`).join('')}</ul>
-            <div class="button-row">
+        <div class="app-content ofs-author-shell ofs-author-window">
+            <header class="ofs-author-header"><span>WINDOW</span><h3>${escapeHTML(level.title || 'Aplikacja')}</h3></header>
+            <section class="ofs-author-content"><ul>${items.map(item => `<li>${escapeHTML(String(item || ''))}</li>`).join('')}</ul></section>
+            <div class="button-row ofs-author-actions">
                 ${windowButtons.map((b, i) => `
                     <button data-action="${escapeHTML(b.action || '')}" data-label="${escapeHTML(b.label || '')}">
                         ${escapeHTML(b.label || '')}
                     </button>
                 `).join('')}
             </div>
-            <div class="choice-result" style="margin-top:10px; font-weight:bold;"></div>
+            <div class="choice-result ofs-author-result" role="status"></div>
+            <div class="operation-feedback-host"></div>
         </div>
     `;
 
@@ -4410,6 +4434,7 @@ function app_window(id, levels) {
             try {
                 const response = await sendGonnaWinRequest(id, action, app);
                 const success = response.success === true;
+                btn.classList.add("is-selected");
 
                 addSystemMessage('info', '\u25B6 Akcja', `Akcja: ${label} | Wynik: ${success ? "\u2714" : "\u2716"}`);
                 resultBox.textContent = success ? "\u2714 Sukces!" : "\u2716 Niepowodzenie.";
@@ -4424,7 +4449,7 @@ function app_window(id, levels) {
                 }
             } finally {
                 stopWaitLog();
-                setAppButtonGroupPending(buttons, btn, false);
+                buttons.forEach(button => { button.disabled = true; });
             }
         });
     });
@@ -4441,72 +4466,86 @@ async function app_progressbar_random(id, levels) {
 
     app.innerHTML = `
         <div class="title-bar">${escapeHTML(level.title || id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
-        <div class="app-content">
-            <div class="progress-log" style="font-family: monospace; font-size: 13px; margin-bottom: 10px;"></div>
-            <div class="progress-bar" style="position: relative; height: 20px; background: #333;">
-                <div class="progress-fill" style="background: #0f0; height: 100%; width: 0%; transition: width 0.2s;"></div>
+        <div class="app-content ofs-author-shell ofs-author-progress">
+            <header class="ofs-author-header"><span>EXECUTOR</span><h3>${escapeHTML(level.title || id)}</h3></header>
+            <div class="progress-log ofs-progress-list">
+                ${steps.map((step, index) => `
+                    <div class="ofs-progress-step" data-progress-step="${index}" data-state="running">
+                        <div class="ofs-progress-step-head"><span>${escapeHTML(String(step || ''))}</span><b>0%</b></div>
+                        <div class="progress-bar"><div class="progress-fill"></div></div>
+                    </div>
+                `).join('')}
             </div>
-            <div class="result-msg" style="margin-top: 10px; font-weight: bold;"></div>
+            <div class="result-msg ofs-author-result" role="status">RUNNING</div>
             <div class="operation-feedback-host"></div>
         </div>
     `;
     finishApplicationRenderWindow(app, hydrated);
     app.querySelector('.close-btn').addEventListener('click', () => {
+        (app._authorProgressTimers || []).forEach(timerId => window.clearTimeout(timerId));
         disposeOperationFeedbackWindow(app, "window_closed");
         app.remove();
     });
     appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "progressbar_random" });
 
-    const fill = app.querySelector('.progress-fill');
-    const log = app.querySelector('.progress-log');
+    const progressRows = Array.from(app.querySelectorAll('.ofs-progress-step'));
     const result = app.querySelector('.result-msg');
+    app._authorProgressTimers = [];
+    const stopAuthorProgress = () => {
+        app._authorProgressTimers.forEach(timerId => window.clearTimeout(timerId));
+        app._authorProgressTimers.length = 0;
+    };
+    const authorProgress = progressRows.map((row, index) => ({
+        row,
+        fill: row.querySelector('.progress-fill'),
+        value: 0,
+        cap: Math.min(94, 74 + Math.floor(Math.random() * 19)),
+        index
+    }));
+    const scheduleProgressTick = item => {
+        const timerId = window.setTimeout(() => {
+            if (!app.isConnected || item.value >= item.cap) return;
+            item.value = Math.min(item.cap, item.value + 3 + Math.floor(Math.random() * 16));
+            item.fill.style.width = `${item.value}%`;
+            item.row.querySelector('b').textContent = `${item.value}%`;
+            scheduleProgressTick(item);
+        }, 180 + Math.floor(Math.random() * 720) + item.index * 45);
+        app._authorProgressTimers.push(timerId);
+    };
+    authorProgress.forEach(scheduleProgressTick);
 
-    // Animowane kroki
-    let stepIndex = 0;
-    const totalSteps = steps.length;
-    const progressPerStep = 100 / totalSteps;
-
-    function runNextStep() {
-        if (stepIndex >= totalSteps) {
-            // <- tutaj korzystamy z odpowiedzi
-            result.textContent = "Oczekiwanie na potwierdzenie runtime...";
-            result.style.color = "#9cff1a";
-            const stopWaitLog = startLegacyAppWaitUnlessFeedbackEnabled(app);
-            notifyGonnaWin(id, app, { legacyWait: false }).then(success => {
-                stopWaitLog();
-                const runtimeResult = app && app._lastGonnaWinResult;
-                const staleTarget = runtimeResult && runtimeResult.blocked
-                    && runtimeResult.reason === 'invalid_target';
-                result.textContent = success
-                    ? (level.result_success || "Operacja zako\u0144czona.")
-                    : (staleTarget
-                        ? "Cel zmieni\u0142 si\u0119 przed potwierdzeniem. Od\u015bwie\u017c cel i uruchom aplikacj\u0119 ponownie."
-                        : (level.result_failure || "Operacja nie powiod\u0142a si\u0119."));
-                result.style.color = success ? "#0f0" : (staleTarget ? "#ffcc33" : "#f33");
-                if (success) {
-                    scheduleOperationalAppAutoClose(app);
-                }
-            }).catch(() => {
-                stopWaitLog();
-                result.textContent = "\u2716 B\u0142\u0105d po\u0142\u0105czenia z serwerem.";
-                result.style.color = "#f33";
+    const requestTimer = window.setTimeout(() => {
+        if (!app.isConnected) return;
+        result.textContent = "AWAITING PAYLOAD";
+        const stopWaitLog = startLegacyAppWaitUnlessFeedbackEnabled(app);
+        notifyGonnaWin(id, app, { legacyWait: false }).then(success => {
+            stopWaitLog();
+            stopAuthorProgress();
+            const runtimeResult = app && app._lastGonnaWinResult;
+            const staleTarget = runtimeResult && runtimeResult.blocked
+                && runtimeResult.reason === 'invalid_target';
+            authorProgress.forEach(item => {
+                if (success) item.value = 100;
+                item.fill.style.width = `${item.value}%`;
+                item.row.querySelector('b').textContent = success ? "100%" : `${item.value}%`;
+                item.row.dataset.state = success ? "complete" : "failed";
             });
-            return;
-        }
-
-        const msg = steps[stepIndex];
-        log.innerHTML += `<div>\u23F1 ${escapeHTML(String(msg || ''))}</div>`;
-        fill.style.width = `${(stepIndex + 1) * progressPerStep}%`;
-
-        stepIndex++;
-        setTimeout(runNextStep, 1000 + Math.random() * 1000);
-    }
-
-
-    // The application's authored progress is part of its interface contract.
-    // OFS augments the final backend request in a separate viewport and must
-    // not skip or replace these steps.
-    runNextStep();
+            result.textContent = success
+                ? (level.result_success || "Operacja zako\u0144czona.")
+                : (staleTarget
+                    ? "Cel zmieni\u0142 si\u0119 przed potwierdzeniem. Od\u015bwie\u017c cel i uruchom aplikacj\u0119 ponownie."
+                    : (level.result_failure || "Operacja nie powiod\u0142a si\u0119."));
+            result.dataset.tone = success ? "success" : (staleTarget ? "warning" : "failure");
+            if (success) scheduleOperationalAppAutoClose(app);
+        }).catch(() => {
+            stopWaitLog();
+            stopAuthorProgress();
+            authorProgress.forEach(item => { item.row.dataset.state = "failed"; });
+            result.textContent = "\u2716 B\u0142\u0105d po\u0142\u0105czenia z serwerem.";
+            result.dataset.tone = "failure";
+        });
+    }, 2200 + Math.floor(Math.random() * 1800));
+    app._authorProgressTimers.push(requestTimer);
 }
 
 async function notifyGonnaWin(appId, appWindow = null, { legacyWait = false } = {}) {
@@ -6606,8 +6645,10 @@ function app_terminal(id, levels) {
     const { app, hydrated } = prepareApplicationRenderWindow(id, "terminal");
     app.innerHTML = `
         <div class="title-bar">${escapeHTML(id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
-        <div class="app-content app-terminal-content">
+        <div class="app-content app-terminal-content ofs-author-shell ofs-author-terminal">
+            <div class="ofs-terminal-sysinfo" data-terminal-sysinfo="RUNNING">RUNNING</div>
             <div class="terminal-log app-terminal-log"></div>
+            <div class="operation-feedback-host"></div>
         </div>
     `;
     finishApplicationRenderWindow(app, hydrated);
@@ -6628,11 +6669,8 @@ function app_terminal(id, levels) {
 
     function showTerminalProcessing(callback) {
         const wait = document.createElement('div');
-        wait.className = 'app-terminal-wait';
-        wait.innerHTML = `
-            <span class="app-terminal-spinner" aria-hidden="true"></span>
-            <span>przetwarzanie...</span>
-        `;
+        wait.className = 'app-terminal-wait app-terminal-sysinfo-line';
+        wait.textContent = '[SENT] polecenie przekazane do lokalnej kolejki';
         log.appendChild(wait);
         scrollLogToBottom();
 
@@ -6701,17 +6739,18 @@ function app_button_choices(id, levels) {
 
     app.innerHTML = `
         <div class="title-bar">${escapeHTML(id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
-        <div class="app-content">
-            <h3>${escapeHTML(lvl.title || 'Wybierz opcj\u0119')}</h3>
-            <p>${escapeHTML(lvl.text || '')}</p>
-            <div class="button-row">
+        <div class="app-content ofs-author-shell ofs-author-button-choice">
+            <header class="ofs-author-header"><span>DECISION</span><h3>${escapeHTML(lvl.title || 'Wybierz opcj\u0119')}</h3></header>
+            <section class="ofs-author-content"><p>${escapeHTML(lvl.text || '')}</p></section>
+            <div class="button-row ofs-author-actions" data-choice-layout="${options.length === 1 ? 'single' : (options.length <= 4 ? 'grid' : 'list')}" data-choice-count="${options.length}">
                 ${options.map((opt, i) => `
                     <button data-opt-id="${escapeHTML(opt.id || i)}" class="choice-btn">
                         ${escapeHTML(opt.label || '')}
                     </button>
                 `).join('')}
             </div>
-            <div class="choice-result" style="margin-top:10px; font-weight:bold;"></div>
+            <div class="choice-result ofs-author-result" role="status"></div>
+            <div class="operation-feedback-host"></div>
         </div>
     `;
 
@@ -6740,6 +6779,7 @@ function app_button_choices(id, levels) {
             try {
                 const response = await sendGonnaWinRequest(id, optId, app);
                 const success = response.success === true;
+                btn.classList.add("is-selected");
 
                 addSystemMessage('info', '\u2699 Efekt', `Wybrano: ${choiceLabel} | Wynik: ${success ? "\u2714 SUKCES" : "\u2716 PORA\u017bKA"}`);
                 resultBox.textContent = success ? "\u2714 Uda\u0142o si\u0119!" : "\u2716 Niestety nie tym razem.";
@@ -6754,7 +6794,7 @@ function app_button_choices(id, levels) {
                 }
             } finally {
                 stopWaitLog();
-                setAppButtonGroupPending(buttons, btn, false);
+                buttons.forEach(button => { button.disabled = true; });
             }
         });
     });

@@ -119,7 +119,9 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
 
     def test_progressbar_keeps_authored_steps_and_separate_feedback_viewport(self):
         progress = self.function_source("async function app_progressbar_random", "async function notifyGonnaWin")
-        self.assertIn("runNextStep();", progress)
+        self.assertIn("authorProgress.forEach(scheduleProgressTick)", progress)
+        self.assertIn('data-progress-step=', progress)
+        self.assertIn('item.value = 100', progress)
         self.assertIn('class="operation-feedback-host"', progress)
         feedback = self.function_source(
             "function beginOperationFeedbackRequest",
@@ -288,7 +290,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("global_fallback", self.feedback)
 
     def test_scene_envelope_and_provisional_renderer_are_separate_from_execution_session(self):
-        self.assertIn('const PRESENTATION_MODES = new Set(["ofs_provisional", "terminal", "button_choice", "window"])', self.feedback)
+        self.assertIn('"progressbar_random"', self.feedback)
         self.assertIn("function createSceneEnvelope", self.feedback)
         self.assertIn("class ProvisionalSceneRenderer", self.feedback)
         self.assertIn('normalizedMode === "ofs_provisional"', self.feedback)
@@ -314,6 +316,17 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn('normalizedMode === "button_choice"', self.feedback)
         self.assertIn('normalizedMode === "window"', self.feedback)
         self.assertIn('normalized === "progressbar_random"', self.feedback)
+
+    def test_four_application_templates_share_shell_and_keep_distinct_contracts(self):
+        css = Path("static/css/style.css").read_text(encoding="utf-8")
+        for template in ("terminal", "button-choice", "window", "progressbar-random"):
+            self.assertIn(f".ofs-template-{template}", css)
+        self.assertIn("normalizeOFSApplicationTemplate", self.terminal)
+        self.assertIn("data-choice-layout", self.terminal)
+        self.assertIn("data-choice-layout", self.feedback)
+        self.assertIn("app-terminal-sysinfo-line", self.terminal)
+        self.assertNotIn("app-terminal-spinner", self.function_source("function app_terminal", "function app_button_choices"))
+        self.assertIn("prefers-reduced-motion", css)
         terminal_source = self.feedback[
             self.feedback.index("class TerminalSceneRenderer"):
             self.feedback.index("class ButtonChoiceSceneRenderer")
