@@ -11543,3 +11543,7 @@ wspólny scroll zajmuje całą pozostałą wysokość i zawiera jawne sekcje `Ka
   przy lagach.
 - Krytyczny timeout snapshotu terytoriów 420 s pozostał bez zmian jako ochrona
   bootu mapy na wolnym połączeniu.
+- Przywrócono efekty startu podróży po przejściu na natychmiastową kolejkę:
+  telefon, punkt kolejki i puls celu współdzielą jedno `travel_id`. Telefon
+  pozostaje na krótki dzwoniący oddech przed pierwszym ruchem, a puls celu jest
+  usuwany dopiero po dojechaniu motocykla do odpowiadającego mu punktu.

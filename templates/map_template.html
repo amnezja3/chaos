@@ -4356,9 +4356,10 @@
             }
         }
 
-        function planMotorcycleTravelLocally(lat, lng, label, icon, sourceType, name, generated) {
+        function planMotorcycleTravelLocally(lat, lng, label, icon, sourceType, name, generated, options = {}) {
             const state = window.motorcycleTravelState;
             if (!state || typeof window.enqueueMotorcycleTravelPoint !== 'function') return null;
+            state.travelPulseCleanupById = state.travelPulseCleanupById || {};
             const from = getMotorcyclePlannedPosition();
             const to = { lat: Number(lat), lng: Number(lng) };
             const range = getTravelRangeMeters();
@@ -4371,7 +4372,7 @@
                 return { status: "too_far", message: "Cel poza lokalnym zasiegiem motocykla." };
             }
             const waypoint = {
-                travel_id: `travel-local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                travel_id: String(options.travelId || `travel-local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
                 lat: to.lat,
                 lng: to.lng,
                 source: 'map_travel_local',
@@ -4383,6 +4384,9 @@
             state.pendingRouteWaypoints.push({ lat: to.lat, lng: to.lng });
             const queued = window.enqueueMotorcycleTravelPoint(waypoint, { localPlanned: true });
             if (!queued) return null;
+            if (typeof options.finishTravelPulse === 'function') {
+                state.travelPulseCleanupById[waypoint.travel_id] = options.finishTravelPulse;
+            }
             scheduleMotorcycleTravelCommit({ lat: to.lat, lng: to.lng, label, icon, source_type: sourceType, name, generated });
             return {
                 status: `Dodano punkt trasy: (${to.lat}, ${to.lng})`,
@@ -4400,10 +4404,11 @@
             try {
                 if (guardMapGameplayAction()) return;
                 if (action === 'travel') {
+                    const travelId = `travel-local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
                     finishTravelPulse = showTravelDestinationPulse(lat, lng);
                     if (typeof window.showMotorcycleTravelPhone === 'function') {
                         window.showMotorcycleTravelPhone({
-                            travel_id: `travel-request-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                            travel_id: travelId,
                             lat,
                             lng,
                             source: 'map_travel_request'
@@ -4416,7 +4421,16 @@
                     // first waypoint immediately as well; the final position
                     // is still committed and validated by /map-action after
                     // the local route finishes.
-                    return planMotorcycleTravelLocally(lat, lng, label, icon, sourceType, name, generated);
+                    const localResult = planMotorcycleTravelLocally(
+                        lat, lng, label, icon, sourceType, name, generated,
+                        { travelId, finishTravelPulse }
+                    );
+                    if (localResult && localResult.local_route) {
+                        // The queue owns the pulse from now on and removes it
+                        // only after reaching this waypoint.
+                        finishTravelPulse = null;
+                    }
+                    return localResult;
                 }
                 const res = await fetch('/map-action', {
                     method: 'POST',
@@ -4780,8 +4794,21 @@
             lastPlannedPoint: null,
             pendingRouteWaypoints: [],
             pendingBackendTravelCommit: null,
-            pendingBackendTravelCommitInFlight: false
+            pendingBackendTravelCommitInFlight: false,
+            travelPulseCleanupById: {}
         };
+
+        function finishMotorcycleTravelPulse(travelId) {
+            const state = window.motorcycleTravelState;
+            const key = String(travelId || '');
+            const cleanup = state && state.travelPulseCleanupById
+                ? state.travelPulseCleanupById[key]
+                : null;
+            if (typeof cleanup !== 'function') return false;
+            delete state.travelPulseCleanupById[key];
+            cleanup();
+            return true;
+        }
 
         function refreshMotorcycleMarkerIcon(direction) {
             const marker = window.avatarMarkerRef;
@@ -4908,6 +4935,7 @@
                     const direction = getBikeDirection(from, to);
                     window.avatarBikeDirection = direction;
                     marker.setIcon(buildBikeIcon(direction));
+                    finishMotorcycleTravelPulse(point.travel_id);
                 }
             } finally {
                 hideMotorcycleTravelPhone("queue_done");

@@ -60,6 +60,7 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("showMotorcycleTravelPhone", self.map_template)
         self.assertIn("hideMotorcycleTravelPhone", self.map_template)
         self.assertIn("map_travel_request", self.map_template)
+        self.assertIn("travel_id: travelId", self.map_template)
         self.assertIn("allowDuringMotion", self.map_template)
         self.assertIn("timeoutMs: 45000", self.map_template)
         self.assertIn("window.showMotorcycleTravelPhone", self.map_template)
@@ -81,6 +82,8 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("route_waypoints", self.map_template)
         self.assertIn("localPlanned: true", self.map_template)
         self.assertIn("map_travel_local", self.map_template)
+        self.assertIn("travelPulseCleanupById", self.map_template)
+        self.assertIn("finishMotorcycleTravelPulse(point.travel_id)", self.map_template)
         travel_branch = self.map_template[
             self.map_template.index("async function mapAction("):
             self.map_template.index("function mapAction_old", self.map_template.index("async function mapAction("))
