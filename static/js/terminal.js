@@ -4807,7 +4807,10 @@ async function app_progressbar_random(id, levels) {
     const titleRemainingMs = app.dataset.ofsTitleActive === "true"
         ? Math.max(0, Number(app._ofsTitleEndsAt || 0) - performance.now())
         : 0;
-    const authorBreathMs = 3500;
+    // Progress executors need a readable authored phase before OFS replaces
+    // the viewport. Keep the request boundary intact, but give the independently
+    // animated bars enough time to build their own show.
+    const authorBreathMs = 18500;
     const authorStartTimer = window.setTimeout(() => {
         if (!app.isConnected) return;
         app._ofsAuthorVisibleAt = performance.now();

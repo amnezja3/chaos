@@ -11559,3 +11559,9 @@ wspólny scroll zajmuje całą pozostałą wysokość i zawiera jawne sekcje `Ka
 - Zapis trasy utworzony podczas trwającego requestu jest automatycznie wysyłany
   po jego zakończeniu. Teleporty i pozostałe jawne repozycjonowanie nadal mogą
   natychmiast przerwać lokalną pozycję.
+
+## 2026-08-12 — Dłuższa prezentacja autora w progress random
+
+- Faza autorskich, niezależnie animowanych pasków `progressbar_random` została
+  wydłużona z 3,5 s do 18,5 s przed rozpoczęciem requestu i przejęciem viewportu
+  przez OFS. Pozostałe typy aplikacji i ich timingi nie zostały zmienione.

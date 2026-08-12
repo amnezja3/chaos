@@ -137,6 +137,8 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn('data-progress-step=', progress)
         self.assertIn('item.value = 100', progress)
         self.assertIn('class="operation-feedback-host"', progress)
+        self.assertIn("const authorBreathMs = 18500", progress)
+        self.assertIn("titleRemainingMs + authorBreathMs", progress)
         feedback = self.function_source(
             "function beginOperationFeedbackRequest",
             "function startLegacyAppWaitUnlessFeedbackEnabled",
