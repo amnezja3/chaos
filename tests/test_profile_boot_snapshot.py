@@ -56,18 +56,19 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         self.assertIn("persist_normalization=False", map_endpoint)
 
         hack_start = map_end
-        hack_end = self.source.index("@app.route('/api/profile')", hack_start)
+        hack_end = self.source.index('@app.route("/api/profile")', hack_start)
         hack_endpoint = self.source[hack_start:hack_end]
         self.assertIn("rebuild_territory=False", hack_endpoint)
         self.assertIn("persist_normalization=False", hack_endpoint)
 
-    def test_launch_queue_command_skips_territory_rebuild(self):
+    def test_every_terminal_command_skips_territory_rebuild(self):
         start = self.source.index('@app.route("/command"')
         end = self.source.index("@app.route", start + 20)
         endpoint = self.source[start:end]
 
-        self.assertIn("rebuild_territory=not skip_map_runtime", endpoint)
-        self.assertIn("persist_normalization=not skip_map_runtime", endpoint)
+        self.assertIn("rebuild_territory=False", endpoint)
+        self.assertIn("persist_normalization=False", endpoint)
+        self.assertNotIn("rebuild_territory=not skip_map_runtime", endpoint)
 
     def test_lightweight_sync_can_skip_filesystem_session_cache(self):
         start = self.source.index("def sync_session_profile")

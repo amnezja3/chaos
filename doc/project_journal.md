@@ -11575,3 +11575,12 @@ wspólny scroll zajmuje całą pozostałą wysokość i zawiera jawne sekcje `Ka
 - Kliknięcie akcji hackowania od razu pokazuje nieinteraktywny marker
   przygotowywanego celu. Marker nie zmienia `aimed_target` ani gameplayu i znika
   po odpowiedzi; dopiero potwierdzony payload tworzy właściwy marker z menu.
+
+## 2026-08-12 — Lekki start aplikacji z terminala
+
+- Wszystkie wywołania `/command`, nie tylko komendy konsumowane z
+  `launch_queue`, korzystają teraz z lekkiego synchronizowania profilu bez
+  przebudowy geometrii terytorium i zapisu samej normalizacji.
+- Bezpośrednie uruchomienie aplikacji nadal aktualizuje `aimed_target`, tworzy
+  operacje, zapisuje zmienione pola profilu i publikuje deltę celu. Z endpointu
+  usunięto wyłącznie ciężką pracę należącą do territory workera.

@@ -17338,9 +17338,14 @@ def command():
         or data.get("source") == "launch_queue"
     )
 
+    # Terminal commands are latency-sensitive and never own territory geometry.
+    # A direct app launch still applies its aimed-target/operation changes below,
+    # while geometry remains the territory worker's responsibility. Previously
+    # every command typed by the player could synchronously rebuild all areas
+    # before the terminal printed its first response.
     profile = sync_session_profile(
-        rebuild_territory=not skip_map_runtime,
-        persist_normalization=not skip_map_runtime,
+        rebuild_territory=False,
+        persist_normalization=False,
     )
     user_apps = profile.get('apps', [])
 
