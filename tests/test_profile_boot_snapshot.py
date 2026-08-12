@@ -39,6 +39,36 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         self.assertNotIn("inventory=", endpoint)
         self.assertNotIn("profile=profile", endpoint)
 
+    def test_map_document_boot_does_not_rebuild_territory(self):
+        start = self.source.index('@app.route("/map")')
+        end = self.source.index("@app.route('/map-action'", start)
+        endpoint = self.source[start:end]
+
+        self.assertIn("rebuild_territory=False", endpoint)
+        self.assertIn("persist_normalization=False", endpoint)
+        self.assertNotIn("rebuild_player_areas_with_territory_delta", endpoint)
+
+    def test_map_actions_and_hack_launch_use_lightweight_profile_sync(self):
+        map_start = self.source.index("@app.route('/map-action'")
+        map_end = self.source.index("@app.route('/hack-action'", map_start)
+        map_endpoint = self.source[map_start:map_end]
+        self.assertIn("rebuild_territory=False", map_endpoint)
+        self.assertIn("persist_normalization=False", map_endpoint)
+
+        hack_start = map_end
+        hack_end = self.source.index("@app.route('/api/profile')", hack_start)
+        hack_endpoint = self.source[hack_start:hack_end]
+        self.assertIn("rebuild_territory=False", hack_endpoint)
+        self.assertIn("persist_normalization=False", hack_endpoint)
+
+    def test_launch_queue_command_skips_territory_rebuild(self):
+        start = self.source.index('@app.route("/command"')
+        end = self.source.index("@app.route", start + 20)
+        endpoint = self.source[start:end]
+
+        self.assertIn("rebuild_territory=not skip_map_runtime", endpoint)
+        self.assertIn("persist_normalization=not skip_map_runtime", endpoint)
+
     def test_lightweight_sync_can_skip_filesystem_session_cache(self):
         start = self.source.index("def sync_session_profile")
         end = self.source.index("def merge_captured_targets_into_profile", start)

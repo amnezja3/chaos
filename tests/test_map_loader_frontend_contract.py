@@ -81,6 +81,20 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("route_waypoints", self.map_template)
         self.assertIn("localPlanned: true", self.map_template)
         self.assertIn("map_travel_local", self.map_template)
+        travel_branch = self.map_template[
+            self.map_template.index("async function mapAction("):
+            self.map_template.index("function mapAction_old", self.map_template.index("async function mapAction("))
+        ]
+        self.assertIn("return planMotorcycleTravelLocally", travel_branch)
+        self.assertNotIn("if (shouldPlanTravelLocally())", travel_branch)
+
+    def test_motorcycle_icon_is_not_recreated_on_every_animation_step(self):
+        start = self.map_template.index("async function animateAvatarTravel")
+        end = self.map_template.index("window.motorcycleTravelState", start)
+        animator = self.map_template[start:end]
+
+        self.assertIn("window.avatarBikeDirection !== direction", animator)
+        self.assertEqual(animator.count("marker.setIcon(buildBikeIcon(direction))"), 1)
 
 
 if __name__ == "__main__":

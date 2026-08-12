@@ -11528,3 +11528,18 @@ wspólny scroll zajmuje całą pozostałą wysokość i zawiera jawne sekcje `Ka
   `choice_pools`. Jest nakładany wyłącznie wtedy, gdy faktyczna aplikacja ma
   interface `button_choices`; terminal, window i progressbar zachowują swoje
   renderery. Generyczne sceny kontaktu i weryfikacji dopuszczają teraz te wybory.
+
+## 2026-08-12 — Odciążenie bootu mapy, podróży i hydration aplikacji
+
+- Dokument `/map`, `/map-action` oraz wykonawcza ścieżka `/hack-action` korzystają
+  z lekkiego synchronizowania profilu bez przebudowy terytorium i bez zapisu
+  samej normalizacji. Geometrię nadal przebudowuje territory worker.
+- `/command` wywoływany przez `launch_queue` również pomija rebuild terytorium;
+  zwykłe komendy terminala zachowują dotychczasowy pełny runtime.
+- Pierwszy punkt podróży trafia od razu do frontendowej kolejki motocykla, a
+  końcowa pozycja nadal jest zatwierdzana jednym backendowym route commit.
+- Animator nie odtwarza już całego `DivIcon` na każdym kroku. Ikona motocykla
+  zmienia się tylko przy rzeczywistej zmianie kierunku, co usuwa znikanie obrazka
+  przy lagach.
+- Krytyczny timeout snapshotu terytoriów 420 s pozostał bez zmian jako ochrona
+  bootu mapy na wolnym połączeniu.

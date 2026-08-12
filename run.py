@@ -17338,7 +17338,10 @@ def command():
         or data.get("source") == "launch_queue"
     )
 
-    profile = sync_session_profile()
+    profile = sync_session_profile(
+        rebuild_territory=not skip_map_runtime,
+        persist_normalization=not skip_map_runtime,
+    )
     user_apps = profile.get('apps', [])
 
     result = interpret_command(user_input, profile)
@@ -17689,7 +17692,13 @@ def secure_preset():
 
 @app.route("/map")
 def map_view():
-    profile = sync_session_profile()
+    # Rendering the map document is a read path. Territory geometry is served
+    # by the snapshot endpoint and rebuilt by the worker, never while the
+    # browser is still waiting for the map HTML.
+    profile = sync_session_profile(
+        rebuild_territory=False,
+        persist_normalization=False,
+    )
     if not profile:
         return redirect_missing_profile_to_login()
     ava_lat = profile.get("curently_possition", {}).get("lat", 52.2297)
@@ -17887,7 +17896,13 @@ def map_action():
     lat = float(data.get("lat"))
     lng = float(data.get("lng"))
     
-    profile = sync_session_profile()
+    # Map actions only need the current profile/runtime stores. A territory
+    # rebuild here used to delay travel and scanning before the frontend could
+    # react to the click.
+    profile = sync_session_profile(
+        rebuild_territory=False,
+        persist_normalization=False,
+    )
     ava_lat = profile.get("curently_possition", {}).get("lat", 52.2297)
     ava_lng = profile.get("curently_possition", {}).get("lng", 21.0122)
     action_range = get_player_action_range(profile)
@@ -18568,7 +18583,13 @@ def hack_action():
             hack_action_idempotency_started = True
 
     step_started_at = time.perf_counter()
-    profile = sync_session_profile()
+    # Hack launch is latency-sensitive. Geometry rebuilds belong to the
+    # territory worker; this request only reads current runtime state and
+    # appends the launch receipt/target changes below.
+    profile = sync_session_profile(
+        rebuild_territory=False,
+        persist_normalization=False,
+    )
     app_flow_debug_timed(
         flow_id,
         "hack_action_sync_session_profile_done",
