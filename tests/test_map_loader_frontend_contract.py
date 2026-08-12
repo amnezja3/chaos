@@ -88,7 +88,8 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
             self.map_template.index("async function mapAction("):
             self.map_template.index("function mapAction_old", self.map_template.index("async function mapAction("))
         ]
-        self.assertIn("return planMotorcycleTravelLocally", travel_branch)
+        self.assertIn("const localResult = planMotorcycleTravelLocally", travel_branch)
+        self.assertIn("return localResult", travel_branch)
         self.assertNotIn("if (shouldPlanTravelLocally())", travel_branch)
 
     def test_motorcycle_icon_is_not_recreated_on_every_animation_step(self):
