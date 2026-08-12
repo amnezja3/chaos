@@ -11547,3 +11547,15 @@ wspólny scroll zajmuje całą pozostałą wysokość i zawiera jawne sekcje `Ka
   telefon, punkt kolejki i puls celu współdzielą jedno `travel_id`. Telefon
   pozostaje na krótki dzwoniący oddech przed pierwszym ruchem, a puls celu jest
   usuwany dopiero po dojechaniu motocykla do odpowiadającego mu punktu.
+
+## 2026-08-12 — Monotoniczna pozycja motocykla podczas seryjnej jazdy
+
+- Każdy lokalny zapis trasy otrzymuje rosnący numer sekwencji. Spóźniona
+  odpowiedź `/map-action` nie może już przestawić markera na koniec starszej
+  trasy, gdy gracz jedzie już kolejnymi punktami.
+- Snapshoty `map_travel`, `map_travel_local` i własnego aktora w czasie aktywnej
+  kolejki aktualizują wyłącznie wersję potwierdzoną przez backend; nie nadpisują
+  pozycji wizualnej ani bieżącego planu jazdy.
+- Zapis trasy utworzony podczas trwającego requestu jest automatycznie wysyłany
+  po jego zakończeniu. Teleporty i pozostałe jawne repozycjonowanie nadal mogą
+  natychmiast przerwać lokalną pozycję.

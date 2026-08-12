@@ -84,6 +84,11 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("map_travel_local", self.map_template)
         self.assertIn("travelPulseCleanupById", self.map_template)
         self.assertIn("finishMotorcycleTravelPulse(point.travel_id)", self.map_template)
+        self.assertIn("travelCommitSequence", self.map_template)
+        self.assertIn("hasNewerLocalTravel", self.map_template)
+        self.assertIn("updateMotorcycleConfirmedPositionMetadata", self.map_template)
+        self.assertIn("activeLocalQueue && routeSnapshot", self.map_template)
+        self.assertNotIn('"map_travel", "map_travel_local"].includes(String(source || ""))', self.map_template)
         travel_branch = self.map_template[
             self.map_template.index("async function mapAction("):
             self.map_template.index("function mapAction_old", self.map_template.index("async function mapAction("))

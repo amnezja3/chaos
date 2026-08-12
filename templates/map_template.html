@@ -4292,7 +4292,10 @@
             const lat = Number(point.lat);
             const lng = Number(point.lng !== undefined ? point.lng : point.lon);
             if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+            state.travelCommitSequence = Number(state.travelCommitSequence || 0) + 1;
+            state.latestTravelCommitSequence = state.travelCommitSequence;
             state.pendingBackendTravelCommit = {
+                commit_sequence: state.travelCommitSequence,
                 lat,
                 lng,
                 label: point.label || "Cel podrozy",
@@ -4337,22 +4340,36 @@
                     return false;
                 }
                 const position = data.curently_possition || data.current_position || { lat: commit.lat, lng: commit.lng };
-                if (typeof window.setMotorcyclePositionFromSnapshot === 'function') {
+                const hasNewerLocalTravel = Number(commit.commit_sequence || 0) < Number(state.latestTravelCommitSequence || 0)
+                    || state.animating
+                    || state.queue.length > 0
+                    || Boolean(state.pendingBackendTravelCommit);
+                if (!hasNewerLocalTravel && typeof window.setMotorcyclePositionFromSnapshot === 'function') {
                     window.setMotorcyclePositionFromSnapshot({
                         lat: position.lat,
                         lng: position.lng,
                         source: 'map_travel',
                         position_version: data.position_version,
                         position_updated_at: data.position_updated_at
-                    }, { authoritative: true });
+                    }, { authoritative: true, commitSequence: commit.commit_sequence });
+                } else {
+                    updateMotorcycleConfirmedPositionMetadata({
+                        position_version: data.position_version,
+                        position_updated_at: data.position_updated_at
+                    });
                 }
                 return true;
             } catch (err) {
                 console.warn('[travel] final route commit failed', err);
-                state.pendingBackendTravelCommit = commit;
+                if (!state.pendingBackendTravelCommit) {
+                    state.pendingBackendTravelCommit = commit;
+                }
                 return false;
             } finally {
                 state.pendingBackendTravelCommitInFlight = false;
+                if (!state.animating && !state.queue.length && state.pendingBackendTravelCommit) {
+                    setTimeout(() => flushMotorcycleTravelCommit(), 0);
+                }
             }
         }
 
@@ -4795,6 +4812,8 @@
             pendingRouteWaypoints: [],
             pendingBackendTravelCommit: null,
             pendingBackendTravelCommitInFlight: false,
+            travelCommitSequence: 0,
+            latestTravelCommitSequence: 0,
             travelPulseCleanupById: {}
         };
 
@@ -4873,7 +4892,20 @@
         }
 
         function isAuthoritativeMotorcycleSource(source) {
-            return ["teleport", "terminal", "blacknet", "victim_picker", "territory_control", "map_travel", "map_travel_local"].includes(String(source || ""));
+            return ["teleport", "terminal", "blacknet", "victim_picker", "territory_control"].includes(String(source || ""));
+        }
+
+        function updateMotorcycleConfirmedPositionMetadata(position = {}) {
+            const state = window.motorcycleTravelState;
+            if (!state) return false;
+            const version = Number(position.position_version) || 0;
+            if (version && state.lastConfirmedVersion && version < state.lastConfirmedVersion) return false;
+            state.lastConfirmedVersion = version || state.lastConfirmedVersion || 0;
+            state.lastConfirmedUpdatedAt = position.position_updated_at || state.lastConfirmedUpdatedAt || "";
+            window.profileData = window.profileData || {};
+            if (state.lastConfirmedVersion) window.profileData.position_version = state.lastConfirmedVersion;
+            if (state.lastConfirmedUpdatedAt) window.profileData.position_updated_at = state.lastConfirmedUpdatedAt;
+            return true;
         }
 
         function applyMotorcycleLogicalPosition(point) {
@@ -4966,8 +4998,18 @@
             const normalized = normalizeMotorcyclePoint(position);
             if (!normalized) return false;
             const state = window.motorcycleTravelState;
-            const activeLocalQueue = state.animating || state.queue.length > 0;
+            const activeLocalQueue = state.animating
+                || state.queue.length > 0
+                || Boolean(state.pendingBackendTravelCommit)
+                || state.pendingBackendTravelCommitInFlight;
             const authoritative = Boolean(options.authoritative) || isAuthoritativeMotorcycleSource(normalized.source);
+            const routeSnapshot = ["map_travel", "map_travel_local", "player_actor_snapshot"].includes(normalized.source);
+            const staleCommit = Number(options.commitSequence || 0) > 0
+                && Number(options.commitSequence) < Number(state.latestTravelCommitSequence || 0);
+            if ((activeLocalQueue && routeSnapshot) || staleCommit) {
+                updateMotorcycleConfirmedPositionMetadata(normalized);
+                return true;
+            }
             if (activeLocalQueue && !authoritative && !normalized.position_version) {
                 return true;
             }
