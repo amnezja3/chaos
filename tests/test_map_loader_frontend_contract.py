@@ -105,6 +105,12 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("window.avatarBikeDirection !== direction", animator)
         self.assertEqual(animator.count("marker.setIcon(buildBikeIcon(direction))"), 1)
 
+    def test_hack_target_has_non_interactive_pending_marker(self):
+        self.assertIn("pendingTargetMarker = L.circleMarker", self.map_template)
+        self.assertIn("interactive: false", self.map_template)
+        self.assertIn("pending-hack-target-marker", self.map_template)
+        self.assertIn("removeMapLayerSafe(pendingTargetMarker)", self.map_template)
+
 
 if __name__ == "__main__":
     unittest.main()

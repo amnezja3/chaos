@@ -11565,3 +11565,13 @@ wspólny scroll zajmuje całą pozostałą wysokość i zawiera jawne sekcje `Ka
 - Faza autorskich, niezależnie animowanych pasków `progressbar_random` została
   wydłużona z 3,5 s do 18,5 s przed rozpoczęciem requestu i przejęciem viewportu
   przez OFS. Pozostałe typy aplikacji i ich timingi nie zostały zmienione.
+
+## 2026-08-12 — Ograniczenie opóźnienia skanu mapy i widoczny pending celu
+
+- Skan POI używa maksymalnie dwóch endpointów Overpass z timeoutem 8 s zamiast
+  czterech prób po 20 s. Poprawne wyniki są cache'owane przez 5 minut dla punktu
+  zaokrąglonego do około 11 metrów; przy krótkiej awarii może zostać użyty
+  ostatni wynik nie starszy niż 30 minut.
+- Kliknięcie akcji hackowania od razu pokazuje nieinteraktywny marker
+  przygotowywanego celu. Marker nie zmienia `aimed_target` ani gameplayu i znika
+  po odpowiedzi; dopiero potwierdzony payload tworzy właściwy marker z menu.

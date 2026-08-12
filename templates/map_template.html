@@ -3834,6 +3834,25 @@
             closeMenus();
             const hackFlowId = `hf-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
             window.__lastHackFlowId = hackFlowId;
+            const pendingTargetLat = Number(lat);
+            const pendingTargetLng = Number(lng);
+            let pendingTargetMarker = null;
+            if (Number.isFinite(pendingTargetLat) && Number.isFinite(pendingTargetLng)) {
+                pendingTargetMarker = L.circleMarker([pendingTargetLat, pendingTargetLng], {
+                    radius: 13,
+                    color: '#39ff88',
+                    weight: 2,
+                    opacity: 0.9,
+                    fillColor: '#04160c',
+                    fillOpacity: 0.35,
+                    interactive: false,
+                    className: 'pending-hack-target-marker'
+                }).addTo(map);
+                pendingTargetMarker.bindTooltip(`Przygotowanie celu: ${mapTargetDisplayLabel({ label, name }, 'TARGET')}`, {
+                    permanent: false,
+                    direction: 'top'
+                });
+            }
             appFlowTrace(hackFlowId, "map_action_click", {
                 action,
                 lat,
@@ -3994,6 +4013,10 @@
                 addSystemMessage("danger", "❌ Hackowanie", "Błąd operacji hackowania");
             })
             .finally(() => {
+                if (pendingTargetMarker) {
+                    removeMapLayerSafe(pendingTargetMarker);
+                    pendingTargetMarker = null;
+                }
                 if (typeof window.stopHackActionSpinner === 'function') {
                     window.stopHackActionSpinner(hackFlowId);
                 }

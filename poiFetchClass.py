@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import threading
 import time
 from typing import Dict, List
 
@@ -9,11 +10,16 @@ import requests
 
 
 class POIFetcher:
-    def __init__(self, radius: int = 300, endpoint_limit: int = 4, tag_filters: List[str] = None):
+    def __init__(self, radius: int = 300, endpoint_limit: int = 2, tag_filters: List[str] = None):
         self.radius = radius
         self.endpoint_limit = max(1, endpoint_limit)
         self.tag_filters = tag_filters or ["shop", "amenity", "office"]
         self.data_by_category = {}
+        self.request_timeout = max(3.0, float(os.getenv("CHAOS_OVERPASS_TIMEOUT_SECONDS", "8")))
+        self.cache_ttl = max(30.0, float(os.getenv("CHAOS_POI_CACHE_TTL_SECONDS", "300")))
+        self.stale_cache_ttl = max(self.cache_ttl, float(os.getenv("CHAOS_POI_STALE_CACHE_TTL_SECONDS", "1800")))
+        self._cache = {}
+        self._cache_lock = threading.Lock()
 
         self.endpoints = [
             "https://overpass-api.de/api/interpreter",
@@ -46,6 +52,13 @@ out body;
 
     def _fetch(self, lat: float, lon: float, result_limit: int = 0) -> overpy.Result:
         query = self._build_query(lat, lon, result_limit)
+        cache_key = (round(float(lat), 4), round(float(lon), 4), self.radius, tuple(self.tag_filters))
+        now = time.monotonic()
+        with self._cache_lock:
+            cached = self._cache.get(cache_key)
+        if cached and now - cached[0] <= self.cache_ttl:
+            print(f"Overpass cache hit: {cache_key[:2]}")
+            return cached[1]
         endpoints_to_try = self.endpoints[:self.endpoint_limit]
         headers = {
             "User-Agent": "haos-game-dev/0.1",
@@ -59,20 +72,27 @@ out body;
                     endpoint,
                     data={"data": query},
                     headers=headers,
-                    timeout=20,
+                    timeout=self.request_timeout,
                 )
                 if response.status_code != 200:
                     error_text = response.text.replace("\n", " ")[:300]
                     raise RuntimeError(f"HTTP {response.status_code}: {error_text}")
 
                 print(f"Overpass success: {endpoint}")
-                return overpy.Result.from_json(response.json())
+                result = overpy.Result.from_json(response.json())
+                with self._cache_lock:
+                    self._cache[cache_key] = (time.monotonic(), result)
+                return result
             except requests.Timeout:
                 print(f"Overpass timeout: {endpoint}")
             except Exception as e:
                 print(f"Overpass error on try {i + 1}: {e}")
-            time.sleep(1)
+            if i + 1 < len(endpoints_to_try):
+                time.sleep(0.25)
 
+        if cached and now - cached[0] <= self.stale_cache_ttl:
+            print(f"Overpass stale cache fallback: {cache_key[:2]}")
+            return cached[1]
         raise Exception("All Overpass endpoints failed. Try again later.")
 
     def _categorize_data(self, result: overpy.Result):
