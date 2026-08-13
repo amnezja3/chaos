@@ -17935,6 +17935,12 @@ def map_view():
     )
     if not profile:
         return redirect_missing_profile_to_login()
+    # The lightweight map boot deliberately avoids persisting a normalized
+    # profile, but captured_targets remains the canonical ownership store.
+    # Project it into this request-local profile before Folium renders target
+    # markers; otherwise a delayed profile mirror can resurrect the hack menu
+    # or hide the newly captured object after reopening the map.
+    merge_captured_targets_into_profile(session["user"], profile)
     ava_lat = profile.get("curently_possition", {}).get("lat", 52.2297)
     ava_lng = profile.get("curently_possition", {}).get("lng", 21.0122)
     zoom = get_player_map_zoom(profile)

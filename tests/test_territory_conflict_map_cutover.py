@@ -260,6 +260,15 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("data.captured_target", duplicate_branch)
         self.assertIn("window.markMapTargetHacked(data.captured_target)", duplicate_branch)
 
+    def test_map_boot_projects_canonical_captured_targets_without_rebuild(self):
+        source = inspect.getsource(run.map_view)
+
+        self.assertIn(
+            'merge_captured_targets_into_profile(session["user"], profile)',
+            source,
+        )
+        self.assertNotIn("rebuild_player_areas_with_territory_delta", source)
+
         consolidation_source = inspect.getsource(run.consolidate_conflict_rebuild)
         self.assertIn("_conflict_rebuild_targets", consolidation_source)
         self.assertIn("reconcile_rebuild_pillars", consolidation_source)

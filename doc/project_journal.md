@@ -11618,3 +11618,7 @@ wspólny scroll zajmuje całą pozostałą wysokość i zawiera jawne sekcje `Ka
 - Idempotentna odpowiedź z `captured_target` naprawia marker również na
   bezpośredniej ścieżce mapy zamiast zostać bezwarunkowo pominięta jako
   duplikat.
+- Read-only boot `/map` projektuje teraz `hacked` bezpośrednio z kanonicznej
+  tabeli `captured_targets`. Lekki start nadal nie zapisuje profilu i nie
+  przebudowuje geometrii, ale opóźnione lustro `profile_json` nie może już po
+  ponownym otwarciu mapy ukryć przejętego markera ani odtworzyć menu hakowania.
