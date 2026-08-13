@@ -4125,9 +4125,13 @@
             .then(async data => {
                 if (!data) return;
                 if (data.duplicate) {
+                    if (data.captured_target && typeof window.markMapTargetHacked === 'function') {
+                        window.markMapTargetHacked(data.captured_target);
+                    }
                     mapActionDebug(hackFlowId, 'skip_duplicate_response', {
                         idempotent_replay: Boolean(data.idempotent_replay),
-                        status: data.status || ''
+                        status: data.status || '',
+                        captured_target_reconciled: Boolean(data.captured_target)
                     });
                     return;
                 }

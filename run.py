@@ -24058,6 +24058,7 @@ def gonna_win():
     rebuilt_areas = None
     progression = None
     captured_target_response = None
+    ordinary_capture_commit_published = False
     captured_conflicts = []
     conflict_consolidation_summary = []
     conflict_capture_summary = None
@@ -24265,6 +24266,30 @@ def gonna_win():
                 return jsonify(payload), 200
         else:
             captured_target = territory_store.save_captured_target(session["user"], captured_target)
+            # The captured_targets commit is the authoritative boundary for an
+            # ordinary map target. Publish that fact before GhostNetwork hooks,
+            # profile mirroring and geometry rebuilds: those stages can be slow
+            # and must not leave the browser with a stale hackable marker after
+            # the durable ownership transfer has already succeeded.
+            try:
+                player_target_runtime_store.mark_captured(
+                    session["user"],
+                    captured_target,
+                    source="gonna_win_capture_commit",
+                )
+            except Exception as exc:
+                print(
+                    f"[target runtime] early capture mark failed "
+                    f"user={session.get('user')} error={exc}",
+                    flush=True,
+                )
+            record_map_target_delta(
+                session["user"],
+                captured_target,
+                change_type="map.target_captured",
+                reason="gonna_win_capture_committed",
+            )
+            ordinary_capture_commit_published = True
         app_flow_debug_timed(
             flow_id,
             "gonna_win_save_captured_target_done",
@@ -24622,22 +24647,23 @@ def gonna_win():
             step_started_at,
         )
 
-        try:
-            step_started_at = time.perf_counter()
-            player_target_runtime_store.mark_captured(
-                session["user"],
-                captured_target_response or captured_target,
-                source="gonna_win_capture",
-            )
-            app_flow_debug_timed(
-                flow_id,
-                "gonna_win_target_runtime_mark_captured_done",
-                app_flow_started_at,
-                step_started_at,
-                target_id=build_operation_target_id(captured_target_response or captured_target),
-            )
-        except Exception as exc:
-            print(f"[target runtime] capture mark failed user={session.get('user')} error={exc}", flush=True)
+        if not ordinary_capture_commit_published:
+            try:
+                step_started_at = time.perf_counter()
+                player_target_runtime_store.mark_captured(
+                    session["user"],
+                    captured_target_response or captured_target,
+                    source="gonna_win_capture",
+                )
+                app_flow_debug_timed(
+                    flow_id,
+                    "gonna_win_target_runtime_mark_captured_done",
+                    app_flow_started_at,
+                    step_started_at,
+                    target_id=build_operation_target_id(captured_target_response or captured_target),
+                )
+            except Exception as exc:
+                print(f"[target runtime] capture mark failed user={session.get('user')} error={exc}", flush=True)
         profile["aimed_target"] = {}
         success = True
         session["profile"] = profile
@@ -24681,20 +24707,21 @@ def gonna_win():
             hacked=len(hacked_targets or []),
             operations_total=len(profile.get("operations", [])),
         )
-        step_started_at = time.perf_counter()
-        record_map_target_delta(
-            session["user"],
-            captured_target_response or captured_target,
-            change_type="map.target_captured",
-            reason="gonna_win_capture",
-        )
-        app_flow_debug_timed(
-            flow_id,
-            "gonna_win_capture_delta_done",
-            app_flow_started_at,
-            step_started_at,
-            target_id=build_operation_target_id(captured_target_response or captured_target),
-        )
+        if not ordinary_capture_commit_published:
+            step_started_at = time.perf_counter()
+            record_map_target_delta(
+                session["user"],
+                captured_target_response or captured_target,
+                change_type="map.target_captured",
+                reason="gonna_win_capture",
+            )
+            app_flow_debug_timed(
+                flow_id,
+                "gonna_win_capture_delta_done",
+                app_flow_started_at,
+                step_started_at,
+                target_id=build_operation_target_id(captured_target_response or captured_target),
+            )
     else:
         step_started_at = time.perf_counter()
         mgr.update_profile({

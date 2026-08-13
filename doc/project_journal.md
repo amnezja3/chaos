@@ -11604,3 +11604,17 @@ wspólny scroll zajmuje całą pozostałą wysokość i zawiera jawne sekcje `Ka
 - `/gonna-win` przed capture odświeża wyłącznie domenową tożsamość aktywnego celu (owner/version/conflict), pozostawiając security i postęp aplikacji. Aktualizacja jest dozwolona tylko po ponownej projekcji celu i potwierdzeniu tego samego obrońcy w canonical ownership; rzeczywista zmiana właściciela nadal kończy się 409.
 - Potwierdzenie porzucenia korzysta z dialogu Ghost System zamiast `window.confirm`. Udane porzucenie usuwa lokalny marker, registry, projekcję konfliktową i wpis `profileData.hacked`; ponowne kliknięcie starego markera 404 jest traktowane jako idempotentny cleanup UI.
 - Końcowa delta workera z powodem `captured_object_abandoned` uruchamia na otwartej mapie jeden read-only snapshot recovery. Punktowa delta obszaru nie zawiera vertices i nie może sama przerysować ani usunąć poligonu; recovery następuje dopiero po zakończeniu joba, bez pollingu i bez rebuildu w requestcie mapy.
+
+## 2026-08-13 - granica commitu zwykłego celu ze skanu
+
+- Dla zwykłego celu mapy zapis `captured_targets` jest teraz jawną granicą
+  sukcesu przejęcia. Stan runtime i delta `map.target_captured` są publikowane
+  bezpośrednio po trwałym zapisie, przed hookami GhostNetwork, synchronizacją
+  dużego profilu i przebudową geometrii.
+- Timeout lub błąd późniejszej pracy nie pozostawia już na otwartej mapie
+  starego menu hakowania obiektu, który kanonicznie należy już do gracza.
+  Dotychczasowa kolejność przebudowy terytorium i reguły konfliktów nie
+  zostały zmienione.
+- Idempotentna odpowiedź z `captured_target` naprawia marker również na
+  bezpośredniej ścieżce mapy zamiast zostać bezwarunkowo pominięta jako
+  duplikat.

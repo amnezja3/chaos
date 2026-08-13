@@ -235,6 +235,31 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("discover_and_queue_new_territory_conflicts", source)
         self.assertIn("defer_conflict_rebuild = True", source)
 
+    def test_ordinary_capture_publishes_map_state_at_commit_boundary(self):
+        source = inspect.getsource(run.gonna_win)
+
+        save_index = source.index(
+            'territory_store.save_captured_target(session["user"], captured_target)'
+        )
+        committed_delta_index = source.index('reason="gonna_win_capture_committed"')
+        ghostnetwork_index = source.index("safe_ghostnetwork_on_target_hacked(")
+        rebuild_index = source.index("rebuild_player_areas_with_territory_delta(")
+        profile_update_index = source.index("mgr.update_profile(capture_profile_update)")
+
+        self.assertLess(save_index, committed_delta_index)
+        self.assertLess(committed_delta_index, ghostnetwork_index)
+        self.assertLess(committed_delta_index, rebuild_index)
+        self.assertLess(committed_delta_index, profile_update_index)
+
+    def test_duplicate_map_response_can_reconcile_captured_marker(self):
+        with open("templates/map_template.html", encoding="utf-8") as handle:
+            source = handle.read()
+
+        duplicate_index = source.index("if (data.duplicate) {")
+        duplicate_branch = source[duplicate_index:duplicate_index + 900]
+        self.assertIn("data.captured_target", duplicate_branch)
+        self.assertIn("window.markMapTargetHacked(data.captured_target)", duplicate_branch)
+
         consolidation_source = inspect.getsource(run.consolidate_conflict_rebuild)
         self.assertIn("_conflict_rebuild_targets", consolidation_source)
         self.assertIn("reconcile_rebuild_pillars", consolidation_source)
