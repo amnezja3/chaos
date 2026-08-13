@@ -20056,6 +20056,277 @@ Sprint jest zakończony, gdy:
    feature flags.
 ---
 
+
+# Sprint 130.8.8 — Captured Object Menu & Security Read-Path Cutover
+
+Sprint naprawczo-liftowy dla przejętych obiektów widocznych na mapie. Nie
+zmienia zasad przejmowania, zabezpieczeń, konfliktów ani budowania terytorium.
+Usuwa ciężką pracę z prawego kliknięcia, blokuje wielokrotne kopie panelu i
+wprowadza jednoznaczne menu przejętego obiektu.
+
+## Problem
+
+Prawy klik na przejętym obiekcie wywołuje `POST /target-security-status`, a ten
+uruchamia pełne `sync_session_profile()` z przebudową terytorium, normalizacją i
+zapisem profilu. Read-only odczyt zabezpieczeń może przez to trwać ponad 250
+sekund.
+
+Frontend nie posiada blokady requestu ani singletonu panelu. Kolejne kliknięcie
+w czasie oczekiwania wysyła następny request, a każda późniejsza odpowiedź
+tworzy osobną kopię panelu.
+
+Istniejące `/secure-action` i `/secure-preset` korzystają z podobnie ciężkiej
+ścieżki profilu. Istnieje również kanoniczna akcja porzucenia w Territory
+Control, ale obecnie wykonuje przebudowę geometrii i wykrywanie konfliktów
+bezpośrednio w requeście.
+
+## Cel
+
+```text
+prawy klik przejętego obiektu
+→ natychmiastowe lokalne menu PO
+→ ZABEZPIECZ | PORZUĆ
+
+ZABEZPIECZ
+→ lekki read-only odczyt TerritoryStore
+→ jeden panel dla stabilnego target_id
+
+PORZUĆ
+→ potwierdzenie
+→ atomowy zapis intencji/usunięcia
+→ delta punktowa
+→ dirty + kolejka workera
+→ przebudowa terytorium i konfliktów poza requestem
+```
+
+## 1. Menu przejętego obiektu
+
+Marker `hackedTargetMarker` nie otwiera od razu panelu zabezpieczeń. Pokazuje
+małe menu kontekstowe:
+
+```text
+📦 <nazwa obiektu>
+🛡 Zabezpiecz
+× Porzuć
+```
+
+Menu powstaje lokalnie, bez oczekiwania na backend. Ma korzystać z istniejącego
+mechanizmu zamykania menu mapy i nie tworzyć nowego systemu okien.
+
+`Zabezpiecz` otwiera dotychczasową siatkę flag oraz presetów. `Porzuć` zawsze
+wymaga osobnego potwierdzenia z nazwą obiektu i informacją, że operacja może
+zmienić terytorium oraz aktywny konflikt.
+
+## 2. Stabilna tożsamość i autoryzacja
+
+Każda akcja używa w pierwszej kolejności stabilnego `target_id`. Współrzędne i
+etykieta pozostają wyłącznie fallbackiem zgodności dla starych rekordów.
+
+Backend przed odczytem albo zmianą potwierdza, że:
+
+* użytkownik jest zalogowany,
+* obiekt istnieje w `TerritoryStore`,
+* obiekt należy aktualnie do użytkownika,
+* przesłany `target_id` odpowiada rekordowi kanonicznemu.
+
+Frontendowy marker ani wpis w `session["profile"]` nie są źródłem własności.
+
+## 3. Lekki odczyt zabezpieczeń
+
+Odczyt stanu zabezpieczeń jest czystym read-path:
+
+* bez `sync_session_profile()` w trybie przebudowy,
+* bez `rebuild_player_areas_with_territory_delta()`,
+* bez `notify_encircled_area_owners()`,
+* bez zapisu profilu,
+* bez wykrywania konfliktów,
+* bez budowania pełnego snapshotu mapy lub Territory Control.
+
+Odpowiedź pochodzi bezpośrednio z kanonicznego rekordu przejętego celu i
+zawiera minimalnie:
+
+```json
+{
+  "success": true,
+  "target_id": "...",
+  "ownership_version": 4,
+  "security": {},
+  "security_version": 7
+}
+```
+
+Jeżeli trzeba uzupełnić rekord legacy, migracja nie może odbywać się w
+read-only requeście mapy.
+
+## 4. Singleton panelu i deduplikacja requestów
+
+Frontend utrzymuje rejestr paneli oraz requestów według `target_id`.
+
+Zasady:
+
+* jeden cel może mieć najwyżej jeden otwarty panel zabezpieczeń,
+* ponowne kliknięcie aktywuje lub przenosi istniejący panel na wierzch,
+* podczas requestu kolejne kliknięcie nie wysyła drugiego requestu,
+* odpowiedź nie może utworzyć panelu, jeżeli request został anulowany albo cel
+  utracił własność,
+* zamknięcie panelu czyści kontroler i wpis rejestru,
+* zmiana `map.target_captured`, `map.target_removed` lub właściciela unieważnia
+  cache i nieaktualny panel.
+
+Klucz deduplikacji nie może opierać się wyłącznie na `lat/lng`.
+
+## 5. Lekki zapis flag i presetów
+
+`/secure-action` i `/secure-preset` nie uruchamiają pełnej synchronizacji
+profilu ani geometrii. Aktualizują zabezpieczenia kanonicznego przejętego celu
+atomowo, z kontrolą:
+
+```text
+target_id
+owner_username
+expected security_version lub ownership_version
+```
+
+Po zapisie publikowana jest punktowa delta `map.target_updated`. Zmiana samych
+flag bezpieczeństwa nie może automatycznie przebudowywać terytorium, jeśli nie
+zmienia filaru ani własności.
+
+Odpowiedź `409 stale_version` powoduje pojedynczy ponowny odczyt panelu, a nie
+automatyczne powtarzanie mutacji.
+
+## 6. Porzucenie obiektu
+
+Istniejąca mechanika Territory Control pozostaje źródłem reguł, ale ścieżka
+mapy nie może kopiować jej ciężkiego requestu.
+
+Porzucenie:
+
+1. wymaga `confirm: true`, stabilnego `target_id` i oczekiwanej wersji
+   własności,
+2. atomowo usuwa albo oznacza porzucenie kanonicznego celu,
+3. czyści `aimed_target`, jeżeli wskazuje ten sam stabilny cel,
+4. publikuje `map.target_removed`,
+5. oznacza dotknięte terytorium i konflikty jako `dirty/changing`,
+6. kolejkuje przebudowę workera,
+7. zwraca szybkie potwierdzenie przyjęcia, bez czekania na nową geometrię.
+
+Worker wykonuje:
+
+* przebudowę obszaru właściciela,
+* ponowne wykrycie i rekonstrukcję dotkniętych konfliktów,
+* publikację nowych wersji geometrii i snapshotów,
+* recovery, jeżeli zadanie zostało przerwane.
+
+Akcja jest idempotentna. Ponowienie tego samego żądania nie usuwa innego celu i
+nie tworzy kolejnego zadania workera.
+
+## 7. Zachowanie w aktywnym konflikcie
+
+Nie wprowadzamy ukrytej blokady porzucania filaru konfliktowego. Backend ma
+jawnie zwrócić jedną z decyzji kontraktu:
+
+```text
+allowed
+blocked_active_capture
+blocked_stale_owner
+blocked_conflict_transition
+```
+
+Na start rekomendowana jest ostrożna reguła: przejęty obiekt można porzucić,
+jeżeli nie trwa na nim aktywne przejęcie CAS. Porzucenie strategiczne jest
+dozwolone, ale zawsze przechodzi przez `dirty/changing` i worker, dzięki czemu
+nie pozostawia starego frontu ani widma pola.
+
+## 8. UX stanów
+
+Menu i panel pokazują rozłączne stany:
+
+```text
+loading security
+ready
+saving
+stale — refreshing
+abandon confirmation
+queued for territory rebuild
+ownership lost
+error + retry
+```
+
+Kliknięcia podczas `saving` i `abandon confirmation` są blokowane lokalnie.
+Nie wolno otwierać drugiego panelu jako wizualnego fallbacku.
+
+## 9. Obserwowalność
+
+Dodać lekkie logi czasowe bez pełnych payloadów profilu:
+
+```text
+[CAPTURED_OBJECT_MENU] action=security_read target_id=... elapsed_ms=...
+[CAPTURED_OBJECT_MENU] action=security_write target_id=... result=...
+[CAPTURED_OBJECT_MENU] action=abandon target_id=... job_id=...
+```
+
+Frontend w trybie diagnostycznym raportuje `target_id`, stan singletonu,
+`in_flight` i czas odpowiedzi. Nie loguje kompletnego zestawu zabezpieczeń ani
+danych sesji.
+
+## 10. Testy
+
+Minimum:
+
+* prawy klik pokazuje menu bez requestu,
+* podwójny prawy klik nie tworzy dwóch requestów ani dwóch paneli,
+* dwa różne cele mogą mieć niezależne stany, ale po jednym panelu na cel,
+* security read nie wywołuje rebuildów, zapisów profilu ani detekcji konfliktu,
+* zmiana flagi i presetu aktualizuje tylko właściwy `target_id`,
+* stale version nie nadpisuje nowszego stanu,
+* utrata własności zamyka/unieważnia panel,
+* porzucenie wymaga potwierdzenia,
+* porzucenie jest idempotentne i kolejkuje dokładnie jeden rebuild,
+* delta usuwa marker bez pełnego reloadu mapy,
+* worker publikuje końcową geometrię i konflikt bez widma,
+* regresja Territory Control: zabezpieczanie i porzucanie nadal działają,
+* endpointy mapy pozostają wolne od ciężkich rebuildów.
+
+## 11. Walidacja produkcyjna
+
+Sprawdzić osobno:
+
+1. obiekt zwykły poza konfliktem,
+2. inner aktywnego konfliktu,
+3. przejęty filar konfliktu,
+4. dwa szybkie kliknięcia tego samego markera,
+5. równoległe otwarcie dwóch różnych przejętych obiektów,
+6. zmianę własności przy otwartym panelu,
+7. porzucenie zmieniające kształt klastra,
+8. recovery po restarcie workera.
+
+Oczekiwany budżet odczytu panelu w normalnych warunkach lokalnych:
+
+```text
+p50 < 100 ms
+p95 < 500 ms
+brak przebudowy terytorium w stacku requestu
+```
+
+## Poza zakresem
+
+* nowe typy zabezpieczeń,
+* zmiana kosztów i balansu presetów,
+* zmiana zasad przejmowania obiektu,
+* synchroniczna przebudowa geometrii z mapy,
+* przebudowa całego Territory Control,
+* globalny reload mapy po zapisie.
+
+## DoD
+
+Sprint jest zakończony, gdy prawy klik reaguje natychmiast, menu PO oferuje
+`Zabezpiecz` i `Porzuć`, jeden cel nie może utworzyć więcej niż jednego panelu
+ani requestu, odczyt i zapis zabezpieczeń nie uruchamiają ciężkiego runtime
+profilu, a porzucenie kończy się spójną deltą i rekonstrukcją workera bez
+blokowania requestu mapy.
+
+---
+
 > Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.
 
 # Sprint 131 — GhostNetwork Suite: audyt widoczności części i integracja z Territory Control

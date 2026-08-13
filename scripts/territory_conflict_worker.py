@@ -54,6 +54,20 @@ def compact_multi_audit_report(report):
 
 
 def process_once():
+    rebuild_job = run.process_territory_rebuild_job(
+        lease_owner=f"territory-rebuild-worker:{os.getpid()}",
+        lease_seconds=300,
+    )
+    if rebuild_job is not None:
+        print(
+            "[TERRITORY_WORKER] "
+            f"job_id={rebuild_job.get('job_id')} ok={bool(rebuild_job.get('ok'))} "
+            f"owner={rebuild_job.get('owner_username')} reason={rebuild_job.get('reason')} "
+            f"areas={rebuild_job.get('areas')} conflicts={rebuild_job.get('conflicts')} "
+            f"error={rebuild_job.get('error')}",
+            flush=True,
+        )
+        return True
     reconciliation = run.process_territory_reconciliation_set(
         lease_owner=f"territory-set-worker:{os.getpid()}",
         lease_seconds=300,

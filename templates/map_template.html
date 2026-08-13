@@ -3244,7 +3244,7 @@
             marker.bindTooltip(label, { permanent: false, direction: 'top' });
             marker.on('contextmenu', function(e) {
                 consumeMapContextEvent(e);
-                showMenuForHacked(e.containerPoint.x, e.containerPoint.y, menuTarget, icon, label);
+                showCapturedObjectMenu(e.containerPoint.x, e.containerPoint.y, menuTarget, icon, label);
             });
             registerTargetMarker(menuTarget, marker, {
                 source: 'hackedTargetMarker',
@@ -3654,9 +3654,87 @@
         //     lastContextWasMarker = true;
         // }
 
+        window.capturedObjectSecurityRequests = window.capturedObjectSecurityRequests || new Map();
+        window.capturedObjectSecurityVersions = window.capturedObjectSecurityVersions || new Map();
+
+        function capturedObjectTargetId(obj) {
+            if (obj && obj.target_id) return String(obj.target_id);
+            const lat = Number(obj && obj.lat);
+            const lng = Number(obj && (obj.lng !== undefined ? obj.lng : obj.lon));
+            const targetLabel = String((obj && (obj.label || obj.name || obj.source_type)) || 'target');
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return targetLabel;
+            return `map:${lat.toFixed(5)}:${lng.toFixed(5)}:${targetLabel}`;
+        }
+
+        function showCapturedObjectMenu(x, y, obj, iconEmoji, label) {
+            if (guardMapGameplayAction()) return;
+            const menuObj = normalizeMapMenuTarget(obj || {});
+            menuObj.target_id = capturedObjectTargetId(menuObj);
+            closeMenus();
+            setupGlobalCloseListener();
+            const menu = document.createElement('div');
+            menu.className = 'context-menu captured-object-menu';
+            menu.style.top = `${y}px`;
+            menu.style.left = `${x}px`;
+            const heading = document.createElement('div');
+            heading.innerHTML = `<strong>${iconEmoji || '📦'} ${window.escapeMapText(label)}</strong>`;
+            menu.appendChild(heading);
+            const secure = document.createElement('div');
+            secure.textContent = '🛡 Zabezpiecz';
+            secure.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                showMenuForHacked(x, y, menuObj, iconEmoji, label);
+            });
+            menu.appendChild(secure);
+            const abandon = document.createElement('div');
+            abandon.textContent = '× Porzuć';
+            abandon.className = 'captured-object-abandon';
+            abandon.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                abandonCapturedObject(menuObj, label, abandon);
+            });
+            menu.appendChild(abandon);
+            document.body.appendChild(menu);
+            lastContextWasMarker = true;
+        }
+
+        async function abandonCapturedObject(menuObj, label, triggerEl) {
+            if (triggerEl && triggerEl.dataset.busy === '1') return;
+            if (!window.confirm(`Porzucić przejęty obiekt „${label}”? Może to zmienić terytorium i aktywny konflikt.`)) return;
+            if (triggerEl) triggerEl.dataset.busy = '1';
+            const targetId = capturedObjectTargetId(menuObj);
+            const version = window.capturedObjectSecurityVersions.get(targetId) || {};
+            try {
+                const response = await fetch('/api/map/captured-object/abandon', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target_id: targetId,
+                        lat: Number(menuObj.lat),
+                        lng: Number(menuObj.lon),
+                        label,
+                        ownership_version: version.ownership_version,
+                        confirm: true
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.error || 'abandon_failed');
+                closeMenus();
+                removeScanResultAt(Number(menuObj.lat), Number(menuObj.lon));
+                addSystemMessage('success', '📦 Obiekt porzucony', 'Przebudowa terytorium została zakolejkowana.');
+            } catch (err) {
+                addSystemMessage('danger', '❌ Porzucenie', err && err.message ? err.message : 'Nie udało się porzucić obiektu.');
+                if (triggerEl) triggerEl.dataset.busy = '0';
+            }
+        }
+
         function showMenuForHacked(x, y, obj, iconEmoji, label) {
             if (guardMapGameplayAction()) return;
             const menuObj = normalizeMapMenuTarget(obj || {});
+            const targetId = capturedObjectTargetId(menuObj);
+            menuObj.target_id = targetId;
             closeMenus();
             setupGlobalCloseListener();
 
@@ -3702,25 +3780,45 @@
 
 
 
-            fetch('/target-security-status', {
+            let requestPromise = window.capturedObjectSecurityRequests.get(targetId);
+            if (!requestPromise) requestPromise = fetch('/target-security-status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
+                    target_id: targetId,
                     lat: parseFloat(menuObj.lat),
                     lng: parseFloat(menuObj.lon),
                     label
                 })
             })
-            .then(res => res.json())
+            .then(async res => {
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'security_read_failed');
+                return data;
+            })
+            .finally(() => window.capturedObjectSecurityRequests.delete(targetId));
+            window.capturedObjectSecurityRequests.set(targetId, requestPromise);
+            requestPromise
             .then(data => {
                 if (!data.success) {
                     addSystemMessage("danger", "❌ Błąd", data.message);
                     return;
                 }
 
+                window.capturedObjectSecurityVersions.set(targetId, {
+                    ownership_version: data.ownership_version,
+                    security_version: data.security_version
+                });
+                document.querySelectorAll('.context-menu-clean[data-target-id]').forEach(existing => {
+                    if (existing.dataset.targetId === targetId) existing.remove();
+                });
                 const security = data.security;
+                const encodedTargetId = encodeURIComponent(targetId);
+                const encodedLabel = encodeURIComponent(String(label || ''));
                 const menu = document.createElement('div');
                 menu.className = 'context-menu-clean';
+                menu.dataset.targetId = targetId;
+                menu.dataset.securityVersion = String(data.security_version || 0);
                 menu.style.top = `${y}px`;
                 menu.style.left = `${x}px`;
 
@@ -3728,7 +3826,7 @@
                     <strong style="font-size: 14px; margin-left: 1rem;">${label}</strong>
                     <div class="security-preset-bar">
                         ${['open', 'low', 'regular', 'secure', 'all'].map(preset => `
-                            <button type="button" class="security-preset-button" onclick="securePreset('${preset}', ${menuObj.lat}, ${menuObj.lon})">
+                            <button type="button" class="security-preset-button" onclick="securePreset('${preset}', ${menuObj.lat}, ${menuObj.lon}, decodeURIComponent('${encodedTargetId}'), decodeURIComponent('${encodedLabel}'), this)">
                                 ${preset}
                             </button>
                         `).join('')}
@@ -3748,7 +3846,7 @@
                         <div class="security-row"
                             data-security-key="${key}"
                             data-security-label="${labelFormatted}"
-                            onclick="secureAction('${key}', ${menuObj.lat}, ${menuObj.lon}, '${label}', '', this)"
+                            onclick="secureAction('${key}', ${menuObj.lat}, ${menuObj.lon}, decodeURIComponent('${encodedLabel}'), '', this, decodeURIComponent('${encodedTargetId}'))"
                         >
                             ${stateIcon} ${labelFormatted}
                         </div>`;
@@ -4057,15 +4155,19 @@
         }
 
 
-        function secureAction(action, lat, lng, label, icon, rowEl = null) {
+        function secureAction(action, lat, lng, label, icon, rowEl = null, targetId = '') {
+            if (rowEl && rowEl.dataset.busy === '1') return;
+            if (rowEl) rowEl.dataset.busy = '1';
+            const version = window.capturedObjectSecurityVersions.get(targetId) || {};
             fetch('/secure-action', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action, lat, lng, label, icon })
+                body: JSON.stringify({ action, lat, lng, label, icon, target_id: targetId, security_version: version.security_version })
             })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
+                    window.capturedObjectSecurityVersions.set(targetId, { ...version, security_version: data.security_version });
                     addSystemMessage("success", `🔁 ${action}`, `Nowy stan: ${data.new_value ? '🟢' : '❌'}`);
                     repaintSecurityMenuSafe(data.security);
                     // Bez przeładowania mapy; menu pobiera aktualny stan przy kolejnym otwarciu.
@@ -4075,19 +4177,26 @@
             })
             .catch(() => {
                 addSystemMessage("danger", "❌ Hackowanie", "Błąd operacji zabezpieczeń");
+            })
+            .finally(() => {
+                if (rowEl) rowEl.dataset.busy = '0';
             });
         }
 
 
-        function securePreset(preset, lat, lng) {
+        function securePreset(preset, lat, lng, targetId = '', label = '', triggerEl = null) {
+            if (triggerEl && triggerEl.dataset.busy === '1') return;
+            if (triggerEl) triggerEl.dataset.busy = '1';
+            const version = window.capturedObjectSecurityVersions.get(targetId) || {};
             fetch('/secure-preset', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ preset, lat, lng })
+                body: JSON.stringify({ preset, lat, lng, label, target_id: targetId, security_version: version.security_version })
             })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
+                    window.capturedObjectSecurityVersions.set(targetId, { ...version, security_version: data.security_version });
                     addSystemMessage("success", `Preset ${preset}`, data.message || "Zapisano preset zabezpieczen.");
                     repaintSecurityMenuSafe(data.security);
                 } else {
@@ -4096,6 +4205,9 @@
             })
             .catch(() => {
                 addSystemMessage("danger", "Hackowanie", "Blad zapisu presetu zabezpieczen");
+            })
+            .finally(() => {
+                if (triggerEl) triggerEl.dataset.busy = '0';
             });
         }
 

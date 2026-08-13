@@ -790,6 +790,29 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS territory_rebuild_jobs (
+                job_id TEXT PRIMARY KEY,
+                owner_username TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                target_id TEXT NOT NULL DEFAULT '',
+                target_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL DEFAULT 'pending',
+                lease_owner TEXT NOT NULL DEFAULT '',
+                lease_until REAL NOT NULL DEFAULT 0,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                error TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                finished_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_territory_rebuild_jobs_status "
+            "ON territory_rebuild_jobs(status, lease_until, updated_at)"
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS territory_reconciliation_snapshot_gates (
                 set_id TEXT NOT NULL,
                 conflict_id TEXT NOT NULL,
@@ -1934,6 +1957,163 @@ class TerritoryStore:
                 target["lon"] = float(lng)
                 targets.append(target)
             return targets
+
+    def get_captured_target(self, username, target_id=None, lat=None, lng=None, label=None):
+        """Read one canonical captured target without touching the player profile."""
+        target_id = str(target_id or "").strip()
+        for target in self.list_captured_targets(username):
+            stored_id = str(target.get("target_id") or "").strip()
+            if target_id and stored_id == target_id:
+                return target
+            if lat is None or lng is None:
+                continue
+            try:
+                same_position = (
+                    round(float(target.get("lat")), 5) == round(float(lat), 5)
+                    and round(float(target.get("lng", target.get("lon"))), 5) == round(float(lng), 5)
+                )
+            except (TypeError, ValueError):
+                same_position = False
+            if same_position and (label is None or str(target.get("label") or "") == str(label)):
+                return target
+        return None
+
+    def update_captured_target_security(self, username, target, security, expected_version=None):
+        """CAS update of security in captured_targets; geometry remains untouched."""
+        lat = float((target or {}).get("lat"))
+        lng = float((target or {}).get("lng", (target or {}).get("lon")))
+        label = str((target or {}).get("label") or "")
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """
+                SELECT target_json FROM captured_targets
+                WHERE owner_username = ? AND ROUND(lat, 5) = ROUND(?, 5)
+                  AND ROUND(lng, 5) = ROUND(?, 5) AND label = ?
+                """,
+                (username, lat, lng, label),
+            ).fetchone()
+            if not row:
+                return {"ok": False, "reason": "not_found"}
+            current = loads_json(row["target_json"], {})
+            current_version = int(current.get("security_version") or 0)
+            if expected_version not in (None, "") and int(expected_version) != current_version:
+                return {"ok": False, "reason": "stale_version", "security_version": current_version}
+            current["security"] = dict(security or {})
+            current["security_version"] = current_version + 1
+            conn.execute(
+                """
+                UPDATE captured_targets SET target_json = ?, updated_at = ?
+                WHERE owner_username = ? AND ROUND(lat, 5) = ROUND(?, 5)
+                  AND ROUND(lng, 5) = ROUND(?, 5) AND label = ?
+                """,
+                (dumps_json(current), utc_now(), username, lat, lng, label),
+            )
+            return {
+                "ok": True,
+                "target": current,
+                "security": dict(current.get("security") or {}),
+                "security_version": int(current.get("security_version") or 0),
+            }
+
+    def abandon_captured_target(self, username, target, target_id, expected_version=None):
+        """Atomically remove a captured target and enqueue durable geometry recovery."""
+        target_id = str(target_id or target.get("target_id") or "").strip()
+        lat = float(target.get("lat"))
+        lng = float(target.get("lng", target.get("lon")))
+        label = str(target.get("label") or "")
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            ownership = conn.execute(
+                "SELECT owner_username, ownership_version FROM territory_target_ownership WHERE target_id = ?",
+                (target_id,),
+            ).fetchone() if target_id else None
+            ownership_version = int(ownership["ownership_version"] or 0) if ownership else 0
+            if ownership and str(ownership["owner_username"] or "") != str(username):
+                return {"ok": False, "reason": "stale_owner", "ownership_version": ownership_version}
+            if expected_version not in (None, "") and ownership and int(expected_version) != ownership_version:
+                return {"ok": False, "reason": "stale_version", "ownership_version": ownership_version}
+            cursor = conn.execute(
+                """
+                DELETE FROM captured_targets
+                WHERE owner_username = ? AND ROUND(lat, 5) = ROUND(?, 5)
+                  AND ROUND(lng, 5) = ROUND(?, 5) AND label = ?
+                """,
+                (username, lat, lng, label),
+            )
+            if cursor.rowcount == 0:
+                return {"ok": False, "reason": "not_found", "ownership_version": ownership_version}
+            if ownership:
+                conn.execute(
+                    "DELETE FROM territory_target_ownership WHERE target_id = ? AND owner_username = ?",
+                    (target_id, username),
+                )
+            seed = f"abandon|{username}|{target_id}|{ownership_version}"
+            job_id = "territory_rebuild_" + hashlib.sha1(seed.encode("utf-8")).hexdigest()[:20]
+            conn.execute(
+                """
+                INSERT INTO territory_rebuild_jobs
+                    (job_id, owner_username, reason, target_id, target_json, status,
+                     created_at, updated_at)
+                VALUES (?, ?, 'captured_object_abandoned', ?, ?, 'pending', ?, ?)
+                ON CONFLICT(job_id) DO NOTHING
+                """,
+                (job_id, username, target_id, dumps_json(target), now, now),
+            )
+            return {
+                "ok": True, "job_id": job_id, "target": copy.deepcopy(target),
+                "target_id": target_id, "ownership_version": ownership_version,
+            }
+
+    def claim_rebuild_job(self, lease_owner, lease_seconds=300):
+        now_ts = time.time()
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """
+                SELECT * FROM territory_rebuild_jobs
+                WHERE status = 'pending' OR (status = 'processing' AND lease_until < ?)
+                ORDER BY created_at LIMIT 1
+                """,
+                (now_ts,),
+            ).fetchone()
+            if not row:
+                return None
+            cursor = conn.execute(
+                """
+                UPDATE territory_rebuild_jobs
+                SET status = 'processing', lease_owner = ?, lease_until = ?,
+                    attempts = attempts + 1, updated_at = ?
+                WHERE job_id = ? AND (status = 'pending' OR lease_until < ?)
+                """,
+                (str(lease_owner), now_ts + float(lease_seconds), now, row["job_id"], now_ts),
+            )
+            if cursor.rowcount != 1:
+                return None
+            claimed = conn.execute(
+                "SELECT * FROM territory_rebuild_jobs WHERE job_id = ?", (row["job_id"],)
+            ).fetchone()
+            return {
+                **dict(claimed),
+                "target": loads_json(claimed["target_json"], {}),
+            }
+
+    def finish_rebuild_job(self, job_id, lease_owner, ok=True, error=""):
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                UPDATE territory_rebuild_jobs
+                SET status = ?, error = ?, lease_owner = '', lease_until = 0,
+                    updated_at = ?, finished_at = ?
+                WHERE job_id = ? AND lease_owner = ?
+                """,
+                ('complete' if ok else 'pending', str(error or ''), now,
+                 now if ok else None, str(job_id), str(lease_owner)),
+            )
+            return cursor.rowcount == 1
 
     def build_player_areas(self, username, player_level=1):
         level = self._player_level(player_level)

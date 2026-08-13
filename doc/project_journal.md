@@ -1,5 +1,18 @@
 # CHAOS — Project Journal
 
+## 2026-08-13 — Sprint 130.8.8 Captured Object Menu
+
+Panel przejętego obiektu został odcięty od ciężkiego `sync_session_profile()`.
+Kliknięcie markera otwiera natychmiast lokalne menu `Zabezpiecz / Porzuć`, a stan
+zabezpieczeń jest pobierany z kanonicznego store tylko po wybraniu pierwszej
+akcji. Odczyt jest deduplikowany per `target_id`, panel jest singletonem, a
+zapisy zabezpieczeń korzystają z `security_version` i kontroli stale write.
+
+Porzucenie obiektu wykonuje atomowe usunięcie oraz zapis durable joba. Request
+nie przebudowuje geometrii ani profilu; territory worker odtwarza terytorium,
+konflikty i snapshot profilu poza ścieżką HTTP. Dodano testy read-only requestu,
+wersjonowania, idempotencji kolejki oraz kontraktu frontendowego.
+
 ## 2026-08-11 — Sprint 130.8.6.10 Map FX Language & Production Hardening
 
 Domknięto Presentation Lift językiem wizualnym mapy CHAOS. Linie provisional i

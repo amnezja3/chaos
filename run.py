@@ -5687,6 +5687,64 @@ def process_territory_reconciliation_set(lease_owner, lease_seconds=300):
         return {**claim, "ok": False, "error": str(exc)}
 
 
+def process_territory_rebuild_job(lease_owner, lease_seconds=300):
+    """Process one durable non-capture territory mutation outside Flask requests."""
+    claim = territory_store.claim_rebuild_job(lease_owner, lease_seconds=lease_seconds)
+    if not claim:
+        return None
+    username = str(claim.get("owner_username") or "")
+    try:
+        profile = user_store.get_profile(username) or {}
+        abandoned_target = claim.get("target") or {}
+        aimed_target = profile.get("aimed_target") or {}
+        if aimed_target and abandoned_target and targets_share_selection_identity(
+            aimed_target, abandoned_target
+        ):
+            profile["aimed_target"] = {}
+        try:
+            player_target_runtime_store.clear_if_matches(
+                username,
+                abandoned_target,
+                source="territory_rebuild_job",
+            )
+        except Exception as exc:
+            print(
+                f"[TERRITORY_REBUILD_JOB] aimed_target_clear_failed "
+                f"job_id={claim['job_id']} user={username} error={exc}",
+                flush=True,
+            )
+        areas = rebuild_player_areas_with_territory_delta(
+            username,
+            profile.get("level", 1),
+            reason=str(claim.get("reason") or "territory_rebuild_job"),
+        )
+        conflicts = detect_territory_conflicts(
+            actor_username=username,
+            source_event=str(claim.get("reason") or "territory_rebuild_job"),
+            areas=territory_store.list_player_areas(),
+        )
+        for conflict in conflicts:
+            request_conflict_rebuild(
+                conflict.get("conflict_id") or conflict.get("id"),
+                reason=f"rebuild_job:{claim['job_id']}",
+                requested_version=conflict.get("conflict_version"),
+            )
+        fresh_targets = territory_store.list_captured_targets(username)
+        profile["hacked"] = fresh_targets
+        profile["captured_targets_source"] = "sqlite"
+        user_store.save_profile(profile)
+        territory_store.finish_rebuild_job(claim["job_id"], lease_owner, ok=True)
+        return {
+            **claim, "ok": True, "areas": len(areas or []),
+            "conflicts": len(conflicts or []),
+        }
+    except Exception as exc:
+        territory_store.finish_rebuild_job(
+            claim["job_id"], lease_owner, ok=False, error=str(exc)
+        )
+        return {**claim, "ok": False, "error": str(exc)}
+
+
 def finalize_conflict_rebuild_profiles(conflict_id):
     """Refresh participant territory stats after the worker published geometry."""
     conflict = territory_conflict_store.get_by_key(conflict_id) or {}
@@ -17480,7 +17538,6 @@ def delete_user_account():
         "message": f"Usunięto konto '{username_to_delete}'."
     })
 
-@app.route("/target-security-status", methods=["POST"])
 def target_security_status():
     data = request.get_json(silent=True) or {}
     try:
@@ -17605,7 +17662,6 @@ def build_security_preset(current_security, preset):
     return security
 
 
-@app.route("/secure-action", methods=["POST"])
 def secure_action():
     data = request.get_json(silent=True) or {}
     action = data.get("action")  # np. 'vpn_enabled'
@@ -17653,7 +17709,6 @@ def secure_action():
     })
 
 
-@app.route("/secure-preset", methods=["POST"])
 def secure_preset():
     data = request.get_json(silent=True) or {}
     preset = data.get("preset")
@@ -17692,7 +17747,130 @@ def secure_preset():
         "security": security
     })
 
+def captured_object_request_target(username, data):
+    target_id = str((data or {}).get("target_id") or "").strip()
+    try:
+        lat = float(data.get("lat")) if data.get("lat") is not None else None
+        lng = float(data.get("lng", data.get("lon"))) if data.get("lng", data.get("lon")) is not None else None
+    except (TypeError, ValueError):
+        return None
+    return territory_store.get_captured_target(
+        username, target_id=target_id, lat=lat, lng=lng, label=data.get("label")
+    )
 
+
+@app.route("/target-security-status", methods=["POST"])
+def captured_object_security_status():
+    if "user" not in session:
+        return jsonify({"success": False, "message": "not_logged_in"}), 401
+    started = time.perf_counter()
+    data = request.get_json(silent=True) or {}
+    target = captured_object_request_target(session["user"], data)
+    if not target:
+        return jsonify({"success": False, "message": "target_not_found"}), 404
+    target_id = str(target.get("target_id") or build_operation_target_id(target))
+    ownership = territory_target_ownership_store.get(target_id) or {}
+    print(
+        f"[CAPTURED_OBJECT_MENU] action=security_read target_id={target_id} "
+        f"elapsed_ms={int((time.perf_counter() - started) * 1000)}", flush=True,
+    )
+    return jsonify({
+        "success": True,
+        "target_id": target_id,
+        "ownership_version": int(ownership.get("ownership_version") or target.get("ownership_version") or 0),
+        "security_version": int(target.get("security_version") or 0),
+        "security": dict(target.get("security") or {}),
+    })
+
+
+def captured_object_security_response(data, preset=None):
+    if "user" not in session:
+        return jsonify({"success": False, "message": "not_logged_in"}), 401
+    started = time.perf_counter()
+    target = captured_object_request_target(session["user"], data)
+    if not target:
+        return jsonify({"success": False, "message": "target_not_found"}), 404
+    security = dict(target.get("security") or {})
+    if preset is None:
+        action = str(data.get("action") or "").strip()
+        if not action:
+            return jsonify({"success": False, "message": "missing_action"}), 400
+        security[action] = not bool(security.get(action, False))
+    else:
+        try:
+            security = build_security_preset(security, preset)
+        except ValueError as exc:
+            return jsonify({"success": False, "message": str(exc)}), 400
+    result = territory_store.update_captured_target_security(
+        session["user"], target, security, expected_version=data.get("security_version")
+    )
+    if not result.get("ok"):
+        status = 409 if result.get("reason") == "stale_version" else 500
+        return jsonify({"success": False, **result}), status
+    updated_target = result.get("target") or target
+    target_id = str(updated_target.get("target_id") or build_operation_target_id(updated_target))
+    record_map_target_delta(
+        session["user"], updated_target, change_type="map.target_updated",
+        reason="captured_object_security_changed",
+    )
+    print(
+        f"[CAPTURED_OBJECT_MENU] action=security_write target_id={target_id} result=ok "
+        f"elapsed_ms={int((time.perf_counter() - started) * 1000)}", flush=True,
+    )
+    return jsonify({
+        "success": True, "target_id": target_id,
+        "new_value": security.get(data.get("action")) if preset is None else None,
+        "preset": preset,
+        "security": result.get("security") or security,
+        "security_version": result.get("security_version"),
+    })
+
+
+@app.route("/secure-action", methods=["POST"])
+def captured_object_secure_action():
+    return captured_object_security_response(request.get_json(silent=True) or {})
+
+
+@app.route("/secure-preset", methods=["POST"])
+def captured_object_secure_preset():
+    data = request.get_json(silent=True) or {}
+    preset = str(data.get("preset") or "").strip().lower()
+    if not preset:
+        return jsonify({"success": False, "message": "missing_preset"}), 400
+    return captured_object_security_response(data, preset=preset)
+
+
+@app.route("/api/map/captured-object/abandon", methods=["POST"])
+def map_captured_object_abandon():
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+    data = request.get_json(silent=True) or {}
+    if data.get("confirm") is not True:
+        return jsonify({"success": False, "error": "confirmation_required"}), 409
+    target = captured_object_request_target(session["user"], data)
+    if not target:
+        return jsonify({"success": False, "error": "target_not_found"}), 404
+    target_id = str(target.get("target_id") or build_operation_target_id(target))
+    result = territory_store.abandon_captured_target(
+        session["user"], target, target_id,
+        expected_version=data.get("ownership_version"),
+    )
+    if not result.get("ok"):
+        status = 409 if result.get("reason") in {"stale_owner", "stale_version"} else 404
+        return jsonify({"success": False, "error": result.get("reason"), **result}), status
+    record_map_target_delta(
+        session["user"], target, change_type="map.target_removed",
+        reason="captured_object_abandon_queued",
+        dedupe_key=f"map:target:{session['user']}:removed:{target_id}:{result['job_id']}",
+    )
+    print(
+        f"[CAPTURED_OBJECT_MENU] action=abandon target_id={target_id} "
+        f"job_id={result['job_id']}", flush=True,
+    )
+    return jsonify({
+        "success": True, "ok": True, "queued": True,
+        "job_id": result["job_id"], "target_id": target_id, "target": target,
+    }), 202
 
 
 @app.route("/map")
