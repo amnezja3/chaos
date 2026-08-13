@@ -7757,6 +7757,8 @@ function createBrowser() {
         }
     });
 
+    window.blacknetDecisionDialog = blacknetDecisionDialog;
+
     const blacknetSignalExpired = signal => {
         const expiresAt = String(signal?.valid_until || signal?.metadata?.expires_at || "").trim();
         if (!expiresAt) return false;

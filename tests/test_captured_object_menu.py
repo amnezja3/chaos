@@ -127,6 +127,12 @@ class CapturedObjectFrontendContractTest(unittest.TestCase):
         self.assertIn("showCapturedObjectMenu", marker_binding)
         self.assertNotIn("showMenuForHacked(e.pageX", marker_binding)
 
+    def test_abandon_uses_ghost_confirmation_and_removes_local_marker(self):
+        self.assertIn("window.parent.blacknetDecisionDialog", self.source)
+        self.assertNotIn("window.confirm(`Porzuci", self.source)
+        self.assertIn("removeAbandonedCapturedObject(menuObj, sourceMarker)", self.source)
+        self.assertIn("removeMapLayerSafe(sourceMarker)", self.source)
+
 
 class ConflictTargetIdentityTest(unittest.TestCase):
     def test_coordinate_identity_survives_display_label_change(self):
@@ -142,6 +148,42 @@ class ConflictTargetIdentityTest(unittest.TestCase):
                 "alice", conflict_target["lat"], conflict_target["lng"], "POI-AB12"
             )
         self.assertEqual(found, conflict_target)
+
+    def test_final_capture_refreshes_stale_version_from_active_conflict(self):
+        stale = {
+            **target(), "target_mode": "territory_contest",
+            "target_id": "pillar:1", "conflict_id": "conflict:1",
+            "contest_owner_username": "bob", "ownership_version": 2,
+            "security": {"firewall": True},
+        }
+        current = {
+            **stale, "expected_owner_username": "bob", "ownership_version": 4,
+            "node_role": "pillar",
+        }
+        with patch.object(run, "find_contested_target", return_value=current), \
+                patch.object(
+                    run.territory_target_ownership_store, "get",
+                    return_value={"owner_username": "bob", "ownership_version": 4},
+                ):
+            refreshed = run.refresh_active_contested_capture_identity("alice", stale)
+        self.assertEqual(refreshed["ownership_version"], 4)
+        self.assertEqual(refreshed["expected_owner_username"], "bob")
+        self.assertTrue(refreshed["security"]["firewall"])
+
+    def test_final_capture_does_not_refresh_owner_mismatch(self):
+        stale = {
+            **target(), "target_mode": "territory_contest",
+            "target_id": "pillar:1", "conflict_id": "conflict:1",
+            "contest_owner_username": "bob", "ownership_version": 2,
+        }
+        current = {**stale, "expected_owner_username": "bob", "ownership_version": 4}
+        with patch.object(run, "find_contested_target", return_value=current), \
+                patch.object(
+                    run.territory_target_ownership_store, "get",
+                    return_value={"owner_username": "charlie", "ownership_version": 4},
+                ):
+            refreshed = run.refresh_active_contested_capture_identity("alice", stale)
+        self.assertEqual(refreshed["ownership_version"], 2)
 
     def test_stable_target_id_wins_over_changed_marker_position_and_label(self):
         conflict_target = {

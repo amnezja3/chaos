@@ -11597,3 +11597,9 @@ wspólny scroll zajmuje całą pozostałą wysokość i zawiera jawne sekcje `Ka
 - Bezpośrednie uruchomienie aplikacji nadal aktualizuje `aimed_target`, tworzy
   operacje, zapisuje zmienione pola profilu i publikuje deltę celu. Z endpointu
   usunięto wyłącznie ciężką pracę należącą do territory workera.
+
+# 2026-08-13 - finalizacja filaru po długim lifecycle OFS i cleanup porzucenia
+
+- Produkcyjny `target_state_changed` po pełnym hakowaniu filaru powiązano z granicą CAS z 130.8.5.4 oraz późniejszym, wielominutowym lifecycle OFS. `aimed_target` zachowywał wersję ownership z chwili uruchomienia aplikacji, mimo że filar nadal był legalnym, ujawnionym celem tego samego konfliktu.
+- `/gonna-win` przed capture odświeża wyłącznie domenową tożsamość aktywnego celu (owner/version/conflict), pozostawiając security i postęp aplikacji. Aktualizacja jest dozwolona tylko po ponownej projekcji celu i potwierdzeniu tego samego obrońcy w canonical ownership; rzeczywista zmiana właściciela nadal kończy się 409.
+- Potwierdzenie porzucenia korzysta z dialogu Ghost System zamiast `window.confirm`. Udane porzucenie usuwa lokalny marker, registry, projekcję konfliktową i wpis `profileData.hacked`; ponowne kliknięcie starego markera 404 jest traktowane jako idempotentny cleanup UI.

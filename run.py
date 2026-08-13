@@ -13111,6 +13111,40 @@ def find_contested_target(username, lat, lng, label=None, target_id=None, confli
     return None
 
 
+def refresh_active_contested_capture_identity(username, target):
+    """Refresh domain CAS identity without touching application progress."""
+    refreshed = dict(target or {})
+    if not username or not refreshed:
+        return refreshed
+    if refreshed.get("target_mode") != "territory_contest" and not refreshed.get("conflict_id"):
+        return refreshed
+    try:
+        current = find_contested_target(
+            username, refreshed.get("lat"), refreshed.get("lng", refreshed.get("lon")),
+            label=target_label_value(refreshed), target_id=refreshed.get("target_id"),
+            conflict_id=(refreshed.get("stable_conflict_id") or refreshed.get("conflict_id") or refreshed.get("legacy_conflict_id")),
+        )
+    except (TypeError, ValueError):
+        return refreshed
+    if not current:
+        return refreshed
+    current_target_id = str(current.get("target_id") or "").strip()
+    current_owner = str(current.get("expected_owner_username") or current.get("contest_owner_username") or current.get("owner_username") or "").strip()
+    ownership = territory_target_ownership_store.get(current_target_id) if current_target_id else None
+    if not ownership or str(ownership.get("owner_username") or "").strip() != current_owner:
+        return refreshed
+    for key in {
+        "target_id", "target_mode", "contest_owner_username", "expected_owner_username",
+        "ownership_version", "conflict_id", "stable_conflict_id", "legacy_conflict_id",
+        "source_conflict_ids", "engagement_ids", "node_role", "foreign_area_id", "my_area_id",
+    }:
+        if key in current:
+            refreshed[key] = copy.deepcopy(current[key])
+    refreshed["expected_owner_username"] = current_owner
+    refreshed["ownership_version"] = int(ownership.get("ownership_version") or 0)
+    return refreshed
+
+
 def find_captured_target_for_owner(username, lat, lng, label=None):
     for target in territory_store.list_captured_targets(username):
         try:
@@ -24104,6 +24138,23 @@ def gonna_win():
             return jsonify(payload)
 
         captured_target = dict(profile["aimed_target"])
+        stale_capture_identity = {
+            "target_id": captured_target.get("target_id"),
+            "owner": captured_target.get("expected_owner_username") or captured_target.get("contest_owner_username"),
+            "version": captured_target.get("ownership_version"),
+        }
+        captured_target = refresh_active_contested_capture_identity(session["user"], captured_target)
+        fresh_capture_identity = {
+            "target_id": captured_target.get("target_id"),
+            "owner": captured_target.get("expected_owner_username") or captured_target.get("contest_owner_username"),
+            "version": captured_target.get("ownership_version"),
+        }
+        if fresh_capture_identity != stale_capture_identity:
+            print(
+                "[GONNA_WIN_CAPTURE_REFRESH] "
+                f"user={session.get('user')} stale={stale_capture_identity} current={fresh_capture_identity}",
+                flush=True,
+            )
         captured_target_mode = captured_target.get("target_mode")
         vulnerability_report = None
         contest_owner_username = captured_target.get("contest_owner_username") if captured_target.get("target_mode") == "territory_contest" else None

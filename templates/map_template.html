@@ -3244,7 +3244,7 @@
             marker.bindTooltip(label, { permanent: false, direction: 'top' });
             marker.on('contextmenu', function(e) {
                 consumeMapContextEvent(e);
-                showCapturedObjectMenu(e.containerPoint.x, e.containerPoint.y, menuTarget, icon, label);
+                showCapturedObjectMenu(e.containerPoint.x, e.containerPoint.y, menuTarget, icon, label, marker);
             });
             registerTargetMarker(menuTarget, marker, {
                 source: 'hackedTargetMarker',
@@ -3668,7 +3668,7 @@
             return `map:${lat.toFixed(5)}:${lng.toFixed(5)}:${targetLabel}`;
         }
 
-        function showCapturedObjectMenu(x, y, obj, iconEmoji, label) {
+        function showCapturedObjectMenu(x, y, obj, iconEmoji, label, sourceMarker = null) {
             if (guardMapGameplayAction()) return;
             const menuObj = normalizeMapMenuTarget(obj || {});
             menuObj.target_id = capturedObjectTargetId(menuObj);
@@ -3695,16 +3695,90 @@
             abandon.addEventListener('click', event => {
                 event.preventDefault();
                 event.stopPropagation();
-                abandonCapturedObject(menuObj, label, abandon);
+                abandonCapturedObject(menuObj, label, abandon, sourceMarker);
             });
             menu.appendChild(abandon);
             document.body.appendChild(menu);
             lastContextWasMarker = true;
         }
 
-        async function abandonCapturedObject(menuObj, label, triggerEl) {
+        async function confirmCapturedObjectAbandon(label) {
+            try {
+                if (window.parent && window.parent !== window && typeof window.parent.blacknetDecisionDialog === 'function') {
+                    return await window.parent.blacknetDecisionDialog({
+                        title: 'PORZUCENIE OBIEKTU',
+                        message: `Porzucić przejęty obiekt „${label}”?`,
+                        details: 'Może to zmienić terytorium i aktywny konflikt.',
+                        confirmLabel: 'PORZUĆ', cancelLabel: 'ANULUJ', tone: 'red'
+                    });
+                }
+            } catch (err) {
+                console.warn('[captured object] Ghost confirmation unavailable', err);
+            }
+            return await new Promise(resolve => {
+                const backdrop = document.createElement('div');
+                backdrop.className = 'blacknet-decision-backdrop tone-red';
+                backdrop.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.78);display:grid;place-items:center;padding:1rem;';
+                const dialog = document.createElement('section');
+                dialog.setAttribute('role', 'dialog');
+                dialog.setAttribute('aria-modal', 'true');
+                dialog.style.cssText = 'width:min(520px,100%);border:1px solid #ff4d67;background:#031109;color:#caffd7;padding:1.25rem;box-shadow:0 0 28px rgba(255,40,80,.35);font-family:monospace;';
+                const title = document.createElement('strong');
+                title.textContent = 'GHOST SYSTEM // PORZUCENIE OBIEKTU';
+                title.style.color = '#ff5d72';
+                const message = document.createElement('p');
+                message.textContent = `Porzucić przejęty obiekt „${label}”? Może to zmienić terytorium i aktywny konflikt.`;
+                const actions = document.createElement('div');
+                actions.style.cssText = 'display:flex;justify-content:flex-end;gap:.75rem;margin-top:1rem;';
+                const cancel = document.createElement('button');
+                cancel.type = 'button'; cancel.textContent = 'ANULUJ';
+                const confirm = document.createElement('button');
+                confirm.type = 'button'; confirm.textContent = 'PORZUĆ';
+                [cancel, confirm].forEach(button => {
+                    button.style.cssText = 'border:1px solid #23f37c;background:#001b0c;color:#baffcf;padding:.65rem 1rem;font-family:inherit;';
+                });
+                confirm.style.borderColor = '#ff4d67'; confirm.style.color = '#ff8293';
+                actions.append(cancel, confirm); dialog.append(title, message, actions); backdrop.appendChild(dialog);
+                const finish = accepted => { backdrop.remove(); resolve(Boolean(accepted)); };
+                cancel.addEventListener('click', () => finish(false));
+                confirm.addEventListener('click', () => finish(true));
+                backdrop.addEventListener('click', event => { if (event.target === backdrop) finish(false); });
+                document.body.appendChild(backdrop);
+                confirm.focus();
+            });
+        }
+
+        function removeAbandonedCapturedObject(menuObj, sourceMarker = null) {
+            const normalized = normalizeMapMenuTarget(menuObj || {});
+            const targetId = capturedObjectTargetId(normalized);
+            if (sourceMarker) removeMapLayerSafe(sourceMarker);
+            removeTargetMarkerForTarget(normalized);
+            removeCapturedTerritoryConflictPillar(normalized, targetId);
+            const lat = Number(normalized.lat);
+            const lng = Number(normalized.lng !== undefined ? normalized.lng : normalized.lon);
+            if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                removeScanResultAt(lat, lng);
+                removeContestedTargetAt(lat, lng);
+                hideDomTargetMarkers(lat, lng);
+            }
+            if (window.profileData && Array.isArray(window.profileData.hacked)) {
+                window.profileData.hacked = window.profileData.hacked.filter(item => {
+                    const normalizedItem = normalizeMapMenuTarget(item || {});
+                    const itemId = capturedObjectTargetId(normalizedItem);
+                    if (targetId && itemId === targetId) return false;
+                    const itemLat = Number(normalizedItem.lat);
+                    const itemLng = Number(normalizedItem.lng !== undefined ? normalizedItem.lng : normalizedItem.lon);
+                    return !(Number.isFinite(lat) && Number.isFinite(lng)
+                        && itemLat.toFixed(6) === lat.toFixed(6)
+                        && itemLng.toFixed(6) === lng.toFixed(6));
+                });
+            }
+            window.capturedObjectSecurityVersions.delete(targetId);
+        }
+
+        async function abandonCapturedObject(menuObj, label, triggerEl, sourceMarker = null) {
             if (triggerEl && triggerEl.dataset.busy === '1') return;
-            if (!window.confirm(`Porzucić przejęty obiekt „${label}”? Może to zmienić terytorium i aktywny konflikt.`)) return;
+            if (!await confirmCapturedObjectAbandon(label)) return;
             if (triggerEl) triggerEl.dataset.busy = '1';
             const targetId = capturedObjectTargetId(menuObj);
             const version = window.capturedObjectSecurityVersions.get(targetId) || {};
@@ -3722,9 +3796,18 @@
                     })
                 });
                 const data = await response.json();
+                if (response.status === 404 && data.error === 'target_not_found') {
+                    removeAbandonedCapturedObject(menuObj, sourceMarker);
+                    closeMenus();
+                    addSystemMessage('info', '✕ Porzucenie', 'Usunięto nieaktualny marker obiektu z mapy.');
+                    return;
+                }
                 if (!response.ok || !data.success) throw new Error(data.error || 'abandon_failed');
                 closeMenus();
-                removeScanResultAt(Number(menuObj.lat), Number(menuObj.lon));
+                removeAbandonedCapturedObject(menuObj, sourceMarker);
+                if (typeof window.refreshPlayerAreasAfterTargetCapture === 'function') {
+                    window.refreshPlayerAreasAfterTargetCapture('captured_object_abandoned');
+                }
                 addSystemMessage('success', '📦 Obiekt porzucony', 'Przebudowa terytorium została zakolejkowana.');
             } catch (err) {
                 addSystemMessage('danger', '❌ Porzucenie', err && err.message ? err.message : 'Nie udało się porzucić obiektu.');
