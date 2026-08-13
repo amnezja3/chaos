@@ -133,6 +133,11 @@ class CapturedObjectFrontendContractTest(unittest.TestCase):
         self.assertIn("removeAbandonedCapturedObject(menuObj, sourceMarker)", self.source)
         self.assertIn("removeMapLayerSafe(sourceMarker)", self.source)
 
+    def test_worker_completion_delta_recovers_abandoned_territory_geometry(self):
+        self.assertIn("territoryReason === 'captured_object_abandoned'", self.source)
+        self.assertIn("captured_object_abandoned_complete", self.source)
+        self.assertIn("window.requestTerritorySnapshotRecovery", self.source)
+
 
 class ConflictTargetIdentityTest(unittest.TestCase):
     def test_coordinate_identity_survives_display_label_change(self):

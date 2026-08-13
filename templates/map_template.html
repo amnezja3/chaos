@@ -7881,6 +7881,16 @@
                     return false;
                 }
 
+                // Area deltas intentionally carry no polygon vertices.  A
+                // completed abandon rebuild may reshape or remove an area, so
+                // the worker's final delta is the safe point for one read-only
+                // snapshot recovery of the already open map.
+                const territoryReason = String(payload.reason || '').trim();
+                if (territoryReason === 'captured_object_abandoned') {
+                    window.requestTerritorySnapshotRecovery('captured_object_abandoned_complete');
+                    return true;
+                }
+
                 const territoryId = String(
                     (event && event.entity_id)
                     || payload.territory_id
