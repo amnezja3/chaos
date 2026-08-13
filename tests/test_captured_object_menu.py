@@ -121,6 +121,47 @@ class CapturedObjectFrontendContractTest(unittest.TestCase):
         self.assertIn("capturedObjectSecurityRequests.set(targetId, requestPromise)", self.source)
         self.assertIn("context-menu-clean[data-target-id]", self.source)
 
+    def test_legacy_hacked_dom_marker_uses_captured_object_menu(self):
+        marker_binding = self.source[self.source.index("document.querySelectorAll('.marker-hacked')"):]
+        marker_binding = marker_binding[:marker_binding.index("if (typeof window.bootMapInitialState")]
+        self.assertIn("showCapturedObjectMenu", marker_binding)
+        self.assertNotIn("showMenuForHacked(e.pageX", marker_binding)
+
+
+class ConflictTargetIdentityTest(unittest.TestCase):
+    def test_coordinate_identity_survives_display_label_change(self):
+        conflict_target = target(label="Canonical pillar")
+        with patch.object(run, "safe_player_areas", return_value=[]), \
+                patch.object(run.territory_store, "list_player_areas", return_value=[]), \
+                patch.object(
+                    run,
+                    "contested_targets_from_active_conflicts",
+                    return_value=[conflict_target],
+                ):
+            found = run.find_contested_target(
+                "alice", conflict_target["lat"], conflict_target["lng"], "POI-AB12"
+            )
+        self.assertEqual(found, conflict_target)
+
+    def test_stable_target_id_wins_over_changed_marker_position_and_label(self):
+        conflict_target = {
+            **target(label="Canonical pillar", lat=52.1, lng=21.1),
+            "target_id": "pillar:stable-1",
+            "stable_conflict_id": "conflict-1",
+        }
+        with patch.object(run, "safe_player_areas", return_value=[]), \
+                patch.object(run.territory_store, "list_player_areas", return_value=[]), \
+                patch.object(
+                    run,
+                    "contested_targets_from_active_conflicts",
+                    return_value=[conflict_target],
+                ):
+            found = run.find_contested_target(
+                "alice", 52.1004, 21.1004, "POI-AB12",
+                target_id="pillar:stable-1", conflict_id="conflict-1",
+            )
+        self.assertEqual(found, conflict_target)
+
 
 if __name__ == "__main__":
     unittest.main()

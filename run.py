@@ -13079,18 +13079,35 @@ def contested_targets_from_active_conflicts(username, conflicts=None, areas=None
     return list(contested.values())
 
 
-def find_contested_target(username, lat, lng, label=None):
+def find_contested_target(username, lat, lng, label=None, target_id=None, conflict_id=None):
     areas = safe_player_areas(territory_store.list_player_areas())
+    target_id = str(target_id or "").strip()
+    conflict_id = str(conflict_id or "").strip()
+    coordinate_matches = []
     for target in contested_targets_from_active_conflicts(
         username, areas=areas, include_engagement=True
     ):
+        candidate_id = str(target.get("target_id") or "").strip()
+        candidate_conflict_id = str(
+            target.get("stable_conflict_id") or target.get("conflict_id") or ""
+        ).strip()
+        if target_id and candidate_id == target_id:
+            if not conflict_id or not candidate_conflict_id or candidate_conflict_id == conflict_id:
+                return target
         if round(float(target.get("lat")), 5) != round(float(lat), 5):
             continue
         if round(float(target.get("lng", target.get("lon"))), 5) != round(float(lng), 5):
             continue
-        if label and str(target.get("label") or target.get("name") or "") != str(label):
-            continue
-        return target
+        coordinate_matches.append(target)
+        if label and str(target.get("label") or target.get("name") or "") == str(label):
+            return target
+    # Conflict markers may carry a shortened/display label while the domain
+    # target keeps its canonical name. Coordinates are the stable map
+    # identity; use the label only to disambiguate multiple records at one
+    # point, never to make a valid conflict pillar look like an ordinary
+    # foreign-territory object.
+    if len(coordinate_matches) == 1:
+        return coordinate_matches[0]
     return None
 
 
@@ -18507,7 +18524,11 @@ def hack_action():
                     "status": "Nie mozesz hackowac wlasnego zgloszenia podatnosci."
                 }), 403
 
-        preflight_contested_target = find_contested_target(session["user"], lat, lng, label)
+        preflight_contested_target = find_contested_target(
+            session["user"], lat, lng, label,
+            target_id=data.get("target_id"),
+            conflict_id=data.get("conflict_id"),
+        )
         preflight_target_snapshot = {
             "lat": lat,
             "lng": lng,
@@ -18585,9 +18606,19 @@ def hack_action():
             and not preflight_contested_target
             and requested_target_mode != "player"
         ):
+            print(
+                "[HACK_ACTION_FORBIDDEN] "
+                f"phase=preflight user={session.get('user')} action={action} "
+                f"target_id={data.get('target_id') or ''} conflict_id={data.get('conflict_id') or ''} "
+                f"lat={lat} lng={lng} label={label!r} "
+                f"foreign_owner={preflight_foreign_area.get('owner_username')} "
+                "reason=foreign_area_without_conflict_target",
+                flush=True,
+            )
             return jsonify({
                 "success": False,
                 "blocked": True,
+                "reason": "foreign_area_without_conflict_target",
                 "status": f"⛔ Target znajduje się na kontrolowanym terenie gracza {preflight_foreign_area['owner_nick']}.",
                 "area": {
                     "id": preflight_foreign_area.get("id"),
@@ -18836,7 +18867,11 @@ def hack_action():
     )
 
     step_started_at = time.perf_counter()
-    contested_target = find_contested_target(session["user"], lat, lng, label)
+    contested_target = find_contested_target(
+        session["user"], lat, lng, label,
+        target_id=data.get("target_id"),
+        conflict_id=data.get("conflict_id"),
+    )
     if contested_target:
         owner_username = contested_target.get("owner_username")
         attacker_name = profile.get("nick") or session["user"]
@@ -18913,9 +18948,19 @@ def hack_action():
         owner=(foreign_area or {}).get("owner_username"),
     )
     if foreign_area and not vulnerability_report and not contested_target and requested_target_mode != "player":
+        print(
+            "[HACK_ACTION_FORBIDDEN] "
+            f"phase=runtime user={session.get('user')} action={action} "
+            f"target_id={data.get('target_id') or ''} conflict_id={data.get('conflict_id') or ''} "
+            f"lat={lat} lng={lng} label={label!r} "
+            f"foreign_owner={foreign_area.get('owner_username')} "
+            "reason=foreign_area_without_conflict_target",
+            flush=True,
+        )
         return jsonify({
             "success": False,
             "blocked": True,
+            "reason": "foreign_area_without_conflict_target",
             "status": f"⛔ Target znajduje się na kontrolowanym terenie gracza {foreign_area['owner_nick']}.",
             "area": {
                 "id": foreign_area.get("id"),
@@ -23768,6 +23813,14 @@ def gonna_win():
             "target": profile.get("aimed_target") or {},
             "created_operations": [],
         }
+        print(
+            "[GONNA_WIN_CONFLICT] "
+            f"reason=invalid_target user={session.get('user')} app_id={app_id} "
+            f"launch_receipt={launch_receipt} expected_target_id="
+            f"{build_operation_target_id(expected_target)} aimed_target="
+            f"{json.dumps(profile.get('aimed_target') or {}, ensure_ascii=False)}",
+            flush=True,
+        )
         finish_gonna_win_receipt(payload, status_code=409, status=AppActionReceiptStore.STATUS_FAILED)
         return jsonify(payload), 409
 
@@ -24129,6 +24182,16 @@ def gonna_win():
                     "ownership_version": capture_cas_result.get("ownership_version"),
                     "created_operations": [],
                 }
+                print(
+                    "[GONNA_WIN_CONFLICT] "
+                    f"reason={capture_reason} user={session.get('user')} app_id={app_id} "
+                    f"target_id={capture_cas_result.get('target_id')} "
+                    f"expected_owner={captured_target.get('expected_owner_username') or contest_owner_username or captured_target.get('previous_owner_username') or ''} "
+                    f"current_owner={capture_cas_result.get('current_owner_username')} "
+                    f"expected_version={captured_target.get('ownership_version')} "
+                    f"current_version={capture_cas_result.get('ownership_version')}",
+                    flush=True,
+                )
                 finish_gonna_win_receipt(
                     payload, status_code=409,
                     status=AppActionReceiptStore.STATUS_FAILED,

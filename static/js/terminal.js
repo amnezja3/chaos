@@ -6908,6 +6908,17 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
             captured: Boolean(data.captured_target),
             created_operations: (data.created_operations || []).map(op => op && op.operation_id)
         });
+        if (response.status === 409) {
+            console.warn('[gonna-win] Kontrolowany konflikt stanu', {
+                app_id: appId,
+                choice_id: choiceId,
+                reason: data.reason || data.error || 'conflict',
+                message: data.message || '',
+                target_id: data.target_id || '',
+                current_owner_username: data.current_owner_username || '',
+                ownership_version: data.ownership_version
+            });
+        }
         if (data.player_hack_access) {
             refreshPlayerHackAccess(data.player_hack_access);
         }

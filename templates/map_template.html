@@ -3621,7 +3621,9 @@
                         menuTarget.contest_owner_username || null,
                         menuTarget.foreign_area_id || null,
                         menuTarget.target_username || null,
-                        row
+                        row,
+                        menuTarget.target_id || null,
+                        menuTarget.stable_conflict_id || menuTarget.conflict_id || null
                     );
                 });
                 menu.appendChild(row);
@@ -3903,7 +3905,7 @@
         }
 
 
-        function hackingAction(action, lat, lng, label, icon, source_type = "manual", name = label, generated = false, vulnerability_id = null, target_mode = null, contest_owner_username = null, foreign_area_id = null, target_username = null, triggerEl = null) {
+        function hackingAction(action, lat, lng, label, icon, source_type = "manual", name = label, generated = false, vulnerability_id = null, target_mode = null, contest_owner_username = null, foreign_area_id = null, target_username = null, triggerEl = null, target_id = null, conflict_id = null) {
             if (guardMapGameplayAction()) {
                 mapActionDebug(null, 'blocked_by_map_guard', { action, lat, lng, label });
                 if (triggerEl) triggerEl.dataset.busy = "0";
@@ -4003,6 +4005,8 @@
                     contest_owner_username,
                     foreign_area_id,
                     target_username,
+                    target_id,
+                    conflict_id,
                     _flow_id: hackFlowId,
                     _client_action_key: hackActionKey
                 })
@@ -8027,7 +8031,7 @@
         // Dodaj listener bezpośrednio do labelEl (bo to już .marker-hacked)
         labelEl.addEventListener('contextmenu', e => {
             consumeMapContextEvent(e);
-            showMenuForHacked(e.pageX, e.pageY, normalizeMapMenuTarget({ lat, lon: lng, lng, label, icon }), icon, label);
+            showCapturedObjectMenu(e.pageX, e.pageY, normalizeMapMenuTarget({ lat, lon: lng, lng, label, icon }), icon, label);
         });
     });
 
