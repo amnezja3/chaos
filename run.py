@@ -18276,7 +18276,10 @@ def map_aim_target():
             or requested.get("foreign_area_id")
             or requested.get("stable_conflict_id")
         )
-        if canonical_target is None and conflict_hint:
+        if canonical_target is None:
+            # Marker snapshots can temporarily lose their conflict hints while
+            # deltas and worker rebuilds cross. Resolve the canonical target by
+            # identity/position even then, exactly like /hack-action does.
             contested = find_contested_target(
                 username,
                 lat,
@@ -18298,7 +18301,7 @@ def map_aim_target():
                     ),
                     "security": dict(contested.get("security") or {}),
                 }
-            else:
+            elif conflict_hint:
                 return jsonify({
                     "success": False,
                     "error": "stale_conflict_target",
