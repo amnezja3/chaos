@@ -13993,7 +13993,7 @@ def serialize_tool_selection_app(app):
     }
 
 
-def apply_app_map_actions_to_aimed_target(profile, app, username=None):
+def apply_app_map_actions_to_aimed_target(profile, app, username=None, expected_target=None):
     """Mark the active target as touched by a launched app's map-action contract."""
     aimed_target = profile.get("aimed_target")
     if not isinstance(aimed_target, dict) or not aimed_target:
@@ -14041,11 +14041,21 @@ def apply_app_map_actions_to_aimed_target(profile, app, username=None):
 
     if changed:
         profile["aimed_target"] = aimed_target
-        if username:
-            try:
-                player_target_runtime_store.upsert_aimed(username, aimed_target, status="in_progress", source="app_map_actions")
-            except Exception as exc:
-                print(f"[target runtime] app action merge failed user={username} error={exc}", flush=True)
+    if username:
+        try:
+            runtime_result = player_target_runtime_store.upsert_aimed(
+                username,
+                aimed_target,
+                status="in_progress",
+                source="app_map_actions",
+                expected_target=expected_target,
+            )
+            if runtime_result.get("status") == "selection_changed":
+                profile["aimed_target"] = dict(runtime_result.get("target") or {})
+                profile["_target_runtime_conflict"] = "selection_changed"
+                return False, []
+        except Exception as exc:
+            print(f"[target runtime] app action merge failed user={username} error={exc}", flush=True)
     return changed, marked
 
 
@@ -24034,6 +24044,35 @@ def gonna_win():
         as_list(normalized_app_for_guard.get("map_actions"))
         or as_list(normalized_app_for_guard.get("operation_types"))
     )
+    if (
+        app_requires_map_target
+        and target_has_stable_runtime_identity(expected_target)
+        and target_has_stable_runtime_identity(profile.get("aimed_target"))
+        and not targets_share_runtime_identity(expected_target, profile.get("aimed_target"))
+    ):
+        # An application window is bound to the target visible when that window
+        # was launched. A delayed response from an older window must never
+        # mutate or resurrect that target after the player selected another one.
+        current_target = dict(profile.get("aimed_target") or {})
+        payload = {
+            "success": False,
+            "blocked": True,
+            "reason": "target_selection_changed",
+            "message": "Cel aplikacji zmienil sie. Uruchom narzedzie ponownie dla aktualnego celu.",
+            "target": current_target,
+            "expected_target_id": build_operation_target_id(expected_target),
+            "current_target_id": build_operation_target_id(current_target),
+            "created_operations": [],
+        }
+        print(
+            "[GONNA_WIN_CONFLICT] "
+            f"reason=target_selection_changed user={session.get('user')} app_id={app_id} "
+            f"expected_target_id={payload['expected_target_id']} "
+            f"current_target_id={payload['current_target_id']}",
+            flush=True,
+        )
+        finish_gonna_win_receipt(payload, status_code=409, status=AppActionReceiptStore.STATUS_FAILED)
+        return jsonify(payload), 409
     if app_requires_map_target and not target_has_stable_runtime_identity(profile.get("aimed_target")):
         already_captured_target = find_owned_captured_target_for_runtime_target(
             session.get("user"),
@@ -24087,7 +24126,26 @@ def gonna_win():
         return jsonify(payload), 409
 
     step_started_at = time.perf_counter()
-    target_changed, marked_actions = apply_app_map_actions_to_aimed_target(profile, app, session.get("user"))
+    target_changed, marked_actions = apply_app_map_actions_to_aimed_target(
+        profile,
+        app,
+        session.get("user"),
+        expected_target=expected_target if target_has_stable_runtime_identity(expected_target) else None,
+    )
+    if profile.pop("_target_runtime_conflict", None) == "selection_changed":
+        current_target = dict(profile.get("aimed_target") or {})
+        payload = {
+            "success": False,
+            "blocked": True,
+            "reason": "target_selection_changed",
+            "message": "Cel aplikacji zmienil sie podczas wykonywania. Wynik starego okna zostal pominiety.",
+            "target": current_target,
+            "expected_target_id": build_operation_target_id(expected_target),
+            "current_target_id": build_operation_target_id(current_target),
+            "created_operations": [],
+        }
+        finish_gonna_win_receipt(payload, status_code=409, status=AppActionReceiptStore.STATUS_FAILED)
+        return jsonify(payload), 409
     app_flow_debug_timed(
         flow_id,
         "gonna_win_apply_app_map_actions_done",

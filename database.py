@@ -6771,7 +6771,7 @@ class PlayerTargetRuntimeStore:
             return {}
         return dict(payload.get("target") or {})
 
-    def upsert_aimed(self, username, target, status=STATUS_AIMED, source=""):
+    def upsert_aimed(self, username, target, status=STATUS_AIMED, source="", expected_target=None):
         username = self._clean_text(username)
         target = dict(target or {}) if isinstance(target, dict) else {}
         target_key = self.target_key(target)
@@ -6790,6 +6790,27 @@ class PlayerTargetRuntimeStore:
                 (username,),
             ).fetchone()
             current = self._row_payload(row)
+            if current and isinstance(expected_target, dict) and expected_target:
+                expected_key = self.target_key(expected_target)
+                expected_matches_current = bool(
+                    current.get("target_key") == expected_key
+                    or self._same_ordinary_map_target(current.get("target"), expected_target)
+                )
+                if not expected_matches_current:
+                    self._record_event(
+                        conn,
+                        username,
+                        "target.progress_rejected",
+                        current.get("target_key"),
+                        current.get("version"),
+                        {"source": source, "reason": "selection_changed", "expected_target_key": expected_key},
+                    )
+                    return {
+                        "changed": False,
+                        "target": dict(current.get("target") or {}),
+                        "status": "selection_changed",
+                        "version": current.get("version", 0),
+                    }
             same_runtime_target = bool(
                 current
                 and (

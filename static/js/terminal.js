@@ -2373,6 +2373,16 @@ function buildApplicationLaunchContext(appData = {}) {
     };
 }
 
+function applicationResponseMatchesCurrentTarget(context = {}) {
+    const expectedTarget = context.expected_target || null;
+    const currentTarget = ((toolbarProfile || {}).aimed_target || {});
+    if (!hasToolbarAimedTarget(expectedTarget)) return true;
+    // Clearing/capturing a target is also a selection change. A late response
+    // bound to the former target must not recreate it on an empty toolbar.
+    if (!hasToolbarAimedTarget(currentTarget)) return false;
+    return toolbarTargetsShareProgressIdentity(expectedTarget, currentTarget);
+}
+
 function currentApplicationLaunchContext(appWindow = null) {
     const pending = window.__pendingApplicationLaunchContext || {};
     const dataset = appWindow && appWindow.dataset ? appWindow.dataset : {};
@@ -3229,7 +3239,7 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
             appendSystemTerminalOutput(content, data.response.replace(/\n/g, "<br>"));
         }
 
-        if (data.target) {
+        if (data.target && applicationResponseMatchesCurrentTarget(context)) {
             updateToolbarAimedTarget(data.target);
         }
         notifyCreatedOperations(data);
@@ -4895,8 +4905,19 @@ async function notifyGonnaWin(appId, appWindow = null, { legacyWait = false } = 
         if (data.player_hack_access) {
             refreshPlayerHackAccess(data.player_hack_access);
         }
-        const capturedOnToolbar = handleToolbarTargetCapturedResult(data);
-        if (data.target && !capturedOnToolbar) {
+        const responseMatchesCurrentTarget = applicationResponseMatchesCurrentTarget(context);
+        if (!responseMatchesCurrentTarget) {
+            appFlowTrace(flowId, "stale_target_response_ignored", {
+                app_id: appId,
+                choice_id: choiceId,
+                expected_target: context.expected_target,
+                current_target: ((toolbarProfile || {}).aimed_target || {})
+            });
+        }
+        const capturedOnToolbar = responseMatchesCurrentTarget
+            ? handleToolbarTargetCapturedResult(data)
+            : false;
+        if (data.target && !capturedOnToolbar && responseMatchesCurrentTarget) {
             updateToolbarAimedTarget(data.target);
         }
         notifyCreatedOperations(data);
@@ -6853,7 +6874,15 @@ function notifyAppMapOperationStarted(appData) {
             elapsed_ms: Math.round(performance.now() - startedAt),
             created_operations: (data.created_operations || []).map(op => op && op.operation_id)
         });
-        if (data.target) {
+        const responseMatchesCurrentTarget = applicationResponseMatchesCurrentTarget(context);
+        if (!responseMatchesCurrentTarget) {
+            appFlowTrace(flowId, "stale_operation_start_response_ignored", {
+                app_id: appId,
+                expected_target: context.expected_target,
+                current_target: ((toolbarProfile || {}).aimed_target || {})
+            });
+        }
+        if (data.target && responseMatchesCurrentTarget) {
             updateToolbarAimedTarget(data.target);
             appFlowTrace(flowId, "toolbar_dot_updated_from_operation_start", {
                 app_id: appId,
@@ -6934,8 +6963,19 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
         if (data.player_hack_access) {
             refreshPlayerHackAccess(data.player_hack_access);
         }
-        const capturedOnToolbar = handleToolbarTargetCapturedResult(data);
-        if (data.target && !capturedOnToolbar) {
+        const responseMatchesCurrentTarget = applicationResponseMatchesCurrentTarget(context);
+        if (!responseMatchesCurrentTarget) {
+            appFlowTrace(flowId, "stale_target_response_ignored", {
+                app_id: appId,
+                choice_id: choiceId,
+                expected_target: context.expected_target,
+                current_target: ((toolbarProfile || {}).aimed_target || {})
+            });
+        }
+        const capturedOnToolbar = responseMatchesCurrentTarget
+            ? handleToolbarTargetCapturedResult(data)
+            : false;
+        if (data.target && !capturedOnToolbar && responseMatchesCurrentTarget) {
             updateToolbarAimedTarget(data.target);
             appFlowTrace(flowId, "toolbar_dot_updated_from_app_option", {
                 app_id: appId,
@@ -6945,7 +6985,7 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
             });
         }
         notifyCreatedOperations(data);
-        if (data.success && data.captured_target) {
+        if (data.success && data.captured_target && responseMatchesCurrentTarget) {
             notifyOpenMapsTargetHacked(data.captured_target);
             refreshToolbarProfile();
             appFlowTrace(flowId, "target_captured_from_app_option", {

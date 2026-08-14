@@ -289,6 +289,44 @@ class PlayerTargetRuntimeIdentityTest(unittest.TestCase):
                 if os.path.exists(candidate):
                     os.remove(candidate)
 
+    def test_stale_app_progress_cannot_replace_new_selection(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            store = PlayerTargetRuntimeStore(db_path=path)
+            previous = {
+                "target_id": "map:52.1:21.2:Previous",
+                "lat": 52.1, "lng": 21.2, "label": "Previous",
+                "actions_allowed": {"scan_ports": False},
+            }
+            current = {
+                "target_id": "map:52.2:21.3:Current",
+                "lat": 52.2, "lng": 21.3, "label": "Current",
+                "actions_allowed": {"scan_ports": False},
+            }
+            store.upsert_aimed("alice", previous)
+            store.upsert_aimed("alice", current)
+            stale_progress = {
+                **previous,
+                "actions_allowed": {"scan_ports": True},
+            }
+            result = store.upsert_aimed(
+                "alice",
+                stale_progress,
+                status="in_progress",
+                source="late_app",
+                expected_target=previous,
+            )
+
+            self.assertFalse(result["changed"])
+            self.assertEqual(result["status"], "selection_changed")
+            self.assertEqual(store.get_active_target("alice")["target_id"], current["target_id"])
+        finally:
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{path}{suffix}"
+                if os.path.exists(candidate):
+                    os.remove(candidate)
+
 class DevBugReportStoreTest(unittest.TestCase):
     def test_dev_mode_gate_uses_environment(self):
         with patch.dict(os.environ, {"APP_ENV": "production", "CHAOS_DEV_MODE": ""}, clear=False):
@@ -2715,6 +2753,53 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.get_json()["reason"], "invalid_target")
+
+    def test_gonna_win_rejects_late_window_bound_to_previous_target(self):
+        previous_target = {
+            "target_id": "map:52.1:21.2:Previous",
+            "lat": 52.1,
+            "lng": 21.2,
+            "label": "Previous",
+            "target_mode": "standard",
+        }
+        current_target = {
+            "target_id": "map:52.2:21.3:Current",
+            "lat": 52.2,
+            "lng": 21.3,
+            "label": "Current",
+            "target_mode": "standard",
+            "actions_allowed": {
+                "scan_ports": False, "exploit": False, "sniff": False, "trace": False,
+            },
+            "security": {"firewall": True},
+        }
+        profile = {
+            "username": "root",
+            "apps": [{
+                "id": "gps_tool",
+                "name": "GPS Tool",
+                "map_actions": ["trace_gps"],
+                "levels": [{"options": []}],
+            }],
+            "aimed_target": current_target,
+        }
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "root"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "apply_app_map_actions_to_aimed_target") as apply_actions:
+            response = client.post("/gonna-win", json={
+                "app_id": "gps_tool",
+                "operation_only": True,
+                "expected_target": previous_target,
+            })
+
+        self.assertEqual(response.status_code, 409)
+        payload = response.get_json()
+        self.assertEqual(payload["reason"], "target_selection_changed")
+        self.assertEqual(payload["target"]["target_id"], current_target["target_id"])
+        apply_actions.assert_not_called()
 
     def test_gonna_win_marks_app_map_actions_on_aimed_target(self):
         class FakeProfileManager:
