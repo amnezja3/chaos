@@ -28,6 +28,27 @@
     .context-menu div:hover {
       background: rgba(115, 115, 115, 0.5);
     }
+    .context-menu .context-menu-target-heading {
+      display: block;
+      width: 100%;
+      padding: 5px 10px;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-weight: 700;
+      text-align: left;
+      cursor: crosshair;
+    }
+    .context-menu .context-menu-target-heading:hover,
+    .context-menu .context-menu-target-heading:focus-visible {
+      background: rgba(115, 115, 115, 0.5);
+      outline: 1px solid rgba(42, 42, 42, 0.45);
+    }
+    .context-menu .context-menu-target-heading[aria-busy="true"] {
+      opacity: 0.55;
+      cursor: wait;
+    }
     .context-menu div.disabled {
       opacity: 0.35;
       cursor: default;
@@ -1975,6 +1996,64 @@
             return Promise.resolve(null);
         }
 
+        function updateParentToolbarAimedTarget(target) {
+            try {
+                if (window.parent && window.parent !== window && typeof window.parent.updateToolbarAimedTarget === 'function') {
+                    window.parent.updateToolbarAimedTarget(target);
+                }
+            } catch (err) {
+                // The persisted profile/delta remains the source of truth.
+            }
+        }
+
+        async function aimMapTargetOnly(target, trigger) {
+            const normalized = normalizeMapMenuTarget(target || {});
+            if (trigger && trigger.getAttribute('aria-busy') === 'true') return;
+            if (trigger) trigger.setAttribute('aria-busy', 'true');
+            try {
+                const response = await fetch('/api/map/aim-target', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        lat: normalized.lat,
+                        lng: normalized.lon,
+                        label: normalized.label,
+                        name: normalized.name,
+                        icon: normalized.icon,
+                        source_type: normalized.source_type,
+                        generated: Boolean(normalized.generated),
+                        target_mode: normalized.target_mode,
+                        target_id: normalized.target_id,
+                        vulnerability_id: normalized.vulnerability_id,
+                        contest_owner_username: normalized.contest_owner_username,
+                        foreign_area_id: normalized.foreign_area_id,
+                        target_username: normalized.target_username,
+                        stable_conflict_id: normalized.stable_conflict_id || normalized.conflict_id
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success || !data.target) {
+                    throw new Error(data.message || data.error || 'Nie udalo sie ustawic celu.');
+                }
+                window.profileData = window.profileData || {};
+                window.profileData.aimed_target = data.target;
+                updateParentToolbarAimedTarget(data.target);
+                addInteractiveTargetMarker(
+                    data.target.lat,
+                    data.target.lng !== undefined ? data.target.lng : data.target.lon,
+                    mapTargetDisplayLabel(data.target, 'TARGET'),
+                    data.target.icon || normalized.icon || '🎯',
+                    data.target
+                );
+                closeAllMapMenus();
+                addSystemMessage('success', '🎯 Cel', data.message || 'Cel oznaczony.');
+            } catch (err) {
+                console.error('[map aim-target] failed', err);
+                addSystemMessage('error', '🎯 Cel', err.message || 'Nie udalo sie ustawic celu.');
+                if (trigger) trigger.setAttribute('aria-busy', 'false');
+            }
+        }
+
         function findClanVulnerabilityForTarget(target) {
             const key = vulnerabilityTargetKey(target);
             return key ? clanVulnerabilityRegistry.get(key) : null;
@@ -3696,7 +3775,20 @@
             // Nagłówek
             const safeIcon = window.escapeMapText ? window.escapeMapText(iconEmoji || '') : (iconEmoji || '');
             const safeLabel = window.escapeMapText ? window.escapeMapText(label || '') : (label || '');
-            menu.innerHTML = `<div><strong>${safeIcon} ${safeLabel}</strong></div><hr style="margin:4px 0;">`;
+            const heading = document.createElement('button');
+            heading.type = 'button';
+            heading.className = 'context-menu-target-heading';
+            heading.innerHTML = `${safeIcon} ${safeLabel}`;
+            heading.title = 'Ustaw jako aktywny cel';
+            heading.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                aimMapTargetOnly(menuTarget, heading);
+            });
+            menu.appendChild(heading);
+            const separator = document.createElement('hr');
+            separator.style.margin = '4px 0';
+            menu.appendChild(separator);
 
             // Generuj przyciski akcji
             actions.forEach(act => {

@@ -18141,6 +18141,63 @@ def map_view():
 
 
 
+@app.route('/api/map/aim-target', methods=['POST'])
+def map_aim_target():
+    """Persist a map selection without launching the hacking runtime."""
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        lat = float(data.get("lat"))
+        lng = float(data.get("lng", data.get("lon")))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "invalid_coordinates"}), 400
+    label = str(data.get("label") or data.get("name") or "").strip()
+    if not label:
+        return jsonify({"success": False, "error": "missing_label"}), 400
+
+    username = session["user"]
+    profile = load_profile_readonly(username, strip_sensitive=False, normalize_apps=False)
+    if not isinstance(profile, dict):
+        return jsonify({"success": False, "error": "profile_not_found"}), 404
+    profile = dict(profile)
+    previous = profile.get("aimed_target") or {}
+    requested = {
+        "lat": lat, "lng": lng, "label": label,
+        "name": str(data.get("name") or label),
+        "icon": str(data.get("icon") or "🎯"),
+        "source_type": str(data.get("source_type") or "manual"),
+        "generated": bool(data.get("generated", False)),
+        "target_mode": str(data.get("target_mode") or "standard"),
+        "target_id": str(data.get("target_id") or "").strip() or None,
+        "vulnerability_id": data.get("vulnerability_id"),
+        "contest_owner_username": data.get("contest_owner_username"),
+        "foreign_area_id": data.get("foreign_area_id"),
+        "target_username": data.get("target_username"),
+        "stable_conflict_id": data.get("stable_conflict_id") or data.get("conflict_id"),
+        "actions_allowed": {"scan_ports": False, "exploit": False, "sniff": False, "trace": False},
+        "security": {},
+    }
+    if previous and targets_share_selection_identity(previous, requested):
+        requested["actions_allowed"] = dict(previous.get("actions_allowed") or requested["actions_allowed"])
+        requested["security"] = dict(previous.get("security") or {})
+    apply_target_display_label(requested)
+    aimed_target = set_player_aimed_target(username, profile, requested, reason="map_menu_title_aim")
+    if not aimed_target:
+        return jsonify({"success": False, "error": "target_already_captured", "message": "Ten obiekt jest juz przejety."}), 409
+
+    profile.pop("password", None)
+    profile.pop("salt", None)
+    session["profile"] = profile
+    record_map_target_delta(username, aimed_target, change_type="map.target_updated", reason="map_menu_title_aim")
+    return jsonify({
+        "success": True,
+        "status": "aimed_target_set",
+        "message": f"Cel ustawiony: {display_target_label(aimed_target)}",
+        "target": aimed_target,
+    })
+
+
 @app.route('/map-action', methods=['POST'])
 def map_action():
     data = request.get_json()

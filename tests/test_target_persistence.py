@@ -94,6 +94,33 @@ class TargetDisplayLabelTest(unittest.TestCase):
         self.assertTrue(display_target_label(person).startswith("SUBJECT-"))
 
 
+class MapAimTargetEndpointTest(unittest.TestCase):
+    def test_menu_title_aims_without_launching_hack_runtime(self):
+        client = run.app.test_client()
+        with client.session_transaction() as flask_session:
+            flask_session["user"] = "alice"
+
+        profile = {"username": "alice", "aimed_target": {}, "operations": [], "launch_queue": []}
+        canonical = {
+            "lat": 52.1, "lng": 21.2, "label": "Bonito", "name": "Bonito",
+            "icon": "target", "source_type": "shop", "target_mode": "standard",
+            "target_id": "map:bonito", "actions_allowed": {}, "security": {},
+        }
+        with patch.object(run, "load_profile_readonly", return_value=profile), \
+                patch.object(run, "set_player_aimed_target", return_value=canonical) as set_target, \
+                patch.object(run, "record_map_target_delta") as record_delta:
+            response = client.post("/api/map/aim-target", json={
+                "lat": 52.1, "lng": 21.2, "label": "Bonito", "name": "Bonito",
+                "icon": "target", "source_type": "shop", "target_id": "map:bonito",
+            })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["target"]["target_id"], "map:bonito")
+        self.assertEqual(set_target.call_args.kwargs["reason"], "map_menu_title_aim")
+        self.assertEqual(profile["operations"], [])
+        self.assertEqual(profile["launch_queue"], [])
+        record_delta.assert_called_once()
+
 class DevBugReportStoreTest(unittest.TestCase):
     def test_dev_mode_gate_uses_environment(self):
         with patch.dict(os.environ, {"APP_ENV": "production", "CHAOS_DEV_MODE": ""}, clear=False):
