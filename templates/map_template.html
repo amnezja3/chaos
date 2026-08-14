@@ -1716,7 +1716,15 @@
                     button.dataset.busy = '1';
                     button.classList.add('is-refreshing');
                     saveManualMapViewport();
-                    window.setTimeout(() => window.location.reload(), 560);
+                    window.setTimeout(() => {
+                        disableMapGameplay();
+                        showMapPreloader('OdĹ›wieĹĽanie stanu mapy...', 8);
+                        const note = mapBootOverlay()?.querySelector('.chaos-map-boot-note');
+                        if (note) {
+                            note.textContent = 'Pobieranie aktualnego snapshotu. ZachowujÄ™ obserwowany obszar i poziom zoomu.';
+                        }
+                        window.requestAnimationFrame(() => window.location.reload());
+                    }, 560);
                 });
                 return container;
             }
