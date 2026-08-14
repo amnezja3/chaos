@@ -269,6 +269,24 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         )
         self.assertNotIn("rebuild_player_areas_with_territory_delta", source)
 
+    def test_worker_conflict_publication_triggers_read_only_marker_recovery(self):
+        with open("templates/map_template.html", encoding="utf-8") as handle:
+            source = handle.read()
+
+        self.assertIn("conflictReason === 'conflict_consolidated'", source)
+        self.assertIn(
+            "requestTerritorySnapshotRecovery('conflict_consolidated_complete')",
+            source,
+        )
+
+    def test_map_has_manual_full_refresh_control(self):
+        with open("templates/map_template.html", encoding="utf-8") as handle:
+            source = handle.read()
+
+        self.assertIn("ManualMapRefreshControl", source)
+        self.assertIn("Odśwież stan mapy", source)
+        self.assertIn("window.location.reload()", source)
+
         consolidation_source = inspect.getsource(run.consolidate_conflict_rebuild)
         self.assertIn("_conflict_rebuild_targets", consolidation_source)
         self.assertIn("reconcile_rebuild_pillars", consolidation_source)

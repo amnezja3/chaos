@@ -1575,6 +1575,32 @@
       }
     }
 
+    .chaos-map-refresh-control .chaos-map-refresh-button {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      color: #19ef75;
+      background: rgba(0, 18, 8, 0.94);
+      border-color: #19ef75;
+      font: 700 22px/1 monospace;
+      text-decoration: none;
+    }
+
+    .chaos-map-refresh-control .chaos-map-refresh-button:hover,
+    .chaos-map-refresh-control .chaos-map-refresh-button:focus-visible {
+      color: #baffcf;
+      background: #032b14;
+    }
+
+    .chaos-map-refresh-control .chaos-map-refresh-button.is-refreshing {
+      animation: chaos-map-manual-refresh 0.7s linear infinite;
+    }
+
+    @keyframes chaos-map-manual-refresh {
+      to { transform: rotate(360deg); }
+    }
+
 
     body, html {
       margin: 0;
@@ -1628,6 +1654,31 @@
         const clanVulnerabilityRegistry = new Map();
         window.targetMarkers = window.targetMarkers || {};
         const baseZoom = map.getZoom();
+
+        const ManualMapRefreshControl = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: function() {
+                const container = L.DomUtil.create('div', 'leaflet-bar chaos-map-refresh-control');
+                const button = L.DomUtil.create('a', 'chaos-map-refresh-button', container);
+                button.href = '#';
+                button.title = 'Odśwież stan mapy';
+                button.setAttribute('role', 'button');
+                button.setAttribute('aria-label', 'Odśwież stan mapy');
+                button.textContent = '↻';
+                L.DomEvent.disableClickPropagation(container);
+                L.DomEvent.disableScrollPropagation(container);
+                L.DomEvent.on(button, 'click', function(event) {
+                    L.DomEvent.preventDefault(event);
+                    L.DomEvent.stopPropagation(event);
+                    if (button.dataset.busy === '1') return;
+                    button.dataset.busy = '1';
+                    button.classList.add('is-refreshing');
+                    window.location.reload();
+                });
+                return container;
+            }
+        });
+        map.addControl(new ManualMapRefreshControl());
         let zoomReturnTimer = null;
         let zoomReturnInterval = null;
         let programmaticMapMove = false;
@@ -7828,6 +7879,7 @@
 
                 if (type === 'territory.conflict_changed') {
                     const snapshot = payload.snapshot || payload;
+                    const conflictReason = String(payload.reason || snapshot.reason || '').trim();
                     const conflictId = String(snapshot.conflict_id || (event && event.entity_id) || '').trim();
                     const incomingVersion = territorySnapshotVersion(snapshot);
                     ensureTerritoryConflictRegistries();
@@ -7853,6 +7905,13 @@
                         return false;
                     }
                     invalidateMapAfterLayerUpdate();
+                    // The worker publication is the authoritative end of a
+                    // conflict rebuild. A point delta can update geometry while
+                    // an older Leaflet pillar registry survives locally, so do
+                    // one read-only snapshot recovery at this final boundary.
+                    if (conflictReason === 'conflict_consolidated') {
+                        window.requestTerritorySnapshotRecovery('conflict_consolidated_complete');
+                    }
                     return true;
                 }
 

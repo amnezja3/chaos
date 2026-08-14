@@ -47,6 +47,41 @@ class TerritoryControlTest(unittest.TestCase):
                 except PermissionError:
                     pass
 
+    def test_encirclement_pair_scan_caches_profiles_and_rejects_geometry_before_store_members(self):
+        attacker = {
+            "id": 1,
+            "owner_username": "alice",
+            "vertices": [
+                {"lat": 52.0, "lng": 21.0},
+                {"lat": 52.0, "lng": 21.01},
+                {"lat": 52.01, "lng": 21.0},
+            ],
+        }
+        defender = {
+            "id": 2,
+            "owner_username": "bob",
+            "vertices": [
+                {"lat": 53.0, "lng": 22.0},
+                {"lat": 53.0, "lng": 22.01},
+                {"lat": 53.01, "lng": 22.0},
+            ],
+        }
+
+        resolver = run.TerritoryEncirclementResolver(store=object(), conflict_store=object())
+        with patch.object(
+            run.user_store,
+            "get_profile",
+            side_effect=lambda username: {"username": username, "clan": username},
+        ) as get_profile, patch.object(
+            run,
+            "territory_area_cluster_members",
+        ) as cluster_members:
+            self.assertFalse(resolver.is_cluster_fully_encircled(attacker, defender))
+            self.assertFalse(resolver.is_cluster_fully_encircled(attacker, defender))
+
+        self.assertEqual(get_profile.call_count, 2)
+        cluster_members.assert_not_called()
+
     def test_conflict_reveal_uses_current_cluster_pillars_and_inners(self):
         pillar = captured("Pillar", 52.01, 21.01)
         pillar["target_id"] = "pillar-current"

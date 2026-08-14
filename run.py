@@ -6316,6 +6316,10 @@ class TerritoryEncirclementResolver:
     def __init__(self, store=None, conflict_store=None):
         self.store = store or territory_store
         self.conflict_store = conflict_store or territory_conflict_store
+        # One resolver pass can compare hundreds of area pairs.  Relation
+        # profiles are immutable for the duration of that pass, so never read
+        # the same large profile from SQLite for every pair.
+        self._profile_cache = {}
 
     def detect_encircled_clusters(self, changed_territory_id=None, actor_username=None, apply=False, reason="territory_rebuild"):
         areas = safe_player_areas(self.store.list_player_areas())
@@ -6356,21 +6360,29 @@ class TerritoryEncirclementResolver:
         defender_owner = str((defender or {}).get("owner_username") or "").strip()
         if not attacker_owner or not defender_owner or attacker_owner == defender_owner:
             return False
-        if territory_owners_are_protected_relation(attacker_owner, defender_owner):
+        if territory_owners_are_protected_relation(
+            attacker_owner,
+            defender_owner,
+            profile_cache=self._profile_cache,
+        ):
             return False
         attacker_vertices = (attacker or {}).get("vertices") or []
         defender_vertices = (defender or {}).get("vertices") or []
         if len(attacker_vertices) < 3 or len(defender_vertices) < 3:
             return False
 
+        # Reject the overwhelming majority of pairs using the already loaded
+        # polygons before asking the store for every pillar/inner in both
+        # clusters.  The object containment test below remains authoritative.
+        for vertex in defender_vertices:
+            if not territory_point_in_polygon_or_boundary(vertex, attacker_vertices):
+                return False
+
         attacker_members = territory_area_cluster_members(self.store, attacker)
         defender_members = territory_area_cluster_members(self.store, defender)
         if not attacker_members["valid"] or not defender_members["valid"]:
             return False
 
-        for vertex in defender_vertices:
-            if not territory_point_in_polygon_or_boundary(vertex, attacker_vertices):
-                return False
         for target in defender_members["objects"]:
             if not territory_point_in_polygon_or_boundary(target, attacker_vertices):
                 return False
