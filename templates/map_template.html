@@ -2038,13 +2038,9 @@
                 window.profileData = window.profileData || {};
                 window.profileData.aimed_target = data.target;
                 updateParentToolbarAimedTarget(data.target);
-                addInteractiveTargetMarker(
-                    data.target.lat,
-                    data.target.lng !== undefined ? data.target.lng : data.target.lon,
-                    mapTargetDisplayLabel(data.target, 'TARGET'),
-                    data.target.icon || normalized.icon || '🎯',
-                    data.target
-                );
+                // The clicked marker stays authoritative. A second generic
+                // marker here could cover a pillar/inner and corrupt the local
+                // marker registry until the next complete map refresh.
                 closeAllMapMenus();
                 addSystemMessage('success', '🎯 Cel', data.message || 'Cel oznaczony.');
             } catch (err) {

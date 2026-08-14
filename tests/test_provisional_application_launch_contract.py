@@ -140,7 +140,7 @@ class ProvisionalApplicationLaunchContractTest(unittest.TestCase):
             "async function notifyGonnaWin",
         )
         self.assertIn("titleRemainingMs", source)
-        self.assertIn("authorBreathMs = 3500", source)
+        self.assertIn("authorBreathMs = 18500", source)
         self.assertIn("titleRemainingMs + authorBreathMs", source)
 
     def test_title_sequence_does_not_delay_gameplay_request_and_payload_can_interrupt_it(self):

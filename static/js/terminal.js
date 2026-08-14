@@ -1531,7 +1531,12 @@ function runSystemLauncherApp(appData) {
 }
 
 function buildApplicationWindowLaunchKey(id, type) {
-    return `${String(type || "app").trim().toLowerCase()}:${String(id || "").trim().toLowerCase()}`;
+    const base = `${String(type || "app").trim().toLowerCase()}:${String(id || "").trim().toLowerCase()}`;
+    const aimedTarget = ((toolbarProfile || {}).aimed_target || {});
+    const targetKey = hasToolbarAimedTarget(aimedTarget)
+        ? getToolbarTargetStableKey(aimedTarget)
+        : "";
+    return targetKey ? `${base}:${targetKey}` : base;
 }
 
 function readProvisionalAppLaunchFlags() {

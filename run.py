@@ -24294,12 +24294,28 @@ def gonna_win():
     if profile.get("aimed_target"):
         try:
             step_started_at = time.perf_counter()
-            player_target_runtime_store.upsert_aimed(
+            runtime_result = player_target_runtime_store.upsert_aimed(
                 session.get("user"),
                 profile.get("aimed_target") or {},
                 status="in_progress",
                 source="gonna_win_security_update",
+                expected_target=expected_target if target_has_stable_runtime_identity(expected_target) else None,
             )
+            if runtime_result.get("status") == "selection_changed":
+                current_target = dict(runtime_result.get("target") or {})
+                profile["aimed_target"] = current_target
+                payload = {
+                    "success": False,
+                    "blocked": True,
+                    "reason": "target_selection_changed",
+                    "message": "Cel zmienil sie przed zapisem wyniku. Stary wynik zostal pominiety.",
+                    "target": current_target,
+                    "expected_target_id": build_operation_target_id(expected_target),
+                    "current_target_id": build_operation_target_id(current_target),
+                    "created_operations": [],
+                }
+                finish_gonna_win_receipt(payload, status_code=409, status=AppActionReceiptStore.STATUS_FAILED)
+                return jsonify(payload), 409
             app_flow_debug_timed(
                 flow_id,
                 "gonna_win_target_runtime_upsert_done",
