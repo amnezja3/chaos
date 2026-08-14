@@ -14054,6 +14054,10 @@ def apply_app_map_actions_to_aimed_target(profile, app, username=None, expected_
                 profile["aimed_target"] = dict(runtime_result.get("target") or {})
                 profile["_target_runtime_conflict"] = "selection_changed"
                 return False, []
+            if runtime_result.get("status") == "captured":
+                profile["aimed_target"] = {}
+                profile["_target_runtime_conflict"] = "captured"
+                return False, []
         except Exception as exc:
             print(f"[target runtime] app action merge failed user={username} error={exc}", flush=True)
     return changed, marked
@@ -23988,6 +23992,41 @@ def gonna_win():
             status=status,
         )
 
+    def finish_superseded_capture(expected, current_target=None):
+        """Treat a late app result as success when its bound target is already ours."""
+        captured_target = find_owned_captured_target_for_runtime_target(
+            session.get("user"),
+            expected,
+        )
+        if not captured_target:
+            return None
+        payload = {
+            "success": True,
+            "duplicate": True,
+            "superseded_by_capture": True,
+            "message": "Cel zostal juz przejety przez wczesniejsza akcje.",
+            # Preserve a newer selection. The frontend also guards toolbar
+            # mutations with the launch-bound expected target.
+            "target": dict(current_target or {}),
+            "captured_target": captured_target,
+            "actions_allowed_marked": [],
+            "created_operations": [],
+        }
+        app_flow_debug(
+            flow_id,
+            "gonna_win_superseded_by_capture",
+            started_at=app_flow_started_at,
+            app_id=app_id,
+            choice_id=choice_id,
+            target_id=build_operation_target_id(expected),
+        )
+        finish_gonna_win_receipt(
+            payload,
+            status_code=200,
+            status=AppActionReceiptStore.STATUS_EFFECT_APPLIED,
+        )
+        return jsonify(payload), 200
+
     CRITICAL_SECURITY_KEYS = [
         "stealth_mode", "scan_detection", "exploit_protection", "vpn_enabled",
         "browser_protection", "os_hardening", "log_guardian", "process_monitor",
@@ -24054,6 +24093,9 @@ def gonna_win():
         # was launched. A delayed response from an older window must never
         # mutate or resurrect that target after the player selected another one.
         current_target = dict(profile.get("aimed_target") or {})
+        superseded_response = finish_superseded_capture(expected_target, current_target)
+        if superseded_response is not None:
+            return superseded_response
         payload = {
             "success": False,
             "blocked": True,
@@ -24074,31 +24116,9 @@ def gonna_win():
         finish_gonna_win_receipt(payload, status_code=409, status=AppActionReceiptStore.STATUS_FAILED)
         return jsonify(payload), 409
     if app_requires_map_target and not target_has_stable_runtime_identity(profile.get("aimed_target")):
-        already_captured_target = find_owned_captured_target_for_runtime_target(
-            session.get("user"),
-            expected_target,
-        )
-        if already_captured_target:
-            payload = {
-                "success": True,
-                "duplicate": True,
-                "superseded_by_capture": True,
-                "message": "Cel zostal juz przejety przez wczesniejsza akcje.",
-                "target": {},
-                "captured_target": already_captured_target,
-                "actions_allowed_marked": [],
-                "created_operations": [],
-            }
-            app_flow_debug(
-                flow_id,
-                "gonna_win_superseded_by_capture",
-                started_at=app_flow_started_at,
-                app_id=app_id,
-                choice_id=choice_id,
-                target_id=build_operation_target_id(expected_target),
-            )
-            finish_gonna_win_receipt(payload, status_code=200, status=AppActionReceiptStore.STATUS_EFFECT_APPLIED)
-            return jsonify(payload), 200
+        superseded_response = finish_superseded_capture(expected_target)
+        if superseded_response is not None:
+            return superseded_response
         app_flow_debug(
             flow_id,
             "gonna_win_reject_invalid_target",
@@ -24132,7 +24152,15 @@ def gonna_win():
         session.get("user"),
         expected_target=expected_target if target_has_stable_runtime_identity(expected_target) else None,
     )
-    if profile.pop("_target_runtime_conflict", None) == "selection_changed":
+    target_runtime_conflict = profile.pop("_target_runtime_conflict", None)
+    if target_runtime_conflict == "captured":
+        superseded_response = finish_superseded_capture(
+            expected_target,
+            profile.get("aimed_target") or {},
+        )
+        if superseded_response is not None:
+            return superseded_response
+    if target_runtime_conflict == "selection_changed":
         current_target = dict(profile.get("aimed_target") or {})
         payload = {
             "success": False,
@@ -24316,6 +24344,13 @@ def gonna_win():
                 }
                 finish_gonna_win_receipt(payload, status_code=409, status=AppActionReceiptStore.STATUS_FAILED)
                 return jsonify(payload), 409
+            if runtime_result.get("status") == "captured":
+                superseded_response = finish_superseded_capture(
+                    expected_target,
+                    profile.get("aimed_target") or {},
+                )
+                if superseded_response is not None:
+                    return superseded_response
             app_flow_debug_timed(
                 flow_id,
                 "gonna_win_target_runtime_upsert_done",

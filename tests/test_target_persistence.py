@@ -2801,6 +2801,54 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(payload["target"]["target_id"], current_target["target_id"])
         apply_actions.assert_not_called()
 
+    def test_gonna_win_treats_late_captured_previous_target_as_success_without_replacing_current(self):
+        previous_target = {
+            "target_id": "map:52.1:21.2:Previous",
+            "lat": 52.1,
+            "lng": 21.2,
+            "label": "Previous",
+        }
+        captured_target = {**previous_target, "owner_username": "root", "captured": True}
+        current_target = {
+            "target_id": "map:52.2:21.3:Current",
+            "lat": 52.2,
+            "lng": 21.3,
+            "label": "Current",
+        }
+        profile = {
+            "username": "root",
+            "apps": [{
+                "id": "gps_tool",
+                "name": "GPS Tool",
+                "map_actions": ["trace_gps"],
+                "levels": [{"options": []}],
+            }],
+            "aimed_target": current_target,
+        }
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "root"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(
+                    run,
+                    "find_owned_captured_target_for_runtime_target",
+                    return_value=captured_target,
+                ), \
+                patch.object(run, "apply_app_map_actions_to_aimed_target") as apply_actions:
+            response = client.post("/gonna-win", json={
+                "app_id": "gps_tool",
+                "expected_target": previous_target,
+            })
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["success"])
+        self.assertTrue(payload["superseded_by_capture"])
+        self.assertEqual(payload["captured_target"], captured_target)
+        self.assertEqual(payload["target"], current_target)
+        apply_actions.assert_not_called()
+
     def test_gonna_win_marks_app_map_actions_on_aimed_target(self):
         class FakeProfileManager:
             updates = []
