@@ -18178,7 +18178,22 @@ def map_aim_target():
         "actions_allowed": {"scan_ports": False, "exploit": False, "sniff": False, "trace": False},
         "security": {},
     }
-    if previous and targets_share_selection_identity(previous, requested):
+    same_position = False
+    if previous:
+        try:
+            same_position = (
+                round(float(previous.get("lat")), 6) == round(lat, 6)
+                and round(float(previous.get("lng", previous.get("lon"))), 6) == round(lng, 6)
+                and str(previous.get("label") or previous.get("name") or "").strip() == label
+            )
+        except (TypeError, ValueError):
+            same_position = False
+    if previous and (targets_share_selection_identity(previous, requested) or same_position):
+        # Menu snapshots can use a display/generated id while the active runtime
+        # already has the canonical conflict or vulnerability identity. Position
+        # is enough here to recover progress, but never to run an operation.
+        requested = {**previous, **requested}
+        requested["target_id"] = previous.get("target_id") or requested.get("target_id")
         requested["actions_allowed"] = dict(previous.get("actions_allowed") or requested["actions_allowed"])
         requested["security"] = dict(previous.get("security") or {})
     apply_target_display_label(requested)

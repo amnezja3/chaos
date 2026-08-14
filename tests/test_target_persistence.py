@@ -121,6 +121,38 @@ class MapAimTargetEndpointTest(unittest.TestCase):
         self.assertEqual(profile["launch_queue"], [])
         record_delta.assert_called_once()
 
+    def test_menu_title_recovers_existing_progress_by_position(self):
+        client = run.app.test_client()
+        with client.session_transaction() as flask_session:
+            flask_session["user"] = "alice"
+        profile = {
+            "username": "alice",
+            "aimed_target": {
+                "lat": 52.1, "lng": 21.2, "label": "Bonito",
+                "target_id": "canonical:bonito",
+                "actions_allowed": {"scan_ports": True, "exploit": False, "sniff": True, "trace": False},
+                "security": {"firewall": False, "kernel_guard": True},
+            },
+        }
+
+        def return_requested(_username, _profile, target, **_kwargs):
+            return target
+
+        with patch.object(run, "load_profile_readonly", return_value=profile), \
+                patch.object(run, "set_player_aimed_target", side_effect=return_requested) as set_target, \
+                patch.object(run, "record_map_target_delta"):
+            response = client.post("/api/map/aim-target", json={
+                "lat": 52.1, "lng": 21.2, "label": "Bonito",
+                "target_id": "display:bonito", "source_type": "shop",
+            })
+
+        self.assertEqual(response.status_code, 200)
+        requested = set_target.call_args.args[2]
+        self.assertEqual(requested["target_id"], "canonical:bonito")
+        self.assertTrue(requested["actions_allowed"]["scan_ports"])
+        self.assertTrue(requested["actions_allowed"]["sniff"])
+        self.assertFalse(requested["security"]["firewall"])
+
 class DevBugReportStoreTest(unittest.TestCase):
     def test_dev_mode_gate_uses_environment(self):
         with patch.dict(os.environ, {"APP_ENV": "production", "CHAOS_DEV_MODE": ""}, clear=False):

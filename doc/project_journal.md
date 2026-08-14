@@ -28,6 +28,10 @@
 - Ponowne wskazanie tego samego celu zachowuje jego dotychczasowy postęp
   `actions_allowed` i stan `security`; wskazanie innego celu rozpoczyna czysty
   stan rozpoznania bez wykonywania akcji hakowania.
+- Odzyskiwanie postępu toleruje różnicę między identyfikatorem markera
+  prezentacyjnego i kanonicznym `target_id`: zgodność pozycji oraz etykiety
+  pozwala zachować aktualne `actions_allowed` i `security`, dzięki czemu belka
+  pokazuje bieżący poziom rozbrojenia bez ponownego uruchamiania narzędzia.
 - Walidacja: `python -m py_compile run.py database.py
   response_network\\territory_delta.py`, 48 testów celowanych oraz
   `git diff --check` — OK.
