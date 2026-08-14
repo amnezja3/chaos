@@ -2332,18 +2332,31 @@ function launchApplicationFromEntry(appData = {}, source = "desktop_menu") {
     return launchApplicationEffect(launchData);
 }
 
+function createApplicationInvocationReceipt(appId = "", target = null) {
+    const targetKey = getToolbarTargetStableKey(target || {}) || "no-target";
+    const randomPart = (window.crypto && typeof window.crypto.randomUUID === "function")
+        ? window.crypto.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    const safeAppId = String(appId || "application").trim().slice(0, 48) || "application";
+    let targetHash = 2166136261;
+    for (let index = 0; index < targetKey.length; index += 1) {
+        targetHash ^= targetKey.charCodeAt(index);
+        targetHash = Math.imul(targetHash, 16777619);
+    }
+    return `manual:${safeAppId}:${(targetHash >>> 0).toString(36)}:${randomPart}`.slice(0, 160);
+}
+
 function buildApplicationLaunchContext(appData = {}) {
     const flowId = getCurrentAppFlowId(appData._flow_id || appData.flow_id || appData.debug_flow?.flow_id || "");
     const appId = String(appData.id || appData.app_id || "").trim();
     const name = String(appData.name || appData.app_name || appId || "").trim();
-    const launchReceipt = String(
+    const explicitLaunchReceipt = String(
         appData._launch_receipt ||
         appData.launch_receipt ||
         appData.receipt ||
         appData._launch_key ||
         ""
     ).trim();
-    const launchKey = launchReceipt || `${flowId || "manual"}:${appId || name}`;
     const aimedTarget = ((toolbarProfile || {}).aimed_target || {});
     const expectedTarget = hasToolbarAimedTarget(aimedTarget) ? {
         target_id: aimedTarget.target_id || aimedTarget.id || "",
@@ -2352,6 +2365,11 @@ function buildApplicationLaunchContext(appData = {}) {
         label: aimedTarget.label || aimedTarget.display_label || aimedTarget.name || aimedTarget.title || "",
         target_mode: aimedTarget.target_mode || ""
     } : null;
+    const launchReceipt = explicitLaunchReceipt || createApplicationInvocationReceipt(
+        appId || name,
+        expectedTarget
+    );
+    const launchKey = launchReceipt;
     const actionKey = resolveApplicationFeedbackAction(appData);
     const targetMatchesLaunch = Boolean(
         expectedTarget && toolbarTargetMatchesCaptured(aimedTarget, expectedTarget)
@@ -2366,6 +2384,7 @@ function buildApplicationLaunchContext(appData = {}) {
         : null;
     return {
         flow_id: flowId,
+        invocation_id: launchReceipt,
         launch_key: launchKey,
         launch_receipt: launchReceipt,
         source: String(appData._source || appData.source || "").trim(),
@@ -2404,10 +2423,18 @@ function currentApplicationLaunchContext(appWindow = null) {
             console.warn('[gonna-win] Nieprawidlowy zapis celu startowego aplikacji', error);
         }
     }
+    const invocationId = String(
+        dataset.appInvocationId ||
+        pending.invocation_id ||
+        dataset.launchReceipt ||
+        pending.launch_receipt ||
+        ""
+    ).trim();
     return {
         flow_id: flowId,
-        launch_key: String(dataset.launchQueueKey || pending.launch_key || `${flowId || "manual"}:${appId}`).trim(),
-        launch_receipt: String(dataset.launchReceipt || pending.launch_receipt || "").trim(),
+        invocation_id: invocationId,
+        launch_key: String(dataset.launchQueueKey || pending.launch_key || invocationId).trim(),
+        launch_receipt: String(dataset.launchReceipt || pending.launch_receipt || invocationId).trim(),
         source: String(dataset.launchSource || pending.source || "").trim(),
         app_id: appId,
         app_name: String(dataset.appTitle || pending.app_name || "").trim(),
@@ -2425,6 +2452,7 @@ function applyApplicationLaunchContext(appWindow, fallbackAppData = {}) {
         ...(window.__pendingApplicationLaunchContext || {})
     };
     appWindow.dataset.appFlowId = context.flow_id || getCurrentAppFlowId();
+    appWindow.dataset.appInvocationId = context.invocation_id || context.launch_receipt || "";
     appWindow.dataset.launchQueueKey = context.launch_key || "";
     appWindow.dataset.launchReceipt = context.launch_receipt || "";
     appWindow.dataset.launchSource = context.source || "";
@@ -2516,7 +2544,9 @@ function launchApplicationEffect(appData) {
         app_id: id,
         app_name: appData.name || "",
         interface: type,
+        invocation_id: launchContext.invocation_id,
         launch_key: launchContext.launch_key,
+        expected_target_id: getToolbarTargetStableKey(launchContext.expected_target || {}),
         source: launchContext.source
     });
     const previousContext = window.__pendingApplicationLaunchContext;
@@ -6948,9 +6978,15 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
         appFlowTrace(flowId, "app_option_response", {
             app_id: appId,
             choice_id: choiceId,
+            invocation_id: context.invocation_id,
+            launch_receipt: context.launch_receipt,
+            expected_target_id: getToolbarTargetStableKey(context.expected_target || {}),
+            current_target_id: getToolbarTargetStableKey(((toolbarProfile || {}).aimed_target || {})),
             status: response.status,
             elapsed_ms: Math.round(performance.now() - startedAt),
             success: Boolean(data.success),
+            duplicate: Boolean(data.duplicate),
+            idempotent_replay: Boolean(data.idempotent_replay),
             captured: Boolean(data.captured_target),
             created_operations: (data.created_operations || []).map(op => op && op.operation_id)
         });

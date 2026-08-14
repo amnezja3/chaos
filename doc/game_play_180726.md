@@ -20327,6 +20327,325 @@ blokowania requestu mapy.
 
 ---
 
+# Sprint 130.8.9 — Target-Bound Application Receipt Cutover
+
+Status lokalny: IMPLEMENTED / oczekuje na walidację produkcyjną dwóch kolejnych
+celów tą samą aplikacją.
+
+Sprint naprawczy dla hakowania celu ustawionego lekkim kliknięciem nazwy w menu
+mapy, a następnie obsługiwanego aplikacjami uruchamianymi z pulpitu albo
+terminala. Nie zmienia balansu zabezpieczeń, capture, konfliktów, geometrii ani
+pracy territory workera.
+
+## Problem
+
+`POST /api/map/aim-target` zapisuje poprawny kanoniczny `aimed_target`, jednak
+ręczne uruchomienie aplikacji bez wpisu z `launch_queue` może odziedziczyć
+globalny `__lastHackFlowId`. Frontend tworzy wtedy zastępczy klucz:
+
+```text
+flowId:appId
+```
+
+i wysyła go do `/gonna-win` jako `launch_key`, który backend traktuje jak
+`launch_receipt`. Receipt nie zawiera tożsamości celu ani odrębnej instancji
+manualnego uruchomienia.
+
+Backend przechowuje wynik receipt przez 900 sekund. Ponowne uruchomienie tej
+samej aplikacji dla kolejnego celu może więc otrzymać replay payloadu
+poprzedniego celu, zanim endpoint zsynchronizuje profil i wykona guard
+`expected_target`.
+
+Skutki:
+
+* po kliknięciu opcji aplikacji belka wraca do poprzedniego celu,
+* aplikacja pokazuje sukces, lecz kropka znika po odświeżeniu prawdy,
+* ostatnia akcja nie domyka capture,
+* komplet kropek i 100% mogą opisywać payload innego celu,
+* uruchomienie narzędzia z mapy wychodzi z impasu, ponieważ `/hack-action`
+  generuje świeży receipt z `client_action_key`.
+
+## Cel
+
+Każde wykonanie aplikacji mapowej ma posiadać niezmienny kontekst:
+
+```text
+application invocation
+├── invocation_id
+├── launch_receipt
+├── app_id
+├── action_key
+├── target_identity
+├── flow_id — diagnostyka i korelacja
+└── source — map / desktop / terminal
+```
+
+Retry tego samego wykonania jest idempotentny. Nowe uruchomienie albo nowy cel
+zawsze otrzymują nowy receipt.
+
+## 1. Stabilna tożsamość celu w receipt
+
+Do korelacji używać tej samej funkcji tożsamości, która chroni
+`PlayerTargetRuntimeStore` i `/gonna-win`:
+
+```text
+target_id
+lub kanoniczny fallback pozycji/trybu celu
+```
+
+Receipt manualnego uruchomienia musi być generowany z co najmniej:
+
+```text
+username
+invocation_id
+app_id
+target_identity
+```
+
+`label`, skrócona nazwa na belce ani sam `flow_id` nie są tożsamością receipt.
+
+## 2. Nowa instancja manualnego uruchomienia
+
+Start aplikacji z pulpitu i terminala tworzy świeży `invocation_id` przed
+otwarciem lub hydratacją okna. Jedna instancja zachowuje ten identyfikator przez:
+
+* provisional,
+* hydration,
+* content autora,
+* wybór opcji,
+* OFS,
+* retry tego samego requestu,
+* scenę końcową.
+
+Nie wolno generować nowego receipt osobno przy każdym renderze sceny lub
+kliknięciu tego samego przycisku. Nie wolno też dziedziczyć receipt po zamkniętej
+albo zakończonej aplikacji.
+
+## 3. Oddzielenie flow od idempotencji
+
+`flow_id` pozostaje identyfikatorem diagnostycznym `APP_FLOW`, ale nie może być
+samodzielnym kluczem efektu gameplayowego.
+
+```text
+flow_id        = śledzenie całej podróży UI
+invocation_id  = pojedyncze uruchomienie aplikacji
+launch_receipt = idempotencja jednego efektu na jednym celu
+```
+
+`getCurrentAppFlowId()` może nadal korzystać z ostatniego flow do logów, lecz
+manualny `launch_receipt` nie może powstawać jako `flowId:appId`.
+
+## 4. Kontekst okna aplikacji
+
+`buildApplicationLaunchContext()` zapisuje pełny, zamrożony kontekst celu:
+
+```json
+{
+  "target_id": "...",
+  "lat": 0.0,
+  "lng": 0.0,
+  "label": "...",
+  "target_mode": "..."
+}
+```
+
+Kontekst jest przypisany do konkretnego okna oraz invocation. Hydration nie
+może zastąpić go globalnym `__pendingApplicationLaunchContext` innej aplikacji.
+
+Okno istniejącej aplikacji może zostać podniesione na wierzch tylko wtedy, gdy
+zgadzają się jednocześnie:
+
+* `app_id`,
+* interfejs,
+* stabilna tożsamość celu,
+* aktywna instancja uruchomienia.
+
+Zakończone okno poprzedniego celu nie może wykonywać następnej akcji.
+
+## 5. Guard replayu przed zwróceniem payloadu
+
+Backend przed zwróceniem istniejącego `app_action_receipt` porównuje:
+
+```text
+receipt.username
+receipt.app_id
+receipt.target_identity
+request.expected_target
+aktualny PlayerTargetRuntimeStore
+```
+
+Dozwolone wyniki:
+
+```text
+same invocation + same target  → idempotent replay
+target already captured        → superseded_by_capture
+receipt belongs to other target → 409 receipt_target_mismatch
+current selection changed      → 409 target_selection_changed
+```
+
+Backend nie może zwrócić starego `target` w odpowiedzi 200 dla nowej selekcji.
+Guard działa przed ścieżką `gonna_win_receipt_replay`.
+
+## 6. Jedna ścieżka aplikacji po wyborze celu
+
+Obie drogi mają kończyć się tym samym kontraktem:
+
+```text
+A. mapa → /hack-action → picker → launch_queue → aplikacja
+B. nazwa celu → /api/map/aim-target → pulpit/terminal → aplikacja
+
+→ frozen expected_target
+→ target-bound launch_receipt
+→ /gonna-win
+→ monotonic actions_allowed + security
+→ PlayerTargetRuntimeStore
+→ profil legacy jako projekcja
+→ capture albo dalszy postęp
+```
+
+Ścieżka B nie kopiuje całego `/hack-action`. Ma jedynie dostarczyć aplikacji
+ten sam poziom korelacji celu i idempotencji.
+
+## 7. Pasek, kropki i odpowiedzi spóźnione
+
+Belka korzysta wyłącznie z aktualnego autorytatywnego celu. Odpowiedź aplikacji
+może ją zaktualizować tylko wtedy, gdy jej zamrożony `expected_target` odpowiada
+bieżącemu targetowi.
+
+Replay albo spóźniona odpowiedź poprzedniego celu:
+
+* nie zmienia belki,
+* nie dodaje ani nie usuwa kropki,
+* nie zmienia `disarm_progress`,
+* nie odtwarza wyczyszczonego `aimed_target`,
+* nie uruchamia animacji capture,
+* nie publikuje delty nowego celu.
+
+Po capture cel jest czyszczony w runtime i profilu, marker dostaje deltę, a
+następna aplikacja rozpoczyna świeżą instancję.
+
+## 8. Capture i terytorium — bez zmiany zasad
+
+Po spełnieniu dotychczasowych warunków:
+
+```text
+>= 70% security off
++ scan_ports
++ exploit
++ sniff
++ trace
+```
+
+pozostaje obecny pipeline:
+
+1. atomowy capture celu,
+2. `PlayerTargetRuntimeStore.mark_captured`,
+3. `map.target_captured`,
+4. capture filaru konfliktu, jeśli dotyczy,
+5. dirty/changing i enqueue workera,
+6. publikacja nowej geometrii oraz snapshotu,
+7. gotowość na wskazanie kolejnego celu.
+
+Sprint nie dodaje synchronicznych rebuildów do `/gonna-win`, `/hack-action`,
+`/api/map/aim-target` ani endpointów mapy.
+
+## 9. Obserwowalność
+
+Rozszerzyć istniejące `APP_FLOW` bez logowania całego profilu:
+
+```text
+[APP_INVOCATION] created source=desktop app_id=... target_id=... invocation_id=...
+[GONNA_WIN_RECEIPT] new receipt=... target_id=...
+[GONNA_WIN_RECEIPT] replay receipt=... target_id=...
+[GONNA_WIN_CONFLICT] reason=receipt_target_mismatch expected=... receipt=...
+```
+
+Frontendowy trace dla odpowiedzi zawiera:
+
+```text
+invocation_id
+launch_receipt
+expected_target_id
+current_target_id
+duplicate
+idempotent_replay
+```
+
+## 10. Testy kontraktowe
+
+Minimum:
+
+1. Lekko wskazany cel A + cztery różne aplikacje z pulpitu kończą capture A.
+2. Lekko wskazany cel A + aplikacje z terminala kończą capture A.
+3. Mix pulpit/terminal zachowuje jeden cel i monotoniczne kropki.
+4. Po capture A lekkie wskazanie B i użycie tej samej aplikacji nie odtwarza A.
+5. Ten sam app i choice na A oraz B mają różne receipty.
+6. Retry jednego kliknięcia na A ma ten sam receipt i dokładnie jeden efekt.
+7. Odpowiedź A po wskazaniu B nie zmienia belki ani runtime B.
+8. Backend odrzuca replay receipt A przesłany z `expected_target` B.
+9. Capture zakończony przed spóźnioną odpowiedzią daje
+   `superseded_by_capture`, bez odtworzenia celu.
+10. Dwa równoległe okna różnych aplikacji na tym samym celu zachowują własne
+    invocation, ale wspólny monotoniczny postęp celu.
+11. Dwa różne cele nie współdzielą okna, receipt ani payloadu.
+12. Ścieżka mapowa `/hack-action` nadal działa bez zmiany receiptów kolejki.
+13. Zwykły cel, vulnerability, filar i inner konfliktu przechodzą oba warianty.
+14. Capture filaru nadal kolejkuje worker i nie robi geometrii w requeście.
+15. Cztery kropki, procent, runtime i profil legacy pokazują ten sam cel.
+
+## 11. Walidacja produkcyjna
+
+Test ręczny w jednej sesji, bez przeładowania desktopu:
+
+```text
+cel A → xmapper → sniff → capture
+cel B → xmapper → sniff → capture
+cel C → mix terminal/pulpit → capture
+cel D konfliktowy → mix terminal/pulpit → worker rebuild
+```
+
+Przy każdym kroku sprawdzić w trace:
+
+* nowy `invocation_id` dla nowego uruchomienia,
+* różny receipt pomiędzy celami,
+* stały receipt podczas retry jednego kliknięcia,
+* brak `gonna_win_receipt_replay` z payloadem innego targetu,
+* brak powrotu poprzedniego celu na belkę,
+* brak konieczności ratowania procesu triggerem z mapy.
+
+## 12. Kolejność wdrożenia
+
+1. Test odtwarzający replay poprzedniego celu.
+2. Generator manualnego invocation i target-bound receipt.
+3. Przeniesienie kontekstu przez wszystkie cztery typy aplikacji i hydration.
+4. Backendowy guard receipt przed replayem.
+5. Testy pulpit/terminal/mapa i odpowiedzi spóźnionych.
+6. Produkcyjny test dwóch kolejnych celów tą samą aplikacją.
+
+Nie usuwać istniejącego guardu `expected_target`, target-aware klucza okna ani
+CAS capture. Nowy receipt jest dodatkowym brakującym poziomem korelacji.
+
+## Poza zakresem
+
+* zmiana OFS i timingów prezentacji,
+* nowe aplikacje lub nowe typy interfejsu,
+* balans zabezpieczeń i próg capture,
+* zmiana zasad konfliktów lub multi-conflict,
+* przebudowa geometrii w requestach,
+* migracja historycznych receiptów,
+* zmiana TTL innych klas idempotencji.
+
+## DoD
+
+Sprint jest zakończony, gdy lekko wskazany cel można konsekwentnie przejąć
+aplikacjami z pulpitu, terminala albo ich miksem; ponowne użycie tej samej
+aplikacji dla następnego celu nie może odtworzyć starego payloadu; retry jednego
+kliknięcia pozostaje idempotentne; pasek, kropki, runtime i capture dotyczą
+zawsze tego samego celu; a ścieżka mapowa oraz worker terytoriów działają bez
+regresji i bez nowych rebuildów w requestach.
+
+---
+
 > Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.
 
 # Sprint 131 — GhostNetwork Suite: audyt widoczności części i integracja z Territory Control

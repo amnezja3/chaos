@@ -23907,11 +23907,16 @@ def gonna_win():
     ).strip()[:160]
     launch_source = str(data.get("launch_source") or data.get("source") or "").strip()[:64]
     expected_target = data.get("expected_target") if isinstance(data.get("expected_target"), dict) else {}
+    expected_target_id = (
+        build_operation_target_id(expected_target)
+        if target_has_stable_runtime_identity(expected_target)
+        else ""
+    )
     gonna_win_receipt_key = ""
     if launch_receipt and app_id and session.get("user"):
         receipt_scope = "operation_only" if operation_only else f"choice:{choice_id if choice_id is not None else 'auto'}"
         receipt_seed = "|".join([
-            "gonna_win",
+            "gonna_win_v2",
             str(session.get("user") or ""),
             str(app_id or ""),
             receipt_scope,
@@ -23923,11 +23928,40 @@ def gonna_win():
             username=session.get("user"),
             app_id=str(app_id or ""),
             action=receipt_scope,
-            target_key=launch_receipt,
+            target_key=expected_target_id,
             source=launch_source or "gonna_win",
             ttl_seconds=900,
         )
         if state != "new":
+            receipt_target_id = str((receipt or {}).get("target_key") or "").strip()
+            if receipt_target_id != expected_target_id:
+                payload = {
+                    "success": False,
+                    "blocked": True,
+                    "reason": "receipt_target_mismatch",
+                    "message": "Receipt aplikacji nalezy do innego celu. Uruchom aplikacje ponownie.",
+                    "expected_target_id": expected_target_id,
+                    "receipt_target_id": receipt_target_id,
+                    "created_operations": [],
+                }
+                app_flow_debug(
+                    flow_id,
+                    "gonna_win_receipt_target_mismatch",
+                    started_at=app_flow_started_at,
+                    app_id=app_id,
+                    choice_id=choice_id,
+                    operation_only=operation_only,
+                    receipt_key=gonna_win_receipt_key,
+                    expected_target_id=expected_target_id,
+                    receipt_target_id=receipt_target_id,
+                )
+                print(
+                    "[GONNA_WIN_CONFLICT] "
+                    f"reason=receipt_target_mismatch user={session.get('user')} app_id={app_id} "
+                    f"expected_target_id={expected_target_id} receipt_target_id={receipt_target_id}",
+                    flush=True,
+                )
+                return jsonify(payload), 409
             payload = copy.deepcopy((receipt or {}).get("payload") or {})
             status_code = int((receipt or {}).get("status_code") or 202)
             if not payload:
@@ -23950,6 +23984,7 @@ def gonna_win():
                 choice_id=choice_id,
                 operation_only=operation_only,
                 receipt_key=gonna_win_receipt_key,
+                expected_target_id=expected_target_id,
                 state=state,
                 status_code=status_code,
             )

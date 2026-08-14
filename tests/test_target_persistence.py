@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
 import run
-from database import DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, PlayerInventoryStore, PlayerTargetRuntimeStore, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore
+from database import AppActionReceiptStore, DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, PlayerInventoryStore, PlayerTargetRuntimeStore, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore
 from profileManagment import UserProfileManager
 from run import (
     active_operations_from_operations,
@@ -2860,6 +2860,76 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(payload["reason"], "target_selection_changed")
         self.assertEqual(payload["target"]["target_id"], current_target["target_id"])
         apply_actions.assert_not_called()
+
+    def test_gonna_win_rejects_same_launch_receipt_across_targets(self):
+        previous_target = {
+            "target_id": "map:52.1:21.2:Previous",
+            "lat": 52.1,
+            "lng": 21.2,
+            "label": "Previous",
+            "target_mode": "standard",
+        }
+        current_target = {
+            "target_id": "map:52.2:21.3:Current",
+            "lat": 52.2,
+            "lng": 21.3,
+            "label": "Current",
+            "target_mode": "standard",
+            "security": {"firewall": True},
+            "actions_allowed": {
+                "scan_ports": False, "exploit": False, "sniff": False, "trace": False,
+            },
+        }
+        profile = {
+            "username": "root",
+            "apps": [{
+                "id": "gps_tool",
+                "name": "GPS Tool",
+                "map_actions": ["trace_gps"],
+                "levels": [{"options": []}],
+            }],
+            "aimed_target": current_target,
+            "operations": [],
+        }
+
+        class FakeProfileManager:
+            def __init__(self, username):
+                self.username = username
+
+            def update_profile(self, updates):
+                return None
+
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "root"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            receipt_store = AppActionReceiptStore(os.path.join(tmpdir, "receipts.sqlite3"))
+            common_payload = {
+                "app_id": "gps_tool",
+                "operation_only": True,
+                "launch_receipt": "same-window-receipt",
+            }
+            with patch.object(run, "app_action_receipt_store", receipt_store), \
+                    patch.object(run, "sync_session_profile", return_value=profile), \
+                    patch.object(run, "UserProfileManager", FakeProfileManager), \
+                    patch.object(run, "apply_app_map_actions_to_aimed_target", return_value=(False, [])), \
+                    patch.object(run, "merge_latest_aimed_target_runtime_state"), \
+                    patch.object(run, "create_missing_operations_for_app_target", return_value=[]):
+                stale = client.post("/gonna-win", json={
+                    **common_payload,
+                    "expected_target": previous_target,
+                })
+                current = client.post("/gonna-win", json={
+                    **common_payload,
+                    "expected_target": current_target,
+                })
+
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(stale.get_json()["reason"], "target_selection_changed")
+        self.assertEqual(current.status_code, 409)
+        self.assertEqual(current.get_json()["reason"], "receipt_target_mismatch")
+        self.assertFalse(current.get_json().get("idempotent_replay", False))
 
     def test_gonna_win_treats_late_captured_previous_target_as_success_without_replacing_current(self):
         previous_target = {

@@ -177,6 +177,21 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
             2,
         )
 
+    def test_manual_application_launch_gets_target_bound_unique_receipt(self):
+        helper = self.function_source(
+            "function createApplicationInvocationReceipt",
+            "function buildApplicationLaunchContext",
+        )
+        context = self.function_source(
+            "function buildApplicationLaunchContext",
+            "function applicationResponseMatchesCurrentTarget",
+        )
+        self.assertIn("getToolbarTargetStableKey", helper)
+        self.assertIn("randomUUID", helper)
+        self.assertIn("explicitLaunchReceipt || createApplicationInvocationReceipt", context)
+        self.assertIn("invocation_id: launchReceipt", context)
+        self.assertNotIn('`${flowId || "manual"}:${appId || name}`', context)
+
     def test_scan_ports_profile_has_required_mvp_libraries(self):
         required = {
             "defaults", "duration_profiles", "provisional_timelines",

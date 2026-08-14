@@ -3,6 +3,25 @@
 #### historia dziennika w plikach 
 * `doc/project_journal_13082026.md`
 
+## 2026-08-14 - Sprint 130.8.9: receipt aplikacji związany z celem
+
+- Manualne uruchomienie aplikacji z pulpitu albo terminala dostaje teraz świeży
+  `invocation_id` i `launch_receipt`. Receipt jest tworzony raz dla okna i
+  przechodzi przez provisional, hydration, content autora, wybór oraz OFS;
+  `flow_id` pozostaje wyłącznie korelacją diagnostyczną.
+- Receipt zawiera skrót stabilnej tożsamości celu i losową tożsamość wykonania.
+  Ponowne otwarcie tej samej aplikacji dla następnego celu nie może już
+  odziedziczyć klucza `flowId:appId` ani payloadu poprzedniego celu.
+- Backend zapisuje kanoniczny `expected_target_id` przy receipcie. Replay jest
+  zwracany tylko dla tego samego receipt i tego samego celu; próba użycia go dla
+  innego celu kończy się kontrolowanym `409 receipt_target_mismatch` przed
+  odtworzeniem payloadu.
+- Trace `APP_FLOW` pokazuje `invocation_id`, receipt, oczekiwany i bieżący cel
+  oraz flagi replayu. Dodano regresje kontraktowe frontendu i endpointu dla
+  użycia jednego receipt na dwóch celach.
+- Capture, progi zabezpieczeń, konflikty, geometria i territory worker nie były
+  zmieniane.
+
 ## 2026-08-14 - recovery markerów po publikacji konfliktu
 
 - Końcowa delta workera `conflict_consolidated` uruchamia jeden debounced,
@@ -35,3 +54,36 @@
 - Walidacja: `python -m py_compile run.py database.py
   response_network\\territory_delta.py`, 48 testów celowanych oraz
   `git diff --check` — OK.
+
+
+
+## 2026-08-14 - audyt zmiany celu: mapa vs pulpit i terminal
+
+- Testy ujawniły, że lekkie wskazanie nowego celu z nagłówka menu mapy zapisuje
+  poprawny `aimed_target`, ale kliknięcie opcji w ponownie uruchomionej aplikacji
+  może przywrócić wynik dotyczący poprzedniego celu. Objaw obejmuje podmianę
+  belki, pozorny sukces bez trwałej kropki oraz brak finalnego capture mimo
+  kompletu akcji.
+- Ścieżka mapowa pozostaje spójna, ponieważ `/hack-action` kanonizuje cel,
+  zapisuje go w `PlayerTargetRuntimeStore` oraz tworzy dla startu aplikacji nowy
+  receipt oparty o `flow_id`, `client_action_key` i aplikację. Kolejka przekazuje
+  ten receipt dalej do `/gonna-win`.
+- Audyt wykazał lukę ścieżki pulpit/terminal: ręczny start dziedziczy globalny
+  `__lastHackFlowId`, a gdy nie ma receipt z kolejki, tworzy klucz
+  `flowId:appId`. `/gonna-win` wykorzystuje ten klucz jako receipt
+  idempotencyjny (TTL 900 s), więc kolejne uruchomienie tej samej aplikacji dla
+  nowego celu może dostać replay payloadu wcześniejszego celu. Uruchomienie
+  narzędzia z mapy generuje świeży receipt i dlatego wychodzi z impasu.
+- Guard odpowiedzi starego okna i klucz okna zawierający tożsamość celu są
+  potrzebne, ale nie rozwiązują replayu backendowego: payload jest już
+  sklasyfikowany jako duplikat zanim wykonywana jest aktualna akcja.
+- Wymagany kontrakt naprawczy: każda manualna instancja działania aplikacji musi
+  otrzymać nowy, niezmienny `launch_receipt`, związany jednocześnie z aplikacją i
+  stabilną tożsamością celu. Ponowienie tego samego kliknięcia może użyć tego
+  samego receipt, ale nowy cel ani nowe uruchomienie nie mogą dziedziczyć receipt
+  poprzedniej sesji. Po capture runtime ma zostać wyczyszczony, mapa ma dostać
+  deltę, konflikt ma trafić do workera, a kolejny start ma powstać na świeżym
+  kontekście.
+- Osobno wyrównano projekcję postępu celu: `disarm_progress` ze store jest
+  procentem 0-100, a nie surową liczbą wykonanych czterech akcji. Dzięki temu
+  belka i cztery kropki opisują ten sam stan autorytatywny.
