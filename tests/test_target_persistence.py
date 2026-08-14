@@ -153,6 +153,67 @@ class MapAimTargetEndpointTest(unittest.TestCase):
         self.assertTrue(requested["actions_allowed"]["sniff"])
         self.assertFalse(requested["security"]["firewall"])
 
+    def test_menu_title_initializes_full_standard_target_runtime(self):
+        client = run.app.test_client()
+        with client.session_transaction() as flask_session:
+            flask_session["user"] = "alice"
+        profile = {"username": "alice", "aimed_target": {}}
+
+        def return_requested(_username, _profile, target, **_kwargs):
+            return target
+
+        with patch.object(run, "load_profile_readonly", return_value=profile), \
+                patch.object(run.resources_store, "get", return_value={
+                    "firewall": True, "risk_score": 50, "description": "ignored"
+                }), \
+                patch.object(run, "choice", return_value=True), \
+                patch.object(run, "randint", return_value=37), \
+                patch.object(run, "set_player_aimed_target", side_effect=return_requested) as set_target, \
+                patch.object(run, "record_map_target_delta"):
+            response = client.post("/api/map/aim-target", json={
+                "lat": 52.1, "lng": 21.2, "label": "Bonito",
+                "source_type": "shop",
+            })
+
+        self.assertEqual(response.status_code, 200)
+        requested = set_target.call_args.args[2]
+        self.assertEqual(requested["target_id"], "map:52.1:21.2:Bonito")
+        self.assertEqual(requested["security"], {"firewall": True, "risk_score": 37})
+        self.assertEqual(requested["actions_allowed"], {
+            "scan_ports": False, "exploit": False, "sniff": False, "trace": False,
+        })
+
+    def test_menu_title_uses_canonical_conflict_target(self):
+        client = run.app.test_client()
+        with client.session_transaction() as flask_session:
+            flask_session["user"] = "alice"
+        profile = {"username": "alice", "aimed_target": {}}
+        canonical = {
+            "target_id": "territory:canonical-pillar",
+            "lat": 52.1, "lng": 21.2, "label": "Pillar",
+            "owner_username": "bob", "foreign_area_id": 44,
+            "security": {"firewall": True},
+        }
+
+        def return_requested(_username, _profile, target, **_kwargs):
+            return target
+
+        with patch.object(run, "load_profile_readonly", return_value=profile), \
+                patch.object(run, "find_contested_target", return_value=canonical), \
+                patch.object(run, "set_player_aimed_target", side_effect=return_requested) as set_target, \
+                patch.object(run, "record_map_target_delta"):
+            response = client.post("/api/map/aim-target", json={
+                "lat": 52.1, "lng": 21.2, "label": "Pillar",
+                "target_mode": "territory_contest", "foreign_area_id": 44,
+                "target_id": "display:pillar",
+            })
+
+        self.assertEqual(response.status_code, 200)
+        requested = set_target.call_args.args[2]
+        self.assertEqual(requested["target_id"], "territory:canonical-pillar")
+        self.assertEqual(requested["contest_owner_username"], "bob")
+        self.assertEqual(requested["security"], {"firewall": True})
+
 class DevBugReportStoreTest(unittest.TestCase):
     def test_dev_mode_gate_uses_environment(self):
         with patch.dict(os.environ, {"APP_ENV": "production", "CHAOS_DEV_MODE": ""}, clear=False):

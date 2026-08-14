@@ -14105,6 +14105,27 @@ def merge_latest_aimed_target_runtime_state(profile, username):
             for key, value in (stored_target.get("security") or {}).items():
                 if value is False:
                     security[key] = False
+            # During the target-runtime cutover an app result can already be
+            # durable in the profile projection while an older runtime row is
+            # still active. Both progress dimensions are monotonic: enabled
+            # actions and disabled security may be merged without allowing an
+            # older request to restore a lock or remove a completed action.
+            try:
+                latest_profile = user_store.get_profile(username) or {}
+            except Exception:
+                latest_profile = {}
+            latest_target = latest_profile.get("aimed_target") or {}
+            if (
+                isinstance(latest_target, dict)
+                and latest_target
+                and targets_share_runtime_identity(latest_target, aimed_target)
+            ):
+                for key, value in (latest_target.get("actions_allowed") or {}).items():
+                    if value is True:
+                        allowed[key] = True
+                for key, value in (latest_target.get("security") or {}).items():
+                    if value is False:
+                        security[key] = False
             if not aimed_target.get("target_id"):
                 aimed_target["target_id"] = stored_target.get("target_id") or build_operation_target_id(aimed_target)
             try:
@@ -18196,6 +18217,110 @@ def map_aim_target():
         requested["target_id"] = previous.get("target_id") or requested.get("target_id")
         requested["actions_allowed"] = dict(previous.get("actions_allowed") or requested["actions_allowed"])
         requested["security"] = dict(previous.get("security") or {})
+    else:
+        # A title click is only a lightweight selection gesture, but the
+        # persisted target must have the same canonical runtime contract as a
+        # target selected through /hack-action. Otherwise desktop/terminal
+        # apps mutate an empty presentation object and a profile refresh rolls
+        # their apparent progress back.
+        canonical_target = None
+        vulnerability_id = requested.get("vulnerability_id")
+        if vulnerability_id:
+            try:
+                report = vulnerability_store.get(int(vulnerability_id))
+            except (TypeError, ValueError):
+                report = None
+            if report and report.get("status") == "active":
+                report_target = dict(report.get("target") or {})
+                canonical_target = {
+                    **requested,
+                    **report_target,
+                    "target_id": f"vulnerability:{report.get('id')}",
+                    "target_mode": "vulnerability",
+                    "vulnerability_id": report.get("id"),
+                    "security": dict(report.get("security") or report_target.get("security") or {}),
+                }
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": "stale_vulnerability_target",
+                    "message": "Ta podatnosc nie jest juz aktywna. Odswiez mape.",
+                }), 409
+
+        conflict_hint = (
+            requested.get("target_mode") == "territory_contest"
+            or requested.get("foreign_area_id")
+            or requested.get("stable_conflict_id")
+        )
+        if canonical_target is None and conflict_hint:
+            contested = find_contested_target(
+                username,
+                lat,
+                lng,
+                label=label,
+                target_id=requested.get("target_id"),
+                conflict_id=requested.get("stable_conflict_id"),
+            )
+            if contested:
+                canonical_target = {
+                    **requested,
+                    **dict(contested),
+                    "target_mode": "territory_contest",
+                    "target_id": contested.get("target_id") or build_operation_target_id(contested),
+                    "contest_owner_username": (
+                        contested.get("contest_owner_username")
+                        or contested.get("expected_owner_username")
+                        or contested.get("owner_username")
+                    ),
+                    "security": dict(contested.get("security") or {}),
+                }
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": "stale_conflict_target",
+                    "message": "Ten cel nie nalezy juz do aktywnego konfliktu. Odswiez mape.",
+                }), 409
+
+        if canonical_target is None and requested.get("target_mode") == "player":
+            target_username = str(requested.get("target_username") or "").strip()
+            target_profile = user_store.get_profile(target_username) if target_username else None
+            if target_profile:
+                player_security = dict(target_profile.get("security") or {})
+                if not player_security:
+                    security_template = resources_store.get("user_security", default={})
+                    player_security = {
+                        key: value
+                        for key, value in (security_template or {}).items()
+                        if isinstance(value, (bool, int))
+                    }
+                canonical_target = {
+                    **requested,
+                    "target_id": f"player:{target_username}",
+                    "target_mode": "player",
+                    "target_username": target_username,
+                    "username": target_username,
+                    "security": player_security,
+                }
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": "player_target_not_found",
+                    "message": "Gracz celu nie istnieje.",
+                }), 404
+
+        if canonical_target is None:
+            security_template = resources_store.get("user_security", default={})
+            requested["security"] = {
+                key: choice([True, False]) if isinstance(value, bool) else randint(0, 100)
+                for key, value in (security_template or {}).items()
+                if isinstance(value, (bool, int))
+            }
+            requested["target_id"] = build_operation_target_id(requested)
+        else:
+            canonical_target["actions_allowed"] = dict(
+                canonical_target.get("actions_allowed") or requested["actions_allowed"]
+            )
+            requested = canonical_target
     apply_target_display_label(requested)
     aimed_target = set_player_aimed_target(username, profile, requested, reason="map_menu_title_aim")
     if not aimed_target:
