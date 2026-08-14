@@ -1593,8 +1593,15 @@
       background: #032b14;
     }
 
-    .chaos-map-refresh-control .chaos-map-refresh-button.is-refreshing {
-      animation: chaos-map-manual-refresh 0.7s linear infinite;
+    .chaos-map-refresh-control .chaos-map-refresh-button.is-refreshing,
+    .chaos-map-refresh-control .chaos-map-refresh-button.is-refreshing:hover,
+    .chaos-map-refresh-control .chaos-map-refresh-button.is-refreshing:focus-visible {
+      color: #19ef75;
+      background: rgba(0, 18, 8, 0.94);
+    }
+
+    .chaos-map-refresh-control .chaos-map-refresh-button.is-refreshing .chaos-map-refresh-icon {
+      animation: chaos-map-manual-refresh 0.55s ease-in-out 1;
     }
 
     @keyframes chaos-map-manual-refresh {
@@ -1654,6 +1661,40 @@
         const clanVulnerabilityRegistry = new Map();
         window.targetMarkers = window.targetMarkers || {};
         const baseZoom = map.getZoom();
+        const MANUAL_MAP_VIEW_STORAGE_KEY = `chaos:map:manual-view:${window.mapViewerUsername || 'anonymous'}`;
+
+        function saveManualMapViewport() {
+            try {
+                const center = map.getCenter();
+                sessionStorage.setItem(MANUAL_MAP_VIEW_STORAGE_KEY, JSON.stringify({
+                    lat: Number(center.lat),
+                    lng: Number(center.lng),
+                    zoom: Number(map.getZoom())
+                }));
+            } catch (error) {
+                console.warn('[map refresh] viewport save failed', error);
+            }
+        }
+
+        function restoreManualMapViewport() {
+            try {
+                const raw = sessionStorage.getItem(MANUAL_MAP_VIEW_STORAGE_KEY);
+                sessionStorage.removeItem(MANUAL_MAP_VIEW_STORAGE_KEY);
+                if (!raw) return false;
+                const saved = JSON.parse(raw);
+                const lat = Number(saved.lat);
+                const lng = Number(saved.lng);
+                const zoom = Number(saved.zoom);
+                if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(zoom)) return false;
+                map.setView([lat, lng], zoom, { animate: false, reset: true });
+                return true;
+            } catch (error) {
+                console.warn('[map refresh] viewport restore failed', error);
+                return false;
+            }
+        }
+
+        restoreManualMapViewport();
 
         const ManualMapRefreshControl = L.Control.extend({
             options: { position: 'topleft' },
@@ -1665,6 +1706,7 @@
                 button.setAttribute('role', 'button');
                 button.setAttribute('aria-label', 'Odśwież stan mapy');
                 button.textContent = '↻';
+                button.innerHTML = '<span class="chaos-map-refresh-icon" aria-hidden="true">&#8635;</span>';
                 L.DomEvent.disableClickPropagation(container);
                 L.DomEvent.disableScrollPropagation(container);
                 L.DomEvent.on(button, 'click', function(event) {
@@ -1673,7 +1715,8 @@
                     if (button.dataset.busy === '1') return;
                     button.dataset.busy = '1';
                     button.classList.add('is-refreshing');
-                    window.location.reload();
+                    saveManualMapViewport();
+                    window.setTimeout(() => window.location.reload(), 560);
                 });
                 return container;
             }

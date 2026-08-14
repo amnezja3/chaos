@@ -24,6 +24,14 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         end = self.terminal.index(end_marker, start)
         return self.terminal[start:end]
 
+    def test_toolbar_progress_uses_completed_actions_when_backend_percent_is_stale(self):
+        source = self.function_source(
+            "function calculateTargetDisarmProgress",
+            "function resolveTargetBarFeedback",
+        )
+        self.assertIn("actionProgress", source)
+        self.assertIn("Math.max(backendProgress || 0, actionProgress || 0)", source)
+
     def test_feature_flags_are_disabled_by_default_and_reach_desktop(self):
         self.assertIn('env_bool("CHAOS_OPERATION_FEEDBACK_ENABLED", False)', self.config)
         self.assertIn('env_bool("CHAOS_OFS_VISUAL_LIFT_ENABLED", True)', self.config)

@@ -1164,7 +1164,18 @@ function calculateTargetDisarmProgress(aimedTarget) {
     const backendProgress = targetFeedbackClampPercent(
         target.disarm_progress !== undefined ? target.disarm_progress : feedback.disarm_progress
     );
-    if (backendProgress !== null) return backendProgress;
+    const actions = target.actions_allowed && typeof target.actions_allowed === "object"
+        ? target.actions_allowed
+        : {};
+    const actionStates = TARGET_FEEDBACK_ACTION_KEYS
+        .filter(key => typeof actions[key] === "boolean")
+        .map(key => actions[key] === true);
+    const actionProgress = actionStates.length
+        ? Math.round((actionStates.filter(Boolean).length / actionStates.length) * 100)
+        : null;
+    if (backendProgress !== null || actionProgress !== null) {
+        return Math.max(backendProgress || 0, actionProgress || 0);
+    }
 
     const security = target.security && typeof target.security === "object" ? target.security : {};
     const keys = TARGET_FEEDBACK_SECURITY_KEYS.filter(key => typeof security[key] === "boolean");

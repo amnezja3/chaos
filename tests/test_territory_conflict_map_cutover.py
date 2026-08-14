@@ -286,6 +286,10 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("ManualMapRefreshControl", source)
         self.assertIn("Odśwież stan mapy", source)
         self.assertIn("window.location.reload()", source)
+        self.assertIn("saveManualMapViewport()", source)
+        self.assertIn("restoreManualMapViewport()", source)
+        self.assertIn("sessionStorage.removeItem(MANUAL_MAP_VIEW_STORAGE_KEY)", source)
+        self.assertIn("chaos-map-refresh-icon", source)
 
         consolidation_source = inspect.getsource(run.consolidate_conflict_rebuild)
         self.assertIn("_conflict_rebuild_targets", consolidation_source)
