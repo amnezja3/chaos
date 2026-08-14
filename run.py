@@ -17558,48 +17558,30 @@ def command():
         if not found_app:
             return jsonify({"response": f"Nie znaleziono aplikacji o ID: {app_id}"})
 
+        # /command is only the launcher. The application window snapshots the
+        # currently visible target and /gonna-win performs the single guarded
+        # runtime mutation with that expected_target. Mutating here as well
+        # used a profile loaded before the window existed and could restore a
+        # previously hacked target while the toolbar already showed a newer
+        # selection (desktop/terminal target "ping-pong").
         created_operations = []
-        target_changed = False
         marked_actions = []
-        if not skip_map_runtime:
-            target_changed, marked_actions = apply_app_map_actions_to_aimed_target(profile, found_app, session.get("user"))
-            if profile.get("aimed_target"):
-                merge_latest_aimed_target_runtime_state(profile, session.get("user"))
-                created_operations = create_missing_operations_for_app_target(
-                    profile,
-                    session.get("user"),
-                    found_app,
-                    profile.get("aimed_target") or {},
-                )
-        else:
-            app_flow_debug(
-                flow_id,
-                "command_skip_map_runtime_for_launch_queue",
-                user=session.get("user"),
-                app_id=app_id,
-                app_name=found_app.get("name"),
-            )
-
-        if target_changed or created_operations:
-            UserProfileManager(session["user"]).update_profile({
-                "aimed_target": profile.get("aimed_target", {}),
-                "operations": profile.get("operations", []),
-            })
-            session["profile"] = profile
-            if target_changed:
-                record_map_target_delta(
-                    session["user"],
-                    profile.get("aimed_target") or {},
-                    change_type="map.target_updated",
-                    reason="app_launch_actions_allowed",
-                )
+        app_flow_debug(
+            flow_id,
+            "command_defer_map_runtime_to_application",
+            user=session.get("user"),
+            app_id=app_id,
+            app_name=found_app.get("name"),
+            skip_map_runtime=skip_map_runtime,
+            target_id=build_operation_target_id(profile.get("aimed_target") or {}),
+        )
 
         return jsonify({
             "runApp": True,
             "consoleEffect": f"Uruchamianie aplikacji {found_app['name']}...",
             "applicationId": app_id,
             "applicationEffect": found_app,
-            "target": profile.get("aimed_target") if target_changed else None,
+            "target": None,
             "actions_allowed_marked": marked_actions,
             "created_operations": created_operations,
         })

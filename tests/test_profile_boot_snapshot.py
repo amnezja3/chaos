@@ -70,6 +70,25 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         self.assertIn("persist_normalization=False", endpoint)
         self.assertNotIn("rebuild_territory=not skip_map_runtime", endpoint)
 
+    def test_terminal_command_only_launches_app_and_defers_target_mutation(self):
+        start = self.source.index('@app.route("/command"')
+        end = self.source.index("@app.route", start + 20)
+        endpoint = self.source[start:end]
+
+        self.assertIn("command_defer_map_runtime_to_application", endpoint)
+        self.assertIn('"target": None', endpoint)
+        self.assertNotIn("apply_app_map_actions_to_aimed_target", endpoint)
+        self.assertNotIn("create_missing_operations_for_app_target", endpoint)
+
+    def test_non_choice_feedback_does_not_reference_choice_variable(self):
+        terminal = Path("static/js/terminal.js").read_text(encoding="utf-8")
+        start = terminal.index("async function notifyGonnaWin(")
+        end = terminal.index("function notifyOpenMapsTargetHacked", start)
+        helper = terminal[start:end]
+
+        self.assertNotIn("choiceId", helper)
+        self.assertIn("choice_id: null", helper)
+
     def test_lightweight_sync_can_skip_filesystem_session_cache(self):
         start = self.source.index("def sync_session_profile")
         end = self.source.index("def merge_captured_targets_into_profile", start)

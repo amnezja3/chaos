@@ -4914,7 +4914,7 @@ async function notifyGonnaWin(appId, appWindow = null, { legacyWait = false } = 
         if (!responseMatchesCurrentTarget) {
             appFlowTrace(flowId, "stale_target_response_ignored", {
                 app_id: appId,
-                choice_id: choiceId,
+                choice_id: null,
                 expected_target: context.expected_target,
                 current_target: ((toolbarProfile || {}).aimed_target || {})
             });
