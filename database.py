@@ -6692,9 +6692,28 @@ class PlayerTargetRuntimeStore:
         security = target.get("security") or {}
         if not isinstance(security, dict):
             security = {}
-        allowed_score = sum(1 for value in allowed.values() if value is True)
-        disabled_score = sum(1 for value in security.values() if value is False)
-        return int(max(allowed_score, disabled_score))
+        # Runtime and frontend share a percentage contract here. Older code
+        # persisted the raw number of completed actions (1..4), which made the
+        # toolbar render a nearly invisible 1-4% line despite lit action dots.
+        action_keys = ("scan_ports", "exploit", "sniff", "trace")
+        action_values = [allowed.get(key) for key in action_keys]
+        action_progress = round(
+            (sum(1 for value in action_values if value is True) / len(action_keys)) * 100
+        )
+        security_values = [value for value in security.values() if isinstance(value, bool)]
+        security_progress = (
+            round(
+                (sum(1 for value in security_values if value is False) / len(security_values)) * 100
+            )
+            if security_values
+            else 0
+        )
+        explicit_progress = target.get("disarm_progress")
+        try:
+            explicit_progress = max(0, min(100, int(explicit_progress)))
+        except (TypeError, ValueError):
+            explicit_progress = 0
+        return int(max(action_progress, security_progress, explicit_progress))
 
     @staticmethod
     def _merge_actions(current, incoming):
@@ -6725,6 +6744,7 @@ class PlayerTargetRuntimeStore:
             target["security"] = security if isinstance(security, dict) else {}
             target["actions_allowed"] = actions_allowed if isinstance(actions_allowed, dict) else {}
             target["target_id"] = target.get("target_id") or row["target_key"]
+            target["disarm_progress"] = int(row["disarm_progress"] or 0)
         return {
             "username": row["username"],
             "target_key": row["target_key"],

@@ -256,6 +256,32 @@ class MapAimTargetEndpointTest(unittest.TestCase):
 
 
 class PlayerTargetRuntimeIdentityTest(unittest.TestCase):
+    def test_runtime_exposes_disarm_progress_as_percentage(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            store = PlayerTargetRuntimeStore(db_path=path)
+            store.upsert_aimed("alice", {
+                "target_id": "map:52.1:21.2:Target",
+                "lat": 52.1,
+                "lng": 21.2,
+                "label": "Target",
+                "actions_allowed": {
+                    "scan_ports": True,
+                    "exploit": False,
+                    "sniff": False,
+                    "trace": False,
+                },
+            })
+
+            target = store.get_active_target("alice")
+            self.assertEqual(target["disarm_progress"], 25)
+        finally:
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{path}{suffix}"
+                if os.path.exists(candidate):
+                    os.remove(candidate)
+
     def test_same_ordinary_poi_merges_progress_across_display_ids(self):
         fd, path = tempfile.mkstemp(suffix=".sqlite3")
         os.close(fd)
