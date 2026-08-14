@@ -3,6 +3,19 @@
 #### historia dziennika w plikach 
 * `doc/project_journal_13082026.md`
 
+## 2026-08-14 - Secret Path: lore dla lekkiego oznaczania celu
+
+- Klikniecie nazwy celu w menu hakowania zostalo nazwane ukryta sciezka
+  `Secret Path`. Po potwierdzonym zapisie kanonicznego celu mapa uruchamia
+  czterosekundowe show z przyciemnieniem, glitchem i sygnetem laczacym tarcze,
+  ostrza oraz impuls.
+- Dodano szesc losowanych scen lore. Komunikuja naprawienie kanalu celu,
+  pominiecie pickera, gotowosc aplikacji pulpitu i terminala oraz przewage
+  wynikajaca z odkrycia ukrytej sciezki interfejsu.
+- Efekt jest warstwa prezentacyjna: nie zmienia progow zabezpieczen, wyniku
+  operacji ani balansu. Odpala sie dopiero po sukcesie `/api/map/aim-target`,
+  nie uruchamia mapowego boot loadera i nie przechwytuje interakcji z mapa.
+
 ## 2026-08-14 - Sprint 130.8.9: receipt aplikacji związany z celem
 
 - Manualne uruchomienie aplikacji z pulpitu albo terminala dostaje teraz świeży

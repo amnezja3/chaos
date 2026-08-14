@@ -111,6 +111,17 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("pending-hack-target-marker", self.map_template)
         self.assertIn("removeMapLayerSafe(pendingTargetMarker)", self.map_template)
 
+    def test_lightweight_target_path_runs_four_second_lore_show_after_success(self):
+        self.assertIn("const secretPathLoreScenes = Object.freeze([", self.map_template)
+        self.assertEqual(self.map_template.count("eyebrow: '"), 6)
+        self.assertIn("function showSecretPathLore(target = {})", self.map_template)
+        self.assertIn("}, 4000);", self.map_template)
+        aim_start = self.map_template.index("async function aimMapTargetOnly")
+        aim_end = self.map_template.index("function findClanVulnerabilityForTarget", aim_start)
+        aim_branch = self.map_template[aim_start:aim_end]
+        self.assertLess(aim_branch.index("if (!response.ok"), aim_branch.index("showSecretPathLore(data.target)"))
+        self.assertNotIn("beginMapLoading", aim_branch)
+
 
 if __name__ == "__main__":
     unittest.main()
