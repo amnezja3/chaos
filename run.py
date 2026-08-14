@@ -18327,9 +18327,12 @@ def map_aim_target():
             }
             requested["target_id"] = build_operation_target_id(requested)
         else:
-            canonical_target["actions_allowed"] = dict(
-                canonical_target.get("actions_allowed") or requested["actions_allowed"]
-            )
+            # Conflict/captured target snapshots describe the owner's object
+            # and may contain that owner's completed map actions. They are not
+            # the attacker's disarm progress. A fresh lightweight selection
+            # starts with the same empty action contract as /hack-action while
+            # retaining the object's real security configuration.
+            canonical_target["actions_allowed"] = dict(requested["actions_allowed"])
             requested = canonical_target
     apply_target_display_label(requested)
     aimed_target = set_player_aimed_target(username, profile, requested, reason="map_menu_title_aim")

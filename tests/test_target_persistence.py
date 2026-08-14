@@ -193,6 +193,9 @@ class MapAimTargetEndpointTest(unittest.TestCase):
             "lat": 52.1, "lng": 21.2, "label": "Pillar",
             "owner_username": "bob", "foreign_area_id": 44,
             "security": {"firewall": True},
+            "actions_allowed": {
+                "scan_ports": True, "exploit": True, "sniff": True, "trace": True,
+            },
         }
 
         def return_requested(_username, _profile, target, **_kwargs):
@@ -213,6 +216,9 @@ class MapAimTargetEndpointTest(unittest.TestCase):
         self.assertEqual(requested["target_id"], "territory:canonical-pillar")
         self.assertEqual(requested["contest_owner_username"], "bob")
         self.assertEqual(requested["security"], {"firewall": True})
+        self.assertEqual(requested["actions_allowed"], {
+            "scan_ports": False, "exploit": False, "sniff": False, "trace": False,
+        })
 
 
 class PlayerTargetRuntimeIdentityTest(unittest.TestCase):
