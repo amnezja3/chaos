@@ -6651,6 +6651,38 @@ class PlayerTargetRuntimeStore:
         key = f"map:{lat}:{lng}:{label}"
         return "" if PlayerTargetRuntimeStore._is_placeholder_target_key(key) else key
 
+    @staticmethod
+    def _ordinary_map_position_key(target, precision=5):
+        """Return a coordinate identity only for ordinary map POIs.
+
+        Map labels are presentation data and can differ between the lightweight
+        title click, the picker and an installed app. Special targets keep their
+        strict domain identity and must never be aliased by coordinates.
+        """
+        target = target if isinstance(target, dict) else {}
+        if (
+            str(target.get("target_mode") or "").strip() in {"player", "territory_contest", "vulnerability"}
+            or target.get("target_username")
+            or target.get("vulnerability_id")
+            or target.get("foreign_area_id")
+            or target.get("stable_conflict_id")
+            or target.get("conflict_id")
+        ):
+            return None
+        try:
+            return (
+                round(float(target.get("lat")), precision),
+                round(float(target.get("lng", target.get("lon"))), precision),
+            )
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def _same_ordinary_map_target(cls, current_target, incoming_target):
+        current_position = cls._ordinary_map_position_key(current_target)
+        incoming_position = cls._ordinary_map_position_key(incoming_target)
+        return bool(current_position and current_position == incoming_position)
+
     @classmethod
     def _progress_from_target(cls, target):
         target = target if isinstance(target, dict) else {}
@@ -6758,7 +6790,14 @@ class PlayerTargetRuntimeStore:
                 (username,),
             ).fetchone()
             current = self._row_payload(row)
-            if current and current.get("target_key") == target_key and current.get("status") == self.STATUS_CAPTURED:
+            same_runtime_target = bool(
+                current
+                and (
+                    current.get("target_key") == target_key
+                    or self._same_ordinary_map_target(current.get("target"), target)
+                )
+            )
+            if same_runtime_target and current.get("status") == self.STATUS_CAPTURED:
                 self._record_event(conn, username, "target.aimed_rejected", target_key, current.get("version"), {"source": source})
                 return {
                     "changed": False,
@@ -6767,7 +6806,7 @@ class PlayerTargetRuntimeStore:
                     "version": current.get("version", 0),
                 }
 
-            if current and current.get("target_key") == target_key:
+            if same_runtime_target:
                 merged_security = self._merge_security(current.get("security"), incoming_security)
                 merged_actions = self._merge_actions(current.get("actions_allowed"), incoming_actions)
                 merged_target = dict(current.get("target") or {})
@@ -6777,6 +6816,11 @@ class PlayerTargetRuntimeStore:
                     merged_target[key] = value
                 merged_target["security"] = merged_security
                 merged_target["actions_allowed"] = merged_actions
+                # Keep the identity already handed to the application window.
+                # A later payload may carry another display-derived map id for
+                # the same coordinates; changing it would split progress.
+                target_key = current.get("target_key") or target_key
+                merged_target["target_id"] = target_key
                 progress = max(int(current.get("disarm_progress") or 0), incoming_progress)
                 version = int(current.get("version") or 0) + 1
             else:
@@ -6817,7 +6861,7 @@ class PlayerTargetRuntimeStore:
                     now,
                 ),
             )
-            event_type = "target.progressed" if current and current.get("target_key") == target_key else "target.aimed"
+            event_type = "target.progressed" if same_runtime_target else "target.aimed"
             self._record_event(conn, username, event_type, target_key, version, {"source": source})
             return {
                 "changed": True,

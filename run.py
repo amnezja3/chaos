@@ -18183,6 +18183,16 @@ def map_aim_target():
         return jsonify({"success": False, "error": "profile_not_found"}), 404
     profile = dict(profile)
     previous = profile.get("aimed_target") or {}
+    # The runtime row is authoritative. The legacy profile projection can lag
+    # behind a desktop/terminal app finishing in another gunicorn worker.
+    try:
+        runtime_previous = player_target_runtime_store.get_active_target(username)
+    except Exception as exc:
+        print(f"[target runtime] lightweight aim read failed user={username} error={exc}", flush=True)
+        runtime_previous = {}
+    if isinstance(runtime_previous, dict) and runtime_previous:
+        previous = runtime_previous
+        profile["aimed_target"] = dict(runtime_previous)
     requested = {
         "lat": lat, "lng": lng, "label": label,
         "name": str(data.get("name") or label),

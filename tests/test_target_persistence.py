@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
 import run
-from database import DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, PlayerInventoryStore, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore
+from database import DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, PlayerInventoryStore, PlayerTargetRuntimeStore, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore
 from profileManagment import UserProfileManager
 from run import (
     active_operations_from_operations,
@@ -213,6 +213,75 @@ class MapAimTargetEndpointTest(unittest.TestCase):
         self.assertEqual(requested["target_id"], "territory:canonical-pillar")
         self.assertEqual(requested["contest_owner_username"], "bob")
         self.assertEqual(requested["security"], {"firewall": True})
+
+
+class PlayerTargetRuntimeIdentityTest(unittest.TestCase):
+    def test_same_ordinary_poi_merges_progress_across_display_ids(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            store = PlayerTargetRuntimeStore(db_path=path)
+            first = store.upsert_aimed("alice", {
+                "target_id": "map:52.1:21.2:Bonito",
+                "target_mode": "standard",
+                "lat": 52.1,
+                "lng": 21.2,
+                "label": "Bonito",
+                "actions_allowed": {"scan_ports": True, "exploit": False},
+                "security": {"firewall": False, "kernel_guard": True},
+            })
+            second = store.upsert_aimed("alice", {
+                "target_id": "map:52.10000:21.20000:Salon Bonito",
+                "target_mode": "standard",
+                "lat": 52.1000001,
+                "lng": 21.2000001,
+                "label": "Salon Bonito",
+                "actions_allowed": {"scan_ports": False, "exploit": True},
+                "security": {"firewall": True, "kernel_guard": False},
+            }, status="in_progress")
+
+            target = store.get_active_target("alice")
+            self.assertEqual(first["target"]["target_id"], target["target_id"])
+            self.assertEqual(second["target"]["target_id"], target["target_id"])
+            self.assertTrue(target["actions_allowed"]["scan_ports"])
+            self.assertTrue(target["actions_allowed"]["exploit"])
+            self.assertFalse(target["security"]["firewall"])
+            self.assertFalse(target["security"]["kernel_guard"])
+        finally:
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{path}{suffix}"
+                if os.path.exists(candidate):
+                    os.remove(candidate)
+
+    def test_special_targets_are_not_aliased_only_by_position(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            store = PlayerTargetRuntimeStore(db_path=path)
+            store.upsert_aimed("alice", {
+                "target_id": "territory:first",
+                "target_mode": "territory_contest",
+                "foreign_area_id": 11,
+                "lat": 52.1,
+                "lng": 21.2,
+                "actions_allowed": {"scan_ports": True},
+            })
+            store.upsert_aimed("alice", {
+                "target_id": "territory:second",
+                "target_mode": "territory_contest",
+                "foreign_area_id": 12,
+                "lat": 52.1,
+                "lng": 21.2,
+                "actions_allowed": {"scan_ports": False},
+            })
+            target = store.get_active_target("alice")
+            self.assertEqual(target["target_id"], "territory:second")
+            self.assertFalse(target["actions_allowed"]["scan_ports"])
+        finally:
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{path}{suffix}"
+                if os.path.exists(candidate):
+                    os.remove(candidate)
 
 class DevBugReportStoreTest(unittest.TestCase):
     def test_dev_mode_gate_uses_environment(self):
