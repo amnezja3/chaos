@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "base_path": "/static/audio/sfx",
+  "buses": {
+    "lore": { "max_voices": 1 },
+    "gameplay": { "max_voices": 2 },
+    "message": { "max_voices": 2 },
+    "system": { "max_voices": 1 },
+    "ui": { "max_voices": 3 }
+  },
+  "events": {}
+}

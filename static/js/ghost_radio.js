@@ -16,6 +16,10 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
         volume: 0.8,
         previousVolume: 0.8,
         muted: false,
+        duckGain: 1,
+        duckRequests: new Map(),
+        duckSequence: 0,
+        syncingVolume: false,
         firstInteractionBound: false,
         firstInteractionAttempted: false,
         autostartBlocked: false,
@@ -181,9 +185,23 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
 
     function syncAudioSettings() {
         if (!state.audio) return;
-        state.audio.volume = Math.max(0, Math.min(1, Number(state.volume) || 0));
+        const userVolume = Math.max(0, Math.min(1, Number(state.volume) || 0));
+        const duckGain = Math.max(0, Math.min(1, Number(state.duckGain) || 0));
+        state.syncingVolume = true;
+        state.audio.volume = userVolume * duckGain;
         state.audio.muted = Boolean(state.muted);
+        state.syncingVolume = false;
         updateVolumeView();
+    }
+
+    function refreshDuckGain() {
+        let nextGain = 1;
+        state.duckRequests.forEach(gain => {
+            nextGain = Math.min(nextGain, Math.max(0, Math.min(1, Number(gain) || 0)));
+        });
+        state.duckGain = nextGain;
+        syncAudioSettings();
+        return state.duckGain;
     }
 
     function updateVolumeView() {
@@ -237,8 +255,11 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             updatePlaybackView();
         });
         state.audio.addEventListener("volumechange", () => {
+            if (state.syncingVolume) {
+                updateVolumeView();
+                return;
+            }
             state.muted = Boolean(state.audio.muted);
-            state.volume = state.audio.volume;
             updateVolumeView();
         });
     }
@@ -428,6 +449,35 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
             return state.volume;
         },
 
+        requestDuck(gain = 1, source = "game-sfx") {
+            state.duckSequence += 1;
+            const token = `duck-${state.duckSequence}`;
+            state.duckRequests.set(token, Math.max(0, Math.min(1, Number(gain) || 0)));
+            refreshDuckGain();
+            let released = false;
+            return Object.freeze({
+                token,
+                source: String(source || "game-sfx"),
+                release() {
+                    if (released) return false;
+                    released = true;
+                    state.duckRequests.delete(token);
+                    refreshDuckGain();
+                    return true;
+                }
+            });
+        },
+
+        releaseDuck(handleOrToken) {
+            if (handleOrToken && typeof handleOrToken.release === "function") {
+                return handleOrToken.release();
+            }
+            const token = String(handleOrToken || "");
+            const removed = state.duckRequests.delete(token);
+            if (removed) refreshDuckGain();
+            return removed;
+        },
+
         async startAutoplay() {
             if (!isAutoplayEnabled()) {
                 setStatus("AUTOPLAY OFF");
@@ -536,7 +586,10 @@ const DEFAULT_RADIO_CHANNEL = "ghost_streem_1";
                 currentIndex: state.currentIndex,
                 isPlaying: state.isPlaying,
                 volume: state.volume,
+                effectiveVolume: state.volume * state.duckGain,
                 muted: state.muted,
+                duckGain: state.duckGain,
+                duckRequests: state.duckRequests.size,
                 autostartBlocked: state.autostartBlocked
             };
         }

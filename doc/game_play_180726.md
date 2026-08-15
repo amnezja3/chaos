@@ -20646,6 +20646,52 @@ regresji i bez nowych rebuildów w requestach.
 
 ---
 
+# Sprinty 130.8.9.SFX.1 — fundament - 130.8.9.SFX.5 — OFS i polish
+
+Kanoniczną specyfikację wdrożeniową opisuje `doc/system_audio.md`, a wyniki
+audytu i szersze uzasadnienie architektury pozostają w
+`doc/game_sound_effects_system.md`.
+
+Pierwszym wdrożeniem systemu jest czterosekundowe show `Secret Path`, uruchamiane
+po lekkim oznaczeniu celu przez kliknięcie nazwy w menu hakowania. Dokument
+opisuje przede wszystkim sześć scen backdoora, ale kontrakt od początku obejmuje
+również przejęcie celu, wiadomości Cybernera i zdarzenia systemowe.
+
+
+### Sprint SFX.1 — fundament
+
+- `game_sfx.js`, manifest v1, unlock autoplay, preload i ustawienia lokalne;
+- magistrale, dedupe, cooldown, voice limit;
+- podstawowy kontrakt duckingu Ghost Radio;
+- testy modułu bez podpinania gameplayu.
+
+### Sprint SFX.2 — sześć scen Secret Path
+
+- stabilne identyfikatory scen;
+- sześć dostarczonych MP3;
+- wspólne losowanie obrazu i audio;
+- synchronizacja 4 s, restart sceny i fallback bez audio;
+- kontrolki SFX w Ustawieniach.
+
+### Sprint SFX.3 — capture
+
+- zwykły capture, filar, konflikt resolved;
+- dedupe po target/version;
+- weryfikacja z worker recovery i delta feed.
+
+### Sprint SFX.4 — Cyberner i system
+
+- incoming, sent, warning i critical;
+- cisza przy hydratacji/backlogu;
+- priorytety i antyspam.
+
+### Sprint SFX.5 — OFS i polish
+
+- semantyczne hooki aplikacji;
+- normalizacja głośności assetów;
+- testy mobile, wielu okien, radia i długiej sesji.
+
+
 > Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.
 
 # Sprint 131 — GhostNetwork Suite: audyt widoczności części i integracja z Territory Control

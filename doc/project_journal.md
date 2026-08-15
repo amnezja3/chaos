@@ -100,3 +100,28 @@
 - Osobno wyrównano projekcję postępu celu: `disarm_progress` ze store jest
   procentem 0-100, a nie surową liczbą wykonanych czterech akcji. Dzięki temu
   belka i cztery kropki opisują ten sam stan autorytatywny.
+
+## 2026-08-15 - Sprint 130.8.9.SFX.1: fundament Game SFX
+
+- Dodano jeden desktopowy właściciel efektów dźwiękowych: `window.GameSfx` w
+  `static/js/game_sfx.js`. Moduł ładuje się przed Ghost Radio, OFS i terminalem,
+  ale nie jest podpięty do żadnego zdarzenia gameplayowego.
+- Dodano pusty produkcyjny manifest `static/audio/sfx/manifest.v1.json` jako
+  lokalną allowlistę. Definiuje magistrale `lore`, `gameplay`, `message`,
+  `system` i `ui`; payload nie może przekazać własnej ścieżki pliku ani ominąć
+  limitów manifestu.
+- Silnik obsługuje nieblokujący init i preload, autoplay unlock po pierwszym
+  geście, lokalne `enabled` i `volume`, priorytety, limity głosów, cooldown,
+  deduplikację `event_id`, ujemny cache brakujących assetów oraz kontrolowane
+  wyniki błędów. Brak audio nie rzuca błędu do bootu ani aplikacji.
+- Ghost Radio dostało przejściowy `duck_gain` z wieloma niezależnymi uchwytami.
+  Efektywna głośność jest liczona oddzielnie od wartości użytkownika, więc
+  zakończenie ostatniego SFX przywraca radio bez nadpisania jego ustawień.
+- Dodano test kontraktowy modułu i test kolejności skryptów. Manifest pozostaje
+  bez eventów i plików MP3 do Sprintu SFX.2, dlatego samo wdrożenie SFX.1 nie
+  zmienia dźwięków gry.
+- Walidacja dostępna w tej sesji: `node --check static/js/game_sfx.js`,
+  `node --check static/js/ghost_radio.js`, `node --check static/js/terminal.js`,
+  `node tests/js/test_game_sfx.js`, `node tests/js/test_operation_feedback.js`
+  oraz `git diff --check` — OK. Lokalne `python.exe` było niedostępne, więc
+  unittest Pythona pozostaje do uruchomienia w środowisku projektu.
