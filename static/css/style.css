@@ -8706,12 +8706,49 @@ form button:hover {
 }
 
 .ofs-author-actions button:hover,
-.operation-feedback-choice-buttons button:hover { background: var(--ofs-accent-soft, rgba(39,216,108,.13)); }
+.operation-feedback-choice-buttons button:hover {
+  background: var(--ofs-accent-soft, rgba(39,216,108,.13));
+}
+.operation-feedback-choice-buttons button:not(:disabled) {
+  transition: background-color 150ms ease, border-color 150ms ease,
+    box-shadow 150ms ease, color 150ms ease, transform 150ms ease;
+}
+.operation-feedback-choice-buttons button:not(:disabled):hover,
+.operation-feedback-choice-buttons button:not(:disabled):focus-visible {
+  color: #effff3;
+  border-color: #a5ffc0;
+  background: rgba(40, 226, 105, 0.2);
+  box-shadow: 0 0 7px rgba(74, 255, 137, 0.72),
+    inset 0 0 12px rgba(39, 216, 108, 0.16);
+  text-shadow: 0 0 7px rgba(177, 255, 201, 0.9);
+  transform: translateY(-1px);
+}
+.operation-feedback-choice-buttons button[data-choice-selected="true"],
+.operation-feedback-choice-buttons button[data-choice-selected="true"]:disabled {
+  opacity: 1;
+  color: #fff;
+  border-color: #d8ffe3;
+  background: rgba(45, 255, 119, 0.28);
+  box-shadow: 0 0 13px rgba(70, 255, 135, 0.92),
+    inset 0 0 18px rgba(70, 255, 135, 0.24);
+  text-shadow: 1px 0 #7dffad, -1px 0 rgba(255, 255, 255, 0.72);
+  animation: ofs-choice-confirm-jitter 620ms steps(2, end) both;
+}
 .ofs-author-actions button:active,
 .operation-feedback-choice-buttons button:active { transform: translateY(1px); }
 .ofs-author-actions button:focus-visible,
 .operation-feedback-choice-buttons button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .ofs-author-actions button:disabled { opacity: 0.48; cursor: default; transform: none; }
+
+@keyframes ofs-choice-confirm-jitter {
+  0%, 100% { transform: translate(0, 0); filter: brightness(1); }
+  14% { transform: translate(-2px, 1px); }
+  28% { transform: translate(2px, -1px); filter: brightness(1.35); }
+  43% { transform: translate(-1px, 0); }
+  58% { transform: translate(2px, 1px); }
+  74% { transform: translate(-1px, -1px); filter: brightness(1.15); }
+  88% { transform: translate(1px, 0); }
+}
 
 .ofs-author-result { min-height: 1.5em; color: #baffc9; font: 700 0.8rem monospace; }
 .ofs-author-result[data-tone="success"] { color: #71ff99; }

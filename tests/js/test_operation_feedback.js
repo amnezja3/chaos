@@ -447,6 +447,30 @@ assert.strictEqual(phaseHost.dataset.ofsTemplate, "button_choice");
 assert.ok(phaseEvents.some(event => event.eventName === "feedback_phase_changed"));
 phaseSession.dispose("test_complete");
 
+const terminalChoiceHost = new FakeNode("main");
+const terminalChoiceSession = new ofs.OperationFeedbackSession({
+    actionKey: "scan_ports",
+    presentationMode: "button_choice",
+    rendererHost: terminalChoiceHost,
+    applicationContent: voiceA,
+    clock: fakeClock,
+    now: () => 5000
+});
+terminalChoiceSession.state = "running";
+terminalChoiceSession.config = config;
+terminalChoiceSession.profile = operation;
+terminalChoiceSession.ensurePanel();
+terminalChoiceSession.renderChoice(config.choice_library["feedback.scan_ports.visibility"]);
+const terminalChoiceContainer = terminalChoiceSession.choiceContainer();
+assert.ok(terminalChoiceContainer.children.length > 0);
+assert.strictEqual(terminalChoiceContainer.hidden, false);
+terminalChoiceSession.complete({success: true});
+assert.strictEqual(terminalChoiceContainer.children.length, 0,
+    "payload must remove an unanswered choice panel");
+assert.strictEqual(terminalChoiceContainer.hidden, true);
+assert.strictEqual(terminalChoiceSession.activeChoice, null);
+terminalChoiceSession.dispose("test_complete");
+
 session.activeChoice = config.choice_library["feedback.scan_ports.pace"];
 session.choiceTimeoutId = session.setTimer(() => session.resolveChoice("quiet", "timeout"), 7000);
 session.complete({success: true});

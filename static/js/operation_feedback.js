@@ -1439,7 +1439,11 @@
                 button.dataset.feedbackChoice = choice.choice_id;
                 button.dataset.feedbackValue = option.value;
                 button.textContent = option.label;
-                button.addEventListener("click", () => this.resolveChoice(option.value, "user"));
+                button.addEventListener("click", () => {
+                    button.dataset.choiceSelected = "true";
+                    button.setAttribute("aria-pressed", "true");
+                    this.resolveChoice(option.value, "user");
+                });
                 buttons.appendChild(button);
             });
             container.appendChild(buttons);
@@ -1582,7 +1586,9 @@
         complete(payload = {}) {
             if (this.disposed || TERMINAL_STATES.has(this.state)) return;
             this.clearTimers();
-            this.clearChoice(true);
+            // Payload is authoritative and replaces the interactive scene.
+            // An unanswered choice must not survive beside the final result.
+            this.clearChoice();
             this.transition("completing");
             this.setPresentationPhase("completing");
             const success = payload && payload.success === true;
@@ -1616,7 +1622,7 @@
         fail(reason = "request_failed") {
             if (this.disposed || TERMINAL_STATES.has(this.state)) return;
             this.clearTimers();
-            this.clearChoice(true);
+            this.clearChoice();
             this.transition("failed");
             this.setPresentationPhase("failed");
             const normalizedReason = String(reason || "request_failed").toLowerCase();
@@ -1646,7 +1652,7 @@
         cancel(reason = "cancelled") {
             if (this.disposed) return;
             this.clearTimers();
-            this.clearChoice(true);
+            this.clearChoice();
             if (this.state === "completing" || this.state === "failed") {
                 this.dispose(reason);
                 return;
@@ -1660,7 +1666,7 @@
         dispose(reason = "disposed") {
             if (this.disposed) return;
             this.clearTimers();
-            this.clearChoice(true);
+            this.clearChoice();
             const preserveFinalScene = this.presentationPhase === "completed" || this.presentationPhase === "failed";
             if (this.state !== "disposed") this.transition("disposed");
             if (!preserveFinalScene) this.setPresentationPhase("disposed");

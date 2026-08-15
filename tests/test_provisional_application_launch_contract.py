@@ -101,6 +101,22 @@ class ProvisionalApplicationLaunchContractTest(unittest.TestCase):
         for interface in ("window", "progressbar_random", "terminal", "button_choices"):
             self.assertIn(f'prepareApplicationRenderWindow(id, "{interface}")', self.terminal)
 
+    def test_hydration_preserves_public_name_in_every_application_title_bar(self):
+        prepare = self.function_source(
+            "function prepareApplicationRenderWindow",
+            "function normalizeOFSApplicationTemplate",
+        )
+        self.assertIn("launchContext.app_name", prepare)
+        self.assertIn("app.dataset.appTitle = appTitle", prepare)
+        self.assertIn("appId", prepare)
+        for interface in ("window", "progressbar_random", "terminal", "button_choices"):
+            renderer = self.function_source(
+                f"function app_{interface}",
+                "\nfunction ",
+            )
+            self.assertIn("appTitle", renderer)
+            self.assertIn('${escapeHTML(appTitle)}', renderer)
+
     def test_visual_lift_has_an_independent_runtime_rollback(self):
         self.assertIn('"CHAOS_OFS_VISUAL_LIFT_ENABLED"', self.config)
         self.assertIn("readOFSVisualLiftEnabled", self.terminal)

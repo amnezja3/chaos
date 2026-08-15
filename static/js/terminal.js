@@ -2075,13 +2075,19 @@ function prepareApplicationRenderWindow(id, type) {
     app.dataset.appFlowId = getCurrentAppFlowId();
     app.dataset.appId = id;
     app.dataset.appInterface = type;
-    applyApplicationLaunchContext(app, { id, interface: type });
+    const launchContext = applyApplicationLaunchContext(app, { id, interface: type });
+    const appTitle = String(
+        app.dataset.appTitle || launchContext.app_name || id || "Aplikacja"
+    ).trim() || "Aplikacja";
+    // Preserve the public application name across provisional -> hydrated DOM
+    // replacement. Technical app_id remains available separately in appId.
+    app.dataset.appTitle = appTitle;
     if (!hydrated) {
         const position = findAvailablePosition();
         app.style.top = `${position.top}px`;
         app.style.left = `${position.left}px`;
     }
-    return { app, hydrated: Boolean(hydrated) };
+    return { app, hydrated: Boolean(hydrated), appTitle };
 }
 
 function normalizeOFSApplicationTemplate(interfaceName) {
@@ -4744,10 +4750,10 @@ function app_window(id, levels) {
         ? level.list
         : [`Aplikacja ${id} uruchomiona.`];
     const windowButtons = Array.isArray(level.buttons) ? level.buttons : [];
-    const { app, hydrated } = prepareApplicationRenderWindow(id, "window");
+    const { app, hydrated, appTitle } = prepareApplicationRenderWindow(id, "window");
 
     app.innerHTML = `
-        <div class="title-bar">${escapeHTML(id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
+        <div class="title-bar">${escapeHTML(appTitle)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content ofs-author-shell ofs-author-window">
             <header class="ofs-author-header"><span>WINDOW</span><h3>${escapeHTML(level.title || 'Aplikacja')}</h3></header>
             <section class="ofs-author-content"><ul>${items.map(item => `<li>${escapeHTML(String(item || ''))}</li>`).join('')}</ul></section>
@@ -4817,10 +4823,10 @@ async function app_progressbar_random(id, levels) {
     const steps = Array.isArray(level.steps) && level.steps.length
         ? level.steps.slice(0, 12)
         : ["Inicjalizacja modułu...", "Wykonanie operacji...", "Finalizacja..."];
-    const { app, hydrated } = prepareApplicationRenderWindow(id, "progressbar_random");
+    const { app, hydrated, appTitle } = prepareApplicationRenderWindow(id, "progressbar_random");
 
     app.innerHTML = `
-        <div class="title-bar">${escapeHTML(level.title || id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
+        <div class="title-bar">${escapeHTML(appTitle)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content ofs-author-shell ofs-author-progress">
             <header class="ofs-author-header"><span>EXECUTOR</span><h3>${escapeHTML(level.title || id)}</h3></header>
             <div class="progress-log ofs-progress-list">
@@ -7111,9 +7117,9 @@ function app_terminal(id, levels) {
     const logs = Array.isArray(level.logs) ? level.logs : [];
     const commands = level.command ? [level.command, ...logs] : (logs.length ? logs : [`./${id}.sh`, "Raport zapisany."]);
 
-    const { app, hydrated } = prepareApplicationRenderWindow(id, "terminal");
+    const { app, hydrated, appTitle } = prepareApplicationRenderWindow(id, "terminal");
     app.innerHTML = `
-        <div class="title-bar">${escapeHTML(id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
+        <div class="title-bar">${escapeHTML(appTitle)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content app-terminal-content ofs-author-shell ofs-author-terminal">
             <div class="ofs-terminal-sysinfo" data-terminal-sysinfo="RUNNING">RUNNING</div>
             <div class="terminal-log app-terminal-log"></div>
@@ -7204,10 +7210,10 @@ function app_button_choices(id, levels) {
     const options = Array.isArray(lvl.options) && lvl.options.length
         ? lvl.options.map((option, index) => normalizeButtonChoiceOption(option, index))
         : [{ id: 0, label: "Wykonaj", effect: {} }];
-    const { app, hydrated } = prepareApplicationRenderWindow(id, "button_choices");
+    const { app, hydrated, appTitle } = prepareApplicationRenderWindow(id, "button_choices");
 
     app.innerHTML = `
-        <div class="title-bar">${escapeHTML(id)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
+        <div class="title-bar">${escapeHTML(appTitle)} <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span></div>
         <div class="app-content ofs-author-shell ofs-author-button-choice">
             <header class="ofs-author-header"><span>DECISION</span><h3>${escapeHTML(lvl.title || 'Wybierz opcj\u0119')}</h3></header>
             <section class="ofs-author-content"><p>${escapeHTML(lvl.text || '')}</p></section>

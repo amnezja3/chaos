@@ -244,3 +244,20 @@
   według bieżącego `action_key`, niezależnie od domyślnego renderera operacji.
 - Dodano cache-bust słownika `button-choice-actions-1` oraz regresję JSON/JS
   potwierdzającą kompletność, unikalność i brak współdzielenia pul.
+
+### Korekta terminalnego lifecycle wyborów OFS
+
+- Wynik payloadu, błąd, anulowanie i `dispose` usuwają teraz cały aktywny
+  panel `button_choice`, zamiast jedynie blokować jego przyciski. Niewybrana
+  decyzja nie pozostaje więc pod autorytatywną sceną końcową.
+- Zachowano dotychczasowe potwierdzenie decyzji dla wyboru faktycznie wykonanego
+  przez gracza; korekta nie wybiera automatycznie opcji po nadejściu payloadu.
+- Dodano regresję JS sprawdzającą usunięcie nierozstrzygniętego panelu przed
+  prezentacją sukcesu.
+- Przyciski aktywnego wyboru OFS dostały czytelny glow i lekki lift na
+  `hover/focus`, a wybrana opcja krótki jitter/glitch w czasie istniejącego
+  potwierdzenia. Efekt nie wydłuża requestu i respektuje
+  `prefers-reduced-motion`.
+- Naprawiono tytuł belki po hydratacji: renderery `terminal`, `button_choice`,
+  `window` i `progressbar_random` zachowują publiczną nazwę aplikacji z
+  kontekstu startowego zamiast zastępować ją technicznym `app_id`.

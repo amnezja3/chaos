@@ -289,7 +289,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("history.last_line", self.feedback)
         self.assertIn("durationProfileFor(config, elapsedMs, profile)", self.feedback)
         self.assertIn(
-            "this.clearTimers();\n            this.clearChoice(true);\n            this.transition(\"completing\")",
+            "this.clearChoice();\n            this.transition(\"completing\")",
             self.feedback,
         )
         self.assertIn(
@@ -417,6 +417,9 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn('[data-tone="success"]', css)
         self.assertIn('[data-tone="failure"]', css)
         self.assertIn("prefers-reduced-motion", css)
+        self.assertIn('button[data-choice-selected="true"]', css)
+        self.assertIn("@keyframes ofs-choice-confirm-jitter", css)
+        self.assertIn('button.dataset.choiceSelected = "true"', self.feedback)
         self.assertIn('data-ofs-phase="executing"', css)
         self.assertIn("height: clamp(420px, 68vh, 680px)", css)
         self.assertIn('.ofs-app-template[data-mobile-safe-mode="true"]', css)
