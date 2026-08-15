@@ -229,3 +229,18 @@
 - Rozdzielono wynik gameplayowy (`ofs.failure`) od problemu transportu lub
   odpowiedzi runtime (`ofs.runtime_warning`). Critical nadal może przerwać
   OFS, a zwalnianie głosu przywraca ducking Ghost Radio.
+
+### Korekta personalizacji `button_choice`
+
+- Audyt wykazał, że tylko `scan_ports` miał własne pule wyborów. Pozostałe
+  akcje uruchomione w aplikacji `button_choice` korzystały ze wspólnego
+  fallbacku `feedback.operation.*`, przez co różne narzędzia wyglądały jak
+  jedna prezentacja skanera.
+- Dodano `button_choice_action_profiles` dla wszystkich 14 akcji OFS, również
+  aliasów `scan_hotspots` i `audio_hack`. Każda akcja ma własny prompt,
+  przyciski, wartości i jawny schemat wyłącznie prezentacyjnego stanu.
+- Walidator wymaga puli `feedback.<action_key>.*` dla każdej akcji i izoluje
+  wadliwy profil bez wyłączania pozostałych operacji. Composer wybiera profil
+  według bieżącego `action_key`, niezależnie od domyślnego renderera operacji.
+- Dodano cache-bust słownika `button-choice-actions-1` oraz regresję JSON/JS
+  potwierdzającą kompletność, unikalność i brak współdzielenia pul.

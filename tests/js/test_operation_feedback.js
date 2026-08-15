@@ -461,7 +461,7 @@ assert.strictEqual(session.presentationPhase, "completed");
 const invalidMutationConfig = JSON.parse(JSON.stringify(profileData));
 invalidMutationConfig.choice_library["feedback.scan_ports.visibility"].options[0].set = {gameplay_power: 999};
 const isolatedInvalidConfig = ofs.validateFeedbackConfig(invalidMutationConfig);
-assert.strictEqual(isolatedInvalidConfig.operations.scan_ports.enabled, false);
+    assert.strictEqual(isolatedInvalidConfig.operations.scan_ports.enabled, false);
 assert.match(isolatedInvalidConfig.operations.scan_ports.validation_error, /undeclared state/);
 assert.strictEqual(isolatedInvalidConfig.operations.exploit.enabled, true);
 
@@ -689,7 +689,7 @@ if (process.argv.includes("--transcripts")) {
     assert.ok(!reusedAuthorEvents.includes("feedback_author_scene_started"));
     reusedAuthorSession.dispose("test_complete");
 
-    const genericButtonSession = new ofs.OperationFeedbackSession({
+    const personalizedButtonSession = new ofs.OperationFeedbackSession({
         actionKey: "audio_hack",
         presentationMode: "button_choice",
         applicationContent: structuredVoice,
@@ -698,17 +698,18 @@ if (process.argv.includes("--transcripts")) {
         now: () => 16000,
         configLoader: () => profileData
     });
-    genericButtonSession.render = () => {};
-    genericButtonSession.renderNextScene = () => {};
-    genericButtonSession.start();
+    personalizedButtonSession.render = () => {};
+    personalizedButtonSession.renderNextScene = () => {};
+    personalizedButtonSession.start();
     await Promise.resolve();
     await Promise.resolve();
     assert.deepStrictEqual(
-        genericButtonSession.profile.choice_pools,
-        profileData.button_choice_defaults.choice_pools
+        personalizedButtonSession.profile.choice_pools,
+        profileData.button_choice_action_profiles.audio_hack.choice_pools
     );
-    assert.strictEqual(genericButtonSession.profile.action_key, "audio_hack");
-    genericButtonSession.dispose("test_complete");
+    assert.strictEqual(personalizedButtonSession.profile.action_key, "audio_hack");
+    assert.strictEqual(personalizedButtonSession.profile.choice_pools[0], "feedback.audio_hack.channel");
+    personalizedButtonSession.dispose("test_complete");
     console.log("operation feedback composer OK");
 })().catch(error => {
     console.error(error);

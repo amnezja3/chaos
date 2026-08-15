@@ -2,7 +2,7 @@
     "use strict";
 
     const CONFIG_ELEMENT_ID = "operation-feedback-config";
-    const PROFILE_URL = "/static/data/operation_feedback.v1.json";
+    const PROFILE_URL = "/static/data/operation_feedback.v1.json?v=button-choice-actions-1";
     const CANONICAL_SECURITY_KEYS = new Set([
         "stealth_mode", "scan_detection", "exploit_protection", "vpn_enabled",
         "browser_protection", "os_hardening", "log_guardian", "process_monitor",
@@ -404,6 +404,7 @@
             "defaults", "duration_profiles", "provisional_timelines", "provisional_wait_bands",
             "provisional_voice_packs", "provisional_scene_library", "scene_library",
             "security_library", "transport_library", "choice_library", "button_choice_defaults",
+            "button_choice_action_profiles",
             "completion_library", "failure_library", "operations"
         ].forEach(section => ensureObject(config[section], section));
 
@@ -515,6 +516,43 @@
                 });
             });
         });
+        const buttonActionProfiles = ensureObject(
+            config.button_choice_action_profiles,
+            "button choice action profiles"
+        );
+        const validateButtonActionProfile = actionKey => {
+            const actionProfile = ensureObject(
+                buttonActionProfiles[actionKey],
+                `button choice action profile ${actionKey}`
+            );
+            const choicePools = Array.isArray(actionProfile.choice_pools)
+                ? actionProfile.choice_pools : [];
+            const stateSchema = ensureObject(
+                actionProfile.presentation_state_schema,
+                `button choice action schema ${actionKey}`
+            );
+            if (!choicePools.length) throw new Error(`OFS ${actionKey} button choice pool is empty`);
+            choicePools.forEach(choiceId => {
+                const choice = ensureObject(config.choice_library[choiceId], `choice ${choiceId}`);
+                if (!choiceId.startsWith(`feedback.${actionKey}.`)
+                    || choice.choice_id !== choiceId || choice.effect_scope !== "presentation"
+                    || !Array.isArray(choice.options) || choice.options.length < 2
+                    || !Number.isFinite(choice.timeout_ms) || choice.timeout_ms <= 0
+                    || choice.timeout_ms > 30000
+                    || !choice.options.some(option => option.value === choice.default_value)) {
+                    throw new Error(`OFS invalid ${actionKey} button choice ${choiceId}`);
+                }
+                choice.options.forEach(option => {
+                    Object.entries(ensureObject(option.set, `choice ${choiceId} mutation`))
+                        .forEach(([key, value]) => {
+                            if (!Array.isArray(stateSchema[key]) || !stateSchema[key].includes(value)) {
+                                throw new Error(`OFS ${actionKey} choice mutates undeclared state`);
+                            }
+                        });
+                });
+            });
+            return actionProfile;
+        };
         const validateProvisionalVariants = (variants, label, minimum = 1) => {
             if (!Array.isArray(variants) || variants.length < minimum) throw new Error(`OFS ${label} has too few variants`);
             variants.forEach(lines => {
@@ -646,6 +684,7 @@
                     profileOperationId,
                     config.operations[profileOperationId]
                 );
+                validateButtonActionProfile(operationId);
                 validatedOperations[operationId] = profileOperationId === operationId
                     ? validatedProfile
                     : {
@@ -667,13 +706,23 @@
         return config;
     }
 
-    function profileForPresentation(config, profile, presentationMode) {
-        if (!profile || presentationMode !== "button_choice"
-            || (Array.isArray(profile.choice_pools) && profile.choice_pools.length)) return profile;
-        const defaults = ensureObject(config.button_choice_defaults, "button choice defaults");
-        const choicePools = Array.isArray(defaults.choice_pools) ? defaults.choice_pools.slice() : [];
-        const stateSchema = ensureObject(defaults.presentation_state_schema, "button choice state schema");
-        if (!choicePools.length) throw new Error("OFS button choice defaults are empty");
+    function profileForPresentation(config, profile, presentationMode, actionKey = "") {
+        if (!profile || presentationMode !== "button_choice") return profile;
+        const actionProfiles = ensureObject(
+            config.button_choice_action_profiles,
+            "button choice action profiles"
+        );
+        const actionProfile = ensureObject(
+            actionProfiles[String(actionKey || profile.action_key || "").trim()],
+            `button choice action profile ${actionKey || profile.action_key || "unknown"}`
+        );
+        const choicePools = Array.isArray(actionProfile.choice_pools)
+            ? actionProfile.choice_pools.slice() : [];
+        const stateSchema = ensureObject(
+            actionProfile.presentation_state_schema,
+            "button choice action state schema"
+        );
+        if (!choicePools.length) throw new Error("OFS action button choice profile is empty");
         choicePools.forEach(choiceId => ensureObject(config.choice_library[choiceId], `choice ${choiceId}`));
         return {
             ...profile,
@@ -1447,7 +1496,8 @@
                 this.profile = profileForPresentation(
                     this.config,
                     this.config.operations[this.actionKey],
-                    this.presentationMode
+                    this.presentationMode,
+                    this.actionKey
                 );
                 if (!this.profile || this.profile.enabled !== true
                     || this.presentationMode === "ofs_provisional"

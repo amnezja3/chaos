@@ -51,13 +51,29 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn('audio_hack: "exploit"', self.feedback)
         self.assertIn("enabledActions.has(profileAction)", self.feedback)
 
-    def test_button_apps_have_shared_ofs_choice_dictionary(self):
+    def test_button_apps_have_operation_specific_choice_dictionary(self):
         defaults = self.profile["button_choice_defaults"]
         self.assertEqual(len(defaults["choice_pools"]), 3)
         for choice_id in defaults["choice_pools"]:
             self.assertIn(choice_id, self.profile["choice_library"])
         self.assertIn("function profileForPresentation", self.feedback)
         self.assertIn('presentationMode !== "button_choice"', self.feedback)
+        action_profiles = self.profile["button_choice_action_profiles"]
+        expected_actions = {
+            "scan_ports", "exploit", "sniff", "trace", "trace_gps",
+            "trace_device", "mic_sniff", "atm_logs", "install_sniffer",
+            "scan_hotspots", "audio_hack", "camera_stream",
+            "camera_shutdown", "car_hack",
+        }
+        self.assertEqual(set(action_profiles), expected_actions)
+        all_pools = []
+        for action_key, action_profile in action_profiles.items():
+            self.assertTrue(action_profile["choice_pools"])
+            for choice_id in action_profile["choice_pools"]:
+                self.assertTrue(choice_id.startswith(f"feedback.{action_key}."))
+                self.assertIn(choice_id, self.profile["choice_library"])
+                all_pools.append(choice_id)
+        self.assertEqual(len(all_pools), len(set(all_pools)))
         self.assertTrue(self.profile["scene_library"]["operation_contact"]["allow_choice"])
         self.assertTrue(self.profile["scene_library"]["operation_verify"]["allow_choice"])
 

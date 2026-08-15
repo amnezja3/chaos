@@ -20,6 +20,22 @@
       "verification_mode": ["repeat", "continue"]
     }
   },
+  "button_choice_action_profiles": {
+    "scan_ports": {"choice_pools": ["feedback.scan_ports.visibility", "feedback.scan_ports.pace", "feedback.scan_ports.verification"], "presentation_state_schema": {"scan_mode": ["standard", "masked"], "probe_mode": ["quiet", "fast"], "verification_mode": ["repeat", "skip"]}},
+    "exploit": {"choice_pools": ["feedback.exploit.vector"], "presentation_state_schema": {"action_mode": ["precision", "forceful"]}},
+    "sniff": {"choice_pools": ["feedback.sniff.scope"], "presentation_state_schema": {"action_mode": ["metadata", "full_stream"]}},
+    "trace": {"choice_pools": ["feedback.trace.route"], "presentation_state_schema": {"action_mode": ["quiet_correlation", "active_trail"]}},
+    "trace_gps": {"choice_pools": ["feedback.trace_gps.filter"], "presentation_state_schema": {"action_mode": ["stabilize", "predict"]}},
+    "trace_device": {"choice_pools": ["feedback.trace_device.fingerprint"], "presentation_state_schema": {"action_mode": ["hardware", "network"]}},
+    "mic_sniff": {"choice_pools": ["feedback.mic_sniff.band"], "presentation_state_schema": {"action_mode": ["filtered", "full_band"]}},
+    "atm_logs": {"choice_pools": ["feedback.atm_logs.range"], "presentation_state_schema": {"action_mode": ["recent", "full_session"]}},
+    "install_sniffer": {"choice_pools": ["feedback.install_sniffer.anchor"], "presentation_state_schema": {"action_mode": ["memory", "process"]}},
+    "scan_hotspots": {"choice_pools": ["feedback.scan_hotspots.range"], "presentation_state_schema": {"action_mode": ["nearby", "wide"]}},
+    "audio_hack": {"choice_pools": ["feedback.audio_hack.channel"], "presentation_state_schema": {"action_mode": ["input", "output"]}},
+    "camera_stream": {"choice_pools": ["feedback.camera_stream.profile"], "presentation_state_schema": {"action_mode": ["discreet", "stable"]}},
+    "camera_shutdown": {"choice_pools": ["feedback.camera_shutdown.method"], "presentation_state_schema": {"action_mode": ["mute", "disconnect"]}},
+    "car_hack": {"choice_pools": ["feedback.car_hack.bus"], "presentation_state_schema": {"action_mode": ["telematics", "control"]}}
+  },
   "duration_profiles": {
     "instant": {
       "min_elapsed_ms": 0,
@@ -2620,6 +2636,58 @@
       ],
       "timeout_ms": 6000,
       "default_value": "repeat"
+    },
+    "feedback.exploit.vector": {
+      "choice_id": "feedback.exploit.vector", "effect_scope": "presentation", "prompt": "Wektor exploita",
+      "options": [{"value": "precision", "label": "PRECYZYJNIE", "set": {"action_mode": "precision"}}, {"value": "forceful", "label": "AGRESYWNIE", "set": {"action_mode": "forceful"}}], "timeout_ms": 10000, "default_value": "precision"
+    },
+    "feedback.sniff.scope": {
+      "choice_id": "feedback.sniff.scope", "effect_scope": "presentation", "prompt": "Zakres przechwytywania",
+      "options": [{"value": "metadata", "label": "METADANE", "set": {"action_mode": "metadata"}}, {"value": "full_stream", "label": "PELNY STRUMIEN", "set": {"action_mode": "full_stream"}}], "timeout_ms": 10000, "default_value": "metadata"
+    },
+    "feedback.trace.route": {
+      "choice_id": "feedback.trace.route", "effect_scope": "presentation", "prompt": "Tor sledzenia",
+      "options": [{"value": "quiet_correlation", "label": "CICHA KORELACJA", "set": {"action_mode": "quiet_correlation"}}, {"value": "active_trail", "label": "AKTYWNY SLAD", "set": {"action_mode": "active_trail"}}], "timeout_ms": 10000, "default_value": "quiet_correlation"
+    },
+    "feedback.trace_gps.filter": {
+      "choice_id": "feedback.trace_gps.filter", "effect_scope": "presentation", "prompt": "Filtr lokalizacji",
+      "options": [{"value": "stabilize", "label": "STABILIZUJ", "set": {"action_mode": "stabilize"}}, {"value": "predict", "label": "PRZEWIDUJ", "set": {"action_mode": "predict"}}], "timeout_ms": 10000, "default_value": "stabilize"
+    },
+    "feedback.trace_device.fingerprint": {
+      "choice_id": "feedback.trace_device.fingerprint", "effect_scope": "presentation", "prompt": "Odcisk urzadzenia",
+      "options": [{"value": "hardware", "label": "SPRZET", "set": {"action_mode": "hardware"}}, {"value": "network", "label": "SIEC", "set": {"action_mode": "network"}}], "timeout_ms": 10000, "default_value": "hardware"
+    },
+    "feedback.mic_sniff.band": {
+      "choice_id": "feedback.mic_sniff.band", "effect_scope": "presentation", "prompt": "Tryb odsluchu",
+      "options": [{"value": "filtered", "label": "FILTRUJ", "set": {"action_mode": "filtered"}}, {"value": "full_band", "label": "PELNE PASMO", "set": {"action_mode": "full_band"}}], "timeout_ms": 10000, "default_value": "filtered"
+    },
+    "feedback.atm_logs.range": {
+      "choice_id": "feedback.atm_logs.range", "effect_scope": "presentation", "prompt": "Zakres dziennika ATM",
+      "options": [{"value": "recent", "label": "OSTATNIE", "set": {"action_mode": "recent"}}, {"value": "full_session", "label": "PELNA SESJA", "set": {"action_mode": "full_session"}}], "timeout_ms": 10000, "default_value": "recent"
+    },
+    "feedback.install_sniffer.anchor": {
+      "choice_id": "feedback.install_sniffer.anchor", "effect_scope": "presentation", "prompt": "Punkt implantacji",
+      "options": [{"value": "memory", "label": "PAMIEC", "set": {"action_mode": "memory"}}, {"value": "process", "label": "PROCES", "set": {"action_mode": "process"}}], "timeout_ms": 10000, "default_value": "memory"
+    },
+    "feedback.scan_hotspots.range": {
+      "choice_id": "feedback.scan_hotspots.range", "effect_scope": "presentation", "prompt": "Zakres hotspotow",
+      "options": [{"value": "nearby", "label": "BLISKO", "set": {"action_mode": "nearby"}}, {"value": "wide", "label": "SZEROKO", "set": {"action_mode": "wide"}}], "timeout_ms": 10000, "default_value": "nearby"
+    },
+    "feedback.audio_hack.channel": {
+      "choice_id": "feedback.audio_hack.channel", "effect_scope": "presentation", "prompt": "Kanal audio",
+      "options": [{"value": "input", "label": "WEJSCIE", "set": {"action_mode": "input"}}, {"value": "output", "label": "WYJSCIE", "set": {"action_mode": "output"}}], "timeout_ms": 10000, "default_value": "input"
+    },
+    "feedback.camera_stream.profile": {
+      "choice_id": "feedback.camera_stream.profile", "effect_scope": "presentation", "prompt": "Profil strumienia",
+      "options": [{"value": "discreet", "label": "DYSKRETNIE", "set": {"action_mode": "discreet"}}, {"value": "stable", "label": "STABILNIE", "set": {"action_mode": "stable"}}], "timeout_ms": 10000, "default_value": "discreet"
+    },
+    "feedback.camera_shutdown.method": {
+      "choice_id": "feedback.camera_shutdown.method", "effect_scope": "presentation", "prompt": "Metoda wygaszenia",
+      "options": [{"value": "mute", "label": "WYCISZ", "set": {"action_mode": "mute"}}, {"value": "disconnect", "label": "ODLACZ", "set": {"action_mode": "disconnect"}}], "timeout_ms": 10000, "default_value": "mute"
+    },
+    "feedback.car_hack.bus": {
+      "choice_id": "feedback.car_hack.bus", "effect_scope": "presentation", "prompt": "Magistrala pojazdu",
+      "options": [{"value": "telematics", "label": "TELEMATYKA", "set": {"action_mode": "telematics"}}, {"value": "control", "label": "STEROWANIE", "set": {"action_mode": "control"}}], "timeout_ms": 10000, "default_value": "telematics"
     }
   },
   "completion_library": {

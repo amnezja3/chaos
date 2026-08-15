@@ -531,6 +531,10 @@ Warstwy danych mają rozłączne role:
   transportu;
 * `choice_library` definiuje lokalne wybory i dozwolone mutacje
   `presentation_state`;
+* `button_choice_action_profiles` przypisuje każdemu `action_key` własne pule
+  przycisków oraz własny schemat lokalnego `presentation_state`; renderer
+  `button_choice` nie może przejmować puli innej operacji ani ogólnego profilu
+  `scan_ports`;
 * `completion_library` oraz `failure_library` opisują wyłącznie prezentację
   potwierdzonego wyniku.
 * content uruchomionej aplikacji nadaje prezentacji jej nazwę, styl i teksty
