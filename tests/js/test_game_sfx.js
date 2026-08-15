@@ -35,6 +35,25 @@ const manifest = {
             max_duration_ms: 10000,
             cooldown_ms: 0,
             duck_radio: 1
+        },
+        "test.gameplay": {
+            file: "test/gameplay.mp3",
+            bus: "gameplay",
+            priority: 60,
+            volume: 1,
+            max_duration_ms: 10000,
+            cooldown_ms: 0,
+            duck_radio: 0.7
+        },
+        "test.critical": {
+            file: "test/critical.mp3",
+            bus: "system",
+            priority: 100,
+            volume: 1,
+            max_duration_ms: 10000,
+            cooldown_ms: 0,
+            duck_radio: 0.3,
+            interrupt_lower_priority: true
         }
     }
 };
@@ -123,6 +142,9 @@ const sfx = sandbox.window.GameSfx;
     assert.ok(normalized.events.safe);
     assert.strictEqual(normalized.events.unsafe, undefined);
     assert.strictEqual(normalized.buses.gameplay.max_voices, 2);
+    assert.strictEqual(sfx._voiceWatchdogDelayForTest(4000, 6), 6750);
+    assert.strictEqual(sfx._voiceWatchdogDelayForTest(10000, 6), 10000);
+    assert.strictEqual(sfx._voiceWatchdogDelayForTest(7000, 45), 30000);
 
     const first = sfx.play("test.lore", {event_id: "event-1"});
     const firstResult = await first.started;
@@ -141,6 +163,16 @@ const sfx = sandbox.window.GameSfx;
 
     assert.strictEqual(sfx.stop("lore"), 1);
     assert.strictEqual(sfx.getState().active_voices, 0);
+
+    const gameplay = sfx.play("test.gameplay", {event_id: "event-gameplay"});
+    assert.strictEqual((await gameplay.started).ok, true);
+    const gameplayDuck = duckHandles[duckHandles.length - 1];
+    const critical = sfx.play("test.critical", {event_id: "event-critical"});
+    assert.strictEqual((await critical.started).ok, true);
+    await new Promise(resolve => setTimeout(resolve, 60));
+    assert.strictEqual(gameplayDuck.released, true);
+    assert.strictEqual(gameplay.stop(), false);
+    assert.strictEqual(sfx.stop("system"), 1);
 
     sfx.setEnabled(false);
     const disabled = await sfx.play("test.lore", {event_id: "event-3"}).started;

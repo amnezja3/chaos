@@ -31,6 +31,12 @@ let playerHackAccessState = null;
 let playerHackAccessTimer = null;
 let stateDeltaVersion = 0;
 let stateDeltaPollInFlight = false;
+let stateDeltaSfxLive = false;
+let stateDeltaSfxCatchup = true;
+let stateDeltaSfxPlaybackAllowed = false;
+let systemMessageSfxLive = false;
+let systemMessageSfxCatchup = true;
+const cybernerSfxChannelCooldowns = new Map();
 const processedDeltaKeys = new Set();
 const STATE_DELTA_POLL_INTERVAL_MS = 4000;
 const STATE_DELTA_LIMIT = 100;
@@ -10013,6 +10019,56 @@ function updateCybernerDeltaViews(payload = {}) {
     });
 }
 
+function cybernerSfxCurrentUsername() {
+    return String((toolbarProfile || {}).username || "").trim().toLowerCase();
+}
+
+function cybernerSfxMessageId(payload = {}) {
+    const message = payload.message && typeof payload.message === "object" ? payload.message : {};
+    return String(payload.message_id || message.message_id || message.id || "").trim();
+}
+
+function playCybernerMessageSfx(payload = {}, options = {}) {
+    if (!window.GameSfx || !payload || typeof payload !== "object") return false;
+    const message = payload.message && typeof payload.message === "object" ? payload.message : {};
+    const messageId = cybernerSfxMessageId(payload);
+    if (!messageId) return false;
+    const sender = String(message.sender || message.sender_username || payload.sender || "").trim().toLowerCase();
+    const currentUser = cybernerSfxCurrentUsername();
+    const own = options.own === true || (currentUser && sender === currentUser);
+    const channelKey = String(payload.channel_key || payload.channel || message.channel_key || message.channel || "unknown");
+    const timestamp = Date.now();
+    if (!own) {
+        const cooldownUntil = cybernerSfxChannelCooldowns.get(channelKey) || 0;
+        if (cooldownUntil > timestamp) return false;
+        cybernerSfxChannelCooldowns.set(channelKey, timestamp + 700);
+    }
+    window.GameSfx.play(own ? "cyberner.message_sent" : "cyberner.message_incoming", {
+        event_id: `cyberner:${messageId}`,
+        message_id: messageId,
+        channel_key: channelKey,
+        sender
+    });
+    return true;
+}
+
+function playSystemMessageSfx(message = {}) {
+    if (!window.GameSfx || !message || typeof message !== "object") return false;
+    const messageId = String(message.message_id || message.id || "").trim();
+    if (!messageId) return false;
+    const type = String(message.type || "").trim().toLowerCase();
+    let eventKey = "";
+    if (["critical", "danger", "error"].includes(type)) eventKey = "system.critical";
+    else if (["warning", "warn"].includes(type)) eventKey = "system.warning";
+    if (!eventKey) return false;
+    window.GameSfx.play(eventKey, {
+        event_id: `system:${messageId}`,
+        message_id: messageId,
+        message_type: type
+    });
+    return true;
+}
+
 function updateGhostExchangeDeltaViews(payload = {}) {
     ghostExchangeDeltaViews.forEach(view => {
         if (!view || typeof view.update !== "function" || (typeof view.isConnected === "function" && !view.isConnected())) {
@@ -10145,6 +10201,9 @@ async function applyDelta(event) {
         return true;
     }
     if (event.scope === "mail" || String(event.type || "").startsWith("mail.")) {
+        if (event.type === "cyberner.message_created" && stateDeltaSfxPlaybackAllowed) {
+            playCybernerMessageSfx(event.payload || {});
+        }
         updateCybernerDeltaViews({ ...(event.payload || {}), delta_version: event.version || 0 });
         return true;
     }
@@ -10416,23 +10475,37 @@ async function pollStateChanges() {
             desktopSessionActive = false;
             return;
         }
-        if (!res.ok) return;
+        if (!res.ok) {
+            stateDeltaSfxCatchup = true;
+            return;
+        }
         const data = await res.json();
         if (data.recovery_required) {
+            stateDeltaSfxCatchup = true;
             await recoverDeltaScopes(data.recovery_scopes || [], data.current_version);
+            stateDeltaSfxLive = true;
+            stateDeltaSfxCatchup = false;
             return;
         }
         const changes = Array.isArray(data.changes) ? data.changes : [];
-        for (const change of changes) {
-            await applyDelta(change);
-            if (Number.isFinite(Number(change.version))) {
-                stateDeltaVersion = Math.max(stateDeltaVersion, Number(change.version));
+        stateDeltaSfxPlaybackAllowed = stateDeltaSfxLive && !stateDeltaSfxCatchup;
+        try {
+            for (const change of changes) {
+                await applyDelta(change);
+                if (Number.isFinite(Number(change.version))) {
+                    stateDeltaVersion = Math.max(stateDeltaVersion, Number(change.version));
+                }
             }
+        } finally {
+            stateDeltaSfxPlaybackAllowed = false;
         }
         if (Number.isFinite(Number(data.current_version))) {
             stateDeltaVersion = Math.max(stateDeltaVersion, Number(data.current_version));
         }
+        stateDeltaSfxLive = true;
+        stateDeltaSfxCatchup = false;
     } catch (err) {
+        stateDeltaSfxCatchup = true;
         console.warn("Delta feed poll failed", err);
     } finally {
         stateDeltaPollInFlight = false;
@@ -15055,6 +15128,12 @@ function createEmailClient() {
                 messageInput.value = "";
                 renderContacts();
                 renderMessages(data.messages, true);
+                playCybernerMessageSfx({
+                    message: data.message || {},
+                    message_id: data.message_id,
+                    channel: data.channel && data.channel.channel,
+                    channel_key: data.channel && data.channel.channel_key
+                }, { own: true });
             }
         } catch (err) {
             addSystemMessage("danger", "Cyberner", "Nie udalo sie wyslac wiadomosci.");
@@ -15346,13 +15425,22 @@ async function pollSystemMessages() {
     const loadingToken = beginDesktopLoading('Sprawdzam system...');
     try {
         const res = await fetch('/system-messages');
+        if (!res.ok) {
+            systemMessageSfxCatchup = true;
+            return;
+        }
         const data = await res.json();
+        const allowSfx = systemMessageSfxLive && !systemMessageSfxCatchup;
         data.forEach((msg, i) => {
+            if (allowSfx) playSystemMessageSfx(msg);
             setTimeout(() => {
                 showSystemToast(msg, msg.type);
             }, i * 2000);
         });
+        systemMessageSfxLive = true;
+        systemMessageSfxCatchup = false;
     } catch (err) {
+        systemMessageSfxCatchup = true;
         console.error("Błąd pobierania komunikatów systemowych");
     } finally {
         endDesktopLoading(loadingToken);

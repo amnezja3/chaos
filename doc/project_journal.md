@@ -172,3 +172,40 @@
   `sfx-capture-3`. Produkcyjne assety są oczekiwane w
   `static/audio/sfx/capture/`; ich brak korzysta z istniejącego bezpiecznego
   negative cache i nie wpływa na capture, konflikty ani przebudowę terytorium.
+
+## 2026-08-15 - Sprint 130.8.9.SFX.4: Cyberner i komunikaty systemowe
+
+- Test wdrożeniowy użytkownika zaakceptował SFX.3; po tej bramce uruchomiono
+  warstwę wiadomości bez zmian w gameplayu capture i konfliktów.
+- Kanoniczna delta `cyberner.message_created` uruchamia dźwięk incoming tylko w
+  trybie live. Pierwszy poll, recovery oraz pierwszy poll po błędzie połączenia
+  są celowo ciche, więc historia i cursor catch-up nie tworzą lawiny audio.
+- Własna wysłana wiadomość może dostać ciche potwierdzenie dopiero po odpowiedzi
+  backendu z trwałym `message_id`. Incoming i sent współdzielą dedupe
+  `cyberner:<message_id>`, a dodatkowy cooldown kanału ogranicza serie zdarzeń.
+- Poll komunikatów systemowych używa stabilnego ID ze store i odtwarza wyłącznie
+  klasy warning/critical; info pozostaje ciche. Boot i reconnect są ciche tak
+  samo jak w delcie Cybernera.
+- Manifest dostał cztery allowlistowane assety magistral `message` i `system`.
+  `system.critical` ma najwyższy priorytet i może przerwać słabsze głosy, które
+  zwalniają własne uchwyty duckingu Ghost Radio. Cache-bust zmieniono na
+  `sfx-messages-4`.
+- Dodano README kontraktu plików `static/audio/sfx/messages/` oraz rozszerzono
+  test silnika o globalne przerwanie niższego priorytetu. Audio pozostaje
+  niezależne od read cursorów, unread count, otwierania okna i store wiadomości.
+- Walidacja: `python -m unittest tests.test_game_sfx_frontend_contract
+  tests.test_cyberner_channel_routing` — 15 testów OK; trzy celowane testy
+  `SystemMessageStore` i endpointu `/system-messages` — OK; `python -m py_compile
+  run.py database.py`, `node --check static/js/game_sfx.js` i `node --check
+  static/js/terminal.js` — OK.
+
+### Korekta watchdog audio po testach SFX.3
+
+- Audyt wykazał, że silnik zatrzymywał MP3 sztywno po manifestowym
+  `max_duration_ms`, nawet jeżeli metadane assetu wskazywały dłuższy plik. Limity
+  2,5–7 s mogły przez to ucinać prawidłowy efekt przed naturalnym `ended`.
+- Watchdog jest teraz przeliczany po `loadedmetadata`: wybiera większą wartość
+  z limitu manifestu oraz pełnej długości MP3 z zapasem 750 ms. Zachowano
+  twardy bezpiecznik 30 s i dotychczasowe sprzątanie głosu oraz duckingu.
+- Dodano kontrakt JS dla assetu krótszego i dłuższego od limitu manifestu oraz
+  dla bezwzględnego limitu awaryjnego.

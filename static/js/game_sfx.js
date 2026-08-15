@@ -1,7 +1,7 @@
 "use strict";
 
 (function initGameSfxModule(global) {
-    const DEFAULT_MANIFEST_URL = "/static/audio/sfx/manifest.v1.json?v=sfx-capture-3";
+    const DEFAULT_MANIFEST_URL = "/static/audio/sfx/manifest.v1.json?v=sfx-messages-4";
     const STORAGE_ENABLED = "chaos_sfx_enabled";
     const STORAGE_VOLUME = "chaos_sfx_volume";
     const DEFAULT_BUS_LIMITS = Object.freeze({
@@ -14,6 +14,8 @@
     const ALLOWED_BUSES = new Set(Object.keys(DEFAULT_BUS_LIMITS));
     const RECENT_TTL_MS = 5 * 60 * 1000;
     const NEGATIVE_CACHE_MS = 30 * 1000;
+    const WATCHDOG_GRACE_MS = 750;
+    const WATCHDOG_HARD_LIMIT_MS = 30 * 1000;
 
     const state = {
         initialized: false,
@@ -121,7 +123,8 @@
                 volume: clamp(raw.volume === undefined ? 1 : raw.volume, 0, 1),
                 max_duration_ms: Math.round(clamp(raw.max_duration_ms || 10000, 100, 30000)),
                 cooldown_ms: Math.round(clamp(raw.cooldown_ms || 0, 0, 60000)),
-                duck_radio: clamp(raw.duck_radio === undefined ? 1 : raw.duck_radio, 0, 1)
+                duck_radio: clamp(raw.duck_radio === undefined ? 1 : raw.duck_radio, 0, 1),
+                interrupt_lower_priority: raw.interrupt_lower_priority === true
             });
         });
         const buses = {};
@@ -190,6 +193,28 @@
         return result;
     }
 
+    function voiceWatchdogDelay(entry, audio) {
+        const configured = Number(entry && entry.max_duration_ms) || 10000;
+        const durationSeconds = Number(audio && audio.duration);
+        const assetDuration = Number.isFinite(durationSeconds) && durationSeconds > 0
+            ? Math.ceil(durationSeconds * 1000) + WATCHDOG_GRACE_MS
+            : 0;
+        return Math.round(clamp(
+            Math.max(configured, assetDuration),
+            100,
+            WATCHDOG_HARD_LIMIT_MS
+        ));
+    }
+
+    function scheduleVoiceWatchdog(voice, entry) {
+        if (!voice || voice.stopped) return;
+        if (voice.timeoutId) global.clearTimeout(voice.timeoutId);
+        voice.timeoutId = global.setTimeout(
+            () => releaseVoice(voice, 0),
+            voiceWatchdogDelay(entry, voice.audio)
+        );
+    }
+
     function releaseVoice(voice, fadeMs) {
         if (!voice || voice.stopped) return false;
         voice.stopped = true;
@@ -214,6 +239,11 @@
     }
 
     function chooseVoiceSlot(entry) {
+        if (entry.interrupt_lower_priority) {
+            state.voices.forEach(voice => {
+                if (!voice.stopped && voice.priority < entry.priority) releaseVoice(voice, 40);
+            });
+        }
         const manifestBus = state.manifest.buses[entry.bus];
         const limit = manifestBus ? manifestBus.max_voices : DEFAULT_BUS_LIMITS[entry.bus];
         const active = activeVoicesForBus(entry.bus);
@@ -284,12 +314,17 @@
             const onEnded = () => releaseVoice(voice, 0);
             if (typeof voice.audio.addEventListener === "function") {
                 voice.audio.addEventListener("ended", onEnded, { once: true });
+                voice.audio.addEventListener("loadedmetadata", () => {
+                    scheduleVoiceWatchdog(voice, entry);
+                }, { once: true });
                 voice.audio.addEventListener("error", () => {
                     state.negativeAssets.set(entry.url, now() + NEGATIVE_CACHE_MS);
                     releaseVoice(voice, 0);
                 }, { once: true });
             }
-            voice.timeoutId = global.setTimeout(onEnded, entry.max_duration_ms);
+            // Begin with the manifest fallback. Metadata then extends the
+            // watchdog when the valid local MP3 is longer than that fallback.
+            scheduleVoiceWatchdog(voice, entry);
             return Promise.resolve(voice.audio.play()).then(() => {
                 if (eventId) state.recentEvents.set(eventId, now());
                 state.cooldowns.set(eventKey, now() + entry.cooldown_ms);
@@ -408,7 +443,13 @@
             };
         },
 
-        _normalizeManifestForTest: normalizeManifest
+        _normalizeManifestForTest: normalizeManifest,
+        _voiceWatchdogDelayForTest(maxDurationMs, durationSeconds) {
+            return voiceWatchdogDelay(
+                { max_duration_ms: maxDurationMs },
+                { duration: durationSeconds }
+            );
+        }
     };
 
     global.GameSfx = Object.freeze(GameSfx);

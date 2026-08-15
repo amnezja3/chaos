@@ -350,6 +350,13 @@ poprzedniego właściciela.
 
 # Sprint 130.8.9.SFX.4 — Cyberner i komunikaty systemowe
 
+Status: zaimplementowany lokalnie, oczekuje na test assetów i sesji produkcyjnej.
+
+Korekta po testach SFX.3: `max_duration_ms` jest minimalnym watchdogiem
+awaryjnym, a nie punktem ucięcia prawidłowego pliku. Po odczytaniu metadanych
+silnik pozwala MP3 dojść do naturalnego `ended` (długość assetu + 750 ms),
+zachowując twardy bezpiecznik 30 s dla uszkodzonego lub zapętlonego audio.
+
 ## Cel
 
 Podłączyć wiadomości i istotne komunikaty bez odgrywania backlogu oraz bez
@@ -402,6 +409,22 @@ indywidualne melodie użytkowników lub klanów.
 Kanały Cybernera pozostają niezależne od audio, a odłączenie całego `GameSfx`
 nie zmienia dostarczania, read cursorów ani unread count. W długiej sesji każda
 nowa wiadomość może zagrać najwyżej raz.
+
+## Zrealizowany kontrakt runtime
+
+* `cyberner.message_incoming` jest emitowany tylko podczas live processingu delty
+  `cyberner.message_created`; bootstrap, recovery i pierwszy poll po utracie
+  połączenia są ciche;
+* cichy `cyberner.message_sent` startuje dopiero z odpowiedzi zawierającej
+  kanoniczne `message_id` po zapisie;
+* oba warianty używają globalnego klucza `cyberner:<message_id>`, niezależnego od
+  liczby okien Cybernera i reprezentacji kanału;
+* `system.warning` i `system.critical` wymagają stabilnego ID ze
+  `SystemMessageStore`; `info` pozostaje bez dźwięku;
+* `system.critical` może przerwać aktywne głosy o niższym priorytecie, a każdy
+  przerwany głos zwalnia własny uchwyt duckingu radia;
+* audio nie odczytuje ani nie zapisuje cursorów, unread count ani historii
+  kanałów.
 
 ---
 
