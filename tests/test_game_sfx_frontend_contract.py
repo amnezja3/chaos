@@ -16,6 +16,8 @@ class GameSfxFrontendContractTest(unittest.TestCase):
 
     def test_sfx_loads_once_before_radio_and_terminal(self):
         self.assertEqual(self.template.count("js/game_sfx.js"), 1)
+        self.assertIn("game_sfx.js') }}?v=sfx-secret-path-2", self.template)
+        self.assertIn("manifest.v1.json?v=sfx-secret-path-2", self.sfx)
         self.assertLess(self.template.index("js/game_sfx.js"), self.template.index("js/ghost_radio.js"))
         self.assertLess(self.template.index("js/game_sfx.js"), self.template.index("js/terminal.js"))
 

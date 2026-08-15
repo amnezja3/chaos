@@ -148,3 +148,7 @@
   Ustawień. Składnia JS, test silnika Node i `git diff --check` są poprawne;
   lokalny `python.exe` ponownie był niedostępny, więc unittest Pythona pozostaje
   do uruchomienia w środowisku projektu.
+- Test wdrożeniowy ujawnił cache pustego manifestu SFX.1: moduł i manifest miały
+  niezmienione URL-e, a manifest świadomie używa `force-cache`. SFX.2 dostał
+  wspólny cache-bust `sfx-secret-path-2`, dzięki czemu przeglądarka pobiera
+  sześć nowych wpisów i nie pozostaje na pustej allowliście fundamentu.
