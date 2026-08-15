@@ -16,25 +16,35 @@ class GameSfxFrontendContractTest(unittest.TestCase):
 
     def test_sfx_loads_once_before_radio_and_terminal(self):
         self.assertEqual(self.template.count("js/game_sfx.js"), 1)
-        self.assertIn("game_sfx.js') }}?v=sfx-secret-path-2", self.template)
-        self.assertIn("manifest.v1.json?v=sfx-secret-path-2", self.sfx)
+        self.assertIn("game_sfx.js') }}?v=sfx-capture-3", self.template)
+        self.assertIn("manifest.v1.json?v=sfx-capture-3", self.sfx)
         self.assertLess(self.template.index("js/game_sfx.js"), self.template.index("js/ghost_radio.js"))
         self.assertLess(self.template.index("js/game_sfx.js"), self.template.index("js/terminal.js"))
 
     def test_manifest_has_secret_path_allowlist_with_expected_buses(self):
         self.assertEqual(self.manifest["schema"], 1)
         self.assertEqual(self.manifest["base_path"], "/static/audio/sfx")
-        self.assertEqual(
-            set(self.manifest["events"]),
-            {f"secret_path.scene_{index:02d}" for index in range(1, 7)},
-        )
-        self.assertTrue(all(event["bus"] == "lore" for event in self.manifest["events"].values()))
+        expected_secret_path = {f"secret_path.scene_{index:02d}" for index in range(1, 7)}
+        expected_capture = {
+            "capture.target",
+            "capture.conflict_pillar",
+            "capture.conflict_resolved",
+        }
+        self.assertEqual(set(self.manifest["events"]), expected_secret_path | expected_capture)
+        self.assertTrue(all(
+            self.manifest["events"][event]["bus"] == "lore"
+            for event in expected_secret_path
+        ))
+        self.assertTrue(all(
+            self.manifest["events"][event]["bus"] == "gameplay"
+            for event in expected_capture
+        ))
         self.assertEqual(
             set(self.manifest["buses"]),
             {"lore", "gameplay", "message", "system", "ui"},
         )
 
-    def test_foundation_has_no_gameplay_hooks(self):
+    def test_engine_stays_decoupled_from_gameplay_hooks(self):
         self.assertNotIn("aim-target", self.sfx)
         self.assertNotIn("target_captured", self.sfx)
         self.assertNotIn("cyberner.message_created", self.sfx)

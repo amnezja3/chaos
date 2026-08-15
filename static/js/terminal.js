@@ -4957,6 +4957,7 @@ async function notifyGonnaWin(appId, appWindow = null, { legacyWait = false } = 
         }
         notifyCreatedOperations(data);
         if (data.success && data.captured_target) {
+            playAuthoritativeCaptureSfx(data.captured_target);
             notifyOpenMapsTargetHacked(data.captured_target);
             refreshToolbarProfile();
         }
@@ -4987,6 +4988,58 @@ function notifyOpenMapsTargetHacked(target) {
             console.warn("Nie udało się odświeżyć markera mapy:", err);
         }
     });
+}
+
+function authoritativeCaptureSfxVersion(target = {}) {
+    return String(
+        target.capture_version
+        || target.ownership_version
+        || target.captured_at
+        || target.updated_at
+        || "canonical"
+    );
+}
+
+function playAuthoritativeCaptureSfx(target, options = {}) {
+    if (!target || typeof target !== "object" || !window.GameSfx) return false;
+    if (options.recovery === true) return false;
+    const targetId = String(
+        target.target_id || target.id || target.stable_target_id || ""
+    ).trim();
+    if (!targetId) return false;
+    const role = String(target.node_role || target.role || "").toLowerCase();
+    const eventKey = role === "pillar"
+        ? "capture.conflict_pillar"
+        : "capture.target";
+    const captureVersion = authoritativeCaptureSfxVersion(target);
+    window.GameSfx.play(eventKey, {
+        event_id: `target-captured:${targetId}:${captureVersion}`,
+        target_id: targetId,
+        capture_version: captureVersion,
+        node_role: role || "target"
+    });
+    return true;
+}
+
+function playAuthoritativeConflictResolvedSfx(payload = {}) {
+    if (!payload || typeof payload !== "object" || !window.GameSfx) return false;
+    if (payload.recovery_required === true) return false;
+    if (String(payload.status || "").toLowerCase() !== "resolved") return false;
+    const conflictId = String(payload.conflict_id || payload.conflict_key || "").trim();
+    if (!conflictId) return false;
+    const version = String(
+        payload.snapshot_version
+        || payload.conflict_version
+        || payload.geometry_version
+        || payload.updated_at
+        || "canonical"
+    );
+    window.GameSfx.play("capture.conflict_resolved", {
+        event_id: `conflict-resolved:${conflictId}:${version}`,
+        conflict_id: conflictId,
+        conflict_version: version
+    });
+    return true;
 }
 
 function notifyOpenMapsOperationsChanged() {
@@ -7027,6 +7080,7 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
         }
         notifyCreatedOperations(data);
         if (data.success && data.captured_target && responseMatchesCurrentTarget) {
+            playAuthoritativeCaptureSfx(data.captured_target);
             notifyOpenMapsTargetHacked(data.captured_target);
             refreshToolbarProfile();
             appFlowTrace(flowId, "target_captured_from_app_option", {
@@ -9986,6 +10040,10 @@ function updateMapPlayerActorDeltaView(event = {}) {
 }
 
 function updateMapTargetDeltaView(event = {}) {
+    if (String(event.type || "") === "map.target_captured") {
+        const payload = event.payload || {};
+        playAuthoritativeCaptureSfx(payload.target || payload.captured_target || {});
+    }
     let applied = false;
     document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
         try {
@@ -10002,6 +10060,9 @@ function updateMapTargetDeltaView(event = {}) {
 }
 
 function updateTerritoryDeltaView(event = {}) {
+    if (String(event.type || "") === "territory.conflict_changed") {
+        playAuthoritativeConflictResolvedSfx(event.payload || {});
+    }
     let applied = false;
     document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
         try {

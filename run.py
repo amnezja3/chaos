@@ -24536,6 +24536,18 @@ def gonna_win():
         captured_target["stationary"] = not bool(captured_target.get("generated", False))
         if not captured_target.get("target_id"):
             captured_target["target_id"] = build_operation_target_id(captured_target)
+        # Presentation-only identity of this authoritative ownership transfer.
+        # It travels with both the response and map.target_captured delta so the
+        # desktop can dedupe them without deriving an event from local progress.
+        capture_version_seed = "|".join([
+            str(session.get("user") or ""),
+            str(captured_target.get("target_id") or ""),
+            str(gonna_win_receipt_key or launch_receipt or flow_id or ""),
+            str(captured_target.get("captured_at") or ""),
+        ])
+        captured_target["capture_version"] = hashlib.sha1(
+            capture_version_seed.encode("utf-8")
+        ).hexdigest()[:20]
         step_started_at = time.perf_counter()
         capture_cas_result = None
         if captured_target_mode == "territory_contest" or captured_target.get("conflict_id"):

@@ -152,3 +152,23 @@
   niezmienione URL-e, a manifest świadomie używa `force-cache`. SFX.2 dostał
   wspólny cache-bust `sfx-secret-path-2`, dzięki czemu przeglądarka pobiera
   sześć nowych wpisów i nie pozostaje na pustej allowliście fundamentu.
+
+## 2026-08-15 - Sprint 130.8.9.SFX.3: autorytatywny capture
+
+- Test produkcyjny potwierdził sześć scen i sześć plików Secret Path; bramka
+  SFX.2 została zaakceptowana przed wejściem w dźwięki gameplayowe.
+- Każde zatwierdzone przejęcie otrzymuje backendowy `capture_version`, wspólny
+  dla odpowiedzi `/gonna-win` i delty `map.target_captured`. Desktop kieruje oba
+  sygnały do jednego helpera oraz jednego event id
+  `target-captured:<target_id>:<capture_version>`, więc response i delta nie
+  odtwarzają efektu podwójnie.
+- Jawny `node_role=pillar` wybiera `capture.conflict_pillar`; pozostałe cele
+  wybierają `capture.target`. Frontend nie zgaduje innera z ikony, geometrii ani
+  położenia.
+- `capture.conflict_resolved` jest uruchamiany wyłącznie przez kanoniczną deltę
+  `territory.conflict_changed` ze statusem `resolved`. Snapshoty, recovery mapy,
+  lokalne kropki i pasek rozbrojenia pozostają ciche.
+- Manifest dostał trzy eventy magistrali `gameplay` i cache-bust
+  `sfx-capture-3`. Produkcyjne assety są oczekiwane w
+  `static/audio/sfx/capture/`; ich brak korzysta z istniejącego bezpiecznego
+  negative cache i nie wpływa na capture, konflikty ani przebudowę terytorium.

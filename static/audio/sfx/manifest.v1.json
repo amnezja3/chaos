@@ -14,6 +14,9 @@
     "secret_path.scene_03": { "file": "secret_path/03_skill_verified.mp3", "bus": "lore", "priority": 70, "volume": 0.9, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.42 },
     "secret_path.scene_04": { "file": "secret_path/04_acceleration.mp3", "bus": "lore", "priority": 70, "volume": 0.9, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.42 },
     "secret_path.scene_05": { "file": "secret_path/05_lore_discovered.mp3", "bus": "lore", "priority": 70, "volume": 0.9, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.42 },
-    "secret_path.scene_06": { "file": "secret_path/06_chaos_protocol_2108.mp3", "bus": "lore", "priority": 70, "volume": 0.9, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.42 }
+    "secret_path.scene_06": { "file": "secret_path/06_chaos_protocol_2108.mp3", "bus": "lore", "priority": 70, "volume": 0.9, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.42 },
+    "capture.target": { "file": "capture/01_target.mp3", "bus": "gameplay", "priority": 80, "volume": 0.9, "max_duration_ms": 5000, "cooldown_ms": 0, "duck_radio": 0.5 },
+    "capture.conflict_pillar": { "file": "capture/02_conflict_pillar.mp3", "bus": "gameplay", "priority": 84, "volume": 0.95, "max_duration_ms": 6000, "cooldown_ms": 0, "duck_radio": 0.45 },
+    "capture.conflict_resolved": { "file": "capture/03_conflict_resolved.mp3", "bus": "gameplay", "priority": 88, "volume": 1.0, "max_duration_ms": 7000, "cooldown_ms": 0, "duck_radio": 0.38 }
   }
 }
