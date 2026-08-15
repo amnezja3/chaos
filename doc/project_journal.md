@@ -125,3 +125,26 @@
   `node tests/js/test_game_sfx.js`, `node tests/js/test_operation_feedback.js`
   oraz `git diff --check` — OK. Lokalne `python.exe` było niedostępne, więc
   unittest Pythona pozostaje do uruchomienia w środowisku projektu.
+
+## 2026-08-15 - Sprint 130.8.9.SFX.2: sześć scen Secret Path
+
+- Sześć istniejących wariantów wizualnych Secret Path otrzymało stabilne
+  `scene_id` i mapowanie 1:1 na `secret_path.scene_01`-`scene_06`. Jeden losowany
+  rekord steruje jednocześnie tekstem, sceną i eventem audio; losowanie dźwięku
+  nie jest wykonywane osobno.
+- Audio jest odblokowywane w geście kliknięcia nazwy celu, lecz startuje dopiero
+  po autorytatywnym sukcesie `/api/map/aim-target`. Błąd API, mute, autoplay albo
+  brak MP3 pozostawia bez zmian ścieżkę gameplayową i czterosekundowe show.
+- Kolejne uruchomienie Secret Path kasuje poprzedni timer i głos magistrali
+  `lore`. Event id ma postać `secret-path:<target_id>:<local_sequence>`, a po
+  końcu show uchwyt audio i ducking są zwalniane.
+- Manifest dostał sześć jawnych lokalnych ścieżek MP3. Pliki należy dostarczyć
+  pod `static/audio/sfx/secret_path/` zgodnie z README; bez nich działa
+  kontrolowany fallback wizualny.
+- Ustawienia pulpitu dostały przełącznik efektów, suwak głośności oraz test
+  Secret Path. Wszystkie korzystają z jednego `window.GameSfx`, bez osobnego
+  odtwarzacza i bez wpływu na Ghost Radio poza uchwytem duckingu.
+- Dodano test kontraktu sześciu scen, kolejności gesture/API/show oraz kontrolek
+  Ustawień. Składnia JS, test silnika Node i `git diff --check` są poprawne;
+  lokalny `python.exe` ponownie był niedostępny, więc unittest Pythona pozostaje
+  do uruchomienia w środowisku projektu.

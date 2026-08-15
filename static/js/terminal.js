@@ -9457,6 +9457,23 @@ function createSettings() {
 
             <section class="settings-section">
                 <div class="settings-section__header">
+                    <h3>Efekty dzwiekowe</h3>
+                    <span>Game SFX</span>
+                </div>
+                <label class="settings-toggle">
+                    <input type="checkbox" data-settings-sfx-enabled ${(!window.GameSfx || window.GameSfx.getState().enabled) ? 'checked' : ''}>
+                    <span>Efekty gry i scen lore</span>
+                </label>
+                <label class="settings-sfx-volume">
+                    <span>Glosnosc <b data-settings-sfx-volume-value>${Math.round((window.GameSfx ? window.GameSfx.getState().volume : 0.8) * 100)}%</b></span>
+                    <input type="range" min="0" max="100" step="1" value="${Math.round((window.GameSfx ? window.GameSfx.getState().volume : 0.8) * 100)}" data-settings-sfx-volume>
+                </label>
+                <button type="button" class="settings-sfx-test" data-settings-sfx-test>Test Secret Path</button>
+                <span class="settings-sfx-test-status" data-settings-sfx-test-status></span>
+            </section>
+
+            <section class="settings-section">
+                <div class="settings-section__header">
                     <h3>Tryb ekranu</h3>
                     <span>Runtime gry</span>
                 </div>
@@ -9522,6 +9539,33 @@ function createSettings() {
     term.querySelector('[data-settings-radio-autoplay]')?.addEventListener('change', event => {
         setGhostRadioAutoplayEnabled(event.target.checked);
         setStatus(event.target.checked ? "Autostart radia wlaczony." : "Autostart radia wylaczony.", "success");
+    });
+
+    term.querySelector('[data-settings-sfx-enabled]')?.addEventListener('change', event => {
+        if (window.GameSfx) window.GameSfx.setEnabled(event.target.checked);
+        setStatus(event.target.checked ? "Efekty dzwiekowe wlaczone." : "Efekty dzwiekowe wylaczone.", "success");
+    });
+
+    term.querySelector('[data-settings-sfx-volume]')?.addEventListener('input', event => {
+        const value = Math.max(0, Math.min(100, Number(event.target.value) || 0));
+        if (window.GameSfx) window.GameSfx.setVolume(value / 100);
+        const output = term.querySelector('[data-settings-sfx-volume-value]');
+        if (output) output.textContent = `${Math.round(value)}%`;
+    });
+
+    term.querySelector('[data-settings-sfx-test]')?.addEventListener('click', async () => {
+        const output = term.querySelector('[data-settings-sfx-test-status]');
+        if (!window.GameSfx) {
+            if (output) output.textContent = "Silnik SFX niedostepny.";
+            return;
+        }
+        await window.GameSfx.unlock();
+        const handle = window.GameSfx.play('secret_path.scene_06', {
+            event_id: `settings-sfx-test:${Date.now()}`,
+            source: 'settings'
+        });
+        const result = await handle.started;
+        if (output) output.textContent = result.ok ? "Odtwarzanie testowe." : `Test: ${result.reason || 'brak audio'}.`;
     });
 
     term.querySelector('[data-settings-auto-fullscreen]')?.addEventListener('change', event => {

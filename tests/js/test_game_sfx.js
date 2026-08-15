@@ -135,11 +135,11 @@ const sfx = sandbox.window.GameSfx;
     assert.strictEqual(duplicate.reason, "duplicate");
 
     const quiet = await sfx.play("test.quiet", {event_id: "event-2"}).started;
-    assert.strictEqual(quiet.ok, false);
-    assert.strictEqual(quiet.reason, "voice_limit");
-
-    assert.strictEqual(first.stop(), true);
+    assert.strictEqual(quiet.ok, true);
+    assert.strictEqual(first.stop(), false);
     assert.strictEqual(duckHandles[0].released, true);
+
+    assert.strictEqual(sfx.stop("lore"), 1);
     assert.strictEqual(sfx.getState().active_voices, 0);
 
     sfx.setEnabled(false);

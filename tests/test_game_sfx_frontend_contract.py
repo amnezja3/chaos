@@ -19,10 +19,14 @@ class GameSfxFrontendContractTest(unittest.TestCase):
         self.assertLess(self.template.index("js/game_sfx.js"), self.template.index("js/ghost_radio.js"))
         self.assertLess(self.template.index("js/game_sfx.js"), self.template.index("js/terminal.js"))
 
-    def test_manifest_is_empty_allowlist_with_expected_buses(self):
+    def test_manifest_has_secret_path_allowlist_with_expected_buses(self):
         self.assertEqual(self.manifest["schema"], 1)
         self.assertEqual(self.manifest["base_path"], "/static/audio/sfx")
-        self.assertEqual(self.manifest["events"], {})
+        self.assertEqual(
+            set(self.manifest["events"]),
+            {f"secret_path.scene_{index:02d}" for index in range(1, 7)},
+        )
+        self.assertTrue(all(event["bus"] == "lore" for event in self.manifest["events"].values()))
         self.assertEqual(
             set(self.manifest["buses"]),
             {"lore", "gameplay", "message", "system", "ui"},

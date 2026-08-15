@@ -2131,13 +2131,29 @@
         }
 
         const secretPathLoreScenes = Object.freeze([
-            { eyebrow: 'BACKDOOR // TARGET REPAIRED', title: 'Broken lock restored', copy: 'Naprawiles uszkodzony kanal celu. Aplikacje z pulpitu i terminala sa juz wpiete w ten sam tunel.' },
-            { eyebrow: 'SECRET PATH // ROUTE OPEN', title: 'Short route unlocked', copy: 'Pominieto wybor narzedzia. Cel jest gotowy — mozesz od razu uruchamiac aplikacje z terminala.' },
-            { eyebrow: 'GHOST SKILL // VERIFIED', title: 'Operator instinct', copy: 'Znalazles wejscie ukryte w nazwie obiektu. Backdoor rozpoznaje graczy, ktorzy czytaja interfejs.' },
-            { eyebrow: 'ACCELERATION // ACTIVE', title: 'Hack line accelerated', copy: 'Secret Path skrocil droge do celu. Rozpoznanie mozesz kontynuowac bezposrednio z dowolnej aplikacji.' },
-            { eyebrow: 'LORE NODE // DISCOVERED', title: 'Knowledge is leverage', copy: 'Ukryte sciezki CHAOS daja przewage nad operatorami, ktorzy korzystaja tylko z widocznych polecen.' },
-            { eyebrow: 'CHAOS PROTOCOL // 2108', title: 'Shield. Blade. Surge.', copy: 'Tarcza utrzymuje cel, ostrze otwiera droge, a impuls laczy aplikacje z autorytatywnym runtime.' }
+            { scene_id: 'target_repaired', sound_event: 'secret_path.scene_01', eyebrow: 'BACKDOOR // TARGET REPAIRED', title: 'Broken lock restored', copy: 'Naprawiles uszkodzony kanal celu. Aplikacje z pulpitu i terminala sa juz wpiete w ten sam tunel.' },
+            { scene_id: 'route_open', sound_event: 'secret_path.scene_02', eyebrow: 'SECRET PATH // ROUTE OPEN', title: 'Short route unlocked', copy: 'Pominieto wybor narzedzia. Cel jest gotowy — mozesz od razu uruchamiac aplikacje z terminala.' },
+            { scene_id: 'skill_verified', sound_event: 'secret_path.scene_03', eyebrow: 'GHOST SKILL // VERIFIED', title: 'Operator instinct', copy: 'Znalazles wejscie ukryte w nazwie obiektu. Backdoor rozpoznaje graczy, ktorzy czytaja interfejs.' },
+            { scene_id: 'acceleration', sound_event: 'secret_path.scene_04', eyebrow: 'ACCELERATION // ACTIVE', title: 'Hack line accelerated', copy: 'Secret Path skrocil droge do celu. Rozpoznanie mozesz kontynuowac bezposrednio z dowolnej aplikacji.' },
+            { scene_id: 'lore_discovered', sound_event: 'secret_path.scene_05', eyebrow: 'LORE NODE // DISCOVERED', title: 'Knowledge is leverage', copy: 'Ukryte sciezki CHAOS daja przewage nad operatorami, ktorzy korzystaja tylko z widocznych polecen.' },
+            { scene_id: 'chaos_protocol_2108', sound_event: 'secret_path.scene_06', eyebrow: 'CHAOS PROTOCOL // 2108', title: 'Shield. Blade. Surge.', copy: 'Tarcza utrzymuje cel, ostrze otwiera droge, a impuls laczy aplikacje z autorytatywnym runtime.' }
         ]);
+        let secretPathLoreTimer = null;
+        let secretPathLoreAudioHandle = null;
+
+        function parentGameSfx() {
+            try {
+                if (window.parent && window.parent !== window && window.parent.GameSfx) return window.parent.GameSfx;
+            } catch (err) {
+                // Cross-origin embedding keeps the visual fallback.
+            }
+            return window.GameSfx || null;
+        }
+
+        function armSecretPathAudio() {
+            const sfx = parentGameSfx();
+            if (sfx && typeof sfx.unlock === 'function') sfx.unlock().catch(() => false);
+        }
 
         function ensureSecretPathOverlay() {
             const container = map && typeof map.getContainer === 'function'
@@ -2174,17 +2190,40 @@
             if (!overlay) return;
             const scene = secretPathLoreScenes[Math.floor(Math.random() * secretPathLoreScenes.length)];
             const label = String(target.label || target.name || target.target_id || 'TARGET').trim();
+            const targetId = String(target.target_id || target.id || `${target.lat || ''}:${target.lng || target.lon || ''}:${label}`);
             overlay.querySelector('.chaos-secret-path-eyebrow').textContent = scene.eyebrow;
             overlay.querySelector('.chaos-secret-path-title').textContent = scene.title;
             overlay.querySelector('.chaos-secret-path-copy').textContent = scene.copy;
             overlay.querySelector('.chaos-secret-path-route').textContent = `SECRET LINK > ${label} > RUNTIME READY`;
             const sequence = String(Number(overlay.dataset.sequence || 0) + 1);
             overlay.dataset.sequence = sequence;
+            overlay.dataset.sceneId = scene.scene_id;
+            overlay.dataset.soundEvent = scene.sound_event;
+            if (secretPathLoreTimer) window.clearTimeout(secretPathLoreTimer);
+            if (secretPathLoreAudioHandle && typeof secretPathLoreAudioHandle.stop === 'function') {
+                secretPathLoreAudioHandle.stop({ fade_ms: 60 });
+            }
+            secretPathLoreAudioHandle = null;
+            const sfx = parentGameSfx();
+            if (sfx && typeof sfx.play === 'function') {
+                secretPathLoreAudioHandle = sfx.play(scene.sound_event, {
+                    event_id: `secret-path:${targetId}:${sequence}`,
+                    source: 'map',
+                    scene_id: scene.scene_id
+                });
+            }
             overlay.classList.remove('is-visible');
             void overlay.offsetWidth;
             overlay.classList.add('is-visible');
-            window.setTimeout(() => {
-                if (overlay.dataset.sequence === sequence) overlay.classList.remove('is-visible');
+            secretPathLoreTimer = window.setTimeout(() => {
+                if (overlay.dataset.sequence === sequence) {
+                    overlay.classList.remove('is-visible');
+                    if (secretPathLoreAudioHandle && typeof secretPathLoreAudioHandle.stop === 'function') {
+                        secretPathLoreAudioHandle.stop({ fade_ms: 100 });
+                    }
+                    secretPathLoreAudioHandle = null;
+                    secretPathLoreTimer = null;
+                }
             }, 4000);
         }
 
@@ -2193,6 +2232,8 @@
         async function aimMapTargetOnly(target, trigger) {
             const normalized = normalizeMapMenuTarget(target || {});
             if (trigger && trigger.getAttribute('aria-busy') === 'true') return;
+            // Preserve the user gesture before awaiting the authoritative API.
+            armSecretPathAudio();
             if (trigger) trigger.setAttribute('aria-busy', 'true');
             try {
                 const response = await fetch('/api/map/aim-target', {

@@ -1705,6 +1705,39 @@ body.wall-chaos-violet {
   accent-color: #39ff80;
 }
 
+.settings-sfx-volume {
+    display: grid;
+    gap: 8px;
+    padding: 10px 0;
+    color: #b8ffd0;
+}
+
+.settings-sfx-volume span {
+    display: flex;
+    justify-content: space-between;
+}
+
+.settings-sfx-volume input {
+    width: 100%;
+    accent-color: #2fff74;
+}
+
+.settings-sfx-test {
+    border: 1px solid #1fce60;
+    background: #001b0b;
+    color: #b8ffd0;
+    padding: 9px 12px;
+    cursor: pointer;
+}
+
+.settings-sfx-test-status {
+    display: block;
+    min-height: 18px;
+    padding-top: 7px;
+    color: #7eeaa1;
+    font-size: 12px;
+}
+
 @media (max-width: 640px) {
   .settings-wallpaper-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -220,6 +220,12 @@
         if (active.length < limit) return { ok: true };
         active.sort((left, right) => left.priority - right.priority || left.startedAt - right.startedAt);
         const weakest = active[0];
+        // Lore is a single replaceable channel: a fresh Secret Path show
+        // replaces the previous scene even at the same priority.
+        if (entry.bus === "lore" && weakest) {
+            releaseVoice(weakest, 0);
+            return { ok: true };
+        }
         if (!weakest || entry.priority <= weakest.priority) return { ok: false };
         releaseVoice(weakest, 40);
         return { ok: true };

@@ -8,5 +8,12 @@
     "system": { "max_voices": 1 },
     "ui": { "max_voices": 3 }
   },
-  "events": {}
+  "events": {
+    "secret_path.scene_01": { "file": "secret_path/01_target_repaired.mp3", "bus": "lore", "priority": 70, "volume": 0.9, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.42 },
+    "secret_path.scene_02": { "file": "secret_path/02_route_open.mp3", "bus": "lore", "priority": 70, "volume": 0.9, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.42 },
+    "secret_path.scene_03": { "file": "secret_path/03_skill_verified.mp3", "bus": "lore", "priority": 70, "volume": 0.9, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.42 },
+    "secret_path.scene_04": { "file": "secret_path/04_acceleration.mp3", "bus": "lore", "priority": 70, "volume": 0.9, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.42 },
+    "secret_path.scene_05": { "file": "secret_path/05_lore_discovered.mp3", "bus": "lore", "priority": 70, "volume": 0.9, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.42 },
+    "secret_path.scene_06": { "file": "secret_path/06_chaos_protocol_2108.mp3", "bus": "lore", "priority": 70, "volume": 0.9, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.42 }
+  }
 }
