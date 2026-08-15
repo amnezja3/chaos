@@ -653,6 +653,15 @@ aplikacji:
     "completion": {
       "success": ["service map confirmed"],
       "failure": ["service map rejected"]
+    },
+    "audio_events": {
+      "intro": "ofs.intro",
+      "choice_available": "ofs.choice_available",
+      "choice_confirmed": "ofs.choice_confirmed",
+      "progress_checkpoint": "ofs.progress_checkpoint",
+      "success": "ofs.success",
+      "failure": "ofs.failure",
+      "runtime_warning": "ofs.runtime_warning"
     }
   }
 }
@@ -675,6 +684,8 @@ Zasady dla `feedback_content`:
 * nie zawiera HTML ani wykonywalnego kodu;
 * może używać wyłącznie jawnej listy bezpiecznych placeholderów;
 * completion jest wybierane dopiero z potwierdzonego payloadu;
+* `audio_events` może wskazywać wyłącznie semantyczne eventy `ofs.*`
+  zgodne z nazwą hooka; nie przyjmuje URL, głośności, priorytetu ani czasu;
 * brak lub błąd contentu aplikacji uruchamia fallback, a nie blokadę gameplayu.
 
 Kreator powinien pokazywać podgląd minimum trzech wariantów prezentacji oraz

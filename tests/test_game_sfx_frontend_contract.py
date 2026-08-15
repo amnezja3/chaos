@@ -17,8 +17,8 @@ class GameSfxFrontendContractTest(unittest.TestCase):
 
     def test_sfx_loads_once_before_radio_and_terminal(self):
         self.assertEqual(self.template.count("js/game_sfx.js"), 1)
-        self.assertIn("game_sfx.js') }}?v=sfx-messages-4", self.template)
-        self.assertIn("manifest.v1.json?v=sfx-messages-4", self.sfx)
+        self.assertIn("game_sfx.js') }}?v=sfx-ofs-5", self.template)
+        self.assertIn("manifest.v1.json?v=sfx-ofs-5", self.sfx)
         self.assertLess(self.template.index("js/game_sfx.js"), self.template.index("js/ghost_radio.js"))
         self.assertLess(self.template.index("js/game_sfx.js"), self.template.index("js/terminal.js"))
 
@@ -37,7 +37,15 @@ class GameSfxFrontendContractTest(unittest.TestCase):
             "system.warning",
             "system.critical",
         }
-        self.assertEqual(set(self.manifest["events"]), expected_secret_path | expected_capture | expected_messages)
+        expected_ofs = {
+            "ofs.intro", "ofs.choice_available", "ofs.choice_confirmed",
+            "ofs.progress_checkpoint", "ofs.success", "ofs.failure",
+            "ofs.runtime_warning",
+        }
+        self.assertEqual(
+            set(self.manifest["events"]),
+            expected_secret_path | expected_capture | expected_messages | expected_ofs,
+        )
         self.assertTrue(all(
             self.manifest["events"][event]["bus"] == "lore"
             for event in expected_secret_path

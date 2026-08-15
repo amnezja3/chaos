@@ -774,6 +774,10 @@ globalny fallback OFS
 
 Autorski content może wypełniać neutralne sloty i potwierdzony completion.
 Security content jest używany tylko dla pary dopuszczonej przez profil operacji.
+Opcjonalne `feedback_content.audio_events` mapuje semantyczne hooki wyłącznie
+na odpowiadające im eventy `ofs.*`. Aplikacja nie zapisuje ścieżki MP3,
+głośności, magistrali, priorytetu ani timingu. Nieprawidłowa wartość jest
+pomijana i wraca do globalnego eventu OFS bez wpływu na uruchomienie aplikacji.
 
 ## Map launch discovery i provisional snapshot — 130.8.6.3.1
 

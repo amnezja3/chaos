@@ -209,3 +209,23 @@
   twardy bezpiecznik 30 s i dotychczasowe sprzątanie głosu oraz duckingu.
 - Dodano kontrakt JS dla assetu krótszego i dłuższego od limitu manifestu oraz
   dla bezwzględnego limitu awaryjnego.
+
+## 2026-08-15 - Sprint 130.8.9.SFX.5: OFS i polish
+
+- Domknięto wspólny lifecycle audio aplikacji hookami `ofs.intro`,
+  `ofs.choice_available`, `ofs.choice_confirmed`, `ofs.progress_checkpoint`,
+  `ofs.success`, `ofs.failure` i `ofs.runtime_warning`. Wszystkie cztery
+  renderery wykonawcze korzystają z jednego `OperationFeedbackSession` i
+  globalnego `GameSfx`.
+- Każda emisja ma dedupe `ofs:<session_id>:<phase>:<sequence>`. Checkpointy są
+  ograniczone do trzech na sesję i wyciszone na mobile do 620 px oraz przy
+  `prefers-reduced-motion`, bez zmiany scen, requestu lub payloadu.
+- Projekcja `feedback_content.audio_events` dopuszcza wyłącznie siedem
+  odpowiadających sobie eventów semantycznych. Próby podania URL albo
+  podmiany semantyki są ignorowane i korzystają z globalnego fallbacku.
+- Manifest dostał siedem eventów magistrali `ui`, cache-bust `sfx-ofs-5` oraz
+  README kontraktu assetów `static/audio/sfx/ofs/`. Brak pliku pozostaje
+  bezpiecznym, cichym fallbackiem.
+- Rozdzielono wynik gameplayowy (`ofs.failure`) od problemu transportu lub
+  odpowiedzi runtime (`ofs.runtime_warning`). Critical nadal może przerwać
+  OFS, a zwalnianie głosu przywraca ducking Ghost Radio.

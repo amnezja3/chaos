@@ -7,11 +7,18 @@ const vm = require("vm");
 const source = fs.readFileSync("static/js/operation_feedback.js", "utf8");
 const profileData = JSON.parse(fs.readFileSync("static/data/operation_feedback.v1.json", "utf8"));
 const testConsole = {log: console.log, error: console.error, warn() {}};
+const sfxPlays = [];
 const sandbox = {
     window: {
         document: null,
         console: testConsole,
         performance: { now: () => 0 },
+        GameSfx: {
+            play(eventKey, context) {
+                sfxPlays.push({eventKey, context});
+                return {started: Promise.resolve({ok: true})};
+            }
+        },
         fetch: () => Promise.reject(new Error("fetch disabled in composer test"))
     },
     console: testConsole,
@@ -27,6 +34,35 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox);
 
 const ofs = sandbox.window.OperationFeedbackSystem;
+const projectedAudio = ofs.projectApplicationContent({
+    feedback_content: {
+        schema_version: "1.0.0",
+        audio_events: {
+            intro: "ofs.intro",
+            success: "ofs.success",
+            choice_available: "ofs.failure",
+            forbidden: "capture.target",
+            failure: "/static/unsafe.mp3"
+        }
+    }
+});
+assert.strictEqual(projectedAudio.audio_events.intro, "ofs.intro");
+assert.strictEqual(projectedAudio.audio_events.success, "ofs.success");
+assert.strictEqual(projectedAudio.audio_events.choice_available, undefined);
+assert.strictEqual(projectedAudio.audio_events.forbidden, undefined);
+assert.strictEqual(projectedAudio.audio_events.failure, undefined);
+const semanticSession = new ofs.OperationFeedbackSession({
+    actionKey: "scan_ports",
+    presentationMode: "button_choice",
+    appId: "v-map",
+    applicationContent: projectedAudio
+});
+assert.strictEqual(semanticSession.playSemanticSfx("intro"), true);
+assert.strictEqual(sfxPlays[sfxPlays.length - 1].eventKey, "ofs.intro");
+assert.match(sfxPlays[sfxPlays.length - 1].context.event_id, /^ofs:.*:executing:1$/);
+sandbox.window.matchMedia = () => ({matches: true});
+assert.strictEqual(semanticSession.playSemanticSfx("progress_checkpoint"), false);
+delete sandbox.window.matchMedia;
 const compactBrand = ofs.buildApplicationBrandModel({
     name: "V-MAP",
     icon: "❄️",

@@ -430,6 +430,8 @@ nowa wiadomość może zagrać najwyżej raz.
 
 # Sprint 130.8.9.SFX.5 — OFS i polish
 
+Status: zaimplementowany lokalnie, oczekuje na test assetów i sesji produkcyjnej.
+
 ## Cel
 
 Domknąć wspólny język dźwiękowy aplikacji, wyważyć assety i potwierdzić, że
@@ -451,6 +453,22 @@ ofs.runtime_warning
 
 Renderer sceny wybiera moment emisji. Content autora może wskazać wyłącznie
 allowlistowany `event_key`; nie przekazuje URL, głośności, priorytetu ani czasu.
+
+## Zrealizowany kontrakt runtime
+
+* Jeden `OperationFeedbackSession` emituje semantyczne hooki przez globalny
+  `GameSfx`; renderery nie tworzą własnych obiektów `Audio`.
+* Event ID ma postać `ofs:<session_id>:<phase>:<sequence>`. Równoległe okna
+  mają osobne sesje, ale wspólny mikser, limity głosów i ducking radia.
+* Checkpoint jest emitowany przy pierwszej scenie i następnie co trzecią scenę,
+  maksymalnie trzy razy na sesję. Na ekranie do 620 px albo przy
+  `prefers-reduced-motion` checkpoint pozostaje cichy.
+* `feedback_content.audio_events` jest prywatną projekcją allowlisty. Klucz
+  semantyczny może wskazać wyłącznie odpowiadający mu event `ofs.*`; URL,
+  magistrala, głośność i timing są odrzucane.
+* Błąd gameplayowy używa `ofs.failure`. Błąd transportu, HTTP albo
+  nieprawidłowej odpowiedzi używa `ofs.runtime_warning`. Audio nie zmienia
+  payloadu ani czasu zamknięcia sceny.
 
 ## Zakres
 

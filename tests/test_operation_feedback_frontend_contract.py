@@ -436,6 +436,18 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertNotIn("this.profile.presentation_modes.includes(this.presentationMode)", self.feedback)
         self.assertIn("this.renderer.render({", self.feedback)
 
+    def test_ofs_sfx_uses_semantic_session_hooks_and_bounded_checkpoints(self):
+        for semantic in (
+            "intro", "choice_available", "choice_confirmed",
+            "progress_checkpoint", "success", "failure", "runtime_warning",
+        ):
+            self.assertIn(f'"{semantic}"', self.feedback)
+        self.assertIn("MAX_PROGRESS_SFX_PER_SESSION = 3", self.feedback)
+        self.assertIn("this.progressSfxCount < MAX_PROGRESS_SFX_PER_SESSION", self.feedback)
+        self.assertIn("ofs:${this.sessionId}:${this.presentationPhase}:${this.sfxSequence}", self.feedback)
+        self.assertIn("(max-width: 620px), (prefers-reduced-motion: reduce)", self.feedback)
+        self.assertNotIn("new global.Audio", self.feedback)
+
     def test_presentation_lifecycle_handoff_and_readability_contract(self):
         self.assertIn("const PRESENTATION_PHASES", self.feedback)
         self.assertIn("function readableSceneDelay", self.feedback)

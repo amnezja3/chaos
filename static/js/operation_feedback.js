@@ -18,6 +18,12 @@
     const PROVISIONAL_INTERFACE_VOICES = Object.freeze(["terminal", "button_choices", "window", "progressbar_random"]);
     const PROVISIONAL_WAIT_BANDS = Object.freeze(["instant", "short", "medium", "long", "extended", "overdue"]);
     const PROVISIONAL_PLACEHOLDERS = new Set(["app_title", "description", "interface", "target_label", "action_label"]);
+    const OFS_SFX_SEMANTICS = new Set([
+        "intro", "choice_available", "choice_confirmed", "progress_checkpoint",
+        "success", "failure", "runtime_warning"
+    ]);
+    const OFS_SFX_EVENT_KEYS = new Set(Array.from(OFS_SFX_SEMANTICS).map(key => `ofs.${key}`));
+    const MAX_PROGRESS_SFX_PER_SESSION = 3;
     const PRESENTATION_PHASES = new Set([
         "provisional", "hydrating", "author_intro", "executing", "completing",
         "completed", "failed", "cancelled", "disposed"
@@ -1057,6 +1063,7 @@
         };
         const rawStructured = appData.feedback_content;
         let structured = null;
+        const audioEvents = {};
         if (rawStructured && rawStructured.schema_version === "1.0.0") {
             const sceneLines = rawStructured.scene_lines || {};
             const security = {};
@@ -1077,6 +1084,15 @@
                     failure: safeContentLines(rawStructured.completion && rawStructured.completion.failure, { allowOutcome: true })
                 }
             };
+            Object.entries(rawStructured.audio_events || {}).forEach(([semantic, eventKey]) => {
+                const normalizedSemantic = String(semantic || "").trim();
+                const normalizedEventKey = String(eventKey || "").trim();
+                if (OFS_SFX_SEMANTICS.has(normalizedSemantic)
+                    && OFS_SFX_EVENT_KEYS.has(normalizedEventKey)
+                    && normalizedEventKey === `ofs.${normalizedSemantic}`) {
+                    audioEvents[normalizedSemantic] = normalizedEventKey;
+                }
+            });
         }
         return deepFreeze({
             title: safeContentText(
@@ -1088,6 +1104,7 @@
             creator_username: safeContentText(appData.creator_username, { allowOutcome: true }) || "",
             creator_nick: safeContentText(appData.creator_nick, { allowOutcome: true }) || "",
             structured,
+            audio_events: audioEvents,
             legacy,
             interface: String(appData.interface || "")
         });
@@ -1137,6 +1154,9 @@
             this.activeChoice = null;
             this.choiceTimeoutId = null;
             this.choiceTickId = null;
+            this.sfxSequence = 0;
+            this.sceneSequence = 0;
+            this.progressSfxCount = 0;
             sessionSequence += 1;
             this.sessionId = `${this.flowId || "local"}:${this.launchReceipt || this.appId || "app"}:${sessionSequence}`;
         }
@@ -1158,6 +1178,36 @@
                 state: this.state,
                 ...details
             });
+        }
+
+        reduceNonessentialSfx() {
+            if (typeof global.matchMedia !== "function") return false;
+            try {
+                return global.matchMedia("(max-width: 620px), (prefers-reduced-motion: reduce)").matches;
+            } catch (error) {
+                return false;
+            }
+        }
+
+        playSemanticSfx(semantic) {
+            const normalized = String(semantic || "").trim();
+            if (!OFS_SFX_SEMANTICS.has(normalized) || !global.GameSfx
+                || typeof global.GameSfx.play !== "function") return false;
+            if (normalized === "progress_checkpoint" && this.reduceNonessentialSfx()) return false;
+            const overrides = this.applicationContent && this.applicationContent.audio_events;
+            const eventKey = overrides && OFS_SFX_EVENT_KEYS.has(overrides[normalized])
+                ? overrides[normalized]
+                : `ofs.${normalized}`;
+            this.sfxSequence += 1;
+            global.GameSfx.play(eventKey, {
+                event_id: `ofs:${this.sessionId}:${this.presentationPhase}:${this.sfxSequence}`,
+                session_id: this.sessionId,
+                phase: this.presentationPhase,
+                sequence: this.sfxSequence,
+                app_id: this.appId,
+                action_key: this.actionKey
+            });
+            return true;
         }
 
         setPresentationPhase(nextPhase, details = {}) {
@@ -1303,6 +1353,7 @@
                 choice_value: option.value,
                 completion_reason: reason
             });
+            this.playSemanticSfx("choice_confirmed");
             this.activeChoice = null;
             this.setTimer(() => {
                 if (!this.disposed && !this.activeChoice && container) {
@@ -1360,6 +1411,7 @@
                 choice.timeout_ms
             );
             this.trace("feedback_choice_shown", { choice_id: choice.choice_id });
+            this.playSemanticSfx("choice_available");
         }
 
         maybePresentChoice(scene) {
@@ -1382,6 +1434,7 @@
                 "Oczekiwanie na runtime."
             ]);
             this.trace("feedback_session_started");
+            this.playSemanticSfx("intro");
             this.transition("running");
             this.render("Operacja w toku...", [
                 `Aplikacja: ${this.appId || "narzedzie"}`,
@@ -1452,6 +1505,7 @@
             });
             if (this.state === "awaiting_payload") this.transition("running");
             this.render("Operacja w toku...", scene.lines, "pending", "replace", scene.scene_id);
+            this.sceneSequence += 1;
             this.trace("feedback_scene_started", {
                 scene_id: scene.scene_id,
                 duration_profile: scene.duration_profile,
@@ -1463,6 +1517,10 @@
                 visual_lift: Boolean(this.appWindow && this.appWindow.classList
                     && this.appWindow.classList.contains("ofs-visual-lift"))
             });
+            if (this.progressSfxCount < MAX_PROGRESS_SFX_PER_SESSION
+                && (this.sceneSequence === 1 || this.sceneSequence % 3 === 0)) {
+                if (this.playSemanticSfx("progress_checkpoint")) this.progressSfxCount += 1;
+            }
             this.maybePresentChoice(scene);
             if (this.activeChoice) return;
             this.setTimer(() => {
@@ -1500,6 +1558,7 @@
                     || (success ? "Runtime potwierdzil powodzenie." : "Runtime zwrocil wynik operacji.")
             ], success ? "success" : "failure");
             this.trace("feedback_payload_received", { success });
+            this.playSemanticSfx(success ? "success" : "failure");
             this.setPresentationPhase(success ? "completed" : "failed", { success });
             this.setTimer(() => this.dispose("payload_complete"), MIN_COMPLETION_READ_MS);
         }
@@ -1528,6 +1587,9 @@
                 completion_reason: String(reason || "request_failed"),
                 failure_category: failureCategory
             });
+            this.playSemanticSfx(
+                failureCategory === "gameplay_failure" ? "failure" : "runtime_warning"
+            );
             this.setTimer(() => this.dispose(reason), MIN_COMPLETION_READ_MS);
         }
 

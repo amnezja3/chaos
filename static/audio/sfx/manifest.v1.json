@@ -21,6 +21,13 @@
     "cyberner.message_incoming": { "file": "messages/01_incoming.mp3", "bus": "message", "priority": 55, "volume": 0.78, "max_duration_ms": 3500, "cooldown_ms": 450, "duck_radio": 0.72 },
     "cyberner.message_sent": { "file": "messages/02_sent.mp3", "bus": "message", "priority": 35, "volume": 0.55, "max_duration_ms": 2500, "cooldown_ms": 250, "duck_radio": 0.9 },
     "system.warning": { "file": "messages/03_warning.mp3", "bus": "system", "priority": 90, "volume": 0.9, "max_duration_ms": 5000, "cooldown_ms": 2500, "duck_radio": 0.42 },
-    "system.critical": { "file": "messages/04_critical.mp3", "bus": "system", "priority": 100, "volume": 1.0, "max_duration_ms": 7000, "cooldown_ms": 1500, "duck_radio": 0.3, "interrupt_lower_priority": true }
+    "system.critical": { "file": "messages/04_critical.mp3", "bus": "system", "priority": 100, "volume": 1.0, "max_duration_ms": 7000, "cooldown_ms": 1500, "duck_radio": 0.3, "interrupt_lower_priority": true },
+    "ofs.intro": { "file": "ofs/01_intro.mp3", "bus": "ui", "priority": 28, "volume": 0.58, "max_duration_ms": 4000, "cooldown_ms": 150, "duck_radio": 0.9 },
+    "ofs.choice_available": { "file": "ofs/02_choice_available.mp3", "bus": "ui", "priority": 38, "volume": 0.62, "max_duration_ms": 3000, "cooldown_ms": 250, "duck_radio": 0.88 },
+    "ofs.choice_confirmed": { "file": "ofs/03_choice_confirmed.mp3", "bus": "ui", "priority": 42, "volume": 0.65, "max_duration_ms": 3000, "cooldown_ms": 150, "duck_radio": 0.86 },
+    "ofs.progress_checkpoint": { "file": "ofs/04_progress_checkpoint.mp3", "bus": "ui", "priority": 24, "volume": 0.48, "max_duration_ms": 2500, "cooldown_ms": 1200, "duck_radio": 0.94 },
+    "ofs.success": { "file": "ofs/05_success.mp3", "bus": "ui", "priority": 58, "volume": 0.72, "max_duration_ms": 5000, "cooldown_ms": 250, "duck_radio": 0.76 },
+    "ofs.failure": { "file": "ofs/06_failure.mp3", "bus": "ui", "priority": 62, "volume": 0.76, "max_duration_ms": 5000, "cooldown_ms": 250, "duck_radio": 0.72 },
+    "ofs.runtime_warning": { "file": "ofs/07_runtime_warning.mp3", "bus": "ui", "priority": 68, "volume": 0.8, "max_duration_ms": 5000, "cooldown_ms": 1000, "duck_radio": 0.68 }
   }
 }
