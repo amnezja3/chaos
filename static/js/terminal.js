@@ -39,6 +39,15 @@ let systemMessageSfxCatchup = true;
 const cybernerSfxChannelCooldowns = new Map();
 const processedDeltaKeys = new Set();
 const STATE_DELTA_POLL_INTERVAL_MS = 4000;
+const DESKTOP_BACKGROUND_FETCH_TIMEOUT_MS = 8000;
+const LAUNCH_QUEUE_FETCH_TIMEOUT_MS = 12000;
+
+function fetchDesktopBackground(resource, options = {}, timeoutMs = DESKTOP_BACKGROUND_FETCH_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const requestOptions = Object.assign({}, options, { signal: controller.signal });
+    return fetch(resource, requestOptions).finally(() => clearTimeout(timer));
+}
 const STATE_DELTA_LIMIT = 100;
 const STATE_DELTA_DEFAULT_RECOVERY_SCOPES = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map", "territory", "incident", "ghostnetwork"];
 const CYBERNER_THREAD_REFRESH_INTERVAL_MS = 10000;
@@ -10476,7 +10485,7 @@ async function pollStateChanges() {
             since: String(stateDeltaVersion || 0),
             limit: String(STATE_DELTA_LIMIT)
         });
-        const res = await fetch(`/api/state/changes?${params.toString()}`);
+        const res = await fetchDesktopBackground(`/api/state/changes?${params.toString()}`);
         if (res.status === 401) {
             desktopSessionActive = false;
             return;
@@ -15427,10 +15436,13 @@ function showSystemToast(message, type = 'success') {
     }, 5000);
 }
 
+let systemMessagesPollInFlight = false;
+
 async function pollSystemMessages() {
-    const loadingToken = beginDesktopLoading('Sprawdzam system...');
+    if (!desktopSessionActive || systemMessagesPollInFlight) return;
+    systemMessagesPollInFlight = true;
     try {
-        const res = await fetch('/system-messages');
+        const res = await fetchDesktopBackground('/system-messages');
         if (!res.ok) {
             systemMessageSfxCatchup = true;
             return;
@@ -15447,9 +15459,11 @@ async function pollSystemMessages() {
         systemMessageSfxCatchup = false;
     } catch (err) {
         systemMessageSfxCatchup = true;
-        console.error("Błąd pobierania komunikatów systemowych");
+        if (!err || err.name !== "AbortError") {
+            console.error("Błąd pobierania komunikatów systemowych");
+        }
     } finally {
-        endDesktopLoading(loadingToken);
+        systemMessagesPollInFlight = false;
     }
 }
 
@@ -15527,11 +15541,11 @@ async function pollLaunchQueue() {
     const loadingToken = beginDesktopLoading('Sprawdzam system...');
     try {
         hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_poll_start", {});
-        const res = await fetch('/launch-queue', {
+        const res = await fetchDesktopBackground('/launch-queue', {
             headers: {
                 'X-Hack-Flow-Id': window.__lastHackFlowId || ''
             }
-        });
+        }, LAUNCH_QUEUE_FETCH_TIMEOUT_MS);
         const appsToLaunch = await res.json();
         hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_response", {
             status: res.status,
