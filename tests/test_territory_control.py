@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import run
-from database import TerritoryConflictStore, TerritoryStore
+from database import TerritoryConflictStore, TerritoryStore, UserStore
 
 
 def captured(label, lat, lng, security=None):
@@ -772,6 +772,15 @@ class TerritoryControlTest(unittest.TestCase):
         try:
             store = TerritoryStore(db_path=str(path))
             conflict_store = TerritoryConflictStore(db_path=str(path))
+            local_users = UserStore(db_path=str(path), seed_path=str(path) + ".missing")
+            local_users.save_profile({
+                "username": "alice", "level": 3, "respect": 0,
+                "clan": "Alpha", "system_messages": [],
+            })
+            local_users.save_profile({
+                "username": "bob", "level": 3, "respect": 0,
+                "clan": "Beta", "system_messages": [],
+            })
             for target in [
                 captured("A1", 52.0, 21.0),
                 captured("A2", 52.0018, 21.0),
@@ -823,6 +832,11 @@ class TerritoryControlTest(unittest.TestCase):
             resolved_conflict = conflict_store.get_by_key("alice-bob-test")
             self.assertEqual(resolved_conflict["status"], "resolved")
             self.assertEqual(resolved_conflict["resolution_reason"], "encirclement")
+            rewarded_profile = local_users.get_profile("alice")
+            self.assertEqual(result["transferred_pillar_count"], 3)
+            self.assertTrue(result["strategic_reward"]["ok"])
+            self.assertEqual(rewarded_profile["level"], 5)
+            self.assertEqual(rewarded_profile["respect"], 6)
 
             with patch.object(run, "load_profile_readonly", return_value={"level": 3}):
                 repeated = run.TerritoryEncirclementResolver(store, conflict_store).detect_encircled_clusters(apply=True)

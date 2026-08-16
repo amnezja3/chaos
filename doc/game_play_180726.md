@@ -20833,8 +20833,8 @@ potwierdza dokładnie jednokrotne naliczenie na nowych i starszych kontach.
 
 # Sprint 130.8.9.gameplay-lvlrsp.2 — nagrody za otoczenie, filary i konflikty
 
-Status lokalny: PLANNED / wymaga ukończenia
-`130.8.9.fixsprint-lvlrsp.1`.
+Status lokalny: COMPLETE (2026-08-16); zależność
+`130.8.9.fixsprint-lvlrsp.1` ukończona.
 
 Sprint dodaje jawne nagrody strategiczne do naprawionego, idempotentnego
 finalizera progresji. Nie zmienia geometrii, kwalifikacji filarów, zasad

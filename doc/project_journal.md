@@ -289,3 +289,18 @@
   więc zmienne identyfikatory `player_areas` po rebuildzie nie zrywają ciągłości.
   Małe przyrosty jednego klastra kumulują się, a rozrost pozostałych pól nie
   dopina jego progu. RSP pozostaje liczone z efektywnego przyrostu.
+
+## 2026-08-16 - Sprint 130.8.9.gameplay-lvlrsp.2: nagrody strategiczne
+
+- Pełne otoczenie i trwałe wchłonięcie obcego klastra daje `+1 LVL` oraz
+  `+1 RSP` za każdy faktycznie przepisany filar. Role pochodzą z immutable
+  snapshotu klastra; innery nie zwiększają premii.
+- Każdy konflikt zamknięty przez kanonicznego aktora daje `+1 LVL` i RSP równy
+  jego poziomowi sprzed całego rozliczenia. Kilka konfliktów zamkniętych jednym
+  otoczeniem sumuje się z nagrodą za wchłonięcie.
+- Dodano atomowy `settle_strategic` oparty na istniejących progression receipts.
+  Klucze zdarzeń zawierają dedupe otoczenia albo `conflict_id` i wersję
+  rozwiązania, dlatego retry, restart workera i republikacja nie duplikują LVL
+  ani RSP.
+- Guard wspólnego klanu działa przed snapshotem, transferem i receiptem.
+  Chronione relacje nie generują reward-only eventów.

@@ -54,6 +54,13 @@ def compact_multi_audit_report(report):
 
 
 def process_once():
+    strategic_rewards = run.retry_pending_strategic_progression(limit=1)
+    if strategic_rewards:
+        print(
+            f"[TERRITORY_WORKER] strategic_reward={strategic_rewards[0]}",
+            flush=True,
+        )
+        return True
     rebuild_job = run.process_territory_rebuild_job(
         lease_owner=f"territory-rebuild-worker:{os.getpid()}",
         lease_seconds=300,

@@ -5556,6 +5556,11 @@ def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
                 snapshot = published.get("snapshot") or {}
                 snapshot_conflict = snapshot.get("conflict") or conflict
                 record_territory_conflict_delta(snapshot_conflict, reason="conflict_consolidated")
+            if published.get("ok") and published.get("changed"):
+                settle_conflict_resolution_reward(
+                    published.get("snapshot") or {},
+                    progression_store=territory_progression_receipt_store,
+                )
             if not published.get("pending_newer"):
                 if run_encirclement and published.get("ok"):
                     resolve_territory_encirclements_after_change(
@@ -6045,6 +6050,103 @@ TERRITORY_ENCIRCLEMENT_EVENT_TYPE = "territory_encirclement_resolved"
 TERRITORY_ENCIRCLEMENT_TOLERANCE_DEGREES = 1e-9
 
 
+def settle_conflict_resolution_reward(snapshot, progression_store=None):
+    """Reward one durable non-encirclement conflict resolution exactly once."""
+    conflict = dict((snapshot or {}).get("conflict") or {})
+    if str(conflict.get("status") or "") != "resolved":
+        return {"ok": False, "reason": "conflict_not_resolved"}
+    if (str(conflict.get("source_event") or "") == "territory_encirclement"
+            or str(conflict.get("resolution_reason") or "") == "encirclement"):
+        return {"ok": False, "reason": "encirclement_reward_grouped"}
+    actor_username = str(conflict.get("last_actor_username") or "").strip()
+    conflict_id = str(conflict.get("conflict_id") or conflict.get("id") or "").strip()
+    if not actor_username or not conflict_id:
+        return {"ok": False, "reason": "closing_actor_missing"}
+    other_participants = {
+        str(item or "").strip()
+        for item in (conflict.get("participants") or [])
+        if str(item or "").strip() and str(item or "").strip() != actor_username
+    }
+    if not other_participants or all(
+        territory_owners_are_protected_relation(actor_username, participant)
+        for participant in other_participants
+    ):
+        return {"ok": False, "reason": "protected_relation"}
+    resolution_version = int(
+        (snapshot or {}).get("conflict_version")
+        or conflict.get("conflict_version")
+        or (snapshot or {}).get("geometry_version")
+        or conflict.get("geometry_version")
+        or 0
+    )
+    source_event_id = f"territory_conflict_resolved:{conflict_id}:{resolution_version}"
+    store = progression_store or territory_progression_receipt_store
+    receipt = store.ensure(
+        source_event_id,
+        actor_username,
+        {
+            "reward_type": "conflict_resolution",
+            "conflict_id": conflict_id,
+            "resolution_version": resolution_version,
+        },
+        conflict_ids=[conflict_id],
+    )
+    return store.settle_strategic(
+        receipt.get("receipt_id"),
+        conflict_resolutions=[{
+            "conflict_id": conflict_id,
+            "resolution_version": resolution_version,
+        }],
+        system_messages=[{
+            "type": "success",
+            "title": "Konflikt rozwiazany",
+            "text": "Strategiczne zwyciestwo: +1 LVL i bonus RSP rowny poziomowi.",
+            "status": "new",
+        }],
+    )
+
+
+def retry_pending_strategic_progression(limit=10):
+    """Replay immutable strategic receipts without touching geometry receipts."""
+    pending = territory_progression_receipt_store.list_pending(
+        strategic_only=True
+    )[:max(1, int(limit or 1))]
+    results = []
+    for receipt in pending:
+        baseline = dict(receipt.get("baseline") or {})
+        reward_type = str(baseline.get("reward_type") or "")
+        if reward_type == "territory_strategic":
+            snapshot = dict(baseline.get("encirclement") or {})
+            encirclement = {
+                "awarded": True,
+                "reward_key": f"encirclement:{baseline.get('dedupe_key') or ''}",
+                "transferred_pillar_count": int(
+                    snapshot.get("transferred_pillar_count") or 0
+                ),
+            }
+            resolutions = list(baseline.get("conflict_resolutions") or [])
+        elif reward_type == "conflict_resolution":
+            encirclement = {}
+            resolutions = [{
+                "conflict_id": baseline.get("conflict_id"),
+                "resolution_version": baseline.get("resolution_version"),
+            }]
+        else:
+            continue
+        settled = territory_progression_receipt_store.settle_strategic(
+            receipt.get("receipt_id"),
+            encirclement=encirclement,
+            conflict_resolutions=resolutions,
+        )
+        results.append({
+            "receipt_id": receipt.get("receipt_id"),
+            "ok": bool(settled.get("ok")),
+            "duplicate": bool(settled.get("duplicate")),
+            "reason": settled.get("reason"),
+        })
+    return results
+
+
 def _territory_point_on_segment(point, a, b, tolerance=TERRITORY_ENCIRCLEMENT_TOLERANCE_DEGREES):
     try:
         px = float(point.get("lng", point.get("lon")))
@@ -6344,9 +6446,15 @@ def territory_area_encircled_by_protected_owner(area, all_areas, profile_cache=N
 class TerritoryEncirclementResolver:
     """Resolves full cluster encirclement without becoming a new territory store."""
 
-    def __init__(self, store=None, conflict_store=None):
+    def __init__(self, store=None, conflict_store=None, progression_store=None):
         self.store = store or territory_store
         self.conflict_store = conflict_store or territory_conflict_store
+        if progression_store is not None:
+            self.progression_store = progression_store
+        elif getattr(self.store, "db_path", None):
+            self.progression_store = TerritoryProgressionReceiptStore(self.store.db_path)
+        else:
+            self.progression_store = territory_progression_receipt_store
         # One resolver pass can compare hundreds of area pairs.  Relation
         # profiles are immutable for the duration of that pass, so never read
         # the same large profile from SQLite for every pair.
@@ -6460,7 +6568,13 @@ class TerritoryEncirclementResolver:
         areas = safe_player_areas(self.store.list_player_areas())
         attacker = territory_area_by_id(areas, attacker_id)
         defender = territory_area_by_id(areas, defender_id)
-        if not attacker or not defender or not self.is_cluster_fully_encircled(attacker, defender):
+        if not attacker or not defender:
+            return None
+        if territory_owners_are_protected_relation(
+            attacker.get("owner_username"), defender.get("owner_username")
+        ):
+            return None
+        if not self.is_cluster_fully_encircled(attacker, defender):
             return None
 
         snapshot = self.build_encirclement_snapshot(
@@ -6487,6 +6601,11 @@ class TerritoryEncirclementResolver:
 
         defender_members = territory_area_cluster_members(self.store, defender)
         captured_objects = []
+        defender_pillar_keys = {
+            target_position_key(target) for target in defender_members["pillars"]
+        }
+        defender_pillar_keys.discard(None)
+        transferred_pillar_count = 0
         for target in defender_members["objects"]:
             transferred = copy.deepcopy(target)
             transferred["owner_username"] = attacker_username
@@ -6505,7 +6624,10 @@ class TerritoryEncirclementResolver:
                 transferred.get("lng", transferred.get("lon")),
                 transferred.get("label"),
             )
-            captured_objects.append(self.store.save_captured_target(attacker_username, transferred))
+            saved_target = self.store.save_captured_target(attacker_username, transferred)
+            captured_objects.append(saved_target)
+            if target_position_key(saved_target or transferred) in defender_pillar_keys:
+                transferred_pillar_count += 1
 
         attacker_level = territory_player_level(attacker_username)
         defender_level = territory_player_level(defender_username)
@@ -6529,6 +6651,7 @@ class TerritoryEncirclementResolver:
         closed_conflicts = self._close_conflicts(attacker, defender, captured_objects)
         snapshot["status"] = "resolved"
         snapshot["captured_count"] = len(captured_objects)
+        snapshot["transferred_pillar_count"] = transferred_pillar_count
         snapshot["closed_conflict_count"] = len(closed_conflicts)
         snapshot["dedupe_key"] = dedupe_key
         self.store.add_area_event(
@@ -6547,7 +6670,89 @@ class TerritoryEncirclementResolver:
             snapshot,
             dedupe_key=dedupe_key,
         )
+        snapshot["strategic_reward"] = self._settle_strategic_reward(
+            snapshot,
+            closed_conflicts,
+            dedupe_key=dedupe_key,
+        )
         return snapshot
+
+    def _settle_strategic_reward(self, snapshot, closed_conflicts, dedupe_key):
+        actor_username = str(snapshot.get("closing_player_id") or "").strip()
+        attacker_username = str(snapshot.get("attacker_username") or "").strip()
+        defender_username = str(snapshot.get("defender_username") or "").strip()
+        if not actor_username or actor_username != attacker_username:
+            return {"ok": False, "reason": "invalid_closing_actor"}
+        if territory_owners_are_protected_relation(attacker_username, defender_username):
+            return {"ok": False, "reason": "protected_relation"}
+
+        resolutions = []
+        for conflict in closed_conflicts or []:
+            if str(conflict.get("status") or "") != "resolved":
+                continue
+            if str(conflict.get("last_actor_username") or "") != actor_username:
+                continue
+            participants = {
+                str(item or "").strip()
+                for item in (conflict.get("participants") or [])
+                if str(item or "").strip() and str(item or "").strip() != actor_username
+            }
+            if participants and all(
+                territory_owners_are_protected_relation(actor_username, participant)
+                for participant in participants
+            ):
+                continue
+            conflict_id = str(conflict.get("conflict_id") or conflict.get("id") or "").strip()
+            if not conflict_id:
+                continue
+            resolutions.append({
+                "conflict_id": conflict_id,
+                "resolution_version": int(conflict.get("conflict_version") or 0),
+            })
+
+        source_event_id = f"territory_strategic:{dedupe_key}"
+        receipt = self.progression_store.ensure(
+            source_event_id,
+            actor_username,
+            {
+                "reward_type": "territory_strategic",
+                "dedupe_key": dedupe_key,
+                "encirclement": copy.deepcopy(snapshot),
+                "conflict_resolutions": copy.deepcopy(resolutions),
+            },
+            target_id=str(snapshot.get("defender_cluster_id") or ""),
+            conflict_ids=[item["conflict_id"] for item in resolutions],
+        )
+        messages = [{
+            "type": "success",
+            "title": "Terytorium wchloniete",
+            "text": (
+                f"+1 LVL, +{int(snapshot.get('transferred_pillar_count') or 0)} RSP "
+                f"za przejete filary. Rozwiazane konflikty: {len(resolutions)}."
+            ),
+            "status": "new",
+        }]
+        settled = self.progression_store.settle_strategic(
+            receipt.get("receipt_id"),
+            encirclement={
+                "awarded": True,
+                "reward_key": f"encirclement:{dedupe_key}",
+                "transferred_pillar_count": int(
+                    snapshot.get("transferred_pillar_count") or 0
+                ),
+            },
+            conflict_resolutions=resolutions,
+            system_messages=messages,
+        )
+        print(
+            "[STRATEGIC_PROGRESSION] "
+            f"source_event_id={source_event_id} actor={actor_username} "
+            f"pillars={snapshot.get('transferred_pillar_count', 0)} "
+            f"conflicts={len(resolutions)} ok={settled.get('ok')} "
+            f"duplicate={settled.get('duplicate', False)}",
+            flush=True,
+        )
+        return settled
 
     def _sync_profile_captured_targets(self, username):
         try:

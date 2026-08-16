@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import run
 from database import TerritoryProgressionReceiptStore, UserStore
@@ -42,6 +43,23 @@ class TerritoryProgressionReceiptTests(unittest.TestCase):
         self.assertEqual(1000, replay["baseline"]["territory_stats"]["effective_area"])
         self.assertEqual(["conflict:1"], replay["conflict_ids"])
 
+    def test_capture_finalizer_does_not_consume_pending_strategic_receipt(self):
+        capture = self.receipts.ensure("capture:pending", "alice", {})
+        strategic = self.receipts.ensure(
+            "territory_strategic:pending", "alice",
+            {"reward_type": "territory_strategic"},
+        )
+
+        regular = self.receipts.list_pending(actor_username="alice")
+        strategic_only = self.receipts.list_pending(
+            actor_username="alice", strategic_only=True
+        )
+        self.assertEqual([capture["receipt_id"]], [item["receipt_id"] for item in regular])
+        self.assertEqual(
+            [strategic["receipt_id"]],
+            [item["receipt_id"] for item in strategic_only],
+        )
+
     def test_settle_is_atomic_and_idempotent(self):
         receipt = self.receipts.ensure(
             "capture:2", "alice",
@@ -64,6 +82,81 @@ class TerritoryProgressionReceiptTests(unittest.TestCase):
         self.assertEqual(14, profile["respect"])
         self.assertEqual(3, profile["level"])
         self.assertEqual(1, len(profile["system_messages"]))
+
+    def test_strategic_settlement_combines_encirclement_and_conflicts_once(self):
+        receipt = self.receipts.ensure(
+            "territory_strategic:encirclement:1", "alice", {},
+            conflict_ids=["conflict:1", "conflict:2"],
+        )
+        first = self.receipts.settle_strategic(
+            receipt["receipt_id"],
+            encirclement={"awarded": True, "transferred_pillar_count": 3},
+            conflict_resolutions=[
+                {"conflict_id": "conflict:1", "resolution_version": 4},
+                {"conflict_id": "conflict:2", "resolution_version": 7},
+            ],
+        )
+        replay = self.receipts.settle_strategic(
+            receipt["receipt_id"],
+            encirclement={"awarded": True, "transferred_pillar_count": 99},
+            conflict_resolutions=[
+                {"conflict_id": "conflict:1", "resolution_version": 4},
+            ],
+        )
+
+        profile = self.users.get_profile("alice")
+        self.assertTrue(first["ok"])
+        self.assertTrue(replay["duplicate"])
+        self.assertEqual(5, profile["level"])
+        self.assertEqual(17, profile["respect"])
+        self.assertEqual(2, len(first["result"]["conflict_resolutions"]))
+        self.assertEqual(2, first["result"]["totals"]["level_before"])
+        self.assertEqual(3, first["result"]["totals"]["levels_gained"])
+
+    def test_conflict_resolution_reward_uses_closing_actor_level_and_version(self):
+        snapshot = {
+            "conflict_version": 4,
+            "geometry_version": 9,
+            "conflict": {
+                "conflict_id": "conflict:standalone",
+                "status": "resolved",
+                "participants": ["alice", "bob"],
+                "last_actor_username": "alice",
+                "resolution_reason": "no_active_fronts",
+            },
+        }
+        first = run.settle_conflict_resolution_reward(
+            snapshot, progression_store=self.receipts
+        )
+        replay = run.settle_conflict_resolution_reward(
+            snapshot, progression_store=self.receipts
+        )
+
+        profile = self.users.get_profile("alice")
+        self.assertTrue(first["ok"])
+        self.assertTrue(replay["duplicate"])
+        self.assertEqual(3, profile["level"])
+        self.assertEqual(12, profile["respect"])
+        reward = first["result"]["conflict_resolutions"][0]
+        self.assertEqual(4, reward["resolution_version"])
+        self.assertEqual(2, reward["respect_gain"])
+
+    def test_same_clan_conflict_resolution_creates_no_reward_receipt(self):
+        snapshot = {
+            "geometry_version": 3,
+            "conflict": {
+                "conflict_id": "conflict:protected",
+                "status": "resolved",
+                "participants": ["alice", "bob"],
+                "last_actor_username": "alice",
+            },
+        }
+        with patch.object(run, "territory_owners_are_protected_relation", return_value=True):
+            result = run.settle_conflict_resolution_reward(
+                snapshot, progression_store=self.receipts
+            )
+        self.assertEqual("protected_relation", result["reason"])
+        self.assertEqual([], self.receipts.list_pending(include_strategic=True))
 
     def test_progression_uses_receipt_baseline_not_newer_read_snapshot(self):
         profile = self.users.get_profile("alice")

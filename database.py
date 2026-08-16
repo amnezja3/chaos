@@ -2782,7 +2782,8 @@ class TerritoryProgressionReceiptStore:
                 (str(receipt_id or ""),),
             ).fetchone())
 
-    def list_pending(self, actor_username=None, conflict_id=None):
+    def list_pending(self, actor_username=None, conflict_id=None,
+                     include_strategic=False, strategic_only=False):
         query = "SELECT * FROM territory_progression_receipts WHERE status = 'pending'"
         params = []
         if actor_username:
@@ -2791,6 +2792,18 @@ class TerritoryProgressionReceiptStore:
         query += " ORDER BY created_at, receipt_id"
         with db_connect(self.db_path) as conn:
             receipts = [self._row(row) for row in conn.execute(query, params).fetchall()]
+        if strategic_only:
+            receipts = [
+                receipt for receipt in receipts
+                if str((receipt.get("baseline") or {}).get("reward_type") or "")
+                in {"territory_strategic", "conflict_resolution"}
+            ]
+        elif not include_strategic:
+            receipts = [
+                receipt for receipt in receipts
+                if str((receipt.get("baseline") or {}).get("reward_type") or "")
+                not in {"territory_strategic", "conflict_resolution"}
+            ]
         if conflict_id:
             conflict_id = str(conflict_id)
             receipts = [
@@ -2834,6 +2847,8 @@ class TerritoryProgressionReceiptStore:
                     "ok": True, "duplicate": True,
                     "result": loads_json(receipt["result_json"], {}),
                 }
+            if receipt["status"] != self.STATUS_PENDING:
+                return {"ok": False, "reason": "receipt_not_pending"}
             user_row = conn.execute(
                 "SELECT profile_json FROM users WHERE username = ?",
                 (receipt["actor_username"],),
@@ -2868,6 +2883,107 @@ class TerritoryProgressionReceiptStore:
             return {
                 "ok": True, "duplicate": False,
                 "result": copy.deepcopy(progression or {}),
+                "profile": profile,
+            }
+
+    def settle_strategic(self, receipt_id, encirclement=None,
+                         conflict_resolutions=None, system_messages=None):
+        """Atomically settle strategic territory rewards from the current LVL."""
+        receipt_id = str(receipt_id or "").strip()
+        encirclement = copy.deepcopy(encirclement or {})
+        conflict_resolutions = copy.deepcopy(conflict_resolutions or [])
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            receipt = conn.execute(
+                "SELECT * FROM territory_progression_receipts WHERE receipt_id = ?",
+                (receipt_id,),
+            ).fetchone()
+            if not receipt:
+                return {"ok": False, "reason": "receipt_not_found"}
+            if receipt["status"] == self.STATUS_APPLIED:
+                return {
+                    "ok": True, "duplicate": True,
+                    "result": loads_json(receipt["result_json"], {}),
+                }
+            if receipt["status"] != self.STATUS_PENDING:
+                return {"ok": False, "reason": "receipt_not_pending"}
+            user_row = conn.execute(
+                "SELECT profile_json FROM users WHERE username = ?",
+                (receipt["actor_username"],),
+            ).fetchone()
+            if not user_row:
+                return {"ok": False, "reason": "profile_not_found"}
+
+            profile = loads_json(user_row["profile_json"], {})
+            level_before = max(1, int(profile.get("level", 1) or 1))
+            transferred_pillars = max(
+                0, int(encirclement.get("transferred_pillar_count") or 0)
+            )
+            encirclement_levels = 1 if encirclement.get("awarded") else 0
+            encirclement_respect = transferred_pillars if encirclement_levels else 0
+            normalized_resolutions = []
+            seen_resolution_keys = set()
+            for item in conflict_resolutions:
+                conflict_id = str((item or {}).get("conflict_id") or "").strip()
+                resolution_version = int((item or {}).get("resolution_version") or 0)
+                reward_key = f"conflict:{conflict_id}:{resolution_version}"
+                if not conflict_id or reward_key in seen_resolution_keys:
+                    continue
+                seen_resolution_keys.add(reward_key)
+                normalized_resolutions.append({
+                    "reward_key": reward_key,
+                    "conflict_id": conflict_id,
+                    "resolution_version": resolution_version,
+                    "level_before": level_before,
+                    "levels_gained": 1,
+                    "respect_gain": level_before,
+                })
+
+            levels_gained = encirclement_levels + len(normalized_resolutions)
+            respect_gain = encirclement_respect + sum(
+                item["respect_gain"] for item in normalized_resolutions
+            )
+            result = {
+                "territory_progression": {
+                    "respect_gain": 0,
+                    "levels_gained": 0,
+                },
+                "encirclement": {
+                    "reward_key": str(encirclement.get("reward_key") or "encirclement"),
+                    "levels_gained": encirclement_levels,
+                    "transferred_pillar_count": transferred_pillars,
+                    "respect_gain": encirclement_respect,
+                },
+                "conflict_resolutions": normalized_resolutions,
+                "totals": {
+                    "respect_gain": respect_gain,
+                    "levels_gained": levels_gained,
+                    "level_before": level_before,
+                    "level_after": level_before + levels_gained,
+                },
+            }
+            profile["respect"] = int(profile.get("respect", 0) or 0) + respect_gain
+            profile["level"] = level_before + levels_gained
+            if system_messages:
+                profile.setdefault("system_messages", []).extend(
+                    copy.deepcopy(system_messages)
+                )
+            conn.execute(
+                "UPDATE users SET profile_json = ?, updated_at = ? WHERE username = ?",
+                (dumps_json(profile), now, receipt["actor_username"]),
+            )
+            conn.execute(
+                """
+                UPDATE territory_progression_receipts
+                SET status = 'applied', result_json = ?, updated_at = ?, applied_at = ?
+                WHERE receipt_id = ? AND status = 'pending'
+                """,
+                (dumps_json(result), now, now, receipt_id),
+            )
+            return {
+                "ok": True, "duplicate": False,
+                "result": copy.deepcopy(result),
                 "profile": profile,
             }
 

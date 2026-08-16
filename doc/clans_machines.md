@@ -2308,7 +2308,15 @@ Zdobyty RSP:
 * nie jest odbierany po utracie terytorium;
 * nie zależy od późniejszego losu wysłanego sygnału.
 
-LVL nie powinien być przyznawany bezpośrednio jako nagroda za pojedyncze zdarzenie. Gracz otrzymuje większą porcję RSP, która naturalnie przesuwa go w kierunku kolejnego poziomu zgodnie z normalnymi progami gry.
+LVL co do zasady nie jest przyznawany bezpośrednio za pojedyncze zdarzenie.
+Wyjątkiem są dwa trwałe zwycięstwa terytorialne: pełne otoczenie i
+wchłonięcie obcego klastra (`+1 LVL`) oraz kanoniczne rozwiązanie konfliktu
+(`+1 LVL`). Rozwiązanie konfliktu daje dodatkowo RSP równy LVL zwycięzcy
+sprzed całego atomowego rozliczenia, a wchłonięcie daje `+1 RSP` za każdy
+faktycznie przepisany filar. Innery nie zwiększają tej premii. Receipt i profil
+są zapisywane atomowo oraz idempotentnie; retry workera i ponowna publikacja
+snapshotu nie wypłacają nagrody ponownie. Relacja wspólnego klanu blokuje
+transfer, zamknięcie konfliktu i utworzenie nagrody.
 
 Dzięki temu GhostNetwork przyspiesza rozwój, ale nie omija istniejącego systemu progresji.
 
