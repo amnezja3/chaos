@@ -8242,6 +8242,18 @@
                 const payload = (event && event.payload) || {};
                 const type = String((event && event.type) || payload.type || '');
 
+                // Encirclement is a bulk ownership transition: polygons,
+                // conflict snapshots and pillar/inner marker registries all
+                // change together.  The compact delta intentionally does not
+                // carry enough data to rebuild those Leaflet layers.  Recover
+                // them once from the read-only player-areas snapshot instead
+                // of leaving the old conflict markers until the map is opened
+                // again manually.
+                if (type === 'territory.encirclement_resolved') {
+                    window.requestTerritorySnapshotRecovery('territory_encirclement_resolved');
+                    return true;
+                }
+
                 if (type === 'territory.conflict_changed') {
                     const snapshot = payload.snapshot || payload;
                     const conflictReason = String(payload.reason || snapshot.reason || '').trim();
@@ -8314,8 +8326,13 @@
                 // the worker's final delta is the safe point for one read-only
                 // snapshot recovery of the already open map.
                 const territoryReason = String(payload.reason || '').trim();
-                if (territoryReason === 'captured_object_abandoned') {
-                    window.requestTerritorySnapshotRecovery('captured_object_abandoned_complete');
+                if (territoryReason === 'captured_object_abandoned'
+                    || territoryReason === 'territory_encirclement_attacker'
+                    || territoryReason === 'territory_encirclement_defender') {
+                    const recoveryReason = territoryReason === 'captured_object_abandoned'
+                        ? 'captured_object_abandoned_complete'
+                        : 'territory_encirclement_area_complete';
+                    window.requestTerritorySnapshotRecovery(recoveryReason);
                     return true;
                 }
 

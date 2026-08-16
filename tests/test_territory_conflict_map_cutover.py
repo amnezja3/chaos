@@ -279,6 +279,18 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
             source,
         )
 
+    def test_encirclement_delta_triggers_read_only_marker_recovery(self):
+        with open("templates/map_template.html", encoding="utf-8") as handle:
+            source = handle.read()
+
+        self.assertIn("type === 'territory.encirclement_resolved'", source)
+        self.assertIn(
+            "requestTerritorySnapshotRecovery('territory_encirclement_resolved')",
+            source,
+        )
+        self.assertIn("territoryReason === 'territory_encirclement_attacker'", source)
+        self.assertIn("territoryReason === 'territory_encirclement_defender'", source)
+
     def test_map_has_manual_full_refresh_control(self):
         with open("templates/map_template.html", encoding="utf-8") as handle:
             source = handle.read()
