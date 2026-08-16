@@ -20646,6 +20646,367 @@ regresji i bez nowych rebuildów w requestach.
 
 ---
 
+# Sprint 130.8.9.fixsprint-lvlrsp.1 — trwałe rozliczanie LVL i RSP
+
+Status lokalny: IMPLEMENTED / READY FOR TESTS.
+
+Sprint naprawczy przywraca naliczanie istniejącej progresji terytorialnej. Nie
+zmienia jeszcze wysokości nagród ani nie dodaje nowych zdarzeń gameplayowych.
+
+## Problem
+
+Aktualna progresja opiera się na różnicy pomiędzy bieżącym
+`effective_area` i wartością zapisaną wcześniej w `territory_stats`.
+Jednocześnie część zwykłych endpointów wywołuje pełne
+`sync_session_profile()`, które:
+
+* przebudowuje terytorium;
+* zapisuje aktualny `effective_area`;
+* przesuwa punkt odniesienia przed rozliczeniem właściwego zdarzenia.
+
+W konflikcie przejęcie i naliczenie są rozdzielone pomiędzy request
+`/gonna-win` i territory workera. Jeżeli pomiędzy nimi nastąpi pełna
+synchronizacja profilu, worker otrzymuje:
+
+```text
+current_effective_area == previous_effective_area
+effective_gain == 0
+respect_gain == 0
+levels_gained == 0
+```
+
+Problem dotyczy nowych i istniejących profili. Nie jest błędem prezentacji
+belki — wartości nie trafiają do źródła prawdy.
+
+## Cel
+
+Rozdzielić trzy operacje, które obecnie są połączone:
+
+```text
+read profile snapshot
+refresh derived territory metrics
+settle progression reward
+```
+
+Odczyt profilu i zwykłe endpointy nie mogą konsumować ani przesuwać podstawy
+nierozliczonej progresji.
+
+## 1. Kanoniczny receipt progresji
+
+Każda trwała zmiana własności, która może zmienić progresję, tworzy
+idempotentny receipt:
+
+```text
+progression_receipt
+├── receipt_id
+├── event_type
+├── source_event_id
+├── actor_username
+├── affected_usernames
+├── territory_version_before
+├── territory_version_after
+├── effective_area_before
+├── effective_area_after
+├── status: pending | applied | rejected
+├── reward_payload
+└── applied_at
+```
+
+`receipt_id` albo `source_event_id` posiada trwały UNIQUE/dedupe. Retry requestu,
+restart workera i reconciler nie mogą wypłacić nagrody drugi raz.
+
+## 2. Niezmienny stan before
+
+`effective_area_before` musi zostać utrwalone przed zmianą własności albo razem
+z eventem zmiany. Nie wolno odtwarzać go później z aktualnego
+`profile.territory_stats`, ponieważ ten profil może zostać w międzyczasie
+odświeżony przez inny worker lub request.
+
+Stan `after` może zostać obliczony po publikacji poprawnej geometrii, ale musi
+być związany z oczekiwaną `territory_version_after`.
+
+## 3. Read-only profile sync
+
+Endpointy, które tylko czytają profil, katalog aplikacji, stan zabezpieczeń,
+operacje albo dane UI, korzystają z lekkiej ścieżki:
+
+```text
+sync_session_profile(rebuild_territory=False, ...)
+```
+
+Pełny sync może odświeżyć metryki prezentacyjne, lecz nie może:
+
+* oznaczyć pending receipt jako rozliczonego;
+* nadpisać `effective_area_before`;
+* wyzerować nierozliczonego przyrostu;
+* przyznać nagrody bez eventu źródłowego.
+
+## 4. Jeden finalizer progresji
+
+Wprowadzić jeden serwis rozliczający wszystkie receipt’y, używany przez zwykły
+capture i territory workera. Finalizer:
+
+1. blokuje albo atomowo claimuje receipt;
+2. sprawdza oczekiwaną wersję terytorium;
+3. oblicza istniejącą nagrodę z trwałego `before/after`;
+4. zapisuje razem profil, wynik receipt i komunikat systemowy;
+5. publikuje deltę profilu dopiero po commicie;
+6. przy retry zwraca zapisany wynik bez ponownej wypłaty.
+
+Nie wolno rozdzielać zapisu `respect`, `level` i statusu receipt na niezależne
+transakcje.
+
+## 5. Zgodność istniejących profili
+
+Migracja nie może ponownie nagrodzić całej historycznej powierzchni.
+
+* profil bez baseline otrzymuje baseline z aktualnego opublikowanego snapshotu;
+* profil z baseline zachowuje go;
+* tylko nowe eventy po cutover tworzą receipt’y;
+* brak receipt oznacza brak automatycznej wypłaty historycznej;
+* wartości `level` i `respect` zapisane przed sprintem pozostają bez zmian.
+
+## 6. Recovery i obserwowalność
+
+Worker okresowo sprawdza receipt’y `pending`, ale nie skanuje profili w celu
+zgadywania nagród. Log rozliczenia zawiera:
+
+```text
+[PROGRESSION_SETTLEMENT]
+receipt_id
+source_event_id
+actor_username
+before_effective_area
+after_effective_area
+effective_gain
+respect_gain
+levels_gained
+status
+reason
+```
+
+Reconciler raportuje również receipt’y z niezgodną wersją i pozostawia je jako
+retryable zamiast zerować nagrodę.
+
+## Testy Sprintu 130.8.9.fixsprint-lvlrsp.1
+
+Minimum:
+
+* zwykłe przejęcie nalicza dotychczasowy RSP i LVL;
+* konfliktowy capture rozliczony przez workera nalicza je dokładnie raz;
+* `/api/profile`, `/resources.json` i polling pomiędzy capture a workerem nie
+  zmieniają wyniku;
+* retry `/gonna-win` nie nalicza drugi raz;
+* restart workera przed finalizacją nie gubi receipt;
+* dwa równoległe capture mają osobne receipt’y;
+* stary i nowy profil przechodzą tę samą ścieżkę;
+* przegrany uczestnik nie otrzymuje nagrody atakującego;
+* frontend otrzymuje aktualne `level`, `respect` i `territory_stats` po commicie;
+* endpointy mapy pozostają read-only i nie uruchamiają ciężkiego rebuilda.
+
+## DoD
+
+Sprint jest zakończony, gdy żaden odczyt ani synchronizacja profilu nie może
+wyzerować nierozliczonego przyrostu, każda nagroda ma trwały receipt, zwykłe i
+konfliktowe przejęcia używają jednego finalizera, a test współbieżnego pollingu
+potwierdza dokładnie jednokrotne naliczenie na nowych i starszych kontach.
+
+---
+
+# Sprint 130.8.9.gameplay-lvlrsp.2 — nagrody za otoczenie, filary i konflikty
+
+Status lokalny: PLANNED / wymaga ukończenia
+`130.8.9.fixsprint-lvlrsp.1`.
+
+Sprint dodaje jawne nagrody strategiczne do naprawionego, idempotentnego
+finalizera progresji. Nie zmienia geometrii, kwalifikacji filarów, zasad
+multi-conflict ani mechanizmu przejmowania obiektów.
+
+Jest to świadomy wyjątek od dotychczasowej ogólnej zasady GhostNetwork, według
+której pojedyncze zdarzenie nie przyznaje bezpośrednio LVL. Po wdrożeniu sprintu
+ten wyjątek dla zwycięstw terytorialnych trzeba dopisać również do
+`doc/clans_machines.md`; do czasu wdrożenia obecna reguła produkcyjna pozostaje
+bez zmian.
+
+## Zasady nagród
+
+### 1. Pełne otoczenie i wchłonięcie terytorium
+
+Gracz, który domknął pełne otoczenie obcego klastra i doprowadził do jego
+trwałego wchłonięcia, otrzymuje:
+
+```text
++1 LVL
++1 RSP za każdy faktycznie przepisany filar
+```
+
+Do premii filarowej liczą się wyłącznie obiekty, które w snapshotcie
+otoczenia miały `node_role: pillar` i których własność została skutecznie
+przeniesiona na zwycięzcę. Innery nie zwiększają tej premii.
+
+Przykład:
+
+```text
+wchłonięto 4 filary i 7 innerów
+nagroda: +1 LVL, +4 RSP
+```
+
+### 2. Ochrona własnego klanu
+
+Nie wolno otoczyć, wchłonąć ani otrzymać nagrody za terytorium gracza z tego
+samego klanu.
+
+Guard `territory_owners_are_protected_relation(...)` musi działać przed:
+
+* utworzeniem snapshotu zwycięstwa;
+* transferem obiektów;
+* zamknięciem konfliktu;
+* utworzeniem progression receipt;
+* wypłatą LVL lub RSP.
+
+Brak transferu oznacza brak nagrody. Nie wolno tworzyć reward-only eventu dla
+chronionej relacji. Zmiana klanu po zdarzeniu nie zmienia już prawidłowo
+rozliczonego historycznego wyniku.
+
+### 3. Rozwiązanie konfliktu
+
+Gracz zapisany jako autor trwałego rozwiązania konfliktu otrzymuje za każdy
+unikalnie rozwiązany `conflict_id`:
+
+```text
++1 LVL
++(1 RSP × LVL gracza)
+```
+
+Mnożnik RSP wykorzystuje LVL gracza z początku atomowego rozliczenia, przed
+dodaniem bonusowego poziomu za rozwiązanie tego konfliktu.
+
+Przykład:
+
+```text
+LVL przed rozliczeniem: 12
+nagroda konfliktowa: +1 LVL, +12 RSP
+LVL po rozliczeniu: 13
+```
+
+Autorem jest kanoniczny `last_actor_username` albo `closing_player_id` zapisany
+w zdarzeniu rozwiązania, nie właściciel profilu aktualnie obsługiwanego przez
+request lub worker.
+
+### 4. Łączenie nagród
+
+Jeżeli jedno pełne otoczenie jednocześnie wchłania klaster i rozwiązuje aktywny
+konflikt, obie nagrody są należne i sumują się:
+
+```text
+otoczenie/wchłonięcie: +1 LVL + RSP za filary
+rozwiązanie konfliktu: +1 LVL + RSP według LVL sprzed całego rozliczenia
+```
+
+Wszystkie składniki zapisuje jeden receipt albo jedna grupa receiptów związana
+tym samym `source_event_id`. Każdy komponent posiada osobny `reward_key`, aby
+retry nie wypłacił części nagrody ponownie.
+
+### 5. Multi-conflict
+
+Każdy faktycznie rozwiązany konflikt posiada osobne rozliczenie. Jeden ruch
+może zamknąć kilka konfliktów i wtedy przyznaje premię za każdy unikalny
+`conflict_id`, ale tylko jeżeli:
+
+* status przeszedł z aktywnego do rozwiązanego;
+* gracz jest zapisanym autorem rozwiązania;
+* uczestnicy nie są chronieni relacją własnego klanu;
+* dany `conflict_id + resolution_version` nie został wcześniej nagrodzony.
+
+Samo przeliczenie geometrii, ponowna publikacja snapshotu albo reconciler nie
+tworzą kolejnej nagrody.
+
+## Model reward payload
+
+```text
+reward_payload
+├── territory_progression
+│   ├── respect_gain
+│   └── levels_gained
+├── encirclement
+│   ├── levels_gained: 1
+│   ├── transferred_pillar_count
+│   └── respect_gain: transferred_pillar_count
+├── conflict_resolutions[]
+│   ├── conflict_id
+│   ├── resolution_version
+│   ├── level_before
+│   ├── levels_gained: 1
+│   └── respect_gain: level_before
+└── totals
+    ├── respect_gain
+    ├── levels_gained
+    ├── level_before
+    └── level_after
+```
+
+Belka i komunikaty systemowe pokazują sumę, ale historia progresji zachowuje
+osobne źródła nagrody.
+
+## Komunikaty
+
+Przykład otoczenia:
+
+```text
+TERYTORIUM WCHŁONIĘTE
++1 LVL
+Przejęte filary: 4
++4 RSP
+```
+
+Przykład rozwiązania konfliktu:
+
+```text
+KONFLIKT ROZWIĄZANY
++1 LVL
+Bonus strategiczny: +12 RSP
+```
+
+Komunikat jest emitowany po trwałym zapisie profilu i receipt, nigdy przed
+commitem geometrii lub transferu własności.
+
+## Testy Sprintu 130.8.9.gameplay-lvlrsp.2
+
+Minimum:
+
+* otoczenie obcego klastra daje dokładnie `+1 LVL`;
+* trzy przepisane filary dają dokładnie `+3 RSP`;
+* innery nie zwiększają premii filarowej;
+* otoczenie członka własnego klanu nie przenosi obiektów i nie daje nagrody;
+* rozwiązanie konfliktu na LVL 8 daje `+1 LVL` i `+8 RSP`;
+* mnożnik korzysta z LVL sprzed bonusu;
+* otoczenie rozwiązujące konflikt wypłaca oba składniki;
+* multi-conflict rozlicza każdy naprawdę zamknięty konflikt dokładnie raz;
+* retry, restart workera i reconciler nie duplikują LVL ani RSP;
+* ponowna publikacja tego samego snapshotu niczego nie wypłaca;
+* właściwym odbiorcą jest `closing_player_id`/`last_actor_username`;
+* przegrany, obserwator i pozostali uczestnicy multi-conflict nie dostają
+  nagrody zwycięzcy;
+* delta profilu aktualizuje belkę bez globalnego reloadu;
+* mapa i endpointy odczytowe nie wykonują rozliczenia nagrody.
+
+## Dokumentacja po wdrożeniu
+
+Zaktualizować `doc/clans_machines.md` i `doc/project_journal.md`, zapisując
+wyjątek bezpośredniego LVL dla pełnego otoczenia oraz rozwiązania konfliktu,
+kolejność mnożnika RSP, ochronę własnego klanu i zasady kumulacji nagród.
+
+## DoD
+
+Sprint jest zakończony, gdy pełne otoczenie obcego terytorium daje `+1 LVL`
+i `+1 RSP` za każdy przepisany filar, własny klan pozostaje chroniony przed
+otoczeniem i farmingiem, każde trwałe rozwiązanie konfliktu daje `+1 LVL` oraz
+RSP równy LVL gracza sprzed rozliczenia, a wszystkie wypłaty są atomowe,
+wersjonowane i dokładnie jednokrotne również w multi-conflict i po retry
+workera.
+
+---
+
 # Sprinty 130.8.9.SFX.1 — fundament - 130.8.9.SFX.5 — OFS i polish
 
 Kanoniczną specyfikację wdrożeniową opisuje `doc/system_audio.md`, a wyniki

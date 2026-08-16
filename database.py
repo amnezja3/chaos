@@ -785,6 +785,27 @@ def init_db(db_path=DB_PATH):
             "ON territory_target_capture_receipts(target_id, created_at)"
         )
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS territory_progression_receipts (
+                receipt_id TEXT PRIMARY KEY,
+                source_event_id TEXT NOT NULL UNIQUE,
+                actor_username TEXT NOT NULL,
+                target_id TEXT NOT NULL DEFAULT '',
+                conflict_ids_json TEXT NOT NULL DEFAULT '[]',
+                baseline_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL DEFAULT 'pending',
+                result_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                applied_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_territory_progression_pending "
+            "ON territory_progression_receipts(actor_username, status, created_at)"
+        )
+        conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_reconciliation_sets_status "
             "ON territory_conflict_reconciliation_sets(status, lease_until, updated_at)"
         )
@@ -2695,6 +2716,162 @@ class TerritoryConflictEngagementStore:
             return {"ok": True, "changed": changed, "candidates": len(candidates)}
 
 
+class TerritoryProgressionReceiptStore:
+    """Durable, idempotent boundary for territory LVL/RSP progression."""
+
+    STATUS_PENDING = "pending"
+    STATUS_APPLIED = "applied"
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def _row(row):
+        if not row:
+            return None
+        return {
+            "receipt_id": row["receipt_id"],
+            "source_event_id": row["source_event_id"],
+            "actor_username": row["actor_username"],
+            "target_id": row["target_id"],
+            "conflict_ids": loads_json(row["conflict_ids_json"], []),
+            "baseline": loads_json(row["baseline_json"], {}),
+            "status": row["status"],
+            "result": loads_json(row["result_json"], {}),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "applied_at": row["applied_at"],
+        }
+
+    def ensure(self, source_event_id, actor_username, baseline, target_id="",
+               conflict_ids=None):
+        source_event_id = str(source_event_id or "").strip()
+        actor_username = str(actor_username or "").strip()
+        if not source_event_id or not actor_username:
+            raise ValueError("source_event_id and actor_username are required")
+        receipt_id = "territory_progression:" + hashlib.sha1(
+            source_event_id.encode("utf-8")
+        ).hexdigest()[:32]
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO territory_progression_receipts
+                    (receipt_id, source_event_id, actor_username, target_id,
+                     conflict_ids_json, baseline_json, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+                """,
+                (
+                    receipt_id, source_event_id, actor_username,
+                    str(target_id or ""),
+                    dumps_json(sorted({str(value) for value in (conflict_ids or []) if value})),
+                    dumps_json(baseline or {}), now, now,
+                ),
+            )
+            row = conn.execute(
+                "SELECT * FROM territory_progression_receipts WHERE source_event_id = ?",
+                (source_event_id,),
+            ).fetchone()
+            return self._row(row)
+
+    def get(self, receipt_id):
+        with db_connect(self.db_path) as conn:
+            return self._row(conn.execute(
+                "SELECT * FROM territory_progression_receipts WHERE receipt_id = ?",
+                (str(receipt_id or ""),),
+            ).fetchone())
+
+    def list_pending(self, actor_username=None, conflict_id=None):
+        query = "SELECT * FROM territory_progression_receipts WHERE status = 'pending'"
+        params = []
+        if actor_username:
+            query += " AND actor_username = ?"
+            params.append(str(actor_username))
+        query += " ORDER BY created_at, receipt_id"
+        with db_connect(self.db_path) as conn:
+            receipts = [self._row(row) for row in conn.execute(query, params).fetchall()]
+        if conflict_id:
+            conflict_id = str(conflict_id)
+            receipts = [
+                receipt for receipt in receipts
+                if conflict_id in set(receipt.get("conflict_ids") or [])
+            ]
+        return receipts
+
+    def reject(self, receipt_id, reason):
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute(
+                """
+                UPDATE territory_progression_receipts
+                SET status = 'rejected', result_json = ?, updated_at = ?
+                WHERE receipt_id = ? AND status = 'pending'
+                """,
+                (dumps_json({"reason": str(reason or "capture_rejected")}),
+                 now, str(receipt_id or "")),
+            )
+            return self._row(conn.execute(
+                "SELECT * FROM territory_progression_receipts WHERE receipt_id = ?",
+                (str(receipt_id or ""),),
+            ).fetchone())
+
+    def settle(self, receipt_id, progression, territory_stats, exp_value,
+               system_messages=None):
+        """Apply reward deltas and receipt state in one SQLite transaction."""
+        receipt_id = str(receipt_id or "").strip()
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            receipt = conn.execute(
+                "SELECT * FROM territory_progression_receipts WHERE receipt_id = ?",
+                (receipt_id,),
+            ).fetchone()
+            if not receipt:
+                return {"ok": False, "reason": "receipt_not_found"}
+            if receipt["status"] == self.STATUS_APPLIED:
+                return {
+                    "ok": True, "duplicate": True,
+                    "result": loads_json(receipt["result_json"], {}),
+                }
+            user_row = conn.execute(
+                "SELECT profile_json FROM users WHERE username = ?",
+                (receipt["actor_username"],),
+            ).fetchone()
+            if not user_row:
+                return {"ok": False, "reason": "profile_not_found"}
+            profile = loads_json(user_row["profile_json"], {})
+            profile["respect"] = int(profile.get("respect", 0) or 0) + int(
+                (progression or {}).get("respect_gain") or 0
+            )
+            profile["level"] = int(profile.get("level", 1) or 1) + int(
+                (progression or {}).get("levels_gained") or 0
+            )
+            profile["territory_stats"] = copy.deepcopy(territory_stats or {})
+            profile["exp"] = str(exp_value or profile.get("exp") or "")
+            if system_messages:
+                profile.setdefault("system_messages", []).extend(
+                    copy.deepcopy(system_messages)
+                )
+            conn.execute(
+                "UPDATE users SET profile_json = ?, updated_at = ? WHERE username = ?",
+                (dumps_json(profile), now, receipt["actor_username"]),
+            )
+            conn.execute(
+                """
+                UPDATE territory_progression_receipts
+                SET status = 'applied', result_json = ?, updated_at = ?, applied_at = ?
+                WHERE receipt_id = ? AND status = 'pending'
+                """,
+                (dumps_json(progression or {}), now, now, receipt_id),
+            )
+            return {
+                "ok": True, "duplicate": False,
+                "result": copy.deepcopy(progression or {}),
+                "profile": profile,
+            }
+
+
 class TerritoryTargetOwnershipStore:
     """Canonical CAS boundary for stationary territory target ownership."""
 
@@ -2728,6 +2905,7 @@ class TerritoryTargetOwnershipStore:
         payload = loads_json(row["payload_json"], {})
         payload.update({
             "duplicate": True,
+            "idempotent_replay": True,
             "result": row["result"],
             "target_id": row["target_id"],
             "winner_username": row["winner_username"],
@@ -2867,6 +3045,7 @@ class TerritoryTargetOwnershipStore:
                     "set_id": set_id,
                     "target": current_target,
                     "duplicate": True,
+                    "idempotent_replay": False,
                 }
                 conn.execute(
                     """

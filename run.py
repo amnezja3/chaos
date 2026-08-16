@@ -22,7 +22,7 @@ from flask_session import Session
 from poiFetchClass import POIFetcher
 import Haversine
 from profileManagment import UserProfileManager, authenticate_user
-from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryTargetOwnershipStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore
+from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore
 import requests
 from config import (
     APP_VERSION,
@@ -78,6 +78,7 @@ territory_store = TerritoryStore()
 territory_conflict_store = TerritoryConflictStore()
 territory_conflict_engagement_store = TerritoryConflictEngagementStore()
 territory_target_ownership_store = TerritoryTargetOwnershipStore()
+territory_progression_receipt_store = TerritoryProgressionReceiptStore()
 vulnerability_store = VulnerabilityStore()
 wallet_store = WalletStore()
 player_hack_access_store = PlayerHackAccessStore()
@@ -5670,6 +5671,9 @@ def process_territory_reconciliation_set(lease_owner, lease_seconds=300):
                 record_territory_engagement_delta(
                     engagement, reason=f"reconciliation_set_published:{claim['set_id']}"
                 )
+        finalized_profiles = []
+        for conflict_id in sorted(touched_conflict_ids):
+            finalized_profiles.extend(finalize_conflict_rebuild_profiles(conflict_id))
         print(
             "[TERRITORY_RECONCILIATION_SET] "
             f"set_id={claim['set_id']} target_id={target_id} "
@@ -5679,7 +5683,8 @@ def process_territory_reconciliation_set(lease_owner, lease_seconds=300):
             flush=True,
         )
         return {**claim, "ok": True, "conflict_ids": sorted(touched_conflict_ids),
-                "engagement_ids": sorted(touched_engagement_ids), "results": results}
+                "engagement_ids": sorted(touched_engagement_ids), "results": results,
+                "profiles": finalized_profiles}
     except Exception as exc:
         territory_target_ownership_store.finish_reconciliation_set(
             claim["set_id"], lease_owner, ok=False, error=str(exc)
@@ -5749,6 +5754,10 @@ def finalize_conflict_rebuild_profiles(conflict_id):
     """Refresh participant territory stats after the worker published geometry."""
     conflict = territory_conflict_store.get_by_key(conflict_id) or {}
     actor_username = str(conflict.get("last_actor_username") or "")
+    pending_actor_receipts = territory_progression_receipt_store.list_pending(
+        actor_username=actor_username,
+        conflict_id=conflict_id,
+    ) if actor_username else []
     summaries = []
     for username in sorted(set(conflict.get("participants") or [])):
         profile = user_store.get_profile(username) or {}
@@ -5756,7 +5765,29 @@ def finalize_conflict_rebuild_profiles(conflict_id):
             continue
         areas = territory_store.list_player_areas(username)
         if username == actor_username:
-            progression = apply_territory_progression(profile, areas)
+            if pending_actor_receipts:
+                progression = finalize_territory_progression_receipt(
+                    pending_actor_receipts[0],
+                    areas,
+                )
+                profile = user_store.get_profile(username) or profile
+                # Several captures may be consolidated into one geometry publish.
+                # Reward the aggregate delta once; consume later receipts with a
+                # zero delta so retries cannot replay the same field growth.
+                for extra_receipt in pending_actor_receipts[1:]:
+                    territory_progression_receipt_store.settle(
+                        extra_receipt.get("receipt_id"),
+                        {
+                            "area_gain": 0, "effective_gain": 0,
+                            "respect_gain": 0, "levels_gained": 0,
+                            "coalesced_into": pending_actor_receipts[0].get("receipt_id"),
+                        },
+                        profile.get("territory_stats") or {},
+                        profile.get("exp"),
+                    )
+            else:
+                refresh_territory_stats_snapshot(profile, areas)
+                progression = {"levels_gained": 0, "respect_gain": 0}
         else:
             refresh_territory_stats_snapshot(profile, areas)
             progression = {"levels_gained": 0}
@@ -15879,8 +15910,27 @@ def calculate_respect_gain(effective_gain):
     return max(1, min(25, round(effective_gain / 2000)))
 
 
-def apply_territory_progression(profile, areas):
+def build_territory_progression_baseline(profile, areas):
+    """Capture immutable pre-mutation geometry without changing the profile."""
+    profile = profile or {}
     stats = dict(profile.get("territory_stats") or {})
+    metrics = summarize_territory_metrics(areas or [], get_player_level(profile))
+    stats.update({
+        "total_area": round(metrics["total_area"], 2),
+        "effective_area": round(metrics["effective_area"], 2),
+    })
+    baseline = float(stats.get("area_baseline") or 0)
+    if baseline <= 0 or baseline > max(metrics["effective_area"] * 3, 1):
+        stats["area_baseline"] = round(metrics["effective_area"], 2)
+    return {
+        "territory_stats": stats,
+        "level": get_player_level(profile),
+        "captured_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+    }
+
+
+def apply_territory_progression(profile, areas, previous_stats=None):
+    stats = dict(previous_stats if previous_stats is not None else (profile.get("territory_stats") or {}))
     legacy_stats = "effective_area" not in stats
     previous_area = float(stats.get("total_area") or 0)
     level = get_player_level(profile)
@@ -15955,6 +16005,55 @@ def apply_territory_progression(profile, areas):
         "effective_area": round(effective_area, 2),
         "next_level_area": round(next_level_area, 2),
     }
+
+
+def finalize_territory_progression_receipt(receipt, areas):
+    """Settle exactly one capture reward from its immutable pre-capture baseline."""
+    if not receipt:
+        return {"levels_gained": 0, "respect_gain": 0, "reason": "receipt_missing"}
+    if receipt.get("status") == TerritoryProgressionReceiptStore.STATUS_APPLIED:
+        return dict(receipt.get("result") or {})
+    username = str(receipt.get("actor_username") or "")
+    profile = user_store.get_profile(username) or {}
+    if not profile:
+        return {"levels_gained": 0, "respect_gain": 0, "reason": "profile_missing"}
+    baseline_stats = dict((receipt.get("baseline") or {}).get("territory_stats") or {})
+    calculation_profile = copy.deepcopy(profile)
+    previous_messages_count = len(calculation_profile.get("system_messages") or [])
+    progression = apply_territory_progression(
+        calculation_profile,
+        areas or [],
+        previous_stats=baseline_stats,
+    )
+    new_messages = (calculation_profile.get("system_messages") or [])[previous_messages_count:]
+    settled = territory_progression_receipt_store.settle(
+        receipt.get("receipt_id"),
+        progression,
+        calculation_profile.get("territory_stats") or {},
+        calculation_profile.get("exp"),
+        system_messages=new_messages,
+    )
+    if not settled.get("ok"):
+        return {
+            "levels_gained": 0, "respect_gain": 0,
+            "reason": settled.get("reason") or "receipt_settle_failed",
+        }
+    result = dict(settled.get("result") or progression)
+    result["duplicate"] = bool(settled.get("duplicate"))
+    print(
+        "[PROGRESSION_SETTLEMENT] "
+        f"receipt_id={receipt.get('receipt_id')} "
+        f"source_event_id={receipt.get('source_event_id')} "
+        f"actor_username={username} "
+        f"before_effective_area={baseline_stats.get('effective_area')} "
+        f"after_effective_area={result.get('effective_area')} "
+        f"effective_gain={result.get('effective_gain')} "
+        f"respect_gain={result.get('respect_gain')} "
+        f"levels_gained={result.get('levels_gained')} "
+        f"status=applied duplicate={bool(settled.get('duplicate'))}",
+        flush=True,
+    )
+    return result
 
 
 def refresh_territory_stats_snapshot(profile, areas):
@@ -24419,6 +24518,7 @@ def gonna_win():
     captured_conflicts = []
     conflict_consolidation_summary = []
     conflict_capture_summary = None
+    progression_receipt = None
 
     if percent_off >= 70 and all_actions_allowed:
         app_flow_debug(
@@ -24536,6 +24636,10 @@ def gonna_win():
         captured_target["stationary"] = not bool(captured_target.get("generated", False))
         if not captured_target.get("target_id"):
             captured_target["target_id"] = build_operation_target_id(captured_target)
+        progression_baseline = build_territory_progression_baseline(
+            profile,
+            territory_store.list_player_areas(session["user"]),
+        )
         # Presentation-only identity of this authoritative ownership transfer.
         # It travels with both the response and map.target_captured delta so the
         # desktop can dedupe them without deriving an event from local progress.
@@ -24548,6 +24652,30 @@ def gonna_win():
         captured_target["capture_version"] = hashlib.sha1(
             capture_version_seed.encode("utf-8")
         ).hexdigest()[:20]
+        progression_source_event_id = str(
+            gonna_win_receipt_key
+            or launch_receipt
+            or captured_target.get("capture_version")
+            or ""
+        )
+        progression_conflict_ids = list(captured_target.get("source_conflict_ids") or [])
+        progression_conflict_id = (
+            captured_target.get("stable_conflict_id")
+            or captured_target.get("conflict_id")
+            or captured_target.get("legacy_conflict_id")
+        )
+        if progression_conflict_id:
+            progression_conflict_ids.append(progression_conflict_id)
+        # Persist before the ownership mutation. A slow request, polling or a
+        # worker restart may happen immediately after the capture commit, but
+        # none of them can then lose the immutable pre-capture geometry.
+        progression_receipt = territory_progression_receipt_store.ensure(
+            progression_source_event_id,
+            session["user"],
+            progression_baseline,
+            target_id=captured_target.get("target_id"),
+            conflict_ids=progression_conflict_ids,
+        )
         step_started_at = time.perf_counter()
         capture_cas_result = None
         if captured_target_mode == "territory_contest" or captured_target.get("conflict_id"):
@@ -24589,6 +24717,9 @@ def gonna_win():
                 "target_state_changed", "canonical_owner_missing"
             }:
                 capture_reason = capture_cas_result.get("result")
+                territory_progression_receipt_store.reject(
+                    progression_receipt.get("receipt_id"), capture_reason
+                )
                 payload = {
                     "success": False,
                     "blocked": True,
@@ -24620,6 +24751,14 @@ def gonna_win():
                 return jsonify(payload), 409
             captured_target = dict(capture_cas_result.get("target") or captured_target)
             if capture_cas_result.get("duplicate"):
+                if (
+                    progression_receipt.get("status") == "pending"
+                    and not capture_cas_result.get("idempotent_replay")
+                ):
+                    territory_progression_receipt_store.reject(
+                        progression_receipt.get("receipt_id"),
+                        "duplicate_capture_without_transfer",
+                    )
                 payload = {
                     "success": True,
                     "duplicate": True,
@@ -24937,10 +25076,27 @@ def gonna_win():
             hacked_targets = profile["hacked"]
         step_started_at = time.perf_counter()
         progression = (
-            {"deferred": True, "levels_gained": 0}
+            {
+                "deferred": True,
+                "levels_gained": 0,
+                "respect_gain": 0,
+                "receipt_id": (progression_receipt or {}).get("receipt_id"),
+            }
             if defer_conflict_rebuild
-            else apply_territory_progression(profile, rebuilt_areas)
+            else finalize_territory_progression_receipt(
+                progression_receipt,
+                rebuilt_areas,
+            )
         )
+        if not defer_conflict_rebuild:
+            persisted_progression_profile = user_store.get_profile(session["user"]) or {}
+            for progression_key in (
+                "level", "respect", "exp", "territory_stats", "system_messages"
+            ):
+                if progression_key in persisted_progression_profile:
+                    profile[progression_key] = copy.deepcopy(
+                        persisted_progression_profile[progression_key]
+                    )
         app_flow_debug_timed(
             flow_id,
             "gonna_win_apply_territory_progression_done",

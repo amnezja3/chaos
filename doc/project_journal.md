@@ -261,3 +261,25 @@
 - Naprawiono tytuł belki po hydratacji: renderery `terminal`, `button_choice`,
   `window` i `progressbar_random` zachowują publiczną nazwę aplikacji z
   kontekstu startowego zamiast zastępować ją technicznym `app_id`.
+## 2026-08-16 - Sprint 130.8.9.fixsprint-lvlrsp.1: trwałe rozliczanie progresji
+
+- Audyt potwierdził, że pełne synchronizacje profilu mogły zapisać bieżące
+  `territory_stats.effective_area` pomiędzy capture w `/gonna-win` a publikacją
+  geometrii przez workera. Dotychczasowy finalizer widział wtedy przyrost równy
+  zero, dlatego LVL i RSP nie rosły mimo poprawnego przejęcia.
+- Dodano tabelę `territory_progression_receipts` oraz migrację `008`. Receipt ma
+  unikalny event źródłowy, aktora, cel, zakres konfliktów i niezmienny snapshot
+  geometrii sprzed transferu. Migracja nie wykonuje historycznego backfillu.
+- Zwykły capture rozlicza receipt po lokalnej przebudowie, a conflict capture
+  pozostawia go workerowi. Kanoniczny reconciliation-set finalizuje progresję
+  po publikacji geometrii; późniejszy retry zwraca zapisany wynik bez ponownego
+  zwiększenia `level` lub `respect`.
+- Zapis nagrody i przejście receiptu `pending -> applied` odbywają się w jednej
+  transakcji SQLite. Finalizer scala tylko pola progresji z aktualnym profilem,
+  dzięki czemu nie cofa równoległych zmian aplikacji, operacji ani celu.
+- Kilka capture skonsolidowanych w jednym publish korzysta z jednego łącznego
+  przyrostu geometrii; pozostałe receipty są konsumowane jako coalesced i nie
+  mogą powielić tej samej nagrody.
+- Dodano log `[PROGRESSION_SETTLEMENT]` oraz regresje immutable baseline,
+  idempotentnego settle i atomowego zapisu profilu. Wysokości nagród i zasady
+  gameplayowe pozostały bez zmian; są zakresem osobnego sprintu `.gameplay-lvlrsp.2`.
