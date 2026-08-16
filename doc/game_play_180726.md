@@ -20766,6 +20766,24 @@ Migracja nie może ponownie nagrodzić całej historycznej powierzchni.
 * brak receipt oznacza brak automatycznej wypłaty historycznej;
 * wartości `level` i `respect` zapisane przed sprintem pozostają bez zmian.
 
+## 5.1. Baseline LVL per rozwijany klaster
+
+Próg awansu nie jest liczony z sumy wszystkich pól gracza. Receipt przechowuje
+snapshot każdego klastra sprzed transferu oraz pozycję przejmowanego celu.
+Po publikacji geometrii finalizer wybiera klaster zawierający ten punkt i tylko
+jego wzrost porównuje z jego własnym baseline.
+
+```text
+cluster_total_area_after >= cluster_level_baseline * 1.10
+```
+
+Próg LVL korzysta z surowej powierzchni klastra. Nie używa mnożnika gęstości
+ani bieżącego LVL, dzięki czemu sam awans i wynikająca z niego zmiana zasięgu
+motocykla nie mogą dopchnąć kolejnego poziomu. Mniejsze przyrosty tego samego
+klastra kumulują się. Inne klastry gracza nie pomagają i nie przeszkadzają w
+domknięciu progu. RSP nadal korzysta z efektywnego przyrostu całej rozliczanej
+operacji.
+
 ## 6. Recovery i obserwowalność
 
 Worker okresowo sprawdza receipt’y `pending`, ale nie skanuje profili w celu

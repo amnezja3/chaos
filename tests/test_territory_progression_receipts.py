@@ -86,6 +86,101 @@ class TerritoryProgressionReceiptTests(unittest.TestCase):
         self.assertGreater(result["effective_gain"], 0)
         self.assertGreater(result["respect_gain"], 0)
 
+    def test_level_growth_is_scoped_to_cluster_containing_captured_target(self):
+        profile = self.users.get_profile("alice")
+        changed = {
+            "id": 1, "area_size": 15000,
+            "vertices": [
+                {"lat": 52.0, "lng": 21.0},
+                {"lat": 52.0, "lng": 21.01},
+                {"lat": 52.01, "lng": 21.0},
+            ],
+        }
+        other = {
+            "id": 2, "area_size": 11000000,
+            "vertices": [
+                {"lat": 53.0, "lng": 22.0},
+                {"lat": 53.0, "lng": 22.1},
+                {"lat": 53.1, "lng": 22.0},
+            ],
+        }
+        baseline = run.build_territory_progression_baseline(
+            profile, [changed, other],
+            target={"lat": 52.004, "lng": 21.004, "target_id": "target:1"},
+        )
+        result = run.apply_territory_progression(
+            profile,
+            [dict(changed, id=10, area_size=16800), dict(other, id=20)],
+            previous_stats=baseline["territory_stats"],
+            baseline_clusters=baseline["cluster_snapshots"],
+            progression_target=baseline["target"],
+        )
+        self.assertEqual(1, result["levels_gained"])
+        self.assertEqual("10", result["progression_cluster_id"])
+
+    def test_other_cluster_growth_does_not_qualify_changed_cluster(self):
+        profile = self.users.get_profile("alice")
+        changed = {
+            "id": 1, "area_size": 15000,
+            "vertices": [
+                {"lat": 52.0, "lng": 21.0},
+                {"lat": 52.0, "lng": 21.01},
+                {"lat": 52.01, "lng": 21.0},
+            ],
+        }
+        other = {
+            "id": 2, "area_size": 100000,
+            "vertices": [
+                {"lat": 53.0, "lng": 22.0},
+                {"lat": 53.0, "lng": 22.1},
+                {"lat": 53.1, "lng": 22.0},
+            ],
+        }
+        baseline = run.build_territory_progression_baseline(
+            profile, [changed, other], target={"lat": 52.004, "lng": 21.004},
+        )
+        result = run.apply_territory_progression(
+            profile,
+            [dict(changed, id=10, area_size=15100), dict(other, id=20, area_size=200000)],
+            previous_stats=baseline["territory_stats"],
+            baseline_clusters=baseline["cluster_snapshots"],
+            progression_target=baseline["target"],
+        )
+        self.assertEqual(0, result["levels_gained"])
+
+    def test_small_growths_accumulate_against_same_cluster_baseline(self):
+        profile = self.users.get_profile("alice")
+        area = {
+            "id": 1, "area_size": 10000,
+            "vertices": [
+                {"lat": 52.0, "lng": 21.0},
+                {"lat": 52.0, "lng": 21.01},
+                {"lat": 52.01, "lng": 21.0},
+            ],
+        }
+        target = {"lat": 52.004, "lng": 21.004}
+        first_baseline = run.build_territory_progression_baseline(
+            profile, [area], target=target,
+        )
+        first = run.apply_territory_progression(
+            profile, [dict(area, id=2, area_size=10500)],
+            previous_stats=first_baseline["territory_stats"],
+            baseline_clusters=first_baseline["cluster_snapshots"],
+            progression_target=first_baseline["target"],
+        )
+        self.assertEqual(0, first["levels_gained"])
+
+        second_baseline = run.build_territory_progression_baseline(
+            profile, [dict(area, id=2, area_size=10500)], target=target,
+        )
+        second = run.apply_territory_progression(
+            profile, [dict(area, id=3, area_size=11100)],
+            previous_stats=second_baseline["territory_stats"],
+            baseline_clusters=second_baseline["cluster_snapshots"],
+            progression_target=second_baseline["target"],
+        )
+        self.assertEqual(1, second["levels_gained"])
+
 
 if __name__ == "__main__":
     unittest.main()

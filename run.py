@@ -15910,7 +15910,63 @@ def calculate_respect_gain(effective_gain):
     return max(1, min(25, round(effective_gain / 2000)))
 
 
-def build_territory_progression_baseline(profile, areas):
+def _territory_cluster_snapshot(area, level, level_baseline=None):
+    metrics = summarize_territory_metrics([area], level)
+    effective_area = float(metrics["effective_area"] or 0)
+    return {
+        "area_id": str(area.get("id") or ""),
+        "vertices": copy.deepcopy(area.get("vertices") or []),
+        "centroid_lat": area.get("centroid_lat"),
+        "centroid_lng": area.get("centroid_lng"),
+        "total_area": round(float(metrics["total_area"] or 0), 2),
+        "effective_area": round(effective_area, 2),
+        # LVL progression deliberately uses raw cluster surface. Effective
+        # area includes the current level in its density multiplier, so using
+        # it as a threshold would let an awarded level help award the next one.
+        "level_baseline": round(float(level_baseline or metrics["total_area"]), 2),
+    }
+
+
+def _matching_cluster_snapshots(area, snapshots):
+    vertices = area.get("vertices") or []
+    return [
+        snapshot for snapshot in (snapshots or [])
+        if polygons_intersect(vertices, snapshot.get("vertices") or [])
+    ]
+
+
+def _cluster_containing_target(areas, target):
+    try:
+        lat = float((target or {}).get("lat"))
+        lng = float((target or {}).get("lng", (target or {}).get("lon")))
+    except (TypeError, ValueError):
+        return None
+    containing = [
+        area for area in (areas or [])
+        if territory_point_in_polygon_or_boundary(
+            {"lat": lat, "lng": lng}, area.get("vertices") or []
+        )
+    ]
+    if containing:
+        return min(containing, key=lambda item: float(item.get("area_size") or 0))
+    return None
+
+
+def _territory_cluster_progression_state(areas, level, previous_snapshots=None):
+    state = []
+    for area in areas or []:
+        matches = _matching_cluster_snapshots(area, previous_snapshots or [])
+        inherited_baseline = sum(
+            float(item.get("level_baseline") or item.get("total_area") or 0)
+            for item in matches
+        )
+        state.append(_territory_cluster_snapshot(
+            area, level, level_baseline=inherited_baseline or None,
+        ))
+    return state
+
+
+def build_territory_progression_baseline(profile, areas, target=None):
     """Capture immutable pre-mutation geometry without changing the profile."""
     profile = profile or {}
     stats = dict(profile.get("territory_stats") or {})
@@ -15922,14 +15978,27 @@ def build_territory_progression_baseline(profile, areas):
     baseline = float(stats.get("area_baseline") or 0)
     if baseline <= 0 or baseline > max(metrics["effective_area"] * 3, 1):
         stats["area_baseline"] = round(metrics["effective_area"], 2)
+    cluster_snapshots = _territory_cluster_progression_state(
+        areas or [],
+        get_player_level(profile),
+        list(stats.get("cluster_progression") or []),
+    )
+    stats["cluster_progression"] = cluster_snapshots
     return {
         "territory_stats": stats,
+        "cluster_snapshots": cluster_snapshots,
+        "target": {
+            "lat": (target or {}).get("lat"),
+            "lng": (target or {}).get("lng", (target or {}).get("lon")),
+            "target_id": (target or {}).get("target_id"),
+        },
         "level": get_player_level(profile),
         "captured_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
     }
 
 
-def apply_territory_progression(profile, areas, previous_stats=None):
+def apply_territory_progression(profile, areas, previous_stats=None,
+                                baseline_clusters=None, progression_target=None):
     stats = dict(previous_stats if previous_stats is not None else (profile.get("territory_stats") or {}))
     legacy_stats = "effective_area" not in stats
     previous_area = float(stats.get("total_area") or 0)
@@ -15944,16 +16013,46 @@ def apply_territory_progression(profile, areas, previous_stats=None):
     levels_gained = 0
 
     baseline = float(stats.get("area_baseline") or 0)
-    if legacy_stats or baseline <= 0 or baseline > max(effective_area * 3, 1):
-        baseline = effective_area
-    elif effective_area > previous_effective_area:
-        while baseline > 0 and effective_area >= baseline * 1.10 and levels_gained < 1:
+    affected_area = _cluster_containing_target(areas, progression_target)
+    affected_matches = (
+        _matching_cluster_snapshots(affected_area, baseline_clusters or [])
+        if affected_area else []
+    )
+    affected_metrics = summarize_territory_metrics([affected_area], level) if affected_area else None
+    affected_effective_area = float((affected_metrics or {}).get("effective_area") or 0)
+    affected_total_area = float((affected_metrics or {}).get("total_area") or 0)
+    affected_previous_area = sum(
+        float(item.get("total_area") or 0) for item in affected_matches
+    )
+    affected_baseline = sum(
+        float(item.get("level_baseline") or item.get("total_area") or 0)
+        for item in affected_matches
+    )
+    if affected_area and affected_matches and affected_total_area > affected_previous_area:
+        if affected_baseline > 0 and affected_total_area >= affected_baseline * 1.10:
             level += 1
-            levels_gained += 1
-            baseline = baseline * 1.10
+            levels_gained = 1
+            affected_baseline *= 1.10
 
-    next_level_area = baseline * 1.10 if baseline > 0 else 0
-    area_to_next = max(0, next_level_area - effective_area)
+    cluster_progression = _territory_cluster_progression_state(
+        areas, level, baseline_clusters or [],
+    )
+    if affected_area:
+        affected_id = str(affected_area.get("id") or "")
+        for item in cluster_progression:
+            if item.get("area_id") == affected_id:
+                item["level_baseline"] = round(
+                    affected_baseline or affected_total_area, 2
+                )
+                break
+        baseline = affected_baseline or affected_total_area
+        next_level_area = baseline * 1.10 if baseline > 0 else 0
+        area_to_next = max(0, next_level_area - affected_total_area)
+    else:
+        if legacy_stats or baseline <= 0:
+            baseline = effective_area
+        next_level_area = baseline * 1.10 if baseline > 0 else 0
+        area_to_next = max(0, next_level_area - effective_area)
 
     stats.update({
         "total_area": round(total_area, 2),
@@ -15969,6 +16068,10 @@ def apply_territory_progression(profile, areas, previous_stats=None):
         "edges_count": metrics["edges_count"],
         "span_density": round(metrics["span_density"], 4),
         "density_multiplier": round(metrics["density_multiplier"], 4),
+        "cluster_progression": cluster_progression,
+        "progression_cluster_id": str((affected_area or {}).get("id") or ""),
+        "progression_cluster_effective_area": round(affected_effective_area, 2),
+        "progression_cluster_total_area": round(affected_total_area, 2),
     })
 
     profile["territory_stats"] = stats
@@ -16004,6 +16107,9 @@ def apply_territory_progression(profile, areas, previous_stats=None):
         "total_area": round(total_area, 2),
         "effective_area": round(effective_area, 2),
         "next_level_area": round(next_level_area, 2),
+        "progression_cluster_id": str((affected_area or {}).get("id") or ""),
+        "progression_cluster_effective_area": round(affected_effective_area, 2),
+        "progression_cluster_total_area": round(affected_total_area, 2),
     }
 
 
@@ -16018,12 +16124,16 @@ def finalize_territory_progression_receipt(receipt, areas):
     if not profile:
         return {"levels_gained": 0, "respect_gain": 0, "reason": "profile_missing"}
     baseline_stats = dict((receipt.get("baseline") or {}).get("territory_stats") or {})
+    baseline_clusters = list((receipt.get("baseline") or {}).get("cluster_snapshots") or [])
+    progression_target = dict((receipt.get("baseline") or {}).get("target") or {})
     calculation_profile = copy.deepcopy(profile)
     previous_messages_count = len(calculation_profile.get("system_messages") or [])
     progression = apply_territory_progression(
         calculation_profile,
         areas or [],
         previous_stats=baseline_stats,
+        baseline_clusters=baseline_clusters,
+        progression_target=progression_target,
     )
     new_messages = (calculation_profile.get("system_messages") or [])[previous_messages_count:]
     settled = territory_progression_receipt_store.settle(
@@ -16048,6 +16158,9 @@ def finalize_territory_progression_receipt(receipt, areas):
         f"before_effective_area={baseline_stats.get('effective_area')} "
         f"after_effective_area={result.get('effective_area')} "
         f"effective_gain={result.get('effective_gain')} "
+        f"cluster_id={result.get('progression_cluster_id')} "
+        f"cluster_effective_area={result.get('progression_cluster_effective_area')} "
+        f"cluster_total_area={result.get('progression_cluster_total_area')} "
         f"respect_gain={result.get('respect_gain')} "
         f"levels_gained={result.get('levels_gained')} "
         f"status=applied duplicate={bool(settled.get('duplicate'))}",
@@ -24639,6 +24752,7 @@ def gonna_win():
         progression_baseline = build_territory_progression_baseline(
             profile,
             territory_store.list_player_areas(session["user"]),
+            target=captured_target,
         )
         # Presentation-only identity of this authoritative ownership transfer.
         # It travels with both the response and map.target_captured delta so the

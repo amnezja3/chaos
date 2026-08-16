@@ -283,3 +283,9 @@
 - Dodano log `[PROGRESSION_SETTLEMENT]` oraz regresje immutable baseline,
   idempotentnego settle i atomowego zapisu profilu. Wysokości nagród i zasady
   gameplayowe pozostały bez zmian; są zakresem osobnego sprintu `.gameplay-lvlrsp.2`.
+- Korekta po teście gameplayowym: próg `+1 LVL za 10%` został przeniesiony z
+  globalnego `effective_area` na surową powierzchnię konkretnego klastra, który
+  objął przejęty punkt. Receipt zapisuje geometrie klastrów i pozycję celu,
+  więc zmienne identyfikatory `player_areas` po rebuildzie nie zrywają ciągłości.
+  Małe przyrosty jednego klastra kumulują się, a rozrost pozostałych pól nie
+  dopina jego progu. RSP pozostaje liczone z efektywnego przyrostu.
