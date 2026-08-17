@@ -10733,9 +10733,9 @@ const CREATOR_STEP_NARRATIVE = [
     {
         title: "Wybierz rodzin\u0119 narz\u0119dzia",
         subtitle: "Rodzina zawedza dalsze decyzje.",
-        description: "Scanner, Exploit i Sniffer opisuj\u0105 intencj\u0119 gameplayow\u0105, a nie realn\u0105 instrukcj\u0119 dzia\u0142ania.",
+        description: "Scanner / Recon obejmuje tak\u017ce namierzanie celu (trace). Exploit i Sniffer pozostaj\u0105 osobnymi rodzinami gameplayowymi.",
         educational_note: "Administratorzy i zespoly bezpieczenstwa uzywaja podobnych klas rozwiazan do rozpoznania, kontroli i obserwacji systemow.",
-        gameplay_hint: "Wybrana rodzina filtruje akcje, operacje i zasoby w kolejnych krokach."
+        gameplay_hint: "Dla akcji mapy Namierz cel wybierz Scanner / Recon / Namierzanie, typ Tracer / tracker oraz dzia\u0142anie Namierz cel (trace)."
     },
     {
         title: "Wskaz obiekt zainteresowania",
@@ -10793,7 +10793,7 @@ const CREATOR_TOOL_TYPES = [
     ["exploit", "Exploit"],
     ["exploit_suite", "Exploit suite"],
     ["sniffer", "Sniffer"],
-    ["tracker", "Tracker"],
+    ["tracker", "Tracer / namierzanie celu"],
     ["camera_tool", "Camera tool"],
     ["atm_tool", "ATM tool"],
     ["vehicle_tool", "Vehicle tool"],
@@ -10867,9 +10867,9 @@ const CREATOR_TARGET_TYPE_OPTIONS = [
 const CREATOR_OPTION_LABELS = {
     map_actions: {
         scan_ports: "Rozpoznaj uslugi celu",
-        exploit: "Wplyn na zabezpieczenia",
-        sniff: "Obserwuj sygnaly",
-        trace: "Sledz cel",
+        exploit: "Zainstaluj exploit",
+        sniff: "Sledz ruch",
+        trace: "Namierz cel",
         trace_gps: "Sledz pojazd GPS",
         trace_device: "Sledz urzadzenie",
         camera_stream: "Ogl\u0105daj obraz z kamery",
@@ -11058,12 +11058,12 @@ const CREATOR_SNIFFER_MODE_PRESETS = {
 
 const CREATOR_TOOL_FAMILY_PRESETS = {
     scanner_recon: {
-        label: "Scanner / Recon",
-        boxTitle: "Gdzie dzia\u0142a rozpoznanie?",
+        label: "Scanner / Recon / Namierzanie",
+        boxTitle: "Gdzie dzia\u0142a rozpoznanie lub namierzanie?",
         defaultType: "scanner",
-        safetyText: "Narz\u0119dzia rozpoznania s\u0142u\u017c\u0105 do poznania powierzchni celu w \u015bwiecie gry. Wizard buduje \u015bwiadomo\u015b\u0107, nie realne instrukcje.",
+        safetyText: "Ta rodzina obejmuje skanowanie oraz tracer mapowy. Dla Namierz cel ustaw typ Tracer / namierzanie celu, akcj\u0119 trace i operacj\u0119 generic_trace.",
         desktopMapNote: "Scanner desktopowy mo\u017ce nie mie\u0107 akcji mapy. Dzia\u0142a na aktualny aimed_target.",
-        mapNote: "Wybierz tylko te akcje mapy, kt\u00f3re aplikacja faktycznie obs\u0142u\u017cy.",
+        mapNote: "Cztery podstawowe akcje mapy to scan_ports, exploit, sniff i trace. W tej rodzinie utworzysz scan_ports albo Namierz cel (trace).",
         modes: CREATOR_SCANNER_MODE_PRESETS
     },
     exploit: {
