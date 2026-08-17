@@ -47,6 +47,7 @@ from run import (
     refresh_operation_runtime,
     refresh_operations_runtime,
     resolve_player_actor_relation,
+    resolve_app_required_off_state,
     target_position_key,
     targets_share_position,
     latest_blacknet_ollama_outbox,
@@ -55,6 +56,35 @@ from run import (
     validate_blacknet_ollama_outbox,
     write_blacknet_ollama_outbox,
 )
+
+
+class AppRequiredOffStateTest(unittest.TestCase):
+    def test_missing_optional_security_is_treated_as_not_installed(self):
+        state = resolve_app_required_off_state(
+            {"firewall": False},
+            ["firewall", "audio_guardian"],
+        )
+
+        self.assertTrue(state["satisfied"])
+        self.assertEqual(state["absent"], ["audio_guardian"])
+
+    def test_only_explicitly_active_security_blocks_application(self):
+        state = resolve_app_required_off_state(
+            {"firewall": False, "audio_guardian": True},
+            ["firewall", "audio_guardian"],
+        )
+
+        self.assertFalse(state["satisfied"])
+        self.assertEqual(state["active"], ["audio_guardian"])
+
+    def test_malformed_present_security_does_not_fail_open(self):
+        state = resolve_app_required_off_state(
+            {"audio_guardian": None},
+            ["audio_guardian"],
+        )
+
+        self.assertFalse(state["satisfied"])
+        self.assertEqual(state["invalid"], ["audio_guardian"])
 
 
 class TargetDisplayLabelTest(unittest.TestCase):
@@ -2995,7 +3025,7 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
             "apps": [{
                 "id": "gps_tool",
                 "name": "GPS Tool",
-                "requires_off": [],
+                "requires_off": ["audio_guardian"],
                 "interferes_with": [],
                 "map_actions": ["trace_gps", "scan_ports"],
                 "map_actions_source": "manual",
@@ -3027,6 +3057,7 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
+        self.assertTrue(payload["success"])
         actions = payload["target"]["actions_allowed"]
         self.assertTrue(actions["scan_ports"])
         self.assertTrue(actions["trace_gps"])

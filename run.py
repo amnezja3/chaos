@@ -24308,6 +24308,34 @@ def launch_queue():
     return jsonify(launch_list)
 
 
+def resolve_app_required_off_state(target_security, required_off):
+    """Resolve legacy app prerequisites against a sparse target security map.
+
+    Target security snapshots intentionally contain only protections which
+    exist on the target.  Older application contracts can mention optional
+    protections (for example ``audio_guardian`` or ``patch_guard``).  Their
+    absence therefore means that the protection is not installed, not that
+    the application has failed an unknown prerequisite.
+    """
+    security = target_security if isinstance(target_security, dict) else {}
+    required = [
+        str(key).strip()
+        for key in as_list(required_off)
+        if str(key).strip()
+    ]
+    active = [key for key in required if security.get(key) is True]
+    invalid = [
+        key for key in required
+        if key in security and security.get(key) not in (True, False)
+    ]
+    return {
+        "satisfied": not active and not invalid,
+        "active": active,
+        "invalid": invalid,
+        "absent": [key for key in required if key not in security],
+    }
+
+
 @app.route('/gonna-win', methods=['POST'])
 def gonna_win():
     app_flow_started_at = time.perf_counter()
@@ -24710,9 +24738,11 @@ def gonna_win():
     success = False
 
     step_started_at = time.perf_counter()
+    required_off_state = {"satisfied": True, "active": [], "invalid": [], "absent": []}
     if choice_id is None:
         required_off = app.get("requires_off", [])
-        all_off = all(target_sec.get(k) is False for k in required_off)
+        required_off_state = resolve_app_required_off_state(target_sec, required_off)
+        all_off = required_off_state["satisfied"]
 
         if all_off:
             interferes = app.get("interferes_with", [])
@@ -24741,6 +24771,9 @@ def gonna_win():
         app_id=app_id,
         choice_id=choice_id,
         success=success,
+        required_off_active=required_off_state["active"],
+        required_off_invalid=required_off_state["invalid"],
+        required_off_absent=required_off_state["absent"],
         security_keys=len(target_sec or {}),
     )
 
@@ -25595,6 +25628,20 @@ def gonna_win():
     )
     payload = {
         "success": success,
+        "reason": (
+            None if success
+            else "requirements_not_met" if choice_id is None
+            else "operation_failed"
+        ),
+        "message": (
+            None if success
+            else "Aktywne zabezpieczenia blokuja dzialanie aplikacji."
+            if required_off_state["active"]
+            else "Stan wymaganych zabezpieczen jest nieprawidlowy."
+            if required_off_state["invalid"]
+            else "Operacja nie zostala wykonana."
+        ),
+        "blocked_by_security": required_off_state["active"],
         "percent_off": round(percent_off, 2),
         "captured_target": captured_target_response,
         "target": profile.get("aimed_target"),
