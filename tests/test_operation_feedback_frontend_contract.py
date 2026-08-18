@@ -171,6 +171,7 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
 
     def test_terminal_logs_are_stdout_not_typed_commands(self):
         terminal = self.function_source("function app_terminal", "function app_button_choices")
+        self.assertIn("Math.floor(Math.random() * safeLevels.length)", terminal)
         self.assertIn("const command = String(level.command", terminal)
         self.assertIn("const outputLines = logs.length", terminal)
         self.assertIn("function emitTerminalOutput", terminal)

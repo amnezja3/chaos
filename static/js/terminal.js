@@ -7153,7 +7153,9 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
 function app_terminal(id, levels) {
     if (!beginApplicationRenderLaunch(id, "terminal")) return null;
     const safeLevels = Array.isArray(levels) ? levels : [];
-    const level = safeLevels[0] || {};
+    const level = safeLevels.length
+        ? safeLevels[Math.floor(Math.random() * safeLevels.length)]
+        : {};
     const logs = Array.isArray(level.logs) ? level.logs : [];
     const command = String(level.command || `./${id}.sh`);
     const outputLines = logs.length ? logs : ["Raport zapisany."];
