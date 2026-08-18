@@ -1,5 +1,36 @@
 # CHAOS — App Contract
 
+## Creator UX foundation — 130.8.9.UX-appcreator.1
+
+Cztery creatory interfejsów (`progressbar_random`, `window`, `terminal` i
+`button_choices`) używają jednego wizarda oraz wspólnego katalogu deskryptorów.
+Deskryptor zawiera `key`, `label`, `icon`, `description` i `group`, ale do
+backendu nadal trafia wyłącznie niezmieniony klucz runtime.
+
+| Klucz | Etykieta creatora | Rodzina |
+| --- | --- | --- |
+| `scan_ports` | Przeskanuj porty | Scanner / Recon |
+| `exploit` | Zainstaluj exploit | Exploit |
+| `sniff` | Śledź ruch | Sniffer |
+| `trace` | Namierz cel | Scanner / Recon, typ tracer |
+
+Selektor `OFF/ON` jest warstwą nad dotychczasowym checkboxem i nie zmienia
+payloadu. Pole `icon` przechowuje dokładnie jeden widoczny glif, w tym jedną
+sekwencję emoji/ZWJ lub flagę. Frontend daje komunikat przed publikacją, a
+backend pozostaje autorytetem. Stare aplikacje nie wymagają migracji.
+
+| Pole UI | Klucz runtime | Typ | Domyślna wartość | Walidacja |
+| --- | --- | --- | --- | --- |
+| Rodzina | `tool_family` | string | `custom` | frontend + `build_generated_app` |
+| Tryb | `tool_mode` | string | pusty / `map` w UI | backend zeruje poza rodziną jawną |
+| Cel | `target_types` | lista stringów | `[]` | filtry wizarda + normalizacja |
+| Start | `map_actions` | lista stringów | `[]` | filtry rodziny/celu + normalizacja |
+| Działanie | `operation_types` | lista stringów | `[]` | filtry rodziny/celu + normalizacja |
+| Informacje | `resource_types` | lista stringów | `[]` | filtry rodziny/celu + normalizacja |
+| Ryzyko | `interferes_with`, `requires_off`, `disables`, `affects` | listy stringów | `[]` | istniejące klucze security |
+| Ikona | `icon` | pojedynczy grapheme | `🛠️` przy braku pola | frontend + backend |
+| Prezentacja | `interface` | enum | zależna od creatora | backend: cztery wspierane interfejsy |
+
 Ten dokument opisuje kontrakt aplikacji w gameplayu CHAOS.
 
 Aplikacja jest narzędziem gracza. Może mieć UI, kategorię, poziomy i efekty mechaniczne, ale uruchamianie z mapy powinno opierać się przede wszystkim na `app.map_actions`.
@@ -867,6 +898,48 @@ CHAOS_OPERATION_FEEDBACK_ENABLED=1
 CHAOS_OPERATION_FEEDBACK_ACTIONS=exploit,sniff,trace
 ```
 
+## Warstwa UX creatora po Sprintach 130.8.9.UX-appcreator.1–2
+
+Wszystkie cztery creatory prezentują jeden katalog deskryptorów. Etykieta,
+ikona i grupa są wyłącznie warstwą UX; zapis pozostaje oparty na istniejących
+wartościach `target_types`, `map_actions`, `operation_types` i
+`resource_types`.
+
+| Intencja w UX | Pole kontraktu |
+| --- | --- |
+| Rodzaj celu | `target_types` |
+| Akcja uruchamiana z mapy | `map_actions` |
+| Operacja na oznaczonym celu | `operation_types` |
+| Informacje i ślady | `resource_types` |
+| Z czym może kolidować | `interferes_with` |
+| Co musi być wyłączone | `requires_off` |
+| Co narzędzie może wyłączyć | `disables` |
+| Wpływ po stronie gracza | `affects` |
+
+Grupy semantyczne są wyłącznie prezentacją i nie są serializowane. Filtry
+rodziny, celu i akcji czyszczą niezgodne wybory jawnie, zachowując kompatybilne
+wartości podczas przechodzenia między krokami. Podgląd pokazuje najpierw
+podsumowanie gameplayowe, a surowy JSON pozostaje zwijanym widokiem technicznym.
+
 Historyczny skrót MVP `CHAOS_OPERATION_FEEDBACK_SCAN_PORTS` został usunięty.
 Każda akcja, również `scan_ports`, jest włączana przez wspólną allowlistę
 `CHAOS_OPERATION_FEEDBACK_ACTIONS`.
+
+### Domknięcie walidacji creatora — Sprint UX-appcreator.3
+
+Frontend filtruje opcje w kolejności rodzina → cel → akcja. Pusty wynik
+aktywnego ograniczenia pozostaje pusty i nie otwiera ponownie całej puli
+rodziny. Ukrywana zaznaczona wartość jest czyszczona i raportowana w statusie
+`aria-live`; błąd publikacji ustawia `aria-invalid` na właściwym polu i otwiera
+odpowiedni krok wizarda.
+
+Backend `build_generated_app()` powtarza krytyczną walidację. Dla jawnego
+`tool_family` sprawdza rodzinę, tryb, typ aplikacji oraz pule `target_types`,
+`map_actions`, `operation_types` i `resource_types`. Tryb `desktop` nie może
+publikować akcji mapy, a `map` i `hybrid` wymagają co najmniej jednej takiej
+akcji. `Scanner / Recon` dopuszcza typy `scanner` i `tracker`; tracer nadal
+serializuje akcję `trace` oraz operację `generic_trace`.
+
+Brak rodziny lub historyczna wartość `custom` korzystają z kompatybilnej
+ścieżki legacy. Zapisane i zainstalowane aplikacje nie są przepisywane, a
+wdrożenie nie wymaga migracji bazy.

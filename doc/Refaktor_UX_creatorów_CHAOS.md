@@ -1,5 +1,13 @@
 # Refaktor UX creatorów CHAOS — 3 sprinty
 
+> Artefakt kierunkowy. Kanoniczna specyfikacja wykonawcza i status sprintów
+> znajdują się w `doc/game_play_180726.md`, sekcja
+> `130.8.9.UX-appcreator.1–3`. Sprinty `.1–2` wdrażają wspólny katalog
+> deskryptorów, selektor OFF/ON, kontrakt pojedynczej ikony, semantyczne grupy
+> i deterministyczne filtry rodzina → cel → akcja. Sprint `.3` domknął
+> podgląd, walidację frontend/backend, dostępność, responsywność i regresję
+> tracera bez zmiany istniejącego kontraktu runtime ani migracji aplikacji.
+
 Chcemy gruntownie dopracować istniejące creatory aplikacji/narzędzi w CHAOS tak, aby tworzenie narzędzia było intuicyjne również dla użytkownika, który nie zna wewnętrznych nazw pól ani kontraktów runtime.
 
 ## Zakres

@@ -5927,11 +5927,15 @@ form button:hover {
 
 .appforge-form {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 12px;
   overflow-y: auto;
+  overflow-x: hidden;
   background: #0b100d;
   color: #d7ffe1;
   font-family: monospace;
@@ -5996,6 +6000,11 @@ form button:hover {
   display: none;
 }
 
+[data-creator-context-invalid="true"] {
+  outline: 1px solid #ff5b69;
+  outline-offset: 2px;
+}
+
 .creator-step-panel h4 {
   margin: 0;
   color: #d7ffe1;
@@ -6042,6 +6051,24 @@ form button:hover {
   margin: 0;
   color: #9cffb0;
   font-size: 12px;
+}
+
+.creator-field-help,
+.creator-filter-status {
+  margin: 0;
+  color: #8dc99d;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.creator-field-help code {
+  color: #ffe88a;
+}
+
+.creator-filter-status {
+  border-left: 2px solid #1d6b37;
+  padding: 7px 9px;
+  background: #041007;
 }
 
 .creator-scanner-box {
@@ -6095,6 +6122,42 @@ form button:hover {
   padding: 10px;
   white-space: pre-wrap;
   font-size: 12px;
+}
+
+.creator-player-summary {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.45fr) minmax(0, 1fr);
+  gap: 7px 12px;
+  border: 1px solid #1d6b37;
+  background: #041007;
+  padding: 10px;
+  font-size: 12px;
+}
+
+.creator-player-summary span {
+  color: #79b98b;
+}
+
+.creator-player-summary b {
+  min-width: 0;
+  color: #d7ffe1;
+  overflow-wrap: anywhere;
+}
+
+.creator-technical-preview {
+  border: 1px solid #174e2a;
+  background: #020503;
+}
+
+.creator-technical-preview summary {
+  padding: 9px;
+  color: #ffe88a;
+  cursor: pointer;
+}
+
+.creator-technical-preview .creator-contract-preview {
+  border: 0;
+  border-top: 1px solid #174e2a;
 }
 
 .creator-interface-slot {
@@ -6221,6 +6284,29 @@ form button:hover {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.creator-option-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid #123d22;
+  background: rgba(2, 9, 5, 0.72);
+  padding: 8px;
+}
+
+.creator-option-group[hidden] {
+  display: none;
+}
+
+.creator-option-group h5 {
+  grid-column: 1 / -1;
+  margin: 0 0 2px;
+  color: #ffe88a;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .appforge-check {
   display: flex !important;
   grid-template-columns: none !important;
@@ -6240,6 +6326,86 @@ form button:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.creator-toggle {
+  border: 1px solid #174e2a;
+  background: #041108;
+  padding: 7px 8px;
+  cursor: pointer;
+}
+
+.creator-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.creator-toggle-state {
+  flex: 0 0 30px;
+  color: #789980;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.creator-toggle-icon {
+  flex: 0 0 auto;
+  overflow: visible !important;
+}
+
+.creator-toggle[data-state="on"] {
+  border-color: #28ff72;
+  background: #073018;
+  box-shadow: inset 3px 0 #28ff72;
+}
+
+.creator-toggle[data-state="on"] .creator-toggle-state {
+  color: #28ff72;
+}
+
+.creator-toggle:hover,
+.creator-toggle:focus-within {
+  border-color: #73ff9d;
+  outline: 1px solid rgba(115, 255, 157, 0.35);
+}
+
+.creator-toggle:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (max-width: 760px) {
+  .appforge-grid,
+  .creator-contract-grid,
+  .creator-option-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .terminal[data-app="termcreator"],
+  .terminal[data-app="windowmaker"],
+  .terminal[data-app="buttonmaker"],
+  .terminal[data-app="appforge"] {
+    left: 8px !important;
+    top: 8px !important;
+    width: calc(100vw - 16px) !important;
+    height: calc(100dvh - 74px) !important;
+    max-width: none !important;
+  }
+
+  .creator-wizard-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .creator-player-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-height: 620px) {
+  .creator-step-narrative small,
+  .creator-step-narrative em {
+    display: none;
+  }
 }
 
 .creator-items {

@@ -10701,13 +10701,30 @@ function creatorCheckboxGroup(keys, fieldName) {
     return `
         <div class="appforge-check-grid" data-appforge-field="${fieldName}">
             ${keys.map(key => `
-                <label class="appforge-check">
+                <label class="appforge-check creator-toggle" data-state="off">
                     <input type="checkbox" value="${escapeHTML(key)}">
-                    <span>${escapeHTML(key)}</span>
+                    <span class="creator-toggle-state">OFF</span>
+                    <span class="creator-toggle-label">${escapeHTML(creatorSecurityLabel(key))}</span>
                 </label>
             `).join("")}
         </div>
     `;
+}
+
+function creatorSecurityLabel(key) {
+    const labels = {
+        firewall: "Firewall celu",
+        firewall_core: "Rdzeń firewalla",
+        scan_detection: "Wykrywanie skanowania",
+        network_anomaly_detection: "Detekcja anomalii sieci",
+        vpn: "Tunel VPN",
+        camera_guardian: "Ochrona kamery",
+        audio_guardian: "Ochrona audio"
+    };
+    if (labels[key]) return labels[key];
+    return String(key || '')
+        .split('_').join(' ')
+        .replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
 const CREATOR_WIZARD_STEPS = [
@@ -10866,7 +10883,7 @@ const CREATOR_TARGET_TYPE_OPTIONS = [
 
 const CREATOR_OPTION_LABELS = {
     map_actions: {
-        scan_ports: "Rozpoznaj uslugi celu",
+        scan_ports: "Przeskanuj porty",
         exploit: "Zainstaluj exploit",
         sniff: "Sledz ruch",
         trace: "Namierz cel",
@@ -10927,7 +10944,92 @@ const CREATOR_OPTION_LABELS = {
     }
 };
 
+const CREATOR_OPTION_GROUPS = {
+    map_actions: "Akcja mapy",
+    operation_types: "Operacja runtime",
+    resource_types: "Informacja",
+    target_types: "Cel"
+};
+
+const CREATOR_SEMANTIC_GROUPS = {
+    location: ["gps_logs", "location_history", "generic_trace", "vehicle_tracking", "device_tracking", "trace", "trace_gps", "trace_device"],
+    device: ["internal_recon_state", "device_logs", "vehicle_diagnostics", "wifi_networks", "hotspot_database", "scan_ports", "scan_hotspots", "car_hack", "vehicle_ecu", "wifi_scanner"],
+    media: ["audio_transcript", "camera_dump", "video_material", "call_history", "messenger_data", "mic_sniff", "camera_stream", "camera_shutdown", "audio_hack", "microphone_sniffer", "audio_interference"],
+    accounts: ["credentials", "email_accounts", "personal_records", "player", "person", "phone"],
+    finance: ["financial_records", "atm_dump", "atm", "atm_logs", "atm_log_extraction"],
+    access: ["exploit", "sniff", "install_sniffer", "persistent_sniffer"],
+    world: ["poi", "camera", "server", "router", "pillar", "vehicle", "venue"]
+};
+
+const CREATOR_SEMANTIC_GROUP_LABELS = {
+    location: "Lokalizacja i śledzenie",
+    device: "Urządzenia i sieć",
+    media: "Media i komunikacja",
+    accounts: "Konta i tożsamość",
+    finance: "Finanse",
+    access: "Dostęp i wpływ",
+    world: "Obiekty świata"
+};
+
+function creatorSemanticGroup(fieldName, key) {
+    const matched = Object.entries(CREATOR_SEMANTIC_GROUPS)
+        .find(([, keys]) => keys.includes(key));
+    return matched ? CREATOR_SEMANTIC_GROUP_LABELS[matched[0]] : CREATOR_OPTION_GROUPS[fieldName];
+}
+
+const CREATOR_OPTION_ICONS = {
+    scan_ports: "🛠️", exploit: "💥", sniff: "📡", trace: "📍",
+    camera: "📷", atm: "🏧", server: "🖥️", router: "📶",
+    player: "👤", pillar: "📍", vehicle: "🏍️", person: "👤",
+    phone: "📱", venue: "🏢", poi: "📍"
+};
+
+const CREATOR_OPTION_KEYS = {
+    map_actions: CREATOR_MAP_ACTION_OPTIONS,
+    operation_types: CREATOR_OPERATION_OPTIONS,
+    resource_types: CREATOR_RESOURCE_OPTIONS,
+    target_types: CREATOR_TARGET_TYPE_OPTIONS
+};
+
+const CREATOR_OPTION_CATALOG = Object.freeze(Object.fromEntries(
+    Object.entries(CREATOR_OPTION_KEYS).map(([fieldName, options]) => [
+        fieldName,
+        Object.freeze(options.map(key => {
+            const label = (CREATOR_OPTION_LABELS[fieldName] || {})[key] || key;
+            return Object.freeze({
+                key,
+                label,
+                icon: CREATOR_OPTION_ICONS[key] || "◇",
+                description: `${CREATOR_OPTION_GROUPS[fieldName]}: ${label}.`,
+                group: creatorSemanticGroup(fieldName, key),
+                constraints: Object.freeze({ serialized_value: key })
+            });
+        }))
+    ])
+));
+
+function creatorOptionDescriptor(fieldName, key) {
+    return (CREATOR_OPTION_CATALOG[fieldName] || []).find(item => item.key === key) || {
+        key,
+        label: key,
+        icon: "◇",
+        description: `Opcja kontraktu: ${key}.`,
+        group: CREATOR_OPTION_GROUPS[fieldName] || "Kontrakt",
+        constraints: { serialized_value: key }
+    };
+}
+
 const CREATOR_TARGET_FILTERS = {
+    poi: {
+        map_actions: ["scan_ports", "exploit", "sniff", "trace", "camera_stream", "camera_shutdown", "install_sniffer", "audio_hack"],
+        operation_types: ["generic_trace", "wifi_scanner", "persistent_sniffer", "microphone_sniffer", "camera_stream", "camera_shutdown", "audio_interference"],
+        resource_types: ["internal_recon_state", "device_logs", "location_history", "credentials", "audio_transcript", "camera_dump", "video_material"]
+    },
+    pillar: {
+        map_actions: ["scan_ports", "exploit", "sniff", "trace", "install_sniffer"],
+        operation_types: ["generic_trace", "wifi_scanner", "persistent_sniffer"],
+        resource_types: ["internal_recon_state", "device_logs", "location_history", "credentials"]
+    },
     vehicle: {
         map_actions: ["trace_gps", "trace", "car_hack", "scan_ports"],
         operation_types: ["vehicle_tracking", "generic_trace", "vehicle_ecu"],
@@ -10972,6 +11074,65 @@ const CREATOR_TARGET_FILTERS = {
         map_actions: ["scan_hotspots", "trace", "mic_sniff", "scan_ports"],
         operation_types: ["wifi_scanner", "generic_trace", "microphone_sniffer"],
         resource_types: ["wifi_networks", "hotspot_database", "audio_transcript", "internal_recon_state"]
+    }
+};
+
+const CREATOR_ACTION_FILTERS = {
+    scan_ports: {
+        operation_types: ["wifi_scanner", "generic_trace"],
+        resource_types: ["internal_recon_state", "device_logs", "wifi_networks", "hotspot_database"]
+    },
+    trace: {
+        operation_types: ["generic_trace", "vehicle_tracking", "device_tracking"],
+        resource_types: ["location_history", "gps_logs", "device_logs", "personal_records", "internal_recon_state"]
+    },
+    trace_gps: {
+        operation_types: ["vehicle_tracking", "generic_trace"],
+        resource_types: ["gps_logs", "location_history", "vehicle_diagnostics", "internal_recon_state"]
+    },
+    trace_device: {
+        operation_types: ["device_tracking", "generic_trace"],
+        resource_types: ["location_history", "device_logs", "call_history", "messenger_data", "internal_recon_state"]
+    },
+    scan_hotspots: {
+        operation_types: ["wifi_scanner", "generic_trace"],
+        resource_types: ["wifi_networks", "hotspot_database", "internal_recon_state"]
+    },
+    exploit: {
+        operation_types: ["persistent_sniffer", "camera_shutdown", "audio_interference", "vehicle_ecu"],
+        resource_types: ["internal_recon_state", "credentials", "device_logs", "vehicle_diagnostics"]
+    },
+    camera_shutdown: {
+        operation_types: ["camera_shutdown"],
+        resource_types: ["internal_recon_state", "camera_dump", "video_material"]
+    },
+    audio_hack: {
+        operation_types: ["audio_interference"],
+        resource_types: ["internal_recon_state", "audio_transcript"]
+    },
+    car_hack: {
+        operation_types: ["vehicle_ecu"],
+        resource_types: ["internal_recon_state", "vehicle_diagnostics"]
+    },
+    sniff: {
+        operation_types: ["persistent_sniffer", "microphone_sniffer", "generic_trace"],
+        resource_types: ["credentials", "device_logs", "call_history", "messenger_data", "internal_recon_state"]
+    },
+    mic_sniff: {
+        operation_types: ["microphone_sniffer"],
+        resource_types: ["audio_transcript", "device_logs", "internal_recon_state"]
+    },
+    atm_logs: {
+        operation_types: ["atm_log_extraction", "persistent_sniffer"],
+        resource_types: ["atm_dump", "financial_records", "internal_recon_state"]
+    },
+    install_sniffer: {
+        operation_types: ["persistent_sniffer"],
+        resource_types: ["credentials", "device_logs", "financial_records", "internal_recon_state"]
+    },
+    camera_stream: {
+        operation_types: ["camera_stream"],
+        resource_types: ["camera_dump", "video_material", "internal_recon_state"]
     }
 };
 
@@ -11061,6 +11222,7 @@ const CREATOR_TOOL_FAMILY_PRESETS = {
         label: "Scanner / Recon / Namierzanie",
         boxTitle: "Gdzie dzia\u0142a rozpoznanie lub namierzanie?",
         defaultType: "scanner",
+        allowedTypes: ["scanner", "tracker"],
         safetyText: "Ta rodzina obejmuje skanowanie oraz tracer mapowy. Dla Namierz cel ustaw typ Tracer / namierzanie celu, akcj\u0119 trace i operacj\u0119 generic_trace.",
         desktopMapNote: "Scanner desktopowy mo\u017ce nie mie\u0107 akcji mapy. Dzia\u0142a na aktualny aimed_target.",
         mapNote: "Cztery podstawowe akcje mapy to scan_ports, exploit, sniff i trace. W tej rodzinie utworzysz scan_ports albo Namierz cel (trace).",
@@ -11070,6 +11232,7 @@ const CREATOR_TOOL_FAMILY_PRESETS = {
         label: "Exploit",
         boxTitle: "Gdzie dzia\u0142a exploit?",
         defaultType: "exploit",
+        allowedTypes: ["exploit", "exploit_suite", "camera_tool", "atm_tool", "vehicle_tool"],
         safetyText: "Exploit w CHAOS oznacza symulowany wp\u0142yw na s\u0142abo\u015b\u0107 systemu w \u015bwiecie gry. Opisuj efekt gameplayowy, nie technik\u0119.",
         desktopMapNote: "Exploit desktopowy mo\u017ce nie mie\u0107 akcji mapy. Dzia\u0142a na aktualny aimed_target.",
         mapNote: "Wybierz akcje mapy tylko wtedy, gdy narz\u0119dzie ma by\u0107 widoczne w menu mapy.",
@@ -11079,6 +11242,7 @@ const CREATOR_TOOL_FAMILY_PRESETS = {
         label: "Sniffer",
         boxTitle: "Gdzie dzia\u0142a sniffer?",
         defaultType: "sniffer",
+        allowedTypes: ["sniffer"],
         safetyText: "Sniffer w CHAOS oznacza symulowan\u0105 obserwacj\u0119 sygna\u0142\u00f3w lub danych w ramach operacji gry.",
         desktopMapNote: "Sniffer desktopowy mo\u017ce nie mie\u0107 akcji mapy. Dzia\u0142a na aktualny aimed_target.",
         mapNote: "Wybierz akcje mapy tylko wtedy, gdy sniffer ma by\u0107 uruchamiany z mapy.",
@@ -11087,14 +11251,30 @@ const CREATOR_TOOL_FAMILY_PRESETS = {
 };
 
 function creatorOptionCheckboxGroup(options, fieldName) {
-    const labels = CREATOR_OPTION_LABELS[fieldName] || {};
+    const groups = [];
+    options.forEach(option => {
+        const item = creatorOptionDescriptor(fieldName, option);
+        let group = groups.find(entry => entry.label === item.group);
+        if (!group) {
+            group = { label: item.group, items: [] };
+            groups.push(group);
+        }
+        group.items.push(item);
+    });
     return `
         <div class="appforge-check-grid creator-contract-grid" data-appforge-field="${fieldName}">
-            ${options.map(option => `
-                <label class="appforge-check" data-creator-option="${escapeHTML(option)}">
-                    <input type="checkbox" value="${escapeHTML(option)}">
-                    <span>${escapeHTML(labels[option] || option)}</span>
+            ${groups.map(group => `
+                <section class="creator-option-group" data-creator-option-group="${escapeHTML(group.label)}">
+                    <h5>${escapeHTML(group.label)}</h5>
+                    ${group.items.map(item => `
+                <label class="appforge-check creator-toggle" data-state="off" data-creator-option="${escapeHTML(item.key)}" title="${escapeHTML(item.description)}">
+                    <input type="checkbox" value="${escapeHTML(item.key)}">
+                    <span class="creator-toggle-state">OFF</span>
+                    <span class="creator-toggle-icon" aria-hidden="true">${escapeHTML(item.icon)}</span>
+                    <span class="creator-toggle-label">${escapeHTML(item.label)}</span>
                 </label>
+                    `).join("")}
+                </section>
             `).join("")}
         </div>
     `;
@@ -11104,7 +11284,7 @@ function creatorWizardNavHtml() {
     return `
         <div class="creator-wizard-nav" role="tablist">
             ${CREATOR_WIZARD_STEPS.map((label, index) => `
-                <button type="button" class="creator-wizard-tab${index === 0 ? " active" : ""}" data-creator-step="${index}">
+                <button type="button" role="tab" class="creator-wizard-tab${index === 0 ? " active" : ""}" data-creator-step="${index}">
                     <span>${index + 1}</span>${escapeHTML(label)}
                 </button>
             `).join("")}
@@ -11125,26 +11305,73 @@ function creatorStepNarrativeHtml(index) {
     `;
 }
 
+function syncCreatorToggle(input) {
+    const toggle = input && input.closest('.creator-toggle');
+    if (!toggle) return;
+    const enabled = Boolean(input.checked);
+    toggle.dataset.state = enabled ? 'on' : 'off';
+    toggle.setAttribute('aria-checked', enabled ? 'true' : 'false');
+    const state = toggle.querySelector('.creator-toggle-state');
+    if (state) state.textContent = enabled ? 'ON' : 'OFF';
+}
+
 function wireCreatorWizard(term) {
     const form = term.querySelector('.appforge-form');
     if (!form) return;
     const tabs = Array.from(form.querySelectorAll('[data-creator-step]'));
     const panels = Array.from(form.querySelectorAll('[data-creator-panel]'));
+    const wizardId = `creator-wizard-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    tabs.forEach((tab, index) => {
+        tab.id = `${wizardId}-tab-${index}`;
+        tab.setAttribute('aria-controls', `${wizardId}-panel-${index}`);
+    });
     panels.forEach(panel => {
         const index = Number(panel.dataset.creatorPanel);
+        panel.id = `${wizardId}-panel-${index}`;
+        panel.setAttribute('aria-labelledby', `${wizardId}-tab-${index}`);
         if (!panel.querySelector('.creator-step-narrative')) {
             panel.insertAdjacentHTML('afterbegin', creatorStepNarrativeHtml(index));
         }
     });
     polishCreatorWizardLabels(term);
+    form.querySelectorAll('.creator-toggle input[type="checkbox"]').forEach(input => {
+        input.addEventListener('change', () => syncCreatorToggle(input));
+        syncCreatorToggle(input);
+    });
+    form.addEventListener('reset', () => setTimeout(() => {
+        form.querySelectorAll('.creator-toggle input[type="checkbox"]').forEach(syncCreatorToggle);
+    }, 0));
     const setStep = (step) => {
         const nextStep = Math.max(0, Math.min(panels.length - 1, Number(step) || 0));
-        tabs.forEach(tab => tab.classList.toggle('active', Number(tab.dataset.creatorStep) === nextStep));
+        tabs.forEach(tab => {
+            const active = Number(tab.dataset.creatorStep) === nextStep;
+            tab.classList.toggle('active', active);
+            tab.setAttribute('aria-selected', active ? 'true' : 'false');
+            tab.tabIndex = active ? 0 : -1;
+        });
         panels.forEach(panel => {
-            panel.hidden = Number(panel.dataset.creatorPanel) !== nextStep;
+            const active = Number(panel.dataset.creatorPanel) === nextStep;
+            panel.hidden = !active;
+            panel.setAttribute('role', 'tabpanel');
+            panel.setAttribute('aria-hidden', active ? 'false' : 'true');
         });
     };
-    tabs.forEach(tab => tab.addEventListener('click', () => setStep(tab.dataset.creatorStep)));
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => setStep(tab.dataset.creatorStep));
+        tab.addEventListener('keydown', event => {
+            const current = tabs.indexOf(tab);
+            let next = null;
+            if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = (current + 1) % tabs.length;
+            if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') next = (current - 1 + tabs.length) % tabs.length;
+            if (event.key === 'Home') next = 0;
+            if (event.key === 'End') next = tabs.length - 1;
+            if (next === null) return;
+            event.preventDefault();
+            setStep(next);
+            tabs[next].focus();
+        });
+    });
+    form.addEventListener('creator:goto-step', event => setStep(event.detail && event.detail.step));
     form.querySelectorAll('[data-creator-next]').forEach(button => {
         button.addEventListener('click', () => {
             const current = panels.findIndex(panel => !panel.hidden);
@@ -11223,6 +11450,8 @@ function updateCreatorContractPreview(term) {
         term.querySelectorAll(`[data-appforge-field="${fieldName}"] input:checked`)
     ).map(input => input.value);
     const payload = {
+        name: form?.querySelector('[name="name"]')?.value || '',
+        icon: form?.querySelector('[name="icon"]')?.value || '',
         tool_family: form?.querySelector('[name="tool_family"]')?.value || 'custom',
         tool_mode: form?.querySelector('[name="tool_mode"]')?.value || '',
         interface: form?.querySelector('input[name="interface"]')?.value || '',
@@ -11231,6 +11460,10 @@ function updateCreatorContractPreview(term) {
         target_types: collect("target_types"),
         operation_types: collect("operation_types"),
         resource_types: collect("resource_types"),
+        interferes_with: collect("interferes_with"),
+        requires_off: collect("requires_off"),
+        disables: collect("disables"),
+        affects: collect("affects"),
         price: Number(form?.querySelector('[name="price"]')?.value || 0),
         file_size: "runtime default",
         disk_usage: "runtime default",
@@ -11239,19 +11472,82 @@ function updateCreatorContractPreview(term) {
         power_score: "runtime balance preview",
         price_hint: "minimum runtime hint"
     };
+    const summary = term.querySelector('[data-creator-player-summary]');
+    if (summary) {
+        const labels = (fieldName, values) => values.map(value => creatorOptionDescriptor(fieldName, value).label);
+        const rows = [
+            ["Aplikacja", `${payload.icon || "◇"} ${payload.name || "Bez nazwy"}`],
+            ["Rodzina", (CREATOR_TOOL_FAMILY_PRESETS[payload.tool_family] || {}).label || "Ogólne narzędzie"],
+            ["Cel", labels("target_types", payload.target_types).join(", ") || "Nie wybrano"],
+            ["Start", payload.tool_mode || "ogólny"],
+            ["Akcje mapy", labels("map_actions", payload.map_actions).join(", ") || "Brak"],
+            ["Operacje", labels("operation_types", payload.operation_types).join(", ") || "Nie wybrano"],
+            ["Informacje", labels("resource_types", payload.resource_types).join(", ") || "Brak"],
+            ["Kolizje", (payload.interferes_with || []).join(", ") || "Brak"],
+            ["Wymaga wyłączenia", (payload.requires_off || []).join(", ") || "Brak"],
+            ["Może wyłączyć", (payload.disables || []).join(", ") || "Brak"],
+            ["Wpływ na gracza", (payload.affects || []).join(", ") || "Brak"],
+            ["Prezentacja", payload.interface || "Nie wybrano"]
+        ];
+        summary.innerHTML = rows.map(row => `<span>${escapeHTML(row[0])}</span><b>${escapeHTML(row[1])}</b>`).join("");
+    }
     preview.textContent = JSON.stringify(payload, null, 2);
+}
+
+function validateCreatorContext(term, payload) {
+    term.querySelectorAll('[data-creator-context-invalid]').forEach(field => {
+        field.removeAttribute('data-creator-context-invalid');
+        field.setAttribute('aria-invalid', 'false');
+    });
+    const invalid = (step, fieldName, message) => {
+        const field = term.querySelector(`[data-appforge-field="${fieldName}"]`)
+            || term.querySelector(`[name="${fieldName}"]`);
+        if (field) {
+            field.dataset.creatorContextInvalid = 'true';
+            field.setAttribute('aria-invalid', 'true');
+        }
+        return { step, fieldName, message };
+    };
+    if (!payload.name || !String(payload.name).trim()) {
+        return invalid(0, "name", "Krok 1 · Nazwa: wpisz niepustą nazwę aplikacji.");
+    }
+    if (payload.tool_family && payload.tool_family !== "custom") {
+        if (!payload.target_types.length) {
+            return invalid(2, "target_types", "Krok 3 · Cel: wybierz co najmniej jeden rodzaj celu zgodny z rodziną.");
+        }
+        if (["map", "hybrid"].includes(payload.tool_mode) && !payload.map_actions.length) {
+            return invalid(3, "map_actions", "Krok 4 · Start: tryb mapowy lub hybrydowy wymaga akcji mapy; wybierz akcję albo tryb desktopowy.");
+        }
+        if (!payload.operation_types.length) {
+            return invalid(4, "operation_types", "Krok 5 · Działanie: wybierz co najmniej jedną operację zgodną z celem i akcją.");
+        }
+    }
+    return null;
 }
 
 function setCreatorCheckboxFilter(term, fieldName, allowedOptions) {
     const allowed = new Set(allowedOptions || []);
     const shouldFilter = Array.isArray(allowedOptions);
+    let visibleCount = 0;
+    let clearedCount = 0;
     term.querySelectorAll(`[data-appforge-field="${fieldName}"] [data-creator-option]`).forEach(label => {
         const option = label.dataset.creatorOption || "";
         const visible = !shouldFilter || allowed.has(option);
         label.hidden = !visible;
+        if (visible) visibleCount += 1;
         const input = label.querySelector('input');
-        if (input && !visible) input.checked = false;
+        if (input && !visible) {
+            if (input.checked) clearedCount += 1;
+            input.checked = false;
+            syncCreatorToggle(input);
+        }
     });
+    term.querySelectorAll(`[data-appforge-field="${fieldName}"] [data-creator-option-group]`).forEach(group => {
+        const hasVisibleOption = Array.from(group.querySelectorAll('[data-creator-option]'))
+            .some(option => !option.hidden);
+        group.hidden = !hasVisibleOption;
+    });
+    return { visibleCount, clearedCount };
 }
 
 function selectedCreatorOptions(term, fieldName) {
@@ -11260,9 +11556,10 @@ function selectedCreatorOptions(term, fieldName) {
         .filter(Boolean);
 }
 
-function intersectCreatorOptions(baseOptions, targetOptions) {
+function intersectCreatorOptions(baseOptions, targetOptions, constraintActive = false) {
     if (!Array.isArray(baseOptions)) return targetOptions;
-    if (!Array.isArray(targetOptions) || targetOptions.length === 0) return baseOptions;
+    if (!constraintActive) return baseOptions;
+    if (!Array.isArray(targetOptions) || targetOptions.length === 0) return [];
     const targetSet = new Set(targetOptions);
     return baseOptions.filter(item => targetSet.has(item));
 }
@@ -11272,6 +11569,17 @@ function collectCreatorTargetFilters(selectedTargets, fieldName) {
     selectedTargets.forEach(targetType => {
         const targetPreset = CREATOR_TARGET_FILTERS[targetType];
         (targetPreset?.[fieldName] || []).forEach(item => {
+            if (!values.includes(item)) values.push(item);
+        });
+    });
+    return values;
+}
+
+function collectCreatorActionFilters(selectedActions, fieldName) {
+    const values = [];
+    selectedActions.forEach(action => {
+        const actionPreset = CREATOR_ACTION_FILTERS[action];
+        ((actionPreset && actionPreset[fieldName]) || []).forEach(item => {
             if (!values.includes(item)) values.push(item);
         });
     });
@@ -11291,6 +11599,7 @@ function applyCreatorScannerMode(term) {
     const familyPreset = CREATOR_TOOL_FAMILY_PRESETS[family];
     if (familyBox) familyBox.hidden = !familyPreset;
     const selectedTargets = selectedCreatorOptions(term, "target_types");
+    const filterStatus = term.querySelector('[data-creator-filter-status]');
     if (!familyPreset) {
         ["map_actions", "operation_types", "resource_types", "target_types"].forEach(field => {
             setCreatorCheckboxFilter(term, field, null);
@@ -11299,21 +11608,39 @@ function applyCreatorScannerMode(term) {
         if (familyNote) familyNote.textContent = "Wybierz \u015bcie\u017ck\u0119 kreatora, \u017ceby zaw\u0119zi\u0107 kontrakt do sensownych p\u00f3l.";
         if (familySafety) familySafety.textContent = "";
         if (mapNote) mapNote.textContent = "";
+        if (filterStatus) filterStatus.textContent = "Tryb ogólny pokazuje cały kontrakt aplikacji.";
         updateCreatorContractPreview(term);
         return;
     }
 
     const preset = familyPreset.modes[mode] || familyPreset.modes.map;
-    if (typeInput && (!typeInput.value || typeInput.value === "exploit" || typeInput.value === "custom" || typeInput.value === "scanner" || typeInput.value === "sniffer")) {
+    if (typeInput && !familyPreset.allowedTypes.includes(typeInput.value)) {
         typeInput.value = familyPreset.defaultType;
     }
     const targetMapActions = collectCreatorTargetFilters(selectedTargets, "map_actions");
     const targetOperations = collectCreatorTargetFilters(selectedTargets, "operation_types");
     const targetResources = collectCreatorTargetFilters(selectedTargets, "resource_types");
-    setCreatorCheckboxFilter(term, "map_actions", intersectCreatorOptions(preset.map_actions, targetMapActions));
-    setCreatorCheckboxFilter(term, "operation_types", intersectCreatorOptions(preset.operation_types, targetOperations));
-    setCreatorCheckboxFilter(term, "resource_types", intersectCreatorOptions(preset.resource_types, targetResources));
-    setCreatorCheckboxFilter(term, "target_types", preset.target_types);
+    const results = [];
+    results.push(setCreatorCheckboxFilter(term, "target_types", preset.target_types));
+    const allowedMapActions = intersectCreatorOptions(preset.map_actions, targetMapActions, selectedTargets.length > 0);
+    results.push(setCreatorCheckboxFilter(term, "map_actions", allowedMapActions));
+    const selectedActions = selectedCreatorOptions(term, "map_actions");
+    const actionOperations = collectCreatorActionFilters(selectedActions, "operation_types");
+    const actionResources = collectCreatorActionFilters(selectedActions, "resource_types");
+    let allowedOperations = intersectCreatorOptions(preset.operation_types, targetOperations, selectedTargets.length > 0);
+    let allowedResources = intersectCreatorOptions(preset.resource_types, targetResources, selectedTargets.length > 0);
+    if (selectedActions.length) {
+        allowedOperations = intersectCreatorOptions(allowedOperations, actionOperations, true);
+        allowedResources = intersectCreatorOptions(allowedResources, actionResources, true);
+    }
+    results.push(setCreatorCheckboxFilter(term, "operation_types", allowedOperations));
+    results.push(setCreatorCheckboxFilter(term, "resource_types", allowedResources));
+    const clearedCount = results.reduce((total, result) => total + (result ? result.clearedCount : 0), 0);
+    if (filterStatus) {
+        filterStatus.textContent = clearedCount
+            ? `Dopasowano opcje do rodziny, celu i akcji. Wyczyszczono niezgodnych wyborów: ${clearedCount}.`
+            : "Opcje są dopasowane do wybranej rodziny, celu i akcji.";
+    }
     if (familyTitle) familyTitle.textContent = familyPreset.boxTitle;
     if (familyNote) familyNote.textContent = preset.description;
     if (familySafety) familySafety.textContent = familyPreset.safetyText;
@@ -11394,31 +11721,31 @@ function appendCreatorMeta(form, keys, interfaceName) {
                     <span>Interface</span>
                     <b>${escapeHTML(interfaceName)}</b>
                 </div>
-                <div class="appforge-fieldset"><h4>target_types</h4>${creatorOptionCheckboxGroup(CREATOR_TARGET_TYPE_OPTIONS, "target_types")}</div>
+                <div class="appforge-fieldset"><h4>Rodzaj celu</h4><p class="creator-field-help">Wybierz obiekty świata, na których narzędzie może pracować.</p>${creatorOptionCheckboxGroup(CREATOR_TARGET_TYPE_OPTIONS, "target_types")}</div>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="3" hidden>
                 <h4>Akcje mapy / desktopu</h4>
                 <p class="creator-step-note" data-creator-map-note>Wybierz akcje mapy tylko wtedy, gdy narz\u0119dzie ma by\u0107 uruchamiane z menu mapy.</p>
-                <div class="appforge-fieldset"><h4>map_actions</h4>${creatorOptionCheckboxGroup(CREATOR_MAP_ACTION_OPTIONS, "map_actions")}</div>
+                <div class="appforge-fieldset"><h4>Akcja uruchamiana z mapy</h4><p class="creator-field-help">To wpis widoczny w menu obiektu. Tryb desktopowy może pozostać bez akcji mapy.</p>${creatorOptionCheckboxGroup(CREATOR_MAP_ACTION_OPTIONS, "map_actions")}</div>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="4" hidden>
                 <h4>Operacje</h4>
-                <div class="appforge-fieldset"><h4>operation_types</h4>${creatorOptionCheckboxGroup(CREATOR_OPERATION_OPTIONS, "operation_types")}</div>
+                <div class="appforge-fieldset"><h4>Operacja na oznaczonym celu</h4><p class="creator-field-help">Określa gameplayowy skutek aplikacji uruchamianej z desktopu lub terminala.</p>${creatorOptionCheckboxGroup(CREATOR_OPERATION_OPTIONS, "operation_types")}</div>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="5" hidden>
                 <h4>Zasoby</h4>
-                <div class="appforge-fieldset"><h4>resource_types</h4>${creatorOptionCheckboxGroup(CREATOR_RESOURCE_OPTIONS, "resource_types")}</div>
+                <div class="appforge-fieldset"><h4>Informacje i ślady</h4><p class="creator-field-help">Wybierz dane, które operacja może przygotować w świecie gry.</p>${creatorOptionCheckboxGroup(CREATOR_RESOURCE_OPTIONS, "resource_types")}</div>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="6" hidden>
                 <h4>Ryzyko i zabezpieczenia</h4>
-                <div class="appforge-fieldset"><h4>interferes_with</h4>${creatorCheckboxGroup(keys, "interferes_with")}</div>
-                <div class="appforge-fieldset"><h4>requires_off</h4>${creatorCheckboxGroup(keys, "requires_off")}</div>
-                <div class="appforge-fieldset"><h4>disables</h4>${creatorCheckboxGroup(keys, "disables")}</div>
-                <div class="appforge-fieldset"><h4>affects</h4>${creatorCheckboxGroup(keys, "affects")}</div>
+                <div class="appforge-fieldset"><h4>Z czym może kolidować?</h4><p class="creator-field-help">Zapis do <code>interferes_with</code>: aktywne zabezpieczenia, które mogą zakłócić pracę.</p>${creatorCheckboxGroup(keys, "interferes_with")}</div>
+                <div class="appforge-fieldset"><h4>Co musi być wyłączone na celu?</h4><p class="creator-field-help">Zapis do <code>requires_off</code>: warunki konieczne przed uruchomieniem.</p>${creatorCheckboxGroup(keys, "requires_off")}</div>
+                <div class="appforge-fieldset"><h4>Co narzędzie może wyłączyć?</h4><p class="creator-field-help">Zapis do <code>disables</code>: zabezpieczenia będące skutkiem działania.</p>${creatorCheckboxGroup(keys, "disables")}</div>
+                <div class="appforge-fieldset"><h4>Na co wpływa po stronie gracza?</h4><p class="creator-field-help">Zapis do <code>affects</code>: lokalny wpływ aplikacji na profil lub rozgrywkę.</p>${creatorCheckboxGroup(keys, "affects")}</div>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="7" hidden>
@@ -11429,7 +11756,11 @@ function appendCreatorMeta(form, keys, interfaceName) {
                     <span>Quality</span><b>profil tw\u00f3rcy</b>
                     <span>Reliability</span><b>profil tw\u00f3rcy</b>
                 </div>
-                <pre class="creator-contract-preview" data-creator-contract-preview></pre>
+                <div class="creator-player-summary" data-creator-player-summary></div>
+                <details class="creator-technical-preview">
+                    <summary>Pokaż techniczny kontrakt JSON</summary>
+                    <pre class="creator-contract-preview" data-creator-contract-preview></pre>
+                </details>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="8" hidden>
@@ -11441,17 +11772,50 @@ function appendCreatorMeta(form, keys, interfaceName) {
                 ${creatorPanelNav(true, false)}
             </section>
         </div>
+        <p class="creator-filter-status" data-creator-filter-status role="status" aria-live="polite">Opcje zostaną dopasowane do rodziny, celu i akcji.</p>
     `;
 }
 
 function insertIconAtCursor(input, icon) {
-    const start = typeof input.selectionStart === 'number' ? input.selectionStart : input.value.length;
-    const end = typeof input.selectionEnd === 'number' ? input.selectionEnd : input.value.length;
-    input.value = `${input.value.slice(0, start)}${icon}${input.value.slice(end)}`;
-    const nextPosition = start + icon.length;
+    input.value = icon;
+    const nextPosition = icon.length;
     input.focus();
     input.setSelectionRange(nextPosition, nextPosition);
     input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function creatorIconGraphemes(value) {
+    const text = String(value || '').trim();
+    if (!text) return [];
+    if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
+        const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+        return Array.from(segmenter.segment(text), item => item.segment);
+    }
+    const parts = [];
+    Array.from(text).forEach(char => {
+        const code = char.codePointAt(0);
+        const previous = parts[parts.length - 1] || '';
+        const extendsPrevious = code === 0x200d
+            || previous.endsWith('\u200d')
+            || (code >= 0xfe00 && code <= 0xfe0f)
+            || (code >= 0x1f3fb && code <= 0x1f3ff)
+            || code === 0x20e3;
+        if (extendsPrevious && parts.length) parts[parts.length - 1] += char;
+        else parts.push(char);
+    });
+    if (parts.length === 2 && parts.every(part => {
+        const code = part.codePointAt(0);
+        return code >= 0x1f1e6 && code <= 0x1f1ff;
+    })) return [parts.join('')];
+    return parts;
+}
+
+function validateCreatorIcon(input, fallbackIcon) {
+    const value = String(input.value || '').trim();
+    const valid = creatorIconGraphemes(value).length === 1 && value.length <= 16;
+    input.setCustomValidity(valid ? '' : 'Wybierz dokładnie jeden widoczny znak lub emoji.');
+    input.setAttribute('aria-invalid', valid ? 'false' : 'true');
+    return valid ? value : fallbackIcon;
 }
 
 function setupIconPicker(term, fallbackIcon = '\u{1F6E0}\uFE0F') {
@@ -11480,7 +11844,7 @@ function setupIconPicker(term, fallbackIcon = '\u{1F6E0}\uFE0F') {
     iconRow.appendChild(picker);
 
     iconInput.addEventListener('input', () => {
-        iconPreview.textContent = iconInput.value.trim() || fallbackIcon;
+        iconPreview.textContent = validateCreatorIcon(iconInput, fallbackIcon);
     });
     toggle.addEventListener('click', (event) => {
         event.preventDefault();
@@ -11530,6 +11894,11 @@ function wireCreatorSubmit(term, buildExtraPayload) {
         const payload = Object.fromEntries(new FormData(form).entries());
         payload.price = Number(payload.price || 0);
         if (!validateGeneratedAppNameForScripts(payload, status)) return;
+        if (!validateCreatorIcon(iconInput, '\u{1F6E0}\uFE0F')) {
+            status.textContent = 'Wybierz dokładnie jedną ikonę aplikacji.';
+            iconInput.reportValidity();
+            return;
+        }
         ["interferes_with", "requires_off", "disables", "affects"].forEach(fieldName => {
             payload[fieldName] = Array.from(
                 term.querySelectorAll(`[data-appforge-field="${fieldName}"] input:checked`)
@@ -11541,6 +11910,14 @@ function wireCreatorSubmit(term, buildExtraPayload) {
             ).map(input => input.value);
         });
         Object.assign(payload, buildExtraPayload(term));
+        const contextError = validateCreatorContext(term, payload);
+        if (contextError) {
+            status.textContent = contextError.message;
+            status.setAttribute('role', 'alert');
+            form.dispatchEvent(new CustomEvent('creator:goto-step', { detail: contextError }));
+            return;
+        }
+        status.removeAttribute('role');
         status.textContent = 'Publikowanie...';
 
         try {

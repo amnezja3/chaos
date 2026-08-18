@@ -21071,6 +21071,252 @@ również przejęcie celu, wiadomości Cybernera i zdarzenia systemowe.
 - testy mobile, wielu okien, radia i długiej sesji.
 
 
+# Sprinty 130.8.9.UX-appcreator.1–3 — refaktor UX creatorów aplikacji
+
+Status: `DONE (2026-08-17)`.
+
+Dokumentem źródłowym kierunku UX jest
+`doc/Refaktor_UX_creatorów_CHAOS.md`. Poniższy zapis jest jego adaptacją do
+aktualnej architektury CHAOS i stanowi kanoniczny plan realizacji.
+
+## Aktualny punkt architektoniczny
+
+CHAOS nie utrzymuje czterech niezależnych silników creatorów. Formularze
+aplikacji `progressbar_random`, `window`, `terminal` i `button_choices` korzystają
+ze wspólnego dziewięciokrokowego wizarda w `static/js/terminal.js`, a wynik
+przechodzi przez backendowe `build_generated_app()` i
+`normalize_app_contract()`. Refaktor ma rozwijać ten wspólny przepływ, a nie
+tworzyć kolejne warianty logiki dla poszczególnych prezentacji.
+
+Warstwa UX może zmieniać nazwy, opisy, ikony, grupowanie, filtry i sposób
+wyboru. Nie może zmieniać istniejących kluczy runtime, znaczenia kontraktu ani
+payloadu publikowanej aplikacji. W szczególności cztery podstawowe akcje mapy
+pozostają jednym kontraktem:
+
+| Klucz runtime | Etykieta gameplayowa | Rodzina creatora |
+| --- | --- | --- |
+| `scan_ports` | Przeskanuj porty | Scanner / Recon |
+| `exploit` | Zainstaluj exploit | Exploit |
+| `sniff` | Śledź ruch | Sniffer |
+| `trace` | Namierz cel | Scanner / Recon, typ tracer |
+
+`trace` nie staje się nową rodziną narzędzia. Creator ma jedynie jasno
+pokazywać, że tracer/namierzanie celu powstaje w rodzinie Scanner / Recon.
+
+## Twarde granice całego pakietu
+
+- bez zmian mechaniki gameplayowej, kosztów, ryzyka, wyniku operacji i uprawnień;
+- bez zmian GhostLab, `pro-system-tools`, GhostNetwork, konfliktów i endpointów mapy;
+- bez zmian semantyki OFS, provisionala, launch receipt i kolejki uruchomień;
+- bez automatycznej migracji bazy; stare i już zainstalowane aplikacje muszą
+  pozostać uruchamialne;
+- jedna wspólna definicja etykiet, ikon i opisów zamiast kopii w czterech
+  formularzach;
+- jedna aplikacja ma jedną ikonę będącą jednym widocznym glifem;
+- backend pozostaje autorytetem walidacji, frontend daje wcześniejszy i
+  zrozumiały komunikat;
+- implementacja nie może dokładać ciężkich odczytów profilu ani blokować
+  bootu desktopu.
+
+---
+
+## Sprint 130.8.9.UX-appcreator.1 — wspólny fundament UX
+
+Status: `DONE (2026-08-17)`.
+
+### Cel
+
+Utworzyć jedną, bezpieczną warstwę prezentacji opcji creatora i poprawić
+czytelność wizarda bez zmiany zapisywanego kontraktu aplikacji.
+
+### Zakres
+
+1. Przeprowadzić audyt wszystkich czterech formularzy, wspólnego wizarda,
+   podglądu, publikacji i backendowej normalizacji. Zapisać macierz: pole UI,
+   klucz runtime, typ wartości, wartość domyślna i miejsce walidacji.
+2. Scentralizować deskryptory opcji: klucz runtime, etykieta gameplayowa, ikona,
+   krótki opis, grupa oraz ograniczenia. Istniejące stałe mogą zostać
+   scalone, ale serializowane wartości nie mogą się zmienić.
+3. Zachować dziewięć kroków wizarda. Każdy krok ma otrzymać stały tytuł,
+   krótkie wyjaśnienie intencji i informację, jaki wpływ ma wybór na
+   kolejne kroki.
+4. Zbudować wspólny selektor `OFF/ON` dostępny z klawiatury. Może on
+   wizualnie zastąpić checkbox, ale pod spodem ma zachować dotychczasową
+   semantykę formularza i payloadu.
+5. Przygotować jedną paletę około 40 ikon zgodną z istniejącym systemem
+   ikon CHAOS. Nie kopiować palety pomiędzy creatorami i nie wprowadzać
+   osobnego pipeline'u assetów.
+6. Dodać spójną walidację ikony po stronie klienta i serwera: jeden widoczny
+   glif, w tym poprawna pojedyncza sekwencja emoji; odrzucane są puste wartości,
+   tekst, kontrolne znaki i wiele glifów.
+7. Uporządkować nazewnictwo Scanner / Recon i tracer zgodnie z tabelą
+   podstawowych akcji mapy, bez dodawania czwartej rodziny backendowej.
+
+### Walidacja i regresja
+
+- test kontraktu deskryptorów: każda opcja ma unikalny klucz i kompletną
+  prezentację;
+- test zgodności payloadu przed i po refaktorze dla wszystkich czterech typów
+  interfejsu;
+- test klienta i backendu dla ikon ASCII, emoji, emoji z variation selector/ZWJ,
+  pustej ikony i wielu znaków;
+- `node --check static/js/terminal.js`;
+- `python -m py_compile run.py` wyłącznie jeżeli zmienił się backend;
+- celowane testy creatorów, kontraktu aplikacji, provisionala i OFS;
+- `git diff --check`.
+
+### Dokumentacja i DoD
+
+- uzupełnione `doc/app_contract.md` o mapę etykieta ↔ klucz runtime oraz
+  kontrakt ikony;
+- `doc/Refaktor_UX_creatorów_CHAOS.md` oznaczony jako artefakt kierunkowy, a ten
+  plan jako specyfikacja wykonawcza;
+- wpis w `doc/project_journal.md` z zakresem, testami i znanymi ograniczeniami;
+- wszystkie cztery creatory korzystają z jednego fundamentu, a stare aplikacje
+  otwierają się i uruchamiają bez migracji.
+
+---
+
+## Sprint 130.8.9.UX-appcreator.2 — migracja wizarda i semantyka wyborów
+
+Status: `DONE (2026-08-17)`.
+
+### Cel
+
+Przenieść wszystkie kroki creatora na wspólne kontrolki i opisy tak, aby gracz
+wybierał intencję gameplayową, a nie musiał znać nomenklatury backendu.
+
+### Zakres
+
+1. Zmigrować cztery typy interfejsu na wspólne komponenty bez kopiowania
+   rendererów, listenerów i filtrów.
+2. Zastąpić ściany checkboxów czytelnymi macierzami `OFF/ON`, z jednoznacznymi
+   stanami `OFF`, `ON`, `hover`, `focus` i `disabled`. Stan nie może być
+   komunikowany wyłącznie kolorem.
+3. W kroku celu rozdzielić etykietami: rodzaj celu, miejsce uruchomienia,
+   akcję mapy, operację desktopową i wymagane zasoby. Nazwy techniczne mogą
+   pozostać wyłącznie w rozwijanym podglądzie kontraktu.
+4. Zgrupować zasoby według faktycznej semantyki, np. lokalizacja, urządzenie,
+   media, konta i finanse. Grupy są prezentacją istniejących kluczy, nie nowym
+   modelem danych.
+5. Przepisać krok ryzyka na pytania gameplayowe, zachowując dokładne
+   mapowanie do obecnych pól: zabezpieczenia celu, wymagania narzędzia, wpływ
+   na gracza oraz efekt operacji nie mogą zostać ze sobą pomylone.
+6. Filtrować dalsze opcje na podstawie rodziny, celu i akcji. Ukrycie opcji ma
+   jawnie czyścić niezgodną wartość albo zachować ją z widocznym
+   ostrzeżeniem; nie wolno pozostawiać niewidocznego, aktywnego pola.
+7. Zachować wybory przy przechodzeniu `Wstecz/Dalej`, o ile nadal są zgodne.
+   Zmiana nadrzędnej decyzji ma powodować deterministyczną rekalkulację,
+   a nie losowe zerowanie formularza.
+
+### Walidacja i regresja
+
+- macierz tworzenia dla `progressbar_random`, `window`, `terminal` i
+  `button_choices`;
+- dla każdego typu: utworzenie scanner, exploit, sniffer oraz tracer przez
+  Scanner / Recon;
+- przejście przód/wstecz, szybkie przełączanie opcji, zmiana rodziny po
+  wypełnieniu dalszych kroków i odtworzenie formularza po błędzie walidacji;
+- publikacja, instalacja, uruchomienie z desktopu i terminala oraz uruchomienie
+  akcji mapy bez zmiany docelowego klucza;
+- regresja starych aplikacji i inferencji legacy;
+- standardowe `node --check`, celowane testy jednostkowe i `git diff --check`.
+
+### Dokumentacja i DoD
+
+- `doc/app_contract.md` opisuje grupy UX oraz ich niezmienne mapowanie na pola
+  kontraktu;
+- w `doc/project_journal.md` zapisano listę zmigrowanych ekranów i wynik macierzy
+  regresji;
+- w tym pliku status sprintu i faktyczny zakres zostają zaktualizowane po
+  walidacji;
+- użytkownik może zbudować cztery podstawowe narzędzia mapy bez znajomości
+  kluczy backendowych.
+
+---
+
+## Sprint 130.8.9.UX-appcreator.3 — podgląd, walidacja i production polish
+
+Status: `DONE (2026-08-17)`.
+
+Wynik: wspólny wizard czterech creatorów ma podsumowanie gameplayowe, zwijany
+kontrakt techniczny, deterministyczne filtry rodzina → cel → akcja oraz
+walidację kierującą do pola wymagającego poprawy. Backend odrzuca nieznane
+rodziny, tryby, typy i wartości spoza jawnego kontraktu rodziny; legacy bez
+jawnego `tool_family` zachowuje dotychczasową ścieżkę i nie wymaga migracji.
+`Scanner / Recon` dopuszcza zarówno typ `scanner`, jak i `tracker`, dzięki czemu
+`Namierz cel` nadal powstaje jako akcja `trace`, a nie nowa rodzina.
+
+### Cel
+
+Domknąć creator czytelnym podsumowaniem, walidacją kontekstową,
+responsywnością, dostępnością i pełną regresją przepływu publikacji.
+
+### Zakres
+
+1. Podgląd przed publikacją zaczynać od podsumowania dla gracza: nazwa,
+   rodzina, cel, miejsce startu, akcje, zasoby, ryzyko, ikona i typ prezentacji.
+   Surowy JSON pozostaje dostępny jako zwijany widok techniczny.
+2. Dodać walidację kontekstową przed publikacją: komunikat wskazuje krok,
+   pole, oczekiwaną wartość i sposób naprawy. Backend nadal powtarza
+   krytyczne walidacje i nie ufa payloadowi klienta.
+3. Domknąć inteligentne filtry rodziny i celu na podstawie obecnego kontraktu,
+   bez heurystyk tworzących nieobsługiwane kombinacje runtime.
+4. Dopracować układ dla pełnego desktopu, małego ekranu, mapy otwartej obok
+   creatora oraz niskiego viewportu. Wizard ma mieć kontrolowaną wysokość,
+   lokalny pionowy scroll i nie może tworzyć poziomego overflow.
+5. Zapewnić obsługę klawiaturą, widoczny focus, poprawne etykiety i stan
+   kontrolek dla technologii asystujących. Dynamiczne filtry i błędy mają
+   aktualizować właściwe atrybuty dostępności.
+6. Dodać wspólne testy kontraktowe zabezpieczające zgodność frontendowych
+   deskryptorów, backendowej normalizacji i faktycznego payloadu publikacji.
+7. Wykonać ręczną regresję: tworzenie, podgląd, publikacja, instalacja,
+   uruchomienie z mapy/desktopu/terminala, edycja jeżeli jest dostępna, powrót
+   kroków, reload i stare aplikacje.
+
+### Walidacja końcowa
+
+- testy creatorów oraz `tests.test_target_persistence` w zakresie generowanych
+  aplikacji;
+- testy `tests.test_provisional_application_launch_contract` i
+  `tests.test_operation_feedback_frontend_contract` dla wszystkich czterech
+  prezentacji;
+- testy walidacji backendowej i kompatybilności legacy;
+- `node --check static/js/terminal.js`;
+- `python -m py_compile run.py database.py` tylko gdy pliki zostały zmienione;
+- `git diff --check`;
+- smoke test na koncie nowym i istniejącym, na desktopie i mobilnym viewportcie.
+
+### Dokumentacja i DoD
+
+- zaktualizowane `doc/app_contract.md`, ten plan oraz
+  `doc/Refaktor_UX_creatorów_CHAOS.md`, bez sprzecznych statusów i nazw;
+- `doc/project_journal.md` zawiera wynik walidacji, znane ograniczenia i informację
+  o braku migracji lub opis migracji, jeżeli audyt jednak wykaże jej potrzebę;
+- brak zmian kontraktu runtime, gameplayu, mapy, OFS, GhostLab i pro-tools;
+- creator jest zrozumiały bez znajomości backendu, a podgląd jednoznacznie
+  pokazuje, co zostanie opublikowane.
+
+## Procedura realizacji i odbioru
+
+Każdy z trzech sprintów rozpoczyna się od `git status --short`, ponownego
+odczytania aktualnego wizarda, `build_generated_app()`,
+`normalize_app_contract()` i testów kontraktowych. Zmiany mają być małe,
+etapowe i nie mogą cofać cudzych modyfikacji.
+
+Po implementacji obowiązują testy celowane, kontrola składni plików dotkniętych
+zmianą oraz `git diff --check`. Domknięcie sprintu zawsze aktualizuje:
+
+1. status i wynik sprintu w `doc/game_play_180726.md`;
+2. kontrakt w `doc/app_contract.md`, jeżeli zmieniła się prezentacja lub
+   walidacja danych;
+3. `doc/project_journal.md` z wykonanym zakresem i wynikiem testów;
+4. artefakt źródłowy, jeżeli wdrożenie ujawni zmianę założeń.
+
+Commit, push, deploy, migracja danych i restart procesów nie należą do
+automatycznego domknięcia sprintu i wymagają osobnej decyzji użytkownika.
+
+
 > Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.
 
 # Sprint 131 — GhostNetwork Suite: audyt widoczności części i integracja z Territory Control

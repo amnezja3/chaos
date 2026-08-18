@@ -13,6 +13,7 @@ import html
 import subprocess
 import time
 import threading
+import unicodedata
 from datetime import datetime, timezone, timedelta
 from random import random, choice, randint, sample
 import random as random_module
@@ -16525,6 +16526,118 @@ def parse_option_lines(value):
 
 
 CREATOR_EXPLICIT_TOOL_FAMILIES = {"scanner_recon", "exploit", "sniffer"}
+CREATOR_TOOL_MODES = {"map", "desktop", "hybrid"}
+CREATOR_FAMILY_ALLOWED_TYPES = {
+    "scanner_recon": {"scanner", "tracker"},
+    "exploit": {"exploit", "exploit_suite", "camera_tool", "atm_tool", "vehicle_tool"},
+    "sniffer": {"sniffer"},
+}
+CREATOR_FAMILY_CONTRACTS = {
+    "scanner_recon": {
+        "map_actions": {"scan_ports", "trace", "trace_gps", "trace_device", "scan_hotspots", "camera_stream"},
+        "operation_types": {"generic_trace", "vehicle_tracking", "device_tracking", "wifi_scanner", "camera_stream"},
+        "resource_types": {"internal_recon_state", "gps_logs", "location_history", "device_logs", "camera_dump", "wifi_networks", "hotspot_database"},
+        "target_types": {"poi", "camera", "atm", "server", "router", "player", "pillar", "vehicle", "person", "phone", "venue"},
+    },
+    "exploit": {
+        "map_actions": {"exploit", "camera_shutdown", "install_sniffer", "audio_hack", "car_hack"},
+        "operation_types": {"camera_shutdown", "persistent_sniffer", "audio_interference", "vehicle_ecu"},
+        "resource_types": {"internal_recon_state", "financial_records", "credentials", "vehicle_diagnostics"},
+        "target_types": {"poi", "camera", "atm", "server", "router", "player", "pillar", "vehicle", "venue"},
+    },
+    "sniffer": {
+        "map_actions": {"sniff", "mic_sniff", "atm_logs", "install_sniffer", "camera_stream"},
+        "operation_types": {"persistent_sniffer", "microphone_sniffer", "atm_log_extraction", "camera_stream"},
+        "resource_types": {"credentials", "financial_records", "atm_dump", "audio_transcript", "camera_dump", "video_material", "device_logs", "internal_recon_state"},
+        "target_types": {"poi", "camera", "atm", "server", "router", "player", "pillar", "person", "phone", "venue"},
+    },
+}
+CREATOR_MODE_OVERRIDES = {
+    ("scanner_recon", "map"): {
+        "target_types": CREATOR_FAMILY_CONTRACTS["scanner_recon"]["target_types"] - {"atm"},
+    },
+    ("scanner_recon", "desktop"): {
+        "map_actions": set(),
+        "operation_types": {"generic_trace", "device_tracking", "wifi_scanner"},
+        "resource_types": {"internal_recon_state", "location_history", "device_logs", "wifi_networks", "hotspot_database"},
+    },
+    ("exploit", "desktop"): {
+        "map_actions": set(),
+        "operation_types": {"camera_shutdown", "audio_interference", "vehicle_ecu"},
+        "resource_types": {"internal_recon_state", "vehicle_diagnostics"},
+    },
+    ("sniffer", "desktop"): {
+        "map_actions": set(),
+    },
+}
+
+
+def validate_generated_app_contract(tool_family, tool_mode, map_actions,
+                                    operation_types, resource_types, target_types):
+    """Validate the authoritative creator contract without changing legacy apps."""
+    family = str(tool_family or "").strip()
+    mode = str(tool_mode or "").strip()
+    if family in {"", "custom"}:
+        return "", ""
+    if family not in CREATOR_EXPLICIT_TOOL_FAMILIES:
+        raise ValueError("Nieprawidlowa rodzina narzedzia.")
+    if mode not in CREATOR_TOOL_MODES:
+        raise ValueError("Wybierz prawidlowe miejsce uruchomienia narzedzia.")
+
+    contract = dict(CREATOR_FAMILY_CONTRACTS[family])
+    contract.update(CREATOR_MODE_OVERRIDES.get((family, mode), {}))
+    fields = {
+        "akcji mapy": (map_actions, contract["map_actions"]),
+        "operacji": (operation_types, contract["operation_types"]),
+        "zasobow": (resource_types, contract["resource_types"]),
+        "celow": (target_types, contract["target_types"]),
+    }
+    for label, (values, allowed) in fields.items():
+        invalid = sorted(set(values) - allowed)
+        if invalid:
+            raise ValueError(f"Rodzina {family} nie obsluguje {label}: {', '.join(invalid)}.")
+
+    if not target_types:
+        raise ValueError("Wybierz co najmniej jeden rodzaj celu.")
+    if not operation_types:
+        raise ValueError("Wybierz co najmniej jedna operacje aplikacji.")
+    if mode in {"map", "hybrid"} and not map_actions:
+        raise ValueError("Tryb mapowy lub hybrydowy wymaga akcji mapy.")
+    if mode == "desktop" and map_actions:
+        raise ValueError("Tryb desktopowy nie moze publikowac akcji mapy.")
+    return family, mode
+
+
+def validate_generated_app_icon(value):
+    """Return one visible creator glyph without changing its Unicode sequence."""
+    raw_icon = str(value or "")
+    if raw_icon != raw_icon.strip():
+        raise ValueError("Ikona musi byc jednym widocznym znakiem.")
+    icon = raw_icon
+    if not icon:
+        raise ValueError("Ikona aplikacji jest wymagana.")
+    invalid_character = any(
+        char.isspace()
+        or (unicodedata.category(char).startswith("C") and char != "\u200d")
+        for char in icon
+    )
+    if len(icon) > 16 or invalid_character:
+        raise ValueError("Ikona musi byc jednym widocznym znakiem.")
+
+    regional = [char for char in icon if 0x1F1E6 <= ord(char) <= 0x1F1FF]
+    bases = [
+        char for char in icon
+        if char != "\u200d"
+        and not unicodedata.combining(char)
+        and ord(char) not in range(0xFE00, 0xFE10)
+        and ord(char) not in range(0x1F3FB, 0x1F400)
+        and ord(char) != 0x20E3
+    ]
+    is_flag = len(regional) == 2 and len(bases) == 2
+    is_joined = "\u200d" in icon and not icon.startswith("\u200d") and not icon.endswith("\u200d")
+    if len(bases) != 1 and not is_flag and not is_joined:
+        raise ValueError("Ikona musi byc jednym widocznym znakiem.")
+    return icon
 
 
 def build_generated_app(data, creator_username, creator_nick):
@@ -16551,16 +16664,23 @@ def build_generated_app(data, creator_username, creator_nick):
     operation_types = parse_csv_field(data.get("operation_types"))
     resource_types = parse_csv_field(data.get("resource_types"))
     target_types = parse_csv_field(data.get("target_types"))
-    tool_family = str(data.get("tool_family") or "").strip()
-    tool_mode = str(data.get("tool_mode") or data.get("scanner_mode") or "").strip()
-    if tool_family not in CREATOR_EXPLICIT_TOOL_FAMILIES:
-        tool_mode = ""
+    tool_family, tool_mode = validate_generated_app_contract(
+        data.get("tool_family"),
+        data.get("tool_mode") or data.get("scanner_mode"),
+        map_actions,
+        operation_types,
+        resource_types,
+        target_types,
+    )
+    if tool_family and app_type not in CREATOR_FAMILY_ALLOWED_TYPES[tool_family]:
+        raise ValueError(f"Typ {app_type} nie pasuje do rodziny {tool_family}.")
     scanner_mode = tool_mode if tool_family == "scanner_recon" else ""
 
+    icon_value = data["icon"] if "icon" in data else "\U0001F6E0\uFE0F"
     app = {
         "id": app_id,
         "name": name,
-        "icon": data.get("icon") or "\U0001F6E0\uFE0F",
+        "icon": validate_generated_app_icon(icon_value),
         "type": app_type,
         "detects": detects,
         "interferes_with": interferes_with,

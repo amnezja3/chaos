@@ -1,5 +1,16 @@
 # CHAOS — Project Journal
 
+## 2026-08-17 - Sprint 130.8.9.UX-appcreator.1: wspólny fundament creatorów
+
+- Cztery creatory korzystają ze wspólnego katalogu opcji: klucz runtime,
+  etykieta gameplayowa, ikona, opis i grupa. Payload nie został zmieniony.
+- Checkboxy wizarda dostały wspólną warstwę OFF/ON. Filtry nadal czyszczą
+  opcje niezgodne z rodziną i synchronizują ich wygląd.
+- `trace` pozostaje wariantem Scanner / Recon, bez nowej rodziny backendowej.
+- Picker wybiera jedną ikonę. Frontend i backend walidują pojedynczy widoczny
+  glif, zachowując poprawne emoji/ZWJ i flagi.
+- Nie zmieniano gameplayu, mapy, OFS, launch receipt ani zapisanych aplikacji.
+
 #### historia dziennika w plikach 
 * `doc/project_journal_13082026.md`
 
@@ -304,3 +315,43 @@
   ani RSP.
 - Guard wspólnego klanu działa przed snapshotem, transferem i receiptem.
   Chronione relacje nie generują reward-only eventów.
+
+## 2026-08-17 - Sprint 130.8.9.UX-appcreator.2 i start .3
+
+- Domknięto wspólną prezentację opcji czterech creatorów: zasoby, operacje,
+  akcje i cele są grupowane semantycznie, a zabezpieczenia otrzymały nazwy
+  gameplayowe. Klucze zapisywane do kontraktu nie zostały zmienione.
+- Filtry wykonują deterministyczną sekwencję rodzina → cel → akcja. Ukrywana
+  aktywna wartość jest czyszczona i raportowana w statusie `aria-live`, natomiast
+  nadal zgodne wybory przetrwają przejście Wstecz/Dalej.
+- Krok ryzyka rozdziela pytania mapowane na `interferes_with`, `requires_off`,
+  `disables` i `affects`; techniczne nazwy pozostają w podglądzie JSON.
+- Rozpoczęto Sprint `.3`: podgląd ma podsumowanie dla gracza i zwijany JSON,
+  walidacja wskazuje numer kroku oraz sposób naprawy, dodano stany dostępności
+  zakładek i kontrolowany układ małego viewportu.
+- `node --check static/js/terminal.js` oraz `git diff --check` przeszły.
+  Lokalne testy Python pozostają niewykonane, ponieważ systemowy `python.exe`
+  nie uruchamia procesu w tej sesji Windows; zakres zabezpiecza rozbudowany
+  `tests/test_creator_ux_contract.py` do uruchomienia w środowisku projektu.
+## 2026-08-17 - domknięcie Sprintów 130.8.9.UX-appcreator.1–3
+
+- Audyt odbiorczy wykrył i usunął otwieranie pełnej puli opcji po pustym
+  przecięciu filtrów. Aktywne ograniczenie rodziny, celu lub akcji może teraz
+  poprawnie dać pusty wynik zamiast proponować nieobsługiwany kontrakt.
+- Backend creatora waliduje jawne rodziny, tryby, typ aplikacji oraz wartości
+  celów, akcji, operacji i zasobów. Tryb desktopowy nie przyjmuje akcji mapy,
+  natomiast mapowy i hybrydowy jej wymagają. Ścieżka legacy bez rodziny nie
+  została zmieniona i nie wymaga migracji.
+- Zachowano `tracker` w rodzinie Scanner / Recon. Dzięki temu `Namierz cel`
+  pozostaje istniejącą akcją `trace` z `generic_trace`, bez tworzenia nowej
+  rodziny i bez cichego przepisywania typu przez backend.
+- Podgląd gameplayowy obejmuje również ryzyko, wymagania, wyłączane
+  zabezpieczenia i wpływ na gracza. Zakładki mają pełne relacje ARIA, obsługę
+  strzałek/Home/End, a walidacja oznacza konkretne pole i prowadzi do kroku
+  naprawy. Formularze mają kontrolowany scroll oraz jednokolumnowy układ na
+  małym ekranie.
+- Dodano regresję JS zachowania filtrów i wspólnego podpięcia czterech
+  interfejsów oraz backendowe testy odrzucania wadliwego kontraktu i akceptacji
+  tracera. `node --check static/js/terminal.js`, test Node creatora i
+  `git diff --check` są poprawne. Testy Pythona pozostają do uruchomienia w venv
+  CHAOS, ponieważ lokalny alias Windows nie uruchamia interpretera w tej sesji.

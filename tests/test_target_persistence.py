@@ -53,6 +53,7 @@ from run import (
     latest_blacknet_ollama_outbox,
     read_blacknet_ollama_outbox,
     update_blacknet_ollama_outbox_status,
+    validate_generated_app_icon,
     validate_blacknet_ollama_outbox,
     write_blacknet_ollama_outbox,
 )
@@ -3781,6 +3782,18 @@ class FakeTerritoryStore:
 
 
 class TargetPersistenceHelpersTest(unittest.TestCase):
+    def test_generated_app_icon_accepts_one_visible_grapheme(self):
+        self.assertEqual(validate_generated_app_icon("X"), "X")
+        self.assertEqual(validate_generated_app_icon("🛠️"), "🛠️")
+        self.assertEqual(validate_generated_app_icon("👩‍💻"), "👩‍💻")
+        self.assertEqual(validate_generated_app_icon("🇵🇱"), "🇵🇱")
+
+    def test_generated_app_icon_rejects_empty_text_and_multiple_glyphs(self):
+        for icon in ("", "GL", "🛠️⚡", "A\n"):
+            with self.subTest(icon=repr(icon)):
+                with self.assertRaises(ValueError):
+                    validate_generated_app_icon(icon)
+
     def test_position_key_uses_lng_or_lon(self):
         left = {"lat": 52.1234567, "lng": 21.1234567}
         right = {"lat": 52.12345671, "lon": 21.12345671}
@@ -4538,6 +4551,83 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
 
         self.assertEqual(app["map_actions"], [])
         self.assertEqual(app["map_actions_source"], "creator_explicit")
+
+    def test_creator_rejects_unknown_explicit_family(self):
+        payload = {
+            "name": "Unknown Family",
+            "interface": "terminal",
+            "type": "tracker",
+            "tool_family": "unknown_family",
+            "tool_mode": "desktop",
+            "target_types": ["server"],
+            "operation_types": ["generic_trace"],
+        }
+        with self.assertRaisesRegex(ValueError, "rodzina"):
+            build_generated_app(payload, "creator", "Creator")
+
+    def test_creator_rejects_contract_outside_selected_family(self):
+        payload = {
+            "name": "Injected Contract",
+            "interface": "terminal",
+            "type": "scanner",
+            "tool_family": "scanner_recon",
+            "tool_mode": "desktop",
+            "target_types": ["server"],
+            "operation_types": ["vehicle_ecu"],
+            "resource_types": ["vehicle_diagnostics"],
+        }
+        with self.assertRaisesRegex(ValueError, "scanner_recon"):
+            build_generated_app(payload, "creator", "Creator")
+
+    def test_creator_rejects_map_actions_in_desktop_mode(self):
+        payload = {
+            "name": "Desktop Injection",
+            "interface": "terminal",
+            "type": "scanner",
+            "tool_family": "scanner_recon",
+            "tool_mode": "desktop",
+            "map_actions": ["trace"],
+            "target_types": ["server"],
+            "operation_types": ["generic_trace"],
+            "resource_types": ["internal_recon_state"],
+        }
+        with self.assertRaisesRegex(ValueError, "akcji mapy"):
+            build_generated_app(payload, "creator", "Creator")
+
+    def test_creator_rejects_type_from_another_explicit_family(self):
+        payload = {
+            "name": "Canonical Recon",
+            "interface": "window",
+            "type": "vehicle_tool",
+            "tool_family": "scanner_recon",
+            "tool_mode": "hybrid",
+            "map_actions": ["trace"],
+            "target_types": ["vehicle"],
+            "operation_types": ["generic_trace"],
+            "resource_types": ["location_history"],
+        }
+        with self.assertRaisesRegex(ValueError, "nie pasuje"):
+            build_generated_app(payload, "creator", "Creator")
+
+    def test_scanner_recon_family_accepts_tracker_for_map_trace(self):
+        payload = {
+            "name": "Trace Compass",
+            "interface": "button_choices",
+            "type": "tracker",
+            "tool_family": "scanner_recon",
+            "tool_mode": "map",
+            "map_actions": ["trace"],
+            "target_types": ["poi", "pillar"],
+            "operation_types": ["generic_trace"],
+            "resource_types": ["location_history"],
+        }
+        with patch.object(run.user_store, "get_profile", return_value={"level": 8, "respect": 30}):
+            app = build_generated_app(payload, "creator", "Creator")
+
+        self.assertEqual(app["type"], "tracker")
+        self.assertEqual(app["tool_family"], "scanner_recon")
+        self.assertEqual(app["map_actions"], ["trace"])
+        self.assertEqual(app["operation_types"], ["generic_trace"])
 
     def test_ghostlab_published_tool_has_app_contract(self):
         project = {
