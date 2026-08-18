@@ -98,7 +98,14 @@ class CreatorUxContractTest(unittest.TestCase):
     def test_risk_step_has_bounded_responsive_layout(self):
         self.assertIn('class="creator-risk-grid"', self.source)
         self.assertIn(".creator-risk-grid .appforge-check-grid", self.styles)
-        self.assertIn("height: 0;", self.styles)
+        self.assertIn("term.className = 'terminal creator-window'", self.source)
+        self.assertIn("term.style.gridTemplateRows = 'auto minmax(0, 1fr)'", self.source)
+        self.assertIn(".creator-window > .appforge-form", self.styles)
+
+    def test_risk_toggles_do_not_recalculate_creator_filters(self):
+        self.assertIn("const filterSource = event.target && event.target.closest(", self.source)
+        self.assertIn("if (filterSource) applyCreatorScannerMode(term);", self.source)
+        self.assertNotIn("form.addEventListener('change', () => {\n        applyCreatorScannerMode(term);", self.source)
 
 
 if __name__ == "__main__":

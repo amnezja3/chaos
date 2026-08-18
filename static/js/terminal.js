@@ -11656,8 +11656,13 @@ function wireCreatorPreview(term) {
     const form = term.querySelector('.appforge-form');
     if (!form) return;
     form.addEventListener('input', () => updateCreatorContractPreview(term));
-    form.addEventListener('change', () => {
-        applyCreatorScannerMode(term);
+    form.addEventListener('change', (event) => {
+        const filterSource = event.target && event.target.closest(
+            '[name="tool_family"], [name="tool_mode"], '
+            + '[data-appforge-field="target_types"] input, '
+            + '[data-appforge-field="map_actions"] input'
+        );
+        if (filterSource) applyCreatorScannerMode(term);
         updateCreatorContractPreview(term);
     });
     applyCreatorScannerMode(term);
@@ -11864,15 +11869,15 @@ function setupIconPicker(term, fallbackIcon = '\u{1F6E0}\uFE0F') {
 
 function creatorBaseWindow(appName, interfaceName) {
     const term = document.createElement('div');
-    term.className = 'terminal';
+    term.className = 'terminal creator-window';
     term.dataset.app = appName.toLowerCase();
     const position = findAvailablePosition(620, 660);
     term.style.top = `${position.top}px`;
     term.style.left = `${position.left}px`;
     term.style.width = `620px`;
     term.style.height = `680px`;
-    term.style.display = 'flex';
-    term.style.flexDirection = 'column';
+    term.style.display = 'grid';
+    term.style.gridTemplateRows = 'auto minmax(0, 1fr)';
     term.innerHTML = `
         <div class="title-bar">
             ${appName}: ${interfaceName}
