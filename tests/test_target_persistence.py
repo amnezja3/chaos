@@ -2763,7 +2763,10 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         with patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run, "find_captured_target_for_owner", return_value=None), \
                 patch.object(run, "UserProfileManager", FakeProfileManager):
-            response = client.post("/gonna-win", json={"app_id": "noop_tool"})
+            response = client.post("/gonna-win", json={
+                "app_id": "noop_tool",
+                "choice_id": "run_generated",
+            })
 
         self.assertEqual(response.status_code, 200)
         with client.session_transaction() as sess:

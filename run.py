@@ -24462,6 +24462,9 @@ def gonna_win():
     data = request.get_json(silent=True) or {}
     app_id = data.get("app_id")
     choice_id = data.get("choice_id", None)
+    if isinstance(choice_id, str):
+        normalized_choice_id = choice_id.strip()
+        choice_id = None if normalized_choice_id in {"", "run_generated"} else normalized_choice_id
     operation_only = bool(data.get("operation_only"))
     flow_id = str(data.get("_flow_id") or request.headers.get("X-Hack-Flow-Id") or "")[:96]
     launch_receipt = str(

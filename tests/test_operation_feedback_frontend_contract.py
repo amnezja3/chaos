@@ -155,6 +155,11 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("feedback.fail", notify)
         self.assertIn("feedback.fail", choice)
 
+    def test_generated_window_action_uses_standard_gonna_win_contract(self):
+        choice = self.function_source("async function sendGonnaWinRequest", "function app_terminal")
+        self.assertIn('normalizedChoiceId === "run_generated"', choice)
+        self.assertIn("choiceId = null", choice)
+
     def test_progressbar_keeps_authored_steps_and_separate_feedback_viewport(self):
         progress = self.function_source("async function app_progressbar_random", "async function notifyGonnaWin")
         self.assertIn("authorProgress.forEach(scheduleProgressTick)", progress)

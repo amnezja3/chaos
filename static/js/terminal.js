@@ -7007,6 +7007,12 @@ function notifyAppMapOperationStarted(appData) {
 }
 
 async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
+    if (typeof choiceId === "string") {
+        const normalizedChoiceId = choiceId.trim();
+        choiceId = (!normalizedChoiceId || normalizedChoiceId === "run_generated")
+            ? null
+            : normalizedChoiceId;
+    }
     const context = currentApplicationLaunchContext(appWindow);
     const flowId = context.flow_id;
     const queuedAt = performance.now();
