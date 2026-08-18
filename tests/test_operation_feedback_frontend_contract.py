@@ -150,9 +150,9 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertEqual(choice.count("fetch('/gonna-win'"), 1)
         self.assertIn("beginOperationFeedbackRequest", notify)
         self.assertIn("beginOperationFeedbackRequest", choice)
-        self.assertIn("feedback.complete(data)", notify)
+        self.assertIn("ensureFeedback().complete(data)", notify)
         self.assertIn("feedback.complete(data)", choice)
-        self.assertIn("feedback.fail", notify)
+        self.assertIn("ensureFeedback().fail", notify)
         self.assertIn("feedback.fail", choice)
 
     def test_generated_window_action_uses_standard_gonna_win_contract(self):
@@ -165,9 +165,18 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         terminal = self.function_source("function app_terminal", "function app_button_choices")
         self.assertIn('trim().toLowerCase() === "close"', window)
         self.assertIn('disposeOperationFeedbackWindow(app, "window_action_close")', window)
-        self.assertNotIn("notifyGonnaWin(id, app", terminal.split("async function runNextCommand")[0])
+        self.assertNotIn("notifyGonnaWin(id, app", terminal.split("async function confirmTerminalRuntime")[0])
         self.assertIn("const success = await notifyGonnaWin(id, app", terminal)
         self.assertIn("titleRemainingMs", terminal)
+
+    def test_terminal_logs_are_stdout_not_typed_commands(self):
+        terminal = self.function_source("function app_terminal", "function app_button_choices")
+        self.assertIn("const command = String(level.command", terminal)
+        self.assertIn("const outputLines = logs.length", terminal)
+        self.assertIn("function emitTerminalOutput", terminal)
+        self.assertIn("app-terminal-output", terminal)
+        self.assertIn("simulateTyping(command, () => emitTerminalOutput(0))", terminal)
+        self.assertNotIn("[level.command, ...logs]", terminal)
 
     def test_window_surfaces_authoritative_backend_failure_message(self):
         window = self.function_source("function app_window", "async function app_progressbar_random")
@@ -175,11 +184,15 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
 
     def test_progressbar_keeps_authored_steps_and_separate_feedback_viewport(self):
         progress = self.function_source("async function app_progressbar_random", "async function notifyGonnaWin")
-        self.assertIn("authorProgress.forEach(scheduleProgressTick)", progress)
+        self.assertIn("scheduleProgressTick(item, progressStartedAt)", progress)
         self.assertIn('data-progress-step=', progress)
         self.assertIn('item.value = 100', progress)
         self.assertIn('class="operation-feedback-host"', progress)
-        self.assertIn("const authorBreathMs = 18500", progress)
+        self.assertIn("const authorBreathMs = 15000", progress)
+        self.assertIn("Math.pow(elapsedRatio, item.curve)", progress)
+        self.assertIn("deferFeedbackStart: true", progress)
+        self.assertIn("beforeFeedbackComplete: data =>", progress)
+        self.assertIn("window.setTimeout(resolve, 1100)", progress)
         self.assertIn("titleRemainingMs + authorBreathMs", progress)
         feedback = self.function_source(
             "function beginOperationFeedbackRequest",
@@ -397,7 +410,8 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("normalizeOFSApplicationTemplate", self.terminal)
         self.assertIn("data-choice-layout", self.terminal)
         self.assertIn("dataset.choiceLayout", self.feedback)
-        self.assertIn("app-terminal-sysinfo-line", self.terminal)
+        self.assertIn("app-terminal-output", self.terminal)
+        self.assertNotIn("app-terminal-sysinfo-line", self.function_source("function app_terminal", "function app_button_choices"))
         self.assertNotIn("app-terminal-spinner", self.function_source("function app_terminal", "function app_button_choices"))
         self.assertIn("prefers-reduced-motion", css)
         self.assertIn(".ofs-app-template > .title-bar", css)

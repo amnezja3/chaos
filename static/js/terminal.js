@@ -4876,54 +4876,59 @@ async function app_progressbar_random(id, levels) {
         row,
         fill: row.querySelector('.progress-fill'),
         value: 0,
-        cap: Math.min(94, 74 + Math.floor(Math.random() * 19)),
+        cap: [94, 83, 69][index % 3] - Math.floor(index / 3) * 2,
+        curve: [0.82, 1.08, 1.48][index % 3],
         index
     }));
-    const scheduleProgressTick = item => {
+    const authorBreathMs = 15000;
+    const scheduleProgressTick = (item, startedAt) => {
         const timerId = window.setTimeout(() => {
-            if (!app.isConnected || item.value >= item.cap) return;
-            item.value = Math.min(item.cap, item.value + 3 + Math.floor(Math.random() * 16));
+            if (!app.isConnected) return;
+            const elapsedRatio = Math.min(1, Math.max(0, (performance.now() - startedAt) / authorBreathMs));
+            item.value = Math.min(item.cap, Math.round(item.cap * Math.pow(elapsedRatio, item.curve)));
             item.fill.style.width = `${item.value}%`;
             item.row.querySelector('b').textContent = `${item.value}%`;
-            scheduleProgressTick(item);
-        }, 180 + Math.floor(Math.random() * 720) + item.index * 45);
+            if (elapsedRatio < 1) scheduleProgressTick(item, startedAt);
+        }, 120);
         app._authorProgressTimers.push(timerId);
     };
     const titleRemainingMs = app.dataset.ofsTitleActive === "true"
         ? Math.max(0, Number(app._ofsTitleEndsAt || 0) - performance.now())
         : 0;
-    // Progress executors need a readable authored phase before OFS replaces
-    // the viewport. Keep the request boundary intact, but give the independently
-    // animated bars enough time to build their own show.
-    const authorBreathMs = 18500;
     const authorStartTimer = window.setTimeout(() => {
         if (!app.isConnected) return;
         app._ofsAuthorVisibleAt = performance.now();
-        authorProgress.forEach(scheduleProgressTick);
+        const progressStartedAt = performance.now();
+        authorProgress.forEach(item => scheduleProgressTick(item, progressStartedAt));
     }, titleRemainingMs);
     app._authorProgressTimers.push(authorStartTimer);
     const requestTimer = window.setTimeout(() => {
         if (!app.isConnected) return;
         result.textContent = "AWAITING PAYLOAD";
         const stopWaitLog = startLegacyAppWaitUnlessFeedbackEnabled(app);
-        notifyGonnaWin(id, app, { legacyWait: false }).then(success => {
+        notifyGonnaWin(id, app, {
+            legacyWait: false,
+            deferFeedbackStart: true,
+            beforeFeedbackComplete: data => {
+                stopAuthorProgress();
+                const success = data && data.success === true;
+                const staleTarget = data && data.blocked && data.reason === 'invalid_target';
+                authorProgress.forEach(item => {
+                    if (success) item.value = 100;
+                    item.fill.style.width = `${item.value}%`;
+                    item.row.querySelector('b').textContent = success ? "100%" : `${item.value}%`;
+                    item.row.dataset.state = success ? "complete" : "failed";
+                });
+                result.textContent = success
+                    ? (level.result_success || "Operacja zako\u0144czona.")
+                    : (staleTarget
+                        ? "Cel zmieni\u0142 si\u0119 przed potwierdzeniem. Od\u015bwie\u017c cel i uruchom aplikacj\u0119 ponownie."
+                        : (level.result_failure || "Operacja nie powiod\u0142a si\u0119."));
+                result.dataset.tone = success ? "success" : (staleTarget ? "warning" : "failure");
+                return new Promise(resolve => window.setTimeout(resolve, 1100));
+            }
+        }).then(success => {
             stopWaitLog();
-            stopAuthorProgress();
-            const runtimeResult = app && app._lastGonnaWinResult;
-            const staleTarget = runtimeResult && runtimeResult.blocked
-                && runtimeResult.reason === 'invalid_target';
-            authorProgress.forEach(item => {
-                if (success) item.value = 100;
-                item.fill.style.width = `${item.value}%`;
-                item.row.querySelector('b').textContent = success ? "100%" : `${item.value}%`;
-                item.row.dataset.state = success ? "complete" : "failed";
-            });
-            result.textContent = success
-                ? (level.result_success || "Operacja zako\u0144czona.")
-                : (staleTarget
-                    ? "Cel zmieni\u0142 si\u0119 przed potwierdzeniem. Od\u015bwie\u017c cel i uruchom aplikacj\u0119 ponownie."
-                    : (level.result_failure || "Operacja nie powiod\u0142a si\u0119."));
-            result.dataset.tone = success ? "success" : (staleTarget ? "warning" : "failure");
             if (success) scheduleOperationalAppAutoClose(app);
         }).catch(() => {
             stopWaitLog();
@@ -4932,14 +4937,24 @@ async function app_progressbar_random(id, levels) {
             result.textContent = "\u2716 B\u0142\u0105d po\u0142\u0105czenia z serwerem.";
             result.dataset.tone = "failure";
         });
-    }, titleRemainingMs + authorBreathMs + Math.floor(Math.random() * 900));
+    }, titleRemainingMs + authorBreathMs);
     app._authorProgressTimers.push(requestTimer);
 }
 
-async function notifyGonnaWin(appId, appWindow = null, { legacyWait = false } = {}) {
+async function notifyGonnaWin(appId, appWindow = null, {
+    legacyWait = false,
+    deferFeedbackStart = false,
+    beforeFeedbackComplete = null
+} = {}) {
     const context = currentApplicationLaunchContext(appWindow);
     const flowId = context.flow_id;
-    const feedback = beginOperationFeedbackRequest(appWindow, appId, { legacyWait });
+    let feedback = deferFeedbackStart
+        ? null
+        : beginOperationFeedbackRequest(appWindow, appId, { legacyWait });
+    const ensureFeedback = () => {
+        if (!feedback) feedback = beginOperationFeedbackRequest(appWindow, appId, { legacyWait });
+        return feedback;
+    };
     return enqueueGonnaWinRequest(async () => {
         let response;
         let data;
@@ -4961,7 +4976,7 @@ async function notifyGonnaWin(appId, appWindow = null, { legacyWait = false } = 
             });
             data = await response.json();
         } catch (error) {
-            feedback.fail(error && error.name ? error.name : "request_failed");
+            ensureFeedback().fail(error && error.name ? error.name : "request_failed");
             throw error;
         }
         if (appWindow) appWindow._lastGonnaWinResult = data;
@@ -4989,7 +5004,10 @@ async function notifyGonnaWin(appId, appWindow = null, { legacyWait = false } = 
             notifyOpenMapsTargetHacked(data.captured_target);
             refreshToolbarProfile();
         }
-        feedback.complete(data);
+        if (typeof beforeFeedbackComplete === "function") {
+            await beforeFeedbackComplete(data);
+        }
+        ensureFeedback().complete(data);
         if (response.status === 409 && data.blocked && data.reason === 'invalid_target') {
             console.info('[gonna-win] Cel zmienil sie przed potwierdzeniem runtime', data.target || {});
             refreshToolbarProfile();
@@ -4998,7 +5016,7 @@ async function notifyGonnaWin(appId, appWindow = null, { legacyWait = false } = 
         }
         return data.success === true;
     }).catch(err => {
-        feedback.fail(err && err.name ? err.name : "application_result_processing_failed");
+        ensureFeedback().fail(err && err.name ? err.name : "application_result_processing_failed");
         console.error(`❌ Błąd połączenia z /gonna-win dla ${appId}`, err);
         return false; // default przy błędzie
     });
@@ -7137,7 +7155,8 @@ function app_terminal(id, levels) {
     const safeLevels = Array.isArray(levels) ? levels : [];
     const level = safeLevels[0] || {};
     const logs = Array.isArray(level.logs) ? level.logs : [];
-    const commands = level.command ? [level.command, ...logs] : (logs.length ? logs : [`./${id}.sh`, "Raport zapisany."]);
+    const command = String(level.command || `./${id}.sh`);
+    const outputLines = logs.length ? logs : ["Raport zapisany."];
 
     const { app, hydrated, appTitle } = prepareApplicationRenderWindow(id, "terminal");
     app.innerHTML = `
@@ -7156,30 +7175,13 @@ function app_terminal(id, levels) {
     appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "terminal" });
 
     const log = app.querySelector('.terminal-log');
-    let commandIndex = 0;
-
     function scrollLogToBottom() {
         const content = app.querySelector('.app-terminal-content');
         if (content) content.scrollTop = content.scrollHeight;
     }
 
-    function showTerminalProcessing(callback) {
-        const wait = document.createElement('div');
-        wait.className = 'app-terminal-wait app-terminal-sysinfo-line';
-        wait.textContent = '[SENT] polecenie przekazane do lokalnej kolejki';
-        log.appendChild(wait);
-        scrollLogToBottom();
-
-        const delay = 650 + Math.floor(Math.random() * 1150);
-        window.setTimeout(() => {
-            wait.remove();
-            callback();
-        }, delay);
-    }
-
     function simulateTyping(command, callback) {
         const safeCommand = String(command || '');
-        const hasNext = commandIndex < commands.length;
         const line = document.createElement('div');
         line.className = 'terminal-line app-terminal-line';
         const label = document.createElement('span');
@@ -7200,49 +7202,55 @@ function app_terminal(id, levels) {
                 clearInterval(typingInterval);
                 typingSpan.classList.remove('is-typing');
                 setTimeout(() => {
-                    if (hasNext) {
-                        showTerminalProcessing(callback);
-                    } else {
-                        callback();
-                    }
+                    callback();
                     scrollLogToBottom();
                 }, 260 + Math.floor(Math.random() * 320));
             }
         }, 34 + Math.floor(Math.random() * 28));
     }
 
-    async function runNextCommand() {
-        if (commandIndex >= commands.length) {
-            const resultLine = document.createElement('div');
-            resultLine.className = 'terminal-line app-terminal-line app-terminal-runtime-result';
-            resultLine.textContent = '[WAIT] oczekiwanie na potwierdzenie runtime';
-            log.appendChild(resultLine);
-            scrollLogToBottom();
-            const success = await notifyGonnaWin(id, app, { legacyWait: false });
-            if (!app.isConnected) return;
-            resultLine.textContent = success
-                ? '[OK] operacja potwierdzona przez runtime'
-                : '[ERROR] runtime odrzucil operacje';
-            resultLine.dataset.tone = success ? 'success' : 'failure';
-            app.querySelector('[data-terminal-sysinfo]')?.setAttribute(
-                'data-terminal-sysinfo',
-                success ? 'COMPLETE' : 'FAILED'
-            );
-            const sysinfo = app.querySelector('[data-terminal-sysinfo]');
-            if (sysinfo) sysinfo.textContent = success ? 'COMPLETE' : 'FAILED';
-            if (success) scheduleOperationalAppAutoClose(app);
+    async function confirmTerminalRuntime() {
+        const resultLine = document.createElement('div');
+        resultLine.className = 'terminal-line app-terminal-line app-terminal-runtime-result';
+        resultLine.textContent = '[WAIT] oczekiwanie na potwierdzenie runtime';
+        log.appendChild(resultLine);
+        scrollLogToBottom();
+        const success = await notifyGonnaWin(id, app, { legacyWait: false });
+        if (!app.isConnected) return;
+        resultLine.textContent = success
+            ? '[OK] operacja potwierdzona przez runtime'
+            : '[ERROR] runtime odrzucil operacje';
+        resultLine.dataset.tone = success ? 'success' : 'failure';
+        app.querySelector('[data-terminal-sysinfo]')?.setAttribute(
+            'data-terminal-sysinfo',
+            success ? 'COMPLETE' : 'FAILED'
+        );
+        const sysinfo = app.querySelector('[data-terminal-sysinfo]');
+        if (sysinfo) sysinfo.textContent = success ? 'COMPLETE' : 'FAILED';
+        if (success) scheduleOperationalAppAutoClose(app);
+    }
+
+    function emitTerminalOutput(index = 0) {
+        if (!app.isConnected) return;
+        if (index >= outputLines.length) {
+            confirmTerminalRuntime();
             return;
         }
-        const current = commands[commandIndex];
-        commandIndex++;
-        simulateTyping(current, runNextCommand);
+        const line = document.createElement('div');
+        line.className = 'terminal-line app-terminal-line app-terminal-output';
+        line.textContent = String(outputLines[index] || '');
+        log.appendChild(line);
+        window.requestAnimationFrame(() => line.classList.add('is-visible'));
+        scrollLogToBottom();
+        const delay = 420 + Math.floor(Math.random() * 480);
+        window.setTimeout(() => emitTerminalOutput(index + 1), delay);
     }
 
     const titleRemainingMs = app.dataset.ofsTitleActive === "true"
         ? Math.max(0, Number(app._ofsTitleEndsAt || 0) - performance.now())
         : 0;
     window.setTimeout(() => {
-        if (app.isConnected) runNextCommand();
+        if (app.isConnected) simulateTyping(command, () => emitTerminalOutput(0));
     }, titleRemainingMs);
 }
 
