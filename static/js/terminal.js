@@ -11712,6 +11712,7 @@ function appendCreatorMeta(form, keys, interfaceName) {
                     </select>
                 </label>
                 <label>Wykrywa<textarea name="detects" rows="2" placeholder="np. open_ports, user_location"></textarea></label>
+                <p class="creator-filter-status" data-creator-filter-status role="status" aria-live="polite">Wybierz rodzinę, aby dopasować kontrakt aplikacji.</p>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="2" hidden>
@@ -11742,10 +11743,12 @@ function appendCreatorMeta(form, keys, interfaceName) {
             </section>
             <section class="creator-step-panel" data-creator-panel="6" hidden>
                 <h4>Ryzyko i zabezpieczenia</h4>
-                <div class="appforge-fieldset"><h4>Z czym może kolidować?</h4><p class="creator-field-help">Zapis do <code>interferes_with</code>: aktywne zabezpieczenia, które mogą zakłócić pracę.</p>${creatorCheckboxGroup(keys, "interferes_with")}</div>
-                <div class="appforge-fieldset"><h4>Co musi być wyłączone na celu?</h4><p class="creator-field-help">Zapis do <code>requires_off</code>: warunki konieczne przed uruchomieniem.</p>${creatorCheckboxGroup(keys, "requires_off")}</div>
-                <div class="appforge-fieldset"><h4>Co narzędzie może wyłączyć?</h4><p class="creator-field-help">Zapis do <code>disables</code>: zabezpieczenia będące skutkiem działania.</p>${creatorCheckboxGroup(keys, "disables")}</div>
-                <div class="appforge-fieldset"><h4>Na co wpływa po stronie gracza?</h4><p class="creator-field-help">Zapis do <code>affects</code>: lokalny wpływ aplikacji na profil lub rozgrywkę.</p>${creatorCheckboxGroup(keys, "affects")}</div>
+                <div class="creator-risk-grid">
+                    <div class="appforge-fieldset"><h4>Z czym może kolidować?</h4><p class="creator-field-help">Zapis do <code>interferes_with</code>: aktywne zabezpieczenia, które mogą zakłócić pracę.</p>${creatorCheckboxGroup(keys, "interferes_with")}</div>
+                    <div class="appforge-fieldset"><h4>Co musi być wyłączone na celu?</h4><p class="creator-field-help">Zapis do <code>requires_off</code>: warunki konieczne przed uruchomieniem.</p>${creatorCheckboxGroup(keys, "requires_off")}</div>
+                    <div class="appforge-fieldset"><h4>Co narzędzie może wyłączyć?</h4><p class="creator-field-help">Zapis do <code>disables</code>: zabezpieczenia będące skutkiem działania.</p>${creatorCheckboxGroup(keys, "disables")}</div>
+                    <div class="appforge-fieldset"><h4>Na co wpływa po stronie gracza?</h4><p class="creator-field-help">Zapis do <code>affects</code>: lokalny wpływ aplikacji na profil lub rozgrywkę.</p>${creatorCheckboxGroup(keys, "affects")}</div>
+                </div>
                 ${creatorPanelNav(true, true)}
             </section>
             <section class="creator-step-panel" data-creator-panel="7" hidden>
@@ -11772,7 +11775,6 @@ function appendCreatorMeta(form, keys, interfaceName) {
                 ${creatorPanelNav(true, false)}
             </section>
         </div>
-        <p class="creator-filter-status" data-creator-filter-status role="status" aria-live="polite">Opcje zostaną dopasowane do rodziny, celu i akcji.</p>
     `;
 }
 

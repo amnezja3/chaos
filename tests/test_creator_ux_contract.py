@@ -10,6 +10,7 @@ class CreatorUxContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = (ROOT / "static" / "js" / "terminal.js").read_text(encoding="utf-8")
+        cls.styles = (ROOT / "static" / "css" / "style.css").read_text(encoding="utf-8")
 
     def test_shared_descriptor_catalog_covers_creator_contract_fields(self):
         self.assertIn("const CREATOR_OPTION_CATALOG", self.source)
@@ -82,6 +83,22 @@ class CreatorUxContractTest(unittest.TestCase):
             check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+
+    def test_filter_status_is_scoped_to_family_step(self):
+        family_step = self.source.index('data-creator-panel="1"')
+        target_step = self.source.index('data-creator-panel="2"', family_step)
+        filter_status = self.source.index('data-creator-filter-status role="status"', family_step)
+        self.assertLess(filter_status, target_step)
+        wizard_end = self.source.index("function insertIconAtCursor", target_step)
+        self.assertEqual(
+            self.source[target_step:wizard_end].count('data-creator-filter-status role="status"'),
+            0,
+        )
+
+    def test_risk_step_has_bounded_responsive_layout(self):
+        self.assertIn('class="creator-risk-grid"', self.source)
+        self.assertIn(".creator-risk-grid .appforge-check-grid", self.styles)
+        self.assertIn("height: 0;", self.styles)
 
 
 if __name__ == "__main__":
