@@ -169,6 +169,10 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("const success = await notifyGonnaWin(id, app", terminal)
         self.assertIn("titleRemainingMs", terminal)
 
+    def test_window_surfaces_authoritative_backend_failure_message(self):
+        window = self.function_source("function app_window", "async function app_progressbar_random")
+        self.assertIn('response.message || "Niepowodzenie."', window)
+
     def test_progressbar_keeps_authored_steps_and_separate_feedback_viewport(self):
         progress = self.function_source("async function app_progressbar_random", "async function notifyGonnaWin")
         self.assertIn("authorProgress.forEach(scheduleProgressTick)", progress)

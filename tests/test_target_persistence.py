@@ -2774,6 +2774,52 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertIn("root", FakeProfileManager.created_for)
         self.assertNotIn("owner_a", FakeProfileManager.created_for)
 
+    def test_gonna_win_reports_created_map_operation_as_success(self):
+        profile = {
+            "username": "root",
+            "apps": [{
+                "id": "window_map_tool",
+                "name": "Window Map Tool",
+                "interface": "window",
+                "map_actions": ["scan_ports"],
+                "operation_types": ["wifi_scanner"],
+                "requires_off": ["firewall"],
+                "interferes_with": [],
+                "levels": [{"buttons": [{"label": "Run", "action": "run_generated"}]}],
+            }],
+            "aimed_target": {
+                "target_id": "map:test-window-runtime",
+                "lat": 52.1,
+                "lng": 21.2,
+                "label": "Runtime target",
+                "security": {"firewall": True},
+                "actions_allowed": {},
+            },
+            "operations": [],
+            "system_messages": [],
+        }
+        created = [{"operation_id": "op-window-runtime"}]
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "root"
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "apply_app_map_actions_to_aimed_target", return_value=(True, ["scan_ports"])), \
+                patch.object(run, "create_missing_operations_for_app_target", return_value=created), \
+                patch.object(run, "merge_latest_aimed_target_runtime_state"), \
+                patch.object(run.player_target_runtime_store, "upsert_aimed", return_value={"status": "in_progress"}), \
+                patch.object(run, "UserProfileManager"):
+            response = client.post("/gonna-win", json={
+                "app_id": "window_map_tool",
+                "choice_id": "run_generated",
+            })
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["success"])
+        self.assertTrue(payload["map_runtime_started"])
+        self.assertEqual(payload["created_operations"], created)
+
     def test_gonna_win_treats_late_choice_for_already_captured_target_as_success(self):
         expected_target = {
             "target_id": "map:52.1:21.2:Target",

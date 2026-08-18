@@ -4812,7 +4812,9 @@ function app_window(id, levels) {
                 btn.classList.add("is-selected");
 
                 addSystemMessage('info', '\u25B6 Akcja', `Akcja: ${label} | Wynik: ${success ? "\u2714" : "\u2716"}`);
-                resultBox.textContent = success ? "\u2714 Sukces!" : "\u2716 Niepowodzenie.";
+                resultBox.textContent = success
+                    ? "\u2714 Sukces!"
+                    : `\u2716 ${response.message || "Niepowodzenie."}`;
                 resultBox.style.color = success ? "#0f0" : "#f33";
                 if (success) {
                     appFlowTrace(app.dataset.appFlowId, "app_option_success", {

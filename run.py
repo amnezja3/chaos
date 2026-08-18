@@ -24941,6 +24941,14 @@ def gonna_win():
             finish_gonna_win_receipt(payload, status_code=400, status=AppActionReceiptStore.STATUS_FAILED)
             return jsonify(payload), 400
 
+    # Map applications may start a durable asynchronous operation without
+    # immediately satisfying the separate security/capture requirements.  In
+    # that case the launch itself succeeded and must not be presented as an
+    # authoritative application failure.
+    map_runtime_started = bool(created_operations or marked_actions)
+    if map_runtime_started:
+        success = True
+
     app_flow_debug_timed(
         flow_id,
         "gonna_win_choice_effect_applied",
@@ -25806,6 +25814,7 @@ def gonna_win():
     )
     payload = {
         "success": success,
+        "map_runtime_started": map_runtime_started,
         "reason": (
             None if success
             else "requirements_not_met" if choice_id is None
