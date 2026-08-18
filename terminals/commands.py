@@ -520,6 +520,21 @@ def interpret_command(text, user_profile):
     if len(tokens) == 3 and tokens[0].lower() == "sudo" and tokens[1].lower() == "userdel":
         return {"confirm_userdel": tokens[2]}
 
+    # Dokladna nazwa lub ID zainstalowanej aplikacji ma pierwszenstwo przed
+    # komendami wbudowanymi. Inaczej aplikacje takie jak "Log Runner" albo
+    # "Status Window" sa przechwytywane przez builtiny `log` / `status` i
+    # nigdy nie trafiaja do launch queue.
+    matching_app = next(
+        (
+            app for app in _apps(profile)
+            if str(app.get("name", "")).lower() == lowered
+            or str(app.get("id", "")).lower() == lowered
+        ),
+        None
+    )
+    if matching_app:
+        return {"runApp": matching_app["id"]}
+
     builtin = _builtin_command(tokens, original_text, profile)
     if builtin is not None:
         return builtin
@@ -533,16 +548,5 @@ def interpret_command(text, user_profile):
         cmd = terminal_data[lowered]
         if cmd.get("type") == "system":
             return {"response": cmd.get("result", "Brak odpowiedzi.")}
-
-    matching_app = next(
-        (
-            app for app in _apps(profile)
-            if str(app.get("name", "")).lower() == lowered
-            or str(app.get("id", "")).lower() == lowered
-        ),
-        None
-    )
-    if matching_app:
-        return {"runApp": matching_app["id"]}
 
     return {"response": f"Nieznana komenda: {lowered}"}

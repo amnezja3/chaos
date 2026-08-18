@@ -5892,7 +5892,10 @@ def capture_conflict_pillar(captured_target, captured_by_username,
         or captured_target.get("conflict_id")
         or captured_target.get("legacy_conflict_id")
     )
-    target_id = territory_conflict_store.stable_target_id(captured_target)
+    target_id_resolver = getattr(territory_conflict_store, "stable_target_id", None)
+    if not callable(target_id_resolver):
+        target_id_resolver = TerritoryConflictStore.stable_target_id
+    target_id = target_id_resolver(captured_target)
     conflict_reference = captured_conflict_id
 
     if conflict_reference in (None, ""):
@@ -5914,7 +5917,25 @@ def capture_conflict_pillar(captured_target, captured_by_username,
     if conflict_reference in (None, ""):
         return []
 
-    referenced_conflict = territory_conflict_store.get_by_key(conflict_reference)
+    get_conflict_by_key = getattr(territory_conflict_store, "get_by_key", None)
+    referenced_conflict = (
+        get_conflict_by_key(conflict_reference)
+        if callable(get_conflict_by_key)
+        else None
+    )
+    if referenced_conflict is None and not callable(get_conflict_by_key):
+        referenced_conflict = next(
+            (
+                conflict for conflict in territory_conflict_store.list_active()
+                if conflict_reference in {
+                    conflict.get("conflict_id"),
+                    conflict.get("id"),
+                    conflict.get("conflict_key"),
+                    conflict.get("legacy_conflict_key"),
+                }
+            ),
+            None,
+        )
     participants = {
         str(item) for item in ((referenced_conflict or {}).get("participants") or []) if item
     }
@@ -5928,13 +5949,47 @@ def capture_conflict_pillar(captured_target, captured_by_username,
         )
         return []
 
-    result = territory_conflict_store.capture_pillar(
-        conflict_reference,
-        target_id,
-        captured_target,
-        captured_by_username,
-        previous_owner_username=previous_owner_username,
-        action_id=action_id,
+    capture_pillar = getattr(territory_conflict_store, "capture_pillar", None)
+    if not callable(capture_pillar):
+        if not referenced_conflict:
+            return []
+        conflict = copy.deepcopy(referenced_conflict)
+        targets = list(conflict.get("targets") or [])
+        captured_item = {
+            "target_id": target_id,
+            "owner": captured_by_username,
+            "owner_username": captured_by_username,
+            "previous_owner": previous_owner_username or "",
+            "status": "captured",
+            "captured": True,
+            "captured_by": captured_by_username,
+            "hacked_by": captured_by_username,
+            "target": copy.deepcopy(captured_target),
+        }
+        replaced = False
+        for index, item in enumerate(targets):
+            item_target = item.get("target") if isinstance(item, dict) else None
+            item_id = (item or {}).get("target_id") if isinstance(item, dict) else None
+            if str(item_id or TerritoryConflictStore.stable_target_id(item_target or {})) == str(target_id):
+                targets[index] = {**item, **captured_item}
+                replaced = True
+                break
+        if not replaced:
+            targets.append(captured_item)
+        conflict["targets"] = targets
+        conflict = territory_conflict_store.upsert_conflict(conflict)
+        if publish_delta:
+            record_territory_conflict_delta(conflict, reason="pillar_captured")
+        rebuild_conflict_polygons(
+            conflict.get("participants") or [],
+            actor_username=captured_by_username,
+            source_event="pillar_captured",
+        )
+        return [conflict]
+
+    result = capture_pillar(
+        conflict_reference, target_id, captured_target, captured_by_username,
+        previous_owner_username=previous_owner_username, action_id=action_id,
     )
     conflict = result.get("conflict") if isinstance(result, dict) else None
     if isinstance(result, dict) and result.get("ok") and result.get("changed") and conflict:
