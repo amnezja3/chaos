@@ -4799,6 +4799,11 @@ function app_window(id, levels) {
                 choice_id: action,
                 label
             });
+            if (String(action || "").trim().toLowerCase() === "close") {
+                disposeOperationFeedbackWindow(app, "window_action_close");
+                app.remove();
+                return;
+            }
             setAppButtonGroupPending(buttons, btn, true);
             const stopWaitLog = startLegacyAppWaitUnlessFeedbackEnabled(app);
             try {
@@ -7147,7 +7152,6 @@ function app_terminal(id, levels) {
         app.remove();
     });
     appFlowTrace(app.dataset.appFlowId, "app_window_rendered", { app_id: id, interface: "terminal" });
-    notifyGonnaWin(id, app, { legacyWait: false });
 
     const log = app.querySelector('.terminal-log');
     let commandIndex = 0;
@@ -7205,9 +7209,26 @@ function app_terminal(id, levels) {
         }, 34 + Math.floor(Math.random() * 28));
     }
 
-    function runNextCommand() {
+    async function runNextCommand() {
         if (commandIndex >= commands.length) {
-            scheduleOperationalAppAutoClose(app);
+            const resultLine = document.createElement('div');
+            resultLine.className = 'terminal-line app-terminal-line app-terminal-runtime-result';
+            resultLine.textContent = '[WAIT] oczekiwanie na potwierdzenie runtime';
+            log.appendChild(resultLine);
+            scrollLogToBottom();
+            const success = await notifyGonnaWin(id, app, { legacyWait: false });
+            if (!app.isConnected) return;
+            resultLine.textContent = success
+                ? '[OK] operacja potwierdzona przez runtime'
+                : '[ERROR] runtime odrzucil operacje';
+            resultLine.dataset.tone = success ? 'success' : 'failure';
+            app.querySelector('[data-terminal-sysinfo]')?.setAttribute(
+                'data-terminal-sysinfo',
+                success ? 'COMPLETE' : 'FAILED'
+            );
+            const sysinfo = app.querySelector('[data-terminal-sysinfo]');
+            if (sysinfo) sysinfo.textContent = success ? 'COMPLETE' : 'FAILED';
+            if (success) scheduleOperationalAppAutoClose(app);
             return;
         }
         const current = commands[commandIndex];
@@ -7215,7 +7236,12 @@ function app_terminal(id, levels) {
         simulateTyping(current, runNextCommand);
     }
 
-    runNextCommand();
+    const titleRemainingMs = app.dataset.ofsTitleActive === "true"
+        ? Math.max(0, Number(app._ofsTitleEndsAt || 0) - performance.now())
+        : 0;
+    window.setTimeout(() => {
+        if (app.isConnected) runNextCommand();
+    }, titleRemainingMs);
 }
 
 function app_button_choices(id, levels) {

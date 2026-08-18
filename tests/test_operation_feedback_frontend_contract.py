@@ -160,6 +160,15 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn('normalizedChoiceId === "run_generated"', choice)
         self.assertIn("choiceId = null", choice)
 
+    def test_generated_window_close_is_local_and_terminal_waits_for_authored_commands(self):
+        window = self.function_source("function app_window", "async function app_progressbar_random")
+        terminal = self.function_source("function app_terminal", "function app_button_choices")
+        self.assertIn('trim().toLowerCase() === "close"', window)
+        self.assertIn('disposeOperationFeedbackWindow(app, "window_action_close")', window)
+        self.assertNotIn("notifyGonnaWin(id, app", terminal.split("async function runNextCommand")[0])
+        self.assertIn("const success = await notifyGonnaWin(id, app", terminal)
+        self.assertIn("titleRemainingMs", terminal)
+
     def test_progressbar_keeps_authored_steps_and_separate_feedback_viewport(self):
         progress = self.function_source("async function app_progressbar_random", "async function notifyGonnaWin")
         self.assertIn("authorProgress.forEach(scheduleProgressTick)", progress)
