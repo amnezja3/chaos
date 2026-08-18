@@ -99,8 +99,12 @@ class CreatorUxContractTest(unittest.TestCase):
         self.assertIn('class="creator-risk-grid"', self.source)
         self.assertIn(".creator-risk-grid .appforge-check-grid", self.styles)
         self.assertIn("term.className = 'terminal creator-window'", self.source)
-        self.assertIn("term.style.gridTemplateRows = 'auto minmax(0, 1fr)'", self.source)
-        self.assertIn(".creator-window > .appforge-form", self.styles)
+        self.assertIn("term.style.display = 'block'", self.source)
+        self.assertIn('class="creator-workspace"', self.source)
+        self.assertIn(".creator-window > .creator-workspace", self.styles)
+        self.assertIn(".creator-workspace > .appforge-form", self.styles)
+        self.assertIn("inset: 32px 0 0 0;", self.styles)
+        self.assertIn("height: 100%;", self.styles)
 
     def test_risk_toggles_do_not_recalculate_creator_filters(self):
         self.assertIn("const filterSource = event.target && event.target.closest(", self.source)

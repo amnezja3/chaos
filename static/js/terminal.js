@@ -11876,14 +11876,15 @@ function creatorBaseWindow(appName, interfaceName) {
     term.style.left = `${position.left}px`;
     term.style.width = `620px`;
     term.style.height = `680px`;
-    term.style.display = 'grid';
-    term.style.gridTemplateRows = 'auto minmax(0, 1fr)';
+    term.style.display = 'block';
     term.innerHTML = `
         <div class="title-bar">
             ${appName}: ${interfaceName}
             <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
         </div>
-        <form class="appforge-form"></form>
+        <div class="creator-workspace">
+            <form class="appforge-form"></form>
+        </div>
     `;
     document.body.appendChild(term);
     makeDraggable(term);
