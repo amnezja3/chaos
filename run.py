@@ -7292,19 +7292,21 @@ def ghostnetwork_event_recipient_profiles(event):
 
     candidates = []
     if scope in {"public", "clan"}:
-        candidates = user_store.list_profiles()
+        for username in user_store.list_usernames():
+            username = str(username or "").strip()
+            if username:
+                candidates.append((username, user_store.get_profile(username) or {}))
     else:
         for username in sorted(item for item in direct_usernames if item):
             profile = user_store.get_profile(username) or {}
             if profile:
-                candidates.append(profile)
+                candidates.append((username, profile))
 
     recipients = []
     seen = set()
-    for profile in candidates:
+    for username, profile in candidates:
         if not isinstance(profile, dict):
             continue
-        username = str(profile.get("username") or profile.get("name") or "").strip()
         if not username or username in seen:
             continue
         if not ghostnetwork_profile_is_event_recipient(event, username, profile):

@@ -15,6 +15,9 @@ class FakeUserStore:
     def list_profiles(self):
         return list(self.profiles.values())
 
+    def list_usernames(self):
+        return list(self.profiles)
+
     def get_profile(self, username):
         return self.profiles.get(username)
 
@@ -60,6 +63,24 @@ class GhostNetworkDeltaAudienceBridgeTest(unittest.TestCase):
         self.assertEqual(
             {name for name, _ in run.ghostnetwork_event_recipient_profiles(public)},
             {"owner", "ally", "outsider"},
+        )
+
+    def test_database_profiles_do_not_need_to_duplicate_username_column(self):
+        self.store.profiles = {
+            "owner": {"clan": "virex"},
+            "ally": {"clan": "virex"},
+        }
+
+        owner = self.event("owner", payload={"territory_owner_id": "owner"})
+        public = self.event("public", event_type="ghost.signal_sent")
+
+        self.assertEqual(
+            [name for name, _ in run.ghostnetwork_event_recipient_profiles(owner)],
+            ["owner"],
+        )
+        self.assertEqual(
+            {name for name, _ in run.ghostnetwork_event_recipient_profiles(public)},
+            {"owner", "ally"},
         )
 
     def test_internal_and_system_never_reach_client_even_with_player_id(self):
