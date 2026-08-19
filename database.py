@@ -2469,6 +2469,16 @@ class TerritoryStore:
         now = utc_now()
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
+            captured_row = conn.execute(
+                """
+                SELECT id, captured_at FROM captured_targets
+                WHERE owner_username = ? AND ROUND(lat, 5) = ROUND(?, 5)
+                  AND ROUND(lng, 5) = ROUND(?, 5) AND label = ?
+                """,
+                (username, lat, lng, label),
+            ).fetchone()
+            if not captured_row:
+                return {"ok": False, "reason": "not_found", "ownership_version": 0}
             ownership = conn.execute(
                 "SELECT owner_username, ownership_version FROM territory_target_ownership WHERE target_id = ?",
                 (target_id,),
@@ -2493,9 +2503,13 @@ class TerritoryStore:
                     "DELETE FROM territory_target_ownership WHERE target_id = ? AND owner_username = ?",
                     (target_id, username),
                 )
-            seed = f"abandon|{username}|{target_id}|{ownership_version}"
+            # The captured row is a durable capture incarnation. Using only
+            # target_id/version reused a completed job when an ordinary target
+            # (version 0) was captured, abandoned, captured and abandoned again.
+            # The second delete then committed without any pending rebuild.
+            seed = f"abandon|{username}|{target_id}|{ownership_version}|{captured_row['id']}"
             job_id = "territory_rebuild_" + hashlib.sha1(seed.encode("utf-8")).hexdigest()[:20]
-            conn.execute(
+            inserted = conn.execute(
                 """
                 INSERT INTO territory_rebuild_jobs
                     (job_id, owner_username, reason, target_id, target_json, status,
@@ -2505,10 +2519,34 @@ class TerritoryStore:
                 """,
                 (job_id, username, target_id, dumps_json(target), now, now),
             )
+            if inserted.rowcount != 1:
+                raise RuntimeError(f"territory rebuild job collision: {job_id}")
             return {
                 "ok": True, "job_id": job_id, "target": copy.deepcopy(target),
                 "target_id": target_id, "ownership_version": ownership_version,
+                "capture_record_id": int(captured_row["id"]),
             }
+
+    def enqueue_rebuild_job(self, username, reason="operator_recovery", source_key=""):
+        """Enqueue a bounded worker-owned geometry rebuild for explicit recovery."""
+        username = str(username or "").strip()
+        if not username:
+            raise ValueError("territory rebuild requires owner username")
+        reason = str(reason or "operator_recovery").strip()
+        now = utc_now()
+        unique_source = str(source_key or f"{now}:{time.time_ns()}")
+        seed = f"rebuild|{username}|{reason}|{unique_source}"
+        job_id = "territory_rebuild_" + hashlib.sha1(seed.encode("utf-8")).hexdigest()[:20]
+        with db_connect(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO territory_rebuild_jobs
+                    (job_id, owner_username, reason, status, created_at, updated_at)
+                VALUES (?, ?, ?, 'pending', ?, ?)
+                """,
+                (job_id, username, reason, now, now),
+            )
+        return {"ok": True, "job_id": job_id, "owner_username": username, "reason": reason}
 
     def claim_rebuild_job(self, lease_owner, lease_seconds=300):
         now_ts = time.time()

@@ -8260,16 +8260,30 @@
                 }
             };
 
-            window.requestTerritorySnapshotRecovery = function(reason = 'territory_delta_recovery') {
+            window.requestTerritorySnapshotRecovery = function(reason = 'territory_delta_recovery', attempt = 0) {
                 if (window.territoryRecoveryTimer) {
                     clearTimeout(window.territoryRecoveryTimer);
                 }
+                const recoveryAttempt = Math.max(0, Number(attempt || 0));
+                const recoveryDelays = [900, 1800, 3500];
                 window.territoryRecoveryTimer = setTimeout(() => {
                     window.territoryRecoveryTimer = null;
                     if (typeof window.refreshPlayerAreas === 'function') {
-                        window.refreshPlayerAreas({ recovery: true, reason });
+                        Promise.resolve(window.refreshPlayerAreas({
+                            recovery: true,
+                            reason: recoveryAttempt ? `${reason}_retry_${recoveryAttempt}` : reason
+                        })).then(refreshed => {
+                            if (!refreshed && recoveryAttempt < recoveryDelays.length - 1) {
+                                window.requestTerritorySnapshotRecovery(reason, recoveryAttempt + 1);
+                            }
+                        }).catch(err => {
+                            console.warn('Territory snapshot recovery failed', err);
+                            if (recoveryAttempt < recoveryDelays.length - 1) {
+                                window.requestTerritorySnapshotRecovery(reason, recoveryAttempt + 1);
+                            }
+                        });
                     }
-                }, 900);
+                }, recoveryDelays[Math.min(recoveryAttempt, recoveryDelays.length - 1)]);
             };
 
             window.applyTerritoryDelta = function(event) {
@@ -8355,53 +8369,15 @@
                     return false;
                 }
 
-                // Area deltas intentionally carry no polygon vertices.  A
-                // completed abandon rebuild may reshape or remove an area, so
-                // the worker's final delta is the safe point for one read-only
-                // snapshot recovery of the already open map.
+                // Area deltas intentionally carry no polygon vertices. Every
+                // canonical publication may add, reshape or remove a polygon,
+                // including pillar capture and conflict consolidation. The
+                // final delta is therefore a signal for one debounced read-only
+                // snapshot, never a request to patch stale Leaflet geometry.
                 const territoryReason = String(payload.reason || '').trim();
-                if (territoryReason === 'captured_object_abandoned'
-                    || territoryReason === 'territory_encirclement_attacker'
-                    || territoryReason === 'territory_encirclement_defender') {
-                    const recoveryReason = territoryReason === 'captured_object_abandoned'
-                        ? 'captured_object_abandoned_complete'
-                        : 'territory_encirclement_area_complete';
-                    window.requestTerritorySnapshotRecovery(recoveryReason);
-                    return true;
-                }
-
-                const territoryId = String(
-                    (event && event.entity_id)
-                    || payload.territory_id
-                    || payload.area_id
-                    || ''
-                ).trim();
-                if (!territoryId) return false;
-
-                const entry = window.territoryAreaLayers && window.territoryAreaLayers[territoryId];
-                if (!entry || !entry.layer) {
-                    window.requestTerritorySnapshotRecovery('missing_territory_layer');
-                    return false;
-                }
-
-                const previous = entry.area || {};
-                const nextArea = {
-                    ...previous,
-                    ...payload,
-                    id: payload.area_id || previous.id,
-                    territory_id: territoryId,
-                    owner_username: payload.owner_username || payload.owner_id || previous.owner_username,
-                    area_size: payload.area_size !== undefined ? payload.area_size : previous.area_size,
-                    centroid_lat: (payload.centroid || {}).lat ?? previous.centroid_lat,
-                    centroid_lng: (payload.centroid || {}).lng ?? previous.centroid_lng
-                };
-                entry.area = nextArea;
-                entry.layer._chaosTerritorySnapshot = nextArea;
-                if (typeof entry.layer.setStyle === 'function') {
-                    entry.layer.setStyle(territoryLayerStyle(nextArea));
-                }
-                bindTerritoryTooltip(entry.layer, territoryTooltip(nextArea));
-                window.territoryAreaLayers[territoryId] = entry;
+                window.requestTerritorySnapshotRecovery(
+                    territoryReason ? `territory_publication:${territoryReason}` : 'territory_publication'
+                );
                 return true;
             };
 

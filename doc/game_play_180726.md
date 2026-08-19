@@ -23773,6 +23773,32 @@ dostarczeniem PNG prawidłowym wynikiem jest `READY FOR ASSET DELIVERY`; finalne
 
 **P2:** `DONE LOCALLY — stable renderer and bounded recovery; manual server gate pending`
 
+Drugi finding manuala dotyczył nieskonfliktowanego `Porzuć`. Rebuild nie
+następował także po reload/logout/restart, ponieważ zwykły target ma zwykle
+`ownership_version=0`, a deterministyczny job ID był ponownie używany po
+capture→abandon tego samego obiektu. Stary rekord `complete` powodował
+`ON CONFLICT DO NOTHING`: target znikał, lecz worker nie otrzymywał pracy.
+
+Abandon job jest teraz związany z konkretnym durable capture row ID. Każde nowe
+przejęcie otrzymuje inny rebuild receipt, a nieoczekiwana kolizja rollbackuje
+delete. Dla geometrii osieroconej przed poprawką narzędzie
+`repair_territory_visibility.py --username <login> --enqueue` zapisuje jawny
+worker-owned recovery job; read path nadal pozostaje bez side effectów.
+
+Manual serwerowy P2 potwierdził poprawny live event i SFX
+`ghost.part_contained`, ale ujawnił blocker odświeżania polygonu. Kompaktowe
+`territory.updated` nie zawiera vertices, a klient aktualizował istniejącą
+warstwę tylko częściowym payloadem. Recovery było ograniczone do abandon i
+encirclement, więc `pillar_captured`/`conflict_consolidation` stawały się
+widoczne dopiero po ponownym otwarciu mapy.
+
+Naprawa rozszerza istniejący publication contract: każda finalna publikacja area
+sygnalizuje jeden debounced read-only snapshot pełnej geometrii. Pominięcie z
+powodu in-flight albo abort ma bounded retry `0.9/1.8/3.5 s`; nie powstał nowy
+poller. Regresja po findingu: capture/territory/map `247/247 OK`, GhostNetwork
+`177/177 OK`, publication/recovery `40/40 OK`. Bramka manualna P2 pozostaje do
+powtórzenia po wdrożeniu poprawki, bez resetowania cyklu.
+
 ## Server finding po pierwszym teście współbieżności — NO-GO
 
 Test dwóch graczy ujawnił opóźnienie około pięciu minut; jeden profil z dużą

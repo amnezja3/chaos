@@ -1,5 +1,32 @@
 # CHAOS — Project Journal
 
+## 2026-08-19 - P2 blocker: porzucenie zwykłego filaru bez rebuild joba
+
+- Reload, logout i restart nie mogły naprawić starego polygonu, ponieważ read
+  path prawidłowo nie wykonuje już mutującego rebuilda.
+- Abandon job ID zależało od owner/target/version. Zwykły target bez ownership
+  CAS ma version 0, więc ponowne capture→abandon tego samego targetu kolidowało
+  ze starym complete jobem. Delete był commitowany, ale `ON CONFLICT DO NOTHING`
+  nie tworzyło nowej pracy dla workera.
+- Job ID zawiera teraz ID konkretnego rekordu capture; kolizja rollbackuje całą
+  transakcję zamiast pozostawić osieroconą geometrię.
+- `repair_territory_visibility.py --enqueue` umożliwia jednorazowe odtworzenie
+  brakującego worker-owned rebuilda dla już usuniętego targetu.
+- Regresja abandon/publication 44/44 i target/territory/worker 247/247 — OK.
+
+## 2026-08-19 - P2 manual finding: polygon publication recovery
+
+- Manual potwierdził live `ghost.part_contained` i poprawny SFX, ale polygon po
+  capture/consolidation pozostawał stary do ponownego otwarcia mapy.
+- Root cause: `territory.updated` jest celowo kompaktowe i nie zawiera vertices,
+  natomiast klient dla istniejącego area ID aktualizował tylko styl/tooltip.
+  Snapshot recovery obejmowało abandon/encirclement, ale nie `pillar_captured`
+  ani `conflict_consolidation`.
+- Każda finalna area publication uruchamia teraz jeden debounced, read-only
+  snapshot polygonów. Skipped/in-flight/abort ma bounded retry 0.9/1.8/3.5 s.
+- Regresja: capture/territory/map 247/247, GhostNetwork 177/177 oraz kontrakty
+  publication/recovery 40/40 — OK. Manual P2 wymaga powtórzenia bez resetu cyklu.
+
 ## 2026-08-19 - P2 DONE lokalnie: stabilny renderer GhostNetwork
 
 - Renderer odrzuca niepełny i starszy snapshot przed zmianą warstwy, dzięki

@@ -65,6 +65,34 @@ class CapturedObjectStoreTest(unittest.TestCase):
         self.assertEqual(claimed["job_id"], first["job_id"])
         self.assertEqual(claimed["owner_username"], "alice")
 
+    def test_recaptured_ordinary_target_gets_a_new_rebuild_job(self):
+        first_capture = self.store.save_captured_target("alice", target())
+        first = self.store.abandon_captured_target(
+            "alice", first_capture, first_capture["target_id"]
+        )
+        self.store.finish_rebuild_job(
+            first["job_id"],
+            "test-worker",
+            ok=True,
+        ) if self.store.claim_rebuild_job("test-worker") else None
+
+        second_capture = self.store.save_captured_target("alice", target())
+        second = self.store.abandon_captured_target(
+            "alice", second_capture, second_capture["target_id"]
+        )
+
+        self.assertTrue(second["ok"])
+        self.assertNotEqual(first["job_id"], second["job_id"])
+        self.assertNotEqual(first["capture_record_id"], second["capture_record_id"])
+        claimed = self.store.claim_rebuild_job("second-worker")
+        self.assertEqual(claimed["job_id"], second["job_id"])
+
+    def test_operator_can_enqueue_recovery_for_already_removed_target(self):
+        queued = self.store.enqueue_rebuild_job("alice", reason="operator_visibility_recovery")
+        claimed = self.store.claim_rebuild_job("test-worker")
+        self.assertEqual(claimed["job_id"], queued["job_id"])
+        self.assertEqual(claimed["reason"], "operator_visibility_recovery")
+
 
 class CapturedObjectEndpointTest(unittest.TestCase):
     def _client(self):
@@ -134,8 +162,7 @@ class CapturedObjectFrontendContractTest(unittest.TestCase):
         self.assertIn("removeMapLayerSafe(sourceMarker)", self.source)
 
     def test_worker_completion_delta_recovers_abandoned_territory_geometry(self):
-        self.assertIn("territoryReason === 'captured_object_abandoned'", self.source)
-        self.assertIn("captured_object_abandoned_complete", self.source)
+        self.assertIn("territory_publication:${territoryReason}", self.source)
         self.assertIn("window.requestTerritorySnapshotRecovery", self.source)
 
 

@@ -1,4 +1,5 @@
 import inspect
+import pathlib
 import unittest
 from unittest import mock
 
@@ -7,6 +8,10 @@ from response_network.territory_delta import TerritoryDeltaPublisher, _conflict_
 
 
 class TerritoryConflictMapCutoverTests(unittest.TestCase):
+    def setUp(self):
+        root = pathlib.Path(__file__).resolve().parents[1]
+        self.map_template = (root / "templates" / "map_template.html").read_text(encoding="utf-8")
+
     @staticmethod
     def snapshot():
         return {
@@ -218,6 +223,18 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertNotIn("refresh_stale_territory_polygons", source)
         self.assertNotIn("rebuild_player_areas_with_territory_delta", source)
 
+    def test_every_area_publication_recovers_canonical_polygon_geometry(self):
+        source = self.map_template
+        self.assertIn("Every\n                // canonical publication may add, reshape or remove a polygon", source)
+        self.assertIn("territory_publication:${territoryReason}", source)
+        self.assertNotIn("entry.layer._chaosTerritorySnapshot = nextArea", source)
+
+    def test_territory_snapshot_recovery_retries_after_inflight_or_abort(self):
+        source = self.map_template
+        self.assertIn("recoveryDelays = [900, 1800, 3500]", source)
+        self.assertIn("if (!refreshed && recoveryAttempt < recoveryDelays.length - 1)", source)
+        self.assertIn("window.requestTerritorySnapshotRecovery(reason, recoveryAttempt + 1)", source)
+
     def test_capture_response_exposes_conflict_consolidation_diagnostics(self):
         source = inspect.getsource(run.gonna_win)
 
@@ -263,10 +280,9 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
     def test_map_boot_projects_canonical_captured_targets_without_rebuild(self):
         source = inspect.getsource(run.map_view)
 
-        self.assertIn(
-            'merge_captured_targets_into_profile(session["user"], profile)',
-            source,
-        )
+        self.assertIn("map_profile_boot_payload(profile)", source)
+        self.assertIn("/api/map/target-snapshot", source)
+        self.assertNotIn('merge_captured_targets_into_profile(session["user"], profile)', source)
         self.assertNotIn("rebuild_player_areas_with_territory_delta", source)
 
     def test_worker_conflict_publication_triggers_read_only_marker_recovery(self):
@@ -288,8 +304,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
             "requestTerritorySnapshotRecovery('territory_encirclement_resolved')",
             source,
         )
-        self.assertIn("territoryReason === 'territory_encirclement_attacker'", source)
-        self.assertIn("territoryReason === 'territory_encirclement_defender'", source)
+        self.assertIn("territoryReason ? `territory_publication:${territoryReason}`", source)
 
     def test_map_has_manual_full_refresh_control(self):
         with open("templates/map_template.html", encoding="utf-8") as handle:

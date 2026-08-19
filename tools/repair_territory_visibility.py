@@ -69,17 +69,25 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Dry-run first territory visibility repair. Rebuilds owner player_areas "
-            "from captured_targets only when --apply is explicit."
+            "from captured_targets through the worker with --enqueue; legacy direct "
+            "write remains available only when --apply is explicit."
         )
     )
     parser.add_argument("--username", required=True, help="Owner username to diagnose.")
     parser.add_argument("--apply", action="store_true", help="Write repaired player_areas.")
+    parser.add_argument(
+        "--enqueue",
+        action="store_true",
+        help="Enqueue the canonical worker-owned rebuild instead of writing in this process.",
+    )
     parser.add_argument(
         "--replace-existing",
         action="store_true",
         help="Allow apply even when valid player_areas already exist.",
     )
     args = parser.parse_args()
+    if args.apply and args.enqueue:
+        parser.error("use either --apply or --enqueue")
 
     username = args.username.strip()
     user_store = UserStore()
@@ -147,8 +155,18 @@ def main():
         print("\nNo reconstructable area from captured_targets.")
         print("Controlled gameplay fallback: mark the territory as compromised and send a single non-spam system message.")
 
-    if not args.apply:
-        print("\nDRY-RUN only. Re-run with --apply to write changes.")
+    if not args.apply and not args.enqueue:
+        print("\nDRY-RUN only. Re-run with --enqueue for the canonical worker repair.")
+        return
+
+    if args.enqueue:
+        queued = territory_store.enqueue_rebuild_job(
+            username,
+            reason="operator_visibility_recovery",
+        )
+        print("\nENQUEUED")
+        print("job_id:", queued["job_id"])
+        print("owner_username:", queued["owner_username"])
         return
 
     if valid_areas and not args.replace_existing:
