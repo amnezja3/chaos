@@ -224,7 +224,17 @@
         const map = ensureGhostNetworkPanes();
         if (!map || !window.L || !part) return false;
         const key = projectionKey(part);
-        const coords = validLatLng(part.territory_latitude || part.territory_lat, part.territory_longitude || part.territory_lng);
+        let coords = validLatLng(part.territory_latitude || part.territory_lat, part.territory_longitude || part.territory_lng);
+        if (!coords && part.territory_id) {
+            const territory = window.territoryAreaLayers
+                && window.territoryAreaLayers[String(part.territory_id)];
+            const layer = territory && territory.layer;
+            if (layer && typeof layer.getBounds === "function") {
+                const bounds = layer.getBounds();
+                const center = bounds && typeof bounds.getCenter === "function" ? bounds.getCenter() : null;
+                coords = center ? validLatLng(center.lat, center.lng) : null;
+            }
+        }
         if (!key || !coords) return false;
         const html = '<span class="ghostnetwork-territory-badge" aria-hidden="true"></span>';
         const icon = L.divIcon({

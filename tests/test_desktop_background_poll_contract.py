@@ -23,6 +23,8 @@ class DesktopBackgroundPollContractTest(unittest.TestCase):
     def test_launch_queue_poll_is_bounded(self):
         self.assertIn("fetchDesktopBackground('/launch-queue'", self.source)
         self.assertIn("LAUNCH_QUEUE_FETCH_TIMEOUT_MS", self.source)
+        self.assertIn('err.name === "AbortError"', self.source)
+        self.assertIn('"launch_queue_timeout"', self.source)
 
 
 if __name__ == "__main__":

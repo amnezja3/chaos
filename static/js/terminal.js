@@ -16153,7 +16153,13 @@ async function pollLaunchQueue() {
         hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_error", {
             message: err && err.message ? err.message : String(err)
         });
-        console.error("❌ Błąd podczas pobierania launch-queue:", err);
+        if (err && err.name === "AbortError") {
+            hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_timeout", {
+                timeout_ms: LAUNCH_QUEUE_FETCH_TIMEOUT_MS
+            });
+        } else {
+            console.error("❌ Błąd podczas pobierania launch-queue:", err);
+        }
     } finally {
         // Spróbuj ponownie za 10 sekund
         launchQueuePollInFlight = false;
