@@ -1,3 +1,4 @@
+import hashlib
 import unittest
 from unittest.mock import patch
 
@@ -21,6 +22,7 @@ class FakeDeltaBus:
 
 class FakeRepository:
     def __init__(self):
+        self.snapshot_reads = 0
         self.events = [
             {
                 "event_id": "event-old",
@@ -39,6 +41,7 @@ class FakeRepository:
         ]
 
     def build_internal_snapshot(self, cycle_id):
+        self.snapshot_reads += 1
         return {
             "cycle": {"cycle_id": cycle_id, "state_version": 8},
             "parts": [],
@@ -157,6 +160,62 @@ class GhostNetworkDeltaPublisherTest(unittest.TestCase):
 
         self.assertEqual(published, [])
         self.assertEqual(delta_bus.records, [])
+
+    def test_hidden_safe_projection_is_matched_by_public_entity_id(self):
+        delta_bus = FakeDeltaBus()
+        repository = FakeRepository()
+        raw = "ghostnetwork_0001:internal-secret-part-id"
+        public_id = f"ghost-node:{hashlib.sha1(raw.encode('utf-8')).hexdigest()[:12]}"
+        projection = {
+            "projection": "viewer_visibility",
+            "visibility_version": "ghost-visibility-v1",
+            "state_version": 9,
+            "cycle": {"cycle_id": "ghostnetwork_0001", "state_version": 9},
+            "parts": [{
+                "part_id": None,
+                "public_entity_id": public_id,
+                "visibility_level": "contained_hidden",
+                "location_visibility": "territory_only",
+                "territory_id": "territory-1",
+                "can_show_on_map": True,
+            }],
+            "connections": [],
+            "progress": {},
+        }
+        event = {
+            "event_id": "event-hidden-safe",
+            "event_type": "ghost.part_contested",
+            "cycle_id": "ghostnetwork_0001",
+            "part_id": "internal-secret-part-id",
+            "state_version": 9,
+        }
+
+        with patch("ghostnetwork.deltas.build_viewer_projection", return_value=projection):
+            published = GhostNetworkDeltaPublisher(
+                repository=repository,
+                delta_bus=delta_bus,
+            ).publish_event(event, [{"username": "outsider", "viewer_clan": "OTHER"}])
+
+        self.assertEqual(len(published), 1)
+        self.assertEqual(published[0]["entity_id"], public_id)
+        self.assertIsNone(published[0]["payload"]["part_projection"]["part_id"])
+
+    def test_multi_recipient_publication_reads_internal_snapshot_once(self):
+        repository = FakeRepository()
+        event = {
+            "event_id": "event-signal",
+            "event_type": "ghost.signal_sent",
+            "cycle_id": "ghostnetwork_0001",
+            "state_version": 8,
+        }
+        recipients = [{"username": f"user-{index}"} for index in range(25)]
+
+        GhostNetworkDeltaPublisher(
+            repository=repository,
+            delta_bus=FakeDeltaBus(),
+        ).publish_event(event, recipients)
+
+        self.assertEqual(repository.snapshot_reads, 1)
 
 
 if __name__ == "__main__":

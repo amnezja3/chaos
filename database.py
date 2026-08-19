@@ -1195,6 +1195,18 @@ class UserStore:
             rows = conn.execute("SELECT profile_json FROM users ORDER BY id").fetchall()
             return [loads_json(row["profile_json"], {}) for row in rows]
 
+    def list_profile_entries(self):
+        """Return profile identities without requiring one query per user."""
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT username, profile_json FROM users ORDER BY id"
+            ).fetchall()
+            return [
+                (row["username"], loads_json(row["profile_json"], {}))
+                for row in rows
+                if row["username"]
+            ]
+
     def list_usernames(self):
         with db_connect(self.db_path) as conn:
             rows = conn.execute("SELECT username FROM users ORDER BY id").fetchall()

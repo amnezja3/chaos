@@ -387,6 +387,10 @@ class GhostPartLifecycleService:
             payload["event_id"] = event.get("event_id")
             payload["state_version"] = event.get("state_version")
             payload["dedupe_key"] = event.get("dedupe_key")
+            # Runtime bridges need the canonical event that caused this
+            # mutation. Keep it only on the returned copy; it is not persisted
+            # in the ghost_parts row or exposed by viewer projections.
+            result["part"]["_domain_event"] = event
         return result
 
     def migrate_anchor(self, part_id, new_target, reason="", source_event_id=""):

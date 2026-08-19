@@ -1,5 +1,33 @@
 # CHAOS — Project Journal
 
+## 2026-08-19 - Audyt stabilnosci Sprintu 130.9.2 po manualnym gameplayu
+
+- Manual ujawnil niestabilne przejscia markerow `public/contained`, brak live
+  SFX dla containment oraz wyrazne spowolnienie mapy po rozszerzeniu publication
+  bridge.
+- Reconcile uzywal stalego source eventu `reconcile:<cycle>`. Legalna oscylacja
+  `public -> contained -> public -> contained` trafiala w stary dedupe i nie
+  emitowala drugiego kanonicznego eventu. Klucz tranzycji korzysta teraz z
+  monotonicznego version cyklu sprzed mutacji.
+- Lifecycle zapisywal event w repository, ale adapter zwracal tylko rekord
+  czesci, wiec runtime bridge nie otrzymywal `ghost.part_contained` do publikacji.
+  Wynik mutacji przenosi teraz transient canonical event bez zapisu go w part row
+  i bez ekspozycji w viewer projection.
+- Ukryta projekcja nie posiada internal `part_id`; publisher nie potrafil przez
+  to powiazac eventu z bezpiecznym `public_entity_id`. Powiazanie jest teraz
+  deterministyczne i nie ujawnia identyfikatora ani dokladnej lokalizacji.
+- Public/clan fan-out wykonywal pelny odczyt snapshotu osobno dla kazdego konta
+  oraz osobne zapytanie profilu. Publication pobiera profile zbiorczo i buduje
+  internal snapshot raz, po czym wykonuje indywidualne projekcje visibility w
+  pamieci.
+- Frontend traktowal dozwolone luki globalnego domain `state_version` jako utrate
+  transportu. Filtrowane `internal/system` eventy powodowaly przez to petle
+  snapshot recovery i czyszczenie warstw. Ciaglosc transportu pozostaje w
+  per-user delta bus; GN akceptuje monotoniczne, nieciagle wersje domenowe.
+- Regresja po poprawce: GhostNetwork 158/158 oraz persistence/map/delta/SFX
+  242/242 OK. Dodano test oscylacji lifecycle, live event bridge, ukrytej
+  projekcji i pojedynczego odczytu snapshotu dla 25 odbiorcow.
+
 ## 2026-08-19 - Sprint 130.9 Foundation: runtime enablement
 
 - Dodano read-only runtime readiness z walidacją cyklu, 20 części, topologii

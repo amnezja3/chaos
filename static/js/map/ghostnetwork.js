@@ -683,10 +683,10 @@
         const current = Number(window.ghostNetworkStateVersion || 0);
         if (Number.isFinite(version) && version > 0) {
             if (current > 0 && version < current) return false;
-            if (current > 0 && version > current + 1) {
-                requestGhostNetworkRecovery("version_gap", event);
-                return false;
-            }
+            // Domain versions are global to the cycle. Gaps are expected for
+            // player projections because internal/system and other viewers'
+            // events are deliberately filtered. The per-user delta bus owns
+            // transport continuity and requests snapshot recovery when needed.
         }
 
         const applied = applyGhostNetworkDeltaPayload(event);

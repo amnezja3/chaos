@@ -184,6 +184,26 @@ class GhostTerritoryAdapterTest(unittest.TestCase):
         self.assertEqual(applied["count"], 1)
         self.assertEqual(self.repo.get_part(part["part_id"])["status"], "contained")
 
+    def test_reconcile_records_each_real_status_oscillation_once(self):
+        part = self.reserve_and_discover("target-oscillation")
+        terr = self.territory(
+            "sentinel_order",
+            territory_id="territory-oscillation",
+            version=12,
+        )
+
+        self.adapter.reconcile_parts_with_territories(territories=[terr], apply=True)
+        self.adapter.reconcile_parts_with_territories(territories=[], apply=True)
+        self.adapter.reconcile_parts_with_territories(territories=[terr], apply=True)
+
+        events = self.repo.list_events(self.cycle["cycle_id"], limit=1000)
+        contained = [event for event in events if event["event_type"] == "ghost.part_contained"]
+        revealed = [event for event in events if event["event_type"] == "ghost.part_revealed"]
+        self.assertEqual(len(contained), 2)
+        self.assertEqual(len(revealed), 1)
+        self.assertEqual(len({event["dedupe_key"] for event in contained}), 2)
+        self.assertEqual(self.repo.get_part(part["part_id"])["status"], "contained")
+
 
 if __name__ == "__main__":
     unittest.main()

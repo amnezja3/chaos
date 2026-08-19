@@ -288,7 +288,16 @@ class GhostTerritoryAdapter:
                 "territory_id": (outcome.get("territory") or {}).get("territory_id", ""),
             }
             if apply:
-                change["part"] = self._apply_part_outcome(part, outcome, source_event_id=f"reconcile:{cycle_id}")
+                from_version = self.repository.get_state_version(cycle_id)
+                transition_id = (
+                    f"reconcile:{cycle_id}:{part['part_id']}:{desired}:"
+                    f"from:{int(from_version or 0)}"
+                )
+                change["part"] = self._apply_part_outcome(
+                    part,
+                    outcome,
+                    source_event_id=transition_id,
+                )
             changes.append(change)
         return {"ok": True, "cycle_id": cycle_id, "apply": bool(apply), "changes": changes, "count": len(changes)}
 

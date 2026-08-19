@@ -23,6 +23,11 @@ def _json_hash(payload):
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
 
+def _public_part_entity_id(cycle_id, part_id):
+    raw = f"{_clean(cycle_id)}:{_clean(part_id)}"
+    return f"ghost-node:{hashlib.sha1(raw.encode('utf-8')).hexdigest()[:12]}"
+
+
 def snapshot_checksum(projection):
     projection = projection if isinstance(projection, dict) else {}
     cycle = projection.get("cycle") if isinstance(projection.get("cycle"), dict) else {}
@@ -145,8 +150,8 @@ class GhostNetworkDeltaPublisher:
         self.repository = repository or GhostNetworkRepository()
         self.delta_bus = delta_bus
 
-    def _projection_for_viewer(self, cycle_id, viewer):
-        snapshot = self.repository.build_internal_snapshot(cycle_id)
+    def _projection_for_viewer(self, cycle_id, viewer, snapshot=None):
+        snapshot = snapshot or self.repository.build_internal_snapshot(cycle_id)
         return build_viewer_projection(snapshot, viewer=viewer)
 
     @staticmethod
@@ -170,15 +175,19 @@ class GhostNetworkDeltaPublisher:
     @staticmethod
     def _find_part(projection, event):
         part_id = _clean(event.get("part_id"))
+        cycle_id = _clean(event.get("cycle_id"))
         entity_id = _clean(event.get("entity_id"))
         payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
         public_id = _clean(payload.get("public_entity_id") or payload.get("entity_id"))
+        expected_public_id = _public_part_entity_id(cycle_id, part_id) if part_id else ""
         for part in projection.get("parts") or []:
             if not isinstance(part, dict):
                 continue
             if public_id and _clean(part.get("public_entity_id")) == public_id:
                 return part
             if part_id and _clean(part.get("part_id")) == part_id:
+                return part
+            if expected_public_id and _clean(part.get("public_entity_id")) == expected_public_id:
                 return part
             if entity_id and _clean(part.get("public_entity_id")) == entity_id:
                 return part
@@ -209,7 +218,7 @@ class GhostNetworkDeltaPublisher:
             or GHOSTNETWORK_DELTA_SCOPE
         )
 
-    def build_delta_for_viewer(self, event, viewer, transaction=None):
+    def build_delta_for_viewer(self, event, viewer, transaction=None, snapshot=None):
         event = event if isinstance(event, dict) else {}
         cycle_id = _clean(event.get("cycle_id"))
         event_type = _clean(event.get("event_type") or event.get("type"))
@@ -217,7 +226,7 @@ class GhostNetworkDeltaPublisher:
             return None
 
         viewer = self._safe_viewer(viewer)
-        projection = self._projection_for_viewer(cycle_id, viewer)
+        projection = self._projection_for_viewer(cycle_id, viewer, snapshot=snapshot)
         state_version = int(event.get("state_version") or projection.get("state_version") or 0)
         payload = {
             "event_id": event.get("event_id"),
@@ -267,13 +276,20 @@ class GhostNetworkDeltaPublisher:
         if not self.delta_bus:
             return []
         recipients = recipients if isinstance(recipients, (list, tuple)) else [recipients]
+        cycle_id = _clean((event or {}).get("cycle_id"))
+        snapshot = self.repository.build_internal_snapshot(cycle_id) if cycle_id else None
         published = []
         for recipient in recipients:
             viewer = self._safe_viewer(recipient)
             username = self._viewer_username(viewer)
             if not username:
                 continue
-            delta = self.build_delta_for_viewer(event, viewer, transaction=transaction)
+            delta = self.build_delta_for_viewer(
+                event,
+                viewer,
+                transaction=transaction,
+                snapshot=snapshot,
+            )
             if not delta:
                 continue
             dedupe_key = f"ghostnetwork:{username}:{delta['dedupe_key']}"

@@ -7305,10 +7305,10 @@ def ghostnetwork_event_recipient_profiles(event):
 
     candidates = []
     if scope in {"public", "clan"}:
-        for username in user_store.list_usernames():
+        for username, profile in user_store.list_profile_entries():
             username = str(username or "").strip()
             if username:
-                candidates.append((username, user_store.get_profile(username) or {}))
+                candidates.append((username, profile if isinstance(profile, dict) else {}))
     else:
         for username in sorted(item for item in direct_usernames if item):
             profile = user_store.get_profile(username) or {}
@@ -7330,10 +7330,21 @@ def ghostnetwork_event_recipient_profiles(event):
 
 
 def publish_ghostnetwork_event_delta(event):
-    published = []
-    for username, profile in ghostnetwork_event_recipient_profiles(event):
-        published.extend(publish_ghostnetwork_delta_result(username, profile, event))
-    return published
+    recipients = ghostnetwork_event_recipient_profiles(event)
+    if not recipients:
+        return []
+    viewers = []
+    for username, profile in recipients:
+        viewer = ghostnetwork_player_payload(username, profile)
+        viewer.update({
+            "viewer_id": username,
+            "viewer_clan": viewer.get("clan_code") or "",
+            "viewer_profession": viewer.get("ghost_profession") or profile.get("profession") or "",
+            "audience_scope": "player",
+            "is_authenticated": True,
+        })
+        viewers.append(viewer)
+    return GhostNetworkDeltaPublisher(delta_bus=delta_bus).publish_event(event, viewers)
 
 
 def safe_ghostnetwork_on_target_aimed(username, profile, target, reason="aimed_target"):

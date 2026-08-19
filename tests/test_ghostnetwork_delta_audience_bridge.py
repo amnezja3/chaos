@@ -18,6 +18,9 @@ class FakeUserStore:
     def list_usernames(self):
         return list(self.profiles)
 
+    def list_profile_entries(self):
+        return list(self.profiles.items())
+
     def get_profile(self, username):
         return self.profiles.get(username)
 
@@ -100,16 +103,16 @@ class GhostNetworkDeltaAudienceBridgeTest(unittest.TestCase):
             audience_clan="virex",
             payload={"active_parts": 2, "previous_active_parts": 1},
         )
-        calls = []
-
-        def publish(username, profile, result):
-            calls.append((username, result["event_id"]))
-            return [{"username": username}]
-
-        with patch.object(run, "publish_ghostnetwork_delta_result", side_effect=publish):
+        with patch.object(
+            run.GhostNetworkDeltaPublisher,
+            "publish_event",
+            return_value=[{"username": "owner"}, {"username": "ally"}],
+        ) as publish:
             published = run.publish_ghostnetwork_event_delta(event)
 
-        self.assertEqual(calls, [("owner", "event-clan"), ("ally", "event-clan")])
+        publish.assert_called_once()
+        viewers = publish.call_args.args[1]
+        self.assertEqual([viewer["username"] for viewer in viewers], ["owner", "ally"])
         self.assertEqual(len(published), 2)
 
     def test_required_live_event_types_resolve_to_expected_audiences(self):

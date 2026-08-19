@@ -66,6 +66,10 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn("recoverGhostNetworkDeltaScope", self.terminal_js)
         self.assertIn('"ghostnetwork"', self.terminal_js)
 
+    def test_filtered_domain_version_gaps_do_not_force_snapshot_recovery(self):
+        self.assertNotIn('requestGhostNetworkRecovery("version_gap"', self.map_js)
+        self.assertIn("per-user delta bus owns", self.map_js)
+
     def test_territory_only_part_uses_visible_polygon_center_without_exact_location(self):
         self.assertIn("window.territoryAreaLayers", self.map_js)
         self.assertIn("layer.getBounds()", self.map_js)

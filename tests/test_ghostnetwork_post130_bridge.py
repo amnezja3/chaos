@@ -71,6 +71,26 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
             self.assertEqual(released["status"], "public")
             self.assertEqual(released["territory_id"], "")
 
+    def test_area_publication_carries_live_lifecycle_event_to_delta_bridge(self):
+        areas = [self.area("foreign-owner", 1)]
+        profiles = {
+            "foreign-owner": {"username": "foreign-owner", "clan": "sentinel_order"},
+        }
+        with patch.object(run, "GhostNetworkService", return_value=self.service), \
+                patch.object(run.territory_delta_publisher, "record_areas_updated", return_value=[]), \
+                patch.object(run.territory_store, "list_player_areas", return_value=areas), \
+                patch.object(run.user_store, "get_profile", side_effect=lambda username: profiles.get(username, {})), \
+                patch.object(run.user_store, "save_profile"), \
+                patch.object(run, "publish_ghostnetwork_event_delta", return_value=[]) as publish:
+            run.record_territory_areas_delta(
+                "foreign-owner",
+                areas,
+                reason="post130_live_containment",
+            )
+
+        event_types = [call.args[0]["event_type"] for call in publish.call_args_list]
+        self.assertIn("ghost.part_contained", event_types)
+
     def test_canonical_ghost_clan_profile_is_included_in_territory_publication(self):
         areas = [self.area("foreign-owner", 1)]
         profile = {"ghost_clan_code": "sentinel_order"}
