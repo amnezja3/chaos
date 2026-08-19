@@ -74,11 +74,14 @@ FLASK_SESSION_CONFIG = {
 
 
 PERF_LOG_ENDPOINTS = {
+    "/map",
     "/desktop",
     "/api/profile",
     "/api/operations",
     "/api/map/player-areas",
     "/api/map/player-actors",
+    "/api/ghostnetwork/snapshot",
+    "/api/state/changes",
     "/api/map/clan-vulnerabilities",
     "/launch-queue",
     "/system-messages",

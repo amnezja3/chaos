@@ -23,7 +23,7 @@ from flask_session import Session
 from poiFetchClass import POIFetcher
 import Haversine
 from profileManagment import UserProfileManager, authenticate_user
-from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore
+from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore
 import requests
 from config import (
     APP_VERSION,
@@ -82,6 +82,8 @@ cyberner_clan_store = CybernerClanStore()
 cyberner_channel_cursor_store = CybernerChannelCursorStore()
 user_store = UserStore()
 territory_store = TerritoryStore()
+ghostnetwork_territory_job_store = GhostNetworkTerritoryJobStore()
+ghostnetwork_delta_delivery_job_store = GhostNetworkDeltaDeliveryJobStore()
 territory_conflict_store = TerritoryConflictStore()
 territory_conflict_engagement_store = TerritoryConflictEngagementStore()
 territory_target_ownership_store = TerritoryTargetOwnershipStore()
@@ -2985,11 +2987,33 @@ def record_map_target_delta(username, target, change_type="map.target_updated", 
 def record_territory_areas_delta(username, areas, reason="territory_rebuild"):
     try:
         published = territory_delta_publisher.record_areas_updated(username, areas, reason=reason)
-        bridge_ghostnetwork_territory_publication(reason=reason)
-        return published
     except Exception as exc:
         print(f"[DELTA] territory.updated failed for {username}: {exc}", flush=True)
         return []
+    try:
+        material = [
+            {
+                "id": str(area.get("id") or ""),
+                "owner": str(area.get("owner_username") or username or ""),
+                "status": str(area.get("status") or ""),
+                "updated_at": str(area.get("updated_at") or ""),
+                "vertices": area.get("vertices") or [],
+            }
+            for area in (areas or []) if isinstance(area, dict)
+        ]
+        publication_reader = getattr(territory_store, "get_area_publication", None)
+        publication = publication_reader(username) if callable(publication_reader) else None
+        if publication and int(publication.get("publication_version") or 0) > 0:
+            source_version = f"publication:{int(publication['publication_version'])}"
+        else:
+            encoded = json.dumps(material, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            source_version = "legacy:" + hashlib.sha1(encoded.encode("utf-8")).hexdigest()
+        ghostnetwork_territory_job_store.enqueue(
+            "areas", str(username), source_version, reason=reason
+        )
+    except Exception as exc:
+        print(f"[GHOSTNETWORK] territory job enqueue failed for {username}: {exc}", flush=True)
+    return published
 
 
 def record_territory_conflict_delta(conflict, reason="territory_conflict"):
@@ -3000,21 +3024,74 @@ def record_territory_conflict_delta(conflict, reason="territory_conflict"):
             snapshot if isinstance(snapshot, dict) else conflict,
             reason=reason,
         )
-        bridge_ghostnetwork_conflict_publication(
-            snapshot if isinstance(snapshot, dict) else conflict, reason=reason
-        )
-        return published
     except Exception as exc:
         conflict_key = (conflict or {}).get("conflict_key") if isinstance(conflict, dict) else "-"
         print(f"[DELTA] territory.conflict_changed failed for {conflict_key}: {exc}", flush=True)
         return []
+    try:
+        canonical = snapshot if isinstance(snapshot, dict) else (conflict or {})
+        canonical_conflict = canonical.get("conflict") if isinstance(canonical.get("conflict"), dict) else canonical
+        source_version = canonical_conflict.get("conflict_version") or canonical_conflict.get("updated_at")
+        if reference and source_version not in (None, ""):
+            ghostnetwork_territory_job_store.enqueue(
+                "conflict", str(reference), str(source_version), reason=reason
+            )
+    except Exception as exc:
+        print(f"[GHOSTNETWORK] conflict job enqueue failed for {reference or '-'}: {exc}", flush=True)
+    return published
+
+
+def process_ghostnetwork_territory_job(lease_owner, lease_seconds=300):
+    """Apply one canonical territory publication outside request-serving processes."""
+    claim = ghostnetwork_territory_job_store.claim(lease_owner, lease_seconds=lease_seconds)
+    if not claim:
+        return None
+    started = time.perf_counter()
+    try:
+        if claim["job_kind"] == "areas":
+            result = bridge_ghostnetwork_territory_publication(reason=claim.get("reason") or "territory_job")
+        elif claim["job_kind"] == "conflict":
+            snapshot = territory_conflict_store.latest_snapshot_state(claim["reference_id"])
+            if not isinstance(snapshot, dict):
+                raise RuntimeError(f"canonical conflict snapshot missing: {claim['reference_id']}")
+            result = bridge_ghostnetwork_conflict_publication(
+                snapshot, reason=claim.get("reason") or "territory_conflict_job"
+            )
+        else:
+            raise RuntimeError(f"unsupported job kind: {claim['job_kind']}")
+        if isinstance(result, dict) and result.get("ok") is False:
+            raise RuntimeError(str(result.get("reason") or result.get("error") or "bridge failed"))
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        ghostnetwork_territory_job_store.finish(
+            claim["job_id"], lease_owner, ok=True, processing_ms=elapsed_ms
+        )
+        return {
+            **claim, "ok": True, "result": result,
+            "elapsed_ms": elapsed_ms,
+            "queue": ghostnetwork_territory_job_store.diagnostics(),
+        }
+    except Exception as exc:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        ghostnetwork_territory_job_store.finish(
+            claim["job_id"], lease_owner, ok=False, error=str(exc), processing_ms=elapsed_ms
+        )
+        return {
+            **claim, "ok": False, "error": str(exc),
+            "elapsed_ms": elapsed_ms,
+            "queue": ghostnetwork_territory_job_store.diagnostics(),
+        }
 
 
 def build_ghostnetwork_territory_publication():
     events = []
+    profiles = {
+        str(profile.get("username") or "").strip(): profile
+        for profile in user_store.list_profiles()
+        if isinstance(profile, dict) and str(profile.get("username") or "").strip()
+    }
     for area in territory_store.list_player_areas():
         owner = str(area.get("owner_username") or "").strip()
-        profile = user_store.get_profile(owner) or {}
+        profile = profiles.get(owner) or {}
         clan = normalize_ghostnetwork_profile_identity({
             "clan": (
                 profile.get("ghost_clan_code")
@@ -3025,8 +3102,21 @@ def build_ghostnetwork_territory_publication():
         }).get("clan_code", "")
         if not owner or not clan:
             continue
-        version_seed = str(area.get("updated_at") or area.get("id") or "")
-        version = int(hashlib.sha1(version_seed.encode("utf-8")).hexdigest()[:8], 16)
+        version = int(area.get("publication_version") or 0)
+        if version <= 0:
+            version_seed = json.dumps(
+                {
+                    "id": area.get("id"),
+                    "owner_username": owner,
+                    "status": area.get("status"),
+                    "updated_at": area.get("updated_at"),
+                    "vertices": area.get("vertices") or [],
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            version = int(hashlib.sha1(version_seed.encode("utf-8")).hexdigest()[:8], 16)
         events.append({
             "territory_event_id": f"territory.publication:{area.get('id')}:{version}",
             "territory_id": str(area.get("id") or ""),
@@ -3056,7 +3146,7 @@ def apply_ghostnetwork_runtime_result(service, result):
         if player_id and reward.get("applied"):
             user_store.save_profile(profile)
         reward_results.append(reward)
-        publish_ghostnetwork_event_delta(event)
+        enqueue_ghostnetwork_event_delta(event)
     return reward_results
 
 
@@ -7345,6 +7435,102 @@ def publish_ghostnetwork_event_delta(event):
         })
         viewers.append(viewer)
     return GhostNetworkDeltaPublisher(delta_bus=delta_bus).publish_event(event, viewers)
+
+
+def enqueue_ghostnetwork_event_delta(event):
+    recipients = ghostnetwork_event_recipient_profiles(event)
+    viewers = []
+    for username, profile in recipients:
+        viewer = ghostnetwork_player_payload(username, profile)
+        viewer.update({
+            "viewer_id": username,
+            "viewer_clan": viewer.get("clan_code") or "",
+            "viewer_profession": viewer.get("ghost_profession") or profile.get("profession") or "",
+            "audience_scope": "player",
+            "is_authenticated": True,
+        })
+        viewers.append(viewer)
+    return ghostnetwork_delta_delivery_job_store.enqueue(event, viewers)
+
+
+def process_ghostnetwork_delta_delivery_job(lease_owner, lease_seconds=300, batch_size=None):
+    claim = ghostnetwork_delta_delivery_job_store.claim(
+        lease_owner, lease_seconds=lease_seconds
+    )
+    if not claim:
+        return None
+    started = time.perf_counter()
+    try:
+        viewers = claim.get("viewers") or []
+        start_index = int(claim.get("next_index") or 0)
+        batch_size = max(1, min(100, int(
+            batch_size or os.environ.get("CHAOS_GHOSTNETWORK_DELTA_BATCH_SIZE", "25")
+        )))
+        batch = viewers[start_index:start_index + batch_size]
+        if not batch:
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            ghostnetwork_delta_delivery_job_store.advance(
+                claim["job_id"], lease_owner, start_index, 0, 0,
+                processing_ms=elapsed_ms, complete=True,
+            )
+            return {
+                **claim, "ok": True, "complete": True,
+                "batch_recipients": 0, "published": 0, "skipped": 0,
+                "next_index": start_index, "elapsed_ms": elapsed_ms,
+                "queue": ghostnetwork_delta_delivery_job_store.diagnostics(),
+            }
+        publisher = GhostNetworkDeltaPublisher(delta_bus=delta_bus)
+        snapshot = claim.get("snapshot") or {}
+        if not snapshot:
+            snapshot = publisher.repository.build_internal_snapshot(claim["cycle_id"])
+            if not ghostnetwork_delta_delivery_job_store.store_snapshot(
+                claim["job_id"], lease_owner, snapshot
+            ):
+                raise RuntimeError("delivery snapshot lease lost")
+        published = 0
+        skipped = 0
+        for viewer in batch:
+            delta = publisher.build_delta_for_viewer(
+                claim["event"], viewer, snapshot=snapshot
+            )
+            if not delta:
+                skipped += 1
+                continue
+            username = publisher._viewer_username(viewer)
+            dedupe_key = f"ghostnetwork:{username}:{delta['dedupe_key']}"
+            delta_bus.record_change(
+                username,
+                delta["scope"],
+                delta["type"],
+                payload=delta["payload"],
+                entity_id=delta["entity_id"],
+                dedupe_key=dedupe_key,
+                created_at=delta.get("created_at"),
+            )
+            published += 1
+        next_index = start_index + len(batch)
+        complete = next_index >= len(viewers)
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        ghostnetwork_delta_delivery_job_store.advance(
+            claim["job_id"], lease_owner, next_index, published, skipped,
+            processing_ms=elapsed_ms, complete=complete,
+        )
+        return {
+            **claim, "ok": True, "complete": complete,
+            "batch_recipients": len(batch), "published": published,
+            "skipped": skipped, "next_index": next_index,
+            "elapsed_ms": elapsed_ms,
+            "queue": ghostnetwork_delta_delivery_job_store.diagnostics(),
+        }
+    except Exception as exc:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        ghostnetwork_delta_delivery_job_store.fail(
+            claim["job_id"], lease_owner, error=str(exc), processing_ms=elapsed_ms
+        )
+        return {
+            **claim, "ok": False, "error": str(exc), "elapsed_ms": elapsed_ms,
+            "queue": ghostnetwork_delta_delivery_job_store.diagnostics(),
+        }
 
 
 def safe_ghostnetwork_on_target_aimed(username, profile, target, reason="aimed_target"):
@@ -17206,7 +17392,7 @@ def redirect_missing_profile_to_login():
     return redirect(url_for("index"))
 
 
-def sync_session_profile(rebuild_territory=True, persist_normalization=True, cache_in_session=True):
+def sync_session_profile(rebuild_territory=False, persist_normalization=True, cache_in_session=True):
     username = session.get("user")
     if not username:
         return None
@@ -22885,7 +23071,17 @@ def map_player_areas():
         player_areas_warnings.append("contested_targets_unavailable")
         contested_targets = []
     areas = []
-    owner_profile_cache = {username: profile}
+    try:
+        owner_profile_cache = {
+            str(item.get("username") or ""): item
+            for item in user_store.list_profiles()
+            if isinstance(item, dict) and item.get("username")
+        }
+    except Exception as exc:
+        print(f"[WARN] map player area profiles bulk read failed: {exc}", flush=True)
+        player_areas_warnings.append("owner_profiles_unavailable")
+        owner_profile_cache = {}
+    owner_profile_cache[username] = profile
     for area in all_areas:
         clean_area = normalize_player_area(area)
         if not clean_area:
@@ -22895,8 +23091,7 @@ def map_player_areas():
         if owner_profile is None:
             try:
                 owner_profile = user_store.get_profile(owner_username)
-            except Exception as exc:
-                print(f"[WARN] map player area owner profile skipped: {owner_username} {exc}", flush=True)
+            except Exception:
                 owner_profile = None
             owner_profile_cache[owner_username] = owner_profile
         if not owner_profile and owner_username != username:
@@ -22939,10 +23134,12 @@ def map_player_areas():
         player_areas_warnings.append("intruders_unavailable")
         recent_intruders = []
     for intruder in recent_intruders:
-        try:
-            intruder_profile = user_store.get_profile(intruder.get("username"))
-        except Exception:
-            intruder_profile = None
+        intruder_profile = owner_profile_cache.get(str(intruder.get("username") or ""))
+        if intruder_profile is None:
+            try:
+                intruder_profile = user_store.get_profile(intruder.get("username"))
+            except Exception:
+                intruder_profile = None
         intruders.append({
             "area_id": intruder.get("area_id"),
             "username": intruder.get("username"),

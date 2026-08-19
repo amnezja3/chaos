@@ -13,6 +13,70 @@ os.chdir(PROJECT_ROOT)
 import run  # noqa: E402
 
 
+_consecutive_ghostnetwork_jobs = 0
+_ghostnetwork_delivery_turn = True
+
+
+def process_ghostnetwork_once():
+    global _ghostnetwork_delivery_turn
+
+    def process_delivery():
+        delivery = run.process_ghostnetwork_delta_delivery_job(
+            lease_owner=f"ghost-delta-worker:{os.getpid()}",
+            lease_seconds=300,
+        )
+        if delivery is None:
+            return False
+        print(
+            "[TERRITORY_WORKER] "
+            f"ghost_delta_job_id={delivery.get('job_id')} "
+            f"event_id={delivery.get('event_id')} ok={bool(delivery.get('ok'))} "
+            f"complete={bool(delivery.get('complete'))} "
+            f"recipients={delivery.get('batch_recipients')} "
+            f"published={delivery.get('published')} skipped={delivery.get('skipped')} "
+            f"elapsed_ms={delivery.get('elapsed_ms')} "
+            f"queue={delivery.get('queue') or {}} error={delivery.get('error')}",
+            flush=True,
+        )
+        return True
+
+    def process_territory():
+        ghostnetwork_job = run.process_ghostnetwork_territory_job(
+            lease_owner=f"ghost-territory-worker:{os.getpid()}",
+            lease_seconds=300,
+        )
+        if ghostnetwork_job is None:
+            return False
+        print(
+            "[TERRITORY_WORKER] "
+            f"ghost_job_id={ghostnetwork_job.get('job_id')} "
+            f"kind={ghostnetwork_job.get('job_kind')} "
+            f"reference={ghostnetwork_job.get('reference_id')} "
+            f"ok={bool(ghostnetwork_job.get('ok'))} "
+            f"elapsed_ms={ghostnetwork_job.get('elapsed_ms')} "
+            f"queue={ghostnetwork_job.get('queue') or {}} "
+            f"error={ghostnetwork_job.get('error')}",
+            flush=True,
+        )
+        return True
+
+    if _ghostnetwork_delivery_turn:
+        if process_delivery():
+            _ghostnetwork_delivery_turn = False
+            return True
+        if process_territory():
+            _ghostnetwork_delivery_turn = True
+            return True
+    else:
+        if process_territory():
+            _ghostnetwork_delivery_turn = True
+            return True
+        if process_delivery():
+            _ghostnetwork_delivery_turn = False
+            return True
+    return False
+
+
 def compact_multi_audit_report(report):
     """Keep periodic logs useful without dumping full polygon coordinates."""
     publication = report.get("publication") or {}
@@ -54,6 +118,7 @@ def compact_multi_audit_report(report):
 
 
 def process_once():
+    global _consecutive_ghostnetwork_jobs
     strategic_rewards = run.retry_pending_strategic_progression(limit=1)
     if strategic_rewards:
         print(
@@ -90,6 +155,13 @@ def process_once():
             flush=True,
         )
         return True
+    max_consecutive_ghost_jobs = max(
+        1, int(os.environ.get("CHAOS_GHOSTNETWORK_WORKER_MAX_CONSECUTIVE", "1"))
+    )
+    if _consecutive_ghostnetwork_jobs < max_consecutive_ghost_jobs:
+        if process_ghostnetwork_once():
+            _consecutive_ghostnetwork_jobs += 1
+            return True
     settle_seconds = max(
         1.0,
         float(os.environ.get("CHAOS_TERRITORY_WORKER_SETTLE_SECONDS", "3")),
@@ -99,6 +171,12 @@ def process_once():
         min_age_seconds=settle_seconds,
     )
     if not candidates:
+        if process_ghostnetwork_once():
+            _consecutive_ghostnetwork_jobs = min(
+                max_consecutive_ghost_jobs, _consecutive_ghostnetwork_jobs + 1
+            )
+            return True
+        _consecutive_ghostnetwork_jobs = 0
         return False
     conflict_id = candidates[0]["conflict_id"]
     result = run.consolidate_conflict_rebuild(
@@ -117,6 +195,7 @@ def process_once():
         f"elapsed_ms={result.get('elapsed_ms')} profiles={finalized_profiles}",
         flush=True,
     )
+    _consecutive_ghostnetwork_jobs = 0
     return True
 
 
@@ -160,7 +239,8 @@ def main():
     next_multi_audit_at = time.monotonic()
     restored = run.restore_territory_reconcile_targets()
     print(
-        f"[TERRITORY_WORKER] started reconcile_rollback={restored}",
+        f"[TERRITORY_WORKER] started reconcile_rollback={restored} "
+        f"ghost_delta_queue={run.ghostnetwork_delta_delivery_job_store.diagnostics()}",
         flush=True,
     )
     while True:

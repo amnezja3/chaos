@@ -23761,13 +23761,513 @@ dostarczeniem PNG prawidłowym wynikiem jest `READY FOR ASSET DELIVERY`; finalne
 
 ---
 
+# Sprint 130.9.2.fix.all.1 — GhostNetwork Stability and Performance Recovery
+
+## Status i powód otwarcia
+
+**Status:** `IN PROGRESS — P0 web/worker split implemented locally; server baseline pending`
+
+**P0:** `DONE LOCALLY — server performance confirmation pending`
+
+**P1:** `DONE LOCALLY — durable bounded delivery and canonical publication complete`
+
+## Stan wykonania — 2026-08-19
+
+Zrealizowano pierwszy pakiet odzyskiwania stabilności:
+
+* publikacje territory nie wykonują już synchronicznego GN reconcile,
+  reward/endgame ani fan-out w Gunicornie,
+* dodano trwałą, idempotentną kolejkę `ghostnetwork_territory_jobs` z lease,
+  retry limit i stanem terminalnym `failed`,
+* istniejący `chaos-territory-worker` jest jedynym konsumentem kolejki i przed
+  konfliktem ponownie odczytuje kanoniczny snapshot,
+* `sync_session_profile()` ma bezpieczny domyślny tryb odczytowy; rebuild
+  pozostaje jawną operacją w ścieżkach mutacji,
+* publikacja GN odczytuje profile jednym zapytaniem zamiast osobnego połączenia
+  SQLite dla każdego ownera,
+* `ghostnetwork_runtime status/verify/reconcile/drain` raportuje backlog kolejki,
+  a `verify` blokuje GO przy terminalnych jobach `failed`.
+
+Regresja lokalna: GhostNetwork `161/161 OK`, territory `121/121 OK`, pakiet
+granicy request/worker oraz boot/delta `24/24 OK`, `test_target_persistence`
+`221/221 OK`, `py_compile` i
+`git diff --check` `OK`.
+
+Drugi pakiet stabilizacyjny domknął kolejne wymagania Etapów 0–3 i 6:
+
+* retry kolejki ma wykładniczy, ograniczony backoff oraz maksymalnie pięć prób,
+* scheduler przepuszcza najwyżej jeden GN job przed conflict candidate, więc
+  backlog GN nie zagłodzi podstawowego territory pipeline,
+* diagnostyka kolejki raportuje depth, oldest age, stany oraz trwałe
+  `processing_ms` p50/p95/max,
+* `player_areas` otrzymało monotoniczną `publication_version` per owner;
+  identyczna geometria nie jest kasowana/wstawiana ponownie, zachowuje ID i nie
+  generuje fałszywej publikacji,
+* encirclement aktualizuje tylko rekordy, których status naprawdę się zmienił,
+  i podbija publication version dokładnie raz; ponowny odczyt nie powoduje
+  zapisu ani churnu timestampów,
+* krytyczny endpoint player areas pobiera profile właścicieli i intruderów
+  zbiorczo, z fallbackiem wyłącznie dla brakującego rekordu, zamiast N+1
+  połączeń SQLite,
+* krytyczne `/map`, state changes i GN snapshot są objęte bezpiecznym timingiem
+  bez logowania payloadu,
+* dodano dynamiczne testy potwierdzające zero rebuild/bridge podczas read path,
+* CLI rozdziela `capture-reconcile`, `reward-history-reconcile` oraz
+  `territory-reconcile`; legacy `reconcile` nie wykonuje territory recovery.
+
+Regresja po drugim pakiecie: GhostNetwork `168/168 OK`, territory `123/123 OK`,
+`test_target_persistence` `221/221 OK`. Lokalne uruchomienie trzech procesów CLI
+po regresji zostało chwilowo zablokowane przez Windows App Execution Alias
+(`python.exe`: wygasła sesja logowania), nie przez kod aplikacji; kontrakt CLI
+został zaimportowany i wykonany w testach jednostkowych.
+
+Trzeci pakiet domknął P1 delivery/publication bridge:
+
+* canonical GN event enqueue'uje jeden idempotentny
+  `ghostnetwork_delta_delivery_jobs` zamiast wykonywać synchroniczny fan-out,
+* job przechowuje wyłącznie bezpieczne viewer contexts, cursor i server-side
+  internal snapshot; snapshot nie jest wystawiany klientowi,
+* batch jest ograniczony (`25` domyślnie, twarde maksimum `100`) i wykonuje
+  najwyżej jeden internal snapshot read dla całego eventu, także przy wielu
+  batchach,
+* częściowo wykonany batch jest retryowany z tym samym dedupe per odbiorca;
+  lifecycle i reward nie są wykonywane ponownie,
+* delivery, territory GN oraz zwykłe conflict jobs mają fairness i nie mogą się
+  wzajemnie zagłodzić,
+* `status/verify` raportuje osobno delivery depth/age/published/skipped/timing i
+  blokuje GO przy terminalnym `failed`,
+* restart odzyskuje wyłącznie zapisane pending jobs; nie skanuje historycznych
+  eventów, więc snapshot/recovery nie odtwarza SFX.
+
+Regresja kończąca P1: GhostNetwork `171/171 OK`, territory `124/124 OK`,
+`test_target_persistence` `221/221 OK`; `py_compile`, składnia ecosystem/JS oraz
+`git diff --check` `OK`.
+
+P1 jest zakończone lokalnie. Pozostała serwerowa walidacja operacyjna i p95,
+która jest bramką manualną sprintu, a nie brakującą implementacją P1.
+
+Sprint nie jest jeszcze gotowy do bramki manualnej. Nadal wymagane są pomiary
+serwerowe przed/po, kontrolowany drain backlogu oraz domknięcie telemetrii czasu
+jobów i request p95.
+
+Sprint naprawczy zostaje otwarty po nieudanym manualnym domknięciu prezentacji
+GhostNetwork. Objawy na serwerze:
+
+* czas otwierania mapy wzrósł z około `4–12 s` do kilku minut,
+* `player actors`, operacje i delta feed okresowo nie kończą requestów,
+* części znikają lub zamieniają reprezentację po zmianie lifecycle,
+* `public/contained/active` nie reagują stabilnie,
+* live `ghost.part_contained` nie gwarantuje SFX,
+* Gunicorn kończy workery oczekujące w kodzie SQLite/JSON po timeoutach lub
+  restartach.
+
+Priorytetem sprintu nie jest kolejny efekt wizualny. Priorytety są następujące:
+
+1. stabilność istniejącej mapy i operacji,
+2. odzyskanie czasu startu mapy,
+3. poprawny i exactly-once lifecycle części,
+4. dopiero potem delta, marker i SFX.
+
+Sprinty `130.9.3` i `130.9.4` pozostają wstrzymane do czasu uzyskania końcowego
+GO tego sprintu. Nie dokładamy PNG, jittera, territory overlays ani nowych SFX.
+
+## Wynik audytu 130.9*
+
+### P0 — GN wykonuje zapisujący globalny reconcile w ścieżkach webowych
+
+Obecny przepływ:
+
+```text
+sync_session_profile / capture / abandon / rebuild
+  -> rebuild_player_areas_with_territory_delta
+  -> record_territory_areas_delta
+  -> bridge_ghostnetwork_territory_publication
+  -> list wszystkich player_areas
+  -> odczyt profilu każdego ownera
+  -> reconcile wszystkich 20 części z apply=True
+  -> reward/endgame
+  -> snapshot/projection/fan-out delta
+```
+
+`sync_session_profile()` nie jest komendą domenową GN. Jest używany także przy
+zwykłym odczycie profilu i inicjalizacji UI. Po integracji 130.9 zwykłe otwarcie
+mapy może więc uruchomić globalne mutacje GN. To narusza zasadę read path bez
+side effectów i wiąże latencję mapy z całym runtime GN.
+
+`record_territory_areas_delta()` łączy publikację podstawowej delty terytorium z
+GN w jednym `try`. Błąd lub opóźnienie GN może sprawić, że wywołujący zobaczy
+pusty wynik, mimo że podstawowa delta została już zapisana.
+
+### P0 — web i territory worker konkurują o ten sam SQLite write path
+
+GN reconcile może być uruchamiany zarówno przez proces webowy, jak i przez
+`chaos-territory-worker`, ponieważ oba importują `run.py` i wywołują wspólne
+funkcje publikacji. Gunicorn ma cztery procesy, worker jest piątym procesem.
+Globalny reconcile, reward/profile save i delta fan-out otwierają kolejne
+transakcje w tym samym pliku SQLite.
+
+Kod nie ustanawia pojedynczego właściciela GN territory mutation ani durable
+kolejki/coalescingu. Jest to najbardziej prawdopodobne wyjaśnienie wspólnego
+timeoutu map actors, operacji i delta feed. Hipoteza musi zostać potwierdzona
+pomiarami `elapsed_ms`, SQLite busy/locked oraz request p95 przed implementacją.
+
+### P0 — worker nie ma procedury GN territory reconcile po wdrożeniu
+
+`tools/ghostnetwork_runtime.py reconcile` uzgadnia capture outbox i reward
+history. Nie wykonuje `reconcile_parts_with_territories()`.
+
+`chaos-territory-worker` po starcie:
+
+* odtwarza rollback targets,
+* cyklicznie uzgadnia konflikty,
+* audytuje multi-conflict,
+* przetwarza rebuild/reconciliation jobs.
+
+Nie wykonuje jawnego startup GN territory reconcile, nie posiada osobnej
+durable kolejki GN i nie raportuje backlogu GN. Po deployu istniejące części
+zmieniają stan dopiero przy przypadkowym kolejnym rebuildzie pola. Nazwa
+operatorskiego `reconcile` tworzy obecnie fałszywe oczekiwanie.
+
+### P1 — publication bridge korzysta z derived/legacy granic danych
+
+`build_ghostnetwork_territory_publication()`:
+
+* skanuje całe `player_areas`, choć trigger dotyczy zwykle jednego ownera lub
+  jednego territory,
+* dołącza clan przez pełny JSON profilu w Pythonie,
+* miesza legacy display clan (`clan/fraction`) z canonical GN identity
+  (`ghost_clan_code/clan_code`),
+* tworzy `territory_state_version` przez hash `updated_at/id`, zamiast użyć
+  monotonicznej wersji kanonicznej publikacji terytorium,
+* traktuje materialized `player_areas` jak event source bez trwałego receiptu
+  wskazującego konkretną wersję geometrii.
+
+`player_areas` może pozostać źródłem geometrii do odczytu, ale GN mutation musi
+być zasilana przez zakończony worker-owned publication/rebuild receipt, nie przez
+profile sync ani dowolny renderer snapshot.
+
+### P1 — błędne granice dedupe i transport version
+
+Audyt wykazał:
+
+* stały `source_event_id=reconcile:<cycle>` blokował kolejne legalne oscylacje
+  `public -> contained -> public -> contained`,
+* lifecycle zapisywał event, ale wynik adaptera nie niósł eventu do publication
+  bridge,
+* hidden viewer projection nie posiada internal `part_id`, a publisher próbował
+  szukać części właśnie po nim,
+* klient traktował luki globalnego GN `state_version` jako utratę transportu,
+  mimo że `internal/system` oraz eventy innych odbiorców są celowo filtrowane.
+
+W efekcie snapshot recovery czyścił warstwy przy poprawnych lukach domenowych,
+a SFX zależał od eventu, który często nie docierał do state delta bus.
+
+Te poprawki muszą zostać scalone w jeden testowany kontrakt, a nie wdrażane jako
+niezależne łatki presentation layer.
+
+### P1 — nieograniczony synchroniczny fan-out
+
+Pierwsza wersja bridge wykonywała pełny internal snapshot osobno dla każdego
+odbiorcy i osobne zapytanie `get_profile()` dla każdego konta. Nawet po
+optymalizacji do jednego snapshotu indywidualne projekcje i zapisy delta nie mogą
+pozostać częścią requestu mapy/capture.
+
+Public/clan fan-out jest pracą workera. Musi mieć:
+
+* bounded batch,
+* trwały cursor/backlog,
+* dedupe per odbiorca,
+* metryki czasu i liczby odbiorców,
+* retry bez ponownego lifecycle/reward.
+
+### P2 — presentation naprawiało skutki zamiast źródła
+
+Pending territory badges, CSS badge i wydłużanie timeoutów poprawiają wyłącznie
+objawy. Nie mogą być kryterium zamknięcia sprintu, dopóki backend nie zapewnia
+stabilnego snapshotu i live delta. Timeoutów nie wolno dalej zwiększać w celu
+ukrycia blokady serwera.
+
+## Docelowa granica odpowiedzialności
+
+```text
+WEB REQUEST
+  commit capture / territory mutation
+  record existing territory/map delta
+  enqueue/coalesce durable GN territory publication job
+  return response
+
+TERRITORY WORKER (single writer for GN territory integration)
+  claim completed canonical territory publication version
+  read only affected territories plus parts in affected bounds/previous owner
+  reconcile lifecycle exactly once
+  persist canonical GN events/rewards
+  enqueue/publish bounded per-viewer deltas
+  acknowledge job
+
+MAP READ PATH
+  read snapshots only
+  zero territory rebuild
+  zero GN mutation
+  zero reward/fan-out
+```
+
+Nie tworzymy osobnego workera SFX. Audio pozostaje presentation consumerem
+istniejącej live delty.
+
+## Etap 0 — freeze i reprodukowalny baseline
+
+1. Wstrzymać implementację `130.9.3/130.9.4`.
+2. Nie resetować cyklu `ghostnetwork_0001` ani 20 części.
+3. Zachować aktualny stan i zebrać przed zmianą:
+
+   * `pm2 status`, restarts, memory i CPU,
+   * czasy `/map`, `/api/map/player-areas`, player actors, active operations,
+     `/api/state/changes` i `/api/ghostnetwork/snapshot`,
+   * Gunicorn `WORKER TIMEOUT`, request path i elapsed,
+   * SQLite busy/locked oraz długość transakcji,
+   * częstotliwość `sync_session_profile`, territory rebuild i GN reconcile,
+   * liczbę snapshot reads, profile reads, delta writes i odbiorców na event.
+
+4. Dodać read-only diagnostykę timing/query-count. Nie logować pełnych profili,
+   ukrytych części ani topologii.
+5. Porównać HEAD z ostatnim stabilnym pre-SFX/GN-publication baseline. Pomiar ma
+   rozdzielić koszt podstawowej mapy od kosztu włączonego bridge.
+
+## Etap 1 — odcięcie GN od read path i request latency
+
+1. `sync_session_profile()` nie może wywoływać GN mutation ani globalnego
+   territory publication. Docelowo również sam rebuild geometrii powinien być
+   wyprowadzony z read path; jeżeli to większy zakres, minimum tego sprintu to
+   brak GN side effectu podczas profile/map reads.
+2. Rozdzielić `record_territory_areas_delta()` od GN. Sukces podstawowej delty
+   nie może zależeć od GN.
+3. Web po committed territory change tylko enqueue'uje trwały, idempotentny job.
+4. Job identyfikuje canonical territory/publication version i affected IDs.
+5. Wielokrotne rebuildy tej samej wersji muszą się coalesce'ować.
+6. Żaden endpoint mapy, operacji, profilu ani delta polling nie może wykonywać
+   `reconcile_parts_with_territories(apply=True)`.
+
+Gate:
+
+* test śledzący zero GN writes podczas GET map/profile/snapshot,
+* request capture nie czeka na GN projection/fan-out,
+* mapa wraca do budżetu przedregresyjnego.
+
+## Etap 2 — worker-owned GN territory pipeline
+
+1. Rozszerzyć istniejący `chaos-territory-worker`; nie tworzyć kolejnego
+   specjalnego procesu.
+2. Worker claimuje durable GN territory jobs po finalnej publikacji geometrii.
+3. Reconcile ma być inkrementalny:
+
+   * części w bounds zmienionego territory,
+   * części wcześniej przypięte do tego territory,
+   * pełny reconcile tylko jako jawna komenda recovery.
+
+4. Lifecycle, reward i event są jedną logiczną operacją exactly-once.
+5. Delta fan-out następuje po commit i jest retryable bez ponownej nagrody.
+6. Backlog ma bounded batch oraz nie może zagłodzić conflict/rebuild jobs.
+7. Worker raportuje:
+
+   * queue depth,
+   * oldest job age,
+   * claimed/applied/skipped/failed,
+   * lifecycle changes,
+   * recipients i delta writes,
+   * elapsed p50/p95/max.
+
+8. Awaria GN nie zatrzymuje podstawowego territory worker loop; job pozostaje do
+   retry z backoffem.
+
+## Etap 3 — canonical data contract
+
+1. Spisać jedno źródło dla:
+
+   * ownership targetu,
+   * finalnej geometrii pola,
+   * territory publication version,
+   * player GN clan identity,
+   * lifecycle part status.
+
+2. Nie odczytywać `profile.hacked` jako authority; capture authority pozostaje w
+   `territory_target_ownership`/SQLite store, zgodnie z post-130 CAS.
+3. `player_areas` jest materialized geometry read model. GN przyjmuje wyłącznie
+   wersję opublikowaną przez worker po zakończeniu rebuilda.
+4. Usunąć hash timestampu jako wersję. Użyć monotonicznego durable
+   publication/geometry version.
+5. Normalizować clan przez jeden canonical adapter GN; display names nie są
+   kluczami domenowymi.
+6. Nie kopiować bieżącego stanu GN do profilu. Profile history pozostaje
+   projection exactly-once, zgodnie z 130.9.1.
+
+## Etap 4 — lifecycle, delta i SFX
+
+1. Pokryć sekwencje:
+
+   * `public -> contained`,
+   * `contained -> public`,
+   * `public -> active`,
+   * `active -> public`,
+   * wielokrotne legalne oscylacje,
+   * conflict freeze/resolution.
+
+2. Każda rzeczywista tranzycja ma jeden nowy canonical event i jeden stabilny
+   dedupe key. Retry tej samej tranzycji nie tworzy drugiego eventu.
+3. Wynik worker reconcile niesie event do publication pipeline; nie skanujemy
+   historii w poszukiwaniu „ostatniego” eventu.
+4. Viewer projection wiąże hidden part przez publiczny, deterministyczny ID bez
+   ujawnienia internal `part_id` lub exact coordinates.
+5. Transport continuity należy do per-user delta bus. Globalny domain version
+   może mieć luki po visibility filtering i nie wymusza recovery.
+6. Snapshot/recovery nie odtwarza SFX. Wyłącznie zaakceptowana nowa live delta
+   uruchamia audio.
+7. Event bez bezpiecznej projekcji nie trafia do klienta. `internal/system`
+   pozostają niewidoczne.
+
+## Etap 5 — stabilny renderer
+
+1. Snapshot jest autorytatywny, ale nie czyści ostatniej dobrej warstwy po
+   timeout/abort/5xx/niepełnym payloadzie.
+2. Delta aktualizuje marker po stabilnym `public_entity_id`; zmiana visibility
+   nie może tworzyć drugiej tożsamości markera.
+3. `territory_only` może korzystać wyłącznie z już widocznego polygonu i nie
+   ujawnia exact part position.
+4. Pending badge ma bounded registry i jest czyszczony po usunięciu części,
+   zmianie cyklu oraz zamknięciu mapy.
+5. Brak CSS/assetu daje widoczny lekki fallback, ale nie wpływa na lifecycle.
+6. Nie dodawać nowego pollera ani timera per marker.
+
+## Etap 6 — procedury workera po wdrożeniu
+
+Worker ecosystem musi zachować jeden proces `fork`, interpreter `.venv`, cwd,
+`PYTHONUNBUFFERED=1` oraz te same flagi GN co web. `TEST_MODE` pozostaje false.
+
+Po deployu obowiązuje kolejność:
+
+1. restart weba z wersjonowanego ecosystemu,
+2. restart workera z `ecosystem.territory-worker.config.js`,
+3. potwierdzenie dokładnie jednego workera i braku restart loop,
+4. `status` oraz `verify`,
+5. osobny read-only `territory-reconcile` dry-run pokazujący plan zmian części,
+6. jawne enqueue/apply recovery tylko jeżeli dry-run wykrywa drift,
+7. oczekiwanie na pusty GN territory queue i zero failed jobs,
+8. ponowne `verify` oraz pomiar endpointów mapy.
+
+Istniejącego `reconcile` nie wolno opisywać jako territory reconcile. CLI musi
+otrzymać rozłączne nazwy, np.:
+
+* `capture-reconcile`,
+* `reward-history-reconcile`,
+* `territory-reconcile --dry-run|--enqueue`,
+* `drain` dla już zapisanych durable jobs/effects.
+
+Startup workera nie może wykonywać nieograniczonego globalnego apply przed
+rozpoczęciem pętli. Recovery jest jawne, mierzone i bounded.
+
+## Budżety wydajności i testy
+
+Budżety należy potwierdzić na kopii danych zbliżonej do serwera, a nie tylko na
+pustej bazie testowej:
+
+* otwarcie mapy: wraca do `<=12 s` w scenariuszu dotychczas mieszczącym się w
+  `4–12 s`,
+* `/api/state/changes`: p95 `<1 s`, bez seryjnych abortów,
+* active operations i player actors: p95 `<3 s` przy otwartej mapie,
+* GN snapshot: p95 `<2 s` dla 20 części,
+* web request wykonuje zero full GN reconcile,
+* jeden GN event wykonuje maksymalnie jeden internal snapshot read,
+* public/clan fan-out jest poza requestem i ma bounded batch,
+* brak `WORKER TIMEOUT` w teście obciążeniowym,
+* brak wzrostu SQLite lock/busy względem baseline.
+
+Automatyczna regresja obejmuje:
+
+* wszystkie `test_ghostnetwork_*.py`,
+* Target Registry i `test_target_persistence`,
+* `/gonna-win`, receipts i capture CAS,
+* territory conflict/rebuild/reconciliation,
+* delta/snapshot/recovery,
+* operations/player actors/map boot,
+* rewards/profile history exactly-once,
+* SFX live/dedupe/no recovery playback,
+* worker restart/crash/backlog retry,
+* query-count i timing harness,
+* `py_compile`, `node --check`, `git diff --check`.
+
+## Etapy manualne
+
+### Manual A — stabilność i szybkość bez wymuszania dropu
+
+Tester wykonuje kilka razy:
+
+```text
+login -> desktop -> map -> operations -> close -> reopen map
+```
+
+Raport zawiera czasy, console, Network waterfall i PM2/Gunicorn timing. Brak
+części nie blokuje tego etapu; najpierw podstawowa mapa musi być stabilna.
+
+Gate:
+
+`READY FOR MANUAL PERFORMANCE TEST — Sprint 130.9.2.fix.all.1`
+
+### Manual B — lifecycle istniejących części
+
+Bez resetu cyklu tester zmienia geometrię tak, aby potwierdzić:
+
+```text
+public -> contained -> public -> contained
+public/contained -> active -> public
+```
+
+Dla każdej tranzycji zapisuje marker, popup state/relation, event delta i SFX.
+Nie wymagamy nowego naturalnego dropu.
+
+Gate:
+
+`READY FOR MANUAL GN LIFECYCLE TEST — Sprint 130.9.2.fix.all.1`
+
+## Definition of Done
+
+Sprint może otrzymać GO tylko wtedy, gdy:
+
+* map/profile/operations read paths nie mutują GN,
+* web nie wykonuje globalnego GN territory reconcile ani fan-outu,
+* worker jest jedynym właścicielem GN territory integration writes,
+* istnieje durable, bounded i obserwowalna kolejka,
+* CLI rozróżnia capture/reward/territory reconcile,
+* mapa wróciła do uzgodnionego budżetu,
+* lifecycle oscyluje poprawnie exactly-once,
+* public i ukryte części są stabilne po snapshot/delta/reload,
+* live zmiana odtwarza dokładnie jeden SFX,
+* recovery nie odtwarza SFX,
+* pozostałe operacje mapy nie są zagładzane,
+* pełna regresja i oba manuale przeszły.
+
+Końcowy werdykt:
+
+`GO — Sprint 130.9.2.fix.all.1 restored GhostNetwork stability and map performance`
+
+albo:
+
+`NO-GO — Sprint 130.9.2.fix.all.1 still has runtime or performance blockers`
+
+Do GO nie wystarcza zielony unit test na małej bazie. Wymagane są pomiary na
+serwerowym kształcie danych i manual gameplay.
+
+---
+
 # Kolejność realizacji
 
 Realizuj kolejno:
 
-1. Sprint 130.9.2 — GhostNetwork SFX.
-2. Sprint 130.9.3 — GhostNetwork Territory Visual States.
-3. Sprint 130.9.4 — GhostNetwork Part Visual Upgrade.
+1. Sprint 130.9.2.fix.all.1 — Stability and Performance Recovery.
+2. Domknięcie Sprintu 130.9.2 — GhostNetwork SFX dopiero po GO fixa.
+3. Sprint 130.9.3 — GhostNetwork Territory Visual States.
+4. Sprint 130.9.4 — GhostNetwork Part Visual Upgrade.
+
+Do czasu GO `130.9.2.fix.all.1` sprinty 130.9.3–130.9.4 są formalnie
+wstrzymane, a 130.9.2 pozostaje ponownie otwarty jako blocker runtime.
 
 Nie twórz własnych nowych subsystemów, jeżeli CHAOS posiada już odpowiedni mechanizm.
 

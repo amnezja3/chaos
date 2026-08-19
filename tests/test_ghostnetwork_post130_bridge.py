@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 
 import run
+from database import GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore
 from ghostnetwork import GhostCycleService, GhostDropPolicy, GhostNetworkRepository, GhostNetworkService
 
 
@@ -17,6 +18,8 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
             repository=self.repo,
             drop_policy=GhostDropPolicy(enabled=True, chance=1.0),
         )
+        self.job_store = GhostNetworkTerritoryJobStore(db_path=self.db_path)
+        self.delivery_store = GhostNetworkDeltaDeliveryJobStore(db_path=self.db_path)
         self.player = {"player_id": "alice", "username": "alice", "clan_code": "virex"}
         self.target = {
             "target_id": "map:52.1:21.1:bridge", "lat": 52.1, "lng": 21.1,
@@ -50,15 +53,20 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
             "part-owner": {"username": "part-owner", "clan": self.part["clan_code"]},
         }
         with patch.object(run, "GhostNetworkService", return_value=self.service), \
+                patch.object(run, "ghostnetwork_territory_job_store", self.job_store), \
+                patch.object(run, "ghostnetwork_delta_delivery_job_store", self.delivery_store), \
                 patch.object(run.territory_delta_publisher, "record_areas_updated", return_value=[]), \
                 patch.object(run.territory_store, "list_player_areas", side_effect=lambda *_: list(areas)), \
+                patch.object(run.user_store, "list_profiles", side_effect=lambda: list(profiles.values())), \
                 patch.object(run.user_store, "get_profile", side_effect=lambda username: profiles.get(username, {})), \
                 patch.object(run.user_store, "save_profile"):
             run.record_territory_areas_delta("foreign-owner", areas, reason="post130_publication")
+            run.process_ghostnetwork_territory_job("test-worker")
             self.assertEqual(self.repo.get_part(self.part["part_id"])["status"], "contained")
 
             areas[:] = [self.area("part-owner", 2)]
             run.record_territory_areas_delta("part-owner", areas, reason="post130_owner_changed")
+            run.process_ghostnetwork_territory_job("test-worker")
             self.assertEqual(self.repo.get_part(self.part["part_id"])["status"], "active")
             progress = self.service.modules.resolve_machine_progress(
                 self.repo.get_active_cycle()["cycle_id"], self.part["machine_code"]
@@ -67,6 +75,7 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
 
             areas[:] = []
             run.record_territory_areas_delta("part-owner", areas, reason="post130_release")
+            run.process_ghostnetwork_territory_job("test-worker")
             released = self.repo.get_part(self.part["part_id"])
             self.assertEqual(released["status"], "public")
             self.assertEqual(released["territory_id"], "")
@@ -77,24 +86,37 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
             "foreign-owner": {"username": "foreign-owner", "clan": "sentinel_order"},
         }
         with patch.object(run, "GhostNetworkService", return_value=self.service), \
+                patch.object(run, "ghostnetwork_territory_job_store", self.job_store), \
+                patch.object(run, "ghostnetwork_delta_delivery_job_store", self.delivery_store), \
                 patch.object(run.territory_delta_publisher, "record_areas_updated", return_value=[]), \
                 patch.object(run.territory_store, "list_player_areas", return_value=areas), \
+                patch.object(run.user_store, "list_profiles", side_effect=lambda: list(profiles.values())), \
                 patch.object(run.user_store, "get_profile", side_effect=lambda username: profiles.get(username, {})), \
-                patch.object(run.user_store, "save_profile"), \
-                patch.object(run, "publish_ghostnetwork_event_delta", return_value=[]) as publish:
+                patch.object(run.user_store, "save_profile"):
             run.record_territory_areas_delta(
                 "foreign-owner",
                 areas,
                 reason="post130_live_containment",
             )
+            run.process_ghostnetwork_territory_job("test-worker")
 
-        event_types = [call.args[0]["event_type"] for call in publish.call_args_list]
+        event_types = []
+        while True:
+            claim = self.delivery_store.claim("test-delivery-worker")
+            if not claim:
+                break
+            event_types.append(claim["event"].get("event_type"))
+            self.delivery_store.advance(
+                claim["job_id"], "test-delivery-worker", len(claim["viewers"]), 0,
+                len(claim["viewers"]), complete=True,
+            )
         self.assertIn("ghost.part_contained", event_types)
 
     def test_canonical_ghost_clan_profile_is_included_in_territory_publication(self):
         areas = [self.area("foreign-owner", 1)]
         profile = {"ghost_clan_code": "sentinel_order"}
         with patch.object(run.territory_store, "list_player_areas", return_value=areas), \
+                patch.object(run.user_store, "list_profiles", return_value=[{"username": "foreign-owner", **profile}]), \
                 patch.object(run.user_store, "get_profile", return_value=profile):
             publication = run.build_ghostnetwork_territory_publication()
 
@@ -115,21 +137,27 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
         }
         latest = {"value": active_snapshot}
         with patch.object(run, "GhostNetworkService", return_value=self.service), \
+                patch.object(run, "ghostnetwork_territory_job_store", self.job_store), \
+                patch.object(run, "ghostnetwork_delta_delivery_job_store", self.delivery_store), \
                 patch.object(run.territory_delta_publisher, "record_areas_updated", return_value=[]), \
                 patch.object(run.territory_delta_publisher, "record_conflict_changed", return_value=[]), \
                 patch.object(run.territory_conflict_store, "latest_snapshot_state", side_effect=lambda *_: latest["value"]), \
                 patch.object(run.territory_store, "list_player_areas", side_effect=lambda *_: list(areas)), \
+                patch.object(run.user_store, "list_profiles", side_effect=lambda: list(profiles.values())), \
                 patch.object(run.user_store, "get_profile", side_effect=lambda username: profiles.get(username, {})), \
                 patch.object(run.user_store, "save_profile"):
             run.record_territory_areas_delta("part-owner", areas, reason="post130_stable")
+            run.process_ghostnetwork_territory_job("test-worker")
             self.assertEqual(self.repo.get_part(self.part["part_id"])["status"], "active")
 
             run.record_territory_conflict_delta(active_snapshot["conflict"], reason="post130_conflict_started")
+            run.process_ghostnetwork_territory_job("test-worker")
             contested = self.repo.get_part(self.part["part_id"])
             self.assertEqual(contested["conflict_state"], "contested")
 
             latest["value"] = resolved_snapshot
             run.record_territory_conflict_delta(resolved_snapshot["conflict"], reason="post130_conflict_resolved")
+            run.process_ghostnetwork_territory_job("test-worker")
             resolved = self.repo.get_part(self.part["part_id"])
             self.assertEqual(resolved["conflict_state"], "none")
             self.assertEqual(resolved["status"], "active")

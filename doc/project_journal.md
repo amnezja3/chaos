@@ -1,5 +1,80 @@
 # CHAOS — Project Journal
 
+## 2026-08-19 - Start implementacji Sprintu 130.9.2.fix.all.1
+
+- Odłączono globalny GN territory reconcile, reward/endgame i fan-out od
+  synchronicznych ścieżek publikacji webowej.
+- Dodano durable `ghostnetwork_territory_jobs` z idempotentnym kluczem źródła,
+  lease, retry limit oraz terminalnym `failed`; konsumentem jest istniejący
+  `chaos-territory-worker`.
+- Conflict job nie przenosi kopii geometrii: worker ponownie pobiera kanoniczny
+  snapshot po `conflict_id` i dopiero wtedy uruchamia bridge.
+- `sync_session_profile` domyślnie nie przebudowuje już terytoriów. Jawne mutacje
+  nadal używają `rebuild_player_areas_with_territory_delta`.
+- Zbiorczy odczyt profili zastąpił N połączeń SQLite w publikacji territory GN.
+- Operator `status/verify/reconcile/drain` pokazuje teraz liczność kolejki;
+  `verify` zgłasza blocker dla terminalnych jobów `failed`.
+- Regresja lokalna: GhostNetwork 161/161, territory 121/121, pakiet granicy
+  worker/request i boot/delta 24/24 oraz `test_target_persistence` 221/221 —
+  wszystko OK. Sprint pozostaje IN PROGRESS
+  do pomiarów serwerowych i kontrolowanego drainu; bez deployu i bez commita.
+
+## 2026-08-19 - Stability Recovery: bounded worker i canonical publication
+
+- Dodano retry backoff, limit pięciu prób i terminalny `failed`; diagnostyka
+  kolejki zawiera depth, oldest age oraz processing p50/p95/max.
+- Scheduler territory workera naprzemiennie obsługuje GN i conflict candidates,
+  dzięki czemu nawet długi backlog GN nie blokuje konfliktów.
+- Geometria ma teraz monotoniczną publication version per owner. Identyczny
+  rebuild zachowuje rekordy/ID i nie powoduje SQLite churn ani fałszywego joba.
+- Encirclement zapisuje tylko realną zmianę statusu i podbija wersję dokładnie
+  raz; profile ownerów/intruderów w player-areas są czytane zbiorczo zamiast N+1.
+- Read-path test potwierdza brak territory rebuild i GN bridge w domyślnym
+  profile sync oraz snapshot endpoint; rozszerzono timing krytycznych endpointów.
+- Rozdzielono komendy operatorskie na `capture-reconcile`,
+  `reward-history-reconcile` i `territory-reconcile`.
+- Regresja: GhostNetwork 168/168, territory 123/123, target persistence 221/221.
+  Bez commita i bez deployu; nadal potrzebny serwerowy baseline/p95.
+
+## 2026-08-19 - P1 DONE lokalnie: durable GN delta delivery
+
+- Territory lifecycle nie publikuje już synchronicznie delty do wszystkich
+  kont. Zapisuje idempotentny delivery job konsumowany przez istniejącego
+  territory workera; nie powstał osobny worker ani fan-out SFX.
+- Delivery ma bounded cursor batch, lease, backoff, limit prób i per-user
+  dedupe. Retry nie ponawia lifecycle ani reward.
+- Jeden event przechowuje server-side snapshot i wykorzystuje go we wszystkich
+  batchach, więc wykonuje maksymalnie jeden internal snapshot read.
+- Scheduler zapewnia fairness delivery/territory/conflict. Status i verify
+  pokazują delivery backlog oraz failed jobs.
+- Startup nie skanuje historii eventów: odzyskuje tylko pending delivery jobs,
+  dlatego snapshot/recovery nie odtwarza historycznych SFX.
+- Końcowa regresja P1: GhostNetwork 171/171, territory 124/124 oraz target
+  persistence 221/221 — OK. P0 i P1 są DONE lokalnie; pozostaje serwerowe p95.
+
+## 2026-08-19 - Otwarcie Sprintu 130.9.2.fix.all.1
+
+- Manual serwerowy wykazał krytyczną regresję: mapa otwiera się kilka minut
+  zamiast 4–12 sekund, player actors/operations/delta feed timeoutują, a części
+  i SFX nie odtwarzają stabilnie lifecycle.
+- Audyt całego 130.9* wykazał, że zwykły `sync_session_profile` i webowe rebuildy
+  terytoriów uruchamiają synchroniczny globalny GN reconcile z `apply=True`,
+  reward/endgame oraz fan-out delta. Read path wykonuje więc domenowe zapisy.
+- Web i territory worker mogą równocześnie wykonywać GN/territory writes w tym
+  samym SQLite. Worker nie jest pojedynczym właścicielem integracji i nie ma
+  durable GN territory queue ani backlog telemetry.
+- Operatorskie `ghostnetwork_runtime reconcile` obejmuje capture outbox i reward
+  history, ale nie uzgadnia części z terytoriami. Po deployu brak jawnej procedury
+  startup/recovery dla już istniejących części.
+- `build_ghostnetwork_territory_publication` wykonuje globalny skan derived
+  `player_areas`, dołącza clan z profile JSON i tworzy wersję przez hash czasu,
+  zamiast konsumować finalny worker-owned publication receipt/version.
+- W `game_play_180726.md` dodano pełny artefakt sprintu z P0/P1 findings,
+  docelową granicą web/worker, etapami naprawy, budżetami p95, testami,
+  procedurą deploy/recovery i dwiema bramkami manualnymi.
+- 130.9.3–130.9.4 są wstrzymane. Nie wdrażamy kolejnych presentation patches
+  przed odzyskaniem stabilności i wydajności podstawowej mapy.
+
 ## 2026-08-19 - Audyt stabilnosci Sprintu 130.9.2 po manualnym gameplayu
 
 - Manual ujawnil niestabilne przejscia markerow `public/contained`, brak live

@@ -433,6 +433,16 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS territory_area_publications (
+                owner_username TEXT PRIMARY KEY,
+                publication_version INTEGER NOT NULL DEFAULT 0,
+                geometry_hash TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS area_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 area_id INTEGER,
@@ -773,6 +783,8 @@ def init_db(db_path=DB_PATH):
                 lease_owner TEXT NOT NULL DEFAULT '',
                 lease_until REAL NOT NULL DEFAULT 0,
                 attempts INTEGER NOT NULL DEFAULT 0,
+                next_attempt_at REAL NOT NULL DEFAULT 0,
+                processing_ms INTEGER NOT NULL DEFAULT 0,
                 error TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
@@ -832,6 +844,83 @@ def init_db(db_path=DB_PATH):
             "CREATE INDEX IF NOT EXISTS idx_territory_rebuild_jobs_status "
             "ON territory_rebuild_jobs(status, lease_until, updated_at)"
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ghostnetwork_territory_jobs (
+                job_id TEXT PRIMARY KEY,
+                job_kind TEXT NOT NULL,
+                reference_id TEXT NOT NULL,
+                source_version TEXT NOT NULL,
+                reason TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'pending',
+                lease_owner TEXT NOT NULL DEFAULT '',
+                lease_until REAL NOT NULL DEFAULT 0,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                error TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                finished_at TEXT
+            )
+            """
+        )
+        ghost_job_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(ghostnetwork_territory_jobs)").fetchall()
+        }
+        if "next_attempt_at" not in ghost_job_columns:
+            conn.execute(
+                "ALTER TABLE ghostnetwork_territory_jobs "
+                "ADD COLUMN next_attempt_at REAL NOT NULL DEFAULT 0"
+            )
+        if "processing_ms" not in ghost_job_columns:
+            conn.execute(
+                "ALTER TABLE ghostnetwork_territory_jobs "
+                "ADD COLUMN processing_ms INTEGER NOT NULL DEFAULT 0"
+            )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ghostnetwork_territory_jobs_ready "
+            "ON ghostnetwork_territory_jobs(status, next_attempt_at, lease_until, created_at)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ghostnetwork_delta_delivery_jobs (
+                job_id TEXT PRIMARY KEY,
+                event_id TEXT NOT NULL UNIQUE,
+                cycle_id TEXT NOT NULL,
+                event_json TEXT NOT NULL,
+                viewers_json TEXT NOT NULL DEFAULT '[]',
+                snapshot_json TEXT NOT NULL DEFAULT '{}',
+                next_index INTEGER NOT NULL DEFAULT 0,
+                published_count INTEGER NOT NULL DEFAULT 0,
+                skipped_count INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'pending',
+                lease_owner TEXT NOT NULL DEFAULT '',
+                lease_until REAL NOT NULL DEFAULT 0,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                next_attempt_at REAL NOT NULL DEFAULT 0,
+                processing_ms INTEGER NOT NULL DEFAULT 0,
+                error TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                finished_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ghostnetwork_delta_delivery_ready "
+            "ON ghostnetwork_delta_delivery_jobs(status, next_attempt_at, lease_until, created_at)"
+        )
+        ghost_delivery_columns = {
+            row["name"]
+            for row in conn.execute(
+                "PRAGMA table_info(ghostnetwork_delta_delivery_jobs)"
+            ).fetchall()
+        }
+        if "snapshot_json" not in ghost_delivery_columns:
+            conn.execute(
+                "ALTER TABLE ghostnetwork_delta_delivery_jobs "
+                "ADD COLUMN snapshot_json TEXT NOT NULL DEFAULT '{}'"
+            )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS territory_reconciliation_snapshot_gates (
@@ -1708,6 +1797,310 @@ class DevBugReportStore:
             return self._row_to_report(row) if row else None
 
 
+class GhostNetworkTerritoryJobStore:
+    """Durable handoff from territory publication to the single GN worker."""
+
+    VALID_KINDS = {"areas", "conflict"}
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    def enqueue(self, job_kind, reference_id, source_version, reason=""):
+        kind = str(job_kind or "").strip().lower()
+        reference = str(reference_id or "").strip()
+        version = str(source_version or "").strip()
+        if kind not in self.VALID_KINDS:
+            raise ValueError(f"unsupported GhostNetwork territory job kind: {kind}")
+        if not reference or not version:
+            raise ValueError("GhostNetwork territory job requires reference_id and source_version")
+        seed = f"{kind}|{reference}|{version}"
+        job_id = "ghost-territory-" + hashlib.sha1(seed.encode("utf-8")).hexdigest()[:24]
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO ghostnetwork_territory_jobs
+                    (job_id, job_kind, reference_id, source_version, reason,
+                     status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+                ON CONFLICT(job_id) DO NOTHING
+                """,
+                (job_id, kind, reference, version, str(reason or ""), now, now),
+            )
+        return {"job_id": job_id, "enqueued": cursor.rowcount == 1}
+
+    def claim(self, lease_owner, lease_seconds=300):
+        now_ts = time.time()
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """
+                SELECT * FROM ghostnetwork_territory_jobs
+                WHERE (status = 'pending' AND attempts < 5 AND next_attempt_at <= ?)
+                   OR (status = 'processing' AND lease_until < ? AND attempts < 5)
+                ORDER BY created_at, job_id LIMIT 1
+                """,
+                (now_ts, now_ts),
+            ).fetchone()
+            if not row:
+                return None
+            cursor = conn.execute(
+                """
+                UPDATE ghostnetwork_territory_jobs
+                SET status = 'processing', lease_owner = ?, lease_until = ?,
+                    attempts = attempts + 1, updated_at = ?
+                WHERE job_id = ? AND (status = 'pending' OR lease_until < ?)
+                """,
+                (str(lease_owner), now_ts + float(lease_seconds), now, row["job_id"], now_ts),
+            )
+            if cursor.rowcount != 1:
+                return None
+            claimed = conn.execute(
+                "SELECT * FROM ghostnetwork_territory_jobs WHERE job_id = ?", (row["job_id"],)
+            ).fetchone()
+            return dict(claimed)
+
+    def finish(self, job_id, lease_owner, ok=True, error="", processing_ms=0):
+        now = utc_now()
+        try:
+            processing_ms = max(0, int(processing_ms or 0))
+        except (TypeError, ValueError):
+            processing_ms = 0
+        with db_connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ghostnetwork_territory_jobs
+                SET status = CASE WHEN ? = 1 THEN 'complete'
+                                  WHEN attempts >= 5 THEN 'failed'
+                                  ELSE 'pending' END,
+                    error = ?, lease_owner = '', lease_until = 0,
+                    next_attempt_at = CASE WHEN ? = 1 THEN 0
+                                           ELSE ? + MIN(60, (1 << MIN(attempts, 5))) END,
+                    processing_ms = ?, updated_at = ?, finished_at = ?
+                WHERE job_id = ? AND lease_owner = ? AND status = 'processing'
+                """,
+                (1 if ok else 0, str(error or '')[:1000], 1 if ok else 0,
+                 time.time(), processing_ms, now, now if ok else None,
+                 str(job_id), str(lease_owner)),
+            )
+            return cursor.rowcount == 1
+
+    def status_counts(self):
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT status, COUNT(*) AS count FROM ghostnetwork_territory_jobs GROUP BY status"
+            ).fetchall()
+        return {str(row["status"]): int(row["count"] or 0) for row in rows}
+
+    def diagnostics(self):
+        now_ts = time.time()
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT status, attempts, created_at, processing_ms "
+                "FROM ghostnetwork_territory_jobs ORDER BY created_at"
+            ).fetchall()
+        counts = {}
+        processing = []
+        oldest_pending_age = 0
+        for row in rows:
+            status = str(row["status"] or "")
+            counts[status] = counts.get(status, 0) + 1
+            if status in {"pending", "processing"}:
+                try:
+                    created_ts = datetime.fromisoformat(str(row["created_at"])).timestamp()
+                    oldest_pending_age = max(oldest_pending_age, int(now_ts - created_ts))
+                except (TypeError, ValueError):
+                    pass
+            if status == "complete" and int(row["processing_ms"] or 0) >= 0:
+                processing.append(int(row["processing_ms"] or 0))
+        processing.sort()
+
+        def percentile(values, fraction):
+            if not values:
+                return 0
+            return values[min(len(values) - 1, max(0, math.ceil(len(values) * fraction) - 1))]
+
+        return {
+            "counts": counts,
+            "depth": int(counts.get("pending", 0) + counts.get("processing", 0)),
+            "oldest_pending_age_seconds": oldest_pending_age,
+            "processing_ms": {
+                "samples": len(processing),
+                "p50": percentile(processing, 0.50),
+                "p95": percentile(processing, 0.95),
+                "max": max(processing) if processing else 0,
+            },
+        }
+
+
+class GhostNetworkDeltaDeliveryJobStore:
+    """Durable, cursor-based fan-out for canonical GhostNetwork events."""
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    def enqueue(self, event, viewers):
+        event = event if isinstance(event, dict) else {}
+        event_id = str(event.get("event_id") or "").strip()
+        cycle_id = str(event.get("cycle_id") or "").strip()
+        if not event_id or not cycle_id:
+            raise ValueError("GhostNetwork delivery requires event_id and cycle_id")
+        safe_viewers = [dict(item) for item in (viewers or []) if isinstance(item, dict)]
+        job_id = "ghost-delta-" + hashlib.sha1(event_id.encode("utf-8")).hexdigest()[:24]
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO ghostnetwork_delta_delivery_jobs
+                    (job_id, event_id, cycle_id, event_json, viewers_json,
+                     status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+                ON CONFLICT(event_id) DO NOTHING
+                """,
+                (job_id, event_id, cycle_id, dumps_json(event), dumps_json(safe_viewers), now, now),
+            )
+        return {"job_id": job_id, "event_id": event_id, "enqueued": cursor.rowcount == 1,
+                "recipients": len(safe_viewers)}
+
+    def claim(self, lease_owner, lease_seconds=300):
+        now_ts = time.time()
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """
+                SELECT * FROM ghostnetwork_delta_delivery_jobs
+                WHERE (status = 'pending' AND attempts < 5 AND next_attempt_at <= ?)
+                   OR (status = 'processing' AND lease_until < ? AND attempts < 5)
+                ORDER BY created_at, job_id LIMIT 1
+                """,
+                (now_ts, now_ts),
+            ).fetchone()
+            if not row:
+                return None
+            cursor = conn.execute(
+                """
+                UPDATE ghostnetwork_delta_delivery_jobs
+                SET status = 'processing', lease_owner = ?, lease_until = ?,
+                    attempts = attempts + 1, updated_at = ?
+                WHERE job_id = ? AND (status = 'pending' OR lease_until < ?)
+                """,
+                (str(lease_owner), now_ts + float(lease_seconds), now, row["job_id"], now_ts),
+            )
+            if cursor.rowcount != 1:
+                return None
+            claimed = conn.execute(
+                "SELECT * FROM ghostnetwork_delta_delivery_jobs WHERE job_id = ?",
+                (row["job_id"],),
+            ).fetchone()
+        return {
+            **dict(claimed),
+            "event": loads_json(claimed["event_json"], {}),
+            "viewers": loads_json(claimed["viewers_json"], []),
+            "snapshot": loads_json(claimed["snapshot_json"], {}),
+        }
+
+    def store_snapshot(self, job_id, lease_owner, snapshot):
+        with db_connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ghostnetwork_delta_delivery_jobs
+                SET snapshot_json = ?, updated_at = ?
+                WHERE job_id = ? AND lease_owner = ? AND status = 'processing'
+                  AND snapshot_json = '{}'
+                """,
+                (dumps_json(snapshot if isinstance(snapshot, dict) else {}), utc_now(),
+                 str(job_id), str(lease_owner)),
+            )
+        return cursor.rowcount == 1
+
+    def advance(self, job_id, lease_owner, next_index, published, skipped,
+                processing_ms=0, complete=False):
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ghostnetwork_delta_delivery_jobs
+                SET next_index = ?, published_count = published_count + ?,
+                    skipped_count = skipped_count + ?, processing_ms = processing_ms + ?,
+                    status = ?, lease_owner = '', lease_until = 0, attempts = 0,
+                    next_attempt_at = 0, error = '', updated_at = ?, finished_at = ?
+                WHERE job_id = ? AND lease_owner = ? AND status = 'processing'
+                """,
+                (int(next_index), int(published), int(skipped), max(0, int(processing_ms or 0)),
+                 'complete' if complete else 'pending', now, now if complete else None,
+                 str(job_id), str(lease_owner)),
+            )
+        return cursor.rowcount == 1
+
+    def fail(self, job_id, lease_owner, error="", processing_ms=0):
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ghostnetwork_delta_delivery_jobs
+                SET status = CASE WHEN attempts >= 5 THEN 'failed' ELSE 'pending' END,
+                    error = ?, lease_owner = '', lease_until = 0,
+                    next_attempt_at = ? + MIN(60, (1 << MIN(attempts, 5))),
+                    processing_ms = processing_ms + ?, updated_at = ?
+                WHERE job_id = ? AND lease_owner = ? AND status = 'processing'
+                """,
+                (str(error or '')[:1000], time.time(), max(0, int(processing_ms or 0)),
+                 now, str(job_id), str(lease_owner)),
+            )
+        return cursor.rowcount == 1
+
+    def has_event(self, event_id):
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM ghostnetwork_delta_delivery_jobs WHERE event_id = ?",
+                (str(event_id or ""),),
+            ).fetchone()
+        return bool(row)
+
+    def diagnostics(self):
+        now_ts = time.time()
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT status, created_at, processing_ms, published_count, skipped_count "
+                "FROM ghostnetwork_delta_delivery_jobs ORDER BY created_at"
+            ).fetchall()
+        counts = {}
+        processing = []
+        oldest = 0
+        published = 0
+        skipped = 0
+        for row in rows:
+            status = str(row["status"] or "")
+            counts[status] = counts.get(status, 0) + 1
+            published += int(row["published_count"] or 0)
+            skipped += int(row["skipped_count"] or 0)
+            if status in {"pending", "processing"}:
+                try:
+                    oldest = max(oldest, int(now_ts - datetime.fromisoformat(row["created_at"]).timestamp()))
+                except (TypeError, ValueError):
+                    pass
+            if status == "complete":
+                processing.append(int(row["processing_ms"] or 0))
+        processing.sort()
+        p95_index = max(0, math.ceil(len(processing) * 0.95) - 1) if processing else 0
+        return {
+            "counts": counts,
+            "depth": int(counts.get("pending", 0) + counts.get("processing", 0)),
+            "oldest_pending_age_seconds": oldest,
+            "published": published,
+            "skipped": skipped,
+            "processing_ms": {
+                "samples": len(processing),
+                "p95": processing[p95_index] if processing else 0,
+                "max": max(processing) if processing else 0,
+            },
+        }
+
+
 class TerritoryStore:
     BASE_AREA_EDGE_METERS = 300
     MIN_TRIANGLE_AREA_SQM = 1
@@ -2257,7 +2650,31 @@ class TerritoryStore:
 
     def replace_player_areas(self, username, areas):
         now = utc_now()
+        material = [
+            {
+                "vertices": area.get("vertices") or [],
+                "centroid_lat": area.get("centroid_lat"),
+                "centroid_lng": area.get("centroid_lng"),
+                "area_size": float(area.get("area_size") or 0),
+                "max_edge_distance": float(area.get("max_edge_distance") or 0),
+            }
+            for area in (areas or []) if isinstance(area, dict)
+        ]
+        geometry_hash = hashlib.sha1(
+            dumps_json(material).encode("utf-8")
+        ).hexdigest()
         with db_connect(self.db_path) as conn:
+            publication = conn.execute(
+                "SELECT * FROM territory_area_publications WHERE owner_username = ?",
+                (username,),
+            ).fetchone()
+            if publication and str(publication["geometry_hash"] or "") == geometry_hash:
+                return {
+                    "changed": False,
+                    "publication_version": int(publication["publication_version"] or 0),
+                    "geometry_hash": geometry_hash,
+                }
+            next_version = int(publication["publication_version"] or 0) + 1 if publication else 1
             conn.execute("DELETE FROM player_areas WHERE owner_username = ?", (username,))
             for area in areas:
                 conn.execute(
@@ -2279,14 +2696,44 @@ class TerritoryStore:
                         now,
                     ),
                 )
+            conn.execute(
+                """
+                INSERT INTO territory_area_publications
+                    (owner_username, publication_version, geometry_hash, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(owner_username) DO UPDATE SET
+                    publication_version = excluded.publication_version,
+                    geometry_hash = excluded.geometry_hash,
+                    updated_at = excluded.updated_at
+                """,
+                (username, next_version, geometry_hash, now),
+            )
+            return {
+                "changed": True,
+                "publication_version": next_version,
+                "geometry_hash": geometry_hash,
+            }
+
+    def get_area_publication(self, username):
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM territory_area_publications WHERE owner_username = ?",
+                (username,),
+            ).fetchone()
+        return dict(row) if row else None
 
     def list_player_areas(self, username=None):
-        query = "SELECT * FROM player_areas"
+        query = (
+            "SELECT player_areas.*, "
+            "COALESCE(territory_area_publications.publication_version, 0) AS publication_version "
+            "FROM player_areas LEFT JOIN territory_area_publications "
+            "ON territory_area_publications.owner_username = player_areas.owner_username"
+        )
         params = []
         if username:
-            query += " WHERE owner_username = ?"
+            query += " WHERE player_areas.owner_username = ?"
             params.append(username)
-        query += " ORDER BY owner_username, id"
+        query += " ORDER BY player_areas.owner_username, player_areas.id"
         with db_connect(self.db_path) as conn:
             rows = conn.execute(query, params).fetchall()
             return [
@@ -2301,6 +2748,7 @@ class TerritoryStore:
                     "status": row["status"],
                     "created_at": row["created_at"],
                     "updated_at": row["updated_at"],
+                    "publication_version": int(row["publication_version"] or 0),
                 }
                 for row in rows
             ]
@@ -2400,6 +2848,7 @@ class TerritoryStore:
     def refresh_encirclement_statuses(self):
         areas = self.list_player_areas()
         statuses = {area["id"]: "active" for area in areas}
+        owners_by_id = {area["id"]: area["owner_username"] for area in areas}
 
         for smaller in areas:
             for larger in areas:
@@ -2418,14 +2867,31 @@ class TerritoryStore:
 
         now = utc_now()
         with db_connect(self.db_path) as conn:
+            changed_owners = set()
             for area_id, status in statuses.items():
-                conn.execute(
+                cursor = conn.execute(
                     """
                     UPDATE player_areas
                     SET status = ?, updated_at = ?
-                    WHERE id = ?
+                    WHERE id = ? AND status != ?
                     """,
-                    (status, now, area_id),
+                    (status, now, area_id, status),
+                )
+                if cursor.rowcount:
+                    owner = owners_by_id.get(area_id, "")
+                    if owner:
+                        changed_owners.add(owner)
+            for owner in changed_owners:
+                conn.execute(
+                    """
+                    INSERT INTO territory_area_publications
+                        (owner_username, publication_version, geometry_hash, updated_at)
+                    VALUES (?, 1, '', ?)
+                    ON CONFLICT(owner_username) DO UPDATE SET
+                        publication_version = publication_version + 1,
+                        updated_at = excluded.updated_at
+                    """,
+                    (owner, now),
                 )
         return statuses
 

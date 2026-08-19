@@ -1,6 +1,7 @@
 """Operator CLI for GhostNetwork runtime readiness and cycle bootstrap."""
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -10,7 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from database import DB_PATH
-from database import TerritoryStore, TerritoryTargetOwnershipStore, UserStore
+from database import GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, TerritoryStore, TerritoryTargetOwnershipStore, UserStore
 from ghostnetwork import GhostNetworkService, GhostRuntimeCoordinator
 
 
@@ -58,9 +59,39 @@ def reconcile_reward_history(service, users, apply=False):
     }
 
 
+def enqueue_territory_reconcile(territory, jobs, apply=False):
+    areas = territory.list_player_areas()
+    material = [
+        {
+            "id": str(area.get("id") or ""),
+            "owner": str(area.get("owner_username") or ""),
+            "status": str(area.get("status") or ""),
+            "updated_at": str(area.get("updated_at") or ""),
+            "vertices": area.get("vertices") or [],
+        }
+        for area in areas if isinstance(area, dict)
+    ]
+    encoded = json.dumps(material, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    source_version = hashlib.sha1(encoded.encode("utf-8")).hexdigest()
+    result = {
+        "dry_run": not apply,
+        "areas": len(material),
+        "source_version": source_version,
+        "reference_id": "__full__",
+    }
+    if apply:
+        result.update(jobs.enqueue(
+            "areas", "__full__", source_version, reason="operator_reconcile"
+        ))
+    return result
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("status", "verify", "bootstrap", "reconcile", "drain"))
+    parser.add_argument("command", choices=(
+        "status", "verify", "bootstrap", "reconcile", "capture-reconcile",
+        "reward-history-reconcile", "territory-reconcile", "drain",
+    ))
     parser.add_argument("--db-path", default=DB_PATH, help="SQLite database path")
     parser.add_argument("--apply", action="store_true", help="Apply bootstrap mutation")
     parser.add_argument("--json", action="store_true", help="Emit JSON (default output is also JSON)")
@@ -70,12 +101,40 @@ def build_parser():
 def execute(args):
     service = GhostNetworkService(db_path=args.db_path)
     before = service.get_runtime_readiness()
+    territory_job_store = GhostNetworkTerritoryJobStore(args.db_path)
+    territory_jobs = territory_job_store.diagnostics()
+    delta_delivery_jobs = GhostNetworkDeltaDeliveryJobStore(args.db_path).diagnostics()
+    before["territory_publication_jobs"] = territory_jobs
+    before["delta_delivery_jobs"] = delta_delivery_jobs
+    if args.command == "verify" and int(territory_jobs.get("counts", {}).get("failed") or 0) > 0:
+        before["ready"] = False
+        before.setdefault("blockers", []).append("ghostnetwork_territory_publication_jobs_failed")
+    if args.command == "verify" and int(delta_delivery_jobs.get("counts", {}).get("failed") or 0) > 0:
+        before["ready"] = False
+        before.setdefault("blockers", []).append("ghostnetwork_delta_delivery_jobs_failed")
     if args.command in {"status", "verify"}:
         return before, 0 if before["ready"] else 2
-    if args.command in {"reconcile", "drain"}:
+    if args.command in {
+        "reconcile", "capture-reconcile", "reward-history-reconcile",
+        "territory-reconcile", "drain",
+    }:
         territory = TerritoryStore(args.db_path)
+        jobs = GhostNetworkTerritoryJobStore(args.db_path)
         ownership = TerritoryTargetOwnershipStore(args.db_path)
         users = UserStore(args.db_path)
+
+        if args.command == "territory-reconcile":
+            result = enqueue_territory_reconcile(territory, jobs, apply=args.apply)
+            result["ok"] = True
+            result["territory_publication_jobs"] = jobs.diagnostics()
+            result["delta_delivery_jobs"] = delta_delivery_jobs
+            return result, 0
+
+        if args.command == "reward-history-reconcile":
+            result = reconcile_reward_history(service, users, apply=args.apply)
+            result["territory_publication_jobs"] = territory_jobs
+            result["delta_delivery_jobs"] = delta_delivery_jobs
+            return result, 0
 
         def captured_reader(player_id, target_id):
             canonical = ownership.get(target_id)
@@ -92,23 +151,34 @@ def execute(args):
             profile_loader=lambda player_id: users.get_profile(player_id) or {},
             profile_saver=users.save_profile,
         )
-        if args.command == "reconcile" and not args.apply:
+        if args.command in {"reconcile", "capture-reconcile"} and not args.apply:
             reservations = service.repository.list_active_reservations(
                 (service.get_active_cycle() or {}).get("cycle_id"), limit=1000
             )
-            return {
+            result = {
                 "ok": True, "dry_run": True,
                 "active_reservations": len(reservations),
                 "effect_summary": service.repository.get_capture_effect_summary(),
-                "reward_history": reconcile_reward_history(service, users, apply=False),
-            }, 0
-        if args.command == "reconcile":
+                "territory_publication_jobs": territory_jobs,
+                "delta_delivery_jobs": delta_delivery_jobs,
+            }
+            if args.command == "reconcile":
+                result["reward_history"] = reconcile_reward_history(
+                    service, users, apply=False
+                )
+            return result, 0
+        if args.command in {"reconcile", "capture-reconcile"}:
             result = coordinator.reconcile_missing_effects(limit=1000)
-            result["reward_history"] = reconcile_reward_history(service, users, apply=True)
+            if args.command == "reconcile":
+                result["reward_history"] = reconcile_reward_history(
+                    service, users, apply=True
+                )
         else:
             result = coordinator.drain(limit=1000, reconcile=True) if args.apply else {
                 "ok": True, "dry_run": True,
                 "effect_summary": service.repository.get_capture_effect_summary(),
+                "territory_publication_jobs": territory_jobs,
+                "delta_delivery_jobs": delta_delivery_jobs,
             }
         return result, 0 if result.get("ok") else 2
     if not args.apply:
