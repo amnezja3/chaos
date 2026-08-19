@@ -439,5 +439,18 @@
 - Regresja: GhostNetwork `144/144`, territory/CAS/reconciliation `134/134`,
   `test_target_persistence` `221/221`, celowane delta/audit `10/10`; `py_compile`
   i `git diff --check` przeszły.
-- Do finalnego werdyktu pozostał jeden odczyt serwerowy: rozszerzony audit oraz
-  końcowe `status`/`verify`. Nie wykonano commita ani deployu.
+- Serwerowy odczyt potwierdził `READY`, cykl `ghostnetwork_0001`, 20 części
+  (`18 pooled`, `1 public`, `1 contained`), dwa discovery oraz zero
+  pending/unreconciled effects. Każda część ma pojedynczy event, contribution,
+  applied reward i applied capture effect; brak duplikatów.
+- Audit znalazł konkretną regresję: oba profile miały `profile_history=0` mimo
+  applied ledger i eventu `ghost.player_history_changed`. Późny pełny zapis
+  `/gonna-win` nadpisywał historię zapisaną przez reward coordinator.
+- Naprawiono monotoniczne zachowanie historii w `UserStore.save_profile()` i
+  zachowanie dynamicznych pól GN przez `UserProfileManager`. `reconcile` potrafi
+  odczytowo wskazać braki, a z `--apply` odtworzyć samą historię bez ponownego
+  RSP, contribution lub discovery.
+- Po poprawce: testy celowane `14/14`, GhostNetwork `144/144`,
+  `test_target_persistence` `221/221`. Do GO pozostaje wdrożenie poprawki,
+  jednorazowy reconcile dwóch historii i końcowe audit/verify; ponowny manual
+  drop nie jest potrzebny.

@@ -14,6 +14,7 @@ from ghostnetwork import (
     GhostNetworkService,
 )
 from tools import audit_ghostnetwork_runtime_state
+from tools.ghostnetwork_runtime import reconcile_reward_history
 
 
 class CountingDropPolicy(GhostDropPolicy):
@@ -135,6 +136,29 @@ class GhostNetworkDropPipelineDiagnosticTest(unittest.TestCase):
         self.assertEqual(audit["items"][0]["rewards"], 1)
         self.assertEqual(audit["items"][0]["reward_status"], "applied")
         self.assertEqual(audit["items"][0]["profile_history"], 1)
+
+        class RepairStore:
+            def __init__(_self):
+                _self.profile = {
+                    "username": self.player["player_id"],
+                    "respect": self.player["respect"],
+                }
+
+            def get_profile(_self, _player_id):
+                return dict(_self.profile)
+
+            def save_profile(_self, profile):
+                _self.profile = dict(profile)
+
+        repair_store = RepairStore()
+        before_respect = repair_store.profile["respect"]
+        dry_run = reconcile_reward_history(service, repair_store, apply=False)
+        self.assertEqual(dry_run["missing_count"], 1)
+        self.assertNotIn("ghostnetwork_reward_history", repair_store.profile)
+        repaired = reconcile_reward_history(service, repair_store, apply=True)
+        self.assertEqual(repaired["repaired_count"], 1)
+        self.assertEqual(len(repair_store.profile["ghostnetwork_reward_history"]), 1)
+        self.assertEqual(repair_store.profile["respect"], before_respect)
 
     def test_runtime_audit_reads_part_summary_from_cycle_service(self):
         service = GhostNetworkService(repository=self.repo)

@@ -22083,7 +22083,7 @@ Nie rozszerzaj zakresu sprintu o nowe feature'y GhostNetwork.
 
 # Sprint 130.9.1 — GhostNetwork Gameplay Validation
 
-**Status:** `ETAP 2 AUTOMATION DONE — SERVER AUDIT PENDING` (2026-08-19).
+**Status:** `ETAP 2 BUG FIXED LOCALLY — SERVER RECONCILE PENDING` (2026-08-19).
 
 **Typ sprintu:** walidacja runtime, domknięcie integracji i naprawa wykrytych
 regresji. To nie jest sprint feature'owy ani deploymentowy.
@@ -22197,6 +22197,28 @@ Końcowa regresja lokalna po manualu:
   `test_target_persistence`: `221/221 OK`,
 * celowane testy audytu i delta/recovery: `10/10 OK`,
 * `py_compile` i `git diff --check`: OK.
+
+Serwerowy audit po manualu potwierdził cykl `ghostnetwork_0001`, 20 części
+(`18 pooled`, `1 public`, `1 contained`), dwa discovery, zero reservations,
+pending i unreconciled effects, valid topology oraz `READY`. Obie części mają
+po jednym discovery event, contribution, applied reward i applied capture
+effect. Nie ma duplikatów.
+
+Audit wykrył jednak `profile_history=0` dla obu testerów. Przyczyną był późny
+pełny zapis profilu przez `/gonna-win`: reward coordinator zapisywał historię,
+po czym wcześniej utworzony `UserProfileManager` nadpisywał profil starszą
+kopią. Ledger i event `ghost.player_history_changed` pozostawały poprawne.
+
+Poprawka chroni historię rewardów monotonicznie w `UserStore.save_profile()` i
+pozwala `UserProfileManager` zachować dynamiczne pola GhostNetwork. `reconcile`
+raportuje brakujące wpisy w dry-run, a `reconcile --apply` odtwarza wyłącznie
+historię z applied ledger — bez ponownego RSP, contribution ani discovery.
+Po poprawce: testy celowane `14/14`, GhostNetwork `144/144` oraz
+`test_target_persistence` `221/221`. Ponowny manual drop nie jest wymagany.
+
+Finalne GO wymaga po wdrożeniu poprawki: dry-run `reconcile`, kontrolowanego
+`reconcile --apply`, ponownego audytu z `discoveries.ok=true` oraz
+`verify=READY`.
 
 ## Cel
 

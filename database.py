@@ -1281,6 +1281,24 @@ class UserStore:
                     # write must not resurrect apps that /launch-queue already consumed.
                     profile["launch_queue"] = current_profile.get("launch_queue", [])
 
+                # GhostNetwork reward history is an exactly-once projection of
+                # the durable reward ledger. A slow full-profile writer must
+                # not erase entries committed by another request stage.
+                current_ghost_history = current_profile.get("ghostnetwork_reward_history") or []
+                incoming_ghost_history = profile.get("ghostnetwork_reward_history") or []
+                merged_ghost_history = []
+                seen_ghost_reward_keys = set()
+                for item in list(current_ghost_history) + list(incoming_ghost_history):
+                    if not isinstance(item, dict):
+                        continue
+                    reward_key = str(item.get("reward_key") or "").strip()
+                    if not reward_key or reward_key in seen_ghost_reward_keys:
+                        continue
+                    seen_ghost_reward_keys.add(reward_key)
+                    merged_ghost_history.append(dict(item))
+                if merged_ghost_history:
+                    profile["ghostnetwork_reward_history"] = merged_ghost_history
+
             ensure_password_hash(profile)
 
             conn.execute(

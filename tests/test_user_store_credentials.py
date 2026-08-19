@@ -46,6 +46,25 @@ class UserStoreCredentialTests(unittest.TestCase):
         self.assertTrue(restored.get("salt"))
         self.assertEqual(restored["level"], 2)
 
+    def test_late_profile_save_preserves_ghostnetwork_reward_history(self):
+        rewarded = self.store.get_profile("robot")
+        rewarded["ghostnetwork_reward_history"] = [{
+            "reward_key": "ghost-reward-1",
+            "reward_type": "part_discovered",
+            "rsp": 12,
+            "source": "ghostnetwork",
+        }]
+        self.store.save_profile(rewarded)
+
+        stale = {"username": "robot", "level": 2}
+        self.store.save_profile(stale)
+
+        restored = self.store.get_profile("robot")
+        self.assertEqual(
+            [item["reward_key"] for item in restored["ghostnetwork_reward_history"]],
+            ["ghost-reward-1"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

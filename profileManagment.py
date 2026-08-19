@@ -9,7 +9,10 @@ class UserProfileManager:
         self.users_path = users_path
         self.template_path = template_path
         self._locked_keys = {"username", "salt", "password"}
-        self._dynamic_profile_keys = {"googleplex_products", "product_purchases", "storage_upgrades"}
+        self._dynamic_profile_keys = {
+            "googleplex_products", "product_purchases", "storage_upgrades",
+            "ghostnetwork_stats", "ghostnetwork_reward_history",
+        }
         self.store = UserStore(seed_path=users_path)
         self.resource_store = JsonResourceStore()
         self._load_all_users()
