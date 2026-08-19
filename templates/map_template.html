@@ -3520,8 +3520,42 @@
             }
         });
 
-        window.refreshMapTargetSnapshot = function() {
-            window.location.reload();
+        window.refreshMapTargetSnapshot = async function() {
+            const snapshot = await window.fetchMapSnapshot(
+                'target_snapshot',
+                '/api/map/target-snapshot',
+                { timeoutMs: 12000 }
+            );
+            if (!snapshot || snapshot.skipped || snapshot.aborted || !snapshot.res || !snapshot.res.ok) {
+                return false;
+            }
+            const data = await snapshot.res.json();
+            const entries = Object.values(window.targetMarkers || {});
+            entries.forEach(entry => {
+                if (entry && entry.marker) removeMapLayerSafe(entry.marker);
+                if (entry && entry.element) {
+                    const markerEl = entry.element.closest('.leaflet-marker-icon');
+                    if (markerEl) markerEl.remove();
+                }
+            });
+            window.targetMarkers = {};
+            (data.targets || []).forEach(target => {
+                const normalized = normalizeMapMenuTarget(target || {});
+                const lng = normalized.lng !== undefined ? normalized.lng : normalized.lon;
+                if (Number.isFinite(Number(normalized.lat)) && Number.isFinite(Number(lng))) {
+                    addInteractiveTargetMarker(
+                        Number(normalized.lat),
+                        Number(lng),
+                        mapTargetDisplayLabel(normalized),
+                        normalized.icon || '🎯',
+                        normalized
+                    );
+                }
+            });
+            (data.captured_targets || []).forEach(target => addInteractiveHackedMarker(target));
+            window.profileData = window.profileData || {};
+            window.profileData.hacked = data.captured_targets || [];
+            return true;
         };
 
         function isContextEventInsideMarkerHitbox(marker, e, targetSnapshot = {}, source = 'marker') {
@@ -6527,7 +6561,7 @@
                     await window.bootStep('Inicjalizacja mapy', 'base_map', null, { critical: true, total: criticalTotal, index: 0 });
                     await window.bootStep('Warstwa bazowa', 'base_tiles', null, { critical: true, total: criticalTotal, index: 1 });
                     await window.bootStep('Pozycja gracza', 'player_position', null, { critical: true, total: criticalTotal, index: 2 });
-                    await window.bootStep('Oznaczone cele', 'target_snapshot', null, { critical: true, total: criticalTotal, index: 3 });
+                    await window.bootStep('Oznaczone cele', 'target_snapshot', window.refreshMapTargetSnapshot, { critical: true, total: criticalTotal, index: 3, timeoutMs: 12000 });
                     scheduleLegacyPlayerAreaCleanup();
                     await window.bootStep('Terytoria graczy', 'player_areas', window.refreshPlayerAreas, {
                         critical: true,

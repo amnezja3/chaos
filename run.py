@@ -13004,7 +13004,8 @@ def refresh_and_persist_operations(username, profile):
     return fresh_profile
 
 
-def load_profile_readonly(username, strip_sensitive=True, normalize_apps=True, normalize_files=False):
+def load_profile_readonly(username, strip_sensitive=True, normalize_apps=True,
+                          normalize_files=False, overlay_runtime=True):
     if not username:
         return None
 
@@ -13021,7 +13022,8 @@ def load_profile_readonly(username, strip_sensitive=True, normalize_apps=True, n
     if normalize_files:
         normalize_files_inventory(profile)
     normalize_runtime_profile_defaults(profile)
-    apply_runtime_stores_to_profile(username, profile)
+    if overlay_runtime:
+        apply_runtime_stores_to_profile(username, profile)
     return profile
 
 
@@ -17373,6 +17375,37 @@ def profile_template_payload(profile):
     return payload
 
 
+def map_profile_boot_payload(profile):
+    """Small map bootstrap projection; target collections load from their API."""
+    profile = profile if isinstance(profile, dict) else {}
+    keys = (
+        "username", "nick", "avatar", "level", "clan", "fraction",
+        "scan_range_bonus", "curently_possition", "current_position",
+        "position_version", "position_updated_at", "aimed_target",
+    )
+    payload = {key: copy.deepcopy(profile.get(key)) for key in keys if key in profile}
+    payload["targets"] = []
+    payload["hacked"] = []
+    return payload
+
+
+def map_target_client_snapshot(target, captured=False):
+    target = target if isinstance(target, dict) else {}
+    allowed = (
+        "target_id", "lat", "lng", "lon", "label", "display_label", "name",
+        "title", "icon", "source_type", "target_type", "target_mode",
+        "target_username", "relation", "generated", "stationary", "osm_id",
+        "node_id", "actions_allowed", "security", "captured_at",
+    )
+    payload = {key: copy.deepcopy(target.get(key)) for key in allowed if key in target}
+    if payload.get("lng") is None and payload.get("lon") is not None:
+        payload["lng"] = payload["lon"]
+    payload["target_id"] = str(payload.get("target_id") or build_operation_target_id(target))
+    payload["captured"] = bool(captured)
+    apply_target_display_label(payload)
+    return payload
+
+
 def log_missing_profile_warning(source):
     print(
         "[WARN] missing profile "
@@ -18591,6 +18624,7 @@ def command():
     profile = sync_session_profile(
         rebuild_territory=False,
         persist_normalization=False,
+        cache_in_session=False,
     )
     user_apps = profile.get('apps', [])
 
@@ -19053,12 +19087,8 @@ def map_view():
     )
     if not profile:
         return redirect_missing_profile_to_login()
-    # The lightweight map boot deliberately avoids persisting a normalized
-    # profile, but captured_targets remains the canonical ownership store.
-    # Project it into this request-local profile before Folium renders target
-    # markers; otherwise a delayed profile mirror can resurrect the hack menu
-    # or hide the newly captured object after reopening the map.
-    merge_captured_targets_into_profile(session["user"], profile)
+    # Captured and marked targets load from the canonical target snapshot API;
+    # the map document itself stays independent of collection size.
     ava_lat = profile.get("curently_possition", {}).get("lat", 52.2297)
     ava_lng = profile.get("curently_possition", {}).get("lng", 21.0122)
     zoom = get_player_map_zoom(profile)
@@ -19115,15 +19145,10 @@ def map_view():
     # # Dodaj kontrolkę do zmiany warstwy
     # folium.LayerControl().add_to(m)
 
-    hacked_position_keys = {
-        target_position_key(target)
-        for target in profile.get("hacked", []) or []
-        if target_position_key(target)
-    }
-    targets = [
-        target for target in profile.get("targets", []) or []
-        if target_position_key(target) not in hacked_position_keys
-    ]
+    hacked_position_keys = set()
+    # Target markers are loaded from /api/map/target-snapshot. Embedding every
+    # marker in Folium multiplied large profiles into 30+ MB map documents.
+    targets = []
     for t in targets:
         text_icon = t.get("icon", "🎯")
         label = display_target_label(t)
@@ -19157,7 +19182,7 @@ def map_view():
         ).add_to(m)
 
 
-    hacked = profile.get("hacked", [])
+    hacked = []
     for h in hacked:
         text_icon = h.get("icon", "🛜")
         label = display_target_label(h)
@@ -19241,9 +19266,30 @@ def map_view():
         map_html=Markup(map_html),
         folium_css=Markup('<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />'),
         folium_js=Markup('<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>'),
-        profile=profile_template_payload(profile),
+        profile=map_profile_boot_payload(profile),
         map_viewer_username=session.get("user", "")
     )
+
+
+@app.route("/api/map/target-snapshot")
+def map_target_snapshot():
+    if "user" not in session:
+        return jsonify({"error": "not_logged_in"}), 401
+    username = session["user"]
+    profile = user_store.get_profile(username) or {}
+    captured = territory_store.list_captured_targets(username)
+    captured_keys = {target_position_key(item) for item in captured if target_position_key(item)}
+    targets = [
+        map_target_client_snapshot(item, captured=False)
+        for item in (profile.get("targets") or [])
+        if isinstance(item, dict) and target_position_key(item) not in captured_keys
+    ]
+    return jsonify({
+        "targets": targets,
+        "captured_targets": [
+            map_target_client_snapshot(item, captured=True) for item in captured
+        ],
+    })
 
 
 
@@ -22784,6 +22830,10 @@ def map_player_actors():
     # i potrafi blokowac workera dluzej niz budzet odswiezenia aktorow.
     viewer_profile = user_store.get_profile(viewer_username) or {}
     actors_by_username = {}
+    try:
+        pending_contact_names = set(mail_store.list_pending_contact_names(viewer_username))
+    except Exception:
+        pending_contact_names = set()
     aimed_target = viewer_profile.get("aimed_target") or {}
     aimed_player_username = (
         aimed_target.get("target_username")
@@ -22828,7 +22878,7 @@ def map_player_actors():
         context["is_pending_contact"] = bool(
             context.get("is_pending_contact")
             or existing_context.get("is_pending_contact")
-            or mail_store.has_pending_contact_request(viewer_username, actor_username)
+            or actor_username in pending_contact_names
         )
         context["is_marked_target"] = bool(
             context.get("is_marked_target")
@@ -23386,7 +23436,10 @@ def map_clan_vulnerabilities():
     if "user" not in session:
         return jsonify({"error": "Nie jestes zalogowany"}), 401
 
-    profile = sync_session_profile(rebuild_territory=False)
+    profile = load_profile_readonly(
+        session["user"], normalize_apps=False, normalize_files=False,
+        overlay_runtime=False,
+    ) or {}
     username = session["user"]
     clan = get_profile_clan(profile)
     reports = []
@@ -24462,19 +24515,8 @@ def send_chat_message():
 def get_system_messages():
     if "user" not in session:
         return jsonify([])
-
-    profile = load_profile_readonly(session["user"], normalize_apps=False, normalize_files=False)
-    if not profile:
-        session.clear()
-        return jsonify({"logout": True})
-
-    legacy_new = [
-        message for message in profile.get("system_messages", []) or []
-        if isinstance(message, dict) and message.get("status") == "new"
-    ]
-    if legacy_new:
-        system_message_store.add_messages(session["user"], legacy_new, source="legacy_profile")
-
+    # The SQLite store is authoritative after the profile-store migration.
+    # Polling must not parse multi-megabyte profile JSON or touch runtime stores.
     new_msgs = system_message_store.consume_pending(session["user"])
     return jsonify(new_msgs)
 

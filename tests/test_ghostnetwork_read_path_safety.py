@@ -49,6 +49,56 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
             "/api/ghostnetwork/snapshot",
         }.issubset(PERF_LOG_ENDPOINTS))
 
+    def test_target_snapshot_excludes_heavy_profile_fields(self):
+        profile = {
+            "username": "alice",
+            "targets": [{
+                "lat": 52.1, "lng": 21.1, "label": "Node", "icon": "N",
+                "huge_private_runtime": "x" * 10000,
+            }],
+        }
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "alice"
+        with patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run.territory_store, "list_captured_targets", return_value=[]):
+            response = client.get("/api/map/target-snapshot")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(len(payload["targets"]), 1)
+        self.assertNotIn("huge_private_runtime", payload["targets"][0])
+
+    def test_map_document_size_does_not_scale_with_target_collection(self):
+        base = {
+            "username": "alice", "nick": "Alice", "apps": [], "files": {},
+            "curently_possition": {"lat": 52.2, "lng": 21.0},
+            "aimed_target": {}, "targets": [], "hacked": [],
+        }
+        heavy = {
+            **base,
+            "targets": [
+                {
+                    "lat": 52.0 + index / 10000,
+                    "lng": 21.0 + index / 10000,
+                    "label": f"Target {index}",
+                    "private_runtime": "x" * 5000,
+                }
+                for index in range(500)
+            ],
+        }
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "alice"
+        with patch.object(run, "sync_session_profile", side_effect=[base, heavy]):
+            small_response = client.get("/map")
+            heavy_response = client.get("/map")
+        self.assertEqual(small_response.status_code, 200)
+        self.assertEqual(heavy_response.status_code, 200)
+        self.assertLess(
+            abs(len(heavy_response.get_data()) - len(small_response.get_data())),
+            10000,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

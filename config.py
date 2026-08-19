@@ -80,6 +80,7 @@ PERF_LOG_ENDPOINTS = {
     "/api/operations",
     "/api/map/player-areas",
     "/api/map/player-actors",
+    "/api/map/target-snapshot",
     "/api/ghostnetwork/snapshot",
     "/api/state/changes",
     "/api/map/clan-vulnerabilities",

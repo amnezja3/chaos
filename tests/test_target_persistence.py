@@ -2700,7 +2700,7 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertNotIn("territory", embedded_profile)
         self.assertNotIn("areas", embedded_profile)
 
-    def test_map_embeds_large_profile_payload_as_json_literal(self):
+    def test_map_does_not_embed_large_background_profile_collections(self):
         profile = {
             "username": "tester",
             "nick": "Duży payload 'quoted' Łódź",
@@ -2736,9 +2736,11 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
             re.S,
         )
         self.assertIsNotNone(match)
-        self.assertGreater(len(match.group(1)), 57000)
+        self.assertLess(len(match.group(1)), 5000)
         embedded_profile = json.loads(match.group(1))
-        self.assertEqual(embedded_profile["system_messages"][0]["title"], "Alert 0")
+        self.assertNotIn("system_messages", embedded_profile)
+        self.assertEqual(embedded_profile["targets"], [])
+        self.assertEqual(embedded_profile["hacked"], [])
         self.assertNotIn("field_from_database_bypass", embedded_profile)
 
     def test_territory_hack_does_not_replace_session_user_with_owner(self):

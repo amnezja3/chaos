@@ -6684,27 +6684,33 @@ class SystemMessageStore:
         if not username:
             return []
         now = utc_now()
+        now_ts = time.time()
         with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            conn.execute(
+            # Empty desktop polls are the common case. Check without taking a
+            # global SQLite writer lock; claim under BEGIN IMMEDIATE only when
+            # there is deliverable work.
+            available = conn.execute(
                 """
-                UPDATE system_messages
-                SET status = 'expired'
+                SELECT 1 FROM system_messages
                 WHERE username = ?
                   AND status IN ('pending', 'delivered')
-                  AND expires_at > 0
-                  AND expires_at <= ?
+                  AND (expires_at <= 0 OR expires_at > ?)
+                LIMIT 1
                 """,
-                (username, time.time()),
-            )
+                (username, now_ts),
+            ).fetchone()
+            if not available:
+                return []
+            conn.execute("BEGIN IMMEDIATE")
             rows = conn.execute(
                 """
                 SELECT * FROM system_messages
                 WHERE username = ? AND status IN ('pending', 'delivered')
+                  AND (expires_at <= 0 OR expires_at > ?)
                 ORDER BY created_at, message_id
                 LIMIT ?
                 """,
-                (username, max(1, int(limit or 50))),
+                (username, now_ts, max(1, int(limit or 50))),
             ).fetchall()
             if not rows:
                 return []
@@ -8406,6 +8412,41 @@ class MailStore:
         if self.is_contact(requester, target_name) or self.is_contact(target_name, requester):
             return True
         return self.has_direct_thread(target_name, requester) or self.has_direct_thread(requester, target_name)
+
+    def list_pending_contact_names(self, username):
+        """Bulk equivalent of has_pending_contact_request for map projections."""
+        if not username:
+            return []
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                WITH candidates(name) AS (
+                    SELECT contact_name FROM contacts WHERE owner_username = ?
+                    UNION
+                    SELECT owner_username FROM contacts WHERE contact_name = ?
+                    UNION
+                    SELECT peer_name FROM chat_messages
+                    WHERE owner_username = ? AND scope = 'direct'
+                    UNION
+                    SELECT owner_username FROM chat_messages
+                    WHERE peer_name = ? AND scope = 'direct'
+                )
+                SELECT candidates.name
+                FROM candidates
+                WHERE candidates.name != ?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM contacts own
+                    JOIN contacts reciprocal
+                      ON reciprocal.owner_username = own.contact_name
+                     AND reciprocal.contact_name = own.owner_username
+                    WHERE own.owner_username = ?
+                      AND own.contact_name = candidates.name
+                  )
+                ORDER BY candidates.name COLLATE NOCASE
+                """,
+                (username, username, username, username, username, username),
+            ).fetchall()
+        return [str(row["name"]) for row in rows if row["name"]]
 
     def add_contact_pair(self, username, contact_name, status="offline"):
         self.add_contact(username, contact_name, status)

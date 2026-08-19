@@ -23771,6 +23771,45 @@ dostarczeniem PNG prawidłowym wynikiem jest `READY FOR ASSET DELIVERY`; finalne
 
 **P1:** `DONE LOCALLY — durable bounded delivery and canonical publication complete`
 
+## Server finding po pierwszym teście współbieżności — NO-GO
+
+Test dwóch graczy ujawnił opóźnienie około pięciu minut; jeden profil z dużą
+liczbą targetów potrzebował około dwóch minut. Logi rozdzieliły problem od GN:
+
+* obie kolejki GN miały `depth=0`, bez failed jobs,
+* GN snapshot trwał `262–1721 ms`, bez SQLite `locked/busy`,
+* `/system-messages` zwracający `[]` trwał `11–35 s`,
+* clan vulnerabilities trwało `7–23 s`,
+* dokument `/map` miał `4.7 MB` dla `run`, ale aż `36.9 MB` dla `main`,
+* player actors trwało `3.1–4.8 s`.
+
+Root cause był złożony:
+
+1. Folium generowało każdy target jako HTML, po czym pełne targety były ponownie
+   osadzane w `profileData`; koszt dokumentu zależał od profilu.
+2. Pusty system-message poll otwierał `BEGIN IMMEDIATE`, czyli globalny writer
+   lock SQLite co 10 sekund dla każdego gracza.
+3. „Read-only” profil pollerów nakładał runtime stores, a clan vulnerability
+   używało synchronizacji zdolnej zapisać wielomegabajtowy profile JSON.
+4. Player actors wykonywało N zapytań pending-contact dla każdego aktora.
+
+Naprawa lokalna:
+
+* targety/captured targets przeniesiono do lekkiego
+  `/api/map/target-snapshot`; `/map` osadza wyłącznie mały boot profile,
+* boot targetów renderuje markery z JSON zamiast server-side Folium,
+* pusty system-message poll jest czysto odczytowy i nie pobiera writer locka,
+* system-message poll nie czyta pełnego profilu, clan vulnerabilities nie
+  nakłada ani nie zapisuje runtime stores,
+* player actors pobiera pending-contact names jednym zapytaniem,
+* map request nie zapisuje pełnego profilu do filesystem session.
+
+Test regresyjny z `500` targetami i prywatnym payloadem potwierdza, że rozmiar
+dokumentu mapy nie skaluje się z kolekcją targetów. Target snapshot przepuszcza
+tylko jawnie dozwolone pola klienta.
+
+Do ponownego deployu i testu dwóch graczy bramka pozostaje `NO-GO`.
+
 ## Stan wykonania — 2026-08-19
 
 Zrealizowano pierwszy pakiet odzyskiwania stabilności:

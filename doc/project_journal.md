@@ -1,5 +1,20 @@
 # CHAOS — Project Journal
 
+## 2026-08-19 - Concurrent map server finding i payload/lock fix
+
+- Dwa równoczesne otwarcia mapy trwały około 5 minut; ciężki profil solo około
+  2 minut. GN queues były puste, GN snapshot <2 s i nie było SQLite locked/busy.
+- `/map` dla `main` miał 36.9 MB wobec 4.7 MB dla `run`; system-message empty
+  polls trwały 11–35 s, clan vulnerabilities 7–23 s, actors 3–5 s.
+- Targety nie są już generowane jako Folium HTML ani ponownie osadzane w pełnym
+  profileData. Ładuje je lekki `/api/map/target-snapshot`.
+- Pusty system-message poll nie bierze BEGIN IMMEDIATE i nie czyta pełnego
+  profilu; clan vulnerability nie uruchamia runtime overlays/profile writes.
+- Player actors używa jednego bulk query pending contacts zamiast N+1.
+- Test 500 ciężkich targetów potwierdza stały rozmiar dokumentu mapy. Lokalna
+  regresja target persistence 221/221 oraz polling/territory 59/59 — OK.
+- Bramka serwerowa pozostaje NO-GO do ponownego testu dwóch graczy.
+
 ## 2026-08-19 - Start implementacji Sprintu 130.9.2.fix.all.1
 
 - Odłączono globalny GN territory reconcile, reward/endgame i fan-out od
