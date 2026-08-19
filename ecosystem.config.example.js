@@ -33,7 +33,10 @@ module.exports = {
         CHAOS_CYBERNER_CHANNEL_STORE_ENABLED: "0",
         CHAOS_CYBERNER_WORLD_STORE_ENABLED: "0",
         CHAOS_CYBERNER_CLAN_STORE_ENABLED: "0",
-        CHAOS_CYBERNER_LIVE_DELIVERY_ENABLED: "0"
+        CHAOS_CYBERNER_LIVE_DELIVERY_ENABLED: "0",
+        CHAOS_GHOSTNETWORK_RUNTIME_MODE: "development",
+        CHAOS_GHOSTNETWORK_DROPS_ENABLED: "true",
+        CHAOS_GHOSTNETWORK_DROP_CHANCE: "0.04"
       }
     },
     {
@@ -44,7 +47,13 @@ module.exports = {
       interpreter: "none",
       autorestart: true,
       max_restarts: 20,
-      restart_delay: 2000
+      restart_delay: 2000,
+      env: {
+        PYTHONUNBUFFERED: "1",
+        CHAOS_GHOSTNETWORK_RUNTIME_MODE: "development",
+        CHAOS_GHOSTNETWORK_DROPS_ENABLED: "true",
+        CHAOS_GHOSTNETWORK_DROP_CHANCE: "0.04"
+      }
     }
   ]
 };

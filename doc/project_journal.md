@@ -454,3 +454,16 @@
   `test_target_persistence` `221/221`. Do GO pozostaje wdrożenie poprawki,
   jednorazowy reconcile dwóch historii i końcowe audit/verify; ponowny manual
   drop nie jest potrzebny.
+
+### Wynik serwerowego reconcile
+
+- `reconcile --apply` znalazł i odtworzył dokładnie dwa brakujące wpisy historii:
+  `missing_count=2`, `repaired_count=2`.
+- Ponowny audit: `discoveries.ok=true`; dla E4 i P5 event, contribution, applied
+  reward, profile history oraz applied capture effect mają liczność dokładnie 1.
+- Runtime pozostał `READY`: 20 części (`18 pooled`, `1 public`, `1 contained`),
+  valid topology, zero reservations i zero pending/unreconciled effects.
+- Blocker historii jest zamknięty. Finalny warunek pozostaje otwarty, ponieważ
+  serwer raportuje `active=0` i brak eventów lifecycle; nie potwierdzono jeszcze
+  `contained → active → module progress`. Wystarczy kontynuować istniejącą część,
+  bez kolejnego dropu.

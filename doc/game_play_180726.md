@@ -22083,7 +22083,7 @@ Nie rozszerzaj zakresu sprintu o nowe feature'y GhostNetwork.
 
 # Sprint 130.9.1 — GhostNetwork Gameplay Validation
 
-**Status:** `ETAP 2 BUG FIXED LOCALLY — SERVER RECONCILE PENDING` (2026-08-19).
+**Status:** `SERVER RECONCILE DONE — LIFECYCLE VALIDATION PENDING` (2026-08-19).
 
 **Typ sprintu:** walidacja runtime, domknięcie integracji i naprawa wykrytych
 regresji. To nie jest sprint feature'owy ani deploymentowy.
@@ -22216,9 +22216,16 @@ historię z applied ledger — bez ponownego RSP, contribution ani discovery.
 Po poprawce: testy celowane `14/14`, GhostNetwork `144/144` oraz
 `test_target_persistence` `221/221`. Ponowny manual drop nie jest wymagany.
 
-Finalne GO wymaga po wdrożeniu poprawki: dry-run `reconcile`, kontrolowanego
-`reconcile --apply`, ponownego audytu z `discoveries.ok=true` oraz
-`verify=READY`.
+Serwerowy `reconcile --apply` odtworzył dokładnie dwa brakujące wpisy historii
+(`missing=2`, `repaired=2`). Ponowny audyt potwierdził dla obu części dokładnie
+po jednym discovery event, contribution, applied reward, profile history i
+applied capture effect; `discoveries.ok=true`, bez błędów. Końcowe verify nadal
+zwraca `READY`, 20 części, valid topology i zero pending/unreconciled effects.
+
+Do finalnego GO pozostaje wyłącznie walidacja dalszego lifecycle na istniejącej
+części: raport pokazuje `1 contained`, `0 active` i pustą telemetrykę lifecycle,
+więc nie ma jeszcze dowodu `contained → active → module progress`. Nie wymaga to
+nowego dropu ani ponawiania ścieżki discovery.
 
 ## Cel
 
