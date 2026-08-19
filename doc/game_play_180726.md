@@ -21317,6 +21317,1474 @@ Commit, push, deploy, migracja danych i restart procesów nie należą do
 automatycznego domknięcia sprintu i wymagają osobnej decyzji użytkownika.
 
 
+# Sprint 130.9 — GhostNetwork Runtime Enablement
+
+Status: `DONE (2026-08-19)`.
+
+Foundation (`130.9.1`–`130.9.3` oraz read-only część `130.9.12`):
+`GO (2026-08-19)`. Dostarczono jawny operatorski bootstrap, walidację
+konfiguracji dropów, bezpieczną telemetrię aim/capture, runtime readiness,
+endpoint administracyjny i testy. Dropy pozostają domyślnie wyłączone w
+produkcji.
+
+Durability, Runtime bridge i End-to-end: `GO (2026-08-19)`. Kanoniczny capture
+tworzy trwały effect, a reconciler potrafi odtworzyć brakujący effect z
+committed ownership/captured target oraz aktywnej reservation. Publikacje
+post-130 obszarów i konfliktów sterują istniejącym lifecycle, module progress,
+reward/contribution i osiągalnym endgame. Test E2E przechodzi przez Target
+Registry, `/gonna-win`, receipt, outbox, snapshot repository i retry.
+
+## Cel
+
+Uruchomić istniejący GhostNetwork w prawdziwym runtime gry i doprowadzić system do stanu, w którym można go testować end-to-end bez ręcznego ingerowania w bazę, wymuszania stanów testowych ani korzystania z izolowanych harnessów.
+
+Sprint nie projektuje GhostNetwork od nowa.
+
+Nie zmieniamy:
+
+* katalogu części,
+* repository,
+* modelu visibility,
+* snapshotów,
+* UI mapy,
+* podstawowych kontraktów sprintów 110–130,
+
+o ile test integracyjny nie wykaże konkretnego błędu wymagającego naprawy.
+
+Bazujemy na wynikach audytu:
+
+* brak aktywnego cyklu,
+* brak 20 runtime instances części,
+* dropy domyślnie wyłączone,
+* `drop chance = 0`,
+* brak produkcyjnego bootstrapu cyklu,
+* post-130 territory/CAS runtime nie publikuje części wymaganych eventów do GhostNetwork,
+* istnieje luka exactly-once pomiędzy capture a efektem GhostNetwork.
+
+## Kontrakt realizacji sprintu
+
+Sprint realizujemy etapami `130.9.1`–`130.9.12`, ale nie traktujemy numeracji
+jako zgody na wdrożenie wszystkiego naraz. Każdy etap rozpoczyna się od
+`git status --short`, odczytania aktualnego diffu i wskazania istniejących
+testów oraz kontraktów, które zabezpieczają zmieniany fragment. Nie cofamy
+lokalnych ani cudzych zmian i nie porządkujemy kodu niezwiązanego z etapem.
+
+Obowiązuje rozdział odpowiedzialności:
+
+* proces webowy i worker mogą jedynie sprawdzać readiness; ich zwykły start
+  nie może samodzielnie tworzyć cyklu, migrować schematu ani naprawiać danych;
+* mutujący bootstrap, migracje i reconciliation uruchamia operator przez
+  jawny, idempotentny skrypt techniczny;
+* każdy trwały efekt ma kanoniczny identyfikator idempotencji i stan możliwy
+  do odczytu diagnostycznego;
+* feature flagi oddzielają wdrożenie kodu od włączenia dropów, adaptera
+  terytoriów, rewards i endgame;
+* tryb testowy nie może być osiągalny tylko przez payload klienta ani działać
+  w środowisku oznaczonym jako produkcyjne;
+* skrypty mutujące domyślnie wykonują `--dry-run`, wymagają jawnego trybu
+  wykonania i drukują podsumowanie zmian bez sekretów oraz hidden topology.
+
+Każdy etap kończy się małym, sprawdzalnym diffem, testami celowanymi,
+`git diff --check` i aktualizacją dokumentacji. Pełna regresja GhostNetwork
+jest bramką przed przejściem do wdrożenia, nie zamiennikiem testów celowanych.
+
+---
+
+# 130.9.1 — Runtime bootstrap GhostNetwork
+
+Wprowadzić jawny i idempotentny bootstrap GhostNetwork.
+
+Przed włączeniem gameplayu musi istnieć dokładnie jeden poprawny aktywny cykl.
+Start procesu sprawdza ten warunek i w razie jego niespełnienia zgłasza
+`NOT READY`; utworzenie lub naprawa cyklu należy do jawnego kroku operatorskiego.
+
+Bootstrap:
+
+1. sprawdza, czy istnieje aktywny cykl,
+2. jeśli istnieje — waliduje go,
+3. jeśli nie istnieje — tworzy nowy,
+4. tworzy dokładnie 20 instancji części zgodnie z katalogiem,
+5. generuje / waliduje topology,
+6. potwierdza readiness GhostNetwork.
+
+Bootstrap nie może tworzyć drugiego aktywnego cyklu przy:
+
+* restarcie aplikacji,
+* restarcie workera,
+* równoległym starcie kilku procesów.
+
+Mechanizm musi opierać się na ograniczeniu lub blokadzie w trwałym storage,
+a nie wyłącznie na blokadzie procesu. Dwa równoległe wywołania skryptu mają
+zakończyć się jednym cyklem i tym samym wynikiem readiness.
+
+Stan poprawny:
+
+`1 active cycle`
+`20 part instances`
+`valid topology`
+`0 duplicate active cycles`
+
+Jeżeli runtime nie może osiągnąć tego stanu, GhostNetwork ma zgłosić wyraźny stan:
+
+`NOT READY`
+
+z konkretnym powodem.
+
+---
+
+# 130.9.2 — Jawna konfiguracja dropów
+
+Przenieść GhostNetwork z bezpiecznego trybu development-disabled do jawnej konfiguracji runtime.
+
+Nie ustawiaj przypadkowej wartości balansu.
+
+Wprowadzić czytelne ustawienia:
+
+`GHOSTNETWORK_DROPS_ENABLED`
+`GHOSTNETWORK_DROP_CHANCE`
+
+oraz walidację przy starcie.
+
+Jeżeli:
+
+`drops_enabled = true`
+
+to:
+
+`drop_chance` musi być `> 0` i `<= 1`.
+
+W przeciwnym przypadku readiness ma zgłosić błąd konfiguracji.
+
+Na potrzeby testów development/test można użyć kontrolowanej wartości pozwalającej realnie uzyskać części podczas sesji.
+
+Nie hardcodować wysokiego chance w logice produkcyjnej.
+
+---
+
+# 130.9.3 — Telemetria drop pipeline
+
+Dodać obserwowalność pełnego pipeline.
+
+Dla każdego aim kwalifikowanego przez GhostNetwork zapisujemy wynik techniczny, np.:
+
+* `no_active_cycle`
+* `not_eligible`
+* `missing_player_clan`
+* `drops_disabled`
+* `roll_missed`
+* `reserved`
+* `reservation_conflict`
+* `no_candidate_part`
+
+Po capture:
+
+* `no_matching_reservation`
+* `reservation_expired`
+* `part_discovered`
+* `already_discovered`
+* `discovery_reconciled`
+
+Telemetria nie może ujawniać graczowi:
+
+* ukrytego `part_id`,
+* przyszłych części,
+* topologii,
+* wyniku rolla przed discovery.
+
+Ma służyć diagnostyce systemowej.
+
+Po tym sprincie musi być możliwe stwierdzenie:
+
+`100 hacków`
+→ `X eligible aims`
+→ `Y rolls`
+→ `Z reservations`
+→ `N discoveries`
+
+bez zgadywania.
+
+---
+
+# 130.9.4 — Durable GhostNetwork capture effect
+
+Naprawić lukę exactly-once wykrytą w audycie.
+
+Aktualny problem:
+
+`capture committed`
+→ proces pada
+→ GhostNetwork hook nie dochodzi do discovery
+→ retry widzi receipt jako duplicate/in-flight
+→ capture nie jest ponownie wykonywany
+→ efekt GN może zostać utracony.
+
+GhostNetwork discovery musi stać się trwałym efektem skorelowanym z kanonicznym capture.
+
+Preferowany model:
+
+`canonical capture`
+→ `durable GN effect record / outbox`
+→ `GN discovery execution`
+→ `effect acknowledged`
+
+Retry/reconciliation musi móc rozpoznać:
+
+`target captured`
++
+`valid committed Ghost reservation`
++
+`brak ghost.part_discovered`
+
+i bezpiecznie dokończyć discovery.
+
+Wymagania:
+
+* brak podwójnego discovery,
+* brak podwójnej części,
+* brak podwójnej nagrody,
+* retry jest idempotentny,
+* crash w dowolnym miejscu nie może trwale zgubić efektu.
+
+---
+
+# 130.9.5 — Post-130 territory adapter bridge
+
+Podłączyć GhostNetwork do nowego runtime terytoriów po refaktorze 130.
+
+Nie przywracać starej logiki terytoriów.
+
+Nowy runtime:
+
+* ownership CAS,
+* conflicts,
+* engagements,
+* reconciliation,
+* territory publication,
+
+ma publikować kanoniczne zdarzenia potrzebne przez GhostNetwork.
+
+Zbudować cienki adapter:
+
+`post-130 territory event`
+→ `GhostTerritoryAdapter`
+→ `GhostNetwork lifecycle`
+
+Zweryfikować co najmniej zdarzenia:
+
+* territory stabilized,
+* territory owner changed,
+* territory contested,
+* territory released,
+* conflict started,
+* conflict resolved.
+
+Nie duplikować source of truth terytoriów w GhostNetwork.
+
+GhostNetwork ma konsumować wynik systemu terytoriów, a nie samodzielnie go obliczać.
+
+---
+
+# 130.9.6 — Public → contained → active
+
+Po discovery część nie może kończyć życia na statusie `public`.
+
+Zintegrować istniejący lifecycle z nowymi eventami terytorialnymi.
+
+Zweryfikować realną ścieżkę:
+
+`pooled`
+→ `reserved`
+→ `public`
+→ `contained`
+→ `active`
+
+oraz drogi odwrotne wynikające z utraty / konfliktu terytorium.
+
+Każda zmiana statusu:
+
+* musi być idempotentna,
+* musi pochodzić z kanonicznego eventu,
+* musi mieć poprawny event domenowy,
+* musi aktualizować snapshot/delta.
+
+---
+
+# 130.9.7 — Module progress i abilities
+
+Po aktywacji części sprawdzić istniejący `GhostModuleStateService`.
+
+Nie przepisywać go.
+
+Podłączyć go do realnych zmian lifecycle tak, aby aktywne części faktycznie aktualizowały stan maszyny.
+
+Zweryfikować:
+
+* 0/5,
+* 1/5,
+* ...
+* 5/5,
+
+zgodnie z kontraktem konkretnej maszyny.
+
+Ability może zostać aktywowana wyłącznie wtedy, gdy istniejący kontrakt sprintów 124+ mówi, że warunki zostały spełnione.
+
+Ten sprint nie projektuje nowych abilities.
+
+---
+
+# 130.9.8 — Rewards i contribution
+
+Podłączyć istniejące:
+
+* contribution ledger,
+* reward service,
+* RSP,
+* permanent participation history,
+
+do realnych eventów runtime.
+
+Rewards muszą być exactly-once.
+
+Retry tego samego zdarzenia nie może:
+
+* zwiększyć RSP drugi raz,
+* utworzyć drugiego contribution,
+* zmienić historii dwa razy.
+
+Bieżący stan GhostNetwork nadal nie może zostać zapisany do profilu.
+
+Profil pozostaje jedynie konsumentem trwałych efektów gracza.
+
+---
+
+# 130.9.9 — Closure i transmission
+
+Doprowadzić do osiągalności istniejący endgame GhostNetwork.
+
+Nie przebudowywać mechaniki.
+
+Podłączyć realny runtime do:
+
+`20/20 condition`
+→ `cycle closure`
+→ `transmission`
+→ `GhostSignal`
+→ `narrative`
+→ `archive`
+
+Zweryfikować idempotencję całej ścieżki.
+
+Jedno zamknięcie cyklu nie może wygenerować:
+
+* dwóch transmisji,
+* dwóch sygnałów,
+* dwóch zestawów nagród,
+* dwóch archiwizacji.
+
+Nie uruchamiać automatycznie kolejnego cyklu, jeżeli nie było to częścią dotychczas zatwierdzonego kontraktu.
+
+Jeżeli auto-start kolejnego cyklu nadal jest poza zakresem — pozostawić go poza zakresem.
+
+---
+
+# 130.9.10 — Real integration test
+
+Zbudować jeden test, który używa możliwie produkcyjnej ścieżki.
+
+Nie wolno testować wyłącznie przez bezpośrednie wywołania service methods.
+
+Scenariusz minimalny:
+
+1. runtime posiada aktywny cykl,
+2. istnieje 20 części,
+3. gracz posiada clan identity,
+4. gracz wybiera zwykły hackowalny target mapy,
+5. target przechodzi przez Target Registry / aimed runtime,
+6. GhostNetwork wykonuje eligibility,
+7. test deterministycznie wymusza pozytywny roll,
+8. powstaje reservation,
+9. gracz kończy realną ścieżkę capture,
+10. receipt zostaje zapisany,
+11. część przechodzi do `public`,
+12. event jest opublikowany,
+13. snapshot/API pokazuje część zgodnie z visibility,
+14. delta dociera do konsumenta,
+15. event terytorialny przeprowadza część do `contained`,
+16. kolejny poprawny event przeprowadza ją do `active`,
+17. module progress zmienia się,
+18. reward/contribution wykonuje się dokładnie raz.
+
+Dodatkowo test retry:
+
+* ten sam capture zostaje wysłany drugi raz,
+* nie powstaje druga część,
+* nie powstaje drugi reward,
+* status pozostaje spójny.
+
+---
+
+# 130.9.11 — Dev test mode
+
+Dodać bezpieczny sposób testowania GN bez wykonywania kolejnych 500 hacków.
+
+Development/test mode może umożliwiać:
+
+* zwiększony drop chance,
+* deterministic RNG,
+* wskazanie konkretnego testowego targetu,
+* szybkie wywołanie warunków terytorialnych,
+
+ale wyłącznie za jawnie włączoną flagą development/test.
+
+Nie może istnieć możliwość przypadkowego uruchomienia tego trybu jako produkcyjnego gameplayu.
+Runtime ma odrzucić start, jeżeli flaga testowa jest aktywna w środowisku
+produkcyjnym. Deterministyczny RNG wstrzykujemy po stronie serwera; klient nie
+może wybrać wyniku rolla, części ani statusu lifecycle.
+
+Test mode nie może zmieniać kontraktu domenowego.
+
+Ma jedynie skracać drogę do zdarzeń.
+
+---
+
+# 130.9.12 — Readiness endpoint / diagnostics
+
+Rozszerzyć diagnostykę GhostNetwork.
+
+Read-only stan powinien pokazywać co najmniej:
+
+* `ready`
+* `active_cycle_id`
+* `parts_total`
+* `pooled`
+* `reserved`
+* `public`
+* `contained`
+* `active`
+* `drops_enabled`
+* `drop_chance`
+* `topology_valid`
+* `pending_effects`
+* `unreconciled_effects`
+* `last_event`
+* `warnings`
+
+Stan:
+
+`ready=true`
+
+jest możliwy wyłącznie wtedy, gdy:
+
+* istnieje dokładnie jeden aktywny cykl,
+* istnieje dokładnie 20 części,
+* topology jest poprawna,
+* konfiguracja dropów jest poprawna,
+* repository jest dostępne.
+
+Endpoint jest read-only, dostępny zgodnie z istniejącym kontraktem
+administracyjnym i nie ujawnia identyfikatorów ukrytych części ani topology.
+Readiness rozróżnia błąd krytyczny od ostrzeżenia oraz zwraca stabilne kody
+powodów, które mogą konsumować monitoring i skrypty wdrożeniowe.
+
+---
+
+# Narzędzia serwerowe i operacje
+
+W ramach sprintu powstają cienkie skrypty korzystające z tych samych serwisów
+aplikacyjnych co runtime. Nie wolno duplikować w nich reguł domenowych ani
+wykonywać ad-hoc SQL poza jawną migracją.
+
+Minimalny zestaw operacyjny:
+
+* `status` — read-only readiness, liczniki lifecycle, stan flag, kolejki
+  efektów i ostatni bezpieczny event;
+* `bootstrap --dry-run|--apply` — idempotentne utworzenie albo walidacja
+  aktywnego cyklu i 20 instancji;
+* `reconcile --dry-run|--apply` — odnalezienie i dokończenie committed capture
+  bez acknowledged GN effect;
+* `drain` — wstrzymanie nowych reservations i bezpieczne dokończenie już
+  zapisanych efektów przed restartem lub rollbackiem;
+* `verify` — niezmieniająca danych kontrola topology, duplikatów, osieroconych
+  reservations/effects i exactly-once keys.
+
+Każdy skrypt ma kod wyjścia przydatny dla automatyzacji, `--help`, czytelny
+wynik tekstowy lub JSON, test CLI na tymczasowej bazie i odmowę mutacji przy
+niepełnej konfiguracji. Dokumentacja podaje dokładne komendy dla środowiska
+development, test i produkcja, ale nie zawiera danych dostępowych.
+
+# Migracje, rollout i rollback
+
+Jeżeli durable effect/outbox, ograniczenie jednego aktywnego cyklu lub
+telemetria wymagają zmiany schematu, dostarczamy migrację do przodu oraz
+sprawdzony plan zgodności ze starą wersją procesu. Migracja nie może włączać
+gameplayu ani samoczynnie tworzyć cyklu.
+
+Kolejność rollout:
+
+1. wdrożenie zgodnego wstecz schematu i kodu przy wyłączonych nowych flagach;
+2. `verify`, migracja danych i operatorski `bootstrap`;
+3. obserwacja readiness oraz telemetrii przy wyłączonych dropach;
+4. włączenie durable capture effect i reconciliation;
+5. kontrolowane włączenie dropów, następnie adaptera territory;
+6. osobne włączenie module progress/rewards;
+7. endgame dopiero po przejściu testu closure/transmission.
+
+Rollback wyłącza nowe reservations, lecz nie usuwa cyklu, odkrytych części,
+ledgerów ani outboxu. Najpierw wykonuje się `drain` i `verify`; zapisane efekty
+pozostają możliwe do ponowienia po powrocie poprawnej wersji. Każda flaga ma
+opisaną wartość bezpieczną oraz zależności od pozostałych flag.
+
+# Dokumentacja wymagana w sprincie
+
+Implementacja aktualizuje równolegle:
+
+* ten plan — status, faktyczny zakres i odstępstwa;
+* `doc/ghostnetwork_architecture.md` — ownership, przepływ eventów,
+  exactly-once/outbox, granice adapterów i source of truth;
+* `doc/ghostnetwork_endgame_runbook.md` — closure, transmission, retry,
+  operator recovery i zakaz automatycznego kolejnego cyklu;
+* dokument konfiguracji/deploymentu — flagi, wartości bezpieczne, kolejność
+  rollout/rollback i komendy skryptów technicznych;
+* `doc/project_journal.md` — zmiany, migracje, uruchomione testy z wynikami,
+  readiness oraz znane ograniczenia;
+* kontrakty API/eventów/delt, jeżeli ich pola albo semantyka ulegną zmianie.
+
+Dokumentacja opisuje stan faktycznie wdrożony, nie planowany. Nazwy eventów,
+flag, liczników i kodów readiness muszą być identyczne w kodzie, testach oraz
+runbooku.
+
+# Kolejność implementacji i bramki
+
+Prace dzielimy na cztery odbieralne paczki:
+
+1. **Foundation:** `130.9.1`–`130.9.3` i read-only część `130.9.12`.
+   Bramka: jeden cykl/20 części, jawna konfiguracja i obserwowalny pipeline,
+   nadal bez obowiązku włączenia dropów.
+2. **Durability:** `130.9.4`, migracja/outbox, reconciliation i skrypty
+   `verify/drain`. Bramka: testy crash-point oraz retry bez utraty i duplikacji.
+3. **Runtime bridge:** `130.9.5`–`130.9.8`. Bramka: kanoniczne eventy
+   territory prowadzą `public → contained → active`, a progress i rewards są
+   exactly-once.
+4. **End-to-end:** `130.9.9`–`130.9.12`, test realnej ścieżki, bezpieczny dev
+   mode, closure i runbook. Bramka: automatyczny E2E oraz manualny smoke bez
+   bezpośredniej ingerencji w bazę.
+
+Po każdej paczce zapisujemy werdykt cząstkowy `GO/NO-GO`. `NO-GO` nie jest
+obchodzone przez ręczne poprawienie rekordów; problem otrzymuje test
+reprodukcyjny i wraca do właściwej paczki.
+
+## Wynik implementacji 130.9
+
+* `ghost_capture_effects` jest durable outboxem skorelowanym z capture key,
+  graczem, targetem i reservation. Statusy `pending/applied/failed`, liczba prób
+  i acknowledgement są widoczne w readiness.
+* `reconcile` porównuje aktywne reservations z kanonicznym ownership store albo
+  `captured_targets`; naprawia także crash przed samym enqueue. `drain --apply`
+  wykonuje reconciliation i idempotentnie przetwarza pending/failed effects.
+* Zwykły capture oraz ownership CAS enqueue'ują effect przed synchroniczną próbą
+  discovery. Replay in-flight/completed receipt nie powiela części ani reward.
+* `record_territory_areas_delta()` i `record_territory_conflict_delta()` są
+  rzeczywistymi post-130 publication boundaries. Cienki bridge przekazuje
+  kanoniczne polygon/owner/clan/version/conflict do istniejącego adaptera GN.
+* Publikacja pełnego zbioru stabilnych obszarów obsługuje stabilization, owner
+  change, release i reconciliation. Publikacja konfliktu zamraża części, a
+  resolved publication odtwarza stan z aktualnego territory source of truth.
+* Lifecycle emituje istniejące eventy i aktualizuje snapshot/delta oraz
+  `GhostModuleStateService`. Rewards/contribution korzystają z istniejących
+  dedupe keys; profil otrzymuje tylko trwałe RSP/history, nigdy stan cyklu.
+* Abilities pozostają zgodne ze Sprintem 124: resolve bazuje na aktywnym module,
+  a adapter `apply_modifier()` pozostaje no-op tam, gdzie nie zatwierdzono
+  jeszcze mechaniki lub balansu. Sprint nie dodał nowych abilities.
+* Po realnym 20/20 publication bridge wywołuje istniejący atomowy lock,
+  transmission, GhostSignal, narrative i archive. Retry nie tworzy drugiego
+  sygnału; kolejny cykl nie startuje automatycznie.
+* Runtime readiness wymaga aktywnego cyklu, 20 części, poprawnej topologii,
+  włączonych i poprawnie skonfigurowanych dropów oraz zera pending/failed
+  capture effects. Test mode w produkcji daje `NOT READY`.
+* Lokalny bootstrap utworzył `ghostnetwork_0001`: 1 aktywny cykl, 20 pooled
+  parts, poprawna topologia. Developerski verify z chance `0.25` zwrócił
+  `READY`; override nie został zapisany jako produkcyjny balans.
+
+Walidacja końcowa:
+
+* nowe testy 130.9: Target Registry → `/gonna-win` → receipt → outbox →
+  discovery/reward, crash→reconcile→drain, publication→contained→active→
+  contest/resolution/release i runtime closure/transmission;
+* pełne `test_ghostnetwork*.py`: 143/143 OK;
+* post-130 territory/CAS/reconciliation: 58/58 OK;
+* `py_compile` i `git diff --check`: OK;
+* zbiorczy legacy `tests.test_target_persistence` ma istniejące zależności od
+  kolejności/globalnego stanu; dotknięte testy przechodzą osobno, a nowy E2E
+  posiada izolowane stores i receipt.
+
+---
+
+# Testy regresyjne
+
+Obowiązkowo sprawdzić:
+
+Macierz walidacji obejmuje:
+
+* testy jednostkowe reguł eligibility, lifecycle, idempotencji i readiness;
+* testy repository/migracji na świeżej bazie oraz bazie z danymi sprzed 130.9;
+* testy współbieżności bootstrapu, reservation, capture effect i rewards;
+* testy crash-point przed i po każdym trwałym zapisie outbox/ack;
+* testy kontraktowe publisher → adapter → GhostNetwork oraz snapshot/delta;
+* testy CLI dla `--dry-run`, `--apply`, kodów wyjścia i odmowy pracy przy
+  błędnej konfiguracji;
+* test bezpieczeństwa blokujący test mode w produkcji i wycieki hidden data;
+* jeden E2E przez publiczną ścieżkę aplikacji oraz manualny smoke z runbooka;
+* pełną istniejącą regresję sprintów 110–130 po przejściu testów celowanych.
+
+Testy używają izolowanej bazy i kontrolowanego zegara/RNG. Nie zależą od
+kolejności uruchomienia, nie pozostawiają aktywnego cyklu w bazie developerskiej
+i nie uzyskują pozytywnego wyniku przez bezpośrednią korektę rekordów.
+
+### Cycle
+
+* restart nie tworzy drugiego cyklu,
+* concurrency nie tworzy drugiego cyklu,
+* cykl zawsze posiada 20 części.
+
+### Drop
+
+* disabled = brak rolla,
+* chance 0 = brak rolla,
+* chance 1 = reservation,
+* nieeligible target = brak rolla,
+* own-clan exclusion działa,
+* brak dostępnych części daje poprawny reason.
+
+### Reservation
+
+* aim tego samego targetu nie rezerwuje kilku części,
+* expiration działa,
+* capture innego targetu nie konsumuje reservation.
+
+### Capture
+
+* discovery exactly-once,
+* duplicate receipt nie duplikuje części,
+* crash przed discovery jest reconciled.
+
+### Territory
+
+* stabilize,
+* conflict,
+* owner change,
+* release,
+* rebuild/reconciliation,
+
+muszą utrzymywać poprawny lifecycle części.
+
+### Delta / snapshot
+
+* część widoczna tylko dla właściwego viewer projection,
+* delta po commit,
+* brak hidden topology leak.
+
+### Rewards
+
+* exactly-once,
+* retry-safe.
+
+### Closure
+
+* 20/20 zamyka cykl dokładnie raz,
+* transmission dokładnie raz,
+* narrative dokładnie raz.
+
+---
+
+# Acceptance criteria
+
+Sprint 130.9 jest zakończony dopiero wtedy, gdy można uruchomić grę i wykonać prawdziwy test bez bezpośredniej ingerencji w bazę.
+
+Minimalny test manualny:
+
+`login`
+→ `map`
+→ `target`
+→ `aim`
+→ `hack`
+→ `successful capture`
+→ `GhostNetwork part discovered`
+→ `part visible in GN`
+→ `territory condition`
+→ `part contained`
+→ `part active`
+→ `machine progress updated`
+
+oraz automatyczny integration test potwierdza tę samą ścieżkę.
+
+Dodatkowo diagnostyka runtime musi pokazać:
+
+`ready=true`
+
+oraz faktyczne liczniki:
+
+`aim`
+`eligible`
+`roll`
+`reservation`
+`discovery`
+
+---
+
+# Definition of Done
+
+Sprint można zamknąć tylko jeżeli:
+
+* GhostNetwork bootstrapuje się bezpiecznie,
+* istnieje aktywny cykl,
+* istnieje dokładnie 20 części,
+* topology jest valid,
+* dropy mogą realnie działać,
+* prawdziwy aim wykonuje roll,
+* prawdziwy capture odkrywa część,
+* crash/retry nie gubi discovery,
+* post-130 territory runtime jest podłączony do GN,
+* część może przejść `public → contained → active`,
+* module progress działa z realnych eventów,
+* rewards są exactly-once,
+* snapshot i delta pokazują aktualny stan,
+* integration test przechodzi,
+* manualny test w grze przechodzi,
+* migracja została sprawdzona na bazie świeżej i zgodnej ze stanem sprzed sprintu,
+* skrypty `status/bootstrap/reconcile/drain/verify` mają testy i runbook,
+* rollout i rollback zostały przećwiczone bez utraty trwałych efektów,
+* dokumentacja architektury, konfiguracji, endgame i journal odpowiada kodowi,
+* nie pozostają nieudokumentowane flagi, ręczne kroki SQL ani wymagane
+  działania operatorskie wykonywane automatycznie przy starcie procesu.
+
+Na końcu sprintu wypisz:
+
+* wszystkie znalezione dodatkowe problemy,
+* wykonane zmiany,
+* testy i ich wyniki,
+* wykonane migracje i wynik próbnego rollbacku,
+* użyte wartości flag bez sekretów,
+* wynik `status`, `verify` i stan pending/unreconciled effects,
+* aktualny runtime readiness,
+* `git diff --stat`,
+* oraz werdykt:
+
+`GO — GhostNetwork ready for gameplay testing`
+
+albo
+
+`NO-GO — GhostNetwork still not testable end-to-end`.
+
+## Ograniczenie
+
+Nie rozszerzaj zakresu sprintu o nowe feature'y GhostNetwork.
+
+130.9 ma **uruchomić i połączyć istniejące elementy sprintów 110–130 z runtime po refaktorze 130**, a nie wymyślać GhostNetwork po raz drugi.
+
+# Sprint 130.9.1 — GhostNetwork Gameplay Validation
+
+**Status:** `LOCAL PRE-FLIGHT PASSED — SERVER RC REQUIRED` (2026-08-19).
+
+**Typ sprintu:** walidacja runtime, domknięcie integracji i naprawa wykrytych
+regresji. To nie jest sprint feature'owy ani deploymentowy.
+
+**Stan wejściowy:** Sprint 130.9 jest zakończony, lokalny runtime ma aktywny
+cykl `ghostnetwork_0001`, 20 części, poprawną topology i readiness `READY`.
+Ten stan trzeba ponownie potwierdzić przed pierwszą próbą; zapis w dokumencie
+nie zastępuje odczytu z bieżącej bazy.
+
+**Podział wykonania:** Etap 1A kończy lokalną walidację kodu i testów. Etap 1B
+wdraża release candidate na kontrolowany serwer z działającym procesem web,
+territory workerem i wskazanymi kontami testowymi. Manualną ścieżkę na serwerze
+wykonuje użytkownik. Etap 2 rozpoczyna się dopiero po otrzymaniu wyniku i logów
+z manuala; obejmuje analizę, poprawki w zakresie sprintu, pełną regresję,
+cleanup serwerowego runtime i końcowy werdykt.
+
+## Wynik Etapu 1
+
+Etap przygotowawczy zakończono bez wykonywania manualnej ścieżki gracza:
+
+* `verify = READY` przy jawnym profilu development,
+* aktywny cykl `ghostnetwork_0001`, 20 części w stanie `pooled`, valid topology,
+* `pending_effects = 0`, `unreconciled_effects = 0`, brak aktywnych reservations,
+* dropy development włączone z `drop_chance = 0.25`, test mode wyłączony,
+* telemetryka gotowa; przed manualem brak eventów jest stanem oczekiwanym,
+* dry-run `reconcile` i `drain` zakończony bez planowanych efektów,
+* naprawiono odczytowy audyt runtime i dodano jego test regresyjny,
+* `test_target_persistence`: `221/221 OK` po odizolowaniu trwałych store'ów i
+  aktualizacji historycznych asercji do obecnych kontraktów,
+* celowana paczka runtime/telemetry/bridge/E2E: `17/17 OK`,
+* `py_compile` i `git diff --check`: OK.
+
+Lokalny wynik nie daje jeszcze zgody na manual: lokalnie nie działa territory
+worker i nie ma właściwych kont. Manual zostaje przeniesiony na kontrolowany
+serwer. Proces webowy i territory worker muszą działać z tym samym jawnym
+profilem RC:
+
+```powershell
+$env:CHAOS_GHOSTNETWORK_RUNTIME_MODE='development'
+$env:CHAOS_GHOSTNETWORK_DROPS_ENABLED='true'
+$env:CHAOS_GHOSTNETWORK_DROP_CHANCE='0.25'
+```
+
+Nie ustawiamy `CHAOS_GHOSTNETWORK_TEST_MODE`; manual ma przejść naturalny roll
+i normalny pipeline gameplayowy. Przed wdrożeniem wymagane są osobna zgoda na
+commit/push/deploy, wskazanie docelowego hosta/procesów PM2 oraz nazwy kont
+testowych. Etap 1B pozostaje `WAITING FOR SERVER ROLLOUT`.
+
+## Etap 1B — serwerowy release candidate przed manualem
+
+Serwerowy pre-flight wykonujemy bez modyfikowania gameplayu:
+
+1. zanotować bieżący commit na serwerze, branch, procesy PM2 i ścieżkę bazy,
+2. potwierdzić działanie procesu web oraz `territory_conflict_worker.py`,
+3. wykonać spójny backup SQLite wraz z WAL/SHM,
+4. wdrożyć dokładnie zatwierdzony commit RC; wszystkie procesy muszą raportować
+   tę samą wersję,
+5. ustawić trzy flagi GhostNetwork w lokalnym `ecosystem.config.js` dla weba
+   i workera oraz pozostawić test mode wyłączony,
+6. uruchomić testy składniowe i celowaną paczkę 130.9.1 na serwerze,
+7. wykonać odczytowe `status`, `verify` i audyt runtime,
+8. jeżeli brak cyklu, uruchomić najpierw dry-run `bootstrap`; `--apply` wymaga
+   oceny planu i osobnej zgody operatorskiej,
+9. wykonać dry-run `reconcile` i `drain`,
+10. potwierdzić co najmniej jedno konto testowe z klanem/profesją i narzędziami
+    mapowymi oraz konto/stan pozwalający przejść territory lifecycle,
+11. zrestartować oba procesy przez istniejącą konfigurację PM2 z `--update-env`,
+12. po restarcie ponownie uzyskać `verify = READY` i dopiero wtedy przekazać
+    serwer do manuala.
+
+Nie uruchamiamy przy tej okazji ogólnego cleanupu aplikacji, syncu katalogu ani
+niezwiązanych migracji. Nie resetujemy istniejących kont. Jeżeli potrzebne jest
+konto techniczne, tworzenie/reset musi być jawną, osobną operacją z backupem.
+
+Rollback serwerowego RC: wyłączyć dropy, wykonać dry-run `drain`, w razie
+pending effects zastosować kontrolowany drain/reconcile, zachować bazę do
+analizy, przywrócić poprzedni commit i konfigurację PM2, zrestartować web oraz
+workera i potwierdzić health. Backup bazy przywracamy wyłącznie przy potwierdzonej
+korupcji lub nieodwracalnej mutacji, nie jako domyślny sposób wycofania kodu.
+
+## Cel
+
+Zweryfikować GhostNetwork **na prawdziwym lokalnym runtime gry**, z użyciem normalnej ścieżki gracza:
+
+`map`
+→ `target`
+→ `aim`
+→ `hack`
+→ `capture`
+→ `GhostNetwork drop`
+→ `discovery`
+→ `territory`
+→ `contained`
+→ `active`
+→ `module progress`
+
+Sprint 130.9 udowodnił poprawność architektury i integracji testami automatycznymi.
+
+Sprint 130.9.1 ma odpowiedzieć na inne pytanie:
+
+**czy gracz faktycznie może wejść do gry i przejść tę ścieżkę bez żadnej ingerencji developerskiej w trakcie działania?**
+
+Nie dodajemy nowych feature'ów.
+
+Nie przebudowujemy GhostNetwork.
+
+Nie zmieniamy kontraktów sprintów 110–130.
+
+## Model wykonania
+
+Pracę prowadzimy małymi, zamykanymi etapami. Każdy etap kończy się:
+
+1. zapisaniem obserwacji lub odtworzeniem błędu,
+2. minimalną poprawką wyłącznie wtedy, gdy test ujawni regresję,
+3. testem celowanym na poprawiony kontrakt,
+4. testem sąsiedniej integracji,
+5. `git diff --check`,
+6. aktualizacją checklisty i dokumentacji, jeżeli zmieniło się rzeczywiste
+   zachowanie, procedura operatorska albo znane ograniczenie.
+
+Nie cofamy zastanych lokalnych zmian i nie maskujemy błędu przez ręczną zmianę
+danych. Przed edycją sprawdzamy `git status --short` oraz diff dotykanych
+plików. Commit, push, deploy, restart serwera i mutacje poza lokalnym runtime
+pozostają osobnymi decyzjami użytkownika.
+
+## Kolejność i bramki etapów
+
+Sprint wykonujemy w następujących bramkach:
+
+* **Gate A — runtime:** `.1` musi zakończyć się `READY`; w przeciwnym razie
+  zatrzymujemy gameplay i diagnozujemy runtime,
+* **Gate B — drop:** `.2–.4` muszą potwierdzić naturalny aim, reservation,
+  capture i dokładnie jedno discovery,
+* **Gate C — lifecycle:** `.5–.7` muszą potwierdzić przejście pozytywne,
+  cofnięcie stanu oraz recovery przez aktualny bridge terytorialny,
+* **Gate D — durability:** `.8–.9` muszą potwierdzić retry/reconcile oraz
+  usunąć zależność testów od kolejności,
+* **Gate E — odbiór:** `.10–.13` obejmują obserwację drop-rate, pełną regresję,
+  cleanup runtime, synchronizację dokumentacji i raport końcowy.
+
+Nie przechodzimy do kolejnej bramki z niewyjaśnionym błędem poprzedniej.
+Finding wymagający nowej mechaniki trafia do backlogu i nie rozszerza sprintu.
+
+## Artefakty i dowody
+
+Raport nie może opierać się wyłącznie na komunikacie UI. Dla każdego istotnego
+przejścia zapisujemy skorelowane dowody z co najmniej dwóch warstw:
+
+* wejście gracza lub event gameplayowy,
+* rezultat API/read modelu,
+* rekord repository albo trwały effect,
+* telemetria z reason code,
+* snapshot/delta widoczny dla UI.
+
+Dowody identyfikujemy bez sekretów przez `cycle_id`, `operation_id`,
+`target_id`, `part_id` oraz znaczniki czasu. Nie zapisujemy hidden topology,
+tokenów sesji ani pełnych payloadów zawierających dane prywatne.
+
+## Narzędzia techniczne
+
+Do diagnostyki wykorzystujemy kanoniczne, wersjonowane wejścia operatorskie:
+
+* `tools/ghostnetwork_runtime.py` — `status`, `verify`, domyślny dry-run
+  `bootstrap`, `reconcile` i `drain`,
+* `tools/audit_ghostnetwork_runtime_state.py` — odczytowy audyt pipeline i
+  trwałych efektów.
+
+Jeżeli podczas sprintu potrzebna jest powtarzalna diagnostyka, rozszerzamy
+istniejący skrypt albo dodajemy mały skrypt w `tools/` z `--help`, czytelnymi
+kodami wyjścia i bezpiecznym trybem odczytowym jako domyślnym. Nie zostawiamy
+tymczasowych poleceń SQL ani jednorazowych skryptów poza repozytorium.
+
+Skrypt mutujący musi wymagać jawnego `--apply`, rozpoznawać tryb środowiska,
+drukować plan przed zmianą i nadawać się do ponowienia. Test gameplayowy nie
+może używać narzędzia operatorskiego do sztucznego zaliczenia ścieżki gracza.
+
+---
+
+# 130.9.1.1 — Pre-flight runtime verification
+
+Przed rozpoczęciem testów gameplayowych sprawdź stan GhostNetwork.
+
+Wykonaj:
+
+`python tools/ghostnetwork_runtime.py status`
+
+oraz:
+
+`python tools/ghostnetwork_runtime.py verify`
+
+Oczekiwany stan:
+
+* dokładnie 1 aktywny cykl,
+* `cycle_id = ghostnetwork_0001` lub aktualny aktywny cykl,
+* dokładnie 20 części,
+* poprawna topology,
+* `pending_effects = 0`,
+* `unreconciled_effects = 0`,
+* developerskie dropy aktywne,
+* readiness = `READY`.
+
+Jeżeli stan nie jest READY:
+
+**nie rozpoczynaj testu gameplayowego.**
+
+Najpierw ustal przyczynę.
+
+---
+
+# 130.9.1.2 — Gameplay smoke test
+
+Uruchom normalnie aplikację i wykonaj test przez rzeczywisty interfejs gry.
+
+Bez:
+
+* ręcznych insertów do bazy,
+* ręcznego tworzenia reservation,
+* bezpośredniego wywoływania GhostNetworkService,
+* wymuszania `part_id`,
+* manipulacji statusami części.
+
+Scenariusz:
+
+1. zaloguj gracza,
+2. otwórz mapę,
+3. wybierz zwykły hackowalny target,
+4. uruchom normalne narzędzie,
+5. wykonaj hack,
+6. zakończ capture,
+7. sprawdź rezultat GhostNetwork.
+
+Przy developerskim:
+
+`drop_chance = 0.25`
+
+wykonaj serię normalnych hacków do momentu pierwszego discovery.
+
+Nie zwiększaj drop chance tylko dlatego, że pierwsze kilka prób nie da części.
+
+---
+
+# 130.9.1.3 — Obserwacja realnego drop pipeline
+
+Podczas testu sprawdź telemetrykę 130.9.
+
+Musimy widzieć faktyczne przejścia:
+
+`aim`
+→ `eligible`
+→ `roll`
+→ `reserved`
+→ `capture`
+→ `discovered`
+
+oraz zatrzymania:
+
+* `not_eligible`,
+* `roll_missed`,
+* `no_candidate_part`,
+* `no_matching_reservation`,
+* inne reason codes.
+
+Po kilku hackach wykonaj krótkie zestawienie:
+
+* liczba aim,
+* liczba eligible,
+* liczba rolli,
+* liczba miss,
+* liczba reservations,
+* liczba captures,
+* liczba discoveries.
+
+To ma być pierwszy realny sanity check drop-rate.
+
+---
+
+# 130.9.1.4 — Pierwszy prawdziwy drop
+
+Po uzyskaniu pierwszej części potwierdź:
+
+* część istnieje w repository,
+* status = `public`,
+* jest przypisana do właściwego cyklu,
+* posiada właściwy anchor/target,
+* istnieje tylko jedna instancja discovery,
+* contribution zostało naliczone dokładnie raz,
+* reward został naliczony dokładnie raz,
+* history została zmieniona dokładnie raz.
+
+Następnie sprawdź:
+
+* GhostNetwork snapshot,
+* delta,
+* API,
+* warstwę/UI GhostNetwork.
+
+Część musi być widoczna dokładnie zgodnie z istniejącym visibility contract.
+
+---
+
+# 130.9.1.5 — Territory lifecycle w prawdziwej grze
+
+Doprowadź odkrytą część przez aktualny system terytorialny.
+
+Nie wywołuj adaptera GN bezpośrednio.
+
+Test musi przejść przez aktualne post-130 boundaries:
+
+`ownership CAS`
+→ `territory publication`
+→ `GhostNetwork bridge`
+
+Potwierdź:
+
+`public`
+→ `contained`
+
+a następnie:
+
+`contained`
+→ `active`
+
+zgodnie z istniejącymi warunkami gameplayowymi.
+
+Po każdym kroku sprawdź:
+
+* repository,
+* event,
+* delta,
+* snapshot,
+* module state.
+
+---
+
+# 130.9.1.6 — Module progress
+
+Po przejściu części do `active` sprawdź rzeczywisty progress maszyny.
+
+Oczekiwane:
+
+`0/5`
+→ `1/5`
+
+dla właściwej maszyny / modułu.
+
+Nie wystarczy sprawdzić wpisu w bazie.
+
+Zweryfikuj także read model używany przez UI/API.
+
+Jeżeli istnieje aktualizacja delty dla module progress, sprawdź jej publikację.
+
+---
+
+# 130.9.1.7 — Contest / release smoke test
+
+Na tej samej części wykonaj co najmniej jeden realny przypadek cofnięcia lifecycle.
+
+Przykład:
+
+`active`
+→ territory contested
+
+lub:
+
+`contained`
+→ owner changed
+
+lub:
+
+`contained/active`
+→ release
+
+Sprawdź, czy GhostNetwork otrzymuje właściwy event z nowego systemu terytoriów i zmienia stan zgodnie z kontraktem.
+
+Następnie doprowadź stan ponownie do poprawnego właściciela / stabilizacji i sprawdź recovery.
+
+Celem nie jest pełny stress test konfliktów.
+
+Celem jest potwierdzenie, że bridge działa również **w drugą stronę**, a nie tylko przy pozytywnej aktywacji.
+
+---
+
+# 130.9.1.8 — Crash / retry manual sanity check
+
+Nie trzeba niszczyć runtime w losowych miejscach.
+
+Wykorzystaj istniejące narzędzia diagnostyczne 130.9.
+
+Zweryfikuj operatorsko:
+
+`reconcile`
+
+oraz dry-run:
+
+`drain`
+
+Jeżeli bezpieczne środowisko developerskie pozwala zasymulować pending effect:
+
+1. pozostaw jeden efekt jako pending,
+2. uruchom reconciliation,
+3. wykonaj `drain --apply`,
+4. sprawdź, czy efekt został wykonany dokładnie raz,
+5. wykonaj drain ponownie.
+
+Drugi drain powinien mieć:
+
+`0 effects to apply`
+
+lub równoważny stan.
+
+---
+
+# 130.9.1.9 — Legacy test_target_persistence
+
+Sprint 130.9 ujawnił istniejący problem:
+
+`test_target_persistence`
+
+zależy od:
+
+* kolejności testów,
+* globalnego stanu,
+* wcześniejszych side effectów.
+
+To należy uporządkować przed deployem.
+
+Znajdź wszystkie przypadki, które:
+
+* przechodzą osobno,
+* ale zawodzą w zbiorczej regresji,
+* zależą od kolejności,
+* zostawiają globalny state,
+* wykorzystują współdzielony singleton/cache/storage.
+
+Napraw izolację testów.
+
+Nie zmieniaj produkcyjnego zachowania tylko po to, aby stary test był zielony.
+
+Preferowane:
+
+* właściwy setup/teardown,
+* izolowana baza,
+* reset global state,
+* deterministic fixtures,
+* brak zależności test A → test B.
+
+Po naprawie cały `test_target_persistence` musi przechodzić niezależnie od kolejności uruchomienia.
+
+---
+
+# 130.9.1.10 — Drop-rate observation
+
+Developerski drop chance wynosi obecnie:
+
+`0.25`
+
+Nie traktuj tego automatycznie jako wartości produkcyjnej.
+
+Podczas manualnego testu zbierz pierwsze rzeczywiste dane:
+
+* eligible aims,
+* rolls,
+* discoveries.
+
+Nie próbujemy jeszcze robić pełnego balansu statystycznego.
+
+Chcemy jedynie stwierdzić:
+
+* czy 0.25 działa zgodnie z oczekiwaniem,
+* czy gracz nie dostaje części absurdalnie często,
+* czy discovery nie jest zbyt rzadkie do testowania.
+
+Na końcu przygotuj rekomendację dla **osobnej decyzji deploymentowej**:
+
+`recommended production drop range`
+
+ale **nie zmieniaj produkcyjnego drop-rate bez decyzji**.
+
+---
+
+# 130.9.1.11 — Full regression
+
+Po manualnej walidacji uruchom ponownie regresję.
+
+Minimum:
+
+* wszystkie `test_ghostnetwork*.py`,
+* nowe testy Sprintu 130.9,
+* `test_target_persistence`,
+* Target Registry,
+* `/gonna-win`,
+* receipts,
+* capture,
+* ownership CAS,
+* territory conflicts,
+* reconciliation,
+* delta,
+* snapshot,
+* rewards/profile integration.
+
+Dodatkowo:
+
+`py_compile`
+
+oraz:
+
+`git diff --check`
+
+Nie uznawaj sprintu za GO, jeżeli testy przechodzą pojedynczo, ale zbiorczy suite pozostaje zależny od kolejności.
+
+---
+
+# 130.9.1.12 — Runtime cleanup
+
+Po zakończeniu testów sprawdź:
+
+* pending effects,
+* unreconciled effects,
+* failed effects,
+* reservations,
+* cycle integrity,
+* parts count,
+* topology.
+
+Końcowe:
+
+`verify`
+
+musi zwrócić:
+
+`READY`
+
+Nie pozostawiaj runtime w stanie powstałym wskutek sztucznej symulacji awarii.
+
+---
+
+# 130.9.1.13 — Dokumentacja, skrypty i handoff
+
+Po zakończeniu walidacji zsynchronizuj dokumentację z faktycznie sprawdzonym
+runtime:
+
+* `doc/game_play_180726.md` — status etapów, wynik i nierozwiązane findings,
+* `doc/ghostnetwork_architecture.md` — tylko jeśli zmienił się kontrakt lub
+  przepływ odpowiedzialności,
+* `doc/ghostnetwork_endgame_runbook.md` — rzeczywiste komendy pre-flight,
+  diagnostyki, cleanupu, rollbacku i recovery,
+* `doc/project_journal.md` — data, zakres, testy, wynik i decyzja GO/NO-GO.
+
+Sprawdź, czy wszystkie użyte kroki serwerowe są odtwarzalne z repozytorium.
+Każda nowa komenda techniczna musi mieć opis wejścia, skutku, trybu dry-run,
+kodu wyjścia i przykładu bez sekretów. Usuń zależność runbooka od wiedzy
+przekazywanej wyłącznie ustnie.
+
+Handoff zawiera:
+
+* warunki startu lokalnego serwera i jawne wartości niesekretnych flag,
+* komendy testów celowanych i pełnej regresji,
+* wynik końcowego `status` oraz `verify`,
+* listę zmienionych plików i uzasadnienie każdej poprawki,
+* znane ograniczenia oraz findings odłożone poza sprint,
+* procedurę przywrócenia bezpiecznego stanu: wyłączenie dropów, `drain`,
+  `reconcile`/`verify`; bez kasowania cyklu i trwałych efektów.
+
+---
+
+# Acceptance criteria
+
+Sprint 130.9.1 kończy się `GO`, jeżeli ręcznie z poziomu gry uda się potwierdzić:
+
+`normal target`
+→ `aim`
+→ `eligible`
+→ `roll`
+→ `reservation`
+→ `hack`
+→ `capture`
+→ `discovery`
+→ `public`
+→ `contained`
+→ `active`
+→ `module progress`
+
+oraz:
+
+* UI/API pokazuje poprawny stan,
+* delta działa,
+* reward jest exactly-once,
+* contribution jest exactly-once,
+* contest/release wpływa poprawnie na lifecycle,
+* reconciliation nie tworzy duplikatów,
+* `test_target_persistence` nie zależy już od kolejności,
+* pełna regresja jest zielona,
+* runtime kończy test jako `READY`.
+
+Dodatkowo:
+
+* wszystkie kroki operatorskie są odtwarzalne z wersjonowanych skryptów i
+  runbooka,
+* dokumentacja odpowiada kodowi oraz rzeczywistemu wynikowi testów,
+* nie pozostają tymczasowe skrypty, ręczne poprawki SQL ani nieopisane flagi,
+* istnieje raport dowodowy pozwalający odróżnić sukces UI od trwałego efektu,
+* rollout/deploy nie został wykonany bez osobnej decyzji użytkownika.
+
+---
+
+# Poza zakresem
+
+Nie wykonuj w tym sprincie:
+
+* produkcyjnego deployu,
+* commita bez naszej decyzji,
+* finalnego ustalania balansu drop-rate,
+* automatycznego startu kolejnego cyklu,
+* nowych abilities,
+* nowych nagród,
+* nowych zasad terytorialnych,
+* zmian lore,
+* przebudowy GhostNetwork UI.
+
+Jeżeli podczas manualnego testowania wykryjesz bug istniejącej ścieżki — napraw go.
+
+Jeżeli potrzebna byłaby nowa mechanika — zapisz jako osobny finding.
+
+---
+
+# Definition of Done
+
+Na końcu przedstaw raport:
+
+## Gameplay
+
+* liczba wykonanych hacków,
+* eligible,
+* rolls,
+* reservations,
+* discoveries,
+* pierwszy realny drop,
+* status części,
+* przejście `public → contained → active`,
+* wynik module progress.
+
+## Runtime
+
+* cycle id,
+* parts total,
+* statusy części,
+* pending effects,
+* unreconciled effects,
+* topology,
+* readiness.
+
+## Exactly-once
+
+Potwierdzenie:
+
+* discovery,
+* reward,
+* contribution,
+* history,
+* reconcile/drain.
+
+## Testy
+
+Podaj wszystkie uruchomione zestawy i wyniki.
+
+W szczególności osobno podaj wynik:
+
+`test_target_persistence`
+
+oraz pełnej regresji GhostNetwork.
+
+## Kod
+
+Podaj:
+
+* zmienione pliki,
+* przyczynę każdej dodatkowej poprawki,
+* `git diff --stat`,
+* `git diff --check`.
+
+## Drop rate
+
+Podaj obserwację developerskiego `0.25` i rekomendowany zakres do późniejszej decyzji produkcyjnej.
+
+Nie ustawiaj go jeszcze jako produkcyjnego.
+
+# Końcowy werdykt
+
+Jeden z:
+
+`GO — GhostNetwork validated in real gameplay`
+
+albo:
+
+`NO-GO — GhostNetwork runtime integration still has gameplay blockers`
+
+Nie commituj.
+
+Nie deployuj.
+
+
 > Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.
 
 # Sprint 131 — GhostNetwork Suite: audyt widoczności części i integracja z Territory Control

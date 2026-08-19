@@ -833,3 +833,45 @@ Te decyzje powinny zostać rozpisane w odpowiednich sprintach bez zmiany granic 
 13. Ollama nie zmienia stanu gry.
 14. Snapshot i delty posiadają osobny scope GhostNetwork.
 15. Dokument jest podstawą do późniejszego podziału implementacji na sprinty.
+
+## Runtime Foundation (Sprint 130.9)
+
+Start procesu webowego i workera nie tworzy ani nie naprawia cyklu. Stan
+runtime jest sprawdzany read-only przez `GhostNetworkService.get_runtime_readiness()`;
+mutujący bootstrap wykonuje operator przez
+`python tools/ghostnetwork_runtime.py bootstrap --apply`. Operacja korzysta z
+istniejącej transakcji i ograniczeń repository, więc równoległe wywołania
+prowadzą do jednego aktywnego cyklu z 20 częściami i poprawną topologią.
+
+Bezpieczne wartości domyślne to `CHAOS_GHOSTNETWORK_DROPS_ENABLED=false` oraz
+`CHAOS_GHOSTNETWORK_DROP_CHANCE=0`. Włączenie dropów z chance spoza `(0, 1]`
+daje `NOT READY`; kod nie wybiera wartości balansowej za operatora.
+
+Tabela `ghost_pipeline_telemetry` przechowuje tylko agregat per `cycle_id`, fazę
+`aim|capture` i kod wyniku wraz z licznikiem oraz czasem ostatniego wystąpienia.
+Nie zapisuje `part_id`, target payloadu, wyniku rolla ani topologii i nie rośnie
+o jeden rekord na każdy aim. Błąd zapisu telemetrii nie blokuje gameplay hooka.
+
+Runtime readiness jest osobnym kontraktem od readiness archiwum/endgame. Pola
+`pending_effects` i `unreconciled_effects` pochodzą z trwałego capture outboxu.
+
+## Runtime integration po refaktorze 130
+
+`ghost_capture_effects` rozdziela kanoniczny capture od wykonania discovery.
+Normalna ścieżka zapisuje effect po committed capture i wykonuje go od razu;
+operator `reconcile/drain` dodatkowo odtwarza brakujący effect z aktywnej
+reservation oraz aktualnego `TerritoryTargetOwnershipStore`/`captured_targets`.
+Idempotencję zapewniają capture key, unikalny target części, dedupe eventu,
+contribution ledger i reward key.
+
+Źródłem prawdy terytorium pozostają post-130 ownership CAS, obszary, conflicts,
+engagements i reconciliation. Bridge działa przy publication boundaries
+`record_territory_areas_delta()` oraz `record_territory_conflict_delta()`.
+GhostNetwork otrzymuje tylko kanoniczną projekcję polygon/owner/clan/version i
+nie przechowuje alternatywnej geometrii świata. Pełna publikacja obszarów jest
+również mechanizmem release/recovery dla części, których poprzednie terytorium
+zniknęło.
+
+Każda zmiana lifecycle uruchamia istniejący module state i ledger nagród.
+Osiągnięcie 20/20 na tej samej granicy prowadzi przez atomowy closure do
+transmission/narrative/archive, bez automatycznego utworzenia kolejnego cyklu.

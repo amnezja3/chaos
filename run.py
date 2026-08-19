@@ -63,7 +63,7 @@ from response_network.response_dispatcher import ResponseDispatcher
 from response_network.territory_context_reader import TerritoryContextReader
 from response_network.territory_delta import TerritoryDeltaPublisher
 from response_network.warning_store import ResponseWarningStore
-from ghostnetwork import GhostNetworkDeltaPublisher, GhostNetworkService, normalize_snapshot_view
+from ghostnetwork import GhostNetworkDeltaPublisher, GhostNetworkService, GhostRuntimeCoordinator, normalize_snapshot_view
 
 app = Flask(__name__)
 
@@ -2978,7 +2978,9 @@ def record_map_target_delta(username, target, change_type="map.target_updated", 
 
 def record_territory_areas_delta(username, areas, reason="territory_rebuild"):
     try:
-        return territory_delta_publisher.record_areas_updated(username, areas, reason=reason)
+        published = territory_delta_publisher.record_areas_updated(username, areas, reason=reason)
+        bridge_ghostnetwork_territory_publication(reason=reason)
+        return published
     except Exception as exc:
         print(f"[DELTA] territory.updated failed for {username}: {exc}", flush=True)
         return []
@@ -2988,14 +2990,122 @@ def record_territory_conflict_delta(conflict, reason="territory_conflict"):
     try:
         reference = (conflict or {}).get("conflict_id") or (conflict or {}).get("conflict_key")
         snapshot = territory_conflict_store.latest_snapshot_state(reference) if reference else None
-        return territory_delta_publisher.record_conflict_changed(
+        published = territory_delta_publisher.record_conflict_changed(
             snapshot if isinstance(snapshot, dict) else conflict,
             reason=reason,
         )
+        bridge_ghostnetwork_conflict_publication(
+            snapshot if isinstance(snapshot, dict) else conflict, reason=reason
+        )
+        return published
     except Exception as exc:
         conflict_key = (conflict or {}).get("conflict_key") if isinstance(conflict, dict) else "-"
         print(f"[DELTA] territory.conflict_changed failed for {conflict_key}: {exc}", flush=True)
         return []
+
+
+def build_ghostnetwork_territory_publication():
+    events = []
+    for area in territory_store.list_player_areas():
+        owner = str(area.get("owner_username") or "").strip()
+        profile = user_store.get_profile(owner) or {}
+        clan = get_profile_clan(profile)
+        if not owner or not clan:
+            continue
+        version_seed = str(area.get("updated_at") or area.get("id") or "")
+        version = int(hashlib.sha1(version_seed.encode("utf-8")).hexdigest()[:8], 16)
+        events.append({
+            "territory_event_id": f"territory.publication:{area.get('id')}:{version}",
+            "territory_id": str(area.get("id") or ""),
+            "owner_username": owner,
+            "owner_clan": clan,
+            "territory_state_version": version,
+            "status": "stable" if area.get("status") in {"active", "stable"} else area.get("status"),
+            "vertices": copy.deepcopy(area.get("vertices") or []),
+            "pillar_count": len(area.get("vertices") or []),
+            "has_polygon": len(area.get("vertices") or []) >= 3,
+            "created_at": area.get("updated_at") or area.get("created_at") or "",
+        })
+    return events
+
+
+def apply_ghostnetwork_runtime_result(service, result):
+    reward_results = []
+    for event in collect_ghostnetwork_domain_events(result):
+        event_type = str(event.get("event_type") or "")
+        if event_type.startswith("ghost.part_"):
+            service.repository.record_pipeline_outcome(
+                "lifecycle", event_type.removeprefix("ghost.part_"), event.get("cycle_id") or ""
+            )
+        player_id = str(event.get("player_id") or (event.get("payload") or {}).get("player_id") or "")
+        profile = user_store.get_profile(player_id) or {} if player_id else {}
+        reward = service.handle_reward_event(event, profile=profile, apply=bool(player_id))
+        if player_id and reward.get("applied"):
+            user_store.save_profile(profile)
+        reward_results.append(reward)
+        if player_id:
+            publish_ghostnetwork_delta_result(player_id, profile, event)
+    return reward_results
+
+
+def maybe_finalize_ghostnetwork_cycle(service, trigger_result=None):
+    cycle = service.get_active_cycle()
+    if not cycle or cycle.get("status") != "active":
+        return {"ok": True, "status": "not_ready"}
+    readiness = service.evaluate_network_readiness(cycle["cycle_id"])
+    if not readiness.get("ready"):
+        return {"ok": True, "status": "not_ready", "readiness": readiness}
+    events = collect_ghostnetwork_domain_events(trigger_result)
+    trigger_event_id = (events[-1] if events else {}).get("event_id") or "runtime_20_of_20"
+    locked = service.attempt_cycle_lock(cycle["cycle_id"], trigger_event_id=trigger_event_id)
+    if not locked.get("ok"):
+        return locked
+    return service.start_transmission(cycle["cycle_id"])
+
+
+def bridge_ghostnetwork_territory_publication(reason="territory_publication"):
+    try:
+        service = GhostNetworkService()
+        territories = build_ghostnetwork_territory_publication()
+        report = service.reconcile_parts_with_territories(territories=territories, apply=True)
+        report["rewards"] = apply_ghostnetwork_runtime_result(service, report)
+        report["endgame"] = maybe_finalize_ghostnetwork_cycle(service, report)
+        return report
+    except Exception as exc:
+        print(f"[ghostnetwork] territory publication bridge failed reason={reason} error={exc}", flush=True)
+        return {"ok": False, "status": "bridge_failed", "error": str(exc)}
+
+
+def bridge_ghostnetwork_conflict_publication(snapshot, reason="territory_conflict"):
+    try:
+        service = GhostNetworkService()
+        source = snapshot if isinstance(snapshot, dict) else {}
+        conflict = source.get("conflict") if isinstance(source.get("conflict"), dict) else source
+        status = str(conflict.get("status") or "").lower()
+        if status in {"resolved", "closed"}:
+            return bridge_ghostnetwork_territory_publication(reason=f"{reason}:resolved")
+        reports = []
+        conflict_id = str(conflict.get("conflict_id") or conflict.get("id") or "")
+        fronts = source.get("fronts") or conflict.get("fronts") or []
+        for index, front in enumerate(fronts):
+            vertices = (front or {}).get("geometry") or (front or {}).get("vertices") or []
+            if len(vertices) < 3:
+                continue
+            report = service.on_territory_contested({
+                "territory_event_id": f"conflict.publication:{conflict_id}:{index}:{conflict.get('conflict_version') or 0}",
+                "territory_id": str((front or {}).get("front_id") or conflict_id),
+                "conflict_id": conflict_id,
+                "status": "contested",
+                "vertices": vertices,
+                "pillar_count": len(vertices),
+                "has_polygon": True,
+            })
+            apply_ghostnetwork_runtime_result(service, report)
+            reports.append(report)
+        return {"ok": True, "status": "contested", "reports": reports}
+    except Exception as exc:
+        print(f"[ghostnetwork] conflict publication bridge failed reason={reason} error={exc}", flush=True)
+        return {"ok": False, "status": "bridge_failed", "error": str(exc)}
 
 
 def territory_engagement_audience(engagement):
@@ -7144,7 +7254,72 @@ def safe_ghostnetwork_on_target_aimed(username, profile, target, reason="aimed_t
         return {"ok": False, "status": "hook_failed", "cycle_id": cycle_id}
 
 
-def safe_ghostnetwork_on_target_hacked(username, profile, target, operation=None, result=None, reason="target_hacked"):
+def find_canonical_ghostnetwork_capture(player_id, target_id):
+    canonical = territory_target_ownership_store.get(target_id)
+    if canonical and canonical.get("owner_username") == player_id:
+        return dict(canonical.get("target") or {})
+    for target in territory_store.list_captured_targets(player_id):
+        candidate_id = str(target.get("target_id") or build_operation_target_id(target) or "")
+        if candidate_id == str(target_id or ""):
+            target = dict(target)
+            target.setdefault("target_id", candidate_id)
+            return target
+    return None
+
+
+def build_ghostnetwork_runtime_coordinator(service=None):
+    service = service or GhostNetworkService()
+
+    def publish(effect, outcome):
+        player_id = effect.get("player_id") or ""
+        current_profile = user_store.get_profile(player_id) or effect.get("player") or {}
+        return publish_ghostnetwork_delta_result(player_id, current_profile, outcome)
+
+    return GhostRuntimeCoordinator(
+        service=service,
+        profile_loader=lambda player_id: user_store.get_profile(player_id) or {},
+        profile_saver=user_store.save_profile,
+        delta_publisher=publish,
+        captured_target_reader=find_canonical_ghostnetwork_capture,
+    )
+
+
+def enqueue_ghostnetwork_capture_effect(username, profile, target, capture_key,
+                                        operation=None, result=None):
+    try:
+        coordinator = build_ghostnetwork_runtime_coordinator()
+        active = coordinator.service.get_active_cycle()
+        reservation = coordinator.repository.find_active_reservation_for_discovery(
+            (active or {}).get("cycle_id") or "",
+            username,
+            str((target or {}).get("target_id") or build_operation_target_id(target) or ""),
+            operation_id=str((operation or {}).get("operation_id") or ""),
+        ) if active else None
+        if not reservation:
+            return None
+        return coordinator.enqueue_capture(
+            capture_key,
+            ghostnetwork_player_payload(username, profile),
+            target,
+            operation=operation,
+            result=result or {"target_captured": True, "source": "gonna_win_capture"},
+            reservation_id=(reservation or {}).get("reservation_id") or "",
+        )
+    except Exception as exc:
+        print(f"[ghostnetwork] capture effect enqueue failed key={capture_key} error={exc}", flush=True)
+        return None
+
+
+def process_ghostnetwork_capture_effect(capture_key, service=None):
+    coordinator = build_ghostnetwork_runtime_coordinator(service=service)
+    effect = coordinator.repository.get_capture_effect(capture_key)
+    if not effect:
+        return {"ok": False, "status": "effect_missing"}
+    return coordinator.process_effect(effect)
+
+
+def safe_ghostnetwork_on_target_hacked(username, profile, target, operation=None, result=None,
+                                       reason="target_hacked", capture_key=""):
     target = dict(target or {}) if isinstance(target, dict) else {}
     if target and not target.get("target_id"):
         target["target_id"] = build_operation_target_id(target)
@@ -7154,10 +7329,23 @@ def safe_ghostnetwork_on_target_hacked(username, profile, target, operation=None
         service = GhostNetworkService()
         active_cycle = service.get_active_cycle()
         cycle_id = (active_cycle or {}).get("cycle_id") or "none"
+        if capture_key:
+            coordinator = build_ghostnetwork_runtime_coordinator(service=service)
+            effect = coordinator.repository.get_capture_effect(capture_key)
+            if not effect:
+                result_payload = service.on_target_hacked(
+                    ghostnetwork_player_payload(username, profile), target,
+                    operation=operation, result=result or {"target_captured": True},
+                    context={"reason": str(reason or "target_hacked"), "target_captured": True},
+                )
+                publish_ghostnetwork_delta_result(username, profile, result_payload)
+                return result_payload
+            processed = coordinator.process_effect(effect)
+            return processed.get("outcome") or {
+                "ok": processed.get("ok", False), "status": processed.get("status") or "effect_failed"
+            }
         result_payload = service.on_target_hacked(
-            ghostnetwork_player_payload(username, profile),
-            target,
-            operation=operation,
+            ghostnetwork_player_payload(username, profile), target, operation=operation,
             result=result or {"target_captured": True},
             context={"reason": str(reason or "target_hacked"), "target_captured": True},
         )
@@ -17680,6 +17868,14 @@ def api_ghostnetwork_archive_readiness():
     return jsonify(GhostNetworkService().get_archive_readiness_report())
 
 
+@app.route("/api/dev/ghostnetwork/readiness")
+def api_dev_ghostnetwork_readiness():
+    if not require_dev_admin():
+        return jsonify({"ok": False, "ready": False, "error": "admin_required"}), 403
+    report = GhostNetworkService().get_runtime_readiness()
+    return jsonify(report), (200 if report.get("ready") else 503)
+
+
 @app.route("/api/dev/delta-diagnostics")
 def api_dev_delta_diagnostics():
     if not require_dev_admin():
@@ -25190,6 +25386,10 @@ def gonna_win():
         captured_target["capture_version"] = hashlib.sha1(
             capture_version_seed.encode("utf-8")
         ).hexdigest()[:20]
+        ghost_capture_key = str(
+            gonna_win_receipt_key or launch_receipt
+            or f"capture:{session.get('user')}:{captured_target['capture_version']}"
+        )
         progression_source_event_id = str(
             gonna_win_receipt_key
             or launch_receipt
@@ -25288,6 +25488,10 @@ def gonna_win():
                 )
                 return jsonify(payload), 409
             captured_target = dict(capture_cas_result.get("target") or captured_target)
+            enqueue_ghostnetwork_capture_effect(
+                session["user"], profile, captured_target, ghost_capture_key,
+                result={"target_captured": True, "source": "territory_capture_cas"},
+            )
             if capture_cas_result.get("duplicate"):
                 if (
                     progression_receipt.get("status") == "pending"
@@ -25308,10 +25512,15 @@ def gonna_win():
                     "actions_allowed_marked": [],
                     "created_operations": [],
                 }
+                process_ghostnetwork_capture_effect(ghost_capture_key)
                 finish_gonna_win_receipt(payload)
                 return jsonify(payload), 200
         else:
             captured_target = territory_store.save_captured_target(session["user"], captured_target)
+            enqueue_ghostnetwork_capture_effect(
+                session["user"], profile, captured_target, ghost_capture_key,
+                result={"target_captured": True, "source": "ordinary_capture_commit"},
+            )
             # The captured_targets commit is the authoritative boundary for an
             # ordinary map target. Publish that fact before GhostNetwork hooks,
             # profile mirroring and geometry rebuilds: those stages can be slow
@@ -25411,6 +25620,7 @@ def gonna_win():
                 "source": "gonna_win_capture",
             },
             reason="gonna_win_capture",
+            capture_key=ghost_capture_key,
         )
         app_flow_debug_timed(
             flow_id,

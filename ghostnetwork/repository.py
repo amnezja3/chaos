@@ -264,6 +264,82 @@ class GhostNetworkRepository:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS ghost_pipeline_telemetry (
+                    cycle_id TEXT NOT NULL DEFAULT '',
+                    phase TEXT NOT NULL,
+                    outcome TEXT NOT NULL,
+                    outcome_count INTEGER NOT NULL DEFAULT 0,
+                    last_seen_at TEXT NOT NULL,
+                    PRIMARY KEY(cycle_id, phase, outcome)
+                )
+                """
+            )
+            columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(ghost_pipeline_telemetry)").fetchall()
+            }
+            if "outcome_count" not in columns or "last_seen_at" not in columns:
+                if not {"cycle_id", "phase", "outcome"}.issubset(columns):
+                    raise RepositoryIntegrityError("Unsupported ghost_pipeline_telemetry schema")
+                conn.execute(
+                    """
+                    CREATE TABLE ghost_pipeline_telemetry_v2 (
+                        cycle_id TEXT NOT NULL DEFAULT '',
+                        phase TEXT NOT NULL,
+                        outcome TEXT NOT NULL,
+                        outcome_count INTEGER NOT NULL DEFAULT 0,
+                        last_seen_at TEXT NOT NULL,
+                        PRIMARY KEY(cycle_id, phase, outcome)
+                    )
+                    """
+                )
+                timestamp_column = "created_at" if "created_at" in columns else "''"
+                conn.execute(
+                    f"""
+                    INSERT INTO ghost_pipeline_telemetry_v2(
+                        cycle_id, phase, outcome, outcome_count, last_seen_at
+                    )
+                    SELECT cycle_id, phase, outcome, COUNT(*), MAX({timestamp_column})
+                    FROM ghost_pipeline_telemetry
+                    GROUP BY cycle_id, phase, outcome
+                    """
+                )
+                conn.execute("DROP TABLE ghost_pipeline_telemetry")
+                conn.execute(
+                    "ALTER TABLE ghost_pipeline_telemetry_v2 RENAME TO ghost_pipeline_telemetry"
+                )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_capture_effects (
+                    effect_id TEXT PRIMARY KEY,
+                    capture_key TEXT NOT NULL UNIQUE,
+                    cycle_id TEXT NOT NULL DEFAULT '',
+                    reservation_id TEXT NOT NULL DEFAULT '',
+                    player_id TEXT NOT NULL,
+                    target_id TEXT NOT NULL,
+                    player_json TEXT NOT NULL DEFAULT '{}',
+                    target_json TEXT NOT NULL DEFAULT '{}',
+                    operation_json TEXT NOT NULL DEFAULT '{}',
+                    result_json TEXT NOT NULL DEFAULT '{}',
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    last_outcome TEXT NOT NULL DEFAULT '',
+                    last_error TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    acknowledged_at TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_capture_effects_pending
+                ON ghost_capture_effects(status, updated_at, effect_id)
+                """
+            )
+
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS ghost_signals (
                     signal_id TEXT PRIMARY KEY,
                     signal_number INTEGER NOT NULL,
@@ -1761,6 +1837,22 @@ class GhostNetworkRepository:
             ).fetchone()
             return self._reservation(row)
 
+    def list_active_reservations(self, cycle_id=None, limit=1000):
+        clauses = ["status = 'active'"]
+        params = []
+        if cycle_id:
+            clauses.append("cycle_id = ?")
+            params.append(_clean(cycle_id))
+        params.append(max(1, min(int(limit or 1000), 5000)))
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM ghost_part_reservations WHERE "
+                + " AND ".join(clauses)
+                + " ORDER BY reserved_at, reservation_id LIMIT ?",
+                tuple(params),
+            ).fetchall()
+            return [self._reservation(row) for row in rows]
+
     def find_active_reservation_for_discovery(self, cycle_id, player_id, target_id, operation_id=""):
         cycle_id = _clean(cycle_id)
         player_id = _clean(player_id)
@@ -2611,6 +2703,181 @@ class GhostNetworkRepository:
                 (limit,),
             ).fetchall()
             return [self._event(row) for row in rows]
+
+    def get_last_event(self, cycle_id):
+        with self._conn() as conn:
+            return self._event(
+                conn.execute(
+                    """
+                    SELECT * FROM ghost_part_events
+                    WHERE cycle_id = ?
+                    ORDER BY state_version DESC, created_at DESC
+                    LIMIT 1
+                    """,
+                    (_clean(cycle_id),),
+                ).fetchone()
+            )
+
+    def record_pipeline_outcome(self, phase, outcome, cycle_id=""):
+        phase = _clean(phase)
+        outcome = _clean(outcome)
+        if phase not in {"aim", "capture", "lifecycle"} or not outcome:
+            raise ValueError("Invalid GhostNetwork pipeline telemetry outcome.")
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO ghost_pipeline_telemetry(
+                    cycle_id, phase, outcome, outcome_count, last_seen_at
+                ) VALUES (?, ?, ?, 1, ?)
+                ON CONFLICT(cycle_id, phase, outcome) DO UPDATE SET
+                    outcome_count = outcome_count + 1,
+                    last_seen_at = excluded.last_seen_at
+                """,
+                (_clean(cycle_id), phase, outcome, self.now()),
+            )
+
+    def get_pipeline_telemetry_summary(self, cycle_id=None):
+        params = []
+        where = ""
+        if cycle_id is not None:
+            where = "WHERE cycle_id = ?"
+            params.append(_clean(cycle_id))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT phase, outcome, outcome_count AS count
+                FROM ghost_pipeline_telemetry
+                {where}
+                ORDER BY phase, outcome
+                """,
+                tuple(params),
+            ).fetchall()
+        phases = {"aim": {}, "capture": {}, "lifecycle": {}}
+        for row in rows:
+            phases.setdefault(row["phase"], {})[row["outcome"]] = int(row["count"] or 0)
+        return {
+            "aim": phases.get("aim", {}),
+            "capture": phases.get("capture", {}),
+            "lifecycle": phases.get("lifecycle", {}),
+            "total": sum(int(row["count"] or 0) for row in rows),
+        }
+
+    @staticmethod
+    def _capture_effect(row):
+        if not row:
+            return None
+        return {
+            "effect_id": row["effect_id"],
+            "capture_key": row["capture_key"],
+            "cycle_id": row["cycle_id"],
+            "reservation_id": row["reservation_id"],
+            "player_id": row["player_id"],
+            "target_id": row["target_id"],
+            "player": loads_json(row["player_json"], {}),
+            "target": loads_json(row["target_json"], {}),
+            "operation": loads_json(row["operation_json"], {}),
+            "result": loads_json(row["result_json"], {}),
+            "status": row["status"],
+            "attempts": int(row["attempts"] or 0),
+            "last_outcome": row["last_outcome"],
+            "last_error": row["last_error"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "acknowledged_at": row["acknowledged_at"],
+        }
+
+    def enqueue_capture_effect(self, capture_key, player, target, operation=None, result=None,
+                               cycle_id="", reservation_id=""):
+        capture_key = _clean(capture_key)
+        player = player if isinstance(player, dict) else {}
+        target = target if isinstance(target, dict) else {}
+        player_id = _clean(player.get("player_id") or player.get("username"))
+        target_id = _clean(target.get("target_id") or target.get("id"))
+        if not capture_key or not player_id or not target_id:
+            raise ValueError("capture_key, player_id and target_id are required")
+        effect_id = _hash_id("ghost-capture-effect", capture_key)
+        now = self.now()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO ghost_capture_effects(
+                    effect_id, capture_key, cycle_id, reservation_id, player_id,
+                    target_id, player_json, target_json, operation_json,
+                    result_json, status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+                ON CONFLICT(capture_key) DO NOTHING
+                """,
+                (
+                    effect_id, capture_key, _clean(cycle_id), _clean(reservation_id),
+                    player_id, target_id, dumps_json(player), dumps_json(target),
+                    dumps_json(operation or {}), dumps_json(result or {}), now, now,
+                ),
+            )
+            return self._capture_effect(conn.execute(
+                "SELECT * FROM ghost_capture_effects WHERE capture_key = ?", (capture_key,)
+            ).fetchone())
+
+    def get_capture_effect(self, capture_key):
+        with self._conn() as conn:
+            return self._capture_effect(conn.execute(
+                "SELECT * FROM ghost_capture_effects WHERE capture_key = ?", (_clean(capture_key),)
+            ).fetchone())
+
+    def list_capture_effects(self, statuses=None, limit=100):
+        statuses = sorted({_clean(value) for value in (statuses or []) if _clean(value)})
+        where = ""
+        params = []
+        if statuses:
+            where = "WHERE status IN ({})".format(",".join("?" for _ in statuses))
+            params.extend(statuses)
+        params.append(max(1, min(int(limit or 100), 1000)))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM ghost_capture_effects {where} ORDER BY updated_at, effect_id LIMIT ?",
+                tuple(params),
+            ).fetchall()
+            return [self._capture_effect(row) for row in rows]
+
+    def mark_capture_effect_attempt(self, effect_id):
+        now = self.now()
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ghost_capture_effects SET attempts = attempts + 1, updated_at = ? WHERE effect_id = ?",
+                (now, _clean(effect_id)),
+            )
+
+    def finish_capture_effect(self, effect_id, status, outcome="", error=""):
+        if status not in {"pending", "applied", "failed"}:
+            raise ValueError("Invalid GhostNetwork capture effect status")
+        now = self.now()
+        acknowledged_at = now if status == "applied" else ""
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE ghost_capture_effects
+                SET status = ?, last_outcome = ?, last_error = ?, updated_at = ?,
+                    acknowledged_at = ?
+                WHERE effect_id = ?
+                """,
+                (status, _clean(outcome), str(error or "")[:500], now,
+                 acknowledged_at, _clean(effect_id)),
+            )
+            return self._capture_effect(conn.execute(
+                "SELECT * FROM ghost_capture_effects WHERE effect_id = ?", (_clean(effect_id),)
+            ).fetchone())
+
+    def get_capture_effect_summary(self):
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT status, COUNT(*) AS count FROM ghost_capture_effects GROUP BY status"
+            ).fetchall()
+        counts = {row["status"]: int(row["count"] or 0) for row in rows}
+        return {
+            "pending": counts.get("pending", 0),
+            "failed": counts.get("failed", 0),
+            "applied": counts.get("applied", 0),
+            "total": sum(counts.values()),
+        }
 
     def get_narrative_outbox(self, outbox_id):
         with self._conn() as conn:

@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 from database import DB_PATH
+from config import (
+    GHOSTNETWORK_DROP_CHANCE,
+    GHOSTNETWORK_DROPS_ENABLED,
+    GHOSTNETWORK_RUNTIME_MODE,
+    GHOSTNETWORK_TEST_MODE,
+)
 
 from .catalog import (
     get_catalog_diagnostics,
@@ -105,6 +111,90 @@ class GhostNetworkService:
             report["ok"] = False
             report.setdefault("errors", []).append("catalog_validation_failed")
         return report
+
+    def get_runtime_readiness(self):
+        """Return system-only readiness without mutating GhostNetwork state."""
+        errors = []
+        warnings = []
+        health = self.health_check()
+        cycle = self.repository.get_active_cycle()
+        parts_summary = self.cycles.get_parts_summary(cycle["cycle_id"]) if cycle else {
+            "parts_total": 0,
+            "parts_pooled": 0,
+            "parts_reserved": 0,
+            "parts_public": 0,
+            "parts_contained": 0,
+            "parts_active": 0,
+        }
+        topology_valid = False
+        last_event = None
+        if not health.get("ok"):
+            errors.extend(health.get("errors") or ["repository_unavailable"])
+        if not cycle:
+            errors.append("no_active_cycle")
+        else:
+            if cycle.get("status") != "active":
+                errors.append("cycle_not_active")
+            integrity = self.cycles.validate_cycle_integrity(
+                cycle["cycle_id"], require_catalog=bool(cycle.get("catalog_version"))
+            )
+            errors.extend(integrity.get("errors") or [])
+            warnings.extend(integrity.get("warnings") or [])
+            topology = self.topology.validate_topology(cycle["cycle_id"])
+            topology_valid = bool(topology.get("valid"))
+            if not topology_valid:
+                errors.append("topology_invalid")
+            event = self.repository.get_last_event(cycle["cycle_id"])
+            if event:
+                last_event = {
+                    "event_type": event.get("event_type") or "",
+                    "created_at": event.get("created_at") or "",
+                    "state_version": int(event.get("state_version") or 0),
+                }
+        chance = float(GHOSTNETWORK_DROP_CHANCE)
+        if chance < 0 or chance > 1:
+            errors.append("drop_chance_out_of_range")
+        if GHOSTNETWORK_DROPS_ENABLED and not (0 < chance <= 1):
+            errors.append("drops_enabled_without_valid_chance")
+        if not GHOSTNETWORK_DROPS_ENABLED:
+            errors.append("drops_disabled")
+        runtime_mode = GHOSTNETWORK_RUNTIME_MODE or "production"
+        if runtime_mode not in {"production", "development", "test"}:
+            errors.append("invalid_runtime_mode")
+        if GHOSTNETWORK_TEST_MODE and runtime_mode == "production":
+            errors.append("test_mode_forbidden_in_production")
+        effects = self.repository.get_capture_effect_summary()
+        if effects["pending"]:
+            errors.append("pending_capture_effects")
+        if effects["failed"]:
+            errors.append("unreconciled_capture_effects")
+        telemetry = self.repository.get_pipeline_telemetry_summary(
+            cycle["cycle_id"] if cycle else ""
+        )
+        errors = sorted(set(errors))
+        return {
+            "ok": not errors,
+            "ready": not errors,
+            "status": "READY" if not errors else "NOT READY",
+            "active_cycle_id": (cycle or {}).get("cycle_id") or "",
+            "parts_total": int(parts_summary.get("parts_total") or 0),
+            "pooled": int(parts_summary.get("parts_pooled") or 0),
+            "reserved": int(parts_summary.get("parts_reserved") or 0),
+            "public": int(parts_summary.get("parts_public") or 0),
+            "contained": int(parts_summary.get("parts_contained") or 0),
+            "active": int(parts_summary.get("parts_active") or 0),
+            "drops_enabled": bool(GHOSTNETWORK_DROPS_ENABLED),
+            "drop_chance": chance,
+            "runtime_mode": runtime_mode,
+            "test_mode": bool(GHOSTNETWORK_TEST_MODE),
+            "topology_valid": topology_valid,
+            "pending_effects": effects["pending"],
+            "unreconciled_effects": effects["failed"],
+            "last_event": last_event,
+            "telemetry": telemetry,
+            "errors": errors,
+            "warnings": sorted(set(warnings)),
+        }
 
     def get_catalog_diagnostics(self):
         return get_catalog_diagnostics()
@@ -211,7 +301,28 @@ class GhostNetworkService:
         return is_ghostnetwork_eligible_target(target)
 
     def on_target_aimed(self, player, target, context=None):
-        return self.reservations.on_target_aimed(player, target, context=context)
+        result = self.reservations.on_target_aimed(player, target, context=context)
+        self._record_pipeline_outcome("aim", result)
+        status = result.get("status") or "unknown"
+        if status not in {"no_active_cycle", "cycle_not_active", "not_eligible"}:
+            self.repository.record_pipeline_outcome("aim", "eligible", result.get("cycle_id") or "")
+        if status in {"roll_missed", "reserved", "no_candidate_parts", "reservation_conflict"}:
+            self.repository.record_pipeline_outcome("aim", "roll", result.get("cycle_id") or "")
+        if status == "reserved":
+            self.repository.record_pipeline_outcome("aim", "reservation", result.get("cycle_id") or "")
+        return result
+
+    def _record_pipeline_outcome(self, phase, result):
+        result = result if isinstance(result, dict) else {}
+        cycle_id = result.get("cycle_id") or (self.repository.get_active_cycle() or {}).get("cycle_id") or ""
+        try:
+            self.repository.record_pipeline_outcome(
+                phase, result.get("status") or "unknown", cycle_id
+            )
+        except Exception:
+            # Gameplay hooks stay fail-open; repository health/readiness exposes storage failures.
+            return False
+        return True
 
     def attach_reservation_to_operation(self, player_id, target_id, operation_id):
         return self.reservations.attach_reservation_to_operation(player_id, target_id, operation_id)
@@ -287,6 +398,13 @@ class GhostNetworkService:
         )
 
     def on_target_hacked(self, player, target, operation=None, result=None, context=None):
+        outcome = self._on_target_hacked(
+            player, target, operation=operation, result=result, context=context
+        )
+        self._record_pipeline_outcome("capture", outcome)
+        return outcome
+
+    def _on_target_hacked(self, player, target, operation=None, result=None, context=None):
         """Commit a hidden GhostNetwork reservation after a real target capture.
 
         This hook is intentionally strict: it ignores scans, partial disarms,

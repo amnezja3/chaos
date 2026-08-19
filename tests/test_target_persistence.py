@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
 import run
-from database import AppActionReceiptStore, DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, PlayerInventoryStore, PlayerTargetRuntimeStore, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore
+from database import AppActionReceiptStore, DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, PlayerInventoryStore, PlayerOperationStore, PlayerTargetRuntimeStore, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore
 from profileManagment import UserProfileManager
 from run import (
     active_operations_from_operations,
@@ -1117,6 +1117,8 @@ class StateChangesEndpointTest(unittest.TestCase):
                 "mail",
                 "ghost_exchange",
                 "map",
+                "territory",
+                "ghostnetwork",
             ])
         finally:
             self._cleanup(path)
@@ -2305,9 +2307,11 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertEqual(data["hotspot"]["id"], "mokotow")
         self.assertAlmostEqual(data["curently_possition"]["lat"], 52.1934)
         self.assertAlmostEqual(data["curently_possition"]["lng"], 21.0348)
-        manager.update_profile.assert_called_once_with({
-            "curently_possition": {"lat": 52.1934, "lng": 21.0348}
-        })
+        position_update = manager.update_profile.call_args.args[0]
+        self.assertEqual(position_update["curently_possition"], {"lat": 52.1934, "lng": 21.0348})
+        self.assertEqual(position_update["current_position"], {"lat": 52.1934, "lng": 21.0348})
+        self.assertGreater(position_update["position_version"], 0)
+        self.assertTrue(position_update["position_updated_at"])
         record_delta.assert_called_once()
 
     def test_blacknet_teleport_bridge_moves_to_signal_coordinates(self):
@@ -2334,9 +2338,11 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertIsNone(data["hotspot"])
         self.assertAlmostEqual(data["curently_possition"]["lat"], 52.2809)
         self.assertAlmostEqual(data["curently_possition"]["lng"], 20.9974)
-        manager.update_profile.assert_called_once_with({
-            "curently_possition": {"lat": 52.2809, "lng": 20.9974}
-        })
+        position_update = manager.update_profile.call_args.args[0]
+        self.assertEqual(position_update["curently_possition"], {"lat": 52.2809, "lng": 20.9974})
+        self.assertEqual(position_update["current_position"], {"lat": 52.2809, "lng": 20.9974})
+        self.assertGreater(position_update["position_version"], 0)
+        self.assertTrue(position_update["position_updated_at"])
         record_delta.assert_called_once()
 
     def test_blacknet_teleport_bridge_rejects_unknown_hotspot(self):
@@ -2504,7 +2510,7 @@ class LightweightPollingEndpointTest(unittest.TestCase):
         client = run.app.test_client()
         with client.session_transaction() as sess:
             sess["user"] = "tester"
-        with patch.object(run.user_store, "get_profile", return_value=profile), \
+        with patch.object(run.user_store, "consume_launch_queue", return_value=[]), \
                 patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")), \
                 patch.object(run, "UserProfileManager", side_effect=AssertionError("write should not run")):
             response = client.get("/launch-queue")
@@ -2567,6 +2573,21 @@ class LightweightPollingEndpointTest(unittest.TestCase):
 
 
 class MissingProfileAndSessionSafetyTest(unittest.TestCase):
+    def setUp(self):
+        self.runtime_tmp = tempfile.TemporaryDirectory()
+        runtime_db = os.path.join(self.runtime_tmp.name, "target-runtime.sqlite3")
+        self.runtime_patches = [
+            patch.object(run, "player_target_runtime_store", PlayerTargetRuntimeStore(db_path=runtime_db)),
+            patch.object(run, "player_operation_store", PlayerOperationStore(db_path=runtime_db)),
+        ]
+        for runtime_patch in self.runtime_patches:
+            runtime_patch.start()
+
+    def tearDown(self):
+        for runtime_patch in reversed(self.runtime_patches):
+            runtime_patch.stop()
+        self.runtime_tmp.cleanup()
+
     def test_map_without_profile_redirects_to_login_instead_of_500(self):
         client = run.app.test_client()
         with client.session_transaction() as sess:
@@ -2668,7 +2689,11 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertNotIn("JSON.parse('{{ profile", html)
         self.assertNotIn("field_from_database_bypass", html)
         self.assertNotIn("window.pwned", html)
-        match = re.search(r"window\.profileData = (.*?);\s*</script>", html, re.S)
+        match = re.search(
+            r'<script id="profile-data" type="application/json">\s*(.*?)\s*</script>',
+            html,
+            re.S,
+        )
         self.assertIsNotNone(match)
         embedded_profile = json.loads(match.group(1))
         self.assertEqual(embedded_profile["nick"], "O'Reilly \"Mapa\" Łódź")
@@ -2705,7 +2730,11 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
         self.assertNotIn("JSON.parse('{{ profile", html)
-        match = re.search(r"window\.profileData = (.*?);\s*</script>", html, re.S)
+        match = re.search(
+            r'<script id="profile-data" type="application/json">\s*(.*?)\s*</script>',
+            html,
+            re.S,
+        )
         self.assertIsNotNone(match)
         self.assertGreater(len(match.group(1)), 57000)
         embedded_profile = json.loads(match.group(1))
@@ -3831,6 +3860,22 @@ class FakeTerritoryStore:
 
 
 class TargetPersistenceHelpersTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.operation_tmp = tempfile.TemporaryDirectory()
+        operation_db = os.path.join(cls.operation_tmp.name, "operations.sqlite3")
+        cls.operation_store_patch = patch.object(
+            run,
+            "player_operation_store",
+            PlayerOperationStore(db_path=operation_db),
+        )
+        cls.operation_store_patch.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.operation_store_patch.stop()
+        cls.operation_tmp.cleanup()
+
     def test_generated_app_icon_accepts_one_visible_grapheme(self):
         self.assertEqual(validate_generated_app_icon("X"), "X")
         self.assertEqual(validate_generated_app_icon("🛠️"), "🛠️")

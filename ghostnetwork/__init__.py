@@ -37,6 +37,7 @@ from .cycles import GhostCycleService, ensure_active_ghostnetwork_cycle
 from .topology import GhostTopologyService
 from .visibility import GhostVisibilityService, VISIBILITY_VERSION, build_viewer_projection
 from .deltas import GhostNetworkDeltaPublisher, rebuild_ghostnetwork_delta_projection, normalize_snapshot_view
+from .runtime import GhostRuntimeCoordinator
 from .catalog import (
     CATALOG_VERSION,
     get_catalog,
@@ -80,6 +81,7 @@ __all__ = [
     "GhostTopologyService",
     "GhostVisibilityService",
     "GhostNetworkDeltaPublisher",
+    "GhostRuntimeCoordinator",
     "VISIBILITY_VERSION",
     "build_viewer_projection",
     "normalize_snapshot_view",

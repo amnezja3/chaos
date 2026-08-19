@@ -1,5 +1,43 @@
 # CHAOS — Project Journal
 
+## 2026-08-19 - Sprint 130.9 Foundation: runtime enablement
+
+- Dodano read-only runtime readiness z walidacją cyklu, 20 części, topologii
+  i konfiguracji dropów oraz stabilnymi kodami `READY/NOT READY`.
+- Start aplikacji nie mutuje GhostNetwork. Operatorski CLI udostępnia `status`,
+  `verify` i suchy `bootstrap`; zapis wymaga jawnego `bootstrap --apply`.
+- Konfiguracja pozostaje bezpiecznie wyłączona. Readiness blokuje dropy z
+  chance spoza `(0, 1]`; nie wybrano produkcyjnej wartości balansowej.
+- Dodano techniczną telemetrię aim/capture bez ukrytych danych oraz chroniony
+  endpoint `/api/dev/ghostnetwork/readiness`.
+- Foundation: `GO`. Durability, Runtime bridge i E2E pozostają otwarte;
+  pending/unreconciled effects będą wdrożone wraz z outboxem.
+- Testy celowane Foundation/cycle/reservation/discovery/pipeline: 32/32 OK;
+  pełna regresja `test_ghostnetwork*.py`: 135/135 OK.
+
+## 2026-08-19 - domknięcie Sprintu 130.9
+
+- Dodano durable capture outbox oraz reconciliation/drain naprawiające crash
+  pomiędzy committed capture i discovery. Retry zachowuje jedną część, jeden
+  event discovery, contribution, reward i permanent history effect.
+- Zwykły `/gonna-win` i post-130 ownership CAS enqueue'ują effect; replay
+  receiptu wznawia go zamiast zwracać sukces z utraconym discovery.
+- Kanoniczne publikacje obszarów i konfliktów sterują adapterem GN. Potwierdzono
+  `public → contained → active`, release do `public`, freeze przy contest oraz
+  powrót po resolved publication. Module progress aktualizuje się z lifecycle.
+- Istniejący reward/contribution ledger został podpięty do eventów discovery,
+  containment i activation. Bieżący stan cyklu nadal nie trafia do profilu.
+- Runtime publication osiągający 20/20 wywołuje istniejący closure,
+  transmission, signal, narrative i archive dokładnie raz; nie tworzy kolejnego
+  cyklu.
+- Lokalny operatorski bootstrap utworzył `ghostnetwork_0001` z 20 pooled parts.
+  Verify w procesie development z drops enabled i chance `0.25` zwrócił
+  `READY`; drain znalazł zero zaległych efektów. Nie wykonano deployu.
+- Walidacja: nowe E2E/crash/bridge/endgame OK, pełne GhostNetwork 143/143 OK,
+  post-130 territory/CAS/reconciliation 58/58 OK. Zbiorczy legacy
+  `test_target_persistence` nadal ujawnia wcześniejsze zależności od kolejności
+  i globalnego stanu; dotknięte przypadki przechodzą osobno.
+
 ## 2026-08-17 - Sprint 130.8.9.UX-appcreator.1: wspólny fundament creatorów
 
 - Cztery creatory korzystają ze wspólnego katalogu opcji: klucz runtime,
@@ -355,3 +393,32 @@
   tracera. `node --check static/js/terminal.js`, test Node creatora i
   `git diff --check` są poprawne. Testy Pythona pozostają do uruchomienia w venv
   CHAOS, ponieważ lokalny alias Windows nie uruchamia interpretera w tej sesji.
+## 2026-08-19 - Sprint 130.9.1 Etap 1: gotowość do manualnego gameplayu
+
+- Potwierdzono lokalny runtime w jawnym profilu development: cykl
+  `ghostnetwork_0001`, 20 pooled części, valid topology, zero reservations,
+  pending i unreconciled effects; `verify` zwraca `READY` przy drop chance 0.25.
+- Dry-run `reconcile` i `drain` nie wykazał pracy do wykonania. Nie wykonano
+  manualnego aim/hack/capture ani mutującego cleanupu.
+- Naprawiono `tools/audit_ghostnetwork_runtime_state.py`, który odwoływał się do
+  nieistniejącej metody repository; audyt korzysta teraz z kanonicznego cycle
+  service i ma test regresyjny.
+- `test_target_persistence` odizolowano od globalnych target/operation store'ów.
+  Historyczne asercje map bootstrap, teleportu, recovery scopes i launch queue
+  dostosowano do aktualnych kontraktów. Wynik pełnego pliku: `221/221 OK`.
+- Przedmanualowa paczka bootstrap/readiness/durability/telemetry/bridge/E2E:
+  `17/17 OK`. `py_compile` i `git diff --check` są poprawne.
+- Status: `READY FOR MANUAL GAMEPLAY TEST`. Etap 2 czeka na wynik i logi
+  użytkownika. Nie wykonano commita, deployu ani produkcyjnego włączenia flag.
+
+### Korekta środowiska manualnego
+
+- Manual przeniesiono z lokalnego runtime na kontrolowany serwer, ponieważ
+  lokalnie nie ma territory workera ani właściwych kont testowych.
+- Lokalna bramka pozostaje zielona, ale nie jest już końcowym readiness manuala.
+  Nowy status: `LOCAL PRE-FLIGHT PASSED — SERVER RC REQUIRED`.
+- Dopisano Etap 1B: backup, spójny commit web/workera, jawne flagi RC, testy
+  serwerowe, status/verify/audyt, dry-run reconcile/drain, walidację kont oraz
+  rollback bez domyślnego kasowania trwałych efektów.
+- Commit, push, deploy i restart PM2 nadal nie zostały wykonane; wymagają
+  wskazania hosta/procesów oraz jawnej zgody na wdrożenie release candidate.
