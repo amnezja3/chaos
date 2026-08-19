@@ -13,7 +13,10 @@ class DesktopBackgroundPollContractTest(unittest.TestCase):
     def test_background_fetch_has_abort_timeout(self):
         self.assertIn("function fetchDesktopBackground", self.source)
         self.assertIn("controller.abort()", self.source)
-        self.assertIn("fetchDesktopBackground(`/api/state/changes?", self.source)
+        self.assertIn("`/api/state/changes?${params.toString()}`", self.source)
+        self.assertIn("STATE_DELTA_FETCH_TIMEOUT_MS = 30000", self.source)
+        self.assertIn('"state_delta_timeout"', self.source)
+        self.assertIn("if (isExpectedFetchAbort(err))", self.source)
 
     def test_system_message_poll_cannot_overlap(self):
         self.assertIn("let systemMessagesPollInFlight = false", self.source)

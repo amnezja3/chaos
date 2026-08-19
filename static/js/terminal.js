@@ -40,6 +40,7 @@ const cybernerSfxChannelCooldowns = new Map();
 const processedDeltaKeys = new Set();
 const STATE_DELTA_POLL_INTERVAL_MS = 4000;
 const DESKTOP_BACKGROUND_FETCH_TIMEOUT_MS = 8000;
+const STATE_DELTA_FETCH_TIMEOUT_MS = 30000;
 const LAUNCH_QUEUE_FETCH_TIMEOUT_MS = 12000;
 
 function fetchDesktopBackground(resource, options = {}, timeoutMs = DESKTOP_BACKGROUND_FETCH_TIMEOUT_MS) {
@@ -47,6 +48,10 @@ function fetchDesktopBackground(resource, options = {}, timeoutMs = DESKTOP_BACK
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const requestOptions = Object.assign({}, options, { signal: controller.signal });
     return fetch(resource, requestOptions).finally(() => clearTimeout(timer));
+}
+
+function isExpectedFetchAbort(err) {
+    return Boolean(err && err.name === "AbortError");
 }
 const STATE_DELTA_LIMIT = 100;
 const STATE_DELTA_DEFAULT_RECOVERY_SCOPES = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map", "territory", "incident", "ghostnetwork"];
@@ -10570,7 +10575,11 @@ async function pollStateChanges() {
             since: String(stateDeltaVersion || 0),
             limit: String(STATE_DELTA_LIMIT)
         });
-        const res = await fetchDesktopBackground(`/api/state/changes?${params.toString()}`);
+        const res = await fetchDesktopBackground(
+            `/api/state/changes?${params.toString()}`,
+            {},
+            STATE_DELTA_FETCH_TIMEOUT_MS
+        );
         if (res.status === 401) {
             desktopSessionActive = false;
             return;
@@ -10605,8 +10614,15 @@ async function pollStateChanges() {
         stateDeltaSfxLive = true;
         stateDeltaSfxCatchup = false;
     } catch (err) {
-        stateDeltaSfxCatchup = true;
-        console.warn("Delta feed poll failed", err);
+        if (isExpectedFetchAbort(err)) {
+            hackFlowDebug(window.__lastHackFlowId || "", "desktop", "state_delta_timeout", {
+                timeout_ms: STATE_DELTA_FETCH_TIMEOUT_MS,
+                since: stateDeltaVersion || 0
+            });
+        } else {
+            stateDeltaSfxCatchup = true;
+            console.warn("Delta feed poll failed", err);
+        }
     } finally {
         stateDeltaPollInFlight = false;
     }
@@ -16153,7 +16169,7 @@ async function pollLaunchQueue() {
         hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_error", {
             message: err && err.message ? err.message : String(err)
         });
-        if (err && err.name === "AbortError") {
+        if (isExpectedFetchAbort(err)) {
             hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_timeout", {
                 timeout_ms: LAUNCH_QUEUE_FETCH_TIMEOUT_MS
             });
