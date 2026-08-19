@@ -116,6 +116,26 @@ class GhostNetworkDropPipelineDiagnosticTest(unittest.TestCase):
         self.assertEqual(published[0]["scope"], "ghostnetwork")
         self.assertEqual(published[0]["type"], "ghost.part_discovered")
 
+        reward = service.handle_reward_event(
+            discovered["event"], profile=self.player, apply=True
+        )
+        self.assertTrue(reward["ok"])
+
+        class ProfileStore:
+            def get_profile(_self, player_id):
+                return self.player if player_id == self.player["player_id"] else None
+
+        audit = audit_ghostnetwork_runtime_state.build_discovery_audit(
+            service, service.get_active_cycle(), user_store=ProfileStore()
+        )
+        self.assertTrue(audit["ok"])
+        self.assertEqual(audit["count"], 1)
+        self.assertEqual(audit["items"][0]["discovery_events"], 1)
+        self.assertEqual(audit["items"][0]["contributions"], 1)
+        self.assertEqual(audit["items"][0]["rewards"], 1)
+        self.assertEqual(audit["items"][0]["reward_status"], "applied")
+        self.assertEqual(audit["items"][0]["profile_history"], 1)
+
     def test_runtime_audit_reads_part_summary_from_cycle_service(self):
         service = GhostNetworkService(repository=self.repo)
         output = io.StringIO()

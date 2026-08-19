@@ -422,3 +422,22 @@
   rollback bez domyślnego kasowania trwałych efektów.
 - Commit, push, deploy i restart PM2 nadal nie zostały wykonane; wymagają
   wskazania hosta/procesów oraz jawnej zgody na wdrożenie release candidate.
+
+## 2026-08-19 - Sprint 130.9.1 Etap 2 po manualnym teście serwerowym
+
+- Dwóch testerów otrzymało naturalny drop części GhostNetwork przy chance 0.25.
+  Jeden przypadek potwierdził log i frontendowa delta `ghost.part_discovered`;
+  drugi potwierdził tester, a log nie był dostępny po odświeżeniu.
+- Potwierdzono realny przepływ `map → aim → hack → capture → drop → discovery`.
+  Nie ma podstaw do wymagania kolejnego manualnego dropu.
+- `version_gap` przy discovery wynika z globalnego domenowego `state_version`:
+  wewnętrzne eventy reservation/reward nie muszą tworzyć delty widocznej dla
+  gracza. Klient prawidłowo przechodzi wtedy na autorytatywny snapshot recovery.
+  Finding nie jest blockerem i nie wymaga przebudowy delta systemu.
+- Rozszerzono odczytowy audyt runtime o per-part weryfikację eventu discovery,
+  contribution, applied reward, profile history i capture effect exactly-once.
+- Regresja: GhostNetwork `144/144`, territory/CAS/reconciliation `134/134`,
+  `test_target_persistence` `221/221`, celowane delta/audit `10/10`; `py_compile`
+  i `git diff --check` przeszły.
+- Do finalnego werdyktu pozostał jeden odczyt serwerowy: rozszerzony audit oraz
+  końcowe `status`/`verify`. Nie wykonano commita ani deployu.

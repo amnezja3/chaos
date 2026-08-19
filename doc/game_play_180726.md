@@ -22083,7 +22083,7 @@ Nie rozszerzaj zakresu sprintu o nowe feature'y GhostNetwork.
 
 # Sprint 130.9.1 — GhostNetwork Gameplay Validation
 
-**Status:** `LOCAL PRE-FLIGHT PASSED — SERVER RC REQUIRED` (2026-08-19).
+**Status:** `ETAP 2 AUTOMATION DONE — SERVER AUDIT PENDING` (2026-08-19).
 
 **Typ sprintu:** walidacja runtime, domknięcie integracji i naprawa wykrytych
 regresji. To nie jest sprint feature'owy ani deploymentowy.
@@ -22163,6 +22163,40 @@ pending effects zastosować kontrolowany drain/reconcile, zachować bazę do
 analizy, przywrócić poprzedni commit i konfigurację PM2, zrestartować web oraz
 workera i potwierdzić health. Backup bazy przywracamy wyłącznie przy potwierdzonej
 korupcji lub nieodwracalnej mutacji, nie jako domyślny sposób wycofania kodu.
+
+## Wynik manuala serwerowego i Etapu 2
+
+Manual na serwerowym RC potwierdził rzeczywisty pipeline:
+
+`map → aim → hack → capture → drop → discovery`.
+
+Dwóch testerów otrzymało naturalny drop przy `drop_chance = 0.25`. Jeden drop
+został potwierdzony logiem i deltą `ghost.part_discovered`; drugi został
+potwierdzony przez testera, ale odpowiadający log nie był już dostępny po
+odświeżeniu. Nie wymaga to ponownego manualnego dropu.
+
+Frontend dla pierwszego discovery zgłosił recovery `reason=version_gap`.
+Analiza wykazała, że `state_version` jest globalną wersją domenową, natomiast
+nie każdy wewnętrzny event aim/reservation/reward jest publikowany jako delta
+widoczna dla danego gracza. `ghost.part_discovered` może więc prawidłowo
+przeskoczyć o więcej niż jeden numer. Klient w takim przypadku odrzuca częściową
+deltę i pobiera autorytatywny `/api/ghostnetwork/snapshot`. Jest to oczekiwany,
+bezpieczny fallback; nie znaleziono podstaw do przebudowy systemu delta.
+
+Odczytowy `tools/audit_ghostnetwork_runtime_state.py` raportuje teraz dla każdej
+odkrytej części liczbę discovery events, contributions, rewards, wpisów profile
+history oraz applied capture effects. Etap 2 kończy się po uruchomieniu tego
+raportu na serwerze i potwierdzeniu `discoveries.ok=true`, `count=2`, pojedynczych
+efektów exactly-once oraz końcowego `verify=READY`.
+
+Końcowa regresja lokalna po manualu:
+
+* GhostNetwork: `144/144 OK`,
+* territory/CAS/reconciliation/progression: `134/134 OK`,
+* Target Registry, `/gonna-win`, receipts, delta/snapshot i profile w
+  `test_target_persistence`: `221/221 OK`,
+* celowane testy audytu i delta/recovery: `10/10 OK`,
+* `py_compile` i `git diff --check`: OK.
 
 ## Cel
 
