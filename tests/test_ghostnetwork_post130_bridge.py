@@ -71,6 +71,17 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
             self.assertEqual(released["status"], "public")
             self.assertEqual(released["territory_id"], "")
 
+    def test_canonical_ghost_clan_profile_is_included_in_territory_publication(self):
+        areas = [self.area("foreign-owner", 1)]
+        profile = {"ghost_clan_code": "sentinel_order"}
+        with patch.object(run.territory_store, "list_player_areas", return_value=areas), \
+                patch.object(run.user_store, "get_profile", return_value=profile):
+            publication = run.build_ghostnetwork_territory_publication()
+
+        self.assertEqual(len(publication), 1)
+        self.assertEqual(publication[0]["owner_username"], "foreign-owner")
+        self.assertEqual(publication[0]["owner_clan"], "sentinel_order")
+
     def test_canonical_conflict_publication_freezes_and_resolution_reconciles(self):
         areas = [self.area("part-owner", 1)]
         profiles = {"part-owner": {"username": "part-owner", "clan": self.part["clan_code"]}}

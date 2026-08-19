@@ -63,7 +63,13 @@ from response_network.response_dispatcher import ResponseDispatcher
 from response_network.territory_context_reader import TerritoryContextReader
 from response_network.territory_delta import TerritoryDeltaPublisher
 from response_network.warning_store import ResponseWarningStore
-from ghostnetwork import GhostNetworkDeltaPublisher, GhostNetworkService, GhostRuntimeCoordinator, normalize_snapshot_view
+from ghostnetwork import (
+    GhostNetworkDeltaPublisher,
+    GhostNetworkService,
+    GhostRuntimeCoordinator,
+    normalize_ghostnetwork_profile_identity,
+    normalize_snapshot_view,
+)
 
 app = Flask(__name__)
 
@@ -3009,7 +3015,14 @@ def build_ghostnetwork_territory_publication():
     for area in territory_store.list_player_areas():
         owner = str(area.get("owner_username") or "").strip()
         profile = user_store.get_profile(owner) or {}
-        clan = get_profile_clan(profile)
+        clan = normalize_ghostnetwork_profile_identity({
+            "clan": (
+                profile.get("ghost_clan_code")
+                or profile.get("clan_code")
+                or profile.get("ghost_clan")
+                or get_profile_clan(profile)
+            )
+        }).get("clan_code", "")
         if not owner or not clan:
             continue
         version_seed = str(area.get("updated_at") or area.get("id") or "")
