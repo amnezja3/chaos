@@ -23765,11 +23765,13 @@ dostarczeniem PNG prawidłowym wynikiem jest `READY FOR ASSET DELIVERY`; finalne
 
 ## Status i powód otwarcia
 
-**Status:** `IN PROGRESS — P0 web/worker split implemented locally; server baseline pending`
+**Status:** `IN PROGRESS — P0 and P1 DONE; remaining sprint gates pending`
 
-**P0:** `DONE LOCALLY — server performance confirmation pending`
+**P0:** `DONE — server concurrency confirmed`
 
-**P1:** `DONE LOCALLY — durable bounded delivery and canonical publication complete`
+**P1:** `DONE — durable delivery and server performance gate confirmed`
+
+**P2:** `DONE LOCALLY — stable renderer and bounded recovery; manual server gate pending`
 
 ## Server finding po pierwszym teście współbieżności — NO-GO
 
@@ -23808,7 +23810,17 @@ Test regresyjny z `500` targetami i prywatnym payloadem potwierdza, że rozmiar
 dokumentu mapy nie skaluje się z kolekcją targetów. Target snapshot przepuszcza
 tylko jawnie dozwolone pola klienta.
 
-Do ponownego deployu i testu dwóch graczy bramka pozostaje `NO-GO`.
+Historyczny wynik `NO-GO` został zamknięty po wdrożeniu `984ba0f` i ponownym
+teście dwóch graczy. Obie mapy otworzyły się w około 10 s. Dokument `/map`
+zmniejszył się z `36.1 MB` do około `399 KB`, a sam endpoint odpowiadał w
+`0.1–1.5 s`. GN snapshot mieścił się w `0.27–0.93 s`; nie odnotowano timeoutu
+ani SQLite `locked/busy`. Wcześniejsza kontrola kolejek wykazała `depth=0` i
+brak failed jobs. Manualna bramka wydajności P1 jest zaliczona.
+
+Nieblokujące obserwacje do dalszego profilowania: player actors `2.96–5.72 s`,
+pojedynczy target snapshot ciężkiego profilu `5.43 s` oraz pusty
+system-message poll `2.45 s`. Nie powodowały już blokady ani wielominutowego
+otwierania mapy.
 
 ## Stan wykonania — 2026-08-19
 
@@ -23882,12 +23894,31 @@ Regresja kończąca P1: GhostNetwork `171/171 OK`, territory `124/124 OK`,
 `test_target_persistence` `221/221 OK`; `py_compile`, składnia ecosystem/JS oraz
 `git diff --check` `OK`.
 
-P1 jest zakończone lokalnie. Pozostała serwerowa walidacja operacyjna i p95,
-która jest bramką manualną sprintu, a nie brakującą implementacją P1.
+P1 jest zakończone lokalnie i potwierdzone na serwerze równoległym testem dwóch
+graczy. Zaobserwowany czas około 10 s spełnia bramkę gameplayową; próbka nie
+jest laboratoryjnym pomiarem statystycznego p95, lecz nie wykazała timeoutów,
+failed jobs ani ponownego wzrostu do 2–5 minut.
 
-Sprint nie jest jeszcze gotowy do bramki manualnej. Nadal wymagane są pomiary
-serwerowe przed/po, kontrolowany drain backlogu oraz domknięcie telemetrii czasu
-jobów i request p95.
+P2 ustabilizowało presentation consumer bez dokładania pollera lub zwiększania
+timeoutów:
+
+* niepełny albo starszy snapshot nie czyści ostatniej dobrej warstwy,
+* równoległe żądania recovery współdzielą jeden request,
+* brak projekcji uruchamia najwyżej jedno recovery zamiast dwóch,
+* snapshot starszy od zaakceptowanej delty nie nadpisuje nowszego renderu,
+* pending territory registry ma limit 20 części i usuwa wpis razem z markerem,
+* zmiana cyklu czyści dedupe poprzedniego cyklu,
+* snapshot/recovery pozostają poza live SFX gate.
+
+Test behawioralny renderera pokrywa poprawny, niepełny i stary snapshot,
+coalescing recovery oraz bounded cleanup. Regresja: GhostNetwork `177/177 OK`,
+SFX/territory/worker `34/34 OK`, test JS renderera i GameSfx `OK`, składnia JS
+oraz `git diff --check` `OK`.
+
+Kod jest gotowy do manualnej bramki P2 na serwerze. Manual powinien potwierdzić
+zachowanie części podczas `public -> contained -> public`, przejście
+marker ↔ territory badge, brak znikania ostatniej dobrej warstwy przy przerwanym
+recovery oraz brak SFX wywołanego samym snapshotem/recovery.
 
 Sprint naprawczy zostaje otwarty po nieudanym manualnym domknięciu prezentacji
 GhostNetwork. Objawy na serwerze:

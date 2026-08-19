@@ -1,5 +1,32 @@
 # CHAOS — Project Journal
 
+## 2026-08-19 - P2 DONE lokalnie: stabilny renderer GhostNetwork
+
+- Renderer odrzuca niepełny i starszy snapshot przed zmianą warstwy, dzięki
+  czemu timeout, niepełny payload ani wyścig z nowszą deltą nie usuwa ostatniego
+  poprawnego stanu mapy.
+- Recovery jest coalescowane do jednego requestu; brak projekcji nie uruchamia
+  już dwóch równoległych recovery.
+- Pending territory badge registry jest ograniczone do 20 części i czyszczone
+  przy usunięciu markera; zmiana cyklu resetuje dedupe poprzedniego cyklu.
+- Nie dodano pollera, timera per marker, nowego SFX ani dłuższego timeoutu.
+- Regresja: GhostNetwork 177/177, SFX/territory/worker 34/34, behawioralny test
+  JS renderera i GameSfx — OK. P2 czeka na manualną bramkę serwerową.
+
+## 2026-08-19 - P1 potwierdzone na serwerze przy dwóch graczach
+
+- Po wdrożeniu `984ba0f` dwóch graczy otwierało mapę jednocześnie w około 10 s;
+  wcześniejsza regresja 2–5 minut nie wystąpiła.
+- `/map` zmniejszył się z 36.1 MB do około 399 KB i odpowiadał w 0.1–1.5 s.
+  Osobny target snapshot odpowiadał zwykle w 0.16–0.94 s; jeden pomiar ciężkiego
+  profilu wyniósł 5.43 s, ale nie zablokował równoległego otwarcia mapy.
+- GN snapshot odpowiadał w 0.27–0.93 s, operations w 0.35–2.50 s, a clan
+  vulnerabilities w 0.20–1.01 s. Nie odnotowano timeoutu ani SQLite locked/busy.
+- Wcześniejsza kontrola potwierdziła puste kolejki GN i brak failed jobs.
+  Manualna bramka wydajności P1 jest zaliczona; P0 i P1 mają status DONE.
+- Pozostają nieblokujące kandydaty do dalszej optymalizacji: player actors
+  2.96–5.72 s i pojedynczy pusty system-message poll 2.45 s.
+
 ## 2026-08-19 - Concurrent map server finding i payload/lock fix
 
 - Dwa równoczesne otwarcia mapy trwały około 5 minut; ciężki profil solo około
@@ -13,7 +40,8 @@
 - Player actors używa jednego bulk query pending contacts zamiast N+1.
 - Test 500 ciężkich targetów potwierdza stały rozmiar dokumentu mapy. Lokalna
   regresja target persistence 221/221 oraz polling/territory 59/59 — OK.
-- Bramka serwerowa pozostaje NO-GO do ponownego testu dwóch graczy.
+- Historyczny wynik NO-GO został zamknięty ponownym testem dwóch graczy po
+  wdrożeniu `984ba0f`; wynik bramki opisano powyżej.
 
 ## 2026-08-19 - Start implementacji Sprintu 130.9.2.fix.all.1
 

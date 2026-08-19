@@ -34,6 +34,8 @@
     window.ghostNetworkStateVersion = Number(window.ghostNetworkStateVersion || 0);
     window.ghostNetworkCycleId = window.ghostNetworkCycleId || "";
     window.ghostNetworkSnapshotChecksum = window.ghostNetworkSnapshotChecksum || "";
+    let ghostNetworkSnapshotRequestId = 0;
+    let ghostNetworkRecoveryPromise = null;
 
     const ghostNetworkDeltaState = window.ghostNetworkDeltaState || {
         processed: [],
@@ -187,6 +189,7 @@
             }
         }
         delete window.ghostNetworkTerritoryLayers[normalizedKey];
+        delete window.ghostNetworkPendingTerritoryParts[normalizedKey];
         return true;
     }
 
@@ -240,6 +243,11 @@
         if (!key) return false;
         if (!coords) {
             window.ghostNetworkPendingTerritoryParts[key] = part;
+            const pendingKeys = Object.keys(window.ghostNetworkPendingTerritoryParts);
+            while (pendingKeys.length > MAX_VISIBLE_PARTS) {
+                const expiredKey = pendingKeys.shift();
+                delete window.ghostNetworkPendingTerritoryParts[expiredKey];
+            }
             return false;
         }
         delete window.ghostNetworkPendingTerritoryParts[key];
@@ -463,8 +471,8 @@
     }
 
     function renderGhostParts(parts) {
-        clearGhostNetworkLayer();
         if (!Array.isArray(parts)) return 0;
+        clearGhostNetworkLayer();
         let rendered = 0;
         parts
             .filter(part => part && part.can_show_on_map !== false)
@@ -489,7 +497,21 @@
         return payload;
     }
 
+    function isCompleteGhostNetworkSnapshot(data) {
+        if (!data || typeof data !== "object") return false;
+        if (!Array.isArray(data.parts) || !Array.isArray(data.connections)) return false;
+        const cycleId = String((data.cycle && data.cycle.cycle_id) || data.cycle_id || "").trim();
+        if (!cycleId) return false;
+        return data.parts.every(part => part && typeof part === "object" && projectionKey(part));
+    }
+
+    function resetGhostNetworkDeltaDedupe() {
+        ghostNetworkDeltaState.processed = [];
+        ghostNetworkDeltaState.processedSet.clear();
+    }
+
     async function loadGhostNetworkSnapshot(options = {}) {
+        const requestId = ++ghostNetworkSnapshotRequestId;
         try {
             let response;
             if (typeof window.fetchMapSnapshot === "function") {
@@ -508,11 +530,24 @@
                 console.warn("[ghostnetwork] snapshot rejected", data.error || data.reason || "unknown");
                 return false;
             }
+            if (!isCompleteGhostNetworkSnapshot(data)) {
+                console.warn("[ghostnetwork] incomplete snapshot rejected");
+                return false;
+            }
             const version = Number(data.current_version || data.state_version || (data.cycle && data.cycle.state_version) || 0);
+            if (requestId !== ghostNetworkSnapshotRequestId) return false;
+            if (Number.isFinite(version) && version > 0 && version < Number(window.ghostNetworkStateVersion || 0)) {
+                console.warn("[ghostnetwork] stale snapshot rejected", { version, current: window.ghostNetworkStateVersion });
+                return false;
+            }
+            const nextCycleId = String((data.cycle && data.cycle.cycle_id) || data.cycle_id || "").trim();
+            if (window.ghostNetworkCycleId && nextCycleId !== window.ghostNetworkCycleId) {
+                resetGhostNetworkDeltaDedupe();
+            }
             if (Number.isFinite(version)) {
                 window.ghostNetworkStateVersion = Math.max(Number(window.ghostNetworkStateVersion || 0), version);
             }
-            window.ghostNetworkCycleId = (data.cycle && data.cycle.cycle_id) || data.cycle_id || window.ghostNetworkCycleId || "";
+            window.ghostNetworkCycleId = nextCycleId;
             window.ghostNetworkSnapshotChecksum = data.snapshot_checksum || window.ghostNetworkSnapshotChecksum || "";
             renderGhostParts(data.parts || []);
             renderGhostConnections(data.connections || []);
@@ -566,7 +601,6 @@
             return true;
         }
         if (!projection) {
-            recoverGhostNetworkLayer({ reason: "missing_projection", event_type: type });
             return false;
         }
         renderGhostPart(projection);
@@ -590,7 +624,6 @@
             return true;
         }
         if (!projection) {
-            recoverGhostNetworkLayer({ reason: "missing_connection_projection", event_type: type });
             return false;
         }
         const applied = updateGhostConnectionLayer(projection);
@@ -607,7 +640,12 @@
     }
 
     async function recoverGhostNetworkLayer(options = {}) {
-        return loadGhostNetworkSnapshot({ recovery: true, ...options });
+        if (ghostNetworkRecoveryPromise) return ghostNetworkRecoveryPromise;
+        ghostNetworkRecoveryPromise = loadGhostNetworkSnapshot({ recovery: true, ...options })
+            .finally(() => {
+                ghostNetworkRecoveryPromise = null;
+            });
+        return ghostNetworkRecoveryPromise;
     }
 
     function ghostNetworkEventVersion(event) {

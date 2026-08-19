@@ -70,6 +70,27 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertNotIn('requestGhostNetworkRecovery("version_gap"', self.map_js)
         self.assertIn("per-user delta bus owns", self.map_js)
 
+    def test_snapshot_preserves_last_good_layer_on_incomplete_or_stale_payload(self):
+        self.assertIn("isCompleteGhostNetworkSnapshot", self.map_js)
+        self.assertIn('console.warn("[ghostnetwork] incomplete snapshot rejected")', self.map_js)
+        self.assertIn('console.warn("[ghostnetwork] stale snapshot rejected"', self.map_js)
+        validation = self.map_js.index("if (!isCompleteGhostNetworkSnapshot(data))")
+        render = self.map_js.index("renderGhostParts(data.parts || [])")
+        self.assertLess(validation, render)
+
+    def test_recovery_is_coalesced_and_missing_projection_requests_it_once(self):
+        self.assertIn("if (ghostNetworkRecoveryPromise) return ghostNetworkRecoveryPromise", self.map_js)
+        self.assertEqual(self.map_js.count('requestGhostNetworkRecovery("unapplied_delta", event)'), 1)
+        self.assertNotIn('recoverGhostNetworkLayer({ reason: "missing_projection"', self.map_js)
+        self.assertNotIn('recoverGhostNetworkLayer({ reason: "missing_connection_projection"', self.map_js)
+
+    def test_pending_territory_registry_is_bounded_and_cleaned_with_marker(self):
+        self.assertIn("while (pendingKeys.length > MAX_VISIBLE_PARTS)", self.map_js)
+        remove_start = self.map_js.index("function removeGhostPartMarker")
+        remove_end = self.map_js.index("function removeGhostConnectionLayer")
+        remove_source = self.map_js[remove_start:remove_end]
+        self.assertIn("delete window.ghostNetworkPendingTerritoryParts[normalizedKey]", remove_source)
+
     def test_territory_only_part_uses_visible_polygon_center_without_exact_location(self):
         self.assertIn("window.territoryAreaLayers", self.map_js)
         self.assertIn("layer.getBounds()", self.map_js)
