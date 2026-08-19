@@ -1,5 +1,19 @@
 # CHAOS — Project Journal
 
+## 2026-08-19 - P2 blockers: canonical layer cleanup i GN profile identity
+
+- Pełny player-areas snapshot usuwał legacy arrays, ale nie canonical front,
+  pillar i engagement registries. Zmienione ID publikacji zostawiały stare
+  Leaflet layers i wizualnie wyglądały jak worker rebuild loop.
+- Snapshot usuwa teraz wszystkie canonical conflict layers przed renderem
+  autorytatywnego kompletu. Audyt workera nie wykazał bezwarunkowego self-enqueue;
+  no-op kończy rebuild, a multi audit pozostaje leased i okresowy.
+- GN territory publication kluczowała profile przez `profile_json.username`.
+  Profile bez zduplikowanego loginu były pomijane mimo kanonicznej kolumny
+  `users.username`, więc właściwy clan nie powodował lifecycle ani SFX.
+- Publication i engagement audience używają teraz `list_profile_entries()`.
+- Regresja GN 178/178 oraz conflict/engagement/abandon 48/48 — OK.
+
 ## 2026-08-19 - P2 blocker: porzucenie zwykłego filaru bez rebuild joba
 
 - Reload, logout i restart nie mogły naprawić starego polygonu, ponieważ read

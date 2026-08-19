@@ -23773,6 +23773,20 @@ dostarczeniem PNG prawidłowym wynikiem jest `READY FOR ASSET DELIVERY`; finalne
 
 **P2:** `DONE LOCALLY — stable renderer and bounded recovery; manual server gate pending`
 
+Kolejny manual ujawnił nakładanie conflict/engagement polygonów oraz brak
+tranzycji GN po otoczeniu przez właściwy klan. Pełny snapshot czyścił wyłącznie
+legacy arrays, pozostawiając canonical Leaflet registries. Teraz przed
+autorytatywnym renderem usuwa wszystkie front, pillar i engagement layers.
+Audyt nie wykazał bezwarunkowego worker self-enqueue: no-op publication kończy
+job, a multi audit ma lease i interwał.
+
+Brak tranzycji GN miał niezależną przyczynę: territory publication budowała
+identity map z `profile_json.username`. Realny profil nie musi duplikować loginu
+z kanonicznej kolumny `users.username`, więc jego terytorium mogło zostać
+pominięte. Publication i engagement audience korzystają teraz z
+`list_profile_entries()`. Regresja: GhostNetwork `178/178 OK`,
+conflict/engagement/abandon `48/48 OK`.
+
 Drugi finding manuala dotyczył nieskonfliktowanego `Porzuć`. Rebuild nie
 następował także po reload/logout/restart, ponieważ zwykły target ma zwykle
 `ownership_version=0`, a deterministyczny job ID był ponownie używany po

@@ -2614,6 +2614,21 @@
             window.territoryEngagementLayers = window.territoryEngagementLayers || {};
         }
 
+        function clearCanonicalTerritoryConflictLayers() {
+            ensureTerritoryConflictRegistries();
+            Object.keys(window.territoryFrontLayers).forEach(id => (
+                removeTerritoryRegistryLayer(window.territoryFrontLayers, id)
+            ));
+            Object.keys(window.territoryConflictPillarLayers).forEach(id => (
+                removeTerritoryRegistryLayer(window.territoryConflictPillarLayers, id)
+            ));
+            Object.keys(window.territoryEngagementLayers).forEach(id => (
+                removeTerritoryRegistryLayer(window.territoryEngagementLayers, id)
+            ));
+            window.territoryConflictRegistry = {};
+            window.territoryEngagementRegistry = {};
+        }
+
         function removeTerritoryEngagementSnapshot(engagementId) {
             ensureTerritoryConflictRegistries();
             const entry = window.territoryEngagementRegistry[engagementId] || {};
@@ -8411,6 +8426,12 @@
                     clearLayerArray('contestedTargetLayers');
                     clearLayerArray('conflictAreaLayers');
                     clearLayerArray('capturedConflictPillarLayers');
+                    // This is an authoritative full snapshot. Canonical fronts
+                    // and engagements are not members of the legacy arrays
+                    // above, so they must be removed explicitly before the
+                    // snapshot is rendered. Otherwise changed IDs accumulate
+                    // overlapping polygons after each worker publication.
+                    clearCanonicalTerritoryConflictLayers();
                     resetTerritoryLayerRegistries();
 
                     window.mapViewerClan = String((data.player || {}).clan || window.mapViewerClan || '');

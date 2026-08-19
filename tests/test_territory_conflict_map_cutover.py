@@ -235,6 +235,21 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("if (!refreshed && recoveryAttempt < recoveryDelays.length - 1)", source)
         self.assertIn("window.requestTerritorySnapshotRecovery(reason, recoveryAttempt + 1)", source)
 
+    def test_full_snapshot_removes_canonical_layers_before_reconciliation(self):
+        source = self.map_template
+        self.assertIn("function clearCanonicalTerritoryConflictLayers()", source)
+        refresh_start = source.index("window.refreshPlayerAreas = async function")
+        refresh_source = source[refresh_start:]
+        clear_index = refresh_source.index("clearCanonicalTerritoryConflictLayers();")
+        reconcile_index = refresh_source.index("reconcileTerritoryConflictSnapshots(")
+        self.assertLess(clear_index, reconcile_index)
+        for registry in (
+            "territoryFrontLayers",
+            "territoryConflictPillarLayers",
+            "territoryEngagementLayers",
+        ):
+            self.assertIn(f"Object.keys(window.{registry})", source)
+
     def test_capture_response_exposes_conflict_consolidation_diagnostics(self):
         source = inspect.getsource(run.gonna_win)
 

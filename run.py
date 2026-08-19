@@ -3085,9 +3085,9 @@ def process_ghostnetwork_territory_job(lease_owner, lease_seconds=300):
 def build_ghostnetwork_territory_publication():
     events = []
     profiles = {
-        str(profile.get("username") or "").strip(): profile
-        for profile in user_store.list_profiles()
-        if isinstance(profile, dict) and str(profile.get("username") or "").strip()
+        str(username or "").strip(): profile
+        for username, profile in user_store.list_profile_entries()
+        if str(username or "").strip() and isinstance(profile, dict)
     }
     for area in territory_store.list_player_areas():
         owner = str(area.get("owner_username") or "").strip()
@@ -3220,9 +3220,9 @@ def territory_engagement_audience(engagement):
     participant_clans.discard("")
     audience = set(participants)
     if participant_clans:
-        for profile in user_store.list_profiles():
-            if get_profile_clan(profile or {}) in participant_clans and (profile or {}).get("username"):
-                audience.add(str(profile["username"]))
+        for username, profile in user_store.list_profile_entries():
+            if get_profile_clan(profile or {}) in participant_clans and username:
+                audience.add(str(username))
     return sorted(audience)
 
 
