@@ -3778,6 +3778,10 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
                 setApplicationPresentationPhase(provisionalSession, "completing");
             }
         },
+        presentProgressCompletion(items, success) {
+            if (!session || typeof session.presentProgressCompletion !== "function") return false;
+            return session.presentProgressCompletion(items, success);
+        },
         fail(reason) {
             finishApplicationTitleSequence(appWindow, "request_failed");
             stopLegacy();
@@ -4908,8 +4912,8 @@ async function app_progressbar_random(id, levels) {
         const stopWaitLog = startLegacyAppWaitUnlessFeedbackEnabled(app);
         notifyGonnaWin(id, app, {
             legacyWait: false,
-            deferFeedbackStart: true,
-            beforeFeedbackComplete: data => {
+            deferFeedbackStart: false,
+            beforeFeedbackComplete: (data, feedback) => {
                 stopAuthorProgress();
                 const success = data && data.success === true;
                 const staleTarget = data && data.blocked && data.reason === 'invalid_target';
@@ -4925,6 +4929,10 @@ async function app_progressbar_random(id, levels) {
                         ? "Cel zmieni\u0142 si\u0119 przed potwierdzeniem. Od\u015bwie\u017c cel i uruchom aplikacj\u0119 ponownie."
                         : (level.result_failure || "Operacja nie powiod\u0142a si\u0119."));
                 result.dataset.tone = success ? "success" : (staleTarget ? "warning" : "failure");
+                feedback.presentProgressCompletion(authorProgress.map(item => ({
+                    label: item.row.querySelector('.ofs-progress-step-head span')?.textContent || `Etap ${item.index + 1}`,
+                    value: item.value
+                })), success);
                 return new Promise(resolve => window.setTimeout(resolve, 1100));
             }
         }).then(success => {
@@ -5005,7 +5013,7 @@ async function notifyGonnaWin(appId, appWindow = null, {
             refreshToolbarProfile();
         }
         if (typeof beforeFeedbackComplete === "function") {
-            await beforeFeedbackComplete(data);
+            await beforeFeedbackComplete(data, ensureFeedback());
         }
         ensureFeedback().complete(data);
         if (response.status === 409 && data.blocked && data.reason === 'invalid_target') {

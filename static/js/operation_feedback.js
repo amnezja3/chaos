@@ -333,9 +333,55 @@
             super({ ...options, presentationMode: "progressbar_random" });
         }
 
+        extendPanel(panel) {
+            const snapshot = global.document.createElement("div");
+            snapshot.className = "operation-feedback-progress-snapshot";
+            snapshot.hidden = true;
+            panel.appendChild(snapshot);
+        }
+
         renderEnvelope(envelope, panel) {
             panel.dataset.executorState = envelope.tone === "failure" ? "failed"
                 : (envelope.tone === "success" ? "complete" : "running");
+            const snapshot = panel.querySelector(".operation-feedback-progress-snapshot");
+            if (snapshot) snapshot.hidden = true;
+        }
+
+        renderProgressSnapshot(items = [], success = false) {
+            const panel = this.ensurePanel();
+            const snapshot = panel.querySelector(".operation-feedback-progress-snapshot");
+            const lines = panel.querySelector(".operation-feedback-lines");
+            const status = panel.querySelector(".operation-feedback-status");
+            if (!snapshot || !lines || !status) return false;
+            panel.dataset.tone = success ? "success" : "failure";
+            panel.dataset.executorState = success ? "complete" : "failed";
+            panel.dataset.sceneId = "progress_resolution";
+            status.textContent = success ? "Potwierdzono wykonanie." : "Operacja nie została domknięta.";
+            lines.replaceChildren();
+            snapshot.replaceChildren(...items.map((item, index) => {
+                const value = success ? 100 : Math.max(0, Math.min(99, Number(item.value) || 0));
+                const row = global.document.createElement("div");
+                row.className = "ofs-progress-step";
+                row.dataset.state = success ? "complete" : "failed";
+                row.dataset.progressStep = String(index);
+                const head = global.document.createElement("div");
+                head.className = "ofs-progress-step-head";
+                const label = global.document.createElement("span");
+                label.textContent = String(item.label || `Etap ${index + 1}`);
+                const percent = global.document.createElement("b");
+                percent.textContent = `${value}%`;
+                head.append(label, percent);
+                const track = global.document.createElement("div");
+                track.className = "progress-bar";
+                const fill = global.document.createElement("div");
+                fill.className = "progress-fill";
+                fill.style.width = `${value}%`;
+                track.appendChild(fill);
+                row.append(head, track);
+                return row;
+            }));
+            snapshot.hidden = false;
+            return true;
         }
     }
 
@@ -1206,6 +1252,7 @@
             this.sfxSequence = 0;
             this.sceneSequence = 0;
             this.progressSfxCount = 0;
+            this.completionPreviewActive = false;
             sessionSequence += 1;
             this.sessionId = `${this.flowId || "local"}:${this.launchReceipt || this.appId || "app"}:${sessionSequence}`;
         }
@@ -1509,6 +1556,7 @@
                     throw new Error("OFS profile does not support renderer");
                 }
                 this.trace("feedback_profile_loaded", { content_version: this.config.content_version });
+                if (this.completionPreviewActive) return;
                 if (this.authorIntroPresented) {
                     this.setPresentationPhase("executing");
                     this.trace("feedback_execution_started", { author_intro_reused: true });
@@ -1589,6 +1637,7 @@
             // Payload is authoritative and replaces the interactive scene.
             // An unanswered choice must not survive beside the final result.
             this.clearChoice();
+            this.completionPreviewActive = false;
             this.transition("completing");
             this.setPresentationPhase("completing");
             const success = payload && payload.success === true;
@@ -1617,6 +1666,24 @@
             this.playSemanticSfx(success ? "success" : "failure");
             this.setPresentationPhase(success ? "completed" : "failed", { success });
             this.setTimer(() => this.dispose("payload_complete"), MIN_COMPLETION_READ_MS);
+        }
+
+        presentProgressCompletion(items = [], success = false) {
+            if (this.disposed || TERMINAL_STATES.has(this.state)
+                || this.presentationMode !== "progressbar_random") return false;
+            this.clearTimers();
+            this.clearChoice();
+            this.completionPreviewActive = true;
+            this.setPresentationPhase("completing", { completion_preview: true, success });
+            this.ensurePanel();
+            const rendered = this.renderer.renderProgressSnapshot(items, success);
+            if (rendered) {
+                this.trace("feedback_progress_resolution_shown", {
+                    success,
+                    progress_items: items.length
+                });
+            }
+            return rendered;
         }
 
         fail(reason = "request_failed") {

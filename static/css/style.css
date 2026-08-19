@@ -9042,6 +9042,10 @@ form button:hover {
 .ofs-progress-step[data-state="failed"] .progress-fill { background: linear-gradient(90deg, #7d2020, #ff5555); }
 .operation-feedback-progressbar_random { border-color: rgba(255,216,75,.72); background: rgba(18,15,2,.96); }
 .operation-feedback-progressbar_random .operation-feedback-line::before { content: "▰ "; color: var(--ofs-accent); }
+.operation-feedback-progress-snapshot { display: grid; gap: 10px; margin-top: 12px; font-family: monospace; }
+.operation-feedback-progress-snapshot[hidden] { display: none; }
+.operation-feedback-progress-snapshot .progress-bar { position: relative; height: 12px; overflow: hidden; background: #25230f; border: 1px solid rgba(255,216,75,.35); }
+.operation-feedback-progress-snapshot .progress-fill { height: 100%; transition: width .2s ease-out; }
 
 @media (max-width: 620px) {
   .ofs-app-template {

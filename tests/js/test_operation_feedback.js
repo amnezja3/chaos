@@ -111,12 +111,16 @@ class FakeNode {
         this.isConnected = true;
         this.hidden = false;
         this.textContent = "";
+        this.style = {};
     }
     appendChild(node) {
         node.parentNode = this;
         node.isConnected = true;
         this.children.push(node);
         return node;
+    }
+    append(...nodes) {
+        nodes.forEach(node => this.appendChild(node));
     }
     replaceChildren(...nodes) {
         this.children.forEach(node => { node.parentNode = null; node.isConnected = false; });
@@ -235,6 +239,30 @@ for (const mode of ["terminal", "button_choice", "window", "progressbar_random"]
     renderer.dispose();
     assert.strictEqual(host.dataset.presentationOwner, undefined);
 }
+
+const progressSnapshotHost = new FakeNode("main");
+const progressSnapshotRenderer = ofs.createPresentationRenderer("progressbar_random", {
+    host: progressSnapshotHost,
+    sessionId: "test:progress-snapshot",
+    applicationContent: {title: "PROGRESS TEST"}
+});
+assert.strictEqual(progressSnapshotRenderer.renderProgressSnapshot([
+    {label: "Fast", value: 94},
+    {label: "Slow", value: 69}
+], true), true);
+let progressSnapshot = progressSnapshotRenderer.panel.querySelector(".operation-feedback-progress-snapshot");
+assert.strictEqual(progressSnapshot.hidden, false);
+assert.strictEqual(progressSnapshot.children.length, 2);
+assert.strictEqual(progressSnapshot.children[0].children[0].children[1].textContent, "100%");
+assert.strictEqual(progressSnapshot.children[0].querySelector(".progress-fill").style.width, "100%");
+assert.strictEqual(progressSnapshotRenderer.renderProgressSnapshot([
+    {label: "Fast", value: 94},
+    {label: "Slow", value: 69}
+], false), true);
+progressSnapshot = progressSnapshotRenderer.panel.querySelector(".operation-feedback-progress-snapshot");
+assert.strictEqual(progressSnapshot.children[0].children[0].children[1].textContent, "94%");
+assert.strictEqual(progressSnapshot.children[1].querySelector(".progress-fill").style.width, "69%");
+progressSnapshotRenderer.dispose();
 const semanticHost = new FakeNode("main");
 const semanticRenderer = ofs.createPresentationRenderer("ofs_provisional", {host: semanticHost});
 const hydrationEnvelope = ofs.createSceneEnvelope({

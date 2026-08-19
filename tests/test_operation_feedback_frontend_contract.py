@@ -191,8 +191,9 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn('class="operation-feedback-host"', progress)
         self.assertIn("const authorBreathMs = 15000", progress)
         self.assertIn("Math.pow(elapsedRatio, item.curve)", progress)
-        self.assertIn("deferFeedbackStart: true", progress)
-        self.assertIn("beforeFeedbackComplete: data =>", progress)
+        self.assertIn("deferFeedbackStart: false", progress)
+        self.assertIn("beforeFeedbackComplete: (data, feedback) =>", progress)
+        self.assertIn("feedback.presentProgressCompletion", progress)
         self.assertIn("window.setTimeout(resolve, 1100)", progress)
         self.assertIn("titleRemainingMs + authorBreathMs", progress)
         feedback = self.function_source(

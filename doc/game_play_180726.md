@@ -22848,6 +22848,858 @@ Nie commituj.
 Nie deployuj.
 
 
+---
+
+# GhostNetwork — Feedback Layer
+
+GhostNetwork działa już na rzeczywistym serwerowym runtime:
+
+* części naturalnie wypadają,
+* części publiczne są widoczne na mapie,
+* można je otaczać terytorium,
+* lifecycle i integracja z post-130 runtime są aktywne.
+
+Sprinty 110–130 powstawały jednak przed obecnym systemem SFX i przed częścią późniejszych efektów wizualnych CHAOS.
+
+Dlatego przed przejściem do kolejnych mechanik GhostNetwork dokładamy brakującą warstwę feedbacku.
+
+Te sprinty **nie zmieniają mechaniki GhostNetwork**.
+
+Nie zmieniamy:
+
+* drop rate,
+* drop policy,
+* eligibility,
+* lifecycle,
+* reguł containment,
+* reguł activation,
+* ownership CAS,
+* rewards,
+* topology,
+* cycle state.
+
+Pracujemy wyłącznie nad prezentacją istniejących stanów.
+
+---
+
+# Sprint 130.9.2 — GhostNetwork SFX
+
+## Cel
+
+Podłączyć GhostNetwork do **istniejącego systemu SFX CHAOS**.
+
+Nie buduj osobnego systemu audio dla GhostNetwork.
+
+Nie twórz nowego registry, dispatchera, event busa ani warstwy audio, jeżeli obecna architektura tego nie wymaga.
+
+Najpierw sprawdź, jak SFX działa już w projekcie, a następnie dodaj GhostNetwork dokładnie według istniejącego wzorca.
+
+## Zakres
+
+1. Przeprowadź krótki audyt istniejącego systemu SFX.
+
+   Znajdź:
+
+   * gdzie znajduje się obecny registry/katalog dźwięków,
+   * gdzie znajdują się pliki audio,
+   * jak nazywane są assety,
+   * jak frontend uruchamia SFX,
+   * jak inne moduły mapują zdarzenie na dźwięk,
+   * czy istnieje wspólny helper/player,
+   * czy istnieje cooldown,
+   * czy istnieje dedupe,
+   * jak rozwiązany jest brak assetu,
+   * jak SFX wykorzystuje mapa,
+   * jak SFX wykorzystuje OFS.
+
+2. Wykorzystaj istniejącą architekturę.
+
+   Jeżeli obecny system wymaga dopisania tylko:
+
+   * kilku wpisów w registry,
+   * kilku plików audio,
+   * jednego hooka w konsumencie delty,
+
+   to wykonaj tylko tyle.
+
+   Nie projektuj nowego frameworka SFX dla GhostNetwork.
+
+3. Dodaj obsługę zdarzenia odkrycia części.
+
+   Preferowany logical asset key:
+
+   `ghostnetwork.part_discovered`
+
+   Dźwięk ma wystąpić przy rzeczywistym:
+
+   `ghost.part_discovered`
+
+4. Discovery SFX ma wystąpić dokładnie raz dla zdarzenia.
+
+   Nie może zostać ponownie odtworzony przez:
+
+   * reload strony,
+   * ponowne otwarcie mapy,
+   * snapshot,
+   * snapshot recovery,
+   * delta recovery,
+   * ponowne wyrenderowanie istniejącej części.
+
+5. Dodaj SFX dla przejścia części do `contained`.
+
+   Preferowany logical asset key:
+
+   `ghostnetwork.part_contained`
+
+   Dźwięk informuje, że część została objęta właściwym stanem terytorialnym.
+
+6. Dodaj SFX dla aktywacji.
+
+   Preferowany logical asset key:
+
+   `ghostnetwork.part_activated`
+
+   Odtwarzany dopiero przy rzeczywistym:
+
+   `contained → active`
+
+   Ma być wyraźniejszy od `part_contained`.
+
+7. Dodaj SFX dla stanu hostile / under fire.
+
+   Preferowany logical asset key:
+
+   `ghostnetwork.part_hostile`
+
+   Zdarzenie dotyczy sytuacji, gdy terytorium obejmuje część obcego klanu i powstaje strategiczny stan zagrożenia.
+
+8. Dodaj SFX utraty stanu.
+
+   Preferowany logical asset key:
+
+   `ghostnetwork.part_lost`
+
+   Może odpowiadać utracie:
+
+   * containment,
+   * activation,
+   * wymaganej stabilności terytorium.
+
+9. Dodaj SFX postępu maszyny.
+
+   Preferowany logical asset key:
+
+   `ghostnetwork.module_progress`
+
+   Odtwarzany tylko przy rzeczywistej zmianie postępu, np.:
+
+   `1/5 → 2/5`
+
+10. Dodaj SFX ukończenia maszyny/modułu, jeżeli istniejący runtime publikuje jednoznaczne zdarzenie tego typu.
+
+    Preferowany logical asset key:
+
+    `ghostnetwork.module_complete`
+
+11. Podłącz istniejący końcowy event GhostSignal do SFX, jeżeli obecny kontrakt endgame daje odpowiedni event frontendowi.
+
+    Preferowany logical asset key:
+
+    `ghostnetwork.signal`
+
+12. SFX musi być presentation effect.
+
+    Brak pliku audio lub błąd playera nie może zatrzymać:
+
+    * lifecycle,
+    * delty,
+    * mapy,
+    * capture,
+    * GhostNetwork.
+
+13. Dedupe oprzyj o istniejące mechanizmy projektu, jeżeli już istnieją.
+
+    Nie twórz drugiego systemu dedupe wyłącznie dla audio, jeżeli obecna architektura potrafi rozwiązać problem.
+
+14. Jeżeli potrzebne jest lokalne zabezpieczenie przed replayem tego samego eventu, powinno być minimalne i ograniczone do presentation layer.
+
+## Testy
+
+Sprawdź:
+
+1. `part_discovered` uruchamia właściwy SFX,
+2. ten sam event nie odtwarza SFX dwa razy,
+3. snapshot nie odtwarza discovery,
+4. recovery po `version_gap` nie odtwarza discovery ponownie,
+5. `contained` uruchamia właściwy SFX,
+6. `active` uruchamia właściwy SFX,
+7. hostile uruchamia właściwy SFX,
+8. utrata stanu uruchamia właściwy SFX,
+9. module progress nie odtwarza się bez zmiany progress,
+10. brak pliku SFX nie powoduje błędu gameplayowego.
+
+## Raport assetów po sprincie
+
+Na końcu Sprintu 130.9.2 **nie twórz za mnie finalnych plików audio**.
+
+Na podstawie rzeczywiście istniejącej architektury CHAOS podaj listę assetów, które mam przygotować.
+
+Dla każdego assetu podaj:
+
+* logical asset key,
+* dokładną nazwę pliku,
+* format wymagany przez obecny system,
+* dokładną ścieżkę docelową w repozytorium,
+* zdarzenie, które go uruchamia,
+* krótki opis charakteru dźwięku.
+
+Format raportu:
+
+```text
+Asset:
+Key:
+Filename:
+Target path:
+Triggered by:
+Suggested character:
+```
+
+Przykład struktury raportu — nazwy i ścieżki ustal dopiero po audycie kodu:
+
+```text
+Asset:
+Key: ghostnetwork.part_discovered
+Filename: ...
+Target path: ...
+Triggered by: ghost.part_discovered
+Suggested character: ...
+```
+
+Nie wymyślaj ścieżek przed sprawdzeniem aktualnego systemu assetów.
+
+## Definition of Done
+
+Sprint jest zakończony, gdy:
+
+* rzeczywiste eventy GN są podłączone do istniejącego systemu SFX,
+* recovery i snapshot nie powodują ponownego audio,
+* brak assetu nie wpływa na gameplay,
+* istnieje konkretna lista plików audio, które mam przygotować,
+* dla każdego pliku znam dokładną ścieżkę docelową.
+
+---
+
+# Sprint 130.9.3 — GhostNetwork Territory Visual States
+
+## Cel
+
+Dodać na mapie czytelną informację o strategicznym stanie GhostNetwork terytorium.
+
+Obecnie terytoria pokazują:
+
+* właściciela,
+* klan,
+* kolor użytkownika/klanu,
+* normalne stany konfliktowe.
+
+Tego nie zmieniamy.
+
+GhostNetwork ma być **dodatkową warstwą wizualną**, dzięki której od razu widać:
+
+* zwykłe terytorium,
+* terytorium z aktywną częścią,
+* terytorium znajdujące się pod strategicznym zagrożeniem przez obcą część.
+
+## Stany
+
+1. Normal territory.
+
+   Brak specjalnego strategicznego stanu GN.
+
+   Terytorium wygląda dokładnie tak jak obecnie.
+
+2. GhostNetwork active territory.
+
+   Na terytorium znajduje się część właściwego klanu i lifecycle osiągnął:
+
+   `active`
+
+3. GhostNetwork hostile / under fire territory.
+
+   Terytorium obejmuje część obcego klanu.
+
+   Pole pozostaje własnością obecnego gracza/klanu, ale strategicznie znajduje się pod ostrzałem GhostNetwork.
+
+## Implementacja
+
+4. Najpierw sprawdź aktualny renderer terytoriów.
+
+   Znajdź:
+
+   * sposób nadawania kolorów,
+   * SVG/Canvas/Leaflet layers,
+   * style polygonów,
+   * klasy CSS,
+   * pane/layers,
+   * delta update,
+   * snapshot rebuild,
+   * conflict presentation states.
+
+5. Nie zastępuj obecnego koloru właściciela.
+
+   Bazowy kolor nadal odpowiada na pytanie:
+
+   `czyje jest to pole?`
+
+6. GhostNetwork ma odpowiadać dodatkowo na pytanie:
+
+   `co strategicznie dzieje się na tym polu?`
+
+7. ACTIVE musi mieć dodatkowy efekt wizualny.
+
+   Może to być, zależnie od obecnej architektury:
+
+   * dodatkowy border,
+   * glow,
+   * pulse,
+   * pattern,
+   * overlay,
+   * efekt linii.
+
+   Wybierz rozwiązanie pasujące do istniejącego renderera.
+
+8. HOSTILE / UNDER FIRE musi być wyraźnie inny od ACTIVE.
+
+   Charakter powinien być bardziej:
+
+   * ostrzegawczy,
+   * niestabilny,
+   * zagrożony,
+   * alarmowy.
+
+9. Można wykorzystać istniejący glitch/jitter/pulse używany już w mapie lub innych systemach, jeżeli pasuje.
+
+10. Nie twórz nowego systemu animacji, jeżeli efekt już istnieje w CHAOS.
+
+11. Stan wizualny musi wynikać z kanonicznego lifecycle GhostNetwork.
+
+    Front nie może sam zgadywać, czy część jest aktywna.
+
+12. Jeżeli potrzebny jest presentation state, może zostać przekazany jako coś w rodzaju:
+
+```text
+none
+active
+hostile
+```
+
+```
+ale tylko jeśli pasuje to do istniejącego kontraktu danych.
+```
+
+13. Snapshot i delta muszą prowadzić do identycznego końcowego wyglądu.
+
+14. Reload mapy musi poprawnie odtworzyć stan.
+
+15. Recovery delty musi poprawnie odtworzyć stan.
+
+16. Usunięcie strategicznego stanu musi usunąć efekt wizualny bez pozostawiania starych klas lub overlayów.
+
+17. Nie twórz nowego pollera.
+
+18. Nie przebudowuj wszystkich pól mapy przy pojedynczej zmianie GN, jeżeli obecna delta pozwala zaktualizować tylko dotknięte terytorium.
+
+19. Efekt nie może przykrywać:
+
+* markerów części,
+* motocykla,
+* konfliktów,
+* ważnych markerów mapy.
+
+## Wizualne przejścia do sprawdzenia
+
+1. `normal → active`
+2. `active → normal`
+3. `normal → hostile`
+4. `hostile → normal`
+5. zmiana ownership przy obecnym stanie GN
+6. reload mapy
+7. snapshot recovery
+8. delta update
+
+## Testy
+
+Sprawdź:
+
+1. normal territory nadal wygląda jak wcześniej,
+2. bazowy kolor właściciela nie znika,
+3. active jest jednoznacznie rozpoznawalne,
+4. hostile jest jednoznacznie rozpoznawalne,
+5. active i hostile nie wyglądają tak samo,
+6. stan znika po odpowiednim lifecycle event,
+7. snapshot odtwarza poprawny wygląd,
+8. delta odtwarza poprawny wygląd,
+9. recovery nie pozostawia starej warstwy,
+10. nie powstają duplicate overlays.
+
+## Raport assetów po sprincie
+
+Jeżeli wybrany efekt wymaga nowych assetów graficznych, nie twórz ich za mnie.
+
+Na końcu Sprintu 130.9.3 podaj dokładną listę potrzebnych plików.
+
+Dla każdego podaj:
+
+```text
+Asset:
+Purpose:
+Filename:
+Format:
+Dimensions:
+Target path:
+Used by:
+Transparency required: yes/no
+Notes:
+```
+
+Jeżeli sprint można wykonać w całości istniejącym CSS/SVG bez nowych plików, napisz jednoznacznie:
+
+`Sprint 130.9.3 does not require new external assets.`
+
+Nie wymuszaj tworzenia assetów, jeżeli nie są potrzebne.
+
+## Definition of Done
+
+Gracz patrzący na mapę musi natychmiast rozróżnić:
+
+* zwykłe terytorium,
+* terytorium z aktywną częścią GN,
+* terytorium pod ostrzałem przez obcą część GN,
+
+a jednocześnie cały czas widzieć, do kogo należy pole.
+
+---
+
+# Sprint 130.9.4 — GhostNetwork Part Visual Upgrade
+
+## Cel
+
+Przebudować wizualnie samą część GhostNetwork na mapie.
+
+Obecny marker jest zbyt mały i zbyt prosty jak na jeden z najważniejszych strategicznych obiektów gry.
+
+Część ma:
+
+* być większa,
+* być oparta na PNG,
+* być łatwo rozpoznawalna,
+* posiadać efekt drżenia/jitter,
+* wizualnie reagować na lifecycle,
+* współgrać ze stanem terytorium.
+
+## Audyt przed implementacją
+
+1. Najpierw sprawdź obecny renderer części GhostNetwork.
+
+2. Sprawdź katalog 20 części i sposób ich identyfikacji.
+
+3. Sprawdź, czy części są logicznie pogrupowane według:
+
+   * klanu,
+   * maszyny,
+   * modułu,
+   * konkretnego `part_id`.
+
+4. Sprawdź aktualny system assetów mapy.
+
+5. Sprawdź istniejące efekty:
+
+   * jitter,
+   * shake,
+   * pulse,
+   * glitch,
+   * glow.
+
+6. W szczególności sprawdź efekty wykorzystywane już:
+
+   * na mapie,
+   * w OFS,
+   * w innych elementach UI CHAOS.
+
+7. Nie twórz nowego efektu drżenia, jeżeli odpowiedni już istnieje.
+
+## PNG marker
+
+8. Marker części ma korzystać z PNG.
+
+9. Nie hardcoduj ścieżek PNG w wielu miejscach.
+
+10. Mapowanie:
+
+`part definition → visual asset`
+
+powinno posiadać jedno źródło prawdy zgodne z obecną architekturą projektu.
+
+11. Na podstawie realnego katalogu zdecyduj, czy właściwe jest:
+
+* 20 indywidualnych PNG,
+* zestaw PNG per machine,
+* inny wariant wynikający bezpośrednio z istniejącego modelu.
+
+12. Nie upraszczaj 20 różnych części do jednego assetu, jeżeli ich tożsamość ma znaczenie dla gracza.
+
+13. Nie wymyślaj 20 assetów tylko dlatego, że istnieje 20 rekordów, jeżeli obecny design mówi inaczej.
+
+14. Brak pliku PNG musi uruchomić istniejący/fallback marker zamiast ukrywać część.
+
+## Rozmiar
+
+15. Zwiększ rozmiar części względem obecnego markera.
+
+16. Część ma być ważniejsza wizualnie od standardowego POI.
+
+17. Rozmiar powinien zachowywać się sensownie przy różnych zoomach.
+
+18. Marker nie może zasłaniać dużej powierzchni małego terytorium.
+
+## Renderer
+
+19. Renderer części powinien logicznie pozwalać na połączenie:
+
+* PNG,
+* glow/halo,
+* lifecycle class,
+* jitter/motion,
+* transition effect.
+
+20. Nie dodawaj informacji gameplayowych wyłącznie na potrzeby renderera.
+
+## Jitter / drżenie
+
+21. Część ma posiadać charakterystyczne lekkie drżenie.
+
+22. Użyj istniejącego mechanizmu jitter/shake, jeśli istnieje.
+
+23. Jeżeli kilka systemów posiada prawie identyczną implementację, można wydzielić minimalny współdzielony utility/class, ale bez dużego refaktoru animacji całej gry.
+
+24. Jitter ma być subtelny.
+
+25. Nie może wyglądać jak ciągły agresywny shake.
+
+26. Preferowany jest lekko nieregularny efekt, jeżeli aktualny system animacji to umożliwia.
+
+27. Animacja nie może wymagać osobnego timera JavaScript dla każdej części, jeżeli można wykorzystać CSS lub istniejący scheduler.
+
+## Stan PUBLIC
+
+28. `public` powinien wyglądać jak obiekt:
+
+* odkryty,
+* niezabezpieczony,
+* niestabilny.
+
+29. Preferowany charakter:
+
+* lekki jitter,
+* delikatny glow,
+* subtelna niestabilność.
+
+## Stan CONTAINED
+
+30. `contained` musi być wizualnie inne od `public`.
+
+31. Preferowany charakter:
+
+* mocniejszy halo,
+* pulse,
+* zmiana intensywności,
+* nadal obecne lekkie drżenie.
+
+32. Przy rzeczywistym przejściu:
+
+`public → contained`
+
+można wykonać jednorazowy transition effect.
+
+## Stan ACTIVE
+
+33. `active` musi być najbardziej jednoznacznym stanem.
+
+34. Preferowany charakter:
+
+* mocniejszy/stabilniejszy glow,
+* wyraźna energia,
+* mniej chaotyczny jitter,
+* jednorazowy activation pulse.
+
+35. Przy:
+
+`contained → active`
+
+wykonaj wyraźny jednorazowy transition.
+
+36. Nie odtwarzaj transition po reloadzie lub snapshot recovery.
+
+## Hostile context
+
+37. Jeżeli część znajduje się w hostile/under-fire context, marker może otrzymać dodatkowy warning presentation state.
+
+38. Nie zmieniaj lifecycle części wyłącznie dla wyglądu.
+
+## Klikalność
+
+39. Sprawdź:
+
+* click,
+* hover,
+* tooltip,
+* popup,
+* hitbox.
+
+40. Powiększony PNG nie może zablokować kliknięć w nieproporcjonalnie dużym obszarze mapy.
+
+## Layering
+
+41. Sprawdź istniejące Leaflet pane / z-index / layer rules.
+
+42. Część musi znajdować się:
+
+* nad polygonem,
+* nad GN territory visual effect,
+
+ale bez łamania obecnego systemu warstw.
+
+43. Nie używaj arbitralnych ekstremalnych `z-index`.
+
+## Wydajność
+
+44. Preferuj animowanie:
+
+* `transform`,
+* `opacity`.
+
+45. Unikaj kosztownego ciągłego layout/reflow.
+
+46. Delta nie może tworzyć nowego markera, jeśli może zaktualizować istniejący.
+
+47. Snapshot recovery nie może zostawiać duplikatu.
+
+48. Przy większej liczbie części renderer musi pozostać lekki.
+
+## Reduced motion
+
+49. Jeżeli istnieje wspólny mechanizm `prefers-reduced-motion`, respektuj go.
+
+50. Nie twórz nowego frameworka accessibility tylko dla GhostNetwork.
+
+## Testy
+
+Sprawdź:
+
+1. PNG ładuje się poprawnie,
+2. brak PNG uruchamia fallback,
+3. marker jest większy,
+4. click działa,
+5. hover działa,
+6. tooltip/popup działa,
+7. public ma prawidłowy presentation state,
+8. contained różni się od public,
+9. active różni się od contained,
+10. jitter wykorzystuje istniejący mechanizm,
+11. transition odpala się tylko przy realnej zmianie,
+12. reload nie odpala transition,
+13. snapshot recovery nie odpala transition,
+14. delta nie tworzy duplicate marker,
+15. pane/layering jest poprawne,
+16. recovery pozostawia dokładnie jeden marker.
+
+## Raport assetów po sprincie
+
+To jest obowiązkowy element Sprintu 130.9.4.
+
+Po przeanalizowaniu rzeczywistego katalogu części przygotuj dla mnie **pełną listę PNG, które muszę stworzyć**.
+
+Dla każdego assetu podaj:
+
+```text
+Part / machine:
+Part ID:
+Filename:
+Target path:
+Recommended dimensions:
+PNG transparency:
+Visual subject:
+State variants required: yes/no
+Notes:
+```
+
+Jeżeli jeden PNG jest współdzielony przez kilka części, wypisz dokładnie które.
+
+Jeżeli potrzebne są osobne PNG dla wszystkich 20 części, przygotuj pełną listę 20 pozycji.
+
+Jeżeli potrzebne są np. 4 lub 5 assetów bazowych, również podaj pełne mapowanie:
+
+`part_id → filename`
+
+Nie zostawiaj tego w formie ogólnego:
+
+`assets should be created later`.
+
+Po tym raporcie mam móc stworzyć pliki i wrzucić je do wskazanego katalogu bez szukania w kodzie, jak mają się nazywać.
+
+Nie generuj PNG za mnie.
+
+## Definition of Done
+
+Sprint jest zakończony, kiedy:
+
+* renderer obsługuje PNG,
+* część jest większa,
+* działa jitter,
+* public/contained/active mają różne presentation states,
+* transitions są event-driven,
+* snapshot/recovery nie powtarzają efektów,
+* nie ma duplicate markerów,
+* istnieje kompletna lista PNG do stworzenia,
+* każdy PNG ma podaną dokładną nazwę i ścieżkę docelową.
+
+---
+
+# Kolejność realizacji
+
+Realizuj kolejno:
+
+1. Sprint 130.9.2 — GhostNetwork SFX.
+2. Sprint 130.9.3 — GhostNetwork Territory Visual States.
+3. Sprint 130.9.4 — GhostNetwork Part Visual Upgrade.
+
+Nie twórz własnych nowych subsystemów, jeżeli CHAOS posiada już odpowiedni mechanizm.
+
+Najpierw audytuj istniejące rozwiązanie, potem wykonuj najmniejszą poprawną integrację.
+
+Po każdym sprincie:
+
+* uruchom testy celowane,
+* uruchom potrzebną regresję mapy/GhostNetwork,
+* zaktualizuj project journal,
+* przygotuj listę wymaganych assetów i ich docelowych ścieżek,
+* nie commituj,
+* nie deployuj.
+
+Jeżeli dany sprint nie wymaga nowych assetów, napisz to wprost.
+
+Nie zatrzymuj się pomiędzy sprintami z pytaniem o zgodę, chyba że znajdziesz rzeczywisty blocker architektoniczny.
+
+---
+
+# Końcowy oczekiwany efekt
+
+Discovery:
+
+`part discovered`
+→ SFX discovery
+→ większy marker części
+→ PNG
+→ jitter
+→ stan `public`
+
+Containment:
+
+`public → contained`
+→ SFX contained
+→ transition części
+→ contained visual state markera
+→ odpowiednia warstwa terytorium
+
+Activation:
+
+`contained → active`
+→ SFX activated
+→ activation transition
+→ active marker
+→ active territory state
+→ module progress SFX
+
+Obca część:
+
+`foreign part + territory`
+→ hostile state
+→ hostile SFX
+→ hostile territory visual state
+→ odpowiedni warning context markera części
+
+Utrata stanu:
+
+`active/contained → lost/contested/released`
+→ odpowiednia zmiana visual state
+→ SFX lost
+→ bez pozostawienia starego overlayu lub markera.
+
+---
+
+# Końcowy raport
+
+Po wykonaniu wszystkich trzech sprintów podaj:
+
+1. zmienione pliki,
+2. rzeczywiste miejsca integracji z istniejącym systemem SFX,
+3. event → SFX mapping,
+4. wykorzystany mechanizm audio,
+5. wykorzystany istniejący jitter/shake,
+6. presentation states części,
+7. presentation states terytoriów,
+8. sposób obsługi snapshot/delta/recovery,
+9. wyniki testów,
+10. `git diff --stat`,
+11. `git diff --check`,
+12. remaining findings.
+
+Na samym końcu dodaj osobną sekcję:
+
+# ASSETS TO CREATE
+
+Podziel ją na:
+
+## AUDIO
+
+Dla każdego pliku:
+
+```text
+Filename:
+Target path:
+Used by:
+Suggested character:
+```
+
+## PNG
+
+Dla każdego pliku:
+
+```text
+Filename:
+Target path:
+Mapped to:
+Recommended dimensions:
+Transparency:
+Visual description:
+```
+
+## OTHER
+
+Tylko jeśli faktycznie są potrzebne inne assety.
+
+Lista ma być kompletna.
+
+Po jej otrzymaniu mam móc utworzyć wszystkie brakujące assety i wkleić je dokładnie we wskazane miejsca bez ponownego analizowania kodu.
+
+Nie commituj.
+
+Nie deployuj.
+
+
+---
+
+
 > Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.
 
 # Sprint 131 — GhostNetwork Suite: audyt widoczności części i integracja z Territory Control
