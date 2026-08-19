@@ -8406,6 +8406,9 @@
                     window.mapViewerClan = String((data.player || {}).clan || window.mapViewerClan || '');
 
                     (data.areas || []).forEach(renderTerritoryAreaLayer);
+                    if (typeof window.refreshGhostTerritoryBadges === 'function') {
+                        window.refreshGhostTerritoryBadges();
+                    }
 
                     if (data.territory_conflict_snapshot_mode) {
                         reconcileTerritoryConflictSnapshots(data.territory_conflict_snapshots || [], true);

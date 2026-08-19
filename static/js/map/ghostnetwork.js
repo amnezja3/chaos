@@ -30,6 +30,7 @@
     window.ghostNetworkConnectionLayers = window.ghostNetworkConnectionLayers || {};
     window.ghostNetworkConnectionProjections = window.ghostNetworkConnectionProjections || {};
     window.ghostNetworkTerritoryLayers = window.ghostNetworkTerritoryLayers || {};
+    window.ghostNetworkPendingTerritoryParts = window.ghostNetworkPendingTerritoryParts || {};
     window.ghostNetworkStateVersion = Number(window.ghostNetworkStateVersion || 0);
     window.ghostNetworkCycleId = window.ghostNetworkCycleId || "";
     window.ghostNetworkSnapshotChecksum = window.ghostNetworkSnapshotChecksum || "";
@@ -218,6 +219,7 @@
         Object.keys(window.ghostNetworkTerritoryLayers || {}).forEach(removeGhostPartMarker);
         window.ghostNetworkPartLayers = {};
         window.ghostNetworkTerritoryLayers = {};
+        window.ghostNetworkPendingTerritoryParts = {};
     }
 
     function renderGhostTerritoryBadge(part) {
@@ -235,7 +237,12 @@
                 coords = center ? validLatLng(center.lat, center.lng) : null;
             }
         }
-        if (!key || !coords) return false;
+        if (!key) return false;
+        if (!coords) {
+            window.ghostNetworkPendingTerritoryParts[key] = part;
+            return false;
+        }
+        delete window.ghostNetworkPendingTerritoryParts[key];
         const html = '<span class="ghostnetwork-territory-badge" aria-hidden="true"></span>';
         const icon = L.divIcon({
             className: "ghostnetwork-territory-icon",
@@ -253,6 +260,14 @@
             marker.setIcon(icon);
         }
         return true;
+    }
+
+    function refreshGhostTerritoryBadges() {
+        let rendered = 0;
+        Object.values(window.ghostNetworkPendingTerritoryParts || {}).forEach(part => {
+            if (renderGhostTerritoryBadge(part)) rendered += 1;
+        });
+        return rendered;
     }
 
     function connectionEndpoint(connection, side) {
@@ -413,6 +428,7 @@
             removeGhostPartMarker(key);
             return renderGhostTerritoryBadge(part);
         }
+        delete window.ghostNetworkPendingTerritoryParts[key];
         const coords = validLatLng(part.latitude || part.lat, part.longitude || part.lng);
         if (!coords) {
             removeGhostPartMarker(key);
@@ -709,6 +725,7 @@
     window.applyGhostPartDelta = applyGhostPartDelta;
     window.removeGhostPartMarker = removeGhostPartMarker;
     window.renderGhostTerritoryBadge = renderGhostTerritoryBadge;
+    window.refreshGhostTerritoryBadges = refreshGhostTerritoryBadges;
     window.openGhostPartPanel = openGhostPartPanel;
     window.clearGhostNetworkLayer = clearGhostNetworkLayer;
     window.recoverGhostNetworkLayer = recoverGhostNetworkLayer;

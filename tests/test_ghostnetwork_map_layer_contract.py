@@ -70,6 +70,9 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn("window.territoryAreaLayers", self.map_js)
         self.assertIn("layer.getBounds()", self.map_js)
         self.assertIn("bounds.getCenter()", self.map_js)
+        self.assertIn("window.ghostNetworkPendingTerritoryParts", self.map_js)
+        self.assertIn("window.refreshGhostTerritoryBadges", self.map_js)
+        self.assertIn("window.refreshGhostTerritoryBadges()", self.map_template)
 
     def test_connection_styles_are_isolated_and_lightweight(self):
         css = (ROOT / "static" / "css" / "ghostnetwork_map.css").read_text(encoding="utf-8")
