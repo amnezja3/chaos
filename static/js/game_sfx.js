@@ -1,7 +1,7 @@
 "use strict";
 
 (function initGameSfxModule(global) {
-    const DEFAULT_MANIFEST_URL = "/static/audio/sfx/manifest.v1.json?v=sfx-ofs-5";
+    const DEFAULT_MANIFEST_URL = "/static/audio/sfx/manifest.v1.json?v=sfx-ghostnetwork-6";
     const STORAGE_ENABLED = "chaos_sfx_enabled";
     const STORAGE_VOLUME = "chaos_sfx_volume";
     const DEFAULT_BUS_LIMITS = Object.freeze({

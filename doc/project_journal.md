@@ -467,3 +467,66 @@
   serwer raportuje `active=0` i brak eventów lifecycle; nie potwierdzono jeszcze
   `contained → active → module progress`. Wystarczy kontynuować istniejącą część,
   bez kolejnego dropu.
+
+## 2026-08-19 - Dopracowanie Sprintów 130.9.2–130.9.4
+
+- Ujednolicono trzy sprinty presentation-layer z modelem pracy projektu:
+  audyt przed implementacją, najmniejsza integracja, testy automatyczne,
+  manualna bramka w grze, finalna regresja i osobny werdykt `GO/NO-GO`.
+- Dodano wspólny kontrakt authoritative state/event, exactly-once dla efektów
+  jednorazowych, idempotentny snapshot/delta/recovery oraz presentation failure
+  nieblokujący gameplayu.
+- Sprint 130.9.2 rozdzielono na audyt SFX, implementację z fallbackiem, bramkę
+  dostarczenia audio i manualny odsłuch w realnym gameplayu.
+- Sprint 130.9.3 rozdzielono na audyt payloadu/renderera, testowaną integrację
+  warstw terytorium oraz manual desktop/mobile dla normal/active/hostile.
+- Sprint 130.9.4 rozdzielono na eksport kanonicznego mapowania części, bramkę
+  dostarczenia PNG, integrację renderera/fallbacku/transitions i manual mapy.
+- Skrypty techniczne mają być wersjonowane, read-only i nie mogą resetować ani
+  modyfikować aktywnego `ghostnetwork_0001`. Po każdym sprincie obowiązują
+  aktualizacja dokumentacji, testy celowane, regresja mapy/GN, kontrola składni
+  i `git diff --check`.
+- Nie wykonano implementacji sprintów, commita ani deployu; zmiana dotyczy
+  wyłącznie dopracowania planu pracy.
+
+## 2026-08-19 - Sprint 130.9.2 Etap 1–2: GhostNetwork SFX
+
+- Audyt potwierdził istniejący `window.GameSfx`, manifest v1, bus limits,
+  cooldown, dedupe po `event_id`, negative asset cache, radio ducking i
+  presentation-only fallback.
+- Minimalny hook umieszczono w nadrzędnym state delta consumerze. Audio jest
+  dozwolone wyłącznie dla live delty; initial catch-up, reload, snapshot i
+  recovery nie odtwarzają historycznych SFX.
+- Dodano mapping discovery, contained, activated, hostile/contested, lost,
+  module progress, module complete i GhostSignal oraz kontrakt ośmiu MP3 w
+  `static/audio/sfx/ghostnetwork/README.md`. Finalnych plików audio nie dodano.
+- `ghost.machine_progress_changed` gra tylko, gdy `active_parts` faktycznie
+  różni się od `previous_active_parts`.
+- Finding: `apply_ghostnetwork_runtime_result()` publikuje deltę tylko eventom z
+  `player_id`; eventy owner/public/internal/system bez bezpośredniego gracza nie
+  mają jeszcze ogólnego fan-outu. Rozszerzenie audience wymaga osobnej decyzji,
+  ponieważ wpływa na widoczność eventów poza warstwą audio.
+- Walidacja dostępna lokalnie: `node --check` dla `game_sfx.js` i `terminal.js`,
+  `node tests/js/test_game_sfx.js`, `node tests/js/test_operation_feedback.js`,
+  walidacja manifestu ośmiu kluczy GN i `git diff --check` — wszystko OK.
+
+### Usunięcie blockera publication bridge
+
+- Ogólny GN bridge rozwiązuje teraz eventy bez `player_id` według istniejącego
+  `audience_scope`: `owner`, `clan`, `public` i `player`. Nie dodano ścieżki
+  dystrybucji zależnej od SFX.
+- `internal` i `system` są bezwarunkowo odrzucane. Discovery zmieniono z legacy
+  `system` na `player`; machine progress/online z `internal` na `clan`; wyłącznie
+  finalny `ghost.signal_sent` z `system` na `public`.
+- Każda publikacja nadal korzysta z `GhostNetworkDeltaPublisher` i osobnego
+  viewer projection. Event części bez widocznej projekcji jest pomijany, dzięki
+  czemu publiczny fan-out nie ujawnia ukrytej części, topologii ani internal
+  `part_id`.
+- Dodano testy audience dla `part_contained`, `part_contested`,
+  `machine_progress_changed` i `signal_sent`, odrzucenia internal/system,
+  stabilnego dedupe per recipient oraz braku publikacji ukrytej części.
+- Snapshot/recovery pozostają ciche: SFX działa tylko przy live delta gate, a
+  recovery nie wywołuje ani `playGhostNetworkDeltaSfx`, ani `GameSfx.play`.
+- Lokalnie brak interpretera Python/WSL, więc nowe testy Python są przygotowane,
+  ale wymagają uruchomienia w środowisku serwerowym/CI. Testy Node, składnia JS,
+  manifest i `git diff --check` przechodzą.

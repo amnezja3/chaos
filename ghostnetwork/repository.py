@@ -2179,7 +2179,7 @@ class GhostNetworkRepository:
                 clan_code=player_clan or reservation.get("player_clan") or "",
                 state_version=version,
                 dedupe_key=dedupe_key,
-                audience_scope="system",
+                audience_scope="player",
                 payload={
                     "reservation_id": reservation["reservation_id"],
                     "target_id": target_id,

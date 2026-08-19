@@ -80,6 +80,7 @@ class GhostTransmissionService:
                 cycle_id=cycle_id,
                 entity_id=signal["signal_id"],
                 dedupe_key=f"ghost:signal_sent:{cycle_id}",
+                audience_scope="public",
                 payload={
                     "signal_id": signal["signal_id"],
                     "signal_number": signal["signal_number"],
@@ -439,13 +440,14 @@ class GhostTransmissionService:
             raise InvalidStateTransition(f"GhostSignal not found: {signal_id}")
         return signal
 
-    def _append_once(self, event_type, cycle_id, entity_id, dedupe_key, payload=None):
+    def _append_once(self, event_type, cycle_id, entity_id, dedupe_key, payload=None,
+                     audience_scope="system"):
         try:
             return self.repository.append_event(
                 event_type,
                 cycle_id=cycle_id,
                 entity_id=entity_id,
-                audience_scope="system",
+                audience_scope=audience_scope,
                 dedupe_key=dedupe_key,
                 payload=payload or {},
             )

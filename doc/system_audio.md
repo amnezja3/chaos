@@ -518,7 +518,39 @@ serwerowa synchronizacja preferencji oraz pełny redesign Ghost Radio.
 ## DoD
 
 Wszystkie integracje używają jednego `GameSfx`, a żaden feature nie odtwarza
-pliku bezpośrednio. Głośność jest spójna, radio zawsze odzyskuje stan, backlog i
+audio bezpośrednio przez własny `Audio()`.
+
+## GhostNetwork — Sprint 130.9.2
+
+GhostNetwork korzysta z nadrzędnego consumera state delta w `terminal.js`.
+Hook działa wyłącznie podczas live pollingu (`stateDeltaSfxPlaybackAllowed`), po
+globalnym dedupe delty. Initial catch-up, snapshot, reload i recovery nie
+uruchamiają audio. Drugi poziom exactly-once zapewnia `GameSfx` przez stabilne
+`event_id` oparte o kanoniczny `payload.event_id` albo `dedupe_key`.
+
+| Canonical event | Logical SFX key | Warunek |
+| --- | --- | --- |
+| `ghost.part_discovered` | `ghostnetwork.part_discovered` | nowa live delta |
+| `ghost.part_contained` | `ghostnetwork.part_contained` | nowa live delta |
+| `ghost.part_activated` | `ghostnetwork.part_activated` | nowa live delta |
+| `ghost.part_contested` | `ghostnetwork.part_hostile` | nowa live delta |
+| `ghost.part_revealed`, `ghost.part_deactivated`, `ghost.part_anchor_source_lost` | `ghostnetwork.part_lost` | nowa live delta |
+| `ghost.machine_progress_changed` | `ghostnetwork.module_progress` | `active_parts != previous_active_parts` |
+| `ghost.machine_online` | `ghostnetwork.module_complete` | nowa live delta |
+| `ghost.signal_sent` | `ghostnetwork.signal` | nowa live delta, jeśli endgame publikuje ją frontendowi |
+
+Brak assetu MP3 jest presentation-only failure i nie wpływa na zastosowanie
+delty ani renderer mapy. Kontrakt ośmiu plików znajduje się w
+`static/audio/sfx/ghostnetwork/README.md`.
+
+Ogólny GhostNetwork publication bridge rozwiązuje odbiorców według kanonicznego
+`audience_scope`: `player`, `owner`, `clan` i `public`. `internal` oraz `system`
+są zawsze odrzucane przed publikacją klientowi. Discovery jest eventem `player`,
+machine progress eventem `clan`, a finalny `ghost.signal_sent` eventem `public`.
+Każda delta nadal powstaje przez indywidualny viewer projection. Jeżeli viewer
+nie otrzyma bezpiecznej projekcji części, publisher pomija event całkowicie i nie
+ujawnia nawet wewnętrznego `part_id`.
+Cały system zachowuje wspólne gwarancje: głośność jest spójna, radio zawsze odzyskuje stan, backlog i
 recovery pozostają ciche, wiele okien respektuje wspólne limity, a wyłączenie lub
 awaria audio nie zmienia żadnego wyniku gameplayowego.
 

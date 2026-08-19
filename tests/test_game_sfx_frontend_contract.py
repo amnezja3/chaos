@@ -17,8 +17,8 @@ class GameSfxFrontendContractTest(unittest.TestCase):
 
     def test_sfx_loads_once_before_radio_and_terminal(self):
         self.assertEqual(self.template.count("js/game_sfx.js"), 1)
-        self.assertIn("game_sfx.js') }}?v=sfx-ofs-5", self.template)
-        self.assertIn("manifest.v1.json?v=sfx-ofs-5", self.sfx)
+        self.assertIn("game_sfx.js') }}?v=sfx-ghostnetwork-6", self.template)
+        self.assertIn("manifest.v1.json?v=sfx-ghostnetwork-6", self.sfx)
         self.assertLess(self.template.index("js/game_sfx.js"), self.template.index("js/ghost_radio.js"))
         self.assertLess(self.template.index("js/game_sfx.js"), self.template.index("js/terminal.js"))
 
@@ -42,9 +42,19 @@ class GameSfxFrontendContractTest(unittest.TestCase):
             "ofs.progress_checkpoint", "ofs.success", "ofs.failure",
             "ofs.runtime_warning",
         }
+        expected_ghostnetwork = {
+            "ghostnetwork.part_discovered",
+            "ghostnetwork.part_contained",
+            "ghostnetwork.part_activated",
+            "ghostnetwork.part_hostile",
+            "ghostnetwork.part_lost",
+            "ghostnetwork.module_progress",
+            "ghostnetwork.module_complete",
+            "ghostnetwork.signal",
+        }
         self.assertEqual(
             set(self.manifest["events"]),
-            expected_secret_path | expected_capture | expected_messages | expected_ofs,
+            expected_secret_path | expected_capture | expected_messages | expected_ofs | expected_ghostnetwork,
         )
         self.assertTrue(all(
             self.manifest["events"][event]["bus"] == "lore"
@@ -59,6 +69,33 @@ class GameSfxFrontendContractTest(unittest.TestCase):
             {"lore", "gameplay", "message", "system", "ui"},
         )
         self.assertTrue(self.manifest["events"]["system.critical"]["interrupt_lower_priority"])
+        self.assertTrue(self.manifest["events"]["ghostnetwork.signal"]["interrupt_lower_priority"])
+
+    def test_ghostnetwork_sfx_uses_live_delta_gate_and_canonical_events(self):
+        expected_mapping = {
+            '"ghost.part_discovered": "ghostnetwork.part_discovered"',
+            '"ghost.part_contained": "ghostnetwork.part_contained"',
+            '"ghost.part_activated": "ghostnetwork.part_activated"',
+            '"ghost.part_contested": "ghostnetwork.part_hostile"',
+            '"ghost.part_revealed": "ghostnetwork.part_lost"',
+            '"ghost.part_deactivated": "ghostnetwork.part_lost"',
+            '"ghost.machine_progress_changed": "ghostnetwork.module_progress"',
+            '"ghost.machine_online": "ghostnetwork.module_complete"',
+            '"ghost.signal_sent": "ghostnetwork.signal"',
+        }
+        for mapping in expected_mapping:
+            self.assertIn(mapping, self.terminal)
+        self.assertIn("function playGhostNetworkDeltaSfx", self.terminal)
+        self.assertIn("!stateDeltaSfxPlaybackAllowed", self.terminal)
+        self.assertIn("Number(payload.active_parts || 0) === Number(payload.previous_active_parts || 0)", self.terminal)
+        self.assertIn("playGhostNetworkDeltaSfx(event);", self.terminal)
+        self.assertIn("event_id: `ghostnetwork:${eventId}`", self.terminal)
+        recovery_source = self.terminal[
+            self.terminal.index("async function recoverGhostNetworkDeltaScope"):
+            self.terminal.index("async function recoverDeltaScopes")
+        ]
+        self.assertNotIn("playGhostNetworkDeltaSfx", recovery_source)
+        self.assertNotIn("GameSfx.play", recovery_source)
 
     def test_live_message_audio_is_decoupled_from_hydration_and_cursors(self):
         self.assertIn('event.type === "cyberner.message_created" && stateDeltaSfxPlaybackAllowed', self.terminal)

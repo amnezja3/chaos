@@ -124,6 +124,12 @@ class GhostPartLifecycleServiceTest(unittest.TestCase):
         self.assertEqual(revealed["target_id"], original_target_id)
         self.assertEqual(revealed["discovered_by"], original_discoverer)
 
+        events = self.repo.list_events(self.cycle["cycle_id"], limit=500)
+        contained_event = next(event for event in events if event["event_type"] == "ghost.part_contained")
+        contested_event = next(event for event in events if event["event_type"] == "ghost.part_contested")
+        self.assertEqual(contained_event["audience_scope"], "owner")
+        self.assertEqual(contested_event["audience_scope"], "public")
+
         consumed = self.lifecycle.consume_part(part["part_id"], "signal-2108")
         self.assertEqual(consumed["status"], "consumed")
         self.assertEqual(consumed["consumed_signal_id"], "signal-2108")

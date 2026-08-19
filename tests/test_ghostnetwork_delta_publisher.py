@@ -109,6 +109,13 @@ class GhostNetworkDeltaPublisherTest(unittest.TestCase):
         self.assertTrue(payload["snapshot_checksum"])
         self.assertEqual(payload["part_projection"]["public_entity_id"], "ghost-public-1")
 
+        with patch("ghostnetwork.deltas.build_viewer_projection", return_value=projection):
+            replay = GhostNetworkDeltaPublisher(
+                repository=repository,
+                delta_bus=delta_bus,
+            ).publish_event(event, [viewer])
+        self.assertEqual(replay[0]["dedupe_key"], record["dedupe_key"])
+
     def test_rebuild_projection_filters_events_after_version(self):
         projection = rebuild_ghostnetwork_delta_projection(
             "ghostnetwork_0001",
@@ -121,6 +128,35 @@ class GhostNetworkDeltaPublisherTest(unittest.TestCase):
         self.assertEqual(projection["current_version"], 8)
         self.assertEqual(projection["event_count"], 1)
         self.assertEqual(projection["events"][0]["event_id"], "event-new")
+
+    def test_hidden_part_event_is_not_published_without_safe_projection(self):
+        delta_bus = FakeDeltaBus()
+        repository = FakeRepository()
+        hidden_projection = {
+            "projection": "viewer_visibility",
+            "visibility_version": "ghost-visibility-v1",
+            "state_version": 9,
+            "cycle": {"cycle_id": "ghostnetwork_0001", "state_version": 9},
+            "parts": [],
+            "connections": [],
+            "progress": {},
+        }
+        event = {
+            "event_id": "event-hidden",
+            "event_type": "ghost.part_contested",
+            "cycle_id": "ghostnetwork_0001",
+            "part_id": "internal-secret-part-id",
+            "state_version": 9,
+        }
+
+        with patch("ghostnetwork.deltas.build_viewer_projection", return_value=hidden_projection):
+            published = GhostNetworkDeltaPublisher(
+                repository=repository,
+                delta_bus=delta_bus,
+            ).publish_event(event, [{"username": "outsider", "viewer_clan": "OTHER"}])
+
+        self.assertEqual(published, [])
+        self.assertEqual(delta_bus.records, [])
 
 
 if __name__ == "__main__":

@@ -339,7 +339,7 @@ class GhostModuleStateService:
                 cycle_id=progress["cycle_id"],
                 entity_id=f"ghost-machine:{progress['cycle_id']}:{progress['machine_code']}",
                 clan_code=progress["clan_code"],
-                audience_scope="internal",
+                audience_scope="clan",
                 audience_clan=progress["clan_code"],
                 dedupe_key=dedupe_key,
                 payload=payload,

@@ -22882,7 +22882,101 @@ Pracujemy wyłącznie nad prezentacją istniejących stanów.
 
 ---
 
+# Model realizacji Sprintów 130.9.2–130.9.4
+
+Te trzy sprinty są sprintami presentation-layer i realizujemy je kolejno. Każdy
+ma własny audyt, implementację, testy automatyczne, manualną bramkę w grze i
+osobny werdykt. Nie łączymy ich w jeden niepodzielny pakiet zmian.
+
+## Wspólny kontrakt pracy
+
+1. Przed zmianą zapisz `git status --short` i przejrzyj istniejący diff. Nie
+   cofaj ani nie nadpisuj zmian spoza bieżącego sprintu.
+2. Najpierw ustal rzeczywiste źródło danych, istniejący renderer/player,
+   snapshot, deltę, recovery, dedupe, layering i fallback. Dopiero potem wybierz
+   najmniejszy punkt integracji.
+3. Nie zmieniaj kanonicznego lifecycle ani danych gameplayowych dla potrzeb
+   prezentacji. Frontend konsumuje authoritative state/event i nie wylicza
+   własnej wersji prawdy.
+4. Efekty jednorazowe uruchamiaj wyłącznie z nowego eventu/delty. Snapshot,
+   initial load, reload i recovery odtwarzają stan trwały, ale nie transition ani
+   SFX.
+5. Każdy consumer musi być idempotentny: powtórzona delta nie może utworzyć
+   drugiego markera, overlayu ani odtworzyć drugi raz dźwięku.
+6. Błąd assetu lub presentation layer jest nieblokujący dla capture, territory,
+   lifecycle, rewards, delty oraz GhostNetwork runtime.
+7. Jeżeli do powtarzalnego sprawdzenia potrzebny jest stan serwerowy, dodaj lub
+   rozszerz wersjonowany, read-only skrypt diagnostyczny. Nie twórz doraźnych
+   poleceń modyfikujących bazę i nie resetuj `ghostnetwork_0001`.
+8. Test manualny wykonuje użytkownik po jasnej bramce. Agent przygotowuje build,
+   fixture/dev harness, instrukcję i oczekiwany wynik, ale nie uznaje oględzin za
+   wykonane bez raportu użytkownika.
+9. Po każdym sprincie uruchom testy celowane, właściwą regresję mapy/GN,
+   `py_compile` dla zmienionych plików Python, kontrolę składni JavaScript oraz
+   `git diff --check`.
+10. Zaktualizuj tę specyfikację i `doc/project_journal.md`. Jeżeli zmienia się
+    kontrakt eventów, assetów, delty lub renderera, zaktualizuj także właściwą
+    dokumentację architektury/runbook.
+11. Nie commituj i nie deployuj bez osobnego polecenia użytkownika.
+
+## Wspólne statusy
+
+Przed manualnym testem podaj dokładnie:
+
+`READY FOR MANUAL GAMEPLAY TEST — Sprint 130.9.x`
+
+Jeżeli sprint czeka na pliki użytkownika, podaj:
+
+`READY FOR ASSET DELIVERY — Sprint 130.9.x`
+
+Po manualu i finalnej regresji zakończ sprint jednym z werdyktów:
+
+`GO — Sprint 130.9.x validated in real gameplay`
+
+albo:
+
+`NO-GO — Sprint 130.9.x still has presentation blockers`
+
+`GO` wymaga testów automatycznych i manualnego potwierdzenia zachowania w grze.
+Brak opcjonalnego assetu nie jest blockerem, jeżeli sprint jawnie dopuszcza
+fallback; brak obowiązkowego assetu oznacza `READY FOR ASSET DELIVERY`, nie
+fałszywe `GO`.
+
+---
+
 # Sprint 130.9.2 — GhostNetwork SFX
+
+**Status:** `READY FOR ASSET DELIVERY` (2026-08-19).
+
+## Etapy realizacji
+
+### Etap 1 — audyt i kontrakt
+
+Udokumentuj istniejący przepływ `authoritative event → delta consumer → SFX
+helper → registry → asset`, klucz dedupe i zachowanie przy snapshot/recovery.
+Przed implementacją przygotuj tabelę `event → logical key → consumer → dedupe`.
+
+### Etap 2 — implementacja bez finalnych assetów
+
+Dodaj mappingi, hooki, dedupe i bezpieczny fallback. Testy mają używać mocka lub
+testowego playera, a nie wymagać finalnych plików audio. Nie publikuj sztucznych
+eventów gameplayowych tylko po to, aby uruchomić dźwięk.
+
+### Bramka assetowa
+
+Po implementacji podaj kompletny raport assetów i status:
+
+`READY FOR ASSET DELIVERY — Sprint 130.9.2`
+
+Użytkownik przygotowuje pliki audio. Po ich dostarczeniu sprawdź nazwy, format,
+ścieżki, registry i brak 404/decode errors.
+
+### Etap 3 — manual i domknięcie
+
+Przygotuj krótki test w grze dla realnych przejść dostępnych w bieżącym cyklu.
+Manual ma potwierdzić głośność względną, rozróżnialność, exactly-once oraz brak
+audio przy reload/snapshot recovery. Nie wymagaj ponownego naturalnego dropu,
+jeżeli istniejący event można bezpiecznie zweryfikować na aktualnej części.
 
 ## Cel
 
@@ -23038,6 +23132,10 @@ Sprawdź:
 9. module progress nie odtwarza się bez zmiany progress,
 10. brak pliku SFX nie powoduje błędu gameplayowego.
 
+Dodatkowo uruchom regresję consumerów delta/snapshot, mapy, OFS SFX i
+GhostNetwork lifecycle. Jeżeli istnieje wspólny test playera/dedupe, rozszerz go
+zamiast tworzyć osobny harness wyłącznie dla GN.
+
 ## Raport assetów po sprincie
 
 Na końcu Sprintu 130.9.2 **nie twórz za mnie finalnych plików audio**.
@@ -23087,9 +23185,56 @@ Sprint jest zakończony, gdy:
 * istnieje konkretna lista plików audio, które mam przygotować,
 * dla każdego pliku znam dokładną ścieżkę docelową.
 
+Finalne `GO` wymaga dostarczonych assetów i manualnego odsłuchu. Bez assetów
+sprint kończy etap implementacyjny statusem `READY FOR ASSET DELIVERY`, przy
+zachowaniu sprawnego i przetestowanego fallbacku.
+
+### Wynik rozpoczęcia sprintu
+
+Audyt potwierdził jeden wspólny `window.GameSfx`, manifest v1, dedupe po
+`event_id`, bezpieczny missing-asset fallback oraz live/catch-up gate nadrzędnego
+state delta consumera. Dodano osiem logical keys i hook kanonicznych eventów GN.
+Snapshot, reload i recovery omijają hook audio. Machine progress gra tylko przy
+zmianie liczby aktywnych części.
+
+Finding delivery został usunięty w ogólnym GhostNetwork publication bridge, bez
+fan-outu specjalnego dla SFX. Resolver obsługuje `player`, `owner`, `clan` i
+`public`; `internal/system` nie trafiają do klienta. `part_contained`,
+`part_contested`, `machine_progress_changed` i `signal_sent` mają testowany live
+delivery do właściwych odbiorców. Każdy odbiorca nadal otrzymuje indywidualny
+viewer projection, a event części bez bezpiecznej projekcji jest pomijany bez
+ujawnienia internal `part_id`. Dedupe zachowuje stabilny klucz per odbiorca.
+
 ---
 
 # Sprint 130.9.3 — GhostNetwork Territory Visual States
+
+## Etapy realizacji
+
+### Etap 1 — audyt danych i renderera
+
+Zapisz macierz `kanoniczny stan GN → payload snapshot/delta → dotknięte
+territory_id → klasa/warstwa presentation`. Potwierdź, że backend już dostarcza
+informację wystarczającą do rozróżnienia `none/active/hostile`. Jeżeli nie,
+dodaj minimalne pole projekcji z testem kontraktu, bez zmiany lifecycle.
+
+### Etap 2 — implementacja i testy automatyczne
+
+Dodaj stan do istniejącego rejestru warstw i aktualizacji inkrementalnej. Testy
+muszą pokryć identyczny wynik snapshotu i delty, usuwanie starego efektu,
+ownership change, brak duplikatów oraz layering. Preferuj fixture renderera lub
+istniejący map harness; nie opieraj regresji wyłącznie na selektorach tekstowych.
+
+### Etap 3 — manual mapy
+
+Po automatycznej regresji zatrzymaj się na:
+
+`READY FOR MANUAL GAMEPLAY TEST — Sprint 130.9.3`
+
+Użytkownik sprawdza desktop i mobile oraz co najmniej: normal, active, hostile,
+powrót do normal, reload i recovery. Raport powinien zawierać zrzuty ekranu lub
+krótkie nagranie oraz informację o zoomie i schemacie mapy. Po manualu popraw
+wyłącznie znalezione regresje z zakresu sprintu i wykonaj finalną regresję.
 
 ## Cel
 
@@ -23242,6 +23387,11 @@ Sprawdź:
 9. recovery nie pozostawia starej warstwy,
 10. nie powstają duplicate overlays.
 
+Regresja obejmuje również Target Registry, istniejące conflict overlays,
+markery graczy/motocykla, schematy mapy używane na serwerze oraz delta/snapshot
+recovery. Jeżeli backend payload się zmienia, dodaj test serializacji i
+read-only diagnostykę pozwalającą wypisać strategiczny stan terytoriów.
+
 ## Raport assetów po sprincie
 
 Jeżeli wybrany efekt wymaga nowych assetów graficznych, nie twórz ich za mnie.
@@ -23278,9 +23428,47 @@ Gracz patrzący na mapę musi natychmiast rozróżnić:
 
 a jednocześnie cały czas widzieć, do kogo należy pole.
 
+DoD wymaga manualnego potwierdzenia czytelności. Testy DOM/CSS potwierdzają
+kontrakt, ale nie zastępują oceny, czy ACTIVE i HOSTILE faktycznie da się szybko
+rozróżnić w grze.
+
 ---
 
 # Sprint 130.9.4 — GhostNetwork Part Visual Upgrade
+
+## Etapy realizacji
+
+### Etap 1 — audyt katalogu i specyfikacja assetów
+
+Przed zmianą renderera wygeneruj z kanonicznego katalogu pełne mapowanie 20
+części do planowanych assetów. Jeżeli repo nie ma odpowiedniej diagnostyki,
+dodaj read-only skrypt eksportujący `cycle_id`, `part_id`, `part_code`, clan,
+machine/module i logical asset key. Skrypt nie może modyfikować cyklu.
+
+Na podstawie audytu przygotuj listę PNG i zatrzymaj się na:
+
+`READY FOR ASSET DELIVERY — Sprint 130.9.4`
+
+Nie implementuj fikcyjnych nazw ani nie duplikuj placeholdera jako dwudziestu
+rzekomo finalnych plików.
+
+### Etap 2 — renderer, fallback i transitions
+
+Po dostarczeniu assetów zweryfikuj wymiary, przezroczystość, nazwy i mapowanie,
+a następnie zintegruj PNG z istniejącym markerem. Fallback musi pozostać
+funkcjonalny. Trwały stan markera wynika ze snapshotu; jednorazowy transition
+wyłącznie z nowej delty/eventu.
+
+### Etap 3 — manual mapy i wydajność
+
+Po testach automatycznych podaj:
+
+`READY FOR MANUAL GAMEPLAY TEST — Sprint 130.9.4`
+
+Manual obejmuje public/contained/active/hostile, click/hover/popup, kilka zoomów,
+desktop/mobile, reduced motion, reload i recovery. Sprawdź również nakładanie z
+territory visual states ze Sprintu 130.9.3. Po raporcie użytkownika napraw błędy
+w zakresie sprintu i uruchom końcową regresję.
 
 ## Cel
 
@@ -23513,6 +23701,10 @@ Sprawdź:
 15. pane/layering jest poprawne,
 16. recovery pozostawia dokładnie jeden marker.
 
+Dodatkowo sprawdź stabilność liczby warstw/markerów po serii delta → snapshot →
+recovery oraz brak osobnych timerów JavaScript per marker. Jeżeli repo posiada
+profiling mapy lub licznik layerów, wykorzystaj go i zapisz wynik w journalu.
+
 ## Raport assetów po sprincie
 
 To jest obowiązkowy element Sprintu 130.9.4.
@@ -23563,6 +23755,10 @@ Sprint jest zakończony, kiedy:
 * istnieje kompletna lista PNG do stworzenia,
 * każdy PNG ma podaną dokładną nazwę i ścieżkę docelową.
 
+DoD nie może zostać oznaczone jako wykonane wyłącznie na placeholderach. Przed
+dostarczeniem PNG prawidłowym wynikiem jest `READY FOR ASSET DELIVERY`; finalne
+`GO` następuje po integracji realnych plików, manualu i regresji.
+
 ---
 
 # Kolejność realizacji
@@ -23588,7 +23784,10 @@ Po każdym sprincie:
 
 Jeżeli dany sprint nie wymaga nowych assetów, napisz to wprost.
 
-Nie zatrzymuj się pomiędzy sprintami z pytaniem o zgodę, chyba że znajdziesz rzeczywisty blocker architektoniczny.
+Nie zatrzymuj się pomiędzy pracami automatycznymi z pytaniem o zgodę. Zatrzymaj
+się wyłącznie na jawnej bramce manualnej, assetowej albo przy rzeczywistym
+blockerze architektonicznym. Nie rozpoczynaj kolejnego sprintu, dopóki poprzedni
+nie ma werdyktu `GO` albo użytkownik jawnie zaakceptuje odłożenie findingu.
 
 ---
 

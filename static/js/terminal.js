@@ -10249,6 +10249,38 @@ function updateGhostNetworkDeltaView(event = {}) {
     return applied;
 }
 
+const GHOSTNETWORK_SFX_BY_EVENT = Object.freeze({
+    "ghost.part_discovered": "ghostnetwork.part_discovered",
+    "ghost.part_contained": "ghostnetwork.part_contained",
+    "ghost.part_activated": "ghostnetwork.part_activated",
+    "ghost.part_contested": "ghostnetwork.part_hostile",
+    "ghost.part_revealed": "ghostnetwork.part_lost",
+    "ghost.part_deactivated": "ghostnetwork.part_lost",
+    "ghost.part_anchor_source_lost": "ghostnetwork.part_lost",
+    "ghost.machine_progress_changed": "ghostnetwork.module_progress",
+    "ghost.machine_online": "ghostnetwork.module_complete",
+    "ghost.signal_sent": "ghostnetwork.signal"
+});
+
+function playGhostNetworkDeltaSfx(event = {}) {
+    if (!stateDeltaSfxPlaybackAllowed || !window.GameSfx || typeof window.GameSfx.play !== "function") return false;
+    const type = String(event.type || "");
+    const eventKey = GHOSTNETWORK_SFX_BY_EVENT[type];
+    if (!eventKey) return false;
+    const payload = event.payload && typeof event.payload === "object" ? event.payload : {};
+    if (type === "ghost.machine_progress_changed"
+        && Number(payload.active_parts || 0) === Number(payload.previous_active_parts || 0)) return false;
+    const eventId = String(payload.event_id || event.dedupe_key || `${type}:${event.version || payload.state_version || ""}`).trim();
+    window.GameSfx.play(eventKey, {
+        event_id: `ghostnetwork:${eventId}`,
+        source: "state_delta",
+        cycle_id: payload.cycle_id || "",
+        entity_id: event.entity_id || "",
+        event_type: type
+    });
+    return true;
+}
+
 async function applyDelta(event) {
     if (!event || typeof event !== "object") return false;
     const dedupeKey = event.dedupe_key || `${event.type || 'event'}:${event.version || ''}`;
@@ -10302,6 +10334,7 @@ async function applyDelta(event) {
         return true;
     }
     if (event.scope === "ghostnetwork" || String(event.type || "").startsWith("ghost.")) {
+        playGhostNetworkDeltaSfx(event);
         updateGhostNetworkDeltaView(event);
         return true;
     }

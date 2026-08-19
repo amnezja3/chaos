@@ -3043,8 +3043,7 @@ def apply_ghostnetwork_runtime_result(service, result):
         if player_id and reward.get("applied"):
             user_store.save_profile(profile)
         reward_results.append(reward)
-        if player_id:
-            publish_ghostnetwork_delta_result(player_id, profile, event)
+        publish_ghostnetwork_event_delta(event)
     return reward_results
 
 
@@ -7221,6 +7220,8 @@ def publish_ghostnetwork_delta_result(username, profile, result):
     publisher = GhostNetworkDeltaPublisher(delta_bus=delta_bus)
     published = []
     for index, event in enumerate(events):
+        if not ghostnetwork_profile_is_event_recipient(event, username, profile):
+            continue
         transaction = None
         if transaction_id:
             transaction = {
@@ -7229,6 +7230,94 @@ def publish_ghostnetwork_delta_result(username, profile, result):
                 "transaction_size": len(events),
             }
         published.extend(publisher.publish_event(event, [viewer], transaction=transaction))
+    return published
+
+
+def ghostnetwork_profile_is_event_recipient(event, username, profile):
+    event = event if isinstance(event, dict) else {}
+    payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+    scope = str(event.get("audience_scope") or "internal").strip().lower()
+    username = str(username or "").strip()
+    if not username or scope in {"internal", "system"}:
+        return False
+    if scope == "public":
+        return True
+    if scope == "player":
+        player_id = str(event.get("player_id") or payload.get("player_id") or "").strip()
+        return bool(player_id and player_id == username)
+    if scope == "owner":
+        owner_id = str(
+            payload.get("territory_owner_id")
+            or event.get("player_id")
+            or payload.get("player_id")
+            or ""
+        ).strip()
+        return bool(owner_id and owner_id == username)
+    if scope == "clan":
+        audience_clan = str(
+            event.get("audience_clan")
+            or event.get("clan_code")
+            or payload.get("player_clan")
+            or payload.get("territory_clan")
+            or payload.get("clan_code")
+            or ""
+        ).strip().lower()
+        profile = profile if isinstance(profile, dict) else {}
+        profile_clan = str(
+            profile.get("ghost_clan_code")
+            or profile.get("clan_code")
+            or get_profile_clan(profile)
+            or ""
+        ).strip().lower()
+        return bool(audience_clan and profile_clan == audience_clan)
+    return False
+
+
+def ghostnetwork_event_recipient_profiles(event):
+    event = event if isinstance(event, dict) else {}
+    scope = str(event.get("audience_scope") or "internal").strip().lower()
+    if scope in {"internal", "system"}:
+        return []
+    payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+    direct_usernames = set()
+    if scope == "player":
+        direct_usernames.add(str(event.get("player_id") or payload.get("player_id") or "").strip())
+    elif scope == "owner":
+        direct_usernames.add(str(
+            payload.get("territory_owner_id")
+            or event.get("player_id")
+            or payload.get("player_id")
+            or ""
+        ).strip())
+
+    candidates = []
+    if scope in {"public", "clan"}:
+        candidates = user_store.list_profiles()
+    else:
+        for username in sorted(item for item in direct_usernames if item):
+            profile = user_store.get_profile(username) or {}
+            if profile:
+                candidates.append(profile)
+
+    recipients = []
+    seen = set()
+    for profile in candidates:
+        if not isinstance(profile, dict):
+            continue
+        username = str(profile.get("username") or profile.get("name") or "").strip()
+        if not username or username in seen:
+            continue
+        if not ghostnetwork_profile_is_event_recipient(event, username, profile):
+            continue
+        seen.add(username)
+        recipients.append((username, profile))
+    return recipients
+
+
+def publish_ghostnetwork_event_delta(event):
+    published = []
+    for username, profile in ghostnetwork_event_recipient_profiles(event):
+        published.extend(publish_ghostnetwork_delta_result(username, profile, event))
     return published
 
 

@@ -28,6 +28,14 @@
     "ofs.progress_checkpoint": { "file": "ofs/04_progress_checkpoint.mp3", "bus": "ui", "priority": 24, "volume": 0.48, "max_duration_ms": 2500, "cooldown_ms": 1200, "duck_radio": 0.94 },
     "ofs.success": { "file": "ofs/05_success.mp3", "bus": "ui", "priority": 58, "volume": 0.72, "max_duration_ms": 5000, "cooldown_ms": 250, "duck_radio": 0.76 },
     "ofs.failure": { "file": "ofs/06_failure.mp3", "bus": "ui", "priority": 62, "volume": 0.76, "max_duration_ms": 5000, "cooldown_ms": 250, "duck_radio": 0.72 },
-    "ofs.runtime_warning": { "file": "ofs/07_runtime_warning.mp3", "bus": "ui", "priority": 68, "volume": 0.8, "max_duration_ms": 5000, "cooldown_ms": 1000, "duck_radio": 0.68 }
+    "ofs.runtime_warning": { "file": "ofs/07_runtime_warning.mp3", "bus": "ui", "priority": 68, "volume": 0.8, "max_duration_ms": 5000, "cooldown_ms": 1000, "duck_radio": 0.68 },
+    "ghostnetwork.part_discovered": { "file": "ghostnetwork/01_part_discovered.mp3", "bus": "gameplay", "priority": 82, "volume": 0.9, "max_duration_ms": 5000, "cooldown_ms": 0, "duck_radio": 0.52 },
+    "ghostnetwork.part_contained": { "file": "ghostnetwork/02_part_contained.mp3", "bus": "gameplay", "priority": 84, "volume": 0.92, "max_duration_ms": 5000, "cooldown_ms": 0, "duck_radio": 0.5 },
+    "ghostnetwork.part_activated": { "file": "ghostnetwork/03_part_activated.mp3", "bus": "gameplay", "priority": 90, "volume": 1.0, "max_duration_ms": 6500, "cooldown_ms": 0, "duck_radio": 0.38 },
+    "ghostnetwork.part_hostile": { "file": "ghostnetwork/04_part_hostile.mp3", "bus": "system", "priority": 94, "volume": 0.96, "max_duration_ms": 6000, "cooldown_ms": 0, "duck_radio": 0.34 },
+    "ghostnetwork.part_lost": { "file": "ghostnetwork/05_part_lost.mp3", "bus": "gameplay", "priority": 88, "volume": 0.94, "max_duration_ms": 5500, "cooldown_ms": 0, "duck_radio": 0.42 },
+    "ghostnetwork.module_progress": { "file": "ghostnetwork/06_module_progress.mp3", "bus": "gameplay", "priority": 76, "volume": 0.82, "max_duration_ms": 4000, "cooldown_ms": 0, "duck_radio": 0.62 },
+    "ghostnetwork.module_complete": { "file": "ghostnetwork/07_module_complete.mp3", "bus": "gameplay", "priority": 92, "volume": 1.0, "max_duration_ms": 6500, "cooldown_ms": 0, "duck_radio": 0.36 },
+    "ghostnetwork.signal": { "file": "ghostnetwork/08_signal.mp3", "bus": "system", "priority": 100, "volume": 1.0, "max_duration_ms": 8000, "cooldown_ms": 0, "duck_radio": 0.25, "interrupt_lower_priority": true }
   }
 }

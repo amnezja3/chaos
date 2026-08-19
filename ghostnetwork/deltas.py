@@ -242,8 +242,10 @@ class GhostNetworkDeltaPublisher:
             projected_entity = self._find_part(projection, event)
             if projected_entity:
                 payload["part_projection"] = projected_entity
-            elif event_type in {"ghost.part_consumed", "ghost.part_deactivated"}:
-                payload["removed"] = True
+            elif event_type.startswith("ghost.part_"):
+                # A viewer without a safe part projection must not receive an
+                # internal part id or infer a hidden node from event metadata.
+                return None
 
         if transaction:
             payload.update({

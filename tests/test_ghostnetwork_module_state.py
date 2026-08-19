@@ -159,6 +159,13 @@ class GhostModuleStateServiceTest(unittest.TestCase):
         self.assertTrue(online["progress"]["machine_online"])
         events = self.repo.list_events(self.cycle["cycle_id"], limit=1000)
         self.assertTrue(any(event["event_type"] == "ghost.machine_online" for event in events))
+        machine_events = [
+            event for event in events
+            if event["event_type"] in {"ghost.machine_progress_changed", "ghost.machine_online"}
+        ]
+        self.assertTrue(machine_events)
+        self.assertTrue(all(event["audience_scope"] == "clan" for event in machine_events))
+        self.assertTrue(all(event["audience_clan"] == parts[0]["clan_code"] for event in machine_events))
 
         self.set_public(parts[4])
         offline = self.modules.record_machine_progress_if_changed(self.cycle["cycle_id"], machine_code)

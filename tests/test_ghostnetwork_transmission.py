@@ -73,6 +73,11 @@ class GhostNetworkTransmissionTest(unittest.TestCase):
         result = self.transmission.start_transmission(cycle["cycle_id"])
         self.assertTrue(result["ok"], result)
         self.assertEqual(result["status"], "sent")
+        signal_event = next(
+            event for event in self.repo.list_events(cycle["cycle_id"], limit=1000)
+            if event["event_type"] == "ghost.signal_sent"
+        )
+        self.assertEqual(signal_event["audience_scope"], "public")
 
         signal = result["signal"]
         self.assertEqual(signal["cycle_id"], cycle["cycle_id"])
