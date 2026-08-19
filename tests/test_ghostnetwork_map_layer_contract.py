@@ -78,6 +78,13 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         css = (ROOT / "static" / "css" / "ghostnetwork_map.css").read_text(encoding="utf-8")
         self.assertIn(".ghostnetwork-connection", css)
         self.assertIn("ghostnetwork-connection-pulse", css)
+
+    def test_territory_only_badge_has_renderable_dimensions(self):
+        css = (ROOT / "static" / "css" / "ghostnetwork_map.css").read_text(encoding="utf-8")
+        badge = css.split(".ghostnetwork-territory-badge {", 1)[1].split("}", 1)[0]
+        self.assertIn("display: block", badge)
+        self.assertIn("width: 16px", badge)
+        self.assertIn("height: 16px", badge)
         self.assertIn("prefers-reduced-motion", css)
 
 

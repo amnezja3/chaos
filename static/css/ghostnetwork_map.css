@@ -105,11 +105,14 @@
 }
 
 .ghostnetwork-territory-badge {
+  display: block;
+  box-sizing: border-box;
   width: 16px;
   height: 16px;
   border: 1px dashed #8cff8c;
   background: rgba(0, 18, 8, 0.76);
   box-shadow: 0 0 8px rgba(140, 255, 140, 0.32);
+  transform: rotate(45deg);
 }
 
 .ghostnetwork-connection {
