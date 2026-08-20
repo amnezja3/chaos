@@ -7,6 +7,7 @@ import math
 import os
 import secrets
 import sqlite3
+import inspect
 import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -15,6 +16,73 @@ from datetime import datetime, timedelta
 DB_PATH = os.path.join("data", "game.sqlite3")
 USERS_SEED_PATH = os.path.join("static", "users.json")
 _WAL_CONFIGURED = False
+
+
+def db_lock_metrics_enabled():
+    return str(os.environ.get("CHAOS_DB_LOCK_METRICS") or "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+class InstrumentedConnection(sqlite3.Connection):
+    """Opt-in writer wait/hold telemetry; it does not alter transaction behavior."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._writer_started_at = None
+        self._writer_wait_ms = 0
+        self._writer_origin = "unknown"
+        self._writer_statements = 0
+
+    def execute(self, sql, parameters=(), /):
+        statement = str(sql or "").lstrip().upper()
+        if db_lock_metrics_enabled() and statement.startswith("BEGIN IMMEDIATE"):
+            started = time.perf_counter()
+            result = super().execute(sql, parameters)
+            self._writer_wait_ms = int(round((time.perf_counter() - started) * 1000))
+            self._writer_started_at = time.perf_counter()
+            self._writer_statements = 0
+            try:
+                self._writer_origin = inspect.currentframe().f_back.f_code.co_name
+            except Exception:
+                self._writer_origin = "unknown"
+            return result
+        result = super().execute(sql, parameters)
+        if self._writer_started_at is not None:
+            self._writer_statements += 1
+        return result
+
+    def _finish_writer_metric(self, outcome, commit_ms=0):
+        if self._writer_started_at is None:
+            return
+        hold_ms = int(round((time.perf_counter() - self._writer_started_at) * 1000))
+        minimum = max(0, int(os.environ.get("CHAOS_DB_LOCK_METRICS_MIN_MS", "25")))
+        if self._writer_wait_ms >= minimum or hold_ms >= minimum:
+            print(
+                "[DB_LOCK] "
+                f"origin={self._writer_origin} outcome={outcome} "
+                f"wait_ms={self._writer_wait_ms} hold_ms={hold_ms} "
+                f"commit_ms={commit_ms} statements={self._writer_statements}",
+                flush=True,
+            )
+        self._writer_started_at = None
+        self._writer_wait_ms = 0
+        self._writer_origin = "unknown"
+        self._writer_statements = 0
+
+    def commit(self):
+        started = time.perf_counter()
+        try:
+            return super().commit()
+        finally:
+            commit_ms = int(round((time.perf_counter() - started) * 1000))
+            self._finish_writer_metric("commit", commit_ms=commit_ms)
+
+    def rollback(self):
+        try:
+            return super().rollback()
+        finally:
+            self._finish_writer_metric("rollback")
 
 
 def utc_now():
@@ -111,7 +179,7 @@ def ensure_password_hash(profile):
 def db_connect(db_path=DB_PATH):
     global _WAL_CONFIGURED
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = sqlite3.connect(db_path, timeout=15)
+    conn = sqlite3.connect(db_path, timeout=15, factory=InstrumentedConnection)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout = 15000")
     conn.execute("PRAGMA synchronous = NORMAL")
@@ -3840,6 +3908,172 @@ class TerritoryTargetOwnershipStore:
                  dumps_json(payload), now, now),
             )
             return payload
+
+    def capture_batch(self, action_id, attacker_username, transfers):
+        """Atomically transfer a complete gameplay set after validating every CAS."""
+        action_id = str(action_id or "").strip()
+        attacker_username = str(attacker_username or "").strip()
+        transfers = [copy.deepcopy(item) for item in (transfers or [])]
+        if not action_id or not attacker_username or not transfers:
+            raise ValueError("action_id, attacker_username and transfers are required")
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            plans = []
+            seen = set()
+            for index, item in enumerate(transfers):
+                target_id = str(item.get("target_id") or "").strip()
+                expected_owner = str(item.get("expected_owner_username") or "").strip()
+                target = copy.deepcopy(item.get("target") or {})
+                item_action_id = f"{action_id}:{target_id}"
+                if not target_id or target_id in seen or not expected_owner:
+                    return {
+                        "ok": False, "result": self.RESULT_TARGET_STATE_CHANGED,
+                        "reason": "invalid_batch_member", "index": index,
+                        "target_id": target_id,
+                    }
+                seen.add(target_id)
+                lat = float(target.get("lat"))
+                lng = float(target.get("lng", target.get("lon")))
+                receipt = conn.execute(
+                    "SELECT * FROM territory_target_capture_receipts WHERE action_id = ?",
+                    (item_action_id,),
+                ).fetchone()
+                if receipt:
+                    replay = self._receipt_payload(receipt)
+                    if replay.get("ok") and replay.get("winner_username") == attacker_username:
+                        plans.append({"replay": replay})
+                        continue
+                    return {
+                        "ok": False, "result": self.RESULT_TARGET_STATE_CHANGED,
+                        "reason": "batch_receipt_conflict", "index": index,
+                        "target_id": target_id,
+                    }
+                current = conn.execute(
+                    "SELECT * FROM territory_target_ownership WHERE target_id = ?",
+                    (target_id,),
+                ).fetchone()
+                if current:
+                    current_owner = str(current["owner_username"] or "")
+                    current_version = int(current["ownership_version"] or 0)
+                    expected_version = item.get("expected_version")
+                    version_matches = (
+                        expected_version in (None, "")
+                        or int(expected_version) == current_version
+                    )
+                else:
+                    source = conn.execute(
+                        "SELECT owner_username FROM captured_targets "
+                        "WHERE ROUND(lat, 5) = ROUND(?, 5) AND ROUND(lng, 5) = ROUND(?, 5) "
+                        "ORDER BY updated_at DESC, id DESC LIMIT 1",
+                        (lat, lng),
+                    ).fetchone()
+                    current_owner = str((source["owner_username"] if source else "") or "")
+                    current_version = 1 if current_owner else 0
+                    expected_version = item.get("expected_version")
+                    version_matches = (
+                        expected_version in (None, "")
+                        or int(expected_version) == current_version
+                    )
+                if current_owner != expected_owner or not version_matches:
+                    return {
+                        "ok": False, "result": self.RESULT_TARGET_STATE_CHANGED,
+                        "reason": "batch_cas_mismatch", "index": index,
+                        "target_id": target_id,
+                        "expected_owner_username": expected_owner,
+                        "current_owner_username": current_owner,
+                        "ownership_version": current_version,
+                    }
+                plans.append({
+                    "target_id": target_id, "target": target,
+                    "lat": lat, "lng": lng,
+                    "label": str(target.get("label") or ""),
+                    "current_owner": current_owner,
+                    "current_version": current_version,
+                    "next_version": current_version + 1,
+                    "action_id": item_action_id,
+                    "conflict_ids": sorted({str(v) for v in item.get("conflict_ids") or [] if v}),
+                    "engagement_ids": sorted({str(v) for v in item.get("engagement_ids") or [] if v}),
+                })
+
+            results = []
+            for plan in plans:
+                if plan.get("replay"):
+                    results.append(plan["replay"])
+                    continue
+                target = plan["target"]
+                target.update({
+                    "target_id": plan["target_id"],
+                    "owner_username": attacker_username,
+                    "ownership_version": plan["next_version"],
+                    "lat": plan["lat"], "lng": plan["lng"], "lon": plan["lng"],
+                })
+                set_seed = f"{plan['target_id']}|{plan['next_version']}"
+                set_id = "territory_reconcile_" + hashlib.sha1(
+                    set_seed.encode("utf-8")
+                ).hexdigest()[:20]
+                conn.execute(
+                    """INSERT INTO territory_target_ownership
+                       (target_id, owner_username, ownership_version, lat, lng, label,
+                        target_json, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(target_id) DO UPDATE SET
+                         owner_username=excluded.owner_username,
+                         ownership_version=excluded.ownership_version,
+                         lat=excluded.lat, lng=excluded.lng, label=excluded.label,
+                         target_json=excluded.target_json, updated_at=excluded.updated_at""",
+                    (plan["target_id"], attacker_username, plan["next_version"],
+                     plan["lat"], plan["lng"], plan["label"], dumps_json(target), now),
+                )
+                conn.execute(
+                    "DELETE FROM captured_targets WHERE ROUND(lat, 5) = ROUND(?, 5) "
+                    "AND ROUND(lng, 5) = ROUND(?, 5)",
+                    (plan["lat"], plan["lng"]),
+                )
+                conn.execute(
+                    """INSERT INTO captured_targets
+                       (owner_username, lat, lng, label, name, icon, source_type,
+                        generated, stationary, target_json, captured_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (attacker_username, plan["lat"], plan["lng"], plan["label"],
+                     str(target.get("name") or plan["label"]), str(target.get("icon") or ""),
+                     str(target.get("source_type") or ""), 1 if target.get("generated") else 0,
+                     1 if target.get("stationary", not target.get("generated")) else 0,
+                     dumps_json(target), str(target.get("captured_at") or now), now),
+                )
+                conn.execute(
+                    """INSERT INTO territory_conflict_reconciliation_sets
+                       (set_id, target_id, winner_username, ownership_version,
+                        conflict_ids_json, engagement_ids_json, status,
+                        requested_version, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+                       ON CONFLICT(set_id) DO UPDATE SET updated_at=excluded.updated_at""",
+                    (set_id, plan["target_id"], attacker_username, plan["next_version"],
+                     dumps_json(plan["conflict_ids"]), dumps_json(plan["engagement_ids"]),
+                     plan["next_version"], now, now),
+                )
+                payload = {
+                    "ok": True, "result": self.RESULT_CAPTURED,
+                    "target_id": plan["target_id"],
+                    "winner_username": attacker_username,
+                    "previous_owner_username": plan["current_owner"],
+                    "ownership_version": plan["next_version"],
+                    "set_id": set_id, "target": target, "duplicate": False,
+                }
+                conn.execute(
+                    """INSERT INTO territory_target_capture_receipts
+                       (action_id, target_id, attacker_username,
+                        expected_owner_username, expected_version, result,
+                        winner_username, ownership_version, set_id, payload_json,
+                        created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (plan["action_id"], plan["target_id"], attacker_username,
+                     plan["current_owner"], plan["current_version"], self.RESULT_CAPTURED,
+                     attacker_username, plan["next_version"], set_id,
+                     dumps_json(payload), now, now),
+                )
+                results.append(payload)
+            return {"ok": True, "result": self.RESULT_CAPTURED, "items": results}
 
     def extend_reconciliation_scope(self, set_id, conflict_ids=None, engagement_ids=None):
         conflict_ids = sorted({str(value) for value in (conflict_ids or []) if value})

@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import run
-from database import TerritoryStore
+from database import TerritoryStore, TerritoryTargetOwnershipStore
 
 
 def target(label="Node", lat=52.1, lng=21.1):
@@ -93,6 +93,28 @@ class CapturedObjectStoreTest(unittest.TestCase):
         self.assertEqual(claimed["job_id"], queued["job_id"])
         self.assertEqual(claimed["reason"], "operator_visibility_recovery")
 
+    def test_capture_batch_is_all_or_nothing_when_one_cas_mismatches(self):
+        ownership = TerritoryTargetOwnershipStore(str(self.path))
+        first = self.store.save_captured_target("bob", target("First", 52.1, 21.1))
+        second = self.store.save_captured_target("bob", target("Second", 52.2, 21.2))
+        ownership.capture("seed:first", first["target_id"], "bob", "bob", first)
+        ownership.capture("seed:second", second["target_id"], "bob", "bob", second)
+
+        result = ownership.capture_batch("cluster:atomic", "alice", [
+            {"target_id": first["target_id"], "expected_owner_username": "bob", "target": first},
+            {"target_id": second["target_id"], "expected_owner_username": "mallory", "target": second},
+        ])
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["reason"], "batch_cas_mismatch")
+        self.assertEqual(ownership.get(first["target_id"])["owner_username"], "bob")
+        self.assertEqual(ownership.get(second["target_id"])["owner_username"], "bob")
+        self.assertEqual({item["label"] for item in self.store.list_captured_targets("alice")}, set())
+        self.assertEqual(
+            {item["label"] for item in self.store.list_captured_targets("bob")},
+            {"First", "Second"},
+        )
+
 
 class CapturedObjectEndpointTest(unittest.TestCase):
     def _client(self):
@@ -131,6 +153,32 @@ class CapturedObjectEndpointTest(unittest.TestCase):
         self.assertTrue(response.get_json()["queued"])
         profile_read.assert_not_called()
         profile_write.assert_not_called()
+        rebuild.assert_not_called()
+
+    def test_territory_control_abandon_uses_the_same_canonical_queue(self):
+        item = target()
+        result = {"ok": True, "job_id": "territory_rebuild_tc", "target": item}
+        installed = {
+            "username": "alice",
+            "apps": [{"id": "territoryControl", "type": "pro-system-tool"}],
+        }
+        with patch.object(run, "territory_control_load_profile", return_value=installed), \
+                patch.object(run.territory_store, "get_captured_target", return_value=item), \
+                patch.object(run.territory_store, "abandon_captured_target", return_value=result) as abandon, \
+                patch.object(run.territory_store, "remove_captured_target") as legacy_remove, \
+                patch.object(run, "record_map_target_delta"), \
+                patch.object(run, "rebuild_player_areas_with_territory_delta") as rebuild:
+            response = self._client().post("/api/ghost-control/territory/abandon", json={
+                "target_id": item["target_id"],
+                "lat": item["lat"],
+                "lng": item["lng"],
+                "label": item["label"],
+                "confirm": True,
+            })
+        self.assertEqual(response.status_code, 202)
+        self.assertTrue(response.get_json()["queued"])
+        abandon.assert_called_once()
+        legacy_remove.assert_not_called()
         rebuild.assert_not_called()
 
 

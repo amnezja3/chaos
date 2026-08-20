@@ -4,7 +4,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 import run
-from database import TerritoryConflictStore, TerritoryStore, UserStore
+from database import (
+    TerritoryConflictStore,
+    TerritoryStore,
+    TerritoryTargetOwnershipStore,
+    UserStore,
+)
 
 
 def captured(label, lat, lng, security=None):
@@ -46,6 +51,98 @@ class TerritoryControlTest(unittest.TestCase):
                     candidate.unlink()
                 except PermissionError:
                     pass
+
+    def _assert_cluster_transfer_abandon_worker_refresh(self, abandoned_label):
+        path = self._temp_db()
+        try:
+            store = TerritoryStore(db_path=str(path))
+            conflict_store = TerritoryConflictStore(db_path=str(path))
+            ownership = TerritoryTargetOwnershipStore(str(path))
+            local_users = UserStore(db_path=str(path), seed_path=str(path) + ".missing")
+            for username, clan in (("alice", "Alpha"), ("bob", "Beta")):
+                local_users.save_profile({
+                    "username": username, "level": 3, "respect": 0,
+                    "clan": clan, "system_messages": [], "hacked": [],
+                })
+            for item in (
+                captured("A1", 52.0, 21.0), captured("A2", 52.0018, 21.0),
+                captured("A3", 52.0018, 21.0018), captured("A4", 52.0, 21.0018),
+            ):
+                store.save_captured_target("alice", item)
+            for item in (
+                captured("B1", 52.0006, 21.0006),
+                captured("B2", 52.0010, 21.0006),
+                captured("B3", 52.0008, 21.0010),
+                captured("B-inner", 52.0008, 21.00075),
+            ):
+                store.save_captured_target("bob", item)
+            store.rebuild_player_areas("alice", 3)
+            store.rebuild_player_areas("bob", 3)
+            attacker_area = store.list_player_areas("alice")[0]
+            defender_area = store.list_player_areas("bob")[0]
+            conflict_store.upsert_conflict({
+                "conflict_key": "transfer-abandon-refresh",
+                "participants": ["alice", "bob"],
+                "area_ids": [attacker_area["id"], defender_area["id"]],
+                "targets": [], "status": "active",
+            })
+            with patch.object(run, "record_territory_areas_delta", return_value=[]), \
+                    patch.object(run, "record_territory_encirclement_delta", return_value=[]), \
+                    patch.object(run, "record_territory_conflict_delta", return_value=[]), \
+                    patch.object(run, "load_profile_readonly", return_value={"level": 3}):
+                result = run.TerritoryEncirclementResolver(
+                    store, conflict_store, ownership_store=ownership,
+                ).resolve_encirclement(
+                    attacker_area["id"], defender_area["id"],
+                    actor_username="alice", reason="contract_test",
+                )
+            self.assertEqual(result["status"], "resolved")
+            inherited = next(
+                item for item in store.list_captured_targets("alice")
+                if item["label"] == abandoned_label
+            )
+            abandoned_target_id = inherited["target_id"]
+            abandoned = store.abandon_captured_target(
+                "alice", inherited, abandoned_target_id,
+                expected_version=inherited["ownership_version"],
+            )
+            self.assertTrue(abandoned["ok"])
+
+            with patch.object(run, "territory_store", store), \
+                    patch.object(run, "user_store", local_users), \
+                    patch.object(run.player_target_runtime_store, "clear_if_matches"), \
+                    patch.object(run, "record_territory_areas_delta", return_value=[]), \
+                    patch.object(run, "sync_static_area_intruders_for_owner", return_value=[]), \
+                    patch.object(run, "resolve_territory_encirclements_after_change", return_value=[]), \
+                    patch.object(run, "detect_territory_conflicts", return_value=[]):
+                worker_result = run.process_territory_rebuild_job("contract-worker")
+                client = run.app.test_client()
+                with client.session_transaction() as session:
+                    session["user"] = "alice"
+                refreshed = client.get("/api/map/target-snapshot").get_json()
+
+            self.assertTrue(worker_result["ok"])
+            self.assertIsNone(ownership.get(abandoned_target_id))
+            self.assertNotIn(
+                abandoned_label,
+                {item["label"] for item in store.list_captured_targets("alice")},
+            )
+            self.assertNotIn(
+                abandoned_target_id,
+                {item.get("target_id") for item in refreshed["captured_targets"]},
+            )
+            self.assertTrue(all(
+                abandoned_label not in {vertex.get("label") for vertex in area.get("vertices") or []}
+                for area in store.list_player_areas("alice")
+            ))
+        finally:
+            self._cleanup(path)
+
+    def test_inherited_cluster_pillar_transfer_abandon_worker_refresh(self):
+        self._assert_cluster_transfer_abandon_worker_refresh("B1")
+
+    def test_inherited_cluster_inner_transfer_abandon_worker_refresh(self):
+        self._assert_cluster_transfer_abandon_worker_refresh("B-inner")
 
     def test_encirclement_pair_scan_caches_profiles_and_rejects_geometry_before_store_members(self):
         attacker = {
@@ -827,6 +924,16 @@ class TerritoryControlTest(unittest.TestCase):
             bob_labels = {target["label"] for target in store.list_captured_targets("bob")}
             self.assertTrue({"B1", "B2", "B3", "B-inner"} <= alice_labels)
             self.assertEqual(bob_labels, {"B-outside"})
+            ownership = TerritoryTargetOwnershipStore(str(path))
+            for transferred_label in ("B1", "B2", "B3", "B-inner"):
+                transferred_target = next(
+                    target for target in store.list_captured_targets("alice")
+                    if target["label"] == transferred_label
+                )
+                canonical = ownership.get(transferred_target["target_id"])
+                self.assertIsNotNone(canonical)
+                self.assertEqual(canonical["owner_username"], "alice")
+                self.assertEqual(canonical["target"]["previous_owner_username"], "bob")
             self.assertEqual(store.list_player_areas("bob"), [])
             self.assertGreaterEqual(len(store.list_player_areas("alice")), 1)
             resolved_conflict = conflict_store.get_by_key("alice-bob-test")

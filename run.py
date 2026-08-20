@@ -6714,7 +6714,8 @@ def territory_area_encircled_by_protected_owner(area, all_areas, profile_cache=N
 class TerritoryEncirclementResolver:
     """Resolves full cluster encirclement without becoming a new territory store."""
 
-    def __init__(self, store=None, conflict_store=None, progression_store=None):
+    def __init__(self, store=None, conflict_store=None, progression_store=None,
+                 ownership_store=None):
         self.store = store or territory_store
         self.conflict_store = conflict_store or territory_conflict_store
         if progression_store is not None:
@@ -6723,6 +6724,12 @@ class TerritoryEncirclementResolver:
             self.progression_store = TerritoryProgressionReceiptStore(self.store.db_path)
         else:
             self.progression_store = territory_progression_receipt_store
+        if ownership_store is not None:
+            self.ownership_store = ownership_store
+        elif getattr(self.store, "db_path", None):
+            self.ownership_store = TerritoryTargetOwnershipStore(self.store.db_path)
+        else:
+            self.ownership_store = territory_target_ownership_store
         # One resolver pass can compare hundreds of area pairs.  Relation
         # profiles are immutable for the duration of that pass, so never read
         # the same large profile from SQLite for every pair.
@@ -6874,27 +6881,48 @@ class TerritoryEncirclementResolver:
         }
         defender_pillar_keys.discard(None)
         transferred_pillar_count = 0
+        transfer_batch = []
         for target in defender_members["objects"]:
             transferred = copy.deepcopy(target)
+            target_id = str(
+                transferred.get("target_id")
+                or self.conflict_store.stable_target_id(transferred)
+                or build_operation_target_id(transferred)
+            ).strip()
             transferred["owner_username"] = attacker_username
             transferred["owner"] = attacker_username
             transferred["captured_by"] = attacker_username
             transferred["previous_owner"] = defender_username
+            transferred["previous_owner_username"] = defender_username
+            transferred["target_id"] = target_id
             transferred["capture_reason"] = "territory_encirclement"
             transferred["territory_encirclement"] = {
                 "attacker_cluster_id": snapshot["attacker_cluster_id"],
                 "defender_cluster_id": snapshot["defender_cluster_id"],
                 "dedupe_key": dedupe_key,
             }
-            self.store.remove_captured_target(
-                defender_username,
-                transferred.get("lat"),
-                transferred.get("lng", transferred.get("lon")),
-                transferred.get("label"),
+            transfer_batch.append({
+                "target_id": target_id,
+                "expected_owner_username": defender_username,
+                "target": transferred,
+            })
+
+        ownership_batch = self.ownership_store.capture_batch(
+            action_id=dedupe_key,
+            attacker_username=attacker_username,
+            transfers=transfer_batch,
+        )
+        if not ownership_batch.get("ok"):
+            raise RuntimeError(
+                "encirclement ownership batch failed "
+                f"target_id={ownership_batch.get('target_id')} "
+                f"result={ownership_batch.get('result')} "
+                f"owner={ownership_batch.get('current_owner_username')}"
             )
-            saved_target = self.store.save_captured_target(attacker_username, transferred)
+        for ownership_result in ownership_batch.get("items") or []:
+            saved_target = ownership_result.get("target") or {}
             captured_objects.append(saved_target)
-            if target_position_key(saved_target or transferred) in defender_pillar_keys:
+            if target_position_key(saved_target) in defender_pillar_keys:
                 transferred_pillar_count += 1
 
         attacker_level = territory_player_level(attacker_username)
@@ -22736,54 +22764,35 @@ def territory_control_abandon():
     if not territory_control_app_installed(profile):
         return territory_control_forbidden_response()
 
-    target = territory_control_find_owned_target(username, lat, lng, label=label)
+    target = captured_object_request_target(username, {
+        **data, "lat": lat, "lng": lng, "label": label,
+    })
     if not target:
         return jsonify({"success": False, "error": "target_not_found"}), 404
-
-    removed_from_store = territory_store.remove_captured_target(username, lat, lng, label=target.get("label"))
-    if not removed_from_store:
-        removed_from_store = territory_store.remove_captured_target(username, lat, lng)
-
-    mgr = UserProfileManager(username)
-    removed_from_profile = mgr.remove_from_list_by_coords("hacked", lat, lng, label=target.get("label"))
-    if not removed_from_profile:
-        removed_from_profile = mgr.remove_from_list_by_coords("hacked", lat, lng)
-
-    clear_aimed_target_if_matches(username, target)
-    rebuilt_areas = rebuild_player_areas_with_territory_delta(
-        username,
-        profile.get("level", 1),
-        reason="territory_control_abandon",
+    target_id = str(target.get("target_id") or build_operation_target_id(target))
+    result = territory_store.abandon_captured_target(
+        username, target, target_id,
+        expected_version=data.get("ownership_version"),
     )
-    all_areas = territory_store.list_player_areas()
-    detect_territory_conflicts(
-        actor_username=username,
-        source_event="territory_control_abandon",
-        areas=all_areas,
-    )
-    fresh_targets = territory_store.list_captured_targets(username)
-    mgr.update_profile({
-        "hacked": fresh_targets,
-        "captured_targets_source": "sqlite",
-    })
+    if not result.get("ok"):
+        status = 409 if result.get("reason") in {"stale_owner", "stale_version"} else 404
+        return jsonify({"success": False, "error": result.get("reason"), **result}), status
     record_map_target_delta(
         username,
         target,
         change_type="map.target_removed",
-        reason="territory_control_abandon",
+        reason="territory_control_abandon_queued",
+        dedupe_key=f"map:target:{username}:removed:{target_id}:{result['job_id']}",
     )
-    fresh_profile = territory_control_load_profile(username)
-    snapshot = build_territory_control_snapshot(username, profile=fresh_profile)
     return jsonify({
         "success": True,
         "ok": True,
-        "removed": bool(removed_from_store or removed_from_profile),
+        "queued": True,
+        "removed": True,
+        "job_id": result["job_id"],
+        "target_id": target_id,
         "target": target,
-        "rebuilt_area_count": len(rebuilt_areas or []),
-        "snapshot": snapshot,
-        "clusters": snapshot.get("clusters", []),
-        "alone_pillars": snapshot.get("alone_pillars", []),
-    })
+    }), 202
 
 
 @app.route("/api/map/friends")

@@ -416,6 +416,8 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("territory_engagement_version_gap", source)
         self.assertIn("reconcileTerritoryEngagementSnapshots", source)
         self.assertIn("data.territory_engagement_snapshots", source)
+        self.assertIn("['changing', 'resolved', 'closed']", source)
+        self.assertIn("removeTerritoryEngagementSnapshot(engagementId)", source)
 
     def test_frontend_keeps_large_valid_territories_and_boots_player_actors(self):
         with open("templates/map_template.html", encoding="utf-8") as handle:

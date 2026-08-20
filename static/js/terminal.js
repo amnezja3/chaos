@@ -6386,14 +6386,21 @@ async function abandonTerritoryControlObject(app, state, item) {
         const response = await fetch("/api/ghost-control/territory/abandon", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ lat: item.lat, lng: item.lng, label: item.label, confirm: true })
+            body: JSON.stringify({
+                target_id: item.target_id,
+                ownership_version: item.ownership_version,
+                lat: item.lat,
+                lng: item.lng,
+                label: item.label,
+                confirm: true
+            })
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.success === false) {
             addSystemMessage("warning", "TERRITORY CONTROL", data.message || data.error || "Nie udalo sie porzucic obiektu.");
             return;
         }
-        addSystemMessage("success", "TERRITORY CONTROL", "Obiekt porzucony. Terytorium przeliczone.");
+        addSystemMessage("success", "TERRITORY CONTROL", "Obiekt porzucony. Przebudowa terytorium zostala zlecona.");
         if (data.snapshot) Object.assign(state, data.snapshot);
         await refreshTerritoryControlAfterMutation(app, state, data.snapshot, { preferListOnMissingCluster: true });
     } finally {

@@ -2646,7 +2646,11 @@
             const previous = window.territoryEngagementRegistry[engagementId];
             if (previous && Number(previous.snapshotVersion || 0) > version) return true;
             if (snapshot.recovery_required || snapshot.complete === false) return false;
-            if (['resolved', 'closed'].includes(String(snapshot.status || '').toLowerCase())) {
+            // `changing` remains a logical engagement for hysteresis/audit, but
+            // its previous polygon is no longer authoritative presentation.
+            // Withdraw it immediately; a replacement engagement/snapshot owns
+            // the newly published geometry under its own identity.
+            if (['changing', 'resolved', 'closed'].includes(String(snapshot.status || '').toLowerCase())) {
                 removeTerritoryEngagementSnapshot(engagementId);
                 return true;
             }
