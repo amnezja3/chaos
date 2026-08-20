@@ -3144,21 +3144,71 @@ def build_ghostnetwork_territory_publication():
     return events
 
 
-def apply_ghostnetwork_runtime_result(service, result):
+def apply_ghostnetwork_runtime_result(service, result, timings=None):
+    timings = timings if isinstance(timings, dict) else None
+    events = collect_ghostnetwork_domain_events(result)
     reward_results = []
-    for event in collect_ghostnetwork_domain_events(result):
-        event_type = str(event.get("event_type") or "")
-        if event_type.startswith("ghost.part_"):
-            service.repository.record_pipeline_outcome(
-                "lifecycle", event_type.removeprefix("ghost.part_"), event.get("cycle_id") or ""
-            )
-        player_id = str(event.get("player_id") or (event.get("payload") or {}).get("player_id") or "")
-        profile = user_store.get_profile(player_id) or {} if player_id else {}
-        reward = service.handle_reward_event(event, profile=profile, apply=bool(player_id))
-        if player_id and reward.get("applied"):
-            user_store.save_profile(profile)
-        reward_results.append(reward)
-        enqueue_ghostnetwork_event_delta(event)
+    profile_cache = {}
+    broad_profiles = None
+    if any(str(event.get("audience_scope") or "internal").lower() in {"public", "clan"} for event in events):
+        phase_started = time.perf_counter()
+        identity_loader = getattr(user_store, "list_profile_identities", user_store.list_profile_entries)
+        broad_profiles = identity_loader()
+        profile_cache.update({
+            str(username or "").strip(): profile
+            for username, profile in broad_profiles
+            if str(username or "").strip() and isinstance(profile, dict)
+        })
+        if timings is not None:
+            timings["audience_profiles"] = int((time.perf_counter() - phase_started) * 1000)
+    dirty_profiles = set()
+    pipeline_ms = reward_ms = delta_ms = 0.0
+    player_ids = {
+        str(event.get("player_id") or (event.get("payload") or {}).get("player_id") or "").strip()
+        for event in events
+    }
+    for player_id in sorted(player_ids - {""}):
+        if player_id not in profile_cache:
+            profile_cache[player_id] = user_store.get_profile(player_id) or {}
+    pipeline_outcomes = [
+        ("lifecycle", str(event.get("event_type") or "").removeprefix("ghost.part_"), event.get("cycle_id") or "")
+        for event in events
+        if str(event.get("event_type") or "").startswith("ghost.part_")
+    ]
+    repository_started = time.perf_counter()
+    if events:
+        with service.repository.transaction():
+            if pipeline_outcomes:
+                phase_started = time.perf_counter()
+                service.repository.record_pipeline_outcomes(pipeline_outcomes)
+                pipeline_ms = time.perf_counter() - phase_started
+            for event in events:
+                player_id = str(event.get("player_id") or (event.get("payload") or {}).get("player_id") or "")
+                profile = profile_cache.get(player_id, {}) if player_id else {}
+                phase_started = time.perf_counter()
+                reward = service.handle_reward_event(event, profile=profile, apply=bool(player_id))
+                reward_ms += time.perf_counter() - phase_started
+                if player_id and reward.get("applied"):
+                    dirty_profiles.add(player_id)
+                reward_results.append(reward)
+    repository_transaction_ms = time.perf_counter() - repository_started
+    for event in events:
+        phase_started = time.perf_counter()
+        recipients = ghostnetwork_event_recipient_profiles(
+            event, profile_entries=broad_profiles, profile_cache=profile_cache
+        )
+        enqueue_ghostnetwork_event_delta(event, recipients=recipients)
+        delta_ms += time.perf_counter() - phase_started
+    phase_started = time.perf_counter()
+    for player_id in sorted(dirty_profiles):
+        user_store.save_profile(profile_cache[player_id])
+    profile_save_ms = time.perf_counter() - phase_started
+    if timings is not None:
+        timings["pipeline_outcomes"] = int(pipeline_ms * 1000)
+        timings["reward_handlers"] = int(reward_ms * 1000)
+        timings["reward_repository_transaction"] = int(repository_transaction_ms * 1000)
+        timings["delta_enqueue"] = int(delta_ms * 1000)
+        timings["reward_profile_save"] = int(profile_save_ms * 1000)
     return reward_results
 
 
@@ -3191,7 +3241,7 @@ def bridge_ghostnetwork_territory_publication(reason="territory_publication", se
         report = service.reconcile_parts_with_territories(territories=territories, apply=True)
         timings["reconcile"] = int((time.perf_counter() - phase_started) * 1000)
         phase_started = time.perf_counter()
-        report["rewards"] = apply_ghostnetwork_runtime_result(service, report)
+        report["rewards"] = apply_ghostnetwork_runtime_result(service, report, timings=timings)
         timings["events_rewards"] = int((time.perf_counter() - phase_started) * 1000)
         phase_started = time.perf_counter()
         report["endgame"] = maybe_finalize_ghostnetwork_cycle(service, report)
@@ -3233,7 +3283,7 @@ def bridge_ghostnetwork_conflict_publication(snapshot, reason="territory_conflic
                 "pillar_count": len(vertices),
                 "has_polygon": True,
             })
-            apply_ghostnetwork_runtime_result(service, report)
+            apply_ghostnetwork_runtime_result(service, report, timings=timings)
             reports.append(report)
         timings["conflict_reconcile"] = int((time.perf_counter() - phase_started) * 1000)
         return {"ok": True, "status": "contested", "reports": reports}
@@ -7436,7 +7486,7 @@ def ghostnetwork_profile_is_event_recipient(event, username, profile):
     return False
 
 
-def ghostnetwork_event_recipient_profiles(event):
+def ghostnetwork_event_recipient_profiles(event, profile_entries=None, profile_cache=None):
     event = event if isinstance(event, dict) else {}
     scope = str(event.get("audience_scope") or "internal").strip().lower()
     if scope in {"internal", "system"}:
@@ -7455,13 +7505,20 @@ def ghostnetwork_event_recipient_profiles(event):
 
     candidates = []
     if scope in {"public", "clan"}:
-        for username, profile in user_store.list_profile_entries():
+        if profile_entries is None:
+            identity_loader = getattr(user_store, "list_profile_identities", user_store.list_profile_entries)
+            entries = identity_loader()
+        else:
+            entries = profile_entries
+        for username, profile in entries:
             username = str(username or "").strip()
             if username:
                 candidates.append((username, profile if isinstance(profile, dict) else {}))
     else:
         for username in sorted(item for item in direct_usernames if item):
-            profile = user_store.get_profile(username) or {}
+            profile = (profile_cache or {}).get(username)
+            if profile is None:
+                profile = user_store.get_profile(username) or {}
             if profile:
                 candidates.append((username, profile))
 
@@ -7497,8 +7554,8 @@ def publish_ghostnetwork_event_delta(event):
     return GhostNetworkDeltaPublisher(delta_bus=delta_bus).publish_event(event, viewers)
 
 
-def enqueue_ghostnetwork_event_delta(event):
-    recipients = ghostnetwork_event_recipient_profiles(event)
+def enqueue_ghostnetwork_event_delta(event, recipients=None):
+    recipients = recipients if recipients is not None else ghostnetwork_event_recipient_profiles(event)
     viewers = []
     for username, profile in recipients:
         viewer = ghostnetwork_player_payload(username, profile)

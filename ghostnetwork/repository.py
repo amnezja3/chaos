@@ -2719,21 +2719,32 @@ class GhostNetworkRepository:
             )
 
     def record_pipeline_outcome(self, phase, outcome, cycle_id=""):
-        phase = _clean(phase)
-        outcome = _clean(outcome)
-        if phase not in {"aim", "capture", "lifecycle"} or not outcome:
-            raise ValueError("Invalid GhostNetwork pipeline telemetry outcome.")
+        self.record_pipeline_outcomes([(phase, outcome, cycle_id)])
+
+    def record_pipeline_outcomes(self, outcomes):
+        grouped = {}
+        for phase, outcome, cycle_id in outcomes or []:
+            phase = _clean(phase)
+            outcome = _clean(outcome)
+            cycle_id = _clean(cycle_id)
+            if phase not in {"aim", "capture", "lifecycle"} or not outcome:
+                raise ValueError("Invalid GhostNetwork pipeline telemetry outcome.")
+            key = (cycle_id, phase, outcome)
+            grouped[key] = grouped.get(key, 0) + 1
+        if not grouped:
+            return
+        now = self.now()
         with self._conn() as conn:
-            conn.execute(
+            conn.executemany(
                 """
                 INSERT INTO ghost_pipeline_telemetry(
                     cycle_id, phase, outcome, outcome_count, last_seen_at
-                ) VALUES (?, ?, ?, 1, ?)
+                ) VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(cycle_id, phase, outcome) DO UPDATE SET
-                    outcome_count = outcome_count + 1,
+                    outcome_count = outcome_count + excluded.outcome_count,
                     last_seen_at = excluded.last_seen_at
                 """,
-                (_clean(cycle_id), phase, outcome, self.now()),
+                [(*key, count, now) for key, count in grouped.items()],
             )
 
     def get_pipeline_telemetry_summary(self, cycle_id=None):

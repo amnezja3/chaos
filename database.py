@@ -1437,7 +1437,11 @@ class UserStore:
                           json_extract(profile_json, '$.ghost_clan') AS ghost_clan,
                           json_extract(profile_json, '$.clan_id') AS clan_id,
                           json_extract(profile_json, '$.clan') AS clan,
-                          json_extract(profile_json, '$.clan_name') AS clan_name
+                          json_extract(profile_json, '$.clan_name') AS clan_name,
+                          json_extract(profile_json, '$.fraction') AS fraction,
+                          json_extract(profile_json, '$.faction') AS faction,
+                          json_extract(profile_json, '$.ghost_profession') AS ghost_profession,
+                          json_extract(profile_json, '$.profession') AS profession
                    FROM users"""
             ).fetchall()
         return [(row["username"], dict(row)) for row in rows]
@@ -6459,6 +6463,7 @@ class AppActionReceiptStore:
 
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
+        self._last_prune_at = 0.0
         init_db(self.db_path)
 
     @staticmethod
@@ -6528,10 +6533,24 @@ class AppActionReceiptStore:
         action = self._clean_text(action)
         target_key = self._clean_text(target_key)
         source = self._clean_text(source)
+        should_prune = now_ts - self._last_prune_at >= 60.0
+
+        # Duplicate requests dominate retries. Resolve the common case without
+        # joining the global writer queue; the transaction rechecks for races.
+        with db_connect(self.db_path) as conn:
+            existing = conn.execute(
+                "SELECT * FROM app_action_receipts WHERE receipt_key = ?",
+                (receipt_key,),
+            ).fetchone()
+        if existing:
+            receipt = self._receipt_from_row(existing)
+            return receipt["state"], receipt
 
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
-            self.prune_expired(conn, now_ts)
+            if should_prune:
+                self.prune_expired(conn, now_ts)
+                self._last_prune_at = now_ts
             existing = conn.execute(
                 "SELECT * FROM app_action_receipts WHERE receipt_key = ?",
                 (receipt_key,),
@@ -7044,6 +7063,9 @@ class SystemMessageStore:
         payload.setdefault("message_id", message_id)
         payload.setdefault("status", "new")
         payload.setdefault("created_at", now)
+        source_text = self._clean_text(source or payload.get("source"), "system")
+        payload_json = dumps_json(payload)
+        duplicate = None
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
             existing = conn.execute(
@@ -7054,8 +7076,9 @@ class SystemMessageStore:
                 (username, dedupe_key),
             ).fetchone()
             if existing and existing["status"] in {"pending", "delivered", "consumed"}:
-                return self._row_to_message(existing), False
-            conn.execute(
+                duplicate = dict(existing)
+            else:
+                conn.execute(
                 """
                 INSERT INTO system_messages
                     (message_id, username, dedupe_key, title, body, type, source,
@@ -7074,19 +7097,21 @@ class SystemMessageStore:
                     END,
                     payload_json = excluded.payload_json
                 """,
-                (
+                    (
                     message_id,
                     username,
                     dedupe_key,
                     title,
                     body,
                     msg_type,
-                    self._clean_text(source or payload.get("source"), "system"),
-                    dumps_json(payload),
+                    source_text,
+                    payload_json,
                     str(payload.get("created_at") or now),
                     expires_at,
-                ),
-            )
+                    ),
+                )
+        if duplicate is not None:
+            return self._row_to_message(duplicate), False
         return payload, True
 
     def add_messages(self, username, messages, source=""):
@@ -7103,6 +7128,7 @@ class SystemMessageStore:
             return []
         now = utc_now()
         now_ts = time.time()
+        consumed_rows = []
         with db_connect(self.db_path) as conn:
             # Empty desktop polls are the common case. Check without taking a
             # global SQLite writer lock; claim under BEGIN IMMEDIATE only when
@@ -7133,18 +7159,20 @@ class SystemMessageStore:
             if not rows:
                 return []
             ids = [row["message_id"] for row in rows]
-            conn.executemany(
-                """
+            placeholders = ",".join("?" for _ in ids)
+            conn.execute(
+                f"""
                 UPDATE system_messages
                 SET status = 'consumed', consumed_at = ?
-                WHERE message_id = ?
+                WHERE message_id IN ({placeholders})
                 """,
-                [(now, message_id) for message_id in ids],
+                (now, *ids),
             )
-            return [
-                message for message in (self._row_to_message(row) for row in rows)
-                if isinstance(message, dict)
-            ]
+            consumed_rows = [dict(row) for row in rows]
+        return [
+            message for message in (self._row_to_message(row) for row in consumed_rows)
+            if isinstance(message, dict)
+        ]
 
     def clear_all(self):
         with db_connect(self.db_path) as conn:
