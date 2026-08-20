@@ -60,8 +60,23 @@ class GhostNetworkTerritoryJobStoreTest(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         conflict_store.latest_snapshot_state.assert_called_once_with("conflict-7")
-        bridge.assert_called_once_with(snapshot, reason="resolved")
+        bridge.assert_called_once()
+        args, kwargs = bridge.call_args
+        self.assertEqual(args[0], snapshot)
+        self.assertEqual(kwargs["reason"], "resolved")
+        self.assertIsNotNone(kwargs["service"])
+        self.assertIsInstance(kwargs["timings"], dict)
         self.assertEqual(self.store.status_counts(), {"complete": 1})
+
+    def test_pending_area_jobs_are_coalesced_to_latest_snapshot(self):
+        first = self.store.enqueue("areas", "alice", "version-1")
+        second = self.store.enqueue("areas", "bob", "version-2")
+        claim = self.store.claim("worker")
+
+        self.assertEqual(claim["job_id"], second["job_id"])
+        self.assertEqual(claim["coalesced_jobs"], 1)
+        self.assertTrue(self.store.finish(claim["job_id"], "worker", ok=True))
+        self.assertEqual(self.store.status_counts(), {"complete": 2})
 
     def test_poison_job_stops_after_five_attempts(self):
         self.store.enqueue("areas", "alice", "broken-version")

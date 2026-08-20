@@ -1,5 +1,7 @@
 import os
 import json
+import random
+import sqlite3
 import sys
 import time
 import traceback
@@ -15,10 +17,21 @@ import run  # noqa: E402
 
 _consecutive_ghostnetwork_jobs = 0
 _ghostnetwork_delivery_turn = True
+_ghostnetwork_service = None
+
+
+def is_database_contention(error):
+    return isinstance(error, sqlite3.OperationalError) and any(
+        marker in str(error).lower() for marker in ("locked", "busy")
+    )
+
+
+def contention_backoff_seconds():
+    return random.uniform(0.15, 0.65)
 
 
 def process_ghostnetwork_once():
-    global _ghostnetwork_delivery_turn
+    global _ghostnetwork_delivery_turn, _ghostnetwork_service
 
     def process_delivery():
         delivery = run.process_ghostnetwork_delta_delivery_job(
@@ -41,9 +54,13 @@ def process_ghostnetwork_once():
         return True
 
     def process_territory():
+        global _ghostnetwork_service
+        if _ghostnetwork_service is None:
+            _ghostnetwork_service = run.GhostNetworkService()
         ghostnetwork_job = run.process_ghostnetwork_territory_job(
             lease_owner=f"ghost-territory-worker:{os.getpid()}",
             lease_seconds=300,
+            service=_ghostnetwork_service,
         )
         if ghostnetwork_job is None:
             return False
@@ -54,6 +71,8 @@ def process_ghostnetwork_once():
             f"reference={ghostnetwork_job.get('reference_id')} "
             f"ok={bool(ghostnetwork_job.get('ok'))} "
             f"elapsed_ms={ghostnetwork_job.get('elapsed_ms')} "
+            f"timings_ms={ghostnetwork_job.get('timings_ms') or {}} "
+            f"coalesced={ghostnetwork_job.get('coalesced_jobs') or 0} "
             f"queue={ghostnetwork_job.get('queue') or {}} "
             f"error={ghostnetwork_job.get('error')}",
             flush=True,
@@ -237,10 +256,24 @@ def main():
     )
     next_reconcile_at = time.monotonic()
     next_multi_audit_at = time.monotonic()
-    restored = run.restore_territory_reconcile_targets()
+    while True:
+        try:
+            restored = run.restore_territory_reconcile_targets()
+            delta_diagnostics = run.ghostnetwork_delta_delivery_job_store.diagnostics()
+            break
+        except Exception as exc:
+            if not is_database_contention(exc):
+                raise
+            delay = contention_backoff_seconds()
+            print(
+                "[TERRITORY_WORKER] startup database_contended "
+                f"retry_in_ms={int(delay * 1000)} error={exc}",
+                flush=True,
+            )
+            time.sleep(delay)
     print(
         f"[TERRITORY_WORKER] started reconcile_rollback={restored} "
-        f"ghost_delta_queue={run.ghostnetwork_delta_delivery_job_store.diagnostics()}",
+        f"ghost_delta_queue={delta_diagnostics}",
         flush=True,
     )
     while True:
@@ -275,7 +308,16 @@ def main():
                 time.sleep(idle_seconds)
         except KeyboardInterrupt:
             return
-        except Exception:
+        except Exception as exc:
+            if is_database_contention(exc):
+                delay = contention_backoff_seconds()
+                print(
+                    "[TERRITORY_WORKER] database_contended "
+                    f"retry_in_ms={int(delay * 1000)} error={exc}",
+                    flush=True,
+                )
+                time.sleep(delay)
+                continue
             traceback.print_exc()
             time.sleep(idle_seconds)
 

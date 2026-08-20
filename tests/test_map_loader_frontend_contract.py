@@ -48,6 +48,21 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertNotIn("map.closeTooltip();", self.map_template)
         self.assertNotIn("layer.on('mouseout remove'", self.map_template)
 
+    def test_territory_polygons_bubble_contextmenu_to_empty_field_menu(self):
+        style = self.map_template[
+            self.map_template.index("function territoryLayerStyle"):
+            self.map_template.index("function territoryTooltip")
+        ]
+        self.assertIn("interactive: true", style)
+        self.assertIn("bubblingMouseEvents: true", style)
+        self.assertNotIn("bubblingMouseEvents: false", style)
+        self.assertGreaterEqual(
+            self.map_template.count("interactive: true, bubblingMouseEvents: true"),
+            2,
+        )
+        self.assertIn("map.on('contextmenu'", self.map_template)
+        self.assertIn("showContextMenu(e.containerPoint.x", self.map_template)
+
     def test_travel_action_shows_destination_pulse_until_finished(self):
         self.assertIn("travel-destination-pulse", self.map_template)
         self.assertIn("showTravelDestinationPulse", self.map_template)

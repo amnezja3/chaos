@@ -2479,7 +2479,9 @@
                 weight: isEncircled ? 4 : (isMine ? 2 : (isCrew ? 2 : 3)),
                 dashArray: isEncircled ? '4 5' : ((isMine || isCrew) ? null : '8 6'),
                 interactive: true,
-                bubblingMouseEvents: false
+                // The polygon owns hover tooltips, but an otherwise empty
+                // right-click must still reach the map travel/scan menu.
+                bubblingMouseEvents: true
             };
         }
 
@@ -2588,7 +2590,7 @@
                     weight: 3,
                     dashArray: '3 5',
                     interactive: true,
-                    bubblingMouseEvents: false
+                    bubblingMouseEvents: true
                 }));
                 polygon._chaosTerritoryConflictId = `${conflict.id || conflict.conflict_key || 'conflict'}:${index}`;
                 polygon.addTo(map);
@@ -2677,7 +2679,7 @@
                 const layer = L.polygon(points, {
                     pane: 'territoryPane', color: '#d500f9', fillColor: '#7c00ff',
                     fillOpacity: 0.12, weight: 4, dashArray: '8 5',
-                    interactive: true, bubblingMouseEvents: false
+                    interactive: true, bubblingMouseEvents: true
                 }).addTo(map);
                 layer._chaosLayerRegistry = 'territoryEngagementLayers';
                 layer._chaosTerritoryEngagementId = engagementId;
@@ -2861,7 +2863,7 @@
             const layer = L.polygon(points, {
                 pane: 'territoryPane', color: '#ffb300', fillColor: '#ff8a00',
                 fillOpacity: 0.18, weight: 3, dashArray: '3 5',
-                interactive: true, bubblingMouseEvents: false
+                interactive: true, bubblingMouseEvents: true
             }).addTo(map);
             layer._chaosLayerRegistry = 'territoryFrontLayers';
             layer._chaosTerritoryConflictId = String(snapshot.conflict_id || '');

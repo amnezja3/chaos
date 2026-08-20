@@ -145,7 +145,7 @@ class OperationControlTest(unittest.TestCase):
 
         with patch.object(run, "load_profile_readonly", return_value=profile), \
                 patch.object(run, "refresh_and_persist_operations", return_value=profile), \
-                patch.object(run, "refresh_operations_runtime", return_value=([op], False)), \
+                patch.object(run, "operations_from_store_or_profile", return_value=[op]), \
                 patch.object(run, "sync_session_profile", side_effect=AssertionError("full sync not expected")):
             response = client.get("/api/ghost-control/operations")
 

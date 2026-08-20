@@ -24,7 +24,7 @@ def percentile(values, fraction):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("logfile", nargs="-", help="PM2 log; stdin when omitted")
+    parser.add_argument("logfile", nargs="?", help="PM2 log; stdin when omitted")
     args = parser.parse_args()
     handle = open(args.logfile, encoding="utf-8", errors="replace") if args.logfile else sys.stdin
     grouped = defaultdict(list)
@@ -32,20 +32,23 @@ def main():
         for line in handle:
             match = LINE.search(line)
             if match:
-                grouped[match.group("origin")].append({
+                row = {
                     key: int(match.group(key))
                     for key in ("wait", "hold", "commit", "statements")
-                })
+                }
+                row["outcome"] = match.group("outcome")
+                grouped[match.group("origin")].append(row)
     finally:
         if args.logfile:
             handle.close()
-    print("origin count wait_p50 wait_p95 wait_max hold_p50 hold_p95 hold_max")
+    print("origin count busy wait_p50 wait_p95 wait_max hold_p50 hold_p95 hold_max")
     for origin, rows in sorted(grouped.items(), key=lambda item: (-len(item[1]), item[0])):
         waits = [row["wait"] for row in rows]
-        holds = [row["hold"] for row in rows]
+        holds = [row["hold"] for row in rows if row["outcome"] != "busy"]
         print(
-            origin, len(rows), percentile(waits, .50), percentile(waits, .95), max(waits),
-            percentile(holds, .50), percentile(holds, .95), max(holds),
+            origin, len(rows), sum(row["outcome"] == "busy" for row in rows),
+            percentile(waits, .50), percentile(waits, .95), max(waits),
+            percentile(holds, .50), percentile(holds, .95), max(holds) if holds else 0,
         )
 
 

@@ -3041,21 +3041,31 @@ def record_territory_conflict_delta(conflict, reason="territory_conflict"):
     return published
 
 
-def process_ghostnetwork_territory_job(lease_owner, lease_seconds=300):
+def process_ghostnetwork_territory_job(lease_owner, lease_seconds=300, service=None):
     """Apply one canonical territory publication outside request-serving processes."""
     claim = ghostnetwork_territory_job_store.claim(lease_owner, lease_seconds=lease_seconds)
     if not claim:
         return None
     started = time.perf_counter()
+    timings = {}
     try:
+        phase_started = time.perf_counter()
+        service = service or GhostNetworkService()
+        timings["service_init"] = int((time.perf_counter() - phase_started) * 1000)
         if claim["job_kind"] == "areas":
-            result = bridge_ghostnetwork_territory_publication(reason=claim.get("reason") or "territory_job")
+            result = bridge_ghostnetwork_territory_publication(
+                reason=claim.get("reason") or "territory_job", service=service,
+                timings=timings,
+            )
         elif claim["job_kind"] == "conflict":
+            phase_started = time.perf_counter()
             snapshot = territory_conflict_store.latest_snapshot_state(claim["reference_id"])
+            timings["snapshot_read"] = int((time.perf_counter() - phase_started) * 1000)
             if not isinstance(snapshot, dict):
                 raise RuntimeError(f"canonical conflict snapshot missing: {claim['reference_id']}")
             result = bridge_ghostnetwork_conflict_publication(
-                snapshot, reason=claim.get("reason") or "territory_conflict_job"
+                snapshot, reason=claim.get("reason") or "territory_conflict_job",
+                service=service, timings=timings,
             )
         else:
             raise RuntimeError(f"unsupported job kind: {claim['job_kind']}")
@@ -3068,6 +3078,7 @@ def process_ghostnetwork_territory_job(lease_owner, lease_seconds=300):
         return {
             **claim, "ok": True, "result": result,
             "elapsed_ms": elapsed_ms,
+            "timings_ms": {**timings, "total": elapsed_ms},
             "queue": ghostnetwork_territory_job_store.diagnostics(),
         }
     except Exception as exc:
@@ -3078,6 +3089,7 @@ def process_ghostnetwork_territory_job(lease_owner, lease_seconds=300):
         return {
             **claim, "ok": False, "error": str(exc),
             "elapsed_ms": elapsed_ms,
+            "timings_ms": {**timings, "total": elapsed_ms},
             "queue": ghostnetwork_territory_job_store.diagnostics(),
         }
 
@@ -3086,7 +3098,7 @@ def build_ghostnetwork_territory_publication():
     events = []
     profiles = {
         str(username or "").strip(): profile
-        for username, profile in user_store.list_profile_entries()
+        for username, profile in user_store.list_profile_identities()
         if str(username or "").strip() and isinstance(profile, dict)
     }
     for area in territory_store.list_player_areas():
@@ -3165,27 +3177,46 @@ def maybe_finalize_ghostnetwork_cycle(service, trigger_result=None):
     return service.start_transmission(cycle["cycle_id"])
 
 
-def bridge_ghostnetwork_territory_publication(reason="territory_publication"):
+def bridge_ghostnetwork_territory_publication(reason="territory_publication", service=None,
+                                               timings=None):
     try:
-        service = GhostNetworkService()
+        timings = timings if isinstance(timings, dict) else {}
+        phase_started = time.perf_counter()
+        service = service or GhostNetworkService()
+        timings.setdefault("service_init", int((time.perf_counter() - phase_started) * 1000))
+        phase_started = time.perf_counter()
         territories = build_ghostnetwork_territory_publication()
+        timings["publication_read"] = int((time.perf_counter() - phase_started) * 1000)
+        phase_started = time.perf_counter()
         report = service.reconcile_parts_with_territories(territories=territories, apply=True)
+        timings["reconcile"] = int((time.perf_counter() - phase_started) * 1000)
+        phase_started = time.perf_counter()
         report["rewards"] = apply_ghostnetwork_runtime_result(service, report)
+        timings["events_rewards"] = int((time.perf_counter() - phase_started) * 1000)
+        phase_started = time.perf_counter()
         report["endgame"] = maybe_finalize_ghostnetwork_cycle(service, report)
+        timings["readiness"] = int((time.perf_counter() - phase_started) * 1000)
         return report
     except Exception as exc:
         print(f"[ghostnetwork] territory publication bridge failed reason={reason} error={exc}", flush=True)
         return {"ok": False, "status": "bridge_failed", "error": str(exc)}
 
 
-def bridge_ghostnetwork_conflict_publication(snapshot, reason="territory_conflict"):
+def bridge_ghostnetwork_conflict_publication(snapshot, reason="territory_conflict", service=None,
+                                              timings=None):
     try:
-        service = GhostNetworkService()
+        timings = timings if isinstance(timings, dict) else {}
+        phase_started = time.perf_counter()
+        service = service or GhostNetworkService()
+        timings.setdefault("service_init", int((time.perf_counter() - phase_started) * 1000))
         source = snapshot if isinstance(snapshot, dict) else {}
         conflict = source.get("conflict") if isinstance(source.get("conflict"), dict) else source
         status = str(conflict.get("status") or "").lower()
         if status in {"resolved", "closed"}:
-            return bridge_ghostnetwork_territory_publication(reason=f"{reason}:resolved")
+            return bridge_ghostnetwork_territory_publication(
+                reason=f"{reason}:resolved", service=service, timings=timings
+            )
+        phase_started = time.perf_counter()
         reports = []
         conflict_id = str(conflict.get("conflict_id") or conflict.get("id") or "")
         fronts = source.get("fronts") or conflict.get("fronts") or []
@@ -3204,6 +3235,7 @@ def bridge_ghostnetwork_conflict_publication(snapshot, reason="territory_conflic
             })
             apply_ghostnetwork_runtime_result(service, report)
             reports.append(report)
+        timings["conflict_reconcile"] = int((time.perf_counter() - phase_started) * 1000)
         return {"ok": True, "status": "contested", "reports": reports}
     except Exception as exc:
         print(f"[ghostnetwork] conflict publication bridge failed reason={reason} error={exc}", flush=True)

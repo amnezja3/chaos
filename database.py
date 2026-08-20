@@ -8,6 +8,7 @@ import os
 import secrets
 import sqlite3
 import inspect
+import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -38,7 +39,23 @@ class InstrumentedConnection(sqlite3.Connection):
         statement = str(sql or "").lstrip().upper()
         if db_lock_metrics_enabled() and statement.startswith("BEGIN IMMEDIATE"):
             started = time.perf_counter()
-            result = super().execute(sql, parameters)
+            try:
+                result = super().execute(sql, parameters)
+            except sqlite3.OperationalError as exc:
+                wait_ms = int(round((time.perf_counter() - started) * 1000))
+                try:
+                    origin = inspect.currentframe().f_back.f_code.co_name
+                except Exception:
+                    origin = "unknown"
+                if "locked" in str(exc).lower() or "busy" in str(exc).lower():
+                    print(
+                        "[DB_LOCK] "
+                        f"at={utc_now()} pid={os.getpid()} thread={threading.get_ident()} "
+                        f"origin={origin} outcome=busy wait_ms={wait_ms} "
+                        "hold_ms=0 commit_ms=0 statements=0",
+                        flush=True,
+                    )
+                raise
             self._writer_wait_ms = int(round((time.perf_counter() - started) * 1000))
             self._writer_started_at = time.perf_counter()
             self._writer_statements = 0
@@ -60,6 +77,7 @@ class InstrumentedConnection(sqlite3.Connection):
         if self._writer_wait_ms >= minimum or hold_ms >= minimum:
             print(
                 "[DB_LOCK] "
+                f"at={utc_now()} pid={os.getpid()} thread={threading.get_ident()} "
                 f"origin={self._writer_origin} outcome={outcome} "
                 f"wait_ms={self._writer_wait_ms} hold_ms={hold_ms} "
                 f"commit_ms={commit_ms} statements={self._writer_statements}",
@@ -1409,6 +1427,21 @@ class UserStore:
                 return None
             return loads_json(row["profile_json"], {})
 
+    def list_profile_identities(self):
+        """Return only identity fields needed by territory publication."""
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                """SELECT username,
+                          json_extract(profile_json, '$.ghost_clan_code') AS ghost_clan_code,
+                          json_extract(profile_json, '$.clan_code') AS clan_code,
+                          json_extract(profile_json, '$.ghost_clan') AS ghost_clan,
+                          json_extract(profile_json, '$.clan_id') AS clan_id,
+                          json_extract(profile_json, '$.clan') AS clan,
+                          json_extract(profile_json, '$.clan_name') AS clan_name
+                   FROM users"""
+            ).fetchall()
+        return [(row["username"], dict(row)) for row in rows]
+
     def save_profile(self, profile):
         profile = dict(profile or {})
         username = profile.get("username")
@@ -1495,6 +1528,21 @@ class UserStore:
         username = str(username or "").strip()
         if not username:
             return None
+
+        # Empty polling is the dominant path. Check it without taking the
+        # global writer lock, then re-read under BEGIN IMMEDIATE only when a
+        # queue may actually need to be consumed.
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT profile_json FROM users WHERE username = ?",
+                (username,),
+            ).fetchone()
+            if not row:
+                return None
+            if not merge_launch_queue_values(
+                [], loads_json(row["profile_json"], {}).get("launch_queue", [])
+            ):
+                return []
 
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -1914,6 +1962,25 @@ class GhostNetworkTerritoryJobStore:
             ).fetchone()
             if not row:
                 return None
+            coalesced_jobs = 0
+            if row["job_kind"] == "areas":
+                latest_area = conn.execute(
+                    """SELECT * FROM ghostnetwork_territory_jobs
+                       WHERE status = 'pending' AND job_kind = 'areas'
+                         AND attempts < 5 AND next_attempt_at <= ?
+                       ORDER BY created_at DESC, job_id DESC LIMIT 1""",
+                    (now_ts,),
+                ).fetchone()
+                if latest_area:
+                    row = latest_area
+                superseded = conn.execute(
+                    """UPDATE ghostnetwork_territory_jobs
+                       SET status = 'complete', error = ?, updated_at = ?, finished_at = ?
+                       WHERE status = 'pending' AND job_kind = 'areas'
+                         AND attempts < 5 AND next_attempt_at <= ? AND job_id != ?""",
+                    (f"coalesced_into:{row['job_id']}", now, now, now_ts, row["job_id"]),
+                )
+                coalesced_jobs = int(superseded.rowcount or 0)
             cursor = conn.execute(
                 """
                 UPDATE ghostnetwork_territory_jobs
@@ -1928,7 +1995,7 @@ class GhostNetworkTerritoryJobStore:
             claimed = conn.execute(
                 "SELECT * FROM ghostnetwork_territory_jobs WHERE job_id = ?", (row["job_id"],)
             ).fetchone()
-            return dict(claimed)
+            return {**dict(claimed), "coalesced_jobs": coalesced_jobs}
 
     def finish(self, job_id, lease_owner, ok=True, error="", processing_ms=0):
         now = utc_now()
@@ -3435,13 +3502,12 @@ class TerritoryProgressionReceiptStore:
                system_messages=None):
         """Apply reward deltas and receipt state in one SQLite transaction."""
         receipt_id = str(receipt_id or "").strip()
-        now = utc_now()
-        with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            receipt = conn.execute(
+        for _attempt in range(3):
+            with db_connect(self.db_path) as conn:
+                receipt = conn.execute(
                 "SELECT * FROM territory_progression_receipts WHERE receipt_id = ?",
                 (receipt_id,),
-            ).fetchone()
+                ).fetchone()
             if not receipt:
                 return {"ok": False, "reason": "receipt_not_found"}
             if receipt["status"] == self.STATUS_APPLIED:
@@ -3451,12 +3517,14 @@ class TerritoryProgressionReceiptStore:
                 }
             if receipt["status"] != self.STATUS_PENDING:
                 return {"ok": False, "reason": "receipt_not_pending"}
-            user_row = conn.execute(
-                "SELECT profile_json FROM users WHERE username = ?",
-                (receipt["actor_username"],),
-            ).fetchone()
+            with db_connect(self.db_path) as conn:
+                user_row = conn.execute(
+                    "SELECT profile_json FROM users WHERE username = ?",
+                    (receipt["actor_username"],),
+                ).fetchone()
             if not user_row:
                 return {"ok": False, "reason": "profile_not_found"}
+            original_profile_json = user_row["profile_json"]
             profile = loads_json(user_row["profile_json"], {})
             profile["respect"] = int(profile.get("respect", 0) or 0) + int(
                 (progression or {}).get("respect_gain") or 0
@@ -3470,23 +3538,43 @@ class TerritoryProgressionReceiptStore:
                 profile.setdefault("system_messages", []).extend(
                     copy.deepcopy(system_messages)
                 )
-            conn.execute(
-                "UPDATE users SET profile_json = ?, updated_at = ? WHERE username = ?",
-                (dumps_json(profile), now, receipt["actor_username"]),
-            )
-            conn.execute(
+            profile_json = dumps_json(profile)
+            result_json = dumps_json(progression or {})
+            now = utc_now()
+            with db_connect(self.db_path) as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                current = conn.execute(
+                    "SELECT status, result_json FROM territory_progression_receipts WHERE receipt_id = ?",
+                    (receipt_id,),
+                ).fetchone()
+                if not current:
+                    return {"ok": False, "reason": "receipt_not_found"}
+                if current["status"] == self.STATUS_APPLIED:
+                    return {"ok": True, "duplicate": True, "result": loads_json(current["result_json"], {})}
+                if current["status"] != self.STATUS_PENDING:
+                    return {"ok": False, "reason": "receipt_not_pending"}
+                updated = conn.execute(
+                    "UPDATE users SET profile_json = ?, updated_at = ? WHERE username = ? AND profile_json = ?",
+                    (profile_json, now, receipt["actor_username"], original_profile_json),
+                )
+                if updated.rowcount != 1:
+                    continue
+                applied = conn.execute(
                 """
                 UPDATE territory_progression_receipts
                 SET status = 'applied', result_json = ?, updated_at = ?, applied_at = ?
                 WHERE receipt_id = ? AND status = 'pending'
                 """,
-                (dumps_json(progression or {}), now, now, receipt_id),
-            )
+                    (result_json, now, now, receipt_id),
+                )
+                if applied.rowcount != 1:
+                    raise RuntimeError("territory receipt CAS failed after profile update")
             return {
                 "ok": True, "duplicate": False,
                 "result": copy.deepcopy(progression or {}),
                 "profile": profile,
             }
+        return {"ok": False, "reason": "profile_changed"}
 
     def settle_strategic(self, receipt_id, encirclement=None,
                          conflict_resolutions=None, system_messages=None):
@@ -3494,13 +3582,12 @@ class TerritoryProgressionReceiptStore:
         receipt_id = str(receipt_id or "").strip()
         encirclement = copy.deepcopy(encirclement or {})
         conflict_resolutions = copy.deepcopy(conflict_resolutions or [])
-        now = utc_now()
-        with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            receipt = conn.execute(
+        for _attempt in range(3):
+            with db_connect(self.db_path) as conn:
+                receipt = conn.execute(
                 "SELECT * FROM territory_progression_receipts WHERE receipt_id = ?",
                 (receipt_id,),
-            ).fetchone()
+                ).fetchone()
             if not receipt:
                 return {"ok": False, "reason": "receipt_not_found"}
             if receipt["status"] == self.STATUS_APPLIED:
@@ -3510,13 +3597,15 @@ class TerritoryProgressionReceiptStore:
                 }
             if receipt["status"] != self.STATUS_PENDING:
                 return {"ok": False, "reason": "receipt_not_pending"}
-            user_row = conn.execute(
-                "SELECT profile_json FROM users WHERE username = ?",
-                (receipt["actor_username"],),
-            ).fetchone()
+            with db_connect(self.db_path) as conn:
+                user_row = conn.execute(
+                    "SELECT profile_json FROM users WHERE username = ?",
+                    (receipt["actor_username"],),
+                ).fetchone()
             if not user_row:
                 return {"ok": False, "reason": "profile_not_found"}
 
+            original_profile_json = user_row["profile_json"]
             profile = loads_json(user_row["profile_json"], {})
             level_before = max(1, int(profile.get("level", 1) or 1))
             transferred_pillars = max(
@@ -3571,23 +3660,43 @@ class TerritoryProgressionReceiptStore:
                 profile.setdefault("system_messages", []).extend(
                     copy.deepcopy(system_messages)
                 )
-            conn.execute(
-                "UPDATE users SET profile_json = ?, updated_at = ? WHERE username = ?",
-                (dumps_json(profile), now, receipt["actor_username"]),
-            )
-            conn.execute(
+            profile_json = dumps_json(profile)
+            result_json = dumps_json(result)
+            now = utc_now()
+            with db_connect(self.db_path) as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                current = conn.execute(
+                    "SELECT status, result_json FROM territory_progression_receipts WHERE receipt_id = ?",
+                    (receipt_id,),
+                ).fetchone()
+                if not current:
+                    return {"ok": False, "reason": "receipt_not_found"}
+                if current["status"] == self.STATUS_APPLIED:
+                    return {"ok": True, "duplicate": True, "result": loads_json(current["result_json"], {})}
+                if current["status"] != self.STATUS_PENDING:
+                    return {"ok": False, "reason": "receipt_not_pending"}
+                updated = conn.execute(
+                    "UPDATE users SET profile_json = ?, updated_at = ? WHERE username = ? AND profile_json = ?",
+                    (profile_json, now, receipt["actor_username"], original_profile_json),
+                )
+                if updated.rowcount != 1:
+                    continue
+                applied = conn.execute(
                 """
                 UPDATE territory_progression_receipts
                 SET status = 'applied', result_json = ?, updated_at = ?, applied_at = ?
                 WHERE receipt_id = ? AND status = 'pending'
                 """,
-                (dumps_json(result), now, now, receipt_id),
-            )
+                    (result_json, now, now, receipt_id),
+                )
+                if applied.rowcount != 1:
+                    raise RuntimeError("strategic territory receipt CAS failed after profile update")
             return {
                 "ok": True, "duplicate": False,
                 "result": copy.deepcopy(result),
                 "profile": profile,
             }
+        return {"ok": False, "reason": "profile_changed"}
 
 
 class TerritoryTargetOwnershipStore:
@@ -6665,31 +6774,68 @@ class PlayerOperationStore:
             return []
         now = utc_now()
         accepted = []
+        prepared = []
+        for incoming in operations or []:
+            if not isinstance(incoming, dict):
+                continue
+            operation = dict(incoming)
+            operation_id = self._operation_id(operation)
+            operation["operation_id"] = operation_id
+            status = self._status(operation)
+            prepared.append({
+                "operation": operation,
+                "operation_id": operation_id,
+                "status": status,
+                "logical_key": self._active_logical_key(operation),
+                "target_key": self._target_key(operation),
+                "operation_type": self._operation_type(operation),
+                "operation_json": dumps_json(operation),
+                "risk_json": dumps_json(self._risk_json(operation)),
+            })
         with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
             active_rows = conn.execute(
                 """
-                SELECT operation_id, operation_json
+                SELECT operation_id, operation_json, version
                 FROM player_operations
                 WHERE username = ?
                 """,
                 (username,),
             ).fetchall()
-            active_keys = {}
-            for row in active_rows:
-                existing_op = loads_json(row["operation_json"], {})
-                key = self._active_logical_key(existing_op)
-                if key:
-                    active_keys[key] = row["operation_id"]
+        active_keys = {}
+        for row in active_rows:
+            existing_op = loads_json(row["operation_json"], {})
+            key = self._active_logical_key(existing_op)
+            if key:
+                active_keys[key] = row["operation_id"]
+        observed_versions = sorted(
+            (row["operation_id"], int(row["version"] or 0)) for row in active_rows
+        )
 
-            for incoming in operations or []:
-                if not isinstance(incoming, dict):
-                    continue
-                operation = dict(incoming)
-                operation_id = self._operation_id(operation)
-                operation["operation_id"] = operation_id
-                status = self._status(operation)
-                logical_key = self._active_logical_key(operation)
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            latest_versions = sorted(
+                (row["operation_id"], int(row["version"] or 0))
+                for row in conn.execute(
+                    "SELECT operation_id, version FROM player_operations WHERE username = ?",
+                    (username,),
+                ).fetchall()
+            )
+            if latest_versions != observed_versions:
+                active_keys = {}
+                for row in conn.execute(
+                    "SELECT operation_id, operation_json FROM player_operations WHERE username = ?",
+                    (username,),
+                ).fetchall():
+                    existing_op = loads_json(row["operation_json"], {})
+                    key = self._active_logical_key(existing_op)
+                    if key:
+                        active_keys[key] = row["operation_id"]
+
+            for item in prepared:
+                operation = item["operation"]
+                operation_id = item["operation_id"]
+                status = item["status"]
+                logical_key = item["logical_key"]
                 if logical_key and active_keys.get(logical_key) not in {"", None, operation_id}:
                     continue
 
@@ -6727,11 +6873,11 @@ class PlayerOperationStore:
                     (
                         operation_id,
                         username,
-                        self._target_key(operation),
-                        self._operation_type(operation),
+                        item["target_key"],
+                        item["operation_type"],
                         status,
-                        dumps_json(operation),
-                        dumps_json(self._risk_json(operation)),
+                        item["operation_json"],
+                        item["risk_json"],
                         version,
                         created_at,
                         now,
@@ -7873,7 +8019,6 @@ class PlayerTargetRuntimeStore:
         now = utc_now()
 
         with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 "SELECT * FROM player_target_runtime WHERE username = ?",
                 (username,),
@@ -7943,6 +8088,23 @@ class PlayerTargetRuntimeStore:
                 version = int(current.get("version") or 0) + 1 if current else 1
 
             merged_target["target_id"] = merged_target.get("target_id") or target_key
+            target_json = dumps_json(merged_target)
+            security_json = dumps_json(merged_security)
+            actions_json = dumps_json(merged_actions)
+            observed_version = int(row["version"] or 0) if row else 0
+            conn.execute("BEGIN IMMEDIATE")
+            latest = conn.execute(
+                "SELECT version FROM player_target_runtime WHERE username = ?",
+                (username,),
+            ).fetchone()
+            latest_version = int(latest["version"] or 0) if latest else 0
+            if latest_version != observed_version:
+                return {
+                    "changed": False,
+                    "target": dict(current.get("target") or {}) if current else {},
+                    "status": "concurrent_change",
+                    "version": latest_version,
+                }
             conn.execute(
                 """
                 INSERT INTO player_target_runtime
@@ -7962,9 +8124,9 @@ class PlayerTargetRuntimeStore:
                 (
                     username,
                     target_key,
-                    dumps_json(merged_target),
-                    dumps_json(merged_security),
-                    dumps_json(merged_actions),
+                    target_json,
+                    security_json,
+                    actions_json,
                     progress,
                     self._clean_text(status, self.STATUS_AIMED),
                     version,

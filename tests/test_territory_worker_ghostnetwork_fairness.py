@@ -8,6 +8,12 @@ class TerritoryWorkerGhostNetworkFairnessTest(unittest.TestCase):
     def setUp(self):
         worker._consecutive_ghostnetwork_jobs = 0
         worker._ghostnetwork_delivery_turn = True
+        worker._ghostnetwork_service = None
+
+    def test_sqlite_contention_is_classified_for_retry(self):
+        import sqlite3
+        self.assertTrue(worker.is_database_contention(sqlite3.OperationalError("database is locked")))
+        self.assertFalse(worker.is_database_contention(sqlite3.OperationalError("no such table")))
 
     def common_patches(self):
         return (

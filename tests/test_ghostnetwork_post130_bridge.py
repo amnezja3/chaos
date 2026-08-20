@@ -57,7 +57,7 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
                 patch.object(run, "ghostnetwork_delta_delivery_job_store", self.delivery_store), \
                 patch.object(run.territory_delta_publisher, "record_areas_updated", return_value=[]), \
                 patch.object(run.territory_store, "list_player_areas", side_effect=lambda *_: list(areas)), \
-                patch.object(run.user_store, "list_profile_entries", side_effect=lambda: list(profiles.items())), \
+                patch.object(run.user_store, "list_profile_identities", side_effect=lambda: list(profiles.items())), \
                 patch.object(run.user_store, "get_profile", side_effect=lambda username: profiles.get(username, {})), \
                 patch.object(run.user_store, "save_profile"):
             run.record_territory_areas_delta("foreign-owner", areas, reason="post130_publication")
@@ -90,7 +90,7 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
                 patch.object(run, "ghostnetwork_delta_delivery_job_store", self.delivery_store), \
                 patch.object(run.territory_delta_publisher, "record_areas_updated", return_value=[]), \
                 patch.object(run.territory_store, "list_player_areas", return_value=areas), \
-                patch.object(run.user_store, "list_profile_entries", side_effect=lambda: list(profiles.items())), \
+                patch.object(run.user_store, "list_profile_identities", side_effect=lambda: list(profiles.items())), \
                 patch.object(run.user_store, "get_profile", side_effect=lambda username: profiles.get(username, {})), \
                 patch.object(run.user_store, "save_profile"):
             run.record_territory_areas_delta(
@@ -116,7 +116,7 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
         areas = [self.area("foreign-owner", 1)]
         profile = {"ghost_clan_code": "sentinel_order"}
         with patch.object(run.territory_store, "list_player_areas", return_value=areas), \
-                patch.object(run.user_store, "list_profile_entries", return_value=[("foreign-owner", profile)]), \
+                patch.object(run.user_store, "list_profile_identities", return_value=[("foreign-owner", profile)]), \
                 patch.object(run.user_store, "get_profile", return_value=profile):
             publication = run.build_ghostnetwork_territory_publication()
 
@@ -130,7 +130,7 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
         with patch.object(run.territory_store, "list_player_areas", return_value=areas), \
                 patch.object(
                     run.user_store,
-                    "list_profile_entries",
+                    "list_profile_identities",
                     return_value=[("foreign-owner", profile_without_username)],
                 ):
             publication = run.build_ghostnetwork_territory_publication()
@@ -158,7 +158,7 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
                 patch.object(run.territory_delta_publisher, "record_conflict_changed", return_value=[]), \
                 patch.object(run.territory_conflict_store, "latest_snapshot_state", side_effect=lambda *_: latest["value"]), \
                 patch.object(run.territory_store, "list_player_areas", side_effect=lambda *_: list(areas)), \
-                patch.object(run.user_store, "list_profile_entries", side_effect=lambda: list(profiles.items())), \
+                patch.object(run.user_store, "list_profile_identities", side_effect=lambda: list(profiles.items())), \
                 patch.object(run.user_store, "get_profile", side_effect=lambda username: profiles.get(username, {})), \
                 patch.object(run.user_store, "save_profile"):
             run.record_territory_areas_delta("part-owner", areas, reason="post130_stable")

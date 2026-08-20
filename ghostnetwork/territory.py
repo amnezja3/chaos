@@ -117,6 +117,16 @@ def _territory_context(event):
 
 
 def normalise_territory_event(event):
+    if (
+        isinstance(event, dict)
+        and "raw" in event
+        and "territory_id" in event
+        and "territory_owner_id" in event
+        and "territory_clan" in event
+        and "bounds" in event
+        and "vertices" in event
+    ):
+        return event
     event = event if isinstance(event, dict) else {}
     vertices = _normalise_vertices(event)
     bounds = _normalise_bounds(event) or _bounds_from_vertices(vertices)
@@ -271,7 +281,10 @@ class GhostTerritoryAdapter:
         cycle_id = _clean(cycle_id or ((self.repository.get_active_cycle() or {}).get("cycle_id")))
         if not cycle_id:
             return {"ok": False, "cycle_id": "", "apply": bool(apply), "changes": [], "reason": "no_cycle"}
-        territories = list(territories if territories is not None else self._read_territories())
+        territories = [
+            normalise_territory_event(item)
+            for item in (territories if territories is not None else self._read_territories())
+        ]
         changes = []
         for part in self.repository.list_parts(cycle_id):
             if part.get("status") not in self.LIVE_STATUSES:
