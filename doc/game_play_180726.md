@@ -24365,6 +24365,40 @@ albo:
 Do GO nie wystarcza zielony unit test na małej bazie. Wymagane są pomiary na
 serwerowym kształcie danych i manual gameplay.
 
+## Wynik końcowy — 2026-08-20
+
+Serwerowy hot sprint audit/fix otrzymuje GO. Manual z równoległym gameplayem
+potwierdził stabilną mapę, poprawne przebudowy, lifecycle części oraz live SFX
+containment. Ostatnia bramka writer-lock/GN została wykonana na wycinku logów
+rozpoczętym od zapisanych offsetów PM2.
+
+Porównanie runtime `przed -> po`:
+
+* GN jobs: p50 `~2300 -> 2228 ms`, p95 `~8200 -> 3860 ms`, max
+  `~19200 -> 3860 ms`,
+* `events_rewards`: p95 `7295 -> 1710 ms`,
+* `reward_repository_transaction`: p95/max `138 ms`,
+* `upsert_aimed` hold max `2688 -> 1420 ms`,
+* `upsert_operations` hold max `~1486 -> 522 ms`,
+* worker: `13` jobów, `failures=0`, `busy=0`, jedno poprawne coalescing,
+* kolejka po chwilowym backlogu wróciła do `depth=0`,
+* log nie zawiera `database_contended`, `OperationalError` ani `Traceback`,
+* web i `chaos-territory-worker` pozostały `online`.
+
+Historyczne `processing_ms.p95=8215` i `max=19168` w diagnostyce kolejki są
+agregatem obejmującym stare próbki sprzed naprawy. Wynik bieżącego okna pochodzi
+z analizatora 13 nowych jobów i nie jest przez nie dyskwalifikowany.
+
+Pozostałe koszty `audience_profiles` i `publication_read` są obserwowalne, ale
+nie blokują tej bramki. Zgodnie z decyzją zamknięcia nie rozpoczynają kolejnej
+rundy optymalizacji.
+
+`GO — Sprint 130.9.2.fix.all.1 restored GhostNetwork stability and map performance`
+
+Sprint 130.9.2 — GhostNetwork SFX jest domknięty: live containment odtwarza
+SFX, delivery zachowuje visibility/dedupe, a snapshot/recovery nie odtwarza
+historycznego dźwięku. Sprinty 130.9.3 i 130.9.4 zostają odblokowane.
+
 ---
 
 # Kolejność realizacji

@@ -1,5 +1,20 @@
 # CHAOS — Project Journal
 
+## 2026-08-20 - GO 130.9.2.fix.all.1 i domknięcie Sprintu 130.9.2
+
+- Finalny pomiar serwerowy objął 13 nowych jobów GN: `failures=0`, `busy=0`,
+  brak `database_contended`, `OperationalError`, tracebacków i restartów.
+- Kolejka po chwilowym backlogu wróciła do `depth=0`; jedno zadanie `areas`
+  zostało poprawnie coalescowane.
+- GN job p95 spadło z około 8.2 s do 3.86 s, max z około 19.2 s do 3.86 s,
+  a `events_rewards` p95 z 7.295 s do 1.710 s.
+- Repozytoryjna transakcja rewards miała p95/max 138 ms. Worker pozostał online,
+  a zwykłe contention nie spowodowało awarii procesu.
+- Manual wcześniej potwierdził stabilny lifecycle części i dokładnie jeden live
+  SFX containment; snapshot/recovery nie odtwarza historycznego SFX.
+- Hot sprint performance zostaje zamknięty bez kolejnej rundy optymalizacji.
+  `130.9.2.fix.all.1`: GO, Sprint 130.9.2: DONE; 130.9.3 i 130.9.4 odblokowane.
+
 ## 2026-08-19 - P2 blockers: canonical layer cleanup i GN profile identity
 
 - Pełny player-areas snapshot usuwał legacy arrays, ale nie canonical front,

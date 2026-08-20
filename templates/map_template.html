@@ -2678,7 +2678,10 @@
                 }
                 const layer = L.polygon(points, {
                     pane: 'territoryPane', color: '#d500f9', fillColor: '#7c00ff',
-                    fillOpacity: 0.12, weight: 4, dashArray: '8 5',
+                    // An engagement contains pairwise overlap geometries. A
+                    // separate fill per polygon compounds toward opacity in a
+                    // multi-party conflict, so MC presentation is outline-only.
+                    fill: false, fillOpacity: 0, weight: 4, dashArray: '8 5',
                     interactive: true, bubblingMouseEvents: true
                 }).addTo(map);
                 layer._chaosLayerRegistry = 'territoryEngagementLayers';
