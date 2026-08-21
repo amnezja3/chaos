@@ -5904,7 +5904,7 @@ Przygotować wewnętrzny agregat klastra:
 
 ```text
 contains_ghost_part
-ghost_parts_count
+ghost_part_count
 ghost_part_states
 ghost_part_relations
 ```
@@ -7859,7 +7859,7 @@ Nie publikować kodu nieodkrytej części ani pełnej topologii.
 
 ## 6. Warstwa mapy
 
-Rozszerzyć:
+Ujednolicić istniejące słowniki ikon aplikacji do wspólnego kontraktu:
 
 `static/js/map/ghostnetwork.js`
 
@@ -25122,6 +25122,15 @@ Nie deployuj.
 
 # Sprint 131 — GhostNetwork Suite: audyt widoczności części i integracja z Territory Control
 
+> **Post-audit 2026-08-21 — wiążące.** Sprint bazuje na istniejących:
+> `GhostVisibilityService` v2, sześciu relacjach, frozen conflict context,
+> `project_territory_component_for_viewer`, `view=suite` i delta bridge.
+> Nie tworzy ich ponownie. Rzeczywisty artefakt ma ścieżkę
+> `doc/sprint_131_ghostnetwork_suite_audit.md`. Pełne ustalenia:
+> `doc/sprint_131_plus_post_audit.md`.
+
+**Status planu:** `READY TO START — Sprint 131`.
+
 ## Cel sprintu
 
 Przeprowadzić audyt istniejącego GhostNetwork, Territory Control oraz wspólnej infrastruktury desktopowych `pro-system-tools`, a następnie zdefiniować kontrakt nowej aplikacji obserwacyjnej.
@@ -25336,31 +25345,33 @@ Alias i klan muszą pochodzić z lekkiej projekcji przygotowanej na backendzie.
 
 ## 7. Audyt integracji z Territory Control
 
-Territory Control ma już oznaczać klastry zawierające komponent.
+Backend ma już helper projekcji komponentu, ale runtime snapshot Territory
+Control jeszcze go nie wywołuje. Sprint ma podłączyć helper bez tworzenia
+drugiego modelu.
 
 Potwierdzić pola:
 
 ```text
 contains_ghost_part
-ghost_parts_count
+ghost_part_count
 ghost_part_relation
 ghost_part_state
 ghost_part_identity_visible
 ghost_part_summary
 ```
 
-Dla właściciela klastra dodatkowo:
+Dla odbiorcy uprawnionego do pełnej tożsamości dodatkowo przekazać bezpieczne
+projekcje w jednej tablicy (mapowanie helperowego `parts` do kontraktu
+Territory Control):
 
 ```text
-ghost_part_public_entity_id
-ghost_part_name
-ghost_part_clan
-ghost_part_machine
-ghost_part_profession
-ghost_part_ability
+ghost_parts[]
 ```
 
-Pola szczegółowe mogą wystąpić tylko wtedy, gdy pozwala na to projekcja widoczności.
+Każdy element `ghost_parts[]` pozostaje wynikiem `project_part_for_viewer`; nie
+spłaszczać pierwszej części do osobnego zestawu pól i nie wysyłać surowego
+rekordu repository. Pola szczegółowe mogą wystąpić tylko wtedy, gdy pozwala na
+to projekcja widoczności.
 
 ## 8. Klaster z własną częścią
 
@@ -25505,7 +25516,7 @@ Ikony inline SVG:
 Dokument:
 
 ```text
-docs/ghostnetwork/sprint_131_suite_audit.md
+doc/sprint_131_ghostnetwork_suite_audit.md
 ```
 
 Powinien zawierać:
@@ -25562,6 +25573,15 @@ Sprint jest zakończony, gdy dokładnie wiadomo:
 ---
 
 # Sprint 132 — GhostNetwork Suite: lekki snapshot części, właścicieli i stanów terytorialnych
+
+> **Post-audit 2026-08-21 — wiążące.** `view=suite` już istnieje w
+> `/api/ghostnetwork/snapshot` i usuwa geometrię połączeń. Sprint rozszerza
+> `normalize_snapshot_view`, zachowuje viewer-projected `parts[]` jako jedyną
+> listę, a `summary/groups/actions` buduje jako pochodne. Nie dodaje punktowego
+> endpointu bez pomiaru uzasadniającego potrzebę; delty już niosą bezpieczną
+> `part_projection`, a recovery pobiera suite snapshot.
+
+**Status planu:** `QUEUED — po zatwierdzeniu artefaktu Sprintu 131`.
 
 ## Cel sprintu
 
@@ -25933,13 +25953,15 @@ Długie opisy supermocy mogą być opcjonalne i pobierane dopiero przy rozwinię
 
 ## 19. Endpoint punktowy
 
-Dodać opcjonalnie:
+Nie dodawać go w podstawowym zakresie Sprintu 132. Aktualna delta niesie
+bezpieczną `part_projection`, a recovery odtwarza cały lekki suite snapshot.
+Endpoint:
 
 ```text
 GET /api/ghostnetwork/parts/<public_entity_id>?view=suite
 ```
 
-Służy do:
+może wrócić jako osobny follow-up wyłącznie po pomiarze, który wykaże potrzebę:
 
 * punktowego odświeżenia,
 * obsługi delty bez pełnego payloadu,
@@ -26000,6 +26022,14 @@ Sprint jest zakończony, gdy desktopowa aplikacja może jednym lekkim odczytem o
 ---
 
 # Sprint 133 — GhostNetwork Suite: lista części publicznych, blokowanych i aktywnych
+
+> **Post-audit 2026-08-21 — wiążące.** Produkt używa ID
+> `ghostnetworkSuite`, launchera `createGhostNetworkSuiteApp`,
+> `family_id=ghost_control_suite` i `data-app="ghostnetwork-suite"`. Karty
+> wykorzystują istniejące `visual_asset_url/marker_asset_url`. Akcje mapy i
+> teleportu są do Sprintu 134 ukryte lub disabled i nie wysyłają requestów.
+
+**Status planu:** `QUEUED — po Sprint 132`.
 
 ## Cel sprintu
 
@@ -26421,6 +26451,15 @@ Sprint jest zakończony, gdy operator może bez mapy zobaczyć wszystkie dostęp
 
 # Sprint 134 — GhostNetwork Suite: mapa na żądanie, teleport i oznaczenia klastrów z komponentami
 
+> **Post-audit 2026-08-21 — wiążące.** Kanoniczny bridge to `createMap()` +
+> `notifyOpenMapsBlacknetFocus()`, nie iframe. Dla GN przekazuje opaque
+> `public_entity_id` albo `territory_id`. `/api/blacknet/cta/teleport` musi dla
+> `source=ghostnetwork_suite` odrzucać klientowe współrzędne i rozwiązać cel po
+> aktualnej backendowej projekcji visibility. Territory Control rozszerza swój
+> istniejący snapshot przez `project_territory_component_for_viewer`.
+
+**Status planu:** `QUEUED — po Sprint 133`.
+
 ## Cel sprintu
 
 Podłączyć do każdej pozycji dwie właściwe akcje:
@@ -26437,7 +26476,8 @@ Mapa pozostaje ładowana wyłącznie wtedy, gdy gracz jawnie wybierze akcję pod
 Użyć istniejącego mechanizmu:
 
 ```text
-openMapAtTarget(...)
+createMap()
+notifyOpenMapsBlacknetFocus(...)
 ```
 
 lub jego kanonicznego odpowiednika ustalonego w audycie.
@@ -26745,6 +26785,14 @@ Sprint jest zakończony, gdy każda część może bezpiecznie otworzyć właśc
 
 # Sprint 135 — GhostNetwork Suite: GUI desktopowe, delty, recovery i regresja całej Ghost Control Suite
 
+> **Post-audit 2026-08-21 — wiążące.** `GhostNetworkDeltaClient` istnieje,
+> ale obecnie mieszka w pliku mapy. Przed użyciem przez Suite należy wydzielić
+> lekki wspólny transport/dedupe/recovery bez Leaflet; Suite nie może ładować
+> mapowego JS. Delty korzystają z `/api/state/changes`, recovery z
+> `snapshot?view=suite`, a snapshot/recovery nie odtwarza SFX.
+
+**Status planu:** `QUEUED — po manualnej bramce Sprintu 134`.
+
 ## Cel sprintu
 
 Dokończyć produkcyjne GUI GhostNetwork Suite, podłączyć je do wspólnego klienta delt i recovery oraz przeprowadzić regresję całej rodziny czterech narzędzi.
@@ -26757,8 +26805,10 @@ Dodać produkt do istniejącego katalogu Googleplex:
 
 ```text
 type: pro-system-tool
-family: ghost_control_suite
-app_code: ghostnetwork_suite
+category: pro-system-tools
+family_id: ghost_control_suite
+id: ghostnetworkSuite
+system_launcher: createGhostNetworkSuiteApp
 ```
 
 Produkt ma:
@@ -27083,7 +27133,7 @@ Sprawdzić, że ukryte dane nie występują w:
 Dodać:
 
 ```text
-docs/ghostnetwork/GHOSTNETWORK_SUITE.md
+doc/GHOSTNETWORK_SUITE.md
 ```
 
 Dokument opisuje:
@@ -27122,6 +27172,14 @@ Po Sprintach 131–135 zaawansowany operator dostaje kompletną lekką ścieżk�
 Lecimy z trzema sprintami domykającymi właściwy obieg narracyjny: zdarzenia GhostNetwork trafią jako bezpieczne fakty do istniejącego BlackNet/Ollama inboxa, model przygotuje ustrukturyzowaną narrację, a zwalidowany outbox opublikuje ją jako sygnały `ollama_enriched`.
 
 # Sprint 136 — GhostNetwork: bridge zdarzeń do BlackNet Outbox
+
+> **Post-audit 2026-08-21 — wiążące.** Sprint rozszerza istniejące
+> `GhostNarrativePublisher` i `ghost_narrative_outbox` ze Sprintu 129, zamiast
+> tworzyć drugi bridge lub kolejkę. Najpierw usuwa możliwość przeniesienia
+> surowego `entity_id/part_id` w publicznym generic fact, następnie dodaje
+> audience fan-out przez `GhostVisibilityService` i rozszerza allowlistę.
+
+**Status planu:** `QUEUED — po domknięciu GhostNetwork Suite 131–135`.
 
 ## Cel sprintu
 
@@ -27181,13 +27239,13 @@ GhostNetwork ma korzystać z tej samej obsługi:
 
 ## 2. Bridge zdarzeń domenowych
 
-Dodać komponent:
+Dodać obsługę do istniejącego komponentu:
 
 ```text
-GhostNetworkBlackNetBridge
+GhostNarrativePublisher
 ```
 
-Minimalny kontrakt:
+Minimalne rozszerzenie kontraktu:
 
 ```text
 handle_domain_event(event)
@@ -27475,10 +27533,10 @@ Dozwolone akcje dla tasków GhostNetwork:
 
 ```text
 open_ghostnetwork_suite
-open_map_location
-open_map_territory
+show_ghostnetwork_part
+show_ghostnetwork_territory
 open_territory_control
-open_cyberner_thread
+open_cyberner_channel
 open_ghostsignal_archive
 ```
 
@@ -27487,7 +27545,7 @@ Model nie może tworzyć dowolnych URL ani endpointów.
 Dla ukrytej części:
 
 ```text
-open_map_territory
+show_ghostnetwork_territory
 ```
 
 zamiast dokładnej lokalizacji komponentu.
@@ -27553,7 +27611,8 @@ low:
   machine_progress_changed
 ```
 
-Critical może ominąć zwykłą kolejkę publikacji i wejść do BlackNetu szybciej.
+Critical otrzymuje najwyższy priorytet claim/publikacji, ale nie omija trwałego
+outboxu, dedupe ani exactly-once.
 
 ## 15. Obserwowalność
 
@@ -27594,18 +27653,32 @@ Sprint jest zakończony, gdy BlackNet Outbox otrzymuje bezpieczne, deduplikowane
 
 # Sprint 137 — Ollama Inbox/Outbox: generowanie i walidacja sygnałów GhostNetwork
 
+> **Post-audit 2026-08-21 — wiążące.** Realny worker Ollamy jeszcze nie
+> istnieje; obecny BlackNet Ollama outbox jest adminowym file store i raportuje
+> `ollama_executed=false`. Pierwszy worker claimuje addytywnie rozszerzone
+> rekordy `ghost_narrative_outbox` z `medium=ollama_outbox`, wykorzystuje
+> istniejące `build_model_input_package` / `validate_model_output`, ma
+> wersjonowany ecosystem oraz `status/verify/dry-run`.
+
+**Status planu:** `QUEUED — po Sprint 136`.
+
 ## Cel sprintu
 
-Rozszerzyć istniejący worker Ollamy tak, aby przetwarzał zadania GhostNetwork z BlackNet Inboxu i zapisywał ustrukturyzowane propozycje sygnałów do Ollama Outboxu.
+Utworzyć pierwszy runtime worker Ollamy, który atomowo claimuje zadania
+GhostNetwork z istniejącego `ghost_narrative_outbox` (`medium=ollama_outbox`) i
+zapisuje ustrukturyzowane, zwalidowane wyniki. Adminowy plikowy BlackNet Ollama
+outbox pozostaje narzędziem diagnostycznym, a nie kolejką workera.
 
 Model nie otrzymuje dostępu do tabel GhostNetwork ani pełnych profili. Pracuje wyłącznie na zatwierdzonym pakiecie faktów przygotowanym w Sprincie 136. 
 
 ## 1. Lifecycle zadania inbox
 
-Dopasować nazwy do istniejącego systemu, zachowując statusy:
+Rozszerzyć addytywnie obecne statusy
+`created/ready/processing/processed/failed/expired/archived`; nie przepisywać
+historycznych rekordów tylko dla zmiany nazewnictwa. Runtime worker używa:
 
 ```text
-queued
+ready
 claimed
 processing
 generated
@@ -27613,7 +27686,7 @@ validated
 rejected
 retry_wait
 dead_letter
-completed
+processed
 ```
 
 Worker atomowo przejmuje jeden task.
@@ -27760,7 +27833,7 @@ Model zwraca:
   "fact_refs": [
     "fact-part-activated-9281"
   ],
-  "cta_action": "open_map_location",
+  "cta_action": "show_ghostnetwork_part",
   "cta_payload": {
     "target_id": "ghost-node:8f3a12"
   },
@@ -27919,11 +27992,11 @@ i może zostać obsłużony fallbackiem deterministycznym.
 Konfiguracja:
 
 ```text
-OLLAMA_GHOSTNETWORK_TIMEOUT
-OLLAMA_GHOSTNETWORK_MAX_ATTEMPTS
-OLLAMA_GHOSTNETWORK_MAX_TITLE_LENGTH
-OLLAMA_GHOSTNETWORK_MAX_BODY_LENGTH
-OLLAMA_GHOSTNETWORK_LEASE_SECONDS
+CHAOS_GHOSTNETWORK_OLLAMA_TIMEOUT_SECONDS
+CHAOS_GHOSTNETWORK_OLLAMA_MAX_ATTEMPTS
+CHAOS_GHOSTNETWORK_OLLAMA_MAX_TITLE_LENGTH
+CHAOS_GHOSTNETWORK_OLLAMA_MAX_BODY_LENGTH
+CHAOS_GHOSTNETWORK_OLLAMA_LEASE_SECONDS
 ```
 
 Długi task nie może blokować całej kolejki BlackNetu.
@@ -28008,6 +28081,14 @@ Sprint jest zakończony, gdy Ollama może bezpiecznie przekształcić zatwierdzo
 
 # Sprint 138 — BlackNet: publikacja narracyjnych sygnałów GhostNetwork
 
+> **Post-audit 2026-08-21 — wiążące.** Publikacja rozszerza istniejące
+> `blacknet_world_signals`, feed i dispatcher CTA; nie tworzy konkurencyjnego
+> feedu. Audience payload pozostaje rozdzielony backendowo, a rotacja, TTL,
+> dedupe i invalidation korzystają z obecnego kontraktu BlackNet. E2E musi
+> przejść również z wyłączoną Ollamą i deterministycznym fallbackiem.
+
+**Status planu:** `QUEUED — po Sprint 137`.
+
 ## Cel sprintu
 
 Podłączyć zwalidowany Ollama Outbox do istniejącego publishera BlackNetu i publikować sygnały dotyczące GhostNetwork jako wpisy:
@@ -28020,7 +28101,8 @@ Sygnały mają przeplatać się z deterministycznym BlackNetem, zachowywać cią
 
 ## 1. Publisher
 
-Dodać lub rozszerzyć:
+Rozszerzyć istniejący publisher `blacknet_world_signals`; mały adapter dla
+zwalidowanego outputu może mieć kontrakt:
 
 ```text
 BlackNetOllamaOutboxPublisher
@@ -28045,7 +28127,7 @@ Korzysta ze zwalidowanego outputu.
 Publikowany wpis:
 
 ```text
-source: ollama
+source: ollama_enriched
 origin: ghostnetwork
 signal_class: ollama_enriched
 ```
@@ -28353,7 +28435,7 @@ Pełny test:
 Powtórzyć najważniejsze scenariusze przy:
 
 ```text
-GHOSTNETWORK_OLLAMA_ENABLED = false
+CHAOS_GHOSTNETWORK_OLLAMA_ENABLED=false
 ```
 
 Wszystkie wydarzenia:
@@ -28393,7 +28475,7 @@ Metryki:
 Dodać:
 
 ```text
-docs/ghostnetwork/GHOSTNETWORK_OLLAMA_BLACKNET.md
+doc/GHOSTNETWORK_OLLAMA_BLACKNET.md
 ```
 
 Dokument opisuje:

@@ -1,5 +1,20 @@
 # CHAOS — Project Journal
 
+## 2026-08-21 - Post-audit Sprintów 131–138
+
+- Zweryfikowano plan względem runtime po 130.9.5. Wykryto istniejące elementy,
+  których nie wolno dublować: `view=suite`, visibility v2, delta/publication
+  bridge, map renderer, `GhostNarrativePublisher` i `ghost_narrative_outbox`.
+- Skorygowano map/teleport contract: desktop używa `createMap()` oraz
+  `notifyOpenMapsBlacknetFocus`; GN wymaga opaque target i ponownej projekcji
+  backendowej, ponieważ obecny teleport przyjmuje współrzędne klienta.
+- Skorygowano delta plan: klient istnieje w pliku mapy i musi zostać wydzielony
+  do lekkiego modułu przed Suite, aby nie ładować Leaflet bez żądania.
+- Skorygowano 136–138: 136 rozszerza Sprint 129; 137 tworzy pierwszy realny
+  worker Ollamy nad GN outboxem; 138 rozszerza istniejący feed BlackNet.
+- Wiążący artefakt: `doc/sprint_131_plus_post_audit.md`. Sprinty 131–138 są
+  gotowe do realizacji w kolejności, bez rozpoczęcia implementacji 131.
+
 ## 2026-08-21 - DONE Sprint 130.9.5 Spatial Separation
 
 - Dodano atomowy limit `50 km` dla nowych GhostNetwork reservations. Check
