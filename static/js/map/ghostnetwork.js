@@ -474,7 +474,7 @@
         }
         const control = curvePoint(start, end, connection);
         const points = [];
-        const steps = state.startsWith("half_") ? 12 : 24;
+        const steps = state.startsWith("half_") ? 5 : 8;
         for (let i = 0; i <= steps; i += 1) {
             const t = maxT * (i / steps);
             const inv = 1 - t;
@@ -513,6 +513,7 @@
         const layers = [
             L.polyline(points, {
                 pane: CONNECTION_PANE,
+                noClip: true,
                 interactive: false,
                 bubblingMouseEvents: false,
                 className: connectionClass(connection, "base"),
@@ -521,6 +522,7 @@
             }),
             L.polyline(points, {
                 pane: CONNECTION_PANE,
+                noClip: true,
                 interactive: false,
                 bubblingMouseEvents: false,
                 className: connectionClass(connection, "core"),
@@ -531,6 +533,7 @@
         if (state === "active") {
             layers.push(L.polyline(points, {
                 pane: PULSE_PANE,
+                noClip: true,
                 interactive: false,
                 bubblingMouseEvents: false,
                 className: connectionClass(connection, "pulse"),

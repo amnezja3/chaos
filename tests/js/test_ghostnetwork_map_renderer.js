@@ -47,8 +47,8 @@ const sandbox = {
     L: {
         divIcon(options) { return options; },
         marker,
-        polyline() { return { addTo() { return this; } }; },
-        layerGroup() { return { addTo() { return this; } }; }
+        polyline(points, options) { return { points, options, addTo() { return this; } }; },
+        layerGroup(layers) { return { layers, addTo() { return this; } }; }
     }
 };
 sandbox.window.window = sandbox.window;
@@ -111,6 +111,20 @@ function response(payload) {
     }) });
     assert.strictEqual(await win.loadGhostNetworkSnapshot(), true);
     assert.ok(win.ghostNetworkPartLayers["part-1"]);
+
+    const activeConnection = win.createGhostConnectionLayer({
+        public_connection_id: "connection-1",
+        can_show_on_map: true,
+        state: "active",
+        endpoint_a: { latitude: 50.0, longitude: 20.0 },
+        endpoint_b: { latitude: 50.4, longitude: 20.5 }
+    });
+    assert.ok(activeConnection);
+    assert.strictEqual(activeConnection.layers.length, 3);
+    activeConnection.layers.forEach(layer => {
+        assert.strictEqual(layer.options.noClip, true, "GN connection must bypass Leaflet bounds clipping");
+        assert.strictEqual(layer.points.length, 9, "active GN curve must use the lightweight point budget");
+    });
 
     win.applyGhostPartDelta({
         scope: "ghostnetwork", type: "ghost.part_discovered", version: 3,

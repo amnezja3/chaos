@@ -35,6 +35,14 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("is-overloaded", self.map_template)
         self.assertIn("prefers-reduced-motion: reduce", self.map_template)
 
+    def test_runtime_loading_effect_never_blocks_map_input(self):
+        styles = self.map_template[
+            self.map_template.index(".chaos-map-glitch-overlay {"):
+            self.map_template.index(".chaos-map-glitch-field {")
+        ]
+        self.assertIn("pointer-events: none;", styles)
+        self.assertNotIn("pointer-events: auto;", styles)
+
     def test_critical_boot_steps_retry_transient_failures(self):
         self.assertIn("waitForMapBootRetry", self.map_template)
         self.assertIn("options.critical ? 3 : 0", self.map_template)

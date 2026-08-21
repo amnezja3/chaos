@@ -104,6 +104,8 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn(".ghostnetwork-connection", css)
         self.assertIn("ghostnetwork-connection-pulse", css)
         self.assertIn("isRenderableConnectionCurve", self.map_js)
+        self.assertEqual(self.map_js.count("noClip: true"), 3)
+        self.assertIn('const steps = state.startsWith("half_") ? 5 : 8', self.map_js)
 
     def test_territory_only_badge_has_renderable_dimensions(self):
         css = (ROOT / "static" / "css" / "ghostnetwork_map.css").read_text(encoding="utf-8")
