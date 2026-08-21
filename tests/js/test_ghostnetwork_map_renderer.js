@@ -47,6 +47,7 @@ const sandbox = {
     L: {
         divIcon(options) { return options; },
         marker,
+        canvas(options) { return { options }; },
         polyline(points, options) { return { points, options, addTo() { return this; } }; },
         layerGroup(layers) { return { layers, addTo() { return this; } }; }
     }
@@ -125,6 +126,20 @@ function response(payload) {
         assert.strictEqual(layer.options.noClip, true, "GN connection must bypass Leaflet bounds clipping");
         assert.strictEqual(layer.points.length, 9, "active GN curve must use the lightweight point budget");
     });
+
+    mobileMode = true;
+    const mobileConnection = win.createGhostConnectionLayer({
+        public_connection_id: "connection-mobile",
+        can_show_on_map: true,
+        state: "active",
+        endpoint_a: { latitude: 50.0, longitude: 20.0 },
+        endpoint_b: { latitude: 50.4, longitude: 20.5 }
+    });
+    assert.ok(mobileConnection);
+    assert.strictEqual(mobileConnection.layers, undefined, "mobile connection must use one canvas path, not an SVG group");
+    assert.ok(mobileConnection.options.renderer, "mobile connection must use the shared canvas renderer");
+    assert.strictEqual(mobileConnection.options.noClip, true);
+    mobileMode = false;
 
     win.applyGhostPartDelta({
         scope: "ghostnetwork", type: "ghost.part_discovered", version: 3,

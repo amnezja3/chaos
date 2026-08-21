@@ -104,8 +104,11 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn(".ghostnetwork-connection", css)
         self.assertIn("ghostnetwork-connection-pulse", css)
         self.assertIn("isRenderableConnectionCurve", self.map_js)
-        self.assertEqual(self.map_js.count("noClip: true"), 3)
+        self.assertEqual(self.map_js.count("noClip: true"), 4)
         self.assertIn('const steps = state.startsWith("half_") ? 5 : 8', self.map_js)
+        self.assertIn("ghostNetworkMobileConnectionRenderer", self.map_js)
+        self.assertIn("L.canvas({ pane: CONNECTION_PANE", self.map_js)
+        self.assertIn("if (isMobileGhostNetworkMap())", self.map_js)
 
     def test_territory_only_badge_has_renderable_dimensions(self):
         css = (ROOT / "static" / "css" / "ghostnetwork_map.css").read_text(encoding="utf-8")
@@ -153,6 +156,7 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn(".leaflet-interactive.ghostnetwork-territory-hostile", mobile)
         self.assertIn("animation: none", mobile)
         self.assertIn("filter: none", mobile)
+        self.assertIn("pointer-events: none", mobile)
         self.assertIn("@media (hover: none) and (pointer: coarse)", mobile)
 
         self.assertIn("batchGhostTerritoryStatesRefresh", self.map_js)

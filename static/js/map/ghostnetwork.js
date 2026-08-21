@@ -40,6 +40,7 @@
     window.ghostNetworkSnapshotChecksum = window.ghostNetworkSnapshotChecksum || "";
     let ghostNetworkSnapshotRequestId = 0;
     let ghostNetworkRecoveryPromise = null;
+    let ghostNetworkMobileConnectionRenderer = null;
     let ghostTerritoryRefreshDepth = 0;
     let ghostTerritoryRefreshPending = false;
 
@@ -89,6 +90,14 @@
 
     function isMobileGhostNetworkMap() {
         return Boolean(window.matchMedia && window.matchMedia(MOBILE_MAP_QUERY).matches);
+    }
+
+    function mobileConnectionRenderer(map) {
+        if (!map || !window.L || typeof L.canvas !== "function") return null;
+        if (!ghostNetworkMobileConnectionRenderer) {
+            ghostNetworkMobileConnectionRenderer = L.canvas({ pane: CONNECTION_PANE, padding: 0.2, tolerance: 0 });
+        }
+        return ghostNetworkMobileConnectionRenderer;
     }
 
     function mobileTapContainerPoint(map, event) {
@@ -260,7 +269,7 @@
             transition ? `transition-${transition}` : ""
         ].filter(Boolean).join(" ");
         const image = assetUrl
-            ? `<img class="ghostnetwork-part-art" src="${escapeHtml(assetUrl)}" alt="" draggable="false" onerror="this.hidden=true;this.parentElement.classList.add('asset-missing')">`
+            ? `<img class="ghostnetwork-part-art" src="${escapeHtml(assetUrl)}" alt="" draggable="false" decoding="async" onerror="this.hidden=true;this.parentElement.classList.add('asset-missing')">`
             : "";
         return L.divIcon({
             className: "ghostnetwork-part-icon",
@@ -391,7 +400,7 @@
         const state = normalizeState(part);
         const assetUrl = String((part.visual_asset_url || part.marker_asset_url) || "").trim();
         const html = assetUrl
-            ? `<span class="ghostnetwork-territory-badge has-asset is-${escapeHtml(state)}" aria-hidden="true"><span class="ghostnetwork-part-halo"></span><img class="ghostnetwork-part-art" src="${escapeHtml(assetUrl)}" alt="" draggable="false"></span>`
+            ? `<span class="ghostnetwork-territory-badge has-asset is-${escapeHtml(state)}" aria-hidden="true"><span class="ghostnetwork-part-halo"></span><img class="ghostnetwork-part-art" src="${escapeHtml(assetUrl)}" alt="" draggable="false" decoding="async"></span>`
             : `<span class="ghostnetwork-territory-badge is-${escapeHtml(state)}" aria-hidden="true"></span>`;
         const icon = L.divIcon({
             className: "ghostnetwork-territory-icon",
@@ -509,6 +518,24 @@
         if (!isRenderableConnectionCurve(points)) return null;
         const state = String(connection.state || "hidden");
         if (!connection.can_show_on_map || !["half_from_a", "half_from_b", "active"].includes(state)) return null;
+
+        if (isMobileGhostNetworkMap()) {
+            const renderer = mobileConnectionRenderer(map);
+            const contested = Boolean(connection.contested);
+            return L.polyline(points, {
+                pane: CONNECTION_PANE,
+                renderer: renderer || undefined,
+                noClip: true,
+                interactive: false,
+                bubblingMouseEvents: false,
+                color: contested ? "#ff473d" : (state === "active" ? "#5cff8f" : "#d7ff3a"),
+                weight: state === "active" ? 4 : 3,
+                opacity: state === "active" ? 0.78 : 0.62,
+                dashArray: state === "active" ? "10 7" : "12 10 2 10",
+                lineCap: "round",
+                lineJoin: "round"
+            });
+        }
 
         const layers = [
             L.polyline(points, {

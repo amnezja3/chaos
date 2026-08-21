@@ -316,10 +316,11 @@
   /* Large animated SVG filters force a full territory repaint on every
      Leaflet transform on mobile. Preserve state signalling without asking
      the touch compositor to rasterize the map continuously. */
-  .leaflet-interactive.ghostnetwork-territory-active,
-  .leaflet-interactive.ghostnetwork-territory-hostile {
+  .ghostnetwork-territory-active,
+  .ghostnetwork-territory-hostile {
     animation: none;
     filter: none;
+    pointer-events: none;
   }
 
   .leaflet-interactive.ghostnetwork-territory-active {
@@ -331,6 +332,10 @@
   .ghostnetwork-part-halo,
   .ghostnetwork-connection-pulse {
     animation: none;
+  }
+
+  .ghostnetwork-part-art {
+    filter: none;
   }
 
   .ghostnetwork-part-icon,
@@ -362,6 +367,7 @@
   .leaflet-interactive.ghostnetwork-territory-hostile {
     animation: none;
     filter: none;
+    pointer-events: none;
   }
 
   .leaflet-interactive.ghostnetwork-territory-active {
@@ -373,6 +379,10 @@
   .ghostnetwork-part-halo,
   .ghostnetwork-connection-pulse {
     animation: none;
+  }
+
+  .ghostnetwork-part-art {
+    filter: none;
   }
 }
 
