@@ -8,7 +8,7 @@
   {{ folium_css|safe }}
   <link rel="stylesheet" href="/static/css/style.css">
   <link rel="stylesheet" href="/static/css/blacknet.css">
-  <link rel="stylesheet" href="/static/css/ghostnetwork_map.css">
+  <link rel="stylesheet" href="/static/css/ghostnetwork_map.css?v=territory-states-1">
   <style>
     .context-menu {
       position: absolute;
@@ -1792,7 +1792,7 @@
   </script>
 
 {{ folium_js|safe }}
-<script src="/static/js/map/ghostnetwork.js"></script>
+<script src="/static/js/map/ghostnetwork.js?v=territory-states-1"></script>
 
     <script>
         const map = window[Object.keys(window).find(k => k.startsWith("map_"))];
@@ -8448,6 +8448,9 @@
                     (data.areas || []).forEach(renderTerritoryAreaLayer);
                     if (typeof window.refreshGhostTerritoryBadges === 'function') {
                         window.refreshGhostTerritoryBadges();
+                    }
+                    if (typeof window.refreshGhostTerritoryStates === 'function') {
+                        window.refreshGhostTerritoryStates();
                     }
 
                     if (data.territory_conflict_snapshot_mode) {

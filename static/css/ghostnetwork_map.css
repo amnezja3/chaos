@@ -115,6 +115,19 @@
   transform: rotate(45deg);
 }
 
+/* Strategic state decorates the canonical owner polygon; it never replaces
+   its fill/stroke ownership palette or creates another Leaflet layer. */
+.leaflet-interactive.ghostnetwork-territory-active {
+  filter: drop-shadow(0 0 3px #9cff32) drop-shadow(0 0 8px rgba(156, 255, 50, 0.82));
+  animation: ghostnetwork-territory-active-pulse 2.2s ease-in-out infinite;
+}
+
+.leaflet-interactive.ghostnetwork-territory-hostile {
+  stroke-dasharray: 3 5;
+  filter: drop-shadow(0 0 4px #ff3d2e) drop-shadow(0 0 9px rgba(255, 61, 46, 0.9));
+  animation: ghostnetwork-territory-hostile-alert 0.9s steps(2, end) infinite;
+}
+
 .ghostnetwork-connection {
   fill: none;
   pointer-events: none;
@@ -177,9 +190,21 @@
   }
 }
 
+@keyframes ghostnetwork-territory-active-pulse {
+  0%, 100% { filter: drop-shadow(0 0 3px #9cff32) drop-shadow(0 0 7px rgba(156, 255, 50, 0.66)); }
+  50% { filter: drop-shadow(0 0 5px #c8ff63) drop-shadow(0 0 12px rgba(156, 255, 50, 0.96)); }
+}
+
+@keyframes ghostnetwork-territory-hostile-alert {
+  0%, 100% { filter: drop-shadow(0 0 3px #ff3d2e) drop-shadow(0 0 7px rgba(255, 61, 46, 0.72)); }
+  50% { filter: drop-shadow(0 0 6px #ff8a3d) drop-shadow(0 0 13px rgba(255, 61, 46, 1)); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ghostnetwork-node.is-active,
-  .ghostnetwork-connection-pulse {
+  .ghostnetwork-connection-pulse,
+  .ghostnetwork-territory-active,
+  .ghostnetwork-territory-hostile {
     animation: none;
   }
 }

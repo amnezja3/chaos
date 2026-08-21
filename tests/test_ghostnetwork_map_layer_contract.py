@@ -112,6 +112,20 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn("height: 16px", badge)
         self.assertIn("prefers-reduced-motion", css)
 
+    def test_strategic_states_decorate_canonical_owner_polygon(self):
+        self.assertIn('moduleState === "blocked"', self.map_js)
+        self.assertIn('moduleState === "active"', self.map_js)
+        self.assertIn("setGhostTerritoryLayerState", self.map_js)
+        self.assertIn("window.refreshGhostTerritoryStates", self.map_js)
+        self.assertNotIn("ghostNetworkStrategicOverlayLayers", self.map_js)
+
+        css = (ROOT / "static" / "css" / "ghostnetwork_map.css").read_text(encoding="utf-8")
+        self.assertIn(".leaflet-interactive.ghostnetwork-territory-active", css)
+        self.assertIn(".leaflet-interactive.ghostnetwork-territory-hostile", css)
+
+    def test_territory_snapshot_refresh_reapplies_strategic_state(self):
+        self.assertIn("window.refreshGhostTerritoryStates();", self.map_template)
+
 
 if __name__ == "__main__":
     unittest.main()

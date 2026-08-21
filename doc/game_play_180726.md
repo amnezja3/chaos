@@ -22946,7 +22946,7 @@ fałszywe `GO`.
 
 # Sprint 130.9.2 — GhostNetwork SFX
 
-**Status:** `READY FOR ASSET DELIVERY` (2026-08-19).
+**Status:** `DONE / GO` (2026-08-21).
 
 ## Etapy realizacji
 
@@ -23205,9 +23205,79 @@ delivery do właściwych odbiorców. Każdy odbiorca nadal otrzymuje indywidualn
 viewer projection, a event części bez bezpiecznej projekcji jest pomijany bez
 ujawnienia internal `part_id`. Dedupe zachowuje stabilny klucz per odbiorca.
 
+### Wynik końcowy
+
+Sprint został domknięty po dostarczeniu i walidacji wszystkich ośmiu finalnych
+assetów MP3. Manifest `static/audio/sfx/manifest.v1.json` wskazuje istniejące,
+niepuste pliki z prawidłowym nagłówkiem ID3 dla wszystkich logical keys:
+
+* `ghostnetwork.part_discovered`,
+* `ghostnetwork.part_contained`,
+* `ghostnetwork.part_activated`,
+* `ghostnetwork.part_hostile`,
+* `ghostnetwork.part_lost`,
+* `ghostnetwork.module_progress`,
+* `ghostnetwork.module_complete`,
+* `ghostnetwork.signal`.
+
+Manual serwerowy potwierdził dokładnie jeden live SFX przy containment. Delivery
+zachowuje visibility/projection contract i dedupe per odbiorca; eventy
+`internal/system` nie są publikowane do klienta, a snapshot, reload i recovery
+nie odtwarzają historycznego audio. Brak lub błąd assetu pozostaje nieblokującym
+presentation failure.
+
+Końcowa regresja 2026-08-21:
+
+* GhostNetwork SFX/delta/lifecycle/module/territory/map: `58/58 OK`,
+* wspólny player JS: `game_sfx contract ok`,
+* składnia `static/js/terminal.js`: OK,
+* komplet manifestu i MP3: `8/8 OK`.
+
+`GO — Sprint 130.9.2 GhostNetwork SFX validated in live gameplay`
+
 ---
 
 # Sprint 130.9.3 — GhostNetwork Territory Visual States
+
+**Status:** `READY FOR MANUAL GAMEPLAY TEST` (2026-08-21).
+
+## Wynik Etapu 1–2
+
+Backend nie wymaga zmiany kontraktu. Viewer projection już dostarcza kanoniczne
+`module_state`, `territory_id` i `conflict_state`; frontend nie wylicza lifecycle
+z geometrii ani ownership.
+
+| Stan kanoniczny GN | Snapshot/delta | Dotknięte pole | Presentation |
+| --- | --- | --- | --- |
+| pozostałe / brak `territory_id` | projekcja części | brak | `normal`, bez klasy GN |
+| `module_state=active` | projekcja części | `territory_id` | `ghostnetwork-territory-active` |
+| `module_state=blocked` | projekcja części | `territory_id` | `ghostnetwork-territory-hostile` |
+
+Stan jest agregowany po wszystkich widocznych projekcjach części; `hostile` ma
+priorytet nad `active`. Klasa trafia na istniejący kanoniczny polygon Leaflet,
+więc nie powstaje drugi overlay, a fill i stroke właściciela pozostają źródłem
+informacji o ownership. ACTIVE używa zielonego pulse/glow, HOSTILE czerwonego
+alarmowego glow z linią przerywaną. Oba efekty respektują
+`prefers-reduced-motion`.
+
+Snapshot GN, part delta oraz przebudowa snapshotu terytoriów korzystają z tego
+samego rejestru i funkcji `refreshGhostTerritoryStates()`. Usunięcie, zmiana
+territory, deaktywacja i pełny snapshot czyszczą stary stan. W trakcie testu
+naprawiono również routing part delta, który mógł błędnie uznać ogólne
+`payload.projection` za projekcję połączenia.
+
+Automatyczna regresja:
+
+* renderer JS: snapshot/delta, `normal/active/hostile`, priorytet wielu części,
+  cleanup i territory rebuild — OK,
+* kontrakt map/visibility/delta: `37/37 OK`,
+* GN lifecycle/territory oraz Target Registry/conflict/multi-conflict/map loader:
+  `178/178 OK`,
+* składnia `static/js/map/ghostnetwork.js`: OK.
+
+Sprint 130.9.3 does not require new external assets.
+
+`READY FOR MANUAL GAMEPLAY TEST — Sprint 130.9.3`
 
 ## Etapy realizacji
 

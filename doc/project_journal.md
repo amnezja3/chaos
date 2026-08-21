@@ -1,5 +1,30 @@
 # CHAOS — Project Journal
 
+## 2026-08-21 - Sprint 130.9.3 Etap 1–2: Territory Visual States
+
+- Kanoniczne `module_state` i `territory_id` wystarczają do prezentacji:
+  `active` daje zielony pulse/glow, a `blocked` czerwony alarmowy stan HOSTILE.
+- Efekt dekoruje istniejący polygon Leaflet bez tworzenia dodatkowych warstw i
+  bez zastępowania ownership fill; dla wielu części obowiązuje `hostile > active`.
+- Snapshot, delta, cleanup i territory rebuild używają jednego rejestru. Przy
+  okazji zawężono router connection delta, aby part projection nie była błędnie
+  przechwytywana jako połączenie.
+- Regresja: kontrakt map/delta `37/37`, szerszy GN/territory/conflict/Target
+  Registry `178/178`, renderer JS i syntax check — OK.
+- Brak nowych assetów. Status: `READY FOR MANUAL GAMEPLAY TEST — Sprint 130.9.3`.
+
+## 2026-08-21 - Formalne GO Sprintu 130.9.2 GhostNetwork SFX
+
+- Usunięto nieaktualny status `READY FOR ASSET DELIVERY`: wszystkie osiem
+  finalnych MP3 istnieje, jest niepustych, ma nagłówek ID3 i poprawne wpisy w
+  `manifest.v1.json`.
+- Końcowa regresja SFX, delta publication/audience, lifecycle, module state,
+  territory jobs i map layer zakończyła się wynikiem `58/58 OK`; wspólny player
+  JS oraz kontrola składni `terminal.js` również przeszły.
+- Manual serwerowy pozostaje dowodem dokładnie jednego live SFX containment;
+  visibility/dedupe są zachowane, a snapshot/recovery nie odtwarzają audio.
+- Werdykt: `GO — Sprint 130.9.2 GhostNetwork SFX validated in live gameplay`.
+
 ## 2026-08-20 - GO 130.9.2.fix.all.1 i domknięcie Sprintu 130.9.2
 
 - Finalny pomiar serwerowy objął 13 nowych jobów GN: `failures=0`, `busy=0`,

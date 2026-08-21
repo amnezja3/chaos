@@ -31,6 +31,8 @@
     window.ghostNetworkConnectionProjections = window.ghostNetworkConnectionProjections || {};
     window.ghostNetworkTerritoryLayers = window.ghostNetworkTerritoryLayers || {};
     window.ghostNetworkPendingTerritoryParts = window.ghostNetworkPendingTerritoryParts || {};
+    window.ghostNetworkPartProjections = window.ghostNetworkPartProjections || {};
+    window.ghostNetworkTerritoryStates = window.ghostNetworkTerritoryStates || {};
     window.ghostNetworkStateVersion = Number(window.ghostNetworkStateVersion || 0);
     window.ghostNetworkCycleId = window.ghostNetworkCycleId || "";
     window.ghostNetworkSnapshotChecksum = window.ghostNetworkSnapshotChecksum || "";
@@ -117,6 +119,43 @@
         return String((part && part.module_state) || (part && part.status) || "neutral").toLowerCase();
     }
 
+    function ghostTerritoryStrategicState(part) {
+        const territoryId = String((part && part.territory_id) || "").trim();
+        if (!territoryId) return "none";
+        const moduleState = String((part && part.module_state) || "").toLowerCase();
+        if (moduleState === "blocked") return "hostile";
+        if (moduleState === "active") return "active";
+        return "none";
+    }
+
+    function setGhostTerritoryLayerState(entry, state) {
+        const layer = entry && entry.layer ? entry.layer : entry;
+        if (!layer) return false;
+        const normalized = state === "hostile" || state === "active" ? state : "none";
+        layer._ghostNetworkStrategicState = normalized;
+        const element = typeof layer.getElement === "function" ? layer.getElement() : null;
+        if (!element || !element.classList) return false;
+        element.classList.remove("ghostnetwork-territory-active", "ghostnetwork-territory-hostile");
+        if (normalized !== "none") element.classList.add(`ghostnetwork-territory-${normalized}`);
+        return true;
+    }
+
+    function refreshGhostTerritoryStates() {
+        const registry = window.territoryAreaLayers || {};
+        const states = {};
+        Object.values(window.ghostNetworkPartProjections || {}).forEach(part => {
+            const territoryId = String((part && part.territory_id) || "").trim();
+            const state = ghostTerritoryStrategicState(part);
+            if (!territoryId || state === "none") return;
+            if (state === "hostile" || !states[territoryId]) states[territoryId] = state;
+        });
+        Object.keys(registry).forEach(territoryId => {
+            setGhostTerritoryLayerState(registry[territoryId], states[territoryId] || "none");
+        });
+        window.ghostNetworkTerritoryStates = states;
+        return { ...states };
+    }
+
     function isAnchor(part) {
         return String((part && part.part_type) || (part && part.kind) || "").toLowerCase() === "ghost_anchor"
             || String((part && part.part_code) || "").toLowerCase().includes("anchor")
@@ -190,6 +229,8 @@
         }
         delete window.ghostNetworkTerritoryLayers[normalizedKey];
         delete window.ghostNetworkPendingTerritoryParts[normalizedKey];
+        delete window.ghostNetworkPartProjections[normalizedKey];
+        refreshGhostTerritoryStates();
         return true;
     }
 
@@ -223,6 +264,8 @@
         window.ghostNetworkPartLayers = {};
         window.ghostNetworkTerritoryLayers = {};
         window.ghostNetworkPendingTerritoryParts = {};
+        window.ghostNetworkPartProjections = {};
+        refreshGhostTerritoryStates();
     }
 
     function renderGhostTerritoryBadge(part) {
@@ -241,6 +284,8 @@
             }
         }
         if (!key) return false;
+        window.ghostNetworkPartProjections[key] = part;
+        refreshGhostTerritoryStates();
         if (!coords) {
             window.ghostNetworkPendingTerritoryParts[key] = part;
             const pendingKeys = Object.keys(window.ghostNetworkPendingTerritoryParts);
@@ -275,6 +320,7 @@
         Object.values(window.ghostNetworkPendingTerritoryParts || {}).forEach(part => {
             if (renderGhostTerritoryBadge(part)) rendered += 1;
         });
+        refreshGhostTerritoryStates();
         return rendered;
     }
 
@@ -428,6 +474,7 @@
         if (!map || !window.L || !part) return false;
         const key = projectionKey(part);
         if (!key) return false;
+        window.ghostNetworkPartProjections[key] = part;
         if (part.can_show_on_map === false) {
             removeGhostPartMarker(key);
             return false;
@@ -457,6 +504,7 @@
             marker.on("click", () => openGhostPartPanel(part, marker));
         }
         marker.ghostNetworkProjection = part;
+        refreshGhostTerritoryStates();
         refreshGhostConnections();
         const badge = window.ghostNetworkTerritoryLayers[key];
         if (badge) {
@@ -579,7 +627,14 @@
     function applyGhostPartDelta(event) {
         if (!event || typeof event !== "object") return false;
         const type = String(event.type || "");
-        if (CONNECTION_DELTA_TYPES.has(type) || (event.scope === "ghostnetwork" && extractConnectionProjection(event))) {
+        const possibleConnection = extractConnectionProjection(event);
+        const isConnectionProjection = possibleConnection && (
+            possibleConnection.public_connection_id
+            || possibleConnection.connection_id
+            || possibleConnection.endpoint_a
+            || possibleConnection.endpoint_b
+        );
+        if (CONNECTION_DELTA_TYPES.has(type) || (!DELTA_TYPES.has(type) && isConnectionProjection)) {
             return applyGhostConnectionDelta(event);
         }
         if (!DELTA_TYPES.has(type) && event.scope !== "ghostnetwork") return false;
@@ -764,6 +819,7 @@
     window.removeGhostPartMarker = removeGhostPartMarker;
     window.renderGhostTerritoryBadge = renderGhostTerritoryBadge;
     window.refreshGhostTerritoryBadges = refreshGhostTerritoryBadges;
+    window.refreshGhostTerritoryStates = refreshGhostTerritoryStates;
     window.openGhostPartPanel = openGhostPartPanel;
     window.clearGhostNetworkLayer = clearGhostNetworkLayer;
     window.recoverGhostNetworkLayer = recoverGhostNetworkLayer;

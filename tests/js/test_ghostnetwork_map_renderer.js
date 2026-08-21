@@ -17,6 +17,20 @@ function marker(coords, options) {
 }
 
 const panes = {};
+function territoryLayer() {
+    const classes = new Set(["leaflet-interactive"]);
+    return {
+        _classes: classes,
+        getElement() {
+            return {
+                classList: {
+                    add(...names) { names.forEach(name => classes.add(name)); },
+                    remove(...names) { names.forEach(name => classes.delete(name)); }
+                }
+            };
+        }
+    };
+}
 const map = {
     createPane(name) { return (panes[name] = { style: {} }); },
     getPane(name) { return panes[name] || null; },
@@ -84,6 +98,51 @@ function response(payload) {
     assert.strictEqual(Object.keys(win.ghostNetworkPendingTerritoryParts).length, 20);
     win.removeGhostPartMarker("pending-24");
     assert.strictEqual(win.ghostNetworkPendingTerritoryParts["pending-24"], undefined);
+
+    const territoryA = territoryLayer();
+    win.territoryAreaLayers = { "territory-a": { layer: territoryA } };
+    win.applyGhostPartDelta({
+        scope: "ghostnetwork", type: "ghost.part_activated", version: 3,
+        payload: { projection: {
+            public_entity_id: "active-part", can_show_on_map: true,
+            location_visibility: "exact", latitude: 3, longitude: 4,
+            territory_id: "territory-a", module_state: "active"
+        } }
+    });
+    assert.strictEqual(territoryA._ghostNetworkStrategicState, "active");
+    assert.ok(territoryA._classes.has("ghostnetwork-territory-active"));
+
+    win.applyGhostPartDelta({
+        scope: "ghostnetwork", type: "ghost.part_contained", version: 4,
+        payload: { projection: {
+            public_entity_id: "hostile-part", can_show_on_map: true,
+            location_visibility: "exact", latitude: 5, longitude: 6,
+            territory_id: "territory-a", module_state: "blocked"
+        } }
+    });
+    assert.strictEqual(territoryA._ghostNetworkStrategicState, "hostile", "hostile must win over active");
+    assert.ok(territoryA._classes.has("ghostnetwork-territory-hostile"));
+    assert.ok(!territoryA._classes.has("ghostnetwork-territory-active"));
+
+    win.removeGhostPartMarker("hostile-part");
+    assert.strictEqual(territoryA._ghostNetworkStrategicState, "active", "removing hostile restores active");
+
+    const rebuiltTerritory = territoryLayer();
+    win.territoryAreaLayers = { "territory-a": { layer: rebuiltTerritory } };
+    win.refreshGhostTerritoryStates();
+    assert.strictEqual(rebuiltTerritory._ghostNetworkStrategicState, "active", "snapshot rebuild restores state");
+
+    assert.strictEqual(win.applyGhostPartDelta({
+        scope: "ghostnetwork", type: "ghost.part_deactivated", version: 5,
+        payload: { projection: {
+            public_entity_id: "active-part", can_show_on_map: true,
+            location_visibility: "exact", latitude: 3, longitude: 4,
+            territory_id: "territory-a", module_state: "contained"
+        } }
+    }), true);
+    assert.strictEqual(rebuiltTerritory._ghostNetworkStrategicState, "none");
+    assert.ok(!rebuiltTerritory._classes.has("ghostnetwork-territory-active"));
+    assert.ok(!rebuiltTerritory._classes.has("ghostnetwork-territory-hostile"));
 
     console.log("ghostnetwork map renderer tests: OK");
 })().catch(error => {
