@@ -8,6 +8,54 @@ Cel: wskazac, ktore fragmenty `users.profile_json` warto przeniesc do
 osobnych tabel/store'ow, zeby ograniczyc race condition, cofanie stanu,
 ciezkie `sync_session_profile()` i zapis calego profilu przy malych zmianach.
 
+## Bramka po incydencie Trollu2 — Sprint 130.10
+
+Incydent z 2026-08-21 podnosi integralność profilu i kierunek compatibility
+mirrorów do P0 przed Sprintem 131. Wiążące artefakty:
+
+```text
+doc/Incydent Trollu2 — utrata profilu, błędy sesji i plan odbudowy.md
+doc/sprint_130_10_profile_integrity_session_isolation.md
+doc/sprint_130_11_trollu2_controlled_recovery.md
+doc/profile_integrity_writer_inventory.md
+doc/profile_integrity_recovery_runbook.md
+```
+
+Potwierdzony destructive-write w bieżącym modelu:
+
+* `apply_ghostnetwork_runtime_result()` może naliczyć first activation reward
+  na sparse projection z `list_profile_identities()`, a następnie przekazać ją
+  do pełnego `UserStore.save_profile()`. Późniejszy template sync zamienia braki
+  w wartości starter-like. Defekt kodu jest `CONFIRMED`; jego wykonanie dla
+  konkretnego incydentu pozostaje `PENDING SERVER CORRELATION`.
+
+Pozostałe potwierdzone ryzyka:
+
+* `loads_json(..., {})` nie odróżnia błędu JSON od pustego wyniku;
+* strukturalnie poprawny, lecz niepełny profil może zostać zsynchronizowany z
+  template'em bez pełnego sanity contract;
+* pełny `UserStore.save_profile()` nie ma ogólnej revision/CAS ani LKG;
+* `PlayerInventoryStore` prawidłowo może odtworzyć apps/tools z wydzielonego
+  store, co tłumaczy częściowe przeżycie danych;
+* wallet ma nadal niebezpieczny kierunek reconciliation: rozbieżny
+  `fallback_profile.hackcoins` może ustawić `wallet_balances`;
+* mimo istnienia `wallet_balances` legacy `WalletStore.transfer()` i
+  `technical_transfer()` nadal zapisują oba pełne `profile_json`, więc wallet
+  ma obecnie hybrydowy zestaw writerów.
+
+Sprint 130.10 ma najpierw zablokować persistence fallbacku, dodać revision/CAS
+i atomowy last-known-good oraz wymusić kierunek:
+
+```text
+canonical store -> profile mirror
+```
+
+Automatyczny kierunek `fallback profile -> canonical store` nie może działać w
+zwykłym read path. Przed odwróceniem mirroru trzeba przenieść lub bezpiecznie
+spiąć wszystkie wallet writers, w tym transfery, Googleplex i Ghost Exchange;
+inaczej dwa źródła salda rozjadą się. Globalny store-primary cutover pozostałych
+scope'ów nadal pozostaje poza zakresem.
+
 ## Status po Sprintach 130.1-130.5
 
 Wydzielone store'y runtime:

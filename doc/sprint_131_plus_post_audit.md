@@ -1,9 +1,32 @@
-# Post-audit Sprintów 131–138 — stan po 130.9.5
+# Post-audit Sprintów 131–138 — baseline po 130.9.5 i bramka 130.10–130.11
 
 Data audytu: 2026-08-21.
 
-Status: plan skorygowany, gotowy do realizacji od Sprintu 131. Audyt nie
-implementuje GhostNetwork Suite ani pipeline'u Ollamy.
+Status: plan skorygowany i zachowany, ale Sprint 131 jest w kolejce za
+incydentowymi Sprintami 130.10 i 130.11. Audyt nie implementuje GhostNetwork
+Suite ani pipeline'u Ollamy.
+
+## Bramka incydentowa przed Sprintem 131
+
+Incydent `Trollu2` ujawnił możliwe P0 dotyczące trwałości profilu i izolacji
+kolejnych logowań. Rozwój Suite nie może rozszerzać liczby user-scoped cache,
+snapshotów i delt przed zamknięciem tych podstaw.
+
+Wiążąca kolejność:
+
+1. `130.10 — Profile Integrity and Cross-Account Session Isolation`;
+2. `130.11 — Trollu2 Controlled Profile and Territory Recovery`;
+3. dopiero `131 — GhostNetwork Suite audit`.
+
+Artefakty:
+
+- `doc/sprint_130_10_profile_integrity_session_isolation.md`;
+- `doc/sprint_130_11_trollu2_controlled_recovery.md`;
+- `doc/Incydent Trollu2 — utrata profilu, błędy sesji i plan odbudowy.md`.
+
+Zakres 131–138 nie jest renumerowany ani anulowany. Status Sprintu 131:
+
+`QUEUED — BLOCKED BY SPRINTS 130.10 AND 130.11`.
 
 ## Zweryfikowany baseline
 
@@ -185,6 +208,10 @@ Każdy sprint ma:
 
 ## Kolejność i bramki
 
+- 130.10: integralność profilu, LKG, CAS i izolacja sesji A/B, zakończone
+  manualnym testem dwóch kont i dwóch kart.
+- 130.11: podpisany dry-run i kontrolowane recovery `Trollu2`, zakończone
+  post-apply verify i manualnym ponownym logowaniem.
 - 131: audit-only, `READY FOR SPRINT 132`.
 - 132: backend suite read model + privacy/cache tests.
 - 133: listy desktopowe bez aktywnych map/teleport requestów.
@@ -194,4 +221,3 @@ Każdy sprint ma:
 - 137: worker Ollamy, verify/dry-run, test z modelem zastępczym; realny model ma
   osobną bramkę operatorską.
 - 138: publikacja BlackNet i fallback E2E, manual feed/CTA.
-

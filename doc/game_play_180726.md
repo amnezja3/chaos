@@ -25118,6 +25118,194 @@ Nie deployuj.
 ---
 
 
+# Sprint 130.10 — Profile Integrity and Cross-Account Session Isolation
+
+**Status:** `READY FOR READ-ONLY SERVER FORENSICS — Sprint 130.10`.
+
+**Wiążący artefakt:**
+`doc/sprint_130_10_profile_integrity_session_isolation.md`.
+
+**Incydent:**
+`doc/Incydent Trollu2 — utrata profilu, błędy sesji i plan odbudowy.md`.
+
+## Cel
+
+Usunąć systemową możliwość trwałego zapisania fallbacku albo stale pełnego
+profilu oraz zagwarantować, że stan sesji A nie może zostać pokazany ani
+zapisany po zalogowaniu B.
+
+Sprint obejmuje:
+
+- read-only forensics i mapę wszystkich writerów profilu;
+- rozróżnienie `missing`, `invalid_json`, `invalid_schema` i
+  `recovery_required`;
+- blokadę persistence dla fallbacku i niepełnego template state;
+- revision/CAS dla pełnych zapisów;
+- atomowy `last_known_good` bez credentials i bez drugiego source of truth
+  terytoriów;
+- ujednolicenie hybrydowych wallet writerów, a następnie jednokierunkowe
+  mirrory z kanonicznych inventory/runtime store'ów;
+- rotację identyfikatora sesji i unikalną `session_generation` dla każdego
+  logowania, także A → B → A;
+- centralny teardown pollerów, cache, iframe mapy, delta/GN state, operations,
+  launch queue, toolbar i SFX dedupe;
+- odrzucenie spóźnionych odpowiedzi oraz mutacji starej karty;
+- telemetrykę bez pełnych profili i sekretów.
+
+Załączony log potwierdza trzy wystąpienia jednego błędu renderera połączeń GN
+(`Bounds.intersects → Polyline._clipPoints`), ale nie zawiera błędu profilu,
+sesji ani backendowego lifecycle. Renderer pozostaje regresją sprintu, nie
+założoną przyczyną utraty danych.
+
+## Model realizacji
+
+1. Audyt realnych call sites i source of truth.
+2. Read-only narzędzie `status/audit/verify` i osobna serwerowa evidence gate
+   przed runtime changes.
+3. Minimalna, idempotentna additive migracja LKG/revision tylko po audycie.
+4. Centralny write guard z obowiązkowym `expected_revision`, bez bezpośrednich
+   full-profile writers poza allowlistą.
+5. Jedna atomowa granica walletu obejmująca transfery, Googleplex i GX.
+6. Backend/frontend session generation, endpoint inventory i teardown.
+7. Testy malformed/partial profile, CAS, wallet/inventory i A/B stale response.
+8. Regresja mapy, delta/snapshot, trzeciego filaru/GN, Target Registry,
+   territory i profilu.
+9. Manual dwóch kont, dwóch kart i oryginalnej klasy ścieżki trzeciego filaru
+   wykonywany przez użytkownika na koncie testowym.
+
+Bramka przed zmianami runtime:
+
+`READY FOR READ-ONLY SERVER FORENSICS — Sprint 130.10`
+
+Etap 1 ukończono 2026-08-21. Powstały:
+
+- `tools/audit_profile_integrity.py` — zredagowane `status/audit/verify` w
+  logicznym snapshotcie SQLite `mode=ro` + `query_only`;
+- `tests/test_profile_integrity_audit_tool.py` — regresja read-only, redakcji,
+  malformed/partial profile, schema drift, wallet, inventory i GN rewardów;
+- `doc/profile_integrity_writer_inventory.md` — mapa writerów i source of truth;
+- `doc/profile_integrity_recovery_runbook.md` — wyłącznie serwerowy evidence
+  capture, bez repair i bez przekazywania raw DB/session files.
+
+Audyt potwierdził deterministyczny defekt: reward po `ghost.part_activated`
+może zostać naliczony na sparse projection z `list_profile_identities()`, po
+czym `UserStore.save_profile()` zapisuje ją jako cały profil. Późniejszy
+template sync tworzy stan starter-like. Defekt kodu jest `CONFIRMED`; jego
+wykonanie w incydencie `Trollu2` pozostaje `PENDING SERVER CORRELATION`.
+Etap 2 nie został rozpoczęty.
+
+Po zabezpieczeniu dowodów:
+
+`FORENSICS CAPTURED — Sprint 130.10`
+
+Bramka po implementacji i automatach:
+
+`READY FOR MANUAL ACCOUNT-SWITCH TEST — Sprint 130.10`
+
+Werdykt:
+
+`GO — Sprint 130.10 profile integrity and session isolation validated`
+
+albo:
+
+`NO-GO — Sprint 130.10 still has profile integrity or session isolation blockers`
+
+Sprint nie naprawia jeszcze konta `Trollu2`. Root-cause disposition przed GO
+musi brzmieć `CONFIRMED` albo `UNCONFIRMED BUT CONTAINED`.
+
+---
+
+# Sprint 130.11 — Trollu2 Controlled Profile and Territory Recovery
+
+**Status:** `QUEUED — REQUIRES GO FROM SPRINT 130.10`.
+
+**Wiążący artefakt:**
+`doc/sprint_130_11_trollu2_controlled_recovery.md`.
+
+## Cel
+
+Odbudować konto zgłoszone jako `Trollu2` za pomocą idempotentnego narzędzia z
+podpisanym planem, potwierdzonym exact canonical username, before-manifestem,
+dry-runem, jawnym apply, durable receiptem, verify i ograniczonym rollbackiem.
+Nie wolno naprawiać profilu przez ręczny overwrite JSON-u ani tworzyć
+terytoriów przez bezpośredni zapis polygonu.
+
+Docelowy stan rekompensaty:
+
+```text
+level = 50
+respect = 2560
+hackcoins = 250000
+exp = projekcja przeliczona po kanonicznym rebuildzie terytoriów
+```
+
+Inventory zachowuje wszystkie canonical apps/tools oraz dwie ostatnie
+instalacje Googleplex, jeżeli potwierdza je purchase history. Brak dowodu
+tożsamości aplikacji zatrzymuje plan zamiast uruchamiać zgadywanie.
+
+Bonusowe terytoria:
+
+- miasta wyłącznie z hierarchii potwierdzonych dowodów; travel tickets nie mają
+  osobnego kanonicznego store;
+- `5–8` filarów, preferowane `8`;
+- atomowy recovery grant: unowned target + `stationary=true` + captured target
+  + rebuild job + step receipt, następnie istniejący worker;
+- brak konfliktów i repair-sourced zmian profili/ownership/progression innych
+  graczy; zwykłe publikacje/delivery są dozwolone;
+- brak styku z częścią GN; kolizja powoduje relokację albo NO-GO.
+
+## Model realizacji
+
+1. Precondition gate po GO 130.10.
+2. Read-only audit profilu, LKG, walletu, inventory, zakupów, terytoriów i GN.
+3. Podpisany checksumem plan before → after i odtwarzalny before-manifest.
+4. Dry-run bez zapisu i osobna akceptacja użytkownika.
+5. Jawny, idempotentny apply wykonywany operatorsko: level 50 → recovery jobs →
+   progression-neutralny stats/exp refresh → finalne 50/2560/250000.
+6. Terminalny sukces własnych job IDs i verify wszystkich dotkniętych source
+   of truth; aktywność pozostałych kolejek może trwać.
+7. Manual login/profile/Googleplex/map/logout/login.
+8. Jawna promocja verified final state do LKG bez usuwania before evidence.
+9. Causal audit GN: valid cykl z 20 częściami i zero repair-sourced GN writes,
+   zamiast wymagania globalnie identycznych event counts na żywym serwerze.
+
+Bramki:
+
+`READY FOR TROLLU2 RECOVERY DRY-RUN — Sprint 130.11`
+
+następnie:
+
+`READY FOR MANUAL RECOVERY APPLY — Sprint 130.11`
+
+Werdykt:
+
+`GO — Sprint 130.11 Trollu2 recovery validated`
+
+albo:
+
+`NO-GO — Sprint 130.11 still has recovery or canonical-state blockers`
+
+Asystent nie wykonuje apply, commita ani deployu bez osobnego polecenia.
+
+---
+
+# Bramka przed Sprintem 131
+
+Nie używamy nazw `130.9.6` i `130.9.7`, ponieważ występują już jako historyczne
+etapy Runtime Enablement. Jednoznaczna kolejność to:
+
+```text
+130.10 — integralność profilu i izolacja sesji
+→ 130.11 — kontrolowana odbudowa Trollu2
+→ 131 — GhostNetwork Suite audit
+```
+
+Do czasu obu GO:
+
+`QUEUED — BLOCKED BY SPRINTS 130.10 AND 130.11`.
+
+---
+
 > Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.
 
 # Sprint 131 — GhostNetwork Suite: audyt widoczności części i integracja z Territory Control
@@ -25129,7 +25317,7 @@ Nie deployuj.
 > `doc/sprint_131_ghostnetwork_suite_audit.md`. Pełne ustalenia:
 > `doc/sprint_131_plus_post_audit.md`.
 
-**Status planu:** `READY TO START — Sprint 131`.
+**Status planu:** `QUEUED — BLOCKED BY SPRINTS 130.10 AND 130.11`.
 
 ## Cel sprintu
 

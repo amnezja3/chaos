@@ -1,5 +1,61 @@
 # CHAOS — Project Journal
 
+## 2026-08-21 - Sprint 130.10 Etap 1: writer audit i read-only evidence gate
+
+- Audyt ścieżki trzeciego filaru potwierdził deterministyczny destructive-write:
+  `ghost.part_activated` może naliczyć first activation reward na sparse
+  projection z `list_profile_identities()`, a następnie zapisać ją przez pełny
+  `UserStore.save_profile()`. Późniejszy template sync uzupełnia brakujące pola
+  wartościami starter-like.
+- Defekt kodu ma status `CONFIRMED CODE DEFECT`; przypisanie go do incydentu
+  `Trollu2` pozostaje `PENDING SERVER CORRELATION` do zredagowanego odczytu
+  activation/reward timeline, `users.updated_at` i durable stores.
+- Zinwentaryzowano full/patch-to-full/direct writers, hybrydowy wallet,
+  compatibility mirrory, nieliczne istniejące CAS oraz brak profile revision,
+  LKG i session generation. Osobno potwierdzono brak izolacji epoki logowania i
+  nieautoryzowany zakres `/api/users/delete`.
+- Dodano read-only `tools/audit_profile_integrity.py`. Narzędzie korzysta z
+  SQLite `mode=ro`, `PRAGMA query_only=ON` i jednej transakcji odczytowej; nie
+  importuje runtime ani nie uruchamia template/mirror/reconcile. Raport redaguje
+  login, credentials, pełny profile JSON, współrzędne i topologię.
+- Dodano regresję narzędzia oraz artefakty
+  `doc/profile_integrity_writer_inventory.md` i
+  `doc/profile_integrity_recovery_runbook.md`.
+- Nie zmieniono runtime, nie wykonano repair, migracji, deployu ani restartu.
+  Etap 2 czeka na dane serwerowe.
+- Status: `READY FOR READ-ONLY SERVER FORENSICS — Sprint 130.10`.
+
+## 2026-08-21 - Incydent Trollu2 i bramka 130.10–130.11 przed Sprintem 131
+
+- Przefiltrowano załącznik konsoli bez przenoszenia nazw i współrzędnych innych
+  graczy. Potwierdza on jeden defect renderera połączeń GN: dwa błędy live delta
+  i jeden snapshot w `Bounds.intersects → Polyline._clipPoints`. Sześć refreshy
+  actor API zakończyło się HTTP 200 dla 9 aktorów w około 3,85–5,00 s.
+- Załącznik nie zawiera requestu profilu, błędu sesji, `401/403/500`, event ID
+  lifecycle ani logu SFX, więc nie łączy renderera przyczynowo z utratą profilu.
+- Audyt kodu wskazał P0 do weryfikacji: zacieranie `JSONDecodeError` do `{}`;
+  automatyczny template sync dla niepełnego profilu; pełne last-write-wins bez
+  ogólnego CAS/LKG; możliwość wtórnego obniżenia walletu z profile fallback.
+  Wallet ma też legacy transfery zapisujące pełne profile, więc przed
+  odwróceniem mirroru wymaga jednej granicy wszystkich writerów. Osobny
+  inventory store wyjaśnia, dlaczego apps/tools mogły przetrwać.
+- Rozpisano `Sprint 130.10 — Profile Integrity and Cross-Account Session
+  Isolation`: forensics, write guard, revision/CAS, last-known-good,
+  jednokierunkowe mirrory oraz unikalna generation i teardown sesji A/B.
+- Rozpisano zależny `Sprint 130.11 — Trollu2 Controlled Profile and Territory
+  Recovery`: exact-user audit, podpisany dry-run, idempotentny apply/receipt,
+  before-manifest/rollback, LVL 50, RSP 2560, 250000 HC i terytoria przez
+  atomowy recovery grant oraz istniejący worker.
+- `exp` pozostaje projekcją powierzchni i ma zostać przeliczony
+  progression-neutralnie po rebuildzie; nie będzie ustawiany surowo na 2560.
+  Na aktywnym serwerze GN może zmienić się przez innych testerów, więc verify
+  wymaga zero repair-sourced GN writes i valid 20-part runtime, nie globalnie
+  identycznego event count.
+- Numery 130.10 i 130.11 wybrano, ponieważ historyczne 130.9.6–130.9.12 są już
+  zajęte. Sprint 131 jest formalnie zablokowany do GO obu bramek.
+- Zmiana jest wyłącznie dokumentacyjna. Nie wykonano repair, commita, deployu
+  ani mutacji danych serwerowych.
+
 ## 2026-08-21 - Post-audit Sprintów 131–138
 
 - Zweryfikowano plan względem runtime po 130.9.5. Wykryto istniejące elementy,

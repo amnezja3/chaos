@@ -1,0 +1,566 @@
+# Sprint 130.10 — Profile Integrity and Cross-Account Session Isolation
+
+Data planu: 2026-08-21.
+
+Status: `READY FOR READ-ONLY SERVER FORENSICS — Sprint 130.10`.
+
+Incydent źródłowy:
+`doc/Incydent Trollu2 — utrata profilu, błędy sesji i plan odbudowy.md`.
+
+## Cel
+
+Najpierw zatrzymać klasę błędów, która mogła zamienić pełny profil w stan
+startowy albo pomieszać stan dwóch kolejnych logowań. Sprint nie odbudowuje
+jeszcze konta `Trollu2`. Przygotowuje bezpieczny runtime, w którym repair nie
+zostanie ponownie nadpisany przez ten sam mechanizm.
+
+Sprint ma dostarczyć:
+
+- jednoznaczne rozróżnienie profilu poprawnego, niepełnego, uszkodzonego i
+  nieistniejącego;
+- blokadę zapisu fallbacku lub destrukcyjnego stale snapshotu;
+- atomowy `last_known_good` dla pól pozostających w `users.profile_json`;
+- ochronę pełnych zapisów przez revision/CAS;
+- poprawny kierunek synchronizacji compatibility mirrorów;
+- izolację kolejnych logowań przez unikalną generację sesji;
+- odrzucanie spóźnionych odpowiedzi, delt i requestów poprzedniej sesji;
+- telemetrykę i narzędzia pozwalające ustalić faktyczny przebieg incydentu.
+
+## Zasady startowe
+
+Przed pierwszą zmianą:
+
+1. uruchomić `git status --short`;
+2. przejrzeć bieżący diff oraz pliki untracked;
+3. uznać zastane zmiany za należące do użytkownika i nie cofać ich;
+4. sprawdzić realne call sites i source of truth przed zaprojektowaniem guardów;
+5. do bramki evidence wykonywać wyłącznie odczyty oraz pracę nad read-only
+   narzędziem diagnostycznym.
+
+Sprint nie daje automatycznej zgody na commit, deploy, restart, migrację
+serwerową ani mutację profilu.
+
+## Dlaczego ten sprint jest przed odbudową
+
+Audyt Etapu 1 potwierdził jeden deterministyczny destructive-write w kodzie,
+który może wyjaśnić starter-like reset po trzecim filarze. Przypisanie tej
+ścieżki do konkretnego incydentu `Trollu2` nadal wymaga korelacji serwerowej:
+
+1. `loads_json(..., {})` zaciera różnicę między błędem dekodowania JSON a
+   prawidłowym pustym wynikiem.
+2. Strukturalnie poprawny, lecz niepełny profil może zostać przyjęty przez
+   `UserProfileManager`, uzupełniony template'em i zapisany.
+3. `UserStore.save_profile()` zapisuje cały `profile_json` bez ogólnego CAS i
+   bez niezależnego `last_known_good`; zachowuje tylko kilka specjalnie
+   scalanych zakresów.
+4. `apply_ghostnetwork_runtime_result()` buduje cache odbiorców z
+   `list_profile_identities()`, czyli ze sparse identity projection. Jeżeli
+   first activation reward zmieni taką projekcję, `UserStore.save_profile()`
+   zapisuje ją jako cały profil. Późniejszy template sync uzupełnia brakujące
+   pola wartościami startowymi. To jest potwierdzony defekt kodu; korelacja z
+   incydentem pozostaje `PENDING SERVER CORRELATION`.
+5. `PlayerInventoryStore` może ponownie nałożyć aplikacje i narzędzia z
+   wydzielonego store. Wyjaśnia to, dlaczego inventory mogło przetrwać reset
+   reszty profilu, ale samo nie dowodzi przyczyny resetu.
+6. `WalletBalanceStore.get_balance(..., fallback_profile=...)` traktuje
+   rozbieżność z profilem jako powód do ustawienia salda store z profilu. Jeżeli
+   profil jest fallbackiem, może to rozpropagować błędną wartość HC.
+7. Frontend ma globalne cache, pollery, kursory delt, mapę w iframe i obiekty
+   presentation state. Samo `session.clear()` na backendzie nie jest dowodem,
+   że spóźniona odpowiedź rozpoczęta dla A nie zostanie użyta po zalogowaniu B.
+
+Nie przypisujemy błędu rendererowi Leaflet. Nie twierdzimy też jeszcze, że
+potwierdzony writer GN wykonał się dla `Trollu2`; tę część ma rozstrzygnąć
+zredagowany odczyt trwałych danych z serwera.
+
+## Macierz bieżących i docelowych źródeł prawdy
+
+Audyt ma rozpocząć się od jawnej macierzy, a nie od dodania kolejnego merge'a:
+
+| Zakres | Stan bieżący / właściwy source | Docelowa rola `profile_json` |
+| --- | --- | --- |
+| login i credentials | kolumny `users.username/password/salt` | nie wolno ich odtwarzać z backupu UI |
+| trwałe pola niewydzielone | zwalidowany `users.profile_json` | zapis chroniony revision/CAS i LKG |
+| aplikacje, narzędzia, storage | `player_apps`, `player_tool_files`, `player_storage` | compatibility mirror / bootstrap |
+| Hack Coiny | obecnie hybryda: `WalletStore` zapisuje `profile_json`, a inne ścieżki używają `wallet_balances` + ledger | po audycie jeden atomowy writer; profil wyłącznie mirror |
+| pozycja | `player_positions` | compatibility mirror |
+| aimed target | `player_target_runtime` | compatibility mirror |
+| operacje | `player_operations` | compatibility mirror |
+| terytoria i ownership | Target Registry, `captured_targets`, ownership/CAS, `player_areas` i worker | profil nie jest źródłem polygonu |
+| GhostNetwork | tabele `ghost_*` i append-only events | brak prawa do resetowania cyklu z profilu |
+
+Jeżeli audyt realnych call sites wykaże inną obowiązującą relację, artefakt
+zostaje poprawiony przed implementacją. Nie tworzymy drugiego source of truth.
+
+Docelowo `wallet_balances` przechowuje bieżące saldo, a ledger jest append-only
+źródłem audytu/idempotencji, nie drugim licznikiem salda. Ten status może zostać
+ogłoszony dopiero po przeniesieniu lub spięciu wszystkich writerów HC.
+
+## Etap 1 — forensics i mapa zapisów
+
+Przed zmianami runtime:
+
+1. zinwentaryzować wszystkie wywołania `UserStore.save_profile()`,
+   `UserProfileManager.update_profile()` i bezpośrednie `UPDATE users`;
+2. oznaczyć zapis pełny, częściowy, compatibility mirror i zapis wykonywany z
+   kopii sesyjnej;
+3. odtworzyć, które ścieżki trzeciego filaru dotykają profilu, walletu,
+   progression receipts, Target Registry, territory jobs i eventów GN;
+4. porównać `users.updated_at`, ledger walletu, progression receipts, historię
+   Googleplexa, inventory store, target ownership, territory jobs i GN events;
+5. oddzielić relację testera od faktów potwierdzonych w bazie lub logach;
+6. nie logować pełnego profilu, credentials, tokenu sesji, dokładnych
+   współrzędnych ani danych innych graczy.
+
+Powstaje read-only narzędzie techniczne, preferencyjnie:
+
+```text
+tools/audit_profile_integrity.py
+```
+
+Minimalne tryby:
+
+```text
+status
+audit --username <exact-login>
+verify --username <exact-login>
+```
+
+Domyślnie narzędzie nie zapisuje bazy. Raportuje source, revision/checksum,
+spójność store'ów, podejrzane spadki oraz brakujące dowody, ale nie emituje
+sekretów ani pełnego JSON-u profilu.
+
+Po przygotowaniu i lokalnym przetestowaniu narzędzia zatrzymać się ze statusem:
+
+`READY FOR READ-ONLY SERVER FORENSICS — Sprint 130.10`
+
+Użytkownik uruchamia audit/status na serwerze i przekazuje zredagowany wynik.
+Dopiero jego analiza kończy evidence gate i pozwala rozpocząć runtime changes.
+Jeżeli materiału historycznego nie da się odzyskać, luka pozostaje jawna, a
+guardy muszą pokryć wszystkie nadal możliwe drogi destrukcyjnego zapisu.
+
+Przed implementacją zapisać wynik bramki:
+
+`FORENSICS CAPTURED — Sprint 130.10`
+
+Status oznacza zabezpieczenie dostępnego snapshotu i rotujących logów przed
+deployem/mutacją. Nie oznacza automatycznie potwierdzonego root cause; brakujący
+materiał musi pozostać w evidence manifest.
+
+### Wynik Etapu 1 — 2026-08-21
+
+Zrealizowano:
+
+- pełną mapę writerów profilu, walletu, inventory, territory i GN w
+  `doc/profile_integrity_writer_inventory.md`;
+- read-only probe `tools/audit_profile_integrity.py` z trybami `status`,
+  `audit` i `verify`;
+- bezpieczny capture serwerowy w
+  `doc/profile_integrity_recovery_runbook.md`;
+- rozróżnienie powodzenia probe, globalnego health runtime i integralności
+  konkretnego konta;
+- klasyfikację `valid`, `missing`, `invalid_json`, `invalid_schema` i
+  `recovery_required` bez template sync i bez persistence;
+- korelacje wallet ledger/balance, inventory stores, territory receipts/jobs,
+  GN lifecycle/reward history oraz Googleplex evidence;
+- złożony, zredagowany sygnał sparse activation overwrite, który łączy
+  `ghost.part_activated`, applied `part_first_activated`, zapis profilu oraz
+  zachowany trwały stan bez emitowania event/part/territory IDs;
+- testy redakcji, query-only, braku mutacji pliku DB, schema drift, malformed i
+  partial profile, wallet invariant, inventory normalization oraz GN reward
+  projection.
+
+Potwierdzony w kodzie destructive path:
+
+```text
+third pillar / territory publication
+→ ghost.part_activated
+→ first activation reward
+→ sparse list_profile_identities cache
+→ full UserStore.save_profile(sparse_profile)
+→ template sync do wartości starter-like
+```
+
+Status dowodowy:
+
+- `CONFIRMED CODE DEFECT` — ścieżka zapisu istnieje i jest destrukcyjna;
+- `PENDING SERVER CORRELATION` — brak jeszcze dowodu, że dokładnie ten writer
+  wykonał reset konta zgłoszonego jako `Trollu2`;
+- `FORENSICS CAPTURED` nie zostało jeszcze ogłoszone;
+- nie rozpoczęto Etapu 2, nie zmieniono runtime i nie wykonano repair.
+
+## Etap 2 — twarde rozróżnienie błędów od fallbacku
+
+Odczyt profilu musi zwracać rozróżnialne wyniki:
+
+```text
+valid
+missing
+invalid_json
+invalid_schema
+recovery_required
+```
+
+Zasady:
+
+- błąd JSON nie staje się `{}` udającym poprawny profil;
+- profil bez wymaganej tożsamości i pól krytycznych nie przechodzi do
+  automatycznej synchronizacji template;
+- fallback może zasilić tylko ograniczony ekran błędu/recovery;
+- fallback nie może być przekazany do `save_profile`, wallet reconciliation,
+  inventory seed ani innego trwałego writer path;
+- normalne konto startowe LVL 1 pozostaje legalne, jeżeli zostało utworzone
+  kanoniczną ścieżką rejestracji;
+- jawny reset administracyjny wymaga własnego reason/receipt i nie może być
+  mylony z normalizacją profilu.
+
+## Etap 3 — profile write guard, revision/CAS i LKG
+
+Wszystkie pełne zapisy przechodzą przez centralne guarded write API. Writer
+odczytujący profil otrzymuje `profile_revision`, zachowuje ją razem z lokalnym
+snapshotem i przekazuje jako obowiązkowe `expected_revision` przy zapisie.
+Guard nie może sam pobrać wyłącznie najnowszej revision i uznać starego
+candidate'a za świeży.
+
+Przed pełnym zapisem:
+
+1. zwalidować tożsamość, schema version, typy i niezmienniki;
+2. odczytać bieżącą revision/checksum;
+3. sprawdzić, czy writer pracuje na tej samej revision;
+4. wykryć destrukcyjny spadek wielu niezależnych zakresów;
+5. potwierdzić, czy istnieje kanoniczne zdarzenie uzasadniające reset;
+6. zachować ostatni poprawny stan, a dopiero potem zatwierdzić nowy;
+7. zapisać nowy stan i revision atomowo.
+
+Bezpośrednie `UPDATE users SET profile_json = ...` są zakazane poza jawnie
+allowlistowanymi migracjami/recovery repository. Test kontraktu ma skanować
+produkcyjne call sites. Legacy writery trzeba przenieść do guarded boundary,
+nie tylko opakować logiem.
+
+Preferowana jest additive migracja przechowująca co najmniej ostatni poprawny
+snapshot i jego metadane. Dokładna schema wynika z audytu, ale kontrakt wymaga:
+
+```text
+username
+profile_revision
+schema_version
+snapshot_json
+checksum
+source
+created_at
+validation_version
+```
+
+Snapshot:
+
+- nie zawiera hasła, salt, cookie ani tokenu sesji;
+- nie kopiuje polygonów jako alternatywnego źródła terytoriów;
+- nie jest aktualizowany wadliwym candidate'em;
+- zachowuje przynajmniej jedną ostatnią potwierdzoną wersję;
+- ma checksum i pozwala wykazać, z jakiego stanu wykonano recovery.
+
+CAS może użyć monotonicznej revision albo porównania poprzedniego serializowanego
+stanu, jeżeli audyt pokaże, że jest to bezpieczniejsze dla bieżącej migracji.
+Sam `updated_at` o rozdzielczości sekund nie jest wystarczającym tokenem CAS.
+
+Additive migracja musi idempotentnie nadać schema/revision istniejącym poprawnym
+profilom. Bootstrap:
+
+- nie synchronizuje profilu z template'em;
+- nie tworzy LKG z invalid/partial candidate'a;
+- oznacza wadliwy rekord jako `recovery_required`;
+- przy powtórnym uruchomieniu nie zwiększa revision ani nie dubluje snapshotu;
+- ma test upgrade starej bazy bez nowych kolumn/metadanych.
+
+Odrzucony zapis zwraca kontrolowany conflict/recovery result. Nie nadpisuje
+profilu, LKG ani kanonicznych store'ów.
+
+## Etap 4 — kierunek compatibility mirrorów
+
+Po wydzieleniu zakresu obowiązuje kierunek:
+
+```text
+canonical store → read projection / profile mirror
+```
+
+Nie wolno automatycznie wykonywać:
+
+```text
+fallback profile → canonical store
+```
+
+W szczególności:
+
+- rozbieżność `profile.hackcoins` nie może sama obniżyć `wallet_balances`;
+- wallet mutation przechodzi przez ledger i dopiero potem aktualizuje mirror;
+- legacy `WalletStore.transfer()` i `technical_transfer()` nie mogą nadal
+  niezależnie zapisywać salda wyłącznie do dwóch pełnych `profile_json`;
+- transfer, technical transfer, Googleplex, Ghost Exchange i pozostałe call
+  sites muszą używać jednej atomowej granicy walletu albo zostać jawnie
+  utrzymane w bezpiecznym trybie przejściowym; samo odwrócenie
+  `get_balance(fallback_profile)` bez naprawy writerów jest niedopuszczalne;
+- istniejące apps/tools nie mogą zostać usunięte przez niepełny profil;
+- seed z legacy profile jest dozwolony tylko w jawnej migracji z receipt, nie
+  podczas zwykłego odczytu profilu;
+- territory, aimed target, position i operations nie są cofane przez stale
+  pełny zapis.
+
+## Etap 5 — izolacja sesji A → B → A
+
+Po każdym poprawnym loginie/rejestracji backend czyści poprzednią tożsamość,
+rotuje identyfikator serwerowej sesji w sposób wspierany przez Flask-Session i
+tworzy losowy, unikalny `session_generation`. Nie wystarcza sama nazwa
+użytkownika, ponieważ spóźniona odpowiedź z pierwszej sesji A mogłaby trafić do
+późniejszej sesji A.
+
+Generation należy do konkretnej uwierzytelnionej sesji przeglądarki, nie do
+globalnego rekordu username. Poprawne równoległe logowanie tego samego gracza na
+innym urządzeniu/przeglądarce zachowuje własną generation i nie jest
+unieważniane przez login pierwszego urządzenia. Stara karta współdzieląca
+obrócone cookie, ale wysyłająca poprzednią generation, zostaje odrzucona.
+
+Generation musi objąć co najmniej:
+
+- `/api/profile` i desktop boot;
+- `/api/state/changes` i recovery scopes;
+- map boot/snapshot, map actors i iframe bridge;
+- launch queue, operations i system messages;
+- GhostNetwork snapshot/delta;
+- user-scoped mutacje wykonywane ze starej karty.
+
+Powstaje kompletna allowlista/inventory endpointów user-scoped z informacją,
+czy generation płynie w nagłówku, body, query czy response envelope. Nie wolno
+chronić wyłącznie kilku endpointów wymienionych przykładowo powyżej.
+
+`navigator.sendBeacon('/api/profile/desktop')` nie potrafi dodać własnego
+nagłówka. Generation musi znaleźć się w walidowanym body beacona albo beacon
+zostaje zastąpiony/wyłączony. Beacon bez generation nie może zapisywać profilu.
+
+Backend odrzuca request z nieaktualną generacją. Dla mutacji sprawdza ją na
+wejściu oraz ponownie bezpośrednio przed trwałym commit/CAS. Frontend przed
+zastosowaniem odpowiedzi ponownie sprawdza generation i użytkownika.
+
+Logout/login wykonuje centralny teardown:
+
+- abort aktywnych fetchy i zatrzymanie pollerów;
+- wyzerowanie `toolbarProfile` i request promise;
+- wyzerowanie delta version, catch-up state i dedupe sets;
+- usunięcie aimed target, operacji, launch queue cache i app state;
+- zamknięcie/wyczyszczenie map iframe, markerów, GN layers i recovery promise;
+- wyczyszczenie user-scoped `sessionStorage` oraz pamięci modułów;
+- reset SFX dedupe bez odtwarzania historycznych eventów;
+- `Cache-Control: no-store` dla odpowiedzi zawierających dane użytkownika.
+
+Stara karta nie może po zmianie cookie wykonywać mutacji jako nowo zalogowany
+użytkownik. Generation check musi obejmować również requesty zapisujące.
+
+Nieudane logowanie nie może częściowo podmienić tożsamości. Zwykły failed login
+nie modyfikuje działającej sesji. Jawny flow „zmień konto” najpierw wykonuje
+pełny logout/teardown; jeżeli kolejne logowanie się nie uda, pozostaje sesja
+anonimowa, nie mieszanina starej i nowej.
+
+## Etap 6 — obserwowalność
+
+Minimalny event zapisu profilu:
+
+```text
+profile.write_attempt
+profile.write_applied
+profile.write_rejected
+profile.recovery_required
+profile.lkg_created
+session.generation_mismatch
+```
+
+Pola techniczne:
+
+```text
+username_hash
+source
+old_revision
+candidate_revision
+changed_scopes
+decision
+reason_code
+session_generation_hash
+request_id
+```
+
+Nie logować wartości pól profilu ani surowej generacji sesji.
+
+## Testy automatyczne
+
+Minimum:
+
+1. invalid/truncated JSON daje `invalid_json`, nie fallback;
+2. poprawny, ale niepełny profil nie jest automatycznie zapisywany jako konto
+   startowe;
+3. destrukcyjny candidate rich → starter jest odrzucony bez reset receipt;
+4. legalna rejestracja LVL 1 przechodzi;
+5. legalne progression, zakup i wydatek HC przechodzą;
+6. zły candidate nie nadpisuje LKG;
+7. snapshot LKG nie zawiera credentials;
+8. stale writer przegrywa CAS;
+9. równoległe częściowe zapisy nie cofają kanonicznych scope'ów;
+10. fallback nie może zmienić walletu ani zasiać inventory;
+11. transfer/technical transfer/Googleplex/Ghost Exchange używają spójnego
+    salda, a wallet ledger pozostaje exactly-once;
+12. opóźniony profil A po loginie B nie zmienia DOM/cache;
+13. opóźniona delta/map snapshot A po loginie B jest odrzucona;
+14. A → B → A nie akceptuje odpowiedzi pierwszej generacji A;
+15. stara karta nie wykonuje mutacji jako użytkownik nowej sesji;
+16. 401 i generation mismatch zatrzymują właściwe pollery;
+17. mapa iframe, toolbar, aimed target, operations i apps pokazują jednego
+    aktualnego użytkownika;
+18. snapshot/recovery GN nie odtwarza SFX;
+19. bieżąca regresja renderera GN nie zgłasza `Bounds.intersects` i nie zostawia
+    częściowo dodanej warstwy;
+20. test desktop i mobile obejmuje dwa konta oraz dwie karty;
+21. dwie niezależne poprawne sesje tego samego konta na dwóch urządzeniach nie
+    unieważniają się wzajemnie;
+22. mutation rozpoczęta przed zmianą generation przegrywa także wtedy, gdy
+    generation zmieni się tuż przed commit/CAS;
+23. idempotentny bootstrap starej bazy nadaje revision tylko poprawnym profilom
+    i nie zapisuje template ani LKG dla invalid/partial;
+24. contract scan nie znajduje bezpośrednich produkcyjnych zapisów
+    `users.profile_json` poza allowlistą migracji/recovery;
+25. każdy user-scoped endpoint ma generation contract, również desktop beacon;
+26. failed login i jawny failed account switch zachowują zdefiniowaną,
+    niepomieszaną tożsamość;
+27. deterministyczny scenariusz `trzeci filar → rebuild → GN lifecycle →
+    profile projection` nie obniża profilu, nie cofa walletu/inventory i nie
+    duplikuje eventu/SFX.
+
+Sugerowane nowe testy:
+
+```text
+tests/test_profile_integrity_guard.py
+tests/test_profile_recovery_snapshot.py
+tests/test_session_generation_isolation.py
+tests/js/test_session_generation_isolation.js
+```
+
+Regresja musi objąć także istniejące testy profilu, migration tool, walletu,
+inventory, Googleplexa, Target Registry, territory, `test_target_persistence`,
+map loader, delta/snapshot i GhostNetwork.
+
+Kontrole końcowe:
+
+```text
+python -m py_compile <zmienione pliki Python>
+node --check <zmienione pliki JavaScript>
+git diff --check
+```
+
+## Bramka manualna po implementacji
+
+Po evidence gate, implementacji lokalnej i zielonych automatach zatrzymać się
+ze statusem:
+
+`READY FOR MANUAL ACCOUNT-SWITCH TEST — Sprint 130.10`
+
+Użytkownik wykonuje manual:
+
+```text
+A login
+→ profil / Googleplex / mapa
+→ opóźniony request i delta
+→ logout
+→ B login
+→ profil / Googleplex / mapa
+→ logout
+→ A login
+→ desktop i mobile
+```
+
+Scenariusz należy powtórzyć również z dwiema kartami. Po każdej zmianie
+toolbar, aplikacje, aimed target, operacje, markery, GN projection i profile
+muszą należeć wyłącznie do bieżącej generacji.
+
+Osobno potwierdzić, że dwie niezależne sesje tego samego konta na różnych
+urządzeniach nadal działają, a teardown jednej nie czyści drugiej.
+
+Na dedykowanym koncie testowym odtworzyć także oryginalną klasę ścieżki:
+
+```text
+trzeci filar
+→ territory rebuild/publication
+→ GhostNetwork lifecycle/delta
+→ profil, wallet i inventory pozostają poprawne
+```
+
+Jeżeli układ mapy nie pozwala bezpiecznie odtworzyć dokładnej geometrii,
+równoważny deterministyczny fixture serwerowy musi przejść przed GO. Nie używać
+do tego uszkodzonego konta `Trollu2`.
+
+Manual nie wykonuje repair konta `Trollu2`.
+
+## Etap 7 — po manualu
+
+Na podstawie wyniku użytkownika:
+
+1. skorelować generation mismatch, request IDs i profile-write decisions;
+2. naprawić wyłącznie bugi mieszczące się w integralności/sesji;
+3. powtórzyć testy concurrency, A/B i regresję dotkniętych systemów;
+4. sprawdzić `status/audit/verify` na serwerze bez mutowania profilu;
+5. potwierdzić brak rejected-write storm, stale pollerów i danych innego konta;
+6. zaktualizować incident root-cause disposition do `CONFIRMED` albo
+   `UNCONFIRMED BUT CONTAINED`, zawsze z listą dowodów i luk;
+7. dopiero wtedy wydać GO/NO-GO.
+
+Pojedyncze poprawne przełączenie kont nie wystarcza do GO, jeżeli writer guard,
+LKG lub mutacje starej karty nie są zweryfikowane.
+
+## Dokumentacja i handoff operatorski
+
+Sprint aktualizuje:
+
+- dokument incydentu;
+- `doc/game_play_180726.md`;
+- `doc/project_journal.md`;
+- `doc/profile_store_extraction_audit.md`;
+- `doc/profile_integrity_recovery_runbook.md` z rzeczywistymi komendami
+  read-only `status/audit/verify`; migracja, deploy i manual A/B dostaną osobny
+  handoff dopiero po zamknięciu evidence gate.
+
+Handoff ma podać dokładne komendy dla wykrytego ecosystemu/procesów, ale nie
+wykonuje deployu ani restartu za użytkownika. Do repo nie trafia pełny profil,
+cookie, session ID/generation, baza serwerowa ani niezredagowany log graczy.
+
+## Poza zakresem
+
+- odbudowa progression i terytoriów `Trollu2` — Sprint 130.11;
+- przebudowa całego profilu na nowe tabele;
+- zmiana mechaniki GhostNetwork, drop chance lub bieżącego cyklu;
+- kolejny renderer mapy;
+- optymalizacja niezwiązana z integralnością lub izolacją sesji.
+
+## Definition of Done
+
+Sprint dostaje GO, gdy:
+
+- niepoprawny/niepełny profil nie może stać się trwałym fallbackiem;
+- destrukcyjny stale writer przegrywa przed zapisem;
+- LKG powstaje tylko z poprawnego stanu i może zostać zweryfikowany;
+- compatibility mirrory nie nadpisują kanonicznych store'ów fallbackiem;
+- wszystkie full-profile writery przekazują `expected_revision`, a produkcyjne
+  bezpośrednie `UPDATE users.profile_json` poza allowlistą nie istnieją;
+- bootstrap istniejących profili/revision/LKG jest idempotentny i fail-closed;
+- każda odpowiedź i mutacja user-scoped jest związana z aktualną generacją;
+- manual A → B → A i dwie karty nie pokazują ani nie zapisują cudzego stanu;
+- ścieżka trzeciego filaru/rebuild/GN nie obniża ani nie miesza profilu;
+- testy profilu, walletu, inventory, mapy, delty, GN i territory są zielone;
+- incident evidence oraz runbook integralności zostały zaktualizowane;
+- root-cause disposition brzmi `CONFIRMED` albo
+  `UNCONFIRMED BUT CONTAINED`, nigdy samo nieopisane `UNCONFIRMED`.
+
+Werdykt:
+
+`GO — Sprint 130.10 profile integrity and session isolation validated`
+
+albo:
+
+`NO-GO — Sprint 130.10 still has profile integrity or session isolation blockers`
+
+Nie commitować, nie deployować i nie wykonywać mutującego recovery bez osobnego
+polecenia użytkownika.
