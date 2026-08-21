@@ -7,6 +7,8 @@
     const PULSE_PANE = "ghostNetworkPulsePane";
     const TERRITORY_PANE = "ghostNetworkTerritoryPane";
     const MAX_VISIBLE_PARTS = 20;
+    const MOBILE_PART_TAP_RADIUS_PX = 32;
+    const MOBILE_MAP_QUERY = "(max-width: 900px), (hover: none) and (pointer: coarse)";
     const DELTA_TYPES = new Set([
         "ghost.part_discovered",
         "ghost.part_contained",
@@ -79,9 +81,69 @@
         if (!map.getPane(PART_PANE)) {
             const pane = map.createPane(PART_PANE);
             pane.style.zIndex = "625";
-            pane.style.pointerEvents = "auto";
+            pane.style.pointerEvents = "none";
         }
+        ensureMobilePartTapBridge(map);
         return map;
+    }
+
+    function isMobileGhostNetworkMap() {
+        return Boolean(window.matchMedia && window.matchMedia(MOBILE_MAP_QUERY).matches);
+    }
+
+    function mobileTapContainerPoint(map, event) {
+        if (!map || !event) return null;
+        try {
+            if (event.containerPoint && Number.isFinite(Number(event.containerPoint.x)) && Number.isFinite(Number(event.containerPoint.y))) {
+                return event.containerPoint;
+            }
+            if (event.layerPoint && typeof map.layerPointToContainerPoint === "function") {
+                return map.layerPointToContainerPoint(event.layerPoint) || null;
+            }
+            if (event.latlng && typeof map.latLngToContainerPoint === "function") {
+                return map.latLngToContainerPoint(event.latlng) || null;
+            }
+            if (event.originalEvent && typeof map.mouseEventToContainerPoint === "function") {
+                return map.mouseEventToContainerPoint(event.originalEvent) || null;
+            }
+        } catch (err) {
+            console.warn("[ghostnetwork] mobile tap point unavailable", err);
+        }
+        return null;
+    }
+
+    function ensureMobilePartTapBridge(map) {
+        if (!map || typeof map.on !== "function" || map._ghostNetworkMobileTapBound) return;
+        map._ghostNetworkMobileTapBound = true;
+        map.on("click", event => {
+            const tapPoint = mobileTapContainerPoint(map, event);
+            if (!tapPoint) return;
+            let nearest = null;
+            let nearestDistance = MOBILE_PART_TAP_RADIUS_PX;
+            Object.values(window.ghostNetworkPartLayers || {}).forEach(marker => {
+                if (!marker || typeof marker.getLatLng !== "function" || typeof map.latLngToContainerPoint !== "function") return;
+                let point = null;
+                try {
+                    const markerLatLng = marker.getLatLng();
+                    if (!markerLatLng) return;
+                    point = map.latLngToContainerPoint(markerLatLng);
+                } catch (err) {
+                    console.warn("[ghostnetwork] mobile marker point unavailable", err);
+                    return;
+                }
+                if (!point || !Number.isFinite(Number(point.x)) || !Number.isFinite(Number(point.y))) return;
+                const dx = Number(point.x) - Number(tapPoint.x);
+                const dy = Number(point.y) - Number(tapPoint.y);
+                const distance = Math.sqrt((dx * dx) + (dy * dy));
+                if (distance <= nearestDistance) {
+                    nearest = marker;
+                    nearestDistance = distance;
+                }
+            });
+            if (nearest && nearest.ghostNetworkProjection) {
+                openGhostPartPanel(nearest.ghostNetworkProjection, nearest);
+            }
+        });
     }
 
     function escapeHtml(value) {
@@ -527,7 +589,14 @@
         const icon = buildGhostPartIcon(part, options.transition || "");
         let marker = window.ghostNetworkPartLayers[key];
         if (!marker) {
-            marker = L.marker(coords, { icon, pane: PART_PANE, keyboard: false, riseOnHover: true });
+            marker = L.marker(coords, {
+                icon,
+                pane: PART_PANE,
+                keyboard: false,
+                riseOnHover: true,
+                interactive: false,
+                bubblingMouseEvents: true
+            });
             marker.on("click", () => openGhostPartPanel(part, marker));
             marker.addTo(map);
             window.ghostNetworkPartLayers[key] = marker;

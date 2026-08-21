@@ -4,19 +4,20 @@ const vm = require("vm");
 
 function marker(coords, options) {
     return {
-        coords, options,
+        coords, options, popupOpened: false,
         addTo() { return this; },
         setLatLng(next) { this.coords = next; return this; },
         setIcon(next) { this.options.icon = next; return this; },
         on() { return this; },
         off() { return this; },
         bindPopup() { return this; },
-        openPopup() { return this; },
+        openPopup() { this.popupOpened = true; return this; },
         getLatLng() { return { lat: this.coords[0], lng: this.coords[1] }; }
     };
 }
 
 const panes = {};
+let mobileMode = false;
 function territoryLayer() {
     const classes = new Set(["leaflet-interactive"]);
     return {
@@ -32,14 +33,17 @@ function territoryLayer() {
     };
 }
 const map = {
+    handlers: {},
     createPane(name) { return (panes[name] = { style: {} }); },
     getPane(name) { return panes[name] || null; },
+    on(name, handler) { this.handlers[name] = handler; return this; },
+    latLngToContainerPoint(latLng) { return { x: latLng.lng, y: latLng.lat }; },
     removeLayer() {}
 };
 const sandbox = {
     console: { warn() {} },
     Set, Promise,
-    window: { chaosMap: map },
+    window: { chaosMap: map, matchMedia() { return { matches: mobileMode }; } },
     L: {
         divIcon(options) { return options; },
         marker,
@@ -193,6 +197,25 @@ function response(payload) {
     assert.strictEqual(rebuiltTerritory._ghostNetworkStrategicState, "none");
     assert.ok(!rebuiltTerritory._classes.has("ghostnetwork-territory-active"));
     assert.ok(!rebuiltTerritory._classes.has("ghostnetwork-territory-hostile"));
+
+    mobileMode = true;
+    win.applyGhostPartDelta({
+        scope: "ghostnetwork", type: "ghost.part_discovered", version: 8,
+        payload: { projection: {
+            public_entity_id: "mobile-part", can_show_on_map: true,
+            location_visibility: "exact", latitude: 70, longitude: 100,
+            module_state: "neutral"
+        } }
+    });
+    const mobileMarker = win.ghostNetworkPartLayers["mobile-part"];
+    assert.strictEqual(mobileMarker.options.interactive, false, "part marker must not capture map gestures");
+    assert.strictEqual(typeof map.handlers.click, "function", "mobile tap bridge must be bound once");
+    map.handlers.click({ containerPoint: { x: 100, y: 70 } });
+    assert.strictEqual(mobileMarker.popupOpened, true, "short map tap over a part must still open its panel");
+    mobileMarker.popupOpened = false;
+    map.handlers.click({ latlng: { lat: 70, lng: 100 } });
+    assert.strictEqual(mobileMarker.popupOpened, true, "tap bridge must recover a missing containerPoint from latlng");
+    assert.doesNotThrow(() => map.handlers.click({}), "incomplete Leaflet click event must be ignored safely");
 
     console.log("ghostnetwork map renderer tests: OK");
 })().catch(error => {

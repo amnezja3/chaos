@@ -1,7 +1,7 @@
 .ghostnetwork-part-icon {
   width: 54px;
   height: 54px;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .ghostnetwork-node {
@@ -354,6 +354,10 @@
 }
 
 @media (hover: none) and (pointer: coarse) {
+  .ghostnetwork-part-icon {
+    pointer-events: none;
+  }
+
   .leaflet-interactive.ghostnetwork-territory-active,
   .leaflet-interactive.ghostnetwork-territory-hostile {
     animation: none;
@@ -369,5 +373,11 @@
   .ghostnetwork-part-halo,
   .ghostnetwork-connection-pulse {
     animation: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .ghostnetwork-part-icon {
+    pointer-events: none;
   }
 }

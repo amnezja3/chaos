@@ -159,6 +159,21 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         render_end = self.map_js.index("function normalizeSnapshotPayload", render_start)
         self.assertIn("batchGhostTerritoryStatesRefresh", self.map_js[render_start:render_end])
 
+    def test_mobile_part_markers_do_not_capture_pan_or_pinch(self):
+        css = (ROOT / "static" / "css" / "ghostnetwork_map.css").read_text(encoding="utf-8")
+        self.assertIn("@media (max-width: 900px)", css)
+        self.assertIn(".ghostnetwork-part-icon", css)
+        self.assertIn("pointer-events: none", css)
+
+        self.assertIn("MOBILE_MAP_QUERY", self.map_js)
+        self.assertIn("ensureMobilePartTapBridge", self.map_js)
+        self.assertIn("mobileTapContainerPoint", self.map_js)
+        self.assertIn("interactive: false", self.map_js)
+        self.assertIn('pane.style.pointerEvents = "none"', self.map_js)
+        self.assertIn("bubblingMouseEvents: true", self.map_js)
+        self.assertIn("map.latLngToContainerPoint", self.map_js)
+        self.assertIn("openGhostPartPanel(nearest.ghostNetworkProjection, nearest)", self.map_js)
+
 
 if __name__ == "__main__":
     unittest.main()
