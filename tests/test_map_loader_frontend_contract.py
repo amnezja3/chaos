@@ -48,6 +48,15 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertNotIn("map.closeTooltip();", self.map_template)
         self.assertNotIn("layer.on('mouseout remove'", self.map_template)
 
+    def test_leaflet_polyline_guard_skips_transient_invalid_renderer_bounds(self):
+        self.assertIn("installLeafletPolylineBoundsGuard();", self.map_template)
+        self.assertIn("function hasFiniteLeafletBounds(bounds)", self.map_template)
+        self.assertIn("function installLeafletPolylineBoundsGuard()", self.map_template)
+        self.assertIn("typeof proto._clipPoints !== 'function'", self.map_template)
+        self.assertIn("!hasFiniteLeafletBounds(rendererBounds)", self.map_template)
+        self.assertIn("!hasFiniteLeafletBounds(pixelBounds)", self.map_template)
+        self.assertIn("this._parts = [];", self.map_template)
+
     def test_territory_polygons_bubble_contextmenu_to_empty_field_menu(self):
         style = self.map_template[
             self.map_template.index("function territoryLayerStyle"):

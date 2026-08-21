@@ -486,6 +486,13 @@
         return points;
     }
 
+    function isRenderableConnectionCurve(points) {
+        if (!Array.isArray(points) || points.length < 2) return false;
+        if (!points.every(point => Array.isArray(point) && point.length >= 2 && validLatLng(point[0], point[1]))) return false;
+        const first = points[0];
+        return points.some(point => Number(point[0]) !== Number(first[0]) || Number(point[1]) !== Number(first[1]));
+    }
+
     function connectionClass(connection, role) {
         return [
             "ghostnetwork-connection",
@@ -499,7 +506,7 @@
         const map = ensureGhostNetworkPanes();
         if (!map || !window.L || !connection) return null;
         const points = buildConnectionCurve(connection);
-        if (points.length < 2) return null;
+        if (!isRenderableConnectionCurve(points)) return null;
         const state = String(connection.state || "hidden");
         if (!connection.can_show_on_map || !["half_from_a", "half_from_b", "active"].includes(state)) return null;
 

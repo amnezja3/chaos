@@ -103,6 +103,7 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         css = (ROOT / "static" / "css" / "ghostnetwork_map.css").read_text(encoding="utf-8")
         self.assertIn(".ghostnetwork-connection", css)
         self.assertIn("ghostnetwork-connection-pulse", css)
+        self.assertIn("isRenderableConnectionCurve", self.map_js)
 
     def test_territory_only_badge_has_renderable_dimensions(self):
         css = (ROOT / "static" / "css" / "ghostnetwork_map.css").read_text(encoding="utf-8")

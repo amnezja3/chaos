@@ -1792,12 +1792,13 @@
   </script>
 
 {{ folium_js|safe }}
-<script src="/static/js/map/ghostnetwork.js?v=gesture-bridge-3"></script>
+<script src="/static/js/map/ghostnetwork.js?v=bounds-guard-4"></script>
 
     <script>
         const map = window[Object.keys(window).find(k => k.startsWith("map_"))];
         window.chaosMap = map;
         installLeafletCircleMarkerBoundsGuard();
+        installLeafletPolylineBoundsGuard();
         let lastContextWasMarker = false;
         const targetLayerRegistry = new Map();
         let aimedTargetLayer = null;
@@ -2383,6 +2384,35 @@
                 } catch (err) {
                     return true;
                 }
+            };
+            proto._chaosBoundsGuardInstalled = true;
+        }
+
+        function hasFiniteLeafletBounds(bounds) {
+            return Boolean(
+                bounds &&
+                bounds.min &&
+                bounds.max &&
+                Number.isFinite(bounds.min.x) &&
+                Number.isFinite(bounds.min.y) &&
+                Number.isFinite(bounds.max.x) &&
+                Number.isFinite(bounds.max.y)
+            );
+        }
+
+        function installLeafletPolylineBoundsGuard() {
+            if (!window.L || !L.Polyline || !L.Polyline.prototype) return;
+            const proto = L.Polyline.prototype;
+            if (proto._chaosBoundsGuardInstalled || typeof proto._clipPoints !== 'function') return;
+            const originalClipPoints = proto._clipPoints;
+            proto._clipPoints = function() {
+                const rendererBounds = this._renderer && this._renderer._bounds;
+                const pixelBounds = this._pxBounds;
+                if (!this._map || !this._renderer || !hasFiniteLeafletBounds(rendererBounds) || !hasFiniteLeafletBounds(pixelBounds)) {
+                    this._parts = [];
+                    return;
+                }
+                originalClipPoints.call(this);
             };
             proto._chaosBoundsGuardInstalled = true;
         }

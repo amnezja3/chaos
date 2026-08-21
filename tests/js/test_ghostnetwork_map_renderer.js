@@ -56,6 +56,47 @@ sandbox.window.L = sandbox.L;
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync("static/js/map/ghostnetwork.js", "utf8"), sandbox);
 
+function testLeafletPolylineBoundsGuard() {
+    const template = fs.readFileSync("templates/map_template.html", "utf8");
+    const start = template.indexOf("function hasFiniteLeafletBounds(bounds)");
+    const end = template.indexOf("function registerLayerInArray", start);
+    assert.ok(start >= 0 && end > start, "polyline bounds guard source must exist");
+
+    let delegated = 0;
+    const prototype = {
+        _clipPoints() {
+            delegated += 1;
+            this._parts = ["rendered"];
+        }
+    };
+    const guardSandbox = {
+        Number,
+        window: {},
+        L: { Polyline: { prototype } }
+    };
+    guardSandbox.window.L = guardSandbox.L;
+    vm.createContext(guardSandbox);
+    vm.runInContext(`${template.slice(start, end)}\ninstallLeafletPolylineBoundsGuard();`, guardSandbox);
+
+    const validBounds = { min: { x: 0, y: 0 }, max: { x: 10, y: 10 } };
+    const line = Object.create(prototype);
+    line._map = {};
+    line._renderer = { _bounds: undefined };
+    line._pxBounds = validBounds;
+    line._parts = ["stale"];
+    assert.doesNotThrow(() => line._clipPoints());
+    assert.strictEqual(line._parts.length, 0);
+    assert.strictEqual(delegated, 0, "invalid renderer frame must not reach Leaflet clipping");
+
+    line._renderer._bounds = validBounds;
+    line._clipPoints();
+    assert.strictEqual(delegated, 1, "valid subsequent frame must use Leaflet clipping");
+    assert.strictEqual(line._parts.length, 1);
+    assert.strictEqual(line._parts[0], "rendered");
+}
+
+testLeafletPolylineBoundsGuard();
+
 function response(payload) {
     return { ok: true, json: async () => payload };
 }
