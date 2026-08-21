@@ -110,6 +110,11 @@ class GhostVisibilityServiceTest(unittest.TestCase):
         self.assertEqual(projected["ability_code"], "insider_feed")
         self.assertEqual(projected["target_id"], "target-V1")
         self.assertEqual(projected["location_visibility"], "exact")
+        self.assertEqual(projected["visual_asset_key"], "ghostnetwork.part.ledger_nexus")
+        self.assertEqual(
+            projected["visual_asset_url"],
+            "/static/images/ghostnetwork/parts/v1_ledger_nexus.png",
+        )
 
     def test_blocked_part_is_full_only_for_territory_owner(self):
         part = self.set_contained("P3", owner="main", territory_clan="virex")
@@ -134,12 +139,15 @@ class GhostVisibilityServiceTest(unittest.TestCase):
         self.assertIsNone(clanmate["part_code"])
         self.assertIsNone(clanmate["name"])
         self.assertIsNone(clanmate["target_id"])
+        self.assertIsNone(clanmate["visual_asset_key"])
+        self.assertIsNone(clanmate["visual_asset_url"])
         self.assertEqual(clanmate["location_visibility"], "territory_only")
         leaked = self.encoded(clanmate)
         self.assertNotIn("P3", leaked)
         self.assertNotIn("Paranoia Loop", leaked)
         self.assertNotIn("false_tracking", leaked)
         self.assertNotIn("target-P3", leaked)
+        self.assertNotIn("p3_paranoia_loop.png", leaked)
 
         target_clan = self.visibility.project_part_for_viewer(
             part,

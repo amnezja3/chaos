@@ -1,5 +1,38 @@
 # CHAOS — Project Journal
 
+## 2026-08-21 - Sprint 130.9.4 Etap 2: PNG Renderer
+
+- Zweryfikowano `20/20` PNG: poprawne nazwy, `128×128`, RGBA/alpha i niezerowy
+  rozmiar. Projekcja v2 nie ujawnia URL-u assetu przy ukrytej tożsamości.
+- Marker używa indywidualnego PNG, zachowuje geometryczny fallback, click/popup,
+  pane 625 i aktualizację in-place; rozmiar to 54 px desktop / 48 px mobile.
+- Lifecycle wykorzystuje lekkie animacje CSS bez timerów per marker. Jednorazowe
+  containment/activation transitions uruchamia tylko live delta, nie snapshot.
+- Regresja GN/map/conflict `124/124`, renderer JS, syntax i py_compile — OK.
+- Status: `READY FOR MANUAL GAMEPLAY TEST — Sprint 130.9.4`.
+
+## 2026-08-21 - Sprint 130.9.4 Etap 1: Part Asset Contract
+
+- Kanoniczny katalog potwierdził 20 unikalnych części, po pięć dla czterech
+  maszyn; wymagane jest 20 indywidualnych PNG, nie jeden obraz per machine.
+- Dodano read-only `tools/export_ghostnetwork_part_assets.py`, który łączy
+  katalog z realnym `cycle_id/part_id` bez mutowania cyklu.
+- Kontrakt: PNG RGBA `128×128`, safe area `108×108`, katalog
+  `static/images/ghostnetwork/parts/`, bez wypalonych wariantów lifecycle.
+- Eksporter i katalog: `15/15 OK`; pełna lista nazw i kierunek wizualny są w
+  artefakcie sprintu oraz README katalogu assetów.
+- Status: `READY FOR ASSET DELIVERY — Sprint 130.9.4`.
+
+## 2026-08-21 - GO Sprintu 130.9.3 Territory Visual States
+
+- Końcowy manual potwierdził prawidłowy efekt ACTIVE/HOSTILE i zachowanie
+  ownership presentation.
+- Retest potwierdził blokadę `scan → mark → aim → hack` zwykłego obiektu na
+  terytorium wrogiego klanu oraz zachowanie kanonicznej ścieżki konfliktowej.
+- Stare oznaczenia multi-conflict znikają po przebudowie; canonical snapshots
+  pozostają jedynym źródłem markerów MC.
+- Werdykt: `GO — Sprint 130.9.3 GhostNetwork Territory Visual States validated in gameplay`.
+
 ## 2026-08-21 - Sprint 130.9.3 manual blockers: enemy gate i MC cleanup
 
 - Wspólna polityka serwerowa blokuje `scan`, `mark_target`, `aim` i hack

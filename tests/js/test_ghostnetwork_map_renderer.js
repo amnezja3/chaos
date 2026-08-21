@@ -7,7 +7,7 @@ function marker(coords, options) {
         coords, options,
         addTo() { return this; },
         setLatLng(next) { this.coords = next; return this; },
-        setIcon() { return this; },
+        setIcon(next) { this.options.icon = next; return this; },
         on() { return this; },
         off() { return this; },
         bindPopup() { return this; },
@@ -67,6 +67,32 @@ function response(payload) {
     assert.strictEqual(await win.loadGhostNetworkSnapshot(), true);
     assert.ok(win.ghostNetworkPartLayers["part-1"]);
 
+    win.applyGhostPartDelta({
+        scope: "ghostnetwork", type: "ghost.part_discovered", version: 3,
+        payload: { projection: {
+            public_entity_id: "art-part", can_show_on_map: true,
+            location_visibility: "exact", latitude: 1.2, longitude: 2.2,
+            module_state: "neutral",
+            visual_asset_url: "/static/images/ghostnetwork/parts/v1_ledger_nexus.png"
+        } }
+    });
+    const artMarker = win.ghostNetworkPartLayers["art-part"];
+    assert.ok(artMarker.options.icon.html.includes("v1_ledger_nexus.png"));
+    assert.ok(artMarker.options.icon.html.includes("ghostnetwork-part-fallback"));
+    assert.deepStrictEqual(Array.from(artMarker.options.icon.iconSize), [54, 54]);
+
+    win.applyGhostPartDelta({
+        scope: "ghostnetwork", type: "ghost.part_contained", version: 4,
+        payload: { projection: {
+            public_entity_id: "art-part", can_show_on_map: true,
+            location_visibility: "exact", latitude: 1.2, longitude: 2.2,
+            module_state: "blocked",
+            visual_asset_url: "/static/images/ghostnetwork/parts/v1_ledger_nexus.png"
+        } }
+    });
+    assert.ok(artMarker.options.icon.html.includes("transition-contained"));
+    assert.strictEqual(Object.keys(win.ghostNetworkPartLayers).filter(key => key === "art-part").length, 1);
+
     win.fetchMapSnapshot = async () => ({ res: response({ ok: true, cycle: { cycle_id: "cycle-1" } }) });
     assert.strictEqual(await win.loadGhostNetworkSnapshot(), false);
     assert.ok(win.ghostNetworkPartLayers["part-1"], "incomplete snapshot must retain last good layer");
@@ -102,7 +128,7 @@ function response(payload) {
     const territoryA = territoryLayer();
     win.territoryAreaLayers = { "territory-a": { layer: territoryA } };
     win.applyGhostPartDelta({
-        scope: "ghostnetwork", type: "ghost.part_activated", version: 3,
+        scope: "ghostnetwork", type: "ghost.part_activated", version: 5,
         payload: { projection: {
             public_entity_id: "active-part", can_show_on_map: true,
             location_visibility: "exact", latitude: 3, longitude: 4,
@@ -113,7 +139,7 @@ function response(payload) {
     assert.ok(territoryA._classes.has("ghostnetwork-territory-active"));
 
     win.applyGhostPartDelta({
-        scope: "ghostnetwork", type: "ghost.part_contained", version: 4,
+        scope: "ghostnetwork", type: "ghost.part_contained", version: 6,
         payload: { projection: {
             public_entity_id: "hostile-part", can_show_on_map: true,
             location_visibility: "exact", latitude: 5, longitude: 6,
@@ -133,7 +159,7 @@ function response(payload) {
     assert.strictEqual(rebuiltTerritory._ghostNetworkStrategicState, "active", "snapshot rebuild restores state");
 
     assert.strictEqual(win.applyGhostPartDelta({
-        scope: "ghostnetwork", type: "ghost.part_deactivated", version: 5,
+        scope: "ghostnetwork", type: "ghost.part_deactivated", version: 7,
         payload: { projection: {
             public_entity_id: "active-part", can_show_on_map: true,
             location_visibility: "exact", latitude: 3, longitude: 4,

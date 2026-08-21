@@ -4,9 +4,10 @@ import hashlib
 
 from .catalog import get_catalog
 from .module_state import GhostModuleStateService
+from .part_assets import part_visual_asset_contract
 
 
-VISIBILITY_VERSION = "ghost-visibility-v1"
+VISIBILITY_VERSION = "ghost-visibility-v2"
 
 FULL_VISIBILITY_LEVELS = {"full_public", "full_owner", "full_clan"}
 
@@ -148,6 +149,8 @@ class GhostVisibilityService:
     def project_part_for_viewer(self, part, viewer=None):
         part = part if isinstance(part, dict) else {}
         context = self.build_viewer_context(viewer)
+        catalog_part = self.parts_by_code.get(_clean(part.get("part_code")), {})
+        visual_asset = part_visual_asset_contract(catalog_part)
         if context["audience_scope"] == "internal" or context["is_admin"]:
             projected = dict(part)
             projected.update({
@@ -157,6 +160,7 @@ class GhostVisibilityService:
                 "ability_visible": True,
                 "location_visibility": "exact",
                 "public_entity_id": _public_entity_id(part.get("cycle_id"), part.get("part_id")),
+                **visual_asset,
             })
             return projected
 
@@ -175,7 +179,6 @@ class GhostVisibilityService:
         exact_location = location_visibility == "exact"
         can_show_on_map = exact_location or location_visibility == "territory_only"
 
-        catalog_part = self.parts_by_code.get(_clean(part.get("part_code")), {})
         clan = self.clans_by_code.get(_clean(part.get("clan_code")), {})
         machine = self.machines_by_code.get(_clean(part.get("machine_code")), {})
         profession = self.professions_by_code.get(_clean(part.get("profession_code")), {})
@@ -212,6 +215,8 @@ class GhostVisibilityService:
             "discovered_at": _clean(part.get("discovered_at")) or None,
             "updated_at": _clean(part.get("updated_at")) or None,
             "part_code": _clean(part.get("part_code")) if identity_visible else None,
+            "visual_asset_key": visual_asset.get("visual_asset_key") if identity_visible else None,
+            "visual_asset_url": visual_asset.get("visual_asset_url") if identity_visible else None,
             "name": _clean(catalog_part.get("name")) if identity_visible else None,
             "clan_code": _clean(part.get("clan_code")) if visibility_level != "contained_hidden" else None,
             "clan_name": _clean(clan.get("name")) if visibility_level != "contained_hidden" else None,

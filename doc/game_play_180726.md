@@ -23239,7 +23239,7 @@ Końcowa regresja 2026-08-21:
 
 # Sprint 130.9.3 — GhostNetwork Territory Visual States
 
-**Status:** `READY FOR MANUAL GAMEPLAY TEST` (2026-08-21).
+**Status:** `DONE / GO` (2026-08-21).
 
 ## Wynik Etapu 1–2
 
@@ -23309,6 +23309,21 @@ Regresja poprawki:
 Manual retest: próba `scan → mark → aim → hack` na zwykłym obiekcie wrogiego
 terytorium ma zostać zablokowana; kanoniczny filar aktywnego konfliktu ma nadal
 być atakowalny. Po rebuildzie/snapshot refreshu stare oznaczenia MC mają zniknąć.
+
+### Wynik końcowego manuala
+
+Użytkownik potwierdził po wdrożeniu, że poprawka działa prawidłowo:
+
+* efekt ACTIVE/HOSTILE jest widoczny i reaguje na kanoniczny stan GN,
+* zwykłe obiekty na terytorium wrogiego klanu nie omijają już blokady przez
+  `scan → mark → aim → hack`,
+* kanoniczna ścieżka konfliktowa pozostaje dostępna,
+* stare oznaczenia multi-conflict znikają po przebudowie.
+
+Snapshot, delta, reload/recovery i cleanup mają jedno źródło prezentacji, nie
+powstają równoległe legacy markery, a kolor ownership pozostaje czytelny.
+
+`GO — Sprint 130.9.3 GhostNetwork Territory Visual States validated in gameplay`
 
 ## Etapy realizacji
 
@@ -23536,6 +23551,103 @@ rozróżnić w grze.
 ---
 
 # Sprint 130.9.4 — GhostNetwork Part Visual Upgrade
+
+**Status:** `READY FOR MANUAL GAMEPLAY TEST` (2026-08-21).
+
+## Wynik Etapu 1 — kanoniczny kontrakt assetów
+
+Audyt wykazał 20 semantycznie różnych części: cztery maszyny/klany po pięć
+unikalnych `part_code`, nazw i `icon_key`. Wspólny obraz per machine usunąłby
+tożsamość części, dlatego wymagane jest 20 indywidualnych PNG.
+
+Dodano read-only eksporter:
+
+```bash
+python tools/export_ghostnetwork_part_assets.py
+python tools/export_ghostnetwork_part_assets.py --db-path /path/to/chaos.db
+python tools/export_ghostnetwork_part_assets.py --cycle-id ghostnetwork_0001
+```
+
+Eksporter łączy kanoniczny katalog z rzeczywistym `cycle_id` i `part_id` po
+`part_code`; nie tworzy, nie resetuje i nie aktualizuje cyklu. Dla aktywnego
+`ghostnetwork_0001` identyfikatory mają postać `ghostnetwork_0001_<code>`.
+
+Wspólny kontrakt wszystkich plików:
+
+* format: PNG RGBA z przezroczystością,
+* rozmiar źródłowy: `128×128 px`, istotna sylwetka w safe area `108×108 px`,
+* katalog: `static/images/ghostnetwork/parts/`,
+* bez wypalonego tła, halo, ramki stanu i tekstu,
+* bez osobnych wariantów `public/contained/active/hostile`; lifecycle nakłada CSS,
+* finalny marker zachowa fallback obecnego symbolu, click/popup i pane 625.
+
+| Part / machine | Part ID w cyklu 0001 | Filename | Visual subject |
+| --- | --- | --- | --- |
+| V1 Ledger Nexus / VIREX ORACLE | `ghostnetwork_0001_v1` | `v1_ledger_nexus.png` | cybernetyczny węzeł księgi i przepływów |
+| V2 Backdoor Forge / VIREX ORACLE | `ghostnetwork_0001_v2` | `v2_backdoor_forge.png` | kuźnia z ukrytym portem serwisowym |
+| V3 Mimicry Engine / VIREX ORACLE | `ghostnetwork_0001_v3` | `v3_mimicry_engine.png` | rdzeń projekcji z podwójną sylwetką |
+| V4 Acquisition Drive / VIREX ORACLE | `ghostnetwork_0001_v4` | `v4_acquisition_drive.png` | napęd przejęcia z chwytającymi segmentami |
+| V5 Probability Core / VIREX ORACLE | `ghostnetwork_0001_v5` | `v5_probability_core.png` | rdzeń prawdopodobieństwa i rozgałęzione trajektorie |
+| E1 Breach Voice / ECHO LIBERTAS | `ghostnetwork_0001_e1` | `e1_breach_voice.png` | emiter przebijający zamkniętą osłonę |
+| E2 Influence Relay / ECHO LIBERTAS | `ghostnetwork_0001_e2` | `e2_influence_relay.png` | przekaźnik fal narracyjnych |
+| E3 Truth Lens / ECHO LIBERTAS | `ghostnetwork_0001_e3` | `e3_truth_lens.png` | wielowarstwowa soczewka ujawniająca rdzeń |
+| E4 Resonance Beacon / ECHO LIBERTAS | `ghostnetwork_0001_e4` | `e4_resonance_beacon.png` | beacon z koncentrycznym sygnałem rezonansu |
+| E5 Spark Chamber / ECHO LIBERTAS | `ghostnetwork_0001_e5` | `e5_spark_chamber.png` | komora iskrowa inicjująca łańcuch impulsów |
+| P1 Mirage Projector / PHANTOM VEIL | `ghostnetwork_0001_p1` | `p1_mirage_projector.png` | projektor widma z przesuniętym odbiciem |
+| P2 Glitch Reactor / PHANTOM VEIL | `ghostnetwork_0001_p2` | `p2_glitch_reactor.png` | pęknięty reaktor cyfrowych zakłóceń |
+| P3 Paranoia Loop / PHANTOM VEIL | `ghostnetwork_0001_p3` | `p3_paranoia_loop.png` | zamknięta pętla fałszywych tropów |
+| P4 Fracture Engine / PHANTOM VEIL | `ghostnetwork_0001_p4` | `p4_fracture_engine.png` | rozszczepiony silnik sieciowy |
+| P5 Mirror Kernel / PHANTOM VEIL | `ghostnetwork_0001_p5` | `p5_mirror_kernel.png` | lustrzany rdzeń odbijający impuls |
+| S1 Deep Sensor / SENTINEL AEGIS | `ghostnetwork_0001_s1` | `s1_deep_sensor.png` | głęboki sensor skanujący warstwy integralności |
+| S2 Bastion Matrix / SENTINEL AEGIS | `ghostnetwork_0001_s2` | `s2_bastion_matrix.png` | modułowa matryca tarczy bastionu |
+| S3 Restoration Engine / SENTINEL AEGIS | `ghostnetwork_0001_s3` | `s3_restoration_engine.png` | silnik rekonstrukcji składający segmenty |
+| S4 Accord Relay / SENTINEL AEGIS | `ghostnetwork_0001_s4` | `s4_accord_relay.png` | dwa bezpiecznie spięte węzły przekaźnika |
+| S5 Judgment Core / SENTINEL AEGIS | `ghostnetwork_0001_s5` | `s5_judgment_core.png` | rdzeń kwarantanny z izolującym pierścieniem |
+
+Każdy wiersz ma logical key `ghostnetwork.part.<icon_key>`, dokładną ścieżkę
+`static/images/ghostnetwork/parts/<filename>`, transparency `yes` i
+`State variants required: no`.
+
+Testy Etapu 1: eksport + katalog `15/15 OK`, `py_compile` eksportera — OK.
+
+`READY FOR ASSET DELIVERY — Sprint 130.9.4`
+
+## Wynik Etapu 2 — renderer PNG i lifecycle presentation
+
+Dostarczono i zweryfikowano `20/20` finalnych plików: każdy ma dokładną nazwę,
+`128×128 px`, PNG color type 6 (RGBA z kanałem alpha) i niezerowy rozmiar.
+
+Jedno źródło kontraktu ścieżek znajduje się w
+`ghostnetwork/part_assets.py`. Viewer projection v2 przekazuje
+`visual_asset_key` i `visual_asset_url` wyłącznie wtedy, gdy
+`identity_visible=true`; ukryta część nie ujawnia tożsamości nazwą pliku.
+
+Renderer:
+
+* używa indywidualnego PNG w istniejącym `ghostNetworkPartPane` 625,
+* renderuje marker `54×54 px` na desktopie i `48×48 px` na mobile,
+* zachowuje click/popup i ograniczony hitbox,
+* po błędzie ładowania PNG pokazuje dotychczasowy geometryczny fallback,
+* aktualizuje istniejący marker przy delcie zamiast tworzyć duplikat,
+* PUBLIC ma subtelny CSS jitter, CONTAINED halo/pulse, ACTIVE stabilniejszy
+  float/energy, a CONTESTED alarmowy warning,
+* nie tworzy timera JavaScript per marker i respektuje reduced motion,
+* containment/activation transition dodaje wyłącznie obsługa nowej live delty;
+  snapshot, reload i recovery odtwarzają tylko stan trwały.
+
+Walidacja Etapu 2:
+
+* PNG dimensions/alpha/names: `20/20 OK`,
+* GN asset/catalog/visibility/delta/lifecycle/territory/map/conflict:
+  `124/124 OK`,
+* renderer JS: OK,
+* `node --check` i `py_compile`: OK.
+
+Manual powinien sprawdzić public/contained/active/hostile, click/hover/popup,
+kilka zoomów, desktop/mobile, reduced motion, reload/recovery oraz współdziałanie
+z territory visual states 130.9.3.
+
+`READY FOR MANUAL GAMEPLAY TEST — Sprint 130.9.4`
 
 ## Etapy realizacji
 

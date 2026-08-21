@@ -123,6 +123,22 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn(".leaflet-interactive.ghostnetwork-territory-active", css)
         self.assertIn(".leaflet-interactive.ghostnetwork-territory-hostile", css)
 
+    def test_part_png_renderer_has_fallback_lifecycle_and_live_only_transitions(self):
+        self.assertIn("part.visual_asset_url", self.map_js)
+        self.assertIn("ghostnetwork-part-art", self.map_js)
+        self.assertIn("ghostnetwork-part-fallback", self.map_js)
+        self.assertIn('type === "ghost.part_contained"', self.map_js)
+        self.assertIn('type === "ghost.part_activated"', self.map_js)
+        snapshot_render = self.map_js.index("renderGhostParts(data.parts || [])")
+        transition_logic = self.map_js.index('type === "ghost.part_contained"')
+        self.assertLess(snapshot_render, transition_logic)
+
+        css = (ROOT / "static" / "css" / "ghostnetwork_map.css").read_text(encoding="utf-8")
+        self.assertIn("width: 54px", css)
+        self.assertIn("ghostnetwork-part-jitter", css)
+        self.assertIn("ghostnetwork-part-containment-transition", css)
+        self.assertIn("ghostnetwork-part-activation-transition", css)
+
     def test_territory_snapshot_refresh_reapplies_strategic_state(self):
         self.assertIn("window.refreshGhostTerritoryStates();", self.map_template)
 

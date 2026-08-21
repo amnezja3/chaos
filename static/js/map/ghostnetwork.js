@@ -162,20 +162,26 @@
             || String((part && part.display_label) || "").toLowerCase().includes("anchor");
     }
 
-    function buildGhostPartIcon(part) {
+    function buildGhostPartIcon(part, transition = "") {
         const state = normalizeState(part);
+        const assetUrl = String((part && part.visual_asset_url) || "").trim();
         const classNames = [
             "ghostnetwork-node",
             `is-${state}`,
             isAnchor(part) ? "is-anchor" : "",
-            part && part.identity_visible === false ? "is-hidden" : ""
+            part && part.identity_visible === false ? "is-hidden" : "",
+            assetUrl ? "has-asset" : "asset-missing",
+            transition ? `transition-${transition}` : ""
         ].filter(Boolean).join(" ");
+        const image = assetUrl
+            ? `<img class="ghostnetwork-part-art" src="${escapeHtml(assetUrl)}" alt="" draggable="false" onerror="this.hidden=true;this.parentElement.classList.add('asset-missing')">`
+            : "";
         return L.divIcon({
             className: "ghostnetwork-part-icon",
-            html: `<span class="${classNames}" aria-hidden="true"></span>`,
-            iconSize: [34, 34],
-            iconAnchor: [17, 17],
-            popupAnchor: [0, -18]
+            html: `<span class="${classNames}" aria-hidden="true"><span class="ghostnetwork-part-halo"></span>${image}<span class="ghostnetwork-part-fallback"></span></span>`,
+            iconSize: [54, 54],
+            iconAnchor: [27, 27],
+            popupAnchor: [0, -29]
         });
     }
 
@@ -469,7 +475,7 @@
         return renderGhostConnections(projections);
     }
 
-    function renderGhostPart(part) {
+    function renderGhostPart(part, options = {}) {
         const map = ensureGhostNetworkPanes();
         if (!map || !window.L || !part) return false;
         const key = projectionKey(part);
@@ -490,7 +496,7 @@
             return false;
         }
 
-        const icon = buildGhostPartIcon(part);
+        const icon = buildGhostPartIcon(part, options.transition || "");
         let marker = window.ghostNetworkPartLayers[key];
         if (!marker) {
             marker = L.marker(coords, { icon, pane: PART_PANE, keyboard: false, riseOnHover: true });
@@ -658,7 +664,14 @@
         if (!projection) {
             return false;
         }
-        renderGhostPart(projection);
+        const previous = window.ghostNetworkPartProjections[key] || null;
+        const transition = (
+            type === "ghost.part_contained" && normalizeState(previous) !== normalizeState(projection)
+        ) ? "contained" : (
+            type === "ghost.part_activated" && normalizeState(previous) !== normalizeState(projection)
+                ? "activated" : ""
+        );
+        renderGhostPart(projection, { transition });
         if (Number.isFinite(version)) window.ghostNetworkStateVersion = Math.max(window.ghostNetworkStateVersion || 0, version);
         return true;
     }

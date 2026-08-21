@@ -1,0 +1,20 @@
+"""Canonical presentation contract for GhostNetwork part artwork."""
+
+ASSET_ROOT = "static/images/ghostnetwork/parts"
+PUBLIC_ASSET_ROOT = f"/{ASSET_ROOT}"
+RECOMMENDED_DIMENSIONS = "128x128"
+
+
+def part_visual_asset_contract(part_definition):
+    definition = part_definition if isinstance(part_definition, dict) else {}
+    part_code = str(definition.get("part_code") or "").strip()
+    icon_key = str(definition.get("icon_key") or "").strip()
+    if not part_code or not icon_key:
+        return {}
+    filename = f"{part_code.lower()}_{icon_key}.png"
+    return {
+        "visual_asset_key": f"ghostnetwork.part.{icon_key}",
+        "visual_asset_filename": filename,
+        "visual_asset_path": f"{ASSET_ROOT}/{filename}",
+        "visual_asset_url": f"{PUBLIC_ASSET_ROOT}/{filename}",
+    }
