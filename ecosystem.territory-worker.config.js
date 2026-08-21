@@ -14,7 +14,7 @@ module.exports = {
         PYTHONUNBUFFERED: "1",
         CHAOS_GHOSTNETWORK_RUNTIME_MODE: "development",
         CHAOS_GHOSTNETWORK_DROPS_ENABLED: "true",
-        CHAOS_GHOSTNETWORK_DROP_CHANCE: "0.04"
+        CHAOS_GHOSTNETWORK_DROP_CHANCE: "0.004"
       }
     }
   ]
