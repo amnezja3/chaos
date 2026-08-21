@@ -93,6 +93,30 @@ function response(payload) {
     assert.ok(artMarker.options.icon.html.includes("transition-contained"));
     assert.strictEqual(Object.keys(win.ghostNetworkPartLayers).filter(key => key === "art-part").length, 1);
 
+    win.applyGhostPartDelta({
+        scope: "ghostnetwork", type: "ghost.part_activated", version: 5,
+        payload: { projection: {
+            public_entity_id: "classified-active", can_show_on_map: true,
+            location_visibility: "exact", latitude: 1.4, longitude: 2.4,
+            module_state: "active", identity_visible: false,
+            marker_asset_url: "/static/images/ghostnetwork/parts/classified_part.png"
+        } }
+    });
+    const classifiedMarker = win.ghostNetworkPartLayers["classified-active"];
+    assert.ok(classifiedMarker.options.icon.html.includes("classified_part.png"));
+    assert.ok(classifiedMarker.options.icon.html.includes("is-active"));
+
+    win.renderGhostTerritoryBadge({
+        public_entity_id: "classified-blocked", can_show_on_map: true,
+        location_visibility: "territory_only", territory_id: "classified-territory",
+        territory_latitude: 5, territory_longitude: 6, module_state: "blocked",
+        identity_visible: false, marker_asset_url: "/static/images/ghostnetwork/parts/classified_part.png"
+    });
+    const classifiedBadge = win.ghostNetworkTerritoryLayers["classified-blocked"];
+    assert.ok(classifiedBadge.options.icon.html.includes("classified_part.png"));
+    assert.ok(classifiedBadge.options.icon.html.includes("is-blocked"));
+    assert.deepStrictEqual(Array.from(classifiedBadge.options.icon.iconSize), [38, 38]);
+
     win.fetchMapSnapshot = async () => ({ res: response({ ok: true, cycle: { cycle_id: "cycle-1" } }) });
     assert.strictEqual(await win.loadGhostNetworkSnapshot(), false);
     assert.ok(win.ghostNetworkPartLayers["part-1"], "incomplete snapshot must retain last good layer");

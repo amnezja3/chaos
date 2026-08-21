@@ -164,7 +164,7 @@
 
     function buildGhostPartIcon(part, transition = "") {
         const state = normalizeState(part);
-        const assetUrl = String((part && part.visual_asset_url) || "").trim();
+        const assetUrl = String((part && (part.visual_asset_url || part.marker_asset_url)) || "").trim();
         const classNames = [
             "ghostnetwork-node",
             `is-${state}`,
@@ -302,12 +302,16 @@
             return false;
         }
         delete window.ghostNetworkPendingTerritoryParts[key];
-        const html = '<span class="ghostnetwork-territory-badge" aria-hidden="true"></span>';
+        const state = normalizeState(part);
+        const assetUrl = String((part.visual_asset_url || part.marker_asset_url) || "").trim();
+        const html = assetUrl
+            ? `<span class="ghostnetwork-territory-badge has-asset is-${escapeHtml(state)}" aria-hidden="true"><span class="ghostnetwork-part-halo"></span><img class="ghostnetwork-part-art" src="${escapeHtml(assetUrl)}" alt="" draggable="false"></span>`
+            : `<span class="ghostnetwork-territory-badge is-${escapeHtml(state)}" aria-hidden="true"></span>`;
         const icon = L.divIcon({
             className: "ghostnetwork-territory-icon",
             html,
-            iconSize: [16, 16],
-            iconAnchor: [8, 8]
+            iconSize: [38, 38],
+            iconAnchor: [19, 19]
         });
         let marker = window.ghostNetworkTerritoryLayers[key];
         if (!marker) {

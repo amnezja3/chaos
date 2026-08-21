@@ -150,14 +150,39 @@
 }
 
 .ghostnetwork-territory-badge {
+  position: relative;
   display: block;
   box-sizing: border-box;
-  width: 16px;
-  height: 16px;
+  width: 38px;
+  height: 38px;
+  color: #8cff8c;
   border: 1px dashed #8cff8c;
+  border-radius: 50%;
   background: rgba(0, 18, 8, 0.76);
   box-shadow: 0 0 8px rgba(140, 255, 140, 0.32);
-  transform: rotate(45deg);
+}
+
+.ghostnetwork-territory-badge .ghostnetwork-part-art {
+  inset: 4px;
+  width: 30px;
+  height: 30px;
+  filter: grayscale(1) brightness(1.35) drop-shadow(0 0 5px currentColor);
+}
+
+.ghostnetwork-territory-badge .ghostnetwork-part-halo {
+  inset: 3px;
+}
+
+.ghostnetwork-territory-badge.is-blocked {
+  color: #ffc400;
+  border-color: #ffc400;
+  box-shadow: 0 0 10px rgba(255, 196, 0, 0.52);
+}
+
+.ghostnetwork-territory-badge.is-active {
+  color: #b7ff35;
+  border-color: #b7ff35;
+  box-shadow: 0 0 12px rgba(183, 255, 53, 0.62);
 }
 
 /* Strategic state decorates the canonical owner polygon; it never replaces

@@ -3,6 +3,8 @@
 ASSET_ROOT = "static/images/ghostnetwork/parts"
 PUBLIC_ASSET_ROOT = f"/{ASSET_ROOT}"
 RECOMMENDED_DIMENSIONS = "128x128"
+CLASSIFIED_MARKER_ASSET_FILENAME = "classified_part.png"
+CLASSIFIED_MARKER_ASSET_URL = f"{PUBLIC_ASSET_ROOT}/{CLASSIFIED_MARKER_ASSET_FILENAME}"
 
 
 def part_visual_asset_contract(part_definition):

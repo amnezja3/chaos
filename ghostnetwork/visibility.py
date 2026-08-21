@@ -4,7 +4,7 @@ import hashlib
 
 from .catalog import get_catalog
 from .module_state import GhostModuleStateService
-from .part_assets import part_visual_asset_contract
+from .part_assets import CLASSIFIED_MARKER_ASSET_URL, part_visual_asset_contract
 
 
 VISIBILITY_VERSION = "ghost-visibility-v2"
@@ -217,6 +217,14 @@ class GhostVisibilityService:
             "part_code": _clean(part.get("part_code")) if identity_visible else None,
             "visual_asset_key": visual_asset.get("visual_asset_key") if identity_visible else None,
             "visual_asset_url": visual_asset.get("visual_asset_url") if identity_visible else None,
+            # A classified projection still needs a proper map glyph.  This
+            # generic artwork carries no part identity and therefore does not
+            # disclose the hidden node or topology.
+            "marker_asset_url": (
+                visual_asset.get("visual_asset_url")
+                if identity_visible
+                else CLASSIFIED_MARKER_ASSET_URL
+            ),
             "name": _clean(catalog_part.get("name")) if identity_visible else None,
             "clan_code": _clean(part.get("clan_code")) if visibility_level != "contained_hidden" else None,
             "clan_name": _clean(clan.get("name")) if visibility_level != "contained_hidden" else None,

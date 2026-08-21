@@ -9,9 +9,19 @@ Final asset contract for Sprint 130.9.4:
 - keep the important silhouette inside a 108x108 px safe area,
 - lifecycle and hostile variants are presentation classes, not separate files.
 
+Classified marker contract:
+
+- filename: `classified_part.png`,
+- path: `static/images/ghostnetwork/parts/classified_part.png`,
+- format and dimensions: PNG with alpha transparency, 128x128 px,
+- purpose: neutral artwork for `foreign_blocked` and `foreign_active`,
+- must not resemble or reveal any one of the 20 canonical parts,
+- no baked lifecycle color, glow, halo or frame; BLOCKED/ACTIVE styling is CSS.
+
 Expected files:
 
 ```text
+classified_part.png
 v1_ledger_nexus.png
 v2_backdoor_forge.png
 v3_mimicry_engine.png

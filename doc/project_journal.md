@@ -1,5 +1,18 @@
 # CHAOS — Project Journal
 
+## 2026-08-21 - Sprint 130.9.4 manual finding: classified marker
+
+- Manual potwierdził indywidualne PNG dla części PUBLIC, ale projekcje
+  `foreign_blocked` i `foreign_active` nadal wpadały w geometryczny kwadrat.
+- Projekcje z prawem do tożsamości (`full_owner` / `full_clan`) nadal używają
+  jednego z 20 PNG. Projekcje niejawne dostały neutralny asset
+  `static/images/ghostnetwork/parts/classified_part.png`,
+  który nie ujawnia kodu części ani topologii; badge terytorialny zachowuje
+  przy tym efekt CSS stanu BLOCKED/ACTIVE.
+- Test renderera JS i `git diff --check`: OK. Python regression wymaga
+  powtórzenia w środowisku projektu (interpreter nie jest dostępny w tej sesji).
+- Status: `READY FOR MANUAL GAMEPLAY RETEST — Sprint 130.9.4`.
+
 ## 2026-08-21 - Sprint 130.9.4 Etap 2: PNG Renderer
 
 - Zweryfikowano `20/20` PNG: poprawne nazwy, `128×128`, RGBA/alpha i niezerowy

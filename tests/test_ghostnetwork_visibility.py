@@ -127,6 +127,7 @@ class GhostVisibilityServiceTest(unittest.TestCase):
         self.assertEqual(owner["part_code"], "P3")
         self.assertEqual(owner["name"], "Paranoia Loop")
         self.assertEqual(owner["location_visibility"], "exact")
+        self.assertEqual(owner["marker_asset_url"], "/static/images/ghostnetwork/parts/p3_paranoia_loop.png")
 
         clanmate = self.visibility.project_part_for_viewer(
             part,
@@ -141,6 +142,7 @@ class GhostVisibilityServiceTest(unittest.TestCase):
         self.assertIsNone(clanmate["target_id"])
         self.assertIsNone(clanmate["visual_asset_key"])
         self.assertIsNone(clanmate["visual_asset_url"])
+        self.assertEqual(clanmate["marker_asset_url"], "/static/images/ghostnetwork/parts/classified_part.png")
         self.assertEqual(clanmate["location_visibility"], "territory_only")
         leaked = self.encoded(clanmate)
         self.assertNotIn("P3", leaked)
@@ -166,6 +168,7 @@ class GhostVisibilityServiceTest(unittest.TestCase):
         self.assertEqual(clan_view["viewer_relation"], "clan_own_active")
         self.assertEqual(clan_view["part_code"], "E1")
         self.assertEqual(clan_view["ability_code"], "expose")
+        self.assertEqual(clan_view["marker_asset_url"], "/static/images/ghostnetwork/parts/e1_breach_voice.png")
 
         foreign = self.visibility.project_part_for_viewer(
             part,
@@ -182,6 +185,8 @@ class GhostVisibilityServiceTest(unittest.TestCase):
         self.assertIsNone(foreign["machine_code"])
         self.assertIsNone(foreign["profession_code"])
         self.assertIsNone(foreign["ability_code"])
+        self.assertIsNone(foreign["visual_asset_url"])
+        self.assertEqual(foreign["marker_asset_url"], "/static/images/ghostnetwork/parts/classified_part.png")
         leaked = self.encoded(foreign)
         self.assertNotIn("E1", leaked)
         self.assertNotIn("Breach Voice", leaked)

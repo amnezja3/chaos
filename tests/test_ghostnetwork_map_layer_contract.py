@@ -125,6 +125,7 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
 
     def test_part_png_renderer_has_fallback_lifecycle_and_live_only_transitions(self):
         self.assertIn("part.visual_asset_url", self.map_js)
+        self.assertIn("part.marker_asset_url", self.map_js)
         self.assertIn("ghostnetwork-part-art", self.map_js)
         self.assertIn("ghostnetwork-part-fallback", self.map_js)
         self.assertIn('type === "ghost.part_contained"', self.map_js)

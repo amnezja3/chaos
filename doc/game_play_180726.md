@@ -23552,7 +23552,22 @@ rozróżnić w grze.
 
 # Sprint 130.9.4 — GhostNetwork Part Visual Upgrade
 
-**Status:** `READY FOR MANUAL GAMEPLAY TEST` (2026-08-21).
+**Status:** `READY FOR MANUAL GAMEPLAY RETEST` (2026-08-21).
+
+## Wynik pierwszego manuala i korekta projekcji niejawnej
+
+Manual potwierdził finalne assety dla części PUBLIC. Dla projekcji BLOCKED i
+ACTIVE bez prawa do poznania tożsamości renderer pokazywał jednak stary
+geometryczny kwadrat. Nie można w tej relacji przesłać jednego z 20 unikalnych
+PNG, ponieważ nazwa i sylwetka zdradziłyby ukrytą część.
+
+Po korekcie `full_owner` i `full_clan` nadal otrzymują właściwy PNG części,
+a `foreign_blocked` / `foreign_active` otrzymują neutralny asset
+`static/images/ghostnetwork/parts/classified_part.png` z
+efektem CSS odpowiadającym stanowi. Ukryta projekcja nadal nie zawiera
+`part_id`, `part_code`, ability ani URL-u indywidualnego PNG.
+
+`READY FOR MANUAL GAMEPLAY RETEST — Sprint 130.9.4`
 
 ## Wynik Etapu 1 — kanoniczny kontrakt assetów
 
@@ -24752,6 +24767,319 @@ Nie commituj.
 
 Nie deployuj.
 
+
+---
+
+# Sprint 130.9.5 — GhostNetwork Part Spatial Separation
+
+## Cel
+
+Wprowadzić zasadę minimalnej odległości pomiędzy częściami GhostNetwork.
+
+Części jednego aktywnego cyklu nie mogą pojawiać się zbyt blisko siebie.
+
+Minimalna odległość:
+
+`50 km`
+
+Ma to zapobiec sytuacji, w której kilka części GhostNetwork skupia się przypadkowo w jednym mieście, dzielnicy albo niewielkim regionie.
+
+GhostNetwork powinien być rzeczywiście rozproszony po świecie.
+
+---
+
+## Zasada podstawowa
+
+1. Nowa część może zostać zarezerwowana dla targetu tylko wtedy, gdy współrzędne targetu znajdują się co najmniej:
+
+`50 km`
+
+od każdej innej części bieżącego cyklu, która posiada już lokalizację.
+
+2. Sprawdzamy nie tylko części publiczne.
+
+Do blokowania przestrzeni muszą liczyć się wszystkie części posiadające już przypisaną lokalizację:
+
+* `reserved`,
+* `public`,
+* `contained`,
+* `active`.
+
+To jest ważne, ponieważ dwie równoległe operacje nie mogą ukrycie zarezerwować dwóch części kilka kilometrów od siebie, a następnie ujawnić ich później.
+
+3. Części znajdujące się nadal wyłącznie w centralnej puli:
+
+`pooled`
+
+nie posiadają lokalizacji i nie uczestniczą w kontroli odległości.
+
+4. Po wygaśnięciu reservation jej lokalizacja przestaje blokować obszar.
+
+5. Po discovery część pozostaje kotwicą przestrzenną aż do końca cyklu.
+
+Zmiana:
+
+`public → contained → active`
+
+nie zmienia jej pozycji ani promienia separacji.
+
+---
+
+## Obliczanie odległości
+
+6. Użyj rzeczywistej odległości geograficznej pomiędzy współrzędnymi.
+
+Nie używaj:
+
+* prostego porównania latitude/longitude,
+* bounding box jako ostatecznego kryterium,
+* odległości ekranowej mapy.
+
+Użyj istniejącego helpera geograficznego projektu, jeżeli już istnieje.
+
+Jeżeli nie istnieje odpowiedni wspólny helper, zastosuj poprawne obliczenie typu Haversine.
+
+7. Granica jest inkluzywna:
+
+`distance >= 50 km` → target może być kandydatem.
+
+`distance < 50 km` → target nie może otrzymać części.
+
+---
+
+## Miejsce wykonania kontroli
+
+8. Kontrola musi nastąpić **przed utworzeniem reservation**.
+
+Docelowa ścieżka:
+
+`aim`
+→ `eligibility`
+→ `spatial separation`
+→ `drop policy`
+→ `candidate part`
+→ `reservation`
+
+Możesz dostosować dokładną kolejność do obecnej architektury, jeżeli jest potrzebna dla wydajności lub bezpieczeństwa, ale nie może powstać reservation naruszająca limit 50 km.
+
+9. Nie wystarczy sprawdzenie wykonane tylko wcześniej w pamięci.
+
+Równoległe requesty muszą być zabezpieczone przed scenariuszem:
+
+```text
+request A sprawdza teren → wolny
+request B sprawdza teren → wolny
+
+A rezerwuje część
+B rezerwuje część 2 km dalej
+```
+
+Finalna decyzja o reservation musi pozostać bezpieczna względem istniejącego atomowego mechanizmu repository/CAS/transaction.
+
+Nie twórz osobnego source of truth lokalizacji.
+
+---
+
+## Brak ujawniania ukrytych części
+
+10. Reguła 50 km jest mechaniką backendową.
+
+Gracz nie może dostać informacji:
+
+`część nie wypadła, ponieważ 12 km dalej znajduje się ukryta reservation`.
+
+11. Jeżeli target odpada przez spatial separation, frontend zachowuje się tak samo jak przy zwykłym braku dropu.
+
+12. Telemetria techniczna może posiadać reason code, np.:
+
+`part_too_close`
+
+lub nazwę zgodną z istniejącym systemem telemetryki.
+
+Nie może jednak ujawniać:
+
+* `part_id`,
+* współrzędnych ukrytej części,
+* właściciela reservation,
+* odległości do ukrytego komponentu
+
+w danych dostępnych graczowi.
+
+---
+
+## Konfiguracja
+
+13. Nie wpisuj liczby `50` w wielu miejscach.
+
+Wprowadź jedno źródło konfiguracji zgodne z obecną konfiguracją GhostNetwork.
+
+Preferowane znaczenie:
+
+`GHOSTNETWORK_MIN_PART_DISTANCE_KM = 50`
+
+lub istniejąca konwencja projektu.
+
+14. Wartość domyślna dla aktualnego gameplayu:
+
+`50 km`
+
+15. Nie dodawaj osobnego developmentowego wyjątku, chyba że istniejący test mode wymaga deterministic fixtures.
+
+Normalny serwer testowy również ma działać z rzeczywistą regułą 50 km.
+
+---
+
+## Zachowanie przy braku miejsca
+
+16. Jeżeli target jest zbyt blisko istniejącej części:
+
+* nie twórz reservation,
+* nie usuwaj części z pool,
+* nie zmieniaj istniejących części,
+* nie przenoś istniejącej części,
+* nie próbuj „upchnąć” jej kilka kilometrów dalej.
+
+Target po prostu nie otrzymuje części w tej próbie.
+
+17. Nie zmieniaj istniejącego drop chance.
+
+Spatial separation jest dodatkowym warunkiem eligibility przestrzennej, a nie zmianą prawdopodobieństwa:
+
+```text
+eligible target
++
+spatially valid
++
+successful drop roll
+=
+possible reservation
+```
+
+---
+
+## Istniejące części
+
+18. Sprint nie relokuje części już odkrytych w aktualnym cyklu.
+
+Jeżeli obecny `ghostnetwork_0001` posiada dwie części znajdujące się bliżej niż 50 km, zachowaj ich aktualne lokalizacje.
+
+Reguła obowiązuje dla **nowych reservations po wdrożeniu sprintu**.
+
+Nie wykonuj migracji istniejącego cyklu tylko w celu spełnienia nowej zasady.
+
+---
+
+## Testy
+
+Dodaj testy co najmniej dla:
+
+1. brak innych części → reservation może powstać;
+
+2. część 10 km dalej → reservation zablokowana;
+
+3. część 49,9 km dalej → reservation zablokowana;
+
+4. część dokładnie około 50 km dalej → reservation dozwolona zgodnie z przyjętą tolerancją obliczeniową;
+
+5. część 70 km dalej → reservation dozwolona;
+
+6. `reserved` part blokuje sąsiedni target;
+
+7. wygasła reservation nie blokuje już obszaru;
+
+8. `public` blokuje;
+
+9. `contained` blokuje;
+
+10. `active` blokuje;
+
+11. `pooled` bez współrzędnych nie wpływa na spatial check;
+
+12. dwie równoległe próby reservation w promieniu <50 km nie mogą obie zakończyć się sukcesem;
+
+13. spatial rejection nie usuwa części z pool;
+
+14. spatial rejection nie ujawnia informacji o sąsiedniej ukrytej części;
+
+15. nowy cykl nie bierze pod uwagę zużytych części poprzedniego cyklu.
+
+---
+
+## Test przestrzenny end-to-end
+
+Dodaj również scenariusz:
+
+```text
+target A
+→ successful roll
+→ reservation
+→ discovery
+
+target B 20 km od A
+→ aim
+→ brak reservation
+
+target C 80 km od A
+→ aim
+→ successful deterministic roll
+→ reservation
+→ discovery
+```
+
+Końcowo:
+
+* A i C istnieją,
+* B nie dostał części,
+* pool zmniejszył się dokładnie o 2,
+* nie ma duplikatów,
+* odległość A ↔ C spełnia kontrakt.
+
+---
+
+## Wydajność
+
+Spatial check wykonywany jest na maksymalnie 20 częściach cyklu.
+
+Nie buduj:
+
+* nowego indeksu geograficznego,
+* osobnej tabeli spatial cache,
+* pollera,
+* dodatkowego workera
+
+tylko dla tej reguły.
+
+Przy maksymalnie 20 elementach zwykłe sprawdzenie lokalizacji bieżącego cyklu jest wystarczające, o ile odbywa się we właściwej warstwie repository/service.
+
+---
+
+## Definition of Done
+
+Sprint 130.9.5 jest zakończony, jeżeli:
+
+* nowe części nie mogą zostać zarezerwowane bliżej niż 50 km od istniejącej lokalizacji części tego samego cyklu,
+* `reserved` również blokuje przestrzeń,
+* concurrency nie pozwala ominąć reguły,
+* expiration reservation zwalnia obszar,
+* gracz nie otrzymuje informacji o ukrytych reservations,
+* istniejące części nie są relokowane,
+* nie zmienia się drop chance,
+* nie powstaje nowy source of truth,
+* testy concurrency i E2E przechodzą,
+* pełna regresja GhostNetwork pozostaje zielona.
+
+Na końcu podaj:
+
+* rzeczywiste miejsce implementacji spatial check,
+* wykorzystany sposób obliczania odległości,
+* konfigurację limitu,
+* testy i ich wyniki,
+* `git diff --stat`,
+* `git diff --check`.
+
+Nie commituj.
+
+Nie deployuj.
 
 ---
 
