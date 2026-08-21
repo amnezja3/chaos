@@ -98,7 +98,7 @@ class GhostNetworkDiscoveryTest(unittest.TestCase):
 
         self.assertEqual(result["status"], "not_final_success")
         self.assertEqual(self.repo.get_part(reservation["part_id"])["status"], "reserved")
-        self.assertEqual(self.repo.get_part(reservation["part_id"])["target_id"], "")
+        self.assertEqual(self.repo.get_part(reservation["part_id"])["target_id"], target["target_id"])
 
     def test_no_reservation_and_expired_reservation_do_not_emit(self):
         no_reservation = self.service.on_target_hacked(

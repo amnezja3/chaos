@@ -24772,6 +24772,40 @@ Nie deployuj.
 
 # Sprint 130.9.5 — GhostNetwork Part Spatial Separation
 
+**Status:** `DONE` (2026-08-21).
+
+## Wynik realizacji
+
+- Limit ma jedno źródło konfiguracji:
+  `CHAOS_GHOSTNETWORK_MIN_PART_DISTANCE_KM`, domyślnie `50.0`; ecosystem weba,
+  workera i przykład zapisują jawnie wartość `50`.
+- Produkcyjna ścieżka `on_target_aimed` przekazuje współrzędne do
+  `GhostNetworkRepository.create_reservation`. Kontrola i zapis anchoru części
+  odbywają się w tej samej transakcji `BEGIN IMMEDIATE`, dlatego równoległe
+  requesty nie mogą oba ominąć limitu.
+- Odległość oblicza wspólny helper projektu
+  `Haversine.haversine_distance`, konwertowany z metrów na kilometry. Granica
+  `50 km` jest inkluzywna z tolerancją `0.000001 km`.
+- `reserved`, `public`, `contained` i `active` z lokalizacją blokują nowe
+  reservation wyłącznie w tym samym cyklu. `pooled` oraz części poprzedniego
+  cyklu nie blokują.
+- Reservation zapisuje anchor w istniejącym `ghost_parts`; release i expiry
+  atomowo czyszczą `target_id/latitude/longitude`. Discovery zachowuje anchor
+  reservation i nie może przesunąć części późniejszym payloadem.
+- Odrzucenie przestrzenne zwraca publicznie zwykły `roll_missed`. Techniczna
+  telemetria agreguje `part_too_close`, bez `part_id`, współrzędnych, właściciela
+  ani odległości.
+- Nie zmieniono drop chance, istniejących lokalizacji ani topology.
+
+Walidacja:
+
+- spatial boundary/states/expiry/privacy/concurrency/E2E: `8/8 OK`,
+- reservation/discovery/runtime: `19/19 OK`,
+- pełna regresja GhostNetwork: `193/193 OK`,
+- `/gonna-win` post-130 E2E, receipts i skorygowany kontrakt mapy: `12/12 OK`,
+- `py_compile`: OK,
+- `git diff --check`: OK.
+
 ## Cel
 
 Wprowadzić zasadę minimalnej odległości pomiędzy częściami GhostNetwork.

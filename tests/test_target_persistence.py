@@ -3481,6 +3481,7 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
                 patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run.user_store, "get_profile", side_effect=fake_profile), \
                 patch.object(run, "refresh_stale_territory_polygons", return_value=False), \
+                patch.object(run, "is_territory_conflict_snapshot_read_enabled", return_value=False), \
                 patch.object(run, "detect_territory_conflicts", return_value=[]) as detect_mock, \
                 patch.object(run, "get_active_conflicts_for_player", return_value=[]), \
                 patch.object(run, "contested_targets_from_active_conflicts", return_value=[]) as contested_mock:

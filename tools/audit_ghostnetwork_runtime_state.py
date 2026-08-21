@@ -115,6 +115,7 @@ def main():
         "drops_enabled": config.GHOSTNETWORK_DROPS_ENABLED,
         "drop_chance": config.GHOSTNETWORK_DROP_CHANCE,
         "reservation_ttl_seconds": config.GHOSTNETWORK_RESERVATION_TTL_SECONDS,
+        "min_part_distance_km": config.GHOSTNETWORK_MIN_PART_DISTANCE_KM,
         "cycle": cycle,
         "parts_summary": (
             service.cycles.get_parts_summary(cycle["cycle_id"])

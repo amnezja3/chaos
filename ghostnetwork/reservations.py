@@ -7,11 +7,12 @@ from datetime import datetime, timedelta, timezone
 from config import (
     GHOSTNETWORK_DROP_CHANCE,
     GHOSTNETWORK_DROPS_ENABLED,
+    GHOSTNETWORK_MIN_PART_DISTANCE_KM,
     GHOSTNETWORK_RESERVATION_TTL_SECONDS,
 )
 
 from .catalog import normalize_ghostnetwork_profile_identity
-from .errors import GhostNetworkError, ReservationConflict
+from .errors import GhostNetworkError, ReservationConflict, SpatialSeparationConflict
 from .repository import _clean, _iso
 
 
@@ -227,6 +228,7 @@ class GhostReservationService:
             expires_at = _iso(now_dt + timedelta(seconds=self.policy.ttl_seconds))
         reservation_id = "reservation_" + _stable_hash(cycle_id, candidate["part_id"], target_id, player_id)[:16]
         try:
+            target_lat, target_lng = _coords(target)
             reservation = self.repository.create_reservation(
                 cycle_id,
                 candidate["part_id"],
@@ -235,7 +237,19 @@ class GhostReservationService:
                 player_clan,
                 reservation_id=reservation_id,
                 expires_at=expires_at,
+                latitude=target_lat,
+                longitude=target_lng,
+                min_distance_km=GHOSTNETWORK_MIN_PART_DISTANCE_KM,
             )
+        except SpatialSeparationConflict:
+            # Externally this is deliberately indistinguishable from a normal
+            # unsuccessful roll.  The reason is for internal telemetry only.
+            return {
+                "ok": True,
+                "status": "roll_missed",
+                "cycle_id": cycle_id,
+                "internal_reason": "part_too_close",
+            }
         except ReservationConflict:
             return {"ok": True, "status": "reservation_conflict", "cycle_id": cycle_id}
         return {"ok": True, "status": "reserved", "cycle_id": cycle_id, "reservation_id": reservation["reservation_id"]}

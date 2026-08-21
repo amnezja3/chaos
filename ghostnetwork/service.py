@@ -4,6 +4,7 @@ from database import DB_PATH
 from config import (
     GHOSTNETWORK_DROP_CHANCE,
     GHOSTNETWORK_DROPS_ENABLED,
+    GHOSTNETWORK_MIN_PART_DISTANCE_KM,
     GHOSTNETWORK_RUNTIME_MODE,
     GHOSTNETWORK_TEST_MODE,
 )
@@ -152,12 +153,15 @@ class GhostNetworkService:
                     "state_version": int(event.get("state_version") or 0),
                 }
         chance = float(GHOSTNETWORK_DROP_CHANCE)
+        min_part_distance_km = float(GHOSTNETWORK_MIN_PART_DISTANCE_KM)
         if chance < 0 or chance > 1:
             errors.append("drop_chance_out_of_range")
         if GHOSTNETWORK_DROPS_ENABLED and not (0 < chance <= 1):
             errors.append("drops_enabled_without_valid_chance")
         if not GHOSTNETWORK_DROPS_ENABLED:
             errors.append("drops_disabled")
+        if min_part_distance_km < 0:
+            errors.append("min_part_distance_out_of_range")
         runtime_mode = GHOSTNETWORK_RUNTIME_MODE or "production"
         if runtime_mode not in {"production", "development", "test"}:
             errors.append("invalid_runtime_mode")
@@ -185,6 +189,7 @@ class GhostNetworkService:
             "active": int(parts_summary.get("parts_active") or 0),
             "drops_enabled": bool(GHOSTNETWORK_DROPS_ENABLED),
             "drop_chance": chance,
+            "min_part_distance_km": min_part_distance_km,
             "runtime_mode": runtime_mode,
             "test_mode": bool(GHOSTNETWORK_TEST_MODE),
             "topology_valid": topology_valid,
@@ -308,6 +313,8 @@ class GhostNetworkService:
             self.repository.record_pipeline_outcome("aim", "eligible", result.get("cycle_id") or "")
         if status in {"roll_missed", "reserved", "no_candidate_parts", "reservation_conflict"}:
             self.repository.record_pipeline_outcome("aim", "roll", result.get("cycle_id") or "")
+        if result.get("internal_reason") == "part_too_close":
+            self.repository.record_pipeline_outcome("aim", "part_too_close", result.get("cycle_id") or "")
         if status == "reserved":
             self.repository.record_pipeline_outcome("aim", "reservation", result.get("cycle_id") or "")
         return result

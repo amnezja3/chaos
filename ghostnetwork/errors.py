@@ -25,6 +25,10 @@ class ReservationConflict(GhostNetworkError):
     pass
 
 
+class SpatialSeparationConflict(ReservationConflict):
+    """A reservation would violate the cycle's minimum part distance."""
+
+
 class ReservationExpired(GhostNetworkError):
     pass
 

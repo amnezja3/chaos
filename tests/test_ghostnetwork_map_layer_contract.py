@@ -108,8 +108,8 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         css = (ROOT / "static" / "css" / "ghostnetwork_map.css").read_text(encoding="utf-8")
         badge = css.split(".ghostnetwork-territory-badge {", 1)[1].split("}", 1)[0]
         self.assertIn("display: block", badge)
-        self.assertIn("width: 16px", badge)
-        self.assertIn("height: 16px", badge)
+        self.assertIn("width: 38px", badge)
+        self.assertIn("height: 38px", badge)
         self.assertIn("prefers-reduced-motion", css)
 
     def test_strategic_states_decorate_canonical_owner_polygon(self):

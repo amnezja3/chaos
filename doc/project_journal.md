@@ -1,5 +1,21 @@
 # CHAOS — Project Journal
 
+## 2026-08-21 - DONE Sprint 130.9.5 Spatial Separation
+
+- Dodano atomowy limit `50 km` dla nowych GhostNetwork reservations. Check
+  maksymalnie 20 anchorów i zapis `reserved` wykonuje ta sama transakcja
+  repository; concurrency test potwierdza dokładnie jednego zwycięzcę dla
+  dwóch targetów oddalonych o `20 km`.
+- Wykorzystano wspólny `Haversine.haversine_distance`; konfiguracja to
+  `CHAOS_GHOSTNETWORK_MIN_PART_DISTANCE_KM=50`.
+- `reserved` kotwiczy lokalizację w `ghost_parts`, a release/expiry ją zwalnia.
+  Discovery zachowuje pierwotny anchor. Odrzucenie wygląda dla klienta jak
+  `roll_missed`, a agregat techniczny zapisuje wyłącznie `part_too_close`.
+- Testy: spatial `8/8`, reservation/discovery/runtime `19/19`, pełny GN
+  `193/193`, integracja `/gonna-win`/receipts/map `12/12`; py_compile i
+  `git diff --check` — OK.
+- Nie wykonano commit ani deploy.
+
 ## 2026-08-21 - Sprint 130.9.4 manual finding: classified marker
 
 - Manual potwierdził indywidualne PNG dla części PUBLIC, ale projekcje

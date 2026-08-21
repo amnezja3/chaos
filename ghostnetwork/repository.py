@@ -7,6 +7,8 @@ from contextlib import contextmanager, nullcontext
 from datetime import datetime, timezone
 from sqlite3 import IntegrityError
 
+import Haversine
+from config import GHOSTNETWORK_MIN_PART_DISTANCE_KM
 from database import DB_PATH, db_connect, dumps_json, loads_json
 
 from .catalog import CATALOG_VERSION, get_catalog, get_catalog_checksum
@@ -26,6 +28,7 @@ from .errors import (
     RepositoryIntegrityError,
     ReservationConflict,
     ReservationExpired,
+    SpatialSeparationConflict,
 )
 
 
@@ -56,6 +59,13 @@ def _hash_id(prefix, *parts):
     raw = ":".join(str(part or "") for part in parts)
     digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
     return f"{prefix}_{digest}"
+
+
+def haversine_distance_km(lat_a, lng_a, lat_b, lng_b):
+    """Return the project's canonical Haversine result converted to kilometres."""
+    return Haversine.haversine_distance(
+        float(lat_a), float(lng_a), float(lat_b), float(lng_b)
+    ) / 1000.0
 
 
 class GhostNetworkRepository:
@@ -1737,6 +1747,9 @@ class GhostNetworkRepository:
         player_clan="",
         reservation_id=None,
         expires_at=None,
+        latitude=None,
+        longitude=None,
+        min_distance_km=None,
     ):
         with self.transaction():
             conn = self._transaction_conn
@@ -1748,6 +1761,41 @@ class GhostNetworkRepository:
                 raise ReservationConflict(f"Part is not reservable: {part.get('status')}")
             if part.get("target_id") or part.get("latitude") is not None or part.get("longitude") is not None:
                 raise ReservationConflict("Part is already anchored.")
+            if latitude is not None or longitude is not None:
+                try:
+                    latitude = float(latitude)
+                    longitude = float(longitude)
+                except (TypeError, ValueError) as exc:
+                    raise ReservationConflict("Invalid reservation coordinates.") from exc
+                if not (
+                    math.isfinite(latitude)
+                    and math.isfinite(longitude)
+                    and -90 <= latitude <= 90
+                    and -180 <= longitude <= 180
+                ):
+                    raise ReservationConflict("Invalid reservation coordinates.")
+                distance_limit = float(
+                    GHOSTNETWORK_MIN_PART_DISTANCE_KM
+                    if min_distance_km is None
+                    else min_distance_km
+                )
+                anchors = conn.execute(
+                    """
+                    SELECT latitude, longitude
+                    FROM ghost_parts
+                    WHERE cycle_id = ?
+                      AND status IN ('reserved', 'public', 'contained', 'active')
+                      AND latitude IS NOT NULL
+                      AND longitude IS NOT NULL
+                    """,
+                    (_clean(cycle_id),),
+                ).fetchall()
+                if distance_limit > 0 and any(
+                    haversine_distance_km(latitude, longitude, row["latitude"], row["longitude"])
+                    + 0.000001 < distance_limit
+                    for row in anchors
+                ):
+                    raise SpatialSeparationConflict("part_too_close")
             reservation_id = _clean(reservation_id or _hash_id("reservation", cycle_id, part_id, target_id, player_id))
             now = self.now()
             expires_at = _clean(expires_at or now)
@@ -1774,10 +1822,10 @@ class GhostNetworkRepository:
                 updated = conn.execute(
                     """
                     UPDATE ghost_parts
-                    SET status = 'reserved', updated_at = ?
+                    SET status = 'reserved', target_id = ?, latitude = ?, longitude = ?, updated_at = ?
                     WHERE part_id = ? AND cycle_id = ? AND status = 'pooled'
                     """,
-                    (now, _clean(part_id), _clean(cycle_id)),
+                    (_clean(target_id), latitude, longitude, now, _clean(part_id), _clean(cycle_id)),
                 ).rowcount
                 if updated != 1:
                     raise ReservationConflict("Part reservation race.")
@@ -1987,9 +2035,15 @@ class GhostNetworkRepository:
     @staticmethod
     def _target_anchor_snapshot(target):
         target = target if isinstance(target, dict) else {}
-        lat = GhostNetworkRepository._coerce_coordinate(target.get("lat") or target.get("latitude"))
+        lat_value = target.get("lat") if target.get("lat") is not None else target.get("latitude")
+        lng_value = target.get("lng")
+        if lng_value is None:
+            lng_value = target.get("lon")
+        if lng_value is None:
+            lng_value = target.get("longitude")
+        lat = GhostNetworkRepository._coerce_coordinate(lat_value)
         lng = GhostNetworkRepository._coerce_coordinate(
-            target.get("lng") or target.get("lon") or target.get("longitude")
+            lng_value
         )
         label = (
             target.get("display_label")
@@ -2048,6 +2102,14 @@ class GhostNetworkRepository:
             if not part:
                 raise PartNotFound(f"Part not found: {reservation['part_id']}")
 
+            # Reservation is the spatial decision point.  Discovery must not
+            # move that anchor if a later payload contains changed coordinates.
+            if part.get("latitude") is not None and part.get("longitude") is not None:
+                lat = float(part["latitude"])
+                lng = float(part["longitude"])
+                anchor["latitude"] = lat
+                anchor["longitude"] = lng
+
             if reservation["target_id"] != target_id:
                 return {"ok": False, "status": "target_mismatch"}
             if player_id and reservation["player_id"] != player_id:
@@ -2095,7 +2157,7 @@ class GhostNetworkRepository:
                 conn.execute(
                     """
                     UPDATE ghost_parts
-                    SET status = 'pooled', updated_at = ?
+                    SET status = 'pooled', target_id = '', latitude = NULL, longitude = NULL, updated_at = ?
                     WHERE part_id = ? AND status = 'reserved'
                     """,
                     (now, reservation["part_id"]),
@@ -2221,7 +2283,7 @@ class GhostNetworkRepository:
             conn.execute(
                 """
                 UPDATE ghost_parts
-                SET status = 'pooled', updated_at = ?
+                SET status = 'pooled', target_id = '', latitude = NULL, longitude = NULL, updated_at = ?
                 WHERE part_id = ? AND status = 'reserved'
                 """,
                 (now, reservation["part_id"]),
@@ -2263,7 +2325,7 @@ class GhostNetworkRepository:
                 conn.execute(
                     """
                     UPDATE ghost_parts
-                    SET status = 'pooled', updated_at = ?
+                    SET status = 'pooled', target_id = '', latitude = NULL, longitude = NULL, updated_at = ?
                     WHERE part_id = ? AND status = 'reserved'
                     """,
                     (now_iso, reservation["part_id"]),
@@ -2308,7 +2370,7 @@ class GhostNetworkRepository:
                 conn.execute(
                     """
                     UPDATE ghost_parts
-                    SET status = 'pooled', updated_at = ?
+                    SET status = 'pooled', target_id = '', latitude = NULL, longitude = NULL, updated_at = ?
                     WHERE part_id = ? AND status = 'reserved'
                     """,
                     (now, reservation["part_id"]),
