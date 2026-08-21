@@ -313,6 +313,26 @@
 }
 
 @media (max-width: 760px) {
+  /* Large animated SVG filters force a full territory repaint on every
+     Leaflet transform on mobile. Preserve state signalling without asking
+     the touch compositor to rasterize the map continuously. */
+  .leaflet-interactive.ghostnetwork-territory-active,
+  .leaflet-interactive.ghostnetwork-territory-hostile {
+    animation: none;
+    filter: none;
+  }
+
+  .leaflet-interactive.ghostnetwork-territory-active {
+    stroke: #9cff32 !important;
+    stroke-width: 3px !important;
+  }
+
+  .ghostnetwork-part-art,
+  .ghostnetwork-part-halo,
+  .ghostnetwork-connection-pulse {
+    animation: none;
+  }
+
   .ghostnetwork-part-icon,
   .ghostnetwork-node {
     width: 48px;
@@ -330,5 +350,24 @@
     top: 14px;
     width: 16px;
     height: 16px;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .leaflet-interactive.ghostnetwork-territory-active,
+  .leaflet-interactive.ghostnetwork-territory-hostile {
+    animation: none;
+    filter: none;
+  }
+
+  .leaflet-interactive.ghostnetwork-territory-active {
+    stroke: #9cff32 !important;
+    stroke-width: 3px !important;
+  }
+
+  .ghostnetwork-part-art,
+  .ghostnetwork-part-halo,
+  .ghostnetwork-connection-pulse {
+    animation: none;
   }
 }

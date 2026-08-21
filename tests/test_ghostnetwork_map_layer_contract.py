@@ -143,6 +143,22 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
     def test_territory_snapshot_refresh_reapplies_strategic_state(self):
         self.assertIn("window.refreshGhostTerritoryStates();", self.map_template)
 
+    def test_mobile_renderer_avoids_animated_svg_filters_and_batches_refresh(self):
+        css = (ROOT / "static" / "css" / "ghostnetwork_map.css").read_text(encoding="utf-8")
+        mobile = css[css.index("@media (max-width: 760px)"):]
+        self.assertIn(".leaflet-interactive.ghostnetwork-territory-active", mobile)
+        self.assertIn(".leaflet-interactive.ghostnetwork-territory-hostile", mobile)
+        self.assertIn("animation: none", mobile)
+        self.assertIn("filter: none", mobile)
+        self.assertIn("@media (hover: none) and (pointer: coarse)", mobile)
+
+        self.assertIn("batchGhostTerritoryStatesRefresh", self.map_js)
+        self.assertIn("ghostTerritoryRefreshPending", self.map_js)
+        self.assertIn("layer._ghostNetworkStrategicState === normalized", self.map_js)
+        render_start = self.map_js.index("function renderGhostParts(parts)")
+        render_end = self.map_js.index("function normalizeSnapshotPayload", render_start)
+        self.assertIn("batchGhostTerritoryStatesRefresh", self.map_js[render_start:render_end])
+
 
 if __name__ == "__main__":
     unittest.main()

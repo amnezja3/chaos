@@ -38,6 +38,8 @@
     window.ghostNetworkSnapshotChecksum = window.ghostNetworkSnapshotChecksum || "";
     let ghostNetworkSnapshotRequestId = 0;
     let ghostNetworkRecoveryPromise = null;
+    let ghostTerritoryRefreshDepth = 0;
+    let ghostTerritoryRefreshPending = false;
 
     const ghostNetworkDeltaState = window.ghostNetworkDeltaState || {
         processed: [],
@@ -132,12 +134,34 @@
         const layer = entry && entry.layer ? entry.layer : entry;
         if (!layer) return false;
         const normalized = state === "hostile" || state === "active" ? state : "none";
+        if (layer._ghostNetworkStrategicState === normalized) return false;
         layer._ghostNetworkStrategicState = normalized;
         const element = typeof layer.getElement === "function" ? layer.getElement() : null;
         if (!element || !element.classList) return false;
         element.classList.remove("ghostnetwork-territory-active", "ghostnetwork-territory-hostile");
         if (normalized !== "none") element.classList.add(`ghostnetwork-territory-${normalized}`);
         return true;
+    }
+
+    function requestGhostTerritoryStatesRefresh() {
+        if (ghostTerritoryRefreshDepth > 0) {
+            ghostTerritoryRefreshPending = true;
+            return null;
+        }
+        return refreshGhostTerritoryStates();
+    }
+
+    function batchGhostTerritoryStatesRefresh(callback) {
+        ghostTerritoryRefreshDepth += 1;
+        try {
+            return callback();
+        } finally {
+            ghostTerritoryRefreshDepth = Math.max(0, ghostTerritoryRefreshDepth - 1);
+            if (ghostTerritoryRefreshDepth === 0 && ghostTerritoryRefreshPending) {
+                ghostTerritoryRefreshPending = false;
+                refreshGhostTerritoryStates();
+            }
+        }
     }
 
     function refreshGhostTerritoryStates() {
@@ -236,7 +260,7 @@
         delete window.ghostNetworkTerritoryLayers[normalizedKey];
         delete window.ghostNetworkPendingTerritoryParts[normalizedKey];
         delete window.ghostNetworkPartProjections[normalizedKey];
-        refreshGhostTerritoryStates();
+        requestGhostTerritoryStatesRefresh();
         return true;
     }
 
@@ -271,7 +295,7 @@
         window.ghostNetworkTerritoryLayers = {};
         window.ghostNetworkPendingTerritoryParts = {};
         window.ghostNetworkPartProjections = {};
-        refreshGhostTerritoryStates();
+        requestGhostTerritoryStatesRefresh();
     }
 
     function renderGhostTerritoryBadge(part) {
@@ -291,7 +315,7 @@
         }
         if (!key) return false;
         window.ghostNetworkPartProjections[key] = part;
-        refreshGhostTerritoryStates();
+        requestGhostTerritoryStatesRefresh();
         if (!coords) {
             window.ghostNetworkPendingTerritoryParts[key] = part;
             const pendingKeys = Object.keys(window.ghostNetworkPendingTerritoryParts);
@@ -330,7 +354,7 @@
         Object.values(window.ghostNetworkPendingTerritoryParts || {}).forEach(part => {
             if (renderGhostTerritoryBadge(part)) rendered += 1;
         });
-        refreshGhostTerritoryStates();
+        requestGhostTerritoryStatesRefresh();
         return rendered;
     }
 
@@ -514,7 +538,7 @@
             marker.on("click", () => openGhostPartPanel(part, marker));
         }
         marker.ghostNetworkProjection = part;
-        refreshGhostTerritoryStates();
+        requestGhostTerritoryStatesRefresh();
         refreshGhostConnections();
         const badge = window.ghostNetworkTerritoryLayers[key];
         if (badge) {
@@ -530,14 +554,16 @@
 
     function renderGhostParts(parts) {
         if (!Array.isArray(parts)) return 0;
-        clearGhostNetworkLayer();
         let rendered = 0;
-        parts
-            .filter(part => part && part.can_show_on_map !== false)
-            .slice(0, MAX_VISIBLE_PARTS)
-            .forEach(part => {
-                if (renderGhostPart(part)) rendered += 1;
-            });
+        batchGhostTerritoryStatesRefresh(() => {
+            clearGhostNetworkLayer();
+            parts
+                .filter(part => part && part.can_show_on_map !== false)
+                .slice(0, MAX_VISIBLE_PARTS)
+                .forEach(part => {
+                    if (renderGhostPart(part)) rendered += 1;
+                });
+        });
         return rendered;
     }
 

@@ -8,7 +8,7 @@
   {{ folium_css|safe }}
   <link rel="stylesheet" href="/static/css/style.css">
   <link rel="stylesheet" href="/static/css/blacknet.css">
-  <link rel="stylesheet" href="/static/css/ghostnetwork_map.css?v=part-assets-1">
+  <link rel="stylesheet" href="/static/css/ghostnetwork_map.css?v=mobile-perf-1">
   <style>
     .context-menu {
       position: absolute;
@@ -218,7 +218,7 @@
     .chaos-map-glitch-overlay.is-heavy,
     .chaos-map-glitch-overlay.is-overloaded {
       background: rgba(26, 0, 6, 0.22);
-      pointer-events: none;
+      pointer-events: auto;
     }
 
     .chaos-map-glitch-overlay.is-slow .chaos-map-glitch-block {
@@ -1792,7 +1792,7 @@
   </script>
 
 {{ folium_js|safe }}
-<script src="/static/js/map/ghostnetwork.js?v=part-assets-1"></script>
+<script src="/static/js/map/ghostnetwork.js?v=mobile-perf-1"></script>
 
     <script>
         const map = window[Object.keys(window).find(k => k.startsWith("map_"))];
