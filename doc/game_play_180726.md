@@ -23279,6 +23279,37 @@ Sprint 130.9.3 does not require new external assets.
 
 `READY FOR MANUAL GAMEPLAY TEST — Sprint 130.9.3`
 
+### Finding manualny 2026-08-21 — territory action gate i stare markery MC
+
+Manual potwierdził działanie efektu ACTIVE/HOSTILE, ale ujawnił dwa blockery:
+
+* obiekt na terytorium wrogiego klanu można było zeskanować i oznaczyć przez
+  ścieżki bez wspólnej bramki, a vulnerability omijało końcową blokadę hacku,
+* przy włączonych kanonicznych conflict snapshots odpowiedź mapy nadal zawierała
+  równoległe legacy `contested_targets`, więc drugi zestaw markerów przeżywał
+  przebudowę rejestrów MC.
+
+Serwerowa polityka blokuje teraz `scan`, `mark_target`, lekkie `aim` i
+`hack-action` na aktywnym lub encircled terytorium wrogiego klanu. Ten sam klan
+pozostaje relacją chronioną, a jedynym wyjątkiem ofensywnym jest cel rozwiązany
+kanonicznie przez `find_contested_target()` dla aktywnego konfliktu. Sam status
+vulnerability nie omija ochrony terytorium.
+
+W snapshot mode backend nie publikuje już legacy `contested_targets`; markery
+filarów/innerów pochodzą wyłącznie z kanonicznego snapshotu konfliktu, a pełny
+refresh usuwa brakujące conflict/engagement IDs.
+
+Regresja poprawki:
+
+* action gate + MapAimTarget + hack idempotency: `42/42 OK`,
+* conflict cutover/multi visibility/context: `41/41 OK`,
+* wcześniejsza regresja territory/conflict: `74/74 OK`,
+* `py_compile run.py` i renderer JS: OK.
+
+Manual retest: próba `scan → mark → aim → hack` na zwykłym obiekcie wrogiego
+terytorium ma zostać zablokowana; kanoniczny filar aktywnego konfliktu ma nadal
+być atakowalny. Po rebuildzie/snapshot refreshu stare oznaczenia MC mają zniknąć.
+
 ## Etapy realizacji
 
 ### Etap 1 — audyt danych i renderera

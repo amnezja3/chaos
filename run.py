@@ -13660,18 +13660,30 @@ def save_owned_hacked_security(username, lat, lng, security):
 
 
 def find_foreign_area_for_point(username, lat, lng):
-    for area in territory_store.list_player_areas():
-        if area.get("owner_username") == username:
+    profile_cache = {}
+    for area in safe_player_areas(territory_store.list_player_areas()):
+        owner_username = str(area.get("owner_username") or "").strip()
+        if not owner_username or owner_username == username:
             continue
-        if area.get("status") != "active":
+        if area.get("status") not in {"active", "encircled"}:
+            continue
+        if territory_combat_relation(username, owner_username, profile_cache=profile_cache) != "hostile":
             continue
         if point_in_polygon(float(lat), float(lng), area.get("vertices", [])):
-            owner_profile = user_store.get_profile(area.get("owner_username"))
+            owner_profile = _territory_relation_profile(owner_username, profile_cache=profile_cache)
             return {
                 **area,
-                "owner_nick": (owner_profile or {}).get("nick") or area.get("owner_username")
+                "owner_nick": (owner_profile or {}).get("nick") or owner_username,
+                "owner_clan": get_profile_clan(owner_profile or {}),
             }
     return None
+
+
+def foreign_territory_action_block(username, lat, lng, contested_target=None):
+    """Protect enemy territory; only its canonical active-conflict target is attackable."""
+    if contested_target:
+        return None
+    return find_foreign_area_for_point(username, float(lat), float(lng))
 
 
 def find_area_for_point(lat, lng):
@@ -19430,6 +19442,21 @@ def map_aim_target():
     if not isinstance(profile, dict):
         return jsonify({"success": False, "error": "profile_not_found"}), 404
     profile = dict(profile)
+    aimed_contested_target = find_contested_target(
+        username, lat, lng, label=label,
+        target_id=data.get("target_id"),
+        conflict_id=data.get("stable_conflict_id") or data.get("conflict_id"),
+    )
+    foreign_area = foreign_territory_action_block(
+        username, lat, lng, contested_target=aimed_contested_target,
+    )
+    if foreign_area and str(data.get("target_mode") or "standard") != "player":
+        return jsonify({
+            "success": False,
+            "blocked": True,
+            "error": "foreign_territory_protected",
+            "message": f"Target znajduje sie na kontrolowanym terenie gracza {foreign_area['owner_nick']}.",
+        }), 403
     previous = profile.get("aimed_target") or {}
     # The runtime row is authoritative. The legacy profile projection can lag
     # behind a desktop/terminal app finishing in another gunicorn worker.
@@ -19619,6 +19646,17 @@ def map_action():
     ava_lat = profile.get("curently_possition", {}).get("lat", 52.2297)
     ava_lng = profile.get("curently_possition", {}).get("lng", 21.0122)
     action_range = get_player_action_range(profile)
+
+    if action in {"scan", "mark_target"}:
+        foreign_area = foreign_territory_action_block(session["user"], lat, lng)
+        if foreign_area:
+            return jsonify({
+                "success": False,
+                "blocked": True,
+                "reason": "foreign_territory_protected",
+                "status": f"Target znajduje sie na kontrolowanym terenie gracza {foreign_area['owner_nick']}.",
+                "markers": [],
+            }), 403
 
     def assign_icon_and_type(tags: dict) -> tuple[str, str]:
         """
@@ -20115,7 +20153,6 @@ def hack_action():
         preflight_foreign_area = find_foreign_area_for_point(session["user"], float(lat), float(lng))
         if (
             preflight_foreign_area
-            and not preflight_vulnerability_report
             and not preflight_contested_target
             and requested_target_mode != "player"
         ):
@@ -20460,7 +20497,7 @@ def hack_action():
         foreign_area=bool(foreign_area),
         owner=(foreign_area or {}).get("owner_username"),
     )
-    if foreign_area and not vulnerability_report and not contested_target and requested_target_mode != "player":
+    if foreign_area and not contested_target and requested_target_mode != "player":
         print(
             "[HACK_ACTION_FORBIDDEN] "
             f"phase=runtime user={session.get('user')} action={action} "
@@ -23208,16 +23245,17 @@ def map_player_areas():
                 revealed_conflict_targets.append(target_payload)
                 if item.get("captured") or item.get("status") == "captured":
                     captured_conflict_pillars.append(target_payload)
-    try:
-        contested_targets = contested_targets_from_active_conflicts(
-            username,
-            active_conflicts_payload,
-            all_areas,
-        )
-    except Exception as exc:
-        print(f"[WARN] map player areas contested targets skipped: {exc}", flush=True)
-        player_areas_warnings.append("contested_targets_unavailable")
-        contested_targets = []
+    contested_targets = []
+    if not conflict_snapshot_mode:
+        try:
+            contested_targets = contested_targets_from_active_conflicts(
+                username,
+                active_conflicts_payload,
+                all_areas,
+            )
+        except Exception as exc:
+            print(f"[WARN] map player areas contested targets skipped: {exc}", flush=True)
+            player_areas_warnings.append("contested_targets_unavailable")
     areas = []
     try:
         owner_profile_cache = {

@@ -1,5 +1,17 @@
 # CHAOS — Project Journal
 
+## 2026-08-21 - Sprint 130.9.3 manual blockers: enemy gate i MC cleanup
+
+- Wspólna polityka serwerowa blokuje `scan`, `mark_target`, `aim` i hack
+  zwykłego/vulnerability obiektu na terytorium wrogiego klanu; wyjątkiem jest
+  wyłącznie kanoniczny cel aktywnego konfliktu. Ten sam klan pozostaje chroniony.
+- Snapshot mode nie wysyła już równoległych legacy `contested_targets`; markery
+  MC mają jedno źródło w canonical conflict snapshots i znikają przy rebuildzie.
+- Regresja: action gate/aim/hack `42/42`, conflict/context `41/41`, wcześniejszy
+  zestaw conflict `74/74`, `py_compile` i renderer JS — OK.
+- Status pozostaje `READY FOR MANUAL GAMEPLAY TEST — Sprint 130.9.3` do krótkiego
+  retestu dwóch zgłoszonych scenariuszy.
+
 ## 2026-08-21 - Sprint 130.9.3 Etap 1–2: Territory Visual States
 
 - Kanoniczne `module_state` i `territory_id` wystarczają do prezentacji:
