@@ -2552,6 +2552,22 @@
             }
         }
 
+        function bindTerritoryMapContextMenu(layer) {
+            if (!layer || typeof layer.on !== 'function') return;
+            if (layer._chaosMapContextMenuHandler && typeof layer.off === 'function') {
+                layer.off('contextmenu', layer._chaosMapContextMenuHandler);
+            }
+            const handler = function(e) {
+                // Leaflet Path contextmenu bubbling is not consistent across
+                // SVG/touch implementations. Territory geometry represents an
+                // empty map field, so route it explicitly to the map menu.
+                consumeMapContextEvent(e);
+                showMapMenuFromLeafletContextEvent(e);
+            };
+            layer._chaosMapContextMenuHandler = handler;
+            layer.on('contextmenu', handler);
+        }
+
         function closeTerritoryTooltips() {
             ['playerAreaLayers', 'conflictAreaLayers'].forEach(name => {
                 (window[name] || []).forEach(layer => {
@@ -2589,6 +2605,7 @@
             polygon._chaosTerritorySnapshot = { ...area, territory_id: territoryId };
             polygon.addTo(map);
             bindTerritoryTooltip(polygon, territoryTooltip(area));
+            bindTerritoryMapContextMenu(polygon);
             window.territoryAreaLayers[territoryId] = {
                 id: territoryId,
                 layer: polygon,
@@ -2630,6 +2647,7 @@
                 polygon._chaosTerritoryConflictId = `${conflict.id || conflict.conflict_key || 'conflict'}:${index}`;
                 polygon.addTo(map);
                 bindTerritoryTooltip(polygon, `Konflikt terytorium<br>Uczestnicy: ${participants || 'brak'}<br>Strefa: ${index + 1}`);
+                bindTerritoryMapContextMenu(polygon);
                 window.territoryConflictLayers[polygon._chaosTerritoryConflictId] = {
                     id: polygon._chaosTerritoryConflictId,
                     layer: polygon,
@@ -2709,6 +2727,7 @@
                     }
                     existing.version = Math.max(Number(existing.version || 0), geometryVersion);
                     bindTerritoryTooltip(existing.layer, tooltip);
+                    bindTerritoryMapContextMenu(existing.layer);
                     return;
                 }
                 const layer = L.polygon(points, {
@@ -2722,6 +2741,7 @@
                 layer._chaosLayerRegistry = 'territoryEngagementLayers';
                 layer._chaosTerritoryEngagementId = engagementId;
                 bindTerritoryTooltip(layer, tooltip);
+                bindTerritoryMapContextMenu(layer);
                 window.territoryEngagementLayers[layerId] = {
                     layer, version: geometryVersion, engagementId, snapshot
                 };
@@ -2896,6 +2916,7 @@
                 existing.version = Math.max(Number(existing.version || 0), version);
                 existing.front = front;
                 bindTerritoryTooltip(existing.layer, territoryConflictTooltip(snapshot, frontIndex));
+                bindTerritoryMapContextMenu(existing.layer);
                 return true;
             }
             const layer = L.polygon(points, {
@@ -2907,6 +2928,7 @@
             layer._chaosTerritoryConflictId = String(snapshot.conflict_id || '');
             layer._chaosTerritoryFrontId = frontId;
             bindTerritoryTooltip(layer, territoryConflictTooltip(snapshot, frontIndex));
+            bindTerritoryMapContextMenu(layer);
             window.territoryFrontLayers[frontId] = { layer, version, front, conflictId: snapshot.conflict_id };
             return true;
         }
@@ -3637,11 +3659,20 @@
             return true;
         }
 
-        function showMapMenuFromOriginalContextEvent(e) {
-            const originalEvent = e && e.originalEvent;
-            if (!originalEvent || !map || typeof map.mouseEventToContainerPoint !== 'function') return;
-            const containerPoint = map.mouseEventToContainerPoint(originalEvent);
-            const latlng = map.containerPointToLatLng(containerPoint);
+        function showMapMenuFromLeafletContextEvent(e) {
+            if (!e || !map) return false;
+            const originalEvent = e.originalEvent;
+            const containerPoint = e.containerPoint || (
+                originalEvent && typeof map.mouseEventToContainerPoint === 'function'
+                    ? map.mouseEventToContainerPoint(originalEvent)
+                    : null
+            );
+            const latlng = e.latlng || (
+                containerPoint && typeof map.containerPointToLatLng === 'function'
+                    ? map.containerPointToLatLng(containerPoint)
+                    : null
+            );
+            if (!containerPoint || !latlng) return false;
 
             closeAllMapMenus();
             showContextMenu(
@@ -3651,6 +3682,11 @@
                 latlng.lng,
                 true
             );
+            return true;
+        }
+
+        function showMapMenuFromOriginalContextEvent(e) {
+            return showMapMenuFromLeafletContextEvent(e);
         }
 
         function addInteractiveTargetMarker(lat, lng, label = "Cel", icon = "🎯", obj = {}) {

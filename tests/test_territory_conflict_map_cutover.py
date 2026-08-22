@@ -373,6 +373,79 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertNotIn("list_recent_area_intruders", source)
         self.assertNotIn("sync_session_profile", source)
 
+    def test_player_actor_snapshot_accepts_legacy_scalar_fraction(self):
+        viewer = {
+            "username": "viewer",
+            "clan": "Virex",
+            "fraction": {"name": "Virex", "role": "broker"},
+        }
+        legacy_actor = {
+            "username": "legacy-actor",
+            "nick": "Legacy",
+            "clan": "Virex",
+            "fraction": "Virex",
+            "current_position": {"lat": 52.2, "lng": 21.1},
+        }
+        visibility = {
+            "visible": False,
+            "attackable": False,
+            "combat_relation": "same_clan",
+            "visibility_reason": "",
+        }
+
+        with run.app.test_request_context("/api/map/player-actors"):
+            run.session["user"] = "viewer"
+            with mock.patch.object(run.user_store, "get_profile", return_value=viewer), \
+                    mock.patch.object(run.user_store, "list_profiles", return_value=[viewer, legacy_actor]), \
+                    mock.patch.object(run.mail_store, "list_pending_contact_names", return_value=[]), \
+                    mock.patch.object(run.mail_store, "list_accepted_contacts", return_value=[]), \
+                    mock.patch.object(run.territory_store, "list_player_areas", return_value=[]), \
+                    mock.patch.object(run, "build_territory_engagement_visibility_context", return_value={}), \
+                    mock.patch.object(run, "project_territory_actor_visibility", return_value=visibility):
+                response = run.map_player_actors()
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(len(payload["player_actors"]), 1)
+        self.assertEqual(payload["player_actors"][0]["username"], "legacy-actor")
+        self.assertEqual(payload["player_actors"][0]["clan"], run.get_profile_clan(legacy_actor))
+        self.assertEqual(payload["player_actors"][0]["profession"], "")
+
+    def test_legacy_scalar_fraction_is_read_only_compatible(self):
+        profile = {"fraction": "Virex"}
+
+        self.assertEqual(run.get_profile_clan(profile), "Virex")
+        self.assertEqual(run.get_profile_profession(profile), "")
+        self.assertIn("Virex", run.profile_fraction_values(profile))
+        self.assertEqual(profile, {"fraction": "Virex"})
+
+    def test_player_actor_delta_accepts_legacy_scalar_fraction(self):
+        actor = {
+            "username": "legacy-actor",
+            "clan": "Virex",
+            "fraction": "Virex",
+            "current_position": {"lat": 52.2, "lng": 21.1},
+        }
+        viewer = {"username": "viewer", "clan": "Virex"}
+
+        with mock.patch.object(run.player_position_store, "get_position", return_value={}), \
+                mock.patch.object(run.user_store, "get_profile", return_value=viewer), \
+                mock.patch.object(run.territory_store, "list_player_areas", return_value=[]):
+            payload = run.build_map_player_actor_delta_payload("viewer", actor)
+
+        self.assertIsNotNone(payload)
+        self.assertEqual(payload["username"], "legacy-actor")
+        self.assertEqual(payload["profession"], "")
+
+    def test_territory_paths_explicitly_route_context_menu_to_empty_field_menu(self):
+        source = self.map_template
+
+        self.assertIn("function bindTerritoryMapContextMenu(layer)", source)
+        self.assertIn("consumeMapContextEvent(e);\n                showMapMenuFromLeafletContextEvent(e);", source)
+        self.assertIn("const containerPoint = e.containerPoint ||", source)
+        self.assertIn("const latlng = e.latlng ||", source)
+        self.assertGreaterEqual(source.count("bindTerritoryMapContextMenu("), 7)
+
     def test_frontend_has_monotonic_snapshot_registry_contract(self):
         with open("templates/map_template.html", encoding="utf-8") as handle:
             source = handle.read()

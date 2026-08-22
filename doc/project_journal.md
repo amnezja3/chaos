@@ -1,5 +1,23 @@
 # CHAOS — Project Journal
 
+## 2026-08-22 - Sprint 130.10: blocker mapy po account switch
+
+- Manual przerwano po selektywnym `500` z `/api/map/player-actors` i braku menu
+  pustego pola nad terytoriami. Evidence:
+  `logs/sprint-130-10-monitor-20260822T090144Z-1542232.log`.
+- Traceback potwierdził legacy profil z tekstowym `fraction`; projekcja aktora
+  zakładała obiekt i wywoływała `.get("role")`, przez co jeden widoczny aktor
+  przerywał cały snapshot. Oczekiwane `409` opóźnionych requestów po logout
+  pozostały oddzielnym, poprawnym efektem unieważnienia lineage.
+- Wprowadzono read-only normalizację obu reprezentacji `fraction` dla klanu,
+  profesji, pełnego snapshotu i delty aktora. Nie wykonano migracji ani zapisu
+  profili.
+- Polygony pól, konfliktów, frontów i multi-conflictów nie polegają już wyłącznie
+  na niejednolitym bubbling `contextmenu` Leaflet. Jawnie przekazują zdarzenie do
+  zwykłego menu pustego pola; interaktywne markery zachowują własne menu.
+- Regresja map cutover: `29/29 OK`; Target Registry/session isolation/read path:
+  `253/253 OK`. Nie wykonano deployu, commita ani repair konta `Trollu2`.
+
 ## 2026-08-22 - Sprint 130.10: blocker `/desktop` po manualnym account switch
 
 - Monitor manuala zarejestrował cztery `GET /desktop` zakończone `500`, zero

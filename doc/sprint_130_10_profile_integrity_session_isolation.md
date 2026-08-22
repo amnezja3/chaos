@@ -645,6 +645,38 @@ nadal wymaga poprawnej generation i jawnego logoutu przed zmianą konta.
 Regresja session store/precommit/isolation oraz desktop boot zakończyła się
 wynikiem `52/52 OK`; celowany `py_compile` i `git diff --check` również przeszły.
 
+### Manual 2026-08-22 — blocker mapy po account switch
+
+Właściwy manual został poprawnie przerwany po selektywnym `500` endpointu
+`GET /api/map/player-actors` oraz braku menu pustego pola nad warstwami
+terytorium. Evidence:
+`logs/sprint-130-10-monitor-20260822T090144Z-1542232.log`.
+
+Traceback wskazał dokładną przyczynę backendową: projekcja aktora zakładała, że
+historyczne pole profilu `fraction` zawsze jest obiektem i wykonywała
+`(fraction or {}).get("role")`. Jeden z widocznych dla testowanego gracza
+profili miał zgodną z legacy danymi postać tekstową. Wyjątek jednego aktora
+przerywał cały snapshot. To wyjaśnia selektywność kont: błąd występował tylko u
+odbiorców, dla których dany aktor przechodził visibility projection. Dwa `409`
+zarejestrowane już po logout były oczekiwanym odrzuceniem odpowiedzi starej
+lineage (`durable_response_lineage_revoked`) i nie są błędem endpointu.
+
+Odczyt profilu obsługuje teraz obie historyczne reprezentacje `fraction` bez
+zapisu lub migracji profilu. Wspólny normalizator chroni zarówno pełny snapshot
+`player-actors`, jak i publikację delty aktora, rozpoznanie klanu/profesji oraz
+kontrolę dozwolonych frakcji.
+
+Brak menu był osobnym błędem presentation contract. Warstwy polygonów opierały
+się wyłącznie na `bubblingMouseEvents`, którego zachowanie `contextmenu` nie jest
+jednolite pomiędzy rendererami SVG i zdarzeniami dotykowymi. Każda kanoniczna
+warstwa pola, konfliktu, frontu i multi-conflictu przekazuje teraz jawnie swój
+Leaflet `contextmenu` do zwykłego menu pustego pola, używając bezpośrednio
+`containerPoint` i `latlng`. Markery interaktywne zachowują własne menu.
+
+Regresja obejmuje scalar/dict `fraction`, pełny endpoint aktorów, deltę/read
+path oraz jawne przekazanie menu dla wszystkich rodzajów geometrii. Nie
+zmieniono żadnego profilu, terytorium ani danych `Trollu2`.
+
 ## Etap 7 — po manualu
 
 Na podstawie wyniku użytkownika:

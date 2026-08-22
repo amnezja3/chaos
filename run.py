@@ -2873,13 +2873,7 @@ def build_map_player_actor_delta_payload(viewer_username, actor_profile, context
     except Exception as exc:
         print(f"Nie udalo sie policzyc terytoriow player_actor delta: {exc}")
 
-    profession = (
-        actor_profile.get("profession")
-        or actor_profile.get("role")
-        or (actor_profile.get("fraction") or {}).get("role")
-        or (actor_profile.get("operator") or {}).get("profession")
-        or ""
-    )
+    profession = get_profile_profession(actor_profile)
     if profession:
         context["profession"] = profession
 
@@ -14624,14 +14618,41 @@ def get_player_min_map_zoom(profile):
     return 18
 
 
+def profile_fraction_mapping(profile):
+    if not isinstance(profile, dict):
+        return {}
+    fraction = profile.get("fraction")
+    return fraction if isinstance(fraction, dict) else {}
+
+
 def get_profile_clan(profile):
-    if not profile:
+    if not isinstance(profile, dict):
         return ""
+    fraction = profile.get("fraction")
+    fraction_name = (
+        fraction.get("name")
+        if isinstance(fraction, dict)
+        else fraction if isinstance(fraction, str) else ""
+    )
     raw = (
         str(profile.get("clan") or "").strip()
-        or str((profile.get("fraction") or {}).get("name") or "").strip()
+        or str(fraction_name or "").strip()
     )
     return FACTION_NAMES.get(raw, raw)
+
+
+def get_profile_profession(profile):
+    if not isinstance(profile, dict):
+        return ""
+    operator = profile.get("operator")
+    operator_profession = operator.get("profession") if isinstance(operator, dict) else ""
+    return (
+        profile.get("profession")
+        or profile.get("role")
+        or profile_fraction_mapping(profile).get("role")
+        or operator_profession
+        or ""
+    )
 
 
 def get_pro_system_tool(tool_id):
@@ -14668,9 +14689,17 @@ def is_system_catalog_app(app):
 
 
 def profile_fraction_values(profile):
+    if not isinstance(profile, dict):
+        return set()
+    fraction = profile.get("fraction")
+    fraction_name = (
+        fraction.get("name")
+        if isinstance(fraction, dict)
+        else fraction if isinstance(fraction, str) else ""
+    )
     values = {
         str(profile.get("clan") or "").strip(),
-        str((profile.get("fraction") or {}).get("name") or "").strip(),
+        str(fraction_name or "").strip(),
         get_profile_clan(profile),
     }
     return {value for value in values if value}
@@ -24076,13 +24105,7 @@ def map_player_actors():
             context["clan"] = actor_clan
         context["level"] = actor_profile.get("level", context.get("level"))
         context["territory_count"] = territory_counts.get(actor_username, context.get("territory_count", 0))
-        profession = (
-            actor_profile.get("profession")
-            or actor_profile.get("role")
-            or (actor_profile.get("fraction") or {}).get("role")
-            or (actor_profile.get("operator") or {}).get("profession")
-            or ""
-        )
+        profession = get_profile_profession(actor_profile)
         if profession:
             context["profession"] = profession
 
