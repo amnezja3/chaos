@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, jsonify, redirect, url_for, Response, g, has_request_context
+from flask import Flask, render_template, request, session, jsonify, redirect, url_for, Response, g, has_request_context, make_response
 from markupsafe import Markup
 from terminals.commands import interpret_command
 import folium
@@ -18076,14 +18076,37 @@ def _session_generation_mismatch(reason, provided=""):
     # the durable lineage check still makes any retained old SID unusable.
     session.permanent = False
     session.modified = False
-    response = jsonify({
+    payload = {
         "ok": False,
         "error": "session_generation_mismatch",
         "reason": reason,
         "reload_required": True,
-    })
-    response.status_code = 409
+    }
+    fetch_destination = str(
+        request.headers.get("Sec-Fetch-Dest") or ""
+    ).strip().lower()
+    accept_header = str(request.headers.get("Accept") or "").lower()
+    accepts_html = (
+        "text/html" in accept_header
+        or "application/xhtml+xml" in accept_header
+    )
+    is_document_request = (
+        fetch_destination in {"document", "iframe"}
+        or accepts_html
+    )
+    if not request.path.startswith("/api/") and is_document_request:
+        response = make_response(
+            render_template(
+                "session_generation_blocked.html",
+                mismatch_reason=reason,
+            ),
+            409,
+        )
+    else:
+        response = jsonify(payload)
+        response.status_code = 409
     response.headers[SESSION_GENERATION_ERROR_HEADER] = "mismatch"
+    response.headers["Cache-Control"] = "no-store, max-age=0"
     return response
 
 

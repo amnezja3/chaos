@@ -557,6 +557,69 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         self.assertEqual("alice", self.read_session()["user"])
         authenticate.assert_not_called()
 
+    def test_authenticated_account_switch_without_generation_renders_chaos_block_for_html(self):
+        self.seed_session("alice", "generation-alice")
+        html_headers = {
+            "Accept": "text/html,application/xhtml+xml",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+        }
+
+        with patch.object(run, "authenticate_user", return_value=True) as authenticate:
+            blocked = self.client.post(
+                "/",
+                data={"username": "bob", "password": "secret"},
+                headers=html_headers,
+            )
+            active = self.client.get(
+                "/api/state/changes",
+                headers=self.generation_headers("generation-alice"),
+            )
+
+        body = blocked.get_data(as_text=True)
+        self.assertEqual(409, blocked.status_code)
+        self.assertEqual("text/html", blocked.mimetype)
+        self.assertEqual(
+            "mismatch",
+            blocked.headers[run.SESSION_GENERATION_ERROR_HEADER],
+        )
+        self.assertIn("CHAOS // SESSION GATE", body)
+        self.assertIn("Ta karta nie ma klucza aktywnej sesji", body)
+        self.assertIn("Kod blokady: missing_generation", body)
+        self.assertNotIn("generation-alice", body)
+        self.assertEqual(200, active.status_code)
+        self.assertEqual("alice", self.read_session()["user"])
+        authenticate.assert_not_called()
+
+    def test_missing_generation_api_contract_remains_json(self):
+        self.seed_session("alice", "generation-alice")
+
+        blocked = self.client.get(
+            "/api/state/changes",
+            headers={"Accept": "text/html,application/json"},
+        )
+
+        self.assertEqual(409, blocked.status_code)
+        self.assertEqual("application/json", blocked.mimetype)
+        self.assertEqual({
+            "ok": False,
+            "error": "session_generation_mismatch",
+            "reason": "missing_generation",
+            "reload_required": True,
+        }, blocked.get_json())
+
+    def test_missing_generation_non_api_fetch_contract_remains_json(self):
+        self.seed_session("alice", "generation-alice")
+
+        blocked = self.client.get(
+            "/launch-queue",
+            headers={"Accept": "*/*", "Sec-Fetch-Dest": "empty"},
+        )
+
+        self.assertEqual(409, blocked.status_code)
+        self.assertEqual("application/json", blocked.mimetype)
+        self.assertEqual("missing_generation", blocked.get_json()["reason"])
+
     def test_login_after_restart_replaces_incomplete_legacy_session(self):
         with self.client.session_transaction() as flask_session:
             flask_session["user"] = "alice"

@@ -25,6 +25,10 @@
   `253/253 OK`. Nie wykonano deployu, commita ani repair konta `Trollu2`.
 - Captured menu/map loader/GN layer: `78/78 OK`; behawioralny test Node hitboxu:
   OK; Target Registry/persistence: `221/221 OK`.
+- Końcowy retest serwerowy potwierdził poprawne menu pustego pola i markerów,
+  aktorów po zmianach kont oraz części GhostNetwork na wszystkich testowanych
+  kontach. Bramka mapy ma status `MAP BLOCKER RETEST PASSED`; właściwy manual
+  130.10 jest ponownie odblokowany, bez przedwczesnego werdyktu GO.
 
 ## 2026-08-22 - Sprint 130.10: blocker `/desktop` po manualnym account switch
 
@@ -1000,3 +1004,21 @@
 - Lokalnie brak interpretera Python/WSL, więc nowe testy Python są przygotowane,
   ale wymagają uruchomienia w środowisku serwerowym/CI. Testy Node, składnia JS,
   manifest i `git diff --check` przechodzą.
+
+## 2026-08-22 - Sprint 130.10: manual izolacji sesji i ekran blokady CHAOS
+
+- Manual z `logs/sprint-130-10-monitor-20260822T113207Z-1548831.log`
+  potwierdził brak przecieków między kontami. Druga gra w tej samej sesji cookie
+  została poprawnie zatrzymana przez `409 missing_generation`, a niezależny
+  profil przeglądarki działał równolegle.
+- W wycinku było 370 odpowiedzi `200`, 6 kontrolowanych `409`, zero `500`,
+  tracebacków, błędów blokady bazy i restartów PM2. Odrzucenia po logout były
+  zgodne z durable lineage contract.
+- Surowy JSON z formularza logowania zastąpiono ekranem
+  `CHAOS // SESSION GATE` wyłącznie dla żądań dokumentu HTML. API i polling nadal
+  otrzymują niezmieniony JSON `session_generation_mismatch`; blokada nie wykonuje
+  redirectu ani bootstrapu sesji.
+- Regresja session generation: isolation `30/30 OK`, łącznie store, precommit
+  i isolation `42/42 OK`; `py_compile` i `git diff --check`: OK.
+- Bramka manualna izolacji sesji: `SESSION ISOLATION MANUAL PASSED`; pełny Sprint
+  130.10 pozostaje otwarty do końcowego Etapu 7 i serwerowego `status/audit/verify`.

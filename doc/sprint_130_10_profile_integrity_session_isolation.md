@@ -702,6 +702,55 @@ Regresja po follow-upie: map cutover `31/31`, captured menu/map loader/GN layer
 `78/78`, Target Registry/persistence `221/221`, behawioralny test Node hitboxu
 oraz `git diff --check` — OK.
 
+#### Końcowy retest bramki mapy
+
+Użytkownik potwierdził na kontach testowych:
+
+- menu pustego pola działa nad terytoriami;
+- bezpośrednie trafienie w marker nadal otwiera właściwe menu markera;
+- aktorzy są renderowani poprawnie po zmianach kont;
+- części GhostNetwork są widoczne i poprawnie prezentowane na każdym testowanym
+  koncie.
+
+Werdykt tej bramki: `MAP BLOCKER RETEST PASSED`.
+
+To odblokowuje rozpoczęcie pełnego manuala Sprintu 130.10, ale nie jest jeszcze
+końcowym GO integralności profilu i izolacji sesji.
+
+#### Manual izolacji dwóch sesji przeglądarki
+
+Manual z monitorem
+`logs/sprint-130-10-monitor-20260822T113207Z-1548831.log` potwierdził właściwe
+zachowanie granicy sesji:
+
+- aktywna gra w pierwszej karcie nie ujawniła danych drugiego konta;
+- próba zalogowania drugiego konta w tej samej sesji cookie została trzykrotnie
+  odrzucona jako `POST / -> 409`, `reason=missing_generation`;
+- niezależny profil/sesja przeglądarki mógł równolegle uruchomić drugą grę;
+- aktywne generacje nadal otrzymywały odpowiedzi `200`; odrzucenia starych
+  odpowiedzi po logout miały oczekiwane przyczyny
+  `durable_precommit_rejected` / `durable_response_lineage_revoked`;
+- monitor zawiera `370` odpowiedzi `200`, `6` kontrolowanych odpowiedzi `409`,
+  zero `500`, zero tracebacków, zero `OperationalError`, zero
+  `database is locked` i zero restartów obu procesów;
+- konsola przeglądarki nie pokazała podejrzanych błędów, a użytkownik potwierdził
+  brak przecieków między kontami.
+
+Blokada była poprawna, lecz nawigacja formularza HTML pokazywała surowy payload
+JSON. Warstwa odpowiedzi rozróżnia teraz dokument HTML od API/fetch: dokument
+dostaje ekran `CHAOS // SESSION GATE` ze statusem `409`, natomiast API, polling i
+pozostałe fetch zachowują dotychczasowy kontrakt JSON. Poprawka nie wykonuje
+redirectu, nie bootstrapuje generacji i nie osłabia fail-closed isolation.
+
+Regresja obejmuje ekran HTML, zachowanie aktywnej pierwszej sesji, brak wycieku
+surowej generation w dokumencie, JSON dla `/api/*` oraz JSON dla historycznych
+endpointów pollingowych bez prefiksu `/api/`. Pełny
+`tests.test_session_generation_isolation`: `30/30 OK`; łącznie store, precommit
+i isolation: `42/42 OK`. `py_compile` i `git diff --check`: OK.
+
+Wynik bramki: `SESSION ISOLATION MANUAL PASSED`. Sprint nadal wymaga pozostałych
+punktów Etapu 7 i końcowego `status/audit/verify`, zanim otrzyma pełny werdykt GO.
+
 ## Etap 7 — po manualu
 
 Na podstawie wyniku użytkownika:
