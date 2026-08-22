@@ -39,6 +39,23 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         self.assertNotIn("inventory=", endpoint)
         self.assertNotIn("profile=profile", endpoint)
 
+    def test_every_desktop_template_render_has_explicit_canonical_generation(self):
+        start = self.source.index('@app.route("/desktop")')
+        end = self.source.index("def require_dev_admin", start)
+        endpoint = self.source[start:end]
+
+        generation_assignment = (
+            "session_generation = session_generation_client_context()"
+        )
+        template_render = 'render_template(\n        "linux.html",'
+        self.assertEqual(self.source.count('"linux.html"'), 1)
+        self.assertIn(generation_assignment, endpoint)
+        self.assertIn("session_generation=session_generation", endpoint)
+        self.assertLess(
+            endpoint.index(generation_assignment),
+            endpoint.index(template_render),
+        )
+
     def test_map_document_boot_does_not_rebuild_territory(self):
         start = self.source.index('@app.route("/map")')
         end = self.source.index("@app.route('/map-action'", start)

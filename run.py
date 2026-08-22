@@ -18170,6 +18170,22 @@ def enforce_authenticated_session_generation():
     lineage = str(session.get(SESSION_LINEAGE_KEY) or "").strip()
     username = str(session.get("user") or "").strip()
 
+    if (
+        protected
+        and request.method == "POST"
+        and request.endpoint in {"index", "api_register_finalize"}
+        and username
+        and (not expected or not lineage)
+    ):
+        # A cookie created before session-generation rollout can still contain
+        # an authenticated username without a durable lineage. It cannot be
+        # trusted as a current account-switch authority, but it also must not
+        # block a fresh credentialed login forever. Rotate it to an anonymous
+        # SID first; the endpoint may then authenticate and create the canonical
+        # lineage/generation through begin_authenticated_session().
+        invalidate_authenticated_session("incomplete_generation_reauthentication")
+        return None
+
     if document_boot:
         if not expected or not lineage:
             # Only an authenticated top-level document may upgrade a
@@ -18805,10 +18821,11 @@ def desktop():
     session.pop("profile", None)
     if not user_store.has_user(user):
         return redirect_missing_profile_to_login()
+    session_generation = session_generation_client_context()
     return render_template(
         "linux.html",
         user=user,
-        session_generation=session_generation_client_context(),
+        session_generation=session_generation,
         operation_feedback_flags=OPERATION_FEEDBACK_FLAGS,
         provisional_app_launch_flags={"enabled": PROVISIONAL_APP_LAUNCH_ENABLED},
     )

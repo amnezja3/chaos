@@ -1,5 +1,33 @@
 # CHAOS — Project Journal
 
+## 2026-08-22 - Sprint 130.10: blocker `/desktop` po manualnym account switch
+
+- Monitor manuala zarejestrował cztery `GET /desktop` zakończone `500`, zero
+  desktopów `200` i cztery identyczne błędy serializacji niezdefiniowanego
+  `session_generation` w `linux.html`.
+- Audyt całego repo potwierdził jeden endpoint `/desktop` i jeden render
+  `linux.html`; nie istnieje alternatywna ścieżka renderująca template bez
+  kontekstu.
+- Niezgodność numeru/treści linii tracebacku oraz niezmienny PID i licznik
+  restartów PM2 potwierdziły mixed deploy state: Gunicorn wykonywał starszy
+  code object, gdy nowy template był już na dysku. Disposition:
+  `CONFIRMED STALE WEB PROCESS / MIXED DEPLOY STATE`.
+- `/desktop` inicjalizuje teraz kontekst jawnie przez kanoniczny
+  `session_generation_client_context()` przed renderem. Nie dodano fallbacku w
+  Jinja.
+- Dodano regresję pełnego A → desktop → logout → B → desktop → logout → A →
+  desktop oraz świeżej rejestracji → desktop. Testy korzystają wyłącznie z
+  izolowanego session-generation store i mocków profilu; `Trollu2` nie został
+  odczytany, zmieniony ani naprawiany.
+- Po pełnym restarcie ujawniono pre-rollout cookie z `user`, ale bez trwałego
+  lineage/generation. `POST /` kończył się
+  `generation_bootstrap_required` przed uwierzytelnieniem.
+- Niepełna legacy sesja jest teraz unieważniana i ma obracany SID przed
+  credentialed login/register; kompletna sesja nadal nie może zmienić konta bez
+  poprawnej generation i logoutu.
+- Finalna regresja session store/precommit/isolation i desktop boot: `52/52
+  OK`; celowany `py_compile` oraz `git diff --check`: OK.
+
 ## 2026-08-21 - Sprint 130.10: lokalny hardening gotowy do manualnej bramki
 
 - Evidence `logs/chaos-13010-trolu2-20260821T184643Z.tar.gz` dla canonical

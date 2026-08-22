@@ -603,6 +603,48 @@ do tego uszkodzonego konta `Trollu2`.
 
 Manual nie wykonuje repair konta `Trollu2`.
 
+### Manual 2026-08-22 — blocker `/desktop` i disposition
+
+Artefakt `logs/print-130-10-monitor-20260822T082135Z-1540468.log` potwierdził
+cztery odpowiedzi `GET /desktop` ze statusem `500`, zero odpowiedzi `200` oraz
+cztery identyczne błędy `TypeError: Object of type Undefined is not JSON
+serializable` dla `templates/linux.html` i pola `session_generation`.
+
+Przyczyną nie była druga ścieżka renderowania template. Repo zawiera dokładnie
+jeden `render_template("linux.html", ...)` w endpointcie `/desktop`. Traceback
+oznaczał ramkę jako `desktop` z `run.py:17954`, ale tekst tej linii odczytany z
+pliku na dysku (`if token is None`) należał już do innej funkcji. To dowodzi, że
+proces Gunicorna wykonywał starszy code object po podmianie plików. Jednocześnie
+nowy `linux.html` był już widoczny i wymagał kontekstu Sprintu 130.10. Snapshoty
+PM2 przed i po manualu miały ten sam PID weba, `restart_time=11` i brak nowego
+restartu. Disposition: `CONFIRMED STALE WEB PROCESS / MIXED DEPLOY STATE`.
+
+Endpoint pobiera teraz `session_generation` jawnie przed renderem przez
+kanoniczny `session_generation_client_context()` i przekazuje gotowy kontekst
+do `linux.html`. Nie dodano fallbacku `default/null` w template. Regresja wymaga
+`200` oraz zgodnego generation, query tokenu, username i nagłówka dla:
+
+```text
+A login → /desktop → logout
+→ B login → /desktop → logout
+→ A login → /desktop
+```
+
+oraz dla świeżej sesji tworzącej nowe konto i otwierającej `/desktop`. Testy nie
+używają ani nie naprawiają profilu `Trollu2`; profile i user store są mockowane,
+a durable session lineage działa na izolowanej tymczasowej bazie.
+
+Po prawidłowym zatrzymaniu i uruchomieniu procesów ujawnił się drugi przypadek:
+przeglądarki zachowały pre-rollout cookie z `user`, ale bez lineage/generation.
+Chroniony `POST /` zwracał wtedy `generation_bootstrap_required` przed wywołaniem
+uwierzytelnienia. Taka niepełna sesja jest teraz kanonicznie unieważniana i ma
+obracany SID przed kontynuacją bieżącego credentialed login/register. Dopiero
+udane uwierzytelnienie tworzy nowe lineage/generation. Kompletna bieżąca sesja
+nadal wymaga poprawnej generation i jawnego logoutu przed zmianą konta.
+
+Regresja session store/precommit/isolation oraz desktop boot zakończyła się
+wynikiem `52/52 OK`; celowany `py_compile` i `git diff --check` również przeszły.
+
 ## Etap 7 — po manualu
 
 Na podstawie wyniku użytkownika:

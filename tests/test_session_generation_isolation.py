@@ -1,6 +1,7 @@
-import unittest
+import json
 import shutil
 import tempfile
+import unittest
 from pathlib import Path
 from unittest.mock import patch
 
@@ -55,6 +56,26 @@ class SessionGenerationIsolationTests(unittest.TestCase):
                 "generation": flask_session.get(run.SESSION_GENERATION_KEY),
                 "sid": getattr(flask_session, "sid", None),
             }
+
+    def assert_desktop_generation(self, response, username, generation):
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        marker = '<script id="session-generation-config" type="application/json">'
+        config_start = html.index(marker) + len(marker)
+        config_end = html.index("</script>", config_start)
+        context = json.loads(html[config_start:config_end].strip())
+
+        self.assertEqual(context["generation"], generation)
+        self.assertEqual(context["username"], username)
+        self.assertEqual(context["header"], run.SESSION_GENERATION_HEADER)
+        self.assertEqual(
+            context["query_token"],
+            run._session_generation_query_token(generation),
+        )
+        self.assertEqual(
+            response.headers[run.SESSION_GENERATION_HEADER],
+            generation,
+        )
 
     def test_successful_anonymous_login_rotates_sid_and_starts_generation(self):
         before = self.read_session()
@@ -144,9 +165,10 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         self.assertEqual(before["lineage"], after["lineage"])
         self.assertEqual(before["generation"], after["generation"])
 
-    def test_successful_registration_starts_fresh_isolated_session(self):
+    def test_successful_registration_starts_fresh_session_and_renders_desktop(self):
         with patch.object(run.user_store, "username_exists", return_value=False), \
                 patch.object(run.user_store, "list_profiles", return_value=[]), \
+                patch.object(run.user_store, "has_user", return_value=True), \
                 patch.object(run, "get_start_location_by_ip", return_value={
                     "city": "Warsaw", "lat": 52.2, "lng": 21.0, "source": "test",
                 }), \
@@ -160,10 +182,16 @@ class SessionGenerationIsolationTests(unittest.TestCase):
                 "nick": "New Player",
                 "email": "new@example.test",
             })
+            desktop = self.client.get(response.get_json()["redirect"])
         state = self.read_session()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(state["user"], "new_player")
         self.assertTrue(state["generation"])
+        self.assert_desktop_generation(
+            desktop,
+            "new_player",
+            state["generation"],
+        )
 
     def test_missing_or_stale_generation_is_rejected_before_read(self):
         self.seed_session()
@@ -392,6 +420,42 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         self.assertEqual(stale_logout.status_code, 409)
         self.assertEqual(self.read_session()["generation"], second_a)
 
+    def test_account_switch_a_to_b_to_a_renders_each_desktop_generation(self):
+        def login_and_open_desktop(username):
+            login = self.client.post(
+                "/",
+                data={"username": username, "password": "secret"},
+            )
+            self.assertEqual(login.status_code, 302)
+            state = self.read_session()
+            desktop = self.client.get(login.headers["Location"])
+            self.assert_desktop_generation(
+                desktop,
+                username,
+                state["generation"],
+            )
+            return state
+
+        def logout_generation(generation):
+            response = self.client.get(
+                "/logout?_session_generation="
+                f"{run._session_generation_query_token(generation)}"
+            )
+            self.assertEqual(response.status_code, 302)
+            self.assertIsNone(self.read_session()["user"])
+
+        with patch.object(run, "authenticate_user", return_value=True), \
+                patch.object(run.user_store, "has_user", return_value=True):
+            first_a = login_and_open_desktop("alice")
+            logout_generation(first_a["generation"])
+            bob = login_and_open_desktop("bob")
+            logout_generation(bob["generation"])
+            second_a = login_and_open_desktop("alice")
+
+        self.assertNotEqual(first_a["generation"], bob["generation"])
+        self.assertNotEqual(first_a["generation"], second_a["generation"])
+        self.assertNotEqual(bob["generation"], second_a["generation"])
+
     def test_two_independent_sessions_for_same_user_do_not_invalidate_each_other(self):
         first = run.app.test_client()
         second = run.app.test_client()
@@ -492,6 +556,40 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         )
         self.assertEqual("alice", self.read_session()["user"])
         authenticate.assert_not_called()
+
+    def test_login_after_restart_replaces_incomplete_legacy_session(self):
+        with self.client.session_transaction() as flask_session:
+            flask_session["user"] = "alice"
+        before = self.read_session()
+
+        with patch.object(run, "authenticate_user", return_value=True) as authenticate, \
+                patch.object(run.user_store, "has_user", return_value=True):
+            login = self.client.post(
+                "/",
+                data={"username": "alice", "password": "secret"},
+            )
+            state = self.read_session()
+            desktop = self.client.get(login.headers["Location"])
+
+        self.assertEqual(login.status_code, 302)
+        authenticate.assert_called_once_with("alice", "secret")
+        self.assertEqual(state["user"], "alice")
+        self.assertTrue(state["lineage"])
+        self.assertTrue(state["generation"])
+        if before["sid"] and state["sid"]:
+            self.assertNotEqual(before["sid"], state["sid"])
+        self.assertTrue(
+            run.session_generation_store.is_current(
+                state["lineage"],
+                state["generation"],
+                "alice",
+            )
+        )
+        self.assert_desktop_generation(
+            desktop,
+            "alice",
+            state["generation"],
+        )
 
     def test_old_tab_mutation_is_rejected_before_store_write(self):
         self.seed_session("bob", "generation-bob")
