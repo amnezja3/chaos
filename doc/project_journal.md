@@ -1022,3 +1022,6 @@
   i isolation `42/42 OK`; `py_compile` i `git diff --check`: OK.
 - Bramka manualna izolacji sesji: `SESSION ISOLATION MANUAL PASSED`; pełny Sprint
   130.10 pozostaje otwarty do końcowego Etapu 7 i serwerowego `status/audit/verify`.
+- Retest po wyczyszczeniu cache potwierdził ekran bramki i brak przecieków.
+  Przycisk `window.close()` zastąpiono komunikatem `ZAMKNIJ TĘ KARTĘ RĘCZNIE`,
+  ponieważ karta otwarta ręcznie nie może być niezawodnie zamknięta przez stronę.

@@ -751,6 +751,11 @@ i isolation: `42/42 OK`. `py_compile` i `git diff --check`: OK.
 Wynik bramki: `SESSION ISOLATION MANUAL PASSED`. Sprint nadal wymaga pozostałych
 punktów Etapu 7 i końcowego `status/audit/verify`, zanim otrzyma pełny werdykt GO.
 
+Retest po wyczyszczeniu cache potwierdził poprawne wyświetlenie bramki i dalszy
+brak przecieków. Mylący przycisk wywołujący `window.close()` zastąpiono
+nieinteraktywnym komunikatem `ZAMKNIJ TĘ KARTĘ RĘCZNIE`; przeglądarka nie zawsze
+pozwala stronie zamknąć kartę otwartą przez użytkownika.
+
 ## Etap 7 — po manualu
 
 Na podstawie wyniku użytkownika:

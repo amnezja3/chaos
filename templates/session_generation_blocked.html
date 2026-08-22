@@ -102,7 +102,19 @@
     .session-lock__actions {
       display: flex;
       flex-wrap: wrap;
+      align-items: center;
       gap: 12px;
+    }
+
+    .session-lock__instruction {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 16px;
+      border-left: 3px solid #39ff80;
+      background: rgba(57, 255, 128, 0.08);
+      color: #bfffd0;
+      font-weight: 700;
     }
 
     button {
@@ -125,6 +137,7 @@
       body { padding: 12px; }
       .session-lock__header { font-size: 0.78rem; }
       .session-lock__actions { display: grid; }
+      .session-lock__instruction { width: 100%; }
       button { width: 100%; }
     }
   </style>
@@ -146,7 +159,7 @@
       </p>
       <div class="session-lock__reason">Kod blokady: {{ mismatch_reason }}</div>
       <div class="session-lock__actions">
-        <button type="button" onclick="window.close()">ZAMKNIJ KARTĘ</button>
+        <div class="session-lock__instruction">ZAMKNIJ TĘ KARTĘ RĘCZNIE</div>
         <button type="button" class="secondary" onclick="history.back()">WRÓĆ</button>
       </div>
     </section>

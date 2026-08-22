@@ -586,6 +586,8 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         self.assertIn("CHAOS // SESSION GATE", body)
         self.assertIn("Ta karta nie ma klucza aktywnej sesji", body)
         self.assertIn("Kod blokady: missing_generation", body)
+        self.assertIn("ZAMKNIJ TĘ KARTĘ RĘCZNIE", body)
+        self.assertNotIn("window.close()", body)
         self.assertNotIn("generation-alice", body)
         self.assertEqual(200, active.status_code)
         self.assertEqual("alice", self.read_session()["user"])
