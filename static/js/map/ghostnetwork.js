@@ -706,7 +706,13 @@
             let response;
             if (typeof window.fetchMapSnapshot === "function") {
                 const snapshot = await window.fetchMapSnapshot("ghostnetwork", `${SNAPSHOT_URL}?view=map`, { timeoutMs: options.timeoutMs || 10000 });
-                if (!snapshot || snapshot.skipped || snapshot.aborted) return false;
+                if (!snapshot || snapshot.skipped || snapshot.aborted) {
+                    console.warn("[ghostnetwork] snapshot deferred", {
+                        reason: snapshot && snapshot.reason || "unavailable",
+                        boot: Boolean(options.boot)
+                    });
+                    return false;
+                }
                 response = snapshot.res;
             } else {
                 response = await fetch(`${SNAPSHOT_URL}?view=map`, { headers: { Accept: "application/json" } });

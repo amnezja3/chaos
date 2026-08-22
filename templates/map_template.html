@@ -1810,7 +1810,7 @@
   </script>
 
 {{ folium_js|safe }}
-<script src="/static/js/map/ghostnetwork.js?v=mobile-canvas-6"></script>
+<script src="/static/js/map/ghostnetwork.js?v=mobile-boot-retry-7"></script>
 
     <script>
         const map = window[Object.keys(window).find(k => k.startsWith("map_"))];
@@ -6621,8 +6621,8 @@
                         }
                         if (typeof fn === 'function') {
                             const result = await fn({ ...options, boot_attempt: attempt + 1 });
-                            if (result === false && options.critical) {
-                                throw new Error(`Critical map scope failed: ${scope || label}`);
+                            if (result === false) {
+                                throw new Error(`Map scope unavailable: ${scope || label}`);
                             }
                         }
                         if (progressTimer) {
@@ -6642,7 +6642,7 @@
                             clearInterval(progressTimer);
                             progressTimer = null;
                         }
-                        const canRetry = options.critical && attempt < maxRetries;
+                        const canRetry = attempt < maxRetries;
                         console.warn('[map boot] step failed', scope || label, { attempt: attempt + 1, retry: canRetry }, err);
                         if (canRetry) {
                             const retryDelay = 900 + (attempt * 900);
@@ -6688,7 +6688,7 @@
                     (typeof window.loadGhostNetworkSnapshot === 'function'
                         ? window.bootStep('GhostNetwork', 'ghostnetwork', function() {
                             return window.loadGhostNetworkSnapshot({ boot: true });
-                        }, { total: 1, index: 0, silent: true })
+                        }, { total: 1, index: 0, silent: true, retries: 2 })
                         : Promise.resolve(false))
                 ]).then(() => {
                     normalizeBootLoadedScopes().add('delta_feed_ready');

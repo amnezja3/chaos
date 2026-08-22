@@ -56,6 +56,14 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn("window.chaosMap = map", self.map_template)
         self.assertIn("loadGhostNetworkSnapshot", self.map_template)
         self.assertIn("'ghostnetwork'", self.map_template)
+        self.assertIn("mobile-boot-retry-7", self.map_template)
+        self.assertIn("silent: true, retries: 2", self.map_template)
+        self.assertIn("if (result === false)", self.map_template)
+
+    def test_deferred_snapshot_is_diagnosable_without_polling(self):
+        self.assertIn('[ghostnetwork] snapshot deferred', self.map_js)
+        self.assertIn('boot: Boolean(options.boot)', self.map_js)
+        self.assertNotIn("setInterval(", self.map_js)
 
     def test_desktop_delta_feed_dispatches_ghostnetwork_scope(self):
         self.assertIn("updateGhostNetworkDeltaView", self.terminal_js)

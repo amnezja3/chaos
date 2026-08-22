@@ -1025,3 +1025,11 @@
 - Retest po wyczyszczeniu cache potwierdził ekran bramki i brak przecieków.
   Przycisk `window.close()` zastąpiono komunikatem `ZAMKNIJ TĘ KARTĘ RĘCZNIE`,
   ponieważ karta otwarta ręcznie nie może być niezawodnie zamknięta przez stronę.
+- Manual ujawnił selektywny brak warstwy GN na mobile konta `main` przy ciężkiej
+  projekcji terytorium (`445 778 521 m²`, 5 klastrów); desktop tego konta i mobile
+  pozostałych kont były poprawne. Opcjonalny boot błędnie oznaczał wynik `false`
+  jako załadowany, a retry było zablokowane dla scope niekrytycznych.
+- Wynik `false` nie trafia już do `loadedScopes`; tylko boot GN wykonuje dwa
+  ograniczone retry i loguje `snapshot deferred`, bez stałego pollingu. Cache key:
+  `mobile-boot-retry-7`. Regresja Python `55/55 OK`, testy Node mapy i składnia
+  JS: OK. Status: `READY FOR MOBILE MAIN GN RETEST`.

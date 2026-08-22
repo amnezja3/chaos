@@ -98,11 +98,54 @@ function testLeafletPolylineBoundsGuard() {
 
 testLeafletPolylineBoundsGuard();
 
+async function testOptionalBootRetriesFalseResult() {
+    const template = fs.readFileSync("templates/map_template.html", "utf8");
+    const start = template.indexOf("window.bootStep = async function");
+    const end = template.indexOf("window.startMapSnapshotRefreshTimers", start);
+    assert.ok(start >= 0 && end > start, "map boot step source must exist");
+
+    const bootWindow = { mapBootState: { loadedScopes: new Set(), failed: false } };
+    const bootSandbox = {
+        window: bootWindow,
+        Set,
+        Math,
+        console: { warn() {} },
+        setInterval,
+        clearInterval,
+        normalizeBootLoadedScopes() { return bootWindow.mapBootState.loadedScopes; },
+        updateMapBootOverlay() {},
+        waitForMapBootPaint: async () => {},
+        waitForMapBootRetry: async () => {}
+    };
+    vm.createContext(bootSandbox);
+    vm.runInContext(template.slice(start, end), bootSandbox);
+
+    let attempts = 0;
+    const recovered = await bootWindow.bootStep("GhostNetwork", "ghostnetwork", async () => {
+        attempts += 1;
+        return attempts >= 3;
+    }, { silent: true, retries: 2 });
+    assert.strictEqual(recovered, true);
+    assert.strictEqual(attempts, 3, "optional GN boot must retry a false snapshot result");
+    assert.ok(bootWindow.mapBootState.loadedScopes.has("ghostnetwork"));
+
+    bootWindow.mapBootState.loadedScopes.delete("ghostnetwork");
+    attempts = 0;
+    const failed = await bootWindow.bootStep("GhostNetwork", "ghostnetwork", async () => {
+        attempts += 1;
+        return false;
+    }, { silent: true, retries: 1 });
+    assert.strictEqual(failed, false);
+    assert.strictEqual(attempts, 2);
+    assert.ok(!bootWindow.mapBootState.loadedScopes.has("ghostnetwork"), "failed scope must not be marked loaded");
+}
+
 function response(payload) {
     return { ok: true, json: async () => payload };
 }
 
 (async () => {
+    await testOptionalBootRetriesFalseResult();
     const win = sandbox.window;
     win.fetchMapSnapshot = async () => ({ res: response({
         ok: true,

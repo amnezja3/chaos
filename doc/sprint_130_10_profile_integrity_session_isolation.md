@@ -756,6 +756,35 @@ brak przecieków. Mylący przycisk wywołujący `window.close()` zastąpiono
 nieinteraktywnym komunikatem `ZAMKNIJ TĘ KARTĘ RĘCZNIE`; przeglądarka nie zawsze
 pozwala stronie zamknąć kartę otwartą przez użytkownika.
 
+#### Selektywny brak warstwy GN na mobile dużego konta
+
+Kolejny manual ujawnił brak warstwy GhostNetwork wyłącznie na mobilnym widoku
+konta `main`. Ten sam viewer działał na desktopie, a konta `robot`, `neo1` i
+`iasny` działały także na mobile. `main` ma ciężki wariant mapy: efektywna
+kontrola `63 798 275 m²`, 5 klastrów i łączna powierzchnia `445 778 521 m²`.
+
+Przyczyna leżała w lifecycle opcjonalnego bootu, nie w visibility ani danych GN.
+`loadGhostNetworkSnapshot()` zwracał `false` po skip/abort/timeout, lecz
+`bootStep` oznaczał wtedy opcjonalny scope jako załadowany. Parametr `retries`
+również działał tylko dla kroków krytycznych. GhostNetwork nie ma ciężkiego
+okresowego pollera, więc jednorazowe niepowodzenie po kosztownym renderze mapy
+pozostawiało warstwę pustą.
+
+Minimalna poprawka:
+
+- wynik `false` nie oznacza już scope jako załadowanego;
+- jawny `retries` działa także dla kroku opcjonalnego;
+- wyłącznie boot GN ma dwa ograniczone ponowienia; nie dodano stałego pollingu;
+- skip/abort zapisuje diagnostyczne `[ghostnetwork] snapshot deferred`;
+- cache key skryptu mapy zmieniono na `mobile-boot-retry-7`.
+
+Regresja zachowania odtwarza `false`, `false`, `true` oraz trwałe niepowodzenie,
+sprawdzając liczbę prób i `loadedScopes`. GN/map/read-path/territory:
+`55/55 OK`; renderer GN i map target hitbox Node: OK; `node --check` oraz
+`git diff --check`: OK.
+
+Status: `READY FOR MOBILE MAIN GN RETEST`.
+
 ## Etap 7 — po manualu
 
 Na podstawie wyniku użytkownika:
