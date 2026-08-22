@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, jsonify, redirect, url_for, Response, g
+from flask import Flask, render_template, request, session, jsonify, redirect, url_for, Response, g, has_request_context
 from markupsafe import Markup
 from terminals.commands import interpret_command
 import folium
@@ -18,12 +18,13 @@ from datetime import datetime, timezone, timedelta
 from random import random, choice, randint, sample
 import random as random_module
 import hashlib
+import secrets
 from flask_session import Session
 # import redis
 from poiFetchClass import POIFetcher
 import Haversine
 from profileManagment import UserProfileManager, authenticate_user
-from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore
+from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore, ProfileDestructiveWriteRejected, ProfilePrecommitRejected, ProfileRecoveryRequired, ProfileValidationError, ProfileWriteConflict, WalletIdempotencyConflict, WalletInsufficientFunds, WalletNotInitialized, WalletWriteError, reset_profile_precommit_guard, reset_profile_write_request_metadata, reset_request_transaction_precommit_guard, set_profile_precommit_guard, set_profile_write_request_metadata, set_request_transaction_precommit_guard
 import requests
 from config import (
     APP_VERSION,
@@ -70,6 +71,10 @@ from ghostnetwork import (
     normalize_ghostnetwork_profile_identity,
     normalize_snapshot_view,
 )
+from session_generation_store import (
+    SessionGenerationStateError,
+    SessionGenerationStore,
+)
 
 app = Flask(__name__)
 
@@ -81,6 +86,7 @@ cyberner_world_store = CybernerWorldStore()
 cyberner_clan_store = CybernerClanStore()
 cyberner_channel_cursor_store = CybernerChannelCursorStore()
 user_store = UserStore()
+session_generation_store = SessionGenerationStore()
 territory_store = TerritoryStore()
 ghostnetwork_territory_job_store = GhostNetworkTerritoryJobStore()
 ghostnetwork_delta_delivery_job_store = GhostNetworkDeltaDeliveryJobStore()
@@ -129,20 +135,15 @@ consequence_executor = ConsequenceExecutor()
 response_warning_store = ResponseWarningStore()
 
 
-def record_wallet_balance_delta(username, balance, reason="", entity_id="wallet", dedupe_key=None):
-    try:
-        balance = int(balance or 0)
-    except (TypeError, ValueError):
-        balance = 0
-    try:
-        wallet_balance_store.set_balance(
-            username,
-            balance,
-            transaction_key=dedupe_key or f"wallet:{username}:{reason or 'balance'}:{balance}",
-            reason=reason or "wallet_delta",
-        )
-    except Exception as exc:
-        print(f"[wallet balance store] update failed for {username}: {exc}")
+def canonical_wallet_balance(username):
+    """Read the wallet source of truth without falling back to profile_json."""
+    return int(wallet_balance_store.get_balance(username) or 0)
+
+
+def record_wallet_balance_delta(username, balance=None, reason="", entity_id="wallet", dedupe_key=None):
+    """Publish an already committed canonical balance; never mutate wallet state."""
+    del balance
+    balance = canonical_wallet_balance(username)
     payload = {
         "balance": balance,
         "currency": "HC",
@@ -161,6 +162,39 @@ def record_wallet_balance_delta(username, balance, reason="", entity_id="wallet"
     except Exception as exc:
         print(f"[DELTA] wallet.balance_changed failed for {username}: {exc}")
         return None
+
+
+def wallet_transaction_key_from_request(data=None, *, required=True):
+    data = data if isinstance(data, dict) else {}
+    transaction_key = str(
+        request.headers.get("X-Idempotency-Key")
+        or request.headers.get("X-Client-Action-Key")
+        or data.get("transaction_key")
+        or data.get("idempotency_key")
+        or data.get("client_action_key")
+        or ""
+    ).strip()
+    if len(transaction_key) > 180:
+        raise WalletWriteError("Klucz transakcji jest zbyt dlugi.")
+    if required and not transaction_key:
+        raise WalletWriteError("Brak stabilnego klucza transakcji.")
+    return transaction_key
+
+
+def wallet_error_response(exc, *, status_key="error"):
+    status = 409 if isinstance(exc, WalletIdempotencyConflict) else 400
+    if isinstance(exc, WalletNotInitialized):
+        status = 409
+    payload = {"success": False, status_key: str(exc)}
+    if isinstance(exc, WalletInsufficientFunds):
+        payload["reason"] = "insufficient_hc"
+    elif isinstance(exc, WalletIdempotencyConflict):
+        payload["reason"] = "idempotency_conflict"
+    elif isinstance(exc, WalletNotInitialized):
+        payload["reason"] = "wallet_not_initialized"
+    else:
+        payload["reason"] = "wallet_write_rejected"
+    return jsonify(payload), status
 
 
 def storage_delta_snapshot(profile):
@@ -3148,28 +3182,32 @@ def apply_ghostnetwork_runtime_result(service, result, timings=None):
     timings = timings if isinstance(timings, dict) else None
     events = collect_ghostnetwork_domain_events(result)
     reward_results = []
+    # Audience projections intentionally contain only identity fields.  Keep
+    # them separate from mutable reward profiles: an identity projection must
+    # never become the input of a full UserStore.save_profile() write.
     profile_cache = {}
+    profile_records = {}
     broad_profiles = None
     if any(str(event.get("audience_scope") or "internal").lower() in {"public", "clan"} for event in events):
         phase_started = time.perf_counter()
         identity_loader = getattr(user_store, "list_profile_identities", user_store.list_profile_entries)
         broad_profiles = identity_loader()
-        profile_cache.update({
-            str(username or "").strip(): profile
-            for username, profile in broad_profiles
-            if str(username or "").strip() and isinstance(profile, dict)
-        })
         if timings is not None:
             timings["audience_profiles"] = int((time.perf_counter() - phase_started) * 1000)
     dirty_profiles = set()
-    pipeline_ms = reward_ms = delta_ms = 0.0
+    rewards_to_finalize = []
+    pipeline_ms = reward_ms = delta_ms = finalization_ms = 0.0
     player_ids = {
         str(event.get("player_id") or (event.get("payload") or {}).get("player_id") or "").strip()
         for event in events
     }
     for player_id in sorted(player_ids - {""}):
         if player_id not in profile_cache:
-            profile_cache[player_id] = user_store.get_profile(player_id) or {}
+            record = load_profile_write_record(player_id)
+            profile_records[player_id] = record
+            profile_cache[player_id] = (
+                copy.deepcopy(record["profile"]) if record else {}
+            )
     pipeline_outcomes = [
         ("lifecycle", str(event.get("event_type") or "").removeprefix("ghost.part_"), event.get("cycle_id") or "")
         for event in events
@@ -3186,10 +3224,36 @@ def apply_ghostnetwork_runtime_result(service, result, timings=None):
                 player_id = str(event.get("player_id") or (event.get("payload") or {}).get("player_id") or "")
                 profile = profile_cache.get(player_id, {}) if player_id else {}
                 phase_started = time.perf_counter()
-                reward = service.handle_reward_event(event, profile=profile, apply=bool(player_id))
+                # Reward creation is durable but remains pending until its
+                # profile projection has passed the guarded CAS write below.
+                # This ordering closes both crash windows: a failed CAS leaves
+                # a retryable pending reward, while a crash after profile save
+                # is healed from the reward_key receipt without adding RSP a
+                # second time.
+                reward = service.handle_reward_event(event, profile=profile, apply=False)
+                created = reward.get("created") if isinstance(reward, dict) else None
+                reward_entry = created.get("reward") if isinstance(created, dict) else None
+                if player_id and isinstance(reward_entry, dict):
+                    record = profile_records.get(player_id)
+                    if not record:
+                        raise ProfileRecoveryRequired(
+                            "GhostNetwork reward profile has no guarded read record."
+                        )
+                    projection = service.project_reward_to_profile(
+                        profile,
+                        reward_id=reward_entry.get("reward_id"),
+                    )
+                    reward["projection"] = projection
+                    if not projection.get("ok"):
+                        raise ProfileRecoveryRequired(
+                            "GhostNetwork reward profile projection was rejected: "
+                            + str(projection.get("status") or "unknown")
+                        )
+                    if projection.get("profile_changed"):
+                        dirty_profiles.add(player_id)
+                    if projection.get("requires_finalize"):
+                        rewards_to_finalize.append((player_id, reward_entry["reward_id"], reward))
                 reward_ms += time.perf_counter() - phase_started
-                if player_id and reward.get("applied"):
-                    dirty_profiles.add(player_id)
                 reward_results.append(reward)
     repository_transaction_ms = time.perf_counter() - repository_started
     for event in events:
@@ -3201,14 +3265,33 @@ def apply_ghostnetwork_runtime_result(service, result, timings=None):
         delta_ms += time.perf_counter() - phase_started
     phase_started = time.perf_counter()
     for player_id in sorted(dirty_profiles):
-        user_store.save_profile(profile_cache[player_id])
+        record = profile_records.get(player_id)
+        save_profile_write_record(
+            record,
+            profile_cache[player_id],
+            "ghostnetwork.runtime_reward",
+        )
     profile_save_ms = time.perf_counter() - phase_started
+    phase_started = time.perf_counter()
+    for player_id, reward_id, reward_result in rewards_to_finalize:
+        finalized = service.finalize_projected_reward(
+            profile_cache[player_id],
+            reward_id=reward_id,
+        )
+        if not finalized.get("ok"):
+            raise ProfileRecoveryRequired(
+                "GhostNetwork reward finalization was rejected: "
+                + str(finalized.get("status") or "unknown")
+            )
+        reward_result["applied"] = finalized
+    finalization_ms = time.perf_counter() - phase_started
     if timings is not None:
         timings["pipeline_outcomes"] = int(pipeline_ms * 1000)
         timings["reward_handlers"] = int(reward_ms * 1000)
         timings["reward_repository_transaction"] = int(repository_transaction_ms * 1000)
         timings["delta_enqueue"] = int(delta_ms * 1000)
         timings["reward_profile_save"] = int(profile_save_ms * 1000)
+        timings["reward_finalization"] = int(finalization_ms * 1000)
     return reward_results
 
 
@@ -4059,7 +4142,10 @@ def get_git_build_tag():
 def build_dev_bug_server_context(username, client_context=None):
     client_context = client_context if isinstance(client_context, dict) else {}
     env = (os.environ.get("APP_ENV") or os.environ.get("FLASK_ENV") or "development").strip().lower()
-    profile = user_store.get_profile(username) or {}
+    profile_record = load_profile_write_record(username)
+    profile = (
+        copy.deepcopy(profile_record["profile"]) if profile_record else {}
+    )
     operations = profile.get("operations", []) or []
     active_ops = active_operations_from_operations(operations) if operations else []
     aimed_target = profile.get("aimed_target") or {}
@@ -5992,6 +6078,42 @@ def process_territory_reconciliation_set(lease_owner, lease_seconds=300):
         return {**claim, "ok": False, "error": str(exc)}
 
 
+def patch_profile_projection_with_retry(username, updates_factory, source, max_attempts=3):
+    """Apply a worker-owned top-level projection without replacing the profile.
+
+    Worker jobs can spend seconds rebuilding geometry.  A profile revision read
+    before that work is therefore expected to become stale.  Reload immediately
+    before the small projection write and retry only ordinary CAS conflicts; all
+    integrity/session failures still fail closed.
+    """
+    username = str(username or "").strip()
+    last_conflict = None
+    for _attempt in range(max(1, int(max_attempts or 1))):
+        record = load_profile_write_record(username)
+        if not record:
+            return None
+        current_profile = copy.deepcopy(record["profile"])
+        updates = updates_factory(current_profile)
+        if not isinstance(updates, dict):
+            raise TypeError("Profile projection factory must return a mapping.")
+        if not updates:
+            return {
+                "applied": False,
+                "profile": current_profile,
+                "profile_revision": int(record["profile_revision"]),
+            }
+        try:
+            return user_store.patch_profile_guarded(
+                username,
+                updates,
+                source=source,
+                expected_revision=int(record["profile_revision"]),
+            )
+        except ProfileWriteConflict as exc:
+            last_conflict = exc
+    raise last_conflict
+
+
 def process_territory_rebuild_job(lease_owner, lease_seconds=300):
     """Process one durable non-capture territory mutation outside Flask requests."""
     claim = territory_store.claim_rebuild_job(lease_owner, lease_seconds=lease_seconds)
@@ -5999,7 +6121,10 @@ def process_territory_rebuild_job(lease_owner, lease_seconds=300):
         return None
     username = str(claim.get("owner_username") or "")
     try:
-        profile = user_store.get_profile(username) or {}
+        profile_record = load_profile_write_record(username)
+        profile = (
+            copy.deepcopy(profile_record["profile"]) if profile_record else {}
+        )
         abandoned_target = claim.get("target") or {}
         aimed_target = profile.get("aimed_target") or {}
         if aimed_target and abandoned_target and targets_share_selection_identity(
@@ -6035,9 +6160,27 @@ def process_territory_rebuild_job(lease_owner, lease_seconds=300):
                 requested_version=conflict.get("conflict_version"),
             )
         fresh_targets = territory_store.list_captured_targets(username)
-        profile["hacked"] = fresh_targets
-        profile["captured_targets_source"] = "sqlite"
-        user_store.save_profile(profile)
+
+        def rebuild_projection(current_profile):
+            updates = {
+                "hacked": fresh_targets,
+                "captured_targets_source": "sqlite",
+            }
+            current_aimed = current_profile.get("aimed_target") or {}
+            if (
+                current_aimed
+                and abandoned_target
+                and targets_share_selection_identity(current_aimed, abandoned_target)
+            ):
+                updates["aimed_target"] = {}
+            return updates
+
+        if profile_record:
+            patch_profile_projection_with_retry(
+                username,
+                rebuild_projection,
+                "territory.rebuild_profile_projection",
+            )
         territory_store.finish_rebuild_job(claim["job_id"], lease_owner, ok=True)
         return {
             **claim, "ok": True, "areas": len(areas or []),
@@ -6060,22 +6203,28 @@ def finalize_conflict_rebuild_profiles(conflict_id):
     ) if actor_username else []
     summaries = []
     for username in sorted(set(conflict.get("participants") or [])):
-        profile = user_store.get_profile(username) or {}
-        if not profile:
+        initial_record = load_profile_write_record(username)
+        if not initial_record:
             continue
+        profile = copy.deepcopy(initial_record["profile"])
         areas = territory_store.list_player_areas(username)
+        refresh_stats = True
         if username == actor_username:
             if pending_actor_receipts:
                 progression = finalize_territory_progression_receipt(
                     pending_actor_receipts[0],
                     areas,
                 )
-                profile = user_store.get_profile(username) or profile
+                profile_record = load_profile_write_record(username)
+                if not profile_record:
+                    continue
+                profile = copy.deepcopy(profile_record["profile"])
+                refresh_stats = False
                 # Several captures may be consolidated into one geometry publish.
                 # Reward the aggregate delta once; consume later receipts with a
                 # zero delta so retries cannot replay the same field growth.
                 for extra_receipt in pending_actor_receipts[1:]:
-                    territory_progression_receipt_store.settle(
+                    extra_settlement = territory_progression_receipt_store.settle(
                         extra_receipt.get("receipt_id"),
                         {
                             "area_gain": 0, "effective_gain": 0,
@@ -6085,15 +6234,37 @@ def finalize_conflict_rebuild_profiles(conflict_id):
                         profile.get("territory_stats") or {},
                         profile.get("exp"),
                     )
+                    if not extra_settlement.get("ok"):
+                        raise RuntimeError(
+                            "territory_progression_settle_failed:"
+                            + str(extra_settlement.get("reason") or "unknown")
+                        )
             else:
-                refresh_territory_stats_snapshot(profile, areas)
                 progression = {"levels_gained": 0, "respect_gain": 0}
         else:
-            refresh_territory_stats_snapshot(profile, areas)
             progression = {"levels_gained": 0}
-        profile["hacked"] = territory_store.list_captured_targets(username)
-        profile["captured_targets_source"] = "sqlite"
-        user_store.save_profile(profile)
+        fresh_targets = territory_store.list_captured_targets(username)
+
+        def conflict_projection(current_profile):
+            current_profile["hacked"] = fresh_targets
+            updates = {
+                "hacked": fresh_targets,
+                "captured_targets_source": "sqlite",
+            }
+            if refresh_stats:
+                refresh_territory_stats_snapshot(current_profile, areas)
+                updates["territory_stats"] = current_profile.get("territory_stats") or {}
+                updates["exp"] = current_profile.get("exp")
+            return updates
+
+        projection_result = patch_profile_projection_with_retry(
+            username,
+            conflict_projection,
+            "territory.conflict_finalize_profile",
+        )
+        if not projection_result:
+            continue
+        profile = copy.deepcopy(projection_result["profile"])
         levels_gained = int((progression or {}).get("levels_gained") or 0)
         if levels_gained:
             rebuild_player_areas_with_territory_delta(
@@ -7134,16 +7305,15 @@ class TerritoryEncirclementResolver:
 
     def _sync_profile_captured_targets(self, username):
         try:
-            profile = user_store.get_profile(username) or {}
-        except Exception:
-            return False
-        if not isinstance(profile, dict):
-            return False
-        profile["hacked"] = self.store.list_captured_targets(username)
-        profile["captured_targets_source"] = "sqlite"
-        try:
-            user_store.save_profile(profile)
-            return True
+            result = patch_profile_projection_with_retry(
+                username,
+                lambda _profile: {
+                    "hacked": self.store.list_captured_targets(username),
+                    "captured_targets_source": "sqlite",
+                },
+                "territory.encirclement_profile_projection",
+            )
+            return bool(result)
         except Exception:
             return False
 
@@ -7324,13 +7494,18 @@ def clear_aimed_target_if_matches(username, reference_target):
             runtime_cleared = True
     except Exception as exc:
         print(f"[target runtime] clear failed user={username} error={exc}", flush=True)
-    profile = user_store.get_profile(username) or {}
-    aimed = profile.get("aimed_target") or {}
-    if not aimed or not targets_share_selection_identity(aimed, reference_target):
-        return bool(runtime_cleared)
-    profile["aimed_target"] = {}
-    user_store.save_profile(profile)
-    return True
+    def clear_projection(current_profile):
+        aimed = current_profile.get("aimed_target") or {}
+        if not aimed or not targets_share_selection_identity(aimed, reference_target):
+            return {}
+        return {"aimed_target": {}}
+
+    projection = patch_profile_projection_with_retry(
+        username,
+        clear_projection,
+        "target.clear_aimed_projection",
+    )
+    return bool(runtime_cleared or (projection and projection.get("applied")))
 
 
 def infer_target_type_from_target(target):
@@ -7687,6 +7862,25 @@ def find_canonical_ghostnetwork_capture(player_id, target_id):
 
 def build_ghostnetwork_runtime_coordinator(service=None):
     service = service or GhostNetworkService()
+    profile_records = {}
+
+    def load_profile(player_id):
+        record = load_profile_write_record(player_id)
+        profile_records[str(player_id or "")] = record
+        return copy.deepcopy(record["profile"]) if record else {}
+
+    def save_profile(profile):
+        player_id = str((profile or {}).get("username") or "").strip()
+        record = profile_records.get(player_id)
+        if not record:
+            raise ProfileRecoveryRequired(
+                "GhostNetwork reward profile has no guarded read record."
+            )
+        save_profile_write_record(
+            record,
+            profile,
+            "ghostnetwork.capture_reward",
+        )
 
     def publish(effect, outcome):
         player_id = effect.get("player_id") or ""
@@ -7695,8 +7889,8 @@ def build_ghostnetwork_runtime_coordinator(service=None):
 
     return GhostRuntimeCoordinator(
         service=service,
-        profile_loader=lambda player_id: user_store.get_profile(player_id) or {},
-        profile_saver=user_store.save_profile,
+        profile_loader=load_profile,
+        profile_saver=save_profile,
         delta_publisher=publish,
         captured_target_reader=find_canonical_ghostnetwork_capture,
     )
@@ -7769,6 +7963,14 @@ def safe_ghostnetwork_on_target_hacked(username, profile, target, operation=None
         )
         publish_ghostnetwork_delta_result(username, profile, result_payload)
         return result_payload
+    except (
+        ProfileWriteConflict,
+        ProfilePrecommitRejected,
+        ProfileRecoveryRequired,
+        ProfileValidationError,
+        ProfileDestructiveWriteRejected,
+    ):
+        raise
     except Exception as exc:
         print(
             f"[ghostnetwork] on_target_hacked failed cycle_id={cycle_id} "
@@ -7795,25 +7997,24 @@ def set_player_aimed_target(username, profile, aimed_target, update_fields=None,
             aimed_target = dict(result.get("target") or aimed_target)
         except Exception as exc:
             print(f"[target runtime] upsert failed user={username} reason={reason} error={exc}", flush=True)
+    profile_record = load_profile_write_record(username)
+    if not profile_record:
+        raise ProfileRecoveryRequired("Aimed-target owner profile is missing.")
     fields = dict(update_fields or {})
     fields = merge_latest_profile_runtime_fields(username, fields)
     fields["aimed_target"] = aimed_target
     for key, value in fields.items():
         profile[key] = value
     profile["aimed_target"] = aimed_target
-    # The target has its canonical runtime record in PlayerTargetRuntimeStore.
-    # Keep the legacy profile projection for compatibility, but persist the
-    # already loaded profile only once. UserProfileManager would reload every
-    # profile, deepcopy the large player document, save it and repeat the full
-    # reload after this small update; on production profiles that can exhaust a
-    # sync gunicorn worker's timeout.
-    profile_to_save = dict(profile)
-    if "launch_queue" in fields:
-        queue = fields.get("launch_queue")
-        profile_to_save["_launch_queue_write_mode"] = (
-            "clear" if isinstance(queue, list) and not queue else "append"
-        )
-    user_store.save_profile(profile_to_save)
+    # Canonical target state lives in PlayerTargetRuntimeStore. Persist only
+    # the explicit compatibility projections under the revision observed for
+    # this mutation; concurrent writers receive the controlled 409 contract.
+    user_store.patch_profile_guarded(
+        username,
+        fields,
+        source=f"target.{str(reason or 'aimed_target')}",
+        expected_revision=int(profile_record["profile_revision"]),
+    )
     if aimed_target:
         safe_ghostnetwork_on_target_aimed(username, profile, aimed_target, reason=reason)
     return aimed_target
@@ -8039,19 +8240,19 @@ def apply_runtime_stores_to_profile(username, profile):
 
     try:
         player_inventory_store.mirror_profile(username, profile)
-        mirrored_storage = storage_delta_snapshot(profile)
         normalize_profile_storage(profile)
-        if storage_delta_snapshot(profile) != mirrored_storage:
-            try:
-                player_inventory_store.write_from_profile(username, profile)
-            except Exception as repair_exc:
-                print(f"[inventory runtime] storage repair failed user={username} error={repair_exc}", flush=True)
     except Exception as exc:
         print(f"[inventory runtime] profile overlay failed user={username} error={exc}", flush=True)
 
     try:
         wallet_balance_store.mirror_profile(username, profile)
+    except WalletNotInitialized:
+        profile.pop("hackcoins", None)
+        profile.pop("wallet", None)
+        raise
     except Exception as exc:
+        profile.pop("hackcoins", None)
+        profile.pop("wallet", None)
         print(f"[wallet runtime] profile overlay failed user={username} error={exc}", flush=True)
     return profile
 
@@ -10829,7 +11030,7 @@ def market_entries_record_count(entries):
     return sum(runtime_file_record_count(item) for item in entries if isinstance(item, dict))
 
 
-def refresh_market_runtime(username, profile, now=None, persist=False):
+def refresh_market_runtime(username, profile, now=None, persist=False, payout_callback=None):
     if not isinstance(profile, dict):
         return {"changed": False, "queued": 0, "listed": 0, "settled": 0, "sales": []}
 
@@ -10921,6 +11122,20 @@ def refresh_market_runtime(username, profile, now=None, persist=False):
             price = market_batch_price(batch_entries)
             sold_at = now_iso
             sale_record = build_ghost_exchange_batch_sale_record(username, sector, batch_id, batch_entries, price, sold_at)
+            if not callable(payout_callback):
+                raise WalletWriteError("Ghost Exchange settlement requires a canonical payout callback.")
+            payout = payout_callback({
+                "username": username,
+                "batch_id": batch_id,
+                "price": price,
+                "sector": sector,
+                "sold_at": sold_at,
+                "sale_record": sale_record,
+            }) or {}
+            payout_balance = payout.get("balance")
+            if payout_balance is None:
+                payout_balance = canonical_wallet_balance(username)
+            profile["hackcoins"] = int(payout_balance or 0)
             file_ids = [item.get("id") for item in batch_entries]
             removed = remove_market_batch_files(files, file_ids)
             if not removed:
@@ -10941,9 +11156,9 @@ def refresh_market_runtime(username, profile, now=None, persist=False):
                 "file_count": len(batch_entries),
                 "volume_mb": sale_record["metadata"].get("volume_mb"),
                 "record_count": sale_record["metadata"].get("record_count"),
+                "wallet_transaction_key": str(payout.get("transaction_key") or ""),
             }
             profile.setdefault("market_history", []).append(history_entry)
-            profile["hackcoins"] = int(profile.get("hackcoins", 0) or 0) + price
             profile.setdefault("system_messages", []).append({
                 "title": "Ghost Exchange",
                 "text": f"Sprzedano paczke danych {sector} za {price} HC.",
@@ -10975,7 +11190,6 @@ def refresh_market_runtime(username, profile, now=None, persist=False):
         UserProfileManager(username).update_profile({
             "files": profile.get("files", {}),
             "market_history": profile.get("market_history", []),
-            "hackcoins": profile.get("hackcoins", 0),
             "system_messages": profile.get("system_messages", []),
             "storage_capacity": profile.get("storage_capacity"),
             "storage_used": profile.get("storage_used"),
@@ -11430,7 +11644,7 @@ def build_ghost_exchange_sale_record(username, file_entry, price, sold_at):
     }, "market")
 
 
-def sell_ghost_exchange_file(profile, username, file_id):
+def sell_ghost_exchange_file(profile, username, file_id, payout_callback=None):
     files = ensure_files_inventory(profile)
     for folder in GHOST_EXCHANGE_FILE_CATEGORIES:
         folder_files = files.get(folder, [])
@@ -11445,6 +11659,19 @@ def sell_ghost_exchange_file(profile, username, file_id):
             final_price = ghost_exchange_price_preview(file_entry)
             sold_at = runtime_file_now()
             sale_record = build_ghost_exchange_sale_record(username, file_entry, final_price, sold_at)
+            if not callable(payout_callback):
+                raise WalletWriteError("Ghost Exchange sale requires a canonical payout callback.")
+            payout = payout_callback({
+                "username": username,
+                "file_id": str(file_entry.get("id") or file_id),
+                "price": final_price,
+                "sold_at": sold_at,
+                "sale_record": sale_record,
+            }) or {}
+            payout_balance = payout.get("balance")
+            if payout_balance is None:
+                payout_balance = canonical_wallet_balance(username)
+            profile["hackcoins"] = int(payout_balance or 0)
             del folder_files[index]
             files.setdefault("market", []).append(sale_record)
             profile.setdefault("market_history", []).append({
@@ -11459,6 +11686,7 @@ def sell_ghost_exchange_file(profile, username, file_id):
                 "status": "sold",
                 "source_file_category": file_entry.get("file_category"),
                 "source_directory": file_entry.get("directory"),
+                "wallet_transaction_key": str(payout.get("transaction_key") or ""),
             })
             normalize_files_inventory(profile)
             return {
@@ -11468,6 +11696,7 @@ def sell_ghost_exchange_file(profile, username, file_id):
                 "market_category": sale_record["metadata"]["market_category"],
                 "buyer_type": sale_record["metadata"]["buyer_type"],
                 "sold_at": sold_at,
+                "wallet": payout,
             }
     return None
 
@@ -15225,23 +15454,36 @@ def ensure_purchase_account_profile(username):
     username = str(username or "").strip()
     if not username:
         return None
-    profile = user_store.get_profile(username)
-    if profile:
-        return profile
+    record = load_profile_write_record(username)
+    if record:
+        return copy.deepcopy(record["profile"])
+    reuse_block = user_store.identity_reuse_block_reason(username)
+    if reuse_block:
+        raise ProfileWriteConflict(
+            "Purchase account identity is unavailable: " + reuse_block
+        )
 
-    profile = {
+    profile = copy.deepcopy(
+        resources_store.get("user_template", default={}) or {}
+    )
+    profile.update({
         "username": username,
         "nick": username,
+        "password": secrets.token_urlsafe(32),
+        "salt": "",
+        "service_account": True,
+        "purchase_account": True,
+        # A service payee starts empty. Payment credit belongs exclusively to
+        # the canonical wallet transaction implemented by the economy layer.
         "hackcoins": 0,
-        "level": 1,
-        "respect": 0,
-        "apps": [],
-        "files": {"tools": [], "projects": []},
-        "system_messages": [],
-        "desktop_settings": {"wallpaper": "", "icon_positions": {}, "auto_fullscreen": False, "map_tile_scheme": "osm"},
-    }
-    user_store.save_profile(profile)
-    return profile
+    })
+    result = user_store.save_profile_guarded(
+        profile,
+        expected_revision=0,
+        source="service.purchase_account_create",
+        allow_create=True,
+    )
+    return copy.deepcopy(result["profile"])
 
 
 MAP_TILE_SCHEMES = {
@@ -16594,30 +16836,59 @@ def territory_control_object_snapshot(username, target, profile=None):
 
 
 def ensure_dev_admin_account():
-    profile = user_store.get_profile("admin")
-    if not profile:
-        profile = resources_store.get("user_template", default={}) or {}
+    record = load_profile_write_record("admin")
+    creating = record is None
+    if creating:
+        reuse_block = user_store.identity_reuse_block_reason("admin")
+        if reuse_block:
+            raise ProfileWriteConflict(
+                "Dev admin identity is unavailable: " + reuse_block
+            )
+        profile = copy.deepcopy(
+            resources_store.get("user_template", default={}) or {}
+        )
         profile["username"] = "admin"
         profile["avatar"] = profile.get("avatar") or "/static/images/default_avatar.png"
         profile["nick"] = profile.get("nick") or "DevAdmin"
         profile["level"] = max(int(profile.get("level", 1) or 1), 50)
-        profile["hackcoins"] = max(int(profile.get("hackcoins", 0) or 0), 100000)
         profile["respect"] = max(int(profile.get("respect", 0) or 0), 1000)
         profile["clan"] = profile.get("clan") or "DEV"
         profile["curently_possition"] = profile.get("curently_possition") or {"lat": 52.2297, "lng": 21.0122}
         profile["inventory"] = profile.get("inventory") or []
         profile["files"] = profile.get("files") or {"download": [], "pictures": [], "social-media": [], "projects": [], "tools": []}
+        password_ready = False
+    else:
+        profile = copy.deepcopy(record["profile"])
+        password_ready = user_store.authenticate("admin", "1234")
+        if password_ready:
+            # Legacy plaintext authentication can upgrade the hash under CAS.
+            record = load_profile_write_record("admin")
+            profile = copy.deepcopy(record["profile"])
 
     profile["username"] = "admin"
-    profile["password"] = "1234"
-    profile["salt"] = profile.get("salt") or "dev_salt"
+    if not password_ready:
+        profile["password"] = "1234"
+        profile["salt"] = ""
     profile["dev_account"] = True
     profile["level"] = max(int(profile.get("level", 1) or 1), 50)
-    profile["hackcoins"] = max(int(profile.get("hackcoins", 0) or 0), 100000)
     profile["respect"] = max(int(profile.get("respect", 0) or 0), 1000)
     ensure_files_inventory(profile)
-    user_store.save_profile(profile)
-    return profile
+    if creating:
+        result = user_store.save_profile_guarded(
+            profile,
+            expected_revision=0,
+            source="dev.admin_create",
+            allow_create=True,
+        )
+        return copy.deepcopy(result["profile"])
+    if profile == record["profile"]:
+        return profile
+    result = save_profile_write_record(
+        record,
+        profile,
+        "dev.admin_ensure",
+    )
+    return copy.deepcopy(result["profile"])
 
 
 def build_minimal_target_security(security_template, max_enabled=VULNERABILITY_MAX_ENABLED_SECURITY):
@@ -17473,6 +17744,542 @@ app.config.update(FLASK_SESSION_CONFIG)
 Session(app)
 
 
+SESSION_GENERATION_KEY = "session_generation"
+SESSION_LINEAGE_KEY = "session_lineage"
+SESSION_GENERATION_HEADER = "X-Chaos-Session-Generation"
+SESSION_GENERATION_USER_HEADER = "X-Chaos-Session-User"
+SESSION_GENERATION_ERROR_HEADER = "X-Chaos-Session-Error"
+SESSION_GENERATION_PUBLIC_ENDPOINTS = {
+    "static",
+    "index",
+    "register_page",
+    "register_check_username",
+    "api_register_finalize",
+    "logout",
+}
+SESSION_GENERATION_DOCUMENT_ENDPOINTS = {
+    "desktop",
+    "map_view",
+    "dev_dashboard",
+}
+
+
+def _session_generation_hash(value):
+    value = str(value or "").strip()
+    if not value:
+        return "-"
+    return hashlib.sha256(value.encode("utf-8", errors="ignore")).hexdigest()[:12]
+
+
+def _session_generation_query_token(value):
+    value = str(value or "").strip()
+    if not value:
+        return ""
+    return hashlib.sha256(value.encode("utf-8", errors="ignore")).hexdigest()
+
+
+def _rotate_server_session_id():
+    """Rotate Flask-Session's server-side SID without retaining old data."""
+    session.clear()
+    # Flask-Session 0.8 only regenerates a non-empty session. The marker is
+    # removed immediately after the old SID has been deleted and a new SID has
+    # been assigned.
+    session["_rotation_pending"] = True
+    regenerate = getattr(app.session_interface, "regenerate", None)
+    if callable(regenerate):
+        regenerate(session)
+    session.clear()
+
+
+def begin_authenticated_session(username):
+    """Start an isolated browser session after successful authentication."""
+    lineage = str(session.get(SESSION_LINEAGE_KEY) or "").strip()
+    if not lineage:
+        lineage = secrets.token_urlsafe(32)
+    generation = secrets.token_urlsafe(32)
+    username = str(username or "").strip()
+    # Replace the durable generation first. If SID rotation or response
+    # delivery fails afterwards, every request carrying the old cookie is
+    # already stale and cannot commit under the previous identity.
+    session_generation_store.activate(
+        lineage,
+        generation,
+        username,
+        reason="authentication_success",
+    )
+    _rotate_server_session_id()
+    session["user"] = username
+    session[SESSION_LINEAGE_KEY] = lineage
+    session[SESSION_GENERATION_KEY] = generation
+    session.modified = True
+    return generation
+
+
+def invalidate_authenticated_session(reason="logout", *, durable_already_revoked=False):
+    """Delete the current server-side session and leave an anonymous SID."""
+    username = session.get("user")
+    lineage = session.get(SESSION_LINEAGE_KEY)
+    generation = session.get(SESSION_GENERATION_KEY)
+    if lineage and generation and not durable_already_revoked:
+        try:
+            revoked = session_generation_store.revoke(
+                lineage,
+                generation,
+                reason=str(reason or "logout"),
+            )
+            if not revoked:
+                raise SessionGenerationStateError("generation_replaced")
+        except Exception as exc:
+            print(
+                "[SESSION] event=session.lineage_revoke_failed "
+                f"user_hash={_session_generation_hash(username)} "
+                f"session_generation_hash={_session_generation_hash(generation)} "
+                f"error={exc.__class__.__name__}",
+                flush=True,
+            )
+            # Keep the still-active cookie/session intact. Returning a false
+            # logout while its durable lineage remains active would allow an
+            # older delayed cookie to look valid again.
+            raise RuntimeError("Durable session lineage could not be revoked.") from exc
+    g.session_invalidated = True
+    _rotate_server_session_id()
+    print(
+        "[SESSION] event=session.invalidated "
+        f"user_hash={_session_generation_hash(username)} "
+        f"session_generation_hash={_session_generation_hash(generation)} "
+        f"reason={str(reason or 'logout')}",
+        flush=True,
+    )
+
+
+def ensure_session_generation():
+    """Bootstrap a generation for a pre-deploy session on its next document."""
+    if not session.get("user"):
+        return ""
+    username = str(session.get("user") or "").strip()
+    lineage = str(session.get(SESSION_LINEAGE_KEY) or "").strip()
+    generation = str(session.get(SESSION_GENERATION_KEY) or "").strip()
+    if lineage and generation:
+        session_generation_store.assert_current(lineage, generation, username)
+        return generation
+
+    # A pre-deploy session has no durable lineage. Give it a fresh lineage and
+    # generation exactly once from an authenticated document boot. Never
+    # reactivate a complete but stale lineage/generation pair.
+    lineage = secrets.token_urlsafe(32)
+    generation = secrets.token_urlsafe(32)
+    session_generation_store.activate(
+        lineage,
+        generation,
+        username,
+        reason="document_bootstrap",
+    )
+    session[SESSION_LINEAGE_KEY] = lineage
+    session[SESSION_GENERATION_KEY] = generation
+    session.modified = True
+    return generation
+
+
+def current_request_profile_precommit_guard(_target_username=None):
+    """Build a profile hook pinned to this request's durable generation."""
+    if not has_request_context():
+        return None
+    actor_username = str(session.get("user") or "").strip()
+    if not actor_username:
+        return None
+    lineage = str(
+        getattr(g, "session_lineage", "") or session.get(SESSION_LINEAGE_KEY) or ""
+    ).strip()
+    generation = str(
+        getattr(g, "session_generation", "") or session.get(SESSION_GENERATION_KEY) or ""
+    ).strip()
+    if not lineage or not generation:
+        return None
+    return session_generation_store.build_precommit_guard(
+        lineage,
+        generation,
+        actor_username,
+    )
+
+
+def bind_request_profile_precommit_guard():
+    """Bind every profile commit in this request to its authenticated actor."""
+    guard = current_request_profile_precommit_guard()
+    if guard is None:
+        return
+    # The database layer owns the hook so cross-account writes (victim, payee,
+    # reward recipient) are protected without binding it to the target row.
+    g.profile_precommit_guard_token = set_profile_precommit_guard(guard)
+    transaction_guard = session_generation_store.build_transaction_precommit_guard(
+        str(getattr(g, "session_lineage", "") or ""),
+        str(getattr(g, "session_generation", "") or ""),
+        str(getattr(g, "session_generation_user", "") or ""),
+    )
+    g.transaction_precommit_guard_token = (
+        set_request_transaction_precommit_guard(transaction_guard)
+    )
+    request_id = (
+        request.headers.get("X-Request-Id")
+        or request.headers.get("X-Hack-Flow-Id")
+        or request.headers.get("X-Client-Action-Key")
+        or ""
+    )
+    g.profile_write_request_metadata_token = (
+        set_profile_write_request_metadata(
+            session_generation=str(getattr(g, "session_generation", "") or ""),
+            request_id=request_id,
+        )
+    )
+
+
+@app.teardown_request
+def reset_request_profile_precommit_guard(_error=None):
+    metadata_token = getattr(
+        g,
+        "profile_write_request_metadata_token",
+        None,
+    )
+    if metadata_token is not None:
+        del g.profile_write_request_metadata_token
+        reset_profile_write_request_metadata(metadata_token)
+    transaction_token = getattr(
+        g,
+        "transaction_precommit_guard_token",
+        None,
+    )
+    if transaction_token is not None:
+        del g.transaction_precommit_guard_token
+        reset_request_transaction_precommit_guard(transaction_token)
+    token = getattr(g, "profile_precommit_guard_token", None)
+    if token is None:
+        return
+    del g.profile_precommit_guard_token
+    reset_profile_precommit_guard(token)
+
+
+def session_generation_client_context():
+    generation = ensure_session_generation()
+    return {
+        "generation": generation,
+        "query_token": _session_generation_query_token(generation),
+        "username": str(session.get("user") or ""),
+        "header": SESSION_GENERATION_HEADER,
+    }
+
+
+def _request_session_generation():
+    provided = str(request.headers.get(SESSION_GENERATION_HEADER) or "").strip()
+    if provided:
+        return provided
+    provided = str(request.args.get("_session_generation") or "").strip()
+    if provided:
+        return provided
+    data = request.get_json(silent=True) if request.is_json else None
+    if isinstance(data, dict):
+        provided = str(
+            data.get("_session_generation") or data.get("session_generation") or ""
+        ).strip()
+        if provided:
+            return provided
+    return str(request.form.get("_session_generation") or "").strip()
+
+
+def _session_generation_request_is_protected():
+    if not session.get("user") or request.method == "OPTIONS":
+        return False
+    if request.endpoint == "logout":
+        # An authenticated logout is also bound to the tab generation. A stale
+        # A tab must not terminate the newer B session sharing its cookie.
+        return bool(str(session.get(SESSION_GENERATION_KEY) or "").strip())
+    if (
+        request.method == "POST"
+        and request.endpoint in {"index", "api_register_finalize"}
+    ):
+        # Anonymous authentication remains public. Once a browser already has
+        # an authenticated identity, login/register is an account switch and
+        # a stale tab must not replace the current lineage.
+        return True
+    if request.endpoint in SESSION_GENERATION_PUBLIC_ENDPOINTS:
+        return False
+    if request.endpoint == "map_view" and request.method in {"GET", "HEAD"}:
+        # A top-level map navigation may bootstrap a pre-deploy session. Map
+        # iframes created by the desktop are always bound to the generation
+        # present when their src was built, so a stale A iframe cannot boot as B.
+        embedded = (
+            str(request.args.get("_embedded") or "").strip() == "1"
+            or str(request.headers.get("Sec-Fetch-Dest") or "").strip().lower() == "iframe"
+        )
+        return embedded or bool(str(request.args.get("_session_generation") or "").strip())
+    if request.endpoint in SESSION_GENERATION_DOCUMENT_ENDPOINTS and request.method in {"GET", "HEAD"}:
+        # Canonical post-login document URLs carry a one-way generation token.
+        # A legacy/pre-deploy document without it may bootstrap once, while a
+        # refreshed old tab keeps its old URL and is rejected under a newer
+        # browser cookie before it can render another account.
+        return bool(str(request.args.get("_session_generation") or "").strip())
+    if request.path.startswith("/static/"):
+        return False
+    return request.endpoint is not None
+
+
+def _session_generation_mismatch(reason, provided=""):
+    expected = str(session.get(SESSION_GENERATION_KEY) or "")
+    username = str(session.get("user") or "")
+    request_id = (
+        request.headers.get("X-Request-Id")
+        or request.headers.get("X-Hack-Flow-Id")
+        or request.headers.get("X-Client-Action-Key")
+        or ""
+    )
+    print(
+        "[SESSION] event=session.generation_mismatch "
+        f"user_hash={_session_generation_hash(username)} "
+        f"session_generation_hash={_session_generation_hash(expected)} "
+        f"provided_generation_hash={_session_generation_hash(provided)} "
+        f"request_id_hash={_session_generation_hash(request_id)} "
+        f"method={request.method} path={request.path} reason={reason}",
+        flush=True,
+    )
+    # Flask-Session emits Set-Cookie after Flask's after_request callbacks.
+    # A delayed request from generation A may have touched a legacy session
+    # projection before generation B replaced its lineage.  Its response must
+    # not restore A's old SID in the browser after B's login response.  Clear
+    # the modified/permanent flags so the stale response carries no cookie;
+    # the durable lineage check still makes any retained old SID unusable.
+    session.permanent = False
+    session.modified = False
+    response = jsonify({
+        "ok": False,
+        "error": "session_generation_mismatch",
+        "reason": reason,
+        "reload_required": True,
+    })
+    response.status_code = 409
+    response.headers[SESSION_GENERATION_ERROR_HEADER] = "mismatch"
+    return response
+
+
+@app.errorhandler(ProfilePrecommitRejected)
+def reject_stale_request_transaction(_error):
+    """Return the controlled reload contract instead of logging a server 500."""
+    if session.get("user"):
+        return _session_generation_mismatch(
+            "durable_precommit_rejected",
+            _request_session_generation(),
+        )
+    return jsonify({
+        "ok": False,
+        "error": "profile_write_conflict",
+        "retryable": True,
+    }), 409
+
+
+def _profile_error_document_redirect(error_code):
+    if not (
+        request.method in {"GET", "HEAD"}
+        and request.endpoint in SESSION_GENERATION_DOCUMENT_ENDPOINTS
+    ):
+        return None
+    session["login_error"] = (
+        "Profil wymaga ponownego zalogowania lub kontrolowanej naprawy."
+    )
+    return redirect(url_for("index", profile_error=error_code))
+
+
+@app.errorhandler(ProfileWriteConflict)
+def handle_profile_write_conflict(_error):
+    document = _profile_error_document_redirect("write_conflict")
+    if document is not None:
+        return document
+    return jsonify({
+        "ok": False,
+        "error": "profile_write_conflict",
+        "retryable": True,
+    }), 409
+
+
+@app.errorhandler(ProfileRecoveryRequired)
+def handle_profile_recovery_required(_error):
+    document = _profile_error_document_redirect("recovery_required")
+    if document is not None:
+        return document
+    return jsonify({
+        "ok": False,
+        "error": "profile_recovery_required",
+        "recovery_required": True,
+    }), 409
+
+
+@app.errorhandler(ProfileValidationError)
+@app.errorhandler(ProfileDestructiveWriteRejected)
+def handle_profile_candidate_rejected(_error):
+    document = _profile_error_document_redirect("candidate_rejected")
+    if document is not None:
+        return document
+    return jsonify({
+        "ok": False,
+        "error": "profile_candidate_rejected",
+    }), 422
+
+
+@app.errorhandler(WalletNotInitialized)
+def handle_wallet_recovery_required(_error):
+    document = _profile_error_document_redirect("wallet_recovery_required")
+    if document is not None:
+        return document
+    return jsonify({
+        "ok": False,
+        "error": "wallet_not_initialized",
+        "wallet_recovery_required": True,
+    }), 409
+
+
+@app.errorhandler(WalletWriteError)
+def handle_wallet_write_rejected(error):
+    return wallet_error_response(error)
+
+
+def _discard_stale_document_session(reason):
+    username = str(session.get("user") or "")
+    generation = str(session.get(SESSION_GENERATION_KEY) or "")
+    _rotate_server_session_id()
+    session["login_error"] = (
+        "Sesja zostala zastapiona przez nowsze logowanie. Zaloguj sie ponownie."
+    )
+    print(
+        "[SESSION] event=session.generation_mismatch "
+        f"user_hash={_session_generation_hash(username)} "
+        f"session_generation_hash={_session_generation_hash(generation)} "
+        "provided_generation_hash=- request_id_hash=- "
+        f"method={request.method} path={request.path} reason={reason}",
+        flush=True,
+    )
+    return redirect(url_for("index"))
+
+
+@app.before_request
+def enforce_authenticated_session_generation():
+    protected = _session_generation_request_is_protected()
+    document_boot = (
+        request.endpoint in SESSION_GENERATION_DOCUMENT_ENDPOINTS
+        and request.method in {"GET", "HEAD"}
+        and not protected
+    )
+    if not protected and not document_boot:
+        return None
+    expected = str(session.get(SESSION_GENERATION_KEY) or "").strip()
+    lineage = str(session.get(SESSION_LINEAGE_KEY) or "").strip()
+    username = str(session.get("user") or "").strip()
+
+    if document_boot:
+        if not expected or not lineage:
+            # Only an authenticated top-level document may upgrade a
+            # pre-deploy session which has no durable lineage yet. APIs never
+            # create one implicitly.
+            ensure_session_generation()
+            expected = str(session.get(SESSION_GENERATION_KEY) or "").strip()
+            lineage = str(session.get(SESSION_LINEAGE_KEY) or "").strip()
+        try:
+            session_generation_store.assert_current(lineage, expected, username)
+        except SessionGenerationStateError as exc:
+            return _discard_stale_document_session(f"durable_{exc.reason}")
+        g.session_generation = expected
+        g.session_lineage = lineage
+        g.session_generation_user = username
+        bind_request_profile_precommit_guard()
+        if not str(request.args.get("_session_generation") or "").strip():
+            canonical_args = request.args.to_dict(flat=True)
+            canonical_args["_session_generation"] = (
+                _session_generation_query_token(expected)
+            )
+            return redirect(url_for(request.endpoint, **canonical_args))
+        return None
+
+    if not expected or not lineage:
+        # Existing unit fixtures historically inject only session["user"] and
+        # do not pass through the canonical login/document boot. Keep that
+        # narrow test compatibility; deployed runtime fails closed and asks for
+        # a document reload which creates the first generation.
+        if app.testing:
+            return None
+        return _session_generation_mismatch("generation_bootstrap_required")
+    provided = _request_session_generation()
+    if not provided:
+        return _session_generation_mismatch("missing_generation")
+    query_token = _session_generation_query_token(expected)
+    valid_query_token = (
+        request.endpoint in SESSION_GENERATION_DOCUMENT_ENDPOINTS.union({"logout"})
+        and bool(query_token)
+        and secrets.compare_digest(query_token, provided)
+    )
+    if not secrets.compare_digest(expected, provided) and not valid_query_token:
+        return _session_generation_mismatch("stale_generation", provided)
+    try:
+        session_generation_store.assert_current(lineage, expected, username)
+    except SessionGenerationStateError as exc:
+        return _session_generation_mismatch(f"durable_{exc.reason}", provided)
+    if (
+        request.method == "POST"
+        and request.endpoint in {"index", "api_register_finalize"}
+    ):
+        # Account replacement is deliberately two-step: the current lineage
+        # must be durably revoked by /logout before an anonymous login or
+        # registration can start a new identity. This prevents an auth-switch
+        # response from racing the old generation bound to this request.
+        return jsonify({
+            "ok": False,
+            "error": "account_switch_requires_logout",
+            "logout_required": True,
+        }), 409
+    g.session_generation = expected
+    g.session_lineage = lineage
+    g.session_generation_user = username
+    bind_request_profile_precommit_guard()
+    return None
+
+
+@app.after_request
+def attach_authenticated_session_generation(response):
+    generation = str(session.get(SESSION_GENERATION_KEY) or "").strip()
+    username = str(session.get("user") or "").strip()
+    if generation and username and not request.path.startswith("/static/"):
+        response.headers[SESSION_GENERATION_HEADER] = generation
+        response.headers[SESSION_GENERATION_USER_HEADER] = username
+    if (
+        username
+        or getattr(g, "session_invalidated", False)
+        or request.path in {"/logout", "/desktop", "/map"}
+    ):
+        response.headers["Cache-Control"] = "no-store, private, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+
+@app.after_request
+def reject_response_from_replaced_session_generation(response):
+    lineage = str(getattr(g, "session_lineage", "") or "").strip()
+    generation = str(getattr(g, "session_generation", "") or "").strip()
+    actor_username = str(getattr(g, "session_generation_user", "") or "").strip()
+    if (
+        not lineage
+        or not generation
+        or not actor_username
+        or getattr(g, "session_invalidated", False)
+    ):
+        return response
+    try:
+        session_generation_store.assert_current(
+            lineage,
+            generation,
+            actor_username,
+        )
+    except SessionGenerationStateError as exc:
+        return _session_generation_mismatch(
+            f"durable_response_{exc.reason}",
+            _request_session_generation(),
+        )
+    return response
+
+
 def normalize_runtime_profile_defaults(profile):
     if not isinstance(profile, dict):
         return profile
@@ -17483,6 +18290,34 @@ def normalize_runtime_profile_defaults(profile):
     reconcile_googleplex_storage_products(profile)
     normalize_profile_storage(profile)
     return profile
+
+
+def load_profile_write_record(username):
+    """Load a complete profile together with the CAS revision used to mutate it."""
+    record = user_store.get_profile_with_revision(str(username or "").strip())
+    if record is None:
+        return None
+    if (
+        record.get("state") != "valid"
+        or not record.get("checksum_valid")
+        or not isinstance(record.get("profile"), dict)
+        or record.get("errors")
+    ):
+        raise ProfileRecoveryRequired(
+            "Profile is not safe for a normal runtime write."
+        )
+    return record
+
+
+def save_profile_write_record(record, candidate, source, *, reset_receipt=None):
+    if not isinstance(record, dict) or not isinstance(candidate, dict):
+        raise ProfileRecoveryRequired("Complete profile write record is required.")
+    return user_store.save_profile_guarded(
+        candidate,
+        expected_revision=int(record.get("profile_revision") or 0),
+        source=str(source or "runtime.profile_write"),
+        reset_receipt=reset_receipt,
+    )
 
 
 def profile_template_payload(profile):
@@ -17548,8 +18383,7 @@ def log_missing_profile_warning(source):
 def redirect_missing_profile_to_login():
     message = "Brak danych profilu. Zaloguj sie ponownie albo skontaktuj sie z administratorem."
     log_missing_profile_warning("map_view")
-    session.pop("user", None)
-    session.pop("profile", None)
+    invalidate_authenticated_session("profile_not_found")
     session["login_error"] = message
     return redirect(url_for("index"))
 
@@ -17794,13 +18628,15 @@ def index():
             ensure_dev_admin_account()
 
         if authenticate_user(username, password):
-            session["user"] = username
+            generation = begin_authenticated_session(username)
             # /desktop loads the current read-only boot snapshot immediately
             # after this redirect. Do not construct the legacy profile manager
             # here: it scans, normalizes and deep-copies all large player profiles
             # before the browser can even display the desktop preloader.
-            session.pop("profile", None)
-            return redirect(url_for("desktop"))
+            return redirect(url_for(
+                "desktop",
+                _session_generation=_session_generation_query_token(generation),
+            ))
 
         return render_template("login.html", error="❌ Nieprawidłowe dane logowania")
 
@@ -17926,12 +18762,30 @@ def api_register_finalize():
             "fraction": {"id": str(faction), "name": faction_name, "role": role}
         })
 
-        session["user"] = username
-        session.pop("profile", None)
-        return jsonify(success=True, redirect="/desktop")
+        generation = begin_authenticated_session(username)
+        return jsonify(
+            success=True,
+            redirect=url_for(
+                "desktop",
+                _session_generation=_session_generation_query_token(generation),
+            ),
+        )
 
-    except Exception as e:
-        return jsonify(success=False, error=str(e)), 400
+    except (
+        ProfileWriteConflict,
+        ProfilePrecommitRejected,
+        ProfileRecoveryRequired,
+        ProfileValidationError,
+        ProfileDestructiveWriteRejected,
+    ):
+        raise
+    except Exception as exc:
+        print(
+            "[registration] failed "
+            f"error={exc.__class__.__name__}",
+            flush=True,
+        )
+        return jsonify(success=False, error="Nie udalo sie utworzyc konta."), 400
 
 
 
@@ -17949,11 +18803,12 @@ def desktop():
     # full profile in the filesystem session made this response serialize the
     # largest player payload before any boot UI could be shown.
     session.pop("profile", None)
-    if not user_store.username_exists(user):
+    if not user_store.has_user(user):
         return redirect_missing_profile_to_login()
     return render_template(
         "linux.html",
         user=user,
+        session_generation=session_generation_client_context(),
         operation_feedback_flags=OPERATION_FEEDBACK_FLAGS,
         provisional_app_launch_flags={"enabled": PROVISIONAL_APP_LAUNCH_ENABLED},
     )
@@ -18173,8 +19028,7 @@ def api_ghostnetwork_snapshot():
         normalize_files=False,
     )
     if not profile:
-        session.pop("user", None)
-        session.pop("profile", None)
+        invalidate_authenticated_session("profile_not_found")
         return jsonify({
             "ok": False,
             "error": "profile_not_found",
@@ -18246,8 +19100,7 @@ def _ghostnetwork_archive_viewer():
         normalize_files=False,
     )
     if not profile:
-        session.pop("user", None)
-        session.pop("profile", None)
+        invalidate_authenticated_session("profile_not_found")
         return None, None, (jsonify({"ok": False, "error": "profile_not_found", "scope": "ghostnetwork_archive"}), 401)
     viewer = ghostnetwork_player_payload(username, profile)
     viewer["viewer_id"] = username
@@ -18610,8 +19463,7 @@ def api_blacknet_cta_teleport():
 
     profile = load_profile_readonly(username, strip_sensitive=False)
     if not isinstance(profile, dict):
-        session.pop("user", None)
-        session.pop("profile", None)
+        invalidate_authenticated_session("profile_not_found")
         return jsonify({
             "success": False,
             "message": "Profil nie istnieje.",
@@ -18729,7 +19581,7 @@ def dev_dashboard():
 
 @app.route("/logout")
 def logout():
-    session.clear()
+    invalidate_authenticated_session("logout")
     return redirect(url_for("index"))
 
 
@@ -18854,14 +19706,31 @@ def delete_user_account():
     if username_to_delete == "admin":
         return jsonify({"success": False, "message": "Nie można usunąć konta admin."}), 400
 
+    if current_user != "admin" and username_to_delete != current_user:
+        return jsonify({
+            "success": False,
+            "message": "Możesz usunąć wyłącznie własne konto.",
+        }), 403
+
     territory_store.delete_user_data(username_to_delete)
     deleted = user_store.delete_user(username_to_delete)
     if not deleted:
         return jsonify({"success": False, "message": f"Użytkownik '{username_to_delete}' nie istnieje."}), 404
 
+    # A self-delete request is still guarded by its current lineage while the
+    # account cleanup writes commit. Revoke every browser only after those
+    # writes, but before clearing the local cookie or returning success.
+    session_generation_store.revoke_all_by_username(
+        username_to_delete,
+        reason="account_deleted",
+    )
+
     logout = username_to_delete == current_user
     if logout:
-        session.clear()
+        invalidate_authenticated_session(
+            "account_deleted",
+            durable_already_revoked=True,
+        )
 
     return jsonify({
         "success": True,
@@ -19396,7 +20265,8 @@ def map_view():
         folium_css=Markup('<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />'),
         folium_js=Markup('<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>'),
         profile=map_profile_boot_payload(profile),
-        map_viewer_username=session.get("user", "")
+        map_viewer_username=session.get("user", ""),
+        session_generation=session_generation_client_context(),
     )
 
 
@@ -21155,7 +22025,7 @@ def api_profile():
         cache_in_session=False,
     )
     if not isinstance(profile, dict):
-        session.clear()
+        invalidate_authenticated_session("profile_not_found")
         return jsonify({"error": "Brak danych uzytkownika"}), 401
     try:
         stored_operations = player_operation_store.list_operations(
@@ -21266,7 +22136,7 @@ def api_operations():
     if summary_mode:
         profile = load_profile_readonly(session["user"], normalize_apps=False, normalize_files=False)
         if not profile:
-            session.clear()
+            invalidate_authenticated_session("profile_not_found")
             return jsonify({"success": False, "message": "Brak danych uzytkownika"}), 401
         operations = operations_from_store_or_profile(session["user"], profile, refresh=False)
         active_operations = active_operations_from_operations(operations)
@@ -21369,7 +22239,7 @@ def operation_control_snapshot():
     username = session["user"]
     profile = operation_control_load_profile(username, strip_sensitive=True)
     if not profile:
-        session.clear()
+        invalidate_authenticated_session("profile_not_found")
         return jsonify({"success": False, "error": "profile_not_found"}), 401
     if not operation_control_app_installed(profile):
         return operation_control_forbidden_response()
@@ -21566,13 +22436,26 @@ def api_ghost_exchange():
     username = session["user"]
     profile = user_store.get_profile(username) or sync_session_profile()
     profile = refresh_and_persist_operations(username, profile)
+    profile["hackcoins"] = canonical_wallet_balance(username)
     previous_storage = storage_delta_snapshot(profile)
-    market_runtime = refresh_market_runtime(username, profile)
+    try:
+        market_runtime = refresh_market_runtime(
+            username,
+            profile,
+            payout_callback=lambda settlement: wallet_balance_store.credit(
+                username,
+                settlement["price"],
+                transaction_key=f"ghost_exchange:auto:{username}:{settlement['batch_id']}",
+                reason="ghost_exchange.auto_sale",
+                source="ghost_exchange",
+            ),
+        )
+    except WalletWriteError as exc:
+        return wallet_error_response(exc, status_key="message")
     if market_runtime.get("changed"):
         UserProfileManager(username).update_profile({
             "files": profile.get("files", {}),
             "market_history": profile.get("market_history", []),
-            "hackcoins": profile.get("hackcoins", 0),
             "system_messages": profile.get("system_messages", []),
             "storage_capacity": profile.get("storage_capacity"),
             "storage_used": profile.get("storage_used"),
@@ -21666,17 +22549,58 @@ def api_ghost_exchange_sell():
     username = session["user"]
     profile = user_store.get_profile(username) or sync_session_profile()
     profile = refresh_and_persist_operations(username, profile)
+    profile["hackcoins"] = canonical_wallet_balance(username)
     previous_storage = storage_delta_snapshot(profile)
-    sale = sell_ghost_exchange_file(profile, username, file_id)
+    sale_transaction_key = f"ghost_exchange:manual:{username}:{file_id}"
+    try:
+        sale = sell_ghost_exchange_file(
+            profile,
+            username,
+            file_id,
+            payout_callback=lambda settlement: wallet_balance_store.credit(
+                username,
+                settlement["price"],
+                transaction_key=sale_transaction_key,
+                reason="ghost_exchange.manual_sale",
+                source="ghost_exchange",
+            ),
+        )
+    except WalletWriteError as exc:
+        return wallet_error_response(exc, status_key="message")
     if not sale:
+        prior_sale = next((
+            item for item in (profile.get("market_history") or [])
+            if isinstance(item, dict)
+            and str(item.get("file_id") or "") == file_id
+            and str(item.get("wallet_transaction_key") or "") == sale_transaction_key
+        ), None)
+        if prior_sale:
+            try:
+                payout = wallet_balance_store.credit(
+                    username,
+                    int(prior_sale.get("price") or 0),
+                    transaction_key=sale_transaction_key,
+                    reason="ghost_exchange.manual_sale",
+                    source="ghost_exchange",
+                )
+            except WalletWriteError as exc:
+                return wallet_error_response(exc, status_key="message")
+            record_wallet_balance_delta(
+                username,
+                reason="ghost_exchange_manual_sale",
+                dedupe_key=f"wallet:balance:{username}:ghost_exchange_manual:{file_id}",
+            )
+            return jsonify({
+                "success": True,
+                "duplicate": True,
+                "message": f"Pakiet danych byl juz sprzedany za {prior_sale.get('price', 0)} HC.",
+                "sale": prior_sale,
+                "balance": payout.get("balance", canonical_wallet_balance(username)),
+                "files": collect_ghost_exchange_files(profile),
+            })
         return jsonify({"success": False, "message": "Plik nie jest dostepny do sprzedazy albo zostal juz sprzedany."}), 404
 
-    current_hc = profile.get("hackcoins", 0)
-    try:
-        current_hc = int(current_hc)
-    except (TypeError, ValueError):
-        current_hc = 0
-    new_balance = current_hc + int(sale["price"])
+    new_balance = canonical_wallet_balance(username)
     profile["hackcoins"] = new_balance
     record_wallet_balance_delta(
         username,
@@ -21704,7 +22628,6 @@ def api_ghost_exchange_sell():
     normalize_profile_storage(profile)
 
     UserProfileManager(username).update_profile({
-        "hackcoins": profile.get("hackcoins", 0),
         "files": profile.get("files", {}),
         "market_history": profile.get("market_history", []),
         "storage_capacity": profile.get("storage_capacity"),
@@ -21793,8 +22716,7 @@ def update_profile_desktop():
     username = session["user"]
     profile = user_store.get_profile(username)
     if not profile:
-        session.pop("user", None)
-        session.pop("profile", None)
+        invalidate_authenticated_session("profile_not_found")
         return jsonify({"error": "Brak danych uzytkownika"}), 401
     settings = normalize_desktop_settings(profile.get("desktop_settings"))
 
@@ -21848,12 +22770,14 @@ def update_profile_account():
 
     data = request.get_json(silent=True) or {}
     username = session["user"]
-    profile = user_store.get_profile(username)
-    if not profile:
-        session.clear()
+    profile_record = load_profile_write_record(username)
+    if not profile_record:
+        invalidate_authenticated_session("profile_not_found")
         return jsonify({"error": "Brak danych uzytkownika"}), 401
 
     updates = {}
+    requested_email = None
+    requested_password = None
 
     if "email" in data:
         email, email_error = validate_registration_email(data.get("email"))
@@ -21866,7 +22790,7 @@ def update_profile_account():
         }
         if email in useremails:
             return jsonify({"success": False, "error": "Ten adres e-mail jest juz zarejestrowany."}), 409
-        profile["email"] = email
+        requested_email = email
         updates["email"] = email
 
     if "new_password" in data:
@@ -21877,15 +22801,30 @@ def update_profile_account():
             return jsonify({"success": False, "error": password_error}), 400
         if not authenticate_user(username, current_password):
             return jsonify({"success": False, "error": "Aktualne haslo jest nieprawidlowe."}), 403
-        profile["password"] = new_password
-        profile.pop("salt", None)
+        requested_password = new_password
         updates["password_changed"] = True
 
     if not updates:
         return jsonify({"success": False, "error": "Brak zmian do zapisania."}), 400
 
-    user_store.save_profile(profile)
-    profile = user_store.get_profile(username) or profile
+    # Authentication may upgrade a legacy password hash, so reload the
+    # revision immediately before building the full credential candidate.
+    profile_record = load_profile_write_record(username)
+    if not profile_record:
+        invalidate_authenticated_session("profile_not_found")
+        return jsonify({"error": "Brak danych uzytkownika"}), 401
+    profile = copy.deepcopy(profile_record["profile"])
+    if requested_email is not None:
+        profile["email"] = requested_email
+    if requested_password is not None:
+        profile["password"] = requested_password
+        profile["salt"] = ""
+    result = save_profile_write_record(
+        profile_record,
+        profile,
+        "profile.account_credentials",
+    )
+    profile = copy.deepcopy(result["profile"])
     profile.pop("password", None)
     profile.pop("salt", None)
     session["profile"] = profile
@@ -21906,6 +22845,8 @@ def api_wallet():
 
     try:
         return jsonify(wallet_store.get_wallet(session["user"]))
+    except WalletWriteError as exc:
+        return wallet_error_response(exc)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -21917,21 +22858,24 @@ def api_wallet_transfer():
 
     data = request.get_json() or {}
     try:
+        transaction_key = wallet_transaction_key_from_request(data)
         result = wallet_store.transfer(
             session["user"],
             data.get("to"),
             data.get("amount"),
-            data.get("note", "")
+            data.get("note", ""),
+            transaction_key=transaction_key,
         )
+    except WalletWriteError as exc:
+        return wallet_error_response(exc)
     except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 400
+        return jsonify({"success": False, "error": str(exc), "reason": "invalid_request"}), 400
 
-    transaction_id = (result.get("transaction") or {}).get("id")
     record_wallet_balance_delta(
         session["user"],
         result.get("balance", 0),
         reason="wallet_transfer_outgoing",
-        dedupe_key=f"wallet:balance:{session['user']}:transfer:{transaction_id}:outgoing",
+        dedupe_key=f"wallet:balance:{session['user']}:transfer:{transaction_key}:outgoing",
     )
     recipient = str(data.get("to") or "").strip()
     if recipient:
@@ -21940,7 +22884,7 @@ def api_wallet_transfer():
                 recipient,
                 result.get("recipient_balance", 0),
                 reason="wallet_transfer_incoming",
-                dedupe_key=f"wallet:balance:{recipient}:transfer:{transaction_id}:incoming",
+                dedupe_key=f"wallet:balance:{recipient}:transfer:{transaction_key}:incoming",
             )
         except Exception as exc:
             print(f"[DELTA] recipient wallet delta failed for {recipient}: {exc}")
@@ -21951,6 +22895,8 @@ def api_wallet_transfer():
         "success": True,
         "balance": result["balance"],
         "currency": result["currency"],
+        "duplicate": bool(result.get("duplicate")),
+        "transaction_key": transaction_key,
         "transaction": result["transaction"],
         "transactions": wallet["transactions"],
         "ledger": wallet.get("ledger", []),
@@ -21996,7 +22942,10 @@ def api_player_hack_tool_use():
         }), 403
 
     if tool_id == "systemLogReader":
-        victim_profile = user_store.get_profile(victim_username)
+        victim_record = load_profile_write_record(victim_username)
+        victim_profile = (
+            copy.deepcopy(victim_record["profile"]) if victim_record else None
+        )
         if not victim_profile:
             return jsonify({"success": False, "error": "Gracz celu nie istnieje."}), 404
 
@@ -22046,12 +22995,6 @@ def api_player_hack_tool_use():
         })
 
     if tool_id == "financialSniffer":
-        if player_hack_access_store.has_tool_usage(access, session["user"], victim_username, tool_id):
-            return jsonify({
-                "success": False,
-                "error": "Financial Sniffer byl juz uzyty podczas tego dostepu."
-            }), 409
-
         victim_profile = user_store.get_profile(victim_username)
         attacker_profile = user_store.get_profile(session["user"])
         if not victim_profile:
@@ -22067,10 +23010,51 @@ def api_player_hack_tool_use():
             attacker_respect = int(attacker_profile.get("respect", 0) or 0)
         except (TypeError, ValueError):
             attacker_respect = 0
-        try:
-            victim_balance = int(victim_profile.get("hackcoins", 0) or 0)
-        except (TypeError, ValueError):
-            victim_balance = 0
+        victim_balance = canonical_wallet_balance(victim_username)
+
+        access_key = player_hack_access_store.access_key(access)
+        transfer_key_hash = hashlib.sha256(
+            f"{access_key}:{session['user']}:{victim_username}:{tool_id}".encode("utf-8")
+        ).hexdigest()
+        transfer_key = f"financial_sniffer:{transfer_key_hash}"
+        existing_usage = player_hack_access_store.get_tool_usage(
+            access,
+            session["user"],
+            victim_username,
+            tool_id,
+        )
+        if existing_usage and not str(existing_usage.get("result") or "").startswith("pending:"):
+            final_amount = int(existing_usage.get("amount") or 0)
+            detected = str(existing_usage.get("result") or "") == "detected"
+            if final_amount > 0:
+                record_wallet_balance_delta(
+                    victim_username,
+                    reason="financial_sniffer_outgoing",
+                    dedupe_key=f"wallet:balance:{victim_username}:{transfer_key}:outgoing",
+                )
+                record_wallet_balance_delta(
+                    session["user"],
+                    reason="financial_sniffer_incoming",
+                    dedupe_key=f"wallet:balance:{session['user']}:{transfer_key}:incoming",
+                )
+            refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
+            return jsonify({
+                "success": True,
+                "duplicate": True,
+                "tool_id": "financialSniffer",
+                "tool": dict(tool),
+                "result_type": "financial_sniffer",
+                "message": (
+                    f"Financial Sniffer przechwycil {final_amount} HC."
+                    if final_amount > 0 else "Financial Sniffer nie znalazl bezpiecznej kwoty do przechwycenia."
+                ),
+                "stolen_amount": final_amount,
+                "currency": "HC",
+                "detected": detected,
+                "victim_balance_after_known": False,
+                "attacker_balance": canonical_wallet_balance(session["user"]),
+                "access": serialize_player_hack_access(refreshed_access),
+            })
 
         base_min = 5
         base_max = 25
@@ -22079,42 +23063,58 @@ def api_player_hack_tool_use():
         max_steal = max(base_min, base_max + level_bonus + respect_bonus)
         cap_by_balance = max(0, math.floor(victim_balance * 0.08))
 
-        if victim_balance <= 0:
-            final_amount = 0
-            message = "Konto ofiary jest puste."
+        if existing_usage:
+            final_amount = max(0, int(existing_usage.get("amount") or 0))
+            detected = str(existing_usage.get("result") or "") == "pending:detected"
         else:
-            stolen_amount = randint(base_min, max_steal)
-            final_amount = min(stolen_amount, cap_by_balance, victim_balance)
-            message = (
-                f"Financial Sniffer przechwycil {final_amount} HC."
-                if final_amount > 0
-                else "Financial Sniffer nie znalazl bezpiecznej kwoty do przechwycenia."
+            final_amount = (
+                min(randint(base_min, max_steal), cap_by_balance, victim_balance)
+                if victim_balance > 0 else 0
             )
+            risk_level = int(tool.get("risk_level", 2) or 2)
+            detection_chance = min(45, 8 + risk_level * 5 + max(0, 10 - attacker_level))
+            detected = (random() * 100) < detection_chance
+            existing_usage = player_hack_access_store.record_tool_usage(
+                access,
+                session["user"],
+                victim_username,
+                tool_id,
+                result="pending:detected" if detected else "pending:silent",
+                amount=final_amount,
+            )
+            final_amount = max(0, int(existing_usage.get("amount") or 0))
+            detected = str(existing_usage.get("result") or "") == "pending:detected"
 
-        risk_level = int(tool.get("risk_level", 2) or 2)
-        detection_chance = min(45, 8 + risk_level * 5 + max(0, 10 - attacker_level))
-        detected = (random() * 100) < detection_chance
-
-        transfer_result = wallet_store.technical_transfer(
-            victim_username,
-            session["user"],
-            final_amount,
-            note="financialSniffer",
+        try:
+            transfer_result = wallet_store.technical_transfer(
+                victim_username,
+                session["user"],
+                final_amount,
+                note="financialSniffer",
+                transaction_key=transfer_key,
+            )
+        except WalletWriteError as exc:
+            return wallet_error_response(exc)
+        final_amount = max(0, int(transfer_result.get("amount") or 0))
+        message = (
+            f"Financial Sniffer przechwycil {final_amount} HC."
+            if final_amount > 0
+            else ("Konto ofiary jest puste." if victim_balance <= 0 else "Financial Sniffer nie znalazl bezpiecznej kwoty do przechwycenia.")
         )
         if final_amount > 0:
             record_wallet_balance_delta(
                 victim_username,
                 transfer_result.get("source_balance", 0),
                 reason="financial_sniffer_outgoing",
-                dedupe_key=f"wallet:balance:{victim_username}:financial_sniffer:{transfer_result.get('transaction_id')}:outgoing",
+                dedupe_key=f"wallet:balance:{victim_username}:{transfer_key}:outgoing",
             )
             record_wallet_balance_delta(
                 session["user"],
                 transfer_result.get("target_balance", 0),
                 reason="financial_sniffer_incoming",
-                dedupe_key=f"wallet:balance:{session['user']}:financial_sniffer:{transfer_result.get('transaction_id')}:incoming",
+                dedupe_key=f"wallet:balance:{session['user']}:{transfer_key}:incoming",
             )
-        player_hack_access_store.record_tool_usage(
+        player_hack_access_store.complete_tool_usage(
             access,
             session["user"],
             victim_username,
@@ -22124,12 +23124,14 @@ def api_player_hack_tool_use():
         )
 
         if detected:
-            add_system_message_to_user(
-                victim_username,
-                "warning",
-                "Podejrzany ruch finansowy",
-                "Wykryto probe sniffingu finansowego na twoim koncie."
-            )
+            system_message_store.add_message(victim_username, {
+                "type": "warning",
+                "title": "Podejrzany ruch finansowy",
+                "text": "Wykryto probe sniffingu finansowego na twoim koncie.",
+                "body": "Wykryto probe sniffingu finansowego na twoim koncie.",
+                "status": "new",
+                "dedupe_key": f"financial_sniffer_detected:{transfer_key}",
+            }, source="financial_sniffer")
 
         refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
         return jsonify({
@@ -22344,7 +23346,27 @@ def api_player_hack_tool_use():
 
             victim_profile["apps"] = [app for app in apps if not app_matches(app)]
             victim_profile["files"] = remove_app_tool_files(victim_profile.get("files", {}), target_app)
-            user_store.save_profile(victim_profile)
+            canonical_changed = player_inventory_store.uninstall_app(
+                victim_username,
+                app_id=target_app_id,
+            )
+            if canonical_changed:
+                inventory_snapshot = player_inventory_store.snapshot(victim_username)
+                victim_profile["apps"] = list(inventory_snapshot.get("apps") or [])
+                canonical_tools = (
+                    inventory_snapshot.get("files") or {}
+                ).get("tools")
+                if isinstance(canonical_tools, list):
+                    victim_profile.setdefault("files", {})["tools"] = canonical_tools
+            user_store.patch_profile_guarded(
+                victim_username,
+                {
+                    "apps": victim_profile.get("apps", []),
+                    "files": victim_profile.get("files", {}),
+                },
+                source="player_hack.arsenal_cleaner",
+                expected_revision=int(victim_record["profile_revision"]),
+            )
             add_system_message_to_user(
                 victim_username,
                 "warning",
@@ -22417,9 +23439,10 @@ def api_player_hack_security_update():
             "error": "Dostep do tego gracza wygasl albo nie istnieje."
         }), 403
 
-    victim_profile = user_store.get_profile(victim_username)
-    if not victim_profile:
+    victim_record = load_profile_write_record(victim_username)
+    if not victim_record:
         return jsonify({"success": False, "error": "Gracz celu nie istnieje."}), 404
+    victim_profile = copy.deepcopy(victim_record["profile"])
 
     security = dict(victim_profile.get("security") or {})
     if key not in security or not isinstance(security.get(key), bool):
@@ -22435,8 +23458,12 @@ def api_player_hack_security_update():
                 security[conflicted_key] = False
                 changed_by_rules.append(conflicted_key)
 
-    victim_profile["security"] = security
-    user_store.save_profile(victim_profile)
+    user_store.patch_profile_guarded(
+        victim_username,
+        {"security": security},
+        source="player_hack.security_update",
+        expected_revision=int(victim_record["profile_revision"]),
+    )
     refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
     return jsonify({
         "success": True,
@@ -22465,17 +23492,22 @@ def api_player_hack_security_preset():
             "error": "Dostep do tego gracza wygasl albo nie istnieje."
         }), 403
 
-    victim_profile = user_store.get_profile(victim_username)
-    if not victim_profile:
+    victim_record = load_profile_write_record(victim_username)
+    if not victim_record:
         return jsonify({"success": False, "error": "Gracz celu nie istnieje."}), 404
+    victim_profile = copy.deepcopy(victim_record["profile"])
 
     try:
         security = build_security_preset(victim_profile.get("security", {}), preset)
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
 
-    victim_profile["security"] = security
-    user_store.save_profile(victim_profile)
+    user_store.patch_profile_guarded(
+        victim_username,
+        {"security": security},
+        source="player_hack.security_preset",
+        expected_revision=int(victim_record["profile_revision"]),
+    )
     refreshed_access = player_hack_access_store.get_active_access(session["user"], victim_username)
     return jsonify({
         "success": True,
@@ -23431,6 +24463,9 @@ def execute_response_network_consequence(decision):
             "consequence_executed": False,
             "penalty_executed": False,
         }
+    profile["hackcoins"] = canonical_wallet_balance(actor_id)
+    if "wallet" in profile:
+        profile["wallet"] = profile["hackcoins"]
 
     def _cancel_operation(profile_arg, operation_id):
         return cancel_profile_operation(
@@ -23450,7 +24485,6 @@ def execute_response_network_consequence(decision):
         return operations
 
     previous_storage = storage_delta_snapshot(profile)
-    previous_hc = profile.get("hackcoins")
     result = consequence_executor.execute(
         intent,
         profile,
@@ -23461,6 +24495,25 @@ def execute_response_network_consequence(decision):
 
     if result.get("status") in {"executed", "superseded", "rejected", "disabled"}:
         if result.get("status") == "executed":
+            hc_confiscation = result.get("hc_confiscation") if isinstance(result.get("hc_confiscation"), dict) else {}
+            if result.get("confiscated_hc"):
+                consequence_id = str(result.get("consequence_id") or intent.get("consequence_id") or "").strip()
+                debit_result = wallet_balance_store.debit_up_to(
+                    actor_id,
+                    max(0, int(hc_confiscation.get("amount") or 0)),
+                    transaction_key=f"response_consequence:{consequence_id}",
+                    reason="response_network.hc_confiscation",
+                    source="response_network",
+                )
+                profile["hackcoins"] = int(debit_result.get("balance") or 0)
+                if "wallet" in profile:
+                    profile["wallet"] = profile["hackcoins"]
+                result["hc_confiscation"] = {
+                    **hc_confiscation,
+                    "amount": abs(int(debit_result.get("amount_delta") or 0)),
+                    "balance_after": profile["hackcoins"],
+                    "duplicate": bool(debit_result.get("duplicate")),
+                }
             if result.get("confiscated_tools"):
                 tool = result.get("confiscated_tool") if isinstance(result.get("confiscated_tool"), dict) else {}
                 app_id = tool.get("app_id") or tool.get("app_name") or intent.get("operation_id")
@@ -23473,10 +24526,9 @@ def execute_response_network_consequence(decision):
                     dedupe_key=f"apps:uninstalled:{actor_id}:response_network:{result.get('consequence_id') or intent.get('consequence_id')}",
                     extra={"confiscated_tool": tool},
                 )
-            if result.get("confiscated_hc") and profile.get("hackcoins") != previous_hc:
+            if result.get("confiscated_hc"):
                 record_wallet_balance_delta(
                     actor_id,
-                    profile.get("hackcoins", 0),
                     reason="response_network_hc_confiscation",
                     dedupe_key=f"wallet:balance:{actor_id}:response_network:{result.get('consequence_id') or intent.get('consequence_id')}",
                 )
@@ -23491,7 +24543,6 @@ def execute_response_network_consequence(decision):
             "operations": profile.get("operations", []),
             "apps": profile.get("apps", []),
             "files": profile.get("files", {}),
-            "hackcoins": profile.get("hackcoins", 0),
             "risk_events": profile.get("risk_events", []),
             "system_messages": profile.get("system_messages", []),
             "market_history": profile.get("market_history", []),
@@ -23506,8 +24557,6 @@ def execute_response_network_consequence(decision):
             "storage_soft_limit": True,
             "storage_over_limit": profile.get("storage_over_limit", False),
         }
-        if "wallet" in profile:
-            profile_update["wallet"] = profile.get("wallet", profile.get("hackcoins", 0))
         UserProfileManager(actor_id).update_profile(profile_update)
         if session.get("user") == actor_id:
             session["profile"] = profile
@@ -24372,8 +25421,7 @@ def mail_bootstrap():
     username = session.get("user")
     profile = load_profile_readonly(username, strip_sensitive=True)
     if not profile:
-        session.pop("user", None)
-        session.pop("profile", None)
+        invalidate_authenticated_session("profile_not_found")
         return jsonify({"ok": False, "error": "profile_not_found"}), 401
     username = ensure_mail_seed(profile)
     mail_store.touch_presence(username)
@@ -24508,8 +25556,7 @@ def chat_messages():
     username = session.get("user")
     profile = load_profile_readonly(username, strip_sensitive=True)
     if not profile:
-        session.pop("user", None)
-        session.pop("profile", None)
+        invalidate_authenticated_session("profile_not_found")
         return jsonify({"error": "profile_not_found"}), 401
     username = ensure_mail_seed(profile)
     scope = request.args.get("scope", "group")
@@ -24558,8 +25605,7 @@ def send_chat_message():
     username = session.get("user")
     profile = load_profile_readonly(username, strip_sensitive=True)
     if not profile:
-        session.pop("user", None)
-        session.pop("profile", None)
+        invalidate_authenticated_session("profile_not_found")
         return jsonify({"error": "profile_not_found"}), 401
     username = ensure_mail_seed(profile)
     data = request.get_json() or {}
@@ -24705,42 +25751,106 @@ def install_app():
             return jsonify({"status": "error", "message": "Nie jestes zalogowany."}), 401
 
         data = request.get_json() or {}
-        app_id = data.get("app_id")
-        store = resources_store.get(
-            "app_config",
-            default=[]
-        )
+        app_id = str(data.get("app_id") or "").strip()
+        store = resources_store.get("app_config", default=[])
         catalog = get_app_catalog()
 
         app_data = next((app for app in catalog if app.get("id") == app_id), None)
         if not app_data:
-            print(f"[ERROR] Nie znaleziono aplikacji o ID: {app_id}")
-            return jsonify({"status": "error", "message": "App not found"})
+            return jsonify({"status": "error", "message": "App not found"}), 404
 
-        # --- Pobierz i zsynchronizuj aktualny profil ---
+        buyer_username = session["user"]
         profile = sync_session_profile()
+        if not isinstance(profile, dict):
+            return jsonify({"status": "error", "message": "Profil wymaga odzyskania."}), 409
+        profile["hackcoins"] = canonical_wallet_balance(buyer_username)
         previous_storage = storage_delta_snapshot(profile)
-        mgr = UserProfileManager(session["user"])
-        apps = profile.get("apps", [])
+        mgr = UserProfileManager(buyer_username)
+        apps = profile.get("apps") if isinstance(profile.get("apps"), list) else []
         is_product = is_googleplex_product(app_data)
-        if is_product and not app_data.get("consumable") and googleplex_product_is_purchased(profile, app_id):
+        consumable = bool(app_data.get("consumable"))
+        if consumable:
+            client_key = wallet_transaction_key_from_request(data)
+            key_digest = hashlib.sha256(client_key.encode("utf-8")).hexdigest()
+            purchase_key = f"googleplex:purchase:{buyer_username}:{app_id}:{key_digest}"
+        else:
+            purchase_key = f"googleplex:purchase:{buyer_username}:{app_id}"
+
+        if is_product:
+            existing_items = list(profile.get("googleplex_products") or []) + list(profile.get("product_purchases") or [])
+            existing_receipt = next((
+                item for item in existing_items
+                if isinstance(item, dict)
+                and str(item.get("id") or "") == app_id
+                and str(item.get("wallet_transaction_key") or "") == purchase_key
+            ), None)
+            already_owned = (not consumable) and googleplex_product_is_purchased(profile, app_id)
+        else:
+            installed_item = next((
+                item for item in apps
+                if isinstance(item, dict) and str(item.get("id") or "") == app_id
+            ), None)
+            existing_receipt = (
+                installed_item
+                if installed_item and str(installed_item.get("wallet_transaction_key") or "") == purchase_key
+                else None
+            )
+            already_owned = installed_item is not None
+
+        if existing_receipt:
+            if is_product:
+                record_storage_delta(
+                    buyer_username,
+                    profile,
+                    reason="googleplex_product_purchase_replay",
+                    previous=storage_delta_snapshot(profile),
+                    dedupe_key_prefix=f"storage:{purchase_key}",
+                )
+            else:
+                record_apps_delta(
+                    buyer_username,
+                    profile,
+                    "apps.app_installed",
+                    app=existing_receipt,
+                    app_id=app_id,
+                    reason="googleplex_app_install_replay",
+                    dedupe_key=f"apps:installed:{purchase_key}",
+                )
+            record_wallet_balance_delta(
+                buyer_username,
+                reason="googleplex_purchase_replay",
+                dedupe_key=f"wallet:balance:{purchase_key}:buyer",
+            )
+            session["profile"] = profile
+            return jsonify({
+                "status": "success",
+                "duplicate": True,
+                "message": "Zakup byl juz zapisany.",
+                "hackcoins": canonical_wallet_balance(buyer_username),
+                "price": max(0, int(app_data.get("price") or 0)),
+                "product": existing_receipt if is_product else None,
+                "app": normalize_app_contract(existing_receipt) if not is_product else None,
+                "apps": profile.get("apps", apps),
+                "files": profile.get("files", {}),
+                "storage": {
+                    "capacity": profile.get("storage_capacity"),
+                    "used": profile.get("storage_used"),
+                    "unit": profile.get("storage_unit", "MB"),
+                    "soft_limit": True,
+                    "over_limit": profile.get("storage_over_limit", False),
+                },
+            })
+        if already_owned:
             return jsonify({
                 "status": "error",
-                "reason": "already_purchased",
-                "message": "Produkt jest juz kupiony."
-            }), 409
-        if not is_product and any(a.get("id") == app_id for a in apps):
-            return jsonify({
-                "status": "error",
-                "reason": "already_installed",
-                "message": "Aplikacja jest juz kupiona."
+                "reason": "already_purchased" if is_product else "already_installed",
+                "message": "Produkt lub aplikacja jest juz kupiona.",
             }), 409
 
         requirement_error = validate_app_install_requirements(app_data, profile)
         if requirement_error:
-            return jsonify({"status": "error", "message": requirement_error})
+            return jsonify({"status": "error", "message": requirement_error}), 400
 
-        buyer_username = session["user"]
         buyer_name = profile.get("nick") or buyer_username
         price = max(0, int(app_data.get("price") or 0))
         creator_username = (app_data.get("creator_username") or "").strip()
@@ -24756,25 +25866,35 @@ def install_app():
             payee_username = "admin"
             payee_profile = user_store.get_profile(payee_username)
 
-        if price > 0:
+        if price > 0 and payee_username != buyer_username:
+            if not payee_profile:
+                return jsonify({
+                    "status": "error",
+                    "message": "Brak odbiorcy platnosci. Skontaktuj sie z adminem.",
+                }), 409
+            payment = wallet_store.transfer(
+                buyer_username,
+                payee_username,
+                price,
+                note=f"googleplex:{app_id}",
+                transaction_key=purchase_key,
+            )
+        else:
+            payment = {
+                "balance": canonical_wallet_balance(buyer_username),
+                "recipient_balance": canonical_wallet_balance(payee_username) if payee_username else 0,
+                "duplicate": False,
+            }
+        profile["hackcoins"] = canonical_wallet_balance(buyer_username)
+
+        if price > 0 and payee_username != buyer_username and not payment.get("duplicate"):
             if not payee_profile and payee_username != buyer_username:
                 return jsonify({
                     "status": "error",
                     "message": "Brak odbiorcy platnosci. Skontaktuj sie z adminem."
                 })
 
-            if int(profile.get("hackcoins", 0) or 0) < price:
-                return jsonify({
-                    "status": "error",
-                    "reason": "insufficient_hc",
-                    "message": f"Brak HC. Cena: {price}, masz: {profile.get('hackcoins', 0)}."
-                })
-
-            profile["hackcoins"] = int(profile.get("hackcoins", 0) or 0) - price
-
             if payee_profile and payee_username != buyer_username:
-                payee_profile["hackcoins"] = int(payee_profile.get("hackcoins", 0) or 0) + price
-                user_store.save_profile(payee_profile)
                 add_cyberner_direct_notification(
                     payee_username,
                     "Googolplex",
@@ -24783,7 +25903,7 @@ def install_app():
                     f"{buyer_name} kupił aplikację {app_data['name']} za {price} HackCoinów."
                 )
             elif payee_username == buyer_username:
-                profile["hackcoins"] = int(profile.get("hackcoins", 0) or 0) + price
+                pass
 
         if is_product:
             effect_result = apply_googleplex_product_effect(profile, app_data, username=buyer_username)
@@ -24802,8 +25922,9 @@ def install_app():
                 "category": app_data.get("category"),
                 "effects": effect_result.get("applied", []),
                 "price": price,
-                "consumable": bool(app_data.get("consumable")),
+                "consumable": consumable,
                 "purchased_at": runtime_file_now(),
+                "wallet_transaction_key": purchase_key,
             }
             purchases.append(purchase_record)
             product_purchases.append(dict(purchase_record))
@@ -24823,6 +25944,7 @@ def install_app():
                         "storage_capacity_bonus": storage_effect.get("value") or app_data.get("storage_capacity_bonus"),
                         "price": price,
                         "purchased_at": purchase_record["purchased_at"],
+                        "wallet_transaction_key": purchase_key,
                     })
             system_message_store.add_message(buyer_username, {
                 "title": "Zakup Googleplex",
@@ -24831,10 +25953,9 @@ def install_app():
                 "status": "new",
                 "product_id": app_id,
                 "effects": effect_result.get("applied", []),
-                "dedupe_key": f"googleplex_product:{buyer_username}:{app_id}:{purchase_record['purchased_at']}",
+                "dedupe_key": f"googleplex_product:{purchase_key}",
             }, source="googleplex_product")
             update_payload = {
-                "hackcoins": profile.get("hackcoins", 0),
                 "storage_capacity": profile.get("storage_capacity"),
                 "storage_used": profile.get("storage_used"),
                 "storage_unit": profile.get("storage_unit", "MB"),
@@ -24855,13 +25976,12 @@ def install_app():
                 profile,
                 reason="googleplex_product_purchase",
                 previous=previous_storage,
-                dedupe_key_prefix=f"storage:{buyer_username}:googleplex_product:{app_id}:{purchase_record.get('purchased_at')}",
+                dedupe_key_prefix=f"storage:{purchase_key}",
             )
             record_wallet_balance_delta(
                 buyer_username,
-                profile.get("hackcoins", 0),
                 reason="googleplex_product_purchase",
-                dedupe_key=f"wallet:balance:{buyer_username}:googleplex_product:{app_id}:{purchase_record.get('purchased_at')}",
+                dedupe_key=f"wallet:balance:{purchase_key}:buyer",
             )
             if any(item.get("type") == "travel_city" for item in effect_result.get("applied", [])):
                 record_map_player_actor_delta(
@@ -24869,20 +25989,19 @@ def install_app():
                     profile,
                     change_type="map.player_moved",
                     reason="googleplex_travel_product",
-                    dedupe_key_prefix=f"map:player_actor:{buyer_username}:googleplex_travel:{app_id}:{purchase_record.get('purchased_at')}",
+                    dedupe_key_prefix=f"map:player_actor:{purchase_key}",
                 )
-            if payee_profile and payee_username != buyer_username:
+            if price > 0 and payee_username != buyer_username:
                 record_wallet_balance_delta(
                     payee_username,
-                    payee_profile.get("hackcoins", 0),
                     reason="googleplex_product_sale",
-                    dedupe_key=f"wallet:balance:{payee_username}:googleplex_product_sale:{buyer_username}:{app_id}:{purchase_record.get('purchased_at')}",
+                    dedupe_key=f"wallet:balance:{purchase_key}:payee",
                 )
             session["profile"] = sync_session_profile(rebuild_territory=False)
             return jsonify({
                 "status": "success",
                 "message": "Produkt zostal kupiony.",
-                "hackcoins": profile.get("hackcoins", 0),
+                "hackcoins": canonical_wallet_balance(buyer_username),
                 "price": price,
                 "paid_to": payee_username if price > 0 else None,
                 "storage": {
@@ -24910,9 +26029,9 @@ def install_app():
                 "files": profile.get("files", {}),
             })
 
-        # --- Dodaj do apps ---
-        if not any(a.get("id") == app_id for a in apps):
-            apps.append(app_data)
+        installed_app = copy.deepcopy(app_data)
+        installed_app["wallet_transaction_key"] = purchase_key
+        apps.append(installed_app)
 
         # --- Dodaj do files/tools ---
         files = profile.get("files", {})
@@ -24925,7 +26044,7 @@ def install_app():
         profile["files"] = files
         normalize_profile_storage(profile)
 
-        if (not is_system_catalog_app(app_data)) or app_data.get("ghostlab_generated"):
+        if (not payment.get("duplicate")) and ((not is_system_catalog_app(app_data)) or app_data.get("ghostlab_generated")):
             for app in store:
                 if app.get("id") == app_id:
                     app["downloads"] = int(app.get("downloads", 0)) + 1
@@ -24936,7 +26055,6 @@ def install_app():
         mgr.update_profile({
             "apps": profile.get("apps", apps),
             "files": files,
-            "hackcoins": profile.get("hackcoins", 0),
             "storage_capacity": profile.get("storage_capacity"),
             "storage_used": profile.get("storage_used"),
             "storage_unit": profile.get("storage_unit", "MB"),
@@ -24948,29 +26066,27 @@ def install_app():
             profile,
             reason="googleplex_app_install",
             previous=previous_storage,
-            dedupe_key_prefix=f"storage:{buyer_username}:googleplex_app:{app_id}",
+            dedupe_key_prefix=f"storage:{purchase_key}",
         )
         record_apps_delta(
             buyer_username,
             profile,
             "apps.app_installed",
-            app=app_data,
+            app=installed_app,
             app_id=app_id,
             reason="googleplex_app_install",
-            dedupe_key=f"apps:installed:{buyer_username}:{app_id}",
+            dedupe_key=f"apps:installed:{purchase_key}",
         )
         record_wallet_balance_delta(
             buyer_username,
-            profile.get("hackcoins", 0),
             reason="googleplex_app_install",
-            dedupe_key=f"wallet:balance:{buyer_username}:googleplex_app:{app_id}",
+            dedupe_key=f"wallet:balance:{purchase_key}:buyer",
         )
-        if payee_profile and payee_username != buyer_username:
+        if price > 0 and payee_username != buyer_username:
             record_wallet_balance_delta(
                 payee_username,
-                payee_profile.get("hackcoins", 0),
                 reason="googleplex_app_sale",
-                dedupe_key=f"wallet:balance:{payee_username}:googleplex_app_sale:{buyer_username}:{app_id}",
+                dedupe_key=f"wallet:balance:{purchase_key}:payee",
             )
 
         # --- SYSTEM MESSAGE przez runtime store ---
@@ -24981,13 +26097,13 @@ def install_app():
             "status": "new"
         }
 
-        new_message["dedupe_key"] = f"googleplex_app_install:{buyer_username}:{app_id}"
+        new_message["dedupe_key"] = f"googleplex_app_install:{purchase_key}"
         system_message_store.add_message(buyer_username, new_message, source="googleplex_install")
 
         return jsonify({
             "status": "success",
             "message": "Aplikacja została zainstalowana.",
-            "hackcoins": profile.get("hackcoins", 0),
+            "hackcoins": canonical_wallet_balance(buyer_username),
             "price": price,
             "paid_to": payee_username if price > 0 else None,
             "storage": {
@@ -24998,14 +26114,25 @@ def install_app():
                 "soft_limit": True,
                 "over_limit": profile.get("storage_over_limit", False),
             },
-            "app": normalize_app_contract(app_data),
+            "app": normalize_app_contract(installed_app),
             "apps": profile.get("apps", apps),
             "files": profile.get("files", {}),
         })
 
+    except WalletWriteError as exc:
+        response, status = wallet_error_response(exc, status_key="message")
+        payload = response.get_json() or {}
+        payload["status"] = "error"
+        return jsonify(payload), status
+    except (ProfileWriteConflict, ProfilePrecommitRejected) as exc:
+        return jsonify({"status": "error", "reason": "profile_write_conflict", "message": str(exc)}), 409
+    except ProfileRecoveryRequired as exc:
+        return jsonify({"status": "error", "reason": "recovery_required", "message": str(exc)}), 409
+    except ProfileValidationError as exc:
+        return jsonify({"status": "error", "reason": "profile_validation_failed", "message": str(exc)}), 422
     except Exception as e:
         print(f"[EXCEPTION] Wystąpił błąd podczas instalacji: {e}")
-        return jsonify({"status": "error", "message": str(e)})
+        return jsonify({"status": "error", "message": "Instalacja nie zostala zakonczona."}), 500
 
 @app.route('/api/apps/uninstall', methods=['POST'])
 def uninstall_app():
@@ -25137,11 +26264,11 @@ def launch_queue():
             apps=launch_list or [],
         )
     except Exception:
-        session.clear()
+        invalidate_authenticated_session("launch_queue_error")
         return jsonify({"logout": True})
 
     if launch_list is None:
-        session.clear()
+        invalidate_authenticated_session("launch_queue_profile_not_found")
         return jsonify({"logout": True})
 
     hack_flow_debug(
@@ -26254,7 +27381,10 @@ def gonna_win():
             areas=len(rebuilt_areas or []),
         )
         if contest_owner_username and contest_owner_username != session["user"]:
-            owner_profile = user_store.get_profile(contest_owner_username) or {}
+            owner_record = load_profile_write_record(contest_owner_username)
+            owner_profile = (
+                copy.deepcopy(owner_record["profile"]) if owner_record else {}
+            )
             step_started_at = time.perf_counter()
             owner_areas = (
                 territory_store.list_player_areas(contest_owner_username)
@@ -26267,7 +27397,15 @@ def gonna_win():
             )
             if not defer_conflict_rebuild:
                 refresh_territory_stats_snapshot(owner_profile, owner_areas)
-                user_store.save_profile(owner_profile)
+                user_store.patch_profile_guarded(
+                    contest_owner_username,
+                    {
+                        "territory_stats": owner_profile.get("territory_stats", {}),
+                        "exp": owner_profile.get("exp"),
+                    },
+                    source="territory.owner_loss_projection",
+                    expected_revision=int(owner_record["profile_revision"]),
+                )
             app_flow_debug_timed(
                 flow_id,
                 "gonna_win_owner_rebuild_deferred" if defer_conflict_rebuild

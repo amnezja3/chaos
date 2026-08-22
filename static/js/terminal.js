@@ -14,6 +14,7 @@ let toolbarTargetHackedEffectTimer = null;
 let toolbarTargetLocalOverride = null;
 const toolbarTargetHackedEffectKeys = new Set();
 let desktopSessionActive = true;
+let desktopSessionTeardownComplete = false;
 let userProfileRequestPromise = null;
 let desktopRenderedApps = [];
 const recentApplicationWindowLaunches = new Map();
@@ -36,12 +37,88 @@ let stateDeltaSfxCatchup = true;
 let stateDeltaSfxPlaybackAllowed = false;
 let systemMessageSfxLive = false;
 let systemMessageSfxCatchup = true;
+let systemMessagesPollInFlight = false;
+let launchQueuePollInFlight = false;
+let systemMessagesPollInterval = null;
+let stateDeltaStartTimer = null;
+let stateDeltaPollInterval = null;
+let launchQueuePollTimer = null;
 const cybernerSfxChannelCooldowns = new Map();
 const processedDeltaKeys = new Set();
+const recentLaunchQueueApps = new Map();
 const STATE_DELTA_POLL_INTERVAL_MS = 4000;
 const DESKTOP_BACKGROUND_FETCH_TIMEOUT_MS = 8000;
 const STATE_DELTA_FETCH_TIMEOUT_MS = 30000;
 const LAUNCH_QUEUE_FETCH_TIMEOUT_MS = 12000;
+
+function teardownDesktopForInvalidatedSession() {
+    if (desktopSessionTeardownComplete) return false;
+    desktopSessionTeardownComplete = true;
+    desktopSessionActive = false;
+
+    // Do not let an idempotency key survive an authoritative identity change.
+    // session_generation.js clears all user-scoped sessionStorage as a second
+    // line of defence; this explicit cleanup also covers isolated consumers of
+    // the desktop teardown hook.
+    clearWalletTransferActionKey();
+
+    clearTimeout(desktopSaveTimer);
+    desktopSaveTimer = null;
+    clearTimeout(toolbarTargetHackedEffectTimer);
+    toolbarTargetHackedEffectTimer = null;
+    clearInterval(playerHackAccessTimer);
+    playerHackAccessTimer = null;
+    clearInterval(systemMessagesPollInterval);
+    systemMessagesPollInterval = null;
+    clearTimeout(stateDeltaStartTimer);
+    stateDeltaStartTimer = null;
+    clearInterval(stateDeltaPollInterval);
+    stateDeltaPollInterval = null;
+    clearTimeout(launchQueuePollTimer);
+    launchQueuePollTimer = null;
+
+    toolbarProfile = null;
+    toolbarTargetLocalOverride = null;
+    toolbarTargetHackedEffect = null;
+    toolbarTargetHackedEffectKeys.clear();
+    userProfileRequestPromise = null;
+    gonnaWinRequestQueue = Promise.resolve();
+    stateDeltaPollInFlight = false;
+    systemMessagesPollInFlight = false;
+    launchQueuePollInFlight = false;
+    stateDeltaSfxLive = false;
+    stateDeltaSfxCatchup = true;
+    stateDeltaSfxPlaybackAllowed = false;
+    systemMessageSfxLive = false;
+    systemMessageSfxCatchup = true;
+
+    processedDeltaKeys.clear();
+    cybernerSfxChannelCooldowns.clear();
+    recentApplicationWindowLaunches.clear();
+    recentLaunchQueueReceipts.clear();
+    recentLaunchQueueApps.clear();
+    notifiedOperationIds.clear();
+    fileManagerInstances.clear();
+    cybernerDeltaClients.clear();
+    ghostExchangeDeltaViews.clear();
+    window.__appFlowTraceState?.clear?.();
+    window.__systemToastDedupe?.clear?.();
+
+    runningWindows.forEach(win => win?.remove?.());
+    runningWindows.clear();
+    document.querySelectorAll('.terminal, .app-window, .system-toast').forEach(node => node.remove());
+    ["lore", "gameplay", "message", "system", "ui"].forEach(bus => {
+        window.GameSfx?.stop?.(bus, { fade_ms: 40 });
+    });
+    return true;
+}
+
+window.addEventListener(
+    "chaos:session-invalidated",
+    teardownDesktopForInvalidatedSession,
+    { once: true }
+);
+window.teardownDesktopForInvalidatedSession = teardownDesktopForInvalidatedSession;
 
 function fetchDesktopBackground(resource, options = {}, timeoutMs = DESKTOP_BACKGROUND_FETCH_TIMEOUT_MS) {
     const controller = new AbortController();
@@ -509,12 +586,33 @@ function sendDesktopSettingsBeacon(partial = {}) {
     if (!desktopSessionActive || !navigator.sendBeacon) return false;
     const settings = { ...desktopSettings, ...partial };
     try {
-        const payload = JSON.stringify(settings);
+        const generation = window.ChaosSessionGeneration?.getState?.().generation || "";
+        if (!generation) return false;
+        const payload = JSON.stringify({
+            ...settings,
+            _session_generation: generation
+        });
         return navigator.sendBeacon('/api/profile/desktop', new Blob([payload], { type: 'application/json' }));
     } catch (err) {
         console.warn("Nie udało się zapisać pulpitu beaconem:", err);
         return false;
     }
+}
+
+function currentSessionGenerationQuery() {
+    const state = window.ChaosSessionGeneration?.getState?.() || {};
+    const queryToken = state.query_token || state.generation || "";
+    return queryToken
+        ? `&_embedded=1&_session_generation=${encodeURIComponent(queryToken)}`
+        : "&_embedded=1";
+}
+
+function authenticatedLogoutUrl() {
+    const state = window.ChaosSessionGeneration?.getState?.() || {};
+    const queryToken = state.query_token || state.generation || "";
+    return queryToken
+        ? `/logout?_session_generation=${encodeURIComponent(queryToken)}`
+        : "/logout";
 }
 
 function reloadOpenMapWindowsForSettings() {
@@ -528,7 +626,7 @@ function reloadOpenMapWindowsForSettings() {
         frame.removeAttribute('src');
         requestAnimationFrame(() => {
             if (frame.isConnected) {
-                frame.src = `/map?scheme=${encodeURIComponent(desktopSettings.map_tile_scheme || "osm")}&ts=${Date.now()}`;
+                frame.src = `/map?scheme=${encodeURIComponent(desktopSettings.map_tile_scheme || "osm")}&ts=${Date.now()}${currentSessionGenerationQuery()}`;
             }
         });
     });
@@ -1381,7 +1479,7 @@ function renderStartMenu() {
 
     menu.querySelector('.system-action-logout')?.addEventListener('click', () => {
         menu.hidden = true;
-        window.location.href = '/logout';
+        window.location.href = authenticatedLogoutUrl();
     });
 }
 
@@ -2894,7 +2992,7 @@ function attachTerminalInputHandler(input, content) {
 
             if (data.logout) {
                 setTimeout(() => {
-                    window.location.href = '/logout';
+                    window.location.href = authenticatedLogoutUrl();
                 }, 350);
                 return;
             }
@@ -3328,7 +3426,7 @@ async function executeSystemTerminalCommand(value, input, content, { echo = true
 
         if (data.logout) {
             setTimeout(() => {
-                window.location.href = '/logout';
+                window.location.href = authenticatedLogoutUrl();
             }, 350);
             return false;
         }
@@ -5145,7 +5243,10 @@ function notifyOpenMapsBlacknetFocus(focus = {}) {
 }
 
 function enqueueGonnaWinRequest(task) {
-    const queued = gonnaWinRequestQueue.catch(() => {}).then(task);
+    const queued = gonnaWinRequestQueue.catch(() => {}).then(() => {
+        if (!desktopSessionActive) return null;
+        return task();
+    });
     gonnaWinRequestQueue = queued.catch(() => {});
     return queued;
 }
@@ -7408,7 +7509,7 @@ function createMap() {
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
             if (frame && term.isConnected && !frame.src) {
-                frame.src = `/map?scheme=${encodeURIComponent(desktopSettings.map_tile_scheme || "osm")}`;
+                frame.src = `/map?scheme=${encodeURIComponent(desktopSettings.map_tile_scheme || "osm")}${currentSessionGenerationQuery()}`;
             }
         });
     });
@@ -9252,6 +9353,110 @@ function renderWalletHistory(container, transactions) {
     }).join('');
 }
 
+function walletTransferScopeDigest(value) {
+    let first = 0x811c9dc5;
+    let second = 0x9e3779b9;
+    for (const char of String(value || "")) {
+        const code = char.codePointAt(0);
+        first = Math.imul(first ^ code, 0x01000193);
+        second = Math.imul(second ^ code, 0x85ebca6b);
+    }
+    return `${(first >>> 0).toString(16).padStart(8, "0")}${(second >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+function walletTransferSessionScope() {
+    const state = window.ChaosSessionGeneration?.getState?.() || {};
+    const username = String(state.username || toolbarProfile?.username || "anonymous")
+        .trim()
+        .toLowerCase() || "anonymous";
+    const sessionMarker = String(state.query_token || state.generation || "legacy-session").trim()
+        || "legacy-session";
+    // Keep the raw session generation out of the storage key while retaining
+    // a stable user/session namespace inside this tab.
+    return `${walletTransferScopeDigest(username)}:${walletTransferScopeDigest(sessionMarker)}`;
+}
+
+function walletTransferStorageKey() {
+    return `chaos:wallet-transfer:v1:${walletTransferSessionScope()}`;
+}
+
+function newWalletTransferActionKey() {
+    const randomPart = (window.crypto && typeof window.crypto.randomUUID === "function")
+        ? window.crypto.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    return `wallet-transfer:${randomPart}`;
+}
+
+function acquireWalletTransferAction(payload = {}, container = null) {
+    const fingerprint = JSON.stringify({
+        to: String(payload.to || "").trim(),
+        amount: String(payload.amount ?? ""),
+        note: String(payload.note || "").trim(),
+    });
+    const storageKey = walletTransferStorageKey();
+    let key = "";
+
+    if (
+        container?.dataset?.walletTransferKey
+        && container.dataset.walletTransferFingerprint === fingerprint
+    ) {
+        key = container.dataset.walletTransferKey;
+    }
+
+    if (!key) {
+        try {
+            const stored = JSON.parse(window.sessionStorage.getItem(storageKey) || "null");
+            if (
+                stored
+                && stored.fingerprint === fingerprint
+                && typeof stored.key === "string"
+                && stored.key.startsWith("wallet-transfer:")
+            ) {
+                key = stored.key;
+            }
+        } catch (_err) {
+            // sessionStorage can be unavailable or contain an obsolete record.
+        }
+    }
+
+    if (!key) key = newWalletTransferActionKey();
+    const action = { key, fingerprint, storageKey };
+    if (container?.dataset) {
+        container.dataset.walletTransferKey = key;
+        container.dataset.walletTransferFingerprint = fingerprint;
+    }
+    try {
+        window.sessionStorage.setItem(storageKey, JSON.stringify({
+            version: 1,
+            key,
+            fingerprint,
+        }));
+    } catch (_err) {
+        // The container-local receipt still protects retries before reload.
+    }
+    return action;
+}
+
+function clearWalletTransferActionKey(action = null, container = null) {
+    const storageKey = action?.storageKey || walletTransferStorageKey();
+    try {
+        const stored = JSON.parse(window.sessionStorage.getItem(storageKey) || "null");
+        if (!action || !stored || stored.key === action.key) {
+            window.sessionStorage.removeItem(storageKey);
+        }
+    } catch (_err) {
+        try {
+            window.sessionStorage.removeItem(storageKey);
+        } catch (_storageError) {
+            // Storage can be unavailable in hardened/private contexts.
+        }
+    }
+    if (container?.dataset && (!action || container.dataset.walletTransferKey === action.key)) {
+        delete container.dataset.walletTransferKey;
+        delete container.dataset.walletTransferFingerprint;
+    }
+}
+
 async function submitWalletTransfer(container = document.querySelector('.terminal[data-app="wallet"] .wallet-shell')) {
     if (!container) return;
     const to = container.querySelector('[data-wallet-recipient]').value.trim();
@@ -9268,11 +9473,16 @@ async function submitWalletTransfer(container = document.querySelector('.termina
     }
 
     setWalletMessage(container, "loading", "Wysylanie przelewu...");
+    const transferAction = acquireWalletTransferAction({ to, amount, note }, container);
+    const transactionKey = transferAction.key;
     try {
         const res = await fetch('/api/wallet/transfer', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to, amount, note })
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Idempotency-Key': transactionKey
+            },
+            body: JSON.stringify({ to, amount, note, transaction_key: transactionKey })
         });
         const data = await res.json();
         if (!res.ok || data.error) {
@@ -9281,6 +9491,7 @@ async function submitWalletTransfer(container = document.querySelector('.termina
         }
         container.querySelector('[data-wallet-amount]').value = "";
         container.querySelector('[data-wallet-note]').value = "";
+        clearWalletTransferActionKey(transferAction, container);
         container.querySelector('[data-wallet-balance]').textContent = `Saldo: ${Number(data.balance || 0)} ${data.currency || 'HC'}`;
         renderWalletHistory(container, data.ledger || data.transactions || (data.transaction ? [data.transaction] : []));
         setWalletMessage(container, "success", "Przelew wykonany.");
@@ -9296,6 +9507,27 @@ window.openWalletTransferTo = function(username) {
     openWalletApp({ to: username });
     return true;
 };
+
+function googleplexInstallActionKey(app = {}) {
+    const appId = String(app.id || "app").trim() || "app";
+    const storageKey = `chaos:googleplex-install:${appId}`;
+    try {
+        const existing = window.sessionStorage.getItem(storageKey);
+        if (existing) return { key: existing, storageKey };
+    } catch (_err) {
+        // sessionStorage can be unavailable in hardened/private contexts.
+    }
+    const randomPart = (window.crypto && typeof window.crypto.randomUUID === "function")
+        ? window.crypto.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    const key = `googleplex-install:${appId}:${randomPart}`;
+    try {
+        window.sessionStorage.setItem(storageKey, key);
+    } catch (_err) {
+        // The in-memory key still protects retries made by this install window.
+    }
+    return { key, storageKey };
+}
 
 function showInstallAppProgress(app, onInstalled = null) {
     // Okno progressbar (symulacja jak instalator Windows/Linux)
@@ -9331,18 +9563,30 @@ function showInstallAppProgress(app, onInstalled = null) {
     const result = appWindow.querySelector('.result-msg');
     let stepIndex = 0;
     const progressPerStep = 100 / steps.length;
+    const installAction = googleplexInstallActionKey(app);
 
     function runNextStep() {
         if (stepIndex >= steps.length) {
             // Wysyłka do backendu na końcu
             fetch('/install-app', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ app_id: app.id })
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Client-Action-Key': installAction.key
+                },
+                body: JSON.stringify({
+                    app_id: app.id,
+                    client_action_key: installAction.key
+                })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.status === "success") {
+                    try {
+                        window.sessionStorage.removeItem(installAction.storageKey);
+                    } catch (_err) {
+                        // A successful server receipt is authoritative.
+                    }
                     const storage = data.storage || {};
                     const isProductPurchase = !!data.product;
                     const hasStorageInfo = storage && (
@@ -9930,17 +10174,20 @@ async function createProfile() {
 
 
 async function getUserProfile() {
+    if (!desktopSessionActive) return null;
     if (userProfileRequestPromise) return userProfileRequestPromise;
     const snapshotClientRequestedMs = Date.now();
     userProfileRequestPromise = (async () => {
         try {
             const res = await fetch('/api/profile');
+            if (!desktopSessionActive) return null;
             if (res.status === 401) {
                 desktopSessionActive = false;
                 return null;
             }
             if (!res.ok) throw new Error(`Nieprawidłowy response (${res.status})`);
             const data = await res.json();
+            if (!desktopSessionActive) return null;
             data.snapshot_client_requested_ms = snapshotClientRequestedMs;
             data.snapshot_client_received_ms = Date.now();
             // /api/profile is the authoritative player snapshot. The first
@@ -10294,6 +10541,7 @@ function playGhostNetworkDeltaSfx(event = {}) {
 }
 
 async function applyDelta(event) {
+    if (!desktopSessionActive) return false;
     if (!event || typeof event !== "object") return false;
     const dedupeKey = event.dedupe_key || `${event.type || 'event'}:${event.version || ''}`;
     if (rememberProcessedDelta(dedupeKey)) return false;
@@ -10513,6 +10761,7 @@ async function recoverGhostNetworkDeltaScope() {
 }
 
 async function recoverDeltaScopes(recoveryScopes = [], currentVersion = null) {
+    if (!desktopSessionActive) return false;
     const normalizedScopes = Array.isArray(recoveryScopes) && recoveryScopes.length
         ? recoveryScopes
         : STATE_DELTA_DEFAULT_RECOVERY_SCOPES;
@@ -10568,6 +10817,7 @@ async function recoverDeltaScopes(recoveryScopes = [], currentVersion = null) {
         }));
     }
     await Promise.all(recoveryTasks);
+    if (!desktopSessionActive) return false;
     if (Number.isFinite(Number(currentVersion))) {
         stateDeltaVersion = Math.max(stateDeltaVersion, Number(currentVersion));
     }
@@ -10587,6 +10837,7 @@ async function pollStateChanges() {
             {},
             STATE_DELTA_FETCH_TIMEOUT_MS
         );
+        if (!desktopSessionActive) return;
         if (res.status === 401) {
             desktopSessionActive = false;
             return;
@@ -10596,9 +10847,11 @@ async function pollStateChanges() {
             return;
         }
         const data = await res.json();
+        if (!desktopSessionActive) return;
         if (data.recovery_required) {
             stateDeltaSfxCatchup = true;
             await recoverDeltaScopes(data.recovery_scopes || [], data.current_version);
+            if (!desktopSessionActive) return;
             stateDeltaSfxLive = true;
             stateDeltaSfxCatchup = false;
             return;
@@ -10608,6 +10861,7 @@ async function pollStateChanges() {
         try {
             for (const change of changes) {
                 await applyDelta(change);
+                if (!desktopSessionActive) return;
                 if (Number.isFinite(Number(change.version))) {
                     stateDeltaVersion = Math.max(stateDeltaVersion, Number(change.version));
                 }
@@ -10615,6 +10869,7 @@ async function pollStateChanges() {
         } finally {
             stateDeltaSfxPlaybackAllowed = false;
         }
+        if (!desktopSessionActive) return;
         if (Number.isFinite(Number(data.current_version))) {
             stateDeltaVersion = Math.max(stateDeltaVersion, Number(data.current_version));
         }
@@ -14871,6 +15126,25 @@ function createEmailClient() {
         bootstrap: { inFlight: null, controller: null, version: 0 },
         messages: { inFlight: null, controller: null, version: 0, key: "" }
     };
+    const teardownMailSessionState = () => {
+        mailClosed = true;
+        clearTimeout(mailRefreshTimer);
+        mailRefreshTimer = null;
+        Object.values(requestState).forEach(state => {
+            if (state.controller) state.controller.abort();
+            state.inFlight = null;
+            state.controller = null;
+        });
+        currentMessages = [];
+        pendingSend = null;
+        messageIds.clear();
+        window.activeCybernerThread = null;
+    };
+    window.addEventListener(
+        "chaos:session-invalidated",
+        teardownMailSessionState,
+        { once: true }
+    );
     const requestedInitialPeer = window.pendingEmailPeer || "";
     const requestedInitialThread = window.pendingCybernerThread;
     window.pendingEmailPeer = "";
@@ -15669,22 +15943,20 @@ function createEmailClient() {
         mailResizeObserver.observe(term);
     }
     const scheduleMailRefresh = () => {
-        if (mailClosed) return;
+        if (mailClosed || !desktopSessionActive) return;
         mailRefreshTimer = setTimeout(async () => {
+            if (mailClosed || !desktopSessionActive) return;
             await refreshThreads(false);
             scheduleMailRefresh();
         }, CYBERNER_THREAD_REFRESH_INTERVAL_MS);
     };
     scheduleMailRefresh();
     term.querySelector('.close-btn').addEventListener('click', () => {
-        mailClosed = true;
-        clearTimeout(mailRefreshTimer);
-        Object.values(requestState).forEach(state => {
-            if (state.controller) state.controller.abort();
-            state.inFlight = null;
-            state.controller = null;
-        });
-        window.activeCybernerThread = null;
+        window.removeEventListener(
+            "chaos:session-invalidated",
+            teardownMailSessionState
+        );
+        teardownMailSessionState();
         window.removeEventListener('resize', mailResizeHandler);
         if (window.visualViewport) {
             window.visualViewport.removeEventListener('resize', updateMailViewportInset);
@@ -15929,23 +16201,23 @@ function showSystemToast(message, type = 'success') {
     }, 5000);
 }
 
-let systemMessagesPollInFlight = false;
-
 async function pollSystemMessages() {
     if (!desktopSessionActive || systemMessagesPollInFlight) return;
     systemMessagesPollInFlight = true;
     try {
         const res = await fetchDesktopBackground('/system-messages');
+        if (!desktopSessionActive) return;
         if (!res.ok) {
             systemMessageSfxCatchup = true;
             return;
         }
         const data = await res.json();
+        if (!desktopSessionActive) return;
         const allowSfx = systemMessageSfxLive && !systemMessageSfxCatchup;
         data.forEach((msg, i) => {
             if (allowSfx) playSystemMessageSfx(msg);
             setTimeout(() => {
-                showSystemToast(msg, msg.type);
+                if (desktopSessionActive) showSystemToast(msg, msg.type);
             }, i * 2000);
         });
         systemMessageSfxLive = true;
@@ -15961,12 +16233,10 @@ async function pollSystemMessages() {
 }
 
 // 🔁 Co 10 sekund sprawdzaj nowe
-setInterval(pollSystemMessages, 10000);
-setTimeout(pollStateChanges, 1000);
-setInterval(pollStateChanges, STATE_DELTA_POLL_INTERVAL_MS);
+systemMessagesPollInterval = setInterval(pollSystemMessages, 10000);
+stateDeltaStartTimer = setTimeout(pollStateChanges, 1000);
+stateDeltaPollInterval = setInterval(pollStateChanges, STATE_DELTA_POLL_INTERVAL_MS);
 
-let launchQueuePollInFlight = false;
-const recentLaunchQueueApps = new Map();
 const LAUNCH_QUEUE_RECENT_TTL_MS = 60000;
 
 function normalizeLaunchQueueItem(rawItem) {
@@ -16026,7 +16296,7 @@ function shouldSkipRecentLaunchQueueApp(name, flowId = "") {
 }
 
 async function pollLaunchQueue() {
-    if (launchQueuePollInFlight) {
+    if (!desktopSessionActive || launchQueuePollInFlight) {
         hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_skip_in_flight", {});
         return;
     }
@@ -16039,7 +16309,9 @@ async function pollLaunchQueue() {
                 'X-Hack-Flow-Id': window.__lastHackFlowId || ''
             }
         }, LAUNCH_QUEUE_FETCH_TIMEOUT_MS);
+        if (!desktopSessionActive) return;
         const appsToLaunch = await res.json();
+        if (!desktopSessionActive) return;
         hackFlowDebug(window.__lastHackFlowId || "", "desktop", "launch_queue_response", {
             status: res.status,
             apps: Array.isArray(appsToLaunch) ? appsToLaunch : appsToLaunch
@@ -16141,6 +16413,7 @@ async function pollLaunchQueue() {
                     const type = appData.interface;
 
                     const action = () => {
+                        if (!desktopSessionActive) return;
                         appFlowTrace(flowId, "launch_queue_launch_app", {
                             name,
                             app_id: id,
@@ -16187,12 +16460,15 @@ async function pollLaunchQueue() {
         // Spróbuj ponownie za 10 sekund
         launchQueuePollInFlight = false;
         endDesktopLoading(loadingToken);
-        setTimeout(pollLaunchQueue, 10000);
+        if (desktopSessionActive) {
+            launchQueuePollTimer = setTimeout(pollLaunchQueue, 10000);
+        }
     }
 }
 
 // Uruchom po załadowaniu strony
 document.addEventListener("DOMContentLoaded", () => {
+    if (!desktopSessionActive) return;
     pollLaunchQueue();
     refreshPlayerHackAccess();
 });

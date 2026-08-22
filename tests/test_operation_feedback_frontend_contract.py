@@ -321,9 +321,12 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("history.last_security", self.feedback)
         self.assertIn("history.last_line", self.feedback)
         self.assertIn("durationProfileFor(config, elapsedMs, profile)", self.feedback)
-        self.assertIn(
-            "this.clearChoice();\n            this.transition(\"completing\")",
-            self.feedback,
+        completion_start = self.feedback.index("        complete(payload = {}) {")
+        completion_end = self.feedback.index("        presentProgressCompletion", completion_start)
+        completion_source = self.feedback[completion_start:completion_end]
+        self.assertLess(
+            completion_source.index("this.clearChoice();"),
+            completion_source.index('this.transition("completing")'),
         )
         self.assertIn(
             'if (this.disposed || this.state !== "running") return;',

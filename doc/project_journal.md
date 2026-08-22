@@ -1,5 +1,49 @@
 # CHAOS — Project Journal
 
+## 2026-08-21 - Sprint 130.10: lokalny hardening gotowy do manualnej bramki
+
+- Evidence `logs/chaos-13010-trolu2-20260821T184643Z.tar.gz` dla canonical
+  loginu `trolu2` przeszło SHA-256 i SQLite `quick_check`; profil jest
+  reset-like przy zachowanych dojrzałych durable stores.
+- Utrzymano disposition `CONFIRMED CODE DEFECT` oraz korelację
+  `STRONGLY CONSISTENT / HIGH CONFIDENCE`. Brak historycznego LKG i telemetryki
+  konkretnego full-write wyklucza deklarację absolutnej atrybucji.
+- Lokalnie wdrożono guarded profile CAS/LKG/checksum/validation, kanoniczny
+  fail-closed wallet i inventory z idempotencją, generation/precommit i
+  frontend teardown sesji, retry-safe reward sagę GN oraz bounded CAS retry dla
+  worker-owned territory projections. Usunięto też NameError w clear aimed
+  target.
+- Testy celowane przeszły: Target Registry/persistence `221/221`, wallet
+  `30/30`, GhostNetwork `26/26`, territory projection CAS `3/3`. Pełna regresja
+  zakończyła się wynikiem `956/956 OK`; sześć kontraktów JS oraz pięć
+  kontroli składni Node również przeszło.
+- Nie wykonano manuala A → B → A, testu dwóch kart, dwóch niezależnych sesji
+  ani ścieżki gameplay trzeciego filaru. Nie wykonano też commita, deployu,
+  restartu, mutacji ani repair konta `trolu2`; recovery pozostaje Sprintem
+  130.11 po GO 130.10.
+- Status: `READY FOR MANUAL ACCOUNT-SWITCH TEST — Sprint 130.10`. To nie jest
+  werdykt GO.
+
+## 2026-08-21 - Sprint 130.10: FORENSICS CAPTURED i start hardeningu runtime
+
+- Exact canonical login w serwerowej bazie to `trolu2`; zredagowany capture
+  przeszedł SHA-256, wszystkie probe wykonały się technicznie, a SQLite
+  `quick_check` zwrócił `ok`.
+- Bieżący profil jest strukturalnie valid, ale reset-like (`LVL 2`, `HC 1000`,
+  `EXP 0.0`, `RSP 25`). Durable stores potwierdzają dojrzałe konto: 60 capture
+  receipts, 113 wallet ledger events, 578 operacji, 1000 delt, 1393 system
+  messages, zakupy i zachowane inventory.
+- Potwierdzono dwa exactly-once łańcuchy
+  `ghost.part_activated -> part_first_activated/applied`. Ostatni z nich jest
+  czasowo zgodny z publication/progression/territory job przed późniejszym
+  zapisem reset-like profilu.
+- Disposition: `CONFIRMED CODE DEFECT`; korelacja incydentu
+  `STRONGLY CONSISTENT / HIGH CONFIDENCE`. Brak pre-incident LKG i telemetryki
+  konkretnego full write pozostaje luką, dlatego nie deklarujemy absolutnego
+  historycznego dowodu pojedynczego zapisu.
+- Ogłoszono `FORENSICS CAPTURED — Sprint 130.10` i odblokowano Etap 2.
+  Nie wykonano repair konta, deployu ani restartu.
+
 ## 2026-08-21 - Sprint 130.10 Etap 1: writer audit i read-only evidence gate
 
 - Audyt ścieżki trzeciego filaru potwierdził deterministyczny destructive-write:

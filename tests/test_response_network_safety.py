@@ -11,14 +11,20 @@ from response_network.foundation import (
     ResponseNetworkSafetyConfig,
     build_response_network_safety_snapshot,
 )
+from tests.session_generation_fixture import SessionGenerationFixture
 
 
 class ResponseNetworkSafetyFoundationTest(unittest.TestCase):
+    def setUp(self):
+        self.session_generation = SessionGenerationFixture(
+            "chaos_response_safety_session_"
+        ).start()
+        self.addCleanup(self.session_generation.stop)
+
     def _client_with_user(self, username="admin"):
         client = run.app.test_client()
-        with client.session_transaction() as sess:
-            sess["user"] = username
-        return client
+        headers = self.session_generation.authenticate(client, username)
+        return client, headers
 
     def test_default_config_is_disabled_and_kill_switches_are_closed(self):
         config = ResponseNetworkSafetyConfig.from_runtime()
@@ -62,12 +68,21 @@ class ResponseNetworkSafetyFoundationTest(unittest.TestCase):
         self.assertIn("/api/map/player-areas", snapshot["observed_map_endpoints"])
 
     def test_dev_endpoint_requires_admin_and_does_not_sync_profile(self):
-        non_admin = self._client_with_user("alice")
-        self.assertEqual(non_admin.get("/api/dev/response-network-safety").status_code, 403)
+        non_admin, non_admin_headers = self._client_with_user("alice")
+        self.assertEqual(
+            non_admin.get(
+                "/api/dev/response-network-safety",
+                headers=non_admin_headers,
+            ).status_code,
+            403,
+        )
 
-        admin = self._client_with_user("admin")
+        admin, admin_headers = self._client_with_user("admin")
         with patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")):
-            response = admin.get("/api/dev/response-network-safety")
+            response = admin.get(
+                "/api/dev/response-network-safety",
+                headers=admin_headers,
+            )
 
         self.assertEqual(response.status_code, 200)
         data = response.get_json()

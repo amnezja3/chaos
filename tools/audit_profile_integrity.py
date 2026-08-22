@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import sqlite3
 import sys
@@ -21,7 +22,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-TOOL_VERSION = "130.10-evidence-v2"
+TOOL_VERSION = "130.10-evidence-v3"
 
 CORE_TABLES = (
     "users",
@@ -78,6 +79,29 @@ LKG_TABLE_CANDIDATES = (
     "profile_integrity_snapshots",
 )
 
+SESSION_GENERATION_TABLE = "session_generation_lineages"
+SESSION_GENERATION_REQUIRED_COLUMNS = {
+    "lineage_hash",
+    "generation_hash",
+    "username_hash",
+    "status",
+    "revision",
+    "schema_version",
+    "created_at",
+    "updated_at",
+}
+
+LKG_REQUIRED_COLUMNS = {
+    "username",
+    "profile_revision",
+    "schema_version",
+    "snapshot_json",
+    "checksum",
+    "source",
+    "created_at",
+    "validation_version",
+}
+
 PROFILE_REVISION_COLUMNS = (
     "profile_revision",
     "profile_version",
@@ -109,6 +133,30 @@ SAFE_GHOST_REWARD_TYPES = {
 }
 
 SAFE_GHOST_AUDIENCE_SCOPES = {"public", "clan", "owner", "player", "internal", "system"}
+
+LKG_FORBIDDEN_SENSITIVE_KEYS = {
+    "password", "salt", "cookie", "cookies", "session", "session_id",
+    "session_token", "token", "access_token", "refresh_token",
+}
+LKG_FORBIDDEN_GEOMETRY_KEYS = {
+    "geometry", "polygon", "polygons", "coordinates",
+}
+LKG_FORBIDDEN_TOP_LEVEL_KEYS = {
+    "launch_queue", "areas", "player_areas", "territory",
+}
+LKG_CANONICAL_MIRROR_TOP_LEVEL_KEYS = {
+    "apps", "hackcoins", "storage_capacity", "storage_used", "storage_unit",
+    "storage_upgrades", "googleplex_products", "storage_soft_limit",
+    "storage_over_limit",
+}
+LKG_SNAPSHOT_REQUIRED_TYPES = {
+    "username": str,
+    "level": int,
+    "respect": (int, float),
+    "desktop_settings": dict,
+    "security": dict,
+    "territory_stats": dict,
+}
 
 
 def utc_now() -> str:
@@ -347,28 +395,122 @@ def classify_profile(row_username: str, raw_profile: Any) -> tuple[str, dict[str
     return "valid", profile, []
 
 
+def classify_lkg_snapshot(
+    row_username: str,
+    raw_snapshot: Any,
+) -> tuple[str, dict[str, Any] | None, list[str]]:
+    """Validate the deliberately reduced, non-canonical LKG payload shape."""
+
+    try:
+        snapshot = json.loads(raw_snapshot)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return "invalid_json", None, ["snapshot_json_decode_failed"]
+    if not isinstance(snapshot, dict):
+        return "invalid_schema", None, ["snapshot_root_not_object"]
+
+    invalid: list[str] = []
+    missing: list[str] = []
+    for key, expected_type in LKG_SNAPSHOT_REQUIRED_TYPES.items():
+        if key not in snapshot:
+            missing.append(f"missing:{key}")
+            continue
+        value = snapshot.get(key)
+        if isinstance(value, bool) or not isinstance(value, expected_type):
+            invalid.append(f"invalid_type:{key}")
+
+    if snapshot.get("username") != row_username:
+        invalid.append("identity_mismatch")
+    level = snapshot.get("level")
+    if isinstance(level, int) and not isinstance(level, bool) and level < 1:
+        invalid.append("invalid_range:level")
+    respect = snapshot.get("respect")
+    if (
+        isinstance(respect, (int, float))
+        and not isinstance(respect, bool)
+        and (not math.isfinite(float(respect)) or respect < 0)
+    ):
+        invalid.append("invalid_range:respect")
+    exp = snapshot.get("exp")
+    if exp is None:
+        missing.append("missing:exp")
+    elif isinstance(exp, bool) or not (
+        (isinstance(exp, str) and bool(exp.strip()))
+        or (
+            isinstance(exp, (int, float))
+            and math.isfinite(float(exp))
+        )
+    ):
+        invalid.append("invalid_type:exp")
+
+    files = snapshot.get("files")
+    if files is not None and not isinstance(files, dict):
+        invalid.append("invalid_type:files")
+    if invalid:
+        return "invalid_schema", snapshot, sorted(set(invalid + missing))
+    if missing:
+        return "recovery_required", snapshot, sorted(set(missing))
+    return "valid", snapshot, []
+
+
 def schema_capabilities(conn: sqlite3.Connection, tables: set[str]) -> dict[str, Any]:
     user_columns = table_columns(conn, "users")
     revision_columns = sorted(user_columns.intersection(PROFILE_REVISION_COLUMNS))
     lkg_tables = sorted(set(LKG_TABLE_CANDIDATES).intersection(tables))
+    lkg_contracts = {
+        table: schema_support(conn, tables, table, LKG_REQUIRED_COLUMNS)
+        for table in lkg_tables
+    }
+    supported_lkg_tables = sorted(
+        table
+        for table, contract in lkg_contracts.items()
+        if contract["schema_supported"]
+    )
+    session_generation_contract = schema_support(
+        conn,
+        tables,
+        SESSION_GENERATION_TABLE,
+        SESSION_GENERATION_REQUIRED_COLUMNS,
+    )
+    legacy_session_generation_present = (
+        "session_generation" in user_columns or "user_sessions" in tables
+    )
     return {
         "users_columns_checksum": sha256_text(canonical_json(sorted(user_columns))),
         "profile_revision_columns": revision_columns,
         "profile_revision_present": bool(revision_columns),
+        # A similarly named table is only a candidate.  Runtime guard presence
+        # requires the documented per-user payload/revision/checksum contract;
+        # record validity is evaluated separately by ``lkg_summary``.
+        "lkg_table_candidates": lkg_tables,
         "lkg_tables": lkg_tables,
-        "lkg_present": bool(lkg_tables),
-        "session_generation_schema_present": (
-            "session_generation" in user_columns or "user_sessions" in tables
+        "lkg_contracts": lkg_contracts,
+        "lkg_contract_tables": supported_lkg_tables,
+        "lkg_schema_present": bool(supported_lkg_tables),
+        "lkg_present": bool(supported_lkg_tables),
+        "session_generation_table": SESSION_GENERATION_TABLE,
+        "session_generation_contract": session_generation_contract,
+        "session_generation_legacy_schema_present": legacy_session_generation_present,
+        "session_generation_schema_present": bool(
+            session_generation_contract["schema_supported"]
+            or legacy_session_generation_present
         ),
     }
 
 
-def runtime_guard_status(capabilities: dict[str, Any]) -> str:
+def runtime_guard_status(
+    capabilities: dict[str, Any],
+    *,
+    lkg_record_validated: bool | None = None,
+) -> str:
     """Describe guard availability without treating planned guards as incident proof."""
 
     guards = (
         bool(capabilities.get("profile_revision_present")),
-        bool(capabilities.get("lkg_present")),
+        (
+            bool(capabilities.get("lkg_present"))
+            if lkg_record_validated is None
+            else bool(lkg_record_validated)
+        ),
         bool(capabilities.get("session_generation_schema_present")),
     )
     if all(guards):
@@ -402,6 +544,7 @@ def database_metadata(conn: sqlite3.Connection, path: Path, tables: set[str]) ->
                 if sidecar.is_file() else None
             ),
         }
+    live_wal_present = bool(sidecars["wal"]["present"])
     return {
         "database_name": path.name,
         "database_size_bytes": int(stat.st_size),
@@ -414,9 +557,235 @@ def database_metadata(conn: sqlite3.Connection, path: Path, tables: set[str]) ->
         "schema_checksum_sha256": sha256_text(canonical_json(schema_projection)),
         "table_count": len(tables),
         "sidecars": sidecars,
-        "snapshot_includes_live_wal": bool(sidecars["wal"]["present"]),
+        # The report is a logical SQLite read-transaction snapshot.  In WAL
+        # mode SQLite resolves committed pages from the main file and WAL for
+        # the reader, but this tool does not create/copy a physical DB bundle.
+        # A main-file-only copy made by somebody else while WAL is live would
+        # therefore not be a self-contained forensic snapshot.
+        "read_transaction_snapshot_scope": "sqlite_committed_state_at_first_read",
+        "logical_reader_resolves_committed_wal": journal_mode.lower() == "wal",
+        "live_wal_sidecar_present_at_metadata_check": live_wal_present,
+        "live_database_may_advance_after_snapshot": True,
+        "physical_database_bundle_created": False,
+        "physical_copy_assessment": (
+            "main_database_file_alone_not_sufficient_while_wal_present"
+            if live_wal_present
+            else "not_assessed"
+        ),
+        # Compatibility field: this means reader visibility, not that WAL/SHM
+        # files were copied into the evidence archive.
+        "snapshot_includes_live_wal": bool(
+            journal_mode.lower() == "wal" and live_wal_present
+        ),
+        "snapshot_includes_live_wal_is_logical_not_physical": True,
         "filesystem_bitwise_immutability_claimed": False,
     }
+
+
+def _forbidden_lkg_key_counts(value: Any, *, top_level: bool = True) -> dict[str, int]:
+    counts = {
+        "sensitive": 0,
+        "geometry": 0,
+        "top_level_runtime": 0,
+        "canonical_mirror": 0,
+    }
+
+    def walk(item: Any, is_top_level: bool = False) -> None:
+        if isinstance(item, dict):
+            for raw_key, child in item.items():
+                key = str(raw_key).lower()
+                if key in LKG_FORBIDDEN_SENSITIVE_KEYS:
+                    counts["sensitive"] += 1
+                if key in LKG_FORBIDDEN_GEOMETRY_KEYS:
+                    counts["geometry"] += 1
+                if is_top_level and key in LKG_FORBIDDEN_TOP_LEVEL_KEYS:
+                    counts["top_level_runtime"] += 1
+                if is_top_level and key in LKG_CANONICAL_MIRROR_TOP_LEVEL_KEYS:
+                    counts["canonical_mirror"] += 1
+                if is_top_level and key == "files" and isinstance(child, dict) and "tools" in child:
+                    counts["canonical_mirror"] += 1
+                walk(child, False)
+        elif isinstance(item, list):
+            for child in item:
+                walk(child, False)
+
+    walk(value, top_level)
+    return counts
+
+
+def lkg_summary(
+    conn: sqlite3.Connection,
+    tables: set[str],
+    username: str,
+    current_profile: dict[str, Any] | None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Validate an exact user's LKG contract without returning its payload."""
+
+    contracts = {
+        table: schema_support(conn, tables, table, LKG_REQUIRED_COLUMNS)
+        for table in LKG_TABLE_CANDIDATES
+        if table in tables
+    }
+    supported_tables = [
+        table
+        for table in LKG_TABLE_CANDIDATES
+        if contracts.get(table, {}).get("schema_supported")
+    ]
+    result: dict[str, Any] = {
+        "table_candidates": contracts,
+        "contract_table": supported_tables[0] if supported_tables else None,
+        "record_status": "unavailable" if not contracts else "schema_unsupported",
+        "record_present": False,
+        "record_validated": False,
+        "payload_included": False,
+        "checksum_included": False,
+    }
+    findings: list[dict[str, Any]] = []
+    if not supported_tables:
+        code = "profile_lkg_missing" if not contracts else "profile_lkg_schema_unsupported"
+        findings.append(finding(code, "warning", "runtime_guard"))
+        return result, findings
+
+    table = supported_tables[0]
+    row = one(
+        conn,
+        f'''SELECT username, profile_revision, schema_version, snapshot_json,
+                   checksum, source, created_at, validation_version
+            FROM "{table}" WHERE username = ?''',
+        (username,),
+    )
+    if not row:
+        result["record_status"] = "missing"
+        findings.append(finding("profile_lkg_record_missing", "warning", "runtime_guard"))
+        return result, findings
+
+    result["record_present"] = True
+    issues: list[str] = []
+    snapshot = None
+    raw_snapshot = row["snapshot_json"]
+    try:
+        snapshot = json.loads(raw_snapshot)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        issues.append("snapshot_json_decode_failed")
+    if not isinstance(snapshot, dict):
+        if snapshot is not None:
+            issues.append("snapshot_root_not_object")
+        snapshot = None
+
+    revision = safe_int(row["profile_revision"])
+    schema_version = safe_int(row["schema_version"])
+    validation_version = safe_int(row["validation_version"])
+    if revision is None or revision < 1:
+        issues.append("profile_revision_invalid")
+    if schema_version is None or schema_version < 1:
+        issues.append("schema_version_invalid")
+    if validation_version is None or validation_version < 1:
+        issues.append("validation_version_invalid")
+    if not str(row["source"] or "").strip():
+        issues.append("source_missing")
+    if not str(row["created_at"] or "").strip():
+        issues.append("created_at_missing")
+    elif timestamp_distance_seconds(row["created_at"], row["created_at"]) is None:
+        issues.append("created_at_invalid")
+
+    checksum_matches = False
+    canonical_serialization = False
+    forbidden_counts = {
+        "sensitive": 0,
+        "geometry": 0,
+        "top_level_runtime": 0,
+        "canonical_mirror": 0,
+    }
+    snapshot_state = "unavailable"
+    if snapshot is not None:
+        canonical_snapshot = canonical_json(snapshot)
+        checksum_matches = bool(
+            str(row["checksum"] or "")
+            and str(row["checksum"]) == sha256_text(canonical_snapshot)
+        )
+        canonical_serialization = str(raw_snapshot) == canonical_snapshot
+        snapshot_state, _profile, snapshot_issues = classify_lkg_snapshot(
+            username, raw_snapshot
+        )
+        if snapshot_state != "valid":
+            issues.extend(f"snapshot:{item}" for item in snapshot_issues)
+        forbidden_counts = _forbidden_lkg_key_counts(snapshot)
+        if forbidden_counts["sensitive"]:
+            issues.append("snapshot_contains_sensitive_keys")
+        if forbidden_counts["geometry"] or forbidden_counts["top_level_runtime"]:
+            issues.append("snapshot_contains_runtime_or_geometry_keys")
+        if forbidden_counts["canonical_mirror"]:
+            issues.append("snapshot_contains_canonical_mirror_keys")
+    if not checksum_matches:
+        issues.append("checksum_mismatch")
+
+    user_columns = table_columns(conn, "users")
+    current_revision = None
+    current_schema_version = None
+    current_checksum_matches = None
+    metadata_columns = {
+        "profile_revision", "profile_schema_version", "profile_checksum",
+    }
+    if metadata_columns.issubset(user_columns):
+        current_row = one(
+            conn,
+            """
+            SELECT profile_revision, profile_schema_version, profile_checksum
+            FROM users WHERE username = ?
+            """,
+            (username,),
+        )
+        if current_row:
+            current_revision = safe_int(current_row["profile_revision"])
+            current_schema_version = safe_int(current_row["profile_schema_version"])
+            if current_profile is not None:
+                current_checksum_matches = (
+                    str(current_row["profile_checksum"] or "")
+                    == sha256_text(canonical_json(current_profile))
+                )
+                if not current_checksum_matches:
+                    issues.append("current_profile_checksum_mismatch")
+            if revision is not None and current_revision is not None and revision > current_revision:
+                issues.append("lkg_revision_ahead_of_current")
+            if (
+                schema_version is not None
+                and current_schema_version is not None
+                and current_schema_version > 0
+                and schema_version != current_schema_version
+            ):
+                issues.append("lkg_schema_version_mismatch")
+
+    issues = sorted(set(issues))
+    valid = not issues
+    result.update({
+        "record_status": "valid" if valid else "invalid",
+        "record_validated": valid,
+        "profile_revision": revision,
+        "schema_version": schema_version,
+        "validation_version": validation_version,
+        "created_at": row["created_at"],
+        "snapshot_profile_state": snapshot_state,
+        "checksum_matches": checksum_matches,
+        "canonical_serialization": canonical_serialization,
+        "forbidden_key_counts": forbidden_counts,
+        "current_profile_revision": current_revision,
+        "current_profile_schema_version": current_schema_version,
+        "current_profile_checksum_matches": current_checksum_matches,
+        "revision_not_ahead_of_current": (
+            None
+            if revision is None or current_revision is None
+            else revision <= current_revision
+        ),
+        "issues": issues,
+    })
+    if not valid:
+        findings.append(finding(
+            "profile_lkg_record_invalid",
+            "high",
+            "profile",
+            issues=issues,
+        ))
+    return result, findings
 
 
 def profile_summary(row: sqlite3.Row | None) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any] | None]:
@@ -1542,7 +1911,13 @@ def status_report(db_path: str, scan_all_profiles: bool = False) -> dict[str, An
         if not capabilities["profile_revision_present"]:
             findings.append(finding("profile_revision_missing", "warning", "runtime_guard"))
         if not capabilities["lkg_present"]:
-            findings.append(finding("profile_lkg_missing", "warning", "runtime_guard"))
+            findings.append(finding(
+                "profile_lkg_schema_unsupported"
+                if capabilities["lkg_table_candidates"]
+                else "profile_lkg_missing",
+                "warning",
+                "runtime_guard",
+            ))
         if not capabilities["session_generation_schema_present"]:
             findings.append(finding("session_generation_missing", "warning", "runtime_guard"))
 
@@ -1641,6 +2016,9 @@ def audit_report(db_path: str, username: str, verify: bool = False) -> dict[str,
         googleplex_data = googleplex_summary(conn, tables, username, profile)
         runtime_scopes = runtime_scope_summary(conn, tables, username)
         capabilities = schema_capabilities(conn, tables)
+        lkg_data, lkg_findings = lkg_summary(
+            conn, tables, username, profile
+        )
 
         activation = ghost_data.get("user", {}).get("activation_reward_correlation", {})
         profile_progression = profile_data.get("progression", {})
@@ -1677,28 +2055,80 @@ def audit_report(db_path: str, username: str, verify: bool = False) -> dict[str,
             int(googleplex_data.get("profile_purchases_count") or 0) > 0
             or int(googleplex_data.get("profile_products_count") or 0) > 0
         )
-        starter_like_core = bool(
+        exact_starter_core = bool(
             profile_progression.get("level") == 1
             and profile_progression.get("hackcoins") == 1000
         )
+        exp_value = str(profile_progression.get("exp") or "").strip().lower()
+        zero_like_exp = bool(
+            exp_value
+            and (
+                exp_value == "0"
+                or exp_value.startswith("0.0")
+                or exp_value.startswith("0 ")
+            )
+        )
+        # A sparse overwrite is not guaranteed to remain an exact LVL-1
+        # template.  Compatibility/template sync and later gameplay can move
+        # level/respect while the destructive HC/EXP reset remains visible.
+        # The incident classifier therefore also recognises a low-progression
+        # post-template phenotype, but only in the presence of several durable
+        # signals proving that this was an established account.
+        post_template_reset_like_core = bool(
+            profile_progression.get("level") in {1, 2}
+            and profile_progression.get("hackcoins") == 1000
+            and zero_like_exp
+            and int(profile_progression.get("respect") or 0) <= 50
+        )
+        operations_count = sum(
+            int(value or 0)
+            for value in runtime_scopes.get("operations_by_status", {}).values()
+        )
+        system_messages_count = sum(
+            int(value or 0)
+            for value in runtime_scopes.get("system_messages_by_status", {}).values()
+        )
+        established_account_signals = {
+            "inventory": inventory_prior_state,
+            "wallet_history": int(wallet_data.get("ledger", {}).get("event_count") or 0) >= 10,
+            "purchases": purchase_prior_state,
+            "operations": operations_count >= 20,
+            "state_deltas": int(runtime_scopes.get("state_deltas", {}).get("count") or 0) >= 100,
+            "system_messages": system_messages_count >= 100,
+            "target_runtime": int(runtime_scopes.get("target_runtime", {}).get("version") or 0) >= 100,
+            "position_history": int(runtime_scopes.get("position", {}).get("version") or 0) >= 20,
+        }
+        established_signal_count = sum(bool(value) for value in established_account_signals.values())
         sparse_overwrite_signature = bool(
             int(activation.get("matched_count") or 0) > 0
-            and starter_like_core
             and territory_prior_state
-            and (inventory_prior_state or wallet_prior_state or purchase_prior_state)
+            and (
+                (
+                    exact_starter_core
+                    and (inventory_prior_state or wallet_prior_state or purchase_prior_state)
+                )
+                or (
+                    post_template_reset_like_core
+                    and established_signal_count >= 3
+                )
+            )
         )
         if "user" in ghost_data:
             ghost_data["user"]["sparse_activation_overwrite_signal"] = {
                 "matched_activation_reward_count": int(activation.get("matched_count") or 0),
-                "profile_starter_like_core": starter_like_core,
+                "profile_starter_like_core": exact_starter_core,
+                "profile_post_template_reset_like_core": post_template_reset_like_core,
                 "durable_prior_state": {
                     "territory": territory_prior_state,
                     "inventory": inventory_prior_state,
                     "wallet": wallet_prior_state,
                     "purchases": purchase_prior_state,
                 },
+                "established_account_signals": established_account_signals,
+                "established_account_signal_count": established_signal_count,
                 "nearest_profile_update_distance_seconds": min(distances) if distances else None,
                 "strong_signature": sparse_overwrite_signature,
+                "signature_version": "post-template-v2",
                 "signature_is_incident_correlation_not_causal_proof": True,
             }
         if sparse_overwrite_signature:
@@ -1716,11 +2146,10 @@ def audit_report(db_path: str, username: str, verify: bool = False) -> dict[str,
             + inventory_findings
             + territory_findings
             + ghost_findings
+            + lkg_findings
         )
         if not capabilities["profile_revision_present"]:
             findings.append(finding("profile_revision_missing", "warning", "runtime_guard"))
-        if not capabilities["lkg_present"]:
-            findings.append(finding("profile_lkg_missing", "warning", "runtime_guard"))
         if not capabilities["session_generation_schema_present"]:
             findings.append(finding("session_generation_missing", "warning", "runtime_guard"))
 
@@ -1766,13 +2195,17 @@ def audit_report(db_path: str, username: str, verify: bool = False) -> dict[str,
         backup_candidate = bool(
             inventory_data.get("migration_evidence", {}).get("backup_candidate_present")
         )
-        # Table presence or a migration backup candidate is not proof of a
-        # valid historical profile. Etap 1 deliberately does not decode full
-        # backups/LKG payloads, so historical comparison remains unavailable.
-        historical_drop_detection = "unavailable"
+        # A migration backup remains only a recovery candidate.  Historical
+        # comparison becomes available solely from an exact-user LKG record
+        # whose schema, JSON, identity and checksum have all been validated.
+        historical_drop_detection = (
+            "available"
+            if lkg_data.get("record_validated") and profile_data.get("state") == "valid"
+            else "unavailable"
+        )
         if not users_support["schema_supported"]:
             evidence_status = "unavailable"
-        elif optional_schema_complete and historical_drop_detection == "partial":
+        elif optional_schema_complete and historical_drop_detection == "available":
             evidence_status = "complete"
         else:
             evidence_status = "partial"
@@ -1783,6 +2216,21 @@ def audit_report(db_path: str, username: str, verify: bool = False) -> dict[str,
             account_integrity_status = "unknown"
         else:
             account_integrity_status = "clear"
+
+        if tool_schema_blocked or evidence_status == "unavailable":
+            verification_outcome = "probe_unavailable"
+        elif account_integrity_status == "blocked":
+            verification_outcome = "blocked"
+        elif account_integrity_status != "clear" or evidence_status != "complete":
+            verification_outcome = "inconclusive"
+        else:
+            verification_outcome = "passed"
+        verification_exit_code = {
+            "passed": 0,
+            "blocked": 1,
+            "probe_unavailable": 2,
+            "inconclusive": 3,
+        }[verification_outcome]
 
         inventory_scope_findings = [
             item for item in account_findings if item["scope"] == "inventory"
@@ -1812,20 +2260,28 @@ def audit_report(db_path: str, username: str, verify: bool = False) -> dict[str,
             "probe_status": "complete",
             "evidence_snapshot": "logical_read_only",
             "evidence_status": evidence_status,
+            "verification_outcome": verification_outcome,
+            "verification_passed": verification_outcome == "passed",
+            "verification_exit_code": verification_exit_code,
             "current_profile_state": profile_data["state"],
             "historical_drop_detection": {
                 "status": historical_drop_detection,
                 "starter_signature_is_signal_not_proof": bool(profile_data.get("starter_signature")),
                 "migration_backup_candidate_present": backup_candidate,
-                "lkg_table_candidate_present": bool(capabilities["lkg_present"]),
-                "candidate_payloads_validated": False,
+                "lkg_table_candidate_present": bool(capabilities["lkg_table_candidates"]),
+                "lkg_contract_schema_present": bool(capabilities["lkg_schema_present"]),
+                "candidate_payloads_validated": bool(lkg_data.get("record_validated")),
             },
-            "runtime_guard_status": runtime_guard_status(capabilities),
+            "runtime_guard_status": runtime_guard_status(
+                capabilities,
+                lkg_record_validated=bool(lkg_data.get("record_validated")),
+            ),
             "account_integrity_status": account_integrity_status,
             "subject": redacted_username(username),
             "exact_match": bool(row) if users_support["schema_supported"] else None,
             "database": database_metadata(conn, path, tables),
             "capabilities": capabilities,
+            "last_known_good": lkg_data,
             "users_schema": users_support,
             "profile": profile_data,
             "wallet": wallet_data,
@@ -1868,7 +2324,13 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     status = subparsers.add_parser("status", help="Aggregate schema/runtime status without user data.")
     audit = subparsers.add_parser("audit", help="Redacted exact-user evidence report.")
-    verify = subparsers.add_parser("verify", help="Audit plus SQLite quick_check and strict exit status.")
+    verify = subparsers.add_parser(
+        "verify",
+        help=(
+            "Audit plus SQLite quick_check; exits 0 passed, 1 blocked, "
+            "2 unavailable/tool failure, or 3 inconclusive."
+        ),
+    )
 
     for command_parser in (status, audit, verify):
         command_parser.add_argument(
@@ -1911,10 +2373,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2))
     if args.command == "verify":
-        if report.get("tool_schema_blocked") or report.get("evidence_status") == "unavailable":
-            return 2
-        if report.get("account_integrity_status") == "blocked":
-            return 1
+        return int(report.get("verification_exit_code", 2))
     return 0
 
 

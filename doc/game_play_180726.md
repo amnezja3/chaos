@@ -25120,7 +25120,7 @@ Nie deployuj.
 
 # Sprint 130.10 — Profile Integrity and Cross-Account Session Isolation
 
-**Status:** `READY FOR READ-ONLY SERVER FORENSICS — Sprint 130.10`.
+**Status:** `IMPLEMENTED LOCALLY — READY FOR MANUAL ACCOUNT-SWITCH TEST`.
 
 **Wiążący artefakt:**
 `doc/sprint_130_10_profile_integrity_session_isolation.md`.
@@ -25190,17 +25190,47 @@ Etap 1 ukończono 2026-08-21. Powstały:
 Audyt potwierdził deterministyczny defekt: reward po `ghost.part_activated`
 może zostać naliczony na sparse projection z `list_profile_identities()`, po
 czym `UserStore.save_profile()` zapisuje ją jako cały profil. Późniejszy
-template sync tworzy stan starter-like. Defekt kodu jest `CONFIRMED`; jego
-wykonanie w incydencie `Trollu2` pozostaje `PENDING SERVER CORRELATION`.
-Etap 2 nie został rozpoczęty.
+template sync tworzy stan starter-like. Serwerowy exact-user capture dla
+canonical loginu `trolu2` potwierdził reset-like progression przy zachowanych
+durable stores oraz dwa dokładne activation/reward correlations. Defekt kodu
+jest `CONFIRMED`, a korelacja incydentu `STRONGLY CONSISTENT / HIGH CONFIDENCE`;
+brak pre-incident LKG i profile-write telemetry pozostaje jawną luką. Etap 2
+został odblokowany bez wykonywania repair. Analizowany pakiet to
+`logs/chaos-13010-trolu2-20260821T184643Z.tar.gz`; jego SHA-256 i SQLite
+`quick_check` są poprawne.
 
 Po zabezpieczeniu dowodów:
 
 `FORENSICS CAPTURED — Sprint 130.10`
 
+## Wynik implementacji lokalnej
+
+- Guarded profile CAS/LKG/checksum/validation blokuje fallback, partial i
+  destrukcyjne stale full writes.
+- Wallet i inventory mają kanoniczny, jednokierunkowy oraz fail-closed contract;
+  transfery i ścieżki retry korzystają ze stabilnej idempotencji.
+- Backendowa `session_generation`, precommit guard i frontendowy teardown
+  odrzucają stare requesty, odpowiedzi, delty, pollery i cache poprzedniej sesji.
+- Rewardy GN korzystają z retry-safe sagi; worker territory ponawia wyłącznie
+  własne top-level projections przez bounded CAS, a clear aimed target nie ma
+  już błędu niezdefiniowanego `profile_record`.
+- Testy celowane: Target Registry/persistence `221/221`, wallet `30/30`, GN
+  `26/26`, territory projection CAS `3/3`.
+
+Pełna regresja końcowa zakończyła się wynikiem `956/956 OK`; sześć kontraktów
+JS oraz pięć kontroli składni Node również przeszło. Nie wykonano commita,
+deployu, restartu, manuala ani repair konta `trolu2`.
+
 Bramka po implementacji i automatach:
 
 `READY FOR MANUAL ACCOUNT-SWITCH TEST — Sprint 130.10`
+
+Manual należy do użytkownika i obejmuje A → B → A, dwie karty, dwie niezależne
+sesje tego samego konta oraz testową ścieżkę `trzeci filar → territory
+rebuild/publication → GN lifecycle`. Profil, Googleplex, mapa, aimed target,
+operacje, wallet, inventory i GN projection muszą po każdej zmianie należeć
+wyłącznie do aktualnej generation. Manual nie został jeszcze wykonany i nie
+stanowi repair konta `trolu2`.
 
 Werdykt:
 

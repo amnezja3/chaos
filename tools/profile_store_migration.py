@@ -28,6 +28,10 @@ if str(ROOT) not in sys.path:
 
 from database import (  # noqa: E402
     DB_PATH,
+    PROFILE_INTEGRITY_RECOVERY_REQUIRED,
+    PROFILE_INTEGRITY_VALID,
+    PROFILE_SCHEMA_VERSION,
+    PROFILE_VALIDATION_VERSION,
     PlayerInventoryStore,
     PlayerOperationStore,
     PlayerPositionStore,
@@ -38,7 +42,9 @@ from database import (  # noqa: E402
     dumps_json,
     init_db,
     loads_json,
+    profile_payload_checksum,
     utc_now,
+    validate_profile_candidate,
 )
 
 
@@ -57,6 +63,10 @@ RUNTIME_TABLES = (
     "player_storage",
     "wallet_balances",
     "wallet_balance_events",
+)
+WALLET_RUNTIME_TABLES = frozenset({"wallet_balances", "wallet_balance_events"})
+NON_WALLET_RUNTIME_TABLES = tuple(
+    table for table in RUNTIME_TABLES if table not in WALLET_RUNTIME_TABLES
 )
 
 
@@ -85,14 +95,19 @@ def load_profile_json(raw: str):
 def get_user_rows(db_path: str, username: str = ""):
     init_db(db_path)
     with db_connect(db_path) as conn:
+        select = (
+            "SELECT username, profile_json, updated_at, profile_revision, "
+            "profile_schema_version, profile_checksum, "
+            "profile_integrity_status, profile_validation_version FROM users"
+        )
         if username:
             rows = conn.execute(
-                "SELECT username, profile_json, updated_at FROM users WHERE username = ? ORDER BY username",
+                select + " WHERE username = ? ORDER BY username",
                 (username,),
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT username, profile_json, updated_at FROM users ORDER BY username"
+                select + " ORDER BY username"
             ).fetchall()
     return [dict(row) for row in rows]
 
@@ -132,7 +147,7 @@ def select_runtime_rows(conn, username: str):
     return backup
 
 
-def delete_runtime_rows(conn, username: str):
+def delete_non_wallet_runtime_rows(conn, username: str):
     op_ids = [
         row["operation_id"]
         for row in conn.execute(
@@ -151,8 +166,6 @@ def delete_runtime_rows(conn, username: str):
     conn.execute("DELETE FROM player_tool_files WHERE username = ?", (username,))
     conn.execute("DELETE FROM player_apps WHERE username = ?", (username,))
     conn.execute("DELETE FROM player_storage WHERE username = ?", (username,))
-    conn.execute("DELETE FROM wallet_balance_events WHERE username = ?", (username,))
-    conn.execute("DELETE FROM wallet_balances WHERE username = ?", (username,))
 
 
 def restore_rows(conn, table: str, rows: list[dict]):
@@ -516,11 +529,24 @@ def migrate_user(db_path: str, migration_id: str, username: str, force: bool = F
         return {"username": username, "status": "skipped", "reason": "already_verified"}
 
     normalized = normalize_profile_for_migration(username, profile)
-    source_checksum = checksum(normalized)
+    # This is the checksum of the durable source row, not of the normalized
+    # projection used by the other legacy-store seeders.  Wallet migration is
+    # deliberately allowed only from that exact integrity-verified evidence.
+    source_checksum = str(row.get("profile_checksum") or checksum(profile))
     with db_connect(db_path) as conn:
         backup = {
             "profile_json": row["profile_json"],
             "updated_at": row.get("updated_at"),
+            "profile_record": {
+                key: row.get(key)
+                for key in (
+                    "profile_revision",
+                    "profile_schema_version",
+                    "profile_checksum",
+                    "profile_integrity_status",
+                    "profile_validation_version",
+                )
+            },
             "runtime_rows": select_runtime_rows(conn, username),
         }
     write_registry(
@@ -534,6 +560,7 @@ def migrate_user(db_path: str, migration_id: str, username: str, force: bool = F
     )
 
     try:
+        WalletBalanceStore(db_path).seed_from_profile(username, profile)
         PlayerTargetRuntimeStore(db_path).seed_from_profile(username, normalized)
         PlayerPositionStore(db_path).seed_from_profile(username, normalized, source="profile_store_migration")
         PlayerOperationStore(db_path).seed_from_profile(username, normalized)
@@ -548,12 +575,6 @@ def migrate_user(db_path: str, migration_id: str, username: str, force: bool = F
             payload.setdefault("dedupe_key", f"migration:{username}:system_message:{stable_id(payload, 'msg')}:{index}")
             SystemMessageStore(db_path).add_message(username, payload, source="profile_store_migration")
         PlayerInventoryStore(db_path).seed_from_profile(username, normalized)
-        WalletBalanceStore(db_path).set_balance(
-            username,
-            int(normalized.get("hackcoins", 0) or 0),
-            transaction_key=f"{migration_id}:wallet:{username}:{source_checksum}",
-            reason="profile_store_migration",
-        )
         verification = verify_user_state(db_path, username, normalized)
         result_checksum = checksum(build_result_snapshot(db_path, username))
         status = "verified" if verification["level"] == "OK" else ("warning" if verification["level"] == "WARNING" else "failed")
@@ -665,16 +686,95 @@ def rollback_user(db_path: str, migration_id: str, username: str):
     backup = loads_json(record.get("backup_json"), {})
     if not backup or not backup.get("profile_json"):
         return {"username": username, "status": "failed", "reason": "backup_missing"}
+
+    runtime_rows = backup.get("runtime_rows") if isinstance(backup.get("runtime_rows"), dict) else {}
+    prior_wallet_rows = runtime_rows.get("wallet_balances", [])
+    prior_wallet_balance = 0
+    if prior_wallet_rows and isinstance(prior_wallet_rows[0], dict):
+        try:
+            prior_wallet_balance = max(0, int(prior_wallet_rows[0].get("balance") or 0))
+        except (TypeError, ValueError):
+            return {
+                "username": username,
+                "status": "failed",
+                "reason": "wallet_backup_invalid",
+            }
+
+    # A rollback must remain visible in the canonical wallet audit trail.
+    # Never delete/reinsert canonical wallet rows: restore the pre-migration
+    # value through the explicit recovery boundary and a stable replay key.
+    rollback_wallet_key = (
+        f"{migration_id}:rollback:wallet:{username}:"
+        f"{record.get('source_checksum') or checksum(backup['profile_json'])}"
+    )
+    try:
+        wallet_result = WalletBalanceStore(db_path).recovery_set_balance(
+            username,
+            prior_wallet_balance,
+            transaction_key=rollback_wallet_key,
+            reason="profile_store_migration.rollback",
+        )
+    except Exception as exc:  # noqa: BLE001 - retain backup for a safe retry.
+        write_registry(
+            db_path,
+            migration_id,
+            username,
+            status="failed",
+            error={"reason": "wallet_rollback_failed", "detail": str(exc)},
+            completed_at=utc_now(),
+        )
+        return {
+            "username": username,
+            "status": "failed",
+            "reason": "wallet_rollback_failed",
+        }
+
+    backup_profile, parse_error = load_profile_json(backup["profile_json"])
+    validation = (
+        validate_profile_candidate(backup_profile, username)
+        if not parse_error
+        else {"valid": False}
+    )
+    profile_record = (
+        backup.get("profile_record")
+        if isinstance(backup.get("profile_record"), dict)
+        else {}
+    )
+    backup_integrity = str(profile_record.get("profile_integrity_status") or "")
+    if not validation.get("valid"):
+        backup_integrity = PROFILE_INTEGRITY_RECOVERY_REQUIRED
+    elif backup_integrity not in {
+        PROFILE_INTEGRITY_VALID,
+        PROFILE_INTEGRITY_RECOVERY_REQUIRED,
+    }:
+        backup_integrity = PROFILE_INTEGRITY_VALID
+    backup_checksum = str(profile_record.get("profile_checksum") or "")
+    if validation.get("valid") and not backup_checksum:
+        backup_checksum = profile_payload_checksum(backup_profile)
     now = utc_now()
     with db_connect(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
-        delete_runtime_rows(conn, username)
-        runtime_rows = backup.get("runtime_rows") if isinstance(backup.get("runtime_rows"), dict) else {}
-        for table in RUNTIME_TABLES:
+        delete_non_wallet_runtime_rows(conn, username)
+        for table in NON_WALLET_RUNTIME_TABLES:
             restore_rows(conn, table, runtime_rows.get(table, []))
         conn.execute(
-            "UPDATE users SET profile_json = ?, updated_at = ? WHERE username = ?",
-            (backup["profile_json"], now, username),
+            """
+            UPDATE users
+            SET profile_json = ?, updated_at = ?, profile_revision = ?,
+                profile_schema_version = ?, profile_checksum = ?,
+                profile_integrity_status = ?, profile_validation_version = ?
+            WHERE username = ?
+            """,
+            (
+                backup["profile_json"],
+                now,
+                max(1, int(profile_record.get("profile_revision") or 1)),
+                int(profile_record.get("profile_schema_version") or PROFILE_SCHEMA_VERSION),
+                backup_checksum,
+                backup_integrity,
+                int(profile_record.get("profile_validation_version") or PROFILE_VALIDATION_VERSION),
+                username,
+            ),
         )
         conn.execute(
             """
@@ -684,7 +784,12 @@ def rollback_user(db_path: str, migration_id: str, username: str):
             """,
             (now, dumps_json({"rolled_back_at": now}), migration_id, username),
         )
-    return {"username": username, "status": "rolled_back"}
+    return {
+        "username": username,
+        "status": "rolled_back",
+        "wallet_transaction_key": rollback_wallet_key,
+        "wallet_duplicate": bool(wallet_result.get("duplicate")),
+    }
 
 
 def command_rollback_user(args):

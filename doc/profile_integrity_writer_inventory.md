@@ -1,8 +1,25 @@
 # Sprint 130.10 — Etap 1: inventory writerów i integralność profilu
 
+> **Dyspozycja po hardeningu (2026-08-21).** Ten dokument zachowuje stan
+> wejściowy audytu i numery linii sprzed implementacji, dlatego opisy braku
+> CAS/LKG, kanonicznego walletu i generacji sesji poniżej są historycznym
+> baseline'em, a nie opisem bieżącego runtime. Capture
+> `logs/chaos-13010-trolu2-20260821T184643Z.tar.gz` dla canonical login
+> `trolu2` potwierdził profil o kształcie reset-like przy zachowanej dojrzałej
+> historii domenowej. Korelacja ze znalezioną destrukcyjną ścieżką GN jest
+> `STRONGLY CONSISTENT / HIGH CONFIDENCE`, lecz nie absolutna: przed incydentem
+> nie istniały write-attempt telemetry ani zwalidowany LKG.
+>
+> W Etapach 2–6 wdrożono lokalnie: walidowany profil z revision/CAS i LKG,
+> kanoniczny wallet oraz inventory overlay, fail-closed legacy writers,
+> trwałą generację sesji z kontrolą pre-commit, tombstones i ochronę przed
+> reuse identity oraz exactly-once projekcję nagród GN. Nie wykonano deployu,
+> naprawy konta ani manualnego testu A → B → A. Aktualną bramką Sprintu
+> 130.10 jest automatyczna regresja, a następnie manualny test izolacji kont.
+
 Status audytu kodu: `CODE_DEFECT_CONFIRMED`.
 
-Status atrybucji incydentu: `PENDING_SERVER_CORRELATION`.
+Status atrybucji incydentu: `STRONGLY CONSISTENT / HIGH CONFIDENCE`.
 Zakres: statyczny, read-only audit bieżącego workspace; bez zmian runtime i bez operacji na danych produkcyjnych.
 
 Numery linii odnoszą się do snapshotu workspace z 2026-08-21. Dokument rozdziela dwie różne tezy:

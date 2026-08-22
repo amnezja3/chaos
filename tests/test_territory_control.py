@@ -10,6 +10,7 @@ from database import (
     TerritoryTargetOwnershipStore,
     UserStore,
 )
+from tests.session_generation_fixture import SessionGenerationFixture
 
 
 def captured(label, lat, lng, security=None):
@@ -26,18 +27,48 @@ def captured(label, lat, lng, security=None):
     }
 
 
-def installed_profile(username="alice"):
-    return {
+def installed_profile(username="alice", **updates):
+    profile = {
         "username": username,
+        "nick": username.title(),
+        "email": f"{username}@example.test",
+        "avatar": "/static/images/default_avatar.png",
         "level": 1,
+        "hackcoins": 1000,
         "respect": 0,
+        "exp": "0 / 1000",
+        "clan": "",
+        "fraction": {},
+        "inventory": [],
+        "files": {"tools": [], "download": []},
         "apps": [{"id": "territoryControl", "type": "pro-system-tool", "category": "pro-system-tools"}],
+        "hacked": [],
+        "desktop_settings": {},
+        "security": {},
+        "territory_stats": {},
+        "system_messages": [],
+        "operations": [],
+        "targets": [],
+        "launch_queue": [],
         "curently_possition": {"lat": 52.0, "lng": 21.0},
         "aimed_target": {},
     }
+    profile.update(updates)
+    return profile
 
 
 class TerritoryControlTest(unittest.TestCase):
+    def setUp(self):
+        self.original_testing = run.app.config.get("TESTING")
+        run.app.config["TESTING"] = True
+        self.session_generation = SessionGenerationFixture(
+            "chaos_territory_control_session_"
+        ).start()
+        self.addCleanup(self.session_generation.stop)
+
+    def tearDown(self):
+        run.app.config["TESTING"] = self.original_testing
+
     def _temp_db(self):
         handle = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
         handle.close()
@@ -60,10 +91,12 @@ class TerritoryControlTest(unittest.TestCase):
             ownership = TerritoryTargetOwnershipStore(str(path))
             local_users = UserStore(db_path=str(path), seed_path=str(path) + ".missing")
             for username, clan in (("alice", "Alpha"), ("bob", "Beta")):
-                local_users.save_profile({
-                    "username": username, "level": 3, "respect": 0,
-                    "clan": clan, "system_messages": [], "hacked": [],
-                })
+                local_users.save_profile_guarded(
+                    installed_profile(username, level=3, clan=clan),
+                    expected_revision=0,
+                    source="test.territory_control.create",
+                    allow_create=True,
+                )
             for item in (
                 captured("A1", 52.0, 21.0), captured("A2", 52.0018, 21.0),
                 captured("A3", 52.0018, 21.0018), captured("A4", 52.0, 21.0018),
@@ -117,9 +150,11 @@ class TerritoryControlTest(unittest.TestCase):
                     patch.object(run, "detect_territory_conflicts", return_value=[]):
                 worker_result = run.process_territory_rebuild_job("contract-worker")
                 client = run.app.test_client()
-                with client.session_transaction() as session:
-                    session["user"] = "alice"
-                refreshed = client.get("/api/map/target-snapshot").get_json()
+                headers = self.session_generation.authenticate(client, "alice")
+                refreshed = client.get(
+                    "/api/map/target-snapshot",
+                    headers=headers,
+                ).get_json()
 
             self.assertTrue(worker_result["ok"])
             self.assertIsNone(ownership.get(abandoned_target_id))
@@ -285,9 +320,8 @@ class TerritoryControlTest(unittest.TestCase):
 
     def _client_with_user(self, username="alice"):
         client = run.app.test_client()
-        with client.session_transaction() as sess:
-            sess["user"] = username
-        return client
+        headers = self.session_generation.authenticate(client, username)
+        return client, headers
 
     def test_conflict_detection_ignores_same_clan_but_not_friends(self):
         areas = [
@@ -666,13 +700,13 @@ class TerritoryControlTest(unittest.TestCase):
             store = TerritoryStore(db_path=str(path))
             conflict_store = TerritoryConflictStore(db_path=str(path))
             store.save_captured_target("alice", captured("A", 52.0, 21.0))
-            client = self._client_with_user("alice")
+            client, headers = self._client_with_user("alice")
 
             with patch.object(run, "territory_store", store), \
                     patch.object(run, "territory_conflict_store", conflict_store), \
                     patch.object(run, "load_profile_readonly", return_value=installed_profile()), \
                     patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")):
-                response = client.get("/api/ghost-control/territory")
+                response = client.get("/api/ghost-control/territory", headers=headers)
 
             self.assertEqual(response.status_code, 200)
             data = response.get_json()
@@ -752,14 +786,9 @@ class TerritoryControlTest(unittest.TestCase):
             self._cleanup(path)
 
     def test_map_player_areas_neutralizes_same_clan_stale_encircled_status(self):
-        profile = {
-            "username": "alice",
-            "nick": "Alice",
-            "level": 4,
-            "clan": "Siatka Widmo",
-            "apps": [],
-            "files": {},
-        }
+        profile = installed_profile(
+            "alice", level=4, clan="Siatka Widmo", apps=[]
+        )
         areas = [
             {
                 "id": "outer",
@@ -797,17 +826,19 @@ class TerritoryControlTest(unittest.TestCase):
             if username == "alice":
                 return profile
             if username == "bob":
-                return {"username": "bob", "nick": "Bob", "level": 3, "clan": "Siatka Widmo"}
+                return installed_profile(
+                    "bob", level=3, clan="Siatka Widmo", apps=[]
+                )
             return None
 
-        client = self._client_with_user("alice")
+        client, headers = self._client_with_user("alice")
         with patch.object(run, "territory_store", FakeTerritoryStoreForMap()), \
                 patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run.user_store, "get_profile", side_effect=fake_profile), \
                 patch.object(run.mail_store, "is_accepted_contact", return_value=False), \
                 patch.object(run, "get_active_conflicts_for_player", return_value=[]), \
                 patch.object(run, "contested_targets_from_active_conflicts", return_value=[]):
-            response = client.get("/api/map/player-areas")
+            response = client.get("/api/map/player-areas", headers=headers)
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
@@ -816,14 +847,9 @@ class TerritoryControlTest(unittest.TestCase):
         self.assertFalse(inner["exposed"])
 
     def test_map_player_areas_survives_optional_read_model_failures(self):
-        profile = {
-            "username": "alice",
-            "nick": "Alice",
-            "level": 4,
-            "clan": "Siatka Widmo",
-            "apps": [],
-            "files": {},
-        }
+        profile = installed_profile(
+            "alice", level=4, clan="Siatka Widmo", apps=[]
+        )
         areas = [{
             "id": "alice-area",
             "owner_username": "alice",
@@ -844,7 +870,7 @@ class TerritoryControlTest(unittest.TestCase):
             def list_recent_area_intruders(self, username):
                 raise RuntimeError("intruder store unavailable")
 
-        client = self._client_with_user("alice")
+        client, headers = self._client_with_user("alice")
         with patch.object(run, "territory_store", FragileTerritoryStoreForMap()), \
                 patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run.user_store, "get_profile", return_value=profile), \
@@ -854,7 +880,7 @@ class TerritoryControlTest(unittest.TestCase):
                     "list_latest_snapshots_for_player",
                     side_effect=RuntimeError("conflict snapshot store busy"),
                 ):
-            response = client.get("/api/map/player-areas")
+            response = client.get("/api/map/player-areas", headers=headers)
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
@@ -870,14 +896,13 @@ class TerritoryControlTest(unittest.TestCase):
             store = TerritoryStore(db_path=str(path))
             conflict_store = TerritoryConflictStore(db_path=str(path))
             local_users = UserStore(db_path=str(path), seed_path=str(path) + ".missing")
-            local_users.save_profile({
-                "username": "alice", "level": 3, "respect": 0,
-                "clan": "Alpha", "system_messages": [],
-            })
-            local_users.save_profile({
-                "username": "bob", "level": 3, "respect": 0,
-                "clan": "Beta", "system_messages": [],
-            })
+            for username, clan in (("alice", "Alpha"), ("bob", "Beta")):
+                local_users.save_profile_guarded(
+                    installed_profile(username, level=3, clan=clan),
+                    expected_revision=0,
+                    source="test.territory_control.create",
+                    allow_create=True,
+                )
             for target in [
                 captured("A1", 52.0, 21.0),
                 captured("A2", 52.0018, 21.0),

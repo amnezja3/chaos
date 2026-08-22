@@ -26,7 +26,7 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         endpoint = self.source[start:end]
 
         self.assertIn('session.pop("profile", None)', endpoint)
-        self.assertIn("user_store.username_exists(user)", endpoint)
+        self.assertIn("user_store.has_user(user)", endpoint)
         self.assertNotIn("sync_session_profile", endpoint)
         self.assertNotIn("rebuild_player_areas_with_territory_delta", endpoint)
         self.assertIn("redirect_missing_profile_to_login", endpoint)
@@ -112,8 +112,7 @@ class ProfileBootSnapshotContractTest(unittest.TestCase):
         end = self.source.index('@app.route("/register")', start)
         endpoint = self.source[start:end]
 
-        self.assertIn('session["user"] = username', endpoint)
-        self.assertIn('session.pop("profile", None)', endpoint)
+        self.assertIn("begin_authenticated_session(username)", endpoint)
         self.assertNotIn("UserProfileManager", endpoint)
         self.assertNotIn("sync_session_profile", endpoint)
         self.assertNotIn("set_profile_session", endpoint)

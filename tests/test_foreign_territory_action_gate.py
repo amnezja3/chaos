@@ -3,13 +3,17 @@ import unittest
 from unittest.mock import patch
 
 import run
+from tests.session_generation_fixture import SessionGenerationFixture
 
 
 class ForeignTerritoryActionGateTests(unittest.TestCase):
     def setUp(self):
+        self.session_generation = SessionGenerationFixture(
+            "chaos_foreign_territory_session_"
+        ).start()
+        self.addCleanup(self.session_generation.stop)
         self.client = run.app.test_client()
-        with self.client.session_transaction() as session:
-            session["user"] = "attacker"
+        self.headers = self.session_generation.authenticate(self.client, "attacker")
 
     @staticmethod
     def foreign_area():
@@ -30,7 +34,7 @@ class ForeignTerritoryActionGateTests(unittest.TestCase):
             with self.subTest(action=action), \
                     patch.object(run, "sync_session_profile", return_value=dict(profile)), \
                     patch.object(run, "foreign_territory_action_block", return_value=self.foreign_area()):
-                response = self.client.post("/map-action", json={
+                response = self.client.post("/map-action", headers=self.headers, json={
                     "action": action,
                     "lat": 52.001,
                     "lng": 21.001,
@@ -45,7 +49,7 @@ class ForeignTerritoryActionGateTests(unittest.TestCase):
         with patch.object(run, "load_profile_readonly", return_value={"username": "attacker"}), \
                 patch.object(run, "find_contested_target", return_value=None), \
                 patch.object(run, "foreign_territory_action_block", return_value=self.foreign_area()):
-            response = self.client.post("/api/map/aim-target", json={
+            response = self.client.post("/api/map/aim-target", headers=self.headers, json={
                 "lat": 52.001,
                 "lng": 21.001,
                 "label": "Enemy object",

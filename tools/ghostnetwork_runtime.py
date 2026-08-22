@@ -1,6 +1,7 @@
 """Operator CLI for GhostNetwork runtime readiness and cycle bootstrap."""
 
 import argparse
+import copy
 import hashlib
 import json
 import sys
@@ -23,6 +24,7 @@ def reconcile_reward_history(service, users, apply=False):
     missing = []
     repaired = []
     profiles = {}
+    profile_records = {}
     for reward in rewards:
         player_id = str(reward.get("player_id") or "").strip()
         reward_key = str(reward.get("reward_key") or "").strip()
@@ -30,7 +32,13 @@ def reconcile_reward_history(service, users, apply=False):
             continue
         profile = profiles.get(player_id)
         if profile is None:
-            profile = users.get_profile(player_id) or {}
+            record = users.get_profile_with_revision(player_id)
+            if record and record.get("state") != "valid":
+                raise RuntimeError(
+                    f"Profile recovery required for: {player_id}"
+                )
+            profile_records[player_id] = record
+            profile = dict(record.get("profile") or {}) if record else {}
             profiles[player_id] = profile
         history = profile.get("ghostnetwork_reward_history") or []
         if reward_key in {
@@ -48,7 +56,14 @@ def reconcile_reward_history(service, users, apply=False):
             repaired.append({"player_id": player_id, "reward_key": reward_key})
     if apply:
         for player_id in {item["player_id"] for item in repaired}:
-            users.save_profile(profiles[player_id])
+            record = profile_records.get(player_id)
+            if not record:
+                continue
+            users.save_profile_guarded(
+                profiles[player_id],
+                expected_revision=int(record["profile_revision"]),
+                source="operator.ghostnetwork_reward_history_reconcile",
+            )
     return {
         "ok": True,
         "dry_run": not apply,
@@ -57,6 +72,43 @@ def reconcile_reward_history(service, users, apply=False):
         "repaired": repaired,
         "repaired_count": len(repaired),
     }
+
+
+def build_guarded_profile_callbacks(users, source="operator.ghostnetwork_runtime"):
+    """Build coordinator callbacks which retain the revision read with profile."""
+    records = {}
+
+    def load_profile(player_id):
+        player_id = str(player_id or "").strip()
+        record = users.get_profile_with_revision(player_id)
+        if not record or record.get("state") != "valid":
+            raise RuntimeError(
+                f"Profile recovery required for: {player_id}"
+            )
+        records[player_id] = record
+        return copy.deepcopy(record["profile"])
+
+    def save_profile(profile):
+        player_id = str((profile or {}).get("username") or "").strip()
+        record = records.get(player_id)
+        if not record:
+            raise RuntimeError(
+                f"Guarded profile read missing for: {player_id}"
+            )
+        saved = users.save_profile_guarded(
+            profile,
+            expected_revision=int(record["profile_revision"]),
+            source=source,
+        )
+        records[player_id] = {
+            **record,
+            "state": "valid",
+            "profile": copy.deepcopy(saved["profile"]),
+            "profile_revision": int(saved["profile_revision"]),
+        }
+        return saved
+
+    return load_profile, save_profile
 
 
 def enqueue_territory_reconcile(territory, jobs, apply=False):
@@ -145,11 +197,15 @@ def execute(args):
                     return target
             return None
 
+        load_coordinator_profile, save_coordinator_profile = (
+            build_guarded_profile_callbacks(users)
+        )
+
         coordinator = GhostRuntimeCoordinator(
             service=service,
             captured_target_reader=captured_reader,
-            profile_loader=lambda player_id: users.get_profile(player_id) or {},
-            profile_saver=users.save_profile,
+            profile_loader=load_coordinator_profile,
+            profile_saver=save_coordinator_profile,
         )
         if args.command in {"reconcile", "capture-reconcile"} and not args.apply:
             reservations = service.repository.list_active_reservations(

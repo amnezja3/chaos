@@ -114,9 +114,53 @@ class GhostRuntimeCoordinator:
         player_id = effect.get("player_id") or ""
         profile = self.profile_loader(player_id) if self.profile_loader else dict(effect.get("player") or {})
         profile = profile if isinstance(profile, dict) else {}
-        results = [self.service.handle_reward_event(event, profile=profile, apply=True) for event in events]
-        if self.profile_saver and any(item.get("applied") for item in results if isinstance(item, dict)):
+        results = []
+        pending_finalizations = []
+        profile_changed = False
+        for event in events:
+            result = self.service.handle_reward_event(
+                event,
+                profile=profile,
+                apply=False,
+            )
+            created = result.get("created") if isinstance(result, dict) else None
+            reward = created.get("reward") if isinstance(created, dict) else None
+            if isinstance(reward, dict):
+                projection = self.service.project_reward_to_profile(
+                    profile,
+                    reward_id=reward.get("reward_id"),
+                )
+                result["projection"] = projection
+                if not projection.get("ok"):
+                    raise RuntimeError(
+                        "GhostNetwork reward profile projection was rejected: "
+                        + str(projection.get("status") or "unknown")
+                    )
+                profile_changed = profile_changed or bool(
+                    projection.get("profile_changed")
+                )
+                if projection.get("requires_finalize"):
+                    pending_finalizations.append((reward["reward_id"], result))
+            results.append(result)
+
+        if profile_changed:
+            if not self.profile_saver:
+                raise RuntimeError(
+                    "GhostNetwork reward projection requires a durable profile saver."
+                )
             self.profile_saver(profile)
+
+        for reward_id, result in pending_finalizations:
+            finalized = self.service.finalize_projected_reward(
+                profile,
+                reward_id=reward_id,
+            )
+            if not finalized.get("ok"):
+                raise RuntimeError(
+                    "GhostNetwork reward finalization was rejected: "
+                    + str(finalized.get("status") or "unknown")
+                )
+            result["applied"] = finalized
         return results
 
     def drain(self, limit=100, reconcile=True):

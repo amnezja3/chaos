@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 import run
+from tests.session_generation_fixture import SessionGenerationFixture
 
 
 def operation_control_profile(username="alice"):
@@ -61,11 +62,16 @@ class FakeUserProfileManager:
 
 
 class OperationControlTest(unittest.TestCase):
+    def setUp(self):
+        self.session_generation = SessionGenerationFixture(
+            "chaos_operation_control_session_"
+        ).start()
+        self.addCleanup(self.session_generation.stop)
+
     def _client_with_user(self, username="alice"):
         client = run.app.test_client()
-        with client.session_transaction() as sess:
-            sess["user"] = username
-        return client
+        headers = self.session_generation.authenticate(client, username)
+        return client, headers
 
     def test_snapshot_extends_existing_operation_summary_with_distance_output_and_incident(self):
         profile = operation_control_profile()
@@ -139,7 +145,7 @@ class OperationControlTest(unittest.TestCase):
         self.assertEqual(history_item["disabled_reason"], "already_terminal")
 
     def test_snapshot_endpoint_requires_operation_control_app_and_does_not_use_full_sync(self):
-        client = self._client_with_user()
+        client, headers = self._client_with_user()
         profile = operation_control_profile()
         op = operation("op-network", operation_type="wifi_scanner")
 
@@ -147,7 +153,7 @@ class OperationControlTest(unittest.TestCase):
                 patch.object(run, "refresh_and_persist_operations", return_value=profile), \
                 patch.object(run, "operations_from_store_or_profile", return_value=[op]), \
                 patch.object(run, "sync_session_profile", side_effect=AssertionError("full sync not expected")):
-            response = client.get("/api/ghost-control/operations")
+            response = client.get("/api/ghost-control/operations", headers=headers)
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
@@ -155,7 +161,7 @@ class OperationControlTest(unittest.TestCase):
         self.assertEqual(payload["operations"][0]["operation_family"], "network")
 
     def test_single_cancel_uses_existing_helper_and_returns_snapshot(self):
-        client = self._client_with_user()
+        client, headers = self._client_with_user()
         active = operation("op-active", operation_type="vehicle_tracking")
         profile = operation_control_profile()
         profile["operations"] = [active]
@@ -164,7 +170,7 @@ class OperationControlTest(unittest.TestCase):
         with patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run, "refresh_operations_runtime", side_effect=lambda prof, **kwargs: (prof.get("operations", []), False)), \
                 patch.object(run, "UserProfileManager", FakeUserProfileManager):
-            response = client.post("/api/ghost-control/operations/cancel", json={
+            response = client.post("/api/ghost-control/operations/cancel", headers=headers, json={
                 "operation_id": "op-active",
             })
 
@@ -177,7 +183,7 @@ class OperationControlTest(unittest.TestCase):
         self.assertEqual(len(FakeUserProfileManager.updates), 1)
 
     def test_group_cancel_uses_existing_cancel_helper_and_saves_once(self):
-        client = self._client_with_user()
+        client, headers = self._client_with_user()
         active = operation("op-active", operation_type="vehicle_tracking")
         done = operation("op-done", operation_type="vehicle_tracking", status="completed")
         profile = operation_control_profile()
@@ -187,7 +193,7 @@ class OperationControlTest(unittest.TestCase):
         with patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run, "refresh_operations_runtime", side_effect=lambda prof, **kwargs: (prof.get("operations", []), False)), \
                 patch.object(run, "UserProfileManager", FakeUserProfileManager):
-            response = client.post("/api/pro-system/operation-control/cancel-group", json={
+            response = client.post("/api/pro-system/operation-control/cancel-group", headers=headers, json={
                 "operation_family": "gps",
                 "operation_ids": ["op-active", "op-done", "missing"],
             })

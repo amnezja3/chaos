@@ -16,6 +16,7 @@ from response_network.npc_capsule_factory import (
 )
 from response_network.npc_capsule_store import NPCCapsuleStore
 from response_network.response_dispatcher import ResponseDispatcher
+from tests.session_generation_fixture import SessionGenerationFixture
 
 
 def temp_db_path(prefix):
@@ -65,6 +66,15 @@ def make_operation(operation_id="op-capsule", status="running", incident_id=None
 
 
 class NPCBehaviorCapsulesTest(unittest.TestCase):
+    def setUp(self):
+        self.session_generation = SessionGenerationFixture(
+            "chaos_npc_capsules_session_"
+        ).start()
+        self.addCleanup(self.session_generation.stop)
+
+    def _authenticate(self, client, username="main"):
+        return self.session_generation.authenticate(client, username)
+
     def test_factory_builds_complete_versioned_capsules(self):
         factory = NPCCapsuleFactory()
         incident = {
@@ -215,9 +225,11 @@ class NPCBehaviorCapsulesTest(unittest.TestCase):
                 created_changes = bus.get_changes_since("main", 0)["changes"]
 
                 client = run.app.test_client()
-                with client.session_transaction() as sess:
-                    sess["user"] = "main"
-                snapshot = client.get("/api/map/incident-npc-capsules").get_json()
+                headers = self._authenticate(client)
+                snapshot = client.get(
+                    "/api/map/incident-npc-capsules",
+                    headers=headers,
+                ).get_json()
 
                 profile["operations"] = [make_operation(status="cancelled", incident_id=incident_id)]
                 operations, changed = run.refresh_operations_runtime(
@@ -270,15 +282,20 @@ class NPCBehaviorCapsulesTest(unittest.TestCase):
                     patch.object(run, "response_dispatcher", dispatcher), \
                     patch.object(run, "delta_bus", bus):
                 client = run.app.test_client()
-                with client.session_transaction() as sess:
-                    sess["user"] = "main"
+                headers = self._authenticate(client)
 
-                first = client.get("/api/map/incident-npc-capsules").get_json()
+                first = client.get(
+                    "/api/map/incident-npc-capsules",
+                    headers=headers,
+                ).get_json()
                 versions_after_first = {
                     capsule["capsule_id"]: capsule["version"]
                     for capsule in capsule_store.list_public()
                 }
-                second = client.get("/api/map/incident-npc-capsules").get_json()
+                second = client.get(
+                    "/api/map/incident-npc-capsules",
+                    headers=headers,
+                ).get_json()
                 versions_after_second = {
                     capsule["capsule_id"]: capsule["version"]
                     for capsule in capsule_store.list_public()
@@ -345,9 +362,11 @@ class NPCBehaviorCapsulesTest(unittest.TestCase):
                     patch.object(run, "response_dispatcher", dispatcher), \
                     patch.object(run, "delta_bus", bus):
                 client = run.app.test_client()
-                with client.session_transaction() as sess:
-                    sess["user"] = "main"
-                snapshot = client.get("/api/map/incident-npc-capsules").get_json()
+                headers = self._authenticate(client)
+                snapshot = client.get(
+                    "/api/map/incident-npc-capsules",
+                    headers=headers,
+                ).get_json()
 
             self.assertTrue(snapshot["success"])
             self.assertGreaterEqual(snapshot["debug"]["raw_public_capsule_count"], 1)

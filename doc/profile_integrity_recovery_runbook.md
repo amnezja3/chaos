@@ -22,8 +22,8 @@ loginu, credentials, pełnego JSON-u profilu, współrzędnych ani topologii tar
   match.
 - Domyślna baza to `data/game.sqlite3`. Jeżeli produkcja używa innej ścieżki,
   ustaw wcześniej `CHAOS_DB_PATH` na tę ścieżkę.
-- Nie używaj `set -e`: kod wyjścia `1` z `verify` jest wynikiem dowodowym i nie
-  powinien przerwać zapisania manifestu oraz sum kontrolnych.
+- Nie używaj `set -e`: kody wyjścia `1` i `3` z `verify` są wynikami
+  dowodowymi i nie powinny przerwać zapisania manifestu oraz sum kontrolnych.
 - Katalog `/tmp/chaos-13010-evidence` musi nie istnieć przed rozpoczęciem. Jeżeli
   istnieje, zatrzymaj się i zachowaj poprzedni capture; nie nadpisuj go i nie
   mieszaj dwóch przebiegów.
@@ -157,13 +157,15 @@ ponowny capture wymaga osobnego, pustego katalogu uzgodnionego z operatorem.
 
 | Kod | Znaczenie |
 | --- | --- |
-| `0` | Narzędzie wykonało komendę i zapisało poprawny JSON. Dla `status` i `audit` nie oznacza to automatycznie braku findings. Dla `verify` oznacza brak account-level blockera; wynik może nadal być `unknown`, jeżeli historia albo opcjonalny scope są niepełne. |
+| `0` | Narzędzie wykonało komendę i zapisało poprawny JSON. Dla `status` i `audit` nie oznacza to automatycznie braku findings. Dla `verify` oznacza wyłącznie `verification_outcome=passed`: complete evidence, `account_integrity_status=clear` i brak blockera. |
 | `1` | Dotyczy `verify`: odczyt i raport zakończyły się technicznie, ale `account_integrity_status` ma wartość `blocked` (w tym nieudany `quick_check` albo brak exact account). Jest to wynik dowodowy, nie awaria narzędzia. |
 | `2` | Błąd wejścia/wykonania albo nieobsługiwany core schema `users`, np. brak bazy, pusty exact login, błąd SQLite lub naruszenie założenia read-only. Nie przechodź do recovery; zachowaj JSON/stderr i wyjaśnij błąd. Niepoprawna składnia CLI również kończy się kodem `2`. |
+| `3` | Dotyczy `verify`: probe ukończył się, ale wynik jest `inconclusive`, zwykle z `evidence_status=partial` lub `account_integrity_status=unknown`. Nie traktuj go jako PASS ani jako awarii narzędzia. |
 
-W szczególności `verify=1` w `exit-codes.txt` może być prawidłowo zebranym dowodem
-na blocker. Nie uruchamiaj w odpowiedzi migracji, automatycznego fallbacku ani
-naprawy profilu.
+W szczególności `verify=1` albo `verify=3` w `exit-codes.txt` może być
+prawidłowo zebranym dowodem. Pierwszy oznacza blocker, drugi wynik
+nierozstrzygający. Nie uruchamiaj w odpowiedzi migracji, automatycznego fallbacku
+ani naprawy profilu.
 
 ## Dozwolony handoff
 
@@ -180,13 +182,18 @@ Nie kopiuj, nie archiwizuj i nie przesyłaj w ramach tego etapu:
   logów graczy.
 
 Nie wykonuj `VACUUM`, checkpointu WAL, `.backup`, eksportu SQL, migracji, importu
-modułów aplikacji, restartu ani żadnego endpointu recovery. Metadane obecności WAL
-i SHM raportowane przez narzędzie są wystarczające dla tej bramki; runbook nie
-zgłasza bitowej niezmienności aktywnego filesystemu.
+modułów aplikacji, restartu ani żadnego endpointu recovery. Narzędzie tworzy
+logiczny snapshot jednej transakcji odczytowej: w trybie WAL odczytuje zatwierdzony
+stan z main DB + WAL, ale nie tworzy fizycznej kopii tego zestawu. Raport metadanych
+nie jest deklaracją bitowej niezmienności aktywnego filesystemu ani dowodem, że
+sam skopiowany plik main DB byłby kompletny.
 
-Po przekazaniu materiału pozostaje status:
+Pierwszy capture utrzymuje status `READY FOR READ-ONLY SERVER FORENSICS`, dopóki
+nie zostanie przeanalizowany. Dla canonical loginu `trolu2` analiza została już
+wykonana. Analizowany, zredagowany pakiet pobrano jako
+`logs/chaos-13010-trolu2-20260821T184643Z.tar.gz`; jego manifest SHA-256 oraz
+SQLite `quick_check` są poprawne. Obowiązuje:
 
-`READY FOR READ-ONLY SERVER FORENSICS — Sprint 130.10`
+`FORENSICS CAPTURED — Sprint 130.10`
 
-Dopiero osobna analiza dowodów i jawna decyzja mogą zmienić go na
-`FORENSICS CAPTURED — Sprint 130.10`. Ten dokument nie autoryzuje żadnej naprawy.
+Ten dokument nadal nie autoryzuje żadnej naprawy.

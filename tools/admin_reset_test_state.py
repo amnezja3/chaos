@@ -202,9 +202,12 @@ def clear_admin_territory(conn, username):
 
 def reset_admin_profile():
     store = UserStore()
-    profile = store.get_profile(ADMIN_USERNAME)
-    if not profile:
+    record = store.get_profile_with_revision(ADMIN_USERNAME)
+    if not record:
         return False
+    if record.get("state") != "valid":
+        raise RuntimeError("Admin profile requires recovery before reset.")
+    profile = record["profile"]
 
     profile["hacked"] = []
     profile["targets"] = []
@@ -239,7 +242,18 @@ def reset_admin_profile():
         if isinstance(aimed.get("actions_allowed"), dict):
             for key in list(aimed["actions_allowed"].keys()):
                 aimed["actions_allowed"][key] = False
-    store.save_profile(profile)
+    reset_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    store.save_profile_guarded(
+        profile,
+        expected_revision=int(record["profile_revision"]),
+        source="admin.reset_test_state",
+        reset_receipt={
+            "receipt_id": f"admin-reset-test-state:{reset_at}",
+            "reason": "explicit_admin_test_state_reset",
+            "authorized_by": ADMIN_USERNAME,
+            "created_at": reset_at,
+        },
+    )
     return True
 
 

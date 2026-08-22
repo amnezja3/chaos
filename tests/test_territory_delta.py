@@ -11,6 +11,7 @@ from response_network.territory_delta import (
     TERRITORY_UPDATED,
     TerritoryDeltaPublisher,
 )
+from tests.session_generation_fixture import SessionGenerationFixture
 
 
 def square(lat, lng, size=0.01):
@@ -23,6 +24,12 @@ def square(lat, lng, size=0.01):
 
 
 class TerritoryDeltaPublisherTest(unittest.TestCase):
+    def setUp(self):
+        self.session_generation = SessionGenerationFixture(
+            "chaos_territory_delta_session_"
+        ).start()
+        self.addCleanup(self.session_generation.stop)
+
     def _temp_db(self):
         handle = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
         handle.close()
@@ -39,9 +46,8 @@ class TerritoryDeltaPublisherTest(unittest.TestCase):
 
     def _client_with_user(self, username="admin"):
         client = run.app.test_client()
-        with client.session_transaction() as sess:
-            sess["user"] = username
-        return client
+        headers = self.session_generation.authenticate(client, username)
+        return client, headers
 
     def test_area_delta_is_idempotent_and_minimal(self):
         path = self._temp_db()
@@ -150,16 +156,23 @@ class TerritoryDeltaPublisherTest(unittest.TestCase):
             bus = GameStateDeltaBus(db_path=str(path))
             publisher = TerritoryDeltaPublisher(bus, TerritoryContextReader(territory_store, conflict_store))
 
+            non_admin, non_admin_headers = self._client_with_user("alice")
             self.assertEqual(
-                self._client_with_user("alice").get("/api/dev/territory-context/recovery?lat=52.004&lng=21.004").status_code,
+                non_admin.get(
+                    "/api/dev/territory-context/recovery?lat=52.004&lng=21.004",
+                    headers=non_admin_headers,
+                ).status_code,
                 403,
             )
 
-            client = self._client_with_user("admin")
+            client, headers = self._client_with_user("admin")
             with patch.object(run, "territory_delta_publisher", publisher), \
                     patch.object(run, "delta_bus", bus), \
                     patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")):
-                response = client.get("/api/dev/territory-context/recovery?lat=52.004&lng=21.004&actor_username=alice&since=0")
+                response = client.get(
+                    "/api/dev/territory-context/recovery?lat=52.004&lng=21.004&actor_username=alice&since=0",
+                    headers=headers,
+                )
 
             self.assertEqual(response.status_code, 200)
             data = response.get_json()

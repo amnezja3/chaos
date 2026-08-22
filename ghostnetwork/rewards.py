@@ -368,42 +368,119 @@ class GhostRewardService:
                 pass
         return {"ok": True, "status": "created", "reward": reward, "contribution": contribution.get("contribution")}
 
-    def apply_pending_reward(self, profile, reward_id=None, reward_key=None):
+    @staticmethod
+    def _profile_reward_history(profile):
+        history = profile.get("ghostnetwork_reward_history")
+        if not isinstance(history, list):
+            history = []
+            profile["ghostnetwork_reward_history"] = history
+        return history
+
+    def project_reward_to_profile(self, profile, reward_id=None, reward_key=None):
+        """Idempotently project a pending/applied reward into a player profile.
+
+        This method deliberately does not finalize the reward ledger.  Runtime
+        callers must durably save the guarded profile first and only then call
+        :meth:`finalize_projected_reward`.  The reward key stored in profile
+        history is the saga receipt which makes a retry after either crash
+        window safe.
+        """
         profile = profile if isinstance(profile, dict) else {}
         reward = self.repository.get_reward(reward_id) if reward_id else self.repository.get_reward_by_key(reward_key)
         if not reward:
             return {"ok": False, "status": "missing_reward"}
-        if reward.get("status") == "applied":
-            return {"ok": True, "status": "already_applied", "reward": reward}
-        if reward.get("status") != "pending":
+        if reward.get("status") not in {"pending", "applied"}:
             return {"ok": False, "status": reward.get("status"), "reward": reward}
+
+        history = self._profile_reward_history(profile)
+        already_projected = reward["reward_key"] in {
+            item.get("reward_key") for item in history if isinstance(item, dict)
+        }
+        if already_projected:
+            return {
+                "ok": True,
+                "status": "already_projected",
+                "reward": reward,
+                "rsp": int(reward.get("final_rsp") or 0),
+                "profile_changed": False,
+                "requires_finalize": reward.get("status") == "pending",
+            }
+
+        # An old applied ledger row without the profile receipt is ambiguous:
+        # older runtimes may have persisted RSP but not history.  Never guess
+        # and risk paying it twice.  The new saga only auto-recovers pending
+        # rows, whose profile projection is proven by reward_key history.
+        if reward.get("status") == "applied":
+            return {
+                "ok": False,
+                "status": "applied_projection_unverifiable",
+                "reward": reward,
+                "profile_changed": False,
+                "requires_finalize": False,
+            }
 
         rsp = int(reward.get("final_rsp") or 0)
         profile["respect"] = int(profile.get("respect") or 0) + rsp
-        stats = profile.setdefault("ghostnetwork_stats", {})
+        stats = profile.get("ghostnetwork_stats")
+        if not isinstance(stats, dict):
+            stats = {}
+            profile["ghostnetwork_stats"] = stats
         stats["ghostnetwork_rsp_total"] = int(stats.get("ghostnetwork_rsp_total") or 0) + rsp
         stat_key = PROFILE_STAT_BY_REWARD.get(reward.get("reward_type"))
         if stat_key:
             stats[stat_key] = int(stats.get(stat_key) or 0) + 1
-        history = profile.setdefault("ghostnetwork_reward_history", [])
-        if reward["reward_key"] not in {item.get("reward_key") for item in history if isinstance(item, dict)}:
-            history.append({
-                "reward_key": reward["reward_key"],
-                "reward_type": reward["reward_type"],
-                "rsp": rsp,
-                "source": "ghostnetwork",
-            })
+        history.append({
+            "reward_key": reward["reward_key"],
+            "reward_type": reward["reward_type"],
+            "rsp": rsp,
+            "source": "ghostnetwork",
+        })
+        return {
+            "ok": True,
+            "status": "projected",
+            "reward": reward,
+            "rsp": rsp,
+            "profile_changed": True,
+            "requires_finalize": reward.get("status") == "pending",
+        }
 
-        applied = self.repository.update_reward_status(reward["reward_id"], "applied")
-        clan_code = reward.get("clan_code") or ""
-        reputation = None
-        if clan_code:
-            reputation = self.repository.increment_clan_reputation(
-                clan_code,
-                self.reputation_policy.increments_for_reward(reward),
-                metadata={"reward_key": reward["reward_key"], "reward_type": reward["reward_type"]},
-            )
-            try:
+    def finalize_projected_reward(self, profile, reward_id=None, reward_key=None):
+        """Atomically finalize a reward after its profile receipt is durable."""
+        profile = profile if isinstance(profile, dict) else {}
+        with self.repository.transaction():
+            reward = self.repository.get_reward(reward_id) if reward_id else self.repository.get_reward_by_key(reward_key)
+            if not reward:
+                return {"ok": False, "status": "missing_reward"}
+            if reward.get("status") == "applied":
+                return {
+                    "ok": True,
+                    "status": "already_applied",
+                    "reward": reward,
+                    "rsp": int(reward.get("final_rsp") or 0),
+                }
+            if reward.get("status") != "pending":
+                return {"ok": False, "status": reward.get("status"), "reward": reward}
+
+            rsp = int(reward.get("final_rsp") or 0)
+            history = self._profile_reward_history(profile)
+            if reward["reward_key"] not in {
+                item.get("reward_key") for item in history if isinstance(item, dict)
+            }:
+                return {
+                    "ok": False,
+                    "status": "profile_projection_required",
+                    "reward": reward,
+                }
+
+            applied = self.repository.update_reward_status(reward["reward_id"], "applied")
+            clan_code = reward.get("clan_code") or ""
+            reputation = None
+            if clan_code:
+                reputation = self.repository.increment_clan_reputation(
+                    clan_code,
+                    self.reputation_policy.increments_for_reward(reward),
+                    metadata={"reward_key": reward["reward_key"], "reward_type": reward["reward_type"]},
+                )
                 self.repository.append_event(
                     "ghost.clan_reputation_changed",
                     cycle_id=reward["cycle_id"],
@@ -413,9 +490,6 @@ class GhostRewardService:
                     dedupe_key=f"ghost:clan_reputation:{reward['reward_key']}",
                     payload={"clan_code": clan_code, "reward_key": reward["reward_key"]},
                 )
-            except Exception:
-                pass
-        try:
             self.repository.append_event(
                 "ghost.reward_applied",
                 cycle_id=reward["cycle_id"],
@@ -436,9 +510,26 @@ class GhostRewardService:
                 dedupe_key=f"ghost:player_history:{reward['reward_key']}",
                 payload={"reward_key": reward["reward_key"], "source": "ghostnetwork"},
             )
-        except Exception:
-            pass
         return {"ok": True, "status": "applied", "reward": applied, "rsp": rsp, "clan_reputation": reputation}
+
+    def apply_pending_reward(self, profile, reward_id=None, reward_key=None):
+        """Compatibility helper for in-memory callers without a save saga.
+
+        Durable runtime code must use project_reward_to_profile(), persist the
+        profile, and then finalize_projected_reward().
+        """
+        projection = self.project_reward_to_profile(
+            profile,
+            reward_id=reward_id,
+            reward_key=reward_key,
+        )
+        if not projection.get("ok"):
+            return projection
+        return self.finalize_projected_reward(
+            profile,
+            reward_id=reward_id,
+            reward_key=reward_key,
+        )
 
     def apply_pending_rewards(self, profile, player_id=None, cycle_id=None, limit=100):
         player_id = _clean(player_id or (profile or {}).get("username"))

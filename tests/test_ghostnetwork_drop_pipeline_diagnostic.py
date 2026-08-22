@@ -143,12 +143,28 @@ class GhostNetworkDropPipelineDiagnosticTest(unittest.TestCase):
                     "username": self.player["player_id"],
                     "respect": self.player["respect"],
                 }
+                _self.revision = 3
+                _self.guarded_calls = []
 
-            def get_profile(_self, _player_id):
-                return dict(_self.profile)
+            def get_profile_with_revision(_self, _player_id):
+                return {
+                    "state": "valid",
+                    "profile": dict(_self.profile),
+                    "profile_revision": _self.revision,
+                }
 
             def save_profile(_self, profile):
+                raise AssertionError("legacy existing-profile writer must not run")
+
+            def save_profile_guarded(_self, profile, *, expected_revision, source):
+                _self.guarded_calls.append((expected_revision, source))
                 _self.profile = dict(profile)
+                _self.revision += 1
+                return {
+                    "applied": True,
+                    "profile": dict(profile),
+                    "profile_revision": _self.revision,
+                }
 
         repair_store = RepairStore()
         before_respect = repair_store.profile["respect"]
@@ -159,6 +175,10 @@ class GhostNetworkDropPipelineDiagnosticTest(unittest.TestCase):
         self.assertEqual(repaired["repaired_count"], 1)
         self.assertEqual(len(repair_store.profile["ghostnetwork_reward_history"]), 1)
         self.assertEqual(repair_store.profile["respect"], before_respect)
+        self.assertEqual(
+            repair_store.guarded_calls,
+            [(3, "operator.ghostnetwork_reward_history_reconcile")],
+        )
 
     def test_runtime_audit_reads_part_summary_from_cycle_service(self):
         service = GhostNetworkService(repository=self.repo)

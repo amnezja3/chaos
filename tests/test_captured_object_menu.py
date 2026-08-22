@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import run
 from database import TerritoryStore, TerritoryTargetOwnershipStore
+from tests.session_generation_fixture import SessionGenerationFixture
 
 
 def target(label="Node", lat=52.1, lng=21.1):
@@ -117,11 +118,16 @@ class CapturedObjectStoreTest(unittest.TestCase):
 
 
 class CapturedObjectEndpointTest(unittest.TestCase):
+    def setUp(self):
+        self.session_generation = SessionGenerationFixture(
+            "chaos_captured_object_session_"
+        ).start()
+        self.addCleanup(self.session_generation.stop)
+
     def _client(self):
         client = run.app.test_client()
-        with client.session_transaction() as session:
-            session["user"] = "alice"
-        return client
+        headers = self.session_generation.authenticate(client, "alice")
+        return client, headers
 
     def test_security_read_is_store_only(self):
         item = target()
@@ -129,7 +135,8 @@ class CapturedObjectEndpointTest(unittest.TestCase):
                 patch.object(run.territory_target_ownership_store, "get", return_value=None), \
                 patch.object(run, "sync_session_profile") as sync, \
                 patch.object(run, "rebuild_player_areas_with_territory_delta") as rebuild:
-            response = self._client().post("/target-security-status", json={
+            client, headers = self._client()
+            response = client.post("/target-security-status", headers=headers, json={
                 "target_id": item["target_id"], "lat": item["lat"], "lng": item["lng"]
             })
         self.assertEqual(response.status_code, 200)
@@ -146,7 +153,8 @@ class CapturedObjectEndpointTest(unittest.TestCase):
                 patch.object(run.user_store, "get_profile") as profile_read, \
                 patch.object(run.user_store, "save_profile") as profile_write, \
                 patch.object(run, "rebuild_player_areas_with_territory_delta") as rebuild:
-            response = self._client().post("/api/map/captured-object/abandon", json={
+            client, headers = self._client()
+            response = client.post("/api/map/captured-object/abandon", headers=headers, json={
                 "target_id": item["target_id"], "confirm": True
             })
         self.assertEqual(response.status_code, 202)
@@ -168,7 +176,8 @@ class CapturedObjectEndpointTest(unittest.TestCase):
                 patch.object(run.territory_store, "remove_captured_target") as legacy_remove, \
                 patch.object(run, "record_map_target_delta"), \
                 patch.object(run, "rebuild_player_areas_with_territory_delta") as rebuild:
-            response = self._client().post("/api/ghost-control/territory/abandon", json={
+            client, headers = self._client()
+            response = client.post("/api/ghost-control/territory/abandon", headers=headers, json={
                 "target_id": item["target_id"],
                 "lat": item["lat"],
                 "lng": item["lng"],

@@ -213,10 +213,10 @@ Do adaptacji:
 ## Problemy prototypu
 
 1. Mojibake w copy:
-   * `KANAĹ`,
-   * `MOKOTĂ“W`,
-   * `PRZECHWYÄ†`,
-   * `SYGNAĹ`.
+   * `KANAŁ`,
+   * `MOKOTÓW`,
+   * `PRZECHWYĆ`,
+   * `SYGNAŁ`.
 2. Prototyp zaklada React/Next:
    * `use client`,
    * `useState`,

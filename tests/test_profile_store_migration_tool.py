@@ -25,7 +25,17 @@ class ProfileStoreMigrationToolTests(unittest.TestCase):
         self.username = "main"
         self.profile = {
             "username": self.username,
+            "password": "test-password",
+            "salt": "",
+            "level": 1,
             "hackcoins": 1234,
+            "respect": 0,
+            "exp": "0 / 1000",
+            "inventory": [],
+            "hacked": [],
+            "desktop_settings": {},
+            "security": {},
+            "territory_stats": {},
             "current_position": {"lat": 52.23, "lng": 21.01},
             "aimed_target": {
                 "target_id": "POI-TEST",
@@ -97,6 +107,57 @@ class ProfileStoreMigrationToolTests(unittest.TestCase):
         self.assertTrue(registry["source_checksum"])
         self.assertTrue(registry["result_checksum"])
 
+        with db_connect(self.db_path) as conn:
+            source = conn.execute(
+                "SELECT profile_checksum FROM users WHERE username = ?",
+                (self.username,),
+            ).fetchone()["profile_checksum"]
+            canonical_migration = conn.execute(
+                """
+                SELECT status FROM profile_store_migrations
+                WHERE migration_id = 'wallet_canonical_v1' AND username = ?
+                """,
+                (self.username,),
+            ).fetchone()
+        self.assertEqual(source, registry["source_checksum"])
+        self.assertEqual("applied", canonical_migration["status"])
+
+    def test_wallet_seed_rejects_profile_without_matching_integrity_evidence(self):
+        # First initialize integrity metadata, then simulate an out-of-band
+        # profile mutation which deliberately leaves the checksum stale.
+        migration.get_user_rows(self.db_path, self.username)
+        wallet = WalletBalanceStore(self.db_path)
+        before_balance = wallet.get_balance(self.username)
+        with db_connect(self.db_path) as conn:
+            before_events = conn.execute(
+                "SELECT COUNT(*) FROM wallet_balance_events WHERE username = ?",
+                (self.username,),
+            ).fetchone()[0]
+        tampered = dict(self.profile)
+        tampered["hackcoins"] = 999999
+        with db_connect(self.db_path) as conn:
+            conn.execute(
+                "UPDATE users SET profile_json = ? WHERE username = ?",
+                (dumps_json(tampered), self.username),
+            )
+
+        result = migration.migrate_user(
+            self.db_path,
+            "test-invalid-wallet-evidence",
+            self.username,
+        )
+
+        self.assertEqual("failed", result["status"])
+        self.assertIn("cannot seed canonical wallet", result["reason"].lower())
+        with db_connect(self.db_path) as conn:
+            after_events = conn.execute(
+                "SELECT COUNT(*) FROM wallet_balance_events WHERE username = ?",
+                (self.username,),
+            ).fetchone()[0]
+        self.assertEqual(1234, before_balance)
+        self.assertEqual(before_balance, wallet.get_balance(self.username))
+        self.assertEqual(before_events, after_events)
+
     def test_dry_run_reports_without_writing_registry(self):
         class Args:
             db = self.db_path
@@ -122,17 +183,36 @@ class ProfileStoreMigrationToolTests(unittest.TestCase):
         migration_id = "test-rollback"
         result = migration.migrate_user(self.db_path, migration_id, self.username)
         self.assertIn(result["status"], {"verified", "warning"})
+        WalletBalanceStore(self.db_path).credit(
+            self.username,
+            66,
+            transaction_key="test:post-migration-credit",
+            reason="test.credit",
+        )
 
-        self.assertTrue(migration.rollback_user(self.db_path, migration_id, self.username))
+        rollback = migration.rollback_user(self.db_path, migration_id, self.username)
+        replay = migration.rollback_user(self.db_path, migration_id, self.username)
+        self.assertEqual("rolled_back", rollback["status"])
+        self.assertFalse(rollback["wallet_duplicate"])
+        self.assertTrue(replay["wallet_duplicate"])
         self.assertEqual(PlayerTargetRuntimeStore(self.db_path).get_active_target(self.username), {})
         self.assertEqual(PlayerPositionStore(self.db_path).get_position(self.username), {})
-        self.assertEqual(WalletBalanceStore(self.db_path).get_balance(self.username), 0)
+        self.assertEqual(WalletBalanceStore(self.db_path).get_balance(self.username), 1234)
         with db_connect(self.db_path) as conn:
             row = conn.execute(
                 "SELECT profile_json FROM users WHERE username = ?",
                 (self.username,),
             ).fetchone()
+            recovery_events = conn.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM wallet_balance_events
+                WHERE username = ? AND transaction_key = ?
+                """,
+                (self.username, rollback["wallet_transaction_key"]),
+            ).fetchone()["count"]
         self.assertEqual(json.loads(row["profile_json"])["aimed_target"]["target_id"], "POI-TEST")
+        self.assertEqual(1, recovery_events)
         self.assertEqual(
             migration.get_registry(self.db_path, migration_id, self.username)["status"],
             "rolled_back",

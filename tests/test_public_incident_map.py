@@ -7,6 +7,7 @@ import run
 from database import GameStateDeltaBus
 from response_network.incident_initializer import IncidentInitializer
 from response_network.incident_store import IncidentStore
+from tests.session_generation_fixture import SessionGenerationFixture
 
 
 def make_operation(operation_id="op-public", status="running", incident_id=None):
@@ -49,6 +50,12 @@ def make_operation(operation_id="op-public", status="running", incident_id=None)
 
 
 class PublicIncidentMapTest(unittest.TestCase):
+    def setUp(self):
+        self.session_generation = SessionGenerationFixture(
+            "chaos_public_incident_session_"
+        ).start()
+        self.addCleanup(self.session_generation.stop)
+
     def temp_paths(self):
         db_fd, db_path = tempfile.mkstemp(prefix="chaos_incident_map_", suffix=".sqlite")
         os.close(db_fd)
@@ -74,9 +81,8 @@ class PublicIncidentMapTest(unittest.TestCase):
 
             with patch.object(run, "incident_store", store):
                 client = run.app.test_client()
-                with client.session_transaction() as sess:
-                    sess["user"] = "main"
-                data = client.get("/api/map/incidents").get_json()
+                headers = self.session_generation.authenticate(client, "main")
+                data = client.get("/api/map/incidents", headers=headers).get_json()
 
             self.assertTrue(data["success"])
             self.assertEqual(data["scope"], "incident")

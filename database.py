@@ -11,12 +11,441 @@ import inspect
 import threading
 import time
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timedelta
 
 
 DB_PATH = os.path.join("data", "game.sqlite3")
 USERS_SEED_PATH = os.path.join("static", "users.json")
 _WAL_CONFIGURED = False
+
+
+PROFILE_SCHEMA_VERSION = 1
+PROFILE_VALIDATION_VERSION = 1
+PROFILE_INTEGRITY_VALID = "valid"
+PROFILE_INTEGRITY_RECOVERY_REQUIRED = "recovery_required"
+PROFILE_INTEGRITY_UNINITIALIZED = "uninitialized"
+WALLET_CANONICAL_MIGRATION_ID = "wallet_canonical_v1"
+_PROFILE_PRECOMMIT_GUARD = ContextVar(
+    "chaos_profile_precommit_guard",
+    default=None,
+)
+_REQUEST_TRANSACTION_PRECOMMIT_GUARD = ContextVar(
+    "chaos_request_transaction_precommit_guard",
+    default=None,
+)
+_PROFILE_WRITE_REQUEST_METADATA = ContextVar(
+    "chaos_profile_write_request_metadata",
+    default=None,
+)
+
+
+class ProfileWriteError(RuntimeError):
+    """Base class for controlled profile write failures."""
+
+
+class ProfileWriteConflict(ProfileWriteError):
+    """Raised when a profile writer presents a stale revision."""
+
+
+class ProfileValidationError(ProfileWriteError):
+    """Raised when a candidate cannot be accepted as a complete profile."""
+
+    def __init__(self, errors):
+        self.errors = tuple(str(item) for item in (errors or ()))
+        super().__init__("Invalid profile candidate: " + ", ".join(self.errors))
+
+
+class ProfileRecoveryRequired(ProfileWriteError):
+    """Raised when the current durable profile is not safe to mutate normally."""
+
+
+class ProfileDestructiveWriteRejected(ProfileWriteError):
+    """Raised when a multi-scope destructive write has no reset receipt."""
+
+
+class ProfilePrecommitRejected(ProfileWriteError):
+    """Raised when a durable request/session guard rejects a profile commit."""
+
+
+class WalletWriteError(ValueError):
+    """Base class for controlled canonical-wallet failures."""
+
+
+class WalletNotInitialized(WalletWriteError):
+    """Raised when an account has no canonical wallet row."""
+
+    def __init__(self, message="Canonical wallet is not initialized.", reason="wallet_not_initialized"):
+        self.reason = str(reason or "wallet_not_initialized")
+        super().__init__(message)
+
+
+class WalletInsufficientFunds(WalletWriteError):
+    """Raised when a strict debit would make a wallet negative."""
+
+
+class WalletIdempotencyConflict(WalletWriteError):
+    """Raised when a transaction key is reused for different semantics."""
+
+
+class WalletMutationRejected(WalletWriteError):
+    """Raised for legacy absolute-balance writers outside recovery."""
+
+
+def set_profile_precommit_guard(precommit_guard):
+    if precommit_guard is not None and not callable(precommit_guard):
+        raise TypeError("precommit_guard must be callable or None.")
+    return _PROFILE_PRECOMMIT_GUARD.set(precommit_guard)
+
+
+def reset_profile_precommit_guard(token):
+    _PROFILE_PRECOMMIT_GUARD.reset(token)
+
+
+def get_profile_precommit_guard():
+    return _PROFILE_PRECOMMIT_GUARD.get()
+
+
+def set_request_transaction_precommit_guard(precommit_guard):
+    if precommit_guard is not None and not callable(precommit_guard):
+        raise TypeError("precommit_guard must be callable or None.")
+    return _REQUEST_TRANSACTION_PRECOMMIT_GUARD.set(precommit_guard)
+
+
+def reset_request_transaction_precommit_guard(token):
+    _REQUEST_TRANSACTION_PRECOMMIT_GUARD.reset(token)
+
+
+def get_request_transaction_precommit_guard():
+    return _REQUEST_TRANSACTION_PRECOMMIT_GUARD.get()
+
+
+def _profile_telemetry_digest(value):
+    """Return a bounded one-way correlation value, never the source secret."""
+    value = str(value or "").strip()
+    if not value:
+        return ""
+    return hashlib.sha256(value.encode("utf-8", errors="ignore")).hexdigest()[:16]
+
+
+def set_profile_write_request_metadata(*, session_generation, request_id=""):
+    """Bind safe request correlation metadata for central profile telemetry.
+
+    The ContextVar deliberately contains only bounded SHA-256 digests. Raw
+    generation/request values remain in the request/session layer and cannot
+    leak through profile writer events.
+    """
+    metadata = {
+        "session_generation_hash": _profile_telemetry_digest(
+            session_generation
+        ),
+        "request_id": _profile_telemetry_digest(request_id),
+    }
+    return _PROFILE_WRITE_REQUEST_METADATA.set(metadata)
+
+
+def reset_profile_write_request_metadata(token):
+    _PROFILE_WRITE_REQUEST_METADATA.reset(token)
+
+
+def get_profile_write_request_metadata():
+    metadata = _PROFILE_WRITE_REQUEST_METADATA.get()
+    return dict(metadata) if isinstance(metadata, dict) else {}
+
+
+def _run_request_transaction_precommit_guard(conn):
+    guard = get_request_transaction_precommit_guard()
+    if guard is None:
+        return
+    if not callable(guard):
+        raise TypeError("request transaction precommit guard must be callable.")
+    try:
+        guard(conn=conn)
+    except ProfileWriteError:
+        raise
+    except Exception as exc:
+        raise ProfilePrecommitRejected(
+            "Request transaction precommit guard rejected the commit."
+        ) from exc
+
+
+_PROFILE_SENSITIVE_SNAPSHOT_KEYS = {
+    "password", "salt", "cookie", "cookies", "session", "session_id",
+    "session_token", "token", "access_token", "refresh_token",
+}
+_PROFILE_TRANSIENT_SNAPSHOT_KEYS = {
+    "launch_queue",
+}
+_PROFILE_CANONICAL_MIRROR_SNAPSHOT_KEYS = {
+    "apps", "hackcoins", "storage_capacity", "storage_used", "storage_unit",
+    "storage_upgrades", "googleplex_products", "storage_soft_limit",
+    "storage_over_limit",
+}
+_PROFILE_TERRITORY_SNAPSHOT_KEYS = {
+    "areas", "player_areas", "territory",
+}
+_PROFILE_GEOMETRY_SNAPSHOT_KEYS = {
+    "geometry", "polygon", "polygons", "coordinates",
+}
+_PROFILE_INTERNAL_KEYS = {
+    "_launch_queue_write_mode", "_profile_revision", "_profile_checksum",
+    "_profile_schema_version", "_profile_integrity_status",
+}
+
+
+def _canonical_json(value):
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+        allow_nan=False,
+    )
+
+
+def profile_payload_checksum(profile):
+    return hashlib.sha256(_canonical_json(profile).encode("utf-8")).hexdigest()
+
+
+def _profile_snapshot_value(value, *, top_level=False):
+    if isinstance(value, dict):
+        snapshot = {}
+        for raw_key, item in value.items():
+            key = str(raw_key)
+            lowered = key.lower()
+            if lowered in _PROFILE_SENSITIVE_SNAPSHOT_KEYS:
+                continue
+            if top_level and lowered in _PROFILE_TRANSIENT_SNAPSHOT_KEYS:
+                continue
+            if top_level and lowered in _PROFILE_CANONICAL_MIRROR_SNAPSHOT_KEYS:
+                continue
+            if top_level and lowered in _PROFILE_TERRITORY_SNAPSHOT_KEYS:
+                continue
+            if lowered in _PROFILE_GEOMETRY_SNAPSHOT_KEYS:
+                continue
+            if key in _PROFILE_INTERNAL_KEYS:
+                continue
+            snapshot[key] = _profile_snapshot_value(item)
+            if top_level and lowered == "files" and isinstance(snapshot[key], dict):
+                snapshot[key].pop("tools", None)
+        return snapshot
+    if isinstance(value, list):
+        return [_profile_snapshot_value(item) for item in value]
+    return copy.deepcopy(value)
+
+
+def profile_last_known_good_snapshot(profile):
+    """Return a credential-free profile snapshot without territory geometry."""
+    return _profile_snapshot_value(profile if isinstance(profile, dict) else {}, top_level=True)
+
+
+def _is_profile_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def validate_profile_candidate(profile, expected_username=None):
+    """Validate the minimum durable full-profile contract without using a template."""
+    errors = []
+    if not isinstance(profile, dict):
+        return {
+            "valid": False,
+            "errors": ("profile_not_object",),
+            "schema_version": PROFILE_SCHEMA_VERSION,
+            "validation_version": PROFILE_VALIDATION_VERSION,
+        }
+
+    username = profile.get("username")
+    if not isinstance(username, str) or not username.strip():
+        errors.append("username_missing")
+    elif expected_username is not None and username != expected_username:
+        errors.append("username_mismatch")
+
+    required_types = {
+        "level": lambda value: isinstance(value, int) and not isinstance(value, bool) and value >= 1,
+        "hackcoins": lambda value: _is_profile_number(value) and value >= 0,
+        "respect": lambda value: _is_profile_number(value) and value >= 0,
+        "exp": lambda value: (
+            (isinstance(value, str) and bool(value.strip())) or _is_profile_number(value)
+        ),
+        "inventory": lambda value: isinstance(value, list),
+        "files": lambda value: isinstance(value, dict),
+        "apps": lambda value: isinstance(value, list),
+        "hacked": lambda value: isinstance(value, list),
+        "desktop_settings": lambda value: isinstance(value, dict),
+        "security": lambda value: isinstance(value, dict),
+        "territory_stats": lambda value: isinstance(value, dict),
+    }
+    for key, validator in required_types.items():
+        if key not in profile:
+            errors.append(f"{key}_missing")
+        elif not validator(profile.get(key)):
+            errors.append(f"{key}_invalid")
+
+    files = profile.get("files")
+    if isinstance(files, dict):
+        invalid_file_scopes = sorted(
+            str(key) for key, value in files.items() if not isinstance(value, list)
+        )
+        if invalid_file_scopes:
+            errors.append("files_scope_invalid:" + ",".join(invalid_file_scopes))
+
+    try:
+        _canonical_json(profile)
+    except (TypeError, ValueError):
+        errors.append("profile_not_json_serializable")
+
+    return {
+        "valid": not errors,
+        "errors": tuple(errors),
+        "schema_version": PROFILE_SCHEMA_VERSION,
+        "validation_version": PROFILE_VALIDATION_VERSION,
+    }
+
+
+def _profile_collection_size(profile, keys):
+    total = 0
+    for key in keys:
+        value = (profile or {}).get(key)
+        if isinstance(value, (list, dict)):
+            total += len(value)
+    return total
+
+
+def _profile_files_size(profile):
+    files = (profile or {}).get("files")
+    if not isinstance(files, dict):
+        return 0
+    return sum(len(value) for value in files.values() if isinstance(value, list))
+
+
+def _profile_exp_value(profile):
+    value = (profile or {}).get("exp", 0)
+    if _is_profile_number(value):
+        return float(value)
+    text = str(value or "").strip().replace(" ", "")
+    head = text.split("/", 1)[0]
+    filtered = "".join(char for char in head if char.isdigit() or char in ".,-")
+    try:
+        return float(filtered.replace(",", ".")) if filtered else 0.0
+    except ValueError:
+        return 0.0
+
+
+def assess_profile_destructive_drop(current_profile, candidate_profile):
+    """Detect a reset-shaped loss across independent durable profile scopes."""
+    current_profile = current_profile if isinstance(current_profile, dict) else {}
+    candidate_profile = candidate_profile if isinstance(candidate_profile, dict) else {}
+    dropped_scopes = []
+
+    current_level = int(current_profile.get("level", 1) or 1)
+    candidate_level = int(candidate_profile.get("level", 1) or 1)
+    current_respect = float(current_profile.get("respect", 0) or 0)
+    candidate_respect = float(candidate_profile.get("respect", 0) or 0)
+    if (
+        candidate_level < current_level
+        or candidate_respect < current_respect
+        or _profile_exp_value(candidate_profile) < _profile_exp_value(current_profile)
+    ):
+        dropped_scopes.append("progression")
+
+    current_inventory = _profile_collection_size(current_profile, ("inventory", "apps")) + _profile_files_size(current_profile)
+    candidate_inventory = _profile_collection_size(candidate_profile, ("inventory", "apps")) + _profile_files_size(candidate_profile)
+    if current_inventory >= 3 and candidate_inventory <= max(0, current_inventory // 4):
+        dropped_scopes.append("inventory")
+
+    history_keys = (
+        "operations", "hacked", "targets", "market_history", "product_purchases",
+        "ghostnetwork_reward_history", "risk_events", "system_messages",
+    )
+    current_history = _profile_collection_size(current_profile, history_keys)
+    candidate_history = _profile_collection_size(candidate_profile, history_keys)
+    if current_history >= 3 and candidate_history <= max(0, current_history // 4):
+        dropped_scopes.append("history")
+
+    current_storage = float(current_profile.get("storage_capacity", 0) or 0)
+    candidate_storage = float(candidate_profile.get("storage_capacity", 0) or 0)
+    current_upgrades = _profile_collection_size(current_profile, ("storage_upgrades",))
+    candidate_upgrades = _profile_collection_size(candidate_profile, ("storage_upgrades",))
+    if candidate_storage < current_storage or candidate_upgrades < current_upgrades:
+        dropped_scopes.append("storage")
+
+    identity_fields = ("nick", "email", "clan", "fraction")
+    identity_loss = sum(
+        1 for key in identity_fields
+        if current_profile.get(key) not in (None, "", {}, [])
+        and candidate_profile.get(key) in (None, "", {}, [])
+    )
+    if identity_loss >= 2:
+        dropped_scopes.append("identity")
+
+    starter_like = (
+        candidate_level <= 2
+        and float(candidate_profile.get("hackcoins", 0) or 0) <= 1000
+        and candidate_respect <= 25
+        and _profile_exp_value(candidate_profile) <= 0
+    )
+    destructive = len(dropped_scopes) >= 3 or (starter_like and len(dropped_scopes) >= 2)
+    return {
+        "destructive": destructive,
+        "starter_like": starter_like,
+        "dropped_scopes": tuple(sorted(set(dropped_scopes))),
+    }
+
+
+def _valid_reset_receipt(reset_receipt):
+    if not isinstance(reset_receipt, dict):
+        return False
+    return all(
+        isinstance(reset_receipt.get(key), str) and reset_receipt.get(key).strip()
+        for key in ("receipt_id", "reason", "authorized_by", "created_at")
+    )
+
+
+def _run_profile_precommit_guard(precommit_guard, conn, username, current_revision):
+    context_guard = get_profile_precommit_guard()
+    guards = []
+    for guard in (context_guard, precommit_guard):
+        if guard is None or any(guard is existing for existing in guards):
+            continue
+        if not callable(guard):
+            raise TypeError("precommit_guard must be callable.")
+        guards.append(guard)
+    for guard in guards:
+        try:
+            guard(
+                conn=conn,
+                username=username,
+                current_revision=int(current_revision),
+            )
+        except ProfileWriteError:
+            raise
+        except Exception as exc:
+            raise ProfilePrecommitRejected(
+                "Profile precommit guard rejected the write."
+            ) from exc
+
+
+def _profile_event(event_type, username, source, **fields):
+    metrics_enabled = str(
+        os.environ.get("CHAOS_PROFILE_WRITE_METRICS") or ""
+    ).strip().lower() in {"1", "true", "yes", "on"}
+    if not metrics_enabled and str(event_type) not in {
+        "profile.write_rejected", "profile.recovery_required",
+    }:
+        return
+    payload = {
+        "event": str(event_type),
+        "username_hash": hashlib.sha256(str(username or "").encode("utf-8")).hexdigest()[:16],
+        "source": str(source or "unknown")[:80],
+    }
+    request_metadata = get_profile_write_request_metadata()
+    for field_name in ("session_generation_hash", "request_id"):
+        if not str(fields.get(field_name) or "").strip():
+            fields[field_name] = str(
+                request_metadata.get(field_name) or ""
+            )[:80]
+    payload.update(fields)
+    print("[PROFILE_WRITE] " + dumps_json(payload), flush=True)
 
 
 def db_lock_metrics_enabled():
@@ -34,6 +463,7 @@ class InstrumentedConnection(sqlite3.Connection):
         self._writer_wait_ms = 0
         self._writer_origin = "unknown"
         self._writer_statements = 0
+        self._enforce_request_guard = True
 
     def execute(self, sql, parameters=(), /):
         statement = str(sql or "").lstrip().upper()
@@ -91,16 +521,35 @@ class InstrumentedConnection(sqlite3.Connection):
     def commit(self):
         started = time.perf_counter()
         try:
-            return super().commit()
-        finally:
+            if self.in_transaction and self._enforce_request_guard:
+                _run_request_transaction_precommit_guard(self)
+            result = super().commit()
+        except Exception:
+            try:
+                super().rollback()
+            finally:
+                self._finish_writer_metric("rollback")
+            raise
+        else:
             commit_ms = int(round((time.perf_counter() - started) * 1000))
             self._finish_writer_metric("commit", commit_ms=commit_ms)
+            return result
 
     def rollback(self):
         try:
             return super().rollback()
         finally:
             self._finish_writer_metric("rollback")
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # sqlite3's native context manager does not dispatch through an
+        # overridden commit() on every supported Python build. Keep the same
+        # commit/rollback semantics while enforcing the request guard here too.
+        if exc_type is None:
+            self.commit()
+        else:
+            self.rollback()
+        return False
 
 
 def utc_now():
@@ -140,6 +589,183 @@ def merge_launch_queue_values(latest_queue, incoming_queue):
         seen.add(value)
         merged.append(item)
     return merged
+
+
+def _prepare_full_profile_candidate(profile, current_row=None):
+    candidate = copy.deepcopy(profile if isinstance(profile, dict) else {})
+    launch_queue_write_mode = str(
+        candidate.pop("_launch_queue_write_mode", "") or ""
+    ).strip()
+    for key in _PROFILE_INTERNAL_KEYS:
+        candidate.pop(key, None)
+
+    current_profile = {}
+    if current_row is not None:
+        current_profile, _ = _parse_profile_json_strict(current_row["profile_json"])
+        current_profile = current_profile or {}
+    if current_profile:
+        incoming_password = str(candidate.get("password") or "")
+        if not incoming_password:
+            candidate["password"] = str(
+                current_row["password"]
+                or current_profile.get("password")
+                or ""
+            )
+            candidate["salt"] = str(
+                current_row["salt"]
+                or current_profile.get("salt")
+                or ""
+            )
+        if launch_queue_write_mode == "clear":
+            candidate["launch_queue"] = []
+        elif launch_queue_write_mode == "append":
+            candidate["launch_queue"] = merge_launch_queue_values(
+                current_profile.get("launch_queue", []),
+                candidate.get("launch_queue", []),
+            )
+        else:
+            candidate["launch_queue"] = current_profile.get("launch_queue", [])
+
+        current_ghost_history = current_profile.get("ghostnetwork_reward_history") or []
+        incoming_ghost_history = candidate.get("ghostnetwork_reward_history") or []
+        merged_ghost_history = []
+        seen_ghost_reward_keys = set()
+        for item in list(current_ghost_history) + list(incoming_ghost_history):
+            if not isinstance(item, dict):
+                continue
+            reward_key = str(item.get("reward_key") or "").strip()
+            if not reward_key or reward_key in seen_ghost_reward_keys:
+                continue
+            seen_ghost_reward_keys.add(reward_key)
+            merged_ghost_history.append(dict(item))
+        if merged_ghost_history:
+            candidate["ghostnetwork_reward_history"] = merged_ghost_history
+
+    ensure_password_hash(candidate)
+    return candidate
+
+
+def profile_changed_scopes(current_profile, candidate_profile):
+    scope_keys = {
+        "identity": {"username", "nick", "email", "avatar", "clan", "fraction"},
+        "progression": {"level", "respect", "exp", "territory_stats"},
+        "wallet": {"hackcoins", "market_history"},
+        "inventory": {
+            "inventory", "files", "apps", "googleplex_products",
+            "product_purchases", "storage_upgrades", "storage_capacity",
+            "storage_used",
+        },
+        "history": {
+            "operations", "hacked", "targets", "risk_events", "system_messages",
+            "ghostnetwork_reward_history",
+        },
+        "presentation": {"desktop_settings", "friends", "messages"},
+    }
+    changed_keys = {
+        key for key in set(current_profile or {}) | set(candidate_profile or {})
+        if (current_profile or {}).get(key) != (candidate_profile or {}).get(key)
+    }
+    scopes = {
+        scope for scope, keys in scope_keys.items() if changed_keys.intersection(keys)
+    }
+    if changed_keys.difference(set().union(*scope_keys.values())):
+        scopes.add("other")
+    return tuple(sorted(scopes))
+
+
+def overlay_canonical_profile_scopes_with_conn(conn, username, profile):
+    """Overlay existing canonical wallet/inventory rows without ever seeding them."""
+    username = str(username or "").strip()
+    candidate = copy.deepcopy(profile if isinstance(profile, dict) else {})
+    overlaid_scopes = []
+
+    wallet_row = conn.execute(
+        "SELECT balance FROM wallet_balances WHERE username = ?",
+        (username,),
+    ).fetchone()
+    if wallet_row is not None:
+        candidate["hackcoins"] = int(wallet_row["balance"] or 0)
+        overlaid_scopes.append("wallet")
+
+    inventory_exists = conn.execute(
+        """
+        SELECT 1
+        FROM (
+            SELECT username FROM player_apps WHERE username = ?
+            UNION ALL
+            SELECT username FROM player_tool_files WHERE username = ?
+            UNION ALL
+            SELECT username FROM player_storage WHERE username = ?
+        )
+        LIMIT 1
+        """,
+        (username, username, username),
+    ).fetchone()
+    if inventory_exists is not None:
+        app_rows = conn.execute(
+            """
+            SELECT app_id, app_json, status
+            FROM player_apps
+            WHERE username = ? AND status != 'uninstalled'
+            ORDER BY updated_at, app_id
+            """,
+            (username,),
+        ).fetchall()
+        apps = []
+        for row in app_rows:
+            app = loads_json(row["app_json"], {})
+            if not isinstance(app, dict):
+                continue
+            app.setdefault("id", row["app_id"])
+            app.setdefault("status", row["status"])
+            apps.append(app)
+        candidate["apps"] = apps
+
+        tool_rows = conn.execute(
+            """
+            SELECT tool_id, app_id, tool_json
+            FROM player_tool_files
+            WHERE username = ?
+            ORDER BY updated_at, tool_id
+            """,
+            (username,),
+        ).fetchall()
+        tools = []
+        for row in tool_rows:
+            tool = loads_json(row["tool_json"], {})
+            if not isinstance(tool, dict):
+                tool = {"name": row["tool_id"], "file": row["tool_id"]}
+            tool.setdefault("id", row["tool_id"])
+            tool.setdefault("tool_id", row["tool_id"])
+            tool.setdefault("app_id", row["app_id"])
+            tools.append(tool)
+        files = (
+            copy.deepcopy(candidate.get("files"))
+            if isinstance(candidate.get("files"), dict)
+            else {}
+        )
+        files["tools"] = tools
+        candidate["files"] = files
+
+        storage_row = conn.execute(
+            "SELECT * FROM player_storage WHERE username = ?",
+            (username,),
+        ).fetchone()
+        if storage_row is not None:
+            candidate["storage_capacity"] = int(storage_row["capacity"] or 0)
+            candidate["storage_used"] = int(storage_row["used"] or 0)
+            candidate["storage_unit"] = str(storage_row["unit"] or "MB")
+            modifiers = loads_json(storage_row["modifiers_json"], {})
+            if isinstance(modifiers, dict):
+                for key in (
+                    "storage_upgrades", "googleplex_products",
+                    "storage_soft_limit", "storage_over_limit",
+                ):
+                    if key in modifiers:
+                        candidate[key] = copy.deepcopy(modifiers[key])
+        overlaid_scopes.append("inventory")
+
+    return candidate, tuple(overlaid_scopes)
 
 
 PASSWORD_HASH_PREFIX = "pbkdf2_sha256"
@@ -194,10 +820,11 @@ def ensure_password_hash(profile):
 
 
 @contextmanager
-def db_connect(db_path=DB_PATH):
+def db_connect(db_path=DB_PATH, *, enforce_request_guard=True):
     global _WAL_CONFIGURED
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = sqlite3.connect(db_path, timeout=15, factory=InstrumentedConnection)
+    conn._enforce_request_guard = bool(enforce_request_guard)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout = 15000")
     conn.execute("PRAGMA synchronous = NORMAL")
@@ -217,6 +844,566 @@ def db_connect(db_path=DB_PATH):
         conn.close()
 
 
+def _parse_profile_json_strict(raw_value):
+    try:
+        value = json.loads(raw_value)
+    except (TypeError, json.JSONDecodeError):
+        return None, ("invalid_json",)
+    if not isinstance(value, dict):
+        return None, ("profile_not_object",)
+    return value, ()
+
+
+def _validate_persisted_profile_row(row, username):
+    if row is None:
+        return None, ("profile_not_found",)
+    profile, parse_errors = _parse_profile_json_strict(row["profile_json"])
+    if profile is None:
+        return None, tuple(parse_errors)
+    validation = validate_profile_candidate(profile, username)
+    errors = list(validation["errors"])
+    if str(row["profile_integrity_status"] or "") != PROFILE_INTEGRITY_VALID:
+        errors.append("profile_integrity_status_invalid")
+    stored_checksum = str(row["profile_checksum"] or "")
+    if not stored_checksum or profile_payload_checksum(profile) != stored_checksum:
+        errors.append("profile_checksum_mismatch")
+    return profile, tuple(sorted(set(errors)))
+
+
+def _write_profile_lkg(conn, username, profile, revision, source, created_at=None):
+    snapshot = profile_last_known_good_snapshot(profile)
+    snapshot_json = _canonical_json(snapshot)
+    checksum = hashlib.sha256(snapshot_json.encode("utf-8")).hexdigest()
+    conn.execute(
+        """
+        INSERT INTO profile_last_known_good (
+            username, profile_revision, schema_version, snapshot_json,
+            checksum, source, created_at, validation_version
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(username) DO UPDATE SET
+            profile_revision = excluded.profile_revision,
+            schema_version = excluded.schema_version,
+            snapshot_json = excluded.snapshot_json,
+            checksum = excluded.checksum,
+            source = excluded.source,
+            created_at = excluded.created_at,
+            validation_version = excluded.validation_version
+        """,
+        (
+            username,
+            int(revision),
+            PROFILE_SCHEMA_VERSION,
+            snapshot_json,
+            checksum,
+            str(source or "unknown")[:80],
+            created_at or utc_now(),
+            PROFILE_VALIDATION_VERSION,
+        ),
+    )
+    return checksum
+
+
+def _bootstrap_profile_integrity_rows(conn):
+    rows = conn.execute(
+        """
+        SELECT username, profile_json, profile_revision, profile_checksum,
+               profile_integrity_status
+        FROM users
+        WHERE profile_integrity_status = ?
+           OR (
+                profile_integrity_status = ?
+                AND (profile_revision <= 0 OR profile_checksum = '')
+           )
+        ORDER BY id
+        """,
+        (PROFILE_INTEGRITY_UNINITIALIZED, PROFILE_INTEGRITY_VALID),
+    ).fetchall()
+    for row in rows:
+        profile, parse_errors = _parse_profile_json_strict(row["profile_json"])
+        validation = validate_profile_candidate(profile, row["username"]) if profile is not None else {
+            "valid": False,
+            "errors": parse_errors,
+        }
+        if not validation["valid"]:
+            conn.execute(
+                """
+                UPDATE users
+                SET profile_integrity_status = ?, profile_validation_version = ?
+                WHERE username = ?
+                """,
+                (
+                    PROFILE_INTEGRITY_RECOVERY_REQUIRED,
+                    PROFILE_VALIDATION_VERSION,
+                    row["username"],
+                ),
+            )
+            continue
+
+        revision = max(1, int(row["profile_revision"] or 0))
+        checksum = profile_payload_checksum(profile)
+        conn.execute(
+            """
+            UPDATE users
+            SET profile_revision = ?, profile_schema_version = ?,
+                profile_checksum = ?, profile_integrity_status = ?,
+                profile_validation_version = ?
+            WHERE username = ?
+            """,
+            (
+                revision,
+                PROFILE_SCHEMA_VERSION,
+                checksum,
+                PROFILE_INTEGRITY_VALID,
+                PROFILE_VALIDATION_VERSION,
+                row["username"],
+            ),
+        )
+        existing_lkg = conn.execute(
+            "SELECT 1 FROM profile_last_known_good WHERE username = ?",
+            (row["username"],),
+        ).fetchone()
+        if not existing_lkg:
+            _write_profile_lkg(
+                conn,
+                row["username"],
+                profile,
+                revision,
+                "bootstrap",
+            )
+
+
+def _wallet_int(value, default=0):
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return int(default)
+
+
+def _wallet_record_ledger_with_conn(
+    conn,
+    *,
+    username,
+    event_type,
+    amount_delta,
+    balance_after,
+    source="",
+    source_id="",
+    peer_username="",
+    note="",
+    dedupe_key="",
+    payload_json="{}",
+    created_at=None,
+    ledger_id=None,
+):
+    username = str(username or "").strip()
+    if not username:
+        raise WalletWriteError("Wallet ledger username is required.")
+    event_type = str(event_type or "wallet.balance_changed").strip()
+    source = str(source or "").strip()
+    source_id = str(source_id or "").strip()
+    peer_username = str(peer_username or "").strip()
+    note = str(note or "").strip()[:240]
+    dedupe_key = str(dedupe_key or "").strip()
+    if not dedupe_key:
+        raise WalletWriteError("Wallet ledger dedupe_key is required.")
+    created_at = str(created_at or utc_now()).strip()
+    ledger_id = ledger_id or (
+        "wl_" + hashlib.sha1(
+            f"{username}:{dedupe_key}".encode("utf-8")
+        ).hexdigest()[:18]
+    )
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO wallet_ledger
+            (ledger_id, username, event_type, amount_delta, balance_after,
+             source, source_id, peer_username, note, dedupe_key,
+             payload_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            ledger_id,
+            username,
+            event_type,
+            int(amount_delta),
+            max(0, int(balance_after)),
+            source,
+            source_id,
+            peer_username,
+            note,
+            dedupe_key,
+            payload_json or "{}",
+            created_at,
+        ),
+    )
+    return conn.execute(
+        """
+        SELECT ledger_id, username, event_type, amount_delta, balance_after,
+               source, source_id, peer_username, note, dedupe_key,
+               payload_json, created_at
+        FROM wallet_ledger
+        WHERE username = ? AND dedupe_key = ?
+        """,
+        (username, dedupe_key),
+    ).fetchone()
+
+
+def _wallet_record_balance_event_with_conn(
+    conn,
+    *,
+    username,
+    transaction_key,
+    amount_delta,
+    balance,
+    version,
+    reason,
+    created_at,
+):
+    transaction_key = str(transaction_key or "").strip()
+    if not transaction_key:
+        raise WalletWriteError("Wallet transaction_key is required.")
+    event_id = "wbe_" + hashlib.sha1(
+        f"{username}:{transaction_key}".encode("utf-8")
+    ).hexdigest()[:18]
+    conn.execute(
+        """
+        INSERT INTO wallet_balance_events
+            (event_id, username, transaction_key, amount_delta, balance,
+             version, reason, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            event_id,
+            username,
+            transaction_key,
+            int(amount_delta),
+            max(0, int(balance)),
+            max(0, int(version)),
+            str(reason or "").strip(),
+            str(created_at or utc_now()),
+        ),
+    )
+    return event_id
+
+
+def _wallet_record_migration_with_conn(
+    conn,
+    username,
+    source_checksum,
+    balance,
+    completed_at,
+):
+    result_checksum = hashlib.sha256(
+        _canonical_json({"balance": int(balance)}).encode("utf-8")
+    ).hexdigest()
+    conn.execute(
+        """
+        INSERT INTO profile_store_migrations
+            (migration_id, username, status, source_checksum,
+             result_checksum, started_at, completed_at, error_json,
+             backup_json, tool_version)
+        VALUES (?, ?, 'applied', ?, ?, ?, ?, NULL, NULL, ?)
+        ON CONFLICT(migration_id, username) DO UPDATE SET
+            status = 'applied',
+            source_checksum = excluded.source_checksum,
+            result_checksum = excluded.result_checksum,
+            completed_at = excluded.completed_at,
+            error_json = NULL,
+            tool_version = excluded.tool_version
+        """,
+        (
+            WALLET_CANONICAL_MIGRATION_ID,
+            username,
+            str(source_checksum or ""),
+            result_checksum,
+            completed_at,
+            completed_at,
+            "database.wallet_canonical.v1",
+        ),
+    )
+
+
+def _wallet_record_migration_blocked_with_conn(
+    conn,
+    username,
+    source_checksum,
+    reason,
+    details,
+    created_at=None,
+):
+    now = str(created_at or utc_now())
+    conn.execute(
+        """
+        INSERT INTO profile_store_migrations
+            (migration_id, username, status, source_checksum,
+             result_checksum, started_at, completed_at, error_json,
+             backup_json, tool_version)
+        VALUES (?, ?, 'blocked', ?, NULL, ?, NULL, ?, NULL, ?)
+        ON CONFLICT(migration_id, username) DO UPDATE SET
+            status = 'blocked',
+            source_checksum = excluded.source_checksum,
+            result_checksum = NULL,
+            completed_at = NULL,
+            error_json = excluded.error_json,
+            tool_version = excluded.tool_version
+        """,
+        (
+            WALLET_CANONICAL_MIGRATION_ID,
+            username,
+            str(source_checksum or ""),
+            now,
+            dumps_json({
+                "reason": str(reason or "wallet_evidence_conflict"),
+                "details": details if isinstance(details, dict) else {},
+            }),
+            "database.wallet_canonical.v1",
+        ),
+    )
+
+
+def _wallet_seed_with_conn(
+    conn,
+    username,
+    balance,
+    *,
+    source_checksum,
+    source,
+    reset_existing=False,
+    created_at=None,
+    initial_version=1,
+):
+    username = str(username or "").strip()
+    if not username:
+        raise WalletWriteError("Wallet username is required.")
+    balance = max(0, _wallet_int(balance))
+    now = str(created_at or utc_now())
+    if reset_existing:
+        conn.execute(
+            "DELETE FROM wallet_balance_events WHERE username = ?",
+            (username,),
+        )
+        conn.execute("DELETE FROM wallet_ledger WHERE username = ?", (username,))
+        conn.execute("DELETE FROM wallet_balances WHERE username = ?", (username,))
+        conn.execute(
+            "DELETE FROM wallet_transactions "
+            "WHERE from_username = ? OR to_username = ?",
+            (username, username),
+        )
+
+    existing = conn.execute(
+        "SELECT balance, version FROM wallet_balances WHERE username = ?",
+        (username,),
+    ).fetchone()
+    if existing is None:
+        canonical_balance = balance
+        version = max(1, _wallet_int(initial_version, 1))
+        conn.execute(
+            """
+            INSERT INTO wallet_balances(username, balance, version, updated_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (username, canonical_balance, version, now),
+        )
+    else:
+        canonical_balance = max(0, int(existing["balance"] or 0))
+        version = max(1, int(existing["version"] or 0))
+
+    event_stats = conn.execute(
+        """
+        SELECT COUNT(*) AS event_count,
+               COALESCE(SUM(amount_delta), 0) AS event_total
+        FROM wallet_balance_events WHERE username = ?
+        """,
+        (username,),
+    ).fetchone()
+    event_count = int(event_stats["event_count"] or 0)
+    event_total = int(event_stats["event_total"] or 0)
+    event_reconcile_delta = canonical_balance - event_total
+    if event_reconcile_delta != 0:
+        event_kind = "seed" if event_count == 0 else "reconcile"
+        event_key = f"wallet.bootstrap.v1:{username}:{event_kind}"
+        _wallet_record_balance_event_with_conn(
+            conn,
+            username=username,
+            transaction_key=event_key,
+            amount_delta=event_reconcile_delta,
+            balance=canonical_balance,
+            version=version,
+            reason=(
+                str(source or "wallet.bootstrap")
+                if event_count == 0
+                else "wallet.bootstrap.reconcile"
+            ),
+            created_at=now,
+        )
+    ledger_stats = conn.execute(
+        """
+        SELECT COUNT(*) AS event_count,
+               COALESCE(SUM(amount_delta), 0) AS event_total
+        FROM wallet_ledger WHERE username = ?
+        """,
+        (username,),
+    ).fetchone()
+    ledger_count = int(ledger_stats["event_count"] or 0)
+    ledger_total = int(ledger_stats["event_total"] or 0)
+    ledger_reconcile_delta = canonical_balance - ledger_total
+    if ledger_reconcile_delta != 0:
+        ledger_kind = "seed" if ledger_count == 0 else "reconcile"
+        _wallet_record_ledger_with_conn(
+            conn,
+            username=username,
+            event_type=(
+                "wallet.seed" if ledger_count == 0 else "wallet.reconcile"
+            ),
+            amount_delta=ledger_reconcile_delta,
+            balance_after=canonical_balance,
+            source=str(source or "wallet.bootstrap"),
+            source_id=WALLET_CANONICAL_MIGRATION_ID,
+            dedupe_key=f"wallet:ledger:{username}:bootstrap:v1:{ledger_kind}",
+            note="Canonical wallet bootstrap reconciliation.",
+            payload_json=dumps_json({
+                "profile_checksum": str(source_checksum or ""),
+                "previous_ledger_total": ledger_total,
+            }),
+            created_at=now,
+        )
+    _wallet_record_migration_with_conn(
+        conn,
+        username,
+        source_checksum,
+        canonical_balance,
+        now,
+    )
+    return {
+        "username": username,
+        "balance": canonical_balance,
+        "version": version,
+    }
+
+
+def _wallet_bootstrap_user_with_conn(conn, row):
+    username = str(row["username"] or "").strip()
+    profile, errors = _validate_persisted_profile_row(row, username)
+    if errors or profile is None:
+        return {"status": "skipped", "reason": "profile_not_valid"}
+
+    balance_row = conn.execute(
+        "SELECT balance, version FROM wallet_balances WHERE username = ?",
+        (username,),
+    ).fetchone()
+    ledger_stats = conn.execute(
+        """
+        SELECT COUNT(*) AS event_count,
+               COALESCE(SUM(amount_delta), 0) AS event_total
+        FROM wallet_ledger WHERE username = ?
+        """,
+        (username,),
+    ).fetchone()
+    event_stats = conn.execute(
+        """
+        SELECT COUNT(*) AS event_count,
+               COALESCE(SUM(amount_delta), 0) AS event_total,
+               COALESCE(MAX(version), 0) AS max_version
+        FROM wallet_balance_events WHERE username = ?
+        """,
+        (username,),
+    ).fetchone()
+    ledger_count = int(ledger_stats["event_count"] or 0)
+    ledger_total = int(ledger_stats["event_total"] or 0)
+    event_count = int(event_stats["event_count"] or 0)
+    event_total = int(event_stats["event_total"] or 0)
+    event_version = int(event_stats["max_version"] or 0)
+    details = {
+        "balance_present": balance_row is not None,
+        "balance": (
+            int(balance_row["balance"] or 0) if balance_row is not None else None
+        ),
+        "ledger_count": ledger_count,
+        "ledger_total": ledger_total,
+        "balance_event_count": event_count,
+        "balance_event_total": event_total,
+        "profile_balance": _wallet_int(profile.get("hackcoins", 0)),
+    }
+
+    if balance_row is not None:
+        canonical_balance = int(balance_row["balance"] or 0)
+        evidence_conflict = (
+            canonical_balance < 0
+            or (ledger_count > 0 and ledger_total != canonical_balance)
+            or (event_count > 0 and event_total != canonical_balance)
+        )
+        initial_version = max(1, int(balance_row["version"] or 0))
+    elif ledger_count or event_count:
+        evidence_conflict = (
+            ledger_count == 0
+            or event_count == 0
+            or ledger_total != event_total
+            or ledger_total < 0
+        )
+        canonical_balance = ledger_total if not evidence_conflict else 0
+        initial_version = max(1, event_version)
+    else:
+        evidence_conflict = False
+        canonical_balance = max(0, _wallet_int(profile.get("hackcoins", 0)))
+        initial_version = 1
+
+    if evidence_conflict:
+        _wallet_record_migration_blocked_with_conn(
+            conn,
+            username,
+            row["profile_checksum"],
+            "wallet_canonical_evidence_conflict",
+            details,
+        )
+        return {
+            "status": "blocked",
+            "reason": "wallet_canonical_evidence_conflict",
+            "details": details,
+        }
+
+    result = _wallet_seed_with_conn(
+        conn,
+        username,
+        canonical_balance,
+        source_checksum=row["profile_checksum"],
+        source="wallet.bootstrap",
+        initial_version=initial_version,
+    )
+    return {"status": "applied", **result}
+
+
+def _wallet_register_with_conn(conn, username, profile, profile_checksum, created_at=None):
+    balance = _wallet_int((profile or {}).get("hackcoins", 0))
+    return _wallet_seed_with_conn(
+        conn,
+        username,
+        balance,
+        source_checksum=profile_checksum,
+        source="wallet.registration",
+        reset_existing=True,
+        created_at=created_at,
+    )
+
+
+def _bootstrap_wallet_canonical_rows(conn):
+    """One-way idempotent profile-to-wallet migration; never a read fallback."""
+    rows = conn.execute(
+        """
+        SELECT u.username, u.profile_json, u.profile_revision,
+               u.profile_checksum, u.profile_integrity_status
+        FROM users AS u
+        LEFT JOIN profile_store_migrations AS migration
+          ON migration.migration_id = ?
+         AND migration.username = u.username
+         AND migration.status = 'applied'
+        WHERE migration.username IS NULL
+        ORDER BY u.id
+        """,
+        (WALLET_CANONICAL_MIGRATION_ID,),
+    ).fetchall()
+    for row in rows:
+        _wallet_bootstrap_user_with_conn(conn, row)
+
+
 def init_db(db_path=DB_PATH):
     with db_connect(db_path) as conn:
         conn.execute(
@@ -232,6 +1419,53 @@ def init_db(db_path=DB_PATH):
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS deleted_user_tombstones (
+                username TEXT PRIMARY KEY,
+                deleted_at TEXT NOT NULL,
+                reason TEXT NOT NULL DEFAULT 'account_deleted',
+                profile_revision INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+        user_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(users)").fetchall()
+        }
+        user_integrity_columns = {
+            "profile_revision": "INTEGER NOT NULL DEFAULT 0",
+            "profile_schema_version": "INTEGER NOT NULL DEFAULT 0",
+            "profile_checksum": "TEXT NOT NULL DEFAULT ''",
+            "profile_integrity_status": "TEXT NOT NULL DEFAULT 'uninitialized'",
+            "profile_validation_version": "INTEGER NOT NULL DEFAULT 0",
+        }
+        for column_name, column_sql in user_integrity_columns.items():
+            if column_name not in user_columns:
+                conn.execute(
+                    f"ALTER TABLE users ADD COLUMN {column_name} {column_sql}"
+                )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS profile_last_known_good (
+                username TEXT PRIMARY KEY,
+                profile_revision INTEGER NOT NULL,
+                schema_version INTEGER NOT NULL,
+                snapshot_json TEXT NOT NULL,
+                checksum TEXT NOT NULL,
+                source TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                validation_version INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_profile_lkg_revision
+            ON profile_last_known_good(profile_revision, created_at)
+            """
+        )
+        _bootstrap_profile_integrity_rows(conn)
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS kv_store (
@@ -381,11 +1615,23 @@ def init_db(db_path=DB_PATH):
                 from_username TEXT NOT NULL,
                 to_username TEXT NOT NULL,
                 amount INTEGER NOT NULL,
+                transaction_key TEXT NOT NULL DEFAULT '',
                 note TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
             )
             """
         )
+        wallet_transaction_columns = {
+            row["name"]
+            for row in conn.execute(
+                "PRAGMA table_info(wallet_transactions)"
+            ).fetchall()
+        }
+        if "transaction_key" not in wallet_transaction_columns:
+            conn.execute(
+                "ALTER TABLE wallet_transactions "
+                "ADD COLUMN transaction_key TEXT NOT NULL DEFAULT ''"
+            )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS player_hack_access (
@@ -1167,6 +2413,13 @@ def init_db(db_path=DB_PATH):
             "CREATE INDEX IF NOT EXISTS idx_wallet_transactions_users ON wallet_transactions(from_username, to_username, created_at)"
         )
         conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_transactions_key
+            ON wallet_transactions(transaction_key)
+            WHERE transaction_key != ''
+            """
+        )
+        conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_player_hack_access_pair ON player_hack_access(attacker_username, victim_username, hacked_until, cooldown_until)"
         )
         conn.execute(
@@ -1256,11 +2509,23 @@ def init_db(db_path=DB_PATH):
                 transaction_key TEXT NOT NULL DEFAULT '',
                 amount_delta INTEGER NOT NULL DEFAULT 0,
                 balance INTEGER NOT NULL DEFAULT 0,
+                version INTEGER NOT NULL DEFAULT 0,
                 reason TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
             )
             """
         )
+        wallet_balance_event_columns = {
+            row["name"]
+            for row in conn.execute(
+                "PRAGMA table_info(wallet_balance_events)"
+            ).fetchall()
+        }
+        if "version" not in wallet_balance_event_columns:
+            conn.execute(
+                "ALTER TABLE wallet_balance_events "
+                "ADD COLUMN version INTEGER NOT NULL DEFAULT 0"
+            )
         conn.execute(
             """
             CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_balance_events_key
@@ -1325,6 +2590,82 @@ def init_db(db_path=DB_PATH):
             ON profile_store_migrations(migration_id, status)
             """
         )
+        _bootstrap_wallet_canonical_rows(conn)
+
+
+_IDENTITY_ORPHAN_COLUMNS = {
+    # Canonical economy/inventory rows must never be inherited by a newly
+    # registered account which happens to reuse an old login.
+    "wallet_balances": ("username",),
+    "wallet_balance_events": ("username",),
+    "wallet_ledger": ("username", "peer_username"),
+    "wallet_transactions": ("from_username", "to_username"),
+    "player_apps": ("username",),
+    "player_tool_files": ("username",),
+    "player_storage": ("username",),
+    # Durable gameplay ownership and runtime projections.
+    "captured_targets": ("owner_username",),
+    "player_areas": ("owner_username",),
+    "territory_area_publications": ("owner_username",),
+    "player_target_runtime": ("username",),
+    "player_target_events": ("username",),
+    "player_positions": ("username",),
+    "player_operations": ("username",),
+    "system_messages": ("username",),
+    "game_state_deltas": ("username",),
+    # GhostNetwork history is deliberately retained across account deletion;
+    # its presence therefore blocks identity reuse instead of being cleaned.
+    "ghost_part_reservations": ("player_id",),
+    "ghost_part_events": ("player_id",),
+    "ghost_capture_effects": ("player_id",),
+    "ghost_contributions": ("player_id",),
+    "ghost_reward_ledger": ("player_id",),
+    "ghost_achievements": ("player_id",),
+}
+
+
+def _identity_reuse_block_reason_with_conn(conn, username, *, include_user=True):
+    username = str(username or "").strip()
+    if not username:
+        return "username_missing"
+    if include_user and conn.execute(
+        "SELECT 1 FROM users WHERE username = ?",
+        (username,),
+    ).fetchone():
+        return "identity_exists"
+    if conn.execute(
+        "SELECT 1 FROM deleted_user_tombstones WHERE username = ?",
+        (username,),
+    ).fetchone():
+        return "identity_tombstoned"
+
+    existing_tables = {
+        row["name"]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ).fetchall()
+    }
+    for table_name, candidate_columns in _IDENTITY_ORPHAN_COLUMNS.items():
+        if table_name not in existing_tables:
+            continue
+        available_columns = {
+            row["name"]
+            for row in conn.execute(
+                f'PRAGMA table_info("{table_name}")'
+            ).fetchall()
+        }
+        columns = [
+            column for column in candidate_columns if column in available_columns
+        ]
+        if not columns:
+            continue
+        where = " OR ".join(f'"{column}" = ?' for column in columns)
+        if conn.execute(
+            f'SELECT 1 FROM "{table_name}" WHERE {where} LIMIT 1',
+            tuple(username for _column in columns),
+        ).fetchone():
+            return f"canonical_orphan:{table_name}"
+    return ""
 
 
 class UserStore:
@@ -1348,6 +2689,8 @@ class UserStore:
                 username = profile.get("username")
                 if not username:
                     continue
+                if _identity_reuse_block_reason_with_conn(conn, username):
+                    continue
                 ensure_password_hash(profile)
                 conn.execute(
                     """
@@ -1364,6 +2707,36 @@ class UserStore:
                         now,
                     ),
                 )
+            _bootstrap_profile_integrity_rows(conn)
+            _bootstrap_wallet_canonical_rows(conn)
+
+    def _record_recovery_required(self, username, revision, source, errors):
+        with db_connect(self.db_path) as conn:
+            conn.execute(
+                """
+                UPDATE users
+                SET profile_integrity_status = ?, profile_validation_version = ?
+                WHERE username = ? AND profile_revision = ?
+                """,
+                (
+                    PROFILE_INTEGRITY_RECOVERY_REQUIRED,
+                    PROFILE_VALIDATION_VERSION,
+                    username,
+                    int(revision or 0),
+                ),
+            )
+        _profile_event(
+            "profile.recovery_required",
+            username,
+            source,
+            old_revision=int(revision or 0),
+            candidate_revision=None,
+            changed_scopes=[],
+            decision="rejected",
+            reason_code=":".join(str(item) for item in (errors or ())),
+            session_generation_hash="",
+            request_id="",
+        )
 
     def list_profiles(self):
         with db_connect(self.db_path) as conn:
@@ -1418,14 +2791,555 @@ class UserStore:
         return usernames
 
     def get_profile(self, username):
+        record = self.get_profile_with_revision(username)
+        if not record:
+            return None
+        if record["state"] != "valid":
+            _profile_event(
+                "profile.recovery_required",
+                username,
+                "get_profile",
+                old_revision=record["profile_revision"],
+                candidate_revision=None,
+                changed_scopes=[],
+                decision="rejected",
+                reason_code=":".join(record["errors"] or ("integrity_guard",)),
+                session_generation_hash="",
+                request_id="",
+            )
+            raise ProfileRecoveryRequired(
+                f"User '{username}' requires profile recovery."
+            )
+        return record["profile"]
+
+    def get_profile_with_revision(self, username):
+        """Return the durable profile and the CAS metadata read with it."""
+        username = str(username or "").strip()
+        if not username:
+            return None
         with db_connect(self.db_path) as conn:
             row = conn.execute(
-                "SELECT profile_json FROM users WHERE username = ?",
+                """
+                SELECT profile_json, profile_revision, profile_schema_version,
+                       profile_checksum, profile_integrity_status,
+                       profile_validation_version, updated_at
+                FROM users
+                WHERE username = ?
+                """,
                 (username,),
             ).fetchone()
-            if not row:
-                return None
-            return loads_json(row["profile_json"], {})
+        if not row:
+            return None
+        profile, parse_errors = _parse_profile_json_strict(row["profile_json"])
+        validation = (
+            validate_profile_candidate(profile, username)
+            if profile is not None
+            else {"valid": False, "errors": parse_errors}
+        )
+        stored_checksum = str(row["profile_checksum"] or "")
+        checksum_valid = bool(profile is not None and stored_checksum) and (
+            profile_payload_checksum(profile) == stored_checksum
+        )
+        errors = list(validation.get("errors") or parse_errors)
+        integrity_status = str(row["profile_integrity_status"] or "")
+        if "invalid_json" in parse_errors:
+            state = "invalid_json"
+        elif profile is None or errors:
+            state = "invalid_schema"
+        elif integrity_status != PROFILE_INTEGRITY_VALID or not checksum_valid:
+            state = "recovery_required"
+        else:
+            state = "valid"
+        if integrity_status != PROFILE_INTEGRITY_VALID:
+            errors.append("profile_integrity_status_invalid")
+        if not checksum_valid:
+            errors.append("profile_checksum_mismatch")
+        return {
+            "state": state,
+            "profile": copy.deepcopy(profile) if profile is not None else None,
+            "profile_revision": int(row["profile_revision"] or 0),
+            "schema_version": int(row["profile_schema_version"] or 0),
+            "checksum": stored_checksum,
+            "checksum_valid": checksum_valid,
+            "integrity_status": integrity_status,
+            "validation_version": int(row["profile_validation_version"] or 0),
+            "updated_at": row["updated_at"],
+            "errors": tuple(sorted(set(errors))),
+        }
+
+    def get_last_known_good(self, username):
+        username = str(username or "").strip()
+        if not username:
+            return None
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT username, profile_revision, schema_version, snapshot_json,
+                       checksum, source, created_at, validation_version
+                FROM profile_last_known_good
+                WHERE username = ?
+                """,
+                (username,),
+            ).fetchone()
+        if not row:
+            return None
+        snapshot, parse_errors = _parse_profile_json_strict(row["snapshot_json"])
+        computed_checksum = ""
+        if snapshot is not None:
+            computed_checksum = hashlib.sha256(
+                _canonical_json(snapshot).encode("utf-8")
+            ).hexdigest()
+        stored_checksum = str(row["checksum"] or "")
+        return {
+            "username": row["username"],
+            "profile_revision": int(row["profile_revision"]),
+            "schema_version": int(row["schema_version"]),
+            "snapshot": copy.deepcopy(snapshot) if snapshot is not None else None,
+            "checksum": stored_checksum,
+            "checksum_valid": bool(stored_checksum) and stored_checksum == computed_checksum,
+            "source": row["source"],
+            "created_at": row["created_at"],
+            "validation_version": int(row["validation_version"]),
+            "errors": tuple(parse_errors),
+        }
+
+    def patch_profile_guarded(
+        self,
+        username,
+        updates,
+        source,
+        expected_revision=None,
+        precommit_guard=None,
+        reset_receipt=None,
+        request_id="",
+        session_generation_hash="",
+    ):
+        """Apply a top-level semantic patch to the latest profile atomically."""
+        username = str(username or "").strip()
+        source = str(source or "").strip()
+        if not username:
+            raise ProfileValidationError(("username_missing",))
+        if not source:
+            raise ValueError("A guarded profile patch requires source.")
+        if not isinstance(updates, dict):
+            raise TypeError("updates must be a top-level mapping.")
+        if expected_revision is not None and (
+            isinstance(expected_revision, bool) or not isinstance(expected_revision, int)
+        ):
+            raise ValueError("expected_revision must be an integer or None.")
+        forbidden_keys = {
+            "username", "password", "salt",
+        }.union(_PROFILE_INTERNAL_KEYS)
+        rejected_keys = sorted(str(key) for key in set(updates).intersection(forbidden_keys))
+        if rejected_keys:
+            raise ProfileValidationError(
+                tuple(f"protected_patch_key:{key}" for key in rejected_keys)
+            )
+
+        telemetry = {
+            "old_revision": None,
+            "candidate_revision": None,
+            "changed_scopes": [],
+            "decision": "attempt",
+            "reason_code": "",
+            "request_id": str(request_id or "")[:80],
+            "session_generation_hash": str(session_generation_hash or "")[:80],
+        }
+        _profile_event("profile.write_attempt", username, source, **telemetry)
+        recovery_errors = ()
+        try:
+            with db_connect(self.db_path) as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                row = conn.execute(
+                    """
+                    SELECT username, password, salt, profile_json,
+                           profile_revision, profile_checksum,
+                           profile_integrity_status
+                    FROM users WHERE username = ?
+                    """,
+                    (username,),
+                ).fetchone()
+                if row is None:
+                    raise ProfileWriteConflict("Profile does not exist.")
+                current_revision = int(row["profile_revision"] or 0)
+                telemetry["old_revision"] = current_revision
+                if expected_revision is not None and expected_revision != current_revision:
+                    raise ProfileWriteConflict(
+                        f"Expected profile revision {expected_revision}, current is {current_revision}."
+                    )
+                current_profile, recovery_errors = _validate_persisted_profile_row(
+                    row, username
+                )
+                if recovery_errors:
+                    raise ProfileRecoveryRequired(
+                        "Current profile requires recovery: "
+                        + ",".join(recovery_errors)
+                    )
+
+                candidate = copy.deepcopy(current_profile)
+                for key, value in updates.items():
+                    candidate[str(key)] = copy.deepcopy(value)
+                candidate, canonical_overlays = overlay_canonical_profile_scopes_with_conn(
+                    conn, username, candidate
+                )
+                validation = validate_profile_candidate(candidate, username)
+                if not validation["valid"]:
+                    raise ProfileValidationError(validation["errors"])
+                changed_scopes = profile_changed_scopes(current_profile, candidate)
+                telemetry["changed_scopes"] = list(changed_scopes)
+                destructive = assess_profile_destructive_drop(current_profile, candidate)
+                reset_authorized_source = source.startswith(("admin.", "recovery."))
+                if destructive["destructive"] and not (
+                    reset_authorized_source and _valid_reset_receipt(reset_receipt)
+                ):
+                    raise ProfileDestructiveWriteRejected(
+                        "Destructive profile patch requires an explicit reset receipt; "
+                        "scopes=" + ",".join(destructive["dropped_scopes"])
+                    )
+
+                now = utc_now()
+                revision = current_revision + 1
+                checksum = profile_payload_checksum(candidate)
+                _run_profile_precommit_guard(
+                    precommit_guard, conn, username, current_revision
+                )
+                updated = conn.execute(
+                    """
+                    UPDATE users
+                    SET password = ?, salt = ?, profile_json = ?, updated_at = ?,
+                        profile_revision = ?, profile_schema_version = ?,
+                        profile_checksum = ?, profile_integrity_status = ?,
+                        profile_validation_version = ?
+                    WHERE username = ? AND profile_revision = ?
+                    """,
+                    (
+                        candidate.get("password", ""),
+                        candidate.get("salt", ""),
+                        dumps_json(candidate),
+                        now,
+                        revision,
+                        PROFILE_SCHEMA_VERSION,
+                        checksum,
+                        PROFILE_INTEGRITY_VALID,
+                        PROFILE_VALIDATION_VERSION,
+                        username,
+                        current_revision,
+                    ),
+                )
+                if updated.rowcount != 1:
+                    raise ProfileWriteConflict(
+                        "Profile revision changed before the guarded patch committed."
+                    )
+                _write_profile_lkg(
+                    conn,
+                    username,
+                    current_profile,
+                    current_revision,
+                    f"prewrite:{source}",
+                    now,
+                )
+                telemetry.update({
+                    "candidate_revision": revision,
+                    "decision": "applied",
+                    "reason_code": (
+                        "reset_receipt" if destructive["destructive"] else "validated_patch"
+                    ),
+                })
+
+            _profile_event("profile.write_applied", username, source, **telemetry)
+            _profile_event("profile.lkg_created", username, source, **telemetry)
+            return {
+                "applied": True,
+                "profile": copy.deepcopy(candidate),
+                "profile_revision": revision,
+                "schema_version": PROFILE_SCHEMA_VERSION,
+                "checksum": checksum,
+                "integrity_status": PROFILE_INTEGRITY_VALID,
+                "changed_scopes": tuple(telemetry["changed_scopes"]),
+                "canonical_overlays": tuple(canonical_overlays),
+            }
+        except ProfileWriteError as exc:
+            telemetry.update({
+                "decision": "rejected",
+                "reason_code": exc.__class__.__name__,
+            })
+            _profile_event("profile.write_rejected", username, source, **telemetry)
+            if isinstance(exc, ProfileRecoveryRequired):
+                self._record_recovery_required(
+                    username,
+                    telemetry.get("old_revision"),
+                    source,
+                    recovery_errors or ("profile_recovery_required",),
+                )
+            raise
+
+    def save_profile_guarded(
+        self,
+        profile,
+        *,
+        expected_revision,
+        source,
+        allow_create=False,
+        reset_receipt=None,
+        request_id="",
+        session_generation_hash="",
+        precommit_guard=None,
+    ):
+        """Atomically validate and save a complete profile under revision CAS."""
+        candidate_input = copy.deepcopy(profile if isinstance(profile, dict) else {})
+        username = str(candidate_input.get("username") or "").strip()
+        source = str(source or "").strip()
+        if not source:
+            raise ValueError("A guarded profile write requires source.")
+        if not username:
+            raise ProfileValidationError(("username_missing",))
+        if isinstance(expected_revision, bool) or not isinstance(expected_revision, int):
+            raise ValueError("expected_revision must be an integer.")
+
+        telemetry = {
+            "old_revision": None,
+            "candidate_revision": None,
+            "changed_scopes": [],
+            "decision": "attempt",
+            "reason_code": "",
+            "request_id": str(request_id or "")[:80],
+            "session_generation_hash": str(session_generation_hash or "")[:80],
+        }
+        _profile_event("profile.write_attempt", username, source, **telemetry)
+
+        try:
+            canonical_overlays = ()
+            with db_connect(self.db_path) as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                current_row = conn.execute(
+                    """
+                    SELECT username, password, salt, profile_json,
+                           profile_revision, profile_schema_version,
+                           profile_checksum, profile_integrity_status
+                    FROM users
+                    WHERE username = ?
+                    """,
+                    (username,),
+                ).fetchone()
+
+                if current_row is None:
+                    if not allow_create or expected_revision != 0:
+                        raise ProfileWriteConflict(
+                            "Profile does not exist; guarded creation requires "
+                            "allow_create=True and expected_revision=0."
+                        )
+                    reuse_block = _identity_reuse_block_reason_with_conn(
+                        conn,
+                        username,
+                        include_user=False,
+                    )
+                    if reuse_block:
+                        raise ProfileWriteConflict(
+                            "Identity cannot be reused: " + reuse_block
+                        )
+                    # Registration never inherits orphan canonical rows from a
+                    # previously deleted account with the same login. Canonical
+                    # stores are seeded by their explicit registration/migration
+                    # path after the identity row has been created.
+                    candidate = _prepare_full_profile_candidate(candidate_input)
+                    validation = validate_profile_candidate(candidate, username)
+                    if not validation["valid"]:
+                        raise ProfileValidationError(validation["errors"])
+                    now = utc_now()
+                    revision = 1
+                    checksum = profile_payload_checksum(candidate)
+                    _run_profile_precommit_guard(
+                        precommit_guard, conn, username, 0
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO users (
+                            username, password, salt, profile_json, created_at, updated_at,
+                            profile_revision, profile_schema_version, profile_checksum,
+                            profile_integrity_status, profile_validation_version
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            username,
+                            candidate.get("password", ""),
+                            candidate.get("salt", ""),
+                            dumps_json(candidate),
+                            now,
+                            now,
+                            revision,
+                            PROFILE_SCHEMA_VERSION,
+                            checksum,
+                            PROFILE_INTEGRITY_VALID,
+                            PROFILE_VALIDATION_VERSION,
+                        ),
+                    )
+                    _write_profile_lkg(
+                        conn, username, candidate, revision, f"create:{source}", now
+                    )
+                    _wallet_register_with_conn(
+                        conn, username, candidate, checksum, created_at=now
+                    )
+                    telemetry.update({
+                        "old_revision": 0,
+                        "candidate_revision": revision,
+                        "changed_scopes": list(profile_changed_scopes({}, candidate)),
+                        "decision": "applied",
+                        "reason_code": "created",
+                    })
+                else:
+                    current_revision = int(current_row["profile_revision"] or 0)
+                    telemetry["old_revision"] = current_revision
+                    if expected_revision != current_revision:
+                        raise ProfileWriteConflict(
+                            f"Expected profile revision {expected_revision}, current is {current_revision}."
+                        )
+                    if current_row["profile_integrity_status"] != PROFILE_INTEGRITY_VALID:
+                        raise ProfileRecoveryRequired(
+                            "Current profile is not marked valid; normal writes are disabled."
+                        )
+                    current_profile, parse_errors = _parse_profile_json_strict(
+                        current_row["profile_json"]
+                    )
+                    current_validation = (
+                        validate_profile_candidate(current_profile, username)
+                        if current_profile is not None
+                        else {"valid": False, "errors": parse_errors}
+                    )
+                    if not current_validation["valid"]:
+                        raise ProfileRecoveryRequired(
+                            "Current profile failed validation: "
+                            + ", ".join(current_validation["errors"])
+                        )
+                    actual_checksum = profile_payload_checksum(current_profile)
+                    if actual_checksum != str(current_row["profile_checksum"] or ""):
+                        raise ProfileRecoveryRequired(
+                            "Current profile checksum does not match its metadata."
+                        )
+
+                    candidate = _prepare_full_profile_candidate(
+                        candidate_input, current_row=current_row
+                    )
+                    candidate, canonical_overlays = overlay_canonical_profile_scopes_with_conn(
+                        conn, username, candidate
+                    )
+                    validation = validate_profile_candidate(candidate, username)
+                    if not validation["valid"]:
+                        raise ProfileValidationError(validation["errors"])
+                    changed_scopes = profile_changed_scopes(current_profile, candidate)
+                    telemetry["changed_scopes"] = list(changed_scopes)
+                    destructive = assess_profile_destructive_drop(
+                        current_profile, candidate
+                    )
+                    reset_authorized_source = source.startswith(("admin.", "recovery."))
+                    if destructive["destructive"] and not (
+                        reset_authorized_source and _valid_reset_receipt(reset_receipt)
+                    ):
+                        raise ProfileDestructiveWriteRejected(
+                            "Destructive profile drop requires an explicit reset receipt; "
+                            "scopes=" + ",".join(destructive["dropped_scopes"])
+                        )
+
+                    now = utc_now()
+                    revision = current_revision + 1
+                    checksum = profile_payload_checksum(candidate)
+                    _run_profile_precommit_guard(
+                        precommit_guard, conn, username, current_revision
+                    )
+                    _write_profile_lkg(
+                        conn,
+                        username,
+                        current_profile,
+                        current_revision,
+                        f"prewrite:{source}",
+                        now,
+                    )
+                    updated = conn.execute(
+                        """
+                        UPDATE users
+                        SET password = ?, salt = ?, profile_json = ?, updated_at = ?,
+                            profile_revision = ?, profile_schema_version = ?,
+                            profile_checksum = ?, profile_integrity_status = ?,
+                            profile_validation_version = ?
+                        WHERE username = ? AND profile_revision = ?
+                        """,
+                        (
+                            candidate.get("password", ""),
+                            candidate.get("salt", ""),
+                            dumps_json(candidate),
+                            now,
+                            revision,
+                            PROFILE_SCHEMA_VERSION,
+                            checksum,
+                            PROFILE_INTEGRITY_VALID,
+                            PROFILE_VALIDATION_VERSION,
+                            username,
+                            expected_revision,
+                        ),
+                    )
+                    if updated.rowcount != 1:
+                        raise ProfileWriteConflict(
+                            "Profile revision changed before the guarded write committed."
+                        )
+                    telemetry.update({
+                        "candidate_revision": revision,
+                        "decision": "applied",
+                        "reason_code": (
+                            "reset_receipt" if destructive["destructive"] else "validated"
+                        ),
+                    })
+
+            _profile_event("profile.write_applied", username, source, **telemetry)
+            _profile_event(
+                "profile.lkg_created",
+                username,
+                source,
+                old_revision=telemetry["old_revision"],
+                candidate_revision=telemetry["candidate_revision"],
+                changed_scopes=telemetry["changed_scopes"],
+                decision="applied",
+                reason_code=telemetry["reason_code"],
+                request_id=telemetry["request_id"],
+                session_generation_hash=telemetry["session_generation_hash"],
+            )
+            return {
+                "applied": True,
+                "profile": copy.deepcopy(candidate),
+                "profile_revision": int(telemetry["candidate_revision"]),
+                "schema_version": PROFILE_SCHEMA_VERSION,
+                "checksum": checksum,
+                "integrity_status": PROFILE_INTEGRITY_VALID,
+                "changed_scopes": tuple(telemetry["changed_scopes"]),
+                "canonical_overlays": tuple(canonical_overlays),
+            }
+        except ProfileWriteError as exc:
+            telemetry.update({
+                "decision": "rejected",
+                "reason_code": exc.__class__.__name__,
+            })
+            _profile_event("profile.write_rejected", username, source, **telemetry)
+            if isinstance(exc, ProfileRecoveryRequired):
+                try:
+                    with db_connect(self.db_path) as recovery_conn:
+                        recovery_conn.execute(
+                            """
+                            UPDATE users
+                            SET profile_integrity_status = ?,
+                                profile_validation_version = ?
+                            WHERE username = ? AND profile_revision = ?
+                            """,
+                            (
+                                PROFILE_INTEGRITY_RECOVERY_REQUIRED,
+                                PROFILE_VALIDATION_VERSION,
+                                username,
+                                telemetry.get("old_revision"),
+                            ),
+                        )
+                except sqlite3.Error:
+                    # The original controlled failure remains authoritative;
+                    # observability must not hide it behind a metadata retry.
+                    pass
+                _profile_event("profile.recovery_required", username, source, **telemetry)
+            raise
 
     def list_profile_identities(self):
         """Return only identity fields needed by territory publication."""
@@ -1447,76 +3361,127 @@ class UserStore:
         return [(row["username"], dict(row)) for row in rows]
 
     def save_profile(self, profile):
-        profile = dict(profile or {})
+        profile = copy.deepcopy(profile if isinstance(profile, dict) else {})
         username = profile.get("username")
         if not username:
             raise ValueError("Profile must contain username.")
 
-        launch_queue_write_mode = str(profile.pop("_launch_queue_write_mode", "") or "").strip()
+        source = "legacy.save_profile"
+        _profile_event(
+            "profile.write_attempt",
+            username,
+            source,
+            old_revision=None,
+            candidate_revision=None,
+            changed_scopes=[],
+            decision="legacy_unversioned",
+            reason_code="expected_revision_missing",
+            session_generation_hash="",
+            request_id="",
+        )
         now = utc_now()
         with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
             current_row = conn.execute(
-                "SELECT password, salt, profile_json FROM users WHERE username = ?",
+                """
+                SELECT password, salt, profile_json, profile_revision,
+                       profile_integrity_status
+                FROM users
+                WHERE username = ?
+                """,
                 (username,),
             ).fetchone()
-            current_profile = loads_json(current_row["profile_json"], {}) if current_row else {}
-            if current_profile:
-                # Read-only/API snapshots deliberately omit credentials. Saving such
-                # a snapshot must not turn the omission into an empty password.
-                incoming_password = str(profile.get("password") or "")
-                if not incoming_password:
-                    profile["password"] = str(
-                        current_row["password"]
-                        or current_profile.get("password")
-                        or ""
-                    )
-                    profile["salt"] = str(
-                        current_row["salt"]
-                        or current_profile.get("salt")
-                        or ""
-                    )
-                if launch_queue_write_mode == "clear":
-                    profile["launch_queue"] = []
-                elif launch_queue_write_mode == "append":
-                    profile["launch_queue"] = merge_launch_queue_values(
-                        current_profile.get("launch_queue", []),
-                        profile.get("launch_queue", []),
-                    )
-                else:
-                    # launch_queue is a transient app-launch bus. A slow full-profile
-                    # write must not resurrect apps that /launch-queue already consumed.
-                    profile["launch_queue"] = current_profile.get("launch_queue", [])
+            if current_row is not None:
+                current_revision = int(current_row["profile_revision"] or 0)
+                _profile_event(
+                    "profile.write_rejected",
+                    username,
+                    source,
+                    old_revision=current_revision,
+                    candidate_revision=None,
+                    changed_scopes=[],
+                    decision="rejected",
+                    reason_code="expected_revision_required",
+                    session_generation_hash="",
+                    request_id="",
+                )
+                raise ProfileWriteConflict(
+                    "Legacy save_profile cannot update an existing profile; "
+                    "use save_profile_guarded with the revision read alongside the profile."
+                )
+            reuse_block = _identity_reuse_block_reason_with_conn(
+                conn,
+                username,
+                include_user=False,
+            )
+            if reuse_block:
+                raise ProfileWriteConflict(
+                    "Identity cannot be reused: " + reuse_block
+                )
+            current_profile, _ = (
+                _parse_profile_json_strict(current_row["profile_json"])
+                if current_row else ({}, ())
+            )
+            current_profile = current_profile or {}
+            old_revision = int(current_row["profile_revision"] or 0) if current_row else 0
+            profile = _prepare_full_profile_candidate(profile, current_row=current_row)
+            validation = validate_profile_candidate(profile, username)
+            if not validation["valid"]:
+                _profile_event(
+                    "profile.write_rejected",
+                    username,
+                    source,
+                    old_revision=0,
+                    candidate_revision=None,
+                    changed_scopes=[],
+                    decision="rejected",
+                    reason_code="candidate_invalid:" + ",".join(validation["errors"]),
+                    session_generation_hash="",
+                    request_id="",
+                )
+                raise ProfileValidationError(validation["errors"])
+            next_revision = old_revision + 1
+            checksum = profile_payload_checksum(profile)
+            integrity_status = PROFILE_INTEGRITY_VALID
+            schema_version = PROFILE_SCHEMA_VERSION
 
-                # GhostNetwork reward history is an exactly-once projection of
-                # the durable reward ledger. A slow full-profile writer must
-                # not erase entries committed by another request stage.
-                current_ghost_history = current_profile.get("ghostnetwork_reward_history") or []
-                incoming_ghost_history = profile.get("ghostnetwork_reward_history") or []
-                merged_ghost_history = []
-                seen_ghost_reward_keys = set()
-                for item in list(current_ghost_history) + list(incoming_ghost_history):
-                    if not isinstance(item, dict):
-                        continue
-                    reward_key = str(item.get("reward_key") or "").strip()
-                    if not reward_key or reward_key in seen_ghost_reward_keys:
-                        continue
-                    seen_ghost_reward_keys.add(reward_key)
-                    merged_ghost_history.append(dict(item))
-                if merged_ghost_history:
-                    profile["ghostnetwork_reward_history"] = merged_ghost_history
-
-            ensure_password_hash(profile)
+            current_validation = validate_profile_candidate(current_profile, username)
+            if current_row and current_validation["valid"]:
+                _write_profile_lkg(
+                    conn,
+                    username,
+                    current_profile,
+                    old_revision,
+                    "prewrite:legacy.save_profile",
+                    now,
+                )
+            elif not current_row:
+                _write_profile_lkg(
+                    conn,
+                    username,
+                    profile,
+                    next_revision,
+                    "create:legacy.save_profile",
+                    now,
+                )
 
             conn.execute(
                 """
                 INSERT INTO users
-                    (username, password, salt, profile_json, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                    (username, password, salt, profile_json, created_at, updated_at,
+                     profile_revision, profile_schema_version, profile_checksum,
+                     profile_integrity_status, profile_validation_version)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(username) DO UPDATE SET
                     password = excluded.password,
                     salt = excluded.salt,
                     profile_json = excluded.profile_json,
-                    updated_at = excluded.updated_at
+                    updated_at = excluded.updated_at,
+                    profile_revision = excluded.profile_revision,
+                    profile_schema_version = excluded.profile_schema_version,
+                    profile_checksum = excluded.profile_checksum,
+                    profile_integrity_status = excluded.profile_integrity_status,
+                    profile_validation_version = excluded.profile_validation_version
                 """,
                 (
                     username,
@@ -1525,8 +3490,42 @@ class UserStore:
                     dumps_json(profile),
                     now,
                     now,
+                    next_revision,
+                    schema_version,
+                    checksum,
+                    integrity_status,
+                    PROFILE_VALIDATION_VERSION,
                 ),
             )
+            if current_row is None:
+                _wallet_register_with_conn(
+                    conn,
+                    username,
+                    profile,
+                    checksum,
+                    created_at=now,
+                )
+        changed_scopes = profile_changed_scopes(current_profile, profile)
+        _profile_event(
+            "profile.write_applied",
+            username,
+            source,
+            old_revision=old_revision,
+            candidate_revision=next_revision,
+            changed_scopes=list(changed_scopes),
+            decision="legacy_unversioned",
+            reason_code=(
+                "validated_without_cas"
+            ),
+            session_generation_hash="",
+            request_id="",
+        )
+        return {
+            "applied": True,
+            "profile_revision": next_revision,
+            "integrity_status": integrity_status,
+            "legacy_unversioned": True,
+        }
 
     def consume_launch_queue(self, username):
         username = str(username or "").strip()
@@ -1538,61 +3537,124 @@ class UserStore:
         # queue may actually need to be consumed.
         with db_connect(self.db_path) as conn:
             row = conn.execute(
-                "SELECT profile_json FROM users WHERE username = ?",
-                (username,),
-            ).fetchone()
-            if not row:
-                return None
-            if not merge_launch_queue_values(
-                [], loads_json(row["profile_json"], {}).get("launch_queue", [])
-            ):
-                return []
-
-        with db_connect(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            row = conn.execute(
-                "SELECT profile_json FROM users WHERE username = ?",
-                (username,),
-            ).fetchone()
-            if not row:
-                return None
-
-            profile = loads_json(row["profile_json"], {})
-            launch_list = merge_launch_queue_values([], profile.get("launch_queue", []))
-            if not launch_list:
-                return []
-
-            profile["launch_queue"] = []
-            ensure_password_hash(profile)
-            now = utc_now()
-            conn.execute(
                 """
-                UPDATE users
-                SET password = ?, salt = ?, profile_json = ?, updated_at = ?
-                WHERE username = ?
+                SELECT profile_json, profile_revision, profile_checksum,
+                       profile_integrity_status
+                FROM users WHERE username = ?
                 """,
-                (
-                    profile.get("password", ""),
-                    profile.get("salt", ""),
-                    dumps_json(profile),
-                    now,
-                    username,
-                ),
+                (username,),
+            ).fetchone()
+            if not row:
+                return None
+            profile, errors = _validate_persisted_profile_row(row, username)
+            observed_revision = int(row["profile_revision"] or 0)
+        if errors:
+            self._record_recovery_required(
+                username, observed_revision, "consume_launch_queue", errors
             )
-            return launch_list
+            raise ProfileRecoveryRequired(
+                "Launch queue profile requires recovery: " + ",".join(errors)
+            )
+        if not merge_launch_queue_values([], profile.get("launch_queue", [])):
+            return []
+
+        try:
+            with db_connect(self.db_path) as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                row = conn.execute(
+                    """
+                    SELECT profile_json, profile_revision, profile_checksum,
+                           profile_integrity_status
+                    FROM users WHERE username = ?
+                    """,
+                    (username,),
+                ).fetchone()
+                if not row:
+                    return None
+
+                profile, errors = _validate_persisted_profile_row(row, username)
+                old_revision = int(row["profile_revision"] or 0)
+                if errors:
+                    raise ProfileRecoveryRequired(
+                        "Launch queue profile requires recovery: " + ",".join(errors)
+                    )
+                launch_list = merge_launch_queue_values(
+                    [], profile.get("launch_queue", [])
+                )
+                if not launch_list:
+                    return []
+
+                original_profile = copy.deepcopy(profile)
+                profile["launch_queue"] = []
+                ensure_password_hash(profile)
+                validation = validate_profile_candidate(profile, username)
+                if not validation["valid"]:
+                    raise ProfileRecoveryRequired(
+                        "Launch queue candidate requires recovery: "
+                        + ",".join(validation["errors"])
+                    )
+                now = utc_now()
+                updated = conn.execute(
+                    """
+                    UPDATE users
+                    SET password = ?, salt = ?, profile_json = ?, updated_at = ?,
+                        profile_revision = ?, profile_schema_version = ?,
+                        profile_checksum = ?, profile_integrity_status = ?,
+                        profile_validation_version = ?
+                    WHERE username = ? AND profile_revision = ?
+                    """,
+                    (
+                        profile.get("password", ""),
+                        profile.get("salt", ""),
+                        dumps_json(profile),
+                        now,
+                        old_revision + 1,
+                        PROFILE_SCHEMA_VERSION,
+                        profile_payload_checksum(profile),
+                        PROFILE_INTEGRITY_VALID,
+                        PROFILE_VALIDATION_VERSION,
+                        username,
+                        old_revision,
+                    ),
+                )
+                if updated.rowcount != 1:
+                    raise ProfileWriteConflict(
+                        "Launch queue profile revision changed before commit."
+                    )
+                _write_profile_lkg(
+                    conn,
+                    username,
+                    original_profile,
+                    old_revision,
+                    "prewrite:consume_launch_queue",
+                    now,
+                )
+                return launch_list
+        except ProfileRecoveryRequired:
+            self._record_recovery_required(
+                username, old_revision, "consume_launch_queue", errors
+            )
+            raise
 
     def username_exists(self, username):
         with db_connect(self.db_path) as conn:
-            row = conn.execute(
-                "SELECT 1 FROM users WHERE username = ?",
-                (username,),
-            ).fetchone()
-            return row is not None
+            return bool(
+                _identity_reuse_block_reason_with_conn(conn, username)
+            )
+
+    def identity_reuse_block_reason(self, username):
+        with db_connect(self.db_path) as conn:
+            return _identity_reuse_block_reason_with_conn(conn, username)
 
     def authenticate(self, username, password):
+        recovery = None
         with db_connect(self.db_path) as conn:
             row = conn.execute(
-                "SELECT password, profile_json FROM users WHERE username = ?",
+                """
+                SELECT password, profile_json, profile_revision,
+                       profile_integrity_status, profile_checksum
+                FROM users WHERE username = ?
+                """,
                 (username,),
             ).fetchone()
             if not row:
@@ -1600,34 +3662,93 @@ class UserStore:
             stored_password = row["password"] or ""
             if not verify_password(password, stored_password):
                 return False
-            if not is_password_hash(stored_password):
-                profile = loads_json(row["profile_json"], {})
+            old_revision = int(row["profile_revision"] or 0)
+            old_profile, errors = _validate_persisted_profile_row(row, username)
+            if errors:
+                recovery = (old_revision, errors)
+            elif not is_password_hash(stored_password):
+                profile = copy.deepcopy(old_profile)
                 profile["password"] = str(password or "")
                 ensure_password_hash(profile)
-                conn.execute(
-                    """
-                    UPDATE users
-                    SET password = ?, salt = ?, profile_json = ?, updated_at = ?
-                    WHERE username = ?
-                    """,
-                    (
-                        profile.get("password", ""),
-                        profile.get("salt", ""),
-                        dumps_json(profile),
-                        utc_now(),
+                validation = validate_profile_candidate(profile, username)
+                if not validation["valid"]:
+                    recovery = (old_revision, validation["errors"])
+                if recovery is None:
+                    now = utc_now()
+                    updated = conn.execute(
+                        """
+                        UPDATE users
+                        SET password = ?, salt = ?, profile_json = ?, updated_at = ?,
+                            profile_revision = ?, profile_schema_version = ?,
+                            profile_checksum = ?, profile_integrity_status = ?,
+                            profile_validation_version = ?
+                        WHERE username = ? AND profile_revision = ?
+                        """,
+                        (
+                            profile.get("password", ""),
+                            profile.get("salt", ""),
+                            dumps_json(profile),
+                            now,
+                            old_revision + 1,
+                            PROFILE_SCHEMA_VERSION,
+                            profile_payload_checksum(profile),
+                            PROFILE_INTEGRITY_VALID,
+                            PROFILE_VALIDATION_VERSION,
+                            username,
+                            old_revision,
+                        ),
+                    )
+                    if updated.rowcount != 1:
+                        raise ProfileWriteConflict(
+                            "Password upgrade profile revision changed before commit."
+                        )
+                    _write_profile_lkg(
+                        conn,
                         username,
-                    ),
-                )
-            return True
+                        old_profile,
+                        old_revision,
+                        "prewrite:authenticate_password_upgrade",
+                        now,
+                    )
+        if recovery is not None:
+            revision, errors = recovery
+            self._record_recovery_required(
+                username, revision, "authenticate", errors
+            )
+            raise ProfileRecoveryRequired(
+                "Authenticated profile requires recovery: " + ",".join(errors)
+            )
+        return True
 
-    def delete_user(self, username):
+    def delete_user(self, username, reason="account_deleted"):
         with db_connect(self.db_path) as conn:
             row = conn.execute(
-                "SELECT 1 FROM users WHERE username = ?",
+                "SELECT profile_revision FROM users WHERE username = ?",
                 (username,),
             ).fetchone()
             if not row:
                 return False
+
+            conn.execute(
+                """
+                INSERT INTO deleted_user_tombstones (
+                    username, deleted_at, reason, profile_revision
+                ) VALUES (?, ?, ?, ?)
+                ON CONFLICT(username) DO UPDATE SET
+                    deleted_at = excluded.deleted_at,
+                    reason = excluded.reason,
+                    profile_revision = MAX(
+                        deleted_user_tombstones.profile_revision,
+                        excluded.profile_revision
+                    )
+                """,
+                (
+                    username,
+                    utc_now(),
+                    str(reason or "account_deleted"),
+                    int(row["profile_revision"] or 0),
+                ),
+            )
 
             conn.execute(
                 "DELETE FROM chat_messages WHERE owner_username = ? OR peer_name = ?",
@@ -1642,6 +3763,7 @@ class UserStore:
             conn.execute("DELETE FROM area_events WHERE owner_username = ? OR actor_username = ?", (username, username))
             conn.execute("DELETE FROM player_areas WHERE owner_username = ?", (username,))
             conn.execute("DELETE FROM captured_targets WHERE owner_username = ?", (username,))
+            conn.execute("DELETE FROM profile_last_known_good WHERE username = ?", (username,))
             conn.execute(
                 "DELETE FROM reported_vulnerabilities WHERE reported_by_username = ? OR territory_owner_username = ?",
                 (username, username),
@@ -3523,13 +5645,33 @@ class TerritoryProgressionReceiptStore:
                 return {"ok": False, "reason": "receipt_not_pending"}
             with db_connect(self.db_path) as conn:
                 user_row = conn.execute(
-                    "SELECT profile_json FROM users WHERE username = ?",
+                    """
+                    SELECT profile_json, profile_revision, profile_checksum,
+                           profile_integrity_status
+                    FROM users WHERE username = ?
+                    """,
                     (receipt["actor_username"],),
                 ).fetchone()
             if not user_row:
                 return {"ok": False, "reason": "profile_not_found"}
             original_profile_json = user_row["profile_json"]
-            profile = loads_json(user_row["profile_json"], {})
+            original_profile, parse_errors = _parse_profile_json_strict(
+                original_profile_json
+            )
+            original_validation = (
+                validate_profile_candidate(original_profile, receipt["actor_username"])
+                if original_profile is not None
+                else {"valid": False, "errors": parse_errors}
+            )
+            if (
+                user_row["profile_integrity_status"] != PROFILE_INTEGRITY_VALID
+                or not original_validation["valid"]
+                or profile_payload_checksum(original_profile)
+                != str(user_row["profile_checksum"] or "")
+            ):
+                return {"ok": False, "reason": "profile_recovery_required"}
+            original_revision = int(user_row["profile_revision"] or 0)
+            profile = copy.deepcopy(original_profile)
             profile["respect"] = int(profile.get("respect", 0) or 0) + int(
                 (progression or {}).get("respect_gain") or 0
             )
@@ -3542,7 +5684,6 @@ class TerritoryProgressionReceiptStore:
                 profile.setdefault("system_messages", []).extend(
                     copy.deepcopy(system_messages)
                 )
-            profile_json = dumps_json(profile)
             result_json = dumps_json(progression or {})
             now = utc_now()
             with db_connect(self.db_path) as conn:
@@ -3557,12 +5698,50 @@ class TerritoryProgressionReceiptStore:
                     return {"ok": True, "duplicate": True, "result": loads_json(current["result_json"], {})}
                 if current["status"] != self.STATUS_PENDING:
                     return {"ok": False, "reason": "receipt_not_pending"}
+                profile, canonical_overlays = overlay_canonical_profile_scopes_with_conn(
+                    conn, receipt["actor_username"], profile
+                )
+                validation = validate_profile_candidate(
+                    profile, receipt["actor_username"]
+                )
+                if not validation["valid"]:
+                    return {"ok": False, "reason": "profile_recovery_required"}
+                profile_json = dumps_json(profile)
+                profile_checksum = profile_payload_checksum(profile)
+                _run_profile_precommit_guard(
+                    None, conn, receipt["actor_username"], original_revision
+                )
                 updated = conn.execute(
-                    "UPDATE users SET profile_json = ?, updated_at = ? WHERE username = ? AND profile_json = ?",
-                    (profile_json, now, receipt["actor_username"], original_profile_json),
+                    """
+                    UPDATE users
+                    SET profile_json = ?, updated_at = ?, profile_revision = ?,
+                        profile_schema_version = ?, profile_checksum = ?,
+                        profile_integrity_status = ?, profile_validation_version = ?
+                    WHERE username = ? AND profile_revision = ? AND profile_json = ?
+                    """,
+                    (
+                        profile_json,
+                        now,
+                        original_revision + 1,
+                        PROFILE_SCHEMA_VERSION,
+                        profile_checksum,
+                        PROFILE_INTEGRITY_VALID,
+                        PROFILE_VALIDATION_VERSION,
+                        receipt["actor_username"],
+                        original_revision,
+                        original_profile_json,
+                    ),
                 )
                 if updated.rowcount != 1:
                     continue
+                _write_profile_lkg(
+                    conn,
+                    receipt["actor_username"],
+                    original_profile,
+                    original_revision,
+                    "prewrite:territory_progression.settle",
+                    now,
+                )
                 applied = conn.execute(
                 """
                 UPDATE territory_progression_receipts
@@ -3577,6 +5756,8 @@ class TerritoryProgressionReceiptStore:
                 "ok": True, "duplicate": False,
                 "result": copy.deepcopy(progression or {}),
                 "profile": profile,
+                "profile_revision": original_revision + 1,
+                "canonical_overlays": tuple(canonical_overlays),
             }
         return {"ok": False, "reason": "profile_changed"}
 
@@ -3603,14 +5784,34 @@ class TerritoryProgressionReceiptStore:
                 return {"ok": False, "reason": "receipt_not_pending"}
             with db_connect(self.db_path) as conn:
                 user_row = conn.execute(
-                    "SELECT profile_json FROM users WHERE username = ?",
+                    """
+                    SELECT profile_json, profile_revision, profile_checksum,
+                           profile_integrity_status
+                    FROM users WHERE username = ?
+                    """,
                     (receipt["actor_username"],),
                 ).fetchone()
             if not user_row:
                 return {"ok": False, "reason": "profile_not_found"}
 
             original_profile_json = user_row["profile_json"]
-            profile = loads_json(user_row["profile_json"], {})
+            original_profile, parse_errors = _parse_profile_json_strict(
+                original_profile_json
+            )
+            original_validation = (
+                validate_profile_candidate(original_profile, receipt["actor_username"])
+                if original_profile is not None
+                else {"valid": False, "errors": parse_errors}
+            )
+            if (
+                user_row["profile_integrity_status"] != PROFILE_INTEGRITY_VALID
+                or not original_validation["valid"]
+                or profile_payload_checksum(original_profile)
+                != str(user_row["profile_checksum"] or "")
+            ):
+                return {"ok": False, "reason": "profile_recovery_required"}
+            original_revision = int(user_row["profile_revision"] or 0)
+            profile = copy.deepcopy(original_profile)
             level_before = max(1, int(profile.get("level", 1) or 1))
             transferred_pillars = max(
                 0, int(encirclement.get("transferred_pillar_count") or 0)
@@ -3664,7 +5865,6 @@ class TerritoryProgressionReceiptStore:
                 profile.setdefault("system_messages", []).extend(
                     copy.deepcopy(system_messages)
                 )
-            profile_json = dumps_json(profile)
             result_json = dumps_json(result)
             now = utc_now()
             with db_connect(self.db_path) as conn:
@@ -3679,12 +5879,50 @@ class TerritoryProgressionReceiptStore:
                     return {"ok": True, "duplicate": True, "result": loads_json(current["result_json"], {})}
                 if current["status"] != self.STATUS_PENDING:
                     return {"ok": False, "reason": "receipt_not_pending"}
+                profile, canonical_overlays = overlay_canonical_profile_scopes_with_conn(
+                    conn, receipt["actor_username"], profile
+                )
+                validation = validate_profile_candidate(
+                    profile, receipt["actor_username"]
+                )
+                if not validation["valid"]:
+                    return {"ok": False, "reason": "profile_recovery_required"}
+                profile_json = dumps_json(profile)
+                profile_checksum = profile_payload_checksum(profile)
+                _run_profile_precommit_guard(
+                    None, conn, receipt["actor_username"], original_revision
+                )
                 updated = conn.execute(
-                    "UPDATE users SET profile_json = ?, updated_at = ? WHERE username = ? AND profile_json = ?",
-                    (profile_json, now, receipt["actor_username"], original_profile_json),
+                    """
+                    UPDATE users
+                    SET profile_json = ?, updated_at = ?, profile_revision = ?,
+                        profile_schema_version = ?, profile_checksum = ?,
+                        profile_integrity_status = ?, profile_validation_version = ?
+                    WHERE username = ? AND profile_revision = ? AND profile_json = ?
+                    """,
+                    (
+                        profile_json,
+                        now,
+                        original_revision + 1,
+                        PROFILE_SCHEMA_VERSION,
+                        profile_checksum,
+                        PROFILE_INTEGRITY_VALID,
+                        PROFILE_VALIDATION_VERSION,
+                        receipt["actor_username"],
+                        original_revision,
+                        original_profile_json,
+                    ),
                 )
                 if updated.rowcount != 1:
                     continue
+                _write_profile_lkg(
+                    conn,
+                    receipt["actor_username"],
+                    original_profile,
+                    original_revision,
+                    "prewrite:territory_progression.settle_strategic",
+                    now,
+                )
                 applied = conn.execute(
                 """
                 UPDATE territory_progression_receipts
@@ -3699,6 +5937,8 @@ class TerritoryProgressionReceiptStore:
                 "ok": True, "duplicate": False,
                 "result": copy.deepcopy(result),
                 "profile": profile,
+                "profile_revision": original_revision + 1,
+                "canonical_overlays": tuple(canonical_overlays),
             }
         return {"ok": False, "reason": "profile_changed"}
 
@@ -6103,27 +8343,23 @@ class WalletStore:
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
         init_db(self.db_path)
-
-    @staticmethod
-    def _profile_balance(profile):
-        try:
-            return int(profile.get("hackcoins", 0) or 0)
-        except (TypeError, ValueError):
-            return 0
+        self.balance_store = WalletBalanceStore(self.db_path)
+        self.ledger_store = WalletLedgerStore(self.db_path)
 
     def get_wallet(self, username, limit=20):
+        username = str(username or "").strip()
         with db_connect(self.db_path) as conn:
             user_row = conn.execute(
-                "SELECT profile_json FROM users WHERE username = ?",
+                "SELECT 1 FROM users WHERE username = ?",
                 (username,),
             ).fetchone()
             if not user_row:
                 raise ValueError("Nie ma takiego uzytkownika.")
 
-            profile = loads_json(user_row["profile_json"], {})
             rows = conn.execute(
                 """
-                SELECT id, from_username, to_username, amount, note, created_at
+                SELECT id, from_username, to_username, amount,
+                       transaction_key, note, created_at
                 FROM wallet_transactions
                 WHERE from_username = ? OR to_username = ?
                 ORDER BY id DESC
@@ -6132,166 +8368,90 @@ class WalletStore:
                 (username, username, int(limit)),
             ).fetchall()
 
-            transactions = []
-            for row in rows:
-                outgoing = row["from_username"] == username
-                transactions.append({
-                    "id": row["id"],
-                    "type": "outgoing" if outgoing else "incoming",
-                    "peer": row["to_username"] if outgoing else row["from_username"],
-                    "amount": int(row["amount"]),
-                    "created_at": row["created_at"],
-                    "note": row["note"] or "",
-                })
+        transactions = []
+        for row in rows:
+            outgoing = row["from_username"] == username
+            transactions.append({
+                "id": row["id"],
+                "type": "outgoing" if outgoing else "incoming",
+                "peer": row["to_username"] if outgoing else row["from_username"],
+                "amount": int(row["amount"]),
+                "created_at": row["created_at"],
+                "note": row["note"] or "",
+                "transaction_key": row["transaction_key"] or "",
+            })
 
-            balance = WalletBalanceStore(self.db_path).get_balance(username, fallback_profile=profile)
-            ledger_store = WalletLedgerStore(self.db_path)
-            ledger = ledger_store.list_events(username, limit=limit)
-            return {
-                "balance": balance,
-                "currency": "HC",
-                "transactions": transactions,
-                "ledger": ledger,
-                "ledger_audit": ledger_store.audit_balance(username, balance),
-            }
+        balance = self.balance_store.get_balance(username)
+        ledger = self.ledger_store.list_events(username, limit=limit)
+        return {
+            "balance": balance,
+            "currency": "HC",
+            "transactions": transactions,
+            "ledger": ledger,
+            "ledger_audit": self.ledger_store.audit_balance(username, balance),
+        }
 
-    def transfer(self, from_username, to_username, amount, note=""):
-        try:
-            amount = int(amount)
-        except (TypeError, ValueError):
-            raise ValueError("Kwota musi byc liczba calkowita HC.")
+    def transfer(
+        self,
+        from_username,
+        to_username,
+        amount,
+        note="",
+        transaction_key="",
+    ):
+        result = self.balance_store.transfer(
+            from_username,
+            to_username,
+            amount,
+            transaction_key=transaction_key,
+            note=note,
+            debit_up_to=False,
+            source="wallet.transfer",
+        )
+        transaction = result.get("transaction") or {}
+        return {
+            "balance": result["source_balance"],
+            "recipient_balance": result["target_balance"],
+            "currency": "HC",
+            "duplicate": bool(result.get("duplicate")),
+            "transaction": {
+                "id": transaction.get("id"),
+                "type": "outgoing",
+                "peer": str(to_username or "").strip(),
+                "amount": result["amount"],
+                "created_at": transaction.get("created_at", ""),
+                "note": transaction.get("note", ""),
+                "transaction_key": transaction.get("transaction_key", ""),
+            },
+        }
 
-        to_username = str(to_username or "").strip()
-        note = str(note or "").strip()[:240]
-        if amount <= 0:
-            raise ValueError("Kwota musi byc dodatnia.")
-        if not to_username:
-            raise ValueError("Brak odbiorcy.")
-        if from_username == to_username:
-            raise ValueError("Nie mozna przelac HC samemu sobie.")
-
-        now = utc_now()
-        with db_connect(self.db_path) as conn:
-            sender_row = conn.execute(
-                "SELECT profile_json FROM users WHERE username = ?",
-                (from_username,),
-            ).fetchone()
-            recipient_row = conn.execute(
-                "SELECT profile_json FROM users WHERE username = ?",
-                (to_username,),
-            ).fetchone()
-            if not sender_row:
-                raise ValueError("Nadawca nie istnieje.")
-            if not recipient_row:
-                raise ValueError("Odbiorca nie istnieje.")
-
-            sender_profile = loads_json(sender_row["profile_json"], {})
-            recipient_profile = loads_json(recipient_row["profile_json"], {})
-            sender_balance = self._profile_balance(sender_profile)
-            recipient_balance = self._profile_balance(recipient_profile)
-            if sender_balance < amount:
-                raise ValueError("Brak srodkow.")
-
-            sender_profile["hackcoins"] = sender_balance - amount
-            recipient_profile["hackcoins"] = recipient_balance + amount
-            conn.execute(
-                "UPDATE users SET profile_json = ?, updated_at = ? WHERE username = ?",
-                (dumps_json(sender_profile), now, from_username),
-            )
-            conn.execute(
-                "UPDATE users SET profile_json = ?, updated_at = ? WHERE username = ?",
-                (dumps_json(recipient_profile), now, to_username),
-            )
-            cursor = conn.execute(
-                """
-                INSERT INTO wallet_transactions
-                    (from_username, to_username, amount, note, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (from_username, to_username, amount, note, now),
-            )
-
-            return {
-                "balance": sender_profile["hackcoins"],
-                "recipient_balance": recipient_profile["hackcoins"],
-                "currency": "HC",
-                "transaction": {
-                    "id": cursor.lastrowid,
-                    "type": "outgoing",
-                    "peer": to_username,
-                    "amount": amount,
-                    "created_at": now,
-                    "note": note,
-                },
-            }
-
-    def technical_transfer(self, from_username, to_username, amount, note=""):
-        try:
-            amount = int(amount)
-        except (TypeError, ValueError):
-            raise ValueError("Kwota musi byc liczba calkowita HC.")
-
-        from_username = str(from_username or "").strip()
-        to_username = str(to_username or "").strip()
-        note = str(note or "").strip()[:240]
-        if amount < 0:
-            raise ValueError("Kwota nie moze byc ujemna.")
-        if not from_username or not to_username:
-            raise ValueError("Brak stron transferu.")
-        if from_username == to_username:
-            raise ValueError("Nie mozna transferowac HC samemu sobie.")
-
-        now = utc_now()
-        with db_connect(self.db_path) as conn:
-            source_row = conn.execute(
-                "SELECT profile_json FROM users WHERE username = ?",
-                (from_username,),
-            ).fetchone()
-            target_row = conn.execute(
-                "SELECT profile_json FROM users WHERE username = ?",
-                (to_username,),
-            ).fetchone()
-            if not source_row:
-                raise ValueError("Zrodlo transferu nie istnieje.")
-            if not target_row:
-                raise ValueError("Odbiorca transferu nie istnieje.")
-
-            source_profile = loads_json(source_row["profile_json"], {})
-            target_profile = loads_json(target_row["profile_json"], {})
-            source_balance = self._profile_balance(source_profile)
-            target_balance = self._profile_balance(target_profile)
-            amount = min(amount, source_balance)
-
-            source_profile["hackcoins"] = source_balance - amount
-            target_profile["hackcoins"] = target_balance + amount
-            conn.execute(
-                "UPDATE users SET profile_json = ?, updated_at = ? WHERE username = ?",
-                (dumps_json(source_profile), now, from_username),
-            )
-            conn.execute(
-                "UPDATE users SET profile_json = ?, updated_at = ? WHERE username = ?",
-                (dumps_json(target_profile), now, to_username),
-            )
-
-            transaction_id = None
-            if amount > 0:
-                cursor = conn.execute(
-                    """
-                    INSERT INTO wallet_transactions
-                        (from_username, to_username, amount, note, created_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (from_username, to_username, amount, note, now),
-                )
-                transaction_id = cursor.lastrowid
-
-            return {
-                "amount": amount,
-                "source_balance": source_profile["hackcoins"],
-                "target_balance": target_profile["hackcoins"],
-                "transaction_id": transaction_id,
-                "created_at": now,
-            }
+    def technical_transfer(
+        self,
+        from_username,
+        to_username,
+        amount,
+        note="",
+        transaction_key="",
+    ):
+        result = self.balance_store.transfer(
+            from_username,
+            to_username,
+            amount,
+            transaction_key=transaction_key,
+            note=note,
+            debit_up_to=True,
+            source="wallet.technical_transfer",
+        )
+        transaction = result.get("transaction") or {}
+        return {
+            "amount": result["amount"],
+            "source_balance": result["source_balance"],
+            "target_balance": result["target_balance"],
+            "transaction_id": transaction.get("id"),
+            "transaction_key": transaction.get("transaction_key", ""),
+            "duplicate": bool(result.get("duplicate")),
+            "created_at": transaction.get("created_at", ""),
+        }
 
 
 class PlayerHackAccessStore:
@@ -6409,11 +8569,16 @@ class PlayerHackAccessStore:
         return f"{access.get('id') or ''}:{access.get('hacked_until') or ''}"
 
     def has_tool_usage(self, access, attacker_username, victim_username, tool_id):
+        return self.get_tool_usage(access, attacker_username, victim_username, tool_id) is not None
+
+    def get_tool_usage(self, access, attacker_username, victim_username, tool_id):
         key = self.access_key(access)
         with db_connect(self.db_path) as conn:
             row = conn.execute(
                 """
-                SELECT 1 FROM player_hack_tool_usage
+                SELECT id, access_id, attacker_username, victim_username,
+                       tool_id, access_key, result, amount, created_at
+                FROM player_hack_tool_usage
                 WHERE attacker_username = ?
                   AND victim_username = ?
                   AND tool_id = ?
@@ -6422,12 +8587,30 @@ class PlayerHackAccessStore:
                 """,
                 (attacker_username, victim_username, tool_id, key),
             ).fetchone()
-            return row is not None
+            return dict(row) if row else None
 
     def record_tool_usage(self, access, attacker_username, victim_username, tool_id, result="", amount=0):
         key = self.access_key(access)
         now = utc_now()
         with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            existing = conn.execute(
+                """
+                SELECT id, access_id, attacker_username, victim_username,
+                       tool_id, access_key, result, amount, created_at
+                FROM player_hack_tool_usage
+                WHERE attacker_username = ?
+                  AND victim_username = ?
+                  AND tool_id = ?
+                  AND access_key = ?
+                LIMIT 1
+                """,
+                (attacker_username, victim_username, tool_id, key),
+            ).fetchone()
+            if existing:
+                payload = dict(existing)
+                payload["duplicate"] = True
+                return payload
             cursor = conn.execute(
                 """
                 INSERT INTO player_hack_tool_usage
@@ -6449,7 +8632,54 @@ class PlayerHackAccessStore:
                 "id": cursor.lastrowid,
                 "access_key": key,
                 "created_at": now,
+                "result": str(result or ""),
+                "amount": int(amount or 0),
+                "duplicate": False,
             }
+
+    def complete_tool_usage(self, access, attacker_username, victim_username, tool_id, result="", amount=0):
+        key = self.access_key(access)
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            updated = conn.execute(
+                """
+                UPDATE player_hack_tool_usage
+                SET result = ?, amount = ?
+                WHERE attacker_username = ?
+                  AND victim_username = ?
+                  AND tool_id = ?
+                  AND access_key = ?
+                  AND (result LIKE 'pending:%' OR (result = ? AND amount = ?))
+                """,
+                (
+                    str(result or ""),
+                    int(amount or 0),
+                    attacker_username,
+                    victim_username,
+                    tool_id,
+                    key,
+                    str(result or ""),
+                    int(amount or 0),
+                ),
+            )
+            row = conn.execute(
+                """
+                SELECT id, access_id, attacker_username, victim_username,
+                       tool_id, access_key, result, amount, created_at
+                FROM player_hack_tool_usage
+                WHERE attacker_username = ?
+                  AND victim_username = ?
+                  AND tool_id = ?
+                  AND access_key = ?
+                LIMIT 1
+                """,
+                (attacker_username, victim_username, tool_id, key),
+            ).fetchone()
+            if not row:
+                raise ValueError("Brak rezerwacji uzycia narzedzia.")
+            payload = dict(row)
+            payload["updated"] = updated.rowcount == 1
+            return payload
 
 
 class AppActionReceiptStore:
@@ -7351,7 +9581,12 @@ class PlayerInventoryStore:
     def snapshot(self, username):
         username = self._clean_text(username)
         if not username:
-            return {"apps": [], "files": {"tools": []}, "storage": None}
+            return {
+                "initialized": False,
+                "apps": [],
+                "files": {"tools": []},
+                "storage": None,
+            }
         with db_connect(self.db_path) as conn:
             app_rows = conn.execute(
                 """
@@ -7373,6 +9608,17 @@ class PlayerInventoryStore:
                 "SELECT * FROM player_storage WHERE username = ?",
                 (username,),
             ).fetchone()
+            initialized = storage_row is not None
+            if not initialized:
+                initialized = bool(conn.execute(
+                    """
+                    SELECT 1 FROM player_apps WHERE username = ?
+                    UNION ALL
+                    SELECT 1 FROM player_tool_files WHERE username = ?
+                    LIMIT 1
+                    """,
+                    (username, username),
+                ).fetchone())
         storage = None
         if storage_row:
             storage = {
@@ -7383,6 +9629,7 @@ class PlayerInventoryStore:
                 "version": int(storage_row["version"] or 0),
             }
         return {
+            "initialized": initialized,
             "apps": [app for app in (self._row_to_app(row) for row in app_rows) if isinstance(app, dict)],
             "files": {"tools": [tool for tool in (self._row_to_tool(row) for row in tool_rows) if tool is not None]},
             "storage": storage,
@@ -7390,16 +9637,20 @@ class PlayerInventoryStore:
 
     def mirror_profile(self, username, profile):
         snapshot = self.snapshot(username)
-        if not snapshot.get("apps") and not (snapshot.get("files") or {}).get("tools") and not snapshot.get("storage"):
-            snapshot = self.seed_from_profile(username, profile)
         if not isinstance(profile, dict):
             return profile
-        if snapshot.get("apps"):
-            profile["apps"] = snapshot["apps"]
-        files = profile.get("files") if isinstance(profile.get("files"), dict) else {}
-        tools = (snapshot.get("files") or {}).get("tools")
-        if tools:
-            files["tools"] = tools
+        if snapshot.get("initialized"):
+            # Once the canonical inventory exists, an empty list is a real
+            # authoritative state (for example after the final uninstall), not
+            # a signal to resurrect stale profile_json mirrors.
+            profile["apps"] = copy.deepcopy(snapshot.get("apps") or [])
+            files = (
+                copy.deepcopy(profile.get("files"))
+                if isinstance(profile.get("files"), dict)
+                else {}
+            )
+            tools = (snapshot.get("files") or {}).get("tools")
+            files["tools"] = copy.deepcopy(tools or [])
             profile["files"] = files
         storage = snapshot.get("storage")
         if storage:
@@ -7572,49 +9823,25 @@ class WalletLedgerStore:
         created_at=None,
         ledger_id=None,
     ):
-        username = self._clean_text(username)
-        event_type = self._clean_text(event_type, "wallet.balance_changed")
-        source = self._clean_text(source)
-        source_id = self._clean_text(source_id)
-        peer_username = self._clean_text(peer_username)
-        note = self._clean_text(note)[:240]
         dedupe_key = self._clean_text(
             dedupe_key,
             f"wallet_ledger:{username}:{event_type}:{source}:{source_id}:{balance_after}",
         )
-        created_at = self._clean_text(created_at, utc_now())
-        ledger_id = ledger_id or f"wl_{hashlib.sha1(f'{username}:{dedupe_key}'.encode('utf-8')).hexdigest()[:18]}"
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO wallet_ledger
-                (ledger_id, username, event_type, amount_delta, balance_after,
-                 source, source_id, peer_username, note, dedupe_key, payload_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                ledger_id,
-                username,
-                event_type,
-                int(amount_delta or 0),
-                max(0, int(balance_after or 0)),
-                source,
-                source_id,
-                peer_username,
-                note,
-                dedupe_key,
-                payload_json or "{}",
-                created_at,
-            ),
+        return _wallet_record_ledger_with_conn(
+            conn,
+            username=username,
+            event_type=event_type,
+            amount_delta=amount_delta,
+            balance_after=balance_after,
+            source=source,
+            source_id=source_id,
+            peer_username=peer_username,
+            note=note,
+            dedupe_key=dedupe_key,
+            payload_json=payload_json,
+            created_at=created_at,
+            ledger_id=ledger_id,
         )
-        return conn.execute(
-            """
-            SELECT ledger_id, username, event_type, amount_delta, balance_after,
-                   source, source_id, peer_username, note, dedupe_key, payload_json, created_at
-            FROM wallet_ledger
-            WHERE username = ? AND dedupe_key = ?
-            """,
-            (username, dedupe_key),
-        ).fetchone()
 
     def list_events(self, username, limit=50):
         username = self._clean_text(username)
@@ -7672,94 +9899,792 @@ class WalletBalanceStore:
 
     @staticmethod
     def _profile_balance(profile):
-        try:
-            return int((profile or {}).get("hackcoins", 0) or 0)
-        except (TypeError, ValueError):
-            return 0
+        return max(0, _wallet_int((profile or {}).get("hackcoins", 0)))
+
+    @staticmethod
+    def _assert_migration_not_blocked_with_conn(conn, username):
+        migration = conn.execute(
+            """
+            SELECT status
+            FROM profile_store_migrations
+            WHERE migration_id = ? AND username = ?
+            """,
+            (WALLET_CANONICAL_MIGRATION_ID, username),
+        ).fetchone()
+        if migration and migration["status"] == "blocked":
+            raise WalletNotInitialized(
+                "Canonical wallet migration is blocked.",
+                reason="migration_blocked",
+            )
+        return migration
 
     def seed_from_profile(self, username, profile):
-        return self.set_balance(username, self._profile_balance(profile), transaction_key=f"seed:{username}", reason="profile_seed")
-
-    def get_balance(self, username, fallback_profile=None):
+        """Explicit migration only; the supplied profile must match durable metadata."""
         username = self._clean_text(username)
         if not username:
-            return 0
-        fallback_has_balance = isinstance(fallback_profile, dict) and "hackcoins" in fallback_profile
-        fallback_balance = self._profile_balance(fallback_profile) if fallback_has_balance else None
-        with db_connect(self.db_path) as conn:
-            row = conn.execute(
-                "SELECT balance FROM wallet_balances WHERE username = ?",
-                (username,),
-            ).fetchone()
-        if row:
-            stored_balance = int(row["balance"] or 0)
-            if fallback_has_balance and stored_balance != fallback_balance:
-                return self.set_balance(
-                    username,
-                    fallback_balance,
-                    transaction_key=f"profile_reconcile:{username}:{fallback_balance}",
-                    reason="profile_reconcile",
-                )
-            ledger = WalletLedgerStore(self.db_path)
-            if stored_balance > 0 and not ledger.has_events(username):
-                ledger.record_event(
-                    username,
-                    "wallet.seed",
-                    stored_balance,
-                    stored_balance,
-                    source="wallet_balance_store",
-                    source_id="existing_balance",
-                    dedupe_key=f"wallet:ledger:{username}:seed",
-                    note="Stan poczatkowy portfela przed ledgerem.",
-                )
-            return stored_balance
-        if fallback_profile is not None:
-            return self.seed_from_profile(username, fallback_profile)
-        return 0
-
-    def set_balance(self, username, balance, transaction_key="", reason=""):
-        username = self._clean_text(username)
-        if not username:
-            return 0
-        try:
-            balance = int(balance or 0)
-        except (TypeError, ValueError):
-            balance = 0
-        balance = max(0, balance)
-        now = utc_now()
-        ledger = WalletLedgerStore(self.db_path)
+            raise WalletWriteError("Wallet username is required.")
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
-            existing = conn.execute(
+            row = conn.execute(
+                """
+                SELECT username, profile_json, profile_revision, profile_checksum,
+                       profile_integrity_status
+                FROM users WHERE username = ?
+                """,
+                (username,),
+            ).fetchone()
+            durable_profile, errors = _validate_persisted_profile_row(row, username)
+            if errors or durable_profile is None:
+                raise ProfileRecoveryRequired(
+                    "Profile cannot seed canonical wallet: " + ",".join(errors)
+                )
+            if (
+                isinstance(profile, dict)
+                and profile_payload_checksum(profile)
+                != str(row["profile_checksum"] or "")
+            ):
+                raise WalletMutationRejected(
+                    "Stale profile cannot seed canonical wallet."
+                )
+            result = _wallet_bootstrap_user_with_conn(conn, row)
+            if result.get("status") == "blocked":
+                raise WalletMutationRejected(
+                    "Canonical wallet migration is blocked by conflicting evidence."
+                )
+            if result.get("status") != "applied":
+                raise WalletMutationRejected(
+                    "Canonical wallet migration could not be applied."
+                )
+            return int(result["balance"])
+
+    def get_balance(self, username, fallback_profile=None):
+        """Pure canonical read. fallback_profile is ignored for compatibility."""
+        del fallback_profile
+        username = self._clean_text(username)
+        if not username:
+            return 0
+        with db_connect(self.db_path) as conn:
+            migration = self._assert_migration_not_blocked_with_conn(
+                conn, username
+            )
+            row = conn.execute(
+                """
+                SELECT balances.balance
+                FROM wallet_balances AS balances
+                JOIN users ON users.username = balances.username
+                WHERE balances.username = ?
+                """,
+                (username,),
+            ).fetchone()
+            if row:
+                return max(0, int(row["balance"] or 0))
+            user_exists = conn.execute(
+                "SELECT 1 FROM users WHERE username = ?",
+                (username,),
+            ).fetchone()
+            if not user_exists:
+                return 0
+        if migration and migration["status"] == "blocked":
+            # Kept as a defensive assertion if the helper contract changes.
+            raise WalletNotInitialized(
+                "Canonical wallet migration is blocked.",
+                reason="migration_blocked",
+            )
+        raise WalletNotInitialized()
+
+    def get_state(self, username):
+        username = self._clean_text(username)
+        if not username:
+            return None
+        with db_connect(self.db_path) as conn:
+            self._assert_migration_not_blocked_with_conn(conn, username)
+            row = conn.execute(
+                """
+                SELECT balances.balance, balances.version, balances.updated_at
+                FROM wallet_balances AS balances
+                JOIN users ON users.username = balances.username
+                WHERE balances.username = ?
+                """,
+                (username,),
+            ).fetchone()
+        if not row:
+            return None
+        return {
+            "username": username,
+            "balance": max(0, int(row["balance"] or 0)),
+            "version": max(0, int(row["version"] or 0)),
+            "updated_at": row["updated_at"],
+        }
+
+    @staticmethod
+    def _canonical_row_with_conn(conn, username):
+        WalletBalanceStore._assert_migration_not_blocked_with_conn(
+            conn, username
+        )
+        row = conn.execute(
+            """
+            SELECT balances.balance, balances.version, balances.updated_at
+            FROM users
+            JOIN wallet_balances AS balances
+              ON balances.username = users.username
+            WHERE users.username = ?
+            """,
+            (username,),
+        ).fetchone()
+        if row:
+            return row
+        user_exists = conn.execute(
+            "SELECT 1 FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
+        if not user_exists:
+            raise WalletNotInitialized("Wallet owner does not exist.")
+        raise WalletNotInitialized("Canonical wallet is not initialized.")
+
+    @staticmethod
+    def _event_result(row, username, transaction_key):
+        return {
+            "applied": False,
+            "duplicate": True,
+            "username": username,
+            "transaction_key": transaction_key,
+            "amount_delta": int(row["amount_delta"] or 0),
+            "balance": max(0, int(row["balance"] or 0)),
+            "version": max(0, int(row["version"] or 0)),
+        }
+
+    def _apply_delta(
+        self,
+        username,
+        delta,
+        *,
+        transaction_key,
+        reason,
+        source,
+        peer_username="",
+        expected_version=None,
+        debit_up_to=False,
+    ):
+        username = self._clean_text(username)
+        transaction_key = self._clean_text(transaction_key)
+        reason = self._clean_text(reason, "wallet.balance_changed")
+        source = self._clean_text(source, "wallet_balance_store")
+        peer_username = self._clean_text(peer_username)
+        if not username:
+            raise WalletWriteError("Wallet username is required.")
+        try:
+            requested_delta = int(delta)
+        except (TypeError, ValueError) as exc:
+            raise WalletWriteError("Wallet delta must be an integer.") from exc
+
+        if requested_delta == 0 and not debit_up_to and not transaction_key:
+            state = self.get_state(username)
+            if state is None:
+                raise WalletNotInitialized("Canonical wallet is not initialized.")
+            return {
+                "applied": False,
+                "duplicate": False,
+                "username": username,
+                "transaction_key": transaction_key,
+                "amount_delta": 0,
+                "balance": state["balance"],
+                "version": state["version"],
+                "reason": "zero_delta",
+            }
+        if not transaction_key:
+            raise WalletWriteError("Wallet transaction_key is required.")
+        if expected_version is not None:
+            try:
+                expected_version = int(expected_version)
+            except (TypeError, ValueError) as exc:
+                raise WalletWriteError("expected_version must be an integer.") from exc
+
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            replay = conn.execute(
+                """
+                SELECT amount_delta, balance, version
+                FROM wallet_balance_events
+                WHERE username = ? AND transaction_key = ?
+                """,
+                (username, transaction_key),
+            ).fetchone()
+            if replay:
+                replay_delta = int(replay["amount_delta"] or 0)
+                if not debit_up_to and replay_delta != requested_delta:
+                    raise WalletIdempotencyConflict(
+                        "Wallet transaction key was reused with another delta."
+                    )
+                return self._event_result(replay, username, transaction_key)
+
+            current = self._canonical_row_with_conn(conn, username)
+            balance_before = max(0, int(current["balance"] or 0))
+            version_before = max(0, int(current["version"] or 0))
+            if expected_version is not None and expected_version != version_before:
+                raise WalletIdempotencyConflict(
+                    f"Expected wallet version {expected_version}, current is {version_before}."
+                )
+            applied_delta = requested_delta
+            if requested_delta < 0 and balance_before + requested_delta < 0:
+                if not debit_up_to:
+                    raise WalletInsufficientFunds("Brak srodkow.")
+                applied_delta = -balance_before
+            if applied_delta == 0:
+                _wallet_record_balance_event_with_conn(
+                    conn,
+                    username=username,
+                    transaction_key=transaction_key,
+                    amount_delta=0,
+                    balance=balance_before,
+                    version=version_before,
+                    reason=reason + ".zero",
+                    created_at=now,
+                )
+                _wallet_record_ledger_with_conn(
+                    conn,
+                    username=username,
+                    event_type=reason + ".zero",
+                    amount_delta=0,
+                    balance_after=balance_before,
+                    source=source,
+                    source_id=transaction_key,
+                    peer_username=peer_username,
+                    note=reason,
+                    dedupe_key=f"wallet:ledger:{username}:{transaction_key}",
+                    payload_json=dumps_json({
+                        "transaction_key": transaction_key,
+                        "zero_value_receipt": True,
+                        "version": version_before,
+                    }),
+                    created_at=now,
+                )
+                return {
+                    "applied": False,
+                    "duplicate": False,
+                    "username": username,
+                    "transaction_key": transaction_key,
+                    "amount_delta": 0,
+                    "balance": balance_before,
+                    "version": version_before,
+                    "reason": "zero_available",
+                }
+
+            balance_after = balance_before + applied_delta
+            version_after = version_before + 1
+            updated = conn.execute(
+                """
+                UPDATE wallet_balances
+                SET balance = ?, version = ?, updated_at = ?
+                WHERE username = ? AND version = ?
+                """,
+                (
+                    balance_after,
+                    version_after,
+                    now,
+                    username,
+                    version_before,
+                ),
+            )
+            if updated.rowcount != 1:
+                raise WalletIdempotencyConflict(
+                    "Canonical wallet version changed before commit."
+                )
+            _wallet_record_balance_event_with_conn(
+                conn,
+                username=username,
+                transaction_key=transaction_key,
+                amount_delta=applied_delta,
+                balance=balance_after,
+                version=version_after,
+                reason=reason,
+                created_at=now,
+            )
+            _wallet_record_ledger_with_conn(
+                conn,
+                username=username,
+                event_type=reason,
+                amount_delta=applied_delta,
+                balance_after=balance_after,
+                source=source,
+                source_id=transaction_key,
+                peer_username=peer_username,
+                note=reason,
+                dedupe_key=f"wallet:ledger:{username}:{transaction_key}",
+                payload_json=dumps_json({
+                    "transaction_key": transaction_key,
+                    "previous_balance": balance_before,
+                    "version": version_after,
+                }),
+                created_at=now,
+            )
+            return {
+                "applied": True,
+                "duplicate": False,
+                "username": username,
+                "transaction_key": transaction_key,
+                "amount_delta": applied_delta,
+                "balance": balance_after,
+                "version": version_after,
+            }
+
+    def apply_delta(
+        self,
+        username,
+        delta,
+        transaction_key,
+        reason="wallet.balance_changed",
+        *,
+        source="wallet_balance_store",
+        peer_username="",
+        expected_version=None,
+    ):
+        return self._apply_delta(
+            username,
+            delta,
+            transaction_key=transaction_key,
+            reason=reason,
+            source=source,
+            peer_username=peer_username,
+            expected_version=expected_version,
+            debit_up_to=False,
+        )
+
+    def credit(
+        self,
+        username,
+        amount,
+        transaction_key,
+        reason="wallet.credit",
+        **kwargs,
+    ):
+        amount = _wallet_int(amount)
+        if amount < 0:
+            raise WalletWriteError("Credit amount cannot be negative.")
+        return self._apply_delta(
+            username,
+            amount,
+            transaction_key=transaction_key,
+            reason=reason,
+            source=kwargs.pop("source", "wallet.credit"),
+            **kwargs,
+        )
+
+    def debit(
+        self,
+        username,
+        amount,
+        transaction_key,
+        reason="wallet.debit",
+        **kwargs,
+    ):
+        amount = _wallet_int(amount)
+        if amount < 0:
+            raise WalletWriteError("Debit amount cannot be negative.")
+        return self._apply_delta(
+            username,
+            -amount,
+            transaction_key=transaction_key,
+            reason=reason,
+            source=kwargs.pop("source", "wallet.debit"),
+            **kwargs,
+        )
+
+    def debit_up_to(
+        self,
+        username,
+        amount,
+        transaction_key,
+        reason="wallet.debit_up_to",
+        **kwargs,
+    ):
+        amount = _wallet_int(amount)
+        if amount < 0:
+            raise WalletWriteError("Debit amount cannot be negative.")
+        return self._apply_delta(
+            username,
+            -amount,
+            transaction_key=transaction_key,
+            reason=reason,
+            source=kwargs.pop("source", "wallet.debit_up_to"),
+            debit_up_to=True,
+            **kwargs,
+        )
+
+    def transfer(
+        self,
+        from_username,
+        to_username,
+        amount,
+        *,
+        transaction_key,
+        note="",
+        debit_up_to=False,
+        source="wallet.transfer",
+    ):
+        from_username = self._clean_text(from_username)
+        to_username = self._clean_text(to_username)
+        transaction_key = self._clean_text(transaction_key)
+        note = self._clean_text(note)[:240]
+        source = self._clean_text(source, "wallet.transfer")
+        try:
+            requested_amount = int(amount)
+        except (TypeError, ValueError) as exc:
+            raise WalletWriteError("Kwota musi byc liczba calkowita HC.") from exc
+        if requested_amount < 0 or (requested_amount == 0 and not debit_up_to):
+            raise WalletWriteError("Kwota musi byc dodatnia.")
+        if not from_username or not to_username:
+            raise WalletWriteError("Brak stron transferu.")
+        if from_username == to_username:
+            raise WalletWriteError("Nie mozna przelac HC samemu sobie.")
+
+        if not transaction_key:
+            raise WalletWriteError("Wallet transfer transaction_key is required.")
+
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            replay = conn.execute(
+                """
+                SELECT id, from_username, to_username, amount,
+                       transaction_key, note, created_at
+                FROM wallet_transactions WHERE transaction_key = ?
+                """,
+                (transaction_key,),
+            ).fetchone()
+            if replay:
+                same_amount = (
+                    int(replay["amount"] or 0) == requested_amount
+                    if not debit_up_to
+                    else int(replay["amount"] or 0) <= requested_amount
+                )
+                if (
+                    replay["from_username"] != from_username
+                    or replay["to_username"] != to_username
+                    or not same_amount
+                    or str(replay["note"] or "") != note
+                ):
+                    raise WalletIdempotencyConflict(
+                        "Wallet transfer key was reused with different semantics."
+                    )
+                outgoing = conn.execute(
+                    """
+                    SELECT balance, version FROM wallet_balance_events
+                    WHERE username = ? AND transaction_key = ?
+                    """,
+                    (from_username, transaction_key + ":out"),
+                ).fetchone()
+                incoming = conn.execute(
+                    """
+                    SELECT balance, version FROM wallet_balance_events
+                    WHERE username = ? AND transaction_key = ?
+                    """,
+                    (to_username, transaction_key + ":in"),
+                ).fetchone()
+                if not outgoing or not incoming:
+                    raise WalletWriteError(
+                        "Canonical transfer exists without complete balance events."
+                    )
+                return {
+                    "applied": False,
+                    "duplicate": True,
+                    "amount": int(replay["amount"] or 0),
+                    "source_balance": int(outgoing["balance"] or 0),
+                    "target_balance": int(incoming["balance"] or 0),
+                    "source_version": int(outgoing["version"] or 0),
+                    "target_version": int(incoming["version"] or 0),
+                    "transaction": dict(replay),
+                }
+
+            source_row = self._canonical_row_with_conn(conn, from_username)
+            target_row = self._canonical_row_with_conn(conn, to_username)
+            source_before = max(0, int(source_row["balance"] or 0))
+            target_before = max(0, int(target_row["balance"] or 0))
+            actual_amount = requested_amount
+            if actual_amount > source_before:
+                if not debit_up_to:
+                    raise WalletInsufficientFunds("Brak srodkow.")
+                actual_amount = source_before
+            if actual_amount == 0:
+                source_version = int(source_row["version"] or 0)
+                target_version = int(target_row["version"] or 0)
+                _wallet_record_balance_event_with_conn(
+                    conn,
+                    username=from_username,
+                    transaction_key=transaction_key + ":out",
+                    amount_delta=0,
+                    balance=source_before,
+                    version=source_version,
+                    reason=source + ".outgoing.zero",
+                    created_at=now,
+                )
+                _wallet_record_ledger_with_conn(
+                    conn,
+                    username=from_username,
+                    event_type=source + ".outgoing.zero",
+                    amount_delta=0,
+                    balance_after=source_before,
+                    source=source,
+                    source_id=transaction_key,
+                    peer_username=to_username,
+                    note=note,
+                    dedupe_key=f"wallet:ledger:{from_username}:{transaction_key}:out",
+                    payload_json=dumps_json({
+                        "transaction_key": transaction_key,
+                        "zero_value_receipt": True,
+                    }),
+                    created_at=now,
+                )
+                _wallet_record_balance_event_with_conn(
+                    conn,
+                    username=to_username,
+                    transaction_key=transaction_key + ":in",
+                    amount_delta=0,
+                    balance=target_before,
+                    version=target_version,
+                    reason=source + ".incoming.zero",
+                    created_at=now,
+                )
+                _wallet_record_ledger_with_conn(
+                    conn,
+                    username=to_username,
+                    event_type=source + ".incoming.zero",
+                    amount_delta=0,
+                    balance_after=target_before,
+                    source=source,
+                    source_id=transaction_key,
+                    peer_username=from_username,
+                    note=note,
+                    dedupe_key=f"wallet:ledger:{to_username}:{transaction_key}:in",
+                    payload_json=dumps_json({
+                        "transaction_key": transaction_key,
+                        "zero_value_receipt": True,
+                    }),
+                    created_at=now,
+                )
+                cursor = conn.execute(
+                    """
+                    INSERT INTO wallet_transactions
+                        (from_username, to_username, amount, transaction_key,
+                         note, created_at)
+                    VALUES (?, ?, 0, ?, ?, ?)
+                    """,
+                    (from_username, to_username, transaction_key, note, now),
+                )
+                return {
+                    "applied": False,
+                    "duplicate": False,
+                    "amount": 0,
+                    "source_balance": source_before,
+                    "target_balance": target_before,
+                    "source_version": source_version,
+                    "target_version": target_version,
+                    "transaction": {
+                        "id": cursor.lastrowid,
+                        "from_username": from_username,
+                        "to_username": to_username,
+                        "amount": 0,
+                        "transaction_key": transaction_key,
+                        "note": note,
+                        "created_at": now,
+                    },
+                    "reason": "zero_available",
+                }
+
+            source_version = int(source_row["version"] or 0) + 1
+            target_version = int(target_row["version"] or 0) + 1
+            source_after = source_before - actual_amount
+            target_after = target_before + actual_amount
+            conn.execute(
+                """
+                UPDATE wallet_balances
+                SET balance = ?, version = ?, updated_at = ?
+                WHERE username = ?
+                """,
+                (source_after, source_version, now, from_username),
+            )
+            _wallet_record_balance_event_with_conn(
+                conn,
+                username=from_username,
+                transaction_key=transaction_key + ":out",
+                amount_delta=-actual_amount,
+                balance=source_after,
+                version=source_version,
+                reason=source + ".outgoing",
+                created_at=now,
+            )
+            _wallet_record_ledger_with_conn(
+                conn,
+                username=from_username,
+                event_type=source + ".outgoing",
+                amount_delta=-actual_amount,
+                balance_after=source_after,
+                source=source,
+                source_id=transaction_key,
+                peer_username=to_username,
+                note=note,
+                dedupe_key=f"wallet:ledger:{from_username}:{transaction_key}:out",
+                payload_json=dumps_json({"transaction_key": transaction_key}),
+                created_at=now,
+            )
+            conn.execute(
+                """
+                UPDATE wallet_balances
+                SET balance = ?, version = ?, updated_at = ?
+                WHERE username = ?
+                """,
+                (target_after, target_version, now, to_username),
+            )
+            _wallet_record_balance_event_with_conn(
+                conn,
+                username=to_username,
+                transaction_key=transaction_key + ":in",
+                amount_delta=actual_amount,
+                balance=target_after,
+                version=target_version,
+                reason=source + ".incoming",
+                created_at=now,
+            )
+            _wallet_record_ledger_with_conn(
+                conn,
+                username=to_username,
+                event_type=source + ".incoming",
+                amount_delta=actual_amount,
+                balance_after=target_after,
+                source=source,
+                source_id=transaction_key,
+                peer_username=from_username,
+                note=note,
+                dedupe_key=f"wallet:ledger:{to_username}:{transaction_key}:in",
+                payload_json=dumps_json({"transaction_key": transaction_key}),
+                created_at=now,
+            )
+            cursor = conn.execute(
+                """
+                INSERT INTO wallet_transactions
+                    (from_username, to_username, amount, transaction_key,
+                     note, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    from_username,
+                    to_username,
+                    actual_amount,
+                    transaction_key,
+                    note,
+                    now,
+                ),
+            )
+            return {
+                "applied": True,
+                "duplicate": False,
+                "amount": actual_amount,
+                "source_balance": source_after,
+                "target_balance": target_after,
+                "source_version": source_version,
+                "target_version": target_version,
+                "transaction": {
+                    "id": cursor.lastrowid,
+                    "from_username": from_username,
+                    "to_username": to_username,
+                    "amount": actual_amount,
+                    "transaction_key": transaction_key,
+                    "note": note,
+                    "created_at": now,
+                },
+            }
+
+    def recovery_set_balance(
+        self,
+        username,
+        balance,
+        transaction_key,
+        reason="wallet.recovery",
+        *,
+        expected_version=None,
+    ):
+        username = self._clean_text(username)
+        transaction_key = self._clean_text(transaction_key)
+        if not username or not transaction_key:
+            raise WalletMutationRejected(
+                "Recovery balance writes require username and transaction_key."
+            )
+        balance = max(0, _wallet_int(balance))
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            # This API can restore a known balance for an otherwise attested
+            # wallet (for example a profile-store rollback), but it is not an
+            # evidence-repair/unlock operation.  A blocked canonical migration
+            # needs a separate forensic reconciliation proving ledger/event
+            # consistency; never make an absolute write silently attest it.
+            self._assert_migration_not_blocked_with_conn(conn, username)
+            replay = conn.execute(
+                """
+                SELECT amount_delta, balance, version
+                FROM wallet_balance_events
+                WHERE username = ? AND transaction_key = ?
+                """,
+                (username, transaction_key),
+            ).fetchone()
+            if replay:
+                if int(replay["balance"] or 0) != balance:
+                    raise WalletIdempotencyConflict(
+                        "Recovery transaction key was reused for another balance."
+                    )
+                return self._event_result(replay, username, transaction_key)
+            if not conn.execute(
+                "SELECT 1 FROM users WHERE username = ?", (username,)
+            ).fetchone():
+                raise WalletNotInitialized("Wallet owner does not exist.")
+            current = conn.execute(
                 "SELECT balance, version FROM wallet_balances WHERE username = ?",
                 (username,),
             ).fetchone()
-            previous = int(existing["balance"] or 0) if existing else 0
-            if transaction_key:
-                event_row = conn.execute(
-                    "SELECT balance FROM wallet_balance_events WHERE username = ? AND transaction_key = ?",
-                    (username, transaction_key),
-                ).fetchone()
-                if event_row:
-                    return int(event_row["balance"] or balance)
-            version = int(existing["version"] or 0) + 1 if existing else 1
-            has_ledger_events = bool(conn.execute(
-                "SELECT 1 FROM wallet_ledger WHERE username = ? LIMIT 1",
-                (username,),
-            ).fetchone())
-            if existing and previous > 0 and not has_ledger_events:
-                ledger.record_event_with_conn(
+            previous = max(0, int(current["balance"] or 0)) if current else 0
+            current_version = max(0, int(current["version"] or 0)) if current else 0
+            if expected_version is not None and int(expected_version) != current_version:
+                raise WalletIdempotencyConflict(
+                    f"Expected wallet version {expected_version}, current is {current_version}."
+                )
+            if previous == balance and current is not None:
+                _wallet_record_balance_event_with_conn(
                     conn,
                     username=username,
-                    event_type="wallet.seed",
-                    amount_delta=previous,
-                    balance_after=previous,
-                    source="wallet_balance_store",
-                    source_id="existing_balance",
-                    note="Stan poczatkowy portfela przed ledgerem.",
-                    dedupe_key=f"wallet:ledger:{username}:seed",
+                    transaction_key=transaction_key,
+                    amount_delta=0,
+                    balance=balance,
+                    version=current_version,
+                    reason=self._clean_text(reason, "wallet.recovery") + ".zero",
                     created_at=now,
                 )
+                _wallet_record_ledger_with_conn(
+                    conn,
+                    username=username,
+                    event_type=self._clean_text(reason, "wallet.recovery") + ".zero",
+                    amount_delta=0,
+                    balance_after=balance,
+                    source="wallet.recovery",
+                    source_id=transaction_key,
+                    dedupe_key=f"wallet:ledger:{username}:{transaction_key}",
+                    note=reason,
+                    payload_json=dumps_json({
+                        "previous_balance": previous,
+                        "zero_value_receipt": True,
+                    }),
+                    created_at=now,
+                )
+                return {
+                    "applied": False,
+                    "duplicate": False,
+                    "username": username,
+                    "transaction_key": transaction_key,
+                    "amount_delta": 0,
+                    "balance": balance,
+                    "version": current_version,
+                    "reason": "zero_delta",
+                }
+            version = current_version + 1
             conn.execute(
                 """
                 INSERT INTO wallet_balances(username, balance, version, updated_at)
@@ -7771,51 +10696,55 @@ class WalletBalanceStore:
                 """,
                 (username, balance, version, now),
             )
-            event_id = f"wbe_{hashlib.sha1(f'{username}:{transaction_key}:{now}:{balance}'.encode('utf-8')).hexdigest()[:18]}"
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO wallet_balance_events
-                    (event_id, username, transaction_key, amount_delta, balance, reason, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    event_id,
-                    username,
-                    self._clean_text(transaction_key),
-                    balance - previous,
-                    balance,
-                    self._clean_text(reason),
-                    now,
-                ),
-            )
             delta = balance - previous
-            if delta != 0 or transaction_key:
-                ledger.record_event_with_conn(
-                    conn,
-                    username=username,
-                    event_type=self._clean_text(reason, "wallet.balance_changed"),
-                    amount_delta=delta,
-                    balance_after=balance,
-                    source="wallet_balance_store",
-                    source_id=self._clean_text(transaction_key),
-                    note=self._clean_text(reason),
-                    dedupe_key=f"wallet:ledger:{username}:{self._clean_text(transaction_key, f'{reason}:{balance}:{now}')}",
-                    payload_json=dumps_json({
-                        "reason": self._clean_text(reason),
-                        "transaction_key": self._clean_text(transaction_key),
-                        "previous_balance": previous,
-                    }),
-                    created_at=now,
-                )
-        return balance
+            _wallet_record_balance_event_with_conn(
+                conn,
+                username=username,
+                transaction_key=transaction_key,
+                amount_delta=delta,
+                balance=balance,
+                version=version,
+                reason=reason,
+                created_at=now,
+            )
+            _wallet_record_ledger_with_conn(
+                conn,
+                username=username,
+                event_type=self._clean_text(reason, "wallet.recovery"),
+                amount_delta=delta,
+                balance_after=balance,
+                source="wallet.recovery",
+                source_id=transaction_key,
+                dedupe_key=f"wallet:ledger:{username}:{transaction_key}",
+                note=reason,
+                payload_json=dumps_json({"previous_balance": previous}),
+                created_at=now,
+            )
+            return {
+                "applied": True,
+                "duplicate": False,
+                "username": username,
+                "transaction_key": transaction_key,
+                "amount_delta": delta,
+                "balance": balance,
+                "version": version,
+            }
+
+    def set_balance(self, username, balance, transaction_key="", reason=""):
+        del username, balance, transaction_key, reason
+        raise WalletMutationRejected(
+            "set_balance is disabled; use apply_delta/credit/debit/transfer "
+            "or recovery_set_balance for an explicit recovery."
+        )
 
     def mirror_profile(self, username, profile):
         if isinstance(profile, dict):
-            profile["hackcoins"] = self.get_balance(username, fallback_profile=profile)
+            profile["hackcoins"] = self.get_balance(username)
         return profile
 
     def clear_all(self):
         with db_connect(self.db_path) as conn:
+            conn.execute("DELETE FROM wallet_transactions")
             conn.execute("DELETE FROM wallet_ledger")
             conn.execute("DELETE FROM wallet_balance_events")
             conn.execute("DELETE FROM wallet_balances")

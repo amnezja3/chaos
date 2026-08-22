@@ -2,13 +2,23 @@ import unittest
 from unittest.mock import patch
 
 import run
+from tests.session_generation_fixture import SessionGenerationFixture
 
 
 class GhostNetworkMapSnapshotEndpointTest(unittest.TestCase):
-    def test_snapshot_uses_readonly_profile_and_viewer_projection(self):
+    def setUp(self):
+        self.session_generation = SessionGenerationFixture(
+            "chaos_ghostnetwork_snapshot_session_"
+        ).start()
+        self.addCleanup(self.session_generation.stop)
+
+    def _client(self):
         client = run.app.test_client()
-        with client.session_transaction() as sess:
-            sess["user"] = "alice"
+        headers = self.session_generation.authenticate(client, "alice")
+        return client, headers
+
+    def test_snapshot_uses_readonly_profile_and_viewer_projection(self):
+        client, headers = self._client()
 
         profile = {
             "username": "alice",
@@ -46,7 +56,7 @@ class GhostNetworkMapSnapshotEndpointTest(unittest.TestCase):
         with patch.object(run, "load_profile_readonly", return_value=profile) as readonly, \
                 patch.object(run, "sync_session_profile", side_effect=AssertionError("full sync not expected")), \
                 patch.object(run, "GhostNetworkService", return_value=FakeGhostNetworkService()):
-            response = client.get("/api/ghostnetwork/snapshot")
+            response = client.get("/api/ghostnetwork/snapshot", headers=headers)
 
         self.assertEqual(response.status_code, 200)
         data = response.get_json()
@@ -67,9 +77,7 @@ class GhostNetworkMapSnapshotEndpointTest(unittest.TestCase):
         self.assertEqual(FakeGhostNetworkService.viewer["audience_scope"], "player")
 
     def test_suite_view_omits_connection_geometry(self):
-        client = run.app.test_client()
-        with client.session_transaction() as sess:
-            sess["user"] = "alice"
+        client, headers = self._client()
 
         profile = {"username": "alice", "ghost_clan_code": "VIREX"}
 
@@ -99,7 +107,10 @@ class GhostNetworkMapSnapshotEndpointTest(unittest.TestCase):
         with patch.object(run, "load_profile_readonly", return_value=profile), \
                 patch.object(run, "sync_session_profile", side_effect=AssertionError("full sync not expected")), \
                 patch.object(run, "GhostNetworkService", return_value=FakeGhostNetworkService()):
-            response = client.get("/api/ghostnetwork/snapshot?view=suite")
+            response = client.get(
+                "/api/ghostnetwork/snapshot?view=suite",
+                headers=headers,
+            )
 
         self.assertEqual(response.status_code, 200)
         data = response.get_json()

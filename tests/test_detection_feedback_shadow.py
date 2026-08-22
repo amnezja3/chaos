@@ -9,6 +9,7 @@ from response_network.detection_validator import DetectionValidator
 from response_network.incident_store import IncidentStore
 from response_network.npc_capsule_factory import NPCCapsuleFactory, position_at
 from response_network.npc_capsule_store import NPCCapsuleStore
+from tests.session_generation_fixture import SessionGenerationFixture
 
 
 def temp_db_path(prefix):
@@ -45,6 +46,10 @@ def make_operation(operation_id, incident_id, position, status="running"):
 
 class DetectionFeedbackShadowTest(unittest.TestCase):
     def setUp(self):
+        self.session_generation = SessionGenerationFixture(
+            "chaos_detection_feedback_session_"
+        ).start()
+        self.addCleanup(self.session_generation.stop)
         self.paths = [
             temp_db_path("chaos_detection_incident_"),
             temp_db_path("chaos_detection_capsule_"),
@@ -168,13 +173,16 @@ class DetectionFeedbackShadowTest(unittest.TestCase):
     def test_detection_candidate_endpoint_returns_full_response_decision(self):
         incident, capsule, profile, candidate = self._seed_active_scene()
         client = run.app.test_client()
-        with client.session_transaction() as sess:
-            sess["user"] = "observer"
+        headers = self.session_generation.authenticate(client, "observer")
 
         with patch.object(run, "detection_validator", self.validator), \
                 patch.object(run, "load_profile_readonly", return_value=profile), \
                 patch.object(run.user_store, "get_profile", return_value=None):
-            response = client.post("/api/map/incidents/detection-candidates", json=candidate)
+            response = client.post(
+                "/api/map/incidents/detection-candidates",
+                headers=headers,
+                json=candidate,
+            )
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()

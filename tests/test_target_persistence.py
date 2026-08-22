@@ -4,12 +4,18 @@ import os
 import re
 import sqlite3
 import tempfile
+import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from unittest.mock import patch
 
 import run
 from database import AppActionReceiptStore, DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, PlayerInventoryStore, PlayerOperationStore, PlayerTargetRuntimeStore, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore
+from flask.testing import FlaskClient
 from profileManagment import UserProfileManager
+from session_generation_store import SessionGenerationStore
+from werkzeug.datastructures import Headers
 from run import (
     active_operations_from_operations,
     append_runtime_file_if_space,
@@ -57,6 +63,250 @@ from run import (
     validate_blacknet_ollama_outbox,
     write_blacknet_ollama_outbox,
 )
+
+
+class IsolatedFixtureSessionGenerationStore(SessionGenerationStore):
+    """Keep generation checks authoritative across deliberately split test DBs.
+
+    Production stores share one SQLite database and check the lineage through
+    the transaction connection.  This legacy test module intentionally patches
+    individual stores to separate temporary databases, so its fixture performs
+    the same current-generation assertion against the dedicated fixture store.
+    """
+
+    def build_precommit_guard(self, lineage_secret, generation_secret, actor_username):
+        expected_actor = str(actor_username or "").strip()
+
+        def precommit_guard(*, conn, username, current_revision):
+            del conn, username, current_revision
+            self.assert_current(lineage_secret, generation_secret, expected_actor)
+
+        return precommit_guard
+
+    def build_transaction_precommit_guard(
+        self,
+        lineage_secret,
+        generation_secret,
+        actor_username,
+    ):
+        expected_actor = str(actor_username or "").strip()
+
+        def precommit_guard(*, conn):
+            del conn
+            self.assert_current(lineage_secret, generation_secret, expected_actor)
+
+        return precommit_guard
+
+
+class SessionGenerationFixtureClient(FlaskClient):
+    """Exercise authenticated endpoints with the production generation contract."""
+
+    _DOCUMENT_PATHS = {"/desktop", "/map", "/dev"}
+
+    @staticmethod
+    def _bind_authenticated_generation(flask_session):
+        username = str(flask_session.get("user") or "").strip()
+        if not username:
+            return ""
+        lineage = str(
+            flask_session.get(run.SESSION_LINEAGE_KEY) or ""
+        ).strip()
+        generation = str(
+            flask_session.get(run.SESSION_GENERATION_KEY) or ""
+        ).strip()
+        if not lineage or not generation:
+            fixture_id = uuid.uuid4().hex
+            lineage = f"target-persistence-lineage-{fixture_id}"
+            generation = f"target-persistence-generation-{fixture_id}"
+            run.session_generation_store.activate(
+                lineage,
+                generation,
+                username,
+                reason="target_persistence_fixture",
+            )
+            flask_session[run.SESSION_LINEAGE_KEY] = lineage
+            flask_session[run.SESSION_GENERATION_KEY] = generation
+        return generation
+
+    @contextmanager
+    def session_transaction(self, *args, **kwargs):
+        with super().session_transaction(*args, **kwargs) as flask_session:
+            yield flask_session
+            self._bind_authenticated_generation(flask_session)
+
+    def _ensure_authenticated_generation(self):
+        with super().session_transaction() as flask_session:
+            return self._bind_authenticated_generation(flask_session)
+
+    @staticmethod
+    def _document_url_with_generation(path, generation):
+        if not isinstance(path, str):
+            return path
+        parts = urlsplit(path)
+        if parts.path not in SessionGenerationFixtureClient._DOCUMENT_PATHS:
+            return path
+        query = dict(parse_qsl(parts.query, keep_blank_values=True))
+        query.setdefault(
+            "_session_generation",
+            run._session_generation_query_token(generation),
+        )
+        return urlunsplit((
+            parts.scheme,
+            parts.netloc,
+            parts.path,
+            urlencode(query),
+            parts.fragment,
+        ))
+
+    def open(self, *args, **kwargs):
+        generation = self._ensure_authenticated_generation()
+        if generation:
+            headers = Headers(kwargs.get("headers") or ())
+            if run.SESSION_GENERATION_HEADER not in headers:
+                headers[run.SESSION_GENERATION_HEADER] = generation
+            kwargs["headers"] = headers
+
+            method = str(kwargs.get("method") or "GET").upper()
+            if method in {"GET", "HEAD"}:
+                if args:
+                    args = (
+                        self._document_url_with_generation(args[0], generation),
+                        *args[1:],
+                    )
+                elif "path" in kwargs:
+                    kwargs["path"] = self._document_url_with_generation(
+                        kwargs["path"],
+                        generation,
+                    )
+        return super().open(*args, **kwargs)
+
+
+_ORIGINAL_SESSION_GENERATION_STORE = None
+_ORIGINAL_TEST_CLIENT_CLASS = None
+_SESSION_GENERATION_TMP = None
+
+
+def setUpModule():
+    global _ORIGINAL_SESSION_GENERATION_STORE
+    global _ORIGINAL_TEST_CLIENT_CLASS
+    global _SESSION_GENERATION_TMP
+    _ORIGINAL_SESSION_GENERATION_STORE = run.session_generation_store
+    _ORIGINAL_TEST_CLIENT_CLASS = run.app.test_client_class
+    _SESSION_GENERATION_TMP = tempfile.TemporaryDirectory(
+        prefix="chaos_target_persistence_session_"
+    )
+    run.session_generation_store = IsolatedFixtureSessionGenerationStore(
+        os.path.join(_SESSION_GENERATION_TMP.name, "session-generation.sqlite3")
+    )
+    run.app.test_client_class = SessionGenerationFixtureClient
+
+
+def tearDownModule():
+    global _SESSION_GENERATION_TMP
+    run.app.test_client_class = _ORIGINAL_TEST_CLIENT_CLASS
+    run.session_generation_store = _ORIGINAL_SESSION_GENERATION_STORE
+    if _SESSION_GENERATION_TMP is not None:
+        _SESSION_GENERATION_TMP.cleanup()
+        _SESSION_GENERATION_TMP = None
+
+
+def canonical_wallet_test_profile(username, balance):
+    return {
+        "username": username,
+        "password": "pw",
+        "salt": "",
+        "level": 1,
+        "hackcoins": balance,
+        "respect": 0,
+        "exp": "0 / 1000",
+        "inventory": [],
+        "files": {"tools": [], "download": []},
+        "apps": [],
+        "hacked": [],
+        "desktop_settings": {},
+        "security": {},
+        "territory_stats": {},
+    }
+
+
+def canonical_market_test_payout(profile):
+    def payout(settlement):
+        balance = int(profile.get("hackcoins", 0) or 0) + int(settlement.get("price", 0) or 0)
+        source_id = settlement.get("batch_id") or settlement.get("file_id") or "sale"
+        return {
+            "balance": balance,
+            "transaction_key": f"test:ghost_exchange:{source_id}",
+        }
+
+    return payout
+
+
+class CanonicalWalletTestDouble:
+    """Small in-memory publisher/transfer double for endpoint fixtures."""
+
+    def __init__(self, balances):
+        self.balances = {
+            str(username): int(balance)
+            for username, balance in dict(balances or {}).items()
+        }
+        self.receipts = {}
+
+    def get_balance(self, username):
+        return int(self.balances.get(str(username), 0))
+
+    def transfer(
+        self,
+        from_username,
+        to_username,
+        amount,
+        *,
+        transaction_key,
+        note="",
+        **_kwargs,
+    ):
+        del note
+        sender = str(from_username)
+        recipient = str(to_username)
+        amount = int(amount)
+        if transaction_key in self.receipts:
+            result = dict(self.receipts[transaction_key])
+            result["duplicate"] = True
+            return result
+        if self.get_balance(sender) < amount:
+            raise run.WalletInsufficientFunds("Za malo HackCoinow.")
+        self.balances[sender] = self.get_balance(sender) - amount
+        self.balances[recipient] = self.get_balance(recipient) + amount
+        result = {
+            "balance": self.balances[sender],
+            "recipient_balance": self.balances[recipient],
+            "duplicate": False,
+            "transaction_key": transaction_key,
+        }
+        self.receipts[transaction_key] = dict(result)
+        return result
+
+    def credit(self, username, amount, *, transaction_key, **_kwargs):
+        username = str(username)
+        if transaction_key in self.receipts:
+            result = dict(self.receipts[transaction_key])
+            result["duplicate"] = True
+            return result
+        self.balances[username] = self.get_balance(username) + int(amount)
+        result = {
+            "balance": self.balances[username],
+            "duplicate": False,
+            "transaction_key": transaction_key,
+        }
+        self.receipts[transaction_key] = dict(result)
+        return result
+
+
+@contextmanager
+def canonical_wallet_test_runtime(balances):
+    wallet = CanonicalWalletTestDouble(balances)
+    with patch.object(run, "wallet_balance_store", wallet), \
+            patch.object(run, "wallet_store", wallet):
+        yield wallet
 
 
 class AppRequiredOffStateTest(unittest.TestCase):
@@ -487,7 +737,11 @@ class DevBugReportStoreTest(unittest.TestCase):
             ],
         }
 
-        with patch.object(run.user_store, "get_profile", return_value=fake_profile):
+        with patch.object(
+            run,
+            "load_profile_write_record",
+            return_value={"profile": fake_profile},
+        ):
             context = run.build_dev_bug_server_context(
                 "admin",
                 client_context={"profile": {"username": "spoofed"}, "current_url": "/desktop"},
@@ -660,7 +914,8 @@ class GameStateDeltaBusTest(unittest.TestCase):
         path = self._temp_path()
         try:
             bus = GameStateDeltaBus(db_path=path)
-            with patch.object(run, "delta_bus", bus):
+            with patch.object(run, "delta_bus", bus), \
+                    patch.object(run, "canonical_wallet_balance", return_value=777):
                 event = run.record_wallet_balance_delta(
                     "alice",
                     777,
@@ -1176,10 +1431,6 @@ class WalletDeltaEndpointTest(unittest.TestCase):
         path = self._temp_path()
         try:
             bus = GameStateDeltaBus(db_path=path)
-            client = run.app.test_client()
-            with client.session_transaction() as sess:
-                sess["user"] = "alice"
-
             transfer_result = {
                 "balance": 900,
                 "recipient_balance": 1100,
@@ -1210,12 +1461,16 @@ class WalletDeltaEndpointTest(unittest.TestCase):
             with patch.object(run, "delta_bus", bus), \
                     patch.object(run.wallet_store, "transfer", return_value=transfer_result), \
                     patch.object(run.wallet_store, "get_wallet", side_effect=fake_get_wallet), \
+                    patch.object(run, "canonical_wallet_balance", side_effect=lambda username: 1100 if username == "bob" else 900), \
                     patch.object(run, "sync_session_profile", return_value={"username": "alice", "hackcoins": 900}):
-                response = client.post("/api/wallet/transfer", json={
-                    "to": "bob",
-                    "amount": 100,
-                    "note": "test",
-                })
+                with run.app.test_request_context("/api/wallet/transfer", method="POST", json={
+                        "to": "bob",
+                        "amount": 100,
+                        "note": "test",
+                        "transaction_key": "wallet-test:alice:bob:100",
+                }):
+                    run.session["user"] = "alice"
+                    response = run.api_wallet_transfer()
 
             self.assertEqual(response.status_code, 200)
             data = response.get_json()
@@ -1231,30 +1486,31 @@ class WalletDeltaEndpointTest(unittest.TestCase):
         finally:
             self._cleanup(path)
 
-    def test_wallet_read_reconciles_stale_balance_store_from_profile(self):
+    def test_wallet_read_is_pure_canonical_and_does_not_reconcile_from_profile(self):
         path = self._temp_path()
         try:
             users = UserStore(db_path=path, seed_path="_missing_wallet_seed.json")
-            users.save_profile({
-                "username": "bob",
-                "password": "",
-                "salt": "",
-                "hackcoins": 5242,
-            })
+            users.save_profile_guarded(
+                canonical_wallet_test_profile("bob", 5242),
+                expected_revision=0,
+                source="test.registration",
+                allow_create=True,
+            )
             balance_store = WalletBalanceStore(db_path=path)
-            balance_store.set_balance(
+            balance_store.recovery_set_balance(
                 "bob",
                 242,
-                transaction_key="stale:test",
-                reason="stale_test",
+                transaction_key="recovery:test:canonical-242",
+                reason="test.recovery",
             )
 
             wallet = WalletStore(db_path=path).get_wallet("bob")
 
-            self.assertEqual(wallet["balance"], 5242)
-            self.assertEqual(balance_store.get_balance("bob"), 5242)
+            self.assertEqual(wallet["balance"], 242)
+            self.assertEqual(balance_store.get_balance("bob"), 242)
+            self.assertEqual(users.get_profile("bob")["hackcoins"], 5242)
             audit = wallet.get("ledger_audit", {})
-            self.assertEqual(audit.get("ledger_balance"), 5242)
+            self.assertEqual(audit.get("ledger_balance"), 242)
             self.assertTrue(audit.get("ok"))
         finally:
             self._cleanup(path)
@@ -1262,20 +1518,21 @@ class WalletDeltaEndpointTest(unittest.TestCase):
     def test_wallet_balance_store_records_ledger_seed_and_delta(self):
         path = self._temp_path()
         try:
+            users = UserStore(db_path=path, seed_path="_missing_wallet_seed.json")
+            users.save_profile_guarded(
+                canonical_wallet_test_profile("bob", 242),
+                expected_revision=0,
+                source="test.registration",
+                allow_create=True,
+            )
             balance_store = WalletBalanceStore(db_path=path)
             ledger_store = WalletLedgerStore(db_path=path)
 
-            balance_store.set_balance(
+            balance_store.credit(
                 "bob",
-                242,
-                transaction_key="legacy:balance",
-                reason="legacy_balance",
-            )
-            balance_store.set_balance(
-                "bob",
-                5242,
-                transaction_key="profile_reconcile:bob:5242",
-                reason="profile_reconcile",
+                5000,
+                transaction_key="reward:bob:5000",
+                reason="test.reward",
             )
 
             events = ledger_store.list_events("bob", limit=10)
@@ -1400,7 +1657,7 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
                     {"id": "vault", "name": "Vault", "price": 250, "product_type": "storage_upgrade"},
                 ]), \
                 patch.object(run.territory_conflict_store, "list_active", return_value=[]), \
-                patch.object(run.os.path, "isdir", return_value=False):
+                patch.object(run, "build_blacknet_radio_facts", return_value=[]):
             snapshot = build_blacknet_world_facts_snapshot(now=now)
 
         self.assertEqual(snapshot["schema"], 1)
@@ -1448,7 +1705,7 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         with patch.object(run.user_store, "list_profiles", side_effect=RuntimeError("db offline")), \
                 patch.object(run, "get_app_catalog", return_value=[]), \
                 patch.object(run.territory_conflict_store, "list_active", return_value=[]), \
-                patch.object(run.os.path, "isdir", return_value=False):
+                patch.object(run, "build_blacknet_radio_facts", return_value=[]):
             snapshot = build_blacknet_world_facts_snapshot(now=datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc))
 
         self.assertFalse(snapshot["diagnostics"]["sources"]["profiles"]["ok"])
@@ -1463,7 +1720,7 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         with patch.object(run.user_store, "list_profiles", return_value=[]), \
                 patch.object(run, "get_app_catalog", return_value=[]), \
                 patch.object(run.territory_conflict_store, "list_active", return_value=[]), \
-                patch.object(run.os.path, "isdir", return_value=False), \
+                patch.object(run, "build_blacknet_radio_facts", return_value=[]), \
                 patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")):
             response = client.get("/api/blacknet/world-facts")
 
@@ -1547,7 +1804,7 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         with patch.object(run.user_store, "list_profiles", return_value=profiles), \
                 patch.object(run, "get_app_catalog", return_value=[]), \
                 patch.object(run.territory_conflict_store, "list_active", return_value=[]), \
-                patch.object(run.os.path, "isdir", return_value=False):
+                patch.object(run, "build_blacknet_radio_facts", return_value=[]):
             snapshot = build_blacknet_world_facts_snapshot(now=now)
 
         hotspots = [
@@ -1630,7 +1887,7 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         with patch.object(run.user_store, "list_profiles", return_value=[]), \
                 patch.object(run, "get_app_catalog", return_value=[]), \
                 patch.object(run.territory_conflict_store, "list_active", return_value=conflicts), \
-                patch.object(run.os.path, "isdir", return_value=False):
+                patch.object(run, "build_blacknet_radio_facts", return_value=[]):
             snapshot = build_blacknet_world_facts_snapshot(now=now)
 
         conflict_facts = [
@@ -1668,7 +1925,7 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         with patch.object(run.user_store, "list_profiles", return_value=[]), \
                 patch.object(run, "get_app_catalog", return_value=[]), \
                 patch.object(run.territory_conflict_store, "list_active", return_value=conflicts), \
-                patch.object(run.os.path, "isdir", return_value=False):
+                patch.object(run, "build_blacknet_radio_facts", return_value=[]):
             snapshot = build_blacknet_world_facts_snapshot(now=now)
 
         fact = next(item for item in snapshot["facts"] if item["fact_type"] == "conflict_target_alert")
@@ -4273,7 +4530,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         with client.session_transaction() as sess:
             sess["user"] = "creator"
 
-        with patch.object(run, "sync_session_profile", return_value=profile), \
+        with canonical_wallet_test_runtime({"creator": 10000}), \
+                patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run.resources_store, "get", return_value=store), \
                 patch.object(run.resources_store, "set", return_value=None), \
@@ -5045,7 +5303,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         os.close(fd)
         try:
             delta_bus = GameStateDeltaBus(db_path=delta_db_path)
-            with patch.object(run, "delta_bus", delta_bus), \
+            with canonical_wallet_test_runtime({"neo": profile["hackcoins"], "admin": 0}), \
+                    patch.object(run, "delta_bus", delta_bus), \
                     patch.object(run, "sync_session_profile", return_value=profile), \
                     patch.object(run, "UserProfileManager", FakeManager), \
                     patch.object(run, "get_app_catalog", return_value=[product]), \
@@ -5105,7 +5364,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         with client.session_transaction() as sess:
             sess["user"] = "neo"
 
-        with patch.object(run, "sync_session_profile", return_value=profile), \
+        with canonical_wallet_test_runtime({"neo": profile["hackcoins"], "admin": 0}), \
+                patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run, "get_app_catalog", return_value=[product]), \
                 patch.object(run, "ensure_purchase_account_profile", return_value={"username": "admin", "hackcoins": 0}), \
@@ -5150,7 +5410,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         with client.session_transaction() as sess:
             sess["user"] = "neo"
 
-        with patch.object(run, "sync_session_profile", return_value=profile), \
+        with canonical_wallet_test_runtime({"neo": profile["hackcoins"], "admin": 0}), \
+                patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run, "get_app_catalog", return_value=[product]), \
                 patch.object(run, "ensure_purchase_account_profile", return_value={"username": "admin", "hackcoins": 0}):
@@ -5164,7 +5425,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(profile["apps"], [])
         self.assertEqual(profile["files"]["tools"], [])
 
-    def test_profile_template_sync_preserves_googleplex_purchase_fields(self):
+    def test_profile_template_sync_is_additive_and_preserves_unknown_fields(self):
         manager = UserProfileManager.__new__(UserProfileManager)
         manager._locked_keys = {"username", "salt", "password"}
         manager._dynamic_profile_keys = {"googleplex_products", "product_purchases", "storage_upgrades"}
@@ -5180,11 +5441,11 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
 
         changed = manager._recursive_sync(profile, template)
 
-        self.assertTrue(changed)
+        self.assertFalse(changed)
         self.assertIn("googleplex_products", profile)
         self.assertIn("product_purchases", profile)
         self.assertIn("storage_upgrades", profile)
-        self.assertNotIn("temporary_debug_field", profile)
+        self.assertTrue(profile["temporary_debug_field"])
 
     def test_googleplex_storage_reconcile_repairs_purchased_upgrade_capacity(self):
         product = next(item for item in run.storage_upgrade_products_catalog() if item["id"] == "storage_ghost_vault_basic")
@@ -5271,7 +5532,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         with client.session_transaction() as sess:
             sess["user"] = "neo"
 
-        with patch.object(run, "sync_session_profile", return_value=profile), \
+        with canonical_wallet_test_runtime({"neo": profile["hackcoins"], "admin": 0}), \
+                patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run, "get_app_catalog", return_value=[product]), \
                 patch.object(run, "ensure_purchase_account_profile", return_value={"username": "admin", "hackcoins": 0}):
@@ -5310,13 +5572,17 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         client = run.app.test_client()
         with client.session_transaction() as sess:
             sess["user"] = "neo"
-        with patch.object(run, "sync_session_profile", return_value=profile), \
+        with canonical_wallet_test_runtime({"neo": profile["hackcoins"], "admin": 0}), \
+                patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run, "get_app_catalog", return_value=[product]), \
                 patch.object(run, "ensure_purchase_account_profile", return_value={"username": "admin", "hackcoins": 0}), \
                 patch.object(run.user_store, "save_profile", return_value=None), \
                 patch.object(run.mail_store, "add_direct_notification", return_value=None):
-            response = client.post("/install-app", json={"app_id": product["id"]})
+            response = client.post("/install-app", json={
+                "app_id": product["id"],
+                "transaction_key": "test:googleplex:ticket_warszawa:1",
+            })
 
         city = run.TRAVEL_CITIES["Warszawa"]
         data = response.get_json()
@@ -5355,7 +5621,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
             next(item for item in run.googleplex_product_catalog() if item["id"] == "scan_range_300"),
             next(item for item in run.googleplex_product_catalog() if item["id"] == "bike_range_500"),
         ]
-        with patch.object(run, "sync_session_profile", return_value=profile), \
+        with canonical_wallet_test_runtime({"neo": profile["hackcoins"], "admin": 0}), \
+                patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run, "get_app_catalog", return_value=products), \
                 patch.object(run, "ensure_purchase_account_profile", return_value={"username": "admin", "hackcoins": 0}), \
@@ -5386,7 +5653,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
             client = run.app.test_client()
             with client.session_transaction() as sess:
                 sess["user"] = "neo"
-            with patch.object(run, "sync_session_profile", return_value=profile), \
+            with canonical_wallet_test_runtime({"neo": profile["hackcoins"]}), \
+                    patch.object(run, "sync_session_profile", return_value=profile), \
                     patch.object(run, "UserProfileManager", FakeManager), \
                     patch.object(run, "get_app_catalog", return_value=[product]):
                 return client.post("/install-app", json={"app_id": product["id"]}).get_json()
@@ -5451,7 +5719,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
             client = run.app.test_client()
             with client.session_transaction() as sess:
                 sess["user"] = "tester"
-            with patch.object(run, "delta_bus", bus), \
+            with canonical_wallet_test_runtime({"tester": 10000}), \
+                    patch.object(run, "delta_bus", bus), \
                     patch.object(run, "sync_session_profile", return_value=profile), \
                     patch.object(run, "UserProfileManager", FakeManager), \
                     patch.object(run.resources_store, "get", return_value=store), \
@@ -6747,7 +7016,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         client = run.app.test_client()
         with client.session_transaction() as sess:
             sess["user"] = "tester"
-        with patch.object(run.user_store, "get_profile", return_value=profile), \
+        with canonical_wallet_test_runtime({"tester": profile["hackcoins"]}), \
+                patch.object(run.user_store, "get_profile", return_value=profile), \
                 patch.object(run, "refresh_and_persist_operations", return_value=profile), \
                 patch.object(run, "UserProfileManager", side_effect=AssertionError("dashboard read should not write")):
             response = client.get("/api/ghost-exchange")
@@ -6837,7 +7107,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         }
         now = datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc)
 
-        result = refresh_market_runtime("neo", profile, now=now)
+        result = refresh_market_runtime("neo", profile, now=now, payout_callback=canonical_market_test_payout(profile))
 
         self.assertTrue(result["changed"])
         self.assertEqual(result["queued"], 1)
@@ -6869,14 +7139,14 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         }
         now = datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc)
 
-        listed_result = refresh_market_runtime("neo", profile, now=now)
+        listed_result = refresh_market_runtime("neo", profile, now=now, payout_callback=canonical_market_test_payout(profile))
         self.assertEqual(listed_result["queued"], 4)
         self.assertEqual(listed_result["listed"], 4, profile["files"]["camera"])
         self.assertEqual(listed_result["settled"], 0)
         self.assertIn("listed_at", profile["files"]["camera"][0], profile["files"]["camera"])
         listed_at = profile["files"]["camera"][0]["listed_at"]
         batch_id = profile["files"]["camera"][0]["batch_id"]
-        waiting_result = refresh_market_runtime("neo", profile, now=now + timedelta(minutes=1))
+        waiting_result = refresh_market_runtime("neo", profile, now=now + timedelta(minutes=1), payout_callback=canonical_market_test_payout(profile))
 
         self.assertEqual(waiting_result["settled"], 0)
         self.assertEqual(profile["hackcoins"], 100)
@@ -6917,11 +7187,11 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         }
         now = datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc)
 
-        refresh_market_runtime("neo", profile, now=now)
+        refresh_market_runtime("neo", profile, now=now, payout_callback=canonical_market_test_payout(profile))
         with patch.object(run.mail_store, "add_direct_notification") as mail_mock:
-            settled_result = refresh_market_runtime("neo", profile, now=now + timedelta(minutes=6))
+            settled_result = refresh_market_runtime("neo", profile, now=now + timedelta(minutes=6), payout_callback=canonical_market_test_payout(profile))
             hc_after_sale = profile["hackcoins"]
-            second_result = refresh_market_runtime("neo", profile, now=now + timedelta(minutes=7))
+            second_result = refresh_market_runtime("neo", profile, now=now + timedelta(minutes=7), payout_callback=canonical_market_test_payout(profile))
 
         self.assertEqual(settled_result["settled"], 1)
         self.assertEqual(second_result["settled"], 0)
@@ -6976,7 +7246,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         with client.session_transaction() as sess:
             sess["user"] = "neo"
 
-        with patch.object(run.user_store, "get_profile", return_value=profile), \
+        with canonical_wallet_test_runtime({"neo": profile["hackcoins"]}), \
+                patch.object(run.user_store, "get_profile", return_value=profile), \
                 patch.object(run, "refresh_and_persist_operations", side_effect=lambda username, current: current), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run, "add_cyberner_direct_notification") as notify_mock, \
@@ -7034,7 +7305,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
             "system_messages": [],
         }
 
-        result = refresh_market_runtime("neo", profile, now=datetime(2026, 7, 3, 10, 6, tzinfo=timezone.utc))
+        result = refresh_market_runtime("neo", profile, now=datetime(2026, 7, 3, 10, 6, tzinfo=timezone.utc), payout_callback=canonical_market_test_payout(profile))
 
         self.assertTrue(result["changed"])
         self.assertEqual(result["settled"], 0)
@@ -7087,7 +7358,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         }
 
         with patch.object(run.mail_store, "add_direct_notification") as mail_mock:
-            result = refresh_market_runtime("neo", profile, now=datetime(2026, 7, 3, 10, 6, tzinfo=timezone.utc))
+            result = refresh_market_runtime("neo", profile, now=datetime(2026, 7, 3, 10, 6, tzinfo=timezone.utc), payout_callback=canonical_market_test_payout(profile))
 
         remaining_network_ids = {item["id"] for item in profile["files"]["network"]}
         self.assertEqual(result["settled"], 1)
@@ -7126,7 +7397,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         }
 
         with patch.object(run.mail_store, "add_direct_notification") as mail_mock:
-            result = refresh_market_runtime("neo", profile, now=datetime(2026, 7, 3, 10, 6, tzinfo=timezone.utc))
+            result = refresh_market_runtime("neo", profile, now=datetime(2026, 7, 3, 10, 6, tzinfo=timezone.utc), payout_callback=canonical_market_test_payout(profile))
 
         self.assertEqual(result["settled"], 1)
         self.assertEqual(profile["files"]["network"], [])
@@ -7167,7 +7438,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         }
         now = datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc)
 
-        listed = refresh_market_runtime("neo", profile, now=now)
+        listed = refresh_market_runtime("neo", profile, now=now, payout_callback=canonical_market_test_payout(profile))
         self.assertEqual(listed["settled"], 0)
         self.assertGreaterEqual(listed["listed"], 3)
         self.assertTrue(all(item["market_status"] == "listed" for item in profile["files"]["network"]))
@@ -7175,7 +7446,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertTrue(all(item.get("listed_at") for item in profile["files"]["network"]))
 
         with patch.object(run.mail_store, "add_direct_notification") as mail_mock:
-            settled = refresh_market_runtime("neo", profile, now=now + timedelta(minutes=6))
+            settled = refresh_market_runtime("neo", profile, now=now + timedelta(minutes=6), payout_callback=canonical_market_test_payout(profile))
 
         self.assertEqual(settled["settled"], 1)
         self.assertEqual(profile["files"]["network"], [])
@@ -7227,7 +7498,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         with client.session_transaction() as sess:
             sess["user"] = "neo"
 
-        with patch.object(run.user_store, "get_profile", return_value=profile), \
+        with canonical_wallet_test_runtime({"neo": profile["hackcoins"]}), \
+                patch.object(run.user_store, "get_profile", return_value=profile), \
                 patch.object(run, "refresh_and_persist_operations", side_effect=lambda username, current: current), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run, "add_cyberner_direct_notification") as notify_mock, \
@@ -7241,7 +7513,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(first_data["market_runtime"]["settled"], 0)
         self.assertTrue(all(item["market_status"] == "listed" for item in profile["files"]["network"]))
 
-        with patch.object(run.user_store, "get_profile", return_value=profile), \
+        with canonical_wallet_test_runtime({"neo": profile["hackcoins"]}), \
+                patch.object(run.user_store, "get_profile", return_value=profile), \
                 patch.object(run, "refresh_and_persist_operations", side_effect=lambda username, current: current), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run, "add_cyberner_direct_notification") as notify_mock, \
@@ -7300,7 +7573,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         with client.session_transaction() as sess:
             sess["user"] = "neo"
 
-        with patch.object(run.user_store, "get_profile", return_value=profile), \
+        with canonical_wallet_test_runtime({"neo": profile["hackcoins"]}), \
+                patch.object(run.user_store, "get_profile", return_value=profile), \
                 patch.object(run, "refresh_and_persist_operations", side_effect=lambda username, current: current), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run, "market_runtime_now", return_value=datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc)):
@@ -7373,7 +7647,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         with client.session_transaction() as sess:
             sess["user"] = "neo"
 
-        with patch.object(run.user_store, "get_profile", return_value=profile), \
+        with canonical_wallet_test_runtime({"neo": profile["hackcoins"]}), \
+                patch.object(run.user_store, "get_profile", return_value=profile), \
                 patch.object(run, "refresh_and_persist_operations", side_effect=lambda username, current: current), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run, "market_runtime_now", return_value=datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc)):
@@ -7439,7 +7714,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         with client.session_transaction() as sess:
             sess["user"] = "neo"
 
-        with patch.object(run.user_store, "get_profile", return_value=profile), \
+        with canonical_wallet_test_runtime({"neo": profile["hackcoins"]}), \
+                patch.object(run.user_store, "get_profile", return_value=profile), \
                 patch.object(run, "refresh_and_persist_operations", side_effect=lambda username, current: current), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run, "market_runtime_now", return_value=datetime(2026, 7, 3, 11, 0, tzinfo=timezone.utc)):
@@ -7608,6 +7884,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
                     "neo",
                     profile,
                     now=datetime(2026, 7, 3, 9, 5, tzinfo=timezone.utc),
+                    payout_callback=canonical_market_test_payout(profile),
                 )
                 sectors = {
                     item["sector"]: item
@@ -7664,7 +7941,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
             sess["user"] = "neo"
         original_market_runtime_now = run.market_runtime_now
 
-        with patch.object(run.user_store, "get_profile", return_value=profile), \
+        with canonical_wallet_test_runtime({"neo": profile["hackcoins"]}), \
+                patch.object(run.user_store, "get_profile", return_value=profile), \
                 patch.object(run, "refresh_and_persist_operations", side_effect=lambda username, current: current), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run, "add_cyberner_direct_notification") as notify_mock, \
@@ -7745,6 +8023,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
                         "neo",
                         profile,
                         now=datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc),
+                        payout_callback=canonical_market_test_payout(profile),
                     )
 
                 self.assertEqual(result["settled"], 1)

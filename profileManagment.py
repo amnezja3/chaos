@@ -1,10 +1,22 @@
 import copy
 
-from database import JsonResourceStore, UserStore
+from database import (
+    JsonResourceStore,
+    ProfileRecoveryRequired,
+    UserStore,
+)
 
 
 class UserProfileManager:
-    def __init__(self, username, users_path="static/users.json", template_path="static/user_template.json"):
+    def __init__(
+        self,
+        username,
+        users_path="static/users.json",
+        template_path="static/user_template.json",
+        store=None,
+        resource_store=None,
+        precommit_guard=None,
+    ):
         self.username = username
         self.users_path = users_path
         self.template_path = template_path
@@ -13,8 +25,9 @@ class UserProfileManager:
             "googleplex_products", "product_purchases", "storage_upgrades",
             "ghostnetwork_stats", "ghostnetwork_reward_history",
         }
-        self.store = UserStore(seed_path=users_path)
-        self.resource_store = JsonResourceStore()
+        self.store = store or UserStore(seed_path=users_path)
+        self.resource_store = resource_store or JsonResourceStore()
+        self.precommit_guard = precommit_guard
         self._load_all_users()
         self._find_user_profile()
         self._sync_with_template()
@@ -29,7 +42,7 @@ class UserProfileManager:
         template = self._load_template(template_path)
         updated = self._recursive_sync(self.user_profile, template)
         if updated:
-            self._save_changes()
+            self._save_changes(source="profile_manager.template_sync")
 
     def _recursive_sync(self, user_data: dict, template_data: dict, path=()) -> bool:
         updated = False
@@ -41,29 +54,26 @@ class UserProfileManager:
             elif isinstance(template_value, dict) and isinstance(user_data[key], dict):
                 updated = self._recursive_sync(user_data[key], template_value, path + (key,)) or updated
 
-        if path == ("desktop_settings",) or path == ("desktop_settings", "icon_positions"):
-            return updated
-
-        keys_to_remove = [
-            key for key in user_data
-            if key not in template_data and key not in self._locked_keys and key not in self._dynamic_profile_keys
-        ]
-        for key in keys_to_remove:
-            del user_data[key]
-            updated = True
-
+        # Template synchronization is additive-only. Runtime extensions and
+        # newer fields must survive an older template; explicit cleanup belongs
+        # to a versioned migration with its own receipt/guard.
         return updated
 
     def _load_all_users(self):
         self.all_users = self.store.list_profiles()
 
     def _find_user_profile(self):
-        profile = self.store.get_profile(self.username)
-        if not profile:
+        record = self.store.get_profile_with_revision(self.username)
+        if not record:
             raise ValueError(f"User '{self.username}' not found.")
+        if record.get("state") != "valid":
+            raise ProfileRecoveryRequired(
+                f"User '{self.username}' requires profile recovery."
+            )
 
-        self.user_profile = profile
-        self.original_profile = copy.deepcopy(profile)
+        self.user_profile = record["profile"]
+        self.profile_revision = int(record["profile_revision"])
+        self.original_profile = copy.deepcopy(self.user_profile)
 
     def add_new_user(self, new_username: str, password: str, template_path="static/user_template.json", overwrite=False):
         existing_user = self.store.get_profile(new_username)
@@ -71,12 +81,17 @@ class UserProfileManager:
         if existing_user and not overwrite:
             raise ValueError(f"Użytkownik '{new_username}' już istnieje.")
 
-        template = self._load_template(template_path)
+        template = copy.deepcopy(self._load_template(template_path))
         template["username"] = new_username
         template["password"] = password
         template["salt"] = "generated_salt_here"
 
-        self.store.save_profile(template)
+        self.store.save_profile_guarded(
+            template,
+            expected_revision=0,
+            source="profile_manager.registration",
+            allow_create=True,
+        )
         self._load_all_users()
         return True
 
@@ -105,7 +120,7 @@ class UserProfileManager:
 
         if launch_queue_write_mode:
             self.user_profile["_launch_queue_write_mode"] = launch_queue_write_mode
-        self._save_changes()
+        self._save_changes(source="profile_manager.update_profile")
 
     def update_profile_value(self, profile_key: str, new_value):
         if profile_key in self._locked_keys:
@@ -138,7 +153,7 @@ class UserProfileManager:
         else:
             raise TypeError(f"Typ danych '{current_type}' nieobsługiwany dla aktualizacji.")
 
-        self._save_changes()
+        self._save_changes(source="profile_manager.update_profile_value")
 
     def update_hacked_target_by_coords(self, lat, lng, update_data: dict) -> bool:
         hacked_list = self.user_profile.get("hacked", [])
@@ -151,7 +166,7 @@ class UserProfileManager:
                     else:
                         target[k] = v
                 self.user_profile["hacked"][i] = target
-                self._save_changes()
+                self._save_changes(source="profile_manager.update_hacked_target")
                 return True
         return False
 
@@ -166,13 +181,18 @@ class UserProfileManager:
                 if label is None or target.get("label") == label:
                     del targets[i]
                     self.user_profile[key_of_list] = targets
-                    self._save_changes()
+                    self._save_changes(source="profile_manager.remove_by_coords")
                     return True
 
         return False
 
-    def _save_changes(self):
-        self.store.save_profile(self.user_profile)
+    def _save_changes(self, source="profile_manager"):
+        self.store.save_profile_guarded(
+            self.user_profile,
+            expected_revision=self.profile_revision,
+            source=source,
+            precommit_guard=self.precommit_guard,
+        )
         self.reload_profile()
 
     def get_profile(self, strip_sensitive=False):

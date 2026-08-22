@@ -2,7 +2,11 @@
 
 Data planu: 2026-08-21.
 
-Status: `READY FOR READ-ONLY SERVER FORENSICS — Sprint 130.10`.
+Status: `IMPLEMENTED LOCALLY — READY FOR MANUAL ACCOUNT-SWITCH TEST`.
+
+Automatyczne testy celowane są zielone, a pełna regresja zakończyła się
+wynikiem `956/956 OK`. Manual A → B → A, dwie karty i gameplay nie zostały
+wykonane; sprint nie ma jeszcze werdyktu GO.
 
 Incydent źródłowy:
 `doc/Incydent Trollu2 — utrata profilu, błędy sesji i plan odbudowy.md`.
@@ -43,8 +47,9 @@ serwerową ani mutację profilu.
 ## Dlaczego ten sprint jest przed odbudową
 
 Audyt Etapu 1 potwierdził jeden deterministyczny destructive-write w kodzie,
-który może wyjaśnić starter-like reset po trzecim filarze. Przypisanie tej
-ścieżki do konkretnego incydentu `Trollu2` nadal wymaga korelacji serwerowej:
+który może wyjaśnić starter-like reset po trzecim filarze. Późniejszy exact-user
+capture dla canonical loginu `trolu2` sklasyfikował korelację tej ścieżki z
+incydentem jako `STRONGLY CONSISTENT / HIGH CONFIDENCE`:
 
 1. `loads_json(..., {})` zaciera różnicę między błędem dekodowania JSON a
    prawidłowym pustym wynikiem.
@@ -57,8 +62,8 @@ który może wyjaśnić starter-like reset po trzecim filarze. Przypisanie tej
    `list_profile_identities()`, czyli ze sparse identity projection. Jeżeli
    first activation reward zmieni taką projekcję, `UserStore.save_profile()`
    zapisuje ją jako cały profil. Późniejszy template sync uzupełnia brakujące
-   pola wartościami startowymi. To jest potwierdzony defekt kodu; korelacja z
-   incydentem pozostaje `PENDING SERVER CORRELATION`.
+   pola wartościami startowymi. To jest potwierdzony defekt kodu; realne dane
+   `trolu2` spełniają jego preconditions i pokazują zgodny phenotype.
 5. `PlayerInventoryStore` może ponownie nałożyć aplikacje i narzędzia z
    wydzielonego store. Wyjaśnia to, dlaczego inventory mogło przetrwać reset
    reszty profilu, ale samo nie dowodzi przyczyny resetu.
@@ -69,9 +74,9 @@ który może wyjaśnić starter-like reset po trzecim filarze. Przypisanie tej
    presentation state. Samo `session.clear()` na backendzie nie jest dowodem,
    że spóźniona odpowiedź rozpoczęta dla A nie zostanie użyta po zalogowaniu B.
 
-Nie przypisujemy błędu rendererowi Leaflet. Nie twierdzimy też jeszcze, że
-potwierdzony writer GN wykonał się dla `Trollu2`; tę część ma rozstrzygnąć
-zredagowany odczyt trwałych danych z serwera.
+Nie przypisujemy błędu rendererowi Leaflet. Evidence nie zawiera historycznego
+LKG ani telemetryki konkretnej próby full-write, dlatego nie deklarujemy
+absolutnej atrybucji pojedynczego zapisu mimo wysokiej zgodności korelacji.
 
 ## Macierz bieżących i docelowych źródeł prawdy
 
@@ -181,13 +186,49 @@ third pillar / territory publication
 → template sync do wartości starter-like
 ```
 
-Status dowodowy:
+Status dowodowy przed capture:
 
 - `CONFIRMED CODE DEFECT` — ścieżka zapisu istnieje i jest destrukcyjna;
-- `PENDING SERVER CORRELATION` — brak jeszcze dowodu, że dokładnie ten writer
-  wykonał reset konta zgłoszonego jako `Trollu2`;
-- `FORENSICS CAPTURED` nie zostało jeszcze ogłoszone;
-- nie rozpoczęto Etapu 2, nie zmieniono runtime i nie wykonano repair.
+- korelacja konkretnego incydentu oczekiwała na exact-user capture;
+- na tym etapie nie zmieniono runtime i nie wykonano repair.
+
+### Wynik serwerowej bramki evidence — canonical login `trolu2`
+
+Zredagowany pakiet capture z 2026-08-21, pobrany jako
+`logs/chaos-13010-trolu2-20260821T184643Z.tar.gz`, przeszedł kontrolę
+integralności plików. `status`, `audit` i `verify` wykonały się technicznie
+poprawnie, a SQLite `quick_check` zwrócił `ok`. Kod wyjścia probe nie jest
+jednak werdyktem integralności konta: materiał historyczny pozostaje częściowy,
+ponieważ przed hardeningiem nie istniał profile revision ani zwalidowany LKG.
+
+Stan bieżącego `profile_json` jest formalnie `valid`, lecz semantycznie
+reset-like: `LVL 2`, `HC 1000`, `EXP 0.0`, `RSP 25`. Jednocześnie trwałe store'y
+potwierdzają dojrzałe konto: 11 captured targets, 35 rekordów ownership,
+60 capture receipts, 15 applied progression receipts, 113 wpisów wallet ledger,
+5 produktów i 4 zakupy Googleplex, 578 historycznych operacji, 1000 zachowanych
+delt oraz 1393 consumed system messages. Inventory store i profil są zgodne
+dla 11 aplikacji i 11 narzędzi; to jest spodziewane po compatibility overlay i
+nie unieważnia resetu pozostałych zakresów.
+
+Korelacja GN wykazała dwa dokładne łańcuchy
+`ghost.part_activated -> part_first_activated/applied`, zgodne exactly-once z
+dwoma contributions i dwoma wpisami reward history. Ostatni łańcuch powstał
+2026-08-21 około `13:24:45–13:25:01` i obejmuje event, reward, publication,
+progression receipt oraz zakończony territory job. Wallet miał następnie saldo
+dokładnie `1000` o `13:28:41`, a obecny profil został zapisany o `15:08:32`.
+
+Disposition po capture:
+
+- `CONFIRMED CODE DEFECT` — sparse GN projection może zostać zapisana jako
+  pełny profil;
+- `INCIDENT CORRELATION: STRONGLY CONSISTENT / HIGH CONFIDENCE` — realne dane
+  spełniają preconditions defektu i pokazują odpowiadający mu reset-like
+  phenotype przy zachowanych durable stores;
+- brak write-attempt telemetry i pre-incident LKG nie pozwala nazwać
+  atrybucji historycznej kryptograficznie rozstrzygniętą;
+- `FORENSICS CAPTURED — Sprint 130.10`;
+- Etap 2 może się rozpocząć, ale repair `trolu2` pozostaje zakazany do GO
+  Sprintu 130.10 i osobnego Sprintu 130.11.
 
 ## Etap 2 — twarde rozróżnienie błędów od fallbacku
 
@@ -388,6 +429,39 @@ request_id
 
 Nie logować wartości pól profilu ani surowej generacji sesji.
 
+## Wynik lokalnego hardeningu — 2026-08-21
+
+Zaimplementowano lokalnie systemowy stop-the-bleed:
+
+- guarded profile boundary z walidacją, checksum, monotoniczną revision,
+  obowiązkowym CAS i atomowym `last_known_good`; fallback, partial profile i
+  destrukcyjny candidate nie mogą zostać utrwalone zwykłą ścieżką;
+- kanoniczny wallet i inventory z jednokierunkową projekcją do profilu,
+  fail-closed dla niejednoznacznej migracji oraz stabilnymi kluczami
+  idempotencji dla transferów i retry po crash/reload;
+- `session_generation` z jednokierunkowym hashem, rotacją, wejściowym i
+  precommit checkiem, ochroną odpowiedzi oraz frontendowym teardown pollerów,
+  cache, map iframe, delt, operacji i SFX;
+- sagę rewardów GhostNetwork: pending reward jest idempotentnie projektowany do
+  guarded profilu, a ledger/reputation/eventy są finalizowane dopiero po
+  poprawnym zapisie; retry nie dubluje RSP ani historii;
+- bounded CAS retry dla worker-owned top-level territory projections, w tym
+  rebuild, conflict finalize, encirclement i clear aimed target; usunięto też
+  błąd niezdefiniowanego `profile_record` w ścieżce clear aimed target.
+
+Zielone testy celowane na moment przekazania bramki:
+
+- Target Registry / persistence: `221/221`;
+- canonical wallet i runtime cutover: `30/30`;
+- GhostNetwork reward/runtime/drop foundation: `26/26`;
+- territory profile projection CAS: `3/3`.
+
+Pełna regresja repozytorium zakończyła się wynikiem `956/956 OK`; sześć
+kontraktów JS oraz pięć kontroli składni Node także przeszło. Nie wykonano
+commita, deployu, restartu, manuala ani żadnej mutacji lub repair konta
+`trolu2`; odbudowa pozostaje zakazana i należy wyłącznie do Sprintu 130.11 po
+GO Sprintu 130.10.
+
 ## Testy automatyczne
 
 Minimum:
@@ -458,6 +532,40 @@ Po evidence gate, implementacji lokalnej i zielonych automatach zatrzymać się
 ze statusem:
 
 `READY FOR MANUAL ACCOUNT-SWITCH TEST — Sprint 130.10`
+
+Status jest bramką przekazania do użytkownika, nie wynikiem manuala ani GO.
+Agent nie wykonał manualnego przełączenia kont, testu dwóch kart ani ścieżki
+gameplayowej.
+
+Przed manualem uruchomić monitor w osobnej sesji SSH:
+
+```bash
+cd ~/app/chaos
+bash tools/monitor_sprint_130_10.sh
+```
+
+Skrypt pobiera bieżące `pm_out_log_path` i `pm_err_log_path` dla procesów
+`chaos` oraz `chaos-territory-worker` bezpośrednio z `pm2 jlist`; nie zależy od
+aktualnego ID procesu ani suffixu pliku logu. Dołącza również faktyczny
+`CHAOS_BACKEND_DEBUG_LOG` weba (domyślnie `data/logs/backend_debug.log`), jeżeli
+APP FLOW nie jest kopiowany na stdout. Zapisuje od chwili startu filtrowany
+strumień profile/session/wallet/GN/territory, istotne requesty i pełne bloki
+tracebacków. Każda linia dostaje czas UTC oraz nazwę pliku źródłowego.
+Nagłówek i stopka zawierają status, PID oraz liczniki restartów PM2 przed i po
+manualu. `Ctrl+C` dopisuje stopkę i wypisuje gotową ścieżkę pliku w
+`logs/sprint-130-10-monitor-<UTC>-<PID>.log`.
+
+Nie uruchamiać go przez `source` ani przez wklejanie treści do aktywnej powłoki.
+Jeżeli potrzebny jest krótki kontekst sprzed startu, można jawnie ustawić np.
+`CHAOS_MONITOR_START_LINES=50`; domyślnie monitor zaczyna od nowych linii.
+Monitor jest zbiorem dowodów, nie samodzielnym werdyktem: oczekiwany logout
+generuje `session.invalidated`, a celowo opóźniony request może poprawnie
+generować `session.generation_mismatch`. Wallet exactly-once i stan trwały nadal
+potwierdza końcowe `audit/verify`, nie sam access log `409`. Pole
+`db_lock_metrics` w snapshotach PM2 pokazuje, czy `[DB_LOCK]` było w tym
+przebiegu faktycznie włączone.
+Plik ma prywatne uprawnienia (`umask 077`), ale przed dołączeniem go do
+dokumentacji należy nadal zredagować nazwy graczy, target IDs i geometrię.
 
 Użytkownik wykonuje manual:
 

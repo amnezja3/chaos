@@ -3,8 +3,30 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from database import AppActionReceiptStore, GameStateDeltaBus, PlayerInventoryStore, PlayerOperationStore, PlayerPositionStore, PlayerTargetRuntimeStore, SystemMessageStore, UserStore, WalletBalanceStore
+from database import AppActionReceiptStore, GameStateDeltaBus, PlayerInventoryStore, PlayerOperationStore, PlayerPositionStore, PlayerTargetRuntimeStore, ProfileWriteConflict, SystemMessageStore, UserStore, WalletBalanceStore, WalletIdempotencyConflict
+from session_generation_store import SessionGenerationStore
 import run
+
+
+def complete_test_profile(username="main", balance=0, launch_queue=None):
+    return {
+        "username": username,
+        "password": "pw",
+        "salt": "",
+        "level": 1,
+        "hackcoins": balance,
+        "respect": 0,
+        "exp": "0 / 1000",
+        "inventory": [],
+        "files": {"tools": [], "download": []},
+        "apps": [],
+        "hacked": [],
+        "desktop_settings": {},
+        "security": {},
+        "territory_stats": {},
+        "system_messages": [],
+        "launch_queue": list(launch_queue or []),
+    }
 
 
 class HackActionIdempotencyTests(unittest.TestCase):
@@ -19,6 +41,7 @@ class HackActionIdempotencyTests(unittest.TestCase):
         self.original_inventory_store = run.player_inventory_store
         self.original_wallet_balance_store = run.wallet_balance_store
         self.original_delta_bus = run.delta_bus
+        self.original_session_generation_store = run.session_generation_store
         run.app_action_receipt_store = AppActionReceiptStore(db_path=self.db_path)
         run.player_target_runtime_store = PlayerTargetRuntimeStore(db_path=self.db_path)
         run.player_position_store = PlayerPositionStore(db_path=self.db_path)
@@ -27,6 +50,7 @@ class HackActionIdempotencyTests(unittest.TestCase):
         run.player_inventory_store = PlayerInventoryStore(db_path=self.db_path)
         run.wallet_balance_store = WalletBalanceStore(db_path=self.db_path)
         run.delta_bus = GameStateDeltaBus(db_path=self.db_path)
+        run.session_generation_store = SessionGenerationStore(self.db_path)
         with run._hack_action_idempotency_lock:
             run._hack_action_idempotency_cache.clear()
 
@@ -39,7 +63,34 @@ class HackActionIdempotencyTests(unittest.TestCase):
         run.player_inventory_store = self.original_inventory_store
         run.wallet_balance_store = self.original_wallet_balance_store
         run.delta_bus = self.original_delta_bus
+        run.session_generation_store = self.original_session_generation_store
         self.tmpdir.cleanup()
+
+    def _create_wallet_user(self, balance=0):
+        return UserStore(
+            db_path=self.db_path,
+            seed_path=str(Path(self.tmpdir.name) / "missing_users.json"),
+        ).save_profile_guarded(
+            complete_test_profile(balance=balance),
+            expected_revision=0,
+            source="test.registration",
+            allow_create=True,
+        )
+
+    def _authenticate_client(self, client, username="main"):
+        lineage = f"lineage-{username}-{id(client)}"
+        generation = f"generation-{username}-{id(client)}"
+        run.session_generation_store.activate(
+            lineage,
+            generation,
+            username,
+            reason="test_seed",
+        )
+        with client.session_transaction() as sess:
+            sess["user"] = username
+            sess[run.SESSION_LINEAGE_KEY] = lineage
+            sess[run.SESSION_GENERATION_KEY] = generation
+        return {run.SESSION_GENERATION_HEADER: generation}
 
     def test_in_flight_flow_blocks_duplicate_execution(self):
         key = run.build_hack_action_idempotency_key(
@@ -206,13 +257,12 @@ class HackActionIdempotencyTests(unittest.TestCase):
             "dedupe_key": "effect:op-1",
         })
         client = run.app.test_client()
-        with client.session_transaction() as sess:
-            sess["user"] = "main"
+        headers = self._authenticate_client(client)
 
         with patch.object(run.user_store, "get_profile", return_value=profile), \
                 patch.object(run, "UserProfileManager", side_effect=AssertionError("write should not run")):
-            first = client.get("/system-messages")
-            second = client.get("/system-messages")
+            first = client.get("/system-messages", headers=headers)
+            second = client.get("/system-messages", headers=headers)
 
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
@@ -254,17 +304,37 @@ class HackActionIdempotencyTests(unittest.TestCase):
         self.assertEqual(snapshot["storage"]["used"], 128)
 
     def test_wallet_balance_store_idempotent_transaction_key(self):
-        first = run.wallet_balance_store.set_balance("main", 100, transaction_key="tx-1", reason="test")
-        second = run.wallet_balance_store.set_balance("main", 999, transaction_key="tx-1", reason="retry")
+        self._create_wallet_user(0)
+        first = run.wallet_balance_store.credit(
+            "main", 100, transaction_key="tx-1", reason="test"
+        )
+        second = run.wallet_balance_store.credit(
+            "main", 100, transaction_key="tx-1", reason="test"
+        )
 
-        self.assertEqual(first, 100)
-        self.assertEqual(second, 100)
+        self.assertTrue(first["applied"])
+        self.assertTrue(second["duplicate"])
+        self.assertEqual(first["balance"], 100)
+        self.assertEqual(second["balance"], 100)
         self.assertEqual(run.wallet_balance_store.get_balance("main"), 100)
+        with self.assertRaises(WalletIdempotencyConflict):
+            run.wallet_balance_store.credit(
+                "main", 999, transaction_key="tx-1", reason="conflict"
+            )
 
-    def test_record_wallet_balance_delta_updates_balance_store(self):
-        run.record_wallet_balance_delta("main", 321, reason="test", dedupe_key="wallet:test:main")
+    def test_record_wallet_balance_delta_publishes_committed_canonical_balance(self):
+        self._create_wallet_user(0)
+        run.wallet_balance_store.credit(
+            "main", 321, transaction_key="wallet:test:credit", reason="test"
+        )
+        run.record_wallet_balance_delta(
+            "main", 999999, reason="test", dedupe_key="wallet:test:main"
+        )
 
         self.assertEqual(run.wallet_balance_store.get_balance("main"), 321)
+        changes = run.delta_bus.get_changes_since("main", 0)["changes"]
+        self.assertEqual(1, len(changes))
+        self.assertEqual(321, changes[0]["payload"]["balance"])
 
     def test_operations_summary_reads_store_without_profile_refresh(self):
         operation = {
@@ -280,12 +350,11 @@ class HackActionIdempotencyTests(unittest.TestCase):
         run.player_operation_store.upsert_operations("main", [operation], event_type="operation.started")
         profile = {"username": "main", "operations": [operation], "system_messages": []}
         client = run.app.test_client()
-        with client.session_transaction() as sess:
-            sess["user"] = "main"
+        headers = self._authenticate_client(client)
 
         with patch.object(run.user_store, "get_profile", return_value=profile), \
                 patch.object(run, "refresh_and_persist_operations", side_effect=AssertionError("summary should not refresh full profile")):
-            response = client.get("/api/operations?summary=1")
+            response = client.get("/api/operations?summary=1", headers=headers)
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
@@ -394,26 +463,30 @@ class HackActionIdempotencyTests(unittest.TestCase):
                 db_path=str(Path(tmpdir) / "game.sqlite3"),
                 seed_path=str(Path(tmpdir) / "missing_users.json"),
             )
-            store.save_profile({
-                "username": "main",
-                "password": "pw",
-                "salt": "",
-                "launch_queue": [],
-            })
+            store.save_profile_guarded(
+                complete_test_profile(),
+                expected_revision=0,
+                source="test.registration",
+                allow_create=True,
+            )
+            created = store.get_profile_with_revision("main")
+            store.patch_profile_guarded(
+                "main",
+                {"launch_queue": ["Snfx"]},
+                expected_revision=created["profile_revision"],
+                source="test.launch_queue.append",
+            )
 
-            pending = store.get_profile("main")
-            pending["launch_queue"] = ["Snfx"]
-            pending["_launch_queue_write_mode"] = "append"
-            store.save_profile(pending)
+            stale = store.get_profile_with_revision("main")
+            self.assertEqual(store.consume_launch_queue("main"), ["Snfx"])
 
-            stale = store.get_profile("main")
-            consumed = store.get_profile("main")
-            consumed["launch_queue"] = []
-            consumed["_launch_queue_write_mode"] = "clear"
-            store.save_profile(consumed)
-
-            stale["system_messages"] = [{"id": 1, "title": "Late writer"}]
-            store.save_profile(stale)
+            with self.assertRaises(ProfileWriteConflict):
+                store.patch_profile_guarded(
+                    "main",
+                    {"system_messages": [{"id": 1, "title": "Late writer"}]},
+                    expected_revision=stale["profile_revision"],
+                    source="test.stale_writer",
+                )
 
             self.assertEqual(store.get_profile("main")["launch_queue"], [])
 
@@ -423,12 +496,14 @@ class HackActionIdempotencyTests(unittest.TestCase):
                 db_path=str(Path(tmpdir) / "game.sqlite3"),
                 seed_path=str(Path(tmpdir) / "missing_users.json"),
             )
-            store.save_profile({
-                "username": "main",
-                "password": "pw",
-                "salt": "",
-                "launch_queue": ["Snfx", "Snfx", "Trace Compass"],
-            })
+            store.save_profile_guarded(
+                complete_test_profile(
+                    launch_queue=["Snfx", "Snfx", "Trace Compass"]
+                ),
+                expected_revision=0,
+                source="test.registration",
+                allow_create=True,
+            )
 
             first = store.consume_launch_queue("main")
             second = store.consume_launch_queue("main")
@@ -526,7 +601,14 @@ class HackActionIdempotencyTests(unittest.TestCase):
 
         with patch.object(run.territory_store, "list_captured_targets", return_value=[captured]), \
             patch.object(run, "merge_latest_profile_runtime_fields", side_effect=lambda _username, fields: fields), \
-            patch.object(run.user_store, "save_profile") as save_profile, \
+            patch.object(
+                run,
+                "load_profile_write_record",
+                return_value={"profile": complete_test_profile(), "profile_revision": 7},
+            ), \
+            patch.object(
+                run.user_store, "patch_profile_guarded", autospec=True
+            ) as guarded_patch, \
             patch.object(run, "safe_ghostnetwork_on_target_aimed") as ghost_hook:
             result = run.set_player_aimed_target(
                 "main",
@@ -537,11 +619,12 @@ class HackActionIdempotencyTests(unittest.TestCase):
 
         self.assertEqual(result, {})
         self.assertEqual(profile["aimed_target"], {})
-        save_profile.assert_called_once()
-        saved_profile = save_profile.call_args.args[0]
-        self.assertEqual(saved_profile["aimed_target"], {})
-        self.assertEqual(saved_profile["launch_queue"], ["V-MAP"])
-        self.assertEqual(saved_profile["_launch_queue_write_mode"], "append")
+        guarded_patch.assert_called_once()
+        self.assertEqual(guarded_patch.call_args.args[0], "main")
+        saved_fields = guarded_patch.call_args.args[1]
+        self.assertEqual(saved_fields["aimed_target"], {})
+        self.assertEqual(saved_fields["launch_queue"], ["V-MAP"])
+        self.assertEqual(guarded_patch.call_args.kwargs["expected_revision"], 7)
         ghost_hook.assert_not_called()
 
     def test_normalize_profile_position_update_writes_legacy_and_canonical_fields(self):

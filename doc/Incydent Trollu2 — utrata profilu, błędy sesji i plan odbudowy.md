@@ -4,7 +4,7 @@ Data zgłoszenia: 2026-08-21.
 
 Severity: `P0 — możliwa utrata trwałego progression i naruszenie izolacji kont`.
 
-Status: `OPEN — destructive code defect potwierdzony, korelacja z incydentem oczekuje na read-only server forensics; repair zablokowany do GO Sprintu 130.10`.
+Status: `OPEN — IMPLEMENTED LOCALLY; READY FOR MANUAL ACCOUNT-SWITCH TEST; destructive code defect potwierdzony, korelacja incydentu STRONGLY CONSISTENT / HIGH CONFIDENCE; repair zablokowany i należy wyłącznie do Sprintu 130.11 po GO Sprintu 130.10`.
 
 Plan naprawy:
 
@@ -642,8 +642,10 @@ profilu.
 # 22. Findingi z audytu kodu — potwierdzony defekt i pozostałe ryzyka
 
 Poniższe zachowania są potwierdzone w kodzie i muszą zostać zamknięte przed
-repair. Pierwsza ścieżka jest deterministycznym destructive-write. Nadal nie
-dowodzi to bez danych serwerowych, że dokładnie ona wykonała reset `Trollu2`.
+repair. Pierwsza ścieżka jest deterministycznym destructive-write. Zebrane
+później dane serwerowe spełniają jej preconditions i pokazują odpowiadający
+jej phenotype, z zastrzeżeniem braku historycznej telemetryki pojedynczego
+write-attemptu i pre-incident LKG.
 
 ## Potwierdzony destructive-write po aktywacji części GN
 
@@ -666,8 +668,11 @@ Audyt odtworzył pełną ścieżkę:
 Disposition:
 
 - `CONFIRMED CODE DEFECT` — defekt istnieje niezależnie od incydentu;
-- `PENDING SERVER CORRELATION` — dla incydentu trzeba potwierdzić pierwsze
-  `ghost.part_activated` / `part_first_activated` w oknie `users.updated_at`;
+- `INCIDENT CORRELATION: STRONGLY CONSISTENT / HIGH CONFIDENCE` — exact-user
+  capture dla canonical loginu `trolu2` zawiera dwa skorelowane activation
+  rewardy, zachowane durable stores i reset-like progression;
+- brak profile-write telemetry/LKG z chwili incydentu pozostaje jawną luką,
+  więc nie deklarujemy historycznej atrybucji jako absolutnie udowodnionej;
 - wyjątek Leaflet nie jest częścią tego backendowego writer path.
 
 Dodatkowo `/gonna-win` utrzymuje długowieczny pełny snapshot managera przed
@@ -760,7 +765,7 @@ Nie zapisujemy `exp=2560` bez zmiany kontraktu całego systemu progression.
 | Hipoteza | Stan dowodowy | Następny krok |
 | --- | --- | --- |
 | wyjątek Leaflet uszkodził profil | brak dowodu; stos kończy się w rendererze klienta | zachować jako osobny regression test |
-| GN lifecycle wywołał reset profilu | `CONFIRMED CODE DEFECT`; wykonanie dla `Trollu2` nadal `PENDING SERVER CORRELATION` | skorelować activation/reward timeline z `users.updated_at` i durable stores |
+| GN lifecycle wywołał reset profilu | `CONFIRMED CODE DEFECT`; dla canonical `trolu2`: `STRONGLY CONSISTENT / HIGH CONFIDENCE` | zablokować sparse full-save, dodać revision/CAS/LKG i telemetrykę |
 | niepełny profil został uzupełniony template'em | potwierdzona możliwość w kodzie | test partial JSON + instrumentacja managera |
 | stale pełny writer nadpisał progression | potwierdzona możliwość bez ogólnego CAS | mapa writerów + concurrency test |
 | fallback HC wtórnie obniżył wallet | potwierdzona możliwość; wallet ma hybrydę profile/store writerów | audit ledgeru i jedna atomowa granica wszystkich wallet writes |
@@ -768,16 +773,55 @@ Nie zapisujemy `exp=2560` bez zmiany kontraktu całego systemu progression.
 | stan A został pokazany po loginie B | potwierdzony objaw testera, brak request trace | session generation + test opóźnionych odpowiedzi |
 | podwójny SFX oznacza duplicate lifecycle | brak event IDs w załączniku | sprawdzić event/dedupe logs; nie wnioskować z samego audio |
 
-Systemowy destructive mechanism jest `CONFIRMED`. Root cause disposition
-konkretnego incydentu pozostaje `PENDING SERVER CORRELATION`. GO nie może
-opierać się wyłącznie na odtworzeniu konta albo na braku kolejnego błędu podczas
-pojedynczego manuala.
+Systemowy destructive mechanism jest `CONFIRMED`, a korelacja konkretnego
+incydentu jest `STRONGLY CONSISTENT / HIGH CONFIDENCE`. Brak historycznej
+telemetryki zapisu i LKG nie pozwala rozstrzygnąć ostatniego kroku ponad wszelką
+wątpliwość. GO nie może opierać się wyłącznie na odtworzeniu konta albo na
+braku kolejnego błędu podczas pojedynczego manuala.
 
 ---
 
-# 24. Brakujące dowody serwerowe
+# 24. Serwerowe evidence capture — 2026-08-21
 
-Do Etapu 1 Sprintu 130.10 potrzebne są read-only:
+Canonical login ustalony exact-match to `trolu2`; `Trollu2` pozostaje nazwą
+użytą w zgłoszeniu. Pakiet został zebrany read-only, pobrany jako
+`logs/chaos-13010-trolu2-20260821T184643Z.tar.gz` i przeszedł weryfikację
+SHA-256. Komendy `status`, `audit` oraz `verify` zakończyły wykonanie probe, a
+SQLite `quick_check` zwrócił `ok`. Wynik `verify=0` w wersji evidence-v2
+oznaczał technicznie ukończony odczyt bez blockerów strukturalnych; nie oznaczał
+historycznego `account_integrity=clear`, ponieważ raport jawnie miał
+`evidence_status=partial` i `account_integrity_status=unknown`.
+
+Potwierdzone fakty:
+
+- bieżący profil jest strukturalnie poprawny, ale ma reset-like core:
+  `LVL 2`, `HC 1000`, `EXP 0.0`, `RSP 25`;
+- zachowało się 11 aplikacji, 11 narzędzi, 11 hacked entries, 5 produktów i
+  4 purchase records;
+- Target/territory stores mają 11 captured targets, 35 ownership records,
+  60 capture receipts i 15 applied progression receipts;
+- wallet jest obecnie wewnętrznie zgodny na `1000`, ale zawiera 113 ledger
+  events i 120 balance events; zgodność stanu końcowego nie dowodzi braku
+  wcześniejszego propagation resetu;
+- runtime zachował 578 historycznych operacji, 1000 delt, 1393 consumed system
+  messages, position version 248 i target runtime version 2182;
+- dwa `ghost.part_activated` mają dokładne applied
+  `part_first_activated` correlations; reward ledger, contributions i profilowa
+  reward history są exactly-once zgodne;
+- ostatni activation/reward/publication/progression/job mieści się w oknie
+  `13:24:45–13:25:01`, wallet pokazuje `1000` od `13:28:41`, a bieżący profil
+  ma `updated_at=15:08:32`.
+
+Interpretacja: strukturalna walidacja bieżącego JSON-u nie wykrywa semantycznej
+utraty progression. Zachowane durable stores dowodzą, że nie jest to realnie
+nowe konto LVL 2. Zgodna historia GN jest oczekiwana, ponieważ wadliwy writer
+specjalnie scala reward history; nie obala sparse-overwrite path.
+
+`FORENSICS CAPTURED — Sprint 130.10`.
+
+## Pozostałe luki dowodowe
+
+Przed capture lista potrzeb obejmowała:
 
 - stan i checksum `users.profile_json` dla exact loginu;
 - stan LKG, jeżeli po implementacji istnieje;
@@ -792,8 +836,9 @@ Do Etapu 1 Sprintu 130.10 potrzebne są read-only:
 - hierarchię dowodów miast używaną później przez repair; travel tickets nie
   mają dziś osobnego kanonicznego store.
 
-Brak timestampów lub stanu historycznego ma zostać jawnie zapisany jako luka,
-nie uzupełniony domysłem.
+Z capture nadal nie da się odzyskać pełnego profilu bezpośrednio sprzed
+incydentu ani jednoznacznego profile-write request ID. Nie istniał też
+zwalidowany LKG. Te luki pozostają jawne i nie są uzupełniane domysłem.
 
 Capture wykonuje `tools/audit_profile_integrity.py` według
 `doc/profile_integrity_recovery_runbook.md`. Narzędzie nie importuje runtime,
@@ -838,3 +883,28 @@ Dopiero po GO 130.10:
 Sprint 131 jest formalnie:
 
 `QUEUED — BLOCKED BY SPRINTS 130.10 AND 130.11`.
+
+---
+
+# 26. Stan po lokalnym hardeningu Sprintu 130.10
+
+Stop-the-bleed został zaimplementowany lokalnie. Runtime ma guarded profile
+CAS/LKG/checksum/validation, kanoniczne i fail-closed granice walletu oraz
+inventory, idempotentne transfery i retry, generation/precommit dla sesji wraz
+z frontendowym teardown, odporną na retry sagę rewardów GN oraz bounded CAS
+retry worker-owned territory projections. Naprawiono również niezdefiniowane
+`profile_record` w ścieżce clear aimed target.
+
+Testy celowane przeszły: Target Registry/persistence `221/221`, wallet
+`30/30`, GhostNetwork `26/26` i territory projection CAS `3/3`. Pełna regresja
+repozytorium zakończyła się wynikiem `956/956 OK`; sześć kontraktów JS oraz
+pięć kontroli składni Node również przeszło.
+
+Manual A → B → A, dwie karty, dwie niezależne sesje tego samego konta oraz
+ścieżka gameplay `trzeci filar → rebuild/publication → GN lifecycle` nie zostały
+wykonane przez agenta. To jest następna jawna bramka; nie deklarujemy GO.
+
+Konto `trolu2` pozostało nietknięte. Nie wykonano repair, commita, deployu ani
+restartu. Odbudowa nadal należy wyłącznie do Sprintu 130.11 po GO Sprintu 130.10.
+
+`READY FOR MANUAL ACCOUNT-SWITCH TEST — Sprint 130.10`

@@ -26,8 +26,11 @@ Potwierdzony destructive-write w bieżącym modelu:
 * `apply_ghostnetwork_runtime_result()` może naliczyć first activation reward
   na sparse projection z `list_profile_identities()`, a następnie przekazać ją
   do pełnego `UserStore.save_profile()`. Późniejszy template sync zamienia braki
-  w wartości starter-like. Defekt kodu jest `CONFIRMED`; jego wykonanie dla
-  konkretnego incydentu pozostaje `PENDING SERVER CORRELATION`.
+  w wartości starter-like. Defekt kodu jest `CONFIRMED`. Exact-user capture dla
+  canonical `trolu2` pokazał dwa skorelowane activation rewardy, reset-like
+  progression oraz zachowane durable stores; korelacja incydentu ma status
+  `STRONGLY CONSISTENT / HIGH CONFIDENCE`, przy braku historycznej telemetryki
+  pojedynczego profile write i pre-incident LKG.
 
 Pozostałe potwierdzone ryzyka:
 

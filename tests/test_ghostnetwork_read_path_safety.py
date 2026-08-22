@@ -3,9 +3,21 @@ from unittest.mock import Mock, patch
 
 import run
 from config import PERF_LOG_ENDPOINTS
+from tests.session_generation_fixture import SessionGenerationFixture
 
 
 class GhostNetworkReadPathSafetyTest(unittest.TestCase):
+    def setUp(self):
+        self.session_generation = SessionGenerationFixture(
+            "chaos_ghostnetwork_read_session_"
+        ).start()
+        self.addCleanup(self.session_generation.stop)
+
+    def _client(self):
+        client = run.app.test_client()
+        headers = self.session_generation.authenticate(client, "alice")
+        return client, headers
+
     def test_default_profile_sync_does_not_rebuild_or_bridge(self):
         profile = {"username": "alice", "apps": [], "files": []}
         with run.app.test_request_context("/api/profile"):
@@ -57,12 +69,10 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
                 "huge_private_runtime": "x" * 10000,
             }],
         }
-        client = run.app.test_client()
-        with client.session_transaction() as sess:
-            sess["user"] = "alice"
+        client, headers = self._client()
         with patch.object(run.user_store, "get_profile", return_value=profile), \
                 patch.object(run.territory_store, "list_captured_targets", return_value=[]):
-            response = client.get("/api/map/target-snapshot")
+            response = client.get("/api/map/target-snapshot", headers=headers)
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(len(payload["targets"]), 1)
@@ -86,12 +96,11 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
                 for index in range(500)
             ],
         }
-        client = run.app.test_client()
-        with client.session_transaction() as sess:
-            sess["user"] = "alice"
+        client, headers = self._client()
+        map_url = self.session_generation.document_url("/map", headers)
         with patch.object(run, "sync_session_profile", side_effect=[base, heavy]):
-            small_response = client.get("/map")
-            heavy_response = client.get("/map")
+            small_response = client.get(map_url, headers=headers)
+            heavy_response = client.get(map_url, headers=headers)
         self.assertEqual(small_response.status_code, 200)
         self.assertEqual(heavy_response.status_code, 200)
         self.assertLess(

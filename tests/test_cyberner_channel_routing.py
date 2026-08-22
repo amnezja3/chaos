@@ -13,10 +13,43 @@ from database import (
     SystemMessageStore,
     UserStore,
 )
+from tests.session_generation_fixture import SessionGenerationFixture
+
+
+def valid_profile(username, clan):
+    return {
+        "username": username,
+        "nick": username.title(),
+        "email": f"{username}@example.test",
+        "avatar": "/static/images/default_avatar.png",
+        "level": 1,
+        "hackcoins": 1000,
+        "respect": 0,
+        "exp": "0 / 1000",
+        "clan": clan,
+        "fraction": {},
+        "inventory": [],
+        "files": {"tools": [], "download": []},
+        "apps": [],
+        "hacked": [],
+        "desktop_settings": {},
+        "security": {},
+        "territory_stats": {},
+        "friends": [],
+        "operations": [],
+        "targets": [],
+        "system_messages": [],
+        "launch_queue": [],
+    }
 
 
 class CybernerChannelRoutingTest(unittest.TestCase):
     def setUp(self):
+        self.original_testing = run.app.config.get("TESTING")
+        self.session_generation = SessionGenerationFixture(
+            "chaos_cyberner_routing_session_"
+        ).start()
+        self.addCleanup(self.session_generation.stop)
         self.temp_dir = tempfile.TemporaryDirectory()
         self.db_path = os.path.join(self.temp_dir.name, "cyberner-routing.sqlite3")
         self.user_store = UserStore(db_path=self.db_path, seed_path=os.path.join(self.temp_dir.name, "missing.json"))
@@ -27,12 +60,12 @@ class CybernerChannelRoutingTest(unittest.TestCase):
         self.system_store = SystemMessageStore(db_path=self.db_path)
         self.delta_bus = GameStateDeltaBus(db_path=self.db_path)
         for username, clan in (("alice", "red"), ("bob", "blue"), ("carol", "red")):
-            self.user_store.save_profile({
-                "username": username,
-                "nick": username.title(),
-                "clan": clan,
-                "friends": [],
-            })
+            self.user_store.save_profile_guarded(
+                valid_profile(username, clan),
+                expected_revision=0,
+                source="test.cyberner_channel_routing.create",
+                allow_create=True,
+            )
 
         self.stack = patch.multiple(
             run,
@@ -57,12 +90,12 @@ class CybernerChannelRoutingTest(unittest.TestCase):
     def tearDown(self):
         self.flags.stop()
         self.stack.stop()
+        run.app.config["TESTING"] = self.original_testing
         self.temp_dir.cleanup()
 
     def client_for(self, username):
         client = run.app.test_client()
-        with client.session_transaction() as flask_session:
-            flask_session["user"] = username
+        self.session_generation.authenticate(client, username)
         return client
 
     def test_world_is_one_atomic_record_and_retry_is_idempotent(self):

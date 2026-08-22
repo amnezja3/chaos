@@ -537,6 +537,20 @@ class GhostNetworkService:
     def apply_pending_reward(self, profile, reward_id=None, reward_key=None):
         return self.rewards.apply_pending_reward(profile, reward_id=reward_id, reward_key=reward_key)
 
+    def project_reward_to_profile(self, profile, reward_id=None, reward_key=None):
+        return self.rewards.project_reward_to_profile(
+            profile,
+            reward_id=reward_id,
+            reward_key=reward_key,
+        )
+
+    def finalize_projected_reward(self, profile, reward_id=None, reward_key=None):
+        return self.rewards.finalize_projected_reward(
+            profile,
+            reward_id=reward_id,
+            reward_key=reward_key,
+        )
+
     def apply_pending_rewards(self, profile, player_id=None, cycle_id=None, limit=100):
         return self.rewards.apply_pending_rewards(profile, player_id=player_id, cycle_id=cycle_id, limit=limit)
 

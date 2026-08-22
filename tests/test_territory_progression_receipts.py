@@ -3,8 +3,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import database
 import run
-from database import TerritoryProgressionReceiptStore, UserStore
+from database import TerritoryProgressionReceiptStore, UserStore, WalletBalanceStore
 
 
 class TerritoryProgressionReceiptTests(unittest.TestCase):
@@ -15,7 +16,15 @@ class TerritoryProgressionReceiptTests(unittest.TestCase):
         self.users.save_profile({
             "username": "alice",
             "level": 2,
+            "hackcoins": 1000,
             "respect": 10,
+            "exp": "0 / 1000",
+            "inventory": [],
+            "files": {},
+            "apps": [],
+            "hacked": [],
+            "desktop_settings": {},
+            "security": {},
             "system_messages": [],
             "territory_stats": {"effective_area": 1000, "area_baseline": 1000},
         })
@@ -61,6 +70,7 @@ class TerritoryProgressionReceiptTests(unittest.TestCase):
         )
 
     def test_settle_is_atomic_and_idempotent(self):
+        before = self.users.get_profile_with_revision("alice")
         receipt = self.receipts.ensure(
             "capture:2", "alice",
             {"territory_stats": {"effective_area": 1000}},
@@ -77,11 +87,49 @@ class TerritoryProgressionReceiptTests(unittest.TestCase):
             {"effective_area": 1200}, "ignored",
         )
         profile = self.users.get_profile("alice")
+        after = self.users.get_profile_with_revision("alice")
+        lkg = self.users.get_last_known_good("alice")
         self.assertTrue(first["ok"])
         self.assertTrue(replay["duplicate"])
         self.assertEqual(14, profile["respect"])
         self.assertEqual(3, profile["level"])
         self.assertEqual(1, len(profile["system_messages"]))
+        self.assertEqual(before["profile_revision"] + 1, after["profile_revision"])
+        self.assertTrue(after["checksum_valid"])
+        self.assertEqual(before["profile_revision"], lkg["profile_revision"])
+        self.assertTrue(lkg["checksum_valid"])
+
+    def test_settle_overlays_canonical_wallet_inside_writer_transaction(self):
+        WalletBalanceStore(self.db_path).recovery_set_balance(
+            "alice",
+            733,
+            transaction_key="test:territory:wallet-733",
+            reason="test.recovery",
+        )
+        receipt = self.receipts.ensure("capture:canonical", "alice", {})
+        original_overlay = database.overlay_canonical_profile_scopes_with_conn
+        observed_transactions = []
+
+        def observed_overlay(conn, username, profile):
+            observed_transactions.append(conn.in_transaction)
+            return original_overlay(conn, username, profile)
+
+        with patch(
+            "database.overlay_canonical_profile_scopes_with_conn",
+            side_effect=observed_overlay,
+        ):
+            result = self.receipts.settle(
+                receipt["receipt_id"],
+                {"respect_gain": 1, "levels_gained": 0},
+                {"effective_area": 1000, "area_baseline": 1000},
+                "0 / 1000",
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual([True], observed_transactions)
+        self.assertEqual(("wallet",), result["canonical_overlays"])
+        self.assertEqual(733, result["profile"]["hackcoins"])
+        self.assertEqual(733, self.users.get_profile("alice")["hackcoins"])
 
     def test_strategic_settlement_combines_encirclement_and_conflicts_once(self):
         receipt = self.receipts.ensure(

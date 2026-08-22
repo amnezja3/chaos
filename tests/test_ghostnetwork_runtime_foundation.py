@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from ghostnetwork import GhostCycleService, GhostDropPolicy, GhostNetworkRepository, GhostNetworkService
-from tools.ghostnetwork_runtime import execute
+from tools.ghostnetwork_runtime import build_guarded_profile_callbacks, execute
 
 
 class GhostNetworkRuntimeFoundationTest(unittest.TestCase):
@@ -124,6 +124,48 @@ class GhostNetworkRuntimeFoundationTest(unittest.TestCase):
             columns = {row[1] for row in conn.execute("PRAGMA table_info(ghost_pipeline_telemetry)").fetchall()}
         self.assertNotIn("part_id", columns)
         self.assertNotIn("payload_json", columns)
+
+    def test_operator_runtime_callbacks_update_existing_profile_with_revision_cas(self):
+        class ExistingUserStore:
+            def __init__(self):
+                self.profile = {"username": "alice", "respect": 9}
+                self.revision = 17
+                self.guarded_calls = []
+
+            def get_profile_with_revision(self, username):
+                self.assert_username = username
+                return {
+                    "state": "valid",
+                    "profile": dict(self.profile),
+                    "profile_revision": self.revision,
+                }
+
+            def save_profile(self, _profile):
+                raise AssertionError("legacy existing-profile writer must not run")
+
+            def save_profile_guarded(self, profile, *, expected_revision, source):
+                self.guarded_calls.append((expected_revision, source))
+                if expected_revision != self.revision:
+                    raise AssertionError("stale revision")
+                self.revision += 1
+                self.profile = dict(profile)
+                return {
+                    "applied": True,
+                    "profile": dict(self.profile),
+                    "profile_revision": self.revision,
+                }
+
+        users = ExistingUserStore()
+        load_profile, save_profile = build_guarded_profile_callbacks(users)
+        profile = load_profile("alice")
+        profile["respect"] = 14
+        save_profile(profile)
+
+        self.assertEqual(users.profile["respect"], 14)
+        self.assertEqual(
+            users.guarded_calls,
+            [(17, "operator.ghostnetwork_runtime")],
+        )
 
 
 if __name__ == "__main__":
