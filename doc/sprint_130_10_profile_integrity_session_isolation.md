@@ -677,6 +677,31 @@ Regresja obejmuje scalar/dict `fraction`, pełny endpoint aktorów, deltę/read
 path oraz jawne przekazanie menu dla wszystkich rodzajów geometrii. Nie
 zmieniono żadnego profilu, terytorium ani danych `Trollu2`.
 
+#### Pierwszy retest poprawki mapy
+
+Retest bez monitora serwerowego potwierdził, że `/api/map/player-actors`
+zwraca poprawny payload i frontend dochodzi do `render complete`; poprzedni
+`500` nie powtórzył się. Ujawnił jednak dalszy blocker presentation: na kontach,
+które wcześniej nie dostawały menu pola, event nad polygonem otwierał menu
+jednego z przejętych markerów (`Zabezpiecz / Porzuć`).
+
+Kod markerów zwykłych miał częściową kontrolę DOM rect, ale przejęte i legacy
+DOM markery ufały samemu faktowi otrzymania `contextmenu`. Element potomny
+ikony mógł przechwycić event poza rzeczywistą ikoną i nadpisać menu pola.
+Wszystkie target/captured/legacy handlery weryfikują teraz trafienie względem
+projekcji współrzędnych markera oraz ograniczonego rozmiaru i anchora ikony.
+Event poza tym hitboxem jest jawnie przekazywany do menu pustego pola. Wizualny
+overflow emoji nie jest interaktywny, więc nie rozszerza obszaru trafienia.
+
+Jedyny błąd konsoli w retescie był niezależnym `404` dla historycznej ścieżki
+`/static/images/default_avatar.png`. Renderer mapy mapuje ją bez zapisu profilu
+na istniejący `/static/images/avatar-default.jpg` i ma ten sam fallback dla
+innych niedostępnych avatarów.
+
+Regresja po follow-upie: map cutover `31/31`, captured menu/map loader/GN layer
+`78/78`, Target Registry/persistence `221/221`, behawioralny test Node hitboxu
+oraz `git diff --check` — OK.
+
 ## Etap 7 — po manualu
 
 Na podstawie wyniku użytkownika:

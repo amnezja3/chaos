@@ -15,8 +15,16 @@
 - Polygony pól, konfliktów, frontów i multi-conflictów nie polegają już wyłącznie
   na niejednolitym bubbling `contextmenu` Leaflet. Jawnie przekazują zdarzenie do
   zwykłego menu pustego pola; interaktywne markery zachowują własne menu.
-- Regresja map cutover: `29/29 OK`; Target Registry/session isolation/read path:
+- Pierwszy retest potwierdził brak `500` i kompletne renderowanie aktorów, ale
+  ujawnił przejmowanie menu pola przez captured/legacy marker. Handlery targetów
+  wymagają teraz trafienia w ograniczony, projektowany hitbox ikony; event spoza
+  ikony wraca do menu pustego pola.
+- Historyczne `/static/images/default_avatar.png` jest w rendererze mapy
+  kierowane do istniejącego `avatar-default.jpg`, bez zmiany profilu.
+- Regresja map cutover: `31/31 OK`; Target Registry/session isolation/read path:
   `253/253 OK`. Nie wykonano deployu, commita ani repair konta `Trollu2`.
+- Captured menu/map loader/GN layer: `78/78 OK`; behawioralny test Node hitboxu:
+  OK; Target Registry/persistence: `221/221 OK`.
 
 ## 2026-08-22 - Sprint 130.10: blocker `/desktop` po manualnym account switch
 

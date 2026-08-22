@@ -446,6 +446,25 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         self.assertIn("const latlng = e.latlng ||", source)
         self.assertGreaterEqual(source.count("bindTerritoryMapContextMenu("), 7)
 
+    def test_target_menus_require_projected_marker_hitbox(self):
+        source = self.map_template
+
+        self.assertIn("function isContextEventInsideProjectedMarkerHitbox(", source)
+        self.assertIn("const markerPoint = map.latLngToContainerPoint([safeLat, safeLng]);", source)
+        self.assertIn("Math.min(96, candidate)", source)
+        self.assertIn("'hackedTargetMarker'", source)
+        self.assertGreaterEqual(source.count("showMapMenuFromOriginalContextEvent(e);"), 4)
+        self.assertIn(".target-hacked > *", source)
+        self.assertIn("pointer-events: none !important;", source)
+
+    def test_map_actor_avatar_uses_existing_fallback_asset(self):
+        root = pathlib.Path(__file__).resolve().parents[1]
+
+        self.assertTrue((root / "static" / "images" / "avatar-default.jpg").is_file())
+        self.assertIn("window.mapAvatarFallbackUrl = '/static/images/avatar-default.jpg'", self.map_template)
+        self.assertIn("/\\/default_avatar\\.png", self.map_template)
+        self.assertIn("this.src=window.mapAvatarFallbackUrl", self.map_template)
+
     def test_frontend_has_monotonic_snapshot_registry_contract(self):
         with open("templates/map_template.html", encoding="utf-8") as handle:
             source = handle.read()

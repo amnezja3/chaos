@@ -1076,6 +1076,19 @@
       pointer-events: none;
     }
 
+    .target-hacked {
+      box-sizing: border-box !important;
+      width: 32px !important;
+      height: 42px !important;
+      max-width: 32px !important;
+      max-height: 42px !important;
+      pointer-events: auto !important;
+    }
+
+    .target-hacked > * {
+      pointer-events: none !important;
+    }
+
     .friend-player-marker,
     .area-intruder-marker {
       box-sizing: border-box !important;
@@ -3639,24 +3652,54 @@
             return true;
         };
 
-        function isContextEventInsideMarkerHitbox(marker, e, targetSnapshot = {}, source = 'marker') {
-            const element = marker && typeof marker.getElement === 'function'
-                ? marker.getElement()
-                : null;
-            const rect = element && typeof element.getBoundingClientRect === 'function'
-                ? element.getBoundingClientRect()
-                : null;
-            const originalEvent = e && e.originalEvent;
+        function mapContextEventContainerPoint(e) {
+            if (e && e.containerPoint) return e.containerPoint;
+            const originalEvent = e && (e.originalEvent || e);
+            if (!originalEvent || !map || typeof map.mouseEventToContainerPoint !== 'function') return null;
+            return map.mouseEventToContainerPoint(originalEvent);
+        }
 
-            if (!rect || !originalEvent
-                || originalEvent.clientX < rect.left
-                || originalEvent.clientX > rect.right
-                || originalEvent.clientY < rect.top
-                || originalEvent.clientY > rect.bottom) {
+        function markerIconDimension(value, axis, fallback) {
+            const candidate = Array.isArray(value)
+                ? Number(value[axis === 'x' ? 0 : 1])
+                : Number(value && value[axis]);
+            if (!Number.isFinite(candidate)) return fallback;
+            return Math.max(1, Math.min(96, candidate));
+        }
+
+        function isContextEventInsideProjectedMarkerHitbox(e, lat, lng, iconSize = [32, 42], iconAnchor = [16, 42]) {
+            const eventPoint = mapContextEventContainerPoint(e);
+            const safeLat = Number(lat);
+            const safeLng = Number(lng);
+            if (!eventPoint || !Number.isFinite(safeLat) || !Number.isFinite(safeLng)
+                || !map || typeof map.latLngToContainerPoint !== 'function') {
                 return false;
             }
+            const markerPoint = map.latLngToContainerPoint([safeLat, safeLng]);
+            if (!markerPoint) return false;
+            const width = markerIconDimension(iconSize, 'x', 32);
+            const height = markerIconDimension(iconSize, 'y', 42);
+            const anchorX = markerIconDimension(iconAnchor, 'x', width / 2);
+            const anchorY = markerIconDimension(iconAnchor, 'y', height);
+            const tolerance = 8;
+            return eventPoint.x >= markerPoint.x - anchorX - tolerance
+                && eventPoint.x <= markerPoint.x - anchorX + width + tolerance
+                && eventPoint.y >= markerPoint.y - anchorY - tolerance
+                && eventPoint.y <= markerPoint.y - anchorY + height + tolerance;
+        }
 
-            return true;
+        function isContextEventInsideMarkerHitbox(marker, e, targetSnapshot = {}, source = 'marker') {
+            const latlng = marker && typeof marker.getLatLng === 'function' ? marker.getLatLng() : null;
+            const iconOptions = marker && marker.options && marker.options.icon
+                ? (marker.options.icon.options || {})
+                : {};
+            return Boolean(latlng && isContextEventInsideProjectedMarkerHitbox(
+                e,
+                latlng.lat,
+                latlng.lng,
+                iconOptions.iconSize,
+                iconOptions.iconAnchor
+            ));
         }
 
         function showMapMenuFromLeafletContextEvent(e) {
@@ -3719,6 +3762,7 @@
             marker.bindTooltip(label, { permanent: false, direction: 'top' });
             marker.on('contextmenu', function(e) {
                 if (!isContextEventInsideMarkerHitbox(marker, e, markerObj, 'interactiveTargetMarker')) {
+                    consumeMapContextEvent(e);
                     showMapMenuFromOriginalContextEvent(e);
                     return;
                 }
@@ -3775,6 +3819,11 @@
             }).addTo(map);
             marker.bindTooltip(label, { permanent: false, direction: 'top' });
             marker.on('contextmenu', function(e) {
+                if (!isContextEventInsideMarkerHitbox(marker, e, menuTarget, 'hackedTargetMarker')) {
+                    consumeMapContextEvent(e);
+                    showMapMenuFromOriginalContextEvent(e);
+                    return;
+                }
                 consumeMapContextEvent(e);
                 showCapturedObjectMenu(e.containerPoint.x, e.containerPoint.y, menuTarget, icon, label, marker);
             });
@@ -5313,6 +5362,7 @@
 
                         marker.on('contextmenu', function(e) {
                             if (!isContextEventInsideMarkerHitbox(marker, e, menuTarget, 'scanTargetMarker')) {
+                                consumeMapContextEvent(e);
                                 showMapMenuFromOriginalContextEvent(e);
                                 return;
                             }
@@ -5447,6 +5497,7 @@
 
                         marker.on('contextmenu', function(e) {
                             if (!isContextEventInsideMarkerHitbox(marker, e, menuTarget, 'legacyScanTargetMarker')) {
+                                consumeMapContextEvent(e);
                                 showMapMenuFromOriginalContextEvent(e);
                                 return;
                             }
@@ -7442,10 +7493,20 @@
                 }
             };
 
+            window.mapAvatarFallbackUrl = '/static/images/avatar-default.jpg';
+            window.normalizeMapAvatarUrl = function(value) {
+                const url = String(value || '').trim();
+                if (!url || /\/default_avatar\.png(?:\?.*)?$/i.test(url)) {
+                    return window.mapAvatarFallbackUrl;
+                }
+                return url;
+            };
+
             window.buildFriendIcon = function(friend) {
                 const name = window.escapeMapText(friend.nick || friend.username || 'friend');
+                const avatarUrl = window.normalizeMapAvatarUrl(friend.avatar);
                 const avatar = friend.avatar
-                    ? `<img src="${window.escapeMapText(friend.avatar)}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid #26ff6a;background:#111;">`
+                    ? `<img src="${window.escapeMapText(avatarUrl)}" alt="" onerror="this.onerror=null;this.src=window.mapAvatarFallbackUrl;" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid #26ff6a;background:#111;">`
                     : `<div style="width:34px;height:34px;border-radius:50%;border:2px solid #26ff6a;background:#111;display:flex;align-items:center;justify-content:center;color:#26ff6a;">@</div>`;
 
                 return L.divIcon({
@@ -7826,8 +7887,9 @@
                 const color = isIntruder ? '#ff4b4b' : (isCrew ? '#53d8ff' : (isFriend ? '#26ff6a' : '#d8ff80'));
                 const background = isIntruder ? '#210707' : '#111';
                 const fallback = isIntruder ? '!' : '@';
+                const avatarUrl = window.normalizeMapAvatarUrl(actor.avatar);
                 const avatar = actor.avatar
-                    ? `<img class="player-actor-marker-avatar" src="${window.escapeMapText(actor.avatar)}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid ${isTarget ? '#ff1b1b' : color};background:${background};${isTarget ? 'box-shadow:0 0 0 3px rgba(255,0,0,0.42),0 0 10px #ff1b1b;' : ''}">`
+                    ? `<img class="player-actor-marker-avatar" src="${window.escapeMapText(avatarUrl)}" alt="" onerror="this.onerror=null;this.src=window.mapAvatarFallbackUrl;" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid ${isTarget ? '#ff1b1b' : color};background:${background};${isTarget ? 'box-shadow:0 0 0 3px rgba(255,0,0,0.42),0 0 10px #ff1b1b;' : ''}">`
                     : `<div class="player-actor-marker-avatar" style="width:34px;height:34px;border-radius:50%;border:2px solid ${isTarget ? '#ff1b1b' : color};background:${background};display:flex;align-items:center;justify-content:center;color:${isTarget ? '#ff6b6b' : color};font-weight:700;${isTarget ? 'box-shadow:0 0 0 3px rgba(255,0,0,0.42),0 0 10px #ff1b1b;' : ''}">${fallback}</div>`;
                 const targetBadge = isTarget
                     ? `<div class="player-actor-marker-badge" style="width:36px;height:13px;line-height:10px;font-size:9px;background:#4a0000;color:#ffb3b3;border:1px solid #ff1b1b;padding:1px 3px;margin-top:2px;text-align:center;overflow:hidden;">CEL</div>`
@@ -8668,7 +8730,13 @@
         });
 
         labelEl.addEventListener('contextmenu', e => {
-            consumeMapContextEvent(e);
+            const leafletEvent = { originalEvent: e };
+            if (!isContextEventInsideProjectedMarkerHitbox(leafletEvent, lat, lng, [32, 42], [16, 42])) {
+                consumeMapContextEvent(leafletEvent);
+                showMapMenuFromOriginalContextEvent(leafletEvent);
+                return;
+            }
+            consumeMapContextEvent(leafletEvent);
             showHackingMenuForMarker(e.pageX, e.pageY, menuTarget, icon, label, 'domTargetMarker');
         });
     });
@@ -8685,7 +8753,13 @@
 
         // Dodaj listener bezpośrednio do labelEl (bo to już .marker-hacked)
         labelEl.addEventListener('contextmenu', e => {
-            consumeMapContextEvent(e);
+            const leafletEvent = { originalEvent: e };
+            if (!isContextEventInsideProjectedMarkerHitbox(leafletEvent, lat, lng, [32, 42], [16, 42])) {
+                consumeMapContextEvent(leafletEvent);
+                showMapMenuFromOriginalContextEvent(leafletEvent);
+                return;
+            }
+            consumeMapContextEvent(leafletEvent);
             showCapturedObjectMenu(e.pageX, e.pageY, normalizeMapMenuTarget({ lat, lon: lng, lng, label, icon }), icon, label);
         });
     });
