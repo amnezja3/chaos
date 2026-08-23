@@ -18,6 +18,11 @@ DIRECT_PROFILE_SQL_ALLOWLIST = {
     Path("tools/migrate_app_contracts.py"): {"migrate_user_apps"},
     Path("tools/prepare_example_db.py"): {"prepare_example_db"},
     Path("tools/profile_store_migration.py"): {"rollback_user"},
+    # Sprint 130.11 is the only exact-account operator recovery exception.
+    # These writes are plan/checksum/CAS gated and are never imported by runtime.
+    Path("tools/repair_trollu2_profile.py"): {
+        "apply_level_step", "final_settlement", "rollback_recovery",
+    },
     Path("scripts/app_catalog_cleanup.py"): {"write_user_profile"},
     Path("scripts/db_migrations/migration_helpers.py"): {"write_profile"},
 }

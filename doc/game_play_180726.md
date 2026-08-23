@@ -25225,6 +25225,29 @@ Bramka po implementacji i automatach:
 
 `READY FOR MANUAL ACCOUNT-SWITCH TEST — Sprint 130.10`
 
+---
+
+# Sprint 130.11 — gotowy controlled recovery Trollu2
+
+Gotowe narzędzie operatorskie odbudowuje wyłącznie exact canonical `trolu2` do
+LVL 50, RSP 2560 i 250000 HC, zachowując canonical inventory oraz potwierdzone
+instalacje Nmap/Metasploit. Bilet Tokio generuje deterministycznie 8 stationary
+recovery pillars poza kolizjami; geometria powstaje wyłącznie przez istniejący
+territory worker.
+
+Apply jest receipt-backed i wznawialny. Worker dla podpisanego kontraktu 130.11
+nie dotyka ciężkiego profilu ani LKG. Finalne stats/exp są wyliczane dopiero po
+zakończeniu joba, a LKG wymaga osobnej promocji po manualu. Recovery nie tworzy
+GN dropu, rewardu ani eventu i verify wymaga nadal jednego aktywnego cyklu oraz
+20 części.
+
+Lokalna implementacja i real-schema próba na kopii bazy są zielone. Następny
+krok to świeży serwerowy `status → audit → plan → dry-run → backup`, po którym
+operator wykonuje apply. Manual nadal należy do użytkownika; nie wykonano
+commita, deployu ani mutacji właściwej bazy.
+
+`READY FOR SERVER DRY-RUN / OPERATOR APPLY — Sprint 130.11`
+
 Manual należy do użytkownika i obejmuje A → B → A, dwie karty, dwie niezależne
 sesje tego samego konta oraz testową ścieżkę `trzeci filar → territory
 rebuild/publication → GN lifecycle`. Profil, Googleplex, mapa, aimed target,
@@ -25311,10 +25334,15 @@ profile integrity, CAS/LKG, mechanikę skanu, hackowania i capture.
 
 # Sprint 130.11 — Trollu2 Controlled Profile and Territory Recovery
 
-**Status:** `QUEUED — REQUIRES GO FROM SPRINT 130.10`.
+**Status:** `IN PROGRESS — LOCAL READ-ONLY PLAN/DRY-RUN PASSED; APPLY PIPELINE NOT YET ENABLED`.
 
 **Wiążący artefakt:**
 `doc/sprint_130_11_trollu2_controlled_recovery.md`.
+
+**Bramka heavy-profile:** `doc/profile_hot_path_contract_130_11_plus.md`.
+Pełny profil jest dozwolony wyłącznie w operatorskim audit/repair/verify exact
+canonical konta. Narzędzie nie może udostępniać heavy helpera endpointom,
+workerom ani zwykłemu gameplayowi i nie skanuje pełnych profili innych kont.
 
 ## Cel
 
@@ -25381,6 +25409,20 @@ albo:
 
 Asystent nie wykonuje apply, commita ani deployu bez osobnego polecenia.
 
+## Wynik pierwszego slice'u
+
+Dodano operatorskie `tools/repair_trollu2_profile.py` w granicy exact-account.
+Lokalny snapshot potwierdził canonical `trolu2`, wallet `1000`, komplet 11
+aplikacji i 11 narzędzi, dwa receipt-backed ostatnie instalacje (`Nmap`,
+`Metasploit`), bilet do Tokio oraz zdrowy cykl GN z 20 częściami. LKG zawiera
+canonical mirror i został jawnie wykluczony jako recovery source.
+
+Pierwszy kandydat ośmiu filarów Tokio został poprawnie zatrzymany przez kolizję
+z istniejącym terytorium. Deterministyczna relokacja o 3000 m na północ przeszła
+ponowny test punktów i wielokątów bez kolizji z territory/conflict/GN. Podpisany
+plan i dry-run są read-only; testy `13/13 OK`. Apply, before-manifest, receipts,
+settlement, verify, rollback i LKG promotion pozostają następnym slice'em.
+
 ---
 
 # Bramka przed Sprintem 131
@@ -25412,6 +25454,11 @@ Do czasu obu GO:
 > `doc/sprint_131_plus_post_audit.md`.
 
 **Status planu:** `QUEUED — BLOCKED BY SPRINTS 130.10 AND 130.11`.
+
+**Bramka heavy-profile:** audyt musi zinwentaryzować wszystkie przyszłe call
+sites 132–138. Każdy runtime full-profile read/write albo all-user profile scan
+jest blockerem przed `READY FOR SPRINT 132`; obowiązuje
+`doc/profile_hot_path_contract_130_11_plus.md`.
 
 ## Cel sprintu
 
@@ -25865,6 +25912,11 @@ Sprint jest zakończony, gdy dokładnie wiadomo:
 
 **Status planu:** `QUEUED — po zatwierdzeniu artefaktu Sprintu 131`.
 
+**Bramka heavy-profile:** viewer identity pochodzi z wąskiej integrity-gated
+projekcji. Snapshot i recovery mają `profile_full_read=0`,
+`profile_full_write=0`, `profile_bytes=0` oraz nie wywołują
+`sync_session_profile`, także przy profilu 35 MB.
+
 ## Cel sprintu
 
 Przygotować lekki backendowy snapshot przeznaczony specjalnie dla desktopowej aplikacji GhostNetwork Suite.
@@ -26313,6 +26365,10 @@ Sprint jest zakończony, gdy desktopowa aplikacja może jednym lekkim odczytem o
 
 **Status planu:** `QUEUED — po Sprint 132`.
 
+**Bramka heavy-profile:** aplikacja konsumuje wyłącznie `view=suite` i delty.
+Nie pobiera `/api/profile`, nie przechowuje profilu w cache i nie uruchamia
+toolbar profile refresh po renderze lub zmianie karty.
+
 ## Cel sprintu
 
 Zbudować funkcjonalny frontend desktopowej aplikacji, który prezentuje części GhostNetwork w pięciu jednoznacznych sekcjach i pozwala operatorowi szybko zrozumieć strategiczny stan świata bez otwierania mapy.
@@ -26742,6 +26798,11 @@ Sprint jest zakończony, gdy operator może bez mapy zobaczyć wszystkie dostęp
 
 **Status planu:** `QUEUED — po Sprint 133`.
 
+**Bramka heavy-profile:** focus, teleport i Territory Control rozwiązują
+identity oraz target przez canonical GN/territory stores. Zakazane są
+`get_profile`, `get_profile_with_revision`, `sync_session_profile` i
+`UserProfileManager` w request path.
+
 ## Cel sprintu
 
 Podłączyć do każdej pozycji dwie właściwe akcje:
@@ -27074,6 +27135,10 @@ Sprint jest zakończony, gdy każda część może bezpiecznie otworzyć właśc
 > `snapshot?view=suite`, a snapshot/recovery nie odtwarza SFX.
 
 **Status planu:** `QUEUED — po manualnej bramce Sprintu 134`.
+
+**Bramka heavy-profile:** delta/recovery nie odpytują `/api/profile`, nie
+wykonują profile overlay ani pełnego refreshu. Shared client przechowuje tylko
+viewer-projected model Suite i wersje, nigdy profil.
 
 ## Cel sprintu
 
@@ -27462,6 +27527,11 @@ Lecimy z trzema sprintami domykającymi właściwy obieg narracyjny: zdarzenia G
 > audience fan-out przez `GhostVisibilityService` i rozszerza allowlistę.
 
 **Status planu:** `QUEUED — po domknięciu GhostNetwork Suite 131–135`.
+
+**Bramka heavy-profile:** audience fan-out nie może używać `list_profiles()`,
+per-recipient `get_profile()` ani batch parsowania `profile_json`. Jeżeli brak
+lekkiego indeksu clan/recipient, Sprint 136 dodaje go przed publikacją. Outbox
+zawiera wyłącznie audience-specific projected facts.
 
 ## Cel sprintu
 
@@ -27944,6 +28014,10 @@ Sprint jest zakończony, gdy BlackNet Outbox otrzymuje bezpieczne, deduplikowane
 
 **Status planu:** `QUEUED — po Sprint 136`.
 
+**Bramka heavy-profile:** worker nie czyta profilu podczas
+claim/generate/validate/retry i nie importuje heavy helperów runtime. Model
+otrzymuje wyłącznie zatwierdzony, ograniczony task zapisany przez Sprint 136.
+
 ## Cel sprintu
 
 Utworzyć pierwszy runtime worker Ollamy, który atomowo claimuje zadania
@@ -28370,6 +28444,11 @@ Sprint jest zakończony, gdy Ollama może bezpiecznie przekształcić zatwierdzo
 > przejść również z wyłączoną Ollamą i deterministycznym fallbackiem.
 
 **Status planu:** `QUEUED — po Sprint 137`.
+
+**Bramka heavy-profile:** publisher, feed i CTA nie wzbogacają sygnału przez
+pełny profil. Audience oraz akcje są rozwiązywane z zapisanej projekcji albo
+bounded canonical lookup; zwykła publikacja ma wszystkie heavy-profile counters
+równe zero.
 
 ## Cel sprintu
 

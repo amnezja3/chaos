@@ -1,10 +1,16 @@
 # Post-audit Sprintów 131–138 — baseline po 130.9.5 i bramka 130.10–130.11
 
-Data audytu: 2026-08-21.
+Data audytu: 2026-08-21. Aktualizacja hot-path: 2026-08-23.
 
 Status: plan skorygowany i zachowany, ale Sprint 131 jest w kolejce za
 incydentowymi Sprintami 130.10 i 130.11. Audyt nie implementuje GhostNetwork
 Suite ani pipeline'u Ollamy.
+
+Wiążąca bramka dla całej serii:
+`doc/profile_hot_path_contract_130_11_plus.md`. Jeżeli opis sprintu można
+zrealizować zarówno przez canonical store/projection, jak i pełny profil,
+obowiązkowa jest pierwsza ścieżka. Brak lekkiej projekcji oznacza pracę do
+wykonania w danym sprincie, a nie zgodę na tymczasowy fallback.
 
 ## Bramka incydentowa przed Sprintem 131
 
@@ -41,8 +47,9 @@ Zakres 131–138 nie jest renumerowany ani anulowany. Status Sprintu 131:
    `can_show_on_map`, `can_teleport`, asset właściwej części albo neutralny
    `classified_part.png`.
 4. Endpoint `GET /api/ghostnetwork/snapshot` już obsługuje `view=map`,
-   `view=suite`, `view=territory_summary` i `view=status`. Korzysta z
-   `load_profile_readonly`, projekcji odbiorcy, `state_version`,
+   `view=suite`, `view=territory_summary` i `view=status`. Po recovery wydajności
+   korzysta z integrity-gated `get_profile_identity`, a nie
+   `load_profile_readonly`; dalej używa projekcji odbiorcy, `state_version`,
    `visibility_version` i `snapshot_checksum`.
 5. Dzisiejszy `view=suite` nie jest jeszcze finalnym read modelem aplikacji:
    zachowuje viewer-projected `parts`, a z połączeń usuwa geometrię. Brakuje
@@ -84,6 +91,9 @@ Zakres 131–138 nie jest renumerowany ani anulowany. Status Sprintu 131:
   `player_areas.id`, a nie nowym identyfikatorem ani tabelą.
 - Alias właściciela może zostać dodany tylko lekką projekcją backendową;
   aplikacja nie pobiera pełnych profili.
+- Audyt tworzy inventory call sites profilu dla 132–138 i oznacza każdy jako
+  `canonical_projection`, `allowed_offline_heavy` albo blocker. Runtime heavy
+  call site nie może przejść do Sprintu 132.
 - Wspólne ikony są kontraktem do ujednolicenia. Obecnie aplikacje mają osobne
   słowniki ikon; audyt nie może twierdzić, że `GHOST_CONTROL_ICONS` już istnieje.
 
@@ -103,6 +113,9 @@ Zakres 131–138 nie jest renumerowany ani anulowany. Status Sprintu 131:
   może zostać, ale endpoint nie wysyła endpointów linii.
 - Cache/recovery kluczuje istniejące `cache_key`, `visibility_version`,
   `state_version`, viewer ID i clan. Zmiana kontraktu wymaga testu cross-viewer.
+- Viewer identity pochodzi wyłącznie z wąskiej projekcji. Snapshot ma testy
+  wymuszające zero `get_profile`, `get_profile_with_revision`,
+  `sync_session_profile` i `profile_bytes` także dla profilu 35 MB.
 
 ### Sprint 133
 
@@ -116,6 +129,8 @@ Zakres 131–138 nie jest renumerowany ani anulowany. Status Sprintu 131:
   współrzędnych ani wykonywać requestu.
 - Błąd zachowuje ostatni dobry model widoku, ale nie historyczne tajne pola po
   zmianie visibility.
+- Launcher i renderer nie pobierają `/api/profile`, nie wkładają profilu do
+  cache aplikacji i nie uruchamiają toolbar profile refresh po aktualizacji karty.
 
 ### Sprint 134
 
@@ -132,6 +147,9 @@ Zakres 131–138 nie jest renumerowany ani anulowany. Status Sprintu 131:
   swoim istniejącym snapshotcie. Nie dodaje warstw ani własnej kopii części.
 - Mapowe assety, badge i efekty ze Sprintów 130.9.3–130.9.4 są reuse, nie
   przedmiotem ponownej implementacji.
+- Opaque focus i teleport rozwiązują viewer/target przez identity oraz canonical
+  GN/territory stores. Zakazane są pełny profil, `sync_session_profile` i
+  `UserProfileManager`; zwykły request ma `profile_full_read/write=0`.
 
 ### Sprint 135
 
@@ -146,6 +164,8 @@ Zakres 131–138 nie jest renumerowany ani anulowany. Status Sprintu 131:
   runtime i `static/app_config.json`, z testem jednej instancji i instalacji.
 - Manualna bramka obejmuje desktop/mobile, mapę na żądanie, teleport exact i
   territory-only oraz zmianę widoczności usuwającą stare dane z DOM/cache.
+- Delta i recovery nie odświeżają `/api/profile`, nie wykonują profile overlay i
+  nie trzymają profilu w shared client cache.
 
 ### Sprint 136
 
@@ -162,6 +182,11 @@ Zakres 131–138 nie jest renumerowany ani anulowany. Status Sprintu 131:
   `open_ghostsignal_archive`, `open_cyberner_channel`; nowe nazwy wymagają
   migracji allowlisty i dispatcherów, nie aliasów tylko w dokumencie.
 - Hook działa po trwałym evencie i fail-open; błąd narracji nie cofa gameplayu.
+- Audience resolver nie może używać `list_profiles()`, per-recipient
+  `get_profile()` ani batch JSON projection pełnych rekordów. Jeżeli brak
+  trwałego indeksu clan/recipient, Sprint 136 dodaje go przed fan-outem.
+- Task outbox zawiera tylko audience-specific projected facts; pełny profil nie
+  może wejść do tasku, fallbacku, logu ani dedupe material.
 
 ### Sprint 137
 
@@ -177,6 +202,9 @@ Zakres 131–138 nie jest renumerowany ani anulowany. Status Sprintu 131:
   adapter diagnostyczny, ale nie staje się kolejką GN.
 - Flagi używają konwencji `CHAOS_GHOSTNETWORK_OLLAMA_*`; worker musi mieć
   wersjonowany ecosystem, status/verify i dry-run bez wywołania modelu.
+- Worker nie importuje runtime helpera pełnego profilu i nie wykonuje żadnego
+  profile read podczas claim/generate/validate/retry. Wszystkie dane wejściowe
+  pochodzą z zatwierdzonego tasku 136.
 
 ### Sprint 138
 
@@ -190,6 +218,9 @@ Zakres 131–138 nie jest renumerowany ani anulowany. Status Sprintu 131:
 - Rotacja, TTL i invalidation są rozszerzeniem istniejącej polityki BlackNet.
 - E2E musi przejść także przy wyłączonej Ollamie; gameplay, delta, reward i
   GhostSignal pozostają niezależne.
+- Publisher/feed/CTA nie wzbogacają sygnału przez pełny profil. Audience i CTA
+  są rozwiązywane przez identyfikatory/projekcje zapisane w pipeline albo
+  bounded canonical lookup.
 
 ## Model pracy 131–138
 
@@ -205,6 +236,10 @@ Każdy sprint ma:
 6. techniczny skrypt `status/verify/dry-run` dla nowego workera lub kolejki;
 7. manualną bramkę wyłącznie dla zmian gameplay/GUI/audio/mapy;
 8. brak commit i deploy, dopóki użytkownik nie zleci ich osobno.
+9. obowiązkowy `PROFILE HOT PATH AUDIT` z zerem full reads/writes, profile bytes,
+   all-user scans i per-recipient profile reads dla zwykłego runtime;
+10. test na małym oraz syntetycznym profilu co najmniej 35 MB, który musi mieć
+    identyczny bounded query count i nie uruchamiać heavy path.
 
 ## Kolejność i bramki
 

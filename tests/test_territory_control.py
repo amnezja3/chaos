@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import run
 from database import (
+    PlayerMarkedTargetStore,
     TerritoryConflictStore,
     TerritoryStore,
     TerritoryTargetOwnershipStore,
@@ -97,6 +98,7 @@ class TerritoryControlTest(unittest.TestCase):
                     source="test.territory_control.create",
                     allow_create=True,
                 )
+            marked_targets = PlayerMarkedTargetStore(db_path=str(path))
             for item in (
                 captured("A1", 52.0, 21.0), captured("A2", 52.0018, 21.0),
                 captured("A3", 52.0018, 21.0018), captured("A4", 52.0, 21.0018),
@@ -143,6 +145,7 @@ class TerritoryControlTest(unittest.TestCase):
 
             with patch.object(run, "territory_store", store), \
                     patch.object(run, "user_store", local_users), \
+                    patch.object(run, "player_marked_target_store", marked_targets), \
                     patch.object(run.player_target_runtime_store, "clear_if_matches"), \
                     patch.object(run, "record_territory_areas_delta", return_value=[]), \
                     patch.object(run, "sync_static_area_intruders_for_owner", return_value=[]), \
@@ -202,7 +205,7 @@ class TerritoryControlTest(unittest.TestCase):
         resolver = run.TerritoryEncirclementResolver(store=object(), conflict_store=object())
         with patch.object(
             run.user_store,
-            "get_profile",
+            "get_profile_identity",
             side_effect=lambda username: {"username": username, "clan": username},
         ) as get_profile, patch.object(
             run,
@@ -343,12 +346,12 @@ class TerritoryControlTest(unittest.TestCase):
             },
         ]
 
-        with patch.object(run.user_store, "get_profile", side_effect=lambda username: {
+        with patch.object(run.user_store, "get_profile_identity", side_effect=lambda username: {
             "username": username, "clan": "same-clan"
         }):
             self.assertEqual(run.build_territory_conflict_detection_plan(areas), [])
 
-        with patch.object(run.user_store, "get_profile", side_effect=lambda username: {
+        with patch.object(run.user_store, "get_profile_identity", side_effect=lambda username: {
             "username": username, "clan": "alpha" if username == "alice" else "beta"
         }), patch.object(run.mail_store, "is_accepted_contact", return_value=True):
             plans = run.build_territory_conflict_detection_plan(areas)
@@ -772,7 +775,7 @@ class TerritoryControlTest(unittest.TestCase):
             def fake_profile(username):
                 return {"username": username, "clan": "Siatka Widmo"}
 
-            with patch.object(run.user_store, "get_profile", side_effect=fake_profile), \
+            with patch.object(run.user_store, "get_profile_identity", side_effect=fake_profile), \
                     patch.object(run.mail_store, "is_accepted_contact", return_value=False), \
                     patch.object(run, "record_territory_areas_delta", return_value=[]), \
                     patch.object(run, "record_territory_encirclement_delta", return_value=[]):

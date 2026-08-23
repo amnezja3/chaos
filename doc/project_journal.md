@@ -1094,3 +1094,67 @@
 - Końcowa regresja celowana: `348/348 OK`; `py_compile`, migrator dry-run i
   `git diff --check`: OK.
 - Status: `READY FOR SERVER MARK-TARGET RETEST`; bez commita i deployu.
+
+## 2026-08-23 - Bramka heavy-profile dla Sprintów 130.11–138
+
+- Serwerowy gameplay po 130.10.1–130.10.2 został oceniony jako wyraźnie
+  szybszy; zgłoszony wcześniej lag zniknął. Wynik traktujemy jako ochronny
+  baseline dla dalszych sprintów, nie zgodę na ponowne użycie pełnego profilu.
+- Audyt planów 130.11–138 wykrył nieaktualny baseline: dokument 131+ nadal
+  wskazywał `load_profile_readonly` dla snapshotu GN. Poprawiono go na aktualny
+  integrity-gated `get_profile_identity`.
+- Dodano wiążący `doc/profile_hot_path_contract_130_11_plus.md`: zwykły endpoint,
+  snapshot, delta, event hook, publisher i worker mają zero full-profile
+  reads/writes, profile bytes, all-user scans i per-recipient profile reads.
+- Sprint 130.11 ma jedyny jawny wyjątek: operatorski audit/repair/verify exact
+  canonical konta. Heavy helper nie może trafić do runtime ani skanować innych
+  profili.
+- Sprinty 131–135 dostały bramki lekkiej identity/viewer projection, braku
+  `/api/profile` i braku profile refresh w GUI/delta/recovery. Sprint 136 ma
+  zakaz `list_profiles()` i per-recipient profile reads; 137 nie czyta profilu w
+  workerze; 138 nie wzbogaca feedu/CTA pełnym profilem.
+- Każdy kolejny sprint wymaga testu na profilu co najmniej 35 MB oraz raportu
+  `PROFILE HOT PATH AUDIT`. Runtime heavy counter różny od zera blokuje GO.
+
+## 2026-08-23 - Sprint 130.11: start read-only recovery gate
+
+- Dodano `tools/repair_trollu2_profile.py` — pierwsza faza udostępnia wyłącznie
+  `status`, `audit`, podpisany `plan` i `dry-run`; SQLite jest otwierany
+  `mode=ro` + `query_only=ON`.
+- Exact canonical login to `trolu2`. Narzędzie nie wykonuje fuzzy match, nie
+  skanuje pełnych profili innych kont i nie jest importowane przez web/worker.
+- Realny lokalny snapshot potwierdził current checksum/revision, wallet `1000`,
+  11 apps, 11 tools, Nmap + Metasploit jako dwie ostatnie receipt-backed
+  instalacje, bilet do Tokio i aktywny cykl GN z 20 częściami.
+- LKG ma poprawny checksum, ale zawiera canonical mirror i został wykluczony jako
+  recovery source; wymagany będzie immutable before-manifest.
+- Pierwszy wariant ośmiu filarów kolidował z istniejącym terytorium. Resolver
+  deterministycznie przeniósł centrum 3000 m na północ; ponowny dry-run: zero
+  kolizji territory/conflict/GN, zero GN writes, zero writes innych profili.
+- Testy `tests.test_trollu2_recovery_tool`: `13/13 OK`; pełna celowana regresja
+  profile/LKG/wallet/GN/territory: `93/93 OK`; `py_compile`: OK.
+- Status: `IN PROGRESS — LOCAL READ-ONLY PLAN/DRY-RUN PASSED`; nie wykonano
+  backupu, apply, rebuildów, settlementu, LKG promotion, commita ani deployu.
+
+## 2026-08-23 - Sprint 130.11: controlled recovery pipeline ready
+
+- Domknięto operatorskie `backup/apply/verify/promote-lkg/report/rollback` dla
+  exact canonical `trolu2`. Plan, before-manifest, profile revision/checksum,
+  wallet version, schema identity, session-generation oraz GN topology są
+  fail-closed preconditions.
+- Grant Tokio tworzy 8 stabilnych filarów, ownership, captured targets, jeden
+  recovery job i step receipt atomowo. Retry jest idempotentny; settlement HC ma
+  dokładnie jeden balance event i ledger entry.
+- Territory worker dostał wąską gałąź `sprint_130_11` dla exact subject. Nadal
+  używa canonical rebuild/publication, ale nie czyta i nie zapisuje pełnego
+  profilu ani LKG. Zwykła ścieżka workera zachowuje dotychczasowy kontrakt.
+- LKG pozostaje niezmienione do osobnego `promote-lkg` po verify i manualu.
+  Rollback odmawia po późniejszej zmianie profilu, walletu albo geometrii.
+- Real-schema próba na kopii snapshotu 809 MB doszła poprawnie do
+  `AWAITING_TERRITORY_WORKER`: 8 targetów + 1 pending job, bez zmiany walletu,
+  RSP i LKG. Kopię i sensitive manifest usunięto po próbie.
+- Regresja: recovery/worker `22/22 OK`; sąsiednie kontrakty
+  profile/session/wallet/target/territory/GN `441/441 OK`; `py_compile` i
+  `git diff --check` OK.
+- Status: `READY FOR SERVER DRY-RUN / OPERATOR APPLY`; produkcyjna baza nie
+  została zmieniona, nie wykonano commita ani deployu.

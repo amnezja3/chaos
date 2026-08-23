@@ -59,6 +59,31 @@ spiąć wszystkie wallet writers, w tym transfery, Googleplex i Ghost Exchange;
 inaczej dwa źródła salda rozjadą się. Globalny store-primary cutover pozostałych
 scope'ów nadal pozostaje poza zakresem.
 
+## Stan wejściowy Sprintu 130.11 — 2026-08-23
+
+Dedykowane `tools/repair_trollu2_profile.py` utrzymuje pełny profil poza runtime:
+odczytuje dokładnie jeden allowlisted rekord `trolu2`, nie używa
+`list_profiles()` i nie jest importowane przez web ani worker. Wallet,
+inventory, territory i GhostNetwork są odczytywane z canonical tables.
+
+Lokalny read-only audit potwierdził, że current profile jest checksum-valid, ale
+bootstrap LKG zawiera canonical mirror (`files`, `hacked`, `operations`) i nie
+może być źródłem recovery. Plan zachowuje 11 apps/tools, dowodzi ostatnich
+instalacji Nmap/Metasploit i wyprowadza Tokio z receipt-backed travel effect.
+Pierwszy wariant geometrii został zatrzymany przez realną kolizję; bezkolizyjna
+relokacja została wybrana deterministycznie. Etap zapisujący jest gotowy, ale
+pozostaje ograniczony do trzech jawnie allowlistowanych funkcji operatorskich:
+`apply_level_step`, `final_settlement` i `rollback_recovery`. Każda jest
+exact-account, plan/checksum/CAS/receipt gated; test statyczny nadal odrzuca
+każdy inny direct `users.profile_json` write.
+
+Territory worker nie korzysta z wyjątku heavy-profile. Job z kontraktem
+`sprint_130_11`, exact subject `trolu2` i recovery plan ID przekazuje tylko
+recovery level do canonical geometry rebuild. Worker pomija full-profile read,
+compatibility profile projection oraz LKG write. Test behawioralny ustawia te
+ciężkie calle jako błędy i potwierdza ich zero. Zwykły worker zachowuje
+dotychczasowy kontrakt.
+
 ## Status po Sprintach 130.1-130.5
 
 Wydzielone store'y runtime:

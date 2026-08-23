@@ -6141,32 +6141,50 @@ def process_territory_rebuild_job(lease_owner, lease_seconds=300):
         return None
     username = str(claim.get("owner_username") or "")
     try:
-        profile_record = load_profile_write_record(username)
-        profile = (
-            copy.deepcopy(profile_record["profile"]) if profile_record else {}
+        job_target = claim.get("target") or {}
+        job_reason = str(claim.get("reason") or "territory_rebuild_job")
+        recovery_plan_id = str(job_target.get("recovery_plan_id") or "")
+        controlled_recovery = bool(
+            username == "trolu2"
+            and recovery_plan_id.startswith("trollu2_recovery_")
+            and job_target.get("recovery_contract") == "sprint_130_11"
+            and job_target.get("recovery_subject") == username
+            and job_reason in {"sprint_130_11_recovery", "sprint_130_11_rollback"}
         )
-        abandoned_target = claim.get("target") or {}
-        aimed_target = profile.get("aimed_target") or {}
-        if aimed_target and abandoned_target and targets_share_selection_identity(
-            aimed_target, abandoned_target
-        ):
-            profile["aimed_target"] = {}
-        try:
-            player_target_runtime_store.clear_if_matches(
-                username,
-                abandoned_target,
-                source="territory_rebuild_job",
+        if controlled_recovery:
+            recovery_level = int(job_target.get("recovery_level") or 0)
+            if recovery_level < 1:
+                raise ValueError("Controlled recovery rebuild requires recovery_level")
+            profile_record = None
+            profile = {"level": recovery_level}
+            abandoned_target = {}
+        else:
+            profile_record = load_profile_write_record(username)
+            profile = (
+                copy.deepcopy(profile_record["profile"]) if profile_record else {}
             )
-        except Exception as exc:
-            print(
-                f"[TERRITORY_REBUILD_JOB] aimed_target_clear_failed "
-                f"job_id={claim['job_id']} user={username} error={exc}",
-                flush=True,
-            )
+            abandoned_target = job_target
+            aimed_target = profile.get("aimed_target") or {}
+            if aimed_target and abandoned_target and targets_share_selection_identity(
+                aimed_target, abandoned_target
+            ):
+                profile["aimed_target"] = {}
+            try:
+                player_target_runtime_store.clear_if_matches(
+                    username,
+                    abandoned_target,
+                    source="territory_rebuild_job",
+                )
+            except Exception as exc:
+                print(
+                    f"[TERRITORY_REBUILD_JOB] aimed_target_clear_failed "
+                    f"job_id={claim['job_id']} user={username} error={exc}",
+                    flush=True,
+                )
         areas = rebuild_player_areas_with_territory_delta(
             username,
             profile.get("level", 1),
-            reason=str(claim.get("reason") or "territory_rebuild_job"),
+            reason=job_reason,
         )
         conflicts = detect_territory_conflicts(
             actor_username=username,
@@ -6179,7 +6197,9 @@ def process_territory_rebuild_job(lease_owner, lease_seconds=300):
                 reason=f"rebuild_job:{claim['job_id']}",
                 requested_version=conflict.get("conflict_version"),
             )
-        fresh_targets = territory_store.list_captured_targets(username)
+        fresh_targets = (
+            [] if controlled_recovery else territory_store.list_captured_targets(username)
+        )
 
         def rebuild_projection(current_profile):
             updates = {
@@ -6195,7 +6215,7 @@ def process_territory_rebuild_job(lease_owner, lease_seconds=300):
                 updates["aimed_target"] = {}
             return updates
 
-        if profile_record:
+        if profile_record and not controlled_recovery:
             patch_profile_projection_with_retry(
                 username,
                 rebuild_projection,
@@ -6205,6 +6225,8 @@ def process_territory_rebuild_job(lease_owner, lease_seconds=300):
         return {
             **claim, "ok": True, "areas": len(areas or []),
             "conflicts": len(conflicts or []),
+            "controlled_recovery": controlled_recovery,
+            "recovery_plan_id": recovery_plan_id if controlled_recovery else "",
         }
     except Exception as exc:
         territory_store.finish_rebuild_job(

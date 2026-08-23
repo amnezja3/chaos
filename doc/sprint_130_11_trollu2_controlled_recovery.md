@@ -2,10 +2,151 @@
 
 Data planu: 2026-08-21.
 
-Status: `QUEUED — REQUIRES GO FROM SPRINT 130.10`.
+Status: `READY FOR SERVER DRY-RUN / OPERATOR APPLY — IMPLEMENTATION COMPLETE, SERVER STATE UNCHANGED`.
+
+## Stan rozpoczęcia — 2026-08-23
+
+Pierwszy slice Sprintu 130.11 został wykonany bez mutacji bazy:
+
+- dodano `tools/repair_trollu2_profile.py` z komendami `status`, `audit`,
+  `plan` i `dry-run`;
+- każde polecenie otwiera SQLite przez `mode=ro` i `PRAGMA query_only=ON`;
+- exact canonical login został zamrożony jako `trolu2`; nie ma fuzzy match ani
+  parsowania profili innych kont;
+- lokalny snapshot potwierdził poprawny current checksum/revision, nieużywalny
+  LKG zawierający canonical mirror, wallet `1000`, 11 aplikacji, 11 narzędzi,
+  20 części aktywnego cyklu `ghostnetwork_0001` oraz kanoniczny bilet do Tokio;
+- dwie ostatnie instalacje Googleplex zostały udowodnione receiptami i
+  dopasowane do canonical inventory: `Nmap` i `Metasploit`;
+- pierwotny pierścień ośmiu filarów kolidował z istniejącym terytorium. Bramka
+  zatrzymała plan, po czym deterministyczny resolver wybrał wolny wariant
+  przesunięty o 3000 m na północ; ponowny dry-run ma zero kolizji;
+- podpisany plan ma stabilne target IDs, wszystkie filary `stationary=true`,
+  zero planowanych zapisów GN i zero zapisów innych profili;
+- `tests/test_trollu2_recovery_tool.py`: `13/13 OK`; `py_compile`: OK.
+
+Nie wykonano recovery na właściwej bazie, promocji LKG, commita ani deployu.
+Lokalny plan w katalogu TEMP jest tylko dowodem implementacyjnym i nie zastępuje
+planu wygenerowanego z aktualnej bazy serwera bezpośrednio przed operacją.
+
+## Stan gotowości — 2026-08-23
+
+Pipeline operatorski został domknięty:
+
+- `backup` tworzy podpisany, wrażliwy before-manifest poza repozytorium;
+- `apply` wymaga planu i manifestu wraz z ich checksumami, `--write` oraz
+  `--authorized-by`; zapisuje durable receipt i receipts etapów;
+- poziom 50 jest guarded profile CAS, a grant ośmiu filarów dla miasta zapisuje
+  ownership, captured targets, jeden rebuild job i step receipt w jednej
+  transakcji `BEGIN IMMEDIATE`;
+- pierwszy przebieg `apply` bez gotowego workera kończy się kontrolowanym kodem
+  `3` i fazą `AWAITING_TERRITORY_WORKER`; identyczny retry finalizuje settlement
+  dopiero po terminalnym sukcesie własnych job IDs;
+- final settlement zapisuje dokładnie raz RSP 2560 i saldo 250000 przez canonical
+  wallet event/ledger oraz odświeża `territory_stats` i `exp` z geometrii workera;
+- LKG nie jest zmieniane przez apply ani worker. `promote-lkg` jest osobnym,
+  jawnym krokiem dopiero po pozytywnym verify i manualu;
+- rollback jest receipt/revision/version gated i odmawia po późniejszym legalnym
+  gameplayu;
+- worker ma wąską gałąź tylko dla exact `trolu2` + kontraktu
+  `sprint_130_11`: używa przekazanego recovery levelu, tego samego canonical
+  territory rebuild/publication, ale nie czyta i nie zapisuje pełnego profilu
+  ani LKG. Zwykły worker gameplayowy nie zmienił semantyki.
+
+Na pełnej kopii snapshotu produkcyjnego (`848560128 B`) wykonano real-schema
+`plan → dry-run → backup → apply → verify`. Apply utworzył 8 filarów i jeden
+pending rebuild job, po czym poprawnie zatrzymał się na
+`AWAITING_TERRITORY_WORKER`; wallet pozostał `1000`, RSP `25`, LKG bez zmian,
+a verify raportował wyłącznie `territory_jobs_not_complete`. Kopia testowa i
+wrażliwy manifest zostały usunięte z TEMP; na roboczym pliku nie wykonano
+recovery apply.
+
+Regresja:
+
+- recovery + lekka gałąź workera: `22/22 OK`;
+- profile/session/wallet/target/territory/GN: `441/441 OK`;
+- `py_compile` oraz `git diff --check`: OK.
+
+## Gotowa sekwencja operatorska
+
+Po własnym commit/deploy/pull operator przeładowuje oba procesy z wersjonowanych
+ecosystemów, zanim wygeneruje plan:
+
+```bash
+cd /home/johndoe/app/chaos
+pm2 startOrReload ecosystem.web.config.js --only chaos --update-env
+pm2 startOrReload ecosystem.territory-worker.config.js --only chaos-territory-worker --update-env
+pm2 save
+pm2 status
+```
+
+Konto `trolu2` ma pozostać wylogowane od początku planu do zakończenia apply.
+Fresh plan i before-manifest są tworzone poza repo:
+
+```bash
+RECOVERY_DIR="/home/johndoe/chaos-recovery-13011-$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -m 700 "$RECOVERY_DIR"
+PLAN="$RECOVERY_DIR/plan.json"
+BEFORE="$RECOVERY_DIR/before-manifest.json"
+OPERATOR="$(whoami)"
+
+.venv/bin/python tools/repair_trollu2_profile.py status --db data/game.sqlite3 | tee "$RECOVERY_DIR/status.json"
+.venv/bin/python tools/repair_trollu2_profile.py audit --db data/game.sqlite3 | tee "$RECOVERY_DIR/audit.json"
+.venv/bin/python tools/repair_trollu2_profile.py plan --db data/game.sqlite3 --output "$PLAN"
+.venv/bin/python tools/repair_trollu2_profile.py dry-run --db data/game.sqlite3 --plan "$PLAN" | tee "$RECOVERY_DIR/dry-run.json"
+.venv/bin/python tools/repair_trollu2_profile.py backup --db data/game.sqlite3 --plan "$PLAN" --output "$BEFORE" | tee "$RECOVERY_DIR/backup.json"
+
+PLAN_SHA="$(.venv/bin/python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["plan_sha256"])' "$PLAN")"
+MANIFEST_SHA="$(.venv/bin/python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["manifest_sha256"])' "$BEFORE")"
+printf 'RECOVERY_DIR=%s\nPLAN_SHA=%s\nMANIFEST_SHA=%s\n' "$RECOVERY_DIR" "$PLAN_SHA" "$MANIFEST_SHA"
+```
+
+`dry-run` musi mieć `ok=true`, `blockers=[]`, exact `trolu2`, 11 apps, 11 tools,
+Nmap + Metasploit, Tokio/8 filarów, GN/20 części i zero planowanych GN writes.
+Dopiero wtedy operator uruchamia apply:
+
+```bash
+.venv/bin/python tools/repair_trollu2_profile.py apply --db data/game.sqlite3 --plan "$PLAN" --before-manifest "$BEFORE" --plan-sha256 "$PLAN_SHA" --manifest-sha256 "$MANIFEST_SHA" --write --authorized-by "$OPERATOR" | tee "$RECOVERY_DIR/apply-1.json"
+pm2 logs chaos-territory-worker --lines 100 --nostream
+.venv/bin/python tools/repair_trollu2_profile.py apply --db data/game.sqlite3 --plan "$PLAN" --before-manifest "$BEFORE" --plan-sha256 "$PLAN_SHA" --manifest-sha256 "$MANIFEST_SHA" --write --authorized-by "$OPERATOR" | tee "$RECOVERY_DIR/apply-2.json"
+.venv/bin/python tools/repair_trollu2_profile.py verify --db data/game.sqlite3 --plan "$PLAN" | tee "$RECOVERY_DIR/verify-before-manual.json"
+.venv/bin/python tools/repair_trollu2_profile.py report --db data/game.sqlite3 --plan "$PLAN" | tee "$RECOVERY_DIR/report-before-manual.json"
+```
+
+Pierwszy apply może legalnie zakończyć się kodem `3` z
+`AWAITING_TERRITORY_WORKER`. Drugi identyczny przebieg jest wymaganym retry po
+terminalnym sukcesie joba; nie dubluje targetów ani HC. `verify` przed manualem
+musi mieć `ok=true`, saldo 250000, LVL 50, RSP 2560, kompletny job, 8 recovery
+targets, GN/20 części i `lkg_promoted=false`.
+
+Po pozytywnym manualu:
+
+```bash
+FINAL_SHA="$(.venv/bin/python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["profile"]["checksum"])' "$RECOVERY_DIR/verify-before-manual.json")"
+.venv/bin/python tools/repair_trollu2_profile.py promote-lkg --db data/game.sqlite3 --plan "$PLAN" --plan-sha256 "$PLAN_SHA" --final-checksum "$FINAL_SHA" --write --authorized-by "$OPERATOR" | tee "$RECOVERY_DIR/promote-lkg.json"
+.venv/bin/python tools/repair_trollu2_profile.py verify --db data/game.sqlite3 --plan "$PLAN" | tee "$RECOVERY_DIR/verify-final.json"
+.venv/bin/python tools/repair_trollu2_profile.py report --db data/game.sqlite3 --plan "$PLAN" | tee "$RECOVERY_DIR/report-final.json"
+```
+
+Rollback nie jest elementem normalnego przebiegu. Jeżeli verify/manual wykryje
+blocker i nie było późniejszego gameplayu na profilu, walletcie ani terytorium:
+
+```bash
+.venv/bin/python tools/repair_trollu2_profile.py rollback --db data/game.sqlite3 --plan "$PLAN" --before-manifest "$BEFORE" --plan-sha256 "$PLAN_SHA" --manifest-sha256 "$MANIFEST_SHA" --write --authorized-by "$OPERATOR"
+```
 
 Incydent źródłowy:
 `doc/Incydent Trollu2 — utrata profilu, błędy sesji i plan odbudowy.md`.
+
+Wiążąca bramka wydajnościowa:
+`doc/profile_hot_path_contract_130_11_plus.md`.
+
+Sprint 130.11 jest jedynym planowanym wyjątkiem, w którym pełny profil może być
+odczytany i zapisany przez operatorskie narzędzie dla dokładnie jednego,
+zamrożonego canonical konta. Heavy path nie może zostać wystawiony jako endpoint,
+użyty przez worker ani współdzielony jako wygodny helper runtime. Wszystkie
+odczyty innych kont, GN, walletu, inventory, targetów i terytoriów muszą pozostać
+w ich canonical stores/projekcjach.
 
 ## Cel
 
@@ -134,27 +275,27 @@ python tools/repair_trollu2_profile.py audit --db data/game.sqlite3
 python tools/repair_trollu2_profile.py plan --db data/game.sqlite3 --output /tmp/trollu2-recovery-plan.json
 python tools/repair_trollu2_profile.py dry-run --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json
 python tools/repair_trollu2_profile.py backup --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json --output /tmp/trollu2-before-manifest.json
-python tools/repair_trollu2_profile.py apply --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json --before-manifest /tmp/trollu2-before-manifest.json --plan-sha256 <SHA256> --write
+python tools/repair_trollu2_profile.py apply --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json --before-manifest /tmp/trollu2-before-manifest.json --plan-sha256 <PLAN_SHA256> --manifest-sha256 <MANIFEST_SHA256> --write --authorized-by <OPERATOR>
 python tools/repair_trollu2_profile.py verify --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json
 ```
 
 Dopiero po pozytywnym manualu:
 
 ```bash
-python tools/repair_trollu2_profile.py promote-lkg --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json --final-checksum <FINAL_SHA256> --write
+python tools/repair_trollu2_profile.py promote-lkg --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json --plan-sha256 <PLAN_SHA256> --final-checksum <FINAL_SHA256> --write --authorized-by <OPERATOR>
 python tools/repair_trollu2_profile.py verify --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json
-python tools/repair_trollu2_profile.py report --db data/game.sqlite3
+python tools/repair_trollu2_profile.py report --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json
 ```
 
 `rollback` jest osobną akcją awaryjną po analizie nieudanego apply, a nie
 normalnym kolejnym krokiem po poprawnym recovery:
 
 ```bash
-python tools/repair_trollu2_profile.py rollback --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json --before-manifest /tmp/trollu2-before-manifest.json --write
+python tools/repair_trollu2_profile.py rollback --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json --before-manifest /tmp/trollu2-before-manifest.json --plan-sha256 <PLAN_SHA256> --manifest-sha256 <MANIFEST_SHA256> --write --authorized-by <OPERATOR>
 ```
 
-To jest kontrakt planowanego narzędzia, nie komenda do wykonania w bieżącym
-sprincie dokumentacyjnym.
+To jest kontrakt gotowego narzędzia. Komendy mutujące wykonuje operator dopiero
+po deployu kodu i zaakceptowaniu świeżego serwerowego dry-run.
 
 ## Etap 1 — audit i manifest stanu
 
@@ -424,6 +565,13 @@ Minimum:
 20. invalid pre-repair state nie staje się LKG; verified final state jest
     promowany dokładnie raz, z receipt, bez usunięcia evidence manifestu;
 21. raport nie zawiera danych wrażliwych.
+22. status/audit/plan/dry-run/verify nie skanują pełnych profili innych kont;
+23. implementacja ma jawną allowlistę heavy call sites ograniczoną do exact
+    recovery subject oraz zero `list_profiles()`/per-user `get_profile()`;
+24. żaden endpoint, worker ani zwykły gameplay request nie importuje lub nie
+    wywołuje heavy helperów narzędzia recovery;
+25. pełny guarded write przygotowuje walidację, serializację, checksum i LKG
+    przed writer-lockiem, a test mierzy jego sekcję krytyczną.
 
 Sugerowany test:
 
@@ -485,6 +633,8 @@ Sprint dostaje GO dopiero, gdy:
 - manual po ponownym logowaniu pokazuje ten sam poprawny stan;
 - inne profile, ownership i progression nie mają repair-sourced writes;
 - verified final state został jawnie promowany do LKG bez utraty before evidence.
+- `PROFILE HOT PATH AUDIT` wskazuje zero nowych runtime heavy reads/writes,
+  zero skanów wszystkich profili i tylko jawne operatorskie wyjątki exact-account.
 
 Werdykt:
 

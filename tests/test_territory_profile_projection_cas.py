@@ -20,6 +20,55 @@ def profile_record(revision, **updates):
 
 
 class TerritoryProfileProjectionCasTest(unittest.TestCase):
+    def test_controlled_recovery_rebuild_skips_heavy_profile_and_lkg_projection(self):
+        claim = {
+            "job_id": "recovery-job-1",
+            "owner_username": "trolu2",
+            "reason": "sprint_130_11_recovery",
+            "target": {
+                "recovery_contract": "sprint_130_11",
+                "recovery_plan_id": "trollu2_recovery_test",
+                "recovery_subject": "trolu2",
+                "recovery_level": 50,
+                "target_ids": ["pillar-1"],
+            },
+        }
+        with patch.object(
+            run.territory_store, "claim_rebuild_job", return_value=claim
+        ), patch.object(
+            run, "load_profile_write_record",
+            side_effect=AssertionError("heavy profile read must not run"),
+        ) as profile_read, patch.object(
+            run, "rebuild_player_areas_with_territory_delta", return_value=[]
+        ) as rebuild, patch.object(
+            run.territory_store, "list_player_areas", return_value=[]
+        ), patch.object(
+            run, "detect_territory_conflicts", return_value=[]
+        ), patch.object(
+            run.territory_store, "list_captured_targets",
+            side_effect=AssertionError("profile projection must not run"),
+        ) as captured_read, patch.object(
+            run.user_store, "patch_profile_guarded",
+            side_effect=AssertionError("LKG/profile write must not run"),
+        ) as profile_write, patch.object(
+            run.player_target_runtime_store, "clear_if_matches",
+            side_effect=AssertionError("recovery job is not an abandon action"),
+        ) as target_clear, patch.object(
+            run.territory_store, "finish_rebuild_job", return_value=True
+        ) as finish:
+            result = run.process_territory_rebuild_job("worker")
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["controlled_recovery"])
+        rebuild.assert_called_once_with(
+            "trolu2", 50, reason="sprint_130_11_recovery"
+        )
+        profile_read.assert_not_called()
+        captured_read.assert_not_called()
+        profile_write.assert_not_called()
+        target_clear.assert_not_called()
+        finish.assert_called_once_with("recovery-job-1", "worker", ok=True)
+
     def test_rebuild_projection_reloads_and_retries_normal_cas_conflict(self):
         abandoned = {"target_id": "target-a", "lat": 52.0, "lng": 21.0}
         fresh = [{"target_id": "target-b", "lat": 52.1, "lng": 21.1}]

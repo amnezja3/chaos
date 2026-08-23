@@ -886,6 +886,30 @@ Sprint 131 jest formalnie:
 
 ---
 
+# 28. Gotowość kontrolowanej odbudowy — Sprint 130.11
+
+Implementacja naprawy exact canonical `trolu2` jest gotowa do świeżego
+serwerowego dry-run i operatorskiego apply. Nie używa uszkodzonego LKG jako
+źródła, nie skanuje innych profili i nie wprowadza heavy profile path do weba
+ani workera.
+
+Zabezpieczenia obejmują podpisany plan i before-manifest, preconditions profilu,
+walletu, inventory, session-generation, schematu i GN, atomowy per-city grant,
+durable step receipts, retry exactly-once, jawne oddzielenie LKG promotion oraz
+rollback blokowany przez późniejszy gameplay. Worker rozpoznaje specjalny job
+tylko dla exact subject i kontraktu 130.11; canonical rebuild działa bez
+profile/LKG write.
+
+Na pełnej kopii snapshotu wykonano pierwszą fazę apply. Wynik był oczekiwany:
+8 targetów Tokio, jeden pending rebuild job, faza `AWAITING_TERRITORY_WORKER`,
+wallet 1000, RSP 25 i LKG bez zmian. Nie wykonano apply na właściwej bazie.
+
+Status incydentu:
+
+`READY FOR SERVER DRY-RUN / OPERATOR APPLY — repair not yet applied`.
+
+---
+
 # 26. Stan po lokalnym hardeningu Sprintu 130.10
 
 Stop-the-bleed został zaimplementowany lokalnie. Runtime ma guarded profile
@@ -906,5 +930,32 @@ wykonane przez agenta. To jest następna jawna bramka; nie deklarujemy GO.
 
 Konto `trolu2` pozostało nietknięte. Nie wykonano repair, commita, deployu ani
 restartu. Odbudowa nadal należy wyłącznie do Sprintu 130.11 po GO Sprintu 130.10.
+
+---
+
+# 27. Rozpoczęcie Sprintu 130.11 — read-only recovery gate
+
+Na aktualnym lokalnym snapshotcie uruchomiono wyłącznie `status`, `audit`,
+`plan` i `dry-run` nowego `tools/repair_trollu2_profile.py`. Baza była otwierana
+w `mode=ro` z `query_only=ON`; pełny profil odczytano tylko dla exact canonical
+`trolu2`, bez skanu profili innych kont.
+
+Potwierdzone dowody planu:
+
+- current profile: revision 1, checksum valid, LVL 2 / RSP 25;
+- LKG: checksum valid, ale zawiera canonical mirror i nie jest dopuszczony jako
+  recovery source;
+- wallet balance `1000`, canonical inventory 11 apps i 11 tools;
+- dwie ostatnie instalacje Googleplex: Nmap i Metasploit, obie potwierdzone
+  message receipt oraz obecnością w inventory;
+- travel evidence: receipt produktu `ticket_tokio` z efektem `travel_city`;
+- GN: jeden aktywny `ghostnetwork_0001`, 20 części, zero planowanych write/event;
+- terytorium: pierwszy pierścień Tokio kolidował z istniejącą geometrią i został
+  odrzucony; resolver wybrał deterministyczny wolny wariant 3000 m na północ.
+
+Ponowny lokalny dry-run zakończył się bez blockerów, z ośmioma stabilnymi
+`stationary=true` filarami, zero zapisów innych profili i zero zapisów GN.
+Regresja narzędzia: `13/13 OK`. Nie powstał before-manifest i nie wykonano apply,
+wallet settlementu, territory grantów/jobs, promocji LKG, commita ani deployu.
 
 `READY FOR MANUAL ACCOUNT-SWITCH TEST — Sprint 130.10`
