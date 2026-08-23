@@ -3360,6 +3360,105 @@ class UserStore:
             ).fetchall()
         return [(row["username"], dict(row)) for row in rows]
 
+    def get_profile_identity(self, username):
+        """Return the small, integrity-gated identity projection for hot read paths.
+
+        The durable integrity metadata is established by guarded profile writes.
+        Snapshot endpoints must not parse, validate, copy and overlay the complete
+        profile merely to learn the viewer's clan and profession.
+        """
+        username = str(username or "").strip()
+        if not username:
+            return None
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT username, profile_revision, profile_checksum,
+                       profile_integrity_status,
+                       json_valid(profile_json) AS profile_json_valid,
+                       CASE WHEN json_valid(profile_json)
+                            THEN json_type(profile_json) END AS profile_json_type,
+                       CASE WHEN json_valid(profile_json)
+                            THEN json_extract(
+                                profile_json,
+                                '$.ghost_clan_code', '$.clan_code',
+                                '$.ghost_clan', '$.clan', '$.fraction',
+                                '$.faction', '$.ghost_profession', '$.profession'
+                            ) END AS identity_json
+                FROM users
+                WHERE username = ?
+                """,
+                (username,),
+            ).fetchone()
+        if not row:
+            return None
+
+        errors = []
+        if not bool(row["profile_json_valid"]):
+            errors.append("invalid_json")
+        elif str(row["profile_json_type"] or "") != "object":
+            errors.append("profile_not_object")
+        if str(row["profile_integrity_status"] or "") != PROFILE_INTEGRITY_VALID:
+            errors.append("profile_integrity_status_invalid")
+        if int(row["profile_revision"] or 0) <= 0:
+            errors.append("profile_revision_invalid")
+        if not str(row["profile_checksum"] or ""):
+            errors.append("profile_checksum_missing")
+        if errors:
+            _profile_event(
+                "profile.recovery_required",
+                username,
+                "get_profile_identity",
+                old_revision=int(row["profile_revision"] or 0),
+                candidate_revision=None,
+                changed_scopes=[],
+                decision="rejected",
+                reason_code=":".join(sorted(set(errors))),
+                session_generation_hash="",
+                request_id="",
+            )
+            raise ProfileRecoveryRequired(
+                f"User '{username}' requires profile recovery."
+            )
+
+        try:
+            identity_values = json.loads(row["identity_json"] or "[]")
+        except (TypeError, json.JSONDecodeError):
+            identity_values = []
+        if not isinstance(identity_values, list) or len(identity_values) != 8:
+            _profile_event(
+                "profile.recovery_required",
+                username,
+                "get_profile_identity",
+                old_revision=int(row["profile_revision"] or 0),
+                candidate_revision=None,
+                changed_scopes=[],
+                decision="rejected",
+                reason_code="identity_projection_invalid",
+                session_generation_hash="",
+                request_id="",
+            )
+            raise ProfileRecoveryRequired(
+                f"User '{username}' requires profile recovery."
+            )
+
+        (ghost_clan_code, clan_code, ghost_clan, clan, fraction, faction,
+         ghost_profession, profession) = identity_values
+        if isinstance(fraction, dict):
+            fraction = fraction.get("name") or fraction.get("code") or ""
+
+        return {
+            "username": row["username"],
+            "ghost_clan_code": ghost_clan_code,
+            "clan_code": clan_code,
+            "ghost_clan": ghost_clan,
+            "clan": clan,
+            "fraction": fraction,
+            "faction": faction,
+            "ghost_profession": ghost_profession,
+            "profession": profession,
+        }
+
     def save_profile(self, profile):
         profile = copy.deepcopy(profile if isinstance(profile, dict) else {})
         username = profile.get("username")

@@ -17,7 +17,7 @@ class GhostNetworkMapSnapshotEndpointTest(unittest.TestCase):
         headers = self.session_generation.authenticate(client, "alice")
         return client, headers
 
-    def test_snapshot_uses_readonly_profile_and_viewer_projection(self):
+    def test_snapshot_uses_lightweight_identity_and_viewer_projection(self):
         client, headers = self._client()
 
         profile = {
@@ -53,7 +53,8 @@ class GhostNetworkMapSnapshotEndpointTest(unittest.TestCase):
                     "progress": {},
                 }
 
-        with patch.object(run, "load_profile_readonly", return_value=profile) as readonly, \
+        with patch.object(run.user_store, "get_profile_identity", return_value=profile) as identity, \
+                patch.object(run, "load_profile_readonly", side_effect=AssertionError("full profile read not expected")), \
                 patch.object(run, "sync_session_profile", side_effect=AssertionError("full sync not expected")), \
                 patch.object(run, "GhostNetworkService", return_value=FakeGhostNetworkService()):
             response = client.get("/api/ghostnetwork/snapshot", headers=headers)
@@ -66,12 +67,7 @@ class GhostNetworkMapSnapshotEndpointTest(unittest.TestCase):
         self.assertEqual(data["current_version"], 7)
         self.assertTrue(data["snapshot_checksum"])
         self.assertEqual(data["parts"][0]["public_entity_id"], "ghost-part-public-1")
-        readonly.assert_called_once_with(
-            "alice",
-            strip_sensitive=True,
-            normalize_apps=False,
-            normalize_files=False,
-        )
+        identity.assert_called_once_with("alice")
         self.assertEqual(FakeGhostNetworkService.viewer["viewer_id"], "alice")
         self.assertEqual(FakeGhostNetworkService.viewer["viewer_clan"], "VIREX")
         self.assertEqual(FakeGhostNetworkService.viewer["audience_scope"], "player")
@@ -104,7 +100,8 @@ class GhostNetworkMapSnapshotEndpointTest(unittest.TestCase):
                     "progress": {},
                 }
 
-        with patch.object(run, "load_profile_readonly", return_value=profile), \
+        with patch.object(run.user_store, "get_profile_identity", return_value=profile), \
+                patch.object(run, "load_profile_readonly", side_effect=AssertionError("full profile read not expected")), \
                 patch.object(run, "sync_session_profile", side_effect=AssertionError("full sync not expected")), \
                 patch.object(run, "GhostNetworkService", return_value=FakeGhostNetworkService()):
             response = client.get(

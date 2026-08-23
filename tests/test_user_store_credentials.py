@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from database import (
+    ProfileRecoveryRequired,
     ProfileWriteConflict,
     UserStore,
     WalletBalanceStore,
@@ -36,6 +37,8 @@ class UserStoreCredentialTests(unittest.TestCase):
             "desktop_settings": {},
             "security": {},
             "territory_stats": {},
+            "ghost_clan_code": "VIREX",
+            "ghost_profession": "signal_runner",
         }
         with db_connect(self.db_path) as conn:
             conn.execute(
@@ -99,6 +102,42 @@ class UserStoreCredentialTests(unittest.TestCase):
             [item["reward_key"] for item in restored["ghostnetwork_reward_history"]],
             ["ghost-reward-1"],
         )
+
+    def test_identity_projection_excludes_heavy_profile_fields(self):
+        identity = self.store.get_profile_identity("robot")
+
+        self.assertEqual(identity["username"], "robot")
+        self.assertEqual(identity["ghost_clan_code"], "VIREX")
+        self.assertEqual(identity["ghost_profession"], "signal_runner")
+        self.assertNotIn("apps", identity)
+        self.assertNotIn("files", identity)
+        self.assertNotIn("inventory", identity)
+
+    def test_identity_projection_fails_closed_for_invalid_integrity_metadata(self):
+        with db_connect(self.db_path) as conn:
+            conn.execute(
+                """
+                UPDATE users
+                SET profile_integrity_status = 'recovery_required'
+                WHERE username = 'robot'
+                """
+            )
+
+        with self.assertRaises(ProfileRecoveryRequired):
+            self.store.get_profile_identity("robot")
+
+    def test_identity_projection_handles_malformed_json_as_controlled_recovery(self):
+        with db_connect(self.db_path) as conn:
+            conn.execute(
+                """
+                UPDATE users
+                SET profile_json = '{broken', profile_integrity_status = 'valid'
+                WHERE username = 'robot'
+                """
+            )
+
+        with self.assertRaises(ProfileRecoveryRequired):
+            self.store.get_profile_identity("robot")
 
 
 class UserStoreVersionedSeedCompatibilityTests(unittest.TestCase):

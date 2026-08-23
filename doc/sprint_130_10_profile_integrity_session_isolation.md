@@ -785,6 +785,29 @@ sprawdzając liczbę prób i `loadedScopes`. GN/map/read-path/territory:
 
 Status: `READY FOR MOBILE MAIN GN RETEST`.
 
+#### Regresja latency po retry GhostNetwork
+
+Po wlaczeniu ograniczonego retry ujawnil sie drugi problem goracej sciezki.
+`/api/ghostnetwork/snapshot` pobieral pelny `profile_json` przez
+`load_profile_readonly()`. Dla duzego konta oznaczalo to pelna deserializacje,
+walidacje checksum/schema, deepcopy, normalizacje runtime i overlay wszystkich
+canonical stores tylko po to, aby odczytac klan oraz profesje viewera. Nieudany
+boot mogl powtorzyc ten koszt do trzech razy.
+
+Endpoint korzysta teraz z `UserStore.get_profile_identity()`: waskiej projekcji
+SQL zawierajacej tylko login, pola klanu i profesji. Projekcja jest fail-closed:
+wymaga poprawnego JSON object oraz durable metadata `valid`, dodatniej rewizji i
+checksumy. Nie korzysta z pelnego profilu, runtime overlay ani session cache i nie
+mutuje danych. Retry pozostaje ograniczone, ale powtarza juz tylko lekki odczyt.
+
+Regresja: 77 testow endpointu, identity store, GN visibility/publication/map oraz
+session isolation przeszlo. Testy obejmuja zakaz `load_profile_readonly()` w
+snapshocie, brak ciezkich pol w projekcji oraz kontrolowane fail-closed dla
+uszkodzonych metadata i malformed JSON. Renderer Node, `py_compile` i
+`git diff --check`: OK.
+
+Status: `READY FOR MOBILE MAIN PERFORMANCE + GN RETEST`.
+
 ## Etap 7 — po manualu
 
 Na podstawie wyniku użytkownika:

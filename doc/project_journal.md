@@ -1033,3 +1033,19 @@
   ograniczone retry i loguje `snapshot deferred`, bez stałego pollingu. Cache key:
   `mobile-boot-retry-7`. Regresja Python `55/55 OK`, testy Node mapy i składnia
   JS: OK. Status: `READY FOR MOBILE MAIN GN RETEST`.
+
+## 2026-08-22 - Sprint 130.10: usuniecie pelnego profilu z GN snapshot
+
+- Diagnoza regresji 10x wskazala `/api/ghostnetwork/snapshot`: endpoint ladowal
+  caly `profile_json`, walidowal i kopiowal go oraz wykonywal runtime overlay,
+  chociaz viewer projection potrzebuje tylko loginu, klanu i profesji. Bounded
+  retry mogl zwielokrotnic ten koszt na ciezkim koncie `main`.
+- Dodano fail-closed `UserStore.get_profile_identity()` i przelaczono snapshot na
+  waska projekcje SQL. Nie ma pelnego profilu, session sync ani canonical runtime
+  overlay; istniejacy visibility contract GN pozostaje bez zmian.
+- Testy endpointu jawnie odrzucaja probe `load_profile_readonly()`. Projekcja nie
+  zwraca `apps`, `files` ani `inventory` i kontrolowanie odrzuca niepoprawne
+  metadata oraz malformed JSON.
+- Regresja Python: `77/77 OK`; renderer GN Node, `py_compile` i
+  `git diff --check`: OK. Status:
+  `READY FOR MOBILE MAIN PERFORMANCE + GN RETEST`.

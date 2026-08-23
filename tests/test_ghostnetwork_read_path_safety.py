@@ -43,11 +43,13 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
         }
         with run.app.test_request_context("/api/ghostnetwork/snapshot?view=map"):
             run.session["user"] = "alice"
-            with patch.object(run, "load_profile_readonly", return_value={"username": "alice"}), \
+            with patch.object(run.user_store, "get_profile_identity", return_value={"username": "alice"}) as identity, \
+                    patch.object(run, "load_profile_readonly", side_effect=AssertionError("full profile read not expected")), \
                     patch.object(run, "GhostNetworkService", return_value=service), \
                     patch.object(run, "bridge_ghostnetwork_territory_publication") as bridge:
                 response = run.api_ghostnetwork_snapshot()
         self.assertEqual(response.status_code, 200)
+        identity.assert_called_once_with("alice")
         service.get_snapshot_for_viewer.assert_called_once()
         bridge.assert_not_called()
 

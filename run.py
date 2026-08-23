@@ -19090,12 +19090,7 @@ def api_ghostnetwork_snapshot():
             "parts": [],
         }), 401
 
-    profile = load_profile_readonly(
-        username,
-        strip_sensitive=True,
-        normalize_apps=False,
-        normalize_files=False,
-    )
+    profile = user_store.get_profile_identity(username)
     if not profile:
         invalidate_authenticated_session("profile_not_found")
         return jsonify({
