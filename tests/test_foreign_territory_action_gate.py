@@ -46,7 +46,7 @@ class ForeignTerritoryActionGateTests(unittest.TestCase):
             self.assertEqual(response.get_json()["reason"], "foreign_territory_protected")
 
     def test_lightweight_aim_is_blocked_on_enemy_territory(self):
-        with patch.object(run, "load_profile_readonly", return_value={"username": "attacker"}), \
+        with patch.object(run.user_store, "get_profile_identity", return_value={"username": "attacker"}), \
                 patch.object(run, "find_contested_target", return_value=None), \
                 patch.object(run, "foreign_territory_action_block", return_value=self.foreign_area()):
             response = self.client.post("/api/map/aim-target", headers=self.headers, json={

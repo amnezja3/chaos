@@ -24,7 +24,7 @@ from flask_session import Session
 from poiFetchClass import POIFetcher
 import Haversine
 from profileManagment import UserProfileManager, authenticate_user
-from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore, ProfileDestructiveWriteRejected, ProfilePrecommitRejected, ProfileRecoveryRequired, ProfileValidationError, ProfileWriteConflict, WalletIdempotencyConflict, WalletInsufficientFunds, WalletNotInitialized, WalletWriteError, reset_profile_precommit_guard, reset_profile_write_request_metadata, reset_request_transaction_precommit_guard, set_profile_precommit_guard, set_profile_write_request_metadata, set_request_transaction_precommit_guard
+from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore, ProfileDestructiveWriteRejected, ProfilePrecommitRejected, ProfileRecoveryRequired, ProfileValidationError, ProfileWriteConflict, WalletIdempotencyConflict, WalletInsufficientFunds, WalletNotInitialized, WalletWriteError, get_hot_path_metrics, reset_hot_path_metrics, restore_hot_path_metrics, reset_profile_precommit_guard, reset_profile_write_request_metadata, reset_request_transaction_precommit_guard, set_profile_precommit_guard, set_profile_write_request_metadata, set_request_transaction_precommit_guard
 import requests
 from config import (
     APP_VERSION,
@@ -106,6 +106,8 @@ player_operation_store = PlayerOperationStore()
 system_message_store = SystemMessageStore()
 player_inventory_store = PlayerInventoryStore()
 wallet_balance_store = WalletBalanceStore()
+_ghostnetwork_service = None
+_ghostnetwork_service_lock = threading.Lock()
 territory_context_reader = TerritoryContextReader(territory_store, territory_conflict_store)
 territory_delta_publisher = TerritoryDeltaPublisher(delta_bus, territory_context_reader)
 incident_store = IncidentStore()
@@ -119,6 +121,16 @@ detection_validator = DetectionValidator(
     territory_context_reader,
     detection_candidate_store,
 )
+
+
+def get_ghostnetwork_service():
+    """Return the process-local GN service after one schema readiness pass."""
+    global _ghostnetwork_service
+    if _ghostnetwork_service is None:
+        with _ghostnetwork_service_lock:
+            if _ghostnetwork_service is None:
+                _ghostnetwork_service = GhostNetworkService()
+    return _ghostnetwork_service
 consequence_policy = ConsequencePolicy(
     mode=CONSEQUENCE_MODE_FULL,
     feature_flags={
@@ -4038,6 +4050,7 @@ def is_perf_log_enabled():
 def start_perf_timer():
     if is_perf_log_enabled() and request.path in PERF_LOG_ENDPOINTS:
         g.perf_log_started_at = time.perf_counter()
+        g.hot_path_metrics_token = reset_hot_path_metrics()
 
 
 @app.after_request
@@ -4061,6 +4074,16 @@ def log_slow_or_large_response(response):
             flush=True,
         )
 
+    hot_path = get_hot_path_metrics()
+    print(
+        f"[HOT_PATH] {request.method} {request.path} status={response.status_code} "
+        f"request_ms={elapsed_ms} profile_full_read={hot_path['profile_full_read']} "
+        f"profile_full_write={hot_path['profile_full_write']} "
+        f"profile_bytes={hot_path['profile_bytes']} "
+        f"sqlite_writer_wait_ms={hot_path['sqlite_writer_wait_ms']}",
+        flush=True,
+    )
+
     record_response_map_endpoint_measurement(
         request.path,
         elapsed_ms,
@@ -4068,6 +4091,8 @@ def log_slow_or_large_response(response):
         payload_size=size,
         method=request.method,
     )
+
+    restore_hot_path_metrics(getattr(g, "hot_path_metrics_token", None))
 
     return response
 
@@ -7824,7 +7849,7 @@ def safe_ghostnetwork_on_target_aimed(username, profile, target, reason="aimed_t
     target_id = str(target.get("target_id") or build_operation_target_id(target) or "").strip()
     cycle_id = "unknown"
     try:
-        service = GhostNetworkService()
+        service = get_ghostnetwork_service()
         active_cycle = service.get_active_cycle()
         cycle_id = (active_cycle or {}).get("cycle_id") or "none"
         return service.on_target_aimed(
@@ -7855,7 +7880,7 @@ def find_canonical_ghostnetwork_capture(player_id, target_id):
 
 
 def build_ghostnetwork_runtime_coordinator(service=None):
-    service = service or GhostNetworkService()
+    service = service or get_ghostnetwork_service()
     profile_records = {}
 
     def load_profile(player_id):
@@ -7932,7 +7957,7 @@ def safe_ghostnetwork_on_target_hacked(username, profile, target, operation=None
     target_id = str(target.get("target_id") or "").strip()
     cycle_id = "unknown"
     try:
-        service = GhostNetworkService()
+        service = get_ghostnetwork_service()
         active_cycle = service.get_active_cycle()
         cycle_id = (active_cycle or {}).get("cycle_id") or "none"
         if capture_key:
@@ -7974,7 +7999,8 @@ def safe_ghostnetwork_on_target_hacked(username, profile, target, operation=None
         return {"ok": False, "status": "hook_failed", "cycle_id": cycle_id}
 
 
-def set_player_aimed_target(username, profile, aimed_target, update_fields=None, reason="aimed_target"):
+def set_player_aimed_target(username, profile, aimed_target, update_fields=None,
+                            reason="aimed_target", persist_profile_projection=True):
     profile = profile if isinstance(profile, dict) else {}
     aimed_target = dict(aimed_target or {})
     if aimed_target and not aimed_target.get("target_id"):
@@ -7991,24 +8017,27 @@ def set_player_aimed_target(username, profile, aimed_target, update_fields=None,
             aimed_target = dict(result.get("target") or aimed_target)
         except Exception as exc:
             print(f"[target runtime] upsert failed user={username} reason={reason} error={exc}", flush=True)
-    profile_record = load_profile_write_record(username)
-    if not profile_record:
-        raise ProfileRecoveryRequired("Aimed-target owner profile is missing.")
     fields = dict(update_fields or {})
-    fields = merge_latest_profile_runtime_fields(username, fields)
     fields["aimed_target"] = aimed_target
     for key, value in fields.items():
         profile[key] = value
     profile["aimed_target"] = aimed_target
-    # Canonical target state lives in PlayerTargetRuntimeStore. Persist only
-    # the explicit compatibility projections under the revision observed for
-    # this mutation; concurrent writers receive the controlled 409 contract.
-    user_store.patch_profile_guarded(
-        username,
-        fields,
-        source=f"target.{str(reason or 'aimed_target')}",
-        expected_revision=int(profile_record["profile_revision"]),
-    )
+    if persist_profile_projection:
+        profile_record = load_profile_write_record(username)
+        if not profile_record:
+            raise ProfileRecoveryRequired("Aimed-target owner profile is missing.")
+        fields = merge_latest_profile_runtime_fields(username, fields)
+        for key, value in fields.items():
+            profile[key] = value
+        # Compatibility callers may still request a durable projection. The
+        # map title hot path deliberately leaves the canonical runtime store as
+        # the only writer and avoids a full profile round-trip.
+        user_store.patch_profile_guarded(
+            username,
+            fields,
+            source=f"target.{str(reason or 'aimed_target')}",
+            expected_revision=int(profile_record["profile_revision"]),
+        )
     if aimed_target:
         safe_ghostnetwork_on_target_aimed(username, profile, aimed_target, reason=reason)
     return aimed_target
@@ -15181,21 +15210,6 @@ def apply_app_map_actions_to_aimed_target(profile, app, username=None, expected_
         return False, []
 
     allowed = aimed_target.setdefault("actions_allowed", {})
-    if username:
-        try:
-            latest_profile = user_store.get_profile(username) or {}
-            latest_target = latest_profile.get("aimed_target") or {}
-            if (
-                isinstance(latest_target, dict)
-                and targets_share_runtime_identity(latest_target, aimed_target)
-            ):
-                latest_allowed = latest_target.get("actions_allowed") or {}
-                if isinstance(latest_allowed, dict):
-                    for key, value in latest_allowed.items():
-                        if value is True and allowed.get(key) is not True:
-                            allowed[key] = True
-        except Exception:
-            pass
 
     changed = False
     marked = []
@@ -15280,7 +15294,7 @@ def merge_latest_aimed_target_runtime_state(profile, username):
         if not isinstance(aimed_target, dict) or not aimed_target:
             profile["aimed_target"] = stored_target
             return stored_target
-        if targets_share_selection_identity(stored_target, aimed_target):
+        if targets_share_runtime_identity(stored_target, aimed_target):
             allowed = aimed_target.setdefault("actions_allowed", {})
             for key, value in (stored_target.get("actions_allowed") or {}).items():
                 if value is True:
@@ -15289,27 +15303,6 @@ def merge_latest_aimed_target_runtime_state(profile, username):
             for key, value in (stored_target.get("security") or {}).items():
                 if value is False:
                     security[key] = False
-            # During the target-runtime cutover an app result can already be
-            # durable in the profile projection while an older runtime row is
-            # still active. Both progress dimensions are monotonic: enabled
-            # actions and disabled security may be merged without allowing an
-            # older request to restore a lock or remove a completed action.
-            try:
-                latest_profile = user_store.get_profile(username) or {}
-            except Exception:
-                latest_profile = {}
-            latest_target = latest_profile.get("aimed_target") or {}
-            if (
-                isinstance(latest_target, dict)
-                and latest_target
-                and targets_share_runtime_identity(latest_target, aimed_target)
-            ):
-                for key, value in (latest_target.get("actions_allowed") or {}).items():
-                    if value is True:
-                        allowed[key] = True
-                for key, value in (latest_target.get("security") or {}).items():
-                    if value is False:
-                        security[key] = False
             if not aimed_target.get("target_id"):
                 aimed_target["target_id"] = stored_target.get("target_id") or build_operation_target_id(aimed_target)
             try:
@@ -15351,34 +15344,6 @@ def merge_latest_aimed_target_runtime_state(profile, username):
         player_target_runtime_store.seed_from_profile(username, profile)
     except Exception:
         pass
-
-    try:
-        latest_profile = user_store.get_profile(username) or {}
-    except Exception:
-        return aimed_target
-
-    latest_target = latest_profile.get("aimed_target") or {}
-    if not isinstance(latest_target, dict) or not latest_target:
-        return aimed_target
-
-    if not targets_share_selection_identity(latest_target, aimed_target):
-        return aimed_target
-
-    allowed = aimed_target.setdefault("actions_allowed", {})
-    latest_allowed = latest_target.get("actions_allowed") or {}
-    if isinstance(latest_allowed, dict):
-        for key, value in latest_allowed.items():
-            if value is True:
-                allowed[key] = True
-
-    security = aimed_target.setdefault("security", {})
-    latest_security = latest_target.get("security") or {}
-    if isinstance(security, dict) and isinstance(latest_security, dict):
-        for key, value in latest_security.items():
-            if value is False and security.get(key) is not False:
-                security[key] = False
-
-    profile["aimed_target"] = aimed_target
     return aimed_target
 
 
@@ -18617,8 +18582,7 @@ def get_apps_for_action(apps, action):
         return []
 
 def is_username_taken(username):
-    mgr = UserProfileManager("admin")
-    return any(u["username"] == username for u in mgr.all_users)
+    return user_store.has_user(username)
 
 def is_public_ip(ip):
     try:
@@ -20372,7 +20336,7 @@ def map_aim_target():
         return jsonify({"success": False, "error": "missing_label"}), 400
 
     username = session["user"]
-    profile = load_profile_readonly(username, strip_sensitive=False, normalize_apps=False)
+    profile = user_store.get_profile_identity(username)
     if not isinstance(profile, dict):
         return jsonify({"success": False, "error": "profile_not_found"}), 404
     profile = dict(profile)
@@ -20391,7 +20355,7 @@ def map_aim_target():
             "error": "foreign_territory_protected",
             "message": f"Target znajduje sie na kontrolowanym terenie gracza {foreign_area['owner_nick']}.",
         }), 403
-    previous = profile.get("aimed_target") or {}
+    previous = {}
     # The runtime row is authoritative. The legacy profile projection can lag
     # behind a desktop/terminal app finishing in another gunicorn worker.
     try:
@@ -20401,7 +20365,6 @@ def map_aim_target():
         runtime_previous = {}
     if isinstance(runtime_previous, dict) and runtime_previous:
         previous = runtime_previous
-        profile["aimed_target"] = dict(runtime_previous)
     requested = {
         "lat": lat, "lng": lng, "label": label,
         "name": str(data.get("name") or label),
@@ -20547,13 +20510,21 @@ def map_aim_target():
             canonical_target["actions_allowed"] = dict(requested["actions_allowed"])
             requested = canonical_target
     apply_target_display_label(requested)
-    aimed_target = set_player_aimed_target(username, profile, requested, reason="map_menu_title_aim")
+    aimed_target = set_player_aimed_target(
+        username,
+        profile,
+        requested,
+        reason="map_menu_title_aim",
+        persist_profile_projection=False,
+    )
     if not aimed_target:
         return jsonify({"success": False, "error": "target_already_captured", "message": "Ten obiekt jest juz przejety."}), 409
 
-    profile.pop("password", None)
-    profile.pop("salt", None)
-    session["profile"] = profile
+    cached_profile = session.get("profile")
+    if isinstance(cached_profile, dict):
+        cached_profile = dict(cached_profile)
+        cached_profile["aimed_target"] = aimed_target
+        session["profile"] = cached_profile
     record_map_target_delta(username, aimed_target, change_type="map.target_updated", reason="map_menu_title_aim")
     return jsonify({
         "success": True,
@@ -26736,21 +26707,7 @@ def gonna_win():
     )
 
     if operation_only:
-        mgr = UserProfileManager(session["user"])
         session["profile"] = profile
-        step_started_at = time.perf_counter()
-        mgr.update_profile({
-            "aimed_target": profile.get("aimed_target", {}),
-            "operations": profile.get("operations", []),
-        })
-        app_flow_debug_timed(
-            flow_id,
-            "gonna_win_operation_only_profile_update_done",
-            app_flow_started_at,
-            step_started_at,
-            app_id=app_id,
-            operations_total=len(profile.get("operations", [])),
-        )
         if target_changed:
             step_started_at = time.perf_counter()
             record_map_target_delta(
@@ -26889,13 +26846,7 @@ def gonna_win():
             print(f"[target runtime] security update failed user={session.get('user')} error={exc}", flush=True)
     if contest_owner_username and contest_owner_target:
         contest_owner_target["security"] = dict(target_sec)
-        owner_mgr = UserProfileManager(contest_owner_username)
         step_started_at = time.perf_counter()
-        owner_mgr.update_hacked_target_by_coords(
-            contest_owner_target.get("lat"),
-            contest_owner_target.get("lng"),
-            {"security": dict(target_sec)}
-        )
         territory_store.save_captured_target(contest_owner_username, contest_owner_target)
         app_flow_debug_timed(
             flow_id,
@@ -26917,7 +26868,6 @@ def gonna_win():
         for k in ["scan_ports", "exploit", "sniff", "trace"]
     )
 
-    mgr = UserProfileManager(session["user"])
     session["profile"] = profile
     rebuilt_areas = None
     progression = None
@@ -26967,14 +26917,9 @@ def gonna_win():
             success = True
             session["profile"] = profile
             step_started_at = time.perf_counter()
-            mgr.update_profile({
-                "aimed_target": {},
-                "system_messages": profile.get("system_messages", []),
-                "operations": profile.get("operations", []),
-            })
             app_flow_debug_timed(
                 flow_id,
-                "gonna_win_player_access_profile_update_done",
+                "gonna_win_player_access_runtime_update_done",
                 app_flow_started_at,
                 step_started_at,
                 app_id=app_id,
@@ -27656,7 +27601,11 @@ def gonna_win():
                 flush=True,
             )
         else:
-            mgr.update_profile(capture_profile_update)
+            user_store.patch_profile_guarded(
+                session["user"],
+                capture_profile_update,
+                source="gonna_win.capture_profile",
+            )
         app_flow_debug_timed(
             flow_id,
             "gonna_win_capture_profile_update_deferred" if defer_conflict_rebuild
@@ -27682,19 +27631,11 @@ def gonna_win():
                 target_id=build_operation_target_id(captured_target_response or captured_target),
             )
     else:
-        step_started_at = time.perf_counter()
-        mgr.update_profile({
-            "aimed_target": profile["aimed_target"],
-            "operations": profile.get("operations", []),
-        })
-        app_flow_debug_timed(
-            flow_id,
-            "gonna_win_partial_profile_update_done",
-            app_flow_started_at,
-            step_started_at,
-            target_id=build_operation_target_id(profile.get("aimed_target") or {}),
-            operations_total=len(profile.get("operations", [])),
-        )
+        # Target security/actions and operations are already durable in their
+        # canonical runtime stores. A compatibility profile rewrite for every
+        # partial tool result is both redundant and prohibitively expensive on
+        # large accounts.
+        session["profile"] = profile
 
     app_flow_debug(
         flow_id,

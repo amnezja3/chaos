@@ -276,7 +276,7 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
         committed_delta_index = source.index('reason="gonna_win_capture_committed"')
         ghostnetwork_index = source.index("safe_ghostnetwork_on_target_hacked(")
         rebuild_index = source.index("rebuild_player_areas_with_territory_delta(")
-        profile_update_index = source.index("mgr.update_profile(capture_profile_update)")
+        profile_update_index = source.index('source="gonna_win.capture_profile"')
 
         self.assertLess(save_index, committed_delta_index)
         self.assertLess(committed_delta_index, ghostnetwork_index)

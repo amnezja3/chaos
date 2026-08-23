@@ -38,6 +38,46 @@ _PROFILE_WRITE_REQUEST_METADATA = ContextVar(
     "chaos_profile_write_request_metadata",
     default=None,
 )
+_HOT_PATH_METRICS = ContextVar(
+    "chaos_hot_path_metrics",
+    default=None,
+)
+
+
+def reset_hot_path_metrics():
+    """Start request-local counters without changing runtime behavior."""
+    return _HOT_PATH_METRICS.set({
+        "profile_full_read": 0,
+        "profile_full_write": 0,
+        "profile_bytes": 0,
+        "sqlite_writer_wait_ms": 0,
+    })
+
+
+def restore_hot_path_metrics(token):
+    if token is not None:
+        _HOT_PATH_METRICS.reset(token)
+
+
+def record_hot_path_metric(name, value=1):
+    metrics = _HOT_PATH_METRICS.get()
+    if not isinstance(metrics, dict) or name not in metrics:
+        return
+    try:
+        amount = int(value or 0)
+    except (TypeError, ValueError):
+        amount = 0
+    metrics[name] = int(metrics.get(name) or 0) + max(0, amount)
+
+
+def get_hot_path_metrics():
+    metrics = _HOT_PATH_METRICS.get()
+    return dict(metrics) if isinstance(metrics, dict) else {
+        "profile_full_read": 0,
+        "profile_full_write": 0,
+        "profile_bytes": 0,
+        "sqlite_writer_wait_ms": 0,
+    }
 
 
 class ProfileWriteError(RuntimeError):
@@ -473,6 +513,7 @@ class InstrumentedConnection(sqlite3.Connection):
                 result = super().execute(sql, parameters)
             except sqlite3.OperationalError as exc:
                 wait_ms = int(round((time.perf_counter() - started) * 1000))
+                record_hot_path_metric("sqlite_writer_wait_ms", wait_ms)
                 try:
                     origin = inspect.currentframe().f_back.f_code.co_name
                 except Exception:
@@ -487,6 +528,7 @@ class InstrumentedConnection(sqlite3.Connection):
                     )
                 raise
             self._writer_wait_ms = int(round((time.perf_counter() - started) * 1000))
+            record_hot_path_metric("sqlite_writer_wait_ms", self._writer_wait_ms)
             self._writer_started_at = time.perf_counter()
             self._writer_statements = 0
             try:
@@ -870,10 +912,16 @@ def _validate_persisted_profile_row(row, username):
     return profile, tuple(sorted(set(errors)))
 
 
-def _write_profile_lkg(conn, username, profile, revision, source, created_at=None):
+def _prepare_profile_lkg(profile):
     snapshot = profile_last_known_good_snapshot(profile)
     snapshot_json = _canonical_json(snapshot)
     checksum = hashlib.sha256(snapshot_json.encode("utf-8")).hexdigest()
+    return snapshot_json, checksum
+
+
+def _write_profile_lkg(conn, username, profile, revision, source, created_at=None,
+                       prepared=None):
+    snapshot_json, checksum = prepared or _prepare_profile_lkg(profile)
     conn.execute(
         """
         INSERT INTO profile_last_known_good (
@@ -2791,26 +2839,54 @@ class UserStore:
         return usernames
 
     def get_profile(self, username):
-        record = self.get_profile_with_revision(username)
-        if not record:
+        """Return the runtime profile without running the forensic integrity pass.
+
+        Guarded writers establish the revision/checksum/LKG contract. Runtime
+        readers still fail closed for malformed JSON, a wrong identity or a row
+        explicitly marked for recovery, but checksum and full schema validation
+        remain the responsibility of get_profile_with_revision().
+        """
+        username = str(username or "").strip()
+        if not username:
             return None
-        if record["state"] != "valid":
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT profile_json, profile_revision, profile_integrity_status
+                FROM users WHERE username = ?
+                """,
+                (username,),
+            ).fetchone()
+        if not row:
+            return None
+        raw_profile = row["profile_json"]
+        record_hot_path_metric(
+            "profile_bytes",
+            len(str(raw_profile or "").encode("utf-8", errors="ignore")),
+        )
+        profile, parse_errors = _parse_profile_json_strict(raw_profile)
+        errors = list(parse_errors)
+        if str(row["profile_integrity_status"] or "") != PROFILE_INTEGRITY_VALID:
+            errors.append("profile_integrity_status_invalid")
+        if isinstance(profile, dict) and str(profile.get("username") or "").strip() != username:
+            errors.append("username_mismatch")
+        if errors:
             _profile_event(
                 "profile.recovery_required",
                 username,
                 "get_profile",
-                old_revision=record["profile_revision"],
+                old_revision=int(row["profile_revision"] or 0),
                 candidate_revision=None,
                 changed_scopes=[],
                 decision="rejected",
-                reason_code=":".join(record["errors"] or ("integrity_guard",)),
+                reason_code=":".join(sorted(set(errors))),
                 session_generation_hash="",
                 request_id="",
             )
             raise ProfileRecoveryRequired(
                 f"User '{username}' requires profile recovery."
             )
-        return record["profile"]
+        return profile
 
     def get_profile_with_revision(self, username):
         """Return the durable profile and the CAS metadata read with it."""
@@ -2830,6 +2906,11 @@ class UserStore:
             ).fetchone()
         if not row:
             return None
+        record_hot_path_metric("profile_full_read")
+        record_hot_path_metric(
+            "profile_bytes",
+            len(str(row["profile_json"] or "").encode("utf-8", errors="ignore")),
+        )
         profile, parse_errors = _parse_profile_json_strict(row["profile_json"])
         validation = (
             validate_profile_candidate(profile, username)
@@ -2914,7 +2995,7 @@ class UserStore:
         request_id="",
         session_generation_hash="",
     ):
-        """Apply a top-level semantic patch to the latest profile atomically."""
+        """Apply a validated top-level patch with a short CAS writer section."""
         username = str(username or "").strip()
         source = str(source or "").strip()
         if not username:
@@ -2923,6 +3004,7 @@ class UserStore:
             raise ValueError("A guarded profile patch requires source.")
         if not isinstance(updates, dict):
             raise TypeError("updates must be a top-level mapping.")
+        record_hot_path_metric("profile_full_write")
         if expected_revision is not None and (
             isinstance(expected_revision, bool) or not isinstance(expected_revision, int)
         ):
@@ -2948,40 +3030,51 @@ class UserStore:
         _profile_event("profile.write_attempt", username, source, **telemetry)
         recovery_errors = ()
         try:
-            with db_connect(self.db_path) as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                row = conn.execute(
-                    """
-                    SELECT username, password, salt, profile_json,
-                           profile_revision, profile_checksum,
-                           profile_integrity_status
-                    FROM users WHERE username = ?
-                    """,
-                    (username,),
-                ).fetchone()
-                if row is None:
-                    raise ProfileWriteConflict("Profile does not exist.")
-                current_revision = int(row["profile_revision"] or 0)
-                telemetry["old_revision"] = current_revision
-                if expected_revision is not None and expected_revision != current_revision:
-                    raise ProfileWriteConflict(
-                        f"Expected profile revision {expected_revision}, current is {current_revision}."
+            prepared = None
+            max_attempts = 3 if expected_revision is None else 1
+            for attempt in range(max_attempts):
+                # Parse, overlay, validate, checksum and serialize before taking
+                # SQLite's process-wide writer lock. The revision/checksum pair
+                # observed here is rechecked under BEGIN IMMEDIATE below.
+                with db_connect(self.db_path) as read_conn:
+                    row = read_conn.execute(
+                        """
+                        SELECT username, password, salt, profile_json,
+                               profile_revision, profile_checksum,
+                               profile_integrity_status
+                        FROM users WHERE username = ?
+                        """,
+                        (username,),
+                    ).fetchone()
+                    if row is None:
+                        raise ProfileWriteConflict("Profile does not exist.")
+                    current_revision = int(row["profile_revision"] or 0)
+                    telemetry["old_revision"] = current_revision
+                    if expected_revision is not None and expected_revision != current_revision:
+                        raise ProfileWriteConflict(
+                            f"Expected profile revision {expected_revision}, current is {current_revision}."
+                        )
+                    record_hot_path_metric("profile_full_read")
+                    record_hot_path_metric(
+                        "profile_bytes",
+                        len(str(row["profile_json"] or "").encode("utf-8", errors="ignore")),
                     )
-                current_profile, recovery_errors = _validate_persisted_profile_row(
-                    row, username
-                )
-                if recovery_errors:
-                    raise ProfileRecoveryRequired(
-                        "Current profile requires recovery: "
-                        + ",".join(recovery_errors)
+                    current_profile, recovery_errors = _validate_persisted_profile_row(
+                        row, username
+                    )
+                    if recovery_errors:
+                        raise ProfileRecoveryRequired(
+                            "Current profile requires recovery: "
+                            + ",".join(recovery_errors)
+                        )
+
+                    candidate = copy.deepcopy(current_profile)
+                    for key, value in updates.items():
+                        candidate[str(key)] = copy.deepcopy(value)
+                    candidate, canonical_overlays = overlay_canonical_profile_scopes_with_conn(
+                        read_conn, username, candidate
                     )
 
-                candidate = copy.deepcopy(current_profile)
-                for key, value in updates.items():
-                    candidate[str(key)] = copy.deepcopy(value)
-                candidate, canonical_overlays = overlay_canonical_profile_scopes_with_conn(
-                    conn, username, candidate
-                )
                 validation = validate_profile_candidate(candidate, username)
                 if not validation["valid"]:
                     raise ProfileValidationError(validation["errors"])
@@ -3000,52 +3093,93 @@ class UserStore:
                 now = utc_now()
                 revision = current_revision + 1
                 checksum = profile_payload_checksum(candidate)
-                _run_profile_precommit_guard(
-                    precommit_guard, conn, username, current_revision
-                )
-                updated = conn.execute(
-                    """
-                    UPDATE users
-                    SET password = ?, salt = ?, profile_json = ?, updated_at = ?,
-                        profile_revision = ?, profile_schema_version = ?,
-                        profile_checksum = ?, profile_integrity_status = ?,
-                        profile_validation_version = ?
-                    WHERE username = ? AND profile_revision = ?
-                    """,
-                    (
-                        candidate.get("password", ""),
-                        candidate.get("salt", ""),
-                        dumps_json(candidate),
-                        now,
-                        revision,
-                        PROFILE_SCHEMA_VERSION,
-                        checksum,
-                        PROFILE_INTEGRITY_VALID,
-                        PROFILE_VALIDATION_VERSION,
-                        username,
-                        current_revision,
-                    ),
-                )
-                if updated.rowcount != 1:
-                    raise ProfileWriteConflict(
-                        "Profile revision changed before the guarded patch committed."
-                    )
-                _write_profile_lkg(
-                    conn,
-                    username,
-                    current_profile,
-                    current_revision,
-                    f"prewrite:{source}",
-                    now,
-                )
-                telemetry.update({
-                    "candidate_revision": revision,
-                    "decision": "applied",
-                    "reason_code": (
-                        "reset_receipt" if destructive["destructive"] else "validated_patch"
-                    ),
-                })
+                candidate_json = dumps_json(candidate)
+                prepared_lkg = _prepare_profile_lkg(current_profile)
+                observed_checksum = str(row["profile_checksum"] or "")
+                retry = False
 
+                with db_connect(self.db_path) as conn:
+                    conn.execute("BEGIN IMMEDIATE")
+                    locked_row = conn.execute(
+                        """
+                        SELECT profile_revision, profile_checksum,
+                               profile_integrity_status
+                        FROM users WHERE username = ?
+                        """,
+                        (username,),
+                    ).fetchone()
+                    locked_revision = int(locked_row["profile_revision"] or 0) if locked_row else -1
+                    if (
+                        locked_row is None
+                        or locked_revision != current_revision
+                        or str(locked_row["profile_checksum"] or "") != observed_checksum
+                        or str(locked_row["profile_integrity_status"] or "")
+                           != PROFILE_INTEGRITY_VALID
+                    ):
+                        retry = expected_revision is None and attempt + 1 < max_attempts
+                        if not retry:
+                            raise ProfileWriteConflict(
+                                "Profile revision changed before the guarded patch committed."
+                            )
+                    else:
+                        _run_profile_precommit_guard(
+                            precommit_guard, conn, username, current_revision
+                        )
+                        updated = conn.execute(
+                            """
+                            UPDATE users
+                            SET password = ?, salt = ?, profile_json = ?, updated_at = ?,
+                                profile_revision = ?, profile_schema_version = ?,
+                                profile_checksum = ?, profile_integrity_status = ?,
+                                profile_validation_version = ?
+                            WHERE username = ? AND profile_revision = ?
+                            """,
+                            (
+                                candidate.get("password", ""),
+                                candidate.get("salt", ""),
+                                candidate_json,
+                                now,
+                                revision,
+                                PROFILE_SCHEMA_VERSION,
+                                checksum,
+                                PROFILE_INTEGRITY_VALID,
+                                PROFILE_VALIDATION_VERSION,
+                                username,
+                                current_revision,
+                            ),
+                        )
+                        if updated.rowcount != 1:
+                            raise ProfileWriteConflict(
+                                "Profile revision changed before the guarded patch committed."
+                            )
+                        _write_profile_lkg(
+                            conn,
+                            username,
+                            current_profile,
+                            current_revision,
+                            f"prewrite:{source}",
+                            now,
+                            prepared=prepared_lkg,
+                        )
+                if retry:
+                    continue
+                prepared = (
+                    candidate, revision, checksum, canonical_overlays, destructive
+                )
+                break
+
+            if prepared is None:
+                raise ProfileWriteConflict(
+                    "Profile kept changing while the guarded patch was prepared."
+                )
+            candidate, revision, checksum, canonical_overlays, destructive = prepared
+            telemetry.update({
+                "candidate_revision": revision,
+                "decision": "applied",
+                "reason_code": (
+                    "reset_receipt" if destructive["destructive"] else "validated_patch"
+                ),
+            })
             _profile_event("profile.write_applied", username, source, **telemetry)
             _profile_event("profile.lkg_created", username, source, **telemetry)
             return {
@@ -3091,6 +3225,7 @@ class UserStore:
         source = str(source or "").strip()
         if not source:
             raise ValueError("A guarded profile write requires source.")
+        record_hot_path_metric("profile_full_write")
         if not username:
             raise ProfileValidationError(("username_missing",))
         if isinstance(expected_revision, bool) or not isinstance(expected_revision, int):
@@ -3109,9 +3244,8 @@ class UserStore:
 
         try:
             canonical_overlays = ()
-            with db_connect(self.db_path) as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                current_row = conn.execute(
+            with db_connect(self.db_path) as read_conn:
+                current_row = read_conn.execute(
                     """
                     SELECT username, password, salt, profile_json,
                            profile_revision, profile_schema_version,
@@ -3122,71 +3256,12 @@ class UserStore:
                     (username,),
                 ).fetchone()
 
-                if current_row is None:
-                    if not allow_create or expected_revision != 0:
-                        raise ProfileWriteConflict(
-                            "Profile does not exist; guarded creation requires "
-                            "allow_create=True and expected_revision=0."
-                        )
-                    reuse_block = _identity_reuse_block_reason_with_conn(
-                        conn,
-                        username,
-                        include_user=False,
+                if current_row is not None:
+                    record_hot_path_metric("profile_full_read")
+                    record_hot_path_metric(
+                        "profile_bytes",
+                        len(str(current_row["profile_json"] or "").encode("utf-8", errors="ignore")),
                     )
-                    if reuse_block:
-                        raise ProfileWriteConflict(
-                            "Identity cannot be reused: " + reuse_block
-                        )
-                    # Registration never inherits orphan canonical rows from a
-                    # previously deleted account with the same login. Canonical
-                    # stores are seeded by their explicit registration/migration
-                    # path after the identity row has been created.
-                    candidate = _prepare_full_profile_candidate(candidate_input)
-                    validation = validate_profile_candidate(candidate, username)
-                    if not validation["valid"]:
-                        raise ProfileValidationError(validation["errors"])
-                    now = utc_now()
-                    revision = 1
-                    checksum = profile_payload_checksum(candidate)
-                    _run_profile_precommit_guard(
-                        precommit_guard, conn, username, 0
-                    )
-                    conn.execute(
-                        """
-                        INSERT INTO users (
-                            username, password, salt, profile_json, created_at, updated_at,
-                            profile_revision, profile_schema_version, profile_checksum,
-                            profile_integrity_status, profile_validation_version
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            username,
-                            candidate.get("password", ""),
-                            candidate.get("salt", ""),
-                            dumps_json(candidate),
-                            now,
-                            now,
-                            revision,
-                            PROFILE_SCHEMA_VERSION,
-                            checksum,
-                            PROFILE_INTEGRITY_VALID,
-                            PROFILE_VALIDATION_VERSION,
-                        ),
-                    )
-                    _write_profile_lkg(
-                        conn, username, candidate, revision, f"create:{source}", now
-                    )
-                    _wallet_register_with_conn(
-                        conn, username, candidate, checksum, created_at=now
-                    )
-                    telemetry.update({
-                        "old_revision": 0,
-                        "candidate_revision": revision,
-                        "changed_scopes": list(profile_changed_scopes({}, candidate)),
-                        "decision": "applied",
-                        "reason_code": "created",
-                    })
-                else:
                     current_revision = int(current_row["profile_revision"] or 0)
                     telemetry["old_revision"] = current_revision
                     if expected_revision != current_revision:
@@ -3211,7 +3286,8 @@ class UserStore:
                             + ", ".join(current_validation["errors"])
                         )
                     actual_checksum = profile_payload_checksum(current_profile)
-                    if actual_checksum != str(current_row["profile_checksum"] or ""):
+                    observed_checksum = str(current_row["profile_checksum"] or "")
+                    if actual_checksum != observed_checksum:
                         raise ProfileRecoveryRequired(
                             "Current profile checksum does not match its metadata."
                         )
@@ -3220,28 +3296,124 @@ class UserStore:
                         candidate_input, current_row=current_row
                     )
                     candidate, canonical_overlays = overlay_canonical_profile_scopes_with_conn(
-                        conn, username, candidate
+                        read_conn, username, candidate
                     )
-                    validation = validate_profile_candidate(candidate, username)
-                    if not validation["valid"]:
-                        raise ProfileValidationError(validation["errors"])
-                    changed_scopes = profile_changed_scopes(current_profile, candidate)
-                    telemetry["changed_scopes"] = list(changed_scopes)
-                    destructive = assess_profile_destructive_drop(
-                        current_profile, candidate
-                    )
-                    reset_authorized_source = source.startswith(("admin.", "recovery."))
-                    if destructive["destructive"] and not (
-                        reset_authorized_source and _valid_reset_receipt(reset_receipt)
-                    ):
-                        raise ProfileDestructiveWriteRejected(
-                            "Destructive profile drop requires an explicit reset receipt; "
-                            "scopes=" + ",".join(destructive["dropped_scopes"])
+                else:
+                    if not allow_create or expected_revision != 0:
+                        raise ProfileWriteConflict(
+                            "Profile does not exist; guarded creation requires "
+                            "allow_create=True and expected_revision=0."
                         )
+                    current_revision = 0
+                    current_profile = None
+                    observed_checksum = ""
+                    candidate = _prepare_full_profile_candidate(candidate_input)
 
-                    now = utc_now()
-                    revision = current_revision + 1
-                    checksum = profile_payload_checksum(candidate)
+            validation = validate_profile_candidate(candidate, username)
+            if not validation["valid"]:
+                raise ProfileValidationError(validation["errors"])
+            changed_scopes = profile_changed_scopes(current_profile or {}, candidate)
+            telemetry["changed_scopes"] = list(changed_scopes)
+            destructive = assess_profile_destructive_drop(current_profile or {}, candidate)
+            reset_authorized_source = source.startswith(("admin.", "recovery."))
+            if current_profile is not None and destructive["destructive"] and not (
+                reset_authorized_source and _valid_reset_receipt(reset_receipt)
+            ):
+                raise ProfileDestructiveWriteRejected(
+                    "Destructive profile drop requires an explicit reset receipt; "
+                    "scopes=" + ",".join(destructive["dropped_scopes"])
+                )
+
+            now = utc_now()
+            revision = current_revision + 1
+            checksum = profile_payload_checksum(candidate)
+            candidate_json = dumps_json(candidate)
+            prepared_lkg = _prepare_profile_lkg(
+                current_profile if current_profile is not None else candidate
+            )
+
+            with db_connect(self.db_path) as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                locked_row = conn.execute(
+                    """
+                    SELECT profile_revision, profile_checksum,
+                           profile_integrity_status
+                    FROM users WHERE username = ?
+                    """,
+                    (username,),
+                ).fetchone()
+
+                if current_profile is None:
+                    if locked_row is not None:
+                        raise ProfileWriteConflict(
+                            "Profile was created before the guarded insert committed."
+                        )
+                    reuse_block = _identity_reuse_block_reason_with_conn(
+                        conn,
+                        username,
+                        include_user=False,
+                    )
+                    if reuse_block:
+                        raise ProfileWriteConflict(
+                            "Identity cannot be reused: " + reuse_block
+                        )
+                    # Registration never inherits orphan canonical rows from a
+                    # previously deleted account with the same login. Canonical
+                    # stores are seeded by their explicit registration/migration
+                    # path after the identity row has been created.
+                    _run_profile_precommit_guard(
+                        precommit_guard, conn, username, 0
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO users (
+                            username, password, salt, profile_json, created_at, updated_at,
+                            profile_revision, profile_schema_version, profile_checksum,
+                            profile_integrity_status, profile_validation_version
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            username,
+                            candidate.get("password", ""),
+                            candidate.get("salt", ""),
+                            candidate_json,
+                            now,
+                            now,
+                            revision,
+                            PROFILE_SCHEMA_VERSION,
+                            checksum,
+                            PROFILE_INTEGRITY_VALID,
+                            PROFILE_VALIDATION_VERSION,
+                        ),
+                    )
+                    _write_profile_lkg(
+                        conn, username, candidate, revision, f"create:{source}", now,
+                        prepared=prepared_lkg,
+                    )
+                    _wallet_register_with_conn(
+                        conn, username, candidate, checksum, created_at=now
+                    )
+                    telemetry.update({
+                        "old_revision": 0,
+                        "candidate_revision": revision,
+                        "changed_scopes": list(profile_changed_scopes({}, candidate)),
+                        "decision": "applied",
+                        "reason_code": "created",
+                    })
+                else:
+                    locked_revision = int(locked_row["profile_revision"] or 0) if locked_row else -1
+                    if (
+                        locked_row is None
+                        or locked_revision != current_revision
+                        or str(locked_row["profile_checksum"] or "") != observed_checksum
+                    ):
+                        raise ProfileWriteConflict(
+                            "Profile revision changed before the guarded write committed."
+                        )
+                    if locked_row["profile_integrity_status"] != PROFILE_INTEGRITY_VALID:
+                        raise ProfileRecoveryRequired(
+                            "Current profile is not marked valid; normal writes are disabled."
+                        )
                     _run_profile_precommit_guard(
                         precommit_guard, conn, username, current_revision
                     )
@@ -3252,6 +3424,7 @@ class UserStore:
                         current_revision,
                         f"prewrite:{source}",
                         now,
+                        prepared=prepared_lkg,
                     )
                     updated = conn.execute(
                         """
@@ -3265,7 +3438,7 @@ class UserStore:
                         (
                             candidate.get("password", ""),
                             candidate.get("salt", ""),
-                            dumps_json(candidate),
+                            candidate_json,
                             now,
                             revision,
                             PROFILE_SCHEMA_VERSION,

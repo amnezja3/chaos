@@ -7,6 +7,16 @@ from database import (
 )
 
 
+_DEFAULT_USER_STORE = None
+
+
+def default_user_store(users_path):
+    global _DEFAULT_USER_STORE
+    if _DEFAULT_USER_STORE is None:
+        _DEFAULT_USER_STORE = UserStore(seed_path=users_path)
+    return _DEFAULT_USER_STORE
+
+
 class UserProfileManager:
     def __init__(
         self,
@@ -25,10 +35,9 @@ class UserProfileManager:
             "googleplex_products", "product_purchases", "storage_upgrades",
             "ghostnetwork_stats", "ghostnetwork_reward_history",
         }
-        self.store = store or UserStore(seed_path=users_path)
+        self.store = store or default_user_store(users_path)
         self.resource_store = resource_store or JsonResourceStore()
         self.precommit_guard = precommit_guard
-        self._load_all_users()
         self._find_user_profile()
         self._sync_with_template()
 
@@ -96,7 +105,6 @@ class UserProfileManager:
         return True
 
     def reload_profile(self):
-        self._load_all_users()
         self._find_user_profile()
 
     def update_profile(self, updates: dict):

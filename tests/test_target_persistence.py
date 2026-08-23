@@ -387,7 +387,8 @@ class MapAimTargetEndpointTest(unittest.TestCase):
             "icon": "target", "source_type": "shop", "target_mode": "standard",
             "target_id": "map:bonito", "actions_allowed": {}, "security": {},
         }
-        with patch.object(run, "load_profile_readonly", return_value=profile), \
+        with patch.object(run.user_store, "get_profile_identity", return_value=profile), \
+                patch.object(run.player_target_runtime_store, "get_active_target", return_value=profile["aimed_target"]), \
                 patch.object(run, "find_contested_target", return_value=None), \
                 patch.object(run, "set_player_aimed_target", return_value=canonical) as set_target, \
                 patch.object(run, "record_map_target_delta") as record_delta:
@@ -399,6 +400,7 @@ class MapAimTargetEndpointTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["target"]["target_id"], "map:bonito")
         self.assertEqual(set_target.call_args.kwargs["reason"], "map_menu_title_aim")
+        self.assertFalse(set_target.call_args.kwargs["persist_profile_projection"])
         self.assertEqual(profile["operations"], [])
         self.assertEqual(profile["launch_queue"], [])
         record_delta.assert_called_once()
@@ -420,7 +422,8 @@ class MapAimTargetEndpointTest(unittest.TestCase):
         def return_requested(_username, _profile, target, **_kwargs):
             return target
 
-        with patch.object(run, "load_profile_readonly", return_value=profile), \
+        with patch.object(run.user_store, "get_profile_identity", return_value=profile), \
+                patch.object(run.player_target_runtime_store, "get_active_target", return_value=profile["aimed_target"]), \
                 patch.object(run, "find_contested_target", return_value=None), \
                 patch.object(run, "set_player_aimed_target", side_effect=return_requested) as set_target, \
                 patch.object(run, "record_map_target_delta"):
@@ -445,7 +448,7 @@ class MapAimTargetEndpointTest(unittest.TestCase):
         def return_requested(_username, _profile, target, **_kwargs):
             return target
 
-        with patch.object(run, "load_profile_readonly", return_value=profile), \
+        with patch.object(run.user_store, "get_profile_identity", return_value=profile), \
                 patch.object(run, "find_contested_target", return_value=None), \
                 patch.object(run.resources_store, "get", return_value={
                     "firewall": True, "risk_score": 50, "description": "ignored"
@@ -485,7 +488,7 @@ class MapAimTargetEndpointTest(unittest.TestCase):
         def return_requested(_username, _profile, target, **_kwargs):
             return target
 
-        with patch.object(run, "load_profile_readonly", return_value=profile), \
+        with patch.object(run.user_store, "get_profile_identity", return_value=profile), \
                 patch.object(run, "find_contested_target", return_value=canonical), \
                 patch.object(run, "set_player_aimed_target", side_effect=return_requested) as set_target, \
                 patch.object(run, "record_map_target_delta"):
@@ -519,7 +522,7 @@ class MapAimTargetEndpointTest(unittest.TestCase):
         def return_requested(_username, _profile, target, **_kwargs):
             return target
 
-        with patch.object(run, "load_profile_readonly", return_value=profile), \
+        with patch.object(run.user_store, "get_profile_identity", return_value=profile), \
                 patch.object(run, "find_contested_target", return_value=canonical), \
                 patch.object(run, "set_player_aimed_target", side_effect=return_requested) as set_target, \
                 patch.object(run, "record_map_target_delta"):
@@ -3059,7 +3062,7 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         with client.session_transaction() as sess:
             self.assertEqual(sess["user"], "root")
-        self.assertIn("root", FakeProfileManager.created_for)
+        self.assertNotIn("root", FakeProfileManager.created_for)
         self.assertNotIn("owner_a", FakeProfileManager.created_for)
 
     def test_gonna_win_reports_created_map_operation_as_success(self):
@@ -3462,7 +3465,8 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
             sess["user"] = "root"
 
         with patch.object(run, "sync_session_profile", return_value=profile), \
-                patch.object(run.user_store, "get_profile", return_value=latest_profile), \
+                patch.object(run.player_target_runtime_store, "get_active_target", return_value=latest_profile["aimed_target"]), \
+                patch.object(run.player_target_runtime_store, "get", return_value={"status": "in_progress", "target": latest_profile["aimed_target"]}), \
                 patch.object(run, "UserProfileManager", FakeProfileManager):
             response = client.post("/gonna-win", json={"app_id": "exploit_tool"})
 
@@ -3538,7 +3542,8 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
             sess["user"] = "root"
 
         with patch.object(run, "sync_session_profile", return_value=profile), \
-                patch.object(run.user_store, "get_profile", return_value=latest_profile), \
+                patch.object(run.player_target_runtime_store, "get_active_target", return_value=latest_profile["aimed_target"]), \
+                patch.object(run.player_target_runtime_store, "get", return_value={"status": "in_progress", "target": latest_profile["aimed_target"]}), \
                 patch.object(run, "UserProfileManager", FakeProfileManager):
             response = client.post("/gonna-win", json={"app_id": "exploit_tool"})
 
@@ -3616,7 +3621,7 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(created["operation_type"], "persistent_sniffer")
         self.assertEqual(created["status"], "running")
         self.assertEqual(len(profile["operations"]), 1)
-        self.assertIn("operations", FakeProfileManager.updates[-1][1])
+        self.assertEqual(FakeProfileManager.updates, [])
 
     def test_gonna_win_operation_only_deduplicates_running_map_operation(self):
         class FakeProfileManager:

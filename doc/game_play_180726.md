@@ -25245,6 +25245,42 @@ musi brzmieć `CONFIRMED` albo `UNCONFIRMED BUT CONTAINED`.
 
 ---
 
+# Sprint 130.10.1 — Hot Path Recovery
+
+**Status:** `READY FOR SERVER BEFORE → AFTER MEASUREMENT`.
+
+**Wiążący artefakt:**
+`doc/sprint_130_10_1_hot_path_recovery.md`.
+
+Regresja latency po 130.10 została przypisana pełnemu profile integrity
+uruchamianemu w zwykłych ścieżkach runtime. `Secret Path` czekał na ciężki
+`/api/map/aim-target`, a zachowane dwa requesty `/gonna-win` wielokrotnie
+walidowały i przepisywały duży profil pod writer-lockiem SQLite.
+
+Naprawa nie cofa integrity. Lekki runtime read został oddzielony od jawnego
+heavy/audit path, `aim-target` i częściowe wyniki narzędzi korzystają z
+canonical runtime stores, natomiast rzeczywiste trwałe mutacje nadal wykonują
+schema/checksum/CAS/LKG. Przygotowanie guarded write odbywa się przed
+`BEGIN IMMEDIATE`; sekcja writer zawiera tylko recheck, session guard, CAS,
+atomowy LKG/write i commit. Kolejka oraz dwa requesty `/gonna-win` pozostają bez
+zmian.
+
+Dodano metryki `[HOT_PATH]`: `request_ms`, `profile_full_read`,
+`profile_full_write`, `profile_bytes`, `sqlite_writer_wait_ms`; objęto PERF
+endpoint `aim-target` i zapewniono reużycie process-local GN service. Testy
+celowane: `267/267 OK`; pełna regresja: `978/978 OK`; końcowa regresja
+telemetryki: `8/8 OK`.
+
+Read-only benchmark realnego snapshotu potwierdził dla `main` (`34 580 098 B`)
+spadek mediany odczytu z `2490.354 ms` w heavy/audit path do `460.167 ms` w
+runtime path (`5.41×`). Mały profil pozostał w koszcie otwarcia połączenia.
+Baza nie została zmodyfikowana. Pozostaje serwerowy pomiar `before → after`.
+
+Sprint nie wykonuje repair `Trollu2`, nie zmienia formatu profilu ani nie
+autoryzuje commita, deployu lub mutacji serwerowej.
+
+---
+
 # Sprint 130.11 — Trollu2 Controlled Profile and Territory Recovery
 
 **Status:** `QUEUED — REQUIRES GO FROM SPRINT 130.10`.

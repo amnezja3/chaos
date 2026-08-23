@@ -87,6 +87,7 @@ PERF_LOG_ENDPOINTS = {
     "/launch-queue",
     "/system-messages",
     "/command",
+    "/api/map/aim-target",
     "/gonna-win",
 }
 PERF_LOG_MIN_MS = env_int("CHAOS_PERF_LOG_MIN_MS", 100)

@@ -1049,3 +1049,27 @@
 - Regresja Python: `77/77 OK`; renderer GN Node, `py_compile` i
   `git diff --check`: OK. Status:
   `READY FOR MOBILE MAIN PERFORMANCE + GN RETEST`.
+
+## 2026-08-23 - Sprint 130.10.1: Hot Path Recovery
+
+- Audyt potwierdził, że profile integrity ze Sprintu 130.10 zostało globalnie
+  podpięte pod zwykłe runtime reads/writes. Na dużym koncie zwielokrotniało to
+  koszt `aim-target` i każdego z dwóch zachowanych requestów `/gonna-win`.
+- Przywrócono lekki `UserStore.get_profile()`; pełna walidacja schema/checksum
+  pozostaje w jawnym `get_profile_with_revision()` i w każdym guarded write.
+- `aim-target`, `operation_only` i częściowe wyniki narzędzi korzystają z
+  canonical target/operation stores bez pełnego compatibility profile write.
+- `UserProfileManager` nie skanuje już wszystkich kont ani nie uruchamia
+  `init_db()` per instancja. Trwały capture zachowuje guarded profile patch.
+- Guarded writers przygotowują profil i LKG przed `BEGIN IMMEDIATE`; pod lockiem
+  pozostają recheck, session guard, CAS, zapis i commit.
+- Hooki GN reużywają process-local service, a telemetryka `[HOT_PATH]` raportuje
+  request, full reads/writes, bajty profilu i writer wait.
+- Snapshoty `game.sqlite3.server` oraz `game.sqlite3.*` zostały jawnie wyłączone
+  z Git. Testy celowane: `267/267 OK`; pełna regresja: `978/978 OK`; testy po
+  końcowej zmianie telemetryki: `8/8 OK`.
+- Read-only benchmark realnego snapshotu: `main` (`34 580 098 B`) spadł z
+  mediany `2490.354 ms` heavy/audit do `460.167 ms` runtime read (`5.41×`);
+  mały profil `ania` pozostał w koszcie otwarcia połączenia (`17–21 ms`). Plik
+  bazy pozostał niezmieniony. Status:
+  `READY FOR SERVER BEFORE → AFTER MEASUREMENT`.
