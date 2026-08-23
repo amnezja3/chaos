@@ -24,6 +24,8 @@ logs/
 
 # Local databases and generated cache
 data/game.sqlite3
+data/game.sqlite3.*
+data/game.sqlite3-*
 data/*.sqlite
 data/*.sqlite3
 data/*.db
