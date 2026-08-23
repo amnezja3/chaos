@@ -54,6 +54,8 @@ LOCK_NAME = ".profile_store_migration.lock"
 RUNTIME_TABLES = (
     "player_target_runtime",
     "player_target_events",
+    "player_marked_targets",
+    "player_marked_target_state",
     "player_positions",
     "player_operations",
     "operation_events",
@@ -160,6 +162,8 @@ def delete_non_wallet_runtime_rows(conn, username: str):
         conn.execute(f"DELETE FROM operation_events WHERE operation_id IN ({placeholders})", tuple(op_ids))
     conn.execute("DELETE FROM player_target_events WHERE username = ?", (username,))
     conn.execute("DELETE FROM player_target_runtime WHERE username = ?", (username,))
+    conn.execute("DELETE FROM player_marked_targets WHERE username = ?", (username,))
+    conn.execute("DELETE FROM player_marked_target_state WHERE username = ?", (username,))
     conn.execute("DELETE FROM player_positions WHERE username = ?", (username,))
     conn.execute("DELETE FROM player_operations WHERE username = ?", (username,))
     conn.execute("DELETE FROM system_messages WHERE username = ?", (username,))

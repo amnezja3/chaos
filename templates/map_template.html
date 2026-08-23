@@ -1076,6 +1076,85 @@
       pointer-events: none;
     }
 
+    .pending-marked-target-root {
+      overflow: visible !important;
+      pointer-events: none !important;
+    }
+
+    .pending-marked-target {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #45ff89;
+      font-size: 2rem;
+      filter: drop-shadow(0 0 7px rgba(57, 255, 136, 0.95));
+      animation: pending-marked-target-pulse 720ms steps(2, end) infinite;
+    }
+
+    .pending-marked-target::before,
+    .pending-marked-target::after {
+      content: attr(data-icon);
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.55;
+      pointer-events: none;
+    }
+
+    .pending-marked-target::before {
+      color: #00fff0;
+      transform: translate(-3px, 1px);
+      clip-path: inset(8% 0 54% 0);
+    }
+
+    .pending-marked-target::after {
+      color: #ff315d;
+      transform: translate(3px, -1px);
+      clip-path: inset(58% 0 6% 0);
+    }
+
+    .pending-marked-target.is-confirmed {
+      color: #59ff92;
+      animation: pending-marked-target-confirm 700ms ease-out forwards;
+    }
+
+    .pending-marked-target.is-failed {
+      color: #ff315d;
+      filter: drop-shadow(0 0 8px rgba(255, 49, 93, 0.95));
+      animation: pending-marked-target-failed 320ms steps(2, end) 6;
+    }
+
+    @keyframes pending-marked-target-pulse {
+      0%, 100% { opacity: 0.62; transform: scale(0.92); }
+      50% { opacity: 1; transform: scale(1.08); }
+    }
+
+    @keyframes pending-marked-target-confirm {
+      0% { opacity: 1; transform: scale(1); }
+      70% { opacity: 1; transform: scale(1.28); }
+      100% { opacity: 0; transform: scale(0.92); }
+    }
+
+    @keyframes pending-marked-target-failed {
+      0%, 100% { transform: translateX(0); opacity: 1; }
+      50% { transform: translateX(4px); opacity: 0.55; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .pending-marked-target,
+      .pending-marked-target.is-confirmed,
+      .pending-marked-target.is-failed {
+        animation: none !important;
+        opacity: 1;
+        transform: none;
+      }
+    }
+
     .target-hacked {
       box-sizing: border-box !important;
       width: 32px !important;
@@ -3257,9 +3336,65 @@
 
         function clearScanResultLayers() {
             scanResultLayers.forEach(layer => {
+                if (layer && layer._scanTarget) {
+                    unregisterTargetMarker(layer._scanTarget);
+                }
                 removeMapLayerSafe(layer);
             });
             scanResultLayers = [];
+        }
+
+        window.pendingMarkedTargetLayers = window.pendingMarkedTargetLayers || new Map();
+
+        function showPendingMarkedTarget(target = {}) {
+            const normalized = normalizeMapMenuTarget(target || {});
+            const lat = Number(normalized.lat);
+            const lng = Number(normalized.lng !== undefined ? normalized.lng : normalized.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+            const key = targetStableId(normalized);
+            const previous = window.pendingMarkedTargetLayers.get(key);
+            if (previous && previous.marker) removeMapLayerSafe(previous.marker);
+            const icon = window.escapeMapText(normalized.icon || '🎯');
+            const marker = L.marker([lat, lng], {
+                interactive: false,
+                keyboard: false,
+                zIndexOffset: 950,
+                icon: L.divIcon({
+                    className: 'pending-marked-target-root',
+                    html: `<div class="pending-marked-target" data-icon="${icon}"><span>${icon}</span></div>`,
+                    iconSize: [48, 48],
+                    iconAnchor: [24, 24]
+                })
+            }).addTo(map);
+            marker.bindTooltip(`LINKING TARGET... ${mapTargetDisplayLabel(normalized, 'TARGET')}`, {
+                permanent: false,
+                direction: 'top'
+            });
+            const handle = { key, marker, target: normalized, settled: false };
+            window.pendingMarkedTargetLayers.set(key, handle);
+            return handle;
+        }
+
+        function settlePendingMarkedTarget(handle, outcome, message = '') {
+            if (!handle || handle.settled) return;
+            handle.settled = true;
+            const element = handle.marker && handle.marker.getElement
+                ? handle.marker.getElement()?.querySelector('.pending-marked-target')
+                : null;
+            if (element) {
+                element.classList.add(outcome === 'success' ? 'is-confirmed' : 'is-failed');
+            }
+            if (handle.marker && typeof handle.marker.setTooltipContent === 'function') {
+                handle.marker.setTooltipContent(
+                    message || (outcome === 'success' ? 'TARGET LINKED' : 'LINK FAILED')
+                );
+            }
+            window.setTimeout(() => {
+                if (handle.marker) removeMapLayerSafe(handle.marker);
+                if (window.pendingMarkedTargetLayers.get(handle.key) === handle) {
+                    window.pendingMarkedTargetLayers.delete(handle.key);
+                }
+            }, outcome === 'success' ? 750 : 4000);
         }
 
         function rememberScanResultLayer(layer) {
@@ -3483,6 +3618,20 @@
                 if (captured) {
                     window.markMapTargetHacked(target);
                     return true;
+                }
+                if (type === "map.target_marked") {
+                    const lat = Number(target.lat);
+                    const lng = Number(target.lng !== undefined ? target.lng : target.lon);
+                    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                        addInteractiveTargetMarker(
+                            lat,
+                            lng,
+                            mapTargetDisplayLabel(target, "TARGET"),
+                            target.icon || "🎯",
+                            target
+                        );
+                        return true;
+                    }
                 }
                 return false;
             }
@@ -5238,8 +5387,14 @@
                 ? beginMapScanEffect('Skanowanie mapy')
                 : null;
             let finishTravelPulse = null;
+            let pendingMarkedTarget = null;
             try {
                 if (guardMapGameplayAction()) return;
+                if (action === 'mark_target') {
+                    pendingMarkedTarget = showPendingMarkedTarget({
+                        lat, lng, label, name, icon, source_type: sourceType, generated
+                    });
+                }
                 if (action === 'travel') {
                     const travelId = `travel-local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
                     finishTravelPulse = showTravelDestinationPulse(lat, lng);
@@ -5284,6 +5439,9 @@
                     })
                 });
                 const data = await res.json();
+                if (!res.ok || data.success === false || data.blocked) {
+                    throw new Error(data.status || data.message || data.error || 'Operacja mapy nie powiodla sie.');
+                }
                 
                 if (data.status === "too_far") {
                     if (action === 'travel' && typeof window.hideMotorcycleTravelPhone === 'function') {
@@ -5296,8 +5454,17 @@
                 addSystemMessage("success", "🗺️ Mapa", data.status);
 
                 if (action === 'mark_target') {
-                    addInteractiveTargetMarker(lat, lng, label, icon, { name, source_type: sourceType, generated });
-                    refreshParentToolbarProfile();
+                    const markedTarget = normalizeMapMenuTarget(data.target || {
+                        lat, lng, label, name, icon, source_type: sourceType, generated
+                    });
+                    addInteractiveTargetMarker(
+                        Number(markedTarget.lat),
+                        Number(markedTarget.lng !== undefined ? markedTarget.lng : markedTarget.lon),
+                        mapTargetDisplayLabel(markedTarget, 'TARGET'),
+                        markedTarget.icon || icon,
+                        markedTarget
+                    );
+                    settlePendingMarkedTarget(pendingMarkedTarget, 'success', 'TARGET LINKED');
                 }
 
                 if (action === 'scan') {
@@ -5417,6 +5584,13 @@
 
                 return data;
             } catch (err) {
+                if (pendingMarkedTarget) {
+                    settlePendingMarkedTarget(
+                        pendingMarkedTarget,
+                        'failed',
+                        `LINK FAILED: ${String(err && err.message || 'UNKNOWN')}`
+                    );
+                }
                 if (action === 'travel' && typeof window.hideMotorcycleTravelPhone === 'function') {
                     window.hideMotorcycleTravelPhone("request_failed");
                 }
@@ -5429,92 +5603,6 @@
                 }
             }
         }
-
-
-        function mapAction_old(action, lat, lng, label = "Oznaczony cel", icon = "🎯") {
-            fetch('/map-action', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action,
-                    lat,
-                    lng,
-                    label,
-                    icon,
-                    source_type: label,
-                    name: label
-                })
-                // body: JSON.stringify({ action, lat, lng, label, icon })
-            })
-            .then(res => res.json())
-            .then(data => {
-                addSystemMessage("success", "🗺️ Mapa", data.status);
-
-                if (action === 'mark_target') {
-                    addLiveMarker(lat, lng, label, icon); 
-                }
-
-                // if (action === 'travel') {
-                //     setTimeout(() => location.reload(), 300); // ⏱️ opóźnienie reload
-                // }
-                
-
-                if (action === 'scan') {
-                    const results = data.markers || [];
-                    results.forEach(obj => {
-                        const label = mapTargetDisplayLabel({ ...obj, target_type: obj.target_type || 'poi' });
-                        const tags = obj.tags || {};
-
-                        const iconEmoji = obj.icon || "📍";
-                        const menuTarget = normalizeMapMenuTarget({
-                            ...obj,
-                            lat: Number(obj.lat),
-                            lon: Number(obj.lon),
-                            lng: Number(obj.lon),
-                            label,
-                            icon: iconEmoji,
-                            target_type: obj.target_type || 'poi'
-                        });
-                        
-                        const marker = L.marker([menuTarget.lat, menuTarget.lon], {
-                            icon: L.divIcon({
-                                className: 'custom-text-icon scan-target-marker-root',
-                                html: `
-                                    <div class="scan-target-marker-hitbox" style="width:80px;height:40px;max-width:80px;max-height:40px;font-size:2.5rem;line-height:40px;">
-                                        <div>${iconEmoji}</div>
-                                    </div>
-                                `,
-                                iconSize: [80, 40],
-                                iconAnchor: [40, 20]
-                            })
-                        }).addTo(map);
-
-                        registerTargetMarker(menuTarget, marker, {
-                            source: 'legacyScanTargetMarker',
-                            layer_type: 'target_marker'
-                        });
-                        marker.bindTooltip(label, { permanent: false, direction: 'top' });
-
-                        marker.on('contextmenu', function(e) {
-                            if (!isContextEventInsideMarkerHitbox(marker, e, menuTarget, 'legacyScanTargetMarker')) {
-                                consumeMapContextEvent(e);
-                                showMapMenuFromOriginalContextEvent(e);
-                                return;
-                            }
-                            consumeMapContextEvent(e);
-                            document.querySelectorAll('.context-menu').forEach(el => el.remove());
-                            showMarkerContextMenu(e.containerPoint.x, e.containerPoint.y, menuTarget, iconEmoji, label, 'legacyScanTargetMarker');
-                        });
-
-                    });
-                    
-                }
-            })
-
-            .catch(() => addSystemMessage("danger", "🖥️ Połączenie", "❌ Błąd połączenia"));
-        }
-
-        
         const bikeDirectionIcons = {
             up: "/static/icons/racing_bike_up.png",
             up_right: "/static/icons/racing_bike_up_right.png",

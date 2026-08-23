@@ -36,6 +36,8 @@ CORE_TABLES = (
     "profile_store_migrations",
     "player_positions",
     "player_target_runtime",
+    "player_marked_targets",
+    "player_marked_target_state",
     "player_operations",
     "system_messages",
     "game_state_deltas",
@@ -147,7 +149,7 @@ LKG_FORBIDDEN_TOP_LEVEL_KEYS = {
 LKG_CANONICAL_MIRROR_TOP_LEVEL_KEYS = {
     "apps", "hackcoins", "storage_capacity", "storage_used", "storage_unit",
     "storage_upgrades", "googleplex_products", "storage_soft_limit",
-    "storage_over_limit",
+    "storage_over_limit", "targets",
 }
 LKG_SNAPSHOT_REQUIRED_TYPES = {
     "username": str,

@@ -33,6 +33,8 @@ class ForeignTerritoryActionGateTests(unittest.TestCase):
         for action in ("scan", "mark_target"):
             with self.subTest(action=action), \
                     patch.object(run, "sync_session_profile", return_value=dict(profile)), \
+                    patch.object(run.user_store, "get_profile_identity", return_value={"username": "attacker"}), \
+                    patch.object(run.player_marked_target_store, "upsert") as marked_upsert, \
                     patch.object(run, "foreign_territory_action_block", return_value=self.foreign_area()):
                 response = self.client.post("/map-action", headers=self.headers, json={
                     "action": action,
@@ -44,6 +46,7 @@ class ForeignTerritoryActionGateTests(unittest.TestCase):
             self.assertEqual(response.status_code, 403)
             self.assertTrue(response.get_json()["blocked"])
             self.assertEqual(response.get_json()["reason"], "foreign_territory_protected")
+            marked_upsert.assert_not_called()
 
     def test_lightweight_aim_is_blocked_on_enemy_territory(self):
         with patch.object(run.user_store, "get_profile_identity", return_value={"username": "attacker"}), \
@@ -97,6 +100,20 @@ class ForeignTerritoryActionGateTests(unittest.TestCase):
         with patch.object(run.territory_store, "list_player_areas", return_value=[area]), \
                 patch.object(run, "territory_combat_relation", return_value="protected_same_clan"):
             self.assertIsNone(run.find_foreign_area_for_point("attacker", 52.005, 21.005))
+
+    def test_foreign_area_gate_checks_geometry_before_loading_relations(self):
+        far_area = {
+            **self.foreign_area(),
+            "vertices": [
+                {"lat": 40.0, "lng": 10.0},
+                {"lat": 40.0, "lng": 10.1},
+                {"lat": 40.1, "lng": 10.1},
+                {"lat": 40.1, "lng": 10.0},
+            ],
+        }
+        with patch.object(run.territory_store, "list_player_areas", return_value=[far_area]), \
+                patch.object(run, "territory_combat_relation", side_effect=AssertionError("relation loaded before geometry")):
+            self.assertIsNone(run.find_foreign_area_for_point("attacker", 52.0, 21.0))
 
     def test_snapshot_mode_does_not_publish_parallel_legacy_markers(self):
         source = inspect.getsource(run.map_player_areas)

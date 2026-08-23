@@ -88,6 +88,7 @@ PERF_LOG_ENDPOINTS = {
     "/system-messages",
     "/command",
     "/api/map/aim-target",
+    "/map-action",
     "/gonna-win",
 }
 PERF_LOG_MIN_MS = env_int("CHAOS_PERF_LOG_MIN_MS", 100)

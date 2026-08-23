@@ -1073,3 +1073,24 @@
   mały profil `ania` pozostał w koszcie otwarcia połączenia (`17–21 ms`). Plik
   bazy pozostał niezmieniony. Status:
   `READY FOR SERVER BEFORE → AFTER MEASUREMENT`.
+
+## 2026-08-23 - Sprint 130.10.2: Marked Target Hot Path & Visual Continuity
+
+- Audyt sekwencji `scan → oznacz → szybkie wyczyść scan` wykazał, że menu
+  skanu nadal używało legacy `/map-action`, który dla małej zmiany targetów
+  czytał i przepisywał pełny profil przez `UserProfileManager`.
+- Na snapshotcie konta `main` profil miał `34 596 295 B`, podczas gdy sama lista
+  59 targetów około `8 622 B`. Dominujące `operations` miały około 31,8 MB i
+  nie powinny uczestniczyć w oznaczaniu celu.
+- Dodano canonical `player_marked_targets` z idempotentnym receipt legacy seed.
+  `/map-action mark_target` oraz target snapshot nie wykonują full-profile read
+  ani write; retry oznaczenia nie publikuje drugiej delty.
+- Frontend pokazuje natychmiast glitch marker `LINKING TARGET...`, niezależny od
+  warstw skanu. Clear scan wyrejestrowuje starą warstwę, sukces instaluje marker
+  interaktywny, a błąd pozostawia krótki `LINK FAILED`.
+- Usunięto martwy `mapAction_old`. Dodano read-only/apply tool
+  `tools/migrate_marked_targets.py`, testy store/endpoint/dedupe/capture/frontend
+  oraz rozszerzono audit, example DB i migration cleanup o nowe tabele.
+- Końcowa regresja celowana: `348/348 OK`; `py_compile`, migrator dry-run i
+  `git diff --check`: OK.
+- Status: `READY FOR SERVER MARK-TARGET RETEST`; bez commita i deployu.

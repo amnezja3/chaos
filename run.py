@@ -24,7 +24,7 @@ from flask_session import Session
 from poiFetchClass import POIFetcher
 import Haversine
 from profileManagment import UserProfileManager, authenticate_user
-from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore, ProfileDestructiveWriteRejected, ProfilePrecommitRejected, ProfileRecoveryRequired, ProfileValidationError, ProfileWriteConflict, WalletIdempotencyConflict, WalletInsufficientFunds, WalletNotInitialized, WalletWriteError, get_hot_path_metrics, reset_hot_path_metrics, restore_hot_path_metrics, reset_profile_precommit_guard, reset_profile_write_request_metadata, reset_request_transaction_precommit_guard, set_profile_precommit_guard, set_profile_write_request_metadata, set_request_transaction_precommit_guard
+from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerMarkedTargetStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore, ProfileDestructiveWriteRejected, ProfilePrecommitRejected, ProfileRecoveryRequired, ProfileValidationError, ProfileWriteConflict, WalletIdempotencyConflict, WalletInsufficientFunds, WalletNotInitialized, WalletWriteError, get_hot_path_metrics, reset_hot_path_metrics, restore_hot_path_metrics, reset_profile_precommit_guard, reset_profile_write_request_metadata, reset_request_transaction_precommit_guard, set_profile_precommit_guard, set_profile_write_request_metadata, set_request_transaction_precommit_guard
 import requests
 from config import (
     APP_VERSION,
@@ -101,6 +101,7 @@ dev_bug_report_store = DevBugReportStore()
 delta_bus = GameStateDeltaBus()
 app_action_receipt_store = AppActionReceiptStore()
 player_target_runtime_store = PlayerTargetRuntimeStore()
+player_marked_target_store = PlayerMarkedTargetStore()
 player_position_store = PlayerPositionStore()
 player_operation_store = PlayerOperationStore()
 system_message_store = SystemMessageStore()
@@ -6771,7 +6772,7 @@ def _territory_relation_profile(username, profile_cache=None):
     if profile_cache is not None and username in profile_cache:
         return profile_cache.get(username) or {}
     try:
-        profile = user_store.get_profile(username) or {}
+        profile = user_store.get_profile_identity(username) or {}
     except Exception:
         profile = {}
     if profile_cache is not None:
@@ -13911,31 +13912,37 @@ def save_owned_hacked_security(username, lat, lng, security):
     return refreshed_target, True
 
 
-def find_foreign_area_for_point(username, lat, lng):
-    profile_cache = {}
+def find_foreign_area_for_point(username, lat, lng, profile_cache=None):
+    profile_cache = profile_cache if isinstance(profile_cache, dict) else {}
     for area in safe_player_areas(territory_store.list_player_areas()):
         owner_username = str(area.get("owner_username") or "").strip()
         if not owner_username or owner_username == username:
             continue
         if area.get("status") not in {"active", "encircled"}:
             continue
+        # Geometry is much cheaper than loading even an identity projection.
+        # Resolve clan relations only for an area which actually contains the
+        # requested point, not for every territory owner on the map.
+        if not point_in_polygon(float(lat), float(lng), area.get("vertices", [])):
+            continue
         if territory_combat_relation(username, owner_username, profile_cache=profile_cache) != "hostile":
             continue
-        if point_in_polygon(float(lat), float(lng), area.get("vertices", [])):
-            owner_profile = _territory_relation_profile(owner_username, profile_cache=profile_cache)
-            return {
-                **area,
-                "owner_nick": (owner_profile or {}).get("nick") or owner_username,
-                "owner_clan": get_profile_clan(owner_profile or {}),
-            }
+        owner_profile = _territory_relation_profile(owner_username, profile_cache=profile_cache)
+        return {
+            **area,
+            "owner_nick": (owner_profile or {}).get("nick") or owner_username,
+            "owner_clan": get_profile_clan(owner_profile or {}),
+        }
     return None
 
 
-def foreign_territory_action_block(username, lat, lng, contested_target=None):
+def foreign_territory_action_block(username, lat, lng, contested_target=None, profile_cache=None):
     """Protect enemy territory; only its canonical active-conflict target is attackable."""
     if contested_target:
         return None
-    return find_foreign_area_for_point(username, float(lat), float(lng))
+    return find_foreign_area_for_point(
+        username, float(lat), float(lng), profile_cache=profile_cache,
+    )
 
 
 def find_area_for_point(lat, lng):
@@ -20303,12 +20310,12 @@ def map_target_snapshot():
     if "user" not in session:
         return jsonify({"error": "not_logged_in"}), 401
     username = session["user"]
-    profile = user_store.get_profile(username) or {}
+    targets = player_marked_target_store.list_targets(username)
     captured = territory_store.list_captured_targets(username)
     captured_keys = {target_position_key(item) for item in captured if target_position_key(item)}
     targets = [
         map_target_client_snapshot(item, captured=False)
-        for item in (profile.get("targets") or [])
+        for item in targets
         if isinstance(item, dict) and target_position_key(item) not in captured_keys
     ]
     return jsonify({
@@ -20536,10 +20543,73 @@ def map_aim_target():
 
 @app.route('/map-action', methods=['POST'])
 def map_action():
-    data = request.get_json()
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+    data = request.get_json(silent=True) or {}
     action = data.get("action")
-    lat = float(data.get("lat"))
-    lng = float(data.get("lng"))
+    try:
+        lat = float(data.get("lat"))
+        lng = float(data.get("lng"))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "invalid_coordinates"}), 400
+
+    if action == "mark_target":
+        username = session["user"]
+        identity = user_store.get_profile_identity(username)
+        if not isinstance(identity, dict):
+            return jsonify({"success": False, "error": "profile_not_found"}), 404
+        foreign_area = foreign_territory_action_block(
+            username,
+            lat,
+            lng,
+            profile_cache={username: identity},
+        )
+        if foreign_area:
+            return jsonify({
+                "success": False,
+                "blocked": True,
+                "reason": "foreign_territory_protected",
+                "status": f"Target znajduje sie na kontrolowanym terenie gracza {foreign_area['owner_nick']}.",
+                "markers": [],
+            }), 403
+
+        label = str(data.get("label") or "").strip()
+        icon = str(data.get("icon") or "").strip()
+        if not (label and icon):
+            return jsonify({"success": False, "error": "missing_target_data"}), 400
+        target = {
+            "lat": lat,
+            "lng": lng,
+            "label": label,
+            "name": str(data.get("name") or label),
+            "icon": icon,
+            "source_type": str(data.get("source_type") or "manual"),
+            "generated": bool(data.get("generated", False)),
+        }
+        stored = player_marked_target_store.upsert(
+            username,
+            target,
+            source="map.mark_target",
+        )
+        stored_target = dict(stored.get("target") or target)
+        if stored.get("changed"):
+            record_map_target_delta(
+                username,
+                stored_target,
+                change_type="map.target_marked",
+                reason="map_mark_target",
+                dedupe_key=(
+                    f"map-target-marked:{username}:"
+                    f"{stored_target.get('target_id')}:{stored.get('version', 1)}"
+                ),
+            )
+        return jsonify({
+            "success": True,
+            "status": f"Cel oznaczony: ({lat}, {lng})",
+            "target": map_target_client_snapshot(stored_target, captured=False),
+            "duplicate": bool(stored.get("duplicate")),
+            "version": int(stored.get("version") or 1),
+        })
     
     # Map actions only need the current profile/runtime stores. A territory
     # rebuild here used to delay travel and scanning before the frontend could
@@ -20552,7 +20622,7 @@ def map_action():
     ava_lng = profile.get("curently_possition", {}).get("lng", 21.0122)
     action_range = get_player_action_range(profile)
 
-    if action in {"scan", "mark_target"}:
+    if action == "scan":
         foreign_area = foreign_territory_action_block(session["user"], lat, lng)
         if foreign_area:
             return jsonify({
@@ -20621,37 +20691,6 @@ def map_action():
         return "📍", "unknown"
 
 
-    if action == "mark_target":
-        label = data.get("label")
-        icon = data.get("icon")
-        source_type = data.get("source_type", "manual")
-        name = data.get("name", label or "Cel oznaczony")
-        generated = bool(data.get("generated", False))
-
-        if not (label and icon):
-            return jsonify({'error': 'Brak danych'}), 400
-
-        target = {
-            "lat": lat,
-            "lng": lng,
-            "label": label,          # widoczne na tooltipie
-            "name": name,            # opcjonalnie: szczegóły w inspektorze
-            "icon": icon,            # emoji
-            "source_type": source_type,  # np. "shop", "atm", "manual"
-            "generated": generated
-        }
-
-        # Dodaj do profilu
-        targets = profile.get("targets", [])
-        targets.append(target)
-        profile["targets"] = targets
-        session["profile"] = profile
-
-        mgr = UserProfileManager(session["user"])
-        mgr.update_profile({"targets": targets})
-
-        return jsonify(status=f"🎯 Cel oznaczony: ({lat}, {lng})")
-    
     if action == "scan":
         distance = Haversine.haversine_distance(lat, lng, ava_lat, ava_lng)
 
@@ -20661,8 +20700,10 @@ def map_action():
                 "markers": []
             })
 
-        # Pobierz już oznaczone cele (jako lat/lng pary)
-        existing_targets = {(t["lat"], t["lng"]) for t in profile.get("targets", [])}
+        # Canonical marked-target rows are small and do not require another
+        # compatibility profile read.
+        marked_targets = player_marked_target_store.list_targets(session["user"])
+        existing_targets = {(t["lat"], t["lng"]) for t in marked_targets}
 
         # Zbierz unikalne wyniki ze wszystkich kategorii
         all_results = []
@@ -23665,6 +23706,7 @@ def victim_picker_candidates():
         return jsonify({"success": False, "error": "profile_not_found"}), 404
 
     profile = dict(profile)
+    profile["targets"] = player_marked_target_store.list_targets(username)
     profile["apps"] = normalize_app_contracts(profile.get("apps", []))
     if not victim_picker_app_installed(profile):
         return jsonify({
@@ -23704,6 +23746,7 @@ def victim_picker_aim():
         return jsonify({"success": False, "error": "profile_not_found"}), 404
 
     profile = dict(profile)
+    profile["targets"] = player_marked_target_store.list_targets(username)
     profile["apps"] = normalize_app_contracts(profile.get("apps", []))
     if not victim_picker_app_installed(profile):
         return jsonify({
@@ -27269,6 +27312,15 @@ def gonna_win():
             profile.get("targets", []),
             captured_target,
             match_label=False
+        )
+        player_marked_target_store.remove_matching(
+            session["user"],
+            captured_target,
+            match_label=False,
+            source="gonna_win_capture",
+        )
+        profile["targets"] = player_marked_target_store.list_targets(
+            session["user"], ensure_seeded=False,
         )
 
         if contest_owner_username and contest_owner_username != session["user"]:

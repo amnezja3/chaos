@@ -25281,6 +25281,34 @@ autoryzuje commita, deployu lub mutacji serwerowej.
 
 ---
 
+# Sprint 130.10.2 — Marked Target Hot Path & Visual Continuity
+
+**Status:** `READY FOR SERVER MARK-TARGET RETEST`.
+
+**Wiążący artefakt:**
+`doc/sprint_130_10_2_marked_target_hot_path.md`.
+
+Czarna dziura po `scan → oznacz → wyczyść scan` wynikała z połączenia
+legacy `/map-action` z pełnym guarded zapisem `profile_json.targets`. Na dużym
+koncie mała mutacja listy targetów przepisywała profil o rozmiarze około 34,6 MB,
+a frontend usuwał tymczasowy marker razem z wynikami skanu.
+
+Dodano canonical `PlayerMarkedTargetStore`, jednorazowy receipt migracji legacy,
+lekki branch `mark_target`, target snapshot bez pełnego profilu oraz
+idempotentną deltę `map.target_marked`. Capture usuwa oznaczenie w tym samym
+store, a kolejny trwały profile write odświeża wyłącznie compatibility mirror.
+
+Frontend natychmiast pokazuje niezależny glitch marker `LINKING TARGET...`.
+`Wyczyść scan` go nie usuwa; sukces zastępuje go markerem interaktywnym, a
+błąd pokazuje kontrolowany stan `LINK FAILED`. Usunięto nieużywany
+`mapAction_old` i naprawiono wyrejestrowanie warstwy skanu.
+
+Narzędzie `tools/migrate_marked_targets.py` zapewnia read-only dry-run i jawny,
+idempotentny pre-seed przed manualem. Sprint zachowuje ochronę obcego terytorium,
+profile integrity, CAS/LKG, mechanikę skanu, hackowania i capture.
+
+---
+
 # Sprint 130.11 — Trollu2 Controlled Profile and Territory Recovery
 
 **Status:** `QUEUED — REQUIRES GO FROM SPRINT 130.10`.

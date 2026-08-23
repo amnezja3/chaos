@@ -807,6 +807,27 @@ def overlay_canonical_profile_scopes_with_conn(conn, username, profile):
                         candidate[key] = copy.deepcopy(modifiers[key])
         overlaid_scopes.append("inventory")
 
+    marked_targets_seeded = conn.execute(
+        "SELECT 1 FROM player_marked_target_state WHERE username = ?",
+        (username,),
+    ).fetchone()
+    if marked_targets_seeded is not None:
+        target_rows = conn.execute(
+            """
+            SELECT target_json
+            FROM player_marked_targets
+            WHERE username = ? AND status = 'active'
+            ORDER BY created_at, target_key
+            """,
+            (username,),
+        ).fetchall()
+        candidate["targets"] = [
+            target
+            for target in (loads_json(row["target_json"], {}) for row in target_rows)
+            if isinstance(target, dict) and target
+        ]
+        overlaid_scopes.append("marked_targets")
+
     return candidate, tuple(overlaid_scopes)
 
 
@@ -1740,8 +1761,42 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS player_marked_targets (
+                username TEXT NOT NULL,
+                target_key TEXT NOT NULL,
+                target_json TEXT NOT NULL DEFAULT '{}',
+                lat REAL NOT NULL,
+                lng REAL NOT NULL,
+                label TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'active',
+                version INTEGER NOT NULL DEFAULT 1,
+                source TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(username, target_key)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS player_marked_target_state (
+                username TEXT PRIMARY KEY,
+                source_revision INTEGER NOT NULL DEFAULT 0,
+                migrated_count INTEGER NOT NULL DEFAULT 0,
+                seeded_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_player_target_events_username_created
             ON player_target_events(username, created_at)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_player_marked_targets_user_status
+            ON player_marked_targets(username, status, updated_at)
             """
         )
         conn.execute(
@@ -3556,7 +3611,8 @@ class UserStore:
                                 profile_json,
                                 '$.ghost_clan_code', '$.clan_code',
                                 '$.ghost_clan', '$.clan', '$.fraction',
-                                '$.faction', '$.ghost_profession', '$.profession'
+                                '$.faction', '$.ghost_profession', '$.profession',
+                                '$.nick'
                             ) END AS identity_json
                 FROM users
                 WHERE username = ?
@@ -3598,7 +3654,7 @@ class UserStore:
             identity_values = json.loads(row["identity_json"] or "[]")
         except (TypeError, json.JSONDecodeError):
             identity_values = []
-        if not isinstance(identity_values, list) or len(identity_values) != 8:
+        if not isinstance(identity_values, list) or len(identity_values) != 9:
             _profile_event(
                 "profile.recovery_required",
                 username,
@@ -3616,7 +3672,7 @@ class UserStore:
             )
 
         (ghost_clan_code, clan_code, ghost_clan, clan, fraction, faction,
-         ghost_profession, profession) = identity_values
+         ghost_profession, profession, nick) = identity_values
         if isinstance(fraction, dict):
             fraction = fraction.get("name") or fraction.get("code") or ""
 
@@ -3630,6 +3686,7 @@ class UserStore:
             "faction": faction,
             "ghost_profession": ghost_profession,
             "profession": profession,
+            "nick": nick,
         }
 
     def save_profile(self, profile):
@@ -4035,6 +4092,8 @@ class UserStore:
             conn.execute("DELETE FROM area_events WHERE owner_username = ? OR actor_username = ?", (username, username))
             conn.execute("DELETE FROM player_areas WHERE owner_username = ?", (username,))
             conn.execute("DELETE FROM captured_targets WHERE owner_username = ?", (username,))
+            conn.execute("DELETE FROM player_marked_targets WHERE username = ?", (username,))
+            conn.execute("DELETE FROM player_marked_target_state WHERE username = ?", (username,))
             conn.execute("DELETE FROM profile_last_known_good WHERE username = ?", (username,))
             conn.execute(
                 "DELETE FROM reported_vulnerabilities WHERE reported_by_username = ? OR territory_owner_username = ?",
@@ -11467,6 +11526,301 @@ class PlayerTargetRuntimeStore:
         with db_connect(self.db_path) as conn:
             conn.execute("DELETE FROM player_target_runtime")
             conn.execute("DELETE FROM player_target_events")
+
+
+class PlayerMarkedTargetStore:
+    """Canonical collection of durable map markers owned by one player.
+
+    ``player_target_runtime`` intentionally models one active hacking target.
+    This store models the independent, potentially larger collection previously
+    embedded in ``profile_json.targets``.  The legacy list is imported once per
+    account and is never consulted again after the state receipt is written.
+    """
+
+    STATUS_ACTIVE = "active"
+    STATUS_REMOVED = "removed"
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def _clean_username(value):
+        return str(value or "").strip()
+
+    @classmethod
+    def normalize_target(cls, target):
+        target = dict(target or {}) if isinstance(target, dict) else {}
+        try:
+            lat = float(target.get("lat"))
+            lng = float(target.get("lng", target.get("lon")))
+        except (TypeError, ValueError):
+            return None
+        if not (
+            math.isfinite(lat) and math.isfinite(lng)
+            and -90 <= lat <= 90 and -180 <= lng <= 180
+        ):
+            return None
+
+        label = str(
+            target.get("label") or target.get("name")
+            or target.get("source_type") or "TARGET"
+        ).strip()
+        if not label:
+            return None
+        normalized = dict(target)
+        normalized.update({
+            "lat": lat,
+            "lng": lng,
+            "label": label,
+            "name": str(target.get("name") or label),
+            "icon": str(target.get("icon") or "\U0001F3AF"),
+            "source_type": str(target.get("source_type") or "manual"),
+            "generated": bool(target.get("generated", False)),
+        })
+        normalized.pop("lon", None)
+        target_key = PlayerTargetRuntimeStore.target_key(normalized)
+        if not target_key:
+            return None
+        normalized["target_id"] = target_key
+        return normalized
+
+    @staticmethod
+    def _list_with_conn(conn, username):
+        rows = conn.execute(
+            """
+            SELECT target_json
+            FROM player_marked_targets
+            WHERE username = ? AND status = 'active'
+            ORDER BY created_at, target_key
+            """,
+            (username,),
+        ).fetchall()
+        return [
+            target
+            for target in (loads_json(row["target_json"], {}) for row in rows)
+            if isinstance(target, dict) and target
+        ]
+
+    def is_seeded(self, username):
+        username = self._clean_username(username)
+        if not username:
+            return False
+        with db_connect(self.db_path) as conn:
+            return conn.execute(
+                "SELECT 1 FROM player_marked_target_state WHERE username = ?",
+                (username,),
+            ).fetchone() is not None
+
+    def ensure_seeded(self, username):
+        """One-way, idempotent import of the compact legacy ``targets`` list."""
+        username = self._clean_username(username)
+        if not username:
+            raise ValueError("Marked target seed requires username.")
+        if self.is_seeded(username):
+            return {"seeded": False, "already_seeded": True, "migrated_count": 0}
+
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT profile_revision, profile_checksum, profile_integrity_status,
+                       json_valid(profile_json) AS profile_json_valid,
+                       CASE WHEN json_valid(profile_json)
+                            THEN json_type(profile_json) END AS profile_json_type,
+                       CASE WHEN json_valid(profile_json)
+                            THEN json_extract(profile_json, '$.targets') END AS targets_json
+                FROM users
+                WHERE username = ?
+                """,
+                (username,),
+            ).fetchone()
+        if row is None:
+            raise ValueError(f"User '{username}' not found.")
+        if (
+            not bool(row["profile_json_valid"])
+            or str(row["profile_json_type"] or "") != "object"
+            or str(row["profile_integrity_status"] or "") != PROFILE_INTEGRITY_VALID
+            or int(row["profile_revision"] or 0) <= 0
+            or not str(row["profile_checksum"] or "")
+        ):
+            raise ProfileRecoveryRequired(
+                f"User '{username}' requires profile recovery before marked target migration."
+            )
+
+        try:
+            legacy_targets = json.loads(row["targets_json"] or "[]")
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise ProfileRecoveryRequired(
+                f"User '{username}' has an invalid legacy targets projection."
+            ) from exc
+        if not isinstance(legacy_targets, list):
+            raise ProfileRecoveryRequired(
+                f"User '{username}' has a non-list legacy targets projection."
+            )
+        normalized_targets = [
+            normalized
+            for normalized in (self.normalize_target(item) for item in legacy_targets)
+            if normalized is not None
+        ]
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            existing_state = conn.execute(
+                "SELECT 1 FROM player_marked_target_state WHERE username = ?",
+                (username,),
+            ).fetchone()
+            if existing_state is not None:
+                return {"seeded": False, "already_seeded": True, "migrated_count": 0}
+            for target in normalized_targets:
+                target_key = target["target_id"]
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO player_marked_targets
+                        (username, target_key, target_json, lat, lng, label,
+                         status, version, source, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, 'active', 1, 'legacy_profile_seed', ?, ?)
+                    """,
+                    (
+                        username, target_key, dumps_json(target), target["lat"],
+                        target["lng"], target["label"], now, now,
+                    ),
+                )
+            conn.execute(
+                """
+                INSERT INTO player_marked_target_state
+                    (username, source_revision, migrated_count, seeded_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (username, int(row["profile_revision"] or 0), len(normalized_targets), now),
+            )
+        return {
+            "seeded": True,
+            "already_seeded": False,
+            "migrated_count": len(normalized_targets),
+        }
+
+    def list_targets(self, username, ensure_seeded=True):
+        username = self._clean_username(username)
+        if not username:
+            return []
+        if ensure_seeded:
+            self.ensure_seeded(username)
+        with db_connect(self.db_path) as conn:
+            return self._list_with_conn(conn, username)
+
+    def upsert(self, username, target, source="map.mark_target"):
+        username = self._clean_username(username)
+        normalized = self.normalize_target(target)
+        if not username or normalized is None:
+            raise ValueError("A marked target requires username and valid target data.")
+        self.ensure_seeded(username)
+        target_key = normalized["target_id"]
+        target_json = dumps_json(normalized)
+        now = utc_now()
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """
+                SELECT target_json, status, version, created_at
+                FROM player_marked_targets
+                WHERE username = ? AND target_key = ?
+                """,
+                (username, target_key),
+            ).fetchone()
+            if (
+                row is not None
+                and row["status"] == self.STATUS_ACTIVE
+                and str(row["target_json"] or "") == target_json
+            ):
+                return {
+                    "changed": False,
+                    "duplicate": True,
+                    "target": normalized,
+                    "version": int(row["version"] or 1),
+                }
+            version = int(row["version"] or 0) + 1 if row else 1
+            created_at = row["created_at"] if row else now
+            conn.execute(
+                """
+                INSERT INTO player_marked_targets
+                    (username, target_key, target_json, lat, lng, label,
+                     status, version, source, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
+                ON CONFLICT(username, target_key) DO UPDATE SET
+                    target_json = excluded.target_json,
+                    lat = excluded.lat,
+                    lng = excluded.lng,
+                    label = excluded.label,
+                    status = 'active',
+                    version = excluded.version,
+                    source = excluded.source,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    username, target_key, target_json, normalized["lat"],
+                    normalized["lng"], normalized["label"], version,
+                    str(source or "map.mark_target"), created_at, now,
+                ),
+            )
+        return {
+            "changed": True,
+            "duplicate": False,
+            "target": normalized,
+            "version": version,
+        }
+
+    def remove_matching(self, username, target, match_label=False, source="target.captured"):
+        username = self._clean_username(username)
+        normalized = self.normalize_target(target)
+        if not username or normalized is None:
+            return 0
+        self.ensure_seeded(username)
+        wanted_key = normalized["target_id"]
+        wanted_lat = round(float(normalized["lat"]), 5)
+        wanted_lng = round(float(normalized["lng"]), 5)
+        wanted_label = str(normalized.get("label") or "")
+        now = utc_now()
+        removed = 0
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT target_key, target_json, version
+                FROM player_marked_targets
+                WHERE username = ? AND status = 'active'
+                """,
+                (username,),
+            ).fetchall()
+            matches = []
+            for row in rows:
+                item = loads_json(row["target_json"], {})
+                try:
+                    same_position = (
+                        round(float(item.get("lat")), 5) == wanted_lat
+                        and round(float(item.get("lng", item.get("lon"))), 5) == wanted_lng
+                    )
+                except (TypeError, ValueError):
+                    same_position = False
+                same_label = str(item.get("label") or item.get("name") or "") == wanted_label
+                if row["target_key"] == wanted_key or (same_position and (not match_label or same_label)):
+                    matches.append((row["target_key"], int(row["version"] or 0) + 1))
+            if matches:
+                conn.execute("BEGIN IMMEDIATE")
+                for target_key, version in matches:
+                    updated = conn.execute(
+                        """
+                        UPDATE player_marked_targets
+                        SET status = 'removed', version = ?, source = ?, updated_at = ?
+                        WHERE username = ? AND target_key = ? AND status = 'active'
+                        """,
+                        (version, str(source or "target.captured"), now, username, target_key),
+                    )
+                    removed += int(updated.rowcount or 0)
+        return removed
+
+    def clear_all(self):
+        with db_connect(self.db_path) as conn:
+            conn.execute("DELETE FROM player_marked_targets")
+            conn.execute("DELETE FROM player_marked_target_state")
 
 
 class PlayerPositionStore:

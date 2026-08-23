@@ -23,6 +23,8 @@ RUNTIME_TABLES_TO_CLEAR = [
     "player_hack_tool_usage",
     "dev_bug_reports",
     "captured_targets",
+    "player_marked_targets",
+    "player_marked_target_state",
     "player_areas",
     "area_events",
     "territory_conflicts",

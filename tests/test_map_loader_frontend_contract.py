@@ -123,7 +123,7 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertNotIn('"map_travel", "map_travel_local"].includes(String(source || ""))', self.map_template)
         travel_branch = self.map_template[
             self.map_template.index("async function mapAction("):
-            self.map_template.index("function mapAction_old", self.map_template.index("async function mapAction("))
+            self.map_template.index("const bikeDirectionIcons", self.map_template.index("async function mapAction("))
         ]
         self.assertIn("const localResult = planMotorcycleTravelLocally", travel_branch)
         self.assertIn("return localResult", travel_branch)
