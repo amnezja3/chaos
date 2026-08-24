@@ -1226,3 +1226,26 @@
   marked-target overlay z `player_marked_target_state/player_marked_targets`.
   Rekonstrukcja odwzorowuje teraz active filter i `ORDER BY created_at,target_key`;
   pole nadal uczestniczy w pełnym checksumie.
+
+## 2026-08-24 - Sprint 130.11: post-recovery identity presentation gate
+
+- Produkcyjny controlled recovery `trolu2` zakończył się `COMPLETE`: LVL 50,
+  RSP 2560, HC 250000, 8 targetów Tokio, 1 area, 0 conflicts, 9/9 retirement,
+  LKG promoted i GhostNetwork untouched.
+- Manual ujawnił pozostawione starter identity (`NowyHaker`, default avatar).
+  Zakres naprawy został odseparowany od zakończonego recovery progression.
+- Kontrakt rozdziela provenance: `Trolu 2` jest zatwierdzoną korektą nicku,
+  `Socjotechnik` nowym wyborem gracza po recovery, a
+  `/static/images/avatar-frakcja-2-player-2.png` wynikiem aktualnego mappingu.
+  Profesja nie jest przedstawiana jako odzyskana z historycznego evidence.
+- Dodano `tools/repair_trollu2_identity.py`: read-only audit/signed plan/dry-run,
+  field-level CAS apply wyłącznie dla `nick/profession/avatar`, durable receipt
+  z field provenance, verify i osobną promocję LKG. Clan/fraction oraz cały
+  gameplay state są immutable preconditions.
+- Plan przypina finalny recovery revision/checksum oraz hashe profilu bez trzech
+  pól, walletu, inventory, territory i GN. Drift profilu lub canonical stores
+  blokuje apply i nie pozostawia częściowej mutacji.
+- Evidence 130.10 pozostaje jawnie ograniczone: archiwa są identity-redacted;
+  ewentualne historyczne `fraction.role=2` jest obserwacją, nie recovery source.
+- Regresja identity repair: `7/7 OK`; runtime web/worker nie importuje narzędzia. Status:
+  `READY FOR SERVER READ-ONLY IDENTITY AUDIT`; bez produkcyjnego apply i deployu.

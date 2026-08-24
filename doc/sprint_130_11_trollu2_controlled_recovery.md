@@ -1018,3 +1018,56 @@ albo:
 `NO-GO — Sprint 130.11 still has recovery or canonical-state blockers`
 
 Dopiero GO Sprintów 130.10 i 130.11 odblokowuje Sprint 131.
+
+## 2026-08-24 — post-recovery identity presentation gate
+
+Produkcyjny Recovery v2 zakończył się stanem `COMPLETE`: verify ma zero
+blockerów, profil revision 6, LVL 50, RSP 2560, HC 250000, osiem recovery
+targets, jeden obszar Tokio, zero konfliktów, 9/9 retirement records, oba joby
+complete, LKG promoted oraz zero referencji/zapisów GhostNetwork. Manual po
+logowaniu ujawnił jednak osobny brak prezentacji identity: starterowy nick
+`NowyHaker` i domyślny avatar.
+
+To nie otwiera ponownie recovery progression ani territory. Powstało osobne
+narzędzie operatorskie `tools/repair_trollu2_identity.py`, którego jedynym
+dozwolonym profile mutation scope jest:
+
+- `nick = "Trolu 2"` — zatwierdzona korekta tożsamości;
+- `profession = "Socjotechnik"` — nowy, świadomy wybór gracza po recovery,
+  a nie odtworzenie historycznej wartości;
+- `avatar = "/static/images/avatar-frakcja-2-player-2.png"` — deterministyczny
+  wynik aktualnego canonical mappingu Echo Wolności + Socjotechnik.
+
+Avatar nie jest zgadywany. Aktualny onboarding definiuje `Socjotechnik` jako
+drugą rolę frakcji 2, wiąże ją z `avatar-frakcja-2-player-2.png`, a endpoint
+`/api/register-finalize` materializuje ten sam wzór ścieżki. Asset istnieje w
+repozytorium. Klan/fraction nie są przepisywane: plan wymaga, aby bieżąca
+reprezentacja normalizowała się kanonicznie do `echo_freedom`, a kandydat do
+`social_engineer`.
+
+`audit`, `plan`, `dry-run` i `verify` są read-only. Signed plan przypina dokładny
+finalny recovery revision/checksum, completed recovery receipt, pełny profil z
+wyłączeniem trzech dozwolonych pól oraz hashe wallet/inventory/territory/GN.
+Apply rewaliduje wszystko pod `BEGIN IMMEDIATE`, zapisuje profil przez CAS i
+atomowy durable identity receipt. Receipt zapisuje field-level provenance, więc
+profesja nigdy nie jest raportowana jako historycznie odzyskana. Dowolny drift
+kończy się `REPLAN_REQUIRED`; transactional DDL i wszystkie mutacje są cofane.
+Retry jest exactly-once.
+
+LKG nie zmienia się podczas apply. Osobne `promote-lkg` wykonuje ponowny verify
+pod writer-lockiem, wymaga finalnego checksumu i dopiero wtedy promuje
+identity-correct snapshot. Nie odtwarza starego profilu ani żadnego gameplay
+state.
+
+Historyczne archiwum evidence 130.10 jest zredagowane i samo nie ujawnia nicku
+ani profesji. Read-only audit sprawdza dodatkowo `profile_store_migrations`
+backup candidates. Historyczne `fraction.role=2`, jeżeli występuje, jest tylko
+obserwacją i nie stanowi źródła/proofu dla nowo wybranej profesji.
+
+Celowana regresja identity repair: `7/7 OK` — field-only preservation,
+progression/wallet/territory/inventory 11/11/GN unchanged, duplicate apply,
+profile i external CAS drift oraz verified LKG promotion.
+
+Status: `READY FOR SERVER READ-ONLY IDENTITY AUDIT`. Produkcyjny identity apply
+nie został wykonany; runtime web/worker nie wymaga restartu ani deployu, jeżeli
+zmienia się wyłącznie narzędzie operatorskie.
