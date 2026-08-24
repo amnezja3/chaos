@@ -1,6 +1,6 @@
 import copy
 import unittest
-from unittest.mock import call, patch
+from unittest.mock import Mock, call, patch
 
 import run
 from database import ProfileWriteConflict
@@ -20,6 +20,97 @@ def profile_record(revision, **updates):
 
 
 class TerritoryProfileProjectionCasTest(unittest.TestCase):
+    def test_controlled_recovery_conflict_consolidation_has_no_reward_or_profile_side_effect(self):
+        conflict = {
+            "conflict_id": "conflict-recovery",
+            "participants": ["pies1", "trolu2"],
+            "last_actor_username": "trolu2",
+            "source_event": "sprint_130_11_rollback",
+            "conflict_version": 2,
+        }
+        published = {
+            "ok": True,
+            "changed": True,
+            "pending_newer": False,
+            "snapshot": {"conflict": {**conflict, "status": "resolved"}},
+        }
+        with patch.object(
+            run.territory_conflict_store, "claim_rebuild",
+            return_value={"conflict": conflict, "processing_version": 2},
+        ), patch.object(
+            run.user_store, "get_profile",
+            side_effect=AssertionError("controlled conflict must not read participant profiles"),
+        ) as profile_read, patch.object(
+            run.territory_conflict_store, "reconcile_rebuild_pillars"
+        ), patch.object(
+            run.territory_conflict_store, "publish_rebuild", return_value=published
+        ), patch.object(
+            run, "record_territory_conflict_delta"
+        ), patch.object(
+            run, "settle_conflict_resolution_reward",
+            side_effect=AssertionError("controlled rollback must not create a reward"),
+        ) as reward, patch.object(
+            run, "resolve_territory_encirclements_after_change",
+            side_effect=AssertionError("controlled rollback must not resolve encirclements"),
+        ) as encirclement:
+            result = run.consolidate_conflict_rebuild(
+                "conflict-recovery",
+                prebuilt_areas=[],
+                prebuilt_detection_plans=[],
+                rebuild_participants=True,
+                run_encirclement=True,
+            )
+
+        self.assertTrue(result["ok"])
+        profile_read.assert_not_called()
+        reward.assert_not_called()
+        encirclement.assert_not_called()
+
+    def test_controlled_recovery_resolution_is_never_rewarded(self):
+        snapshot = {
+            "conflict": {
+                "conflict_id": "conflict-recovery",
+                "participants": ["pies1", "trolu2"],
+                "last_actor_username": "trolu2",
+                "source_event": "sprint_130_11_rollback",
+                "status": "resolved",
+            }
+        }
+        store = Mock()
+
+        result = run.settle_conflict_resolution_reward(
+            snapshot, progression_store=store
+        )
+
+        self.assertEqual("controlled_recovery_no_reward", result["reason"])
+        store.ensure.assert_not_called()
+        store.settle_strategic.assert_not_called()
+
+    def test_controlled_recovery_conflict_skips_every_profile_projection(self):
+        conflict = {
+            "participants": ["pies1", "trolu2"],
+            "last_actor_username": "trolu2",
+            "source_event": "sprint_130_11_recovery",
+        }
+        with patch.object(
+            run.territory_conflict_store, "get_by_key", return_value=conflict
+        ), patch.object(
+            run.territory_store, "list_player_areas", return_value=[]
+        ) as area_read, patch.object(
+            run, "load_profile_write_record",
+            side_effect=AssertionError("controlled recovery conflict must be profile-neutral"),
+        ) as profile_read, patch.object(
+            run.user_store, "patch_profile_guarded",
+            side_effect=AssertionError("controlled recovery conflict must not write profiles"),
+        ) as profile_write:
+            summaries = run.finalize_conflict_rebuild_profiles("conflict-recovery")
+
+        self.assertEqual(["pies1", "trolu2"], [item["username"] for item in summaries])
+        self.assertTrue(all(item["profile_projection_skipped"] for item in summaries))
+        self.assertEqual(2, area_read.call_count)
+        profile_read.assert_not_called()
+        profile_write.assert_not_called()
+
     def test_controlled_recovery_rebuild_skips_heavy_profile_and_lkg_projection(self):
         claim = {
             "job_id": "recovery-job-1",

@@ -114,7 +114,34 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
                     receipt_id TEXT PRIMARY KEY, actor_username TEXT, status TEXT
                 );
                 CREATE TABLE territory_conflicts (
-                    conflict_id TEXT, intersections_json TEXT, intersection_json TEXT, status TEXT
+                    conflict_id TEXT PRIMARY KEY, participants_json TEXT DEFAULT '[]',
+                    targets_json TEXT DEFAULT '[]', intersections_json TEXT,
+                    intersection_json TEXT, status TEXT, conflict_version INTEGER DEFAULT 1,
+                    geometry_status TEXT DEFAULT 'clean', resolution_reason TEXT DEFAULT '',
+                    source_event TEXT DEFAULT '', last_actor_username TEXT DEFAULT '',
+                    created_at TEXT, updated_at TEXT, resolved_at TEXT
+                );
+                CREATE TABLE territory_conflict_pillars (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, conflict_id TEXT, target_id TEXT,
+                    status TEXT, captured INTEGER, public_target_json TEXT
+                );
+                CREATE TABLE territory_conflict_events (
+                    event_id TEXT PRIMARY KEY, conflict_id TEXT, event_type TEXT,
+                    action_id TEXT, actor_username TEXT
+                );
+                CREATE TABLE territory_conflict_rebuilds (
+                    conflict_id TEXT PRIMARY KEY, requested_version INTEGER,
+                    status TEXT, reason TEXT, lease_owner TEXT DEFAULT '', lease_until TEXT,
+                    requested_at TEXT, updated_at TEXT
+                );
+                CREATE TABLE territory_conflict_fronts (
+                    front_id TEXT PRIMARY KEY, conflict_id TEXT, status TEXT
+                );
+                CREATE TABLE territory_conflict_engagements (
+                    engagement_id TEXT PRIMARY KEY, status TEXT
+                );
+                CREATE TABLE territory_conflict_engagement_members (
+                    engagement_id TEXT, conflict_id TEXT, front_id TEXT
                 );
                 CREATE TABLE ghost_cycles (
                     cycle_id TEXT PRIMARY KEY, status TEXT, state_version INTEGER, updated_at TEXT
@@ -299,6 +326,65 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
         self.assertTrue(city["relocation"]["applied"])
         self.assertEqual([], city["collisions"])
 
+    def test_collision_preview_uses_existing_subject_pillars_and_worker_geometry(self):
+        center = {"city": "Tokio", "lat": 35.6762, "lng": 139.6503}
+        targets = tool.recovery_targets("preview-plan", center)
+        old_targets = [
+            {
+                "target_id": "old-tokio-pillar-a", "lat": 35.7200,
+                "lng": 139.6400, "label": "old-a", "stationary": True,
+            },
+            {
+                "target_id": "old-tokio-pillar-b", "lat": 35.7400,
+                "lng": 139.6600, "label": "old-b", "stationary": True,
+            },
+            {
+                "target_id": "old-tokio-pillar-c", "lat": 35.7700,
+                "lng": 139.6400, "label": "old-c", "stationary": True,
+            },
+        ]
+        foreign_polygon = [
+            {"lat": 35.725, "lng": 139.645},
+            {"lat": 35.725, "lng": 139.655},
+            {"lat": 35.735, "lng": 139.655},
+            {"lat": 35.735, "lng": 139.645},
+        ]
+        with self.connect() as conn:
+            for old_target in old_targets:
+                conn.execute(
+                    "INSERT INTO captured_targets "
+                    "(owner_username, stationary, updated_at, lat, lng, label, name, icon, "
+                    "source_type, generated, target_json, captured_at) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        tool.CANONICAL_USERNAME, 1, "2026-02-03",
+                        old_target["lat"], old_target["lng"],
+                        old_target["label"], old_target["label"], "", "scan", 0,
+                        tool.canonical_json(old_target), "2026-02-03",
+                    ),
+                )
+            conn.execute(
+                "INSERT INTO player_areas "
+                "(owner_username, vertices_json, area_size, status, updated_at) "
+                "VALUES (?,?,?,?,?)",
+                ("pies1", tool.canonical_json(foreign_polygon), 1, "active", "2026-02-03"),
+            )
+        with tool.readonly_connection(self.db_path) as conn:
+            preview = tool.canonical_subject_area_preview(conn, targets)
+            findings = tool.collision_findings(conn, targets)
+        self.assertTrue(preview)
+        self.assertIn(
+            "canonical_worker_area_conflict:pies1",
+            {item["reason"] for item in findings},
+        )
+        plan = self.build_plan()
+        self.assertFalse(plan["ready_for_dry_run"])
+        self.assertIn("level_50_existing_geometry_conflict", plan["blockers"])
+        self.assertEqual(
+            "level_50_existing_geometry_conflict",
+            plan["territory_recovery"]["cities"][0]["relocation"]["reason"],
+        )
+
     def test_tampered_plan_signature_is_rejected(self):
         plan = self.build_plan()
         plan["final_state"]["wallet_balance"] += 1
@@ -464,6 +550,163 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
             self.assertEqual(0, conn.execute(
                 "SELECT COUNT(*) FROM captured_targets WHERE source_type='sprint_130_11_recovery'"
             ).fetchone()[0])
+
+    def test_exact_worker_projection_is_accepted_for_guarded_conflict_cleanup(self):
+        plan, manifest = self.start_recovery()
+        self.complete_recovery_jobs(plan)
+        with self.connect() as conn:
+            receipt = tool.recovery_receipt(conn, plan["plan_id"])
+            before_profile = json.loads(manifest["records"]["users"][0]["profile_json"])
+            receipt_profile = tool.canonical_profile_overlay(
+                conn, tool.CANONICAL_USERNAME, before_profile, 1000,
+                exclude_recovery_plan_id=plan["plan_id"],
+            )
+            receipt_profile["level"] = tool.RECOVERY_LEVEL
+            self.assertEqual(
+                receipt["current_profile_checksum"],
+                tool.profile_checksum(receipt_profile),
+            )
+            projected = tool.canonical_profile_overlay(
+                conn, tool.CANONICAL_USERNAME, receipt_profile, 1000
+            )
+            projected["captured_targets_source"] = "sqlite"
+            stats, exp = tool.territory_stats_snapshot(
+                conn, tool.RECOVERY_LEVEL, base_profile=projected
+            )
+            projected["territory_stats"] = stats
+            projected["exp"] = exp
+            conn.execute(
+                "UPDATE users SET profile_json=?, profile_revision=?, profile_checksum=? "
+                "WHERE username=?",
+                (
+                    tool.canonical_json(projected),
+                    int(receipt["current_profile_revision"]) + 1,
+                    tool.profile_checksum(projected),
+                    tool.CANONICAL_USERNAME,
+                ),
+            )
+            target = plan["territory_recovery"]["cities"][0]["targets"][0]
+            conflict_id = "territory_conflict_recovery_test"
+            conn.execute(
+                "INSERT INTO territory_conflicts "
+                "(conflict_id, participants_json, targets_json, intersections_json, "
+                "intersection_json, status, conflict_version, geometry_status, "
+                "source_event, last_actor_username, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,'active',1,'clean','sprint_130_11_recovery',?,?,?)",
+                (
+                    conflict_id, tool.canonical_json(["pies1", tool.CANONICAL_USERNAME]),
+                    tool.canonical_json([{"target": target}]), "[]", "[]",
+                    tool.CANONICAL_USERNAME, "9999-01-01", "9999-01-01",
+                ),
+            )
+            conn.execute(
+                "INSERT INTO territory_conflict_pillars "
+                "(conflict_id,target_id,status,captured,public_target_json) "
+                "VALUES (?,?, 'contested',0,?)",
+                (conflict_id, "canonical-derived-id", tool.canonical_json({"target": target})),
+            )
+            conn.execute(
+                "INSERT INTO territory_conflict_rebuilds "
+                "(conflict_id,requested_version,status,reason,requested_at,updated_at) "
+                "VALUES (?,1,'complete','recovery','9999-01-01','9999-01-01')",
+                (conflict_id,),
+            )
+            conn.execute(
+                "INSERT INTO territory_conflict_fronts VALUES (?,?, 'active')",
+                ("front-recovery", conflict_id),
+            )
+            conn.execute(
+                "INSERT INTO territory_conflicts "
+                "(conflict_id, participants_json, targets_json, intersections_json, "
+                "intersection_json, status, conflict_version, geometry_status, "
+                "source_event, last_actor_username, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,'active',1,'clean','ordinary_gameplay',?,?,?)",
+                (
+                    "preexisting-unrelated-conflict",
+                    tool.canonical_json(["old-opponent", tool.CANONICAL_USERNAME]),
+                    "[]", "[]", "[]", "old-opponent", "0001-01-01", "0001-01-01",
+                ),
+            )
+        with tool.readonly_connection(self.db_path) as conn:
+            assessment = tool.recovery_worker_projection_assessment(
+                conn, plan, manifest
+            )
+            verification = tool.verify_recovery(conn, plan, manifest)
+        self.assertTrue(assessment["recognized"])
+        self.assertTrue(verification["recognized_worker_projection"]["recognized"])
+        self.assertIn(
+            "recovery_created_conflict:" + conflict_id,
+            verification["blockers"],
+        )
+        with self.assertRaisesRegex(
+            tool.RecoveryGateError, "Recovery-created conflict blocks final settlement"
+        ):
+            tool.final_settlement(self.db_path, plan)
+
+        rolled_back = tool.rollback_recovery(self.db_path, plan, manifest)
+        self.assertTrue(rolled_back["recognized_worker_projection"]["recognized"])
+        self.assertEqual([conflict_id], rolled_back["conflict_cleanup"]["conflict_ids"])
+        with self.connect() as conn:
+            conflict = conn.execute(
+                "SELECT status, source_event FROM territory_conflicts WHERE conflict_id=?",
+                (conflict_id,),
+            ).fetchone()
+            self.assertEqual("changing", conflict["status"])
+            self.assertEqual("sprint_130_11_rollback", conflict["source_event"])
+            self.assertEqual("pending", conn.execute(
+                "SELECT status FROM territory_conflict_rebuilds WHERE conflict_id=?",
+                (conflict_id,),
+            ).fetchone()[0])
+            self.assertIsNotNone(tool.recovery_step(
+                conn, plan["plan_id"], "worker_profile_projection"
+            ))
+            conn.execute(
+                "UPDATE territory_rebuild_jobs SET status='complete', error='' "
+                "WHERE job_id=?",
+                (rolled_back["territory_rebuild_job_id"],),
+            )
+            conn.execute(
+                "UPDATE territory_conflicts SET status='resolved', "
+                "geometry_status='clean' WHERE conflict_id=?",
+                (conflict_id,),
+            )
+            conn.execute(
+                "UPDATE territory_conflict_rebuilds SET status='complete' "
+                "WHERE conflict_id=?",
+                (conflict_id,),
+            )
+            conn.execute(
+                "UPDATE territory_conflict_fronts SET status='closed' "
+                "WHERE conflict_id=?",
+                (conflict_id,),
+            )
+        with tool.readonly_connection(self.db_path) as conn:
+            rollback_verification = tool.verify_rollback(conn, plan, manifest)
+        self.assertTrue(rollback_verification["ok"])
+        self.assertEqual("rolled_back", rollback_verification["receipt_status"])
+
+    def test_unrelated_profile_change_is_not_accepted_as_worker_projection(self):
+        plan, manifest = self.start_recovery()
+        self.complete_recovery_jobs(plan)
+        with self.connect() as conn:
+            row = tool.exact_user_row(conn)
+            profile = json.loads(row["profile_json"])
+            profile["nick"] = "later-gameplay"
+            conn.execute(
+                "UPDATE users SET profile_json=?, profile_revision=profile_revision+1, "
+                "profile_checksum=? WHERE username=?",
+                (
+                    tool.canonical_json(profile), tool.profile_checksum(profile),
+                    tool.CANONICAL_USERNAME,
+                ),
+            )
+        with tool.readonly_connection(self.db_path) as conn:
+            assessment = tool.recovery_worker_projection_assessment(
+                conn, plan, manifest
+            )
+        self.assertFalse(assessment["recognized"])
+        with self.assertRaises(tool.RecoveryGateError):
+            tool.rollback_recovery(self.db_path, plan, manifest)
 
 
 

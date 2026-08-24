@@ -2,7 +2,71 @@
 
 Data planu: 2026-08-21.
 
-Status: `READY FOR SERVER DRY-RUN / OPERATOR APPLY — IMPLEMENTATION COMPLETE, SERVER STATE UNCHANGED`.
+Status: `NO-GO — PARTIAL SERVER APPLY FROZEN; CONTROLLED ROLLBACK READY LOCALLY`.
+
+## Server apply finding i korekta — 2026-08-23
+
+Pierwszy operatorski apply zatrzymał się przed settlementem, ale ujawnił dwie
+niezgodności planera z runtime:
+
+- plan sprawdzał wyłącznie obwiednię ośmiu nowych filarów. Worker odbudował
+  wszystkie istniejące stationary targets konta przy odzyskanym poziomie 50 i
+  utworzył trzy kanoniczne obszary; jeden z nich utworzył konflikt
+  `territory_conflict_26409afa48525665` z `pies1`;
+- level step zapisał revision 2, a conflict finalizer wykonał kanoniczną
+  projekcję `hacked/captured_targets_source/territory_stats/exp`, podnosząc profil
+  do revision 3. Receipt nadal wskazywał revision 2 i prawidłowo blokował dalszy
+  settlement.
+
+Nie wykonano RSP, wallet settlementu ani promocji LKG. GhostNetwork nie jest
+przedmiotem tej poprawki.
+
+Korekta wprowadza jeden lekki, współdzielony `territory_geometry.py`. Zarówno
+`TerritoryStore`, jak i recovery planner używają teraz tego samego kontraktu:
+connected groups, próg `300 m × level`, triangle clustering, fallback hull oraz
+ten sam test przecięcia polygonów. Preview obejmuje stare i nowe filary, jest
+checksumowany w planie i ponownie liczony przed apply.
+
+Read-only preview na snapshocie serwerowym wykazał dodatkowy fakt: nawet bez
+ośmiu nowych filarów istniejące targety `trolu2` po zmianie levelu z 2 na 50
+tworzą dwa obszary, z których warszawski przecina terytoria innych graczy. Nie
+jest to problem możliwy do usunięcia relokacją bonusu Tokio. Nowy planner zwraca
+więc `level_50_existing_geometry_conflict` i `NO-GO`, zamiast podpisać plan, który
+worker zamieni w konflikt.
+
+Rollback obecnego częściowego apply:
+
+- akceptuje revision 3 tylko wtedy, gdy z before-manifestu, canonical stores,
+  zakończonego recovery joba i dozwolonych czterech pól można odtworzyć dokładnie
+  aktualny checksum; wymaga dokładnie `revision + 1` i niezmienionego walletu;
+- każdą inną zmianę profilu traktuje jako późniejszy gameplay i odmawia;
+- usuwa wyłącznie granty posiadające exact `recovery_plan_id`, przywraca profil
+  przez CAS i zachowuje wallet/LKG w stanie sprzed apply;
+- identyfikuje błędny konflikt po source, czasie, aktorze oraz nowych area IDs lub
+  recovery targets; captured pillar, action receipt albo aktywny multi-engagement
+  blokuje rollback;
+- zachowuje historię konfliktu i kieruje go do kanonicznej publikacji
+  `no_active_fronts`; `verify-rollback` wymaga statusu resolved/closed, zera
+  aktywnych frontów oraz terminalnych jobów;
+- recovery-owned conflict i rollback publication są profile-neutralne dla obu
+  uczestników. Nie mogą ponownie podbić revision profilu przeciwnika ani subjectu,
+  uruchomić encirclement ani utworzyć reward/progression receipt za techniczne
+  zamknięcie konfliktu.
+
+`apply` nie może wykonać final settlementu, jeżeli istnieje otwarty konflikt ze
+source `sprint_130_11_recovery`. CLI `verify` wymaga teraz signed
+`--before-manifest`, aby rozpoznać dokładną projekcję workera i jednocześnie
+raportować konflikt jako blocker.
+
+Końcowa regresja poprawki: `376/376 OK` dla recovery, territory/control,
+conflict identity/cutover/engagement/multi, progression receipts, Target
+Persistence oraz GN territory jobs. `py_compile` i `git diff --check`: OK.
+
+Po kontrolowanym rollbacku należy ponownie wykonać `status → audit → plan`.
+Oczekiwany wynik na niezmienionej topologii targetów to jawny
+`level_50_existing_geometry_conflict`. Dalszy plan wymaga osobnej decyzji o
+kanonicznym traktowaniu istniejących filarów przy skoku do levelu 50; recovery
+nie może ich usuwać, przenosić ani omijać bez takiej decyzji.
 
 ## Stan rozpoczęcia — 2026-08-23
 
@@ -67,7 +131,40 @@ Regresja:
 - profile/session/wallet/target/territory/GN: `441/441 OK`;
 - `py_compile` oraz `git diff --check`: OK.
 
-## Gotowa sekwencja operatorska
+## Aktualna sekwencja operatorska — wycofanie partial apply
+
+Po wdrożeniu tej poprawki nie wolno ponawiać starego `apply`, uruchamiać
+`promote-lkg` ani wykonywać settlementu. Dla istniejących artefaktów
+`/home/johndoe/chaos-recovery-13011-20260823T200943Z` należy wykonać:
+
+```bash
+cd /home/johndoe/app/chaos
+RECOVERY_DIR='/home/johndoe/chaos-recovery-13011-20260823T200943Z'
+PLAN="$RECOVERY_DIR/plan.json"
+BEFORE="$RECOVERY_DIR/before-manifest.json"
+OPERATOR="$(whoami)"
+
+PLAN_SHA="$(.venv/bin/python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["plan_sha256"])' "$PLAN")"
+MANIFEST_SHA="$(.venv/bin/python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["manifest_sha256"])' "$BEFORE")"
+
+.venv/bin/python tools/repair_trollu2_profile.py verify --db data/game.sqlite3 --plan "$PLAN" --before-manifest "$BEFORE" | tee "$RECOVERY_DIR/verify-pre-rollback.json"
+.venv/bin/python tools/repair_trollu2_profile.py rollback --db data/game.sqlite3 --plan "$PLAN" --before-manifest "$BEFORE" --plan-sha256 "$PLAN_SHA" --manifest-sha256 "$MANIFEST_SHA" --write --authorized-by "$OPERATOR" | tee "$RECOVERY_DIR/rollback.json"
+pm2 logs chaos-territory-worker --lines 150 --nostream
+.venv/bin/python tools/repair_trollu2_profile.py verify-rollback --db data/game.sqlite3 --plan "$PLAN" --before-manifest "$BEFORE" | tee "$RECOVERY_DIR/verify-rollback.json"
+```
+
+Pierwszy `verify` ma nadal zakończyć się `NO-GO`, ale musi rozpoznać
+`exact_recovery_owned_worker_projection` i wskazać wyłącznie bezpiecznie
+atrybuowany recovery conflict. Jeżeli rollback zgłosi gameplay, aktywny
+multi-engagement albo obcą zmianę profilu/walletu/ownership, operator kończy
+procedurę bez ręcznego czyszczenia. `verify-rollback` uruchamia się ponownie po
+zakończeniu obu jobów workera, jeżeli pierwszy odczyt pokaże stan `pending`.
+
+Po zielonym rollback verify wolno wykonać tylko nowy read-only
+`status → audit → plan`. Na niezmienionych targetach plan ma zwrócić
+`level_50_existing_geometry_conflict`; nie wolno przechodzić do `backup/apply`.
+
+## Sekwencja docelowego recovery — wstrzymana przez blocker geometrii
 
 Po własnym commit/deploy/pull operator przeładowuje oba procesy z wersjonowanych
 ecosystemów, zanim wygeneruje plan:
@@ -109,8 +206,8 @@ Dopiero wtedy operator uruchamia apply:
 .venv/bin/python tools/repair_trollu2_profile.py apply --db data/game.sqlite3 --plan "$PLAN" --before-manifest "$BEFORE" --plan-sha256 "$PLAN_SHA" --manifest-sha256 "$MANIFEST_SHA" --write --authorized-by "$OPERATOR" | tee "$RECOVERY_DIR/apply-1.json"
 pm2 logs chaos-territory-worker --lines 100 --nostream
 .venv/bin/python tools/repair_trollu2_profile.py apply --db data/game.sqlite3 --plan "$PLAN" --before-manifest "$BEFORE" --plan-sha256 "$PLAN_SHA" --manifest-sha256 "$MANIFEST_SHA" --write --authorized-by "$OPERATOR" | tee "$RECOVERY_DIR/apply-2.json"
-.venv/bin/python tools/repair_trollu2_profile.py verify --db data/game.sqlite3 --plan "$PLAN" | tee "$RECOVERY_DIR/verify-before-manual.json"
-.venv/bin/python tools/repair_trollu2_profile.py report --db data/game.sqlite3 --plan "$PLAN" | tee "$RECOVERY_DIR/report-before-manual.json"
+.venv/bin/python tools/repair_trollu2_profile.py verify --db data/game.sqlite3 --plan "$PLAN" --before-manifest "$BEFORE" | tee "$RECOVERY_DIR/verify-before-manual.json"
+.venv/bin/python tools/repair_trollu2_profile.py report --db data/game.sqlite3 --plan "$PLAN" --before-manifest "$BEFORE" | tee "$RECOVERY_DIR/report-before-manual.json"
 ```
 
 Pierwszy apply może legalnie zakończyć się kodem `3` z
@@ -124,8 +221,8 @@ Po pozytywnym manualu:
 ```bash
 FINAL_SHA="$(.venv/bin/python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["profile"]["checksum"])' "$RECOVERY_DIR/verify-before-manual.json")"
 .venv/bin/python tools/repair_trollu2_profile.py promote-lkg --db data/game.sqlite3 --plan "$PLAN" --plan-sha256 "$PLAN_SHA" --final-checksum "$FINAL_SHA" --write --authorized-by "$OPERATOR" | tee "$RECOVERY_DIR/promote-lkg.json"
-.venv/bin/python tools/repair_trollu2_profile.py verify --db data/game.sqlite3 --plan "$PLAN" | tee "$RECOVERY_DIR/verify-final.json"
-.venv/bin/python tools/repair_trollu2_profile.py report --db data/game.sqlite3 --plan "$PLAN" | tee "$RECOVERY_DIR/report-final.json"
+.venv/bin/python tools/repair_trollu2_profile.py verify --db data/game.sqlite3 --plan "$PLAN" --before-manifest "$BEFORE" | tee "$RECOVERY_DIR/verify-final.json"
+.venv/bin/python tools/repair_trollu2_profile.py report --db data/game.sqlite3 --plan "$PLAN" --before-manifest "$BEFORE" | tee "$RECOVERY_DIR/report-final.json"
 ```
 
 Rollback nie jest elementem normalnego przebiegu. Jeżeli verify/manual wykryje
@@ -133,6 +230,7 @@ blocker i nie było późniejszego gameplayu na profilu, walletcie ani terytoriu
 
 ```bash
 .venv/bin/python tools/repair_trollu2_profile.py rollback --db data/game.sqlite3 --plan "$PLAN" --before-manifest "$BEFORE" --plan-sha256 "$PLAN_SHA" --manifest-sha256 "$MANIFEST_SHA" --write --authorized-by "$OPERATOR"
+.venv/bin/python tools/repair_trollu2_profile.py verify-rollback --db data/game.sqlite3 --plan "$PLAN" --before-manifest "$BEFORE"
 ```
 
 Incydent źródłowy:
@@ -276,15 +374,15 @@ python tools/repair_trollu2_profile.py plan --db data/game.sqlite3 --output /tmp
 python tools/repair_trollu2_profile.py dry-run --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json
 python tools/repair_trollu2_profile.py backup --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json --output /tmp/trollu2-before-manifest.json
 python tools/repair_trollu2_profile.py apply --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json --before-manifest /tmp/trollu2-before-manifest.json --plan-sha256 <PLAN_SHA256> --manifest-sha256 <MANIFEST_SHA256> --write --authorized-by <OPERATOR>
-python tools/repair_trollu2_profile.py verify --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json
+python tools/repair_trollu2_profile.py verify --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json --before-manifest /tmp/trollu2-before-manifest.json
 ```
 
 Dopiero po pozytywnym manualu:
 
 ```bash
 python tools/repair_trollu2_profile.py promote-lkg --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json --plan-sha256 <PLAN_SHA256> --final-checksum <FINAL_SHA256> --write --authorized-by <OPERATOR>
-python tools/repair_trollu2_profile.py verify --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json
-python tools/repair_trollu2_profile.py report --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json
+python tools/repair_trollu2_profile.py verify --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json --before-manifest /tmp/trollu2-before-manifest.json
+python tools/repair_trollu2_profile.py report --db data/game.sqlite3 --plan /tmp/trollu2-recovery-plan.json --before-manifest /tmp/trollu2-before-manifest.json
 ```
 
 `rollback` jest osobną akcją awaryjną po analizie nieudanego apply, a nie

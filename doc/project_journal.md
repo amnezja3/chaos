@@ -1158,3 +1158,28 @@
   `git diff --check` OK.
 - Status: `READY FOR SERVER DRY-RUN / OPERATOR APPLY`; produkcyjna baza nie
   została zmieniona, nie wykonano commita ani deployu.
+
+## 2026-08-23 - Sprint 130.11: server apply blocker i controlled rollback
+
+- Serwerowy worker po częściowym apply utworzył konflikt
+  `territory_conflict_26409afa48525665` z `pies1`, mimo że stary dry-run
+  raportował `collisions=[]`. Settlement RSP/wallet/LKG nie został wykonany.
+- Root cause: planner sprawdzał tylko polygon nowych filarów, natomiast worker
+  budował kanoniczne klastry ze wszystkich stationary targets przy levelu 50.
+  Konflikt pochodzi z geometrii istniejących targetów rozszerzonej przez zmianę
+  poziomu, więc sama relokacja bonusu Tokio nie może go usunąć.
+- Wydzielono czysty `territory_geometry.py`; runtime i recovery używają teraz
+  wspólnego algorytmu obszarów oraz przecięć. Plan przechowuje checksum preview i
+  fail-closed raportuje `level_50_existing_geometry_conflict`.
+- Receipt rozpoznaje wyłącznie dokładną recovery-owned projekcję revision +1.
+  Każdy inny checksum, wallet drift, pending progression, capture/action w
+  konflikcie albo multi-engagement blokuje rollback.
+- Controlled rollback usuwa tylko granty planu, przywraca profil przez CAS i
+  kieruje błędny konflikt do kanonicznego `no_active_fronts`. Dodano osobne
+  `verify-rollback`; final settlement jest blokowany przez każdy otwarty konflikt
+  utworzony przez recovery.
+- Regresja recovery i territory: `376/376 OK`; `py_compile` i końcowy pełny
+  zestaw testów pozostają bramką przed przekazaniem komend operatorskich.
+- Status: `NO-GO — partial apply frozen; controlled rollback pending on server`.
+- Techniczne zamknięcie recovery conflict jest profile-neutralne i reward-neutralne:
+  nie uruchamia participant rebuild, encirclement ani strategic progression receipt.

@@ -22,6 +22,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from territory_geometry import (
+    build_player_areas as build_canonical_player_areas,
+    point_in_polygon as canonical_point_in_polygon,
+    polygons_intersect as canonical_polygons_intersect,
+)
+
 
 TOOL_VERSION = "130.11.1-controlled-recovery"
 REPORTED_LOGIN = "Trollu2"
@@ -33,7 +43,12 @@ PILLARS_PER_CITY = 8
 PILLAR_RING_RADIUS_M = 1_200.0
 TARGET_CLEARANCE_M = 100.0
 GN_CLEARANCE_M = 500.0
-ROOT = Path(__file__).resolve().parents[1]
+TERRITORY_MAX_EXACT_AREA_TARGETS = int(
+    os.environ.get("CHAOS_TERRITORY_EXACT_TARGET_LIMIT", "32")
+)
+TERRITORY_MAX_EXACT_AREA_TRIANGLES = int(
+    os.environ.get("CHAOS_TERRITORY_EXACT_TRIANGLE_LIMIT", "1200")
+)
 RECOVERY_RECEIPTS_TABLE = "trollu2_recovery_receipts"
 RECOVERY_STEPS_TABLE = "trollu2_recovery_steps"
 
@@ -201,7 +216,8 @@ def validate_profile_contract(profile: dict[str, Any], username: str) -> list[st
 
 
 def canonical_profile_overlay(
-    conn: sqlite3.Connection, username: str, profile: dict[str, Any], wallet_balance: int
+    conn: sqlite3.Connection, username: str, profile: dict[str, Any], wallet_balance: int,
+    *, exclude_recovery_plan_id: str = "",
 ) -> dict[str, Any]:
     candidate = copy.deepcopy(profile)
     candidate["hackcoins"] = int(wallet_balance)
@@ -241,6 +257,11 @@ def canonical_profile_overlay(
         (username,),
     ):
         target = loads_object(row["target_json"])
+        if (
+            exclude_recovery_plan_id
+            and target.get("recovery_plan_id") == exclude_recovery_plan_id
+        ):
+            continue
         if target:
             captured.append(target)
     candidate["hacked"] = captured
@@ -694,24 +715,10 @@ def destination(lat: float, lng: float, distance_m: float, bearing_deg: float) -
 
 
 def point_in_polygon(lat: float, lng: float, vertices: list[dict[str, Any]]) -> bool:
-    points = []
-    for vertex in vertices:
-        try:
-            points.append((float(vertex["lat"]), float(vertex.get("lng", vertex.get("lon")))))
-        except (KeyError, TypeError, ValueError):
-            return False
-    if len(points) < 3:
+    try:
+        return canonical_point_in_polygon(float(lat), float(lng), vertices)
+    except (KeyError, TypeError, ValueError):
         return False
-    inside = False
-    j = len(points) - 1
-    for i, (yi, xi) in enumerate(points):
-        yj, xj = points[j]
-        if (xi > lng) != (xj > lng):
-            crossing = (yj - yi) * (lng - xi) / ((xj - xi) or 1e-12) + yi
-            if lat < crossing:
-                inside = not inside
-        j = i
-    return inside
 
 
 def normalized_polygon(vertices: list[dict[str, Any]]) -> list[tuple[float, float]]:
@@ -736,19 +743,10 @@ def segments_intersect(
 
 
 def polygons_overlap(first: list[dict[str, Any]], second: list[dict[str, Any]]) -> bool:
-    a = normalized_polygon(first)
-    b = normalized_polygon(second)
-    if not a or not b:
+    try:
+        return canonical_polygons_intersect(first, second)
+    except (KeyError, TypeError, ValueError):
         return False
-    if point_in_polygon(a[0][0], a[0][1], second) or point_in_polygon(b[0][0], b[0][1], first):
-        return True
-    for index, start in enumerate(a):
-        end = a[(index + 1) % len(a)]
-        for other_index, other_start in enumerate(b):
-            other_end = b[(other_index + 1) % len(b)]
-            if segments_intersect(start, end, other_start, other_end):
-                return True
-    return False
 
 
 def recovery_targets(plan_id: str, city: dict[str, Any]) -> list[dict[str, Any]]:
@@ -771,6 +769,43 @@ def recovery_targets(plan_id: str, city: dict[str, Any]) -> list[dict[str, Any]]
     return result
 
 
+def canonical_subject_area_preview(
+    conn: sqlite3.Connection, targets: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Preview the worker result from all existing and proposed pillars."""
+    material = []
+    for row in conn.execute(
+        "SELECT lat, lng, target_json FROM captured_targets "
+        "WHERE owner_username=? AND stationary=1 ORDER BY id",
+        (CANONICAL_USERNAME,),
+    ):
+        target = loads_object(row["target_json"])
+        target.setdefault("lat", float(row["lat"]))
+        target.setdefault("lng", float(row["lng"]))
+        material.append(target)
+    material.extend(copy.deepcopy(targets or []))
+    return build_canonical_player_areas(
+        material,
+        RECOVERY_LEVEL,
+        max_exact_area_targets=TERRITORY_MAX_EXACT_AREA_TARGETS,
+        max_exact_area_triangles=TERRITORY_MAX_EXACT_AREA_TRIANGLES,
+    )
+
+
+def canonical_area_preview_summary(areas: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "area_count": len(areas or []),
+        "geometry_sha256": digest([
+            {
+                "vertices": area.get("vertices") or [],
+                "area_size": area.get("area_size"),
+                "max_edge_distance": area.get("max_edge_distance"),
+            }
+            for area in (areas or [])
+        ]),
+    }
+
+
 def collision_findings(conn: sqlite3.Connection, targets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     findings = []
     existing_targets = list(conn.execute(
@@ -787,7 +822,7 @@ def collision_findings(conn: sqlite3.Connection, targets: list[dict[str, Any]]) 
         "WHERE status NOT IN ('resolved','closed')"
     ).fetchall()
     ghost = ghostnetwork_evidence(conn)
-    planned_polygon = [{"lat": target["lat"], "lng": target["lng"]} for target in targets]
+    planned_areas = canonical_subject_area_preview(conn, targets)
     for target in targets:
         for row in existing_targets:
             if haversine_m(target["lat"], target["lng"], float(row["lat"]), float(row["lng"])) < TARGET_CLEARANCE_M:
@@ -809,22 +844,51 @@ def collision_findings(conn: sqlite3.Connection, targets: list[dict[str, Any]]) 
     for row in existing_targets:
         if str(row["owner_username"] or "") == CANONICAL_USERNAME:
             continue
-        if point_in_polygon(float(row["lat"]), float(row["lng"]), planned_polygon):
-            findings.append({"target_id": "__city__", "reason": "foreign_target_inside_recovery_polygon"})
+        if any(
+            point_in_polygon(
+                float(row["lat"]), float(row["lng"]), area.get("vertices") or []
+            )
+            for area in planned_areas
+        ):
+            findings.append({
+                "target_id": "__city__",
+                "reason": "foreign_target_inside_canonical_worker_area",
+            })
             break
     for row in areas:
+        if str(row["owner_username"] or "") == CANONICAL_USERNAME:
+            continue
         vertices = loads_list(row["vertices_json"])
-        if polygons_overlap(planned_polygon, vertices):
-            findings.append({"target_id": "__city__", "reason": "existing_territory_polygon_overlap"})
+        if any(
+            polygons_overlap(area.get("vertices") or [], vertices)
+            for area in planned_areas
+        ):
+            findings.append({
+                "target_id": "__city__",
+                "reason": "canonical_worker_area_conflict:" + str(row["owner_username"] or "unknown"),
+            })
             break
     for row in conflicts:
         polygons = loads_list(row["intersections_json"]) or [loads_list(row["intersection_json"])]
-        if any(polygons_overlap(planned_polygon, polygon) for polygon in polygons if isinstance(polygon, list)):
+        if any(
+            polygons_overlap(area.get("vertices") or [], polygon)
+            for area in planned_areas
+            for polygon in polygons
+            if isinstance(polygon, list)
+        ):
             findings.append({"target_id": "__city__", "reason": "active_conflict_polygon_overlap"})
             break
     for anchor in ghost["anchors"]:
-        if point_in_polygon(float(anchor["lat"]), float(anchor["lng"]), planned_polygon):
-            findings.append({"target_id": "__city__", "reason": "ghost_part_inside_recovery_polygon"})
+        if any(
+            point_in_polygon(
+                float(anchor["lat"]), float(anchor["lng"]), area.get("vertices") or []
+            )
+            for area in planned_areas
+        ):
+            findings.append({
+                "target_id": "__city__",
+                "reason": "ghost_part_inside_canonical_worker_area",
+            })
             break
     unique = {(item["target_id"], item["reason"]): item for item in findings}
     return [unique[key] for key in sorted(unique)]
@@ -834,7 +898,10 @@ def choose_recovery_city(
     conn: sqlite3.Connection, plan_id: str, evidence: dict[str, Any]
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     offsets = [(0.0, 0.0)]
-    for distance_m in (3_000.0, 6_000.0, 9_000.0, 12_000.0):
+    for distance_m in (
+        3_000.0, 6_000.0, 9_000.0, 12_000.0, 15_000.0,
+        20_000.0, 30_000.0, 45_000.0, 60_000.0,
+    ):
         offsets.extend((distance_m, bearing) for bearing in range(0, 360, 45))
     last_targets = []
     last_collisions = []
@@ -889,8 +956,24 @@ def build_plan(conn: sqlite3.Connection, db_path: str) -> dict[str, Any]:
     plan_id = "trollu2_recovery_" + digest(identity_seed)[:20]
     cities = []
     all_targets = []
+    level_only_collisions = collision_findings(conn, [])
     for evidence in audit["googleplex"]["cities"]:
-        relocation, targets, collisions = choose_recovery_city(conn, plan_id, evidence)
+        if level_only_collisions:
+            targets = recovery_targets(plan_id, evidence)
+            collisions = collision_findings(conn, targets)
+            relocation = {
+                "applied": False,
+                "blocked": True,
+                "reason": "level_50_existing_geometry_conflict",
+                "evidence_center": {
+                    "lat": evidence["lat"], "lng": evidence["lng"],
+                },
+            }
+        else:
+            relocation, targets, collisions = choose_recovery_city(
+                conn, plan_id, evidence
+            )
+        canonical_preview = canonical_subject_area_preview(conn, targets)
         cities.append({
             "city": evidence["city"],
             "center": {"lat": evidence["lat"], "lng": evidence["lng"]},
@@ -899,11 +982,14 @@ def build_plan(conn: sqlite3.Connection, db_path: str) -> dict[str, Any]:
             "pillar_count": len(targets),
             "rebuild_job_id": recovery_job_id(plan_id, evidence["city"]),
             "targets": targets,
+            "canonical_worker_preview": canonical_area_preview_summary(canonical_preview),
             "collisions": collisions,
             "ready": not collisions,
         })
         all_targets.extend(targets)
     blockers = [f"city_collision:{city['city']}" for city in cities if city["collisions"]]
+    if level_only_collisions:
+        blockers.append("level_50_existing_geometry_conflict")
     plan = {
         "tool_version": TOOL_VERSION,
         "plan_version": 1,
@@ -949,6 +1035,7 @@ def build_plan(conn: sqlite3.Connection, db_path: str) -> dict[str, Any]:
         "territory_recovery": {
             "cities": cities,
             "total_pillars": len(all_targets),
+            "level_50_existing_geometry_collisions": level_only_collisions,
             "grant_contract": "ownership+captured_target+rebuild_job+step_receipt_one_transaction",
             "polygon_write": False,
             "gameplay_progression_receipt": False,
@@ -1173,6 +1260,11 @@ def validate_plan_against_current(conn: sqlite3.Connection, db_path: str, plan: 
     blockers = list(current["blockers"])
     blockers.extend(key for key, failed in checks.items() if failed)
     for city in (plan.get("territory_recovery") or {}).get("cities", []):
+        preview = canonical_area_preview_summary(
+            canonical_subject_area_preview(conn, city.get("targets", []))
+        )
+        if preview != (city.get("canonical_worker_preview") or {}):
+            blockers.append(f"canonical_worker_preview_changed:{city['city']}")
         blockers.extend(
             f"collision:{item['target_id']}:{item['reason']}"
             for item in collision_findings(conn, city.get("targets", []))
@@ -1455,7 +1547,9 @@ def plan_job_status(conn: sqlite3.Connection, plan: dict[str, Any]) -> dict[str,
     return {"job_ids": job_ids, "missing": missing, "incomplete": incomplete, "complete": not missing and not incomplete}
 
 
-def territory_stats_snapshot(conn: sqlite3.Connection, level: int) -> tuple[dict[str, Any], str]:
+def territory_stats_snapshot(
+    conn: sqlite3.Connection, level: int, base_profile: dict[str, Any] | None = None
+) -> tuple[dict[str, Any], str]:
     rows = conn.execute(
         "SELECT id, vertices_json, area_size FROM player_areas "
         "WHERE owner_username=? AND status='active' ORDER BY id",
@@ -1481,17 +1575,15 @@ def territory_stats_snapshot(conn: sqlite3.Connection, level: int) -> tuple[dict
     span_density = edges / max(perimeter / 100.0, 1.0)
     density_multiplier = max(0.05, min(1.0, span_density * max(1, int(level)) * 0.1))
     effective_area = total_area * density_multiplier
-    current = exact_user_row(conn)
-    profile = loads_object(current["profile_json"])
+    profile = copy.deepcopy(base_profile) if base_profile is not None else loads_object(
+        exact_user_row(conn)["profile_json"]
+    )
     stats = copy.deepcopy(profile.get("territory_stats") if isinstance(profile.get("territory_stats"), dict) else {})
     baseline = float(stats.get("area_baseline") or 0)
     if ("effective_area" not in stats or baseline <= 0 or baseline > max(effective_area * 3, 1)) and effective_area > 0:
         baseline = effective_area
     next_level_area = baseline * 1.10 if baseline > 0 else 0
-    captured_count = int(conn.execute(
-        "SELECT COUNT(*) FROM captured_targets WHERE owner_username=?",
-        (CANONICAL_USERNAME,),
-    ).fetchone()[0])
+    captured_count = len(profile.get("hacked") or [])
     stats.update({
         "total_area": round(total_area, 2),
         "effective_area": round(effective_area, 2),
@@ -1510,6 +1602,105 @@ def territory_stats_snapshot(conn: sqlite3.Connection, level: int) -> tuple[dict
     return stats, f"{round(effective_area, 2)} m² efektywne"
 
 
+def recovery_worker_projection_assessment(
+    conn: sqlite3.Connection,
+    plan: dict[str, Any],
+    manifest: dict[str, Any],
+    receipt: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Recognize one exact worker-owned profile projection after recovery."""
+    receipt = receipt or recovery_receipt(conn, plan["plan_id"])
+    if not receipt:
+        return {"recognized": False, "reason": "recovery_receipt_missing"}
+    current_state = profile_state(exact_user_row(conn), include_profile=True)
+    current_profile = current_state.pop("profile")
+    if (
+        current_state["revision"] == int(receipt["current_profile_revision"])
+        and current_state["stored_checksum"] == receipt["current_profile_checksum"]
+        and current_state["checksum_valid"]
+    ):
+        return {
+            "recognized": False,
+            "reason": "profile_already_matches_receipt",
+            "current": current_state,
+        }
+    if receipt["status"] != "awaiting_territory_jobs":
+        return {"recognized": False, "reason": "receipt_not_awaiting_territory_jobs"}
+    if recovery_step(conn, plan["plan_id"], "final_settlement"):
+        return {"recognized": False, "reason": "final_settlement_already_exists"}
+    if not plan_job_status(conn, plan)["complete"]:
+        return {"recognized": False, "reason": "territory_jobs_not_complete"}
+    if current_state["revision"] != int(receipt["current_profile_revision"]) + 1:
+        return {"recognized": False, "reason": "projection_revision_delta_not_one"}
+    if not current_state["checksum_valid"] or current_state["integrity_status"] != "valid":
+        return {"recognized": False, "reason": "current_profile_integrity_invalid"}
+    wallet = conn.execute(
+        "SELECT balance, version FROM wallet_balances WHERE username=?",
+        (CANONICAL_USERNAME,),
+    ).fetchone()
+    if (
+        not wallet
+        or int(wallet["version"] or 0) != int(receipt["current_wallet_version"])
+        or int(wallet["balance"] or 0) != int(plan["preconditions"]["wallet_balance"])
+    ):
+        return {"recognized": False, "reason": "wallet_changed_during_worker_projection"}
+    pending_progression = int(conn.execute(
+        "SELECT COUNT(*) FROM territory_progression_receipts "
+        "WHERE actor_username=? AND status='pending'",
+        (CANONICAL_USERNAME,),
+    ).fetchone()[0])
+    if pending_progression:
+        return {"recognized": False, "reason": "pending_gameplay_progression_receipts"}
+
+    before_user = dict(manifest["records"]["users"][0])
+    before_profile = loads_object(before_user.get("profile_json"))
+    if profile_checksum(before_profile) != str(before_user.get("profile_checksum") or ""):
+        return {"recognized": False, "reason": "before_manifest_profile_invalid"}
+    receipt_profile = canonical_profile_overlay(
+        conn,
+        CANONICAL_USERNAME,
+        before_profile,
+        int(wallet["balance"] or 0),
+        exclude_recovery_plan_id=plan["plan_id"],
+    )
+    receipt_profile["level"] = RECOVERY_LEVEL
+    reconstructed_checksum = profile_checksum(receipt_profile)
+    if reconstructed_checksum != receipt["current_profile_checksum"]:
+        return {
+            "recognized": False,
+            "reason": "receipt_profile_cannot_be_reconstructed",
+            "reconstructed_checksum": reconstructed_checksum,
+        }
+
+    expected_profile = canonical_profile_overlay(
+        conn, CANONICAL_USERNAME, receipt_profile, int(wallet["balance"] or 0)
+    )
+    expected_profile["captured_targets_source"] = "sqlite"
+    stats, exp = territory_stats_snapshot(
+        conn, RECOVERY_LEVEL, base_profile=expected_profile
+    )
+    expected_profile["territory_stats"] = stats
+    expected_profile["exp"] = exp
+    expected_checksum = profile_checksum(expected_profile)
+    if expected_checksum != current_state["stored_checksum"] or expected_profile != current_profile:
+        return {
+            "recognized": False,
+            "reason": "profile_is_not_exact_recovery_worker_projection",
+            "expected_checksum": expected_checksum,
+            "current_checksum": current_state["stored_checksum"],
+        }
+    return {
+        "recognized": True,
+        "reason": "exact_recovery_owned_worker_projection",
+        "source": "territory.conflict_finalize_profile",
+        "allowed_fields": ["hacked", "captured_targets_source", "territory_stats", "exp"],
+        "receipt_revision": int(receipt["current_profile_revision"]),
+        "receipt_checksum": receipt["current_profile_checksum"],
+        "profile_revision": current_state["revision"],
+        "profile_checksum": current_state["stored_checksum"],
+    }
+
+
 def wallet_event_ids(plan_id: str) -> dict[str, str]:
     transaction_key = f"sprint_130_11:{plan_id}:final_wallet"
     return {
@@ -1518,6 +1709,27 @@ def wallet_event_ids(plan_id: str) -> dict[str, str]:
         "ledger_id": "wallet_ledger_" + sha256_text(transaction_key)[:24],
         "dedupe_key": f"wallet:ledger:{CANONICAL_USERNAME}:{transaction_key}",
     }
+
+
+def open_recovery_conflict_ids(
+    conn: sqlite3.Connection, receipt: dict[str, Any]
+) -> list[str]:
+    columns = table_columns(conn, "territory_conflicts")
+    required = {
+        "conflict_id", "status", "source_event", "last_actor_username", "created_at",
+    }
+    if not required <= columns:
+        return []
+    return [
+        str(row["conflict_id"])
+        for row in conn.execute(
+            "SELECT conflict_id FROM territory_conflicts "
+            "WHERE status NOT IN ('resolved','closed') "
+            "AND source_event='sprint_130_11_recovery' "
+            "AND last_actor_username=? AND created_at>=? ORDER BY conflict_id",
+            (CANONICAL_USERNAME, str(receipt["created_at"] or "")),
+        )
+    ]
 
 
 def final_settlement(db_path: str, plan: dict[str, Any]) -> dict[str, Any]:
@@ -1532,6 +1744,12 @@ def final_settlement(db_path: str, plan: dict[str, Any]) -> dict[str, Any]:
         jobs = plan_job_status(conn, plan)
         if not jobs["complete"]:
             raise RecoveryGateError("Recovery territory jobs are not complete")
+        recovery_conflicts = open_recovery_conflict_ids(conn, receipt)
+        if recovery_conflicts:
+            raise RecoveryGateError(
+                "Recovery-created conflict blocks final settlement: "
+                + ", ".join(recovery_conflicts)
+            )
         pending_progression = int(conn.execute(
             "SELECT COUNT(*) FROM territory_progression_receipts "
             "WHERE actor_username=? AND status='pending'", (CANONICAL_USERNAME,)
@@ -1582,6 +1800,13 @@ def final_settlement(db_path: str, plan: dict[str, Any]) -> dict[str, Any]:
         jobs = plan_job_status(conn, plan)
         if not jobs["complete"]:
             raise RecoveryGateError("Recovery jobs changed before settlement commit")
+        locked_receipt = recovery_receipt(conn, plan["plan_id"])
+        recovery_conflicts = open_recovery_conflict_ids(conn, locked_receipt)
+        if recovery_conflicts:
+            raise RecoveryGateError(
+                "Recovery-created conflict blocks settlement commit: "
+                + ", ".join(recovery_conflicts)
+            )
         current_wallet = conn.execute(
             "SELECT balance, version FROM wallet_balances WHERE username=?",
             (CANONICAL_USERNAME,),
@@ -1690,7 +1915,11 @@ def ghost_repair_reference_count(conn: sqlite3.Connection, plan_id: str) -> int:
     return total
 
 
-def verify_recovery(conn: sqlite3.Connection, plan: dict[str, Any]) -> dict[str, Any]:
+def verify_recovery(
+    conn: sqlite3.Connection,
+    plan: dict[str, Any],
+    manifest: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     blockers = []
     receipt = recovery_receipt(conn, plan["plan_id"])
     if not receipt:
@@ -1706,10 +1935,34 @@ def verify_recovery(conn: sqlite3.Connection, plan: dict[str, Any]) -> dict[str,
     profile_row = exact_user_row(conn)
     state = profile_state(profile_row, include_profile=True)
     profile = state.pop("profile")
-    if state["revision"] != int(receipt["current_profile_revision"]):
+    projection = None
+    receipt_profile_matches = (
+        state["revision"] == int(receipt["current_profile_revision"])
+        and state["stored_checksum"] == receipt["current_profile_checksum"]
+        and state["checksum_valid"]
+    )
+    if not receipt_profile_matches and manifest is not None:
+        projection = recovery_worker_projection_assessment(
+            conn, plan, manifest, receipt
+        )
+        receipt_profile_matches = bool(projection.get("recognized"))
+    if not receipt_profile_matches and state["revision"] != int(receipt["current_profile_revision"]):
         blockers.append("profile_revision_differs_from_receipt")
-    if state["stored_checksum"] != receipt["current_profile_checksum"] or not state["checksum_valid"]:
+    if not receipt_profile_matches and (
+        state["stored_checksum"] != receipt["current_profile_checksum"]
+        or not state["checksum_valid"]
+    ):
         blockers.append("profile_checksum_differs_from_receipt")
+    conflict_analysis = None
+    if manifest is not None:
+        conflict_analysis = recovery_conflict_cleanup_analysis(
+            conn, plan, manifest, receipt
+        )
+        blockers.extend(conflict_analysis.get("blockers") or [])
+        blockers.extend(
+            "recovery_created_conflict:" + conflict_id
+            for conflict_id in (conflict_analysis.get("conflict_ids") or [])
+        )
     expected_final = receipt["status"] in {"applied", "promoted"}
     if expected_final:
         if int(profile.get("level") or 0) != RECOVERY_LEVEL:
@@ -1800,6 +2053,8 @@ def verify_recovery(conn: sqlite3.Connection, plan: dict[str, Any]) -> dict[str,
             "recovery_reference_count": ghost_refs,
         },
         "lkg_promoted": bool(promoted),
+        "recognized_worker_projection": projection,
+        "recovery_conflicts": conflict_analysis,
     }
 
 
@@ -1907,6 +2162,203 @@ def insert_rows(conn: sqlite3.Connection, table: str, rows: list[dict[str, Any]]
         )
 
 
+def recovery_conflict_cleanup_analysis(
+    conn: sqlite3.Connection,
+    plan: dict[str, Any],
+    manifest: dict[str, Any],
+    receipt: dict[str, Any],
+) -> dict[str, Any]:
+    """Find only untouched conflict artifacts caused by this recovery plan."""
+    columns = table_columns(conn, "territory_conflicts")
+    required = {
+        "conflict_id", "participants_json", "targets_json", "status",
+        "source_event", "last_actor_username", "created_at",
+    }
+    if not required <= columns:
+        return {
+            "conflict_ids": [],
+            "blockers": ["recovery_conflict_cleanup_schema_unsupported"],
+            "schema_supported": False,
+        }
+    planned_targets = plan_targets(plan)
+    plan_target_ids = {str(item["target_id"]) for item in planned_targets}
+    before_area_ids = {
+        str(item.get("id"))
+        for item in (manifest.get("records") or {}).get("player_areas", [])
+        if item.get("id") is not None
+    }
+    current_area_ids = {
+        str(row["id"])
+        for row in conn.execute(
+            "SELECT id FROM player_areas WHERE owner_username=?",
+            (CANONICAL_USERNAME,),
+        )
+    }
+    recovery_area_ids = current_area_ids - before_area_ids
+
+    def recovery_target_match(payload: dict[str, Any]) -> str:
+        target = payload.get("target") if isinstance(payload.get("target"), dict) else payload
+        target_id = str(payload.get("target_id") or target.get("target_id") or "")
+        if target_id in plan_target_ids:
+            return target_id
+        try:
+            lat = round(float(target.get("lat")), 7)
+            lng = round(float(target.get("lng", target.get("lon"))), 7)
+        except (TypeError, ValueError):
+            return ""
+        label = str(target.get("label") or target.get("name") or "")
+        for planned in planned_targets:
+            if (
+                lat == round(float(planned["lat"]), 7)
+                and lng == round(float(planned["lng"]), 7)
+                and label in {str(planned["label"]), str(planned["name"])}
+            ):
+                return str(planned["target_id"])
+        return ""
+    open_rows = conn.execute(
+        "SELECT * FROM territory_conflicts "
+        "WHERE status NOT IN ('resolved','closed') ORDER BY created_at, conflict_id"
+    ).fetchall()
+    candidates = []
+    blockers = []
+    for row in open_rows:
+        participants = set(loads_list(row["participants_json"]))
+        if CANONICAL_USERNAME not in participants:
+            continue
+        conflict_id = str(row["conflict_id"] or "")
+        linked_area_ids = {
+            str(item) for item in loads_list(row["area_ids_json"])
+            if str(item) in recovery_area_ids
+        } if "area_ids_json" in row.keys() else set()
+        source_event = str(row["source_event"] or "")
+        created_after_receipt = (
+            str(row["created_at"] or "") >= str(receipt["created_at"] or "")
+        )
+        if source_event != "sprint_130_11_recovery" and not created_after_receipt:
+            # A conflict predating the signed recovery receipt is outside this
+            # cleanup's authority and remains untouched.
+            continue
+        provenance_ok = (
+            source_event == "sprint_130_11_recovery"
+            and str(row["last_actor_username"] or "") == CANONICAL_USERNAME
+            and created_after_receipt
+        )
+        pillar_rows = []
+        if "territory_conflict_pillars" in table_names(conn):
+            pillar_rows = conn.execute(
+                "SELECT * FROM territory_conflict_pillars WHERE conflict_id=? ORDER BY id",
+                (conflict_id,),
+            ).fetchall()
+        linked_ids = {
+            str(item["target_id"])
+            for item in pillar_rows
+            if str(item["target_id"] or "") in plan_target_ids
+        }
+        for pillar in pillar_rows:
+            matched = recovery_target_match(loads_object(pillar["public_target_json"]))
+            if matched:
+                linked_ids.add(matched)
+        if not linked_ids:
+            for item in loads_list(row["targets_json"]):
+                if not isinstance(item, dict):
+                    continue
+                matched = recovery_target_match(item)
+                if matched:
+                    linked_ids.add(matched)
+        if not provenance_ok or not (linked_ids or linked_area_ids):
+            blockers.append("unattributed_open_conflict:" + (conflict_id or "unknown"))
+            continue
+        if any(
+            int(item["captured"] or 0)
+            or str(item["status"] or "") not in {"", "contested", "active"}
+            for item in pillar_rows
+        ):
+            blockers.append("recovery_conflict_has_gameplay:" + conflict_id)
+            continue
+        if "territory_conflict_events" in table_names(conn):
+            event_rows = conn.execute(
+                "SELECT event_type, action_id, actor_username FROM territory_conflict_events "
+                "WHERE conflict_id=?",
+                (conflict_id,),
+            ).fetchall()
+            if any(
+                str(item["action_id"] or "").strip()
+                or "captur" in str(item["event_type"] or "").lower()
+                or "reward" in str(item["event_type"] or "").lower()
+                for item in event_rows
+            ):
+                blockers.append("recovery_conflict_has_player_event:" + conflict_id)
+                continue
+        if {
+            "territory_conflict_engagements", "territory_conflict_engagement_members"
+        } <= table_names(conn):
+            engagement = conn.execute(
+                "SELECT e.engagement_id FROM territory_conflict_engagement_members m "
+                "JOIN territory_conflict_engagements e ON e.engagement_id=m.engagement_id "
+                "WHERE m.conflict_id=? AND e.status NOT IN ('resolved','closed') LIMIT 1",
+                (conflict_id,),
+            ).fetchone()
+            if engagement:
+                blockers.append(
+                    "recovery_conflict_joined_engagement:"
+                    + conflict_id + ":" + str(engagement["engagement_id"])
+                )
+                continue
+        candidates.append({
+            "conflict_id": conflict_id,
+            "participants": sorted(str(item) for item in participants if item),
+            "recovery_target_ids": sorted(linked_ids),
+            "recovery_area_ids": sorted(linked_area_ids),
+            "conflict_version": int(row["conflict_version"] or 0)
+                if "conflict_version" in row.keys() else 0,
+        })
+    return {
+        "conflict_ids": [item["conflict_id"] for item in candidates],
+        "conflicts": candidates,
+        "blockers": sorted(set(blockers)),
+        "schema_supported": True,
+    }
+
+
+def queue_recovery_conflict_cleanup(
+    conn: sqlite3.Connection, conflicts: list[dict[str, Any]], now: str
+) -> None:
+    """Queue canonical no-front publication; retain immutable conflict history."""
+    for item in conflicts or []:
+        conflict_id = str(item["conflict_id"])
+        next_version = max(1, int(item.get("conflict_version") or 0) + 1)
+        conn.execute(
+            "UPDATE territory_conflicts SET status='changing', conflict_version=?, "
+            "geometry_status='dirty', resolution_reason='controlled_recovery_rollback', "
+            "last_actor_username=?, source_event='sprint_130_11_rollback', "
+            "resolved_at=NULL, updated_at=? WHERE conflict_id=?",
+            (next_version, CANONICAL_USERNAME, now, conflict_id),
+        )
+        existing = conn.execute(
+            "SELECT status, requested_version FROM territory_conflict_rebuilds "
+            "WHERE conflict_id=?",
+            (conflict_id,),
+        ).fetchone()
+        if existing:
+            if str(existing["status"] or "") == "running":
+                raise RecoveryGateError(
+                    "Recovery conflict rebuild is currently running: " + conflict_id
+                )
+            conn.execute(
+                "UPDATE territory_conflict_rebuilds SET requested_version=?, status='pending', "
+                "reason='sprint_130_11_rollback', lease_owner='', lease_until=NULL, "
+                "requested_at=?, updated_at=? WHERE conflict_id=?",
+                (max(next_version, int(existing["requested_version"] or 0)), now, now, conflict_id),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO territory_conflict_rebuilds "
+                "(conflict_id, requested_version, status, reason, requested_at, updated_at) "
+                "VALUES (?, ?, 'pending', 'sprint_130_11_rollback', ?, ?)",
+                (conflict_id, next_version, now, now),
+            )
+
+
 def rollback_recovery(
     db_path: str, plan: dict[str, Any], manifest: dict[str, Any]
 ) -> dict[str, Any]:
@@ -1920,8 +2372,19 @@ def rollback_recovery(
         if receipt["status"] == "rolled_back":
             raise RecoveryGateError("Receipt is rolled back without rollback step")
         current = profile_state(exact_user_row(conn))
-        if current["revision"] != int(receipt["current_profile_revision"]) or current["stored_checksum"] != receipt["current_profile_checksum"]:
-            raise RecoveryGateError("Later profile gameplay blocks rollback")
+        worker_projection = None
+        if (
+            current["revision"] != int(receipt["current_profile_revision"])
+            or current["stored_checksum"] != receipt["current_profile_checksum"]
+        ):
+            worker_projection = recovery_worker_projection_assessment(
+                conn, plan, manifest, receipt
+            )
+            if not worker_projection.get("recognized"):
+                raise RecoveryGateError(
+                    "Later profile gameplay blocks rollback: "
+                    + str(worker_projection.get("reason") or "projection_not_recognized")
+                )
         wallet = conn.execute(
             "SELECT balance, version FROM wallet_balances WHERE username=?", (CANONICAL_USERNAME,)
         ).fetchone()
@@ -1934,10 +2397,25 @@ def rollback_recovery(
             ).fetchone()
             if row and (row["owner_username"] != CANONICAL_USERNAME or int(row["ownership_version"] or 0) != 1):
                 raise RecoveryGateError("Later territory gameplay blocks rollback")
+            captured = conn.execute(
+                "SELECT target_json FROM captured_targets WHERE owner_username=? "
+                "AND ROUND(lat,7)=ROUND(?,7) AND ROUND(lng,7)=ROUND(?,7)",
+                (CANONICAL_USERNAME, float(target["lat"]), float(target["lng"])),
+            ).fetchone()
+            if not captured or loads_object(captured["target_json"]).get("recovery_plan_id") != plan["plan_id"]:
+                raise RecoveryGateError("Recovery target provenance changed before rollback")
         final_step = recovery_step(conn, plan["plan_id"], "final_settlement")
         if final_step and final_step["receipt"].get("player_areas_sha256"):
             if subject_areas_checksum(conn) != final_step["receipt"]["player_areas_sha256"]:
                 raise RecoveryGateError("Later territory geometry blocks rollback")
+        conflict_cleanup = recovery_conflict_cleanup_analysis(
+            conn, plan, manifest, receipt
+        )
+        if conflict_cleanup["blockers"]:
+            raise RecoveryGateError(
+                "Recovery conflict cleanup blocked: "
+                + ", ".join(conflict_cleanup["blockers"])
+            )
         before_user = dict(manifest["records"]["users"][0])
         before_profile = loads_object(before_user.get("profile_json"))
         before_wallet = dict(manifest["records"]["wallet_balances"][0])
@@ -1963,6 +2441,8 @@ def rollback_recovery(
         "wallet_balance": rollback_wallet_balance,
         "wallet_version": rollback_wallet_version,
         "territory_rebuild_job_id": rollback_job_id,
+        "recognized_worker_projection": worker_projection,
+        "conflict_cleanup": conflict_cleanup,
     }
     with write_connection(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
@@ -1972,6 +2452,29 @@ def rollback_recovery(
         locked = profile_state(exact_user_row(conn))
         if locked["revision"] != current["revision"] or locked["stored_checksum"] != current["stored_checksum"]:
             raise RecoveryGateError("Profile changed before rollback commit")
+        if worker_projection and worker_projection.get("recognized"):
+            locked_projection = recovery_worker_projection_assessment(
+                conn, plan, manifest, recovery_receipt(conn, plan["plan_id"])
+            )
+            if not locked_projection.get("recognized"):
+                raise RecoveryGateError(
+                    "Recovery worker projection changed before rollback commit"
+                )
+            if not recovery_step(conn, plan["plan_id"], "worker_profile_projection"):
+                insert_step(
+                    conn,
+                    plan["plan_id"],
+                    "worker_profile_projection",
+                    locked_projection,
+                )
+            conn.execute(
+                f"UPDATE {RECOVERY_RECEIPTS_TABLE} SET current_profile_revision=?, "
+                "current_profile_checksum=?, updated_at=? WHERE plan_id=?",
+                (
+                    locked["revision"], locked["stored_checksum"], now,
+                    plan["plan_id"],
+                ),
+            )
         locked_wallet = conn.execute(
             "SELECT balance, version FROM wallet_balances WHERE username=?", (CANONICAL_USERNAME,)
         ).fetchone()
@@ -1989,6 +2492,9 @@ def rollback_recovery(
         if "territory_area_publications" in table_names(conn):
             conn.execute("DELETE FROM territory_area_publications WHERE owner_username=?", (CANONICAL_USERNAME,))
             insert_rows(conn, "territory_area_publications", manifest["records"].get("territory_area_publications") or [])
+        queue_recovery_conflict_cleanup(
+            conn, conflict_cleanup.get("conflicts") or [], now
+        )
         wallet_before = int(locked_wallet["balance"] or 0)
         if wallet_before != rollback_wallet_balance:
             conn.execute(
@@ -2053,6 +2559,122 @@ def rollback_recovery(
             (rollback_revision, rollback_checksum, rollback_wallet_version, now, now, plan["plan_id"]),
         )
     return {**result, "duplicate": False}
+
+
+def verify_rollback(
+    conn: sqlite3.Connection, plan: dict[str, Any], manifest: dict[str, Any]
+) -> dict[str, Any]:
+    blockers = []
+    receipt = recovery_receipt(conn, plan["plan_id"])
+    step = recovery_step(conn, plan["plan_id"], "rollback")
+    if not receipt or receipt["status"] != "rolled_back":
+        blockers.append("recovery_receipt_not_rolled_back")
+    if not step:
+        blockers.append("rollback_step_missing")
+        return {"ok": False, "blockers": blockers}
+    result = step["receipt"]
+    state = profile_state(exact_user_row(conn), include_profile=True)
+    profile = state.pop("profile")
+    before_user = dict(manifest["records"]["users"][0])
+    before_profile = loads_object(before_user.get("profile_json"))
+    if profile != before_profile:
+        blockers.append("profile_not_restored_from_before_manifest")
+    if (
+        not state["checksum_valid"]
+        or state["stored_checksum"] != result.get("profile_checksum")
+        or state["revision"] != int(result.get("profile_revision") or -1)
+    ):
+        blockers.append("rollback_profile_receipt_mismatch")
+    before_wallet = dict(manifest["records"]["wallet_balances"][0])
+    wallet = conn.execute(
+        "SELECT balance, version FROM wallet_balances WHERE username=?",
+        (CANONICAL_USERNAME,),
+    ).fetchone()
+    if (
+        not wallet
+        or int(wallet["balance"] or 0) != int(before_wallet["balance"] or 0)
+        or int(wallet["version"] or 0) != int(result.get("wallet_version") or -1)
+    ):
+        blockers.append("rollback_wallet_mismatch")
+    for target in plan_targets(plan):
+        ownership = conn.execute(
+            "SELECT 1 FROM territory_target_ownership WHERE target_id=?",
+            (target["target_id"],),
+        ).fetchone()
+        captured = conn.execute(
+            "SELECT 1 FROM captured_targets WHERE owner_username=? "
+            "AND ROUND(lat,7)=ROUND(?,7) AND ROUND(lng,7)=ROUND(?,7)",
+            (CANONICAL_USERNAME, float(target["lat"]), float(target["lng"])),
+        ).fetchone()
+        if ownership or captured:
+            blockers.append("recovery_grant_still_present:" + target["target_id"])
+    rollback_job_id = str(result.get("territory_rebuild_job_id") or "")
+    rollback_job = conn.execute(
+        "SELECT status, error FROM territory_rebuild_jobs WHERE job_id=?",
+        (rollback_job_id,),
+    ).fetchone() if rollback_job_id else None
+    if not rollback_job or str(rollback_job["status"] or "") != "complete":
+        blockers.append("rollback_territory_job_not_complete")
+    conflict_ids = list(
+        ((result.get("conflict_cleanup") or {}).get("conflict_ids") or [])
+    )
+    conflict_statuses = []
+    for conflict_id in conflict_ids:
+        conflict = conn.execute(
+            "SELECT status, geometry_status FROM territory_conflicts WHERE conflict_id=?",
+            (conflict_id,),
+        ).fetchone()
+        active_fronts = int(conn.execute(
+            "SELECT COUNT(*) FROM territory_conflict_fronts "
+            "WHERE conflict_id=? AND status='active'",
+            (conflict_id,),
+        ).fetchone()[0]) if "territory_conflict_fronts" in table_names(conn) else 0
+        rebuild = conn.execute(
+            "SELECT status FROM territory_conflict_rebuilds WHERE conflict_id=?",
+            (conflict_id,),
+        ).fetchone() if "territory_conflict_rebuilds" in table_names(conn) else None
+        conflict_statuses.append({
+            "conflict_id": conflict_id,
+            "status": conflict["status"] if conflict else None,
+            "geometry_status": conflict["geometry_status"] if conflict else None,
+            "active_fronts": active_fronts,
+            "rebuild_status": rebuild["status"] if rebuild else None,
+        })
+        if (
+            not conflict
+            or str(conflict["status"] or "") not in {"resolved", "closed"}
+            or active_fronts
+            or not rebuild
+            or str(rebuild["status"] or "") != "complete"
+        ):
+            blockers.append("recovery_conflict_not_clean:" + conflict_id)
+    ghost = ghostnetwork_evidence(conn)
+    ghost_refs = ghost_repair_reference_count(conn, plan["plan_id"])
+    if ghost["active_cycle_count"] != 1 or ghost["part_count"] != 20:
+        blockers.append("ghostnetwork_readiness_invalid")
+    if ghost_refs:
+        blockers.append("ghostnetwork_recovery_source_detected")
+    return {
+        "ok": not blockers,
+        "blockers": sorted(set(blockers)),
+        "receipt_status": receipt["status"] if receipt else None,
+        "profile": {
+            "revision": state["revision"],
+            "checksum": state["stored_checksum"],
+            "restored": profile == before_profile,
+        },
+        "wallet": {
+            "balance": int(wallet["balance"] or 0) if wallet else None,
+            "version": int(wallet["version"] or 0) if wallet else None,
+        },
+        "territory_job": dict(rollback_job) if rollback_job else None,
+        "conflicts": conflict_statuses,
+        "ghostnetwork": {
+            "cycle_id": ghost["cycle"]["cycle_id"],
+            "part_count": ghost["part_count"],
+            "recovery_reference_count": ghost_refs,
+        },
+    }
 
 
 def command_status(args: argparse.Namespace) -> int:
@@ -2220,8 +2842,12 @@ def command_apply(args: argparse.Namespace) -> int:
 
 def command_verify(args: argparse.Namespace) -> int:
     plan = load_plan(args.plan)
+    manifest = (
+        load_manifest(args.before_manifest, plan)
+        if getattr(args, "before_manifest", None) else None
+    )
     with readonly_connection(args.db) as conn:
-        verification = verify_recovery(conn, plan)
+        verification = verify_recovery(conn, plan, manifest=manifest)
     print_json({
         "command": "verify",
         "read_only_database": True,
@@ -2248,6 +2874,7 @@ def command_promote_lkg(args: argparse.Namespace) -> int:
 
 def command_report(args: argparse.Namespace) -> int:
     plan = load_plan(args.plan)
+    manifest = load_manifest(args.before_manifest, plan)
     with readonly_connection(args.db) as conn:
         receipt = recovery_receipt(conn, plan["plan_id"])
         steps = []
@@ -2265,7 +2892,7 @@ def command_report(args: argparse.Namespace) -> int:
                     (plan["plan_id"],),
                 )
             ]
-        verification = verify_recovery(conn, plan) if receipt else {
+        verification = verify_recovery(conn, plan, manifest=manifest) if receipt else {
             "ok": False, "blockers": ["recovery_receipt_missing"]
         }
     print_json({
@@ -2302,6 +2929,20 @@ def command_rollback(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_verify_rollback(args: argparse.Namespace) -> int:
+    plan = load_plan(args.plan)
+    manifest = load_manifest(args.before_manifest, plan)
+    with readonly_connection(args.db) as conn:
+        verification = verify_rollback(conn, plan, manifest)
+    print_json({
+        "command": "verify-rollback",
+        "read_only_database": True,
+        "plan_id": plan["plan_id"],
+        **verification,
+    })
+    return 0 if verification["ok"] else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", default=os.environ.get("CHAOS_DB_PATH", "data/game.sqlite3"))
@@ -2332,6 +2973,7 @@ def build_parser() -> argparse.ArgumentParser:
     verify = subs.add_parser("verify")
     verify.add_argument("--db", default=argparse.SUPPRESS)
     verify.add_argument("--plan", required=True)
+    verify.add_argument("--before-manifest", required=True)
     promote = subs.add_parser("promote-lkg")
     promote.add_argument("--db", default=argparse.SUPPRESS)
     promote.add_argument("--plan", required=True)
@@ -2342,6 +2984,7 @@ def build_parser() -> argparse.ArgumentParser:
     report = subs.add_parser("report")
     report.add_argument("--db", default=argparse.SUPPRESS)
     report.add_argument("--plan", required=True)
+    report.add_argument("--before-manifest", required=True)
     rollback = subs.add_parser("rollback")
     rollback.add_argument("--db", default=argparse.SUPPRESS)
     rollback.add_argument("--plan", required=True)
@@ -2350,6 +2993,10 @@ def build_parser() -> argparse.ArgumentParser:
     rollback.add_argument("--manifest-sha256", required=True)
     rollback.add_argument("--write", action="store_true")
     rollback.add_argument("--authorized-by", required=True)
+    verify_rollback_cmd = subs.add_parser("verify-rollback")
+    verify_rollback_cmd.add_argument("--db", default=argparse.SUPPRESS)
+    verify_rollback_cmd.add_argument("--plan", required=True)
+    verify_rollback_cmd.add_argument("--before-manifest", required=True)
     return parser
 
 
@@ -2374,7 +3021,9 @@ def main(argv: list[str] | None = None) -> int:
             return command_promote_lkg(args)
         if args.command == "report":
             return command_report(args)
-        return command_rollback(args)
+        if args.command == "rollback":
+            return command_rollback(args)
+        return command_verify_rollback(args)
     except (RecoveryGateError, sqlite3.Error, OSError, ValueError) as exc:
         print_json({
             "ok": False,

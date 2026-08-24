@@ -959,3 +959,39 @@ Regresja narzędzia: `13/13 OK`. Nie powstał before-manifest i nie wykonano app
 wallet settlementu, territory grantów/jobs, promocji LKG, commita ani deployu.
 
 `READY FOR MANUAL ACCOUNT-SWITCH TEST — Sprint 130.10`
+
+---
+
+# 29. Sprint 130.11 — częściowy apply i bramka wycofania
+
+Serwerowy apply planu `trollu2_recovery_38f8b25502aed3990c91` utworzył osiem
+recovery pillars i zakończył własny territory job, ale nie przeszedł do finalnego
+RSP/wallet/LKG. Worker utworzył konflikt
+`territory_conflict_26409afa48525665` z graczem `pies1`.
+
+Root cause jest potwierdzony: dry-run oceniał tylko nowy ring Tokio, a worker
+przeliczał także istniejące stationary targets po wcześniejszym podniesieniu
+profilu do levelu 50. Na snapshocie istniejące targety same tworzą przy levelu 50
+dwa nowe obszary i kolizję, więc relokacja bonusu nie może zagwarantować braku
+konfliktu.
+
+Revision 3/checksum po workerze nie jest automatycznie traktowany jako gameplay.
+Narzędzie może go przyjąć wyłącznie po odtworzeniu exact revision 2 z podpisanego
+before-manifestu i canonical stores, a następnie ponownym wyliczeniu dokładnie pól
+`hacked`, `captured_targets_source`, `territory_stats` i `exp`. Wymagane są:
+`revision +1`, identyczny checksum, niezmieniony wallet, brak pending progression
+oraz terminalny recovery job. Inna zmiana pozostaje blockerem.
+
+Controlled rollback zachowuje conflict history, ale usuwa jego aktywną geometrię
+przez istniejący worker i publikację `no_active_fronts`. Scope konfliktu musi być
+udowodniony przez recovery source/time/actor oraz nowe area IDs lub filary planu.
+Captured action, player action receipt albo aktywny multi-engagement zatrzymuje
+cleanup. Publikacja rollbacku nie odczytuje profili uczestników, nie uruchamia
+encirclement i nie przyznaje nagrody za techniczne zamknięcie konfliktu.
+GhostNetwork nie jest modyfikowany przez kod recovery.
+
+Aktualny stan:
+
+`NO-GO — partial Sprint 130.11 apply frozen; rollback not yet executed`.
+
+Regresja lokalna poprawki: `376/376 OK`; `py_compile` i `git diff --check`: OK.

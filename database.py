@@ -1,7 +1,6 @@
 import copy
 import hashlib
 import hmac
-from itertools import combinations
 import json
 import math
 import os
@@ -13,6 +12,8 @@ import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timedelta
+
+from territory_geometry import build_player_areas as build_canonical_player_areas
 
 
 DB_PATH = os.path.join("data", "game.sqlite3")
@@ -5190,87 +5191,35 @@ class TerritoryStore:
             return cursor.rowcount == 1
 
     def build_player_areas(self, username, player_level=1):
-        level = self._player_level(player_level)
-        max_edge_distance = self.BASE_AREA_EDGE_METERS * level
         targets = [
             target
             for target in self.list_captured_targets(username, stationary=True)
             if target.get("lat") is not None and target.get("lng") is not None
         ]
 
-        areas = []
-        for group in self._connected_target_groups(targets, max_edge_distance):
-            if len(group) < 3:
-                continue
-            if len(group) > self.MAX_EXACT_AREA_TARGETS:
-                area = self._area_from_hull(group)
-                if area:
-                    print(
-                        "[TERRITORY] large cluster approximated "
-                        f"username={username} targets={len(group)} "
-                        f"limit={self.MAX_EXACT_AREA_TARGETS}",
-                        flush=True,
-                    )
-                    areas.append(area)
-                continue
+        def log_approximation(reason, target_count, limit):
+            if reason == "large_cluster":
+                print(
+                    "[TERRITORY] large cluster approximated "
+                    f"username={username} targets={target_count} limit={limit}",
+                    flush=True,
+                )
+            else:
+                print(
+                    "[TERRITORY] dense cluster approximated "
+                    f"username={username} targets={target_count} triangles>{limit}",
+                    flush=True,
+                )
 
-            valid_triangles = []
-            exact_triangle_limit_exceeded = False
-            for combo_indexes in combinations(range(len(group)), 3):
-                combo = [group[index] for index in combo_indexes]
-                vertices = [self._area_vertex(target) for target in combo]
-                edges = [
-                    self._distance_meters(vertices[i], vertices[(i + 1) % len(vertices)])
-                    for i in range(len(vertices))
-                ]
-                if max(edges) > max_edge_distance:
-                    continue
-
-                area_size = self._polygon_area_sqm(vertices)
-                if area_size < self.MIN_TRIANGLE_AREA_SQM:
-                    continue
-
-                valid_triangles.append(set(combo_indexes))
-                if len(valid_triangles) > self.MAX_EXACT_AREA_TRIANGLES:
-                    exact_triangle_limit_exceeded = True
-                    break
-
-            if exact_triangle_limit_exceeded:
-                area = self._area_from_hull(group)
-                if area:
-                    print(
-                        "[TERRITORY] dense cluster approximated "
-                        f"username={username} targets={len(group)} "
-                        f"triangles>{self.MAX_EXACT_AREA_TRIANGLES}",
-                        flush=True,
-                    )
-                    areas.append(area)
-                continue
-
-            unvisited = set(range(len(valid_triangles)))
-            while unvisited:
-                triangle_index = unvisited.pop()
-                stack = [triangle_index]
-                cluster_indexes = set(valid_triangles[triangle_index])
-
-                while stack:
-                    current = stack.pop()
-                    linked = [
-                        other for other in list(unvisited)
-                        if valid_triangles[current] & valid_triangles[other]
-                    ]
-                    for other in linked:
-                        unvisited.remove(other)
-                        cluster_indexes.update(valid_triangles[other])
-                        stack.append(other)
-
-                area = self._area_from_hull([group[index] for index in sorted(cluster_indexes)])
-                if not area:
-                    continue
-                areas.append(area)
-
-        areas.sort(key=lambda area: (area["area_size"], area["max_edge_distance"]))
-        return areas
+        return build_canonical_player_areas(
+            targets,
+            player_level,
+            base_area_edge_meters=self.BASE_AREA_EDGE_METERS,
+            minimum_area_sqm=self.MIN_TRIANGLE_AREA_SQM,
+            max_exact_area_targets=self.MAX_EXACT_AREA_TARGETS,
+            max_exact_area_triangles=self.MAX_EXACT_AREA_TRIANGLES,
+            on_approximation=log_approximation,
+        )
 
     def rebuild_player_areas(self, username, player_level=1):
         areas = self.build_player_areas(username, player_level)

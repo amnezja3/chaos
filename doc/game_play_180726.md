@@ -25246,7 +25246,32 @@ krok to świeży serwerowy `status → audit → plan → dry-run → backup`, p
 operator wykonuje apply. Manual nadal należy do użytkownika; nie wykonano
 commita, deployu ani mutacji właściwej bazy.
 
-`READY FOR SERVER DRY-RUN / OPERATOR APPLY — Sprint 130.11`
+`NO-GO — Sprint 130.11 partial apply requires controlled rollback`
+
+### Server apply finding — 2026-08-23
+
+Pierwszy apply zatrzymał ekonomię przed final settlementem, ale canonical worker
+utworzył konflikt `territory_conflict_26409afa48525665` z `pies1`. Stary planner
+sprawdzał wyłącznie obwiednię bonusowych filarów; worker przeliczał wszystkie
+stationary targets przy docelowym levelu 50. Conflict finalizer wykonał następnie
+recovery-owned projekcję profilu revision 2 → 3, dlatego receipt prawidłowo
+zatrzymał retry.
+
+Runtime i planner korzystają teraz ze wspólnego, czystego kontraktu geometrii.
+Plan checksumuje pełny canonical preview (stare + nowe filary) i blokuje apply,
+jeżeli sam skok do levelu 50 tworzy konflikt. Na aktualnym snapshocie ten warunek
+zachodzi nawet bez bonusu Tokio, więc wynik brzmi
+`level_50_existing_geometry_conflict`; relokacja nowych filarów nie rozwiązuje
+problemu.
+
+Przygotowano receipt/CAS-gated rollback. Akceptuje on tylko dokładnie
+odtwarzalną projekcję workera `revision +1`, usuwa granty bieżącego planu i
+kieruje recovery-owned konflikt do kanonicznego `no_active_fronts`. Nie wykonuje
+RSP/wallet settlementu, conflict rewardu, encirclement ani promocji LKG. Osobne `verify-rollback` wymaga
+zamkniętych frontów, usuniętych grantów i terminalnych jobów. Jakakolwiek późniejsza
+aktywność gameplayowa nadal blokuje operację.
+
+Regresja tej korekty: `376/376 OK`; `py_compile` i `git diff --check`: OK.
 
 Manual należy do użytkownika i obejmuje A → B → A, dwie karty, dwie niezależne
 sesje tego samego konta oraz testową ścieżkę `trzeci filar → territory

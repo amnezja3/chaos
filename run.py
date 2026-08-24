@@ -75,6 +75,7 @@ from session_generation_store import (
     SessionGenerationStateError,
     SessionGenerationStore,
 )
+from territory_geometry import polygons_intersect as canonical_polygons_intersect
 
 app = Flask(__name__)
 
@@ -4741,21 +4742,7 @@ def _hull_vertices(vertices):
 
 
 def polygons_intersect(a_vertices, b_vertices):
-    if len(a_vertices or []) < 3 or len(b_vertices or []) < 3:
-        return False
-
-    if any(point_in_polygon(float(v["lat"]), float(v["lng"]), b_vertices) for v in a_vertices):
-        return True
-    if any(point_in_polygon(float(v["lat"]), float(v["lng"]), a_vertices) for v in b_vertices):
-        return True
-
-    for i, a_start in enumerate(a_vertices):
-        a_end = a_vertices[(i + 1) % len(a_vertices)]
-        for j, b_start in enumerate(b_vertices):
-            b_end = b_vertices[(j + 1) % len(b_vertices)]
-            if _segments_intersect(a_start, a_end, b_start, b_end):
-                return True
-    return False
+    return canonical_polygons_intersect(a_vertices, b_vertices)
 
 
 def target_coord_key(target):
@@ -5856,6 +5843,18 @@ def reconcile_active_territory_conflicts(reduce_unlinkable=False):
     return reports
 
 
+def is_sprint_130_11_recovery_conflict(conflict):
+    actor_username = str((conflict or {}).get("last_actor_username") or "")
+    source_event = str((conflict or {}).get("source_event") or "")
+    return bool(
+        actor_username == "trolu2"
+        and (
+            source_event == "sprint_130_11_recovery"
+            or source_event.startswith("sprint_130_11_rollback")
+        )
+    )
+
+
 def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
                                  prebuilt_detection_plans=None,
                                  rebuild_participants=True, run_encirclement=True,
@@ -5870,6 +5869,13 @@ def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
         if not claim:
             return results[-1] if results else {"ok": False, "reason": "lease_unavailable"}
         conflict = claim["conflict"]
+        controlled_recovery_conflict = is_sprint_130_11_recovery_conflict(conflict)
+        effective_rebuild_participants = bool(
+            rebuild_participants and not controlled_recovery_conflict
+        )
+        effective_run_encirclement = bool(
+            run_encirclement and not controlled_recovery_conflict
+        )
         started = time.perf_counter()
         timings = {
             "participant_rebuild": 0,
@@ -5881,7 +5887,7 @@ def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
         }
         try:
             phase_started = time.perf_counter()
-            if rebuild_participants:
+            if effective_rebuild_participants:
                 for participant in sorted(set(conflict.get("participants") or [])):
                     profile = user_store.get_profile(participant) or {}
                     if not profile:
@@ -5957,13 +5963,17 @@ def consolidate_conflict_rebuild(conflict_id, prebuilt_areas=None,
                 snapshot = published.get("snapshot") or {}
                 snapshot_conflict = snapshot.get("conflict") or conflict
                 record_territory_conflict_delta(snapshot_conflict, reason="conflict_consolidated")
-            if published.get("ok") and published.get("changed"):
+            if (
+                published.get("ok")
+                and published.get("changed")
+                and not controlled_recovery_conflict
+            ):
                 settle_conflict_resolution_reward(
                     published.get("snapshot") or {},
                     progression_store=territory_progression_receipt_store,
                 )
             if not published.get("pending_newer"):
-                if run_encirclement and published.get("ok"):
+                if effective_run_encirclement and published.get("ok"):
                     resolve_territory_encirclements_after_change(
                         actor_username=(conflict.get("last_actor_username") or None),
                         changed_territory_id=None,
@@ -6238,6 +6248,23 @@ def process_territory_rebuild_job(lease_owner, lease_seconds=300):
 def finalize_conflict_rebuild_profiles(conflict_id):
     """Refresh participant territory stats after the worker published geometry."""
     conflict = territory_conflict_store.get_by_key(conflict_id) or {}
+    source_event = str(conflict.get("source_event") or "")
+    controlled_recovery_conflict = is_sprint_130_11_recovery_conflict(conflict)
+    if controlled_recovery_conflict:
+        # Sprint 130.11 grants have no gameplay progression receipt and must be
+        # profile-neutral until the recovery tool performs its guarded final
+        # settlement.  This also prevents a rollback no-front publication from
+        # rewriting either the subject or an accidentally involved opponent.
+        return [
+            {
+                "username": username,
+                "areas": len(territory_store.list_player_areas(username)),
+                "levels_gained": 0,
+                "profile_projection_skipped": True,
+                "reason": source_event,
+            }
+            for username in sorted(set(conflict.get("participants") or []))
+        ]
     actor_username = str(conflict.get("last_actor_username") or "")
     pending_actor_receipts = territory_progression_receipt_store.list_pending(
         actor_username=actor_username,
@@ -6618,6 +6645,8 @@ def settle_conflict_resolution_reward(snapshot, progression_store=None):
     conflict = dict((snapshot or {}).get("conflict") or {})
     if str(conflict.get("status") or "") != "resolved":
         return {"ok": False, "reason": "conflict_not_resolved"}
+    if is_sprint_130_11_recovery_conflict(conflict):
+        return {"ok": False, "reason": "controlled_recovery_no_reward"}
     if (str(conflict.get("source_event") or "") == "territory_encirclement"
             or str(conflict.get("resolution_reason") or "") == "encirclement"):
         return {"ok": False, "reason": "encirclement_reward_grouped"}
