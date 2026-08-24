@@ -2,7 +2,133 @@
 
 Data planu: 2026-08-21.
 
-Status: `NO-GO — PARTIAL SERVER APPLY FROZEN; CONTROLLED ROLLBACK READY LOCALLY`.
+Status: `NO-GO — ROLLBACK VERIFIED; CURRENT-WORLD GEOMETRY CAPTURE REQUIRED`.
+
+## Existing geometry / level scaling diagnosis
+
+Diagnoza jest wyłącznie read-only. Dedykowany
+`tools/audit_trollu2_geometry.py` otwiera bazę przez `mode=ro`, ustawia
+`PRAGMA query_only=ON`, nie importuje runtime store'ow i korzysta bezpośrednio
+ze wspólnego kontraktu `territory_geometry.py`, którego używa worker. Raport
+wypisuje bez pełnych payloadów wszystkie captured/stationary targets, canonical
+pillars/inners i ownership entries wraz z ID, pozycją, ownerem, provenance i
+timestampami. `database_writes=0`, `ghostnetwork_queries=0`.
+
+### Dowód historyczny i stan snapshotu
+
+Zabezpieczony evidence capture z `2026-08-21T18:46:44Z` potwierdza:
+
+- `captured_targets=11`, w tym `stationary=10` i `generated=1`;
+- `ownership_entries=35`, ostatnia aktualizacja ownership
+  `2026-08-14T14:23:50`;
+- `player_areas` nie miało ani jednego aktywnego obszaru;
+- captured marker został zaktualizowany jeszcze
+  `2026-08-21T13:25:41`, a profil po utracie miał LVL 2.
+
+To bezpośrednio potwierdza sekwencję: canonical markery przetrwały, natomiast
+aktywna geometria zniknęła. Evidence jest zanonimizowane i nie zawiera
+wierzchołków ani area IDs, dlatego samo nie dowodzi, kto zajmował dany obszar
+przed incydentem.
+
+Lokalny pełny snapshot produkcyjny `848560128 B`, wykonany już po incydencie,
+zawiera `captured=10`, `stationary=9`, `generated=1`, `ownership=35`, w tym 15
+rekordów sklasyfikowanych jako pillar i 4 jako inner. Różnica jednego captured
+targetu wobec evidence jest dodatkowym powodem, by finalną decyzję oprzeć na
+świeżym raporcie live po rollbacku, a nie na lokalnej kopii.
+
+### Symulacja canonical worker geometry
+
+Te same dziewięć stationary targets z lokalnego snapshotu daje:
+
+| Level | Próg połączenia | Komponenty | Aktywne obszary | Powierzchnia | Kolizje |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 2 | 600 m | 8 | 0 | 0 m2 | 0 |
+| 25 | 7500 m | 2 | 2 | 2638470.30 m2 | 2 |
+| 26 | 7800 m | 2 | 2 | 2638470.30 m2 | 2 |
+| 50 | 15000 m | 2 | 2 | 2638470.30 m2 | 2 |
+
+Przy LVL 2 jedyną relacją jest para markerów; żaden komponent nie ma
+trzech punktów, więc closed territory nie powstaje. Przy LVL 25 domykają się
+dwa komponenty i stan pozostaje identyczny dla 26 oraz 50:
+
+- Tokio: 3 markery, `552190.12 m2`, bbox
+  `35.3647239..35.3725165 / 139.4461742..139.4613615`, bez kolizji w tym
+  snapshotcie;
+- Warszawa: 6 markerów, `2086280.18 m2`, bbox
+  `52.1485961..52.1710090 / 20.8891974..20.9114969`.
+
+Wzrost LVL rzeczywiście reaktywuje stare pola, ale istotne przejście następuje
+już między LVL 2 a LVL 25. LVL 50 nie tworzy na tym zestawie większej
+geometrii niż historycznie zbliżone LVL 25/26. Nazwa blockera
+`level_50_existing_geometry_conflict` oznacza, że planner sprawdził istniejące
+markery przy docelowym recovery level, a nie że konflikt pojawia się dopiero
+między 26 a 50.
+
+Warszawski obszar przecina w lokalnym snapshotcie:
+
+- `neo1`, area `448377`, `601722.11 m2`, utworzony
+  `2026-08-22T13:49:01`, overlap bbox względem obszaru Trollu2 `0.265829`;
+- `iasny`, area `448386`, `1174959.44 m2`, utworzony
+  `2026-08-22T16:20:03`, overlap bbox `0.266834`.
+
+W obu przypadkach wierzchołki każdego poligonu wchodzą do drugiego. Oba
+przeciwne obszary powstały po cutoffie incydentu `2026-08-21T15:08:32`, zatem
+klasyfikacja lokalnego snapshotu brzmi `A+B`: obniżony level wyłączył stare
+połączenia, a w czasie ich nieaktywności obecny świat zajął tę przestrzeń.
+Wcześniejszy live apply wskazał zamiast nich `pies1`; po rollbacku dokładni
+aktualni przeciwnicy i area IDs muszą zostać odczytani ponownie. Nie wolno
+przepisać wyniku lokalnego snapshotu na live.
+
+### Tokio i rozdzielenie dwóch blockerów
+
+Stary podpisany plan przesunął osiem bonusowych filarów Tokio o `3000 m` na
+północ. Dawne `collisions=[]` dotyczyło jednak kandydata ocenianego niepełnym
+kontraktem. Obecne `collision_findings()` buduje jeden preview ze starych i
+bonusowych markerów, dlatego etykieta `city_collision:Tokio` może zawierać
+kolizję starego komponentu warszawskiego i nie dowodzi sama w sobie, że koliduje
+bonusowy ring w Tokio.
+
+Nowy raport pokazuje osobno `bonus_only_level_50` oraz
+`combined_existing_plus_bonus_level_50`, korzystając z targetów dokładnie ze
+starego planu. Dopóki ten raport nie zostanie uruchomiony na bieżącej bazie i
+starym planie, `city_collision:Tokio` pozostaje osobnym, nierozstrzygniętym
+blockerem; kolejne arbitralne przesunięcie jest niedozwolone.
+
+### Ocena modeli recovery
+
+1. **A — LVL 50 + aktualna geometria:** najmniej zmian architektonicznych, ale
+   obecnie `NO-GO`, ponieważ naturalny rebuild historycznych markerów tworzy
+   konflikty z aktualnym światem.
+2. **B — progression oddzielony od historycznego reach:** aktualna architektura
+   tego naturalnie nie wspiera. Worker przekazuje jeden level gracza do wszystkich
+   stationary targets. Per-player/per-marker historyczny level stałby się nowym
+   source of truth, który każdy przyszły rebuild musiałby respektować. Nie jest
+   to bezpieczny lokalny wyjątek Sprintu 130.11.
+3. **C — audytowalny canonical cleanup starych filarów + nowy bonus:** jedyny
+   wariant, który zachowuje jeden geometry source of truth i może pogodzić
+   `LVL 50 / RSP 2560 / HC 250000` z aktualnym światem. Nie może oznaczać
+   bezśladowego DELETE. Ewentualna przyszła implementacja musi zachować immutable
+   listę/receipt wycofanych markerów, jawnie zakończyć ownership/captured
+   lifecycle, wykonać canonical rebuild, a dopiero potem zaplanować bonus w
+   wolnym miejscu. Na etapie diagnozy nic nie jest wycofywane.
+
+`RECOMMENDED FINAL RECOVERY STRATEGY`: wariant C jako osobny, zatwierdzony plan
+recovery, po potwierdzeniu semantyki zakończenia historycznego ownership. Wariant
+B jest odrzucony jako trwały specjalny kontrakt per-player. Wariant A pozostaje
+zablokowany, dopóki symulacja na bieżącym świecie pokazuje jakąkolwiek kolizję.
+
+Każdy przyszły plan musi zapisać fingerprint/revisions wykorzystanego current
+world projection, a atomowy apply musi ponownie policzyć pełną geometrię i
+kolizje pod writer boundary bezpośrednio przed grantem. Zmiana świata pomiędzy
+planem i apply daje stale-plan `NO-GO`, nigdy automatyczny konflikt.
+
+Aktualny werdykt na podstawie evidence oraz pełnego lokalnego snapshotu:
+
+`DIAGNOSIS CONFIRMED — BOTH LEVEL SCALING AND WORLD EVOLUTION CONTRIBUTE`
+
+Finalna lista live obiektów, przeciwników i diagnoza bonus-only pozostaje bramką
+read-only przed projektowaniem naprawy. Do tego czasu: bez apply, settlementu,
+walletu, LKG, zmian targetów i zmian GhostNetwork.
 
 ## Server apply finding i korekta — 2026-08-23
 
