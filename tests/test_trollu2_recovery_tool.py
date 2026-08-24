@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import sqlite3
 import tempfile
@@ -566,9 +567,12 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
                 receipt["current_profile_checksum"],
                 tool.profile_checksum(receipt_profile),
             )
-            projected = tool.canonical_profile_overlay(
-                conn, tool.CANONICAL_USERNAME, receipt_profile, 1000
+            projected = copy.deepcopy(receipt_profile)
+            projected["hacked"] = tool.runtime_captured_targets_projection(
+                conn, tool.CANONICAL_USERNAME
             )
+            self.assertTrue(projected["hacked"])
+            self.assertTrue(all("lon" in item for item in projected["hacked"]))
             projected["captured_targets_source"] = "sqlite"
             stats, exp = tool.territory_stats_snapshot(
                 conn, tool.RECOVERY_LEVEL, base_profile=projected

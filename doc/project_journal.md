@@ -1183,3 +1183,6 @@
 - Status: `NO-GO — partial apply frozen; controlled rollback pending on server`.
 - Techniczne zamknięcie recovery conflict jest profile-neutralne i reward-neutralne:
   nie uruchamia participant rebuild, encirclement ani strategic progression receipt.
+- Serwerowy preflight wykrył, że expected revision 3 nie odtwarzał runtime
+  normalizacji targetów (`ORDER BY captured_at`, jawne `lat/lng/lon`). Rozdzielono
+  rekonstrukcję receipt revision 2 od dokładnej projekcji conflict finalizera.

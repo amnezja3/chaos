@@ -58,6 +58,15 @@ source `sprint_130_11_recovery`. CLI `verify` wymaga teraz signed
 `--before-manifest`, aby rozpoznać dokładną projekcję workera i jednocześnie
 raportować konflikt jako blocker.
 
+Pierwszy serwerowy preflight poprawionego rollbacku ujawnił jeszcze różnicę
+rekonstrukcji `hacked`: conflict finalizer korzysta z
+`TerritoryStore.list_captured_targets()`, który sortuje po `captured_at` i
+normalizuje `lat/lng/lon`, podczas gdy narzędzie porównywało surowe
+`target_json` sortowane po ID. Receipt revision 2 nadal jest odtwarzany starym,
+dokładnym kontraktem apply, natomiast oczekiwana revision 3 korzysta teraz z
+osobnego runtime projection identycznego z workerem. Przy odmowie verify zwraca
+wyłącznie nazwy różniących się pól oraz hashe/counts bez ujawniania profilu.
+
 Końcowa regresja poprawki: `376/376 OK` dla recovery, territory/control,
 conflict identity/cutover/engagement/multi, progression receipts, Target
 Persistence oraz GN territory jobs. `py_compile` i `git diff --check`: OK.

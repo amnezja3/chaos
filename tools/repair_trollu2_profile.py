@@ -278,6 +278,25 @@ def canonical_profile_overlay(
     return candidate
 
 
+def runtime_captured_targets_projection(
+    conn: sqlite3.Connection, username: str
+) -> list[dict[str, Any]]:
+    """Mirror ``TerritoryStore.list_captured_targets`` byte-for-byte logically."""
+    targets = []
+    for row in conn.execute(
+        "SELECT lat, lng, target_json FROM captured_targets "
+        "WHERE owner_username=? ORDER BY captured_at",
+        (username,),
+    ):
+        target = loads_object(row["target_json"])
+        target["lat"] = float(target.get("lat", row["lat"]))
+        lng = target.get("lng", target.get("lon", row["lng"]))
+        target["lng"] = float(lng)
+        target["lon"] = float(lng)
+        targets.append(target)
+    return targets
+
+
 def table_names(conn: sqlite3.Connection) -> set[str]:
     return {
         str(row["name"])
@@ -1672,8 +1691,9 @@ def recovery_worker_projection_assessment(
             "reconstructed_checksum": reconstructed_checksum,
         }
 
-    expected_profile = canonical_profile_overlay(
-        conn, CANONICAL_USERNAME, receipt_profile, int(wallet["balance"] or 0)
+    expected_profile = copy.deepcopy(receipt_profile)
+    expected_profile["hacked"] = runtime_captured_targets_projection(
+        conn, CANONICAL_USERNAME
     )
     expected_profile["captured_targets_source"] = "sqlite"
     stats, exp = territory_stats_snapshot(
@@ -1683,11 +1703,31 @@ def recovery_worker_projection_assessment(
     expected_profile["exp"] = exp
     expected_checksum = profile_checksum(expected_profile)
     if expected_checksum != current_state["stored_checksum"] or expected_profile != current_profile:
+        differing_fields = sorted({
+            key
+            for key in set(expected_profile) | set(current_profile)
+            if expected_profile.get(key) != current_profile.get(key)
+        })
         return {
             "recognized": False,
             "reason": "profile_is_not_exact_recovery_worker_projection",
             "expected_checksum": expected_checksum,
             "current_checksum": current_state["stored_checksum"],
+            "differing_top_level_fields": differing_fields,
+            "projection_diagnostics": {
+                "expected_exp": expected_profile.get("exp"),
+                "current_exp": current_profile.get("exp"),
+                "expected_hacked_count": len(expected_profile.get("hacked") or []),
+                "current_hacked_count": len(current_profile.get("hacked") or []),
+                "expected_hacked_sha256": digest(expected_profile.get("hacked") or []),
+                "current_hacked_sha256": digest(current_profile.get("hacked") or []),
+                "expected_territory_stats_sha256": digest(
+                    expected_profile.get("territory_stats") or {}
+                ),
+                "current_territory_stats_sha256": digest(
+                    current_profile.get("territory_stats") or {}
+                ),
+            },
         }
     return {
         "recognized": True,

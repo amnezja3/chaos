@@ -995,3 +995,10 @@ Aktualny stan:
 `NO-GO — partial Sprint 130.11 apply frozen; rollback not yet executed`.
 
 Regresja lokalna poprawki: `376/376 OK`; `py_compile` i `git diff --check`: OK.
+
+Pierwszy preflight serwerowy po tej bramce nadal odmówił rollbacku: expected
+checksum różnił się od revision 3. Przyczyną była nie geometria ani gameplay,
+lecz inna projekcja `hacked`: worker sortuje canonical targets po `captured_at`
+i zawsze materializuje `lat`, `lng` oraz `lon`. Narzędzie zachowuje historyczną
+rekonstrukcję revision 2, a revision 3 odtwarza odtąd dokładnie kontraktem
+`TerritoryStore.list_captured_targets()`.
