@@ -88,6 +88,16 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
                     message_id TEXT PRIMARY KEY, username TEXT, dedupe_key TEXT,
                     source TEXT, payload_json TEXT, created_at TEXT
                 );
+                CREATE TABLE player_marked_targets (
+                    username TEXT, target_key TEXT, target_json TEXT,
+                    lat REAL, lng REAL, label TEXT, status TEXT, version INTEGER,
+                    source TEXT, created_at TEXT, updated_at TEXT,
+                    PRIMARY KEY(username, target_key)
+                );
+                CREATE TABLE player_marked_target_state (
+                    username TEXT PRIMARY KEY, source_revision INTEGER,
+                    migrated_count INTEGER, seeded_at TEXT
+                );
                 CREATE TABLE captured_targets (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, owner_username TEXT,
                     stationary INTEGER, updated_at TEXT, lat REAL, lng REAL,
@@ -180,6 +190,31 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
                 ("before-event", tool.CANONICAL_USERNAME, "before-event", 1000, 1000,
                  4, "bootstrap", "2026-01-02"),
             )
+            conn.execute(
+                "INSERT INTO player_marked_target_state VALUES (?,?,?,?)",
+                (tool.CANONICAL_USERNAME, 7, 2, "2026-01-02"),
+            )
+            marked_targets = [
+                {
+                    "target_id": "map:35.1:139.1:first", "lat": 35.1,
+                    "lng": 139.1, "label": "first",
+                },
+                {
+                    "target_id": "map:35.2:139.2:second", "lat": 35.2,
+                    "lng": 139.2, "label": "second",
+                },
+            ]
+            for index, target in enumerate(marked_targets):
+                conn.execute(
+                    "INSERT INTO player_marked_targets VALUES "
+                    "(?,?,?,?,?,?,'active',1,'test',?,?)",
+                    (
+                        tool.CANONICAL_USERNAME, target["target_id"],
+                        tool.canonical_json(target), target["lat"], target["lng"],
+                        target["label"], f"2026-01-0{index + 2}",
+                        f"2026-01-0{index + 2}",
+                    ),
+                )
             for app_id, name in (("app_nmap", "Nmap"), ("app_metasploit", "Metasploit")):
                 conn.execute(
                     "INSERT INTO player_apps VALUES (?,?,1,?,'installed','2026-01-02')",
@@ -394,6 +429,33 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
         with self.assertRaises(tool.RecoveryGateError):
             tool.load_plan(str(path))
 
+    def test_target_projection_diagnostics_are_structural_and_minimal(self):
+        expected = [
+            {"target_id": "target-a", "label": "secret-a", "version": 1},
+            {"target_id": "target-b", "label": "secret-b"},
+        ]
+        current = [
+            {"target_id": "target-b", "label": "secret-b"},
+            {"target_id": "target-a", "label": "changed-secret", "version": 2},
+            {"target_id": "target-c", "label": "secret-c"},
+        ]
+
+        diagnostics = tool.target_projection_diagnostics(expected, current)
+
+        self.assertEqual(2, diagnostics["expected_count"])
+        self.assertEqual(3, diagnostics["current_count"])
+        self.assertFalse(diagnostics["order_matches"])
+        self.assertEqual(["target-c"], diagnostics["added_stable_ids"])
+        self.assertEqual([], diagnostics["removed_stable_ids"])
+        changed = {item["stable_id"]: item for item in diagnostics["changed"]}
+        self.assertEqual(
+            {"label", "version"},
+            {item["field"] for item in changed["target-a"]["fields"]},
+        )
+        rendered = tool.canonical_json(diagnostics)
+        self.assertNotIn("secret-a", rendered)
+        self.assertNotIn("changed-secret", rendered)
+
     def test_stale_profile_revision_blocks_dry_run(self):
         plan = self.build_plan()
         with self.connect() as conn:
@@ -573,6 +635,11 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
             )
             self.assertTrue(projected["hacked"])
             self.assertTrue(all("lon" in item for item in projected["hacked"]))
+            marked_overlaid, marked_targets = tool.runtime_marked_targets_projection(
+                conn, tool.CANONICAL_USERNAME
+            )
+            self.assertTrue(marked_overlaid)
+            projected["targets"] = marked_targets
             projected["captured_targets_source"] = "sqlite"
             stats, exp = tool.territory_stats_snapshot(
                 conn, tool.RECOVERY_LEVEL, base_profile=projected
@@ -711,6 +778,53 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
         self.assertFalse(assessment["recognized"])
         with self.assertRaises(tool.RecoveryGateError):
             tool.rollback_recovery(self.db_path, plan, manifest)
+
+    def test_unexpected_marked_target_is_not_accepted_as_worker_projection(self):
+        plan, manifest = self.start_recovery()
+        self.complete_recovery_jobs(plan)
+        with self.connect() as conn:
+            receipt = tool.recovery_receipt(conn, plan["plan_id"])
+            before_profile = json.loads(manifest["records"]["users"][0]["profile_json"])
+            receipt_profile = tool.canonical_profile_overlay(
+                conn, tool.CANONICAL_USERNAME, before_profile, 1000,
+                exclude_recovery_plan_id=plan["plan_id"],
+            )
+            receipt_profile["level"] = tool.RECOVERY_LEVEL
+            projected = copy.deepcopy(receipt_profile)
+            projected["hacked"] = tool.runtime_captured_targets_projection(
+                conn, tool.CANONICAL_USERNAME
+            )
+            _overlaid, projected["targets"] = tool.runtime_marked_targets_projection(
+                conn, tool.CANONICAL_USERNAME
+            )
+            projected["captured_targets_source"] = "sqlite"
+            stats, exp = tool.territory_stats_snapshot(
+                conn, tool.RECOVERY_LEVEL, base_profile=projected
+            )
+            projected["territory_stats"] = stats
+            projected["exp"] = exp
+            projected["targets"].append({
+                "target_id": "later-gameplay-target", "lat": 1.0, "lng": 1.0,
+            })
+            conn.execute(
+                "UPDATE users SET profile_json=?, profile_revision=?, profile_checksum=? "
+                "WHERE username=?",
+                (
+                    tool.canonical_json(projected),
+                    int(receipt["current_profile_revision"]) + 1,
+                    tool.profile_checksum(projected), tool.CANONICAL_USERNAME,
+                ),
+            )
+
+        with tool.readonly_connection(self.db_path) as conn:
+            assessment = tool.recovery_worker_projection_assessment(
+                conn, plan, manifest
+            )
+
+        self.assertFalse(assessment["recognized"])
+        self.assertEqual(["targets"], assessment["differing_top_level_fields"])
+        target_diff = assessment["projection_diagnostics"]["targets"]
+        self.assertEqual(["later-gameplay-target"], target_diff["added_stable_ids"])
 
 
 

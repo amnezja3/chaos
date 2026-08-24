@@ -1002,3 +1002,9 @@ lecz inna projekcja `hacked`: worker sortuje canonical targets po `captured_at`
 i zawsze materializuje `lat`, `lng` oraz `lon`. Narzędzie zachowuje historyczną
 rekonstrukcję revision 2, a revision 3 odtwarza odtąd dokładnie kontraktem
 `TerritoryStore.list_captured_targets()`.
+
+Drugi preflight wykazał już tylko różnicę `targets`. Revision 3 powstała przez
+`patch_profile_guarded`, który poza jawnymi polami conflict finalizera nakłada
+kanoniczną projekcję aktywnych `player_marked_targets`, o ile konto ma durable
+seed receipt. Recovery odtwarza ten overlay dokładnie; nie usuwa `targets` z
+checksumu ani nie toleruje dowolnej zmiany tego pola.

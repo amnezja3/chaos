@@ -67,6 +67,15 @@ dokładnym kontraktem apply, natomiast oczekiwana revision 3 korzysta teraz z
 osobnego runtime projection identycznego z workerem. Przy odmowie verify zwraca
 wyłącznie nazwy różniących się pól oraz hashe/counts bez ujawniania profilu.
 
+Drugi serwerowy preflight zawęził różnicę do top-level `targets`. Jest to
+canonical overlay wykonywany automatycznie przez `patch_profile_guarded`: jeżeli
+istnieje receipt `player_marked_target_state`, worker zastępuje legacy
+`profile_json.targets` aktywnymi rekordami `player_marked_targets`, sortowanymi
+po `created_at, target_key`. Recovery rekonstruuje teraz ten sam warunek, filtr
+`status='active'`, parser JSON i porządek. `targets` pozostaje częścią profilu i
+checksumu. Diagnostyka raportuje count, SHA, stabilne ID i kolejność oraz dla
+zmienionych wpisów wyłącznie nazwy/type/hash pól — bez payloadów.
+
 Końcowa regresja poprawki: `376/376 OK` dla recovery, territory/control,
 conflict identity/cutover/engagement/multi, progression receipts, Target
 Persistence oraz GN territory jobs. `py_compile` i `git diff --check`: OK.

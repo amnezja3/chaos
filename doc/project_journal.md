@@ -1186,3 +1186,7 @@
 - Serwerowy preflight wykrył, że expected revision 3 nie odtwarzał runtime
   normalizacji targetów (`ORDER BY captured_at`, jawne `lat/lng/lon`). Rozdzielono
   rekonstrukcję receipt revision 2 od dokładnej projekcji conflict finalizera.
+- Kolejny preflight zawęził diff do `profile.targets`: brakowało canonical
+  marked-target overlay z `player_marked_target_state/player_marked_targets`.
+  Rekonstrukcja odwzorowuje teraz active filter i `ORDER BY created_at,target_key`;
+  pole nadal uczestniczy w pełnym checksumie.

@@ -297,6 +297,110 @@ def runtime_captured_targets_projection(
     return targets
 
 
+def runtime_marked_targets_projection(
+    conn: sqlite3.Connection, username: str
+) -> tuple[bool, list[dict[str, Any]]]:
+    """Mirror the marked-target overlay performed by ``patch_profile_guarded``."""
+    tables = table_names(conn)
+    if not {"player_marked_target_state", "player_marked_targets"} <= tables:
+        return False, []
+    seeded = conn.execute(
+        "SELECT 1 FROM player_marked_target_state WHERE username=?",
+        (username,),
+    ).fetchone()
+    if seeded is None:
+        return False, []
+    rows = conn.execute(
+        "SELECT target_json FROM player_marked_targets "
+        "WHERE username=? AND status='active' ORDER BY created_at, target_key",
+        (username,),
+    ).fetchall()
+    return True, [
+        target
+        for target in (loads_object(row["target_json"]) for row in rows)
+        if target
+    ]
+
+
+def target_projection_diagnostics(
+    expected: Any, current: Any
+) -> dict[str, Any]:
+    """Return structural target differences without emitting target payloads."""
+    expected_items = expected if isinstance(expected, list) else []
+    current_items = current if isinstance(current, list) else []
+
+    def stable_id(item: Any, index: int) -> str:
+        if not isinstance(item, dict):
+            return f"non_object:{index}:{digest(item)[:16]}"
+        for key in ("target_id", "target_key", "id"):
+            value = str(item.get(key) or "").strip()
+            if value:
+                return value
+        identity = {
+            key: item.get(key)
+            for key in (
+                "lat", "lng", "lon", "label", "name", "source_type",
+                "target_type", "osm_id", "node_id",
+            )
+            if key in item
+        }
+        return "derived:" + digest(identity or item)[:20]
+
+    def indexed(items: list[Any]) -> tuple[list[str], dict[str, Any]]:
+        order = []
+        values = {}
+        occurrences: dict[str, int] = {}
+        for index, item in enumerate(items):
+            base = stable_id(item, index)
+            occurrence = occurrences.get(base, 0) + 1
+            occurrences[base] = occurrence
+            key = base if occurrence == 1 else f"{base}#{occurrence}"
+            order.append(key)
+            values[key] = item
+        return order, values
+
+    expected_order, expected_by_id = indexed(expected_items)
+    current_order, current_by_id = indexed(current_items)
+    shared = sorted(set(expected_by_id) & set(current_by_id))
+    changed = []
+    for target_id in shared:
+        expected_item = expected_by_id[target_id]
+        current_item = current_by_id[target_id]
+        if expected_item == current_item:
+            continue
+        expected_fields = expected_item if isinstance(expected_item, dict) else {}
+        current_fields = current_item if isinstance(current_item, dict) else {}
+        field_names = sorted(set(expected_fields) | set(current_fields))
+        changed_fields = []
+        for field in field_names:
+            expected_value = expected_fields.get(field)
+            current_value = current_fields.get(field)
+            if expected_value == current_value:
+                continue
+            changed_fields.append({
+                "field": field,
+                "expected_present": field in expected_fields,
+                "current_present": field in current_fields,
+                "expected_type": type(expected_value).__name__,
+                "current_type": type(current_value).__name__,
+                "expected_sha256": digest(expected_value),
+                "current_sha256": digest(current_value),
+            })
+        changed.append({"stable_id": target_id, "fields": changed_fields})
+    return {
+        "expected_count": len(expected_items),
+        "current_count": len(current_items),
+        "expected_sha256": digest(expected),
+        "current_sha256": digest(current),
+        "expected_order": expected_order,
+        "current_order": current_order,
+        "order_matches": expected_order == current_order,
+        "added_stable_ids": sorted(set(current_by_id) - set(expected_by_id)),
+        "removed_stable_ids": sorted(set(expected_by_id) - set(current_by_id)),
+        "changed": changed,
+    }
+
+
 def table_names(conn: sqlite3.Connection) -> set[str]:
     return {
         str(row["name"])
@@ -1695,6 +1799,11 @@ def recovery_worker_projection_assessment(
     expected_profile["hacked"] = runtime_captured_targets_projection(
         conn, CANONICAL_USERNAME
     )
+    marked_targets_overlaid, marked_targets = runtime_marked_targets_projection(
+        conn, CANONICAL_USERNAME
+    )
+    if marked_targets_overlaid:
+        expected_profile["targets"] = marked_targets
     expected_profile["captured_targets_source"] = "sqlite"
     stats, exp = territory_stats_snapshot(
         conn, RECOVERY_LEVEL, base_profile=expected_profile
@@ -1727,13 +1836,19 @@ def recovery_worker_projection_assessment(
                 "current_territory_stats_sha256": digest(
                     current_profile.get("territory_stats") or {}
                 ),
+                "targets": target_projection_diagnostics(
+                    expected_profile.get("targets"), current_profile.get("targets")
+                ),
             },
         }
     return {
         "recognized": True,
         "reason": "exact_recovery_owned_worker_projection",
         "source": "territory.conflict_finalize_profile",
-        "allowed_fields": ["hacked", "captured_targets_source", "territory_stats", "exp"],
+        "allowed_fields": [
+            "hacked", "captured_targets_source", "targets",
+            "territory_stats", "exp",
+        ],
         "receipt_revision": int(receipt["current_profile_revision"]),
         "receipt_checksum": receipt["current_profile_checksum"],
         "profile_revision": current_state["revision"],
