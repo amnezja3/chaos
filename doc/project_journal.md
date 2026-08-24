@@ -1249,3 +1249,20 @@
   ewentualne historyczne `fraction.role=2` jest obserwacją, nie recovery source.
 - Regresja identity repair: `7/7 OK`; runtime web/worker nie importuje narzędzia. Status:
   `READY FOR SERVER READ-ONLY IDENTITY AUDIT`; bez produkcyjnego apply i deployu.
+
+## 2026-08-24 - Sprint 130.11: post-recovery drift gate
+
+- Identity apply zatrzymany po wykryciu revision 6 → LKG 7 → current 8.
+- Dodano read-only, checksumowany `drift-audit`: changed-fields-only diff,
+  klasyfikację gameplay/session oraz korelację telemetrii `[PROFILE_WRITE]`.
+- `prewrite:profile_manager.update_profile` opisuje zapis tworzący revision 8;
+  LKG zawiera stan revision 7 sprzed tego zapisu.
+- Identity plan może zostać przebazowany na aktualny CAS revision 8 tylko przez
+  podpisany zielony raport. Protected gameplay drift, nieznane pola, zły LKG,
+  nieodtwarzalny checksum revision 6 lub dalsza zmiana profilu blokują plan.
+- Nie wykonano identity apply ani mutacji bazy. Regresja identity + Recovery v2
+  + geometry audit: `47/47 OK`.
+- Skorygowano instrukcję server drift-audit: jedynym legalnym źródłem jest
+  finalne `/home/johndoe/chaos-recovery-13011-v2-20260824T073939Z/plan-v2.json`,
+  nie rollbackowany plan recovery v1. Tool failuje przy niezgodności plan ID/SHA
+  z completed receipt.

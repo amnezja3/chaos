@@ -1071,3 +1071,53 @@ profile i external CAS drift oraz verified LKG promotion.
 Status: `READY FOR SERVER READ-ONLY IDENTITY AUDIT`. Produkcyjny identity apply
 nie został wykonany; runtime web/worker nie wymaga restartu ani deployu, jeżeli
 zmienia się wyłącznie narzędzie operatorskie.
+
+### Post-recovery drift gate rev6 → LKG7 → rev8
+
+Read-only identity audit wykrył, że po zakończonym recovery profil przeszedł
+z revision 6 do 8, a LKG revision 7 ma source
+`prewrite:profile_manager.update_profile`. Identity apply pozostaje zatrzymany.
+Narzędzie udostępnia teraz `drift-audit`, który rekonstruuje finalny profil
+recovery i wymaga zgodności z podpisanym checksumem revision 6, weryfikuje
+checksum LKG, pokazuje wyłącznie rzeczywiście zmienione top-level fields oraz
+klasyfikuje je jako identity, progression, wallet, territory,
+inventory/apps/tools, operations/files, session/runtime albo remaining.
+Kolekcje są raportowane wyłącznie przez count + SHA, a pola wrażliwe przez SHA.
+
+Source `prewrite:profile_manager.update_profile` oznacza operację, która
+utworzyła revision 8; payload LKG jest stanem revision 7 sprzed tego zapisu.
+Telemetria `[PROFILE_WRITE]`, jeżeli jest dostępna, uzupełnia source i changed
+scopes dla obu przejść. Drift progression, wallet, territory,
+inventory/apps/tools, operations/files lub nieznanych pól blokuje rebase.
+
+Plan identity może oprzeć CAS na bieżącej revision 8 wyłącznie po wczytaniu
+podpisanego raportu z werdyktem
+`SAFE TO REBASE IDENTITY REPAIR ON CURRENT REVISION 8`. Raport jest przypinany
+do planu przez SHA wraz z checksumami revision 6 i 8. Bez raportu albo przy
+jakimkolwiek kolejnym drifcie plan failuje zamknięty. Nie następuje cofnięcie
+profilu ani odtworzenie snapshotu revision 6.
+
+Regresja: `47/47 OK` dla identity, Recovery v2 i geometry audit; `py_compile`
+oraz `git diff --check` przechodzą.
+
+Produkcyjny drift audit musi być związany wyłącznie z finalnym Recovery v2,
+które utworzyło revision 6. Rollbackowany katalog recovery v1 nie jest legalnym
+źródłem tego audytu. Aktualne artefakty operatorskie:
+
+```bash
+RECOVERY_DIR='/home/johndoe/chaos-recovery-13011-v2-20260824T073939Z'
+RECOVERY_PLAN="$RECOVERY_DIR/plan-v2.json"
+BEFORE_MANIFEST="$RECOVERY_DIR/before-manifest-v2.json"
+DRIFT_REPORT="$RECOVERY_DIR/identity-drift-readonly.json"
+
+.venv/bin/python tools/repair_trollu2_identity.py drift-audit \
+  --db data/game.sqlite3 \
+  --recovery-plan "$RECOVERY_PLAN" \
+  --before-manifest "$BEFORE_MANIFEST" \
+  --web-log /home/johndoe/.pm2/logs/chaos-out.log \
+  | tee "$DRIFT_REPORT"
+```
+
+Narzędzie dodatkowo wymaga, aby `plan_id` i `plan_sha256` wskazanego planu v2
+były identyczne z completed recovery receipt. Wskazanie starego planu failuje
+przed wykonaniem diffu i nie może autoryzować rebase identity.

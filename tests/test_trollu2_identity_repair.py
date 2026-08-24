@@ -247,6 +247,71 @@ class Trollu2IdentityRepairTests(unittest.TestCase):
         for path in runtime_paths:
             self.assertNotIn(needle, path.read_text(encoding="utf-8"), str(path))
 
+    def test_classified_diff_reports_only_changed_fields_without_full_collections(self):
+        before = copy.deepcopy(self.profile)
+        after = copy.deepcopy(before)
+        after["nick"] = "Trolu 2"
+        after["operations"].append({"operation_id": "op-2"})
+        after["session_id"] = "secret-session"
+
+        diff = tool.classified_profile_diff(before, after)
+
+        self.assertEqual(["nick"], [item["field"] for item in diff["identity"]])
+        operations = diff["operations_files"][0]
+        self.assertEqual("operations", operations["field"])
+        self.assertEqual(1, operations["before"]["count"])
+        self.assertEqual(2, operations["after"]["count"])
+        session = diff["remaining_fields"][0]
+        self.assertEqual("session_id", session["field"])
+        self.assertNotIn("secret-session", json.dumps(session))
+
+    def test_runtime_lkg_projection_excludes_canonical_and_sensitive_top_level_fields(self):
+        value = {
+            "nick": "NowyHaker",
+            "apps": [{"id": "app"}],
+            "hackcoins": 5,
+            "launch_queue": [1],
+            "session_token": "secret",
+            "files": {"tools": ["hidden"], "personal": ["kept"]},
+        }
+        snapshot = tool.runtime_lkg_snapshot_value(value, top_level=True)
+        self.assertEqual("NowyHaker", snapshot["nick"])
+        self.assertEqual({"personal": ["kept"]}, snapshot["files"])
+        for field in ("apps", "hackcoins", "launch_queue", "session_token"):
+            self.assertNotIn(field, snapshot)
+
+    def test_post_recovery_drift_requires_signed_safe_report_and_rebases_cas(self):
+        current = copy.deepcopy(self.profile)
+        current["desktop_settings"] = {"theme": "green"}
+        checksum = recovery.profile_checksum(current)
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "UPDATE users SET profile_json=?, profile_revision=8, profile_checksum=? "
+                "WHERE username='trolu2'",
+                (recovery.canonical_json(current), checksum),
+            )
+        with recovery.readonly_connection(self.db_path) as conn:
+            with self.assertRaisesRegex(tool.IdentityRepairError, "safe drift report"):
+                tool.build_plan(conn)
+
+        recovery_checksum = recovery.profile_checksum(self.profile)
+        report = {
+            "ok": True,
+            "verdict": "SAFE TO REBASE IDENTITY REPAIR ON CURRENT REVISION 8",
+            "read_only_database": True,
+            "database_writes": 0,
+            "revisions": {
+                "recovery_final": {"revision": 6, "checksum": recovery_checksum},
+                "current": {"revision": 8, "checksum": checksum},
+            },
+        }
+        report["report_sha256"] = recovery.digest(report)
+        with recovery.readonly_connection(self.db_path) as conn:
+            plan = tool.build_plan(conn, approved_drift=report)
+        self.assertEqual(8, plan["preconditions"]["profile_revision"])
+        self.assertEqual(checksum, plan["preconditions"]["profile_checksum"])
+        self.assertEqual(report["report_sha256"], plan["post_recovery_drift"]["report_sha256"])
+
 
 if __name__ == "__main__":
     unittest.main()
