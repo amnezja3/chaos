@@ -1274,3 +1274,33 @@
   z completed receipt.
 - Regresja dokładnego lifecycle rev6 complete → valid writes rev7/rev8 →
   current identity plan → tylko trzy identity fields: `48/48 OK`.
+
+## 2026-08-24 - Sprint 130.11 COMPLETE
+
+`SPRINT 130.11 — COMPLETE`
+
+`TROLU2 CONTROLLED RECOVERY — COMPLETE`
+
+`IDENTITY REPAIR — COMPLETE`
+
+- Produkcyjny Recovery v2 i identity repair zakończyły się durable receipts
+  `complete`, finalnym profile revision 9, dopasowanym LKG oraz
+  `blockers=[]`, `ok=true`.
+- Root cause class: potwierdzony sparse-profile destructive full-save po GN
+  activation reward, po którym template sync materializował starter-like profil;
+  korelacja historyczna z konkretnym incydentem pozostaje high-confidence z
+  jawną luką pojedynczego write-attemptu.
+- Dziewięć historycznych stationary targets przetrwało downgrade i po
+  przywróceniu levelu reaktywowało geometrię kolidującą z późniejszą ewolucją
+  świata. Controlled retirement 9/9 oraz rebuild usunęły ten legacy input.
+- Przyznano bezkolizyjny bonus Tokio: 8 recovery targets, 1 area, 0 conflicts.
+  Progression/wallet zakończyły się stanem LVL 50, RSP 2560, HC 250000 i
+  EXP `2217312.71 m² efektywne`; apps/tools pozostały 11/11.
+- Osobny field-level identity repair ustawił `Trolu 2`, nowy wybór
+  `Socjotechnik` oraz canonical avatar
+  `/static/images/avatar-frakcja-2-player-2.png`, zachowując Echo Wolności i
+  cały non-identity gameplay state.
+- GhostNetwork pozostał nietknięty: 20 parts i `recovery_reference_count=0`.
+  Historical retirement audit ma 9 wpisów; finalny LKG odpowiada revision 9.
+- Produkcyjny manual UI potwierdził nick, avatar, klan, progression, wallet i
+  aktywne terytorium. Nie są wymagane dalsze apply ani rollback.

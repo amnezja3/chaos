@@ -2,7 +2,7 @@
 
 Data planu: 2026-08-21.
 
-Status: `READY TO RESUME EXISTING RECOVERY V2 APPLY`.
+Status: `SPRINT 130.11 — COMPLETE`.
 
 ## Existing geometry / level scaling diagnosis
 
@@ -1068,9 +1068,9 @@ Celowana regresja identity repair: `7/7 OK` — field-only preservation,
 progression/wallet/territory/inventory 11/11/GN unchanged, duplicate apply,
 profile i external CAS drift oraz verified LKG promotion.
 
-Status: `READY FOR SERVER READ-ONLY IDENTITY AUDIT`. Produkcyjny identity apply
-nie został wykonany; runtime web/worker nie wymaga restartu ani deployu, jeżeli
-zmienia się wyłącznie narzędzie operatorskie.
+Historyczny status przed produkcyjnym identity repair:
+`READY FOR SERVER READ-ONLY IDENTITY AUDIT`. Bramka została następnie wykonana,
+a finalny wynik opisuje sekcja zamknięcia poniżej.
 
 ### Post-recovery drift gate rev6 → LKG7 → rev8
 
@@ -1155,3 +1155,74 @@ IDENTITY_PLAN="$RECOVERY_DIR/identity-plan-rev8.json"
 ```
 
 Powyższe komendy nie wykonują identity apply ani innych mutacji bazy.
+
+## Zamknięcie produkcyjne — 2026-08-24
+
+`SPRINT 130.11 — COMPLETE`
+
+`TROLU2 CONTROLLED RECOVERY — COMPLETE`
+
+`IDENTITY REPAIR — COMPLETE`
+
+Produkcyjny controlled recovery, osobny identity repair, końcowy verify oraz
+manualna kontrola UI zostały zakończone powodzeniem. Oba durable receipts mają
+status `complete`; finalny profil ma revision 9, a najnowszy LKG odpowiada
+identity-correct profilowi.
+
+### Podsumowanie incydentu i recovery
+
+1. Audyt potwierdził destrukcyjny defekt: first-activation reward GhostNetwork
+   mógł potraktować sparse identity projection jako pełny profil i zapisać ją
+   do `profile_json`; późniejszy template sync nadawał profilowi starter-like
+   postać. Korelacja tego mechanizmu z incydentem `trolu2` pozostaje
+   `STRONGLY CONSISTENT / HIGH CONFIDENCE`, ponieważ nie istnieje historyczna
+   telemetria pojedynczego write-attemptu ani pre-incident LKG.
+2. Dowód serwerowy wykazał, że dziewięć historycznych stationary targets
+   przetrwało downgrade profilu. Przy niskim LVL nie tworzyły pola, lecz po
+   przywróceniu LVL ponownie domykały dwa historyczne komponenty geometrii.
+3. W czasie nieaktywności tych obszarów świat ewoluował, a inni gracze zajęli
+   część przestrzeni. Proste odtworzenie dawnego levelu tworzyło więc
+   konflikty z bieżącym canonical world.
+4. Recovery v2 wykonał controlled retirement dokładnie dziewięciu
+   historycznych stationary targets. Lifecycle został zapisany w trwałym
+   audycie, a canonical rebuild potwierdził brak odtworzenia dawnych obszarów.
+5. Następnie przyznano bezkolizyjny bonus Tokio: osiem recovery-owned targets,
+   jeden aktywny obszar i zero recovery conflicts.
+6. Controlled settlement przywrócił progression i wallet do LVL 50, RSP 2560,
+   HC 250000 oraz `2217312.71 m² efektywne`, zachowując apps/tools 11/11 i
+   pozostały canonical gameplay state.
+7. Osobny field-level identity repair zmienił wyłącznie nick, profession i
+   avatar. `Socjotechnik` jest nowym wyborem gracza po recovery, a nie wartością
+   odtworzoną z historycznego evidence.
+8. Po finalnym verify identity-correct profil został promowany jako najnowszy
+   LKG. Nie przywracano starego snapshotu i nie cofano legalnych zapisów
+   powstałych po recovery.
+9. Produkcyjny verify i manual UI potwierdziły wszystkie finalne invariants oraz
+   brak blockerów.
+
+### Finalny stan
+
+- canonical username: `trolu2`;
+- nick: `Trolu 2`;
+- clan: `Echo Wolności`;
+- profession: `Socjotechnik` — nowy wybór gracza po recovery;
+- avatar: `/static/images/avatar-frakcja-2-player-2.png`;
+- LVL: `50`;
+- RSP: `2560`;
+- HC: `250000`;
+- EXP: `2217312.71 m² efektywne`;
+- apps/tools: `11/11`;
+- recovery targets: `8`;
+- active recovery areas: `1`;
+- recovery conflicts: `0`;
+- historical retirement audit: `9`;
+- GhostNetwork: `20` parts, `recovery_reference_count=0`;
+- final profile revision: `9`;
+- recovery receipt: `complete`;
+- identity receipt: `complete`;
+- final LKG matches identity profile: `true`;
+- final verify: `blockers=[]`, `ok=true`.
+
+Manualna kontrola produkcyjnego UI potwierdziła nick `Trolu 2`, poziom 50,
+250000 HC, 2560 Respect, klan Echo Wolności, poprawny avatar profesji oraz
+aktywne terytorium. Sprint nie wymaga dalszego apply ani rollbacku.
