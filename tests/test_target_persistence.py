@@ -4435,6 +4435,56 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(payload["pending_action"]["_flow_id"], "test-flow")
         readonly.assert_called_once()
 
+    def test_conflict_pillar_tool_selection_preserves_canonical_identity(self):
+        profile = {
+            "username": "tester",
+            "apps": [
+                {"id": "trace_a", "name": "Trace A", "map_actions": ["trace"]},
+                {"id": "trace_b", "name": "Trace B", "map_actions": ["trace"]},
+            ],
+            "files": {},
+            "aimed_target": {},
+        }
+        contested = {
+            "target_id": "pillar-canonical-7",
+            "stable_conflict_id": "conflict-stable-9",
+            "conflict_id": "conflict-stable-9",
+            "legacy_conflict_id": 9,
+            "foreign_area_id": 41,
+            "expected_owner_username": "owner",
+            "ownership_version": 12,
+            "owner_username": "owner",
+            "lat": 52.1,
+            "lng": 21.2,
+            "label": "Canonical Pillar",
+            "security": {},
+        }
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = "tester"
+
+        with patch.object(run, "load_profile_readonly", return_value=profile), \
+             patch.object(run, "find_contested_target", return_value=contested), \
+             patch.object(run, "find_foreign_area_for_point", return_value=None), \
+             patch.object(run, "find_owned_captured_target_for_runtime_target", return_value=None):
+            response = client.post("/hack-action", json={
+                "action": "trace",
+                "lat": 52.1,
+                "lng": 21.2,
+                "label": "Display Pillar",
+                "target_mode": "territory_contest",
+                "target_id": "pillar-canonical-7",
+                "conflict_id": "conflict-stable-9",
+            })
+
+        self.assertEqual(200, response.status_code)
+        pending = response.get_json()["pending_action"]
+        self.assertEqual("pillar-canonical-7", pending["target_id"])
+        self.assertEqual("conflict-stable-9", pending["stable_conflict_id"])
+        self.assertEqual("conflict-stable-9", pending["conflict_id"])
+        self.assertEqual(41, pending["foreign_area_id"])
+        self.assertEqual(12, pending["ownership_version"])
+
     def test_hack_action_single_tool_discovery_is_readonly_when_provisional_enabled(self):
         profile = {
             "username": "tester",

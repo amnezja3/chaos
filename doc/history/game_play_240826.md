@@ -384,7 +384,7 @@ tile state. Werdykt: `SPRINT 130.12.1 — COMPLETE`.
 
 # Sprint 130.12.2 — Map / Territory / GhostNetwork / Operation Integrity P0
 
-**Status bieżący:** SPRINT 130.12.2 — READY FOR SERVER VALIDATION
+**Status bieżący:** SPRINT 130.12.2 — READY FOR SERVER REVALIDATION
 **Priorytet:** P0
 
 ## Cel
@@ -636,8 +636,31 @@ OFS nie pokazuje false failure po canonical success
 Końcowy status:
 
 ```text
-SPRINT 130.12.2 — READY FOR SERVER VALIDATION
+SPRINT 130.12.2 — READY FOR SERVER REVALIDATION
 ```
+
+## Korekta po pierwszej walidacji serwerowej
+
+Manual produkcyjny wykazał dwa sprzężone objawy pierwszego uruchomienia:
+
+- opóźniony Trace Compass na filarze konfliktu kończył `/gonna-win` przez `409`,
+  chociaż ponowne uruchomienie przechodziło;
+- Browser i zapis stanu pulpitu mogły otrzymać `409` podczas równoległych zapisów
+  profilu.
+
+Root cause operacji: mapa przekazywała kanoniczne `target_id/conflict_id`, lecz
+`/hack-action` gubił je w `pending_action`, a frontend redukował
+`expected_target` do pozycji i etykiety. Ostatnie z kilku równoległych narzędzi
+nie mogło więc rozpoznać przejętego filaru jako tego samego celu.
+
+Root cause Browser/Desktop: `/api/catalog` wykonywał normalizujący zapis profilu
+na ścieżce odczytu, a `/api/profile/desktop` zapisywał projekcję z potencjalnie
+nieaktualnego snapshotu. Katalog jest teraz read-only, a desktop stosuje mały
+CAS-safe patch z bounded retry i rebase na najnowszej rewizji.
+
+Regresje obejmują zachowanie kanonicznej tożsamości filaru przez picker i
+`expected_target`, read-only catalog oraz pierwszy konflikt CAS zapisu pulpitu.
+Bez deployu, restartu PM2 i commita.
 
 ---
 

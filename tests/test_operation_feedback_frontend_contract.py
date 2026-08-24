@@ -239,6 +239,9 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("randomUUID", helper)
         self.assertIn("explicitLaunchReceipt || createApplicationInvocationReceipt", context)
         self.assertIn("invocation_id: launchReceipt", context)
+        self.assertIn("foreign_area_id: aimedTarget.foreign_area_id", context)
+        self.assertIn("stable_conflict_id: aimedTarget.stable_conflict_id", context)
+        self.assertIn("ownership_version: aimedTarget.ownership_version", context)
         self.assertNotIn('`${flowId || "manual"}:${appId || name}`', context)
 
     def test_scan_ports_profile_has_required_mvp_libraries(self):

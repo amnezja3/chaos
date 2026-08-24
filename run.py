@@ -14395,6 +14395,24 @@ def find_contested_target(username, lat, lng, label=None, target_id=None, confli
     return None
 
 
+def contested_target_identity_fields(request_target=None, contested_target=None):
+    """Keep the canonical conflict-pillar identity across picker/app handoffs."""
+    request_target = request_target if isinstance(request_target, dict) else {}
+    contested_target = contested_target if isinstance(contested_target, dict) else {}
+    fields = {}
+    for key in (
+        "target_id", "stable_conflict_id", "conflict_id", "legacy_conflict_id",
+        "source_conflict_ids", "engagement_ids", "node_role", "foreign_area_id",
+        "my_area_id", "expected_owner_username", "ownership_version",
+    ):
+        value = contested_target.get(key)
+        if value in (None, "", [], {}):
+            value = request_target.get(key)
+        if value not in (None, "", [], {}):
+            fields[key] = copy.deepcopy(value)
+    return fields
+
+
 def refresh_active_contested_capture_identity(username, target):
     """Refresh domain CAS identity without touching application progress."""
     refreshed = dict(target or {})
@@ -21391,6 +21409,7 @@ def hack_action():
                 if preflight_contested_target else data.get("foreign_area_id")
             ),
             "target_username": preflight_player_target_username if requested_target_mode == "player" else None,
+            **contested_target_identity_fields(data, preflight_contested_target),
         }
         if requested_target_mode != "player":
             preflight_already_captured = find_owned_captured_target_for_runtime_target(
@@ -21531,6 +21550,7 @@ def hack_action():
                     "contest_owner_username": data.get("contest_owner_username"),
                     "foreign_area_id": data.get("foreign_area_id"),
                     "target_username": preflight_player_target_username or data.get("target_username"),
+                    **contested_target_identity_fields(data, preflight_contested_target),
                     "_flow_id": flow_id,
                     "_client_action_key": data.get("_client_action_key"),
             }
@@ -21906,6 +21926,7 @@ def hack_action():
                 "contest_owner_username": data.get("contest_owner_username"),
                 "foreign_area_id": data.get("foreign_area_id"),
                 "target_username": player_target_username or data.get("target_username"),
+                **contested_target_identity_fields(data, contested_target),
                 "_flow_id": flow_id,
                 "_client_action_key": data.get("_client_action_key"),
             }
@@ -21994,6 +22015,7 @@ def hack_action():
         "vulnerability_id": vulnerability_report.get("id") if vulnerability_report else vulnerability_id,
         "foreign_area_id": contested_target.get("foreign_area_id") if contested_target else data.get("foreign_area_id"),
         "target_username": player_target_username if requested_target_mode == "player" else None,
+        **contested_target_identity_fields(data, contested_target),
     }
     already_captured_target = None
     if requested_target_mode != "player":
@@ -22156,6 +22178,7 @@ def hack_action():
             previous_target["target_mode"] = "territory_contest"
             previous_target["contest_owner_username"] = contested_target.get("owner_username")
             previous_target["foreign_area_id"] = contested_target.get("foreign_area_id")
+            previous_target.update(contested_target_identity_fields(data, contested_target))
             previous_target["security"] = dict(contested_target.get("security") or previous_target.get("security") or {})
         elif requested_target_mode == "player":
             previous_target["target_mode"] = "player"
@@ -22204,6 +22227,7 @@ def hack_action():
             "vulnerability_id": vulnerability_report.get("id") if vulnerability_report else None,
             "contest_owner_username": contested_target.get("owner_username") if contested_target else None,
             "foreign_area_id": contested_target.get("foreign_area_id") if contested_target else None,
+            **contested_target_identity_fields(data, contested_target),
             "security": {},
             "actions_allowed": {
                 "scan_ports": False,
@@ -23136,11 +23160,7 @@ def update_profile_desktop():
 
     data = request.get_json(silent=True) or {}
     username = session["user"]
-    profile = user_store.get_profile(username)
-    if not profile:
-        invalidate_authenticated_session("profile_not_found")
-        return jsonify({"error": "Brak danych uzytkownika"}), 401
-    settings = normalize_desktop_settings(profile.get("desktop_settings"))
+    changes = {}
 
     if "wallpaper" in data:
         wallpaper = str(data.get("wallpaper") or "").strip()
@@ -23151,7 +23171,7 @@ def update_profile_desktop():
             "wall-chaos-amber", "wall-chaos-violet",
         ]:
             return jsonify({"error": "Nieprawidlowa tapeta."}), 400
-        settings["wallpaper"] = wallpaper
+        changes["wallpaper"] = wallpaper
 
     if isinstance(data.get("icon_positions"), dict):
         cleaned = {}
@@ -23167,21 +23187,34 @@ def update_profile_desktop():
                 "left": max(0, left),
                 "top": max(0, top)
             }
-        settings["icon_positions"] = cleaned
+        changes["icon_positions"] = cleaned
 
     if "auto_fullscreen" in data:
-        settings["auto_fullscreen"] = data.get("auto_fullscreen") is True
+        changes["auto_fullscreen"] = data.get("auto_fullscreen") is True
 
     if "map_tile_scheme" in data:
         map_tile_scheme = str(data.get("map_tile_scheme") or "osm").strip()
         if map_tile_scheme not in MAP_TILE_SCHEMES:
             return jsonify({"error": "Nieprawidlowy schemat mapy."}), 400
-        settings["map_tile_scheme"] = map_tile_scheme
+        changes["map_tile_scheme"] = map_tile_scheme
 
-    mgr = UserProfileManager(username)
-    mgr.update_profile({"desktop_settings": settings})
-    profile["desktop_settings"] = settings
-    session["profile"] = profile
+    def desktop_projection(current_profile):
+        settings = normalize_desktop_settings(current_profile.get("desktop_settings"))
+        settings.update(copy.deepcopy(changes))
+        return {"desktop_settings": settings}
+
+    projection = patch_profile_projection_with_retry(
+        username,
+        desktop_projection,
+        "api.profile.desktop",
+    )
+    if not projection:
+        invalidate_authenticated_session("profile_not_found")
+        return jsonify({"error": "Brak danych uzytkownika"}), 401
+    settings = normalize_desktop_settings(
+        (projection.get("profile") or {}).get("desktop_settings")
+    )
+    session.pop("profile", None)
     return jsonify({"success": True, "desktop_settings": settings})
 
 
@@ -25201,7 +25234,16 @@ def account_catalog():
     """Authenticated Googleplex projection bound to the active login."""
     if "user" not in session:
         return jsonify({"success": False, "error": "not_logged_in"}), 401
-    profile = sync_session_profile()
+    profile = load_profile_readonly(
+        session.get("user"),
+        strip_sensitive=True,
+        normalize_apps=True,
+        normalize_files=False,
+        overlay_runtime=True,
+    )
+    if not profile:
+        invalidate_authenticated_session("profile_not_found")
+        return jsonify({"success": False, "error": "profile_not_found"}), 401
     catalog = [
         googleplex_catalog_payload(app, profile)
         for app in get_app_catalog()

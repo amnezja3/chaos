@@ -1410,3 +1410,21 @@ Werdykt: `READY TO START SPRINT 131`.
   false failure po wcześniej potwierdzonym success.
 - Celowane regresje: 169 testów Python oraz testy Node map/GN/recovery/OFS — OK.
 - Bez deployu, restartu PM2, zmian schematu bazy i bez rozszerzenia o P1 130.12.3.
+
+## 2026-08-24 - Sprint 130.12.2 READY FOR SERVER REVALIDATION
+
+`SPRINT 130.12.2 — READY FOR SERVER REVALIDATION`
+
+- Pierwsza walidacja produkcyjna ujawniła `409` opóźnionego Trace Compass na
+  filarze konfliktu oraz pierwszorazowe `409` Browser/Desktop.
+- Potwierdzony call chain operacji gubił kanoniczne `target_id/conflict_id`
+  pomiędzy markerem mapy, `pending_action`, `aimed_target` i `expected_target`.
+  To uniemożliwiało idempotentne rozpoznanie późnego wyniku po wcześniejszym
+  przejęciu tego samego filaru.
+- `/api/catalog` został sprowadzony do czystego odczytu. Zapis ustawień pulpitu
+  używa projekcyjnego CAS patcha z bounded retry i rebase na świeżym profilu.
+- Tożsamość filaru jest zachowana przez cały picker/app handoff. Dodano regresje
+  dla tego kontraktu, read-only catalog i konfliktu rewizji desktop settings.
+- Walidacja lokalna: 231 testów Python oraz testy Node GN renderer, map snapshot
+  recovery, OFS i `/gonna-win` lifecycle — OK.
+- Bez deployu, restartu PM2, zmian schematu bazy i bez commita.

@@ -743,15 +743,76 @@ class SessionGenerationIsolationTests(unittest.TestCase):
 
     def test_desktop_beacon_accepts_generation_in_json_body(self):
         self.seed_session()
-        profile = {"username": "alice", "desktop_settings": {}}
-        with patch.object(run.user_store, "get_profile", return_value=profile), \
-                patch.object(run, "UserProfileManager") as manager_cls:
+        projection = {
+            "profile": {"username": "alice", "desktop_settings": {"wallpaper": "wall-1"}},
+            "profile_revision": 2,
+        }
+        with patch.object(
+            run,
+            "patch_profile_projection_with_retry",
+            return_value=projection,
+        ) as patch_projection:
             response = self.client.post("/api/profile/desktop", json={
                 "wallpaper": "wall-1",
                 "_session_generation": "generation-alice",
             })
         self.assertEqual(response.status_code, 200)
-        manager_cls.return_value.update_profile.assert_called_once()
+        patch_projection.assert_called_once()
+        self.assertEqual(patch_projection.call_args.args[0], "alice")
+        current = {"desktop_settings": {"map_tile_scheme": "carto_dark"}}
+        self.assertEqual(
+            patch_projection.call_args.args[1](current)["desktop_settings"],
+            {
+                "wallpaper": "wall-1",
+                "icon_positions": {},
+                "auto_fullscreen": False,
+                "map_tile_scheme": "carto_dark",
+            },
+        )
+
+    def test_desktop_settings_retry_rebases_partial_change_on_fresh_profile(self):
+        self.seed_session()
+        records = [
+            {
+                "profile": {"username": "alice", "desktop_settings": {"map_tile_scheme": "osm"}},
+                "profile_revision": 4,
+            },
+            {
+                "profile": {"username": "alice", "desktop_settings": {"map_tile_scheme": "carto_dark"}},
+                "profile_revision": 5,
+            },
+        ]
+        applied = {
+            "profile": {
+                "username": "alice",
+                "desktop_settings": {
+                    "wallpaper": "wall-1",
+                    "icon_positions": {},
+                    "auto_fullscreen": False,
+                    "map_tile_scheme": "carto_dark",
+                },
+            },
+            "profile_revision": 6,
+        }
+        with patch.object(run, "load_profile_write_record", side_effect=records), \
+                patch.object(
+                    run.user_store,
+                    "patch_profile_guarded",
+                    side_effect=[ProfileWriteConflict("stale"), applied],
+                ) as guarded_patch:
+            response = self.client.post(
+                "/api/profile/desktop",
+                json={"wallpaper": "wall-1"},
+                headers=self.generation_headers("generation-alice"),
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("carto_dark", response.get_json()["desktop_settings"]["map_tile_scheme"])
+        self.assertEqual(2, guarded_patch.call_count)
+        self.assertEqual(
+            "carto_dark",
+            guarded_patch.call_args.args[1]["desktop_settings"]["map_tile_scheme"],
+        )
 
     def test_public_catalog_never_requires_generation_or_reads_profile(self):
         self.seed_session()
@@ -776,6 +837,27 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         self.assertEqual(409, response.status_code)
         self.assertEqual("missing_generation", response.get_json()["reason"])
         full_profile_read.assert_not_called()
+
+    def test_account_catalog_is_readonly_after_generation_validation(self):
+        self.seed_session()
+        profile = {"username": "alice", "apps": [], "hackcoins": 100}
+        with patch.object(run, "load_profile_readonly", return_value=profile) as readonly, \
+                patch.object(run, "sync_session_profile", side_effect=AssertionError("catalog must not write")), \
+                patch.object(run, "get_app_catalog", return_value=[]):
+            response = self.client.get(
+                "/api/catalog",
+                headers=self.generation_headers("generation-alice"),
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual([], response.get_json())
+        readonly.assert_called_once_with(
+            "alice",
+            strip_sensitive=True,
+            normalize_apps=True,
+            normalize_files=False,
+            overlay_runtime=True,
+        )
 
     def test_non_admin_cannot_delete_another_account(self):
         self.seed_session()

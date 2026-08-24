@@ -2099,10 +2099,16 @@ function beginProvisionalLaunch(selection = {}, appData = {}) {
     });
     appWindow.dataset.expectedTarget = pending
         ? JSON.stringify({
+            target_id: pending.target_id || pending.id || "",
             lat: pending.lat,
             lng: pending.lng,
             label: pending.label || pending.name || "",
-            target_mode: pending.target_mode || ""
+            target_mode: pending.target_mode || "",
+            foreign_area_id: pending.foreign_area_id || "",
+            stable_conflict_id: pending.stable_conflict_id || "",
+            conflict_id: pending.conflict_id || "",
+            expected_owner_username: pending.expected_owner_username || pending.contest_owner_username || "",
+            ownership_version: pending.ownership_version
         })
         : "";
     appWindow.querySelector(".close-btn")?.addEventListener("click", () => {
@@ -2490,7 +2496,12 @@ function buildApplicationLaunchContext(appData = {}) {
         lat: aimedTarget.lat,
         lng: aimedTarget.lng !== undefined ? aimedTarget.lng : aimedTarget.lon,
         label: aimedTarget.label || aimedTarget.display_label || aimedTarget.name || aimedTarget.title || "",
-        target_mode: aimedTarget.target_mode || ""
+        target_mode: aimedTarget.target_mode || "",
+        foreign_area_id: aimedTarget.foreign_area_id || "",
+        stable_conflict_id: aimedTarget.stable_conflict_id || "",
+        conflict_id: aimedTarget.conflict_id || "",
+        expected_owner_username: aimedTarget.expected_owner_username || aimedTarget.contest_owner_username || "",
+        ownership_version: aimedTarget.ownership_version
     } : null;
     const launchReceipt = explicitLaunchReceipt || createApplicationInvocationReceipt(
         appId || name,
