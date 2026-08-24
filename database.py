@@ -27,6 +27,8 @@ PROFILE_INTEGRITY_VALID = "valid"
 PROFILE_INTEGRITY_RECOVERY_REQUIRED = "recovery_required"
 PROFILE_INTEGRITY_UNINITIALIZED = "uninitialized"
 WALLET_CANONICAL_MIGRATION_ID = "wallet_canonical_v1"
+IDENTITY_PROJECTION_VERSION = 1
+IDENTITY_PROJECTION_MAX_BATCH = 500
 _PROFILE_PRECOMMIT_GUARD = ContextVar(
     "chaos_profile_precommit_guard",
     default=None,
@@ -51,6 +53,10 @@ def reset_hot_path_metrics():
         "profile_full_read": 0,
         "profile_full_write": 0,
         "profile_bytes": 0,
+        "all_user_profile_scan": 0,
+        "per_recipient_profile_read": 0,
+        "bounded_identity_count": 0,
+        "recipient_batch_count": 0,
         "sqlite_writer_wait_ms": 0,
     })
 
@@ -77,6 +83,10 @@ def get_hot_path_metrics():
         "profile_full_read": 0,
         "profile_full_write": 0,
         "profile_bytes": 0,
+        "all_user_profile_scan": 0,
+        "per_recipient_profile_read": 0,
+        "bounded_identity_count": 0,
+        "recipient_batch_count": 0,
         "sqlite_writer_wait_ms": 0,
     }
 
@@ -1535,6 +1545,26 @@ def init_db(db_path=DB_PATH):
             ON profile_last_known_good(profile_revision, created_at)
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_identity_projection (
+                username TEXT PRIMARY KEY,
+                display_alias TEXT NOT NULL DEFAULT '',
+                clan_code TEXT NOT NULL DEFAULT '',
+                profession_code TEXT NOT NULL DEFAULT '',
+                source_profile_revision INTEGER NOT NULL,
+                source_profile_checksum TEXT NOT NULL,
+                projection_version INTEGER NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_user_identity_projection_clan
+            ON user_identity_projection(clan_code, username)
+            """
+        )
         _bootstrap_profile_integrity_rows(conn)
         conn.execute(
             """
@@ -2772,6 +2802,75 @@ def _identity_reuse_block_reason_with_conn(conn, username, *, include_user=True)
     return ""
 
 
+def _identity_projection_payload(profile):
+    """Build the bounded GhostNetwork identity projection from a valid profile."""
+    profile = profile if isinstance(profile, dict) else {}
+    # The import stays local because ghostnetwork.repository imports database.
+    # At writer runtime both modules are initialized; keeping it here avoids a
+    # module-import cycle without duplicating the catalog normalization rules.
+    from ghostnetwork.catalog import normalize_ghostnetwork_profile_identity
+
+    normalized = normalize_ghostnetwork_profile_identity(profile)
+    username = str(profile.get("username") or "").strip()
+    display_alias = str(
+        profile.get("nick")
+        or profile.get("display_alias")
+        or username
+    ).strip()
+    return {
+        "username": username,
+        "display_alias": display_alias[:160],
+        "clan_code": str(normalized.get("clan_code") or "").strip()[:80],
+        "profession_code": str(
+            normalized.get("profession_code") or ""
+        ).strip()[:80],
+    }
+
+
+def _upsert_identity_projection_with_conn(
+    conn,
+    profile,
+    source_profile_revision,
+    source_profile_checksum,
+    *,
+    updated_at=None,
+):
+    """Update identity in the same transaction as its guarded profile write."""
+    payload = _identity_projection_payload(profile)
+    username = payload["username"]
+    revision = int(source_profile_revision or 0)
+    checksum = str(source_profile_checksum or "").strip()
+    if not username or revision <= 0 or not checksum:
+        raise ProfileValidationError(("identity_projection_source_invalid",))
+    conn.execute(
+        """
+        INSERT INTO user_identity_projection (
+            username, display_alias, clan_code, profession_code,
+            source_profile_revision, source_profile_checksum,
+            projection_version, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(username) DO UPDATE SET
+            display_alias = excluded.display_alias,
+            clan_code = excluded.clan_code,
+            profession_code = excluded.profession_code,
+            source_profile_revision = excluded.source_profile_revision,
+            source_profile_checksum = excluded.source_profile_checksum,
+            projection_version = excluded.projection_version,
+            updated_at = excluded.updated_at
+        """,
+        (
+            username,
+            payload["display_alias"],
+            payload["clan_code"],
+            payload["profession_code"],
+            revision,
+            checksum,
+            IDENTITY_PROJECTION_VERSION,
+            updated_at or utc_now(),
+        ),
+    )
+
+
 class UserStore:
     def __init__(self, db_path=DB_PATH, seed_path=USERS_SEED_PATH):
         self.db_path = db_path
@@ -3208,6 +3307,9 @@ class UserStore:
                             raise ProfileWriteConflict(
                                 "Profile revision changed before the guarded patch committed."
                             )
+                        _upsert_identity_projection_with_conn(
+                            conn, candidate, revision, checksum, updated_at=now
+                        )
                         _write_profile_lkg(
                             conn,
                             username,
@@ -3442,6 +3544,9 @@ class UserStore:
                             PROFILE_VALIDATION_VERSION,
                         ),
                     )
+                    _upsert_identity_projection_with_conn(
+                        conn, candidate, revision, checksum, updated_at=now
+                    )
                     _write_profile_lkg(
                         conn, username, candidate, revision, f"create:{source}", now,
                         prepared=prepared_lkg,
@@ -3509,6 +3614,9 @@ class UserStore:
                         raise ProfileWriteConflict(
                             "Profile revision changed before the guarded write committed."
                         )
+                    _upsert_identity_projection_with_conn(
+                        conn, candidate, revision, checksum, updated_at=now
+                    )
                     telemetry.update({
                         "candidate_revision": revision,
                         "decision": "applied",
@@ -3572,6 +3680,7 @@ class UserStore:
 
     def list_profile_identities(self):
         """Return only identity fields needed by territory publication."""
+        record_hot_path_metric("all_user_profile_scan")
         with db_connect(self.db_path) as conn:
             rows = conn.execute(
                 """SELECT username,
@@ -3827,6 +3936,9 @@ class UserStore:
                     PROFILE_VALIDATION_VERSION,
                 ),
             )
+            _upsert_identity_projection_with_conn(
+                conn, profile, next_revision, checksum, updated_at=now
+            )
             if current_row is None:
                 _wallet_register_with_conn(
                     conn,
@@ -3924,6 +4036,7 @@ class UserStore:
                         + ",".join(validation["errors"])
                     )
                 now = utc_now()
+                next_checksum = profile_payload_checksum(profile)
                 updated = conn.execute(
                     """
                     UPDATE users
@@ -3940,7 +4053,7 @@ class UserStore:
                         now,
                         old_revision + 1,
                         PROFILE_SCHEMA_VERSION,
-                        profile_payload_checksum(profile),
+                        next_checksum,
                         PROFILE_INTEGRITY_VALID,
                         PROFILE_VALIDATION_VERSION,
                         username,
@@ -3951,6 +4064,13 @@ class UserStore:
                     raise ProfileWriteConflict(
                         "Launch queue profile revision changed before commit."
                     )
+                _upsert_identity_projection_with_conn(
+                    conn,
+                    profile,
+                    old_revision + 1,
+                    next_checksum,
+                    updated_at=now,
+                )
                 _write_profile_lkg(
                     conn,
                     username,
@@ -4005,6 +4125,7 @@ class UserStore:
                     recovery = (old_revision, validation["errors"])
                 if recovery is None:
                     now = utc_now()
+                    next_checksum = profile_payload_checksum(profile)
                     updated = conn.execute(
                         """
                         UPDATE users
@@ -4021,7 +4142,7 @@ class UserStore:
                             now,
                             old_revision + 1,
                             PROFILE_SCHEMA_VERSION,
-                            profile_payload_checksum(profile),
+                            next_checksum,
                             PROFILE_INTEGRITY_VALID,
                             PROFILE_VALIDATION_VERSION,
                             username,
@@ -4032,6 +4153,13 @@ class UserStore:
                         raise ProfileWriteConflict(
                             "Password upgrade profile revision changed before commit."
                         )
+                    _upsert_identity_projection_with_conn(
+                        conn,
+                        profile,
+                        old_revision + 1,
+                        next_checksum,
+                        updated_at=now,
+                    )
                     _write_profile_lkg(
                         conn,
                         username,
@@ -4096,12 +4224,221 @@ class UserStore:
             conn.execute("DELETE FROM player_marked_targets WHERE username = ?", (username,))
             conn.execute("DELETE FROM player_marked_target_state WHERE username = ?", (username,))
             conn.execute("DELETE FROM profile_last_known_good WHERE username = ?", (username,))
+            conn.execute("DELETE FROM user_identity_projection WHERE username = ?", (username,))
             conn.execute(
                 "DELETE FROM reported_vulnerabilities WHERE reported_by_username = ? OR territory_owner_username = ?",
                 (username, username),
             )
             conn.execute("DELETE FROM users WHERE username = ?", (username,))
             return True
+
+
+class UserIdentityProjectionStore:
+    """Bounded, indexed identity/recipient reads without profile JSON scans."""
+
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
+        init_db(self.db_path)
+
+    @staticmethod
+    def _bounded_limit(value, *, maximum=IDENTITY_PROJECTION_MAX_BATCH):
+        try:
+            limit = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("limit must be an integer") from exc
+        if limit < 1 or limit > maximum:
+            raise ValueError(f"limit must be between 1 and {maximum}")
+        return limit
+
+    @staticmethod
+    def _row_identity(row):
+        if not row:
+            return None
+        source_revision = int(row["source_profile_revision"] or 0)
+        current_revision = int(row["current_profile_revision"] or 0)
+        source_checksum = str(row["source_profile_checksum"] or "")
+        current_checksum = str(row["current_profile_checksum"] or "")
+        current_integrity = str(row["current_profile_integrity_status"] or "")
+        projection_version = int(row["projection_version"] or 0)
+        if (
+            source_revision <= 0
+            or source_revision != current_revision
+            or not source_checksum
+            or source_checksum != current_checksum
+            or current_integrity != PROFILE_INTEGRITY_VALID
+            or projection_version != IDENTITY_PROJECTION_VERSION
+        ):
+            raise ProfileRecoveryRequired(
+                f"Identity projection for '{row['username']}' is stale or invalid."
+            )
+        clan_code = str(row["clan_code"] or "")
+        profession_code = str(row["profession_code"] or "")
+        display_alias = str(row["display_alias"] or row["username"] or "")
+        return {
+            "username": row["username"],
+            "display_alias": display_alias,
+            "nick": display_alias,
+            "clan_code": clan_code,
+            "ghost_clan_code": clan_code,
+            "clan": clan_code,
+            "profession_code": profession_code,
+            "ghost_profession": profession_code,
+            "profession": profession_code,
+            "source_profile_revision": source_revision,
+            "source_profile_checksum": source_checksum,
+            "projection_version": projection_version,
+            "updated_at": row["updated_at"],
+        }
+
+    @staticmethod
+    def _select_sql(where_sql):
+        return f"""
+            SELECT p.*,
+                   u.profile_revision AS current_profile_revision,
+                   u.profile_checksum AS current_profile_checksum,
+                   u.profile_integrity_status AS current_profile_integrity_status
+            FROM user_identity_projection AS p
+            JOIN users AS u ON u.username = p.username
+            WHERE {where_sql}
+        """
+
+    def get_identity(self, username):
+        username = str(username or "").strip()
+        if not username:
+            return None
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                self._select_sql("p.username = ?"),
+                (username,),
+            ).fetchone()
+        identity = self._row_identity(row)
+        if identity:
+            record_hot_path_metric("bounded_identity_count")
+        return identity
+
+    def get_identities(self, usernames, max_items=IDENTITY_PROJECTION_MAX_BATCH):
+        max_items = self._bounded_limit(max_items)
+        ordered = []
+        seen = set()
+        for value in usernames or ():
+            username = str(value or "").strip()
+            if username and username not in seen:
+                ordered.append(username)
+                seen.add(username)
+        if len(ordered) > max_items:
+            raise ValueError(f"identity batch exceeds max_items={max_items}")
+        if not ordered:
+            return []
+        placeholders = ",".join("?" for _item in ordered)
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                self._select_sql(f"p.username IN ({placeholders})"),
+                tuple(ordered),
+            ).fetchall()
+        by_username = {
+            row["username"]: self._row_identity(row)
+            for row in rows
+        }
+        identities = [by_username[item] for item in ordered if item in by_username]
+        record_hot_path_metric("bounded_identity_count", len(identities))
+        return identities
+
+    def list_recipient_ids(
+        self,
+        scope,
+        *,
+        clan_code=None,
+        owner_ids=None,
+        limit=IDENTITY_PROJECTION_MAX_BATCH,
+    ):
+        limit = self._bounded_limit(limit)
+        scope = str(scope or "").strip().lower()
+        if scope in {"owner", "owners"}:
+            identities = self.get_identities(owner_ids or (), max_items=limit)
+            record_hot_path_metric("recipient_batch_count")
+            return [item["username"] for item in identities]
+        if scope not in {"public", "clan"}:
+            raise ValueError("scope must be public, clan or owners")
+        params = []
+        filters = [
+            "p.source_profile_revision = u.profile_revision",
+            "p.source_profile_checksum = u.profile_checksum",
+            "u.profile_integrity_status = ?",
+            "p.projection_version = ?",
+        ]
+        params.extend((PROFILE_INTEGRITY_VALID, IDENTITY_PROJECTION_VERSION))
+        if scope == "clan":
+            normalized_clan = str(clan_code or "").strip().lower()
+            if not normalized_clan:
+                record_hot_path_metric("recipient_batch_count")
+                return []
+            filters.append("p.clan_code = ?")
+            params.append(normalized_clan)
+        params.append(limit)
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT p.username
+                FROM user_identity_projection AS p
+                JOIN users AS u ON u.username = p.username
+                WHERE """ + " AND ".join(filters) + """
+                ORDER BY p.username
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+        record_hot_path_metric("recipient_batch_count")
+        return [row["username"] for row in rows]
+
+    def backfill_page(self, *, after_username="", limit=100):
+        """Explicit offline migration primitive; never called by request paths."""
+        limit = self._bounded_limit(limit)
+        cursor = str(after_username or "").strip()
+        projected = []
+        skipped = []
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT username, profile_json, profile_revision,
+                       profile_checksum, profile_integrity_status
+                FROM users
+                WHERE username > ?
+                ORDER BY username
+                LIMIT ?
+                """,
+                (cursor, limit),
+            ).fetchall()
+        prepared = []
+        for row in rows:
+            profile, errors = _validate_persisted_profile_row(
+                row, row["username"]
+            )
+            if errors:
+                skipped.append({
+                    "username": row["username"],
+                    "errors": tuple(errors),
+                })
+                continue
+            prepared.append((row, profile))
+        if prepared:
+            with db_connect(self.db_path) as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                for row, profile in prepared:
+                    _upsert_identity_projection_with_conn(
+                        conn,
+                        profile,
+                        int(row["profile_revision"] or 0),
+                        str(row["profile_checksum"] or ""),
+                    )
+                    projected.append(row["username"])
+        return {
+            "after_username": cursor,
+            "next_cursor": rows[-1]["username"] if rows else "",
+            "scanned": len(rows),
+            "projected": projected,
+            "skipped": skipped,
+            "done": len(rows) < limit,
+        }
 
 
 class JsonResourceStore:
@@ -5332,6 +5669,51 @@ class TerritoryStore:
                 for row in rows
             ]
 
+    def get_player_area(self, area_id):
+        try:
+            area_id = int(area_id)
+        except (TypeError, ValueError):
+            return None
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT player_areas.*,
+                       COALESCE(territory_area_publications.publication_version, 0)
+                           AS publication_version
+                FROM player_areas
+                LEFT JOIN territory_area_publications
+                  ON territory_area_publications.owner_username = player_areas.owner_username
+                WHERE player_areas.id = ?
+                """,
+                (area_id,),
+            ).fetchone()
+        if not row:
+            return None
+        return {
+            "id": row["id"],
+            "owner_username": row["owner_username"],
+            "vertices": loads_json(row["vertices_json"], []),
+            "centroid_lat": row["centroid_lat"],
+            "centroid_lng": row["centroid_lng"],
+            "area_size": row["area_size"],
+            "max_edge_distance": row["max_edge_distance"],
+            "status": row["status"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "publication_version": int(row["publication_version"] or 0),
+        }
+
+    def count_player_areas(self, username):
+        username = str(username or "").strip()
+        if not username:
+            return 0
+        with db_connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS count FROM player_areas WHERE owner_username = ?",
+                (username,),
+            ).fetchone()
+        return int(row["count"] or 0) if row else 0
+
     def add_area_event(self, owner_username, actor_username, event_type, area_id=None, lat=None, lng=None, payload=None):
         with db_connect(self.db_path) as conn:
             conn.execute(
@@ -6014,6 +6396,13 @@ class TerritoryProgressionReceiptStore:
                 )
                 if updated.rowcount != 1:
                     continue
+                _upsert_identity_projection_with_conn(
+                    conn,
+                    profile,
+                    original_revision + 1,
+                    profile_checksum,
+                    updated_at=now,
+                )
                 _write_profile_lkg(
                     conn,
                     receipt["actor_username"],
@@ -6195,6 +6584,13 @@ class TerritoryProgressionReceiptStore:
                 )
                 if updated.rowcount != 1:
                     continue
+                _upsert_identity_projection_with_conn(
+                    conn,
+                    profile,
+                    original_revision + 1,
+                    profile_checksum,
+                    updated_at=now,
+                )
                 _write_profile_lkg(
                     conn,
                     receipt["actor_username"],
@@ -9914,6 +10310,23 @@ class PlayerInventoryStore:
             "files": {"tools": [tool for tool in (self._row_to_tool(row) for row in tool_rows) if tool is not None]},
             "storage": storage,
         }
+
+    def has_app(self, username, app_id):
+        """Return one canonical entitlement without loading the inventory."""
+        username = self._clean_text(username)
+        app_id = self._clean_text(app_id)
+        if not username or not app_id:
+            return False
+        with db_connect(self.db_path) as conn:
+            return bool(conn.execute(
+                """
+                SELECT 1
+                FROM player_apps
+                WHERE username = ? AND app_id = ? AND status != 'uninstalled'
+                LIMIT 1
+                """,
+                (username, app_id),
+            ).fetchone())
 
     def mirror_profile(self, username, profile):
         snapshot = self.snapshot(username)

@@ -1,0 +1,9460 @@
+# CHAOS — Gameplay Implementation Roadmap
+
+Dokument po Sprincie 0.
+
+Sprint 0 zamknął kontrakty projektowe. Ten dokument jest roadmapą implementacji kolejnych sprintów gameplayu.
+
+CHAOS:
+
+```text
+Cyber Hacking Adventure Of Senses
+```
+
+Hasło:
+
+```text
+Hack the digital senses of the modern world.
+Hakuj cyfrowe zmysły współczesnego świata.
+```
+
+---
+
+## Status dokumentu
+
+To nie jest już luźna koncepcja.
+
+To jest plan implementacyjny oparty o kontrakty:
+
+| Dokument | Rola |
+| --- | --- |
+| `gameplay_terms.md` | Słownik pojęć. |
+| `source_type_mapping.md` | Mapowanie źródeł mapy na targety. |
+| `world_objects.md` | Obiekty świata. |
+| `map_actions.md` | Akcje mapy. |
+| `app_contract.md` | Kontrakt aplikacji. |
+| `operations.md` | Operacje jako centralny byt gameplayu. |
+| `movement_model.md` | Aktywny świat i refresh bez realtime loopa. |
+| `resource_types.md` | Model zasobów. |
+| `file_model.md` | Pliki jako inventory. |
+| `data_economy.md` | Ghost Exchange i ekonomia danych. |
+| `risk_events.md` | Ryzyko, eventy i konsekwencje. |
+| `gameplay_loop.md` | Pełna pętla gameplayu. |
+| `sprint0_summary.md` | Zamknięcie Sprintu 0. |
+Decision:
+
+* Przyjęto: ten dokument jest roadmapą Sprintu 1+.
+* Przyjęto: źródłem prawdy dla pól, nazw i kontraktów są dokumenty Sprintu 0.
+* Przyjęto: jeśli roadmapa skraca opis, wygrywa dokument kontraktowy.
+
+---
+
+## Główna pętla implementacji
+
+Roadmapa realizuje pętlę:
+
+```text
+World Object
+↓
+Map Action
+↓
+Application
+↓
+Operation
+↓
+Movement
+↓
+Resource
+↓
+File
+↓
+Ghost Exchange
+↓
+Mail
+↓
+HackCoins
+↓
+New Apps
+↓
+Back to Map
+```
+
+Każdy sprint powinien kończyć się ręcznym sprawdzeniem tej pętli albo jej fragmentu.
+
+---
+
+## Zasada prowadzenia sprintów
+
+Każdy sprint powinien mieć:
+
+1. Cel gameplayowy.
+2. UX gracza.
+3. Przepływ danych.
+4. Wpływ na systemy.
+5. Kryteria akceptacji.
+
+Nie dopisujemy dużych mechanik bokiem.
+
+Nie tworzymy drugiego routera aplikacji, drugiego rynku, drugiego systemu plików ani drugiego modelu operacji.
+
+---
+
+# Sprint 1 — Map Action Router + App Contract Runtime
+
+## Cel gameplayowy
+
+Gracz klika akcję na mapie, a system szuka aplikacji po `app.map_actions`, nie po zgadywaniu typu, nazwy albo `detects`.
+
+## UX
+
+* Klik akcji mapy.
+* Jeśli brak aplikacji: jasny komunikat.
+* Jeśli jedna aplikacja: start.
+* Jeśli kilka aplikacji: przygotowanie do Sprintu 2.
+
+## Przepływ danych
+
+```text
+map_action_id
+↓
+installed apps
+↓
+app.map_actions
+↓
+matching apps
+↓
+launch app
+```
+
+## Systemy
+
+* mapa,
+* backend `/hack-action` lub przyszły router map actions,
+* `profile.apps`,
+* launch queue,
+* `/command`,
+* desktop launcher.
+
+## Kryteria akceptacji
+
+* `scan_ports` szuka aplikacji z `map_actions: ["scan_ports"]`.
+* `trace_gps` szuka aplikacji z `map_actions: ["trace_gps"]`.
+* Brak aplikacji daje: `Brak aplikacji obsługującej tę akcję`.
+* Stary fallback po `detects/type` może działać tylko jako migracja.
+
+---
+
+# Sprint 2 — Tool Selection UX
+
+## Cel gameplayowy
+
+Gracz zaczyna rozumieć, że jego arsenał ma znaczenie.
+
+## UX
+
+Jeśli wiele aplikacji obsługuje tę samą akcję:
+
+* otwiera się File Manager w `/tools`,
+* pasujące narzędzia są podświetlone,
+* gracz wybiera narzędzie,
+* terminal może odpalić narzędzie po nazwie lub aliasie z kontraktu.
+
+## Przepływ danych
+
+```text
+map_action_id
+↓
+matching apps
+↓
+/tools highlight
+↓
+player selects app
+↓
+launch selected app
+```
+
+## Systemy
+
+* File Manager,
+* `/tools`,
+* terminal command,
+* app launcher,
+* map action router.
+
+## Kryteria akceptacji
+
+* Dwie aplikacje do `sniff` pokazują wybór.
+* Podświetlenie bazuje na `app.map_actions`.
+* Brak narzędzi nie otwiera pustego katalogu, tylko pokazuje komunikat.
+
+---
+
+# Sprint 3 — Operation Core
+
+## Cel gameplayowy
+
+Aplikacja przestaje być końcem akcji. Aplikacja tworzy operację.
+
+## UX
+
+Po uruchomieniu aplikacji gracz widzi:
+
+* start operacji,
+* status,
+* czas,
+* target,
+* potencjalny wynik.
+
+## Przepływ danych
+
+```text
+Application
+↓
+operation instance
+↓
+status: start/running/completed/failed
+```
+
+## Systemy
+
+* operation store,
+* profile/user store,
+* app launcher,
+* map action router.
+
+## Kryteria akceptacji
+
+* Powstaje instancja operacji z `operation_id`.
+* Operacja ma `operation_type`, `owner_username`, `source_app_id`, `map_action_id`, `target_type`, `status`, `started_at`, `expires_at`.
+* Operacje można odczytać z lekkiego endpointu lub panelu.
+
+---
+
+# Sprint 4 — Active Operations Panel + Active Map Objects
+
+## Cel gameplayowy
+
+Gracz widzi, że operacje żyją po starcie aplikacji.
+
+## UX
+
+Na mapie lub w panelu pojawiają się:
+
+* aktywny stream kamery,
+* aktywny tracking,
+* aktywny sniffer,
+* timer operacji.
+
+## Przepływ danych
+
+```text
+operation running
+↓
+active_object
+↓
+map / panel display
+```
+
+## Systemy
+
+* mapa,
+* operation store,
+* active operations endpoint,
+* desktop toast/status.
+
+## Kryteria akceptacji
+
+* `camera_stream` pokazuje licznik.
+* `persistent_sniffer` pokazuje implant/timer.
+* `vehicle_tracking` pokazuje aktywny marker.
+* Zamknięcie i otwarcie mapy odtwarza aktywne operacje.
+
+---
+
+# Sprint 5 — Movement Refresh Engine
+
+## Cel gameplayowy
+
+Świat zaczyna się poruszać bez realtime loopa.
+
+## UX
+
+Przy refreshu mapy gracz widzi zaktualizowane pozycje lub timery.
+
+## Przepływ danych
+
+```text
+started_at + duration + procedural_seed + movement_model
+↓
+computed current state
+↓
+map refresh
+```
+
+## Systemy
+
+* `movement_model`,
+* operation refresh,
+* mapa,
+* active object display.
+
+## Kryteria akceptacji
+
+* Brak pętli liczącej świat co sekundę.
+* Pozycja pojazdu lub telefonu jest wyliczana przy refreshu.
+* Timer streamu kamery działa po reloadzie mapy.
+* Checkpointy powstają tylko jako eventy gameplayowe.
+
+---
+
+# Sprint 6 — Vehicle Tracking + GPS Logs
+
+## Cel gameplayowy
+
+Pierwsza kompletna ścieżka operacji mobilnej:
+
+```text
+vehicle → trace_gps → vehicle_tracking → gps_logs → file
+```
+
+## UX
+
+Gracz śledzi pojazd i po zakończeniu dostaje plik GPS.
+
+## Przepływ danych
+
+```text
+vehicle target
+↓
+trace_gps
+↓
+GPS Tracker
+↓
+vehicle_tracking
+↓
+gps_logs / location_history
+↓
+/data/gps
+```
+
+## Systemy
+
+* mapa,
+* `road_movement`,
+* operation store,
+* resource generation,
+* file inventory.
+
+## Kryteria akceptacji
+
+* Vehicle tracking trwa określony czas.
+* Marker pojazdu aktualizuje się przy refreshu.
+* Po zakończeniu powstaje plik w `/data/gps`.
+* Plik ma kompletność i metadane operacji.
+
+---
+
+# Sprint 7 — Device Tracking + Device Intelligence
+
+## Cel gameplayowy
+
+Telefon/osoba/gracz stają się źródłem paczek wywiadowczych.
+
+## UX
+
+Gracz widzi, że różne aplikacje produkują różny zakres danych.
+
+Przykładowe paczki:
+
+* lokalizacja,
+* device logs,
+* call history,
+* messenger data,
+* personal records.
+
+## Przepływ danych
+
+```text
+person/phone/player
+↓
+trace_device
+↓
+device_tracking
+↓
+resource package
+↓
+/data/device or /data/personal
+```
+
+## Systemy
+
+* `device_tracking`,
+* `local_walk`,
+* `carrier_movement`,
+* resource completeness,
+* file grouping.
+
+## Kryteria akceptacji
+
+* Basic app produkuje małą paczkę.
+* Lepsza app produkuje bogatszą paczkę.
+* Wartość paczki zależy od kompletności.
+* Player target używa tych samych zasad, ale respektuje bezpieczeństwo PvP.
+
+---
+
+# Sprint 8 — Camera Stream + Camera Shutdown
+
+## Cel gameplayowy
+
+Kamery stają się oczami świata: można je oglądać, zakłócać i wyciągać materiał.
+
+## UX
+
+* `camera_stream` pokazuje licznik nagrania.
+* `camera_shutdown` pokazuje czas wyłączenia/zakłócenia.
+* Stream może produkować `camera_dump` albo `video_material`.
+
+## Przepływ danych
+
+```text
+camera
+↓
+camera_stream / camera_shutdown
+↓
+active timer
+↓
+camera_dump or video_material
+↓
+/data/camera
+```
+
+## Systemy
+
+* camera target menu,
+* active object timer,
+* risk reducer,
+* resource generation.
+
+## Kryteria akceptacji
+
+* Stream przeżywa reload mapy.
+* Shutdown wpływa na ryzyko innych działań.
+* Materiał kamery trafia do `/data/camera`, jeśli aplikacja go zapisuje.
+
+---
+
+# Sprint 9 — Audio + Microphone Sniffer
+
+## Cel gameplayowy
+
+Mikrofony i lokacje stają się uszami świata.
+
+## UX
+
+Gracz uruchamia podsłuch i dostaje transkrypcję.
+
+## Przepływ danych
+
+```text
+person/venue
+↓
+mic_sniff / audio_hack
+↓
+microphone_sniffer / audio_interference
+↓
+audio_transcript
+↓
+/data/audio
+```
+
+## Systemy
+
+* person/venue target menu,
+* audio operations,
+* transcript file,
+* risk.
+
+## Kryteria akceptacji
+
+* Podsłuch tworzy `audio_transcript`.
+* Transkrypcja ma preview mode `transcript`.
+* Audio może być sprzedane w kategorii `audio`.
+
+---
+
+# Sprint 10 — ATM + Persistent Sniffer
+
+## Cel gameplayowy
+
+ATM i infrastruktura finansowa produkują pierwsze wartościowe paczki wysokiego ryzyka.
+
+## UX
+
+Gracz może:
+
+* odczytać logi ATM,
+* zainstalować sniffer,
+* poczekać na dane,
+* odebrać dump.
+
+## Przepływ danych
+
+```text
+atm/router/server
+↓
+atm_logs / install_sniffer
+↓
+atm_log_extraction / persistent_sniffer
+↓
+atm_dump / financial_records / credentials
+↓
+/data/atm / /data/financial / /data/credentials
+```
+
+## Systemy
+
+* ATM target menu,
+* implant timer,
+* resource buffer,
+* file generation,
+* risk.
+
+## Kryteria akceptacji
+
+* `atm_log_extraction` jest krótką operacją.
+* `persistent_sniffer` jest aktywnym obiektem.
+* Dane wysokiej wartości generują wyższe ryzyko.
+
+---
+
+# Sprint 11 — File Inventory v1
+
+## Cel gameplayowy
+
+Pliki przestają być listą tekstową. Stają się inventory danych.
+
+## UX
+
+File Manager pokazuje:
+
+* `/tools`,
+* `/data/gps`,
+* `/data/device`,
+* `/data/audio`,
+* `/data/camera`,
+* `/data/atm`,
+* `/data/credentials`,
+* `/data/financial`,
+* `/data/personal`,
+* `/data/network`,
+* `/data/vehicle`,
+* `/market`,
+* `/projects`.
+
+## Przepływ danych
+
+```text
+resource
+↓
+file_category
+↓
+directory
+↓
+preview mode
+```
+
+## Systemy
+
+* File Manager,
+* file store,
+* resource-to-file mapping,
+* previews.
+
+## Kryteria akceptacji
+
+* Pliki mają kategorie.
+* Pliki mają preview mode.
+* `/tools` działa jako katalog aplikacji.
+* `/data/*` działa jako katalog lootu.
+
+---
+
+# Sprint 12 — Ghost Exchange MVP
+
+## Cel gameplayowy
+
+Gracz ma gdzie sprzedać dane.
+
+## UX
+
+W Browserze pojawia się Ghost Exchange obok Googleplexa.
+
+## Przepływ danych
+
+```text
+sellable file
+↓
+Ghost Exchange
+↓
+market category
+↓
+price preview
+```
+
+## Systemy
+
+* Browser,
+* market view,
+* file inventory,
+* data economy.
+
+## Kryteria akceptacji
+
+* Ghost Exchange pokazuje sprzedawalne pliki.
+* Pliki niesprzedawalne nie trafiają do sprzedaży.
+* Kategorie rynku są zgodne z `data_economy.md`.
+
+---
+
+# Sprint 13 — Sale Flow + Mail + HC
+
+## Cel gameplayowy
+
+Pierwsze pełne domknięcie pętli:
+
+```text
+file → sale → mail → HC
+```
+
+## UX
+
+Gracz sprzedaje plik, dostaje mail i widzi wzrost HC.
+
+## Przepływ danych
+
+```text
+File
+↓
+Listing
+↓
+Buyer simulation
+↓
+Sale
+↓
+HackCoin transfer
+↓
+Mail
+↓
+File removed from /data
+```
+
+## Systemy
+
+* Ghost Exchange,
+* wallet/profile HC,
+* mail,
+* file lifecycle,
+* market history.
+
+## Kryteria akceptacji
+
+* Sprzedaż generuje mail.
+* HC trafiają do gracza.
+* Plik znika z `/data`.
+* Wpis zostaje w `/market/history` albo `/market/sold`.
+
+---
+
+# Sprint 14 — Risk MVP
+
+## Cel gameplayowy
+
+Operacje zaczynają mieć koszt ryzyka.
+
+## UX
+
+Gracz dostaje ostrzeżenia, cooldowny albo konsekwencje.
+
+## Przepływ danych
+
+```text
+Action
+↓
+Risk signal
+↓
+Risk score
+↓
+Risk event
+↓
+Consequence
+```
+
+## Systemy
+
+* risk event store,
+* operations,
+* map actions,
+* mail/toasts,
+* profile status.
+
+## Kryteria akceptacji
+
+* Nie ma losowania co sekundę.
+* Ryzyko liczy się po zakończeniu albo w kontrolowanych punktach.
+* `scan_ports` może generować risk signal.
+* `atm_alarm`, `camera_detected`, `long_operation_detected` działają jako eventy.
+
+---
+
+# Sprint 15 — Support Operations + Risk Reducers
+
+## Cel gameplayowy
+
+Gracz zaczyna planować operacje, a nie tylko klikać najbardziej dochodową akcję.
+
+## UX
+
+Operacje wspierające:
+
+* wyłącz kamerę,
+* spoofing,
+* anonymizer,
+* low noise mode,
+* stealth app.
+
+## Przepływ danych
+
+```text
+support operation
+↓
+support_effects
+↓
+risk modifier
+↓
+main operation
+```
+
+## Systemy
+
+* operations,
+* risk modifiers,
+* app contract,
+* active operation state.
+
+## Kryteria akceptacji
+
+* `camera_shutdown` obniża ryzyko `camera_detected`.
+* Support operation sama może mieć ryzyko.
+* Gracz widzi efekt wsparcia przed główną operacją.
+
+---
+
+# Sprint 16 — Operation Lifecycle + Cleanup
+
+## Cel gameplayowy
+
+Operacje mają konsekwencje, jeśli zostaną porzucone albo wygasną.
+
+## UX
+
+Gracz widzi:
+
+* running,
+* completed,
+* failed,
+* detected,
+* cancelled,
+* timeout.
+
+## Przepływ danych
+
+```text
+operation status
+↓
+expiry / cancel / detect
+↓
+cleanup
+↓
+file/resource/risk result
+```
+
+## Systemy
+
+* operation scheduler / refresh,
+* risk,
+* file generation,
+* active object cleanup.
+
+## Kryteria akceptacji
+
+* Wygasła operacja nie zostawia martwego markera.
+* Porzucona operacja może generować `abandoned_operation`.
+* Timeout generuje poprawny status.
+
+---
+
+# Sprint 17 — Resource Completeness + Pricing
+
+## Cel gameplayowy
+
+Lepsze aplikacje realnie dają lepsze dane i większy zarobek.
+
+## UX
+
+Plik pokazuje kompletność:
+
+```text
+Device Dump
+✓ location_history
+✓ device_logs
+✓ personal_records
+✕ credentials
+✕ messenger_data
+```
+
+## Przepływ danych
+
+```text
+app quality
+↓
+resource completeness
+↓
+file metadata
+↓
+market price
+```
+
+## Systemy
+
+* resource model,
+* file model,
+* data economy,
+* Ghost Exchange pricing.
+
+## Kryteria akceptacji
+
+* Cena zależy od kompletności.
+* Dwie aplikacje tego samego typu mogą dawać różne wyniki.
+* File preview pokazuje kompletność paczki.
+
+---
+
+# Sprint 18 — Googleplex Progression Integration
+
+## Cel gameplayowy
+
+HC wracają do progresu przez zakup nowych aplikacji.
+
+## UX
+
+Gracz po sprzedaży danych kupuje lepsze aplikacje w Googleplex.
+
+## Przepływ danych
+
+```text
+HackCoins
+↓
+Googleplex
+↓
+buy app
+↓
+/tools
+↓
+new map actions/resources
+```
+
+## Systemy
+
+* Googleplex,
+* install app,
+* profile apps,
+* `/tools`,
+* app contract.
+
+## Kryteria akceptacji
+
+* Nowa aplikacja pojawia się w `/tools`.
+* Aplikacja ma `app.map_actions`.
+* Nowa aplikacja odblokowuje nowe lub lepsze wyniki.
+
+---
+
+# Sprint 19 — Integration Playtest + Balance Pass
+
+## Cel gameplayowy
+
+Cała pętla działa jako jedna gra, a nie zbiór osobnych mechanik.
+
+## UX
+
+Scenariusz testowy:
+
+```text
+wejdź na mapę
+↓
+wybierz target
+↓
+uruchom aplikację
+↓
+operacja działa
+↓
+powstaje plik
+↓
+sprzedaj plik
+↓
+dostań mail i HC
+↓
+kup nową aplikację
+↓
+wróć na mapę
+```
+
+## Przepływ danych
+
+Pełna pętla od `World Object` do `Back to Map`.
+
+## Systemy
+
+Wszystkie.
+
+## Kryteria akceptacji
+
+* Nie ma martwych końców.
+* Każdy plik ma źródło.
+* Każda sprzedaż ma mail i HC.
+* Każda aplikacja ma kontrakt.
+* Każda operacja ma status i koniec.
+
+---
+
+# Sprint 20 — Gameplay Loop Closure v1
+
+## Cel gameplayowy
+
+Pierwsza grywalna wersja pętli danych.
+
+## UX
+
+Gracz rozumie:
+
+* po co skanuje,
+* po co kupuje aplikacje,
+* po co uruchamia operacje,
+* po co zbiera pliki,
+* po co sprzedaje dane,
+* po co wraca na mapę.
+
+## Przepływ danych
+
+```text
+World Object
+↓
+Map Action
+↓
+Application
+↓
+Operation
+↓
+Movement
+↓
+Resource
+↓
+File
+↓
+Ghost Exchange
+↓
+Mail
+↓
+HackCoins
+↓
+New Apps
+↓
+Back to Map
+```
+
+## Systemy
+
+* mapa,
+* aplikacje,
+* operacje,
+* movement,
+* zasoby,
+* pliki,
+* Ghost Exchange,
+* mail,
+* Wallet/HC,
+* Googleplex,
+* risk.
+
+## Kryteria akceptacji
+
+* Pętla jest grywalna od początku do końca.
+* Każdy element ma feedback dla gracza.
+* Ryzyko nie jest dekoracją, tylko wpływa na decyzje.
+* Dane są realnym towarem.
+* Googleplex jest realnym progressem.
+
+---
+
+# Sprint 21+ — Rozszerzenia po domknięciu pętli
+
+Te sprinty są poza pierwszą pętlą implementacyjną.
+
+## Możliwe kierunki
+
+* player-to-player trading,
+* rynki frakcyjne,
+* dynamiczny popyt Ghost Exchange,
+* zaawansowane konsekwencje ryzyka,
+* jail loop,
+* wanted level per miasto/frakcja,
+* research tree GhostLab,
+* custom pro-system-tools runtime,
+* AI/NPC buyers,
+* kontrakty frakcyjne,
+* data laundering,
+* odzyskiwanie sprzedanych danych,
+* archiwum historyczne gracza.
+
+Decision:
+
+* Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.
+* Przyjęto: Sprint 21+ nie powinien wyprzedzać domknięcia pętli danych.
+
+---
+
+# Faza A — Architektura gry
+
+Faza A porządkuje fundamenty po gameplay loop v1. Nie chodzi jeszcze o pełny kreator dla gracza, tylko o to, żeby runtime, katalog aplikacji, pojemność, waga i jakość mówiły jednym językiem.
+
+---
+
+# Sprint 21 — Audit
+
+## Cel gameplayowy
+
+Gracz i projektant systemu widzą, które aplikacje są tylko UI, które są narzędziami mapy, a które tworzą operacje i dane.
+
+Ten sprint porządkuje fundament pod Googleplex Tool Laboratory bez przebudowy kreatorów.
+
+## UX
+
+Googleplex i File Manager zaczynają pokazywać aplikację jako kontrakt:
+
+```text
+interface
+↓
+map_actions
+↓
+operation_types
+↓
+resource_types
+↓
+file_size / disk_usage
+↓
+quality / reliability
+```
+
+## Przepływ danych
+
+```text
+app_config / json_resources
+↓
+app contract audit
+↓
+Googleplex card
+↓
+files.tools
+↓
+map action runtime
+```
+
+## Systemy
+
+* Googleplex,
+* app contract,
+* File Manager,
+* `/tools`,
+* `map_actions`,
+* `operation_types`,
+* `resource_types`,
+* `target_types`.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/app_contract.md` — `file_size`, `disk_usage`, `quality_score`, `reliability`.
+* `doc/gameplay/file_model.md` — aplikacje i pliki jako obiekty z wagą.
+* `doc/gameplay/map_interactions.md` — wybór narzędzia nie może mieszać targetów ani globalnego stanu.
+
+## Kryteria akceptacji
+
+* Wiadomo, które aplikacje mają jawne `map_actions`.
+* Wiadomo, które aplikacje są tylko `migration_inferred`.
+* Googleplex pokazuje kontrakt aplikacji czytelnie.
+* File Manager `/tools` pokazuje, dlaczego narzędzie pasuje do akcji mapy.
+* Runtime mapy nie zostaje przebudowany.
+
+---
+
+# Sprint 21.5 — Gameplay Contract
+
+## Cel gameplayowy
+
+Zanim kreatory zaczną tworzyć nowe narzędzia, gra musi mieć spójny kontrakt tego, czym jest aplikacja gameplayowa.
+
+Sprint 21.5 zamienia audyt ze Sprintu 21 w jawny kontrakt projektowy i runtime checklistę.
+
+## UX
+
+Gracz jeszcze nie dostaje dużej nowej funkcji, ale Googleplex, File Manager i przyszły kreator zaczynają używać tych samych pojęć:
+
+```text
+narzędzie
+↓
+środowisko działania
+↓
+akcja mapy
+↓
+operacja
+↓
+zasób
+↓
+plik
+↓
+waga
+↓
+jakość
+↓
+ryzyko
+```
+
+## Przepływ danych
+
+```text
+doc/gameplay/app_contract.md
+↓
+runtime app normalization
+↓
+Googleplex metadata
+↓
+File Manager metadata
+↓
+tool selection
+```
+
+## Systemy
+
+* `normalize_app_contract()`,
+* `googleplex_catalog_payload()`,
+* `serialize_tool_selection_app()`,
+* File Manager preview,
+* Googleplex cards,
+* app creator payload.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/app_contract.md` — finalna lista pól wymaganych dla gameplay tool.
+* `doc/gameplay/gameplay_terms.md` — dopisać `file_size`, `disk_usage`, `quality_score`, `reliability`, `creator_power`.
+* `doc/gameplay/file_model.md` — rozróżnić wagę aplikacji i wagę pliku danych.
+
+## Kryteria akceptacji
+
+* Wiadomo, które pola są obowiązkowe dla runtime, a które są tylko opisowe.
+* Wiadomo, które pola tworzą UI, a które gameplay.
+* Fallback legacy jest opisany jako migracja.
+* Przyszły wizard nie musi zgadywać nazw pól.
+* Nie ma zmian w mechanice mapy ani ekonomii.
+
+---
+
+# Sprint 22 — Disk Capacity + Tool File Size
+
+## Cel gameplayowy
+
+Pulpit gracza zaczyna mieć ograniczenia zasobów. Aplikacje i pliki danych mają wagę, więc arsenał nie jest nieskończony.
+
+## UX
+
+Gracz widzi:
+
+* pojemność dysku,
+* zajęte miejsce,
+* wagę aplikacji przed zakupem,
+* wagę pliku danych,
+* ostrzeżenie, gdy instalacja lub zapis pliku zbliża się do limitu.
+
+Na start limit może być miękki: ostrzeżenie zamiast blokady.
+
+## Przepływ danych
+
+```text
+app.file_size / app.disk_usage
+↓
+install preview
+↓
+profile.storage_used
+↓
+files.* file_size
+↓
+File Manager usage bar
+```
+
+## Systemy
+
+* `profile.storage_capacity`,
+* `profile.storage_used`,
+* `app.file_size`,
+* `file.file_size`,
+* Googleplex,
+* File Manager,
+* `/install-app`.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/file_model.md` — `file_size`, `disk_usage`, `storage_capacity`, `storage_used`.
+* `doc/gameplay/app_contract.md` — `install_size` / `disk_usage` jako część kontraktu aplikacji.
+* `doc/gameplay/resource_types.md` — bazowe wagi typów danych.
+
+## Kryteria akceptacji
+
+* Każda aplikacja w Googleplex ma wagę albo domyślną wagę.
+* Każdy nowy plik gameplayowy ma `file_size`.
+* File Manager pokazuje użycie dysku.
+* Instalacja aplikacji pokazuje wpływ na pojemność.
+* Brak regresji sprzedaży i generowania plików.
+
+---
+
+# Sprint 23 — Tool Quality + Creator Power
+
+## Cel gameplayowy
+
+Poziom i reputacja twórcy zaczynają mieć znaczenie. Dwie aplikacje tego samego typu mogą mieć inną jakość, niezawodność i wagę.
+
+## UX
+
+Gracz w Googleplex widzi:
+
+* poziom narzędzia,
+* jakość,
+* niezawodność,
+* ryzyko awarii,
+* twórcę,
+* przewidywaną jakość danych.
+
+Twórca widzi w kreatorze, że jego poziom wpływa na wynik publikacji.
+
+## Przepływ danych
+
+```text
+creator level / respect
+↓
+creator_power
+↓
+quality_score
+↓
+reliability
+↓
+operation quality
+↓
+file completeness / price preview
+```
+
+## Systemy
+
+* profile level/respect,
+* `creator_username`,
+* `creator_nick`,
+* `creator_power`,
+* `quality_score`,
+* `reliability`,
+* operation finalizers,
+* Ghost Exchange price preview.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/app_contract.md` — `quality_score`, `reliability`, `creator_power`.
+* `doc/gameplay/resource_types.md` — wpływ jakości aplikacji na kompletność zasobów.
+* `doc/gameplay/data_economy.md` — jakość jako mnożnik ceny.
+
+## Kryteria akceptacji
+
+* Aplikacje mają `quality_score` i `reliability`.
+* Lepszy twórca tworzy lepsze narzędzie.
+* Jakość aplikacji wpływa na kompletność pliku albo `quality_score` pliku.
+* Googleplex pokazuje jakość narzędzia.
+* Ghost Exchange uwzględnia jakość danych.
+
+---
+
+# Faza B — Edukacja gracza
+
+Faza B zmienia kreatory z formularzy w proces uczenia gracza. Gracz ma zrozumieć, że narzędzie jest decyzją projektową: do czego działa, co produkuje, ile waży, jak ryzykuje i jaką ma jakość.
+
+---
+
+# Sprint 24 — Map Tool Classification Cleanup
+
+## Cel gameplayowy
+
+Arsenał gracza staje się zrozumiały. Narzędzia nie podświetlają się przy złej akcji mapy tylko dlatego, że stare pola `detects/type` coś zasugerowały.
+
+## UX
+
+Przy wyborze narzędzia z mapy gracz widzi tylko sensowne narzędzia.
+
+Przykład:
+
+* `scan_ports` pokazuje skanery/recon.
+* `exploit` pokazuje exploity.
+* `sniff` pokazuje sniffery.
+* `trace_gps` pokazuje trackery GPS.
+
+PenCombo / exploit_suite nie powinno być pokazywane jako `scan_ports`, jeśli kontrakt nie mówi tego jawnie.
+
+## Przepływ danych
+
+```text
+map_action_id
+↓
+explicit app.map_actions
+↓
+tool selection
+↓
+selected_app_id
+↓
+operation
+```
+
+## Systemy
+
+* `get_apps_for_map_action()`,
+* `infer_legacy_map_actions()`,
+* `map_actions_source`,
+* migracja katalogu aplikacji,
+* File Manager `/tools`.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/app_contract.md` — fallback legacy jako `TODO_MIGRATION`, nie główny router.
+* `doc/gameplay/map_actions.md` — lista dozwolonych klas narzędzi dla każdej akcji.
+* `doc/gameplay/gameplay_matrix.md` — support-only vs data-producing.
+
+## Kryteria akceptacji
+
+* Jawne `app.map_actions` wygrywa zawsze.
+* Fallback legacy można wyłączyć flagą dev/test.
+* Aplikacje `migration_inferred` są oznaczone w Googleplex.
+* Narzędzia podświetlane w `/tools` odpowiadają akcji mapy.
+* Testy obejmują PenCombo / exploit_suite i `scan_ports`.
+
+---
+
+# Sprint 25 — Step-by-Step Tool Creator UX
+
+## Cel gameplayowy
+
+Kreator aplikacji przestaje być formularzem JSON. Gracz projektuje narzędzie świadomie, krok po kroku.
+
+## UX
+
+Wizard:
+
+```text
+1. Typ narzędzia
+2. Środowisko działania
+3. Akcje mapy / desktopu
+4. Operacje
+5. Zasoby
+6. Ryzyko
+7. Waga / pojemność
+8. Jakość / niezawodność
+9. Podsumowanie
+10. Publikacja
+```
+
+To nadal wykorzystuje istniejące ButtonMaker, TermCreator, WindowMaker i AppForge. Nie tworzymy drugiego sklepu ani drugiego publishera.
+
+## Przepływ danych
+
+```text
+creator wizard
+↓
+draft app contract
+↓
+validation
+↓
+/api/apps/generate
+↓
+json_resources.app_config
+↓
+Googleplex
+```
+
+## Systemy
+
+* kreatory UI w `terminal.js`,
+* `/api/apps/generate`,
+* `build_generated_app()`,
+* Googleplex,
+* `profile.files.projects`.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/app_contract.md` — minimalny kontrakt aplikacji tworzonej przez gracza.
+* `doc/gameplay/file_model.md` — projekty i pliki tools jako inventory.
+* `doc/architecture/resource_architecture.md` — publikacja zmienia SQLite `json_resources`, nie statyczny JSON.
+
+## Kryteria akceptacji
+
+* Kreator prowadzi przez jawne `map_actions`.
+* Kreator pokazuje wagę, jakość i ryzyko przed publikacją.
+* Opublikowana aplikacja ma pełny kontrakt.
+* Stare kreatory nadal działają jako uproszczone tryby.
+
+---
+
+# Sprint 26 — Scanner Path
+
+## Cel gameplayowy
+
+Gracz może stworzyć własne narzędzie skanujące/recon, które działa w istniejącym runtime mapy.
+
+## UX
+
+Ścieżka Scanner:
+
+* wybór targetów,
+* wybór `map_actions`: `scan_ports`, `trace`, `trace_device`, `scan_hotspots`,
+* wybór, czy wynik jest tylko `internal_recon_state`, czy tworzy plik,
+* wybór jakości i zasięgu,
+* podgląd ryzyka.
+
+## Przepływ danych
+
+```text
+scanner blueprint
+↓
+app.map_actions
+↓
+operation_types
+↓
+resource_types
+↓
+quality/reliability
+↓
+Googleplex app
+```
+
+## Systemy
+
+* AppForge / Tool Creator wizard,
+* `scan_ports`,
+* `trace`,
+* `trace_device`,
+* `scan_hotspots`,
+* operation core,
+* File Manager.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/map_actions.md` — scanner actions.
+* `doc/gameplay/operations.md` — które skanery tworzą operacje, a które tylko stan rozpoznania.
+* `doc/gameplay/resource_types.md` — `internal_recon_state` i dane sieciowe.
+
+## Kryteria akceptacji
+
+* Custom scanner instaluje się z Googleplex.
+* Custom scanner pojawia się w `/tools`.
+* Custom scanner podświetla się tylko dla swoich `map_actions`.
+* Custom scanner może tworzyć operację albo tylko stan support.
+* Nie powstają sprzedawalne pliki, jeśli aplikacja ich nie deklaruje.
+
+---
+
+# Sprint 27 — Exploit Path
+
+## Cel gameplayowy
+
+Gracz może stworzyć narzędzie ofensywne: exploit albo sniffer, z jasnym kosztem ryzyka.
+
+## UX
+
+Ścieżka Exploit/Sniffer:
+
+* wybór celu: router, server, ATM, camera, player target,
+* wybór `map_actions`: `exploit`, `sniff`, `install_sniffer`,
+* wybór czasu działania,
+* wybór typów zasobów,
+* wybór hałasu/ryzyka,
+* podgląd skuteczności i wykrywalności.
+
+## Przepływ danych
+
+```text
+offensive blueprint
+↓
+map action
+↓
+operation
+↓
+risk_state
+↓
+resource buffer
+↓
+file
+```
+
+## Systemy
+
+* exploit runtime,
+* persistent sniffer,
+* risk MVP,
+* support operations,
+* operation finalizers,
+* Ghost Exchange.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/risk_events.md` — wpływ jakości i hałasu aplikacji na ryzyko.
+* `doc/gameplay/operations.md` — custom exploit/sniffer jako wariant istniejących operacji.
+* `doc/gameplay/app_contract.md` — `noise_level`, `failure_rate`, `risk_modifier`.
+
+## Kryteria akceptacji
+
+* Custom exploit/sniffer ma jawne `operation_types`.
+* Narzędzie może generować pliki tylko zgodnie z `resource_types`.
+* Ryzyko uwzględnia jakość i hałas.
+* Tool selection nie miesza exploitów ze scannerami.
+
+---
+
+# Faza C — Endgame
+
+Faza C domyka endgame narzędzi: GhostLab, balans ekonomii aplikacji i Googleplex Tool Laboratory v1 jako pełny warsztat tworzenia narzędzi.
+
+---
+
+# Sprint 28 — GhostLab Pro Tools Contract
+
+## Cel gameplayowy
+
+GhostLab staje się ścieżką dla zaawansowanych narzędzi pro-system-tools, ale nadal korzysta z tego samego modelu aplikacji Googleplex.
+
+## UX
+
+GhostLab pokazuje pipeline:
+
+```text
+Project
+↓
+Template
+↓
+Blueprint
+↓
+Validate
+↓
+Compile
+↓
+Artifact
+↓
+Publisher
+↓
+Googleplex
+```
+
+Custom pro-system-tool może być kupiony i zainstalowany, ale jego runtime nie może omijać Player Hack Access.
+
+## Przepływ danych
+
+```text
+files.pro_system_projects
+↓
+compiled artifact
+↓
+pro-system-tool app contract
+↓
+json_resources.app_config
+↓
+Googleplex
+↓
+profile.apps
+```
+
+## Systemy
+
+* GhostLab,
+* Publisher,
+* Googleplex,
+* Player Hack Access,
+* pro-system-tools.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/app_contract.md` — pro-system-tool jako zwykła aplikacja z dodatkowymi wymaganiami.
+* `doc/gameplay/operations.md` — custom pro-tools nie tworzą nowych operacji bez osobnego runtime.
+* `doc/architecture/resource_architecture.md` — Publisher zapisuje do SQLite runtime catalog.
+
+## Kryteria akceptacji
+
+* GhostLab publikuje pełny kontrakt aplikacji.
+* Custom pro-system-tool instaluje się jak każda aplikacja.
+* Tool nie działa bez aktywnego Player Hack Access.
+* Googleplex pokazuje wymagania, wagę, jakość i ryzyko.
+
+---
+
+# Sprint 29 — Tool Balance Pass + Pricing
+
+## Cel gameplayowy
+
+Rynek aplikacji zaczyna być czytelny ekonomicznie. Cena narzędzia wynika z jego mocy, jakości, ryzyka, wagi i poziomu wymagań.
+
+## UX
+
+Googleplex pokazuje:
+
+* cena,
+* poziom,
+* respect,
+* waga,
+* jakość,
+* ryzyko,
+* przewidywany typ wyniku.
+
+Gracz rozumie, dlaczego droższe narzędzie jest lepsze.
+
+## Przepływ danych
+
+```text
+app contract
+↓
+power score
+↓
+price hint
+↓
+Googleplex price
+↓
+install decision
+```
+
+## Systemy
+
+* Googleplex,
+* app pricing,
+* creator app generation,
+* quality/reliability,
+* storage/disk usage,
+* Ghost Exchange economy.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/data_economy.md` — relacja ceny aplikacji do potencjalnego zwrotu z danych.
+* `doc/gameplay/app_contract.md` — `price_hint`, `power_score`.
+* `doc/gameplay/file_model.md` — waga aplikacji a decyzja instalacji.
+
+## Kryteria akceptacji
+
+* Cena aplikacji nie jest ręczną liczbą bez kontekstu.
+* Aplikacja o większej jakości/zakresie ma większy koszt.
+* Waga aplikacji wpływa na decyzję instalacji.
+* Testowe ceny nie psują pętli HC -> Googleplex -> lepsze dane.
+
+---
+
+# Sprint 30 — Googleplex Tool Laboratory v1
+
+## Cel gameplayowy
+
+Googleplex Tool Laboratory domyka pierwszą wersję warsztatu tworzenia narzędzi. Gracz nie edytuje JSON-a, tylko projektuje aplikację jako realny element gameplayu.
+
+## UX
+
+Laboratorium łączy:
+
+* AppForge,
+* ButtonMaker,
+* TermCreator,
+* WindowMaker,
+* GhostLab,
+* Googleplex Publisher,
+* app contract preview.
+
+Gracz wybiera ścieżkę:
+
+```text
+Simple Tool
+Map Tool
+Data Tool
+Offensive Tool
+Pro System Tool
+```
+
+Każda ścieżka prowadzi przez te same pojęcia:
+
+```text
+interface
+map_actions
+target_types
+operation_types
+resource_types
+risk
+file_size
+quality
+reliability
+price
+publish
+```
+
+## Przepływ danych
+
+```text
+laboratory wizard
+↓
+validated app contract
+↓
+generated project
+↓
+publish
+↓
+json_resources.app_config
+↓
+Googleplex
+↓
+install
+↓
+/tools
+↓
+map runtime
+↓
+uninstall
+```
+
+## Systemy
+
+* wszystkie kreatory,
+* GhostLab,
+* Googleplex,
+* app contract,
+* storage model,
+* quality model,
+* map tool selection.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/app_contract.md` — finalny kontrakt aplikacji tworzonej przez gracza.
+* `doc/gameplay/file_model.md` — aplikacja jako plik/narzędzie z wagą.
+* `doc/architecture/resource_architecture.md` — publikacja i sync katalogu.
+* `doc/history/project_journal.md` — podsumowanie zamknięcia Tool Laboratory v1.
+
+## Kryteria akceptacji
+
+* Gracz tworzy aplikację bez ręcznej edycji JSON.
+* Aplikacja ma pełny kontrakt.
+* Aplikacja pojawia się w Googleplex.
+* Można ją kupić, zainstalować i zobaczyć w `/tools`.
+* Jeśli ma `map_actions`, działa z wyborem narzędzia na mapie.
+* Pojemność dysku, waga, jakość, ryzyko i cena są widoczne przed publikacją i instalacją.
+
+---
+
+# Sprint 30.5 — Guided Tool Laboratory Experience
+
+## Cel gameplayowy
+
+Kreatory przestają wyglądać jak techniczny formularz. Gracz jest prowadzony
+krok po kroku przez decyzje projektowe i rozumie, dlaczego każda z nich ma
+znaczenie.
+
+Sprint 30.5 nie zmienia kontraktu aplikacji, runtime, ekonomii, storage ani
+publish flow. To warstwa UX i narracji nad istniejącym Tool Laboratory v1.
+
+## UX
+
+Każdy krok kreatora ma:
+
+* tytuł,
+* subtitle,
+* opis,
+* edukacyjną notkę,
+* gameplay hint.
+
+Nazwy techniczne zostają w kontrakcie, ale UI mówi językiem gracza:
+
+```text
+target_types      -> Jakim obiektem chcesz się zająć?
+map_actions       -> Skąd gracz ma uruchamiać narzędzie?
+operation_types   -> Co ma zrobić Twoje narzędzie?
+resource_types    -> Jakich informacji ma szukać?
+tool_mode         -> Gdzie będzie działało?
+quality_score     -> Jak dopracowane jest narzędzie?
+```
+
+## Przepływ decyzji
+
+```text
+rodzina narzędzia
+↓
+tryb działania
+↓
+typ celu
+↓
+sensowne akcje / operacje / zasoby
+↓
+preview kontraktu
+↓
+publish
+```
+
+## Systemy
+
+* AppForge,
+* TermCreator,
+* WindowMaker,
+* ButtonMaker,
+* GhostLab jako kompatybilny publish path,
+* Googleplex Tool Laboratory v1.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/app_contract.md` — guided UX nie zmienia pól kontraktu.
+* `doc/gameplay/gameplay_terms.md` — pojęcia `guided_step`, `educational_note`,
+  `gameplay_hint`.
+* `doc/history/project_journal.md` — wpis Sprintu 30.5.
+
+## Kryteria akceptacji
+
+* Kreator pokazuje jeden etap decyzji naraz.
+* Każdy etap ma narrację i wyjaśnienie konsekwencji.
+* Wybór rodziny/trybu/celu zawęża kolejne listy.
+* UI nie używa nagłówków typu `operation_types` jako głównego języka gracza.
+* Nie zmieniono backendowego kontraktu aplikacji.
+* Nie dodano nowego kreatora ani publish flow.
+
+---
+
+# Sprint 31 — Database Migration & Server Upgrade Scripts
+
+## Cel gameplayowy
+
+Gra wchodzi w etap, w którym baza produkcyjna/testowa żyje na serwerze i nie jest wersjonowana w Git. Każda zmiana struktury danych musi mieć własną, bezpieczną migrację.
+
+Ten sprint nie dodaje nowych mechanik. Chroni istniejący świat graczy przed ręcznymi zmianami w SQLite.
+
+## UX
+
+Gracz nie widzi nowego ekranu, ale zyskuje stabilność:
+
+* aktualizacje gry nie kasują profilu,
+* nowe pola pojawiają się bez resetu kont,
+* storage, jakość i nowe kontrakty aplikacji mogą być dodawane bez ręcznego grzebania w bazie,
+* deploy serwera ma powtarzalną procedurę.
+
+## Przepływ danych
+
+```text
+git pull
+↓
+backup DB
+↓
+run migration
+↓
+schema_migrations
+↓
+restart app
+↓
+gameplay smoke
+```
+
+## Systemy
+
+* SQLite runtime DB,
+* `json_resources`,
+* `users.profile_json`,
+* przyszłe pola storage/quality,
+* PM2/server deploy,
+* `project_journal.md`.
+
+## Etap 0 — App Catalog Cleanup
+
+Przed standardowymi migracjami Sprint 31 porządkuje katalog aplikacji i narzędzi.
+
+Cel:
+
+* wyczyścić `json_resources.app_config` ze starych narzędzi testowych/dev,
+* usunąć `admin_test_seed`,
+* usunąć albo zastąpić stare `migration_inferred`,
+* zachować aplikacje wytworzone przez grę,
+* zachować GhostLab published apps,
+* dodać produkcyjny zestaw `admin_seed_v1`,
+* wyczyścić profile graczy z testowych aplikacji,
+* wyczyścić orphan `files.tools`,
+* przeliczyć `storage_used`,
+* nie usuwać `files.projects`.
+
+Skrypt:
+
+```text
+scripts/app_catalog_cleanup.py
+```
+
+Tryby:
+
+```bash
+python scripts/app_catalog_cleanup.py --db data/game.sqlite3
+python scripts/app_catalog_cleanup.py --db data/game.sqlite3 --apply
+```
+
+Wymagania:
+
+* dry-run jako domyślny tryb,
+* `--apply` jako jedyna ścieżka zapisu,
+* backup przed zmianą,
+* raport różnic,
+* brak destrukcyjnych zmian bez jawnego apply.
+
+Po tym etapie w systemie powinny zostać:
+
+* produkcyjne narzędzia seed/admin_seed_v1,
+* narzędzia wytworzone przez grę,
+* narzędzia GhostLab,
+* narzędzia dopisane świadomie w kolejnych sprintach.
+
+## Struktura migracji
+
+Przyjęty kierunek:
+
+```text
+migrations/
+  001_add_storage_fields.py
+  002_add_app_quality_fields.py
+  003_normalize_tool_contracts.py
+```
+
+Alternatywnie dopuszczalne:
+
+```text
+scripts/db_migrations/
+```
+
+Ważne jest jedno stałe miejsce, numeracja i jawna kolejność.
+
+## Zasady migracji
+
+Każda migracja musi być:
+
+* numerowana,
+* opisana,
+* idempotentna,
+* możliwa do uruchomienia drugi raz bez szkody,
+* ograniczona do jednego celu,
+* testowana lokalnie przed deployem,
+* poprzedzona backupem DB,
+* zapisana w stanie migracji.
+
+Migracja nie może:
+
+* usuwać danych bez wyraźnej decyzji,
+* nadpisywać runtime smoke przypadkiem,
+* zakładać, że `data/game.sqlite3` jest w Git,
+* mieszać zmian struktury z refaktorem gameplayu.
+
+## Stan migracji
+
+Docelowo dodać tabelę:
+
+```text
+schema_migrations
+```
+
+Minimalne pola:
+
+* `id`,
+* `name`,
+* `applied_at`,
+* `checksum` albo `script_hash`,
+* `status`,
+* `notes`.
+
+Jeżeli tabela jeszcze nie istnieje, pierwszy migrator tworzy ją sam.
+
+## Komenda serwerowa
+
+Przykład:
+
+```bash
+python migrations/001_add_storage_fields.py --db data/game.sqlite3 --apply
+```
+
+Tryby:
+
+* domyślnie `dry-run`,
+* zapis tylko z `--apply`,
+* opcjonalnie `--backup`,
+* opcjonalnie `--rollback`, tylko jeśli rollback jest prosty i bezpieczny.
+
+## Backup
+
+Przed migracją:
+
+```bash
+cp data/game.sqlite3 data/backups/game_YYYYMMDD_HHMMSS_before_001.sqlite3
+```
+
+Backup jest runtime i nie trafia do Git.
+
+## Rollback
+
+Rollback jest wymagany tylko wtedy, gdy jest prosty i bezpieczny.
+
+Jeżeli migracja dodaje pola domyślne do JSON profili, rollback może być ryzykowny i nie powinien usuwać danych graczy. W takim przypadku rollbackiem jest przywrócenie backupu bazy.
+
+## Checklist deploy
+
+```text
+1. git pull
+2. sprawdź APP_ENV / branch / tag
+3. zatrzymaj albo wycisz ruch, jeśli trzeba
+4. backup data/game.sqlite3
+5. dry-run migracji
+6. run migration --apply
+7. sprawdź schema_migrations
+8. restart app / pm2 restart
+9. gameplay smoke admina
+10. sprawdź logi PERF / error
+11. dopisz wpis do project_journal.md
+```
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/architecture/resource_architecture.md` — baza runtime nie jest wersjonowana, migrujemy ją skryptami.
+* `doc/history/project_journal.md` — każda migracja dostaje wpis z datą, nazwą, wynikiem i backupem.
+* `README.md` — krótka komenda deploy/migration dla serwera.
+
+## Kryteria akceptacji
+
+* Istnieje katalog migracji.
+* Istnieje pierwszy przykład migracji w trybie dry-run/apply.
+* Istnieje `schema_migrations` albo równoważny stan migracji.
+* Migracja tworzy backup przed zmianą.
+* Migracja jest idempotentna.
+* Lokalny test migracji przechodzi na kopii bazy.
+* Deploy checklist jest opisany.
+* `project_journal.md` jest aktualizowany po każdej migracji.
+
+---
+
+# Sprint 32 — Target Bar Feedback Audit & Plan
+
+## Cel gameplayowy
+
+Gracz zaczyna dostawać subtelną informację, czy sekwencja działań na celu
+posuwa hack do przodu, ale bez dużego panelu, tutoriala, procentów i dodatkowego
+UI poza belką CEL.
+
+Sprint 32 jest audytem i planem. Nie implementuje jeszcze zmian w runtime.
+
+## UX
+
+Belka CEL pozostaje częścią górnego/dolnego statusu systemu.
+
+Stany:
+
+* brak oznaczonego celu:
+  * belka CEL zwykła/zielona jak pozostałe statusy,
+  * tekst: `CEL brak`,
+  * bez kropek,
+  * bez progressbara.
+* oznaczony cel:
+  * belka CEL czerwona jak obecnie,
+  * tekst celu zostaje,
+  * pod nazwą celu pojawiają się cztery bardzo małe kropki,
+  * pod kropkami pojawia się bardzo cienki progressbar rozbrojenia.
+
+Kropki reprezentują:
+
+```text
+scan_ports
+exploit
+sniff
+trace
+```
+
+Kropka świeci, jeśli odpowiadające `actions_allowed` ma wartość `true`.
+Kropka jest wygaszona, jeśli wartość jest `false` albo jej brakuje.
+
+Progressbar pokazuje poziom rozbrojenia celu, nie poziom zabezpieczenia.
+
+## Przepływ danych
+
+```text
+/hack-action
+↓
+profile.aimed_target.actions_allowed
+profile.aimed_target.security
+↓
+/api/profile
+↓
+toolbarProfile.aimed_target
+↓
+renderToolbarStatus()
+↓
+subtelny feedback w sekcji CEL
+```
+
+## Systemy
+
+* `profile.aimed_target`,
+* `actions_allowed`,
+* `security`,
+* `/hack-action`,
+* `/api/profile`,
+* `refreshToolbarProfile()`,
+* `renderToolbarStatus()`,
+* `system-status-strip`.
+
+## Algorytm planowany
+
+Aktywne kropki:
+
+* użyć kolejności `scan_ports`, `exploit`, `sniff`, `trace`,
+* odczytać `profile.aimed_target.actions_allowed`,
+* `true` = aktywna kropka,
+* `false` / brak = wygaszona kropka,
+* brak celu = nie renderować kropek.
+
+Poziom rozbrojenia:
+
+* liczyć tylko booleanowe pola zabezpieczeń zgodne z gameplayowym progiem
+  rozbrojenia,
+* `true` oznacza aktywne zabezpieczenie,
+* `false` oznacza zdjęte zabezpieczenie,
+* progress = liczba pól `false` / liczba pól booleanowych w read modelu,
+* brak danych = progress 0.
+
+Uwaga architektoniczna:
+
+* jeżeli w przyszłości backend zacznie udostępniać
+  `aimed_target.disarm_progress` albo `aimed_target.feedback`, frontend powinien
+  automatycznie przejść na backendowy read model,
+* lokalne liczenie w Sprincie 33 jest tylko tymczasowym read modelem UI,
+* backend pozostaje źródłem prawdy dla tego, co jest zabezpieczeniem.
+
+Nie traktować jako boolean security:
+
+* `anonymity_score`,
+* `system_compromise_level`,
+* `player_risk_level`,
+* `traceability`,
+* `system_integrity`,
+* `exploit_success_rate`,
+* `risk_level`,
+* `access_level`.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/history/project_journal.md` — wpis audytu Sprintu 32.
+
+## Kryteria akceptacji
+
+* Wiadomo, gdzie renderowana jest belka CEL.
+* Wiadomo, skąd frontend bierze `aimed_target`.
+* Wiadomo, że `actions_allowed` i `security` są dostępne przez `/api/profile`.
+* Wiadomo, że po `/hack-action` toolbar może zostać odświeżony bez nowego
+  endpointu.
+* Istnieje plan Sprintu 33.
+* Nie zmieniono gameplayu, map runtime, operacji ani ekonomii.
+
+---
+
+# Sprint 33 — Target Bar Micro Feedback
+
+## Cel gameplayowy
+
+Gracz widzi na belce CEL bardzo dyskretny sygnał postępu hackowania:
+które podstawowe akcje zostały wykonane i czy zabezpieczenia celu są zdejmowane.
+
+To ma być informacja dla spostrzegawczych graczy, nie tutorial.
+
+Feedback pokazuje wyłącznie postęp działań gracza. Nie zdradza pełnej wiedzy o
+celu, liczby zabezpieczeń, brakujących kroków ani dokładnego procentu.
+
+## UX
+
+W sekcji CEL dodać:
+
+* cztery małe kropki 5-6px,
+* cienki pasek rozbrojenia 2-3px,
+* brak tekstu pomocniczego,
+* brak legendy,
+* brak tooltipów na start,
+* brak procentów,
+* brak nowego panelu.
+
+Animacje:
+
+* kropka nie zapala się skokowo, tylko przechodzi subtelnie przez stan pośredni
+  w 200-300 ms,
+* pasek rozbrojenia rośnie płynnie, zamiast przeskakiwać natychmiast,
+* przy zmianie celu feedback robi krótki fade out / fade in w 100-150 ms,
+* jeśli `actions_allowed` i progress się nie zmieniły, toolbar nie animuje się
+  ponownie i nie miga przy zwykłym refreshu.
+
+Zasady kropek:
+
+* kolejność kropek jest stała: `scan_ports`, `exploit`, `sniff`, `trace`,
+* pojedyncza kropka nigdy nie znika,
+* pojedyncza kropka nigdy nie zmienia pozycji,
+* zmienia się wyłącznie stan kropki: wygaszona, animowana, aktywna.
+
+Zasady paska:
+
+* w obrębie jednego oznaczonego celu pasek nie może się cofać,
+* cofnięcie paska jest dozwolone wyłącznie po zmianie celu, utracie celu,
+  ponownym oznaczeniu celu albo świadomym resecie gameplayowym,
+* zwykły refresh profilu, polling i odświeżenie toolbaru nie mogą powodować
+  cofania progressu.
+
+Belka nie może rozpychać:
+
+* `ARS`,
+* `HC`,
+* `LVL`,
+* `RSP`,
+* trybu mobile.
+
+## Przepływ danych
+
+```text
+toolbarProfile.aimed_target
+↓
+target action dots
+↓
+target disarm progress
+↓
+renderToolbarStatus()
+↓
+CSS micro feedback
+```
+
+## Systemy
+
+* `static/js/terminal.js`,
+* `static/css/style.css`,
+* `renderToolbarStatus()`,
+* `calculateToolbarArsenalCoverage()`,
+* `system-status-target`.
+
+## Zakres implementacji
+
+1. Dodać małe helpery frontendowe:
+   * `getTargetActionDots(aimedTarget)`,
+   * `calculateTargetDisarmProgress(aimedTarget)`,
+   * opcjonalnie `renderTargetBarFeedback(aimedTarget)`.
+2. Rozszerzyć markup `system-status-target` w `renderToolbarStatus()`.
+3. Dodać CSS dla kropek i paska.
+4. Dodać lekki stan poprzedniego feedbacku, żeby animować tylko realną zmianę.
+5. Dodać animację kropek, animację paska i fade przy zmianie celu.
+6. Zachować monotoniczny progress paska dla aktualnego celu.
+7. Zachować obecny czerwony stan belki dla aktywnego celu.
+8. Nie dodawać nowego endpointu.
+9. Nie zmieniać `/hack-action`.
+10. Nie zmieniać warunku przejęcia celu.
+11. Nie zmieniać map runtime.
+
+## Testy ręczne
+
+* Brak celu:
+  * `CEL brak`,
+  * brak kropek,
+  * brak progressbara.
+* Oznaczony cel:
+  * czerwona belka CEL,
+  * widoczne cztery kropki,
+  * widoczny cienki pasek.
+* Po `scan_ports` świeci pierwsza kropka.
+* Po `exploit`, `sniff`, `trace` świecą kolejne kropki.
+* Po zdjęciu zabezpieczeń pasek rośnie.
+* Kropka i pasek animują się tylko wtedy, gdy postęp realnie się zmienił.
+* Odświeżenie profilu bez zmiany celu ani postępu nie powoduje migania.
+* Zmiana celu robi subtelny fade out / fade in sekcji feedbacku.
+* Na małym ekranie belka nie nachodzi na ARS/HC/LVL/RSP.
+
+## Testy automatyczne
+
+Jeśli możliwe dodać test pure helperów:
+
+* brak `aimed_target` zwraca stan neutralny,
+* `actions_allowed` mapuje się na cztery kropki,
+* pola liczbowe `security` są ignorowane,
+* progress liczy tylko boolean security,
+* brak `security` daje progress 0,
+* ten sam stan feedbacku nie wymusza ponownej animacji,
+* zmiana celu resetuje stan animacji.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/history/project_journal.md` — wpis po implementacji Sprintu 33.
+
+## Kryteria akceptacji
+
+* Feedback jest widoczny tylko przy oznaczonym celu.
+* Feedback działa bez nowego endpointu.
+* Kropki odpowiadają `actions_allowed`.
+* Pasek odpowiada rozbrojeniu boolean security.
+* Brak procentów, legendy i tutoriala.
+* Feedback jest animowany subtelnie i tylko przy realnej zmianie postępu.
+* Feedback nie zdradza liczby zabezpieczeń ani pełnego stanu celu.
+* Pasek nie cofa się w obrębie tego samego celu.
+* Brak regresji w mapie, `/hack-action`, operacjach i ekonomii.
+
+## UI Contract
+
+Feedback nie jest elementem mechaniki.
+
+Feedback jest wyłącznie wizualizacją aktualnego stanu gameplayu.
+
+Frontend nigdy nie podejmuje decyzji o stanie celu.
+
+Frontend wyłącznie renderuje dane otrzymane z backendu albo policzone lokalnie
+zgodnie z read modelem Sprintu 32.
+
+---
+
+# Sprint 34 — Target Bar UX Polish
+
+## Cel gameplayowy
+
+Domknąć wizualnie sekcję CEL tak, żeby neutralny stan był zwykłym elementem
+statusbara, a oznaczony cel uruchamiał rozszerzony tryb hackowania.
+
+## UX
+
+Brak celu:
+
+* kafel wygląda jak `ARS`, `HC`, `LVL`, `RSP`,
+* pokazuje tylko `CEL`,
+* nie pokazuje `brak`,
+* nie renderuje kropek,
+* nie renderuje progressbara,
+* nie ma czerwieni, glow ani podwyższonej sekcji.
+
+Cel oznaczony:
+
+* kafel dostaje czerwony stan,
+* pokazuje nazwę celu,
+* pokazuje cztery kropki,
+* pokazuje cienki pasek rozbrojenia.
+
+## Systemy
+
+* `renderToolbarStatus()`,
+* `system-status-target`,
+* CSS statusbara.
+
+## Kryteria akceptacji
+
+* Brak celu renderuje osobny, neutralny markup.
+* Aktywny layout celu renderuje się tylko przy realnym `aimed_target`.
+* `is-aimed` nie występuje przy braku celu.
+* Nie zmieniono backendu, algorytmu progressu ani map runtime.
+
+---
+
+# Faza D — Ghost Exchange jako automatyczny rynek danych
+
+Faza D zamienia Ghost Exchange z ręcznego panelu sprzedaży pojedynczych plików w
+automatyczny rynek danych oparty o istniejący File Model, Storage Model,
+Googleplex i profil gracza.
+
+Nie powstaje drugi rynek, drugi system plików, drugi storage ani drugi economy
+engine. Wszystkie zmiany rozwijają istniejące:
+
+* `profile.files`,
+* `sellable`,
+* `market_status`,
+* `files.market`,
+* `profile.market_history`,
+* `storage_capacity`,
+* `storage_used`,
+* `file_size`,
+* `price_preview`,
+* Ghost Exchange,
+* File Manager,
+* Googleplex.
+
+Nowa pętla gameplayu:
+
+```text
+Mapa
+↓
+Operacja
+↓
+Plik
+↓
+Storage
+↓
+Market Queue
+↓
+Ghost Exchange
+↓
+Auto Sale
+↓
+HackCoins
+↓
+Googleplex
+↓
+Lepsze narzędzia
+↓
+Więcej operacji
+```
+
+Decision:
+
+* Przyjęto: Ghost Exchange jest rynkiem wyników operacji, nie sklepem z ręcznym
+  klikaniem `Sprzedaj`.
+* Przyjęto: File Manager pozostaje miejscem przeglądania lootów.
+* Przyjęto: Googleplex pozostaje miejscem wydawania HC.
+* Przyjęto: Storage Economy działa od początku Fazy D jako realne ograniczenie
+  zapisu danych.
+* Przyjęto: Storage Upgrade jest produktem Googleplexa, nie osobnym sklepem i
+  nie aplikacją uruchamialną.
+* Przyjęto: ręczna sprzedaż może zostać wyłącznie jako legacy/dev/debug.
+
+---
+
+# Sprint 35 — Ghost Exchange Market Model + Storage Gate Foundation
+
+## Cel gameplayowy
+
+Ustalić i wdrożyć fundament modelu rynku danych: plik jest lootem w
+`profile.files`, zajmuje miejsce na dysku, ma sektor rynku i może trafić do
+automatycznej kolejki Ghost Exchange.
+
+Gracz nie sprzedaje jeszcze paczek automatycznie, ale gra zaczyna mówić jednym
+językiem: plik, storage, eligibility, sektor, status rynku.
+
+## Architektura
+
+Sprint 35 rozszerza istniejące normalizacje, nie finalizery jako osobne systemy.
+
+Nowe helpery powinny mieszkać obok obecnych funkcji Ghost Exchange i File Modelu
+w `run.py`:
+
+* `market_sector_for_file(file_entry)`,
+* `normalize_file_market_status(file_entry)`,
+* `is_market_eligible_file(file_entry)`,
+* `can_store_runtime_file(profile, file_entry)`,
+* `build_storage_full_result(profile, operation, file_entry)`.
+
+`sellable` pozostaje znaczeniem eligibility do Ghost Exchange. `market_status`
+pozostaje lifecycle pliku względem rynku.
+
+## Systemy
+
+* `profile.files`,
+* `normalize_runtime_file_entry()`,
+* `is_ghost_exchange_sellable()`,
+* `ghost_exchange_price_preview()`,
+* `calculate_profile_storage_used()`,
+* `normalize_profile_storage()`,
+* File Manager,
+* Ghost Exchange.
+
+## Flow danych
+
+```text
+finalizer builds file object
+↓
+normalize_runtime_file_entry()
+↓
+file_size / sellable / price_preview
+↓
+market_sector
+↓
+storage check
+↓
+profile.files[category]
+```
+
+## Backend
+
+1. Dodać centralne mapowanie `file_category -> market_sector`.
+2. Dodać normalizację nowych statusów:
+   * `created`,
+   * `queued_for_market`,
+   * `listed`,
+   * `sold`,
+   * `archived`.
+3. Zmapować stare statusy:
+   * `not_listed` -> `queued_for_market`, jeśli `sellable == true`,
+   * `ready_to_list` -> `queued_for_market`,
+   * `listed_preview` -> `queued_for_market`, jeśli nie istnieje batch,
+   * `sold` -> `sold`,
+   * `archived` -> `archived`.
+4. Dodać read-only pola do payloadu Ghost Exchange:
+   * `market_sector`,
+   * `market_volume_mb`,
+   * `market_status`,
+   * `price_preview`.
+5. Nie usuwać jeszcze starego endpointu `sell`.
+
+## Frontend
+
+1. Ghost Exchange może nadal renderować stary widok, ale ma dostać dane
+   sektorowe w payloadzie.
+2. File Manager pokazuje istniejące pola:
+   * `market_status`,
+   * `sellable`,
+   * `file_size`.
+3. Nie dodawać jeszcze dashboardu.
+4. Nie dodawać nowego panelu rynku.
+
+## Storage
+
+1. Storage zaczyna być traktowany jako realny warunek zapisu danych.
+2. Sprint 35 przygotowuje helpery, ale finalizery można przełączać etapami.
+3. Jeśli helper wykryje brak miejsca, powinien zwracać wynik typu:
+   * `storage_full`,
+   * `dropped_no_space`.
+4. Brak miejsca nie cofa operacji, ale blokuje zapis danych.
+
+## Ghost Exchange
+
+Ghost Exchange nadal czyta istniejące pliki z `profile.files`. W Sprincie 35
+nie powstaje osobna kolejka poza plikami. Sektor rynku jest właściwością pliku,
+nie nowym magazynem.
+
+## Googleplex
+
+Bez zmian w UI. Sprint 35 tylko potwierdza, że przyszłe Storage Upgrade mają być
+produktami w istniejącym katalogu Googleplexa.
+
+## Migracje
+
+Brak wymaganej migracji produkcyjnej na tym etapie, jeśli normalizacja przy
+odczycie wystarczy.
+
+Przygotować opis migracji na Sprint 39:
+
+* normalizacja starych `market_status`,
+* uzupełnienie `market_sector`,
+* uzupełnienie brakujących `file_size`.
+
+## Testy
+
+* `market_sector_for_file()` mapuje wszystkie aktualne `file_category`.
+* Stare statusy mapują się do nowego modelu.
+* `sellable` nadal odpowiada eligibility Ghost Exchange.
+* `price_preview` nadal działa po normalizacji.
+* Brak miejsca zwraca kontrolowany wynik helpera, bez zapisu pliku.
+
+## Smoke
+
+Smoke tylko obserwacyjny:
+
+* wygenerować plik GPS/camera/ATM,
+* sprawdzić `file_size`,
+* sprawdzić `sellable`,
+* sprawdzić `market_sector`,
+* sprawdzić `market_status`.
+
+## Ryzyka
+
+* Zrobienie osobnej kolejki rynku zamiast użycia `profile.files`.
+* Zrobienie osobnego storage checka w każdym finalizerze.
+* Zmiana znaczenia `sellable`.
+* Ukrycie starych statusów bez migracji/normalizacji.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/file_model.md`,
+* `doc/gameplay/data_economy.md`,
+* `doc/gameplay/gameplay_matrix.md`,
+* `doc/history/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Istnieje jednoznaczny model `file -> storage -> market_sector`.
+* Stare statusy są opisane i normalizowane.
+* Każdy sellable file ma możliwy sektor rynku.
+* Storage gate ma wspólny helper.
+* Nie powstał drugi rynek ani drugi storage.
+
+---
+
+# Sprint 36 — Market Queue + File Lifecycle
+
+## Cel gameplayowy
+
+Sprzedawalne pliki po utworzeniu automatycznie trafiają do kolejki rynku.
+Gracz widzi, że dane czekają na skup sektorowy, ale nie klika pojedynczych
+przycisków sprzedaży.
+
+## Architektura
+
+Kolejka rynku jest stanem plików w `profile.files`, nie osobnym systemem.
+
+Helper:
+
+```text
+queue_market_eligible_files(profile)
+```
+
+ma być idempotentny i działać na istniejących plikach.
+
+## Systemy
+
+* `profile.files`,
+* `market_status`,
+* `sellable`,
+* `market_sector`,
+* `collect_ghost_exchange_files()`,
+* `GET /api/ghost-exchange`,
+* File Manager.
+
+## Flow danych
+
+```text
+profile.files[category]
+↓
+sellable == true
+↓
+market_status: queued_for_market
+↓
+queued_at
+↓
+market_sector bucket
+```
+
+## Backend
+
+1. Dodać `queue_market_eligible_files(profile)`.
+2. Wywołać helper w:
+   * `GET /api/ghost-exchange`,
+   * profilu po `refresh_and_persist_operations()`,
+   * normalizacji plików, jeśli profil jest zapisywany.
+3. Ustawić:
+   * `market_status: queued_for_market`,
+   * `queued_at`,
+   * `market_sector`.
+4. Nie wypłacać jeszcze HC automatycznie.
+5. Nie usuwać jeszcze plików z `/data`.
+6. Ręczny `sell` zostaje legacy/dev/debug.
+
+## Frontend
+
+1. Ghost Exchange pokazuje sektorowe oczekujące dane.
+2. Zamiast zachęty do sprzedaży pojedynczego pliku, UI pokazuje:
+   * `uzbierano X MB`,
+   * `brakuje Y MB`,
+   * `brakuje N rekordów`, jeśli sektor tego wymaga.
+3. File Manager nadal pokazuje loot w katalogach.
+
+## Storage
+
+1. Pliki w kolejce nadal zajmują miejsce.
+2. `storage_used` nie maleje po kolejkowaniu.
+3. Pełny dysk blokuje powstanie nowych danych, nie samo kolejkowanie danych już
+   zapisanych.
+
+## Ghost Exchange
+
+Ghost Exchange pokazuje read model kolejki:
+
+```text
+sector
+pending_files
+pending_mb
+threshold_mb
+missing_mb
+missing_records
+progress_percent
+estimated_sale_time
+```
+
+## Googleplex
+
+Bez zmian funkcjonalnych. Googleplex korzysta z HC dopiero po auto-sale w
+Sprincie 37.
+
+## Migracje
+
+Migracja nie jest obowiązkowa, jeśli queue może być ustawiane przez normalizację.
+
+Przygotować dry-run:
+
+* ile plików stanie się `queued_for_market`,
+* ile ma brakujące `market_sector`,
+* ile ma brakujące `file_size`.
+
+## Testy
+
+* Plik GPS trafia do `queued_for_market`.
+* Plik camera trafia do `queued_for_market`.
+* Plik ATM trafia do `queued_for_market`.
+* Plik credentials/financial trafia do `queued_for_market`.
+* `system/internal_recon_state` nie trafia do kolejki.
+* Drugi refresh nie zmienia `queued_at` i nie dubluje wpisów.
+
+## Smoke
+
+Gameplay smoke:
+
+* operacja,
+* plik,
+* File Manager widzi loot,
+* Ghost Exchange widzi sektor pending,
+* HC jeszcze się nie zmienia.
+
+## Ryzyka
+
+* Kolejka jako nowa lista obok `profile.files`.
+* Modyfikowanie `files.market` przed sprzedażą.
+* Usuwanie pliku z File Managera już po dodaniu do queue.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/file_model.md`,
+* `doc/gameplay/data_economy.md`,
+* `doc/history/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Sellable files automatycznie trafiają do kolejki.
+* Kolejkowanie jest idempotentne.
+* File Manager nadal pokazuje loot.
+* Ghost Exchange pokazuje oczekujące sektory.
+* Storage nadal liczy pliki w kolejce.
+
+---
+
+# Sprint 37 — Auto Sale Settlement Engine
+
+## Cel gameplayowy
+
+Rynek danych sam rozlicza paczki sektorowe po osiągnięciu progów. Gracz zarabia
+HC dzięki operacjom i magazynowaniu danych, a nie dzięki klikaniu `Sprzedaj`.
+
+## Architektura
+
+Settlement jest kontrolowanym refreshem, nie realtime loopem.
+
+Helper:
+
+```text
+refresh_market_runtime(username, profile, now=None, persist=False)
+```
+
+może być wywoływany przez istniejące ścieżki:
+
+* `GET /api/ghost-exchange`,
+* `/api/profile`,
+* ewentualnie po `refresh_and_persist_operations()`.
+
+Rozliczenie musi być idempotentne.
+
+## Systemy
+
+* `profile.files`,
+* `files.market`,
+* `profile.market_history`,
+* `profile.hackcoins`,
+* mail/system messages,
+* `price_preview`,
+* `storage_used`.
+
+## Flow danych
+
+```text
+queued_for_market files
+↓
+group by market_sector
+↓
+sector threshold reached
+↓
+listed_at / minimum market dwell time
+↓
+stable batch_id
+↓
+batch valuation
+↓
+HC transfer
+↓
+market_history
+↓
+files.market sale record
+↓
+remove files from /data
+↓
+storage_used recalculated
+```
+
+## Backend
+
+1. Dodać batch builder sektorowy.
+2. Dodać stabilny `batch_id`, np. z:
+   * username,
+   * sector,
+   * sorted file ids.
+3. Dodać progi sektorów:
+   * `camera`: MB,
+   * `atm`: MB + liczba rekordów,
+   * `gps`: wolumen tras / MB,
+   * `device`: MB + liczba plików,
+   * `personal`: liczba rekordów / MB,
+   * `credentials`: liczba credentiali,
+   * `financial`: rekordy + MB,
+   * `network`, `audio`, `vehicle`: MB + liczba plików.
+4. Po osiągnięciu progu paczka przechodzi w stan `listed` i dostaje `listed_at`.
+5. Auto sale następuje dopiero po osiągnięciu progu oraz po minimalnym czasie
+   przebywania paczki na rynku.
+6. Minimalny czas może być różny per sektor, np.:
+   * `camera`: 5 minut,
+   * `credentials`: 3 minuty,
+   * `financial`: 6 minut,
+   * pozostałe sektory: 4-5 minut jako MVP.
+7. Cena paczki bazuje na istniejącym:
+   * `price_preview`,
+   * `quality_score`,
+   * `completeness_percent`,
+   * `file_size`,
+   * liczbie plików/rekordów.
+8. Przed wypłatą HC sprawdzić, czy `batch_id` nie istnieje w:
+   * `profile.market_history`,
+   * `files.market`.
+9. Po sprzedaży:
+   * usunąć pliki z ich katalogów `/data/*`,
+   * dodać rekord do `files.market`,
+   * dodać wpis do `profile.market_history`,
+   * dodać HC,
+   * dodać mail/system message,
+   * przeliczyć storage.
+
+## Frontend
+
+1. Ghost Exchange pokazuje, że sektor został rozliczony.
+2. Wallet i system toolbar odświeżają HC.
+3. Nie pokazywać ręcznego `Sprzedaj` jako głównego CTA.
+
+## Storage
+
+1. Pliki w kolejce zajmują miejsce.
+2. Sprzedaż paczki zwalnia miejsce.
+3. Jeśli brakuje danych do progu, storage nadal jest zajęty i gracz widzi, ile
+   brakuje do rozliczenia.
+
+## Ghost Exchange
+
+Pokazuje:
+
+* progress do paczki,
+* `brakuje X MB`,
+* `brakuje N rekordów`,
+* `estimated_sale_time`,
+* stan `listed` / `trading`,
+* ostatnią transakcję sektora,
+* HC z rozliczenia.
+
+## Googleplex
+
+Po auto-sale HC może zostać wydane w obecnym Googleplexie. Nie zmieniać flow
+zakupu aplikacji w tym sprincie.
+
+## Migracje
+
+Brak migracji strukturalnej, jeśli `batch_id` i batch records są przechowywane w
+`profile.market_history` oraz `files.market`.
+
+Jeśli potrzebne jest `market_state`, musi być częścią profilu i nie może stać się
+drugim magazynem plików.
+
+## Testy
+
+* Batch sprzedaje się po osiągnięciu progu.
+* Batch nie sprzedaje się przed progiem.
+* Batch nie sprzedaje się przed minimalnym czasem przebywania na rynku.
+* `listed_at` jest stabilne i nie resetuje się przy zwykłym refreshu.
+* Drugi refresh nie dodaje HC drugi raz.
+* `market_history` ma jeden wpis dla `batch_id`.
+* `files.market` ma jeden rekord sprzedaży.
+* Pliki znikają z `/data`.
+* `storage_used` maleje po sprzedaży.
+* Mail/system message powstaje raz.
+
+## Smoke
+
+Pełny smoke:
+
+* wygenerować kilka plików sektora,
+* osiągnąć próg,
+* wejść w Ghost Exchange,
+* zobaczyć stan `listed` / `trading`,
+* zobaczyć szacowany czas sprzedaży,
+* auto-sale rozlicza batch,
+* HC rosną,
+* File Manager nie pokazuje sprzedanych plików w `/data`,
+* historia rynku pokazuje batch.
+
+## Ryzyka
+
+* Settlement wywołany z wielu endpointów bez idempotencji.
+* Liczenie ceny paczki inną ekonomią niż `price_preview`.
+* Zostawienie sprzedanych plików w `/data`, co zablokuje storage.
+* Usunięcie plików bez wpisu historii.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/data_economy.md`,
+* `doc/gameplay/file_model.md`,
+* `doc/gameplay/gameplay_matrix.md`,
+* `doc/history/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Auto-sale działa bez ręcznego kliknięcia.
+* Settlement jest idempotentny.
+* HC, mail/system message i market history są spójne.
+* Storage zwalnia się po sprzedaży.
+* Nie powstał realtime loop.
+
+---
+
+# Sprint 38 — Ghost Exchange Dashboard v1
+
+## Cel gameplayowy
+
+Ghost Exchange staje się dashboardem rynku danych: gracz widzi sektory,
+postęp do paczek, wolumen, brakujące dane, historię sprzedaży i HC.
+
+## Architektura
+
+Dashboard jest read modelem istniejących danych:
+
+* `profile.files`,
+* `market_status`,
+* `market_sector`,
+* `files.market`,
+* `profile.market_history`.
+
+Nie przechowuje własnej prawdy o rynku.
+
+## Systemy
+
+* `GET /api/ghost-exchange`,
+* Browser / Ghost Exchange tab,
+* File Manager,
+* market history,
+* toolbar HC.
+
+## Flow danych
+
+```text
+profile.files + market_history
+↓
+build_ghost_exchange_dashboard_payload()
+↓
+sector cards
+↓
+recent transactions
+↓
+history chart
+```
+
+## Backend
+
+1. Rozszerzyć `GET /api/ghost-exchange` o dashboard payload:
+   * `summary`,
+   * `sectors`,
+   * `recent_transactions`,
+   * `history_7d`.
+2. Zostawić stare `files` tylko jako compatibility/dev, jeśli potrzebne.
+3. Dashboard powinien korzystać z tych samych helperów co settlement.
+
+## Frontend
+
+1. Zastąpić główną listę ofert sektorowym dashboardem.
+2. Ukryć przyciski `Sprzedaj` z normalnego flow.
+3. Każdy sektor pokazuje:
+   * oczekujące dane,
+   * w obrocie,
+   * sprzedane dzisiaj,
+   * HC dzisiaj,
+   * HC łącznie,
+   * średnią cenę paczki,
+   * progress do następnej paczki,
+   * brakujące MB/pliki/rekordy,
+   * ostatnie transakcje.
+4. Wykresy lekkie: CSS/SVG/canvas inline, bez ciężkiej biblioteki.
+5. Mobile: jedna kolumna.
+
+## Storage
+
+Dashboard pokazuje presję storage pośrednio:
+
+* ile danych czeka,
+* ile brakuje do sprzedaży,
+* kiedy potencjalnie zwolni się miejsce.
+
+Nie dodawać osobnego storage panelu w Ghost Exchange.
+
+## Ghost Exchange
+
+To główny sprint UX rynku. Ghost Exchange ma wyglądać jak giełda/skup danych,
+nie jak sklep z plikami.
+
+## Googleplex
+
+Bez zmian mechanicznych. Dashboard może sugerować, że większy storage pomaga
+zbierać większe paczki, ale zakup nadal dzieje się w Googleplexie.
+
+## Migracje
+
+Brak migracji danych. To read model i UI.
+
+## Testy
+
+* `GET /api/ghost-exchange` zwraca `summary`.
+* `GET /api/ghost-exchange` zwraca sektory.
+* Sektor pokazuje `missing_mb` albo `missing_records`.
+* Sektor pokazuje `estimated_sale_time`.
+* Recent transactions pochodzą z `profile.market_history`.
+* Główny UI nie renderuje ręcznego `Sprzedaj`.
+* Mobile nie ma poziomego scrolla.
+
+## Smoke
+
+Smoke:
+
+* dane poniżej progu pokazują progress i brakujące MB,
+* dane po progu pokazują stan `listed` / `trading` i szacowany czas sprzedaży,
+* dane po progu rozliczają batch,
+* dashboard pokazuje transakcję,
+* HC na toolbarze jest aktualne.
+
+## Ryzyka
+
+* Dashboard oparty o mocki zamiast profilu.
+* Duplikacja logiki progów w JS i Pythonie.
+* Za ciężki wykres spowalniający Browser.
+* Zostawienie starej listy plików jako głównego widoku.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/data_economy.md`,
+* `doc/gameplay/gameplay_terms.md`,
+* `doc/history/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Ghost Exchange pokazuje dashboard sektorowy.
+* Gracz widzi, ile już uzbierał i ile jeszcze brakuje.
+* Nie ma setek przycisków `Sprzedaj`.
+* File Manager nadal pokazuje loot.
+* Dashboard nie jest nowym źródłem prawdy.
+
+---
+
+# Sprint 39 — Storage Economy + Market Migration + Balance
+
+## Cel gameplayowy
+
+Domknąć Fazę D: storage staje się realnym ograniczeniem, Ghost Exchange sprzedaje
+paczki w regularnym tempie, a Googleplex pozwala inwestować HC w większy dysk.
+
+Mały dysk ogranicza tempo zarabiania. Większy dysk pozwala zbierać większe paczki
+danych i sprawniej domykać rynek.
+
+## Architektura
+
+Sprint 39 scala:
+
+* twardy storage gate w finalizerach,
+* migrację starych statusów rynku,
+* Storage Upgrade jako produkt Googleplexa,
+* balance progów sektorowych,
+* smoke pełnej pętli.
+
+Nie tworzy osobnego sklepu storage.
+
+## Systemy
+
+* finalizery operacji,
+* `profile.files`,
+* `storage_capacity`,
+* `storage_used`,
+* Ghost Exchange settlement,
+* Googleplex `/install-app`,
+* `json_resources.app_config`,
+* smoke tools.
+
+## Flow danych
+
+```text
+operation finalizer
+↓
+storage gate
+↓
+file saved or dropped_no_space
+↓
+market queue
+↓
+sector batch
+↓
+auto sale
+↓
+storage freed
+↓
+HC
+↓
+Googleplex storage product
+↓
+storage_capacity increased
+```
+
+## Backend
+
+1. Finalizery zapisują pliki przez wspólny helper:
+   * `append_runtime_file_if_space(profile, operation, folder, file_entry)`.
+2. Przy braku miejsca:
+   * nie zapisywać pliku,
+   * oznaczyć wynik jako `storage_full` / `dropped_no_space`,
+   * dodać system message,
+   * nie dodawać danych do rynku.
+3. Dodać obsługę produktu Googleplex:
+   * `product_type: storage_upgrade`,
+   * `storage_capacity_bonus`.
+4. `/install-app` dla storage product:
+   * odejmuje HC,
+   * zwiększa `storage_capacity`,
+   * nie dodaje produktu do `profile.apps`,
+   * nie dodaje produktu do `files.tools`,
+   * zapisuje historię/system message.
+5. Zostawić zwykłe aplikacje bez zmian.
+
+## Frontend
+
+1. Googleplex pokazuje storage products jako produkty, nie aplikacje.
+2. Przycisk zakupu storage mówi o zwiększeniu pojemności.
+3. File Manager pokazuje nowe `storage_capacity`.
+4. Ghost Exchange pokazuje wpływ rynku na zwalnianie storage.
+
+## Storage
+
+1. Storage jest twardym ograniczeniem zapisu nowych danych.
+2. Storage full nie przerywa operacji, ale blokuje powstanie pliku.
+3. Dane niezapisane nie są sprzedawane.
+4. Auto-sale zwalnia miejsce.
+5. Storage upgrade zwiększa limit.
+
+## Ghost Exchange
+
+1. Progi sektorów zostają zbalansowane po pierwszym smoke:
+   * Camera: głównie MB,
+   * Financial: rekordy + MB,
+   * Credentials: liczba credentiali,
+   * GPS: wolumen tras / MB,
+   * Device/Personal: pliki + MB,
+   * ATM: rekordy + MB.
+2. Ghost Exchange pokazuje brakujące MB/rekordy jako informację gameplayową.
+
+## Googleplex
+
+Storage Upgrade jest produktem Googleplexa:
+
+```text
+Googleplex product
+↓
+purchase with HC
+↓
+storage_capacity bonus
+↓
+File Manager storage updated
+```
+
+Produkt nie jest aplikacją, nie ma runtime window i nie trafia do `/tools`.
+
+## Migracje
+
+Przygotować i uruchamiać przez Sprint 31 migration runner:
+
+1. Backup DB.
+2. Dry-run statusów:
+   * `not_listed`,
+   * `ready_to_list`,
+   * `listed_preview`,
+   * `sold`.
+3. Uzupełnienie:
+   * `market_sector`,
+   * `queued_at`,
+   * `file_size`,
+   * `storage_capacity`,
+   * `storage_used`.
+4. Dodanie seed produktów storage do `json_resources.app_config`.
+5. Walidacja:
+   * brak utraty `profile.market_history`,
+   * brak usunięcia plików bez statusu `sold`,
+   * brak wpisów storage product w `/tools`.
+
+## Testy
+
+* Pełny dysk blokuje zapis pliku.
+* Operacja przy pełnym dysku kończy się bez crasha.
+* `dropped_no_space` nie trafia do Ghost Exchange.
+* Auto-sale zwalnia storage.
+* Storage product zwiększa `storage_capacity`.
+* Storage product nie trafia do `profile.apps`.
+* Storage product nie trafia do `files.tools`.
+* Stare profile zachowują historię rynku.
+* Manual sale endpoint, jeśli zostaje, działa tylko jako legacy/dev i nie dubluje
+  auto-sale.
+
+## Smoke
+
+Finalny smoke Fazy D:
+
+* login admin,
+* wygenerowanie danych z operacji,
+* File Manager pokazuje loot i zajęty storage,
+* Ghost Exchange pokazuje sektor i progress,
+* auto-sale rozlicza batch,
+* HC rosną,
+* market history ma batch,
+* mail/system message istnieje,
+* storage maleje po sprzedaży,
+* zakup storage product w Googleplex zwiększa pojemność,
+* nowe operacje mogą zapisać więcej danych.
+
+## Ryzyka
+
+* Storage product jako aplikacja w `/tools`.
+* Twardy storage gate bez feedbacku dla gracza.
+* Migracja usuwająca stare pliki zamiast tylko normalizować statusy.
+* Balance progów zbyt wysoki, przez co mały dysk blokuje early game.
+* Balance progów zbyt niski, przez co rynek sprzedaje wszystko natychmiast.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/gameplay/file_model.md`,
+* `doc/gameplay/data_economy.md`,
+* `doc/gameplay/app_contract.md`,
+* `doc/gameplay/gameplay_matrix.md`,
+* `doc/gameplay/resource_types.md`,
+* `doc/history/project_journal.md`,
+* dokument migracyjny Sprintu 31, jeśli wymaga nowych kroków.
+
+## Kryteria akceptacji
+
+* Storage jest realnym ograniczeniem zapisu danych.
+* Dane niezapisane nie trafiają do rynku.
+* Ghost Exchange sprzedaje paczki automatycznie.
+* Storage zwalnia się po sprzedaży paczki.
+* Googleplex ma storage products bez tworzenia osobnego sklepu.
+* Stare profile są kompatybilne.
+* Pełny gameplay smoke Fazy D przechodzi.
+
+---
+
+# Finalna architektura Fazy D
+
+Pełny docelowy przepływ:
+
+```text
+operacja
+↓
+finalizer
+↓
+storage gate
+↓
+profile.files
+↓
+storage_used / storage_capacity
+↓
+market queue przez market_status
+↓
+sector batch
+↓
+Ghost Exchange dashboard
+↓
+auto settlement
+↓
+files.market + profile.market_history
+↓
+HackCoins
+↓
+Googleplex
+↓
+storage products / lepsze narzędzia
+↓
+kolejne operacje
+```
+
+Zasady integracji:
+
+* `profile.files` pozostaje jedynym źródłem plików danych gracza.
+* `sellable` oznacza eligibility do Ghost Exchange.
+* `market_status` opisuje lifecycle pliku względem rynku.
+* `files.market` przechowuje rekordy sprzedaży/staging historii, nie nowe looty.
+* `profile.market_history` jest historią transakcji.
+* `storage_capacity`, `storage_used` i `file_size` są jedynym modelem storage.
+* `price_preview`, completeness i quality są bazą wyceny.
+* Ghost Exchange jest jedynym rynkiem danych Fazy D.
+* Googleplex jest jedynym miejscem wydawania HC.
+* Storage Upgrade jest produktem Googleplexa.
+* Frontend Ghost Exchange jest dashboardem read modelu, nie źródłem prawdy.
+* Auto-sale jest kontrolowanym refreshem, nie realtime loopem.
+
+---
+
+# Faza E — Cyberner / Messenger
+
+Faza E zmienia istniejącą Skrzynkę mailową w Cybernera: komunikator świata gry.
+
+Cyberner jest nową nazwą użytkową i diegetyczną aplikacji znanej wcześniej jako
+Email / Skrzynka mailowa. Techniczne identyfikatory legacy mogą pozostać bez
+zmian, jeśli ich zmiana byłaby ryzykowna dla runtime.
+
+Filozofia nazwy jest opisana w:
+
+* `doc/systems/cyberner/cyberner.md`.
+
+Nie powstaje drugi system wiadomości, drugi contact flow ani osobny backend
+messengera. Wszystkie zmiany rozwijają istniejące:
+
+* `mail_store`,
+* `/api/mail/bootstrap`,
+* `/api/chats/messages`,
+* `/api/contacts`,
+* `system_messages`,
+* kontakty i pending threads,
+* desktopową aplikację Cyberner.
+
+Nowy kierunek UX:
+
+```text
+lista rozmów
+↓
+wybrany czat
+↓
+odpowiedź
+↓
+powrót do listy
+```
+
+Decision:
+
+* Przyjęto: Cyberner na mobile/narrow działa jak klasyczny komunikator.
+* Przyjęto: widoczna nazwa aplikacji i komunikatora przechodzi z Email /
+  Skrzynka mailowa na Cyberner.
+* Przyjęto: desktop zachowuje układ dwukolumnowy.
+* Przyjęto: mobile pokazuje tylko jeden ekran naraz: lista albo czat.
+* Przyjęto: backend wiadomości i model danych pozostają bez zmian w pierwszych
+  sprintach Fazy E.
+* Przyjęto: style messengera mieszkają w `static/css/mobile_messenger.css`, a
+  `style.css` może co najwyżej importować albo linkować ten plik.
+
+---
+
+# Sprint 40 — Cyberner Architecture Audit + UX Contract
+
+## Cel gameplayowy
+
+Ustalić, czym Cyberner jest w CHAOS-ie: komunikatorem gracza,
+powiadomieniami systemowymi i kanałem kontaktów, ale bez tworzenia nowego
+systemu wiadomości.
+
+## Architektura
+
+Sprint 40 jest audytem i kontraktem UX. Nie przebudowuje backendu.
+
+Sprawdzić:
+
+* `createEmailClient()`,
+* `createEmailClientLegacy()`,
+* widoczna nazwa Email / Skrzynka mailowa -> Cyberner,
+* `/api/mail/bootstrap`,
+* `/api/chats/messages`,
+* `/api/contacts`,
+* `system_messages`,
+* pending conversations,
+* unread counts,
+* integracje z mapą i player actors przez `openEmailChatWith()`.
+
+## UX
+
+Zdefiniować docelowe pojęcia:
+
+* rozmowa grupowa,
+* rozmowa indywidualna,
+* rozmowa oczekująca,
+* kontakt,
+* status online/offline,
+* unread badge,
+* system thread,
+* Ghost Exchange / system notifications jako nadawcy świata gry.
+* Cyberner jako diegetyczny nerw komunikacyjny Ghost Systemu.
+
+## Systemy
+
+* Mailbox frontend,
+* kontakty,
+* system messages,
+* player actors,
+* Ghost Exchange notifications,
+* desktop app runtime.
+
+## Backend
+
+Bez zmian. Audyt ma potwierdzić, które endpointy wystarczają dla Fazy E.
+
+## Frontend
+
+Ustalić minimalny kontrakt DOM:
+
+* `.mail-app`,
+* `.mail-sidebar`,
+* `.mail-chat`,
+* `.mail-conversation-list`,
+* `.mail-conversation-item`,
+* `.mail-chat-header`,
+* `.mail-back-button`,
+* `.mail-messages`,
+* `.mail-message`,
+* `.mail-composer`.
+
+## Testy
+
+* Desktop nadal otwiera Cybernera.
+* `openEmailChatWith(peer)` nadal otwiera wybraną rozmowę.
+* Bootstrap zwraca kontakty, pending threads i unread counts.
+
+## Dokumentacja
+
+Uzupełnić:
+
+* `doc/history/game_play_260626.md`,
+* `doc/history/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Istnieje spis obecnych przepływów mail/contact.
+* Wiadomo, które dane są potrzebne do layoutu messengera.
+* Wiadomo, czego nie zmieniamy w backendzie.
+* Istnieje plan Sprintów 41-44.
+
+---
+
+# Sprint 41 — Cyberner Layout v1
+
+## Cel gameplayowy
+
+Cyberner na mobile/narrow zaczyna działać jak komunikator:
+gracz widzi listę rozmów, wybiera czat i może wrócić do listy.
+
+## Architektura
+
+Nie zmieniać backendu wiadomości ani modelu danych.
+
+Frontend utrzymuje tylko stan widoku:
+
+```text
+mailMobileView = "list" | "chat"
+```
+
+Na `.mail-app` ustawiać:
+
+```text
+data-mobile-view="list"
+data-mobile-view="chat"
+```
+
+## Desktop
+
+Desktop zostaje dwukolumnowy:
+
+* kontakty/rozmowy po lewej,
+* wybrany czat po prawej.
+
+## Mobile / Narrow
+
+* startowo lista rozmów,
+* kliknięcie rozmowy przełącza na czat,
+* czat pokazuje przycisk powrotu,
+* input wiadomości jest na dole,
+* brak poziomego scrolla.
+
+## Frontend
+
+1. Przebudować markup `createEmailClient()` pod klasy `mail-*`.
+2. Dodać `mailMobileView`.
+3. Dodać `mail-back-button`.
+4. Dodać detekcję narrow po rozmiarze okna aplikacji i viewportu.
+5. Po resize desktop pokazuje oba panele, mobile zachowuje aktualny stan
+   `list/chat`.
+
+## CSS
+
+Style trzymać w:
+
+* `static/css/mobile_messenger.css`.
+
+Nie wrzucać layoutu messengera do `style.css` poza linkiem/importem.
+
+## Testy
+
+* `node --check static/js/terminal.js`.
+* `git diff --check`.
+* Manual desktop: dwa panele.
+* Manual mobile/narrow: jeden ekran naraz.
+* Manual: klik rozmowy otwiera czat.
+* Manual: back wraca do listy.
+* Manual: input jest dostępny.
+
+## Kryteria akceptacji
+
+* Desktop nie traci starego flow.
+* Mobile nie pokazuje listy i czatu naraz.
+* Back działa bez reloadu aplikacji.
+* Nie zmieniono backendu.
+
+---
+
+# Sprint 42 — Conversation List Polish + Thread States
+
+## Cel gameplayowy
+
+Lista rozmów zaczyna wyglądać jak centrum komunikacji świata gry, a nie lista
+technicznych przycisków.
+
+## UX
+
+Każda rozmowa pokazuje:
+
+* avatar albo symbol nadawcy,
+* nazwę,
+* status online/offline/system,
+* unread badge,
+* wyróżnienie aktywnej rozmowy,
+* stan pending/request,
+* krótki opis albo ostatni sygnał, jeśli backend już go dostarcza.
+
+## Architektura
+
+Nie dodawać nowego endpointu, jeśli obecny bootstrap wystarcza.
+
+Jeśli brakuje danych preview, użyć defensywnych fallbacków w UI zamiast
+rozszerzać model danych na siłę.
+
+## Frontend
+
+1. Uporządkować rendering `contacts`, `pending_threads` i `group`.
+2. Dodać spójne klasy dla aktywnej rozmowy, unread i pending.
+3. Rozdzielić sekcje:
+   * kontakty,
+   * oczekujące,
+   * system/group.
+4. Zachować `openEmailChatWith(peer)`.
+
+## CSS
+
+1. Dopasować aktywny item do klimatu CHAOS.
+2. Unikać poziomego scrolla.
+3. Przy długich nickach używać ellipsis.
+4. Badge unread nie może rozpychać listy.
+
+## Testy
+
+* Kontakt online/offline renderuje status.
+* Pending thread jest widoczny w sekcji oczekujących.
+* Unread badge nie znika po samym refreshu listy.
+* Aktywna rozmowa pozostaje aktywna po `refreshThreads()`.
+
+## Kryteria akceptacji
+
+* Lista rozmów jest czytelna na desktop i mobile.
+* Pending conversations nie mieszają się z kontaktami.
+* Nie powstał drugi contact system.
+
+---
+
+# Sprint 43 — Chat View Polish + Composer UX
+
+## Cel gameplayowy
+
+Widok czatu staje się czytelny i szybki w użyciu: wiadomości mają rytm
+komunikatora, a composer zawsze jest dostępny.
+
+## UX
+
+Czat pokazuje:
+
+* nagłówek z nazwą rozmowy,
+* status rozmowy,
+* akcje po prawej jako małe kontrolki,
+* wiadomości z nadawcą i czasem,
+* wiadomości własne po prawej,
+* wiadomości systemowe jako osobny ton,
+* composer przy dolnej krawędzi.
+
+## Frontend
+
+1. Uporządkować markup pojedynczej wiadomości.
+2. Dodać klasy:
+   * own,
+   * system,
+   * pending/unknown sender, jeśli istnieje.
+3. Po wysłaniu wiadomości zachować aktualny czat.
+4. Po refreshu nie przewijać agresywnie, jeśli użytkownik czyta starsze
+   wiadomości, chyba że jest na dole.
+
+## CSS
+
+* Długie wiadomości zawijają się bez poziomego scrolla.
+* Composer nie nachodzi na wiadomości.
+* Mobile zachowuje wysokość inputa i przycisku wysyłania.
+
+## Backend
+
+Bez zmian, chyba że istniejący endpoint nie zwraca wymaganej informacji o
+nadawcy/czasie. Wtedy przerwać i zgłosić decyzję.
+
+## Testy
+
+* Wysłanie wiadomości odświeża czat.
+* Długa wiadomość nie rozpycha okna.
+* Własna wiadomość ma osobny styl.
+* System message ma osobny styl, jeśli występuje w tym flow.
+
+## Kryteria akceptacji
+
+* Czat jest używalny na desktop i mobile.
+* Composer jest zawsze dostępny.
+* Nie zmieniono modelu wiadomości.
+
+---
+
+# Sprint 44 — Cyberner Integration + World Communication
+
+## Cel gameplayowy
+
+Cyberner staje się jednym miejscem komunikacji ze światem gry: kontakty,
+system, Ghost Exchange, AI, mapa, player actors i przyszłe źródła świata
+korzystają z jednego mail/contact flow.
+
+Cyberner nie jest już tylko aplikacją pocztową. Jest warstwą komunikacji świata.
+
+## Architektura
+
+Nie tworzyć drugiego systemu notyfikacji.
+
+Integracje mają używać istniejących:
+
+* `mail_store`,
+* `system_messages`,
+* `openEmailChatWith()`,
+* `/api/mail/bootstrap`,
+* `/api/chats/messages`.
+
+Nie myśleć o folderach. Myśleć o źródłach komunikacji.
+
+Podstawowe źródła:
+
+* `# grupa` — globalny czat online graczy,
+* gracze / znajomi / nieznajomi,
+* AI Central,
+* Ghost Exchange,
+* System,
+* Misje,
+* przyszłe NPC,
+* przyszłe frakcje,
+* przyszły Marketplace,
+* przyszłe usługi świata.
+
+Frontend nadaje rozmowom tożsamość źródła, ale backend pozostaje ten sam.
+
+## Zakres
+
+1. Sprawdzić wejścia do messengera z mapy/player actors.
+2. Sprawdzić wiadomości Ghost Exchange i systemowe.
+3. Uporządkować unread counts.
+4. Upewnić się, że odczyt rozmowy nie kasuje niepowiązanych alertów.
+5. Upewnić się, że pending request nie tworzy duplikatu kontaktu.
+6. Dodać `CYBERNER_ICON_LIBRARY` jako centralne źródło ikon komunikatora.
+7. Renderer Cybernera ma korzystać z `CYBERNER_ICON_LIBRARY`, nie z
+   `SYSTEM_ICON_LIBRARY` i nie z ikon wpisanych na sztywno.
+8. Nieznany typ rozmowy używa ikony `unknown`.
+
+## Frontend
+
+* Ikony/akcje w headerze czatu mogą być tylko UI, jeśli backend nie ma jeszcze
+  funkcji.
+* Nie pokazywać niedziałających akcji jako aktywnych komend.
+* Source identity jest warstwą prezentacji:
+  * Ghost Exchange wygląda jak rozmowa Ghost Exchange,
+  * System wygląda jak rozmowa System,
+  * AI Central wygląda jak rozmowa AI,
+  * player actors nadal otwierają rozmowy przez `openEmailChatWith(peer)`.
+
+## Testy
+
+* `openEmailChatWith(peer)` otwiera istniejące okno maila albo tworzy nowe.
+* Player actor może otworzyć rozmowę bez duplikowania kontaktu.
+* Pending conversation pozostaje pending do akcji użytkownika.
+* System/Ghost Exchange messages nie mieszają się z prywatnym czatem.
+* Ukryty czat na mobile nie oznacza rozmowy jako przeczytanej samym refreshem
+  listy.
+* Renderer korzysta z `CYBERNER_ICON_LIBRARY`.
+
+## Kryteria akceptacji
+
+* Messenger jest spójny z istniejącymi kontaktami.
+* Nie ma drugiego inboxa.
+* Nie ma drugiego systemu powiadomień.
+* Mobile/narrow nadal działa jako lista -> czat -> lista.
+* Cyberner jest traktowany jako jedyny komunikator świata gry.
+
+---
+
+# Sprint 45 — Cyberner Channels Audit + UX Contract
+
+## Cel gameplayowy
+
+Ustalić finalny model kanałów komunikacji w Cybernerze bez zmiany backendu i bez
+implementacji runtime kanałów.
+
+Sprint 45 jest audytem i kontraktem UX. Nie dodaje jeszcze `# global`,
+`# znajomi` ani `# klan` jako nowych kanałów runtime.
+
+## Filozofia
+
+Cyberner nie pokazuje folderów poczty.
+
+Cyberner pokazuje źródła komunikacji świata:
+
+```text
+CYBERNER_ICON_LIBRARY.world   WORLD
+CYBERNER_ICON_LIBRARY.friends ZNAJOMI
+CYBERNER_ICON_LIBRARY.clan    KLAN
+AI Central
+Ghost Exchange
+System
+Misje
+Marketplace
+BlackNet
+NPC
+gracze prywatni
+```
+
+Kanał jest wspólnym źródłem rozmowy. Prywatna rozmowa jest threadem z graczem
+albo kontaktem. Thread systemowy jest rozmową prowadzoną przez system gry.
+
+## Znaczenie gameplayowe
+
+Sprinty 45–47 rozpoczynają społeczną gałąź projektu CHAOS.
+
+Do tej pory przynależność do klanu była przygotowana głównie jako dane profilu.
+Po zakończeniu Fazy E klan zaczyna mieć realne znaczenie gameplayowe.
+
+Cyberner staje się pierwszym systemem korzystającym z przynależności klanowej.
+
+To początek przyszłych mechanik:
+
+* komunikacji klanowej,
+* współpracy podczas operacji,
+* wymiany informacji,
+* koordynacji działań,
+* przyszłych wojen klanów,
+* przyszłych terytoriów klanowych,
+* przyszłych wydarzeń i misji frakcyjnych.
+
+Sprinty 45–47 nie implementują jeszcze tych mechanik.
+
+Ich celem jest przygotowanie architektury komunikacji tak, aby kolejne systemy
+mogły korzystać z istniejącego Cybernera zamiast budować własne kanały.
+
+## Pytania do audytu
+
+Sprawdzić, które źródła istnieją już w danych albo UI:
+
+* `WORLD` — publiczny czat online całej gry,
+* `ZNAJOMI` — kanał znajomych online,
+* `KLAN` — kanał klanu,
+* AI Central,
+* Ghost Exchange,
+* System,
+* Misje,
+* Marketplace,
+* BlackNet,
+* NPC,
+* prywatne rozmowy z graczami.
+
+## Audyt backendu
+
+Sprawdzić istniejące:
+
+* `mail_store`,
+* `system_messages`,
+* `contacts`,
+* pending requests,
+* `/api/mail/bootstrap`,
+* `/api/chats/messages`,
+* `openEmailChatWith()`.
+
+Odpowiedzieć:
+
+* czy obecna architektura pozwala zrobić kanały bez drugiego systemu wiadomości,
+* czy wystarczy pole prezentacyjne `channel` / `source`,
+* które kanały mogą być tylko frontendową tożsamością istniejącego threadu,
+* gdzie grozi duplikacja contact flow,
+* czego nie ruszać w backendzie.
+
+## UX
+
+Lista rozmów nie jest listą kontaktów. Jest listą kanałów i rozmów.
+
+Docelowy porządek:
+
+```text
+ROZMOWY
+
+CYBERNER_ICON_LIBRARY.world   WORLD
+183 online
+
+CYBERNER_ICON_LIBRARY.friends ZNAJOMI
+7 online
+
+CYBERNER_ICON_LIBRARY.clan    KLAN
+2 online
+
+Ghost Exchange
+System
+AI Central
+Misje
+
+Jan
+Adam
+Piotr
+```
+
+Nie używać nazwy `# grupa` jako docelowej nazwy kanału publicznego. Docelowo
+kanał świata nazywa się `WORLD`, a jego ikonę dostarcza
+`CYBERNER_ICON_LIBRARY.world`.
+
+Kanały nie są kontaktami. Kanał jest trwałym źródłem komunikacji świata.
+Kontakt jest prywatną rozmową z graczem. Thread systemowy jest rozmową
+prowadzoną przez system gry. Nie wolno mieszać tych pojęć w UI ani w przyszłym
+read modelu.
+
+Nie wpisywać ikon kanałów na sztywno w rendererze. `WORLD`, `ZNAJOMI`, `KLAN`
+i przyszłe kanały typu `WOJNA`, `FRAKCJA`, `OPERACJA`, `RAID` mają korzystać z
+tego samego modelu `CYBERNER_ICON_LIBRARY + label`.
+
+Ikona nie identyfikuje konkretnej rozmowy. Ikona identyfikuje typ źródła.
+Renderer powinien wybierać ikonę po `source` / `channel`, np.
+`source = clan -> CYBERNER_ICON_LIBRARY.clan`, a nie po nazwie rozmowy.
+
+## Zakres
+
+1. Zrobić mapę istniejących threadów do typów:
+   * kanał,
+   * prywatna rozmowa,
+   * thread systemowy,
+   * pending request.
+2. Opisać minimalny read model dla kanału.
+3. Opisać fallback dla danych, których backend jeszcze nie dostarcza.
+4. Nie implementować runtime kanałów.
+5. Nie dodawać endpointów.
+6. Nie tworzyć drugiego inboxa.
+
+## Kryteria akceptacji
+
+* Wiadomo, co jest kanałem.
+* Wiadomo, co jest prywatną rozmową.
+* Wiadomo, co jest threadem systemowym.
+* Wiadomo, czego backend już potrafi użyć.
+* Wiadomo, czy Sprint 46 wymaga minimalnego pola `channel` / `source`.
+* Nie zmieniono backendu, endpointów ani modelu wiadomości.
+
+---
+
+# Sprint 46 — Cyberner Channels Runtime
+
+## Cel gameplayowy
+
+Dodać podstawowe kanały Cybernera jako część istniejącego mail/contact flow:
+
+```text
+CYBERNER_ICON_LIBRARY.world   WORLD
+CYBERNER_ICON_LIBRARY.friends ZNAJOMI
+CYBERNER_ICON_LIBRARY.clan    KLAN
+```
+
+Kanały mają działać przez jeden `mail_store` i jeden Cyberner, bez osobnego
+systemu czatów.
+
+## Architektura
+
+Nie tworzyć drugiego backendu wiadomości.
+
+Jeżeli Sprint 45 pokaże, że backend potrzebuje minimalnego rozszerzenia, dodać
+tylko jedno pole read/runtime, np.:
+
+```text
+channel
+```
+
+albo:
+
+```text
+source
+```
+
+Pole ma klasyfikować thread, nie tworzyć osobnego magazynu.
+
+## Najważniejsze decyzje
+
+Kanały Cybernera są pierwszym runtime wykorzystującym przynależność do klanu.
+
+Od tego momentu klan przestaje być wyłącznie informacją w profilu.
+
+Przynależność klanowa staje się elementem wpływającym na komunikację świata gry.
+
+Kolejne systemy, takie jak wojny klanów, operacje grupowe, wspólne terytoria i
+wydarzenia, powinny korzystać z istniejącego kanału `KLAN`, a nie tworzyć
+własnych systemów komunikacji.
+
+## Systemy
+
+* `mail_store`,
+* `system_messages`,
+* `/api/mail/bootstrap`,
+* `/api/chats/messages`,
+* `openEmailChatWith()`,
+* `CYBERNER_ICON_LIBRARY`,
+* Cyberner conversation list.
+
+## Flow danych
+
+```text
+channel event / player message
+↓
+mail_store albo system_messages
+↓
+bootstrap threads
+↓
+Cyberner conversation list
+↓
+chat view
+```
+
+## Backend
+
+1. Użyć istniejących endpointów.
+2. Dodać minimalną klasyfikację kanału tylko jeśli audyt Sprintu 45 tego wymaga.
+3. Nie dodawać osobnego `channel_store`.
+4. Nie dodawać drugiego pending/contact flow.
+5. Nie duplikować wiadomości między kanałem a prywatną rozmową.
+6. Kanały `WORLD`, `ZNAJOMI` i `KLAN` traktować jako singletony w profilu:
+   jeden profil nie może mieć dwóch rozmów tego samego typu kanału.
+
+## Frontend
+
+1. Zmienić widoczną nazwę publicznego kanału z `# grupa` na `WORLD`.
+2. Dodać sekcję kanałów nad prywatnymi rozmowami.
+3. Pokazać `ZNAJOMI` i `KLAN` tylko wtedy, gdy istnieją dane albo bezpieczny
+   fallback UX z audytu.
+4. Wszystkie wejścia do rozmów nadal używają `openEmailChatWith()`.
+5. Ikony kanałów pobierać z `CYBERNER_ICON_LIBRARY`.
+
+## Testy
+
+* `WORLD` otwiera istniejący globalny thread.
+* Prywatna rozmowa nadal otwiera się przez `openEmailChatWith(peer)`.
+* Pending request nie tworzy drugiego kontaktu.
+* Kanał nie duplikuje wiadomości w prywatnym threadzie.
+* Mobile/narrow nadal działa jako lista -> czat -> lista.
+
+## Kryteria akceptacji
+
+* Cyberner ma kanał `WORLD` zamiast docelowej nazwy `# grupa`.
+* Kanały korzystają z istniejącego mail/contact flow.
+* Kanał `KLAN` korzysta z przynależności klanowej, jeśli profil ją posiada.
+* Kanały `WORLD`, `ZNAJOMI` i `KLAN` są projektowane jako singletony.
+* Nie powstał drugi system wiadomości.
+* Nie powstał drugi inbox.
+* Backend został rozszerzony tylko minimalnie, jeśli było to konieczne.
+
+## Decyzje implementacyjne
+
+* `WORLD` jest aktywnym kanałem i mapuje się na istniejące `scope = group`,
+  `peer = global`.
+* `ZNAJOMI` jest singletonowym placeholderem opartym o istniejące kontakty.
+  Nie zapisuje się jako kontakt i nie uruchamia jeszcze osobnego runtime
+  wiadomości.
+* `KLAN` jest singletonowym placeholderem widocznym tylko przy profilu z klanem.
+  Nie implementuje jeszcze mechaniki klanowej.
+* `/api/mail/bootstrap` zwraca minimalny read model `channels`.
+* Nie dodano nowego endpointu, `channel_store`, inboxa ani contact flow.
+
+---
+
+# Sprint 47 — Cyberner Social Polish
+
+## Cel gameplayowy
+
+Dopolerować Cybernera jako społeczne centrum gry po tym, jak kanały mają już
+ustalony model i podstawowy runtime.
+
+Sprint 47 jest polish sprintem. Nie zmienia architektury wiadomości.
+
+## UX
+
+Dodać albo dopracować:
+
+* avatary / symbole rozmów,
+* status online,
+* typing indicator,
+* `ostatnio widziany`,
+* przypięte rozmowy,
+* favorite,
+* mute,
+* rozwijanie i zwijanie sekcji,
+* subtelne animacje przejść,
+* lepsze unread badges.
+
+## Architektura
+
+Polish korzysta z danych istniejących po Sprintach 45–46.
+
+Jeśli jakiejś informacji nie ma w backendzie, UI nie udaje jej jako aktywnej
+funkcji. Może pokazać defensywny fallback albo zostawić miejsce pod przyszły
+runtime.
+
+## Frontend
+
+1. Uporządkować sekcje:
+   * `ROZMOWY`,
+   * `NOWE`,
+   * opcjonalnie `ARCHIWUM`, jeśli istnieje realny stan.
+2. Zastąpić urzędowe `Oczekujące` lżejszą nazwą UX, jeśli nie psuje flow.
+3. Dodać animacje tylko tam, gdzie nie powodują utraty czytelności.
+4. Nie rozpychać listy rozmów na mobile.
+
+## Testy
+
+* Unread badge nie znika po zwykłym refreshu.
+* Przypięte/favorite rozmowy nie duplikują threadów.
+* Mobile nadal nie pokazuje listy i czatu naraz.
+* Długie nicki, statusy i preview mają ellipsis.
+
+## Kryteria akceptacji
+
+* Cyberner wygląda jak żywy komunikator świata gry.
+* Kanały, system i prywatne rozmowy są czytelne.
+* Polish nie tworzy nowych źródeł prawdy.
+* Nie zmieniono mail/contact flow.
+
+## Decyzje implementacyjne
+
+* Sprint 47 dopolerowuje wizualnie istniejące stany: kanał, placeholder,
+  rozmowa prywatna, pending i źródło świata.
+* `WORLD`, `ZNAJOMI` i `KLAN` są wizualnie odróżnione od prywatnych kontaktów.
+* Placeholdery `ZNAJOMI` i `KLAN` pozostają disabled, dopóki backend nie ma
+  runtime wiadomości tych kanałów.
+* Nie dodano aktywnych funkcji `typing`, `last seen`, `pin`, `favorite` ani
+  `mute`, bo nie mają jeszcze źródła prawdy w backendzie.
+* Unread badge, długie nazwy, preview i statusy mają być kompaktowe i nie
+  rozpychać listy rozmów.
+
+---
+
+# Sprint 48 - Cyberner Active Social Channels
+
+## Cel gameplayowy
+
+Aktywowac kanaly `ZNAJOMI` i `KLAN` jako realne kanaly Cybernera, bez tworzenia
+drugiego messengera, drugiego inboxa, `channel_store` ani drugiego contact flow.
+
+## Architektura
+
+Kanaly sa singletonowym runtime/read modelem nad istniejacym `mail_store`.
+
+* `WORLD` pozostaje kompatybilnie `scope = group`, `peer = global`.
+* `ZNAJOMI` uzywa `scope = channel`, `peer = friends`.
+* `KLAN` uzywa `scope = channel`, `peer = clan:<clan_name>`.
+* Kanal nie jest kontaktem i nie trafia do `/api/contacts`.
+* Kontakt pozostaje prywatna rozmowa.
+* Pending request pozostaje osobnym contact flow.
+
+## Backend
+
+1. Rozszerzyc istniejacy `mail_store` o obsluge `scope = channel`.
+2. Nie dodawac endpointow.
+3. Nie tworzyc osobnego storage kanalow.
+4. Wiadomosc `ZNAJOMI` rozsyla sie do zaakceptowanych kontaktow gracza.
+5. Wiadomosc `KLAN` rozsyla sie do profili z tym samym klanem.
+6. Brak klanu oznacza brak aktywnego kanalu `KLAN` w read modelu.
+7. Unread kanalu liczy sie per `scope = channel` i `peer_name`.
+
+## Frontend
+
+1. Usunac placeholder `wkrotce` z aktywnego `ZNAJOMI`.
+2. Usunac placeholder `wkrotce` z `KLAN`, jesli profil ma klan.
+3. Composer dziala w aktywnych kanalach.
+4. Ikony nadal pochodza z `CYBERNER_ICON_LIBRARY` po `source` / `channel`.
+5. Mobile/narrow nadal dziala jako lista -> czat -> lista.
+
+## Kryteria akceptacji
+
+* `WORLD` dziala jak dotad.
+* `ZNAJOMI` otwiera aktywny kanal znajomych.
+* `KLAN` otwiera aktywny kanal, jesli profil ma klan.
+* Brak klanu nie wywala UI.
+* Kanaly nie pojawiaja sie w contacts.
+* Pending request nadal dziala osobno.
+* Prywatne rozmowy nadal dzialaja przez `openEmailChatWith(peer)`.
+* Nie powstal `channel_store`, drugi inbox ani drugi contact flow.
+
+---
+
+# Sprint 49 - Cyberner Notification Bridge
+
+## Cel gameplayowy
+
+Domknac komunikacje swiata gry przez most pomiedzy Cybernerem i istniejacym
+systemem `system_messages`.
+
+Nowe wiadomosci Cybernera moga generowac toast, ale toast jest tylko sygnalem.
+Pelna rozmowa zawsze znajduje sie w Cybernerze.
+
+## Architektura
+
+Nie tworzyc:
+
+* drugiego toast systemu,
+* drugiego notification center,
+* drugiego unread managera.
+
+Rozwijane systemy:
+
+* `mail_store`,
+* `system_messages`,
+* renderer toastow,
+* Cyberner.
+
+Przeplyw:
+
+```text
+mail_store
+↓
+system_messages
+↓
+toast
+↓
+Cyberner thread
+```
+
+## Backend
+
+1. Nowa wiadomosc Cybernera moze dopisac lekki `system_message`.
+2. `system_message` dostaje `notification_type = cyberner`.
+3. Payload zawiera tylko:
+   * `source`,
+   * `scope`,
+   * `peer`,
+   * `sender`,
+   * `title`,
+   * krotki `text`.
+4. Nie zapisywac pelnej tresci rozmowy w toascie.
+5. Nie dodawac nowych endpointow.
+
+## Frontend
+
+1. Dodac `CYBERNER_NOTIFICATION_LIBRARY` jako osobna biblioteke wygladu toastow.
+2. Renderer toastow rozroznia `notification_type = cyberner`.
+3. Cybernerowy toast ma wlasny delikatny styl.
+4. Klik toasta otwiera Cybernera i odpowiedni thread.
+5. Nie pokazywac toasta, jesli ten thread jest aktualnie otwarty.
+6. Zwykle systemowe toasty pozostaja bez zmiany.
+
+## Kryteria akceptacji
+
+* Cyberner korzysta z istniejacego `system_messages`.
+* Nie powstal drugi system toastow.
+* Toast otwiera wlasciwa rozmowe.
+* Toast nie pokazuje pelnej tresci rozmowy.
+* Kanaly `WORLD`, `ZNAJOMI` i `KLAN` korzystaja z tego samego mostu.
+* Backend pozostaje spojny z `mail_store`.
+
+---
+
+# Finalna architektura Fazy E
+
+Docelowy przepływ komunikacji:
+
+```text
+zdarzenie gry / gracz / system
+↓
+mail_store albo system_messages
+↓
+/api/mail/bootstrap
+↓
+lista rozmów
+↓
+/api/chats/messages
+↓
+widok czatu
+↓
+odpowiedź / akcja kontaktu
+↓
+ten sam contact/mail flow
+```
+
+Zasady integracji:
+
+* Cyberner jest jedynym messengerem gracza.
+* Kontakty i pending threads korzystają z istniejącego contact flow.
+* Mobile/narrow to zmiana prezentacji, nie osobny runtime.
+* `mailMobileView` jest stanem UI, nie stanem gameplayowym.
+* Backend wiadomości pozostaje źródłem prawdy.
+* Frontend nie tworzy wiadomości ani kontaktów poza istniejącymi endpointami.
+* System/Ghost Exchange/player messages mają trafiać do istniejących kanałów,
+  nie do nowego inboxa.
+* Cyberner pokazuje źródła rozmów, nie foldery poczty.
+* `CYBERNER_ICON_LIBRARY` jest centralnym źródłem ikon dla rozmów i źródeł
+  komunikacji.
+
+
+---
+
+# Faza F - Ghost Hack Radio / Audio Narrative Layer
+
+Faza F dodaje do CHAOS prosty lokalny system radia MP3 jako warstwe klimatu i
+przyszlej narracji BlackNet.
+
+Radio nie jest drugim komunikatorem, drugim Cybernerem ani systemem misji. Jest
+lokalnym playerem audio opartym o jawny kontrakt kanalu `meta.channel`.
+
+Docelowy kierunek:
+
+```text
+static/mp3/radio/channel/{id}/meta.channel
+↓
+playlist tracks
+↓
+Ghost Hack Radio player
+↓
+audio atmosphere / BlackNet narrative
+```
+
+Podstawowa struktura katalogow:
+
+```text
+static/mp3/radio/
+└── channel/
+    └── ghost_streem_1/
+        ├── meta.channel
+        ├── 001_intro.mp3
+        ├── 002_loop.mp3
+        └── 003_noise.mp3
+```
+
+`meta.channel` jest kontraktem kanalu. Dla `ghost_streem_1` nie trzyma recznej
+playlisty. Opisuje zasady streamu, a runtime buduje kolejke z plikow MP3
+lezacych w katalogu kanalu.
+
+Przykladowy kontrakt:
+
+```json
+{
+  "schema": 1,
+  "id": "ghost_streem_1",
+  "name": "Ghost Hack Radio",
+  "slug": "ghost-streem-1",
+  "description": "Pierwszy piracki kanal systemowy GhostNet.",
+  "autoplay": true,
+  "loop": true,
+  "mode": "random",
+  "sort": "name",
+  "exclude": []
+}
+```
+
+Architektura frontendowa:
+
+```javascript
+const RADIO_BASE_PATH = "/static/mp3/radio/channel";
+const DEFAULT_CHANNEL = "ghost_streem_1";
+```
+
+Flow:
+
+```text
+loadChannel("ghost_streem_1")
+↓
+fetch /api/radio/channel/ghost_streem_1
+↓
+parse meta.channel + resolved mp3 list
+↓
+track.url = /static/mp3/radio/channel/ghost_streem_1/{file}
+↓
+play losowy track z kolejki, jesli mode = random
+↓
+ended -> next track
+↓
+last track -> first track, jesli loop = true
+```
+
+Autoplay jest lokalnym ustawieniem gracza:
+
+```javascript
+localStorage.setItem("ghost_radio_autoplay", "0");
+localStorage.setItem("ghost_radio_autoplay", "1");
+```
+
+Domyslnie radio moze startowac automatycznie, ale gracz musi miec prosta opcje
+wylaczenia autoplay bez zmiany kodu.
+
+---
+
+# Sprint 50 - Ghost Hack Radio Foundation
+
+## Cel gameplayowy
+
+Przygotowac fundament pod Ghost Hack Radio bez implementacji playera audio.
+
+Sprint konczy sie gotowa struktura aplikacji i kontraktem danych, aby Sprint 51
+mogl skupic sie wylacznie na odtwarzaniu muzyki.
+
+## Zakres
+
+1. Utworzyc strukture katalogow:
+   * `static/mp3/radio/`,
+   * `static/mp3/radio/channel/`.
+2. Przygotowac pierwszy kanal:
+   * `static/mp3/radio/channel/ghost_streem_1/`.
+3. Dodac pierwszy kontrakt:
+   * `meta.channel`.
+4. Zdefiniowac schema kontraktu:
+   * `schema: 1`.
+5. Dodac podstawowe pola:
+   * `id`,
+   * `name`,
+   * `slug`,
+   * `description`,
+   * `autoplay`,
+   * `loop`,
+   * `mode`,
+   * `sort`,
+   * `exclude`.
+6. Nie trzymac recznej playlisty `ghost_streem_1` w `meta.channel`.
+7. Kolejka ma powstawac z plikow MP3 katalogu kanalu wedlug zasad
+   `meta.channel`.
+8. Przygotowac miejsce na przyszla aplikacje desktopowa `Ghost Hack Radio`.
+9. Dodac podstawowa ikone aplikacji albo placeholder.
+10. Przygotowac strukture JS:
+    * `static/js/ghost_radio.js`,
+    * bez logiki odtwarzania.
+11. Przygotowac strukture CSS:
+    * `static/css/ghost_radio.css`,
+    * bez finalnego wygladu.
+12. Udokumentowac kontrakt `meta.channel` jako jedyne zrodlo prawdy zasad
+    streamu.
+
+## Poza zakresem
+
+* Brak odtwarzania MP3.
+* Brak HTML playera.
+* Brak Audio API.
+* Brak play/pause.
+* Brak progress.
+* Brak volume.
+* Brak autoplay runtime.
+* Brak backendu.
+
+## Kryteria akceptacji
+
+* Istnieje katalog radio.
+* Istnieje pierwszy kanal.
+* Istnieje `meta.channel`.
+* Kontrakt posiada `schema = 1`.
+* Struktura JS zostala utworzona.
+* Struktura CSS zostala utworzona.
+* Aplikacja Ghost Hack Radio ma przygotowane miejsce w desktopie.
+* Brak regresji desktopu.
+* Brak backendu.
+
+---
+
+# Sprint 51 - Ghost Hack Radio v0.1
+
+## Cel gameplayowy
+
+Dodac pierwszy prosty lokalny player MP3, ktory wnosi do desktopu CHAOS zywy
+sygnal audio i przygotowuje fundament pod przyszle kanaly BlackNet.
+
+## Zakres
+
+1. Uzyc struktury i kontraktu przygotowanego w Sprincie 50.
+2. Player czyta resolver kanalu oparty o `meta.channel`.
+3. Zbudowac kolejke z plikow MP3 katalogu kanalu.
+4. Dla `mode = random` startowac z losowego utworu.
+5. Po `ended` przechodzic do kolejnego utworu w kolejce streamu.
+6. Po ostatnim utworze wracac do poczatku kolejki, jesli `loop = true`.
+7. Dodac `play/pause`.
+8. Dodac pasek postepu.
+9. Dodac volume.
+10. Dodac lokalne ustawienie autoplay:
+    * `ghost_radio_autoplay = "1"` domyslnie,
+    * `ghost_radio_autoplay = "0"` wylacza start automatyczny.
+
+## UX
+
+Player ma byc stylizowany na stary Winamp, ale w klimacie CHAOS:
+
+* nazwa kanalu,
+* tytul aktualnego tracka,
+* status `SIGNAL ONLINE`,
+* play/pause,
+* progress,
+* volume,
+* prosty fake equalizer,
+* przelacznik autoplay.
+
+## Architektura
+
+Nie tworzyc backendu streamingu.
+
+Lekki resolver kanalu moze zwracac read model plikow MP3 z katalogu, ale nie
+moze odtwarzac, streamowac ani zapisywac stanu radia.
+
+Nie laczyc jeszcze z Cybernerem, BlackNet ani misjami.
+
+To jest lokalny player oparty o statyczny manifest kanalu.
+
+## Kryteria akceptacji
+
+* Radio laduje kanal `ghost_streem_1` przez `meta.channel`.
+* Kolejka streamu powstaje z katalogu kanalu wedlug `mode/sort/exclude`.
+* Play/pause dziala.
+* Radio nie odpala zawsze tego samego utworu po wejsciu do gry.
+* Loop dziala po calej kolejce streamu.
+* Autoplay mozna wylaczyc przez localStorage/UI.
+* Jesli autoplay zostanie zablokowany przez przegladarke, UI pokazuje gotowy
+  player i pozwala uruchomic radio pierwszym kliknieciem.
+* Brak regresji desktopu i mobile.
+
+---
+
+# Sprint 52 - Ghost Hack Radio Desktop App
+
+## Cel gameplayowy
+
+Dodac Ghost Hack Radio jako pelnoprawna aplikacje desktopowa CHAOS
+wykorzystujaca istniejaca architekture okien systemowych.
+
+Player ze Sprintu 51 zostaje osadzony w oknie aplikacji. Radio dziala jako
+usluga w tle: zamkniecie okna nie zatrzymuje muzyki, a ponowne otwarcie pokazuje
+aktualny stan playera.
+
+## Zakres
+
+1. Dodac aplikacje `Ghost Hack Radio` do desktopu.
+2. Dodac ikone aplikacji:
+   * na desktopie,
+   * w menu Start,
+   * na desktopie mobilnym.
+3. Otwierac radio w standardowym oknie systemowym CHAOS.
+4. Osadzic istniejacy modul `GhostRadio` w oknie.
+5. Pokazac:
+   * nazwe kanalu,
+   * aktualny utwor,
+   * status `SIGNAL ONLINE`,
+   * Play / Pause,
+   * Previous / Next,
+   * Mute,
+   * pasek postepu,
+   * regulator glosnosci,
+   * prosty fake equalizer bez analizy dzwieku.
+6. Ponowne otwarcie okna nie moze resetowac playlisty ani stanu audio.
+7. Przycisk Mute dziala natychmiast i zachowuje poprzedni poziom glosnosci.
+8. Nie dodawac nowych kanalow, ustawien, backendu, streamingu ani BlackNet.
+
+## Poza zakresem
+
+* wybor kanalow,
+* ustawienia,
+* autoplay,
+* backend,
+* streaming,
+* BlackNet,
+* dynamiczne komunikaty.
+
+## Kryteria akceptacji
+
+* Ghost Hack Radio jest widoczne jako aplikacja desktopowa.
+* Ghost Hack Radio jest widoczne w menu Start.
+* Ghost Hack Radio jest widoczne w stalym zestawie ikon mobile.
+* Radio otwiera sie w standardowym oknie systemowym CHAOS.
+* Zamkniecie okna nie zatrzymuje muzyki.
+* Ponowne otwarcie pokazuje aktualny kanal, utwor, czas i stan play/pause.
+* Mute i volume dzialaja bez nowej logiki odtwarzania.
+* Fake equalizer jest tylko wizualizacja UI.
+* Nie powstal backend radia.
+
+---
+
+# Sprint 53 - Radio Channel Contract for Future BlackNet
+
+## Cel gameplayowy
+
+Wyprowadzic kontrakt kanalow Ghost Hack Radio pod przyszly BlackNet, bez
+zakladania, ze BlackNet istnieje juz fizycznie w runtime.
+
+Sprint 53 nie integruje radia z BlackNet. Sprint 53 definiuje pierwszy kontrakt,
+ktory pozwoli przyszlemu BlackNet dokladac kanaly audio bez przebudowy playera.
+
+## Zakres
+
+1. Doprecyzowac `meta.channel` jako kontrakt kanalu audio.
+2. Przygotowac zasady katalogow kanalow:
+   * kanal ma wlasny katalog,
+   * kanal ma wlasny `meta.channel`,
+   * pliki audio leza w tym samym katalogu co kontrakt.
+3. Przygotowac minimalny model przyszlego kanalu BlackNet:
+   * `id`,
+   * `slug`,
+   * `name`,
+   * `description`,
+   * `source`,
+   * `mode`,
+   * `sort`,
+   * `exclude`.
+4. Przyszly BlackNet bedzie mogl dodawac kanaly jako:
+   * `meta.channel`,
+   * pliki audio w katalogu kanalu.
+5. Radio nadal czyta tylko kontrakt kanalu i read model resolvera katalogu.
+6. Nie trzymac recznej playlisty w UI.
+7. Nie robic dynamicznego generowania audio w runtime.
+8. Nie dodawac backendu BlackNet.
+9. Nie mieszac radia z Cybernerem:
+   * Cyberner jest rozmowa,
+   * radio jest sygnalem audio.
+10. Opcjonalnie opisac przyszle eventy UI, ale ich nie implementowac:
+   * nowy kanal wykryty,
+   * zaklocenia,
+   * `SIGNAL LOST`,
+   * `BLACKNET SIGNAL`.
+11. Udokumentowac kontrakt w `doc/systems/cyberner/radio_channel_contract.md`.
+12. Ustawic jawne `source` w pierwszym kanale `ghost_streem_1`.
+
+## Poza zakresem
+
+* implementacja BlackNet,
+* endpointy BlackNet,
+* automatyczne wykrywanie kanalow,
+* dynamiczny download MP3,
+* system misji audio,
+* laczenie radia z Cybernerem.
+
+## Kryteria akceptacji
+
+* Istnieje jasny kontrakt kanalu audio dla przyszlego BlackNet.
+* BlackNet nie jest traktowany jako istniejacy runtime.
+* Przyszly BlackNet bedzie mogl dodac kanal bez zmiany kodu playera.
+* Pierwszy kanal ma jawne `source`.
+* Radio nie zna logiki misji.
+* `meta.channel` pozostaje jedynym kontraktem zasad streamu.
+* System jest gotowy pod narracje audio, ale nie wymaga backendu streamingu.
+
+---
+
+# Sprint 54 - Ghost Hack Radio UX Lift + First Interaction Autostart
+
+## Cel gameplayowy
+
+Dopolerowac UI Ghost Hack Radio i podpiac start audio pod pierwsza interakcje
+gracza z runtime gry.
+
+Radio ma pozostac lokalnym playerem klientowym. Sprint 54 nie dodaje backendu,
+BlackNet, streamingu ani zmian kontraktu `meta.channel`.
+
+## Zakres
+
+1. Okno radia po resize wypelnia dostepna przestrzen.
+2. Glowny panel playera rozciaga sie na wysokosc okna.
+3. Sekcja source/playlist nie zostawia duzej pustej martwej przestrzeni.
+4. Status, equalizer, progress, controls i volume wygladaja jak jeden spojny
+   modul systemowy CHAOS.
+5. Mobile nie dostaje regresji layoutu.
+6. Radio uzbraja autostart po pierwszej interakcji gracza:
+   * `pointerdown`,
+   * `keydown`.
+7. `ghost_radio_autoplay = "0"` twardo wylacza autostart.
+8. Jesli browser zablokuje autoplay:
+   * player zostaje gotowy,
+   * UI pokazuje `CLICK TO START`,
+   * radio startuje po kliknieciu Play.
+9. Nie dodawac backendu, BlackNet ani nowych kanalow.
+
+## Kryteria akceptacji
+
+* Resize okna nie zostawia playera jako malego panelu przyklejonego do gory.
+* Player zachowuje czytelnosc w malym i duzym oknie.
+* First interaction autostart dziala tylko, jesli lokalne ustawienie go nie
+  wylaczylo.
+* `ghost_radio_autoplay = "0"` blokuje autostart.
+* Play / Pause / Mute / Volume / Next / Previous nadal dzialaja.
+* Brak regresji desktopu mobilnego.
+* Brak backendu i brak BlackNet.
+
+---
+
+# Faza G - State Snapshot + Delta Feed
+
+Faza G porzadkuje odswiezanie runtime CHAOS. Celem nie jest zastapienie wszystkich
+endpointow jednym monolitem, tylko przejscie z agresywnego pollingu pelnych
+snapshotow na model:
+
+```text
+snapshot na start / recovery
+↓
+lekki delta feed dla zmian
+↓
+applyDelta() po stronie frontendu
+```
+
+Snapshot endpointy zostaja jako bezpieczna sciezka startowa i awaryjna.
+Delta endpoint ma sluzyc do biezacego odswiezania malych zmian.
+
+Najwazniejsza zasada Fazy G:
+
+```text
+Najpierw audyt i kontrakt.
+Potem backend rownolegle do starego flow.
+Potem pojedyncze male scope'y.
+Mapa dopiero na koncu.
+```
+
+Nie zaczynamy od WebSocketow. Najpierw powstaje model wersji, schema eventow i
+delta bus. WebSocket moze w przyszlosci uzyc tego samego kontraktu jako innego
+transportu.
+
+## Zasady bezpieczenstwa Fazy G
+
+Zrodlem prawdy nadal pozostaja obecne modele runtime:
+
+* profil gracza,
+* `profile.files`,
+* modele mapy,
+* `mail_store`,
+* `system_messages`,
+* Ghost Exchange,
+* Googleplex,
+* istniejace snapshot endpointy.
+
+Delta bus nie liczy stanu gry.
+
+Delta bus jest tylko dziennikiem powiadomien o zmianach, ktore juz zaszly w
+zrodlach prawdy.
+
+Frontend moze uzyc delty do aktualizacji widoku, ale przy rozjezdzie musi wrocic
+do snapshotu danego scope.
+
+Delta eventy musza byc idempotentne. Zastosowanie tego samego eventu drugi raz
+nie moze zepsuc UI ani podwoic efektu.
+
+Delta log musi miec retencje. Nie moze rosnac bez konca.
+
+## Checkpointy testowe Fazy G
+
+Faza G idzie sprintami. Nie dopisujemy kolejnych warstw planu przed rozpoczeciem
+implementacji. Po wiekszych krokach robimy live checkpoint i porownujemy
+zalozenia z realnym zachowaniem gry.
+
+Checkpointy:
+
+* Po Sprincie 55:
+  * baseline live,
+  * request count,
+  * najwolniejsze endpointy,
+  * subiektywne lagi i szarpniecia UI.
+* Po Sprincie 59:
+  * read-only delta endpoint,
+  * czy eventy wygladaja poprawnie,
+  * czy delta endpoint nie obciaza runtime.
+* Po Sprincie 61:
+  * pierwsza realna delta wallet,
+  * czy saldo zmienia sie bez pelnego profilu,
+  * czy event wallet jest idempotentny.
+* Po Sprincie 62:
+  * storage delta,
+  * czy Ghost Exchange i File Manager widza spojny storage,
+  * czy `storage_used` i `storage_capacity` nie rozjezdzaja sie po akcjach.
+* Po Sprincie 64:
+  * mail / Ghost Exchange summary,
+  * czy spadla liczba odswiezen,
+  * czy spadly payloady,
+  * czy unread i GX summary nadal sa aktualne.
+* Po Sprincie 65:
+  * recovery,
+  * czy rozjazdy naprawiaja sie per scope,
+  * czy frontend nie robi panic reloadu.
+* Po Sprincie 67:
+  * map actors,
+  * czy mapa przestala szarpac przy markerach,
+  * czy ruch aktorow nie wymusza rerenderu calej mapy.
+* Po Sprincie 69:
+  * final before/after,
+  * request count przed i po,
+  * najwolniejsze endpointy przed i po,
+  * subiektywne lagi przed i po,
+  * liczba recovery po migracji.
+
+---
+
+# Sprint 55 - Runtime Synchronization Audit
+
+## Cel gameplayowy
+
+Zrobic techniczny audyt synchronizacji runtime bez przebudowy gry.
+
+Sprint 55 nie zmienia endpointow, nie wylacza pollerow i nie dodaje delta feedu.
+Ma dac mape przeplywu danych od backendu do ekranu: co wywoluje zmiane, kto ja
+zapisuje, kto ja dzis wykrywa, kto ja renderuje i czy naprawde trzeba
+odswiezac caly obiekt.
+
+Audyt nie dotyczy samego pollingu. Dotyczy calego cyklu zycia danych.
+
+## Zakres
+
+1. Spisac wszystkie frontendowe pollery.
+2. Spisac endpointy odpytywane cyklicznie.
+3. Zmierzyc czestotliwosc odpytywania.
+4. Wskazac endpointy wywolujace ciezkie funkcje, np. pelny sync profilu.
+5. Wskazac miejsca pelnego rerenderu UI.
+6. Dla kazdego odswiezanego scope przygotowac karte:
+   * scope,
+   * snapshot endpoint,
+   * polling / trigger odswiezania,
+   * ciezkie operacje backendowe,
+   * render frontendowy,
+   * kandydat na delte.
+7. Dla kazdego scope odpowiedziec:
+   * co wywoluje zmiane,
+   * kto zapisuje zmiane,
+   * kto dzis ja wykrywa,
+   * kto ja renderuje,
+   * czy naprawde trzeba odswiezyc caly obiekt.
+8. Oznaczyc scope'y:
+   * map,
+   * profile,
+   * wallet,
+   * storage,
+   * apps,
+   * mail,
+   * Ghost Exchange,
+   * operations,
+   * terminal.
+9. Oszacowac spodziewane oszczednosci:
+   * request count,
+   * payload size,
+   * CPU,
+   * render cost.
+10. Wskazac pollery, ktore mozna usunac albo ograniczyc jeszcze przed delta
+    feedem, bo odswiezanie moze wynikac z konkretnej akcji uzytkownika albo
+    zdarzenia gry.
+11. Nie zmieniac runtime.
+
+## Kryteria akceptacji
+
+* Istnieje lista pollerow i endpointow.
+* Wiadomo, ktore requesty sa najciezsze.
+* Wiadomo, ktore elementy UI robia pelny rerender.
+* Istnieje tabela przeplywu danych per scope.
+* Dla kazdego scope wiadomo: trigger, writer, detector, renderer i potrzeba
+  snapshotu.
+* Istnieje szacunek expected savings per scope.
+* Wiadomo, ktore pollery sa potencjalnie zbedne nawet przed delta-feedem.
+* Wiadomo, ktore scope'y nadaja sie na pierwsze delty.
+* Nie zmieniono zachowania gry.
+
+---
+
+# Sprint 56 - State Version Contract
+
+## Cel gameplayowy
+
+Wprowadzic kontrakt wersji stanu bez migracji UI na delty.
+
+## Zakres
+
+1. Zdefiniowac `state_version`.
+2. Zdefiniowac wersje per scope, np.:
+   * `wallet_version`,
+   * `profile_version`,
+   * `storage_version`,
+   * `apps_version`,
+   * `mail_version`,
+   * `ghost_exchange_version`,
+   * `operations_version`,
+   * `map_version`.
+3. Opisac, gdzie wersje sa zwracane:
+   * w snapshotach,
+   * albo w lekkim read modelu wersji.
+4. Nie wymuszac jeszcze dzialania na deltach.
+5. Nie wylaczac starych endpointow.
+6. Dopisac zasade, ze wersje opisuja snapshoty obecnych modeli, a nie nowy
+   magazyn stanu.
+
+## Kryteria akceptacji
+
+* Istnieje kontrakt wersjonowania stanu.
+* Wiadomo, ktory scope ma ktora wersje.
+* Snapshoty moga zwrocic wersje bez zmiany znaczenia payloadu.
+* Frontend nie musi jeszcze korzystac z delt.
+* Zrodlem prawdy pozostaja dotychczasowe modele i snapshoty.
+* Wersje nie sa nowym magazynem stanu i nie sa liczone z delta busa.
+
+---
+
+# Sprint 57 - Delta Event Schema
+
+## Cel gameplayowy
+
+Ustalic format eventow zmian v0, zanim powstanie backendowy delta bus.
+
+## Zakres
+
+1. Zdefiniowac event:
+
+```json
+{
+  "version": 1845,
+  "scope": "wallet",
+  "type": "wallet.balance_changed",
+  "entity_id": "wallet",
+  "dedupe_key": "wallet:balance:root:1845",
+  "payload": {},
+  "created_at": "2026-07-06T12:00:00Z"
+}
+```
+
+2. Ustalic pola:
+   * `version`,
+   * `scope`,
+   * `type`,
+   * `entity_id`,
+   * `dedupe_key`,
+   * `payload`,
+   * `created_at`.
+3. Ustalic nazewnictwo typow:
+   * `wallet.balance_changed`,
+   * `storage.used_changed`,
+   * `storage.capacity_changed`,
+   * `apps.app_installed`,
+   * `mail.unread_changed`,
+   * `ghost_exchange.summary_changed`,
+   * `ghost_exchange.transaction_added`,
+   * `operations.operation_updated`,
+   * `map.player_moved`.
+4. Ustalic minimalne payloady v0 dla pierwszych scope'ow.
+5. Dopisac zasade idempotencji:
+   * `dedupe_key` identyfikuje event,
+   * ponowne zastosowanie tego samego eventu nie zmienia stanu UI drugi raz.
+6. Dopisac zasade, ze `payload` nie jest pelnym snapshotem profilu, mapy,
+   poczty ani Ghost Exchange.
+7. Nie implementowac jeszcze zapisu eventow.
+
+## Kryteria akceptacji
+
+* Istnieje schema eventu delta.
+* Istnieje lista typow v0.
+* Eventy sa scope'owane.
+* Eventy maja `entity_id` do aktualizacji konkretnego obiektu.
+* Eventy maja `dedupe_key` do idempotencji.
+* Payload nie jest pelnym profilem.
+* Istnieje opis minimalnych payloadow v0.
+* Nie powstal jeszcze `GameStateDeltaBus`.
+
+---
+
+# Sprint 58 - Backend Delta Bus v0
+
+## Cel gameplayowy
+
+Dodac backendowy dziennik zmian rownolegle do starego systemu.
+
+## Zakres
+
+1. Dodac `GameStateDeltaBus`.
+2. Dodac helper:
+
+```text
+record_change(scope, change_type, payload)
+```
+
+3. Dodac helper:
+
+```text
+get_changes_since(user_id, since_version)
+```
+
+4. Zapisywac delty bez wplywu na frontend.
+5. Nie wylaczac starych endpointow.
+6. Nie wymagac WebSocketow.
+7. Ustalic retencje delta logu:
+   * limit liczby eventow, np. 500-2000,
+   * albo limit czasu, np. ostatnie X minut.
+8. Nie liczyc stanu gry na podstawie delta busa.
+
+## Kryteria akceptacji
+
+* Backend potrafi zapisac event delta.
+* Eventy maja wersje rosnaca monotonicznie.
+* Stary runtime gry dziala bez zmian.
+* Delta bus nie jest drugim systemem profilu.
+* Delta bus nie jest drugim magazynem stanu.
+* Istnieje retencja eventow.
+
+---
+
+# Sprint 59 - Read-only Delta Endpoint
+
+## Cel gameplayowy
+
+Udostepnic delty do podgladu i testow bez podpinania UI.
+
+## Zakres
+
+1. Dodac endpoint:
+
+```text
+GET /api/state/changes?since=1842&limit=100
+```
+
+2. Endpoint zwraca:
+   * `current_version`,
+   * `changes`,
+   * `recovery_required`,
+   * `reason`.
+3. Endpoint jest read-only.
+4. Frontend produkcyjny moze jeszcze go nie uzywac.
+5. Endpoint ma limit eventow.
+6. Jesli liczba eventow przekracza limit albo wersja jest poza retencja,
+   backend zwraca `recovery_required`.
+7. Endpoint nie liczy stanu gry.
+8. Endpoint nie odpala snapshotow.
+
+## Kryteria akceptacji
+
+* Endpoint zwraca delty od wersji.
+* Endpoint nie przebudowuje profilu ani mapy.
+* Endpoint nie uruchamia snapshotow.
+* Brak delty zwraca pusta liste, nie blad.
+* Stary polling nadal dziala.
+* Endpoint nie zwraca nieograniczonej historii eventow.
+* Za stary `since` prowadzi do recovery, nie do wielkiego payloadu.
+
+---
+
+# Sprint 60 - Delta Diagnostics Panel
+
+## Cel gameplayowy
+
+Dac narzedzie diagnostyczne do obserwacji delt, wersji i rozjazdow.
+
+## Zakres
+
+1. Dodac debug panel albo lekki log dev, np.:
+
+```text
+GET /api/dev/delta-diagnostics
+```
+
+2. Pokazac:
+   * ostatnia wersje,
+   * ostatnie eventy,
+   * scope,
+   * typ eventu,
+   * `entity_id`,
+   * `dedupe_key`,
+   * `payload_size`,
+   * liczbe zgubionych/recovery.
+3. Pokazac metryki:
+   * `delta_events_per_minute`,
+   * `delta_payload_size`,
+   * `recovery_count`,
+   * `pollers_active_count`,
+   * `snapshot_recovery_count`.
+4. Nie zmieniac runtime gracza.
+5. Panel moze byc dostepny tylko w dev/admin mode.
+6. Endpoint/panel nie moze wywolywac `sync_session_profile()`.
+7. Nie podpinac `applyDelta()`.
+8. Nie robic recovery w UI.
+
+## Kryteria akceptacji
+
+* Developer widzi ostatnie delty.
+* Widac rozjazdy wersji.
+* Widac, czy backend generuje eventy.
+* Widac metryki pozwalajace porownac stary polling i delta feed.
+* Debug nie jest czescia zwyklego UI gracza.
+* Zwykly gracz nie widzi diagnostyki.
+* Stary runtime dziala bez zmian.
+
+---
+
+# Sprint 60.5 - Async Operation Runner Audit
+
+## Cel gameplayowy
+
+Wskazac akcje runtime, ktore moga szybko zwracac `operation_id`, a wlasciwa
+praca moze konczyc sie w tle.
+
+Sprint 60.5 jest audytem. Nie przerabia jeszcze calego runtime.
+
+## Zakres
+
+1. Spisac endpointy akcji trwajace dluzej niz 1000 ms.
+2. Dla kazdej akcji oznaczyc, czy potrzebuje natychmiastowego payloadu.
+3. Dla kazdej akcji oznaczyc, czy moze dzialac jako queued operation.
+4. Wskazac akcje ryzykowne dla UX przez blokowanie requestu.
+5. Wskazac akcje ryzykowne dla backendu przez dlugie trzymanie requestu.
+6. Nie dodawac jeszcze workera.
+7. Nie przerabiac endpointow na async w tym sprincie.
+8. Nie zmieniac gameplayu.
+
+## Kryteria akceptacji
+
+* Istnieje lista ciezkich endpointow akcji.
+* Wiadomo, ktore akcje musza zwracac natychmiastowy wynik.
+* Wiadomo, ktore akcje moga zwrocic tylko `operation_id`.
+* Wiadomo, ktora akcja jest najlepszym kandydatem na v0.
+* Nie zmieniono runtime.
+
+---
+
+# Sprint 60.6 - Async Operation Runner v0
+
+## Cel gameplayowy
+
+Status: cancelled / postponed.
+
+Po audycie Sprintu 60.5 zrezygnowano z implementacji Async Operation Runner v0
+na tym etapie.
+
+## Powod
+
+Jedynym bezpiecznym kandydatem v0 okazal sie:
+
+```text
+POST /api/ghostlab/projects/<project_id>/compile
+```
+
+Dla jednej samodzielnej akcji koszt dodania runnera, statusow, deduplikacji,
+obslugi bledow i utrzymania osobnego przeplywu async jest wiekszy niz aktualny
+zysk runtime.
+
+## Decyzja
+
+Nie wdrazac Async Operation Runnera w Fazie G na obecnym etapie.
+
+Kontynuowac zgodnie z planem od Sprintu 61:
+
+```text
+First Safe Delta - Wallet
+```
+
+## Wnioski
+
+* Ciezkie endpointy odczytu pozostaja tematem snapshot + delta-feed.
+* `/hack-action`, `/map-action`, install/uninstall, Ghost Exchange i polling
+  mapy nie sa kandydatami do runnera v0.
+* Temat runnera mozna wznowic, gdy pojawi sie wiecej akcji typu queued job.
+* Runtime pozostaje bez zmian.
+
+## Kryteria akceptacji
+
+* Runner nie zostal wdrozony.
+* Nie dodano `ThreadPoolExecutor`.
+* Nie dodano nowych statusow async.
+* Nie dodano nowego przeplywu operacji.
+* Runtime pozostaje bez zmian.
+* Faza G wraca do glownej sciezki delta-feed od Sprintu 61.
+
+---
+
+# Sprint 61 - First Safe Delta: Wallet
+
+## Cel gameplayowy
+
+Pierwsza realna migracja jednego malego elementu UI na delty: saldo HC.
+
+## Zakres
+
+1. Backend zapisuje `wallet.balance_changed`.
+2. Frontend odbiera delte.
+3. `applyDelta()` aktualizuje tylko saldo.
+4. Snapshot wallet zostaje jako recovery.
+5. Nie migrowac jeszcze mapy, maila ani aplikacji.
+6. Dodac test idempotencji eventu wallet.
+
+## Kryteria akceptacji
+
+* Zmiana HC generuje event.
+* Frontend aktualizuje saldo bez pelnego rerenderu.
+* Zgubiona wersja odpala snapshot recovery wallet.
+* Stary flow HC nie jest zepsuty.
+* Ten sam event zastosowany dwa razy nie psuje salda.
+
+---
+
+# Sprint 62 - Storage Delta
+
+## Cel gameplayowy
+
+Przeniesc zmiany storage na delty po sprawdzeniu prostego flow wallet.
+
+## Zakres
+
+1. Dodac eventy:
+   * `storage.used_changed`,
+   * `storage.capacity_changed`.
+2. Aktualizowac File Manager storage bar przez delte.
+3. Pokryc:
+   * zapis pliku,
+   * auto-sale,
+   * install aplikacji,
+   * uninstall aplikacji,
+   * storage upgrade.
+4. Snapshot storage zostaje jako recovery.
+5. Dodac test idempotencji eventow storage.
+
+## Kryteria akceptacji
+
+* `storage_used` aktualizuje sie bez pelnego bootstrapu.
+* `storage_capacity` aktualizuje sie po produkcie Googleplex.
+* Recovery snapshot naprawia rozjazd.
+* Ghost Exchange i File Manager widza spojny storage.
+* Ten sam event storage zastosowany dwa razy nie psuje paska dysku.
+
+---
+
+# Sprint 63 - Apps Delta
+
+## Cel gameplayowy
+
+Przeniesc male zmiany aplikacji na delty bez przebudowy katalogu Googleplex.
+
+## Zakres
+
+1. Dodac eventy:
+   * `apps.app_installed`,
+   * `apps.app_uninstalled`,
+   * `apps.cooldown_changed`,
+   * `apps.status_changed`.
+2. Aktualizowac ikony, menu Start i File Manager `/tools`.
+3. Snapshot apps zostaje jako recovery.
+4. Nie zmieniac kontraktu aplikacji.
+5. Dodac test idempotencji eventow apps.
+
+## Kryteria akceptacji
+
+* Install/uninstall odswieza UI bez pelnego reloadu.
+* `profile.apps` pozostaje zrodlem prawdy.
+* `files.tools` pozostaje spojne.
+* Brak duplikacji app cache.
+* Ten sam event apps zastosowany dwa razy nie tworzy duplikatu ikony/aplikacji.
+
+---
+
+# Sprint 64 - Mail / Ghost Exchange Summary Delta
+
+## Cel gameplayowy
+
+Zmniejszyc polling maila i Ghost Exchange przez migracje licznikow oraz summary.
+
+## Zakres
+
+1. Dodac eventy:
+   * `mail.unread_changed`,
+   * `mail.thread_updated`,
+   * `ghost_exchange.summary_changed`,
+   * `ghost_exchange.transaction_added`.
+2. Nie migrowac jeszcze pelnego bootstrapu maila.
+3. Nie migrowac calego dashboardu GX.
+4. Aktualizowac tylko liczniki, badge, summary i ostatnie transakcje.
+5. Dodac test idempotencji eventow mail/GX.
+
+## Kryteria akceptacji
+
+* Unread badge aktualizuje sie z delty.
+* GX summary aktualizuje sie z delty.
+* Pelny mail bootstrap zostaje jako recovery.
+* Pelny `/api/ghost-exchange` zostaje jako recovery.
+* Ten sam event unread/GX zastosowany dwa razy nie dubluje badge ani transakcji.
+
+---
+
+# Sprint 65 - Delta Recovery
+
+## Cel gameplayowy
+
+Dac twarde mechanizmy naprawy rozjazdu wersji.
+
+## Zakres
+
+1. Frontend wykrywa brakujace albo zbyt stare wersje.
+2. Backend moze zwrocic `recovery_required`.
+3. Frontend odpala snapshot konkretnego scope, np.:
+   * wallet,
+   * storage,
+   * apps,
+   * mail,
+   * ghost_exchange.
+4. Nie robic globalnego reloadu strony jako domyslnej reakcji.
+
+## Kryteria akceptacji
+
+* Zgubiona delta nie psuje UI.
+* Recovery dotyka tylko potrzebnego scope.
+* Frontend zapisuje nowa wersje po recovery.
+* Brak panic reloadu.
+
+---
+
+# Sprint 66 - Map Delta Audit
+
+## Cel gameplayowy
+
+Przygotowac mape pod delty bez migracji mapy.
+
+## Zakres
+
+1. Spisac typy zmian mapy:
+   * `map.player_moved`,
+   * `map.player_actor_updated`,
+   * `map.player_actor_removed`,
+   * `map.target_updated`,
+   * `map.target_captured`,
+   * `map.target_removed`,
+   * `map.area_claimed`,
+   * `map.area_contested`,
+   * `map.vulnerability_added`,
+   * `map.vulnerability_removed`.
+2. Okreslic zrodla prawdy dla kazdego typu.
+3. Przypisac zrodla prawdy:
+   * profil,
+   * territory store,
+   * target store,
+   * vulnerability store,
+   * operations runtime.
+4. Okreslic, ktore warstwy Leaflet mozna latac punktowo.
+5. Okreslic, ktore warstwy dzis sa czyszczone i renderowane od zera.
+6. Nie migrowac mapy w tym sprincie.
+7. Nie podpinac `applyDelta()` dla mapy.
+
+## Kryteria akceptacji
+
+* Wiadomo, jakie map events sa potrzebne.
+* Wiadomo, ktore zrodlo prawdy emituje dany typ zdarzenia.
+* Wiadomo, ktore warstwy mapy moga dostac applyDelta.
+* Wiadomo, gdzie nadal wymagany jest snapshot.
+* Nie zmieniono runtime mapy.
+
+---
+
+# Sprint 67 - Map Actor Delta v0
+
+## Cel gameplayowy
+
+Pierwsza bezpieczna migracja mapy: tylko player actors.
+
+Delta-feed aktualizuje w tym sprincie wylacznie markery graczy. Targety,
+terytoria, konflikty, vulnerability layers i friendMarkers zostaja poza
+zakresem.
+
+## Zakres
+
+1. Dodac eventy:
+   * `map.player_moved`,
+   * `map.player_actor_updated`,
+   * `map.player_actor_removed`.
+2. Backend emituje delty tylko dla player actors.
+3. `entity_id` eventu mapy to `username` aktora.
+4. Frontend `applyDelta()` aktualizuje tylko `playerActorMarkers`.
+5. Jesli marker istnieje:
+   * zaktualizowac pozycje,
+   * zaktualizowac status/ikone/snapshot menu.
+6. Jesli marker nie istnieje:
+   * dodac marker gracza.
+7. Jesli event to `map.player_actor_removed`:
+   * usunac marker gracza.
+8. Snapshot `/api/map/player-actors` zostaje jako recovery.
+9. `friendMarkers` zostaja poza zakresem v0.
+10. Targety, area layers, konflikty i vulnerabilities pozostaja poza zakresem.
+
+## Kryteria akceptacji
+
+* Ruch gracza aktualizuje marker bez rerenderu calej mapy.
+* Znikniecie gracza usuwa tylko jego marker.
+* Recovery przywraca liste actors.
+* Targety i obszary pozostaja poza zakresem.
+* `friendMarkers` nie sa migrowane w tym sprincie.
+
+---
+
+# Sprint 68 - Map Target Registry / Delta Prep
+
+## Cel gameplayowy
+
+Przygotowac targety pod przyszle delty przez stabilny registry po `target_id`,
+bez migracji pelnych warstw mapy.
+
+Sprint 68 nie wlacza jeszcze `map.target_*` w delta-feed. To sprint
+przygotowawczy: targety bazowe dostaja stabilny identyfikator i centralny
+registry, ale snapshoty nadal zostaja aktywne.
+
+## Zakres
+
+1. Ustalic stabilne `target_id` dla targetow bazowych.
+2. Opisac i przygotowac registry:
+
+```text
+targetMarkers[target_id]
+```
+
+3. Rozdzielic target marker od warstw:
+   * `playerAreaLayers`,
+   * `conflictAreaLayers`,
+   * `contestedTargetLayers`,
+   * `capturedConflictPillarLayers`.
+4. Nie ruszac `playerAreaLayers`.
+5. Nie ruszac `conflictAreaLayers`.
+6. Nie ruszac contested/captured pillar layers.
+7. Nie wylaczac snapshotow.
+8. Nie wlaczac jeszcze `map.target_updated`, `map.target_captured` ani
+   `map.target_removed` w runtime delta-feed.
+
+## Kryteria akceptacji
+
+* Target bazowy ma stabilny `target_id`.
+* Istnieje registry `targetMarkers[target_id]`.
+* Registry obejmuje target markery, nie area/conflict layers.
+* Snapshoty mapy nadal dzialaja.
+* Target delta runtime nie zostal jeszcze wlaczony.
+* Warstwy terytoriow i konfliktow pozostaja bez zmian.
+
+---
+
+# Sprint 68.5 - Map Target Delta v0
+
+## Cel gameplayowy
+
+Dopiero po registry aktualizowac konkretne targety po `target_id` przez
+delta-feed.
+
+Sprint 68.5 wlacza tylko target markery obecne w `targetMarkers[target_id]`.
+Nie migruje obszarow, konfliktow ani contested/captured pillar layers.
+
+## Zakres
+
+1. Backend emituje:
+   * `map.target_updated`,
+   * `map.target_captured`,
+   * `map.target_removed`.
+2. `entity_id` eventu to stabilny `target_id`.
+3. Frontend `applyDelta()` obsluguje target delty tylko przez
+   `targetMarkers[target_id]`.
+4. Jesli target marker istnieje:
+   * `map.target_updated` aktualizuje pozycje/snapshot/tooltip,
+   * `map.target_captured` aktualizuje marker jako przejety,
+   * `map.target_removed` usuwa marker z registry.
+5. Jesli target marker nie istnieje, recovery pozostaje snapshot mapy.
+6. Nie ruszac `playerAreaLayers`.
+7. Nie ruszac `conflictAreaLayers`.
+8. Nie ruszac `area_claimed` / `area_contested`.
+9. Nie ruszac contested/captured pillar layers.
+
+## Kryteria akceptacji
+
+* Target delta dziala tylko dla `targetMarkers[target_id]`.
+* Capture targetu nie przebudowuje warstw obszarow.
+* Snapshot targetow pozostaje recovery.
+* `area_claimed` i `area_contested` nadal sa poza zakresem.
+* Target delta runtime nie tworzy drugiego stanu mapy.
+
+---
+
+# Sprint 69 - Poller Thinning / Retirement
+
+## Cel gameplayowy
+
+Zmniejszyc liczbe cyklicznych requestow po potwierdzeniu, ze wallet, storage,
+apps, mail/Ghost Exchange summary, player actors i target registry dzialaja
+bezpiecznie z delta-feed/recovery.
+
+## Zakres
+
+1. Spisac pollery zastapione deltami.
+2. Ograniczac albo wylaczac je po jednym.
+3. Zostawic snapshoty jako start/recovery.
+4. Nie usuwac endpointow snapshotowych.
+5. Nie robic globalnego reloadu jako normalnej sciezki.
+6. Mierzyc request count przed/po.
+7. Mierzyc srednie i maksymalne czasy odpowiedzi przed/po.
+8. Mierzyc `recovery_count`.
+9. Udokumentowac porownanie przed/po:
+   * request count przed,
+   * request count po,
+   * sredni czas odpowiedzi przed,
+   * sredni czas odpowiedzi po,
+   * max czas odpowiedzi przed,
+   * max czas odpowiedzi po,
+   * liczba recovery.
+
+## Kryteria akceptacji
+
+* Liczba cyklicznych requestow spada.
+* UI nadal aktualizuje wallet, storage, apps, mail/GX i mape.
+* Snapshot recovery nadal dziala.
+* Nie ma globalnego reloadu jako normalnej sciezki odswiezania.
+* Istnieje raport przed/po pokazujacy realny zysk albo brak zysku.
+
+---
+
+# Sprint 70 - Delta Refactor Integrity Audit
+
+## Cel gameplayowy
+
+Przejsc jeszcze raz wszystkie miejsca zmienione w Fazie G i potwierdzic, ze
+delta-feed, recovery, snapshoty i stare pollery sa spojne.
+
+Sprint 70 nie dodaje nowych funkcji. To audyt integralnosci po migracji
+wallet/storage/apps/mail/Ghost Exchange/player actors/target registry na
+delta-feed.
+
+## Zakres
+
+1. Przejrzec wszystkie helpery `record_*_delta`.
+2. Przejrzec wszystkie `event type`.
+3. Przejrzec `applyDelta()`.
+4. Sprawdzic recovery per scope.
+5. Sprawdzic, czy `/api/profile` nie jest wolane po akcji, ktora ma juz delte.
+6. Sprawdzic, czy snapshoty sa tylko start/recovery.
+7. Sprawdzic, czy nie ma podwojnych aktualizacji UI.
+8. Sprawdzic, czy stare pollery nie dubluja delta-feed.
+9. Sprawdzic testy wallet/storage/apps/mail/GX/map actors/targets.
+10. Porownac dokumentacje z kodem.
+
+## Kryteria akceptacji
+
+* Nie ma ukrytych pelnych refreshy po akcjach objetych deltami.
+* Eventy maja spojne `scope`, `type`, `entity_id`, `dedupe_key`.
+* `applyDelta()` nie robi pelnych rerenderow bez potrzeby.
+* Recovery dziala per scope.
+* Snapshot endpointy nadal dzialaja.
+* Stare endpointy nie zostaly przypadkiem usuniete.
+* Dokumentacja zgadza sie z runtime.
+
+---
+
+# Sprint 71 - Map Initial Load Gate
+
+## Cel gameplayowy
+
+Dodac jawna bramke pierwszego ladowania mapy, zanim gracz zacznie klikac cele i
+odpalac akcje.
+
+Sprint 71 nie przyspiesza jeszcze samej mapy. Jego celem jest kontrolowane
+wejscie na mape: gracz nie powinien grac na niepelnym stanie swiata.
+
+## Glowna zasada
+
+Mapa nie jest gotowa, dopoki krytyczne warstwy nie zglosza `loaded`.
+
+Leaflet widoczny na ekranie nie oznacza jeszcze gotowej mapy gameplayowej.
+Mapa jest gotowa dopiero wtedy, gdy zaladowaly sie warstwy potrzebne do
+poprawnej gry.
+
+Preloader mapy nie jest ozdoba. Jest czescia kontraktu runtime: dopoki critical
+map scopes nie sa `loaded`, interakcje gameplayowe mapy sa zablokowane.
+
+## UX
+
+Przy pierwszym wejsciu na mape pokazac overlay:
+
+```text
+Ladowanie mapy CHAOS...
+
+[████████░░░░░░] 58%
+
+Ladowanie terytoriow graczy...
+```
+
+Overlay ma jasno komunikowac, ze mapa sklada ciezki stan swiata, a nie zawiesila
+sie.
+
+Podczas bootu akcje mapowe sa zablokowane komunikatem:
+
+```text
+Mapa synchronizuje stan swiata.
+Akcje beda dostepne po zakonczeniu ladowania.
+```
+
+## Architektura
+
+Dodac stan bootu mapy po stronie map template:
+
+```javascript
+const mapBootState = {
+  loading: false,
+  ready: false,
+  failed: false,
+  loadedScopes: new Set()
+};
+```
+
+Boot ma miec jawne kroki, np.:
+
+```javascript
+async function bootMapInitialState() {
+  showMapPreloader();
+  disableMapGameplay();
+
+  await bootStep("Pozycja gracza", refreshOwnPlayerPosition);
+  await bootStep("Oznaczone cele", refreshMapTargetSnapshot);
+  await bootStep("Terytoria graczy", refreshPlayerAreas);
+  await bootStep("Podatnosci klanow", refreshClanVulnerabilities);
+  await bootStep("Aktywne operacje", refreshActiveOperations);
+  await bootStep("Gracze na mapie", refreshPlayerActors);
+
+  enableMapGameplay();
+  hideMapPreloader();
+}
+```
+
+Implementacja moze ladowac czesc krokow sekwencyjnie albo kontrolowana paczka,
+ale stan bootu musi byc jawny.
+
+## Critical scopes
+
+Critical scopes blokuja interakcje gameplayowe mapy:
+
+* mapa bazowa,
+* pozycja gracza,
+* target snapshot,
+* terytoria graczy,
+* przejete cele.
+
+## Optional scopes
+
+Optional scopes moga dosynchronizowac sie po zdjeciu glownej bramki:
+
+* gracze online,
+* podatnosci klanow,
+* aktywne operacje,
+* live delta status.
+
+Optional scope nie powinien blokowac calej mapy, jesli ma chwilowy blad.
+
+## Systemy
+
+* `templates/map_template.html`,
+* Leaflet map runtime,
+* `refreshPlayerAreas()`,
+* `refreshPlayerActors()`,
+* `refreshClanVulnerabilities()`,
+* `refreshActiveOperations()`,
+* target registry / target snapshot,
+* map delta recovery.
+
+## Flow danych
+
+```text
+open map
+↓
+show map preloader
+↓
+load critical scopes
+↓
+block map gameplay actions
+↓
+critical scopes loaded
+↓
+enable map gameplay
+↓
+load optional scopes / start pollers / delta-feed
+```
+
+## Frontend
+
+1. Dodac overlay pierwszego ladowania mapy.
+2. Dodac `mapBootState`.
+3. Dodac helper `bootStep(label, fn, options)`.
+4. Dodac `disableMapGameplay()` i `enableMapGameplay()`.
+5. W czasie bootu blokowac:
+   * context menu akcji,
+   * hack actions,
+   * territory/capture actions,
+   * akcje zalezne od target/area layers.
+6. Po critical boot wlaczyc gameplay.
+7. Optional scopes moga pokazywac status "dosynchronizowanie".
+8. Przy recovery mapy mozna pokazac krotki overlay synchronizacji.
+9. Nie robic globalnego reloadu strony.
+
+## Backend
+
+Bez nowego backendu.
+
+Sprint 71 korzysta z istniejacych endpointow snapshot/recovery i istniejacych
+funkcji map template.
+
+## Testy
+
+* Preloader pojawia sie przy pierwszym wejsciu na mape.
+* Preloader pokazuje aktualny scope.
+* `mapBootState.ready` jest `false` przed critical boot.
+* Akcje mapowe sa zablokowane przed critical boot.
+* Terytoria sa widoczne przed rozpoczeciem gry na mapie.
+* Przejete cele sa widoczne przed rozpoczeciem gry na mapie.
+* Optional scope failure nie blokuje calej mapy.
+* Recovery mapy moze pokazac krotki overlay synchronizacji.
+* Brak globalnego reloadu strony.
+
+## Kryteria akceptacji
+
+* Przy pierwszym wejsciu na mape pojawia sie preloader.
+* Preloader pokazuje aktualnie ladowany scope.
+* Mapa nie pozwala klikac akcji przed zakonczeniem critical boot.
+* Terytoria sa widoczne przed rozpoczeciem gry na mapie.
+* Przejete cele sa widoczne przed rozpoczeciem gry na mapie.
+* Gracze/podatnosci/operacje moga doladowac sie jako optional.
+* Po recovery mapy mozna ponownie pokazac krotki overlay synchronizacji.
+* Nie ma globalnego reloadu strony jako normalnej sciezki bootu.
+
+---
+
+# Sprint 72 - Hack Action Flow Lifting
+
+## Cel gameplayowy
+
+Skrocic najgoretsza sciezke klikniecia na mapie:
+
+```text
+klik na mapie
+↓
+wybor narzedzia
+↓
+Uzyj
+↓
+wynik
+```
+
+Sprint 72 nie przebudowuje duzej architektury backendu. Celem jest usuniecie
+najdrozszego objazdu przez pelny File Manager, pelny `/api/profile` i pelny
+render katalogu `/tools`, gdy backend juz zwrocil gotowy `matching_apps`.
+
+## Problem
+
+Obecnie przy wielu pasujacych aplikacjach `/hack-action` zwraca:
+
+```text
+tool_selection_required
+matching_apps
+pending_action
+```
+
+Frontend zamiast pokazac lekki wybor narzedzia otwiera pelny File Manager.
+To powoduje dodatkowy pelny odczyt profilu i render katalogu plikow tylko po to,
+zeby gracz kliknal `Uzyj`.
+
+## Zasada
+
+File Manager pozostaje miejscem przegladania plikow i narzedzi.
+
+File Manager nie jest domyslnym pickerem narzedzia dla akcji mapowej.
+
+Jesli backend zwrocil `matching_apps`, frontend ma wystarczajace dane, zeby
+pokazac szybki picker narzedzia bez pobierania calego profilu.
+
+## Zakres
+
+1. Dodac lekki picker narzedzia dla `tool_selection_required`.
+2. Picker korzysta wylacznie z:
+   * `matching_apps`,
+   * `pending_action`,
+   * `map_action_id`,
+   * `canonical_action`.
+3. Nie otwierac pelnego File Managera jako domyslnej sciezki wyboru narzedzia.
+4. File Manager moze zostac jako opcja pomocnicza, np. `Pokaz w plikach`.
+5. Klikniecie `Uzyj` nadal korzysta z istniejacego `/hack-action`.
+6. Po kliknieciu `Uzyj` nie wolac pelnego `/api/profile`, jesli odpowiedz
+   `/hack-action` albo delta-feed wystarcza do aktualizacji UI.
+7. Ograniczyc zbedne `refreshToolbarProfile()` po uzyciu narzedzia.
+8. Nie odpalac pelnego renderu `/tools`, jesli gracz nie otworzyl File Managera
+   swiadomie.
+9. Nie dodawac jeszcze duzego cache File Managera.
+10. Nie przebudowywac DOM polish File Managera w tym sprincie.
+
+## Systemy
+
+* `templates/map_template.html`,
+* `openToolSelectionForMapAction()`,
+* `selectMapActionTool()`,
+* `/hack-action`,
+* toolbar / target status,
+* delta-feed wallet/storage/apps/map target, jesli dostarcza wystarczajacy
+  update.
+
+## Flow danych
+
+```text
+/hack-action
+↓
+tool_selection_required + matching_apps
+↓
+lekki picker narzedzia
+↓
+Uzyj
+↓
+/hack-action selected_app_id
+↓
+wynik + delty / lokalny update
+↓
+bez pelnego File Managera i bez pelnego /api/profile
+```
+
+## Frontend
+
+1. `openToolSelectionForMapAction(payload)` pokazuje lekki picker zamiast
+   `createFileManager({ toolSelection })`.
+2. Picker pokazuje tylko pasujace aplikacje.
+3. Picker ma jasny tytul akcji i krotkie parametry narzedzia.
+4. `Uzyj` blokuje sie na czas requestu, zeby uniknac double-click.
+5. Po sukcesie picker sie zamyka albo pokazuje wynik.
+6. Mobile/narrow pokazuje picker na wierzchu i bez poziomego scrolla.
+7. File Manager zostaje dostepny jako osobna aplikacja.
+
+## Backend
+
+Bez przebudowy backendu.
+
+Sprint 72 korzysta z istniejacego kontraktu `/hack-action`:
+
+* `tool_selection_required`,
+* `matching_apps`,
+* `pending_action`,
+* `selected_app_id`.
+
+Backend moze zostac bez zmian, o ile odpowiedz `/hack-action` wystarcza do
+aktualizacji target/toolbar przez istniejace delty albo lokalny payload.
+
+## Poza zakresem
+
+* duzy cache File Managera,
+* przebudowa File Managera,
+* przebudowa `/api/profile`,
+* zmiana algorytmu wyboru aplikacji,
+* zmiana ekonomii operacji,
+* zmiana map target/area runtime.
+
+## Testy
+
+* Przy wielu pasujacych aplikacjach pojawia sie szybki picker, nie File Manager.
+* Picker pokazuje wszystkie `matching_apps`.
+* `Uzyj` wysyla `selected_app_id`.
+* Double-click `Uzyj` nie dubluje requestu.
+* Po sukcesie toolbar/target status aktualizuje sie bez pelnego `/api/profile`,
+  jesli delta/payload wystarcza.
+* File Manager nadal otwiera sie normalnie jako osobna aplikacja.
+* Mobile/narrow picker jest na wierzchu.
+
+## Kryteria akceptacji
+
+* Przy wielu pasujacych apkach gracz widzi szybki picker narzedzia.
+* Domyslna sciezka wyboru narzedzia nie pobiera pelnego profilu.
+* Domyslna sciezka wyboru narzedzia nie renderuje pelnego katalogu `/tools`.
+* Klik `Uzyj` pozostaje zgodny z istniejacym `/hack-action`.
+* Brak regresji File Managera.
+* Brak regresji map action flow.
+
+---
+
+# Sprint 72.1 - Hack Action Lightweight Preflight
+
+## Cel gameplayowy
+
+Skrocic pierwszy request `/hack-action`, ktory sluzy tylko do wyboru narzedzia.
+
+Sprint 72 pokazal, ze picker frontendowy jest szybki, ale pierwszy request nadal
+traci kilka sekund na pelnym `sync_session_profile()`, mimo ze w przypadku
+`tool_selection_required` backend nie musi jeszcze tworzyc operacji ani zapisywac
+profilu.
+
+## Problem z pomiarow
+
+Dla akcji mapowej z wieloma pasujacymi aplikacjami log pokazuje:
+
+```text
+/hack-action selected=False
+↓
+sync_session_profile ~4-5 s
+↓
+app_match ~1 ms
+↓
+return_tool_selection
+```
+
+Czyli koszt pierwszego kroku nie wynika z matchowania aplikacji ani z pickera,
+tylko z pelnego syncu profilu przed read-only odpowiedzia.
+
+## Zasada
+
+Ten sam endpoint `/hack-action` moze miec dwie wewnetrzne sciezki:
+
+```text
+bez selected_app_id
+↓
+lightweight preflight / wybor narzedzia
+```
+
+oraz:
+
+```text
+z selected_app_id
+↓
+real action / zapis profilu / operacja
+```
+
+Nie tworzymy nowego endpointu.
+
+Nie zmieniamy kontraktu frontendu.
+
+## Zakres
+
+1. W `/hack-action` wykryc sciezke preflight:
+   * brak `selected_app_id`,
+   * akcja mapowa moze wymagac wyboru narzedzia.
+2. Dla preflight uzyc lekkiego odczytu profilu, jesli wystarcza:
+   * `load_profile_readonly(username, strip_sensitive=True)`,
+   * albo inny istniejacy readonly helper.
+3. Preflight ma odczytac tylko dane potrzebne do wyboru narzedzia:
+   * `apps`,
+   * minimalny kontekst celu,
+   * minimalne blokady wymagane przed pokazaniem pickera.
+4. Jesli `matched_apps > 1`, zwrocic:
+   * `tool_selection_required`,
+   * `matching_apps`,
+   * `pending_action`.
+5. Preflight nie moze:
+   * tworzyc operacji,
+   * dopisywac `launch_queue`,
+   * zapisywac profilu,
+   * odpalac `refresh_and_persist_operations()`,
+   * robic pelnego rebuild/session sync, jesli nie jest konieczny.
+6. Sciezka z `selected_app_id` pozostaje realnym wykonaniem akcji i nadal moze
+   uzyc pelniejszego profilu oraz zapisu.
+7. Zachowac debug logi `HACK_FLOW`, aby porownac przed/po.
+
+## Systemy
+
+* `/hack-action`,
+* `load_profile_readonly(...)`,
+* `get_apps_for_map_action(...)`,
+* `serialize_tool_selection_app(...)`,
+* lightweight picker Sprintu 72.
+
+## Flow danych
+
+```text
+klik akcji mapy
+↓
+/hack-action bez selected_app_id
+↓
+readonly profile/apps
+↓
+matched_apps > 1
+↓
+tool_selection_required
+↓
+picker Sprintu 72
+```
+
+Po wyborze:
+
+```text
+Uzyj
+↓
+/hack-action z selected_app_id
+↓
+real action
+↓
+profile update / operations / delty
+```
+
+## Poza zakresem
+
+* nowy endpoint,
+* zmiana algorytmu map action,
+* przebudowa `sync_session_profile()`,
+* optymalizacja map pollerow,
+* delta dla warstw mapy,
+* zmiana File Managera.
+
+## Testy
+
+* Preflight z wieloma aplikacjami zwraca `tool_selection_required`.
+* Preflight nie zapisuje profilu.
+* Preflight nie tworzy operacji.
+* Preflight nie dodaje `launch_queue`.
+* Real action z `selected_app_id` nadal tworzy operacje.
+* Debug `HACK_FLOW` pokazuje nizszy czas pierwszego requestu.
+* Brak regresji pickera Sprintu 72.
+
+## Kryteria akceptacji
+
+* Pierwszy `/hack-action` dla wyboru narzedzia nie wykonuje pelnego kosztownego
+  syncu, jesli nie jest konieczny.
+* Picker pojawia sie szybciej niz przed sprintem.
+* Realne uzycie narzedzia nadal dziala jak przed sprintem.
+* Nie powstal nowy endpoint.
+* Nie powstala druga sciezka map action poza `/hack-action`.
+
+---
+
+# Sprint 73 - Map Poller Guard + Hack Action Priority
+
+## Cel gameplayowy
+
+Zmniejszyc zatory mapy podczas akcji gracza bez migracji kolejnych warstw mapy
+na delty.
+
+Sprint 73 nie zmienia algorytmow mapy, nie przebudowuje backendu i nie usuwa
+snapshotow. Celem jest uporzadkowanie runtime odswiezania mapy tak, aby ciezkie
+snapshoty opcjonalne nie blokowaly klikniecia akcji i wyboru narzedzia.
+
+## Problem z pomiarow
+
+Po zwiekszeniu liczby workerow Gunicorna sciezka `/hack-action` wyraznie
+przyspieszyla, ale logi nadal pokazuja, ze w tym samym czasie w kolejce dzialaja
+ciezkie snapshoty:
+
+* `/api/map/player-areas`,
+* `/api/map/clan-vulnerabilities`,
+* `/api/operations?summary=1`,
+* `/api/map/player-actors`.
+
+Najwiekszy problem nie jest juz tylko w samym `/hack-action`, ale w tym, ze
+pollery mapy moga nakladac sie na siebie i na akcje gracza.
+
+## Zasada
+
+Akcja gracza na mapie ma priorytet nad opcjonalna synchronizacja mapy.
+
+Snapshoty mapy pozostaja potrzebne jako start/recovery, ale nie powinny:
+
+* uruchamiac drugiego requestu tego samego scope, gdy poprzedni jeszcze trwa,
+* startowac wszystkie naraz po boot mapy,
+* blokowac `/hack-action`,
+* wisiec bez limitu czasu,
+* wymuszac pelnego refreshu w trakcie wyboru narzedzia.
+
+## Zakres
+
+1. Dodac in-flight guard dla snapshotow mapy:
+   * player actors,
+   * player areas,
+   * clan vulnerabilities,
+   * active operations.
+2. Staggerowac start pollerow po boot mapy, zamiast odpalac wszystkie w tej
+   samej sekundzie.
+3. Pauzowac opcjonalne snapshoty na czas `/hack-action`:
+   * pierwszy request wyboru narzedzia,
+   * drugi request po kliknieciu `Uzyj`.
+4. Po zakonczeniu akcji wznowic snapshoty z krotkim opoznieniem.
+5. Dodac timeout/abort dla opcjonalnych snapshotow mapy.
+6. Nie zmieniac endpointow snapshotowych.
+7. Nie migrowac player areas / clan vulnerabilities / operations na delty w tym
+   sprincie.
+8. Nie usuwac recovery snapshotow.
+
+## Systemy
+
+* `templates/map_template.html`,
+* `static/js/terminal.js`,
+* map snapshot timers,
+* `/hack-action`,
+* lightweight picker Sprintu 72.
+
+## Testy
+
+* Dwa ticki tego samego pollera nie tworza rownoleglych requestow tego samego
+  scope.
+* Podczas `/hack-action` opcjonalne snapshoty mapy sa pauzowane.
+* Po `/hack-action` snapshoty mapy wracaja.
+* Boot mapy nadal laduje critical scopes.
+* Player actors nadal maja snapshot recovery.
+* Player areas nadal maja snapshot recovery.
+* Clan vulnerabilities nadal maja snapshot recovery.
+* Active operations nadal maja snapshot recovery.
+* Brak globalnego reloadu strony.
+
+## Kryteria akceptacji
+
+* Akcja mapowa nie startuje w tej samej kolejce co nowa fala ciezkich pollerow.
+* Snapshoty mapy nie dubluja sie, jesli poprzedni request jeszcze trwa.
+* Optional snapshot timeout nie blokuje stale mapy.
+* Mapa nadal aktualizuje terytoria, podatnosci, operacje i graczy.
+* Nie powstal nowy endpoint ani drugi system map state.
+
+---
+
+# Sprint 73.1 - Map Hack Action Spinner
+
+## Cel gameplayowy
+
+Pokazac na mapie, ze narzedzie jest wlasnie uruchamiane na konkretnym obiekcie.
+
+Po kliknieciu akcji, np. `scan`, `exploit`, `sniff` albo `trace`, przy markerze
+celu ma pojawic sie maly spinner. Spinner trwa tylko do zakonczenia requestu
+narzedzia, czyli do momentu, gdy gracz widzi wynik typu `Udalo sie`, blad albo
+wybor narzedzia.
+
+## Zasada
+
+Spinner nie jest reprezentacja aktywnej operacji.
+
+Aktywne operacje maja juz wlasne markery na mapie: ikone, glow i czas.
+Sprint 73.1 dotyczy tylko krotkiego stanu uruchamiania narzedzia:
+
+```text
+klik akcji / Uzyj
+↓
+hack-action spinner przy markerze
+↓
+odpowiedz /hack-action
+↓
+spinner znika
+```
+
+## Zakres
+
+1. Przy starcie `/hack-action` pokazac spinner przy target markerze.
+2. Przy `Uzyj` z pickera narzedzia pokazac spinner w otwartej mapie.
+3. Spinner znika w `finally` requestu `/hack-action`.
+4. Jesli `/hack-action` zwraca `tool_selection_required`, spinner znika przed
+   pokazaniem pickera.
+5. Wiele requestow narzedzi na tym samym celu pokazuje wiele malych spinnerow wokol
+   markera.
+6. Nie dodawac endpointow.
+7. Nie zmieniac modelu operacji.
+8. Nie dokladac spinnerow do markerow aktywnych operacji.
+
+## Kryteria akceptacji
+
+* Klikniecie akcji na markerze pokazuje spinner przy tym markerze.
+* Klikniecie `Uzyj` w pickerze pokazuje spinner przy markerze.
+* Spinner znika po odpowiedzi `/hack-action`.
+* Spinner nie jest renderowany z `active_operations`.
+* Markery aktywnych operacji pozostaja bez zmian.
+* Nie powstal drugi system operacji ani drugi stan mapy.
+
+---
+
+# Sprint 73.2 - Map Scan Overlay
+
+## Cel gameplayowy
+
+Pokazac subtelny efekt skanowania mapy od momentu klikniecia `Skanuj` do chwili,
+gdy backend zwroci wynik, a markery skanu zostana wyrenderowane na mapie.
+
+## Zasada
+
+Efekt skanowania nie jest boot preloaderem mapy i nie jest spinnerem hack-action.
+
+To lekki overlay UX dla krotkiego przeplywu:
+
+```text
+Skanuj
+↓
+/map-action
+↓
+scan overlay
+↓
+render markerow scanResultLayers
+↓
+overlay znika
+```
+
+## Zakres
+
+1. Dodac delikatna warstwe skanowania nad mapa.
+2. Warstwa ma uzywac subtelnej siatki i cienkiego przechodzacego gradientu.
+3. Overlay ma miec `pointer-events: none`, zeby nie blokowal mapy.
+4. Overlay startuje tylko dla `mapAction('scan')`.
+5. Overlay konczy sie dopiero po wyrenderowaniu markerow skanu.
+6. Nie dodawac endpointow.
+7. Nie zmieniac algorytmu skanu.
+8. Nie ruszac aktywnych operacji ani markerow hack-action.
+
+## Kryteria akceptacji
+
+* Klikniecie `Skanuj` pokazuje efekt skanowania mapy.
+* Efekt trwa podczas oczekiwania na `/map-action`.
+* Efekt nie znika przed wyrenderowaniem markerow skanu.
+* Efekt jest subtelny i nie zaslania mapy agresywnie.
+* Efekt nie blokuje klikow i nie zmienia stanu gry.
+
+---
+
+# Faza H - BlackNet Prototype Runtime
+
+Faza H uruchamia pierwszy fizyczny prototyp BlackNetu jako warstwe sygnalow
+swiata CHAOS.
+
+Punktem wyjscia sa prototypowe pliki:
+
+* `static/js/bn_page.tsx`,
+* `static/css/globals.css`.
+
+Prototyp pokazuje BlackNet jako signal bus:
+
+```text
+sygnal swiata
+↓
+radar / status / timer / CTA
+↓
+inspiracja gameplayowa
+↓
+przejscie do istniejacych systemow CHAOS
+```
+
+BlackNet nie jest jeszcze drugim internetem, drugim systemem misji ani drugim
+marketem. Ma byc frontem informacyjnym swiata, ktory prowadzi gracza do
+istniejacych systemow: mapy, Ghost Exchange, Googleplex, Cybernera, radia i
+operacji.
+
+## Zasady Fazy H
+
+* Nie tworzyc drugiego systemu misji.
+* Nie tworzyc drugiego marketu.
+* Nie tworzyc drugiego feedu powiadomien.
+* Nie duplikowac Cybernera.
+* Nie zakladac jeszcze AI generatorow tresci.
+* Nie integrowac jeszcze BlackNet z pelnym backendiem, dopoki read model nie jest
+  opisany.
+* Prototyp ma zostac przepisany do architektury CHAOS, nie wklejony jako obcy
+  Next/React runtime.
+
+---
+
+# Sprint 74 - BlackNet Prototype Audit + Contract
+
+## Cel gameplayowy
+
+Zrozumiec prototyp BlackNetu i zamienic go w kontrakt implementacyjny CHAOS bez
+podpinania runtime.
+
+Sprint 74 nie implementuje BlackNetu w grze.
+
+## Zakres
+
+1. Przeanalizowac `bn_page.tsx`:
+   * model `Signal`,
+   * tony kolorystyczne,
+   * layouty,
+   * radar,
+   * nawigacje,
+   * CTA.
+2. Przeanalizowac `globals.css`:
+   * klasy widoku,
+   * animacje,
+   * mobile layout,
+   * elementy do przeniesienia do stylu CHAOS.
+3. Opisac minimalny kontrakt `blacknet_signal`.
+4. Zidentyfikowac mojibake / problemy encodingu w copy prototypu.
+5. Ustalic, ktore elementy zostaja frontend-only.
+6. Ustalic, ktore elementy wymagaja read modelu w przyszlosci.
+7. Nie dodawac endpointow.
+8. Nie ruszac Ghost Exchange, Cybernera, mapy ani Googleplexa.
+
+## Dokumentacja
+
+Zaktualizowac:
+
+* `doc/systems/blacknet/blacknet.md`,
+* `doc/history/game_play_260626.md`,
+* `doc/history/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Wiadomo, co z prototypu jest UI, a co kontraktem danych.
+* Istnieje opis `blacknet_signal`.
+* Wiadomo, ktore CTA prowadza do istniejacych systemow gry.
+* Nie wdrozono runtime BlackNet.
+
+## Wynik Sprintu 74
+
+Artefakt:
+
+* `doc/audits/blacknet_prototype_audit.md`.
+
+Decyzje:
+
+* BlackNet v0 jest signal bus swiata CHAOS.
+* `blacknet_signal` jest kontraktem danych, nie komponentem UI.
+* Prototyp zostanie przepisany do natywnego runtime CHAOS.
+* CSS BlackNetu musi byc scopingowany i nie moze nadpisywac globalnie `body`,
+  `button` ani `h1`.
+* Hardcoded sygnaly przejda w kolejnych sprintach do lokalnego zrodla danych.
+
+---
+
+# Sprint 75 - BlackNet Static App Shell
+
+## Cel gameplayowy
+
+Dac BlackNetowi miejsce w desktopie CHAOS jako aplikacji / stronie WebDragons,
+bez jeszcze dynamicznych danych.
+
+## Zakres
+
+1. Dodac shell BlackNetu w istniejacej architekturze okien.
+2. Nie uzywac Next/React jako osobnego runtime.
+3. Przeniesc prototyp do natywnego HTML/CSS/JS CHAOS.
+4. Zachowac klimat:
+   * radar,
+   * signal cards,
+   * signal strength,
+   * timer,
+   * CTA.
+5. Dodac wejscie do BlackNetu:
+   * przez WebDragons,
+   * opcjonalnie przez desktop/start menu, jesli pasuje do obecnego app modelu.
+6. Nie dodawac backendu.
+7. Nie dodawac AI generatorow.
+
+## Dokumentacja
+
+Zaktualizowac:
+
+* `doc/systems/blacknet/blacknet.md`,
+* `doc/gameplay/app_contract.md`, jesli BlackNet dostaje entry jako aplikacja,
+* `doc/history/project_journal.md`.
+
+## Kryteria akceptacji
+
+* BlackNet otwiera sie jako okno/strona CHAOS.
+* Widok jest statyczny, ale dziala w runtime gry.
+* Mobile nie dostaje regresji.
+* Nie powstal drugi frontend runtime.
+
+## Wynik Sprintu 75
+
+* BlackNet zostal osadzony jako natywny tab WebDragons.
+* Nie dodano backendu, endpointow, AI ani osobnego frontendu.
+* CTA sa widoczne jako element kontraktu, ale aktywacja zostaje dla Sprintu 77.
+* BlackNet nie dostal jeszcze osobnego entry w app contract, wiec
+  `doc/gameplay/app_contract.md` pozostaje bez zmian.
+
+---
+
+# Sprint 76 - BlackNet Signal UI v0
+
+## Cel gameplayowy
+
+Dopolerowac frontendowy signal carousel BlackNetu jako pierwszy czytelny widok
+gracza.
+
+## Zakres
+
+1. Zbudowac liste sygnalow na podstawie lokalnego read modelu.
+2. Dodac nawigacje:
+   * strzalki,
+   * klawiatura,
+   * swipe / pointer drag.
+3. Dostosowac radar do stylu CHAOS.
+4. Naprawic copy i encoding prototypu.
+5. Dostosowac mobile layout.
+6. CTA maja byc widoczne, ale moga jeszcze byc disabled albo mockowane.
+7. Nie integrowac jeszcze z prawdziwymi akcjami gry.
+
+## Dokumentacja
+
+Zaktualizowac:
+
+* `doc/systems/blacknet/blacknet.md`,
+* `doc/gameplay/gameplay_matrix.md`,
+* `doc/history/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Signal carousel dziala.
+* Radar i animacje sa subtelne, nie obciazaja UI.
+* Teksty nie maja mojibake.
+* Mobile jest czytelne.
+
+## Wynik Sprintu 76
+
+* BlackNet ma frontendowy carousel sygnalow.
+* Nawigacja dziala przez przyciski, klawiature i pointer swipe.
+* Aktywny sygnal jest wyrozniony jako hero panel i karta na liscie.
+* Dodano subtelny radar sweep, pulse node'ow i signal strength.
+* Search filtruje sygnaly lokalnie.
+* CTA pozostaja disabled do Sprintu 77.
+
+## Sprint 76.1 - Prototype Mechanics Alignment
+
+BlackNet zostal dostosowany do prototypu jako signal roll sterowany w cztery
+strony, a nie jako kolejny katalog kart podobny do Googleplexa albo Ghost
+Exchange.
+
+Zakres 76.1:
+
+* jeden aktywny sygnal na ekranie,
+* nawigacja gora / dol / lewo / prawo,
+* swipe / drag we wszystkie strony,
+* klawiatura WASD i strzalki,
+* layouty sygnalow 1-6 zgodne z prototypem,
+* radar oparty o warianty geometryczne prototypu,
+* CTA jako lokalny stan przechwycenia sygnalu.
+* Ghost Exchange nie pokazuje wyszukiwarki w WebDragons.
+* BlackNet ukrywa stary header WebDragons, wallet, taby i search.
+* Przejscia do Googleplexa i Ghost Exchange sa male i siedza pod logo
+  BlackNetu.
+* Aktywne style `.blacknet-stage` i `.bn-*` sa wydzielone do
+  `static/css/blacknet.css`.
+* `style.css` nie jest juz zrodlem layoutu BlackNetu.
+* BlackNet nie uzywa juz `fitBlacknetStage`, `--bn-fit` ani inline scale.
+* Breakpointy i mobile/narrow layout sa obslugiwane przez CSS container queries.
+* CTA i timer sa skalowane w ramach silnika BlackNetu, bez przebudowy markup.
+
+Nie dodano backendu, endpointow, drugiego marketu ani drugiego Googleplexa.
+Aktywne mosty CTA do systemow gry zostaja w Sprincie 77.
+
+---
+
+# Sprint 77 - BlackNet CTA Bridge v0
+
+## Cel gameplayowy
+
+Podpiac CTA aktywnego sygnalu BlackNetu do istniejacych systemow gry bez
+tworzenia nowych systemow, endpointow ani drugiego flow zadan.
+
+Sprint 77 pracuje na aktualnym silniku 76.1:
+
+```text
+renderBlackNet()
+↓
+blacknet_signal
+↓
+signal roll / radar / timer / CTA
+↓
+istniejacy system CHAOS
+```
+
+Nie wracac do listy kart, katalogu, wyszukiwarki ani starego headera
+WebDragons.
+
+## Zakres
+
+1. Dodac lekki router CTA oparty o typ akcji w sygnale, nie o tekst przycisku.
+2. CTA `open_googleplex` otwiera istniejacy Googleplex.
+3. CTA `open_ghost_exchange` otwiera istniejacy Ghost Exchange.
+4. CTA mapowe otwiera mape albo wskazuje obszar/typ aktywnosci, jesli istnieje
+   bezpieczne wejscie.
+5. CTA Cybernera otwiera istniejacy Cyberner/thread, jesli kontrakt pozwala.
+6. CTA radia moze otworzyc Ghost Hack Radio / kanal BlackNet radio, jesli kanal
+   istnieje.
+7. Male linki `GGPL` i `GX` pod logo pozostaja szybkim przejsciem do tabow
+   WebDragons.
+8. Nie tworzyc nowych endpointow.
+9. Nie tworzyc misji ani zadan.
+10. Jesli CTA nie ma bezpiecznego targetu, pokazac disabled state.
+11. Klikniecie CTA nie moze kolidowac ze swipe / pointer drag signal rolla.
+12. Hover/focus przyciskow ma uzywac stylu BlackNetu, bez czarnego pustego tla.
+
+## Dokumentacja
+
+Zaktualizowac:
+
+* `doc/systems/blacknet/blacknet.md`,
+* `doc/gameplay/gameplay_matrix.md`,
+* `doc/history/project_journal.md`.
+
+## Kryteria akceptacji
+
+* BlackNet prowadzi do istniejacych systemow.
+* CTA wybiera akcje po typie kontraktu, nie po labelu.
+* Disabled CTA nie udaja aktywnej funkcji.
+* Male linki GGPL/GX nadal dzialaja.
+* Swipe w cztery strony nadal dziala.
+* Hover/focus przyciskow jest czytelny w tonie aktualnego sygnalu.
+* Nie powstal drugi system zadan.
+* Nie powstal drugi notification flow.
+
+## Wynik Sprintu 77
+
+* CTA aktywnego sygnalu korzysta z pola `cta_action`.
+* Obslugiwane mosty v0:
+  * `open_googleplex`,
+  * `open_ghost_exchange`,
+  * `open_map`,
+  * `open_cyberner`,
+  * `open_radio`.
+* Googleplex i Ghost Exchange otwieraja istniejace taby WebDragons.
+* Mapa, Cyberner i radio otwieraja istniejace aplikacje systemowe.
+* Sygnal bez bezpiecznego mostu nie udaje aktywnej funkcji.
+* Nie dodano backendu, endpointow, misji, zadan ani drugiego flow BlackNetu.
+
+---
+
+# Sprint 78 - BlackNet Local Signal Source
+
+## Cel gameplayowy
+
+Zastapic hardcoded sygnaly w `terminal.js` lokalnym zrodlem danych, nadal bez AI,
+bez ciezkiego backendu i bez nowego pollera.
+
+Sprint 78 nie zmienia silnika layoutu BlackNetu. `renderBlackNet()` dalej
+renderuje obecna strukture:
+
+```text
+.blacknet-stage
+.bn-signal
+.bn-signal-inner
+.bn-copy
+.bn-stat
+.bn-metric
+.bn-visual
+.bn-timer
+.bn-cta
+```
+
+Zmienia sie tylko zrodlo danych sygnalow.
+
+## Zakres
+
+1. Dodac lokalny katalog / kontrakt sygnalow, np. JSON albo statyczny zasob.
+2. Zdefiniowac pola:
+   * `id`,
+   * `source`,
+   * `title`,
+   * `label`,
+   * `value`,
+   * `stat`,
+   * `timer`,
+   * `tone`,
+   * `layout`,
+   * `cta`,
+   * `cta_action`,
+   * `cta_target`,
+   * opcjonalnie `channel`.
+3. BlackNet czyta sygnaly z jednego zrodla prawdy.
+4. Nie skanowac katalogow na slepo.
+5. Nie generowac jeszcze tresci przez AI.
+6. Przygotowac bezpieczny fallback, gdy signal source sie nie wczyta.
+7. Nie przenosic stylow z `blacknet.css` z powrotem do `style.css`.
+8. Nie dodawac wyszukiwarki, listy kart ani starego headera.
+9. Zachowac lokalny signal roll jako glowny sposob przegladania sygnalow.
+
+## Dokumentacja
+
+Zaktualizowac:
+
+* `doc/systems/blacknet/blacknet.md`,
+* `doc/architecture/resource_architecture.md`, jesli powstaje nowy typ zasobu lokalnego,
+* `doc/history/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Sygnaly nie sa zakodowane w rendererze.
+* BlackNet ma lokalny kontrakt danych.
+* `cta_action` jest gotowe dla Sprintu 77/79 bez parsowania labeli.
+* Brak danych nie wywala okna.
+* `blacknet.css` pozostaje jedynym zrodlem aktywnych styli `.bn-*`.
+* Nadal brak backendu AI.
+
+## Wynik Sprintu 78
+
+* Dodano lokalne zrodlo sygnalow:
+  * `static/blacknet_signals.json`.
+* `terminal.js` nie przechowuje juz listy sygnalow.
+* `renderBlackNet()` korzysta z danych po wczytaniu i normalizacji kontraktu.
+* JSON ma `schema: 1` oraz `signals[]`.
+* Radar zostal opisany w danych przez:
+  * `radar.sides`,
+  * `radar.nodes`.
+* Brak albo blad zrodla pokazuje pusty/fallback state, nie wywala WebDragons.
+* Nie dodano backendu, AI, endpointu, pollera ani nowego runtime.
+
+---
+
+# Sprint 79 - BlackNet World Read Model Prep
+
+## Cel gameplayowy
+
+Przygotowac BlackNet do przyszlego korzystania z realnych statystyk swiata bez
+uruchamiania generatorow AI.
+
+Sprint 79 nie podpina jeszcze BlackNetu do ciezkich endpointow mapy ani
+operacji. Celem jest opis read modelu i bezpiecznej sciezki danych zgodnej z
+Faza G:
+
+```text
+snapshot / cache / delta-feed
+↓
+blacknet_world_digest
+↓
+lokalne blacknet_signal
+↓
+renderBlackNet()
+```
+
+## Zakres
+
+1. Opisac read model `blacknet_world_digest`.
+2. Wskazac potencjalne zrodla:
+   * Ghost Exchange summary,
+   * operacje,
+   * mapa / regiony,
+   * aktywnosc PvP,
+   * Cyberner/System messages,
+   * radio channels.
+3. Nie liczyc ciezkich statystyk w requestcie BlackNetu.
+4. Nie robic pollera BlackNetu.
+5. Ustalic, czy read model ma byc snapshotem, delta-feedem czy cache.
+6. Nie implementowac jeszcze AI content generation.
+7. Ustalic mapowanie:
+   * digest fact -> `blacknet_signal`,
+   * source -> ton / ikona / CTA,
+   * severity -> priorytet w signal rollu.
+8. Ustalic retencje i fallback, gdy digest jest pusty albo stary.
+9. Nie podpinac BlackNetu bezposrednio pod `sync_session_profile`.
+
+## Dokumentacja
+
+Zaktualizowac:
+
+* `doc/systems/blacknet/blacknet.md`,
+* `doc/architecture/runtime_synchronization_audit.md`, jesli BlackNet dostaje przyszly scope,
+* `doc/gameplay/gameplay_matrix.md`,
+* `doc/history/project_journal.md`.
+
+## Kryteria akceptacji
+
+* Wiadomo, skad BlackNet moze brac fakty ze swiata.
+* Wiadomo, czego nie liczyc w requestcie.
+* Wiadomo, jak uniknac nowego ciezkiego pollera.
+* Wiadomo, jak read model zasila obecny signal roll 76.1.
+* Wiadomo, ktore pola lokalnego `blacknet_signal` moga pochodzic z digestu.
+* AI pozostaje poza zakresem.
+
+## Wynik Sprintu 79
+
+* Dodano kontrakt `blacknet_world_digest` w
+  `doc/systems/blacknet/blacknet_world_read_model.md`.
+* Ustalono, ze digest jest read modelem nad istniejacymi zrodlami prawdy, a nie
+  nowym magazynem stanu.
+* Potencjalne zrodla faktow to Ghost Exchange, operacje, mapa/regiony, PvP,
+  Cyberner/System Messages i radio channels.
+* Digest fact mapuje sie do obecnego `blacknet_signal`, bez zmiany silnika
+  layoutu 76.1.
+* `source` wybiera ton / CTA, a `severity` przyszly priorytet w signal rollu.
+* Brak, pusty albo stary digest ma fallback do `static/blacknet_signals.json`.
+* BlackNet nie dostal endpointu, pollera, AI ani wywolania
+  `sync_session_profile()`.
+
+---
+
+# Sprint 80 - BlackNet Polish + Readiness Check
+
+## Cel gameplayowy
+
+Domknac pierwszy etap BlackNetu jako stabilny, statyczno-lokalny front
+informacyjny gotowy pod przyszle dane swiata.
+
+## Zakres
+
+1. Przejsc responsive obecnego silnika 76.1:
+   * desktop,
+   * tablet,
+   * mobile,
+   * browser narrow.
+2. Sprawdzic krytyczne szerokosci okna WebDragons:
+   * 1200 px,
+   * 1000 px,
+   * 904 px,
+   * 900 px,
+   * 860 px,
+   * 700 px,
+   * 520 px,
+   * 430 px.
+3. Sprawdzic animacje i koszt renderu.
+4. Sprawdzic CTA bridge.
+5. Sprawdzic fallback braku danych.
+6. Sprawdzic spojnosc z WebDragons i Ghost Hack Radio.
+7. Sprawdzic brak duplikacji Cybernera / misji / marketu.
+8. Sprawdzic, ze:
+   * `.bn-*` aktywnie zyje tylko w `blacknet.css`,
+   * BlackNet nie uzywa inline scale,
+   * BlackNet nie przywraca searcha ani starego headera WebDragons,
+   * signal roll dziala w cztery strony.
+9. Przygotowac liste przyszlych mini-sprintow:
+   * BlackNet AI Digest — automatyczne tworzenie krótkich podsumowań najważniejszych wydarzeń, trendów i aktywności ze świata CHAOS.
+   * BlackNet Radio Hooks — łączenie sygnałów BlackNetu z audycjami i podcastami Ghost Hack Radio oraz automatyczny powrót do wcześniej odtwarzanego kanału.
+   * BlackNet Cyberner Thread — tworzenie powiązanych wątków Cybernera, w których gracze i systemowe postacie mogą komentować sygnały, plotki oraz wydarzenia z BlackNetu.
+   * BlackNet Market Rumors — publikowanie prawdziwych, częściowo prawdziwych i fałszywych plotek o cenach, popycie oraz okazjach w Ghost Exchange i Googleplexie.
+
+
+## Dokumentacja
+
+Zaktualizowac:
+
+* `doc/systems/blacknet/blacknet.md`,
+* `doc/history/game_play_260626.md`,
+* `doc/gameplay/gameplay_matrix.md`,
+* `doc/history/project_journal.md`.
+
+## Kryteria akceptacji
+
+* BlackNet v0 jest stabilnym frontem informacyjnym.
+* Obecny silnik 76.1 jest utrzymany i nie cofa sie do katalogu kart.
+* `blacknet.css` pozostaje jedynym aktywnym zrodlem styli `.bn-*`.
+* Krytyczne szerokosci WebDragons nie daja pustego ekranu ani uciekania CTA.
+* Nie tworzy drugiego systemu misji.
+* Nie tworzy drugiego marketu.
+* Nie dodaje ciezkiego pollingu.
+* Dokumentacja zgadza sie z runtime.
+
+## Wynik Sprintu 80
+
+* Dodano `doc/systems/blacknet/blacknet_readiness_check.md`.
+* Potwierdzono obecny przeplyw:
+
+```text
+static/blacknet_signals.json
+↓
+normalizeBlacknetSignal()
+↓
+renderBlackNet()
+↓
+CTA bridge
+```
+
+* Usunieto martwy blok starego `.blacknet-*` shell/carousel ze `style.css`.
+* Aktywne klasy `.blacknet-stage` i `.bn-*` pozostaja w `blacknet.css`.
+* `style.css` zachowuje tylko wrappery WebDragons dla aktywnego taba BlackNet.
+* BlackNet nadal nie ma backendu, endpointu, pollera, AI, misji ani rynku.
+* Spisano przyszle mini-sprinty:
+  * BlackNet AI Digest,
+  * BlackNet Radio Hooks,
+  * BlackNet Cyberner Thread,
+  * BlackNet Market Rumors.
+
+
+# Sprint 81 — BlackNet World Facts Snapshot
+
+## Cel gameplayowy
+
+Podłączyć BlackNet do rzeczywistych, zagregowanych danych świata CHAOS bez generowania jeszcze gotowych sygnałów.
+
+Sprint tworzy lekką warstwę faktów, z której będą korzystać zarówno automatyczny publisher BlackNetu, jak i przyszła Ollama.
+
+## Założenie
+
+BlackNet nie czyta pełnych profili graczy i nie uruchamia ciężkiej synchronizacji sesji. Korzysta wyłącznie z przygotowanych statystyk i zdarzeń świata.
+
+## Wejście po Sprincie 80
+
+Sprint 81 korzysta z kontraktów domkniętych w Sprintach 79-80:
+
+* `doc/systems/blacknet/blacknet_world_read_model.md`,
+* `doc/systems/blacknet/blacknet_readiness_check.md`,
+* lokalny `Signal Contract`,
+* aktualny renderer BlackNetu po 76.1.
+
+Nie dodawać osobnego Sprintu 80.5, jeżeli readiness check nie wykaże rozjazdu
+między lokalnym signal contract a docelowym snapshotem faktów świata.
+
+## Źródła danych
+
+Pierwszy zakres może obejmować:
+
+* aktywne operacje,
+* operacje zakończone i nieudane,
+* aktywność regionów,
+* liczbę hacków według kategorii,
+* popularność targetów,
+* ruch PvP,
+* ceny i popyt Ghost Exchange,
+* wolumen sprzedanych danych,
+* popularność kategorii danych,
+* oferty i zakupy Googleplexa,
+* aktywne kanały oraz materiały BlackNet Radio,
+* ważne zdarzenia systemowe.
+
+## Przepływ danych
+
+```text
+systemy gameplayowe
+↓
+lekkie agregaty
+↓
+blacknet_world_facts
+↓
+snapshot z wersją i czasem utworzenia
+```
+
+Ten przepływ zbiera wyłącznie fakty potrzebne BlackNetowi i zapisuje je w stabilnej, niezależnej strukturze.
+
+## Model faktu
+
+Każdy fakt powinien zawierać przynajmniej:
+
+* `fact_id`,
+* `fact_type`,
+* `category`,
+* `region_id`,
+* `subject_id`,
+* `value`,
+* `previous_value`,
+* `change_percent`,
+* `importance`,
+* `confidence`,
+* `observed_at`,
+* `expires_at`,
+* `source_system`,
+* bezpieczne `metadata`.
+
+## Zakres implementacyjny
+
+* `blacknet_world_facts` jako read-only snapshot,
+* agregatory dla wybranych systemów,
+* wersjonowanie snapshotu,
+* czas ważności danych,
+* stabilne identyfikatory faktów,
+* normalizacja wartości,
+* diagnostyka czasu wykonania,
+* obsługa częściowo niedostępnych źródeł.
+
+## Ograniczenia
+
+* bez `sync_session_profile`,
+* bez pełnych profili graczy,
+* bez ujawniania prywatnych danych,
+* bez ciężkiego pollera,
+* bez realtime,
+* bez generowania tekstów,
+* bez Ollamy,
+* bez bezpośredniego wpływu na gameplay.
+
+## Kryteria akceptacji
+
+* Snapshot powstaje z rzeczywistych danych gry.
+* Każdy fakt ma źródło i czas obserwacji.
+* Brak jednego źródła nie blokuje całego snapshotu.
+* Snapshot nie zawiera danych wrażliwych graczy.
+* Generowanie nie uruchamia pełnej synchronizacji profilu.
+* Czas wykonania jest kontrolowany i logowany.
+* Ten sam stan świata daje zgodną strukturę faktów.
+* BlackNet nadal działa na lokalnych sygnałach, gdy snapshot jest niedostępny.
+
+## Dokumentacja
+
+Po sprincie zaktualizować:
+
+* `doc/systems/blacknet/blacknet.md`,
+* `doc/systems/blacknet/blacknet_world_read_model.md`,
+* `doc/architecture/runtime_synchronization_audit.md`,
+* `doc/gameplay/gameplay_matrix.md`,
+* `doc/history/project_journal.md`.
+
+Jeżeli powstanie osobny kontrakt faktów, dodać albo zaktualizować
+`doc/systems/blacknet/blacknet_world_facts.md`.
+
+---
+
+# Sprint 82 — Deterministic World Signal Publisher
+
+## Cel gameplayowy
+
+Automatycznie zamieniać fakty ze Sprintu 81 w gotowe sygnały BlackNetu bez używania AI.
+
+Po tym sprincie BlackNet zaczyna naprawdę opisywać świat gry.
+
+## Założenie
+
+Publisher działa deterministycznie:
+
+```text
+fakt świata
++
+reguła publikacji
++
+rodzina treści
++
+CTA
++
+czas ważności
+=
+gotowy sygnał BlackNetu
+```
+
+## Przykłady
+
+Wzrost popytu na GPS:
+
+```text
+fact_type: market_demand_change
+category: gps
+change_percent: 34
+```
+
+może wygenerować:
+
+```text
+GHOST MARKET WATCH
+GPS LOGS / WARSZAWA
+POTENCJAŁ CENY +34%
+OTWÓRZ GHOST EXCHANGE
+```
+
+Wzrost aktywności regionu może wygenerować:
+
+```text
+HOTSPOT / MOKOTÓW
+17 AKTYWNYCH OPERACJI
+WZROST RUCHU 240%
+PRZECHWYĆ TELEPORT
+```
+
+## Typy automatycznych sygnałów
+
+* `world_alert`,
+* `market_watch`,
+* `hotspot`,
+* `operation_activity`,
+* `pvp_warning`,
+* `product_opportunity`,
+* `data_demand`,
+* `system_incident`,
+* `radio_promotion`,
+* `regional_activity`.
+
+## Przepływ danych
+
+```text
+blacknet_world_facts
+↓
+reguły kwalifikacji
+↓
+ranking znaczenia
+↓
+deduplikacja
+↓
+generator sygnału
+↓
+walidacja CTA
+↓
+blacknet generated signals
+```
+
+Publisher wybiera tylko fakty warte pokazania, pilnuje powtórzeń i przypisuje bezpieczną akcję przez `cta_action`.
+
+## Zakres implementacyjny
+
+* katalog reguł `fact_type → signal_type`,
+* progi publikacji,
+* priorytety sygnałów,
+* czas życia sygnału,
+* cooldown publikacji,
+* deduplikacja,
+* aktualizacja istniejącego sygnału,
+* wygaszanie nieaktualnych publikacji,
+* przypisywanie tonu,
+* przypisywanie rodziny layoutu,
+* przypisywanie radaru,
+* bezpieczny `cta_action`,
+* oznaczenie źródła jako `world_generated`.
+
+## Zasada różnorodności
+
+Publisher przechowuje historię ostatnich kombinacji:
+
+* typu sygnału,
+* layoutu,
+* radaru,
+* tonu,
+* nagłówka,
+* CTA,
+* regionu,
+* kategorii.
+
+Nie powinien publikować kilku niemal identycznych kompozycji pod rząd.
+
+## Kryteria akceptacji
+
+* Rzeczywisty fakt może zostać zamieniony w sygnał.
+* Sygnał zawiera odniesienie do `fact_id`.
+* CTA bazuje na `cta_action`, nie na treści przycisku.
+* Publisher nie publikuje sygnału poniżej ustalonego progu.
+* Powtarzający się fakt aktualizuje lub pomija istniejący sygnał.
+* Wygasły fakt powoduje wygaszenie sygnału.
+* Lokalne mocki i sygnały świata mogą działać jednocześnie.
+* Brak nowych faktów nie generuje sztucznego ruchu.
+* System działa bez Ollamy.
+
+## Dokumentacja
+
+Po sprincie zaktualizować:
+
+* `doc/systems/blacknet/blacknet.md`,
+* `doc/systems/blacknet/blacknet_world_read_model.md`,
+* `doc/gameplay/gameplay_matrix.md`,
+* `doc/history/project_journal.md`.
+
+Jeżeli powstanie osobny opis publishera, dodać albo zaktualizować
+`doc/systems/blacknet/blacknet_signal_publisher.md`.
+
+## Wynik Sprintu 82
+
+Zaimplementowano `blacknet_world_signals` jako deterministyczny publisher nad
+`blacknet_world_facts`.
+
+Aktywny runtime:
+
+```text
+blacknet_world_facts
+↓
+build_blacknet_world_signals()
+↓
+GET /api/blacknet/world-signals
+↓
+renderBlackNet()
+```
+
+Decyzje:
+
+* publisher nie jest nowym store,
+* publisher nie jest zrodlem prawdy,
+* `source: world_generated` oznacza sygnaly z faktow swiata,
+* UI miesza `world_generated` z lokalnym `static/blacknet_signals.json`,
+* lokalne sygnaly pozostaja fallbackiem,
+* CTA korzysta z allowlisty `cta_action`,
+* brak faktow powyzej progu nie generuje sztucznego ruchu,
+* Ollama, digest outbox i walidacja AI pozostaja zakresem Sprintow 83-84.
+
+---
+
+# Sprint 82.5 — BlackNet CTA Triggers + Gameplay Bridges
+
+## Cel gameplayowy
+
+Domknąć wszystkie akcje uruchamiane z sygnałów BlackNetu, aby deterministyczne sygnały ze Sprintu 82 prowadziły do realnych miejsc i działań w grze przed rozpoczęciem kontraktów Ollamy.
+
+Akcje muszą być obsługiwane przez `cta_action` i dane sygnału, nigdy przez tekst wyświetlany na przycisku.
+
+---
+
+## Główna zasada
+
+```text
+BlackNet signal
+↓
+cta_action + cta_target
+↓
+BlackNet CTA Router
+↓
+walidacja
+↓
+potwierdzenie, jeżeli akcja zmienia stan
+↓
+istniejący system CHAOS
+```
+
+BlackNet nie tworzy drugiego systemu teleportów, wyszukiwania, radia, operacji ani rynku. Przekazuje sterowanie do istniejących mechanizmów.
+
+---
+
+## Rodziny CTA
+
+### 1. Teleport do hotspotu
+
+Przykładowa akcja:
+
+```text
+cta_action: teleport_to_hotspot
+```
+
+Kliknięcie otwiera potwierdzenie:
+
+```text
+Teleport zmieni Twoją aktualną pozycję na mapie.
+
+Cel: Mokotów
+Ryzyko: wysokie
+
+OK / ANULUJ
+```
+
+Po wybraniu `OK`:
+
+* backend ponownie sprawdza ważność hotspotu,
+* sprawdza, czy gracz może użyć teleportu,
+* wyznacza bezpieczną pozycję w strefie,
+* zmienia pozycję gracza,
+* zapisuje zmianę,
+* publikuje właściwą deltę mapy,
+* odświeża położenie gracza,
+* opcjonalnie otwiera mapę.
+
+Po wybraniu `ANULUJ` nic się nie zmienia.
+
+Teleport nie może:
+
+* działać po wygaśnięciu sygnału,
+* przenosić dokładnie na pozycję innego gracza,
+* korzystać ze współrzędnych dostarczonych wyłącznie przez frontend,
+* zmieniać pozycji bez potwierdzenia.
+
+---
+
+### 2. Googleplex Search Bridge
+
+Przykładowa akcja:
+
+```text
+cta_action: open_googleplex_search
+```
+
+Sygnał wskazuje produkt lub narzędzie przez stabilny identyfikator i bezpieczny tytuł wyszukiwania.
+
+Po kliknięciu:
+
+* otwiera się karta Googleplex,
+* pole wyszukiwarki zostaje wypełnione tytułem produktu,
+* uruchamia się istniejące filtrowanie,
+* właściwe narzędzie lub produkt pojawia się w wynikach,
+* produkt może zostać wyróżniony.
+
+BlackNet nie kupuje produktu automatycznie.
+
+Brak produktu powinien zakończyć się czytelnym komunikatem, a nie pustym ekranem Googleplexa.
+
+---
+
+### 3. Ghost Exchange Bridge
+
+Przykładowe akcje:
+
+```text
+cta_action: open_exchange_market
+cta_action: open_exchange_category
+```
+
+Po kliknięciu:
+
+* otwiera się Ghost Exchange,
+* wybierany jest wskazany sektor lub rodzaj danych,
+* dashboard pokazuje właściwy rynek,
+* filtr wynika z kontraktu sygnału,
+* nie dochodzi do automatycznej sprzedaży ani zakupu.
+
+---
+
+### 4. BlackNet Radio Podcast
+
+Przykładowa akcja:
+
+```text
+cta_action: play_radio_podcast
+```
+
+Po kliknięciu system:
+
+1. Zapamiętuje aktywny kanał radiowy i jego stan.
+2. Zatrzymuje lub pauzuje obecne radio.
+3. Uruchamia wskazany plik podcastu.
+4. Pokazuje stan odtwarzania podcastu.
+5. Po zakończeniu podcastu przywraca poprzedni kanał.
+6. Wznawia radio zgodnie z jego wcześniejszym trybem.
+
+Radio powinno wrócić również po:
+
+* ręcznym zatrzymaniu podcastu,
+* zamknięciu BlackNetu,
+* błędzie pliku MP3,
+* przerwaniu odtwarzania,
+* wygaśnięciu sygnału podczas odsłuchu.
+
+Nie mogą jednocześnie grać podcast i poprzedni kanał.
+
+BlackNet korzysta z obecnego silnika Ghost Hack Radio, bez tworzenia drugiego globalnego odtwarzacza.
+
+---
+
+### 5. Mapa i lokalizacja
+
+Przykładowe akcje:
+
+```text
+cta_action: open_map_region
+cta_action: focus_map_target
+cta_action: show_hotspot
+```
+
+Po kliknięciu:
+
+* otwiera się istniejąca mapa,
+* wskazany region lub target zostaje odnaleziony po stabilnym ID,
+* mapa ustawia widok,
+* cel może zostać krótkotrwale wyróżniony,
+* samo otwarcie mapy nie uruchamia operacji.
+
+---
+
+### 6. Operacje i zlecenia
+
+Przykładowe akcje:
+
+```text
+cta_action: open_operation
+cta_action: start_operation
+cta_action: accept_blacknet_job
+```
+
+`open_operation` może bezpiecznie otworzyć szczegóły istniejącej operacji.
+
+Akcje tworzące nową operację lub przyjmujące zlecenie muszą:
+
+* przejść przez potwierdzenie,
+* ponownie zweryfikować sygnał na backendzie,
+* korzystać z istniejącego Operation Core,
+* zwrócić `operation_id`,
+* nie tworzyć drugiego modelu operacji.
+
+---
+
+### 7. Cyberner Thread
+
+Przykładowa akcja:
+
+```text
+cta_action: open_cyberner_thread
+```
+
+Po kliknięciu:
+
+* otwiera się Cyberner,
+* wybierany jest istniejący wątek powiązany z sygnałem,
+* jeżeli wątek nie istnieje, system pokazuje kontrolowany komunikat,
+* BlackNet nie tworzy automatycznie fikcyjnego wątku bez kontraktu.
+
+---
+
+### 8. Szczegóły wewnątrz BlackNetu
+
+Przykładowe akcje:
+
+```text
+cta_action: open_blacknet_detail
+cta_action: open_blacknet_dossier
+cta_action: open_blacknet_report
+```
+
+Akcje otwierają rozwinięcie sygnału wewnątrz BlackNetu:
+
+* wiadomość,
+* dossier,
+* raport,
+* opis incydentu,
+* szczegóły hotspotu,
+* metadane podcastu.
+
+Powrót zachowuje aktualną pozycję w signal rollu.
+
+---
+
+### 9. Akcja informacyjna
+
+Przykładowa akcja:
+
+```text
+cta_action: none
+```
+
+Nie każdy sygnał musi coś uruchamiać.
+
+Sygnał bez akcji:
+
+* nie pokazuje fałszywego CTA albo pokazuje neutralne rozwinięcie,
+* nie próbuje zgadywać zachowania z tekstu,
+* pozostaje elementem informacyjnym feedu.
+
+---
+
+## BlackNet CTA Router
+
+Powinien istnieć jeden centralny router obsługujący wszystkie rodziny `cta_action`.
+
+Router odpowiada za:
+
+* rozpoznanie akcji,
+* sprawdzenie wymaganych pól,
+* sprawdzenie ważności sygnału,
+* rozwiązanie `target_id`,
+* wybór potwierdzenia,
+* przekazanie sterowania do istniejącego systemu,
+* obsługę sukcesu,
+* obsługę błędu,
+* diagnostykę.
+
+Nie tworzymy osobnych listenerów zawierających logikę gameplayową dla każdego przycisku.
+
+---
+
+## Poziomy bezpieczeństwa CTA
+
+### Akcje bez potwierdzenia
+
+* otwarcie Googleplexa,
+* otwarcie Ghost Exchange,
+* otwarcie mapy,
+* pokazanie targetu,
+* otwarcie Cybernera,
+* otwarcie szczegółów,
+* uruchomienie podcastu.
+
+### Akcje wymagające potwierdzenia
+
+* teleport,
+* rozpoczęcie operacji,
+* przyjęcie zlecenia,
+* zakup,
+* sprzedaż,
+* każda akcja zmieniająca pozycję, zasoby lub gameplay.
+
+Potwierdzenie musi jasno opisywać skutek.
+
+---
+
+## Obsługa błędów
+
+Każda akcja powinna mieć kontrolowany komunikat dla sytuacji:
+
+* sygnał wygasł,
+* target nie istnieje,
+* produkt został usunięty,
+* hotspot nie jest już aktywny,
+* podcast nie istnieje,
+* operacja nie może zostać uruchomiona,
+* gracz nie ma uprawnień lub zasobów,
+* nieznany `cta_action`,
+* brak wymaganych danych.
+
+Nieznana akcja nie może powodować wyjątku ani wykonywać fallbacku po tekście przycisku.
+
+---
+
+## Diagnostyka
+
+Logować:
+
+* `signal_id`,
+* `signal_source`,
+* `cta_action`,
+* `cta_target_id`,
+* wynik walidacji,
+* potwierdzenie lub anulowanie,
+* sukces albo kontrolowany błąd,
+* czas obsługi.
+
+Nie logować pełnego profilu ani danych wrażliwych.
+
+---
+
+## Testy
+
+Dodać testy obejmujące:
+
+1. Routing każdej rodziny `cta_action`.
+2. Brak routingu na podstawie tekstu przycisku.
+3. Teleport wymaga potwierdzenia.
+4. `ANULUJ` nie zmienia pozycji.
+5. `OK` zmienia pozycję przez istniejący system mapy.
+6. Wygasły hotspot blokuje teleport.
+7. Googleplex otrzymuje tytuł wyszukiwania i pokazuje produkt.
+8. Ghost Exchange otwiera właściwy sektor.
+9. Podcast zatrzymuje aktywne radio.
+10. Po zakończeniu podcastu poprzedni kanał wraca.
+11. Błąd MP3 przywraca poprzednie radio.
+12. Mapa otwiera właściwy region lub target.
+13. Operacja korzysta z istniejącego Operation Core.
+14. Cyberner otwiera właściwy wątek.
+15. Nieznana akcja zwraca kontrolowany błąd.
+16. `cta_action: none` nie wykonuje działania.
+17. Klik CTA nie uruchamia jednocześnie swipe sygnału.
+18. Brak regresji obecnego signal rolla.
+
+---
+
+## Kryteria akceptacji
+
+* Wszystkie używane rodziny CTA mają działający bridge.
+* Akcje są wybierane przez `cta_action`.
+* Teleport wymaga `OK/ANULUJ`.
+* Anulowanie teleportu nie zmienia świata.
+* Googleplex wypełnia wyszukiwarkę tytułem produktu.
+* Ghost Exchange otwiera właściwy rynek.
+* Podcast przejmuje radio i po zakończeniu przywraca poprzedni kanał.
+* Mapa ustawia właściwy region lub target.
+* Akcje gameplayowe korzystają z istniejących systemów.
+* Nieznana akcja nie powoduje wyjątku.
+* BlackNet nie ma drugiego routera zakupów, operacji, mapy ani audio.
+* Signal roll i responsywny layout pozostają bez zmian.
+
+---
+
+## Świadomie poza Sprintem 82.5
+
+* Ollama,
+* outbox i inbox JSON,
+* mixed feed,
+* generowanie tekstów AI,
+* nowe źródła world facts,
+* przebudowa publishera Sprintu 82,
+* nowe layouty i radary,
+* rozbudowa Cybernera,
+* zmiana ekonomii,
+* automatyczne wykonywanie akcji bez decyzji gracza.
+
+## Stan po Sprincie 82.5
+
+BlackNet nie tylko pokazuje sygnały oparte na danych świata, ale również
+bezpiecznie prowadzi gracza do istniejących systemów CHAOS.
+
+Zaimplementowano centralny frontendowy `BlackNet CTA Router`, który obsługuje
+akcje po `cta_action`, a nie po tekście przycisku.
+
+Akcje otwierające istniejące systemy korzystają z obecnych mechanizmów CHAOS:
+
+* Googleplex,
+* Ghost Exchange,
+* mapa,
+* Cyberner,
+* Ghost Hack Radio,
+* Centrum Operacji jako istniejący kontekst mapy.
+
+Akcje zmieniające stan świata, takie jak teleport, start operacji i przyjęcie
+zlecenia, zostały zabezpieczone potwierdzeniem oraz kontrolowanym komunikatem,
+jeżeli nie istnieje jeszcze bezpieczny backendowy most w obecnym runtime.
+
+Dodano dokument:
+
+```text
+doc/systems/blacknet/blacknet_cta_bridges.md
+```
+
+Backendowa allowlista `BLACKNET_ALLOWED_CTA_ACTIONS` została rozszerzona o
+rodziny CTA opisane w kontrakcie, bez przebudowy publishera Sprintu 82.
+
+Dopiero po domknięciu tych bridge’ów można rozpocząć kontrakty Ollamy ze
+Sprintu 83.
+
+---
+
+# Sprint 82.6 — BlackNet Real Activity Snapshot + Out Of Signal Gate
+
+## Cel gameplayowy
+
+Zastąpić mockowe hotspoty pierwszym kontrolowanym snapshotem realnej aktywności
+świata, bez zewnętrznych API i bez ręcznego katalogu dzielnic.
+
+BlackNet ma przestać wymyślać miejsca typu `MOKOTOW` / `PRAGA`, jeżeli nie
+wynikają one z istniejących danych gry.
+
+Źródłem opisu miejsca ma być realny obiekt CHAOS:
+
+```text
+OPERACJE / Piekarnia Putka
+CONFLICT / target_id
+HOTSPOT / Kamera sklepu
+```
+
+Jeżeli da się bezpiecznie pokazać współrzędne, sygnał może dodać krótki zapis:
+
+```text
+(52.22, 21.01)
+```
+
+Nie tworzyć geokodera, katalogu dzielnic ani integracji z zewnętrznym API.
+
+## Architektura
+
+Dodać albo doprecyzować moduł systemowy BlackNet runtime, który działa jak
+lekki daemon pobudzany ruchem w aplikacji, ale w kontrolowanym cyklu.
+
+Daemon:
+
+* czyta istniejące źródła prawdy,
+* buduje mały snapshot aktywności świata,
+* cache'uje wynik przez krótki TTL,
+* nie liczy ciężkich statystyk w każdym requestcie BlackNetu,
+* nie zapisuje nowego stanu gry,
+* nie jest drugim map store.
+
+Przykładowy przepływ:
+
+```text
+ruch w aplikacji / tick runtime
+↓
+BlackNet activity daemon
+↓
+aktywny snapshot operacji, konfliktów, rynku i źródeł świata
+↓
+deterministic publisher
+↓
+BlackNet signal roll
+```
+
+## Źródła danych
+
+Czytać tylko istniejące modele:
+
+* aktywne operacje ze wszystkich profili,
+* targety / obiekty, które emitują operacje,
+* konflikty i contested areas z obecnych store'ów,
+* Ghost Exchange runtime,
+* Googleplex catalog,
+* Ghost Hack Radio `meta.channel`,
+* Cyberner channels.
+
+Nie czytać pełnych profili przez `sync_session_profile`.
+
+Nie budować drugiego magazynu aktywności.
+
+## Out Of Signal
+
+Jeżeli nie ma realnych danych dla danej rodziny sygnałów, BlackNet nie podstawia
+mocka.
+
+Zamiast tego pokazuje kontrolowany stan:
+
+```text
+OUT OF SIGNAL
+Oczekiwanie na ruch świata.
+```
+
+Lokalny fallback może zostać tylko jako dev/demo fixture, nie jako produkcyjne
+źródło udające runtime.
+
+## Testy
+
+* Snapshot aktywności powstaje z realnych operacji.
+* Brak operacji daje `out_of_signal`, nie `HOTSPOT / MOKOTOW`.
+* Snapshot nie odpala `sync_session_profile`.
+* Snapshot ma TTL i nie liczy wszystkiego przy każdym wejściu w BlackNet.
+* Sygnał pokazuje nazwę realnego targetu albo bezpieczne `target_id`.
+
+## Kryteria akceptacji
+
+* BlackNet ma realny read model aktywności świata.
+* Nie ma zewnętrznego API geolokalizacji.
+* Nie ma ręcznego katalogu dzielnic.
+* Brak danych nie tworzy mockowego sygnału.
+* `out_of_signal` jest normalnym stanem runtime.
+* Dokumentacja i journal opisują decyzję.
+
+## Stan po Sprincie 82.6
+
+BlackNet ma pierwszy realny snapshot aktywności targetów:
+
+* `operation_hotspot_activity` powstaje z aktywnych operacji przypiętych do
+  istniejącego targetu,
+* sygnał używa nazwy targetu i współrzędnych z danych gry,
+* world facts korzystają z krótkiego cache TTL zamiast przeliczać wszystko przy
+  każdym wejściu w BlackNet,
+* brak publikowalnych realnych faktów zwraca `out_of_signal`,
+* frontend nie miesza lokalnego mockowego fallbacku, gdy world feed świadomie
+  zwrócił `out_of_signal`.
+
+---
+
+# Sprint 82.7 — BlackNet Map + Conflict Signal Generators
+
+## Cel gameplayowy
+
+Zbudować generatory sygnałów mapowych na podstawie realnych operacji i
+konfliktów, zamiast lokalnych plakatów.
+
+Teleporty, hotspoty, konflikty i alerty mapowe mają powstawać z aktywności na
+mapie.
+
+## Rodziny sygnałów
+
+Wprowadzić albo doprecyzować rodziny:
+
+```text
+operation_hotspot_activity
+target_operation_burst
+conflict_target_alert
+contested_area_alert
+map_activity_spike
+```
+
+Przykłady tytułów:
+
+```text
+OPERACJE / Piekarnia Putka
+CONFLICT / POI-6CDBD0
+HOTSPOT / Kamera sklepu
+```
+
+Nie używać nazw dzielnic, jeśli nie pochodzą z realnego obiektu gry.
+
+## Dane sygnału
+
+Wartości muszą wynikać z faktów:
+
+* liczba aktywnych operacji,
+* liczba targetów w ruchu,
+* poziom ryzyka,
+* czas ważności sygnału,
+* target type,
+* conflict / contested status,
+* współrzędne targetu, jeśli są dostępne.
+
+Nie używać statycznych wartości typu `240%`, `17 aktywnych operacji` albo
+`04:32`, jeśli nie wynikają z snapshotu.
+
+## CTA mapowe
+
+CTA może:
+
+* otworzyć mapę,
+* wskazać target,
+* wyróżnić obiekt,
+* zaproponować teleport tylko wtedy, gdy backend ma bezpieczne współrzędne i
+  gracz potwierdzi `OK / ANULUJ`.
+
+Teleport nie może:
+
+* korzystać z fallbackowego `mokotow`,
+* działać bez potwierdzenia,
+* zmieniać pozycji tylko po stronie frontendu,
+* zgadywać celu z tekstu sygnału.
+
+## Testy
+
+* Aktywna operacja generuje sygnał z realnym targetem.
+* Konflikt generuje sygnał `conflict_target_alert`.
+* Brak aktywności mapy daje `out_of_signal`.
+* CTA mapowe znajduje target po stabilnym ID.
+* Teleport wymaga potwierdzenia i działa tylko dla realnego targetu.
+
+## Kryteria akceptacji
+
+* Sygnały mapowe pochodzą z operacji i konfliktów.
+* Nie ma mockowych dzielnic w produkcyjnym runtime.
+* Target label / coordinates pochodzą z istniejących danych.
+* BlackNet nie tworzy drugiego map runtime.
+* Dokumentacja i journal opisują źródła sygnałów mapowych.
+
+## Stan po Sprincie 82.7
+
+BlackNet ma realne generatory map/conflict v0:
+
+* `target_operation_burst` powstaje z wielu aktywnych operacji na tym samym
+  targetcie,
+* `conflict_target_alert` powstaje z aktywnych konfliktów posiadających
+  konkretny target,
+* `contested_area_alert` jest fallbackiem dla aktywnego konfliktu bez
+  bezpiecznego targetu,
+* wszystkie mapowe CTA używają istniejących akcji mapy i stabilnego
+  `target_id`,
+* brak targetu nie tworzy mockowej dzielnicy ani zmyślonych współrzędnych.
+
+Sprint 82.7 nie implementuje jeszcze poprawek encji Radio / Googleplex /
+Ghost Exchange / Cyberner. To zostaje w Sprincie 82.8.
+
+---
+
+# Sprint 82.8 — BlackNet Entity CTA Fixes: Radio, Googleplex, GX, Cyberner
+
+## Cel gameplayowy
+
+Naprawić rodziny sygnałów, które otwierają istniejące systemy, tak aby zawsze
+prowadziły do konkretnej realnej encji, a nie do mockowego hasła.
+
+## Radio
+
+Sygnał radiowy ma wskazywać konkretny plik MP3 z kanału BlackNet Radio.
+
+Dane:
+
+* `channel_id`,
+* `track_file`,
+* `track_index`,
+* `track_title`,
+* `track_count`.
+
+Tytuł sygnału może powstać z nazwy pliku albo tytułu w `meta.channel`.
+
+Liczba na sygnale może oznaczać numer tracka albo liczbę dostępnych nagrań.
+
+CTA ma uruchamiać wskazany kanał i wskazany track. Jeżeli track nie istnieje,
+pokazać kontrolowany błąd i nie udawać odtwarzania.
+
+## Googleplex
+
+Sygnał Googleplex ma wskazywać realny produkt z katalogu.
+
+Dane:
+
+* `product_id`,
+* `product_name`,
+* `product_type`,
+* `price`,
+* `category`.
+
+Wartość sygnału może być ceną HC.
+
+CTA wpisuje do wyszukiwarki realną nazwę produktu albo stabilny query z
+katalogu. Nie używać plakatowego tytułu sygnału jako wyszukiwanej frazy.
+
+## Ghost Exchange
+
+Sygnał Ghost Exchange ma wskazywać poprawny sektor / kategorię rynku z runtime.
+
+Dane:
+
+* `sector_id`,
+* `sector_key`,
+* `sector_label`,
+* `market_category`,
+* `volume_mb`,
+* `sold_today`,
+* `average_price`.
+
+CTA nie może prowadzić do stanu:
+
+```text
+Brak sektorow rynku dla tego filtra.
+```
+
+Jeżeli sektor nie istnieje albo mapping jest niepoprawny, sygnał nie powinien
+zostać opublikowany.
+
+## Cyberner
+
+Sygnały świata mają otwierać istniejący kanał:
+
+```text
+WORLD
+```
+
+Nie otwierać nieistniejącego kontaktu `cyberner`.
+
+Jeżeli sygnał ma własny komentarz albo przeciek, może:
+
+* otworzyć `WORLD`,
+* pokazać szczegóły wewnątrz BlackNetu,
+* dodać systemową wiadomość tylko przez istniejący flow, jeśli taki kontrakt
+  jest jawnie dostępny.
+
+## Leak / dossier
+
+Jeżeli nie ma jeszcze realnego źródła dla leak/dossier, nie publikować mocka jako
+pełnego sygnału.
+
+Dopuszczalne:
+
+* `out_of_signal`,
+* `open_blacknet_detail` z lokalnym opisem faktu,
+* system message tylko wtedy, gdy pochodzi z istniejącego `system_messages`.
+
+## Testy
+
+* Radio CTA otwiera konkretny track.
+* Googleplex CTA wyszukuje realny produkt.
+* Ghost Exchange CTA otwiera istniejący sektor.
+* Cyberner CTA otwiera `WORLD`, nie kontakt `cyberner`.
+* Brak realnej encji blokuje publikację sygnału albo daje `out_of_signal`.
+
+## Kryteria akceptacji
+
+* Każdy CTA wskazuje konkretną encję runtime.
+* Nie ma CTA opartych o mockowy tytuł.
+* Radio, Googleplex, GX i Cyberner używają istniejących systemów.
+* Błędne mappingi nie publikują fałszywych sygnałów.
+* Dokumentacja i journal opisują kontrakty encji.
+
+## Stan po Sprincie 82.8
+
+BlackNet ma poprawione mosty encji:
+
+* radio generuje sygnał dla konkretnego `channel_id` i `track_file`,
+* Googleplex generuje sygnał dla realnego produktu z katalogu,
+* Ghost Exchange publikuje sektor tylko wtedy, gdy istnieje w kontrakcie rynku,
+* Cyberner otwiera kanał `WORLD` przez `open_cyberner_thread`, a nie kontakt
+  `cyberner`,
+* frontendowe CTA używają istniejących aplikacji CHAOS i nie budują drugiego
+  systemu akcji.
+
+---
+
+# Sprint 82.9 — BlackNet Real Signal Cutover + Mock Retirement
+
+## Cel gameplayowy
+
+Przełączyć BlackNet na realne generatory sygnałów i zdegradować lokalne mocki do
+trybu dev/demo.
+
+Po tym sprincie BlackNet ma być gotowy na Sprint 83: Ollama dostaje realny
+strumień faktów i sygnałów, a nie plakatowe placeholdery.
+
+## Zasada produkcyjna
+
+Normalny runtime używa:
+
+```text
+world facts snapshot
+↓
+deterministic publisher
+↓
+real BlackNet signals
+```
+
+Lokalne `static/blacknet_signals.json` może działać tylko jako:
+
+* dev fixture,
+* demo fallback jawnie włączony flagą,
+* narzędzie testowe layoutu.
+
+Nie może udawać danych świata, jeśli produkcyjny snapshot nie ma faktów.
+
+## Out Of Signal UI
+
+Gdy nie ma realnych sygnałów:
+
+* signal roll pokazuje `OUT OF SIGNAL`,
+* CTA jest neutralne albo ukryte,
+* BlackNet informuje, że czeka na ruch świata,
+* nie podstawia `HOTSPOT / MOKOTOW`, `PRAGA`, `240%` ani innych stałych
+  plakatowych wartości.
+
+## Walidacja rodzin
+
+Sprawdzić pełną macierz:
+
+* map / operation hotspot,
+* conflict,
+* Ghost Exchange,
+* Googleplex,
+* radio,
+* Cyberner WORLD,
+* leak/dossier,
+* out_of_signal.
+
+Każda rodzina musi mieć:
+
+* źródło faktu,
+* stabilny `signal_type`,
+* stabilne `entity_id`,
+* poprawny `cta_action`,
+* poprawny `cta_target_id` albo jawny brak CTA,
+* kontrolowany błąd dla brakujących danych.
+
+## Testy
+
+* Brak faktów daje `out_of_signal`.
+* Dev fallback działa tylko pod flagą.
+* Produkcyjny runtime nie publikuje mockowych hotspotów.
+* Wszystkie realne rodziny sygnałów przechodzą walidację kontraktu.
+* `node --check static/js/terminal.js`.
+* `python -m py_compile run.py database.py profileManagment.py`.
+* `git diff --check`.
+
+## Kryteria akceptacji
+
+* BlackNet generuje sygnały z realnych danych gry.
+* Mocki nie są produkcyjnym źródłem sygnałów.
+* Brak danych jest obsłużony przez `out_of_signal`.
+* CTA prowadzą do realnych encji.
+* BlackNet jest gotowy na Sprint 83 i kontrakt Ollamy.
+* Dokumentacja i journal opisują cutover.
+
+## Stan po Sprincie 82.9
+
+BlackNet w normalnym runtime ładuje wyłącznie:
+
+```text
+/api/blacknet/world-signals
+```
+
+Lokalny plik `static/blacknet_signals.json` jest tylko fixture dev/demo i wymaga
+jawnej flagi. Brak feedu albo brak realnych danych daje `OUT OF SIGNAL`, a nie
+plakatowy fallback.
+
+Każdy wygenerowany sygnał posiada stabilne `entity_id` pochodzące z realnej
+encji gry: targetu, produktu, kanału radia, sektora GX albo kanału Cybernera.
+
+---
+
+# Sprint 83 — Ollama Digest Outbox Contract
+
+## Cel gameplayowy
+
+Przygotować bezpieczny JSON z faktami świata i kontekstem redakcyjnym, który może zostać przekazany do Ollamy.
+
+Sprint nie musi jeszcze uruchamiać modelu. Jego wynikiem jest gotowy, walidowany kontrakt wyjściowy.
+
+## Założenie
+
+Ollama nie dostaje bazy danych, pełnego profilu ani bezpośredniego dostępu do systemów gry. Dostaje zamknięty pakiet redakcyjny.
+
+## Przepływ danych
+
+```text
+blacknet_world_facts
++
+wybrane sygnały automatyczne
++
+kontekst redakcyjny
+↓
+blacknet_ollama_outbox.json
+↓
+walidacja schematu
+↓
+gotowy pakiet dla Ollamy
+```
+
+## Zawartość JSON
+
+Pakiet powinien zawierać:
+
+* `schema_version`,
+* `digest_id`,
+* `world_version`,
+* `generated_at`,
+* `valid_until`,
+* listę bezpiecznych faktów,
+* aktualne trendy,
+* ważne regiony,
+* dostępne produkty i rynki,
+* dozwolone typy sygnałów,
+* dozwolone `cta_action`,
+* istniejące identyfikatory celów,
+* dostępne osobowości autorów,
+* limity długości tekstu,
+* wymagany język,
+* ton świata,
+* listę zakazanych twierdzeń,
+* historię ostatnich publikacji.
+
+## Przykładowa struktura
+
+```json
+{
+  "schema_version": "1.0",
+  "digest_id": "digest_20260711_1800",
+  "generated_at": "2026-07-11T18:00:00Z",
+  "valid_until": "2026-07-11T19:00:00Z",
+  "facts": [],
+  "allowed_signal_types": [],
+  "allowed_actions": [],
+  "editorial_rules": {},
+  "recent_publications": []
+}
+```
+
+Ten plik przekazuje modelowi wyłącznie zatwierdzone fakty i instrukcje, na podstawie których może stworzyć narracyjną wersję sygnałów.
+
+## Outbox
+
+Pakiety mogą otrzymywać statusy:
+
+* `created`,
+* `ready`,
+* `processing`,
+* `processed`,
+* `failed`,
+* `expired`,
+* `archived`.
+
+## Endpointy outbox
+
+Sprint 83 ma przygotowac minimalny, kontrolowany transport paczek dla procesu
+Ollamy, bez uruchamiania samego modelu.
+
+Endpointy:
+
+```text
+POST /api/blacknet/ollama/outbox/generate
+GET  /api/blacknet/ollama/outbox/latest
+GET  /api/blacknet/ollama/outbox/<digest_id>
+POST /api/blacknet/ollama/outbox/<digest_id>/status
+```
+
+Zasady:
+
+* endpoint `generate` tworzy nowa paczke testowa albo runtime paczke z
+  aktualnych `blacknet_world_facts`,
+* endpoint `latest` pozwala workerowi Ollamy pobrac najnowsza paczke ze
+  statusem `ready`,
+* endpoint po `digest_id` pozwala pobrac konkretna paczke bez szukania po
+  plikach,
+* endpoint statusu pozwala oznaczyc paczke jako `processing`, `processed`,
+  `failed`, `expired` albo `archived`,
+* endpointy nie uruchamiaja Ollamy,
+* endpointy nie odpalaja ciezkiego sync profilu, mapy ani settlementu rynku,
+* endpointy zwracaja tylko zatwierdzony outbox, nie pelny stan gry.
+
+To jest kontrakt transportowy dla osobnego procesu/worker taska:
+
+```text
+Ollama worker
+↓
+GET /api/blacknet/ollama/outbox/latest
+↓
+lokalne wywolanie modelu
+↓
+future validated inbox endpoint
+```
+
+## Zakres implementacyjny
+
+* wersjonowany JSON Schema,
+* builder pakietu,
+* walidator,
+* limity wielkości,
+* sanityzacja tekstów,
+* usuwanie danych prywatnych,
+* zapis atomowy,
+* identyfikator korelacyjny,
+* status pakietu,
+* diagnostyka,
+* możliwość ręcznego wygenerowania pakietu testowego.
+* endpointy outbox dla pobrania paczki przez proces Ollamy.
+
+## Ograniczenia
+
+Ollama nie może otrzymać prawa do:
+
+* tworzenia cen,
+* zmiany wartości faktów,
+* wymyślania identyfikatorów,
+* dodawania dowolnych URL,
+* wykonywania CTA,
+* uruchamiania operacji,
+* przyznawania teleportów,
+* zmieniania świata gry.
+
+## Kryteria akceptacji
+
+* System tworzy poprawny `blacknet_ollama_outbox.json`.
+* JSON przechodzi walidację schematu.
+* Każdy fakt zachowuje swoje `fact_id`.
+* Każda dozwolona akcja wskazuje istniejący obiekt.
+* Pakiet nie zawiera prywatnych danych graczy.
+* Historia publikacji ogranicza powtarzalność odpowiedzi modelu.
+* Niepoprawny pakiet nie otrzymuje statusu `ready`.
+* Worker Ollamy moze pobrac paczke przez endpoint, bez dostepu do plikow
+  serwera.
+* Zmiana statusu paczki jest jawna i walidowana.
+* BlackNet działa normalnie bez uruchomionej Ollamy.
+
+## Dokumentacja
+
+Po sprincie zaktualizować:
+
+* `doc/systems/blacknet/blacknet.md`,
+* `doc/systems/blacknet/blacknet_world_read_model.md`,
+* `doc/history/project_journal.md`.
+
+Jeżeli powstanie kontrakt pakietu dla Ollamy, dodać albo zaktualizować
+`doc/systems/blacknet/blacknet_ollama_outbox.md`.
+
+> Sprint 84 pozostaje zarezerwowany dla późniejszego ingestu z Ollamy.
+
+# Faza I — Response Network / Incydenty i NPC
+
+Sprinty 85–98 wdrażają Response Network jako fundament publicznych incydentów,
+służb NPC, heat operacji, hotspotów mapy i późniejszego GhostNetworku.
+
+## Kontrakt pracy dla Sprintów 85–98
+
+Przed rozpoczęciem każdego sprintu z tej sekwencji należy przeczytać aktualne
+artefakty:
+
+* `doc/systems/incidents-npc/incidents_npc_gameplay.md`,
+* `doc/systems/incidents-npc/incidents_npc_technical_architecture.md`,
+* `doc/audits/runtime_slowdown_audit_blacknet.md`,
+* `doc/history/project_journal.md`,
+* `doc/history/game_play_260626.md`.
+
+Dodatkowo:
+
+* sprinty 86–88 muszą uwzględnić aktualny stan mapy, terytoriów i delt,
+* sprinty 91–94 muszą sprawdzić aktualny kontrakt mapy i warstw aktorów,
+* sprinty dotykające BlackNetu muszą sprawdzić `doc/systems/blacknet/blacknet.md` oraz aktualny
+  kontrakt `blacknet_world_facts` / `blacknet_world_signals`,
+* sprinty przygotowujące GhostNetwork muszą sprawdzić
+  `doc/systems/ghostnetwork/ghostnetwork_architecture.md`.
+
+Po zakończeniu każdego sprintu należy zaktualizować:
+
+* `doc/history/project_journal.md`,
+* `doc/history/game_play_260626.md`, jeżeli zmienił się kontrakt lub kolejność prac,
+* właściwy dokument domenowy, jeżeli sprint doprecyzował architekturę:
+  * `doc/systems/incidents-npc/incidents_npc_gameplay.md`,
+  * `doc/systems/incidents-npc/incidents_npc_technical_architecture.md`,
+  * `doc/systems/blacknet/blacknet.md`,
+  * `doc/systems/ghostnetwork/ghostnetwork_architecture.md`,
+  * dokumenty mapy/delt, jeżeli sprint dotknął synchronizacji.
+
+Każdy raport sprintu 85–98 musi jawnie odpowiedzieć:
+
+* które artefakty przeczytano przed implementacją,
+* które dokumenty zaktualizowano,
+* czy runtime mapy dostał nowy polling, snapshot albo deltę,
+* czy wprowadzono nowy endpoint albo tylko nowy kontrakt danych,
+* czy zachowano tryb bezpieczeństwa wymagany przez dany etap.
+
+## Sprint 85 — Response Network Safety Foundation
+
+**Cel:** przygotować bezpieczne środowisko wdrażania głównego mechanizmu rozgrywki.
+
+Zakres:
+
+* feature flagi i kill switche;
+* tryby `disabled`, `observe`, `shadow`, `visible_safe`, `limited_enforcement`, `full`;
+* wspólny zegar testowy;
+* fixture’y JSON;
+* podstawowy audit log;
+* pomiary obecnych endpointów mapy.
+
+Bez incydentów widocznych dla graczy.
+
+## Sprint 86 — Territory Read Model
+
+**Cel:** oddzielić od starego systemu lekki odczyt terytoriów potrzebny incydentom.
+
+Zakres:
+
+* `territory_context_reader`;
+* własność, klan, status i konflikt;
+* zapytania dla konkretnego punktu lub obszaru;
+* brak pełnego profilu gracza;
+* brak `sync_session_profile()`;
+* porównanie wyników ze starym systemem.
+
+Bez zmiany gameplayu terytoriów.
+
+## Sprint 87 — Territory Versioning + Delta
+
+**Cel:** przestać odświeżać pełny stan terytoriów przy każdej zmianie.
+
+Zakres:
+
+* wersjonowanie terytoriów;
+* delta własności i konfliktów;
+* kontrolowany recovery snapshot;
+* deduplikacja zmian;
+* diagnostyka recovery.
+
+Stary endpoint pozostaje awaryjnie dostępny.
+
+## Sprint 88 — Territory Map Migration
+
+**Cel:** przełączyć frontend mapy na lżejszy model terytoriów.
+
+Zakres:
+
+* snapshot startowy;
+* późniejsze delty;
+* aktualizacja pojedynczych terytoriów;
+* testy konfliktów i przejęć;
+* porównanie czasów `p95` i rozmiarów odpowiedzi;
+* usunięcie niepotrzebnych cyklicznych przeliczeń.
+
+To readiness check terytoriów przed incydentami.
+
+## Sprint 89 — Operation Risk Meter
+
+**Cel:** dodać miernik heat bezpośrednio do operacji.
+
+Zakres:
+
+* bazowy heat;
+* narastanie w czasie;
+* modyfikatory narzędzia, celu i konfliktu;
+* próg ostrzeżenia;
+* próg incydentu;
+* wersjonowanie miernika;
+* idempotentne przekraczanie progów;
+* tryb `observe`.
+
+anulowanie operacji
+→ usunięcie źródła heat
+→ anulowanie ostrzeżenia
+→ anulowanie powiązanego incydentu
+→ unieważnienie kapsuł NPC
+→ usunięcie NPC z mapy
+→ wygaszenie sygnału BlackNetu
+
+System niczego jeszcze nie publikuje i nie karze.
+
+## Sprint 90 — Incident Initializer + Store
+
+**Cel:** tworzyć prawdziwe incydenty na podstawie mierników operacji.
+
+Zakres:
+
+* `incident_initializer`;
+* `incident_store`;
+* stany incydentu;
+* łączenie pobliskich operacji;
+* poziomy reakcji;
+* podejrzani i powiązane terytoria;
+* eskalacja i wygaszanie;
+* audit oraz replay.
+
+Incydenty nadal mogą pozostać niewidoczne.
+
+## Sprint 91 — Public Incident Map
+
+**Cel:** pokazać bezpieczne hotspoty incydentów na mapie.
+
+Zakres:
+
+* publiczny snapshot incydentów;
+* delty inicjacji, aktualizacji i zakończenia;
+* centrum, poziom i promień incydentu;
+* brak ujawniania sprawców;
+* frontendowa warstwa hotspotów;
+* recovery tylko dla scope incydentów.
+
+Jeszcze bez NPC i konsekwencji.
+
+## Sprint 92 — BlackNet Incident Bridge
+
+**Cel:** wykorzystać incydenty jako realne źródło sygnałów BlackNetu.
+
+Zakres:
+
+* deterministyczne sygnały hotspotów;
+* poziom reakcji i trend aktywności;
+* czas ważności;
+* teleport po potwierdzeniu `OK/ANULUJ`;
+* bezpieczny punkt wejścia;
+* wygaszanie sygnału razem z incydentem.
+
+## Sprint 93 — NPC Behavior Capsules
+
+**Cel:** przygotować kompletną inicjację jednostek bez serwerowego prowadzenia ruchu.
+
+Zakres:
+
+* `response_dispatcher`;
+* `npc_capsule_factory`;
+* typ, poziom i rodzina jednostki;
+* spawn, wygaśnięcie i centrum patrolu;
+* prędkość i promienie;
+* `trajectory_seed`;
+* `behavior_version`;
+* `tracking_tokens`;
+* wspólna funkcja `position_at()` dla frontendu i backendu.
+
+Bez renderowania i wykrywania.
+
+## Sprint 94 — Response Actors on Snikers
+
+**Cel:** uruchomić NPC jako pełnoprawnych aktorów mapy.
+
+Zakres:
+
+* `actor_type: response_npc`;
+* wykorzystanie warstwy snikersów;
+* animacje ruchu, postoju, skanowania i pościgu;
+* rodziny wizualne służb;
+* frontendowa trajektoria;
+* odzyskanie pozycji po uśpieniu karty;
+* brak `npc.moved` i cyklicznych zapisów backendu.
+
+NPC są widoczne, ale jeszcze nikogo nie łapią.
+
+## Sprint 95 — Detection Feedback Shadow
+
+**Cel:** sprawdzić wykrywanie bez wpływania na graczy.
+
+Zakres:
+
+* `local_detection_probe`;
+* `detection_candidate`;
+* endpoint feedbacku;
+* backendowe odtworzenie trajektorii;
+* walidacja czasu, seeda i promienia;
+* ochrona własnego terytorium;
+* ochrona graczy biernych i offline;
+* deduplikacja zgłoszeń wielu obserwatorów;
+* pełny tryb `shadow`.
+
+Wyniki są tylko zapisywane.
+
+## Sprint 96 — Warning + Visible Safe
+
+**Cel:** uruchomić pełne doświadczenie incydentu bez konsekwencji.
+
+Zakres:
+
+* `response_warning_issued`;
+* komunikat przez `system-messages`;
+* odliczanie przyjazdu służb;
+* widoczne skanowanie;
+* sygnał wykrycia;
+* feedback zaakceptowany lub odrzucony;
+* telemetryczne porównanie zachowania systemu.
+
+Gracz widzi zagrożenie, ale nie traci operacji ani zasobów.
+
+## Sprint 97 — Limited Enforcement
+
+**Cel:** bezpiecznie włączyć pierwszą realną konsekwencję.
+
+Zakres:
+
+* `consequence_policy`;
+* `consequence_executor`;
+* atomowe i idempotentne wykonanie;
+* przerwanie wyłącznie wykrytej operacji;
+* usunięcie jej postępu;
+* brak nagrody za nieudaną operację;
+* kill switch działający bez restartu;
+* pełny zapis przyczyny decyzji.
+
+Bez konfiskaty narzędzi, HC i Judgment.
+
+## Sprint 98 — Full Response Network + Readiness
+
+**Cel:** domknąć pierwszy produkcyjny etap systemu służb.
+
+Zakres:
+
+* konfiskata użytego narzędzia;
+* zabezpieczenie przed softlockiem;
+* skalowana konfiskata HC;
+* status `Judgment`;
+* Radio i Cyberner hooks;
+* historia zakończonych incydentów;
+* limity liczby NPC;
+* limity liczby aktywnych i zakończonych incydentów;
+* testy wydajności;
+* replay przypadków produkcyjnych;
+* readiness check przed GhostNetworkiem.
+
+Najważniejsza granica:
+
+```text
+85–90: fundament i backend bez wpływu na graczy
+91–94: publiczna warstwa mapy i autonomiczne NPC
+95–96: wykrywanie bez konsekwencji
+97: pierwsza odwracalna konsekwencja
+98: pełny system
+```
+
+
+## Sprint 99 — Audyt Victim Pickera i kontrakt źródeł
+
+**Cel:** dokładnie ustalić, skąd Victim Picker pobiera kandydatów, jak mapa ustawia różne rodzaje celu oraz które reguły muszą zostać współdzielone, zanim powstanie jakikolwiek nowy kod.
+
+### Zakres audytu
+
+Codex ma prześledzić istniejące ścieżki:
+
+* oznaczenie obiektu ze skanu przez `mark_target`,
+* przechowywanie oznaczonych obiektów w istniejącym `profile.targets`,
+* ustawianie zwykłego POI jako `aimed_target`,
+* ustawianie gracza jako celu,
+* blokady: self, friend, same clan i inne istniejące relacje,
+* ustawianie filaru podatności,
+* ustawianie filaru konfliktu,
+* aktualną pozycję motocykla z `curently_possition`,
+* obliczanie zasięgu przez `get_player_action_range(profile)`,
+* aktualne liczenie odległości metodą Haversine,
+* fokusowanie istniejącego celu na mapie,
+* procedurę teleportu i jej faktyczne ograniczenia.
+
+Backend już ma wspólną funkcję zasięgu uwzględniającą poziom oraz `scan_range_bonus`, więc audyt ma potwierdzić jej użycie bez kopiowania wzoru do nowego modułu.  Obecny endpoint aktorów mapy składa graczy z bieżącej pozycji i relacji, a akcja `mark_target` ma już swoje reguły dostępności.
+
+### Źródła widoku `VICTIMS`
+
+Audyt ma wskazać konkretne źródła dla jednego agregowanego widoku:
+
+* `profile.targets` — obiekty wcześniej oznaczone przez gracza,
+* aktualni dozwoleni gracze i intruzi,
+* aktywne filary podatności,
+* cele pochodzące z konfliktów terytorialnych.
+
+`VICTIMS` pozostaje wyłącznie nazwą widoku i przycisku. Nie wolno tworzyć:
+
+* `profile.victims`,
+* nowego magazynu celów,
+* nowej kategorii gameplayowej,
+* drugiego systemu targetowania.
+
+### Audyt UI i zestawu ikon
+
+Powstaje kontrakt własnego, zamkniętego zestawu ikon Victim Pickera:
+
+* aplikacja,
+* pozycja motocykla,
+* zasięg,
+* odświeżenie,
+* pokaż na mapie,
+* oznacz jako cel,
+* aktywny cel,
+* teleport,
+* w zasięgu,
+* poza zasięgiem,
+* brak aktualnej pozycji,
+* obiekt niedostępny.
+
+Ikony mają być jednym spójnym zestawem lokalnych SVG lub ikon CSS, bez mieszania przypadkowych emoji i bez zewnętrznej biblioteki ładowanej z sieci.
+
+Przyciski ikonowe zawsze muszą mieć:
+
+* `title`,
+* `aria-label`,
+* tooltip,
+* stan `disabled`,
+* stan aktywny i hover.
+
+Ikona rodzaju obiektu nadal pochodzi z istniejącego payloadu celu. Victim Picker nie tworzy drugiego zestawu ikon dla bankomatu, kamery, pojazdu czy gracza.
+
+### Wynik sprintu
+
+Dokument audytowy zawierający:
+
+* mapę obecnych funkcji i endpointów,
+* listę źródeł kandydatów,
+* wspólny kontrakt kandydata,
+* zasady zasięgu,
+* zasady ustawiania każdego typu celu,
+* kontrakt ikon,
+* listę miejsc wymagających refaktoru,
+* plan testów regresyjnych.
+
+### Poza sprintem
+
+Bez zmian w kodzie, bez endpointów, bez wpisu w Googleplex i bez budowania okna.
+
+### DoD
+
+Audyt jednoznacznie odpowiada:
+
+1. Skąd pochodzi każdy rodzaj kandydata.
+2. Jak ustalić jego aktualną pozycję.
+3. Jak sprawdzić zasięg względem motocykla.
+4. Jak sprawdzić, czy można go oznaczyć.
+5. Jak bezpiecznie zbudować czysty `aimed_target`.
+6. Jak pokazać go na mapie i teleportować bez powielania mechaniki.
+
+Ten sprint działa jak dokumentacja techniczna przed refaktorem: jego zadaniem jest znaleźć istniejące źródła prawdy i zablokować Codexowi tworzenie alternatywnej mechaniki.
+
+---
+
+## Sprint 100 — Wspólna mechanika kandydatów i ustawiania celu
+
+**Cel:** stworzyć lekką warstwę backendową Victim Pickera, która używa dokładnie tych samych reguł co mapa.
+
+### Przed rozpoczęciem
+
+Przeczytać:
+
+* `doc/audits/victim_picker_audit.md`,
+* `doc/history/project_journal.md`,
+* aktualne ścieżki `mark_target`, `/hack-action`, `/api/map/player-targets/mark`,
+  `/api/map/player-areas` i `/api/map/clan-vulnerabilities`.
+
+Po zakończeniu uzupełnić `doc/history/project_journal.md` krótkim raportem Sprintu 100
+oraz uruchomić walidację kodu i `git diff --check`.
+
+### Katalog Googleplex
+
+Dodać do `PRO_SYSTEM_TOOLS`:
+
+* `id: victimPicker`,
+* `name: Victim Picker`,
+* `type: pro-system-tool`,
+* `category: pro-system-tools`,
+* `price: 100000`,
+* `purchase_account: admin`,
+* osobny `system_launcher`,
+* interfejs systemowy, a nie zwykłe `window` lub `terminal`.
+
+Katalog `PRO_SYSTEM_TOOLS` jest już automatycznie publikowany jako część katalogu systemowego Googleplex, więc Victim Picker powinien wejść w istniejącą ścieżkę zakupu i instalacji.
+
+### Wspólny kontrakt kandydata
+
+Każdy kandydat powinien otrzymać jednolity payload, niezależnie od źródła:
+
+* stabilny `target_id`,
+* `target_mode`,
+* `target_type`,
+* `source_type`,
+* `label`,
+* `icon`,
+* `lat`,
+* `lng`,
+* źródło kandydata,
+* aktualną odległość od motocykla,
+* aktualny zasięg gracza,
+* `in_range`,
+* `can_aim`,
+* `disabled_reason`,
+* `is_aimed`,
+* dane potrzebne do fokusu mapy,
+* dane potrzebne do teleportu.
+
+Nie należy spłaszczać tożsamości gracza, podatności i konfliktu do samej pary współrzędnych. Istniejące pola takie jak `target_username`, `vulnerability_id` oraz `foreign_area_id` muszą zostać zachowane.
+
+### Lekki odczyt kandydatów
+
+Dodać lekki endpoint Victim Pickera, który:
+
+1. synchronizuje tylko wymagany profil,
+2. pobiera aktualne `curently_possition`,
+3. wylicza `action_range` przez istniejący helper,
+4. składa kandydatów z istniejących źródeł,
+5. pobiera świeżą pozycję ruchomych graczy,
+6. liczy odległości,
+7. sprawdza relacje i reguły celu,
+8. zwraca listę posortowaną według odległości.
+
+Endpoint nie może:
+
+* renderować Folium,
+* ładować snapshotu pełnej mapy,
+* uruchamiać skanu POI,
+* tworzyć markerów,
+* tworzyć operacji,
+* wykonywać `/hack-action`.
+
+### Wspólna procedura ustawiania celu
+
+Dodać jeden backendowy helper ustawiający `aimed_target`, z którego docelowo może korzystać zarówno Victim Picker, jak i obecne ścieżki mapy.
+
+Przed zapisem helper ponownie sprawdza:
+
+* aktualną pozycję motocykla,
+* aktualny zasięg,
+* najnowszą pozycję kandydata,
+* jego rzeczywistą tożsamość,
+* relację gracza,
+* status podatności lub konfliktu,
+* czy cel nadal istnieje,
+* czy nie został już przejęty lub usunięty.
+
+Nowy cel ma być zapisany jako czysto namierzony:
+
+* wszystkie kroki `actions_allowed` są `false`,
+* postęp wynosi `0`,
+* nie powstaje operacja,
+* nie powstaje risk event,
+* nie uruchamia się aplikacja hackerska,
+* nie zapalają się kropki na pasku.
+
+Frontend paska już buduje kropki na podstawie `actions_allowed` i postęp na podstawie zabezpieczeń, więc czysty target musi być przygotowany tak, aby pasek pokazał nazwę celu, ale nie udawał wykonanej operacji.
+
+### Mapa i teleport
+
+Backend ma przygotować bezpieczne dane do:
+
+* pokazania kandydata na mapie,
+* wykonania teleportu istniejącą procedurą.
+
+Nie należy tworzyć nowego teleportu. Audytowana ścieżka ma zostać użyta ponownie wraz z jej potwierdzeniem i blokadami.
+
+### Testy
+
+Minimum:
+
+* zwykłe oznaczone POI w zasięgu,
+* zwykłe POI poza zasięgiem,
+* intruz w zasięgu,
+* znajomy,
+* członek własnego klanu,
+* self,
+* filar podatności,
+* filar konfliktu,
+* kandydat usunięty pomiędzy listą a kliknięciem,
+* gracz, który zmienił pozycję,
+* teleport lub podróż zmieniająca pozycję motocykla,
+* brak poprawnej pozycji motocykla,
+* zakup i instalacja za `100 000 HC`,
+* ustawienie targetu bez operacji i bez progressu.
+
+### DoD
+
+Backend zwraca spójną listę kandydatów i potrafi ustawić każdy dozwolony typ jako czysty `aimed_target`, z pełną ponowną walidacją zasięgu w chwili kliknięcia.
+
+Ten sprint tworzy całą mechanikę bez interfejsu: po jego zakończeniu aplikację da się obsłużyć testami API, ale gracz nie ma jeszcze nowego okna.
+
+Nie rozpoczynać Sprintu 101 w tym samym zakresie.
+
+---
+
+## Sprint 101 — Okno Victim Picker, ikony i integracja pulpitu
+
+**Cel:** zbudować finalne lekkie okno aplikacji i podłączyć je do mechaniki ze Sprintu 100.
+
+### Przed rozpoczęciem
+
+Przeczytać:
+
+* `doc/audits/victim_picker_audit.md`,
+* raport Sprintu 100 w `doc/history/project_journal.md`,
+* aktualny kontrakt endpointów Victim Pickera,
+* istniejącą integrację okien systemowych w `static/js/terminal.js`.
+
+Po zakończeniu uzupełnić `doc/history/project_journal.md`, uruchomić walidację JS i
+`git diff --check`.
+
+### Uruchamianie aplikacji
+
+Dodać:
+
+* `createVictimPickerApp()`,
+* wpis w `runSystemLauncherApp()`,
+* obsługę jednej instancji okna,
+* rejestrację w pasku zadań,
+* fokus istniejącego okna przy kolejnym uruchomieniu,
+* ikonę aplikacji na pulpicie dopiero po zakupie.
+
+Obecny pulpit umie generować ikony z aplikacji profilu, otwierać osobne przeciągane okna oraz rejestrować je w taskbarze, więc Victim Picker powinien użyć tej infrastruktury.
+
+### Układ okna
+
+Nagłówek:
+
+* ikona i nazwa Victim Picker,
+* aktualny `CEL`,
+* ikona pozycji motocykla,
+* pozycja w skróconym formacie,
+* aktualny zasięg w metrach.
+
+Pasek narzędzi jako małe przyciski ikonowe:
+
+* odśwież,
+* otwórz mapę,
+* pokaż aktualny cel na mapie,
+* zamknij.
+
+Lista `VICTIMS`:
+
+* grupy istniejących typów kandydatów,
+* sortowanie według odległości,
+* czytelny status zasięgu,
+* wyróżnienie aktywnego celu,
+* zablokowane akcje z tooltipem podającym powód.
+
+Każdy wiersz posiada maksymalnie trzy przyciski ikonowe:
+
+* **celownik** — oznacz jako CEL,
+* **map pin** — pokaż na mapie,
+* **teleport** — uruchom istniejące potwierdzenie teleportu.
+
+Nie robimy ciężkich pełnoszerokich guzików typu „OZNACZ JAKO CEL”. Tekst pozostaje w tooltipie i `aria-label`.
+
+### Zestaw ikon Victim Pickera
+
+W aplikacji powstaje jedna namespacowana mapa, na przykład `VICTIM_PICKER_ICONS`, zawierająca:
+
+* `app`,
+* `bike`,
+* `range`,
+* `refresh`,
+* `openMap`,
+* `focusMap`,
+* `aim`,
+* `aimed`,
+* `teleport`,
+* `inRange`,
+* `outOfRange`,
+* `unavailable`,
+* `loading`,
+* `error`.
+
+Ikony mają:
+
+* ten sam rozmiar bazowy,
+* tę samą grubość linii,
+* wspólne pole widoku,
+* wariant normalny, hover, active i disabled,
+* kolor nadawany przez CSS, nie zapisany na stałe w każdym SVG.
+
+### Zachowanie mapy
+
+`Pokaż na mapie`:
+
+1. otwiera mapę dopiero po kliknięciu,
+2. przekazuje istniejący `target_id` i współrzędne,
+3. ustawia fokus,
+4. nie zmienia aktywnego celu.
+
+Obecny desktop posiada już most do uruchamiania mapy i przekazywania jej fokusu, więc nie trzeba budować osobnego mechanizmu komunikacji.
+
+### Odświeżanie pozycji i zasięgu
+
+Po:
+
+* podróży,
+* teleportacji,
+* zmianie `aimed_target`,
+* zmianie pozycji aktora,
+* zmianie podatności lub konfliktu,
+
+otwarte okno powinno odświeżyć dane lub oznaczyć je jako nieaktualne.
+
+Przed każdą akcją `Oznacz jako CEL` backend i tak ponownie wykonuje pełną walidację. Frontend nigdy nie jest źródłem prawdy.
+
+### Responsywność
+
+Na małym ekranie:
+
+* okno używa mobile safe mode,
+* nagłówek przechodzi do dwóch rzędów,
+* przyciski pozostają ikonowe,
+* lista ma pojedynczą kolumnę,
+* najważniejsza akcja celownika pozostaje zawsze widoczna,
+* tooltip może zostać zastąpiony krótkim opisem po dłuższym dotknięciu.
+
+### Testy końcowe
+
+Scenariusz pełny:
+
+1. Zakup Victim Pickera za `100 000 HC`.
+2. Ikona pojawia się na pulpicie.
+3. Uruchomienie nie ładuje `/map`.
+4. Lista pokazuje istniejące oznaczone obiekty oraz dozwolone cele innych typów.
+5. Odległości są liczone od aktualnego motocykla.
+6. Cel poza zasięgiem nie może zostać ustawiony.
+7. Cel w zasięgu zostaje zapisany jako `aimed_target`.
+8. Pasek pokazuje nazwę bez kropek i bez progresu.
+9. Inne narzędzia korzystają z nowego celu.
+10. Pokaż na mapie dopiero wtedy uruchamia ciężką mapę.
+11. Teleport używa istniejącego potwierdzenia.
+12. Po zmianie pozycji lista i zasięg są aktualizowane.
+
+### DoD
+
+Victim Picker jest płatną aplikacją Googleplex, działa jako lekkie okno bez Leafleta, używa wyłącznie istniejących źródeł celów i pozwala ustawić dozwolony obiekt jako `aimed_target` zgodnie z aktualną pozycją motocykla oraz faktycznym zasięgiem gracza.
+
+Ten sprint zamyka warstwę widoczną dla gracza: nie zmienia mechaniki ze Sprintu 100, tylko przedstawia ją w lekkim, szybkim i spójnym interfejsie.
+
+
+Dokładnie — obecna wersja dowiozła zakup i uruchamianie, ale zgubiła cały właściwy flow aplikacji, więc Sprint 102 naprawia mechanikę i trzy ekrany, a Sprint 103 przebudowuje GUI na prosty, czytelny Victim Picker zgodny z naszą wizją.
+
+# Sprint 102 — Victim Picker: właściwy flow, scan i synchronizacja CEL
+
+## Cel sprintu
+
+Przebudować obecną implementację Victim Pickera tak, aby odtwarzała uzgodniony proces:
+
+**MAIN → SCAN → oznaczenie obiektów → VICTIMS → ustawienie `aimed_target`**
+
+Nie rozwijamy teraz wyglądu. Najpierw aplikacja ma działać poprawnie i korzystać z tych samych mechanizmów co mapa.
+
+## 1. Nie ruszać tego, co już działa
+
+Zachować:
+
+* produkt `Victim Picker` w Googleplex,
+* cenę `100 000 HC`,
+* zakup,
+* instalację,
+* ikonę na pulpicie,
+* uruchamianie jako osobne okno,
+* jedną instancję aplikacji,
+* obecny system launcher.
+
+Nie przepisywać ponownie katalogu ani instalacji.
+
+## 2. Usunąć obecny błędny układ startowy
+
+Obecny ekran z:
+
+* wielkim panelem informacyjnym,
+* czterema nieopisanymi ikonami,
+* natychmiast wyświetloną listą graczy i podatności,
+
+nie jest ekranem głównym Victim Pickera.
+
+Po uruchomieniu aplikacji ma pojawić się prosty ekran **MAIN** z dwoma podstawowymi opcjami:
+
+### SCAN
+
+Uruchamia faktyczny skan otoczenia.
+
+### VICTIMS
+
+Otwiera listę już oznaczonych i dostępnych kandydatów do ustawienia jako cel.
+
+`Otwórz mapę`, `Odśwież` i zamknięcie mogą istnieć jako małe akcje pomocnicze w nagłówku, ale nie mogą konkurować z dwoma głównymi funkcjami aplikacji.
+
+## 3. Ekran MAIN
+
+Na ekranie głównym pokazać kompaktowo:
+
+* aktualną pozycję motocykla,
+* aktualny zasięg skanu,
+* aktualny `aimed_target`,
+* dwa duże kafle:
+
+  * `SCAN`,
+  * `VICTIMS`.
+
+Nie wyświetlać tutaj listy kandydatów.
+
+Nie wyświetlać tutaj czterech anonimowych przycisków.
+
+Stan `CEL` ma pochodzić z tego samego aktualnego profilu co pasek systemowy.
+
+Na screenie pasek pokazuje `POI-686955`, natomiast aplikacja pokazuje `CEL brak`. To oznacza dwa lokalne źródła stanu albo brak odświeżenia profilu. Victim Picker nie może utrzymywać osobnej prawdy o celu — frontend paska już korzysta z `profile.aimed_target` i ma gotowe funkcje aktualizacji oraz odświeżenia profilu.
+
+## 4. Ekran SCAN
+
+Kliknięcie `SCAN` przełącza aplikację na osobny ekran skanowania.
+
+### Skan ma korzystać z aktualnej pozycji motocykla
+
+Środkiem skanu jest zawsze:
+
+`profile.curently_possition`
+
+Victim Picker nie pozwala wskazać dowolnego punktu.
+
+Backend przed skanem ponownie pobiera aktualną pozycję motocykla i aktualny zasięg gracza.
+
+### Skan ma używać istniejącej ścieżki mapy
+
+Nie tworzyć nowego algorytmu generowania obiektów.
+
+Należy użyć tej samej logiki, która obsługuje:
+
+`/map-action` z `action: "scan"`
+
+Mapa już otrzymuje z tej ścieżki `markers`, normalizuje wyniki i tworzy tymczasowe obiekty skanu.
+
+Dopuszczalne jest wydzielenie wspólnego backendowego helpera, jeżeli bez tego aplikacja musiałaby udawać request mapy, ale oba interfejsy muszą korzystać z jednego źródła prawdy.
+
+### Przebieg skanu
+
+Po kliknięciu:
+
+1. Wyświetlić lekką animację skanowania.
+2. Pokazać komunikaty GhostSystem.
+3. Pobrać wyniki.
+4. Pogrupować je według istniejącego `source_type`.
+5. Posortować każdą grupę według odległości od motocykla.
+6. Pokazać ekran wyników.
+
+### Kategorie wyników
+
+Używać istniejących kategorii mapy, na przykład:
+
+* bankomaty,
+* banki,
+* restauracje,
+* kawiarnie,
+* bary,
+* hotspoty,
+* urządzenia,
+* kamery,
+* osoby,
+* pojazdy,
+* parkingi,
+* sklepy,
+* pozostałe POI.
+
+Nie wymyślać nowej kategorii `victim`.
+
+### Wiersz wyniku skanu
+
+Każdy wynik pokazuje:
+
+* istniejącą ikonę obiektu,
+* nazwę lub wygenerowany identyfikator,
+* typ,
+* odległość od motocykla,
+* status oznaczenia.
+
+Na ekranie SCAN dostępne są tylko akcje związane z wynikiem skanu:
+
+* `Oznacz`,
+* `Pokaż na mapie` — dopiero po oznaczeniu.
+
+Nie ma tutaj:
+
+* `Oznacz jako CEL`,
+* teleportu,
+* uruchamiania exploita,
+* uruchamiania narzędzi hackerskich.
+
+### Oznaczenie wyniku
+
+Akcja `Oznacz` ma wywołać dokładnie tę samą mechanikę co:
+
+`menu obiektu na mapie → Oznacz POI-XXXXXX`
+
+Czyli wynik trafia do istniejącego mechanizmu oznaczonych obiektów, a nie do nowego `victims`.
+
+Po sukcesie:
+
+* ikona oznaczenia zmienia stan,
+* obiekt staje się dostępny w widoku `VICTIMS`,
+* aktywuje się `Pokaż na mapie`.
+
+### Wyczyść scan
+
+Dodać akcję `Wyczyść scan`.
+
+Usuwa ona wyłącznie chwilowe wyniki bieżącego skanu z okna.
+
+Nie usuwa obiektów wcześniej oznaczonych przez użytkownika.
+
+Działa semantycznie tak samo jak `Wyczyść scan` na mapie.
+
+## 5. Ekran VICTIMS
+
+`VICTIMS` to nazwa ekranu, nie nowy model danych.
+
+Ekran składa kandydatów z istniejących źródeł:
+
+* obiekty oznaczone wcześniej przez użytkownika,
+* dozwoleni gracze i intruzi,
+* aktywne podatności,
+* filary konfliktów,
+* inne istniejące typy, które mapa potrafi ustawić jako cel.
+
+Każdy typ zachowuje istniejącą tożsamość:
+
+* standardowy obiekt — współrzędne i stabilny `target_id`,
+* gracz — `target_username`,
+* podatność — `vulnerability_id`,
+* filar konfliktu — `foreign_area_id`.
+
+System już rozróżnia te przypadki podczas budowania identyfikatora celu, więc Victim Picker nie może redukować wszystkiego do nazwy i współrzędnych.
+
+## 6. Akcje na ekranie VICTIMS
+
+Każdy kandydat może mieć:
+
+### Oznacz jako CEL
+
+Ustawia wybranego kandydata jako `profile.aimed_target`.
+
+To jest najważniejsza funkcja aplikacji.
+
+Nie uruchamia:
+
+* `/hack-action`,
+* narzędzia,
+* operacji,
+* spinnera operacji,
+* risk eventu,
+* kropek progresu,
+* rozbrajania zabezpieczeń.
+
+Nowy cel ma mieć czyste:
+
+* `actions_allowed.scan_ports = false`,
+* `actions_allowed.exploit = false`,
+* `actions_allowed.sniff = false`,
+* `actions_allowed.trace = false`.
+
+### Pokaż na mapie
+
+Dopiero na żądanie:
+
+* otwiera mapę,
+* ustawia fokus na celu,
+* nie zmienia `aimed_target`.
+
+### Teleport
+
+Korzysta z istniejącego potwierdzenia i istniejącej ścieżki teleportacji.
+
+Nie tworzyć nowego systemu teleportu.
+
+## 7. Zasięg i aktualna pozycja
+
+Lista może pokazywać obiekty poza zasięgiem, ale `Oznacz jako CEL` jest aktywne wyłącznie wtedy, gdy cel spełnia aktualne reguły mapy.
+
+Przy każdym kliknięciu backend ponownie sprawdza:
+
+1. aktualną pozycję motocykla,
+2. aktualny zasięg skanu,
+3. świeżą pozycję celu,
+4. rzeczywistą odległość,
+5. aktualny status celu,
+6. relacje gracza,
+7. status podatności lub konfliktu.
+
+Nie ufać odległości zwróconej przy wcześniejszym otwarciu okna.
+
+Zasięg musi uwzględniać istniejące bonusy `scan_range_bonus`; produkty rozbudowujące ten parametr są już częścią Googleplex.
+
+## 8. Naprawić ustawianie celu
+
+Obecnie przyciski wyglądają na aktywne, ale celu nie można ustawić.
+
+Sprint ma znaleźć i naprawić faktyczną przyczynę, bez obchodzenia walidacji.
+
+Po poprawnym ustawieniu:
+
+* backend zapisuje `aimed_target`,
+* response zwraca kanoniczny `target`,
+* Victim Picker aktualizuje swój nagłówek,
+* Victim Picker wyróżnia wybraną pozycję,
+* pasek systemowy aktualizuje się natychmiast,
+* następnie wykonywane jest kontrolne odświeżenie `/api/profile`.
+
+Nie może istnieć stan:
+
+* aplikacja: `CEL brak`,
+* pasek: `CEL POI-686955`.
+
+## 9. Nawigacja
+
+Każdy ekran poza MAIN ma przycisk `Wróć`.
+
+Wymagane widoki:
+
+* `main`,
+* `scan_loading`,
+* `scan_results`,
+* `victims`,
+* `error`.
+
+Nie renderować wszystkiego jednocześnie i nie ukrywać sekcji wyłącznie CSS-em bez jednoznacznego stanu aplikacji.
+
+## Testy Sprintu 102
+
+Sprawdzić:
+
+* MAIN ma dokładnie dwie główne opcje,
+* SCAN używa aktualnej pozycji motocykla,
+* SCAN używa faktycznego zasięgu gracza,
+* wyniki odpowiadają skanowi mapy,
+* oznaczenie obiektu zapisuje go tą samą ścieżką co mapa,
+* wyczyszczenie wyników nie usuwa oznaczonych obiektów,
+* oznaczony obiekt pojawia się w VICTIMS,
+* standardowy obiekt można ustawić jako CEL,
+* dozwolonego intruza można ustawić jako CEL,
+* znajomego, siebie i członka klanu nie można ustawić,
+* podatność i filar konfliktu zachowują swoją tożsamość,
+* cel poza zasięgiem jest zablokowany,
+* po ruchu gracza pozycja jest ponownie walidowana,
+* `aimed_target` jest identyczny w aplikacji i na pasku,
+* ustawienie celu nie tworzy operacji ani progresu,
+* mapa nie ładuje się podczas otwierania aplikacji ani skanu.
+
+## DoD Sprintu 102
+
+Victim Picker działa funkcjonalnie jako trzyetapowy interfejs:
+
+**MAIN → SCAN → VICTIMS**
+
+Gracz może zeskanować otoczenie motocykla, oznaczyć znalezione obiekty, przejść do VICTIMS i ustawić dozwolony cel jako aktualny `aimed_target`, a stan CEL jest natychmiast zgodny w aplikacji i na pasku systemowym.
+
+Ten sprint naprawia logikę i właściwy przebieg aplikacji; wygląd ma być jedynie czytelny i technicznie poprawny, bez finalnego dopieszczania.
+
+---
+
+# Sprint 103 — Victim Picker: finalne GUI i język ikon
+
+## Cel sprintu
+
+Zastąpić obecny ciężki, nieczytelny panel lekkim interfejsem narzędzia premium, w którym użytkownik od razu rozumie:
+
+* gdzie jest,
+* co może zrobić,
+* co oznaczają ikony,
+* który cel jest aktywny,
+* dlaczego dana akcja jest zablokowana.
+
+Sprint nie zmienia mechaniki ze Sprintu 102.
+
+## 1. Rozmiar i konstrukcja okna
+
+Okno nie powinno domyślnie zajmować prawie całego ekranu.
+
+Desktop:
+
+* szerokość około `620–760 px`,
+* wysokość około `480–620 px`,
+* rozsądne minimum,
+* możliwość zmiany rozmiaru,
+* lista przewijana wyłącznie w środkowej części.
+
+Fullscreen i mobile safe mode nadal mogą wypełniać ekran, ale layout musi się wtedy rozsądnie przeorganizować.
+
+## 2. Ekran MAIN — dwa czytelne kafle
+
+MAIN ma być bardzo prosty.
+
+U góry mały status:
+
+* aktualny CEL,
+* pozycja motocykla,
+* zasięg skanu.
+
+Niżej dwa duże kafle:
+
+### SCAN
+
+* duża ikona radaru,
+* krótka nazwa,
+* mały opis: `Skanuj otoczenie motocykla`.
+
+### VICTIMS
+
+* duża ikona celownika lub sylwetki,
+* licznik dostępnych kandydatów,
+* mały opis: `Wybierz aktywny cel`.
+
+Nie dodawać pomiędzy nimi anonimowego paska czterech przycisków.
+
+## 3. Ekran SCAN
+
+Nagłówek:
+
+* ikona powrotu,
+* `SCAN`,
+* pozycja motocykla,
+* zasięg,
+* odśwież,
+* wyczyść scan.
+
+Podczas skanowania pokazać prostą wizualizację:
+
+* impuls radaru,
+* krótkie logi GhostSystem,
+* licznik lub status wykrytych sygnatur.
+
+Po zakończeniu:
+
+* sekcje według typu,
+* licznik przy nazwie sekcji,
+* kompaktowe wiersze,
+* odległość dobrze widoczna.
+
+Każdy wiersz:
+
+* ikona obiektu,
+* nazwa,
+* typ,
+* dystans,
+* małe akcje ikonowe.
+
+Akcje:
+
+* pusty pin — `Oznacz`,
+* pełny pin — `Oznaczony`,
+* mapa — `Pokaż na mapie`, nieaktywna przed oznaczeniem.
+
+## 4. Ekran VICTIMS
+
+Nagłówek:
+
+* powrót,
+* `VICTIMS`,
+* liczba kandydatów,
+* aktywny CEL,
+* odśwież.
+
+Każdy wpis:
+
+* istniejąca ikona obiektu,
+* nazwa,
+* typ,
+* dystans,
+* status zasięgu,
+* stan aktywnego celu.
+
+Akcje:
+
+* celownik — `Oznacz jako CEL`,
+* aktywny celownik — `Aktualny CEL`,
+* mapa — `Pokaż na mapie`,
+* skok — `Teleport`.
+
+Nie pokazywać czterech przycisków w każdym wierszu, jeżeli część nic nie robi.
+
+Nie pokazywać żółtego `!` jako akcji. Ostrzeżenie nie jest przyciskiem.
+
+## 5. Własny zestaw ikon
+
+Dodać jeden spójny zestaw, np. `VICTIM_PICKER_ICONS`.
+
+Minimum:
+
+* `app`,
+* `scan`,
+* `victims`,
+* `back`,
+* `refresh`,
+* `clear`,
+* `bike`,
+* `range`,
+* `map`,
+* `mark`,
+* `marked`,
+* `aim`,
+* `aimed`,
+* `teleport`,
+* `inRange`,
+* `outOfRange`,
+* `locked`,
+* `loading`,
+* `error`.
+
+Ikony:
+
+* inline SVG,
+* wspólny `viewBox`,
+* podobna grubość linii,
+* `currentColor`,
+* bez przypadkowego miksowania emoji, znaków Unicode i różnych stylów,
+* bez zewnętrznego CDN.
+
+Ikony obiektów świata nadal pochodzą z mapy. Nowy zestaw dotyczy wyłącznie interfejsu Victim Pickera.
+
+## 6. Czytelność ikon
+
+Każdy przycisk ikonowy musi mieć:
+
+* `title`,
+* `aria-label`,
+* tooltip,
+* wyraźny hover,
+* focus klawiatury,
+* active,
+* disabled.
+
+Przy pierwszym wejściu na ekran można pokazać małą legendę:
+
+* celownik — ustaw CEL,
+* mapa — pokaż,
+* strzałka — teleport,
+* pin — oznacz.
+
+Legenda nie może zajmować połowy okna.
+
+## 7. Stany zablokowane
+
+Nie pokazywać długiego żółtego komunikatu pod każdym wpisem, jeśli przyczyna jest identyczna dla całej kategorii.
+
+Dla zablokowanej akcji:
+
+* ikona jest wyszarzona,
+* tooltip podaje pełny powód,
+* obok nazwy może być krótki status:
+
+  * `ZNAJOMY`,
+  * `WŁASNY KLAN`,
+  * `POZA ZASIĘGIEM`,
+  * `WŁASNA PODATNOŚĆ`,
+  * `NIEDOSTĘPNY`.
+
+Pełny komunikat pokazać po kliknięciu albo w dolnym pasku statusu.
+
+## 8. Aktywny CEL
+
+Aktualny cel musi być czytelny na wszystkich ekranach.
+
+Na liście:
+
+* wpis otrzymuje klasę `is-aimed`,
+* celownik zmienia się na aktywny,
+* pojawia się krótki badge `CEL`.
+
+W nagłówku:
+
+`CEL: POI-686955`
+
+Jeżeli celu nie ma:
+
+`CEL: —`
+
+Nie używać lokalnej wartości, która może rozjechać się z paskiem.
+
+Pasek systemowy ma już gotowy renderer oparty o `aimed_target`, a jego kropki wynikają z `actions_allowed`; Victim Picker powinien jedynie przekazać czysty target i odświeżyć wspólny profil.
+
+## 9. Responsywność
+
+W wąskim oknie:
+
+* nagłówek zawija się maksymalnie do dwóch rzędów,
+* kafle MAIN ustawiają się jeden pod drugim,
+* akcje pozostają ikonowe,
+* nazwa celu może być skrócona wielokropkiem,
+* tooltip pokazuje pełną nazwę,
+* wiersz nie rozjeżdża się przez długi komunikat,
+* scroll dotyczy listy, nie całej aplikacji wraz z nagłówkiem.
+
+## 10. Stan pusty i błędy
+
+MAIN:
+
+* brak pozycji motocykla — SCAN zablokowany z czytelnym powodem.
+
+SCAN:
+
+* brak wyników — radar i komunikat `Brak sygnatur w zasięgu`.
+
+VICTIMS:
+
+* brak oznaczonych i dostępnych celów — komunikat:
+  `Najpierw wykonaj SCAN i oznacz interesujące obiekty.`
+
+Błąd sieci:
+
+* nie usuwa poprzedniej listy,
+* pokazuje nieduży komunikat,
+* pozwala ponowić operację.
+
+## Testy Sprintu 103
+
+Sprawdzić:
+
+* MAIN ma dwa i tylko dwa główne kafle,
+* wszystkie ikony mają tooltip,
+* żadna kluczowa akcja nie jest anonimowym symbolem,
+* ostrzeżenie nie jest renderowane jako klikalny przycisk,
+* stan aktywnego CEL jest widoczny w nagłówku i na liście,
+* aplikacja i pasek zawsze pokazują ten sam CEL,
+* SCAN i VICTIMS są wizualnie różnymi ekranami,
+* aplikacja działa w oknie desktopowym, fullscreen i mobile safe mode,
+* długie nazwy nie rozsadzają wierszy,
+* mapa ładuje się tylko po kliknięciu ikony mapy,
+* nie ma regresji zakupu, instalacji ani launchera.
+
+## DoD Sprintu 103
+
+Victim Picker ma prosty MAIN z dwoma funkcjami, pełny ekran SCAN, osobny ekran VICTIMS, spójny zestaw ikon, czytelne stany zasięgu i aktywnego celu oraz kompaktowy wygląd pasujący do aplikacji premium za `100 000 HC`.
+
+Sprint 102 przywraca właściwy produkt, a Sprint 103 sprawia, że gracz faktycznie rozumie go bez zgadywania, co oznaczają `!`, kółko, pinezka i strzałka.
+
+
+---
+
+# Przejscie do `game_play_180726.md`
+
+`doc/history/game_play_260626.md` zamyka glowny plan rozwoju na Sprincie 103.
+
+Dalsze sprinty zostaly przeniesione do:
+
+```text
+doc/history/game_play_180726.md
+```
+
+Nowy plik otwiera kolejny etap:
+
+```text
+Faza J - Ghost Control Suite / Mapless Control Layer
+```
+
+Faza J zaczyna sie od Sprintu 104 i rozwija aplikacje kontrolne, ktore pozwalaja
+prowadzic cele, terytoria, operacje i incydenty bez koniecznosci stalego
+otwierania mapy.
+
+
+---
+
+
+Decision:
+
+* Przyjęto: Sprinty 1–20 domykają pierwszą pełną wersję pętli gameplayu.
+* Przyjęto: Sprinty 21–30 są podzielone na trzy fazy: Architektura gry, Edukacja gracza i Endgame.
+* Przyjęto: Sprint 21.5 domyka Gameplay Contract pomiędzy audytem a implementacją pojemności.
+* Przyjęto: Sprinty 21–30 rozwijają narzędzia gracza i Googleplex Tool Laboratory bez tworzenia drugiego sklepu, drugiego systemu plików ani drugiego runtime aplikacji.
+* Przyjęto: pojemność i waga stają się częścią kontraktu aplikacji oraz modelu plików.
+* Przyjęto: Sprint 31 domyka zasady bezpiecznej aktualizacji bazy na serwerze przez idempotentne migracje.
+* Przyjęto: Sprinty 32–33 rozwijają subtelny feedback celu wyłącznie na belce CEL, bez nowego panelu i bez zmiany warunku hackowania.
+* Przyjęto: Sprinty 35–39 zmieniają Ghost Exchange z ręcznego panelu sprzedaży plików w automatyczny rynek danych oparty o kolejkę, sektory i idempotentne rozliczenia.
+* Przyjęto: Sprinty 40–44 rozwijają Skrzynkę mailową w Cybernera / Messenger CHAOS bez tworzenia drugiego systemu wiadomości, kontaktów ani powiadomień.
+* Przyjęto: Sprinty 45–47 rozwijają Cybernera z komunikatora w kanałową warstwę komunikacji świata: audyt kanałów, minimalny runtime i social polish bez drugiego `mail_store`.
+* Przyjeto: Sprinty 51-53 rozwijaja Ghost Hack Radio jako lokalna warstwe audio
+  oparta o `meta.channel`, bez backendu, bez nowego systemu misji i bez
+  przebudowy Cybernera.
+* Przyjeto: Sprint 54 dopolerowuje Ghost Hack Radio jako lokalna usluge audio
+  dzialajaca po pierwszej interakcji gracza, bez backendu, streamingu i
+  BlackNet runtime.
+* Przyjeto: Sprint 55 zmienia zwykly polling audit w Runtime Synchronization
+  Audit, czyli badanie calego cyklu danych od triggera przez endpoint do
+  renderu UI.
+* Przyjeto: Sprint 56 wprowadza kontrakt wersji stanu, ale zrodlem prawdy nadal
+  pozostaja dotychczasowe modele i snapshoty.
+* Przyjeto: Sprint 57 definiuje `delta event` jako idempotentny komunikat o
+  zmianie, z `entity_id` i `dedupe_key`, a nie jako nowy snapshot profilu.
+* Przyjeto: Sprint 58 dodaje `GameStateDeltaBus` jako dziennik zmian, nie jako
+  drugi magazyn stanu gry.
+* Przyjeto: Sprint 59 udostepnia read-only endpoint delt do testow, bez
+  podpinania produkcyjnego UI i bez liczenia stanu gry.
+* Przyjeto: Sprint 60 dodaje diagnostyke delt i recovery tylko dla dev/admin,
+  bez zmiany runtime zwyklego gracza.
+* Przyjeto: Sprint 60.5 audytuje potencjalny Async Operation Runner, ale nie
+  przebudowuje jeszcze zadnych akcji.
+* Przyjeto: Sprint 60.6 zostaje anulowany / odlozony, bo koszt runnera dla
+  jednego bezpiecznego kandydata byl wiekszy niz zysk runtime.
+* Przyjeto: Sprint 61 przenosi pierwszy maly scope na delta-feed: wallet / HC,
+  zostawiajac `/api/profile` jako recovery.
+* Przyjeto: Sprint 62 rozszerza delta-feed na storage, tak aby File Manager,
+  toolbar i Ghost Exchange widzialy spojny stan dysku bez pelnego profilu.
+* Przyjeto: Sprint 63 rozszerza delta-feed na apps, bez drugiego app cache i
+  bez przebudowy katalogu Googleplex.
+* Przyjeto: Sprint 64 ogranicza odswiezanie Mail/Cyberner i Ghost Exchange do
+  malych delt summary, unread i transakcji, zostawiajac pelne bootstrapy jako
+  recovery.
+* Przyjeto: Sprint 65 utwardza recovery per scope i zakazuje panic reloadu jako
+  zwyklej sciezki naprawy delt.
+* Przyjeto: Sprint 66 audytuje mape pod delty bez migracji mapy i rozdziela
+  player actors, targety, area layers, konflikty oraz vulnerabilities.
+* Przyjeto: Sprint 67 wprowadza pierwsza delte mapy tylko dla player actors,
+  bez ruszania targetow, obszarow, konfliktow i vulnerabilities.
+* Przyjeto: Sprint 68 przygotowuje target registry po stabilnym `target_id`,
+  bez migracji area/conflict layers.
+* Przyjeto: Sprint 68.5 dodaje target delta v0 tylko dla markerow targetow,
+  zostawiajac obszary i contested/captured layers poza zakresem.
+* Przyjeto: Sprint 69 rozrzedza / wygasza pollery dopiero po potwierdzeniu
+  delta-feed i recovery, bez usuwania snapshot endpointow.
+* Przyjeto: Sprint 70 jest audytem integralnosci refactoru delt: sprawdza
+  helpery, typy eventow, `applyDelta()`, recovery, snapshoty i ukryte legacy.
+* Przyjeto: Sprint 71 wprowadza Map Initial Load Gate: mapa nie jest gotowa,
+  dopoki krytyczne warstwy nie zglosza loaded, a akcje mapowe sa blokowane w
+  trakcie bootu.
+* Przyjeto: Sprint 72 skraca sciezke hack action na mapie przez lekki picker
+  narzedzia, bez domyslnego otwierania pelnego File Managera.
+* Przyjeto: Sprint 73 optymalizuje i porzadkuje map runtime po liftingu akcji:
+  poprawia responsywnosc, feedback hackowania i usuwa najgorsze opoznienia bez
+  przebudowy backendu.
+* Przyjeto: Sprint 74 uruchamia Faze H od audytu prototypu BlackNet i kontraktu
+  `blacknet_signal`, bez runtime w grze.
+* Przyjeto: Sprint 75 osadza BlackNet jako natywny tab WebDragons, bez React /
+  Next runtime i bez backendu.
+* Przyjeto: Sprint 76 oraz 76.1 dopasowuja BlackNet do prototypu jako
+  czterokierunkowy signal roll, a nie katalog kart, drugi Googleplex ani drugi
+  Ghost Exchange.
+* Przyjeto: Sprint 77 podpina CTA BlackNetu do istniejacych systemow przez
+  `cta_action`, bez tworzenia misji, rynku, endpointow i drugiego flow.
+* Przyjeto: Sprint 78 przenosi sygnaly BlackNetu do lokalnego kontraktu
+  `static/blacknet_signals.json`, a renderer tylko je laduje i normalizuje.
+* Przyjeto: Sprint 79 definiuje przyszly `blacknet_world_digest` jako read
+  model nad faktami swiata, bez pollera, AI i wywolywania
+  `sync_session_profile()`.
+* Przyjeto: Sprint 80 zamyka BlackNet v0 jako stabilny lokalny front
+  informacyjny; aktywne style `.blacknet-stage` i `.bn-*` pozostaja w
+  `blacknet.css`, a martwy legacy shell zostal usuniety ze `style.css`.
+* Przyjeto: Sprint 81 dodaje lekki snapshot faktow swiata dla BlackNetu bez
+  pelnego profilu, mapy, settlementu rynku i AI.
+* Przyjeto: Sprint 82 zamienia realne fakty swiata w deterministyczne sygnaly
+  BlackNetu, bez uzywania Ollamy i bez tworzenia drugiego zrodla prawdy.
+* Przyjeto: Sprint 82.5 podpina CTA sygnalow do istniejacych systemow CHAOS
+  przez kontrolowany router, bez nowych flow zakupow, mapy, radia ani
+  Cybernera.
+* Przyjeto: Sprinty 82.6-82.9 odcinaja produkcyjne mocki BlackNetu, dodaja
+  realne generatory map/conflict/GX/Googleplex/radio/Cyberner i zostawiaja
+  `OUT OF SIGNAL` jako jedyny poprawny koniec feedu.
+* Przyjeto: Sprint 83 zamyka pierwszy kontrakt Ollamy jako bezpieczny outbox.
+  Ollama dostaje tylko walidowana paczke redakcyjna, bez dostepu do bazy,
+  profilu, mapy i systemow gameplayowych.
+* Przyjeto: Sprint 84 zostaje zamrozony. Przed ingestem odpowiedzi Ollamy trzeba
+  najpierw domknac kanoniczny rejestr rodzin sygnalow, stabilny kontrakt
+  odpowiedzi modelu oraz daemonowy feedback loop, ktory po walidacji doklada
+  kandydatow do strumienia BlackNet.
+* Przyjeto: `game_play_260626.md` konczy aktywny plan na Sprincie 103. Dalsze
+  sprinty od 104 sa kontynuowane w `doc/history/game_play_180726.md` jako Faza J -
+  Ghost Control Suite / Mapless Control Layer.
+
+---
+
+# Podsumowanie projektowe
+
+CHAOS nie jest tylko grą o hakowaniu.
+
+To gra o prowadzeniu cyfrowego imperium wywiadowczego.
+
+Hakowanie jest początkiem.
+
+Prawdziwa pętla zaczyna się wtedy, gdy:
+
+* obiekt świata staje się celem,
+* aplikacja uruchamia operację,
+* operacja żyje na mapie,
+* dane zamieniają się w pliki,
+* pliki zamieniają się w HC,
+* HC zamieniają się w nowe aplikacje,
+* nowe aplikacje otwierają nowe sposoby hakowania świata.
+
+Mapa nie jest ekranem.
+Mapa jest wejściem do świata.
+
+Pliki nie są magazynem.
+Pliki są towarem.
+
+Aplikacje nie są efektami.
+Aplikacje są narzędziami do uruchamiania operacji.
+
+Googleplex nie jest tylko sklepem.
+Googleplex jest silnikiem progresu.
+
+Ghost Exchange nie jest tylko giełdą.
+Ghost Exchange jest gospodarką informacji.
+
+To jest kręgosłup implementacji po Sprincie 0.

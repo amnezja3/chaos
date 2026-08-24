@@ -24,15 +24,41 @@ class FakeUserStore:
     def get_profile(self, username):
         return self.profiles.get(username)
 
+    def get_identity(self, username):
+        profile = self.profiles.get(username)
+        return {"username": username, **profile} if profile else None
+
+    def get_identities(self, usernames, max_items=500):
+        if len(list(usernames)) > max_items:
+            raise ValueError("identity batch exceeds bound")
+        return [
+            {"username": username, **self.profiles[username]}
+            for username in usernames if username in self.profiles
+        ]
+
+    def list_recipient_ids(self, scope, *, clan_code=None, owner_ids=None, limit=500):
+        if scope in {"owner", "owners"}:
+            return [item for item in (owner_ids or []) if item in self.profiles][:limit]
+        usernames = list(self.profiles)
+        if scope == "clan":
+            usernames = [
+                username for username in usernames
+                if self.profiles[username].get("clan") == clan_code
+            ]
+        return usernames[:limit]
+
 
 class GhostNetworkDeltaAudienceBridgeTest(unittest.TestCase):
     def setUp(self):
         self.store = FakeUserStore()
         self.store_patch = patch.object(run, "user_store", self.store)
+        self.identity_patch = patch.object(run, "identity_projection_store", self.store)
         self.store_patch.start()
+        self.identity_patch.start()
 
     def tearDown(self):
         self.store_patch.stop()
+        self.identity_patch.stop()
 
     @staticmethod
     def event(scope, event_type="ghost.part_contained", **values):

@@ -24,7 +24,7 @@ from flask_session import Session
 from poiFetchClass import POIFetcher
 import Haversine
 from profileManagment import UserProfileManager, authenticate_user
-from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerMarkedTargetStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore, ProfileDestructiveWriteRejected, ProfilePrecommitRejected, ProfileRecoveryRequired, ProfileValidationError, ProfileWriteConflict, WalletIdempotencyConflict, WalletInsufficientFunds, WalletNotInitialized, WalletWriteError, get_hot_path_metrics, reset_hot_path_metrics, restore_hot_path_metrics, reset_profile_precommit_guard, reset_profile_write_request_metadata, reset_request_transaction_precommit_guard, set_profile_precommit_guard, set_profile_write_request_metadata, set_request_transaction_precommit_guard
+from database import AppActionReceiptStore, CybernerChannelCursorStore, CybernerClanStore, CybernerWorldStore, GhostNetworkDeltaDeliveryJobStore, GhostNetworkTerritoryJobStore, JsonResourceStore, MailStore, TerritoryStore, TerritoryConflictStore, TerritoryConflictEngagementStore, TerritoryProgressionReceiptStore, TerritoryTargetOwnershipStore, UserStore, UserIdentityProjectionStore, VulnerabilityStore, WalletStore, PlayerHackAccessStore, DevBugReportStore, GameStateDeltaBus, PlayerTargetRuntimeStore, PlayerMarkedTargetStore, PlayerPositionStore, PlayerOperationStore, SystemMessageStore, PlayerInventoryStore, WalletBalanceStore, ProfileDestructiveWriteRejected, ProfilePrecommitRejected, ProfileRecoveryRequired, ProfileValidationError, ProfileWriteConflict, WalletIdempotencyConflict, WalletInsufficientFunds, WalletNotInitialized, WalletWriteError, get_hot_path_metrics, reset_hot_path_metrics, restore_hot_path_metrics, reset_profile_precommit_guard, reset_profile_write_request_metadata, reset_request_transaction_precommit_guard, set_profile_precommit_guard, set_profile_write_request_metadata, set_request_transaction_precommit_guard
 import requests
 from config import (
     APP_VERSION,
@@ -68,6 +68,7 @@ from ghostnetwork import (
     GhostNetworkDeltaPublisher,
     GhostNetworkService,
     GhostRuntimeCoordinator,
+    GhostVisibilityService,
     normalize_ghostnetwork_profile_identity,
     normalize_snapshot_view,
 )
@@ -87,6 +88,7 @@ cyberner_world_store = CybernerWorldStore()
 cyberner_clan_store = CybernerClanStore()
 cyberner_channel_cursor_store = CybernerChannelCursorStore()
 user_store = UserStore()
+identity_projection_store = UserIdentityProjectionStore()
 session_generation_store = SessionGenerationStore()
 territory_store = TerritoryStore()
 ghostnetwork_territory_job_store = GhostNetworkTerritoryJobStore()
@@ -2865,9 +2867,12 @@ def build_map_player_actor_delta_payload(viewer_username, actor_profile, context
     if lat in (None, 0, 0.0) or lng in (None, 0, 0.0):
         return None
 
-    viewer_profile = user_store.get_profile(viewer_username) or {}
+    try:
+        viewer_profile = identity_projection_store.get_identity(viewer_username) or {}
+    except ProfileRecoveryRequired:
+        return None
     context = dict(context or {})
-    aimed_target = viewer_profile.get("aimed_target") or {}
+    aimed_target = player_target_runtime_store.get_active_target(viewer_username)
     if aimed_target.get("target_mode") == "player" and aimed_target.get("target_username") == actor_username:
         context["is_marked_target"] = True
         context["target_status"] = "aimed"
@@ -2878,12 +2883,9 @@ def build_map_player_actor_delta_payload(viewer_username, actor_profile, context
     context["level"] = actor_profile.get("level", context.get("level"))
 
     try:
-        territory_count = 0
-        for area in territory_store.list_player_areas():
-            owner_username = area.get("owner_username") or area.get("login")
-            if owner_username == actor_username:
-                territory_count += 1
-        context["territory_count"] = territory_count
+        context["territory_count"] = territory_store.count_player_areas(
+            actor_username
+        )
     except Exception as exc:
         print(f"Nie udalo sie policzyc terytoriow player_actor delta: {exc}")
 
@@ -2921,7 +2923,11 @@ def record_map_player_actor_delta(actor_username, actor_profile=None, change_typ
     actor_username = str(actor_username or "").strip()
     if not actor_username:
         return []
-    actor_profile = actor_profile if isinstance(actor_profile, dict) else (user_store.get_profile(actor_username) or {})
+    if not isinstance(actor_profile, dict):
+        try:
+            actor_profile = identity_projection_store.get_identity(actor_username) or {}
+        except ProfileRecoveryRequired:
+            actor_profile = {}
     if not actor_profile:
         return []
 
@@ -3138,12 +3144,19 @@ def process_ghostnetwork_territory_job(lease_owner, lease_seconds=300, service=N
 
 def build_ghostnetwork_territory_publication():
     events = []
-    profiles = {
-        str(username or "").strip(): profile
-        for username, profile in user_store.list_profile_identities()
-        if str(username or "").strip() and isinstance(profile, dict)
-    }
-    for area in territory_store.list_player_areas():
+    areas = territory_store.list_player_areas()
+    owner_ids = sorted({
+        str(area.get("owner_username") or "").strip()
+        for area in areas
+        if str(area.get("owner_username") or "").strip()
+    })
+    profiles = {}
+    for start in range(0, len(owner_ids), 500):
+        for identity in identity_projection_store.get_identities(
+            owner_ids[start:start + 500], max_items=500
+        ):
+            profiles[identity["username"]] = identity
+    for area in areas:
         owner = str(area.get("owner_username") or "").strip()
         profile = profiles.get(owner) or {}
         clan = normalize_ghostnetwork_profile_identity({
@@ -3198,8 +3211,15 @@ def apply_ghostnetwork_runtime_result(service, result, timings=None):
     broad_profiles = None
     if any(str(event.get("audience_scope") or "internal").lower() in {"public", "clan"} for event in events):
         phase_started = time.perf_counter()
-        identity_loader = getattr(user_store, "list_profile_identities", user_store.list_profile_entries)
-        broad_profiles = identity_loader()
+        recipient_ids = identity_projection_store.list_recipient_ids(
+            "public", limit=500
+        )
+        broad_profiles = [
+            (identity["username"], identity)
+            for identity in identity_projection_store.get_identities(
+                recipient_ids, max_items=500
+            )
+        ]
         if timings is not None:
             timings["audience_profiles"] = int((time.perf_counter() - phase_started) * 1000)
     dirty_profiles = set()
@@ -4050,7 +4070,12 @@ def is_perf_log_enabled():
 
 @app.before_request
 def start_perf_timer():
-    if is_perf_log_enabled() and request.path in PERF_LOG_ENDPOINTS:
+    is_territory_detail = request.path.startswith(
+        ("/api/ghost-control/territory/", "/api/pro-system/territory-control/")
+    )
+    if is_perf_log_enabled() and (
+        request.path in PERF_LOG_ENDPOINTS or is_territory_detail
+    ):
         g.perf_log_started_at = time.perf_counter()
         g.hot_path_metrics_token = reset_hot_path_metrics()
 
@@ -4069,10 +4094,14 @@ def log_slow_or_large_response(response):
     size = int(size or 0)
 
     if elapsed_ms >= PERF_LOG_MIN_MS or size >= PERF_LOG_MIN_SIZE:
-        user = session.get("user") or "-"
+        user = str(session.get("user") or "")
+        user_hash = (
+            hashlib.sha256(user.encode("utf-8", errors="ignore")).hexdigest()[:12]
+            if user else "-"
+        )
         print(
             f"[PERF] {request.method} {request.path} "
-            f"status={response.status_code} ms={elapsed_ms} size={size} user={user}",
+            f"status={response.status_code} ms={elapsed_ms} size={size} user_hash={user_hash}",
             flush=True,
         )
 
@@ -4082,6 +4111,10 @@ def log_slow_or_large_response(response):
         f"request_ms={elapsed_ms} profile_full_read={hot_path['profile_full_read']} "
         f"profile_full_write={hot_path['profile_full_write']} "
         f"profile_bytes={hot_path['profile_bytes']} "
+        f"all_user_profile_scan={hot_path['all_user_profile_scan']} "
+        f"per_recipient_profile_read={hot_path['per_recipient_profile_read']} "
+        f"bounded_identity_count={hot_path['bounded_identity_count']} "
+        f"recipient_batch_count={hot_path['recipient_batch_count']} "
         f"sqlite_writer_wait_ms={hot_path['sqlite_writer_wait_ms']}",
         flush=True,
     )
@@ -7752,8 +7785,25 @@ def ghostnetwork_event_recipient_profiles(event, profile_entries=None, profile_c
     candidates = []
     if scope in {"public", "clan"}:
         if profile_entries is None:
-            identity_loader = getattr(user_store, "list_profile_identities", user_store.list_profile_entries)
-            entries = identity_loader()
+            clan_code = None
+            if scope == "clan":
+                clan_code = str(
+                    event.get("audience_clan")
+                    or event.get("clan_code")
+                    or payload.get("player_clan")
+                    or payload.get("territory_clan")
+                    or payload.get("clan_code")
+                    or ""
+                ).strip().lower()
+            recipient_ids = identity_projection_store.list_recipient_ids(
+                scope, clan_code=clan_code, limit=500
+            )
+            entries = [
+                (identity["username"], identity)
+                for identity in identity_projection_store.get_identities(
+                    recipient_ids, max_items=500
+                )
+            ]
         else:
             entries = profile_entries
         for username, profile in entries:
@@ -7764,7 +7814,7 @@ def ghostnetwork_event_recipient_profiles(event, profile_entries=None, profile_c
         for username in sorted(item for item in direct_usernames if item):
             profile = (profile_cache or {}).get(username)
             if profile is None:
-                profile = user_store.get_profile(username) or {}
+                profile = identity_projection_store.get_identity(username) or {}
             if profile:
                 candidates.append((username, profile))
 
@@ -16566,6 +16616,21 @@ def territory_control_app_installed(profile):
     return app_is_installed(profile or {}, TERRITORY_CONTROL_APP_ID)
 
 
+def territory_control_load_context(username):
+    """Load only bounded/canonical state required by Territory Control."""
+    identity = identity_projection_store.get_identity(username)
+    if not isinstance(identity, dict):
+        return None
+    return {
+        "identity": identity,
+        "app_installed": player_inventory_store.has_app(
+            username, TERRITORY_CONTROL_APP_ID
+        ),
+        "position": player_position_store.get_position(username),
+        "aimed_target": player_target_runtime_store.get_active_target(username),
+    }
+
+
 def territory_control_position(profile):
     return victim_picker_position(profile)
 
@@ -16612,7 +16677,14 @@ def territory_control_focus_payload(target, mode="object", cluster_id=None, zoom
     return focus
 
 
-def territory_control_object_payload(username, target, node_role, origin=None, profile=None, cluster_id=None):
+def territory_control_object_payload(
+    username,
+    target,
+    node_role,
+    origin=None,
+    aimed_target=None,
+    cluster_id=None,
+):
     target = dict(target or {})
     try:
         lat = float(target.get("lat"))
@@ -16626,7 +16698,7 @@ def territory_control_object_payload(username, target, node_role, origin=None, p
     security = dict(target.get("security") or {})
     summary = territory_control_security_summary(security)
     target_id = territory_control_target_id(target)
-    aimed = (profile or {}).get("aimed_target") or {}
+    aimed = aimed_target if isinstance(aimed_target, dict) else {}
     disabled_reason = ""
     can_abandon = target.get("owner_username") in (None, "", username)
     if not can_abandon:
@@ -16736,19 +16808,50 @@ def territory_control_nearest_object(objects, origin):
     return min(candidates, key=lambda item: item.get("distance_from_bike"))
 
 
-def build_territory_control_snapshot(username, profile=None):
-    profile = profile if isinstance(profile, dict) else load_profile_readonly(
-        username,
-        strip_sensitive=True,
-        normalize_apps=True,
-        normalize_files=False,
+def territory_control_ghost_components(username, areas, identity):
+    """Project GN parts into owned clusters without exposing raw anchors."""
+    visibility = GhostVisibilityService()
+    viewer = ghostnetwork_player_payload(username, identity or {})
+    grouped_parts = {}
+    try:
+        service = get_ghostnetwork_service()
+        active = service.get_active_cycle()
+        if active:
+            for part in service.repository.list_parts(active["cycle_id"]):
+                territory_id = str(part.get("territory_id") or "").strip()
+                if territory_id:
+                    grouped_parts.setdefault(territory_id, []).append(part)
+    except Exception as exc:
+        print(f"Territory Control GN projection unavailable: {exc}")
+        grouped_parts = {}
+
+    result = {}
+    for area in areas or []:
+        cluster_id = str(area.get("id") or "").strip()
+        result[cluster_id] = visibility.project_territory_component_for_viewer(
+            {
+                "cluster_id": cluster_id,
+                "parts": grouped_parts.get(cluster_id, []),
+            },
+            viewer,
+        )
+    return result
+
+
+def build_territory_control_snapshot(username, context=None):
+    context = context if isinstance(context, dict) else territory_control_load_context(
+        username
     )
-    if not isinstance(profile, dict):
+    if not isinstance(context, dict):
         return None
 
-    origin = territory_control_position(profile)
+    origin = dict(context.get("position") or {})
+    aimed_target = dict(context.get("aimed_target") or {})
     captured_targets = territory_store.list_captured_targets(username)
     own_areas = safe_player_areas(territory_store.list_player_areas(username))
+    ghost_components = territory_control_ghost_components(
+        username, own_areas, context.get("identity") or {}
+    )
     conflicts = get_active_conflicts_for_player(username)
     visible_conflict_targets = contested_targets_from_active_conflicts(username)
 
@@ -16767,7 +16870,8 @@ def build_territory_control_snapshot(username, profile=None):
                 continue
             if key in vertex_keys:
                 item = territory_control_object_payload(
-                    username, target, "pillar", origin=origin, profile=profile, cluster_id=area_id
+                    username, target, "pillar", origin=origin,
+                    aimed_target=aimed_target, cluster_id=area_id
                 )
                 if item:
                     pillars.append(item)
@@ -16775,7 +16879,8 @@ def build_territory_control_snapshot(username, profile=None):
                 continue
             if territory_control_target_in_area(target, area):
                 item = territory_control_object_payload(
-                    username, target, "inner", origin=origin, profile=profile, cluster_id=area_id
+                    username, target, "inner", origin=origin,
+                    aimed_target=aimed_target, cluster_id=area_id
                 )
                 if item:
                     inners.append(item)
@@ -16810,6 +16915,7 @@ def build_territory_control_snapshot(username, profile=None):
             "zoom": 17,
         }
         clusters.append({
+            **ghost_components.get(cluster_id, {}),
             "cluster_id": cluster_id,
             "label": f"Klaster {cluster_id}",
             "status": area.get("status") or "active",
@@ -16838,7 +16944,8 @@ def build_territory_control_snapshot(username, profile=None):
         if not key or key in assigned_keys:
             continue
         item = territory_control_object_payload(
-            username, target, "alone", origin=origin, profile=profile, cluster_id=None
+            username, target, "alone", origin=origin,
+            aimed_target=aimed_target, cluster_id=None
         )
         if item:
             item.pop("cluster_id", None)
@@ -16874,8 +16981,8 @@ def territory_control_find_owned_target(username, lat, lng, label=None):
     return None
 
 
-def territory_control_object_snapshot(username, target, profile=None):
-    snapshot = build_territory_control_snapshot(username, profile=profile)
+def territory_control_object_snapshot(username, target, context=None):
+    snapshot = build_territory_control_snapshot(username, context=context)
     target_id = territory_control_target_id(target)
     for cluster in (snapshot or {}).get("clusters") or []:
         for item in (cluster.get("pillars") or []) + (cluster.get("inners") or []):
@@ -19112,7 +19219,7 @@ def api_ghostnetwork_snapshot():
             "parts": [],
         }), 401
 
-    profile = user_store.get_profile_identity(username)
+    profile = identity_projection_store.get_identity(username)
     if not profile:
         invalidate_authenticated_session("profile_not_found")
         return jsonify({
@@ -19489,6 +19596,80 @@ def api_blacknet_ollama_outbox_status(digest_id):
     })
 
 
+def resolve_ghostnetwork_teleport_target(username, payload):
+    """Resolve an opaque GN target under the viewer's current visibility."""
+    coordinate_keys = {"lat", "lng", "lon", "latitude", "longitude"}
+    if coordinate_keys.intersection(payload):
+        return None, "client_coordinates_forbidden"
+    target_type = str(payload.get("target_type") or "").strip().lower()
+    if target_type not in {"ghostnetwork_part", "ghostnetwork_territory"}:
+        return None, "invalid_ghostnetwork_target_type"
+    identity = identity_projection_store.get_identity(username)
+    if not identity:
+        return None, "identity_projection_not_ready"
+    viewer = ghostnetwork_player_payload(username, identity)
+    projected = get_ghostnetwork_service().get_snapshot_for_viewer(viewer)
+    parts = (projected.get("snapshot") or {}).get("parts") or []
+
+    selected = None
+    territory_id = str(payload.get("territory_id") or "").strip()
+    public_entity_id = str(payload.get("public_entity_id") or "").strip()
+    if target_type == "ghostnetwork_part":
+        if not public_entity_id:
+            return None, "missing_public_entity_id"
+        selected = next((
+            item for item in parts
+            if str(item.get("public_entity_id") or "") == public_entity_id
+        ), None)
+        if not selected:
+            return None, "ghostnetwork_target_not_visible"
+        territory_id = str(selected.get("territory_id") or "").strip()
+    else:
+        if not territory_id:
+            return None, "missing_territory_id"
+        selected = next((
+            item for item in parts
+            if str(item.get("territory_id") or "") == territory_id
+        ), None)
+        if not selected:
+            return None, "ghostnetwork_target_not_visible"
+
+    location_visibility = str(selected.get("location_visibility") or "")
+    if target_type == "ghostnetwork_part" and location_visibility == "exact":
+        try:
+            position = {
+                "lat": float(selected.get("latitude")),
+                "lng": float(selected.get("longitude")),
+            }
+        except (TypeError, ValueError):
+            return None, "ghostnetwork_target_location_unavailable"
+        location_precision = "exact"
+    else:
+        area = territory_store.get_player_area(territory_id)
+        if not area:
+            return None, "ghostnetwork_territory_location_unavailable"
+        try:
+            position = {
+                "lat": float(area.get("centroid_lat")),
+                "lng": float(area.get("centroid_lng")),
+            }
+        except (TypeError, ValueError):
+            return None, "ghostnetwork_territory_location_unavailable"
+        location_precision = "territory"
+
+    return {
+        "position": position,
+        "label": selected.get("display_label") or "GhostNetwork",
+        "target": {
+            "source": "ghostnetwork_suite",
+            "target_type": target_type,
+            "public_entity_id": public_entity_id or None,
+            "territory_id": territory_id or None,
+            "location_precision": location_precision,
+        },
+    }, ""
+
+
 @app.route("/api/blacknet/cta/teleport", methods=["POST"])
 def api_blacknet_cta_teleport():
     username = session.get("user")
@@ -19508,76 +19689,129 @@ def api_blacknet_cta_teleport():
     ).strip()
     label = str(payload.get("label") or payload.get("target_label") or "").strip()
     source = str(payload.get("source") or "blacknet").strip().lower()
-    try:
-        payload_lat = float(payload.get("lat"))
-        payload_lng = float(payload.get("lng"))
-    except (TypeError, ValueError):
-        payload_lat = None
-        payload_lng = None
-    hotspot = BLACKNET_HOTSPOTS.get(hotspot_id)
-    has_payload_position = (
-        payload_lat is not None
-        and payload_lng is not None
-        and -90 <= payload_lat <= 90
-        and -180 <= payload_lng <= 180
-    )
-    if hotspot:
-        position = {
-            "lat": float(hotspot["lat"]),
-            "lng": float(hotspot["lng"]),
-        }
-        target_label = hotspot.get("label") or hotspot_id or label or "target"
-        hotspot_payload = {
-            "id": hotspot["id"],
-            "label": hotspot["label"],
-            "risk": hotspot.get("risk", ""),
-        }
-    elif has_payload_position:
-        position = {
-            "lat": payload_lat,
-            "lng": payload_lng,
-        }
-        target_label = label or "target"
+    ghostnetwork_target = None
+    if source == "ghostnetwork_suite":
+        resolved, resolve_error = resolve_ghostnetwork_teleport_target(
+            username, payload
+        )
+        if not resolved:
+            status = 400 if resolve_error in {
+                "client_coordinates_forbidden",
+                "invalid_ghostnetwork_target_type",
+                "missing_public_entity_id",
+                "missing_territory_id",
+            } else (409 if resolve_error == "identity_projection_not_ready" else 404)
+            return jsonify({
+                "success": False,
+                "message": "Cel GhostNetwork jest niedostepny dla biezacej projekcji.",
+                "error": resolve_error,
+            }), status
+        position = resolved["position"]
+        target_label = resolved["label"]
+        ghostnetwork_target = resolved["target"]
         hotspot_payload = None
     else:
-        error_code = "unknown_hotspot" if hotspot_id else "unknown_target"
+        try:
+            payload_lat = float(payload.get("lat"))
+            payload_lng = float(payload.get("lng"))
+        except (TypeError, ValueError):
+            payload_lat = None
+            payload_lng = None
+        hotspot = BLACKNET_HOTSPOTS.get(hotspot_id)
+        has_payload_position = (
+            payload_lat is not None
+            and payload_lng is not None
+            and -90 <= payload_lat <= 90
+            and -180 <= payload_lng <= 180
+        )
+        if hotspot:
+            position = {
+                "lat": float(hotspot["lat"]),
+                "lng": float(hotspot["lng"]),
+            }
+            target_label = hotspot.get("label") or hotspot_id or label or "target"
+            hotspot_payload = {
+                "id": hotspot["id"],
+                "label": hotspot["label"],
+                "risk": hotspot.get("risk", ""),
+            }
+        elif has_payload_position:
+            position = {
+                "lat": payload_lat,
+                "lng": payload_lng,
+            }
+            target_label = label or "target"
+            hotspot_payload = None
+        else:
+            error_code = "unknown_hotspot" if hotspot_id else "unknown_target"
+            return jsonify({
+                "success": False,
+                "message": "Cel teleportu BlackNet wygasl albo nie posiada wspolrzednych.",
+                "error": error_code,
+            }), 404
+
+    try:
+        position_result = player_position_store.upsert(
+            username, position, source=source or "blacknet"
+        )
+    except ProfilePrecommitRejected:
         return jsonify({
             "success": False,
-            "message": "Cel teleportu BlackNet wygasl albo nie posiada wspolrzednych.",
-            "error": error_code,
-        }), 404
-
-    profile = load_profile_readonly(username, strip_sensitive=False)
-    if not isinstance(profile, dict):
-        invalidate_authenticated_session("profile_not_found")
+            "message": "Sesja zmienila sie przed zapisem teleportu.",
+            "error": "session_generation_changed",
+        }), 409
+    stored_position = position_result.get("position") or {}
+    if not stored_position:
         return jsonify({
             "success": False,
-            "message": "Profil nie istnieje.",
-            "error": "profile_not_found",
-        }), 401
+            "message": "Nie mozna zapisac pozycji teleportu.",
+            "error": "position_write_failed",
+        }), 500
+    position_updates = {
+        "curently_possition": dict(stored_position),
+        "current_position": dict(stored_position),
+        "position_version": position_result.get("version"),
+        "position_updated_at": position_result.get("updated_at"),
+    }
 
-    position_updates = normalize_profile_position_update(position, username=username, source=source or "blacknet")
-    profile.update(position_updates)
-
-    mgr = UserProfileManager(username)
-    mgr.update_profile(position_updates)
-    session["profile"] = profile
-
-    intrusion_area = notify_area_intrusion(username, position["lat"], position["lng"])
-    teleport_reason = "terminal_teleport" if source == "terminal" else "blacknet_teleport"
-    record_map_player_actor_delta(
-        username,
-        profile,
-        change_type="map.player_moved",
-        reason=teleport_reason,
-        intrusion_area=intrusion_area,
-    )
-    message_prefix = "Teleport wykonany" if source == "terminal" else "Teleport BlackNet wykonany"
+    intrusion_area = None
+    if position_result.get("changed"):
+        intrusion_area = notify_area_intrusion(
+            username, stored_position["lat"], stored_position["lng"]
+        )
+    teleport_reason = {
+        "terminal": "terminal_teleport",
+        "ghostnetwork_suite": "ghostnetwork_teleport",
+    }.get(source, "blacknet_teleport")
+    if position_result.get("changed"):
+        try:
+            actor_identity = identity_projection_store.get_identity(username)
+        except ProfileRecoveryRequired:
+            actor_identity = None
+        if actor_identity:
+            record_map_player_actor_delta(
+                username,
+                actor_identity,
+                change_type="map.player_moved",
+                reason=teleport_reason,
+                intrusion_area=intrusion_area,
+                dedupe_key_prefix=(
+                    f"map:player_actor:{username}:teleport:"
+                    f"{position_result.get('version')}"
+                ),
+            )
+    message_prefix = {
+        "terminal": "Teleport wykonany",
+        "ghostnetwork_suite": "Teleport GhostNetwork wykonany",
+    }.get(source, "Teleport BlackNet wykonany")
 
     return jsonify({
         "success": True,
         "message": f"{message_prefix}: {target_label}.",
         "hotspot": hotspot_payload,
+        "ghostnetwork_target": ghostnetwork_target,
+        "changed": bool(position_result.get("changed")),
+        "duplicate": not bool(position_result.get("changed")),
         "curently_possition": position_updates.get("curently_possition"),
         "current_position": position_updates.get("current_position"),
         "position_version": position_updates.get("position_version"),
@@ -20361,7 +20595,13 @@ def map_target_snapshot():
     if "user" not in session:
         return jsonify({"error": "not_logged_in"}), 401
     username = session["user"]
-    targets = player_marked_target_store.list_targets(username)
+    try:
+        targets = player_marked_target_store.list_targets(username)
+    except ValueError:
+        # A test/session identity can outlive its canonical account row; an
+        # empty target projection is safer than turning a read-only snapshot
+        # into a 500 response.
+        targets = []
     captured = territory_store.list_captured_targets(username)
     captured_keys = {target_position_key(item) for item in captured if target_position_key(item)}
     targets = [
@@ -23847,18 +24087,6 @@ def victim_picker_aim():
     })
 
 
-def territory_control_load_profile(username, strip_sensitive=True):
-    profile = load_profile_readonly(
-        username,
-        strip_sensitive=strip_sensitive,
-        normalize_apps=True,
-        normalize_files=False,
-    )
-    if not isinstance(profile, dict):
-        return None
-    return profile
-
-
 def territory_control_forbidden_response():
     return jsonify({
         "success": False,
@@ -23874,13 +24102,13 @@ def territory_control_clusters():
         return jsonify({"success": False, "error": "not_logged_in"}), 401
 
     username = session["user"]
-    profile = territory_control_load_profile(username)
-    if not profile:
+    context = territory_control_load_context(username)
+    if not context:
         return jsonify({"success": False, "error": "profile_not_found"}), 404
-    if not territory_control_app_installed(profile):
+    if not context.get("app_installed"):
         return territory_control_forbidden_response()
 
-    snapshot = build_territory_control_snapshot(username, profile=profile)
+    snapshot = build_territory_control_snapshot(username, context=context)
     return jsonify({
         "success": True,
         "ok": True,
@@ -23895,13 +24123,13 @@ def territory_control_cluster_detail(cluster_id):
         return jsonify({"success": False, "error": "not_logged_in"}), 401
 
     username = session["user"]
-    profile = territory_control_load_profile(username)
-    if not profile:
+    context = territory_control_load_context(username)
+    if not context:
         return jsonify({"success": False, "error": "profile_not_found"}), 404
-    if not territory_control_app_installed(profile):
+    if not context.get("app_installed"):
         return territory_control_forbidden_response()
 
-    snapshot = build_territory_control_snapshot(username, profile=profile)
+    snapshot = build_territory_control_snapshot(username, context=context)
     cluster = territory_control_find_cluster(snapshot, cluster_id)
     if not cluster:
         return jsonify({
@@ -23936,10 +24164,10 @@ def territory_control_security_toggle():
     if not action:
         return jsonify({"success": False, "error": "missing_action"}), 400
 
-    profile = territory_control_load_profile(username, strip_sensitive=False)
-    if not profile:
+    context = territory_control_load_context(username)
+    if not context:
         return jsonify({"success": False, "error": "profile_not_found"}), 404
-    if not territory_control_app_installed(profile):
+    if not context.get("app_installed"):
         return territory_control_forbidden_response()
 
     target = territory_control_find_owned_target(username, lat, lng, label=label)
@@ -23958,7 +24186,9 @@ def territory_control_security_toggle():
         change_type="map.target_updated",
         reason="territory_control_security",
     )
-    object_snapshot, snapshot = territory_control_object_snapshot(username, updated_target or target, profile=profile)
+    object_snapshot, snapshot = territory_control_object_snapshot(
+        username, updated_target or target, context=context
+    )
     summary = territory_control_security_summary(security)
     return jsonify({
         "success": True,
@@ -23990,10 +24220,10 @@ def territory_control_security_preset():
     if preset not in TERRITORY_CONTROL_PRESETS:
         return jsonify({"success": False, "error": "invalid_preset", "preset": preset}), 400
 
-    profile = territory_control_load_profile(username, strip_sensitive=False)
-    if not profile:
+    context = territory_control_load_context(username)
+    if not context:
         return jsonify({"success": False, "error": "profile_not_found"}), 404
-    if not territory_control_app_installed(profile):
+    if not context.get("app_installed"):
         return territory_control_forbidden_response()
 
     target = territory_control_find_owned_target(username, lat, lng, label=label)
@@ -24015,7 +24245,9 @@ def territory_control_security_preset():
         change_type="map.target_updated",
         reason="territory_control_security_preset",
     )
-    object_snapshot, snapshot = territory_control_object_snapshot(username, updated_target or target, profile=profile)
+    object_snapshot, snapshot = territory_control_object_snapshot(
+        username, updated_target or target, context=context
+    )
     summary = territory_control_security_summary(security)
     return jsonify({
         "success": True,
@@ -24045,10 +24277,10 @@ def territory_control_abandon():
     except (TypeError, ValueError):
         return jsonify({"success": False, "error": "invalid_position"}), 400
 
-    profile = territory_control_load_profile(username, strip_sensitive=False)
-    if not profile:
+    context = territory_control_load_context(username)
+    if not context:
         return jsonify({"success": False, "error": "profile_not_found"}), 404
-    if not territory_control_app_installed(profile):
+    if not context.get("app_installed"):
         return territory_control_forbidden_response()
 
     target = captured_object_request_target(username, {

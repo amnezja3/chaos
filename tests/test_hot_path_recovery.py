@@ -135,7 +135,7 @@ class EndpointHotPathTests(unittest.TestCase):
             return {"changed": True, "target": dict(target), "status": "aimed", "version": 1}
 
         with patch.dict(run.app.config, {"TESTING": True}), \
-                patch.object(run.user_store, "get_profile_identity", return_value=identity), \
+                patch.object(run.identity_projection_store, "get_identity", return_value=identity), \
                 patch.object(run.user_store, "get_profile", side_effect=AssertionError("full profile read")), \
                 patch.object(run.user_store, "patch_profile_guarded", side_effect=AssertionError("full profile write")), \
                 patch.object(run, "load_profile_write_record", side_effect=AssertionError("heavy write read")), \

@@ -10490,13 +10490,15 @@ function updateResponseNpcDeltaView(event = {}) {
 }
 
 function updateGhostNetworkDeltaView(event = {}) {
+    if (window.GhostNetworkDeltaClient
+            && typeof window.GhostNetworkDeltaClient.handle === "function") {
+        return window.GhostNetworkDeltaClient.handle(event);
+    }
     let applied = false;
     document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
         try {
             const mapWindow = frame.contentWindow;
-            if (mapWindow && mapWindow.GhostNetworkDeltaClient && typeof mapWindow.GhostNetworkDeltaClient.handle === "function") {
-                applied = mapWindow.GhostNetworkDeltaClient.handle(event) || applied;
-            } else if (mapWindow && typeof mapWindow.applyGhostNetworkDelta === "function") {
+            if (mapWindow && typeof mapWindow.applyGhostNetworkDelta === "function") {
                 applied = mapWindow.applyGhostNetworkDelta(event) || applied;
             } else if (mapWindow && typeof mapWindow.applyGhostPartDelta === "function") {
                 applied = mapWindow.applyGhostPartDelta(event) || applied;

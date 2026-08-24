@@ -1,4 +1,5 @@
 import unittest
+import inspect
 from unittest.mock import Mock, patch
 
 import run
@@ -43,7 +44,7 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
         }
         with run.app.test_request_context("/api/ghostnetwork/snapshot?view=map"):
             run.session["user"] = "alice"
-            with patch.object(run.user_store, "get_profile_identity", return_value={"username": "alice"}) as identity, \
+            with patch.object(run.identity_projection_store, "get_identity", return_value={"username": "alice"}) as identity, \
                     patch.object(run, "load_profile_readonly", side_effect=AssertionError("full profile read not expected")), \
                     patch.object(run, "GhostNetworkService", return_value=service), \
                     patch.object(run, "bridge_ghostnetwork_territory_publication") as bridge:
@@ -61,7 +62,37 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
             "/api/operations",
             "/api/state/changes",
             "/api/ghostnetwork/snapshot",
+            "/api/ghost-control/territory",
+            "/api/ghost-control/territory/security",
+            "/api/ghost-control/territory/security-preset",
+            "/api/ghost-control/territory/abandon",
+            "/api/blacknet/cta/teleport",
         }.issubset(PERF_LOG_ENDPOINTS))
+
+    def test_sprint_130_12_endpoints_have_no_full_profile_helpers(self):
+        forbidden = (
+            "load_profile_readonly",
+            "get_profile(",
+            "get_profile_with_revision",
+            "sync_session_profile",
+            "UserProfileManager",
+            "list_profile_identities",
+            "list_profiles",
+        )
+        functions = (
+            run.build_territory_control_snapshot,
+            run.territory_control_clusters,
+            run.territory_control_cluster_detail,
+            run.territory_control_security_toggle,
+            run.territory_control_security_preset,
+            run.territory_control_abandon,
+            run.api_blacknet_cta_teleport,
+            run.api_ghostnetwork_snapshot,
+        )
+        for function in functions:
+            source = inspect.getsource(function)
+            for token in forbidden:
+                self.assertNotIn(token, source, f"{function.__name__}: {token}")
 
     def test_target_snapshot_excludes_heavy_profile_fields(self):
         profile = {
@@ -73,6 +104,7 @@ class GhostNetworkReadPathSafetyTest(unittest.TestCase):
         }
         client, headers = self._client()
         with patch.object(run.user_store, "get_profile", return_value=profile), \
+                patch.object(run.player_marked_target_store, "list_targets", return_value=profile["targets"]), \
                 patch.object(run.territory_store, "list_captured_targets", return_value=[]):
             response = client.get("/api/map/target-snapshot", headers=headers)
         self.assertEqual(response.status_code, 200)

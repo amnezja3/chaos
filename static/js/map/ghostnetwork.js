@@ -43,16 +43,7 @@
     let ghostNetworkMobileConnectionRenderer = null;
     let ghostTerritoryRefreshDepth = 0;
     let ghostTerritoryRefreshPending = false;
-
-    const ghostNetworkDeltaState = window.ghostNetworkDeltaState || {
-        processed: [],
-        processedSet: new Set(),
-        callbacks: {}
-    };
-    if (!(ghostNetworkDeltaState.processedSet instanceof Set)) {
-        ghostNetworkDeltaState.processedSet = new Set(ghostNetworkDeltaState.processed || []);
-    }
-    window.ghostNetworkDeltaState = ghostNetworkDeltaState;
+    const ghostNetworkDeltaClient = window.GhostNetworkDeltaClient || null;
 
     function getMap() {
         if (window.chaosMap) return window.chaosMap;
@@ -696,8 +687,9 @@
     }
 
     function resetGhostNetworkDeltaDedupe() {
-        ghostNetworkDeltaState.processed = [];
-        ghostNetworkDeltaState.processedSet.clear();
+        if (ghostNetworkDeltaClient && typeof ghostNetworkDeltaClient.resetDedupe === "function") {
+            ghostNetworkDeltaClient.resetDedupe();
+        }
     }
 
     async function loadGhostNetworkSnapshot(options = {}) {
@@ -745,6 +737,13 @@
             }
             window.ghostNetworkCycleId = nextCycleId;
             window.ghostNetworkSnapshotChecksum = data.snapshot_checksum || window.ghostNetworkSnapshotChecksum || "";
+            if (ghostNetworkDeltaClient && typeof ghostNetworkDeltaClient.setBaseline === "function") {
+                ghostNetworkDeltaClient.setBaseline({
+                    cycleId: nextCycleId,
+                    stateVersion: window.ghostNetworkStateVersion,
+                    snapshotChecksum: window.ghostNetworkSnapshotChecksum
+                });
+            }
             renderGhostParts(data.parts || []);
             renderGhostConnections(data.connections || []);
             notifyGhostNetworkDeltaViews({ type: "snapshot", snapshot: data });
@@ -858,56 +857,20 @@
         return ghostNetworkRecoveryPromise;
     }
 
-    function ghostNetworkEventVersion(event) {
-        const payload = event && event.payload && typeof event.payload === "object" ? event.payload : {};
-        return Number(payload.state_version || event.state_version || event.version || 0);
-    }
-
-    function ghostNetworkEventCycle(event) {
-        const payload = event && event.payload && typeof event.payload === "object" ? event.payload : {};
-        return String(payload.cycle_id || event.cycle_id || "").trim();
-    }
-
-    function ghostNetworkDedupeKey(event) {
-        const payload = event && event.payload && typeof event.payload === "object" ? event.payload : {};
-        return String(event && (event.dedupe_key || payload.dedupe_key || payload.event_id || `${event.type || "event"}:${ghostNetworkEventVersion(event)}`) || "").trim();
-    }
-
-    function rememberGhostNetworkDelta(event) {
-        const key = ghostNetworkDedupeKey(event);
-        if (!key) return false;
-        if (ghostNetworkDeltaState.processedSet.has(key)) return true;
-        ghostNetworkDeltaState.processedSet.add(key);
-        ghostNetworkDeltaState.processed.push(key);
-        while (ghostNetworkDeltaState.processed.length > 400) {
-            const removed = ghostNetworkDeltaState.processed.shift();
-            ghostNetworkDeltaState.processedSet.delete(removed);
-        }
-        return false;
-    }
-
     function notifyGhostNetworkDeltaViews(event) {
-        Object.values(ghostNetworkDeltaState.callbacks || {}).forEach(callback => {
-            try {
-                if (typeof callback === "function") callback(event);
-            } catch (err) {
-                console.warn("[ghostnetwork] view callback failed", err);
-            }
-        });
+        if (ghostNetworkDeltaClient && typeof ghostNetworkDeltaClient.notify === "function") {
+            ghostNetworkDeltaClient.notify(event);
+        }
     }
 
     function registerGhostNetworkDeltaView(name, callback) {
-        const key = String(name || `view_${Date.now()}`).trim();
-        if (!key || typeof callback !== "function") return "";
-        ghostNetworkDeltaState.callbacks[key] = callback;
-        return key;
+        return ghostNetworkDeltaClient && typeof ghostNetworkDeltaClient.registerView === "function"
+            ? ghostNetworkDeltaClient.registerView(name, callback) : "";
     }
 
     function unregisterGhostNetworkDeltaView(name) {
-        const key = String(name || "").trim();
-        if (!key) return false;
-        delete ghostNetworkDeltaState.callbacks[key];
-        return true;
+        return ghostNetworkDeltaClient && typeof ghostNetworkDeltaClient.unregisterView === "function"
+            ? ghostNetworkDeltaClient.unregisterView(name) : false;
     }
 
     async function requestGhostNetworkRecovery(reason, event) {
@@ -916,49 +879,37 @@
     }
 
     function handleGhostNetworkDelta(event) {
-        if (!event || typeof event !== "object") return false;
-        const type = String(event.type || "");
-        if (event.scope !== "ghostnetwork" && !type.startsWith("ghost.")) return false;
-        if (rememberGhostNetworkDelta(event)) return false;
-
-        const eventCycle = ghostNetworkEventCycle(event);
-        if (eventCycle && window.ghostNetworkCycleId && eventCycle !== window.ghostNetworkCycleId) {
-            requestGhostNetworkRecovery("cycle_mismatch", event);
-            return false;
-        }
-
-        const version = ghostNetworkEventVersion(event);
-        const current = Number(window.ghostNetworkStateVersion || 0);
-        if (Number.isFinite(version) && version > 0) {
-            if (current > 0 && version < current) return false;
-            // Domain versions are global to the cycle. Gaps are expected for
-            // player projections because internal/system and other viewers'
-            // events are deliberately filtered. The per-user delta bus owns
-            // transport continuity and requests snapshot recovery when needed.
-        }
-
-        const applied = applyGhostNetworkDeltaPayload(event);
-        if (applied) {
-            if (eventCycle) window.ghostNetworkCycleId = eventCycle;
-            if (Number.isFinite(version) && version > 0) {
-                window.ghostNetworkStateVersion = Math.max(Number(window.ghostNetworkStateVersion || 0), version);
-            }
-            const payload = event.payload && typeof event.payload === "object" ? event.payload : {};
-            if (payload.snapshot_checksum) window.ghostNetworkSnapshotChecksum = payload.snapshot_checksum;
-            notifyGhostNetworkDeltaViews(event);
-            return true;
-        }
-        requestGhostNetworkRecovery("unapplied_delta", event);
-        return false;
+        return ghostNetworkDeltaClient && typeof ghostNetworkDeltaClient.handle === "function"
+            ? ghostNetworkDeltaClient.handle(event) : false;
     }
 
-    window.GhostNetworkDeltaClient = {
-        handle: handleGhostNetworkDelta,
-        recover: requestGhostNetworkRecovery,
-        registerView: registerGhostNetworkDeltaView,
-        unregisterView: unregisterGhostNetworkDeltaView,
-        state: ghostNetworkDeltaState
-    };
+    const ghostNetworkMapAdapterName = `map_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    if (ghostNetworkDeltaClient && typeof ghostNetworkDeltaClient.registerAdapter === "function") {
+        ghostNetworkDeltaClient.registerAdapter(ghostNetworkMapAdapterName, {
+            apply(event) {
+                const applied = applyGhostNetworkDeltaPayload(event);
+                if (!applied) return false;
+                const payload = event && event.payload && typeof event.payload === "object"
+                    ? event.payload : {};
+                const version = Number(payload.state_version || event.state_version || event.version || 0);
+                const cycleId = String(payload.cycle_id || event.cycle_id || "").trim();
+                if (cycleId) window.ghostNetworkCycleId = cycleId;
+                if (Number.isFinite(version) && version > 0) {
+                    window.ghostNetworkStateVersion = Math.max(
+                        Number(window.ghostNetworkStateVersion || 0), version
+                    );
+                }
+                if (payload.snapshot_checksum) {
+                    window.ghostNetworkSnapshotChecksum = payload.snapshot_checksum;
+                }
+                return true;
+            },
+            recover: requestGhostNetworkRecovery
+        });
+        window.addEventListener("unload", () => {
+            ghostNetworkDeltaClient.unregisterAdapter(ghostNetworkMapAdapterName);
+        }, { once: true });
+    }
 
     window.loadGhostNetworkSnapshot = loadGhostNetworkSnapshot;
     window.renderGhostParts = renderGhostParts;

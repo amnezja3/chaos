@@ -58,6 +58,22 @@ def installed_profile(username="alice", **updates):
     return profile
 
 
+def territory_context(username="alice", **updates):
+    context = {
+        "identity": {
+            "username": username,
+            "display_alias": username.title(),
+            "clan_code": "",
+            "profession_code": "",
+        },
+        "app_installed": True,
+        "position": {"lat": 52.0, "lng": 21.0},
+        "aimed_target": {},
+    }
+    context.update(updates)
+    return context
+
+
 class TerritoryControlTest(unittest.TestCase):
     def setUp(self):
         self.original_testing = run.app.config.get("TESTING")
@@ -557,7 +573,9 @@ class TerritoryControlTest(unittest.TestCase):
 
             with patch.object(run, "territory_store", store), \
                     patch.object(run, "territory_conflict_store", conflict_store):
-                snapshot = run.build_territory_control_snapshot("alice", profile=installed_profile())
+                snapshot = run.build_territory_control_snapshot(
+                    "alice", context=territory_context()
+                )
 
             self.assertEqual(snapshot["cluster_count"], 0)
             self.assertEqual(snapshot["alone_count"], 2)
@@ -582,7 +600,9 @@ class TerritoryControlTest(unittest.TestCase):
 
             with patch.object(run, "territory_store", store), \
                     patch.object(run, "territory_conflict_store", conflict_store):
-                snapshot = run.build_territory_control_snapshot("alice", profile=installed_profile())
+                snapshot = run.build_territory_control_snapshot(
+                    "alice", context=territory_context()
+                )
 
             self.assertEqual(snapshot["cluster_count"], 1)
             self.assertEqual(snapshot["alone_count"], 0)
@@ -596,7 +616,9 @@ class TerritoryControlTest(unittest.TestCase):
 
             with patch.object(run, "territory_store", store), \
                     patch.object(run, "territory_conflict_store", conflict_store):
-                dissolved = run.build_territory_control_snapshot("alice", profile=installed_profile())
+                dissolved = run.build_territory_control_snapshot(
+                    "alice", context=territory_context()
+                )
 
             self.assertEqual(dissolved["cluster_count"], 0)
             self.assertEqual(dissolved["alone_count"], 2)
@@ -697,7 +719,7 @@ class TerritoryControlTest(unittest.TestCase):
         self.assertTrue(threat["threat_flags"]["collision"])
         self.assertEqual(len(threat["attacked_positions"]), 1)
 
-    def test_endpoint_uses_readonly_profile_and_does_not_sync(self):
+    def test_endpoint_uses_canonical_context_and_never_loads_profile(self):
         path = self._temp_db()
         try:
             store = TerritoryStore(db_path=str(path))
@@ -707,7 +729,8 @@ class TerritoryControlTest(unittest.TestCase):
 
             with patch.object(run, "territory_store", store), \
                     patch.object(run, "territory_conflict_store", conflict_store), \
-                    patch.object(run, "load_profile_readonly", return_value=installed_profile()), \
+                    patch.object(run, "territory_control_load_context", return_value=territory_context()), \
+                    patch.object(run, "load_profile_readonly", side_effect=AssertionError("profile load should not run")), \
                     patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")):
                 response = client.get("/api/ghost-control/territory", headers=headers)
 

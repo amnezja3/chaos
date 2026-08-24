@@ -2549,16 +2549,19 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
 
     def test_blacknet_teleport_bridge_moves_to_whitelisted_hotspot(self):
         client = self._client_with_user("alice")
-        profile = {
-            "username": "alice",
-            "curently_possition": {"lat": 52.1, "lng": 21.1},
+        position_result = {
+            "changed": True,
+            "position": {"lat": 52.1934, "lng": 21.0348},
+            "version": 7,
+            "updated_at": "2026-08-24T10:00:00Z",
         }
 
-        with patch.object(run, "load_profile_readonly", return_value=profile), \
-                patch.object(run, "UserProfileManager") as manager_class, \
+        with patch.object(run, "load_profile_readonly", side_effect=AssertionError("profile should not load")), \
+                patch.object(run, "UserProfileManager", side_effect=AssertionError("profile writer should not run")), \
+                patch.object(run.player_position_store, "upsert", return_value=position_result) as position_upsert, \
+                patch.object(run.identity_projection_store, "get_identity", return_value={"username": "alice"}), \
                 patch.object(run, "notify_area_intrusion", return_value=None), \
                 patch.object(run, "record_map_player_actor_delta") as record_delta:
-            manager = manager_class.return_value
             response = client.post("/api/blacknet/cta/teleport", json={"hotspot_id": "mokotow"})
 
         data = response.get_json()
@@ -2567,25 +2570,27 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertEqual(data["hotspot"]["id"], "mokotow")
         self.assertAlmostEqual(data["curently_possition"]["lat"], 52.1934)
         self.assertAlmostEqual(data["curently_possition"]["lng"], 21.0348)
-        position_update = manager.update_profile.call_args.args[0]
-        self.assertEqual(position_update["curently_possition"], {"lat": 52.1934, "lng": 21.0348})
-        self.assertEqual(position_update["current_position"], {"lat": 52.1934, "lng": 21.0348})
-        self.assertGreater(position_update["position_version"], 0)
-        self.assertTrue(position_update["position_updated_at"])
+        position_upsert.assert_called_once_with(
+            "alice", {"lat": 52.1934, "lng": 21.0348}, source="blacknet"
+        )
+        self.assertEqual(data["position_version"], 7)
         record_delta.assert_called_once()
 
     def test_blacknet_teleport_bridge_moves_to_signal_coordinates(self):
         client = self._client_with_user("alice")
-        profile = {
-            "username": "alice",
-            "curently_possition": {"lat": 52.1, "lng": 21.1},
+        position_result = {
+            "changed": True,
+            "position": {"lat": 52.2809, "lng": 20.9974},
+            "version": 8,
+            "updated_at": "2026-08-24T10:01:00Z",
         }
 
-        with patch.object(run, "load_profile_readonly", return_value=profile), \
-                patch.object(run, "UserProfileManager") as manager_class, \
+        with patch.object(run, "load_profile_readonly", side_effect=AssertionError("profile should not load")), \
+                patch.object(run, "UserProfileManager", side_effect=AssertionError("profile writer should not run")), \
+                patch.object(run.player_position_store, "upsert", return_value=position_result) as position_upsert, \
+                patch.object(run.identity_projection_store, "get_identity", return_value={"username": "alice"}), \
                 patch.object(run, "notify_area_intrusion", return_value=None), \
                 patch.object(run, "record_map_player_actor_delta") as record_delta:
-            manager = manager_class.return_value
             response = client.post("/api/blacknet/cta/teleport", json={
                 "lat": 52.2809,
                 "lng": 20.9974,
@@ -2598,12 +2603,113 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertIsNone(data["hotspot"])
         self.assertAlmostEqual(data["curently_possition"]["lat"], 52.2809)
         self.assertAlmostEqual(data["curently_possition"]["lng"], 20.9974)
-        position_update = manager.update_profile.call_args.args[0]
-        self.assertEqual(position_update["curently_possition"], {"lat": 52.2809, "lng": 20.9974})
-        self.assertEqual(position_update["current_position"], {"lat": 52.2809, "lng": 20.9974})
-        self.assertGreater(position_update["position_version"], 0)
-        self.assertTrue(position_update["position_updated_at"])
+        position_upsert.assert_called_once_with(
+            "alice", {"lat": 52.2809, "lng": 20.9974}, source="blacknet"
+        )
+        self.assertEqual(data["position_version"], 8)
         record_delta.assert_called_once()
+
+    def test_ghostnetwork_teleport_resolves_public_entity_server_side(self):
+        client = self._client_with_user("alice")
+
+        class FakeGhostService:
+            def get_snapshot_for_viewer(self, viewer):
+                self.viewer = viewer
+                return {"snapshot": {"parts": [{
+                    "public_entity_id": "gn_public_1",
+                    "display_label": "Widoczny modul",
+                    "location_visibility": "exact",
+                    "latitude": 52.25,
+                    "longitude": 21.05,
+                    "territory_id": "17",
+                }]}}
+
+        position_result = {
+            "changed": True,
+            "position": {"lat": 52.25, "lng": 21.05},
+            "version": 9,
+            "updated_at": "2026-08-24T10:02:00Z",
+        }
+        with patch.object(run.identity_projection_store, "get_identity", return_value={
+                    "username": "alice", "clan_code": "virex"
+                }), \
+                patch.object(run, "get_ghostnetwork_service", return_value=FakeGhostService()), \
+                patch.object(run.player_position_store, "upsert", return_value=position_result) as position_upsert, \
+                patch.object(run, "load_profile_readonly", side_effect=AssertionError("profile should not load")), \
+                patch.object(run, "notify_area_intrusion", return_value=None), \
+                patch.object(run, "record_map_player_actor_delta"):
+            response = client.post("/api/blacknet/cta/teleport", json={
+                "source": "ghostnetwork_suite",
+                "target_type": "ghostnetwork_part",
+                "public_entity_id": "gn_public_1",
+            })
+
+        data = response.get_json()
+        self.assertEqual(200, response.status_code)
+        position_upsert.assert_called_once_with(
+            "alice", {"lat": 52.25, "lng": 21.05}, source="ghostnetwork_suite"
+        )
+        self.assertEqual("exact", data["ghostnetwork_target"]["location_precision"])
+        self.assertNotIn("part_id", data["ghostnetwork_target"])
+
+    def test_hidden_ghostnetwork_part_uses_territory_centroid_not_private_anchor(self):
+        client = self._client_with_user("alice")
+
+        class FakeGhostService:
+            def get_snapshot_for_viewer(self, viewer):
+                return {"snapshot": {"parts": [{
+                    "public_entity_id": "gn_hidden_1",
+                    "display_label": "Sklasyfikowany modul",
+                    "location_visibility": "territory_only",
+                    "latitude": None,
+                    "longitude": None,
+                    "territory_id": "17",
+                }]}}
+
+        position_result = {
+            "changed": True,
+            "position": {"lat": 52.2, "lng": 21.1},
+            "version": 10,
+            "updated_at": "2026-08-24T10:03:00Z",
+        }
+        with patch.object(run.identity_projection_store, "get_identity", return_value={
+                    "username": "alice", "clan_code": "virex"
+                }), \
+                patch.object(run, "get_ghostnetwork_service", return_value=FakeGhostService()), \
+                patch.object(run.territory_store, "get_player_area", return_value={
+                    "id": 17, "centroid_lat": 52.2, "centroid_lng": 21.1
+                }), \
+                patch.object(run.player_position_store, "upsert", return_value=position_result) as position_upsert, \
+                patch.object(run, "notify_area_intrusion", return_value=None), \
+                patch.object(run, "record_map_player_actor_delta"):
+            response = client.post("/api/blacknet/cta/teleport", json={
+                "source": "ghostnetwork_suite",
+                "target_type": "ghostnetwork_part",
+                "public_entity_id": "gn_hidden_1",
+            })
+
+        data = response.get_json()
+        self.assertEqual(200, response.status_code)
+        position_upsert.assert_called_once_with(
+            "alice", {"lat": 52.2, "lng": 21.1}, source="ghostnetwork_suite"
+        )
+        self.assertEqual("territory", data["ghostnetwork_target"]["location_precision"])
+
+    def test_ghostnetwork_teleport_rejects_client_coordinates_before_resolution(self):
+        client = self._client_with_user("alice")
+        with patch.object(run.player_position_store, "upsert") as position_upsert, \
+                patch.object(run, "load_profile_readonly", side_effect=AssertionError("profile should not load")):
+            response = client.post("/api/blacknet/cta/teleport", json={
+                "source": "ghostnetwork_suite",
+                "target_type": "ghostnetwork_part",
+                "public_entity_id": "gn_public_1",
+                "lat": 10,
+                "lng": 20,
+            })
+
+        self.assertEqual(400, response.status_code)
+        self.assertEqual("client_coordinates_forbidden", response.get_json()["error"])
+        position_upsert.assert_not_called()
 
     def test_blacknet_teleport_bridge_rejects_unknown_hotspot(self):
         client = self._client_with_user("alice")

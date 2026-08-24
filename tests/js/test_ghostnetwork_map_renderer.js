@@ -43,7 +43,11 @@ const map = {
 const sandbox = {
     console: { warn() {} },
     Set, Promise,
-    window: { chaosMap: map, matchMedia() { return { matches: mobileMode }; } },
+    window: {
+        chaosMap: map,
+        matchMedia() { return { matches: mobileMode }; },
+        addEventListener() {}
+    },
     L: {
         divIcon(options) { return options; },
         marker,
@@ -55,6 +59,7 @@ const sandbox = {
 sandbox.window.window = sandbox.window;
 sandbox.window.L = sandbox.L;
 vm.createContext(sandbox);
+vm.runInContext(fs.readFileSync("static/js/ghostnetwork_delta_client.js", "utf8"), sandbox);
 vm.runInContext(fs.readFileSync("static/js/map/ghostnetwork.js", "utf8"), sandbox);
 
 function testLeafletPolylineBoundsGuard() {

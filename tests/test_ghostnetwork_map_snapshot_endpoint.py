@@ -53,7 +53,7 @@ class GhostNetworkMapSnapshotEndpointTest(unittest.TestCase):
                     "progress": {},
                 }
 
-        with patch.object(run.user_store, "get_profile_identity", return_value=profile) as identity, \
+        with patch.object(run.identity_projection_store, "get_identity", return_value=profile) as identity, \
                 patch.object(run, "load_profile_readonly", side_effect=AssertionError("full profile read not expected")), \
                 patch.object(run, "sync_session_profile", side_effect=AssertionError("full sync not expected")), \
                 patch.object(run, "GhostNetworkService", return_value=FakeGhostNetworkService()):
@@ -100,7 +100,7 @@ class GhostNetworkMapSnapshotEndpointTest(unittest.TestCase):
                     "progress": {},
                 }
 
-        with patch.object(run.user_store, "get_profile_identity", return_value=profile), \
+        with patch.object(run.identity_projection_store, "get_identity", return_value=profile), \
                 patch.object(run, "load_profile_readonly", side_effect=AssertionError("full profile read not expected")), \
                 patch.object(run, "sync_session_profile", side_effect=AssertionError("full sync not expected")), \
                 patch.object(run, "GhostNetworkService", return_value=FakeGhostNetworkService()):
