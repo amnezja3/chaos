@@ -12,7 +12,9 @@ from session_generation_store import SessionGenerationStore
 class IsolatedFixtureSessionGenerationStore(SessionGenerationStore):
     """Keep precommit checks authoritative when fixtures use split databases."""
 
-    def build_precommit_guard(self, lineage_secret, generation_secret, actor_username):
+    def build_precommit_guard(
+        self, lineage_secret, generation_secret, actor_username, **_ownership
+    ):
         expected_actor = str(actor_username or "").strip()
 
         def precommit_guard(*, conn, username, current_revision):
@@ -26,6 +28,7 @@ class IsolatedFixtureSessionGenerationStore(SessionGenerationStore):
         lineage_secret,
         generation_secret,
         actor_username,
+        **_ownership,
     ):
         expected_actor = str(actor_username or "").strip()
 

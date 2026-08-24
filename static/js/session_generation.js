@@ -14,6 +14,13 @@
     const DEFAULT_HEADER = "X-Chaos-Session-Generation";
     const USER_HEADER = "X-Chaos-Session-User";
     const ERROR_HEADER = "X-Chaos-Session-Error";
+    const REASON_HEADER = "X-Chaos-Session-Reason";
+    const GENERATION_PUBLIC_PATHS = new Set([
+        "/resources.json",
+        "/register",
+        "/api/register-check",
+        "/session/recover",
+    ]);
 
     const state = {
         installed: false,
@@ -74,10 +81,21 @@
             const base = root.location?.href || "http://localhost/";
             const path = new URL(raw, base).pathname;
             if (path.startsWith("/static/")) return false;
-            return !new Set([
-                "/register",
-                "/api/register-check",
-            ]).has(path);
+            return !GENERATION_PUBLIC_PATHS.has(path);
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    function requestRequiresGeneration(input) {
+        if (!sameOriginRequest(input)) return false;
+        const raw = typeof input === "string"
+            ? input
+            : (typeof input?.url === "string" ? input.url : input?.href);
+        try {
+            const base = root.location?.href || "http://localhost/";
+            const path = new URL(raw, base).pathname;
+            return !path.startsWith("/static/") && !GENERATION_PUBLIC_PATHS.has(path);
         } catch (_error) {
             return false;
         }
@@ -126,7 +144,8 @@
             state.redirectScheduled = true;
             const navigate = () => {
                 try {
-                    root.location?.replace?.("/");
+                    const recoveryReason = encodeURIComponent(String(reason || "session_stale"));
+                    root.location?.replace?.(`/session/recover?reason=${recoveryReason}`);
                 } catch (_error) {
                     // The caller still receives a mismatch error and cannot
                     // apply the stale response.
@@ -168,9 +187,11 @@
         const responseGeneration = responseHeader(response, state.header);
         const responseUsername = responseHeader(response, USER_HEADER);
         const responseError = responseHeader(response, ERROR_HEADER);
+        const responseReason = responseHeader(response, REASON_HEADER);
         if (responseError === "mismatch" || response?.status === 409 && responseError) {
-            invalidate("server_generation_mismatch");
-            throw new SessionGenerationMismatchError("server_generation_mismatch");
+            const reason = responseReason || "server_generation_mismatch";
+            invalidate(reason);
+            throw new SessionGenerationMismatchError(reason);
         }
         if (response?.status === 401) {
             invalidate("session_unauthorized");
@@ -200,7 +221,7 @@
         state.nativeFetch = nativeFetch.bind ? nativeFetch.bind(root) : nativeFetch;
 
         root.fetch = async function generationBoundFetch(input, init = {}) {
-            if (!sameOriginRequest(input) || !state.generation) {
+            if (!requestRequiresGeneration(input) || !state.generation) {
                 return state.nativeFetch(input, init);
             }
             if (state.invalidated) {
@@ -295,6 +316,7 @@
             DEFAULT_HEADER,
             USER_HEADER,
             ERROR_HEADER,
+            REASON_HEADER,
         },
     };
 });

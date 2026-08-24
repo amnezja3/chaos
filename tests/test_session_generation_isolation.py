@@ -456,7 +456,7 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         self.assertNotEqual(first_a["generation"], second_a["generation"])
         self.assertNotEqual(bob["generation"], second_a["generation"])
 
-    def test_two_independent_sessions_for_same_user_do_not_invalidate_each_other(self):
+    def test_second_browser_login_immediately_replaces_first(self):
         first = run.app.test_client()
         second = run.app.test_client()
         with patch.object(run, "authenticate_user", return_value=True):
@@ -467,10 +467,21 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         second_state = self.read_session(second)
         self.assertNotEqual(first_state["generation"], second_state["generation"])
 
-        first.get(
+        stale = first.get(
+            "/api/state/changes",
+            headers=self.generation_headers(first_state["generation"]),
+        )
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(
+            stale.get_json()["reason"],
+            "durable_lineage_replaced",
+        )
+
+        stale_logout = first.get(
             "/logout?_session_generation="
             f"{run._session_generation_query_token(first_state['generation'])}"
         )
+        self.assertEqual(409, stale_logout.status_code)
         payload = {"current_version": 0, "changes": [], "recovery_required": False}
         with patch.object(run.delta_bus, "get_changes_since", return_value=payload):
             response = second.get(
@@ -479,6 +490,98 @@ class SessionGenerationIsolationTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.read_session(second)["user"], "alice")
+
+    def test_two_tabs_sharing_one_browser_session_remain_active(self):
+        first_tab = run.app.test_client()
+        second_tab = run.app.test_client()
+        with patch.object(run, "authenticate_user", return_value=True):
+            first_tab.post("/", data={"username": "alice", "password": "secret"})
+        state = self.read_session(first_tab)
+        cookie_name = run.app.config.get("SESSION_COOKIE_NAME", "session")
+        browser_cookie = first_tab.get_cookie(cookie_name)
+        self.assertIsNotNone(browser_cookie)
+        second_tab.set_cookie(cookie_name, browser_cookie.value)
+
+        payload = {"current_version": 0, "changes": [], "recovery_required": False}
+        with patch.object(run.delta_bus, "get_changes_since", return_value=payload):
+            first_response = first_tab.get(
+                "/api/state/changes",
+                headers=self.generation_headers(state["generation"]),
+            )
+            second_response = second_tab.get(
+                "/api/state/changes",
+                headers=self.generation_headers(state["generation"]),
+            )
+
+        self.assertEqual(200, first_response.status_code)
+        self.assertEqual(200, second_response.status_code)
+        self.assertEqual(state["generation"], self.read_session(second_tab)["generation"])
+
+    def test_stale_cookie_can_reauthenticate_without_manual_clear(self):
+        first = run.app.test_client()
+        second = run.app.test_client()
+        with patch.object(run, "authenticate_user", return_value=True):
+            first.post("/", data={"username": "alice", "password": "secret"})
+            first_state = self.read_session(first)
+            second.post("/", data={"username": "alice", "password": "secret"})
+            response = first.post(
+                "/", data={"username": "alice", "password": "secret"}
+            )
+
+        recovered = self.read_session(first)
+        self.assertEqual(302, response.status_code)
+        self.assertEqual("alice", recovered["user"])
+        self.assertNotEqual(first_state["generation"], recovered["generation"])
+        self.assertTrue(
+            run.session_generation_store.is_current(
+                recovered["lineage"], recovered["generation"], "alice"
+            )
+        )
+
+    def test_expired_session_can_relogin_without_cookie_clear(self):
+        lineage = self.seed_session("alice", "generation-expiring")
+        self.assertTrue(run.session_generation_store.revoke(
+            lineage,
+            "generation-expiring",
+            reason="inactivity_timeout",
+        ))
+
+        with patch.object(run, "authenticate_user", return_value=True):
+            response = self.client.post(
+                "/", data={"username": "alice", "password": "secret"}
+            )
+
+        recovered = self.read_session()
+        self.assertEqual(302, response.status_code)
+        self.assertEqual("alice", recovered["user"])
+        self.assertNotEqual("generation-expiring", recovered["generation"])
+        self.assertTrue(run.session_generation_store.is_current(
+            recovered["lineage"], recovered["generation"], "alice"
+        ))
+
+    def test_replaced_session_recovery_clears_only_local_cookie_and_messages_login(self):
+        first = run.app.test_client()
+        second = run.app.test_client()
+        with patch.object(run, "authenticate_user", return_value=True):
+            first.post("/", data={"username": "alice", "password": "secret"})
+            second.post("/", data={"username": "alice", "password": "secret"})
+        second_state = self.read_session(second)
+
+        recovered = first.get(
+            "/session/recover?reason=durable_lineage_replaced"
+        )
+        first_state = self.read_session(first)
+
+        self.assertEqual(302, recovered.status_code)
+        self.assertIsNone(first_state["user"])
+        self.assertTrue(run.session_generation_store.is_current(
+            second_state["lineage"], second_state["generation"], "alice"
+        ))
+        login = first.get("/")
+        self.assertIn(
+            "Konto zostalo zalogowane na innym urzadzeniu",
+            login.get_data(as_text=True),
+        )
 
     def test_delete_revokes_all_sessions_and_same_login_cannot_be_registered_again(self):
         first = run.app.test_client()
@@ -491,22 +594,22 @@ class SessionGenerationIsolationTests(unittest.TestCase):
 
         with patch.object(run.territory_store, "delete_user_data"), \
                 patch.object(run.user_store, "delete_user", return_value=True):
-            deleted = first.post(
+            deleted = second.post(
                 "/api/users/delete",
                 json={"username": "alice"},
-                headers=self.generation_headers(first_state["generation"]),
+                headers=self.generation_headers(second_state["generation"]),
             )
         self.assertEqual(200, deleted.status_code)
 
-        stale = second.get(
+        stale = first.get(
             "/api/state/changes",
-            headers=self.generation_headers(second_state["generation"]),
+            headers=self.generation_headers(first_state["generation"]),
         )
         self.assertEqual(409, stale.status_code)
-        self.assertEqual("durable_lineage_revoked", stale.get_json()["reason"])
+        self.assertEqual("durable_lineage_replaced", stale.get_json()["reason"])
 
         with patch.object(run.user_store, "username_exists", return_value=True):
-            registered = first.post("/api/register-finalize", json={
+            registered = second.post("/api/register-finalize", json={
                 "username": "alice",
                 "password": "new-secret-2",
                 "faction": "ghost",
@@ -515,49 +618,31 @@ class SessionGenerationIsolationTests(unittest.TestCase):
                 "email": "alice-again@example.test",
             })
         self.assertEqual(409, registered.status_code)
-        self.assertIsNone(self.read_session(first)["user"])
+        self.assertIsNone(self.read_session(second)["user"])
 
-        still_stale = second.get(
+        still_stale = first.get(
             "/api/state/changes",
-            headers=self.generation_headers(second_state["generation"]),
+            headers=self.generation_headers(first_state["generation"]),
         )
         self.assertEqual(409, still_stale.status_code)
         self.assertEqual(
-            "durable_lineage_revoked",
+            "durable_lineage_replaced",
             still_stale.get_json()["reason"],
         )
 
-    def test_authenticated_account_switch_requires_current_generation_before_auth(self):
+    def test_credentialed_account_switch_is_not_blocked_by_old_generation(self):
         self.seed_session("alice", "generation-alice")
         with patch.object(run, "authenticate_user", return_value=True) as authenticate:
-            missing = self.client.post(
+            response = self.client.post(
                 "/",
                 data={"username": "bob", "password": "secret"},
-            )
-            stale = self.client.post(
-                "/",
-                data={"username": "bob", "password": "secret"},
-                headers=self.generation_headers("stale-generation"),
-            )
-            current = self.client.post(
-                "/",
-                data={"username": "bob", "password": "secret"},
-                headers=self.generation_headers("generation-alice"),
             )
 
-        self.assertEqual(409, missing.status_code)
-        self.assertEqual("missing_generation", missing.get_json()["reason"])
-        self.assertEqual(409, stale.status_code)
-        self.assertEqual("stale_generation", stale.get_json()["reason"])
-        self.assertEqual(409, current.status_code)
-        self.assertEqual(
-            "account_switch_requires_logout",
-            current.get_json()["error"],
-        )
-        self.assertEqual("alice", self.read_session()["user"])
-        authenticate.assert_not_called()
+        self.assertEqual(302, response.status_code)
+        self.assertEqual("bob", self.read_session()["user"])
+        authenticate.assert_called_once_with("bob", "secret")
 
-    def test_authenticated_account_switch_without_generation_renders_chaos_block_for_html(self):
+    def test_authenticated_html_login_recovers_without_session_gate(self):
         self.seed_session("alice", "generation-alice")
         html_headers = {
             "Accept": "text/html,application/xhtml+xml",
@@ -576,22 +661,11 @@ class SessionGenerationIsolationTests(unittest.TestCase):
                 headers=self.generation_headers("generation-alice"),
             )
 
-        body = blocked.get_data(as_text=True)
-        self.assertEqual(409, blocked.status_code)
-        self.assertEqual("text/html", blocked.mimetype)
-        self.assertEqual(
-            "mismatch",
-            blocked.headers[run.SESSION_GENERATION_ERROR_HEADER],
-        )
-        self.assertIn("CHAOS // SESSION GATE", body)
-        self.assertIn("Ta karta nie ma klucza aktywnej sesji", body)
-        self.assertIn("Kod blokady: missing_generation", body)
-        self.assertIn("ZAMKNIJ TĘ KARTĘ RĘCZNIE", body)
-        self.assertNotIn("window.close()", body)
-        self.assertNotIn("generation-alice", body)
-        self.assertEqual(200, active.status_code)
-        self.assertEqual("alice", self.read_session()["user"])
-        authenticate.assert_not_called()
+        self.assertEqual(302, blocked.status_code)
+        self.assertNotIn("CHAOS // SESSION GATE", blocked.get_data(as_text=True))
+        self.assertEqual(409, active.status_code)
+        self.assertEqual("bob", self.read_session()["user"])
+        authenticate.assert_called_once_with("bob", "secret")
 
     def test_missing_generation_api_contract_remains_json(self):
         self.seed_session("alice", "generation-alice")
@@ -679,6 +753,30 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         manager_cls.return_value.update_profile.assert_called_once()
 
+    def test_public_catalog_never_requires_generation_or_reads_profile(self):
+        self.seed_session()
+        with patch.object(run, "get_app_catalog", return_value=[{
+            "id": "public-tool",
+            "name": "Public Tool",
+            "published": True,
+            "price": 10,
+        }]), patch.object(run, "sync_session_profile") as full_profile_read:
+            response = self.client.get("/resources.json")
+
+        self.assertEqual(200, response.status_code)
+        self.assertIsInstance(response.get_json(), list)
+        self.assertEqual("public-tool", response.get_json()[0]["id"])
+        full_profile_read.assert_not_called()
+
+    def test_account_catalog_is_generation_protected_before_profile_read(self):
+        self.seed_session()
+        with patch.object(run, "sync_session_profile") as full_profile_read:
+            response = self.client.get("/api/catalog")
+
+        self.assertEqual(409, response.status_code)
+        self.assertEqual("missing_generation", response.get_json()["reason"])
+        full_profile_read.assert_not_called()
+
     def test_non_admin_cannot_delete_another_account(self):
         self.seed_session()
         with patch.object(run.territory_store, "delete_user_data") as delete_territory, \
@@ -731,6 +829,10 @@ class SessionGenerationIsolationTests(unittest.TestCase):
         self.assertIn("response_generation_mismatch", bridge)
         self.assertIn('root.sessionStorage?.clear?.()', bridge)
         self.assertIn("_session_generation: generation", terminal)
+        self.assertIn("fetch('/api/catalog')", terminal)
+        self.assertIn("Array.isArray(catalogPayload)", terminal)
+        self.assertIn("X-Chaos-Session-Reason", bridge)
+        self.assertIn("/session/recover?reason=", bridge)
         self.assertEqual(terminal.count("currentSessionGenerationQuery()"), 3)
         self.assertEqual(terminal.count("authenticatedLogoutUrl()"), 4)
 

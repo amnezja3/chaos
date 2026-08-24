@@ -13,9 +13,11 @@ from unittest.mock import patch
 import run
 from database import (
     InstrumentedConnection,
+    PlayerOperationStore,
     ProfilePrecommitRejected,
     TerritoryStore,
     UserStore,
+    WalletBalanceStore,
     db_connect,
     reset_request_transaction_precommit_guard,
     set_request_transaction_precommit_guard,
@@ -64,6 +66,8 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
         )
         self.generation_store = SessionGenerationStore(self.db_path)
         self.territory_store = TerritoryStore(self.db_path)
+        self.operation_store = PlayerOperationStore(self.db_path)
+        self.wallet_store = WalletBalanceStore(self.db_path)
         self.profiles = {
             "alice": complete_profile("alice"),
             "victim": complete_profile("victim"),
@@ -189,10 +193,10 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
             client=second,
         )
 
-        response = self.client.post(
+        response = second.post(
             "/api/users/delete",
             json={"username": "alice"},
-            headers={run.SESSION_GENERATION_HEADER: "delete-primary-a"},
+            headers={run.SESSION_GENERATION_HEADER: "delete-secondary-a"},
         )
         self.assertEqual(200, response.status_code)
         self.assertFalse(self.user_store.has_user("alice"))
@@ -201,15 +205,15 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
             self.user_store.identity_reuse_block_reason("alice"),
         )
 
-        stale = second.get(
+        stale = self.client.get(
             "/api/state/changes",
-            headers={run.SESSION_GENERATION_HEADER: "delete-secondary-a"},
+            headers={run.SESSION_GENERATION_HEADER: "delete-primary-a"},
         )
         self.assertEqual(409, stale.status_code)
-        self.assertEqual("durable_lineage_revoked", stale.get_json()["reason"])
+        self.assertEqual("durable_lineage_replaced", stale.get_json()["reason"])
 
         with patch.object(run, "UserProfileManager") as manager_cls:
-            registration = self.client.post(
+            registration = second.post(
                 "/api/register-finalize",
                 json={
                     "username": "alice",
@@ -256,13 +260,14 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
         )
         self.assertEqual(victim_before["profile"], victim_after["profile"])
 
-    def test_replacing_one_browser_does_not_block_second_session_same_user(self):
+    def test_latest_browser_login_blocks_previous_session_precommit(self):
         self.generation_store.activate(
             "browser-one", "generation-one-a", "alice", reason="login"
         )
         self.generation_store.activate(
             "browser-two", "generation-two", "alice", reason="login"
         )
+        # The latest login on browser one replaces browser two account-wide.
         self.generation_store.activate(
             "browser-one", "generation-one-b", "alice", reason="switch"
         )
@@ -275,12 +280,13 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
             run.session["user"] = "alice"
             run.session[run.SESSION_LINEAGE_KEY] = "browser-two"
             run.session[run.SESSION_GENERATION_KEY] = "generation-two"
-            self.assertIsNone(run.app.preprocess_request())
-            self._manager("alice").update_profile({"respect": 7})
+            response = run.app.preprocess_request()
+            self.assertIsNotNone(response)
+            self.assertEqual(409, response.status_code)
 
         current = self.user_store.get_profile_with_revision("alice")
-        self.assertEqual(2, current["profile_revision"])
-        self.assertEqual(7, current["profile"]["respect"])
+        self.assertEqual(1, current["profile_revision"])
+        self.assertEqual(0, current["profile"]["respect"])
 
     def test_request_profile_telemetry_uses_only_bounded_one_way_ids(self):
         lineage = "telemetry-browser-lineage"
@@ -357,6 +363,58 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
                 "SELECT COUNT(*) FROM ordinary_mutations"
             ).fetchone()[0]
         self.assertEqual(0, count)
+
+    def test_replaced_login_rolls_back_wallet_territory_and_operation_commits(self):
+        lineage_a = "canonical-browser-a"
+        generation_a = "canonical-generation-a"
+        self.generation_store.activate(
+            lineage_a, generation_a, "alice", reason="login_a"
+        )
+        wallet_before = self.wallet_store.get_balance("alice")
+        guard = self.generation_store.build_transaction_precommit_guard(
+            lineage_a,
+            generation_a,
+            "alice",
+        )
+        token = set_request_transaction_precommit_guard(guard)
+        try:
+            self.generation_store.activate(
+                "canonical-browser-b",
+                "canonical-generation-b",
+                "alice",
+                reason="login_b",
+            )
+            mutations = (
+                lambda: self.wallet_store.credit(
+                    "alice",
+                    77,
+                    transaction_key="stale-wallet-credit",
+                ),
+                lambda: self.territory_store.save_captured_target(
+                    "alice",
+                    {"lat": 52.1, "lng": 21.0, "label": "stale-territory"},
+                ),
+                lambda: self.operation_store.upsert_operations(
+                    "alice",
+                    [{
+                        "operation_id": "stale-operation",
+                        "type": "hack",
+                        "status": "active",
+                        "target": {"username": "victim"},
+                    }],
+                    dedupe_key_prefix="stale-operation",
+                ),
+            )
+            for mutate in mutations:
+                with self.subTest(mutation=mutate):
+                    with self.assertRaises(ProfilePrecommitRejected):
+                        mutate()
+        finally:
+            reset_request_transaction_precommit_guard(token)
+
+        self.assertEqual(wallet_before, self.wallet_store.get_balance("alice"))
+        self.assertEqual([], self.territory_store.list_captured_targets("alice"))
+        self.assertEqual([], self.operation_store.list_operations("alice"))
 
     def test_native_connection_context_dispatches_guarded_exit(self):
         lineage = "native-context-browser"

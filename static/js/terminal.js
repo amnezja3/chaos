@@ -9043,10 +9043,17 @@ function createBrowser() {
     async function loadCatalog() {
         const [profileRes, resourcesRes] = await Promise.all([
             fetch('/api/profile'),
-            fetch('/resources.json')
+            fetch('/api/catalog')
         ]);
-        const profile = await profileRes.json();
-        catalog = await resourcesRes.json();
+        const profile = await profileRes.json().catch(() => ({}));
+        const catalogPayload = await resourcesRes.json().catch(() => null);
+        if (!profileRes.ok) {
+            throw new Error(`Googleplex profile HTTP ${profileRes.status}`);
+        }
+        if (!resourcesRes.ok || !Array.isArray(catalogPayload)) {
+            throw new Error(`Googleplex catalog HTTP ${resourcesRes.status}`);
+        }
+        catalog = catalogPayload;
         walletBalance = Number(profile.hackcoins || 0);
         renderBrowserWallet();
         if (pendingGoogleplexSearch) {
@@ -9896,12 +9903,11 @@ function createSettings() {
     term.querySelectorAll('[data-map-scheme]').forEach(btn => {
         btn.addEventListener('click', async () => {
             const mapTileScheme = btn.dataset.mapScheme || "osm";
-            applyDesktopSettings({
+            setStatus("Zapisuje schemat mapy...", "loading");
+            const response = await postDesktopSettings({
                 ...desktopSettings,
                 map_tile_scheme: mapTileScheme
             });
-            setStatus("Zapisuje schemat mapy...", "loading");
-            const response = await saveDesktopSettingsNow({ map_tile_scheme: mapTileScheme });
             if (response && !response.ok) {
                 setStatus("Nie udalo sie zapisac schematu mapy.", "error");
                 return;
@@ -9909,6 +9915,9 @@ function createSettings() {
             const savedSettings = response ? await response.json().catch(() => null) : null;
             if (savedSettings?.desktop_settings) {
                 applyDesktopSettings(savedSettings.desktop_settings);
+            } else {
+                setStatus("Serwer nie potwierdzil schematu mapy.", "error");
+                return;
             }
             const activeMapScheme = desktopSettings.map_tile_scheme || mapTileScheme;
             term.querySelectorAll('[data-map-scheme]').forEach(item => {

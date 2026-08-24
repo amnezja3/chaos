@@ -87,6 +87,12 @@ bridge.install({
     assert.strictEqual(staticResponse.status, 200);
     assert.strictEqual(bridge.getState().invalidated, false);
 
+    capturedInit = null;
+    const publicCatalogResponse = await global.fetch("/resources.json");
+    assert.strictEqual(publicCatalogResponse.status, 200);
+    assert.strictEqual(capturedInit.headers, undefined);
+    assert.strictEqual(bridge.getState().invalidated, false);
+
     await assert.rejects(
         () => global.fetch("/api/profile"),
         (error) => error.code === "session_generation_mismatch"
@@ -97,7 +103,10 @@ bridge.install({
     assert.strictEqual(invalidationEvent.type, "chaos:session-invalidated");
     assert.strictEqual(redirect, null);
     scheduled();
-    assert.strictEqual(redirect, "/");
+    assert.strictEqual(
+        redirect,
+        "/session/recover?reason=response_identity_headers_missing",
+    );
 
     const terminalSource = fs.readFileSync(
         path.join(__dirname, "../../static/js/terminal.js"),

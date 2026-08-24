@@ -149,18 +149,21 @@
       <span class="session-lock__status">ACCESS DENIED</span>
     </header>
     <section class="session-lock__body">
-      <h1>Ta karta nie ma klucza aktywnej sesji.</h1>
+      {% if 'replaced' in mismatch_reason %}
+      <h1>Konto zostało zalogowane na innym urządzeniu.</h1>
+      {% else %}
+      <h1>Ta sesja nie jest już aktywna.</h1>
+      {% endif %}
       <div class="session-lock__signal">
-        Połączenie zostało zatrzymane. Aktywna gra w pierwotnej karcie pozostała bezpieczna.
+        Połączenie zostało zatrzymane przed wykonaniem kolejnej operacji.
       </div>
       <p>
-        Zamknij tę kartę i wróć do uruchomionej gry. Jeżeli chcesz otworzyć
-        niezależną sesję, użyj osobnego profilu lub osobnej sesji przeglądarki.
+        Zaloguj się ponownie, aby rozpocząć nową aktywną sesję. Najnowsze
+        poprawne logowanie przejmuje konto i unieważnia poprzednią sesję.
       </p>
       <div class="session-lock__reason">Kod blokady: {{ mismatch_reason }}</div>
       <div class="session-lock__actions">
-        <div class="session-lock__instruction">ZAMKNIJ TĘ KARTĘ RĘCZNIE</div>
-        <button type="button" class="secondary" onclick="history.back()">WRÓĆ</button>
+        <button type="button" onclick="location.replace('/session/recover?reason={{ mismatch_reason|urlencode }}')">PRZEJDŹ DO LOGINU</button>
       </div>
     </section>
   </main>

@@ -10,7 +10,17 @@ from contextlib import contextmanager
 from database import DB_PATH, db_connect, utc_now
 
 
-SESSION_LINEAGE_SCHEMA_VERSION = 1
+SESSION_LINEAGE_SCHEMA_VERSION = 2
+
+SESSION_ACTIVE = "active"
+SESSION_REPLACED = "replaced"
+SESSION_LOGGED_OUT = "logged_out"
+SESSION_EXPIRED = "expired"
+SESSION_TERMINAL_STATES = {
+    SESSION_REPLACED,
+    SESSION_LOGGED_OUT,
+    SESSION_EXPIRED,
+}
 
 
 class SessionGenerationStateError(RuntimeError):
@@ -37,6 +47,10 @@ def lineage_digest(value):
 
 def generation_digest(value):
     return _secret_digest("generation", value)
+
+
+def login_identity_digest(value):
+    return _secret_digest("login_identity", value)
 
 
 def username_digest(value):
@@ -66,10 +80,54 @@ class SessionGenerationStore:
                 )
                 """
             )
+            columns = {
+                str(row[1])
+                for row in conn.execute(
+                    "PRAGMA table_info(session_generation_lineages)"
+                ).fetchall()
+            }
+            if "login_id_hash" not in columns:
+                conn.execute(
+                    "ALTER TABLE session_generation_lineages "
+                    "ADD COLUMN login_id_hash TEXT NOT NULL DEFAULT ''"
+                )
+            if "account_revision" not in columns:
+                conn.execute(
+                    "ALTER TABLE session_generation_lineages "
+                    "ADD COLUMN account_revision INTEGER NOT NULL DEFAULT 0"
+                )
+            if "lifecycle_status" not in columns:
+                conn.execute(
+                    "ALTER TABLE session_generation_lineages "
+                    "ADD COLUMN lifecycle_status TEXT NOT NULL DEFAULT 'expired'"
+                )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS account_login_ownership (
+                    username_hash TEXT PRIMARY KEY,
+                    active_login_id_hash TEXT NOT NULL DEFAULT '',
+                    active_revision INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL CHECK(
+                        status IN ('active', 'logged_out', 'expired')
+                    ),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    last_reason TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
             conn.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_session_generation_status_updated
                 ON session_generation_lineages(status, updated_at)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_session_generation_account_state
+                ON session_generation_lineages(
+                    username_hash, lifecycle_status, account_revision
+                )
                 """
             )
 
@@ -94,14 +152,94 @@ class SessionGenerationStore:
         except (TypeError, KeyError, IndexError):
             return row[index]
 
-    def activate(self, lineage_secret, generation_secret, username, *, reason, conn=None):
+    def activate(
+        self,
+        lineage_secret,
+        generation_secret,
+        username,
+        *,
+        reason,
+        login_identity_secret=None,
+        conn=None,
+    ):
         lineage_hash = lineage_digest(lineage_secret)
         generation_hash = generation_digest(generation_secret)
+        login_id_hash = login_identity_digest(
+            login_identity_secret or generation_secret
+        )
         user_hash = username_digest(username)
-        if not lineage_hash or not generation_hash or not user_hash:
-            raise ValueError("lineage, generation and username are required")
+        if not lineage_hash or not generation_hash or not login_id_hash or not user_hash:
+            raise ValueError(
+                "lineage, generation, login identity and username are required"
+            )
         now = utc_now()
         with self._writer(conn) as active_conn:
+            ownership = active_conn.execute(
+                """
+                SELECT active_login_id_hash, active_revision, status
+                FROM account_login_ownership
+                WHERE username_hash = ?
+                """,
+                (user_hash,),
+            ).fetchone()
+            account_revision = (
+                int(self._row_value(ownership, "active_revision", 1) or 0) + 1
+                if ownership is not None
+                else 1
+            )
+
+            # A browser lineage may switch accounts. Close its ownership of the
+            # previous account only when it still owns that account revision.
+            previous = active_conn.execute(
+                """
+                SELECT username_hash, login_id_hash, account_revision,
+                       lifecycle_status
+                FROM session_generation_lineages
+                WHERE lineage_hash = ?
+                """,
+                (lineage_hash,),
+            ).fetchone()
+            if previous is not None:
+                previous_user_hash = str(
+                    self._row_value(previous, "username_hash", 0) or ""
+                )
+                previous_login_hash = str(
+                    self._row_value(previous, "login_id_hash", 1) or ""
+                )
+                previous_account_revision = int(
+                    self._row_value(previous, "account_revision", 2) or 0
+                )
+                if previous_user_hash and previous_user_hash != user_hash:
+                    active_conn.execute(
+                        """
+                        UPDATE account_login_ownership
+                        SET active_login_id_hash = '', status = 'logged_out',
+                            updated_at = ?, last_reason = ?
+                        WHERE username_hash = ?
+                          AND active_login_id_hash = ?
+                          AND active_revision = ?
+                          AND status = 'active'
+                        """,
+                        (
+                            now,
+                            "account_switch",
+                            previous_user_hash,
+                            previous_login_hash,
+                            previous_account_revision,
+                        ),
+                    )
+
+            active_conn.execute(
+                """
+                UPDATE session_generation_lineages
+                SET status = 'revoked', lifecycle_status = 'replaced',
+                    revision = revision + 1, updated_at = ?,
+                    invalidated_at = ?, last_reason = ?
+                WHERE username_hash = ? AND lifecycle_status = 'active'
+                  AND lineage_hash <> ?
+                """,
+                (now, now, "new_login_replaced", user_hash, lineage_hash),
+            )
             row = active_conn.execute(
                 """
                 SELECT revision
@@ -117,8 +255,9 @@ class SessionGenerationStore:
                     INSERT INTO session_generation_lineages (
                         lineage_hash, generation_hash, username_hash, status,
                         revision, schema_version, created_at, updated_at,
-                        invalidated_at, last_reason
-                    ) VALUES (?, ?, ?, 'active', ?, ?, ?, ?, NULL, ?)
+                        invalidated_at, last_reason, login_id_hash,
+                        account_revision, lifecycle_status
+                    ) VALUES (?, ?, ?, 'active', ?, ?, ?, ?, NULL, ?, ?, ?, 'active')
                     """,
                     (
                         lineage_hash,
@@ -129,6 +268,8 @@ class SessionGenerationStore:
                         now,
                         now,
                         str(reason or "authenticated"),
+                        login_id_hash,
+                        account_revision,
                     ),
                 )
             else:
@@ -138,7 +279,8 @@ class SessionGenerationStore:
                     UPDATE session_generation_lineages
                     SET generation_hash = ?, username_hash = ?, status = 'active',
                         revision = ?, schema_version = ?, updated_at = ?,
-                        invalidated_at = NULL, last_reason = ?
+                        invalidated_at = NULL, last_reason = ?, login_id_hash = ?,
+                        account_revision = ?, lifecycle_status = 'active'
                     WHERE lineage_hash = ?
                     """,
                     (
@@ -148,39 +290,138 @@ class SessionGenerationStore:
                         SESSION_LINEAGE_SCHEMA_VERSION,
                         now,
                         str(reason or "authenticated"),
+                        login_id_hash,
+                        account_revision,
                         lineage_hash,
+                    ),
+                )
+            if ownership is None:
+                active_conn.execute(
+                    """
+                    INSERT INTO account_login_ownership (
+                        username_hash, active_login_id_hash, active_revision,
+                        status, created_at, updated_at, last_reason
+                    ) VALUES (?, ?, ?, 'active', ?, ?, ?)
+                    """,
+                    (
+                        user_hash,
+                        login_id_hash,
+                        account_revision,
+                        now,
+                        now,
+                        str(reason or "authenticated"),
+                    ),
+                )
+            else:
+                active_conn.execute(
+                    """
+                    UPDATE account_login_ownership
+                    SET active_login_id_hash = ?, active_revision = ?,
+                        status = 'active', updated_at = ?, last_reason = ?
+                    WHERE username_hash = ?
+                    """,
+                    (
+                        login_id_hash,
+                        account_revision,
+                        now,
+                        str(reason or "authenticated"),
+                        user_hash,
                     ),
                 )
         return {
             "active": True,
             "revision": revision,
+            "account_revision": account_revision,
             "lineage_hash": lineage_hash,
             "generation_hash": generation_hash,
+            "login_id_hash": login_id_hash,
             "username_hash": user_hash,
         }
 
-    def revoke(self, lineage_secret, generation_secret, *, reason, conn=None):
+    def revoke(
+        self,
+        lineage_secret,
+        generation_secret,
+        *,
+        reason,
+        login_identity_secret=None,
+        account_revision=None,
+        conn=None,
+    ):
         lineage_hash = lineage_digest(lineage_secret)
         generation_hash = generation_digest(generation_secret)
         if not lineage_hash or not generation_hash:
             return False
         now = utc_now()
+        reason_text = str(reason or "logout")
+        lifecycle_status = (
+            SESSION_EXPIRED
+            if "expir" in reason_text.lower() or "timeout" in reason_text.lower()
+            else SESSION_LOGGED_OUT
+        )
         with self._writer(conn) as active_conn:
+            row = active_conn.execute(
+                """
+                SELECT username_hash, login_id_hash, account_revision
+                FROM session_generation_lineages
+                WHERE lineage_hash = ? AND generation_hash = ?
+                  AND lifecycle_status = 'active'
+                """,
+                (lineage_hash, generation_hash),
+            ).fetchone()
+            if row is None:
+                return False
+            user_hash = str(self._row_value(row, "username_hash", 0) or "")
+            stored_login_hash = str(
+                self._row_value(row, "login_id_hash", 1) or ""
+            )
+            stored_account_revision = int(
+                self._row_value(row, "account_revision", 2) or 0
+            )
+            if login_identity_secret and stored_login_hash != login_identity_digest(
+                login_identity_secret
+            ):
+                return False
+            if account_revision is not None and stored_account_revision != int(
+                account_revision
+            ):
+                return False
             result = active_conn.execute(
                 """
                 UPDATE session_generation_lineages
-                SET status = 'revoked', revision = revision + 1,
+                SET status = 'revoked', lifecycle_status = ?,
+                    revision = revision + 1,
                     updated_at = ?, invalidated_at = ?, last_reason = ?
-                WHERE lineage_hash = ? AND generation_hash = ? AND status = 'active'
+                WHERE lineage_hash = ? AND generation_hash = ?
+                  AND lifecycle_status = 'active'
                 """,
                 (
+                    lifecycle_status,
                     now,
                     now,
-                    str(reason or "invalidated"),
+                    reason_text,
                     lineage_hash,
                     generation_hash,
                 ),
             )
+            if result.rowcount == 1:
+                active_conn.execute(
+                    """
+                    UPDATE account_login_ownership
+                    SET active_login_id_hash = '', status = ?, updated_at = ?,
+                        last_reason = ?
+                    WHERE username_hash = ? AND active_login_id_hash = ?
+                      AND active_revision = ? AND status = 'active'
+                    """,
+                    (
+                        lifecycle_status,
+                        now,
+                        reason_text,
+                        user_hash,
+                        stored_login_hash,
+                        stored_account_revision,
+                    ),
+                )
         return result.rowcount == 1
 
     def revoke_all_by_username(self, username, *, reason, conn=None):
@@ -193,7 +434,8 @@ class SessionGenerationStore:
             result = active_conn.execute(
                 """
                 UPDATE session_generation_lineages
-                SET status = 'revoked', revision = revision + 1,
+                SET status = 'revoked', lifecycle_status = 'logged_out',
+                    revision = revision + 1,
                     updated_at = ?, invalidated_at = ?, last_reason = ?
                 WHERE username_hash = ? AND status = 'active'
                 """,
@@ -203,6 +445,15 @@ class SessionGenerationStore:
                     str(reason or "account_invalidated"),
                     user_hash,
                 ),
+            )
+            active_conn.execute(
+                """
+                UPDATE account_login_ownership
+                SET active_login_id_hash = '', status = 'logged_out',
+                    updated_at = ?, last_reason = ?
+                WHERE username_hash = ? AND status = 'active'
+                """,
+                (now, str(reason or "account_invalidated"), user_hash),
             )
         return int(result.rowcount or 0)
 
@@ -216,7 +467,8 @@ class SessionGenerationStore:
                 """
                 SELECT lineage_hash, generation_hash, username_hash, status,
                        revision, schema_version, created_at, updated_at,
-                       invalidated_at, last_reason
+                       invalidated_at, last_reason, login_id_hash,
+                       account_revision, lifecycle_status
                 FROM session_generation_lineages
                 WHERE lineage_hash = ?
                 """,
@@ -227,7 +479,8 @@ class SessionGenerationStore:
             keys = (
                 "lineage_hash", "generation_hash", "username_hash", "status",
                 "revision", "schema_version", "created_at", "updated_at",
-                "invalidated_at", "last_reason",
+                "invalidated_at", "last_reason", "login_id_hash",
+                "account_revision", "lifecycle_status",
             )
             return {
                 key: self._row_value(row, key, index)
@@ -244,26 +497,98 @@ class SessionGenerationStore:
 
     def is_current(self, lineage_secret, generation_secret, username, *, conn=None):
         state = self.get_state(lineage_secret, conn=conn)
-        if not state or state.get("status") != "active":
+        if not state or state.get("lifecycle_status") != SESSION_ACTIVE:
             return False
-        return (
+        if not (
             state.get("generation_hash") == generation_digest(generation_secret)
             and state.get("username_hash") == username_digest(username)
-        )
+        ):
+            return False
+        try:
+            self.assert_current(
+                lineage_secret,
+                generation_secret,
+                username,
+                conn=conn,
+            )
+        except SessionGenerationStateError:
+            return False
+        return True
 
-    def assert_current(self, lineage_secret, generation_secret, username, *, conn=None):
+    def assert_current(
+        self,
+        lineage_secret,
+        generation_secret,
+        username,
+        *,
+        login_identity_secret=None,
+        account_revision=None,
+        conn=None,
+    ):
         state = self.get_state(lineage_secret, conn=conn)
         if state is None:
             raise SessionGenerationStateError("lineage_missing")
-        if state.get("status") != "active":
-            raise SessionGenerationStateError("lineage_revoked")
+        lifecycle_status = str(state.get("lifecycle_status") or "expired")
+        if lifecycle_status != SESSION_ACTIVE:
+            raise SessionGenerationStateError(f"lineage_{lifecycle_status}")
         if state.get("generation_hash") != generation_digest(generation_secret):
             raise SessionGenerationStateError("generation_replaced")
         if state.get("username_hash") != username_digest(username):
             raise SessionGenerationStateError("lineage_user_replaced")
+        if login_identity_secret and state.get("login_id_hash") != login_identity_digest(
+            login_identity_secret
+        ):
+            raise SessionGenerationStateError("login_identity_replaced")
+        if account_revision is not None and int(
+            state.get("account_revision") or 0
+        ) != int(account_revision):
+            raise SessionGenerationStateError("account_revision_replaced")
+
+        def read_ownership(active_conn):
+            return active_conn.execute(
+                """
+                SELECT active_login_id_hash, active_revision, status
+                FROM account_login_ownership
+                WHERE username_hash = ?
+                """,
+                (state.get("username_hash"),),
+            ).fetchone()
+
+        if conn is not None:
+            ownership = read_ownership(conn)
+        else:
+            with db_connect(
+                self.db_path,
+                enforce_request_guard=False,
+            ) as active_conn:
+                ownership = read_ownership(active_conn)
+        if ownership is None:
+            raise SessionGenerationStateError("account_ownership_missing")
+        active_login_hash = str(
+            self._row_value(ownership, "active_login_id_hash", 0) or ""
+        )
+        active_revision = int(
+            self._row_value(ownership, "active_revision", 1) or 0
+        )
+        ownership_status = str(
+            self._row_value(ownership, "status", 2) or "expired"
+        )
+        if ownership_status != SESSION_ACTIVE:
+            raise SessionGenerationStateError(f"account_{ownership_status}")
+        if active_login_hash != state.get("login_id_hash"):
+            raise SessionGenerationStateError("account_login_replaced")
+        if active_revision != int(state.get("account_revision") or 0):
+            raise SessionGenerationStateError("account_revision_replaced")
         return True
 
-    def build_precommit_guard(self, lineage_secret, generation_secret, actor_username):
+    def build_precommit_guard(
+        self,
+        lineage_secret,
+        generation_secret,
+        actor_username,
+        login_identity_secret=None,
+        account_revision=None,
+    ):
         expected_actor = str(actor_username or "").strip()
 
         def precommit_guard(*, conn, username, current_revision):
@@ -275,6 +600,8 @@ class SessionGenerationStore:
                 lineage_secret,
                 generation_secret,
                 expected_actor,
+                login_identity_secret=login_identity_secret,
+                account_revision=account_revision,
                 conn=conn,
             )
 
@@ -285,6 +612,8 @@ class SessionGenerationStore:
         lineage_secret,
         generation_secret,
         actor_username,
+        login_identity_secret=None,
+        account_revision=None,
     ):
         expected_actor = str(actor_username or "").strip()
 
@@ -293,6 +622,8 @@ class SessionGenerationStore:
                 lineage_secret,
                 generation_secret,
                 expected_actor,
+                login_identity_secret=login_identity_secret,
+                account_revision=account_revision,
                 conn=conn,
             )
 

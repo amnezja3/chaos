@@ -17905,6 +17905,8 @@ Session(app)
 
 SESSION_GENERATION_KEY = "session_generation"
 SESSION_LINEAGE_KEY = "session_lineage"
+SESSION_LOGIN_IDENTITY_KEY = "session_login_identity"
+SESSION_ACCOUNT_REVISION_KEY = "session_account_revision"
 SESSION_GENERATION_HEADER = "X-Chaos-Session-Generation"
 SESSION_GENERATION_USER_HEADER = "X-Chaos-Session-User"
 SESSION_GENERATION_ERROR_HEADER = "X-Chaos-Session-Error"
@@ -17915,6 +17917,8 @@ SESSION_GENERATION_PUBLIC_ENDPOINTS = {
     "register_check_username",
     "api_register_finalize",
     "logout",
+    "session_recover",
+    "resources",
 }
 SESSION_GENERATION_DOCUMENT_ENDPOINTS = {
     "desktop",
@@ -17956,20 +17960,26 @@ def begin_authenticated_session(username):
     if not lineage:
         lineage = secrets.token_urlsafe(32)
     generation = secrets.token_urlsafe(32)
+    login_identity = secrets.token_urlsafe(32)
     username = str(username or "").strip()
     # Replace the durable generation first. If SID rotation or response
     # delivery fails afterwards, every request carrying the old cookie is
     # already stale and cannot commit under the previous identity.
-    session_generation_store.activate(
+    activation = session_generation_store.activate(
         lineage,
         generation,
         username,
         reason="authentication_success",
+        login_identity_secret=login_identity,
     )
     _rotate_server_session_id()
     session["user"] = username
     session[SESSION_LINEAGE_KEY] = lineage
     session[SESSION_GENERATION_KEY] = generation
+    session[SESSION_LOGIN_IDENTITY_KEY] = login_identity
+    session[SESSION_ACCOUNT_REVISION_KEY] = int(
+        activation.get("account_revision") or 0
+    )
     session.modified = True
     return generation
 
@@ -17979,12 +17989,16 @@ def invalidate_authenticated_session(reason="logout", *, durable_already_revoked
     username = session.get("user")
     lineage = session.get(SESSION_LINEAGE_KEY)
     generation = session.get(SESSION_GENERATION_KEY)
+    login_identity = session.get(SESSION_LOGIN_IDENTITY_KEY)
+    account_revision = session.get(SESSION_ACCOUNT_REVISION_KEY)
     if lineage and generation and not durable_already_revoked:
         try:
             revoked = session_generation_store.revoke(
                 lineage,
                 generation,
                 reason=str(reason or "logout"),
+                login_identity_secret=login_identity,
+                account_revision=account_revision,
             )
             if not revoked:
                 raise SessionGenerationStateError("generation_replaced")
@@ -18018,8 +18032,18 @@ def ensure_session_generation():
     username = str(session.get("user") or "").strip()
     lineage = str(session.get(SESSION_LINEAGE_KEY) or "").strip()
     generation = str(session.get(SESSION_GENERATION_KEY) or "").strip()
+    login_identity = str(
+        session.get(SESSION_LOGIN_IDENTITY_KEY) or ""
+    ).strip()
+    account_revision = session.get(SESSION_ACCOUNT_REVISION_KEY)
     if lineage and generation:
-        session_generation_store.assert_current(lineage, generation, username)
+        session_generation_store.assert_current(
+            lineage,
+            generation,
+            username,
+            login_identity_secret=login_identity or None,
+            account_revision=account_revision,
+        )
         return generation
 
     # A pre-deploy session has no durable lineage. Give it a fresh lineage and
@@ -18027,14 +18051,20 @@ def ensure_session_generation():
     # reactivate a complete but stale lineage/generation pair.
     lineage = secrets.token_urlsafe(32)
     generation = secrets.token_urlsafe(32)
-    session_generation_store.activate(
+    login_identity = secrets.token_urlsafe(32)
+    activation = session_generation_store.activate(
         lineage,
         generation,
         username,
         reason="document_bootstrap",
+        login_identity_secret=login_identity,
     )
     session[SESSION_LINEAGE_KEY] = lineage
     session[SESSION_GENERATION_KEY] = generation
+    session[SESSION_LOGIN_IDENTITY_KEY] = login_identity
+    session[SESSION_ACCOUNT_REVISION_KEY] = int(
+        activation.get("account_revision") or 0
+    )
     session.modified = True
     return generation
 
@@ -18052,12 +18082,24 @@ def current_request_profile_precommit_guard(_target_username=None):
     generation = str(
         getattr(g, "session_generation", "") or session.get(SESSION_GENERATION_KEY) or ""
     ).strip()
+    login_identity = str(
+        getattr(g, "session_login_identity", "")
+        or session.get(SESSION_LOGIN_IDENTITY_KEY)
+        or ""
+    ).strip()
+    account_revision = (
+        getattr(g, "session_account_revision", None)
+        if getattr(g, "session_account_revision", None) is not None
+        else session.get(SESSION_ACCOUNT_REVISION_KEY)
+    )
     if not lineage or not generation:
         return None
     return session_generation_store.build_precommit_guard(
         lineage,
         generation,
         actor_username,
+        login_identity_secret=login_identity or None,
+        account_revision=account_revision,
     )
 
 
@@ -18073,6 +18115,10 @@ def bind_request_profile_precommit_guard():
         str(getattr(g, "session_lineage", "") or ""),
         str(getattr(g, "session_generation", "") or ""),
         str(getattr(g, "session_generation_user", "") or ""),
+        login_identity_secret=str(
+            getattr(g, "session_login_identity", "") or ""
+        ) or None,
+        account_revision=getattr(g, "session_account_revision", None),
     )
     g.transaction_precommit_guard_token = (
         set_request_transaction_precommit_guard(transaction_guard)
@@ -18150,14 +18196,6 @@ def _session_generation_request_is_protected():
         # An authenticated logout is also bound to the tab generation. A stale
         # A tab must not terminate the newer B session sharing its cookie.
         return bool(str(session.get(SESSION_GENERATION_KEY) or "").strip())
-    if (
-        request.method == "POST"
-        and request.endpoint in {"index", "api_register_finalize"}
-    ):
-        # Anonymous authentication remains public. Once a browser already has
-        # an authenticated identity, login/register is an account switch and
-        # a stale tab must not replace the current lineage.
-        return True
     if request.endpoint in SESSION_GENERATION_PUBLIC_ENDPOINTS:
         return False
     if request.endpoint == "map_view" and request.method in {"GET", "HEAD"}:
@@ -18236,6 +18274,7 @@ def _session_generation_mismatch(reason, provided=""):
         response = jsonify(payload)
         response.status_code = 409
     response.headers[SESSION_GENERATION_ERROR_HEADER] = "mismatch"
+    response.headers["X-Chaos-Session-Reason"] = str(reason or "stale_generation")
     response.headers["Cache-Control"] = "no-store, max-age=0"
     return response
 
@@ -18324,9 +18363,7 @@ def _discard_stale_document_session(reason):
     username = str(session.get("user") or "")
     generation = str(session.get(SESSION_GENERATION_KEY) or "")
     _rotate_server_session_id()
-    session["login_error"] = (
-        "Sesja zostala zastapiona przez nowsze logowanie. Zaloguj sie ponownie."
-    )
+    session["login_error"] = session_recovery_message(reason)
     print(
         "[SESSION] event=session.generation_mismatch "
         f"user_hash={_session_generation_hash(username)} "
@@ -18351,22 +18388,10 @@ def enforce_authenticated_session_generation():
     expected = str(session.get(SESSION_GENERATION_KEY) or "").strip()
     lineage = str(session.get(SESSION_LINEAGE_KEY) or "").strip()
     username = str(session.get("user") or "").strip()
-
-    if (
-        protected
-        and request.method == "POST"
-        and request.endpoint in {"index", "api_register_finalize"}
-        and username
-        and (not expected or not lineage)
-    ):
-        # A cookie created before session-generation rollout can still contain
-        # an authenticated username without a durable lineage. It cannot be
-        # trusted as a current account-switch authority, but it also must not
-        # block a fresh credentialed login forever. Rotate it to an anonymous
-        # SID first; the endpoint may then authenticate and create the canonical
-        # lineage/generation through begin_authenticated_session().
-        invalidate_authenticated_session("incomplete_generation_reauthentication")
-        return None
+    login_identity = str(
+        session.get(SESSION_LOGIN_IDENTITY_KEY) or ""
+    ).strip()
+    account_revision = session.get(SESSION_ACCOUNT_REVISION_KEY)
 
     if document_boot:
         if not expected or not lineage:
@@ -18377,12 +18402,20 @@ def enforce_authenticated_session_generation():
             expected = str(session.get(SESSION_GENERATION_KEY) or "").strip()
             lineage = str(session.get(SESSION_LINEAGE_KEY) or "").strip()
         try:
-            session_generation_store.assert_current(lineage, expected, username)
+            session_generation_store.assert_current(
+                lineage,
+                expected,
+                username,
+                login_identity_secret=login_identity or None,
+                account_revision=account_revision,
+            )
         except SessionGenerationStateError as exc:
             return _discard_stale_document_session(f"durable_{exc.reason}")
         g.session_generation = expected
         g.session_lineage = lineage
         g.session_generation_user = username
+        g.session_login_identity = login_identity
+        g.session_account_revision = account_revision
         bind_request_profile_precommit_guard()
         if not str(request.args.get("_session_generation") or "").strip():
             canonical_args = request.args.to_dict(flat=True)
@@ -18412,25 +18445,20 @@ def enforce_authenticated_session_generation():
     if not secrets.compare_digest(expected, provided) and not valid_query_token:
         return _session_generation_mismatch("stale_generation", provided)
     try:
-        session_generation_store.assert_current(lineage, expected, username)
+        session_generation_store.assert_current(
+            lineage,
+            expected,
+            username,
+            login_identity_secret=login_identity or None,
+            account_revision=account_revision,
+        )
     except SessionGenerationStateError as exc:
         return _session_generation_mismatch(f"durable_{exc.reason}", provided)
-    if (
-        request.method == "POST"
-        and request.endpoint in {"index", "api_register_finalize"}
-    ):
-        # Account replacement is deliberately two-step: the current lineage
-        # must be durably revoked by /logout before an anonymous login or
-        # registration can start a new identity. This prevents an auth-switch
-        # response from racing the old generation bound to this request.
-        return jsonify({
-            "ok": False,
-            "error": "account_switch_requires_logout",
-            "logout_required": True,
-        }), 409
     g.session_generation = expected
     g.session_lineage = lineage
     g.session_generation_user = username
+    g.session_login_identity = login_identity
+    g.session_account_revision = account_revision
     bind_request_profile_precommit_guard()
     return None
 
@@ -18457,6 +18485,8 @@ def reject_response_from_replaced_session_generation(response):
     lineage = str(getattr(g, "session_lineage", "") or "").strip()
     generation = str(getattr(g, "session_generation", "") or "").strip()
     actor_username = str(getattr(g, "session_generation_user", "") or "").strip()
+    login_identity = str(getattr(g, "session_login_identity", "") or "").strip()
+    account_revision = getattr(g, "session_account_revision", None)
     if (
         not lineage
         or not generation
@@ -18469,6 +18499,8 @@ def reject_response_from_replaced_session_generation(response):
             lineage,
             generation,
             actor_username,
+            login_identity_secret=login_identity or None,
+            account_revision=account_revision,
         )
     except SessionGenerationStateError as exc:
         return _session_generation_mismatch(
@@ -19902,6 +19934,29 @@ def dev_dashboard():
 @app.route("/logout")
 def logout():
     invalidate_authenticated_session("logout")
+    return redirect(url_for("index"))
+
+
+def session_recovery_message(reason):
+    reason = str(reason or "").strip().lower()
+    if "replaced" in reason:
+        return "Konto zostalo zalogowane na innym urzadzeniu. Zaloguj sie ponownie."
+    if "expired" in reason or "timeout" in reason:
+        return "Sesja wygasla. Zaloguj sie ponownie."
+    if "logged_out" in reason:
+        return "Sesja zostala wylogowana. Zaloguj sie ponownie."
+    if "missing_generation" in reason or "bootstrap" in reason:
+        return "Sesja wymaga bezpiecznego odnowienia. Zaloguj sie ponownie."
+    return "Sesja jest nieaktualna. Zaloguj sie ponownie."
+
+
+@app.route("/session/recover")
+def session_recover():
+    """Discard only this browser's stale cookie and return to login."""
+    reason = str(request.args.get("reason") or "session_stale")[:96]
+    _rotate_server_session_id()
+    session["login_error"] = session_recovery_message(reason)
+    session.modified = True
     return redirect(url_for("index"))
 
 
@@ -25127,15 +25182,31 @@ def withdraw_vulnerability(report_id):
 
 @app.route("/resources.json")
 def resources():
-    appsdata = get_app_catalog()
-
-    profile = sync_session_profile()
-
+    """Public, non-personalized catalog; never reads an account profile."""
     catalog = []
-    for app in appsdata:
+    for app in get_app_catalog():
         if not app.get("published", True):
             continue
-        catalog.append(googleplex_catalog_payload(app, profile))
+        item = googleplex_catalog_payload(app, {})
+        item.pop("can_afford", None)
+        item.pop("install_blocked_reason", None)
+        item["installed"] = False
+        catalog.append(item)
+
+    return jsonify(catalog)
+
+
+@app.route("/api/catalog")
+def account_catalog():
+    """Authenticated Googleplex projection bound to the active login."""
+    if "user" not in session:
+        return jsonify({"success": False, "error": "not_logged_in"}), 401
+    profile = sync_session_profile()
+    catalog = [
+        googleplex_catalog_payload(app, profile)
+        for app in get_app_catalog()
+        if app.get("published", True)
+    ]
 
     return jsonify(catalog)
 

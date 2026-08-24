@@ -2,6 +2,1291 @@
 
 Kontynuacja planu z `doc/history/game_play_180726.md`.
 
+cały pakiet **130.12.1–130.12.4**
+Pierwsze trzy wynikają bezpośrednio z audytu gameplayowego, a `130.12.4` proponuję jako końcowy sprint walidacyjny/cutover, żeby 130.12 nie wisiał potem znowu w stanie „prawie skończony”.
+
+---
+
+# Sprint 130.12.1 — Single Active Login / Session Ownership P0
+
+**Status bieżący:** IN PROGRESS — LOCAL IMPLEMENTATION READY, SERVER VALIDATION PENDING
+**Priorytet:** P0
+**Cel:** jedno konto może mieć tylko jedno aktywne, niezależne logowanie. Najnowsze poprawne logowanie zawsze wygrywa.
+
+## Problem
+
+Obecny `session_generation` chroni requesty przed stale generation, ale jawnie dopuszcza równoczesne aktywne sesje tego samego konta w dwóch niezależnych przeglądarkach/urządzeniach.
+
+Dodatkowo lifecycle nie domyka poprawnie:
+
+```text
+login
+→ inactivity/logout
+→ ponowny login
+```
+
+co prowadzi do:
+
+* `CHAOS // SESSION GATE`,
+* `409 CONFLICT`,
+* konieczności czyszczenia cookies/cache,
+* 409 na `/resources.json`,
+* 409 na `/api/profile/desktop`,
+* części wtórnych błędów Googleplex/Webdragon/UI.
+
+Audit potwierdził, że obecny kontrakt posiada testy zakładające równoległe aktywne lineages tego samego konta. Ten kontrakt zostaje zmieniony.
+
+## Docelowy invariant
+
+```text
+ONE ACCOUNT = ONE ACTIVE LOGIN SESSION
+```
+
+Kilka kart tej samej sesji przeglądarki pozostaje dozwolone.
+
+Oddzielna przeglądarka lub urządzenie oznacza nowe logowanie i przejęcie konta.
+
+## Model
+
+Rozszerzyć istniejący `SessionGenerationStore`. Nie tworzyć drugiego, równoległego systemu.
+
+Account-level source of truth:
+
+```text
+username_hash
+active_login_id_hash
+active_revision
+status
+updated_at
+```
+
+Lineage:
+
+```text
+lineage_hash
+generation_hash
+username_hash
+login_id_hash
+account_revision
+status
+revision
+invalidated_at
+last_reason
+```
+
+Stany:
+
+```text
+active
+replaced
+logged_out
+expired
+```
+
+Timestamp nie jest source of truth. O kolejności decyduje monotoniczna revision.
+
+## Login
+
+Przy poprawnym nowym logowaniu:
+
+```text
+BEGIN IMMEDIATE
+
+account_revision += 1
+poprzednie active lineages -> replaced
+nowe login identity -> active
+account.active_login_id = nowe login identity
+
+COMMIT
+```
+
+Dopiero potem:
+
+* rotate Flask SID,
+* ustaw cookie/session,
+* zwróć generation.
+
+Najnowszy poprawnie zakończony login wygrywa.
+
+## Request guard
+
+Każdy mutujący request musi sprawdzić:
+
+```text
+lineage
+generation
+username
+account_revision
+active login identity
+```
+
+dwukrotnie:
+
+1. przed rozpoczęciem pracy,
+2. bezpośrednio przed canonical commit.
+
+Scenariusz:
+
+```text
+A rozpoczyna request
+→ B loguje się
+→ B przejmuje account revision
+→ A dochodzi do commit
+→ precommit A FAIL CLOSED
+```
+
+Zero mutacji A.
+
+## Logout / timeout
+
+Logout ma być CAS-safe.
+
+Stara sesja A po przejęciu konta przez B nie może wylogować B.
+
+```text
+logout A
+WHERE active_login_id = A
+AND account_revision = revision_A
+```
+
+Jeśli warunek nie pasuje:
+
+```text
+0 rows affected
+```
+
+i B działa dalej.
+
+Timeout/relogin musi działać bez ręcznego czyszczenia cookies.
+
+## Login recovery
+
+Stale/revoked cookie nie może blokować samego endpointu loginu.
+
+Login/relogin musi mieć możliwość bezpiecznego przejścia:
+
+```text
+stale authenticated cookie
+→ anonymous/login recovery
+→ new authenticated generation
+```
+
+Nie osłabiać przy tym guardów gameplay API.
+
+## `/resources.json`
+
+Nie dodawać obecnego endpointu po prostu do `PUBLIC_ENDPOINTS`.
+
+Audit potwierdził, że:
+
+```text
+/resources.json
+→ sync_session_profile()
+```
+
+więc endpoint nie jest faktycznie statycznym/publicznym resource.
+
+Rozdzielić:
+
+```text
+public catalog
+```
+
+od:
+
+```text
+account-scoped catalog/projection
+```
+
+Publiczny katalog:
+
+* bez generation,
+* bez pełnego profilu,
+* bounded.
+
+Account-scoped projection:
+
+* authenticated,
+* generation protected,
+* kontrolowany błąd session.
+
+Frontend musi sprawdzać:
+
+```text
+response.ok
+Array.isArray(payload)
+```
+
+`catalog` nigdy nie może dostać JSON error object.
+
+## `/api/profile/desktop`
+
+Zachować generation/CAS.
+
+Przy 409:
+
+* frontend nie oznacza zapisu jako successful,
+* lokalny UI nie może przyjąć niezapisanego tile scheme jako canonical.
+
+Po reloginie scheme pochodzi z ostatniego potwierdzonego stanu serwera.
+
+## Session UI
+
+Rozróżnić:
+
+```text
+SESSION_REPLACED
+SESSION_EXPIRED
+SESSION_LOGGED_OUT
+SESSION_STALE
+SESSION_MISSING_GENERATION
+```
+
+Dla `SESSION_REPLACED`:
+
+```text
+Konto zostało zalogowane na innym urządzeniu.
+```
+
+Następnie kontrolowane przejście do loginu.
+
+Bez nieskończonego SESSION GATE.
+
+## Precommit matrix
+
+Zweryfikować co najmniej:
+
+```text
+/api/profile/security
+/api/profile/desktop
+/api/profile/account
+
+/api/wallet/transfer
+/api/ghost-exchange/*
+
+/api/map/aim-target
+/api/victim-picker/aim
+/api/map/player-targets/mark
+/map-action
+/hack-action
+
+/secure-action
+/secure-preset
+/api/map/captured-object/abandon
+/api/ghost-control/territory/*
+
+/command
+/gonna-win
+operation cancel endpoints
+
+/api/blacknet/cta/teleport
+
+contacts
+chats
+system messages
+install/uninstall
+GhostLab mutation endpoints
+```
+
+Dla każdego ustalić, czy posiada prawdziwy guard w tej samej transakcji co canonical write.
+
+## Obowiązkowe testy
+
+```text
+A login → B login → A blocked
+A request starts → B login → A precommit blocked
+logout A po B nie wylogowuje B
+timeout → relogin bez cookie-clear
+2 karty tej samej browser session działają
+2 browsery → najnowszy login wygrywa
+równoległe B/C login → ostatni commit wygrywa
+stary wallet request nie mutuje
+stary profile request nie mutuje
+stary territory request nie mutuje
+stara finalizacja operation nie mutuje
+public catalog działa bez generation
+account catalog ma kontrolowany session failure
+catalog nigdy nie dostaje error object
+desktop 409 nie zapisuje lokalnego fake-success
+```
+
+Usunąć/zmienić stare testy wymagające niezależnej aktywności dwóch lineages tego samego usera.
+
+## Performance
+
+Nie wolno wprowadzić:
+
+```text
+full profile read
+full profile write
+sync_session_profile w guardzie
+globalnego skanu sesji
+długiego BEGIN IMMEDIATE
+```
+
+Account ownership lookup musi być bounded.
+
+## Definition of Done
+
+```text
+single active login działa
+relogin nie wymaga cookie-clear
+logout stale session nie rusza current session
+precommit race jest zabezpieczony
+/resources catalog boundary uporządkowany
+desktop state zachowuje canonical confirmation
+testy zielone
+py_compile OK
+node --check OK
+git diff --check OK
+```
+
+Końcowy status:
+
+```text
+SPRINT 130.12.1 — READY FOR SERVER VALIDATION
+```
+
+Bez deployu bez jawnej zgody.
+
+## Checkpoint implementacyjny — 2026-08-24
+
+Lokalnie wdrożono:
+
+* atomowy account ownership w rozszerzonym `SessionGenerationStore`,
+* monotoniczną account revision i lifecycle `ACTIVE/REPLACED/LOGGED_OUT/EXPIRED`,
+* CAS-safe logout oraz request/precommit ownership guard,
+* relogin i kontrolowany `/session/recover` bez czyszczenia cookies,
+* publiczny `/resources.json` oddzielony od chronionego `/api/catalog`,
+* fail-closed frontend catalog oraz canonical-confirmed map tile scheme,
+* regresje A/B, B/C, stale precommit, dwie karty jednego SID oraz rollback
+  profile/wallet/territory/operation.
+
+Walidacja lokalna:
+
+```text
+294 targeted tests OK
+session generation JS isolation OK
+py_compile OK
+node --check OK
+```
+
+Pełne discovery: `1055` testów, `6` istniejących failure/error poza diffem
+130.12.1 (captured-object helper, GN post-130 fixture, dwa kontrakty GN map layer,
+hot-path aim target i static profile writer contract). Z tego powodu status pozostaje
+`IN PROGRESS` do naprawy baseline lub jawnego zatwierdzenia wyjątku oraz server validation.
+
+---
+
+# Sprint 130.12.2 — Map / Territory / GhostNetwork / Operation Integrity P0
+
+**Status początkowy:** PLANNED
+**Priorytet:** P0
+
+## Cel
+
+Usunąć dwie klasy błędów blokujących realny gameplay:
+
+1. Leaflet/GN renderer crash `undefined.x`,
+2. niespójność finalizacji aplikacji/OFS i `/gonna-win`.
+
+Oba problemy są P0, ale niezależne przyczynowo.
+
+---
+
+## Część A — Leaflet / GhostNetwork renderer
+
+### Problem
+
+Powrócił:
+
+```text
+Bounds.js:150
+Cannot read properties of undefined (reading 'x')
+```
+
+Call chain:
+
+```text
+GN snapshot/delta
+→ renderGhostConnections()
+→ updateGhostConnectionLayer()
+→ layer.addTo(map)
+→ Polyline._clipPoints()
+→ Bounds.intersects()
+→ undefined.x
+```
+
+Skutki:
+
+* GN snapshot fail,
+* map boot scope fail,
+* biały/zepsuty overlay,
+* częściowe warstwy,
+* blokada pan/zoom,
+* territory refresh może zostać przerwany.
+
+Historyczny guard istnieje, ale sprawdza bounds tylko przed wejściem do `originalClipPoints()`. Bounds może się zmienić już podczas clippingu.
+
+## Fix contract
+
+`_clipPoints` musi być fail-closed.
+
+Jeśli renderer/bounds są nieważne:
+
+```text
+_parts = []
+return safely
+```
+
+Jeżeli `originalClipPoints()` rzuci wyjątek spowodowany invalid renderer bounds:
+
+* wyczyść `_parts`,
+* nie propaguj wyjątku do głównego map loop,
+* nie blokuj drag/zoom.
+
+Nie maskować innych, niezwiązanych wyjątków bez diagnostyki.
+
+## Atomic GN layer replacement
+
+Obecnie stara warstwa może zostać usunięta zanim nowa zostanie poprawnie dodana.
+
+Nowy model:
+
+```text
+build candidate layer
+→ validate/add successfully
+→ dopiero wtedy replace previous layer
+```
+
+Jeżeli candidate fail:
+
+```text
+zachowaj previous valid layer
+```
+
+## Territory snapshot recovery
+
+Problem:
+
+```text
+delta
+→ request snapshot recovery
+→ refreshPlayerAreas
+→ in_flight / aborted
+→ false
+→ retry zależy od caller
+```
+
+Wprowadzić deterministyczną koordynację:
+
+* jeden owner recovery,
+* dedupe requestów,
+* retry po `in_flight`,
+* retry po `aborted`,
+* bounded backoff,
+* newest refresh sequence wins,
+* critical recovery nie może zostać na zawsze pominięte przez optional refresh.
+
+## Testy mapy
+
+```text
+GN render zanim renderer ready
+bounds zmieniają się podczas _clipPoints
+GN snapshot + zoom jednocześnie
+territory delta podczas GN render
+optional refresh + critical recovery race
+aborted snapshot → deterministic retry
+in_flight snapshot → deterministic retry
+exception GN nie blokuje pan
+exception GN nie blokuje zoom
+previous valid connection layer pozostaje po candidate failure
+```
+
+---
+
+## Część B — Operation finalization / OFS
+
+### Problem
+
+Objaw:
+
+```text
+SFX ogłasza sukces hacku
+→ aplikacja jeszcze działa
+→ kolejny /gonna-win albo generation mismatch
+→ 409
+→ OFS pokazuje czerwony failed/end
+```
+
+Audit wykazał, że istnieje kilka legalnych ścieżek `/gonna-win`, a receipts mogą mieć różne `receipt_scope`. Sama obecność dwóch requestów nie dowodzi podwójnej mutacji.
+
+Potrzebna jest korelacja semantyczna.
+
+## Telemetryka
+
+Dla każdego flow logować bounded:
+
+```text
+flow_id
+launch_receipt
+receipt_key
+receipt_scope
+operation_id
+request_ordinal
+response_status
+receipt_result
+generation_result
+OFS terminal state
+SFX terminal state
+```
+
+Bez pełnego payload dump.
+
+## Jeden lifecycle owner
+
+Jedna warstwa odpowiada za terminal state OFS.
+
+Nie może być:
+
+```text
+success SFX
++
+późniejszy transport error
+=
+FAILED GAMEPLAY
+```
+
+Jeżeli canonical effect został już potwierdzony:
+
+* replay receipt = idempotent success,
+* późniejszy stale request nie zmienia semantic result.
+
+## 409 generation
+
+Generation mismatch:
+
+* przekazuje sterowanie do session UI,
+* nie jest zwykłym gameplay failure,
+* nie generuje czerwonego OFS failure po potwierdzonym canonical success.
+
+## Receipt replay
+
+Replay dokładnie tej samej semantic operation:
+
+```text
+same receipt / same operation
+→ same operation_id
+→ duplicate=true/replayed=true
+→ UI success/complete
+```
+
+Nie tworzy nowej operation.
+
+## Testy operations
+
+```text
+1 semantic operation → max 1 canonical operation
+receipt replay → ten sam operation_id
+success SFX + późniejszy stale response → brak fake failure
+generation 409 → session transition, nie OFS red end
+operation_only + normal scope zachowują istniejący intentional contract
+crash/retry po receipt write → exactly-once
+OFS terminal success renderowany dokładnie raz
+```
+
+## Definition of Done 130.12.2
+
+```text
+undefined.x nie blokuje mapy
+GN snapshot może się bezpiecznie ponowić
+territory recovery zawsze kończy się snapshotem albo kontrolowanym failure
+pan/zoom działa po renderer race
+OFS nie pokazuje false failure po canonical success
+/gonna-win lifecycle jest obserwowalny i exactly-once
+```
+
+Końcowy status:
+
+```text
+SPRINT 130.12.2 — READY FOR SERVER VALIDATION
+```
+
+---
+
+# Sprint 130.12.3 — State Boundaries / UX / Cyberner Hot Paths P1
+
+**Status początkowy:** PLANNED
+**Priorytet:** P1
+
+## Cel
+
+Usunąć regresje wynikające z pomieszania stanów frontendowych i niepoprawnych source-of-truth oraz pozostały heavy-profile path Cybernera.
+
+Zakres:
+
+```text
+BlackNet
+Googleplex
+Ghost Exchange
+Victim Picker
+Territory Control
+foreign territory UX
+GN dotted connections
+tile scheme confirmation
+Cyberner
+```
+
+---
+
+## Część A — BlackNet / Googleplex / Ghost Exchange
+
+### Problem
+
+```text
+catalog.filter is not a function
+```
+
+Powstaje m.in.:
+
+```text
+/resources.json 409
+→ JSON error object
+→ catalog = error object
+→ catalog.filter()
+```
+
+Dodatkowo:
+
+* GGPL/GX współdzielą search input,
+* keyword BlackNet przechodzi do złej zakładki,
+* GX może odziedziczyć filtr GGPL,
+* CTA zmieniają state innych tabów.
+
+## Nowy model
+
+Osobne stany:
+
+```text
+googleplexQuery
+exchangeQuery
+blacknetQuery
+```
+
+oraz osobne typed models.
+
+CTA:
+
+```text
+BlackNet CTA
+→ target tab command
+→ target tab state
+```
+
+Nie manipuluje globalnym inputem.
+
+Payload katalogu:
+
+```text
+if !response.ok → controlled error
+if !Array.isArray(payload) → controlled error
+```
+
+Zero `.filter()` na error object.
+
+## Testy
+
+```text
+409 catalog nie crashuje
+BlackNet→GGPL nie zmienia GX query
+BlackNet→GX nie zmienia GGPL query
+GGPL search nie filtruje GX
+GX search nie filtruje GGPL
+CTA otwiera właściwy tab
+```
+
+---
+
+## Część B — Victim Picker / Territory Control
+
+### Problem
+
+UI pokazuje phantom aimed target.
+
+Focus/teleport prowadzi czasem do:
+
+```text
+0.00 : 0.00
+```
+
+Audit wskazuje, że frontend nie posiada jawnego fallbacku `(0,0)` w tej ścieżce. Zera lub phantom state pochodzą wyżej.
+
+Obecny candidate path nadal może rozpoczynać się od profilu.
+
+## Source of truth
+
+Aktywny target:
+
+```text
+PlayerTargetRuntimeStore
+```
+
+Profil:
+
+```text
+compatibility projection only
+```
+
+Nie używać stale `profile.aimed_target` do wyboru bieżącego celu.
+
+## Kontrakt
+
+Brak canonical runtime target:
+
+```text
+aimed_target = null
+active_target_id = ""
+focus_enabled = false
+teleport_enabled = false
+```
+
+Target musi posiadać:
+
+```text
+stable target_id
+finite lat
+finite lng
+canonical current state
+```
+
+Backend teleportu również fail-closed.
+
+`0,0` nie może oznaczać „brak celu”.
+
+Jeżeli `(0,0)` jest autentycznym canonical targetem, może być zaakceptowane tylko z prawidłową stable identity.
+
+## Testy
+
+```text
+brak targetu → brak CEL
+brak targetu → brak focus
+brak targetu → brak teleport
+cleared target → brak phantom
+captured target → runtime aktualizuje state
+stale profile aimed_target ignorowany
+missing coords → fail closed
+```
+
+---
+
+## Część C — Foreign Territory UX
+
+Backendowe:
+
+```text
+403 FORBIDDEN
+Target znajduje się na kontrolowanym terenie...
+```
+
+jest prawidłowe.
+
+Frontend ma tłumaczyć kontrolowany gameplay error na komunikat systemowy.
+
+Wprowadzić wspólny parser:
+
+```text
+parseGameplayApiResponse()
+```
+
+lub równoważną istniejącą warstwę.
+
+Rozróżniać:
+
+```text
+authorization gameplay denial
+session replaced/expired
+conflict/replay
+transport/server error
+```
+
+403 territory:
+
+* system message,
+* brak uncaught exception,
+* brak czerwonego technicznego error UX.
+
+Backend nadal 403.
+
+---
+
+## Część D — GhostNetwork dotted connections
+
+Nie zakładać, że różnica między kontami jest bugiem.
+
+Connections renderowane tylko, gdy visibility contract na to pozwala.
+
+Porównać viewer A/B:
+
+```text
+public_connection_id
+state
+can_show_on_map
+location_visibility endpoint A
+location_visibility endpoint B
+viewer_relation
+frontend layer count
+```
+
+Jeżeli payload różny zgodnie z visibility:
+
+```text
+EXPECTED
+```
+
+Jeżeli payload ten sam, a renderer różny:
+
+```text
+FRONTEND BUG
+```
+
+Dodać fixture dwóch viewerów z różną relacją.
+
+Nie osłabiać GN visibility dla „naprawy” renderera.
+
+---
+
+## Część E — Tile scheme
+
+Po 130.12.1 session fix sprawdzić ponownie.
+
+Jeżeli problem pozostaje:
+
+* canonical desktop settings,
+* validated scheme enum,
+* confirmed save state,
+* iframe/map boot source.
+
+Nie używać niezapisanego lokalnego stanu jako canonical.
+
+404 tile provider:
+
+* oddzielić problem invalid scheme od zewnętrznego unavailable tile URL,
+* zapewnić kontrolowany fallback do `osm`,
+* nie zapisywać fallbacku jako preference użytkownika bez jawnej zmiany.
+
+---
+
+## Część F — Cyberner heavy profile
+
+### Problem
+
+Audit potwierdził:
+
+```text
+/api/mail/bootstrap
+/api/chats/messages GET
+/api/chats/messages POST
+→ load_profile_readonly()
+→ full profile
+```
+
+Direct recipient lookup również potrafi użyć pełnego `get_profile(peer)`.
+
+To łamie:
+
+```text
+profile_hot_path_contract_130_11_plus
+```
+
+## Cel
+
+Cyberner bootstrap, polling i messaging:
+
+```text
+profile_full_read = 0
+profile_full_write = 0
+```
+
+na normalnej ścieżce.
+
+## Nowe projekcje
+
+Użyć bounded:
+
+```text
+identity projection
+clan projection
+recipient projection
+contact/channel index
+```
+
+Nie tworzyć kolejnego cache jako source of truth.
+
+Projection musi posiadać:
+
+```text
+username
+display identity
+revision/checksum jeśli wymagane
+minimal clan/relation fields
+```
+
+## Performance test
+
+Profil testowy ~35 MB.
+
+Sprawdzić:
+
+```text
+bootstrap
+thread GET
+message POST
+recipient resolution
+polling
+```
+
+Oczekiwane:
+
+```text
+0 full profile reads
+0 full profile writes
+bounded query count
+bounded payload
+```
+
+## Definition of Done 130.12.3
+
+```text
+GGPL/GX/BlackNet niezależne
+catalog type-safe
+phantom target usunięty
+0:0 nie jest fallbackiem
+foreign 403 ma normalny UX
+GN visibility zweryfikowana
+tile scheme stabilne
+Cyberner bez heavy profile hot path
+```
+
+Końcowy status:
+
+```text
+SPRINT 130.12.3 — READY FOR SERVER VALIDATION
+```
+
+---
+
+# Sprint 130.12.4 — Full Validation / Production Cutover / Sprint 131 Re-audit
+
+**Status początkowy:** PLANNED
+**Priorytet:** Closure
+
+Ten pod-sprint proponuję jako formalne zamknięcie całego 130.12.
+
+Nie dodawać nowych feature'ów.
+
+## Cel
+
+Udowodnić, że:
+
+```text
+130.12.1
+130.12.2
+130.12.3
+```
+
+rozwiązały problemy z manuala bez regresji:
+
+* profilu,
+* sesji,
+* mapy,
+* territory,
+* GN,
+* operations,
+* walletu,
+* Cybernera.
+
+## 1. Pełna regresja
+
+Uruchomić cały dostępny zestaw testów.
+
+Osobno raportować:
+
+```text
+Python
+JS
+py_compile
+node --check
+git diff --check
+```
+
+Nie maskować flaky failures.
+
+## 2. Heavy-profile measurements
+
+Na ciężkim profilu zmierzyć co najmniej:
+
+```text
+desktop boot
+map boot
+aim target
+/gonna-win
+Cyberner bootstrap
+Cyberner GET thread/messages
+Cyberner POST message
+Googleplex open
+Territory Control open
+GN snapshot
+```
+
+Raport:
+
+```text
+before
+after
+full_profile_read_count
+full_profile_write_count
+elapsed
+query count
+```
+
+Hot paths nie mogą wrócić do pełnych profili.
+
+## 3. Session manual
+
+Minimum:
+
+```text
+A login
+B login na tym samym koncie
+A zostaje wyrzucony
+B działa
+
+A stale POST po B
+→ brak mutacji
+
+logout A
+→ B nadal działa
+
+timeout
+→ ponowny login bez cookie clear
+
+2 karty tej samej browser session
+→ działają
+```
+
+## 4. Map manual
+
+Sprawdzić:
+
+```text
+pan
+zoom
+GN snapshot
+GN delta
+territory rebuild
+territory delta
+map close/open
+map refresh
+tile scheme
+actor refresh
+```
+
+Zero:
+
+```text
+undefined.x
+white overlay
+permanent in_flight
+permanent aborted recovery
+```
+
+## 5. Operations manual
+
+Uruchomić kilka rodzajów narzędzi:
+
+```text
+terminal
+button_choices
+window
+progressbar_random
+```
+
+Sprawdzić:
+
+```text
+SFX
+OFS
+receipt
+operation_id
+/gonna-win count
+success
+replay
+generation replacement
+```
+
+Zero false-red failure po canonical success.
+
+## 6. Googleplex / GX / BlackNet
+
+Test:
+
+```text
+GGPL query
+GX query
+BlackNet CTA → GGPL
+BlackNet CTA → GX
+switch tabs
+install app
+logout/login
+```
+
+State nie może przeciekać pomiędzy tabami.
+
+## 7. Territory / Victim Picker
+
+```text
+brak celu
+aktywny cel
+clear target
+foreign territory
+own territory
+teleport
+focus
+```
+
+Nigdy phantom target / accidental `(0,0)`.
+
+## 8. GN visibility
+
+Porównać co najmniej dwa konta z różnymi relacjami.
+
+Potwierdzić:
+
+* brak hidden data leak,
+* dotted connections zgodne z projection,
+* frontend nie różni się przy identycznym payloadzie.
+
+## 9. Cyberner
+
+Manual:
+
+```text
+bootstrap
+lista rozmów
+thread
+send
+receive/poll
+switch contact
+```
+
+oraz latency.
+
+Nie może wykazywać dawnego heavy-profile freeze.
+
+## 10. Production migration/backfill
+
+Jeżeli 130.12.1 wymaga schema migration/backfill session ownership:
+
+najpierw:
+
+```text
+status
+audit
+dry-run
+```
+
+Potem:
+
+```text
+backup
+apply
+verify
+```
+
+Jeżeli narzędzie ma taki kontrakt.
+
+Bez ręcznych SQL hotfixów.
+
+## 11. PM2/server
+
+Przed deployem:
+
+```text
+git status
+HEAD
+pm2 status
+DB backup/readiness
+migration dry-run
+```
+
+Po deployu:
+
+```text
+health
+web logs
+worker logs
+lock metrics
+session metrics
+map errors
+```
+
+## 12. Re-audit Sprintu 131
+
+Po zielonym manualu ponownie przeczytać:
+
+```text
+doc/sprint_131_plus_post_audit.md
+```
+
+i sprawdzić każdy historyczny blocker względem aktualnego kodu.
+
+Nie kopiować starego statusu.
+
+Każdy blocker oznaczyć:
+
+```text
+RESOLVED
+STILL OPEN
+OBSOLETE
+REPLACED BY NEW CONTRACT
+```
+
+## Finalne Definition of Done 130.12
+
+Sprint może być `COMPLETE` dopiero, gdy:
+
+```text
+130.12.1 COMPLETE
+130.12.2 COMPLETE
+130.12.3 COMPLETE
+
+full regression green
+heavy-profile measurements green
+manual green
+production migration verified
+session lifecycle green
+map/GN green
+operations/OFS green
+Cyberner green
+Sprint 131 re-audit complete
+```
+
+Wtedy:
+
+```text
+SPRINT 130.12 — COMPLETE
+```
+
+oraz:
+
+```text
+READY TO PLAN / START SPRINT 131
+```
+
+---
+
+
+
 > Lecimy z całym desktopowym domknięciem GhostNetwork — Sprint 131 ustali bezpieczne relacje i integrację z Territory Control, 132 przygotuje lekki wspólny snapshot, 133 zbuduje właściwe listy części, 134 podepnie mapę oraz teleport, a 135 zamknie GUI, delty i regresję całej rodziny narzędzi.
 
 # Sprint 131 — GhostNetwork Suite: audyt widoczności części i integracja z Territory Control
