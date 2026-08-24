@@ -1090,14 +1090,27 @@ Telemetria `[PROFILE_WRITE]`, jeżeli jest dostępna, uzupełnia source i change
 scopes dla obu przejść. Drift progression, wallet, territory,
 inventory/apps/tools, operations/files lub nieznanych pól blokuje rebase.
 
-Plan identity może oprzeć CAS na bieżącej revision 8 wyłącznie po wczytaniu
-podpisanego raportu z werdyktem
-`SAFE TO REBASE IDENTITY REPAIR ON CURRENT REVISION 8`. Raport jest przypinany
-do planu przez SHA wraz z checksumami revision 6 i 8. Bez raportu albo przy
-jakimkolwiek kolejnym drifcie plan failuje zamknięty. Nie następuje cofnięcie
-profilu ani odtworzenie snapshotu revision 6.
+Live audit potwierdził brak protected gameplay drift. Jedynym blockerem był
+`verified_lkg_promotion_invalid`: recovery LKG revision 6 został poprawnie
+zastąpiony przez prewrite LKG revision 7 podczas walidowanego zapisu revision 8.
+Taki stan jest teraz klasyfikowany jako
+`completed_recovery_lkg_superseded_by_valid_later_profile_write`, a nie jako
+corruption zakończonego recovery.
 
-Regresja: `47/47 OK` dla identity, Recovery v2 i geometry audit; `py_compile`
+Recovery revision 6 jest historycznym milestone'em, nie bieżącym profile
+precondition. Identity plan powstaje bezpośrednio względem aktualnego,
+integrity-valid profilu. Przed planem narzędzie wymaga completed recovery
+receipt oraz bieżących invariants: LVL 50, RSP 2560, HC 250000, inventory/apps/
+tools 11/11, osiem recovery targets z ownership, jeden aktywny area, zero
+recovery conflicts, GN recovery reference count 0 oraz GN readiness 1/20.
+
+Plan zapisuje aktualny revision/checksum, aktualne i oczekiwane trzy pola
+identity, SHA całego profilu bez tych pól oraz snapshot canonical stores.
+Apply zachowuje wszystkie pozostałe pola semantic-equivalent i failuje przy
+zmianie revision, checksumu, non-identity digestu albo bieżących invariants.
+Nie następuje cofnięcie profilu ani odtworzenie snapshotu revision 6.
+
+Regresja: `48/48 OK` dla identity, Recovery v2 i geometry audit; `py_compile`
 oraz `git diff --check` przechodzą.
 
 Produkcyjny drift audit musi być związany wyłącznie z finalnym Recovery v2,
@@ -1120,4 +1133,25 @@ DRIFT_REPORT="$RECOVERY_DIR/identity-drift-readonly.json"
 
 Narzędzie dodatkowo wymaga, aby `plan_id` i `plan_sha256` wskazanego planu v2
 były identyczne z completed recovery receipt. Wskazanie starego planu failuje
-przed wykonaniem diffu i nie może autoryzować rebase identity.
+przed wykonaniem diffu. Drift audit jest evidence diagnostycznym; identity plan
+nie używa historycznego checksumu revision 6 jako bieżącego CAS.
+
+Read-only audit i plan dla bieżącej revision 8:
+
+```bash
+IDENTITY_AUDIT="$RECOVERY_DIR/identity-current-audit.json"
+IDENTITY_PLAN="$RECOVERY_DIR/identity-plan-rev8.json"
+
+.venv/bin/python tools/repair_trollu2_identity.py audit \
+  --db data/game.sqlite3 | tee "$IDENTITY_AUDIT"
+
+.venv/bin/python tools/repair_trollu2_identity.py plan \
+  --db data/game.sqlite3 \
+  --output "$IDENTITY_PLAN"
+
+.venv/bin/python tools/repair_trollu2_identity.py dry-run \
+  --db data/game.sqlite3 \
+  --plan "$IDENTITY_PLAN"
+```
+
+Powyższe komendy nie wykonują identity apply ani innych mutacji bazy.

@@ -1257,12 +1257,20 @@
   klasyfikację gameplay/session oraz korelację telemetrii `[PROFILE_WRITE]`.
 - `prewrite:profile_manager.update_profile` opisuje zapis tworzący revision 8;
   LKG zawiera stan revision 7 sprzed tego zapisu.
-- Identity plan może zostać przebazowany na aktualny CAS revision 8 tylko przez
-  podpisany zielony raport. Protected gameplay drift, nieznane pola, zły LKG,
-  nieodtwarzalny checksum revision 6 lub dalsza zmiana profilu blokują plan.
+- Live audit potwierdził `protected_gameplay_drift={}`. Późniejszy poprawny
+  prewrite LKG revision 7 jest legalnym następcą historycznego recovery LKG 6,
+  nie unieważnieniem completed recovery.
+- Identity repair jest niezależną field-level operacją na current canonical
+  profile. Plan podpisuje bieżący revision/checksum/non-identity SHA i aktualne
+  recovery invariants; receipt revision 6 pozostaje historycznym milestone'em.
+- Plan wymaga LVL/RSP/HC 50/2560/250000, inventory/apps/tools 11/11, 8 recovery
+  targets, 1 area, 0 recovery conflicts i GN recovery references 0. Dalszy
+  profile/canonical drift nadal failuje zamknięty.
 - Nie wykonano identity apply ani mutacji bazy. Regresja identity + Recovery v2
   + geometry audit: `47/47 OK`.
 - Skorygowano instrukcję server drift-audit: jedynym legalnym źródłem jest
   finalne `/home/johndoe/chaos-recovery-13011-v2-20260824T073939Z/plan-v2.json`,
   nie rollbackowany plan recovery v1. Tool failuje przy niezgodności plan ID/SHA
   z completed receipt.
+- Regresja dokładnego lifecycle rev6 complete → valid writes rev7/rev8 →
+  current identity plan → tylko trzy identity fields: `48/48 OK`.

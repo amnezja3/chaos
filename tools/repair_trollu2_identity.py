@@ -26,7 +26,7 @@ from ghostnetwork.catalog import normalize_ghostnetwork_profile_identity
 from tools import repair_trollu2_profile as recovery
 
 
-TOOL_VERSION = "130.11-identity-repair-v2"
+TOOL_VERSION = "130.11-identity-repair-v3"
 PLAN_VERSION = 1
 CANONICAL_USERNAME = "trolu2"
 EXPECTED_CLAN_CODE = "echo_freedom"
@@ -160,8 +160,10 @@ def exact_profile_state(conn: sqlite3.Connection, *, include_profile: bool = Tru
 def latest_completed_recovery(conn: sqlite3.Connection) -> dict[str, Any]:
     row = conn.execute(
         f"SELECT plan_id, plan_sha256, status, current_profile_revision, "
-        f"current_profile_checksum, promoted_at, updated_at FROM {recovery.RECOVERY_RECEIPTS_TABLE} "
-        "WHERE canonical_username=? ORDER BY updated_at DESC LIMIT 1",
+        f"current_profile_checksum, promoted_at, created_at, updated_at "
+        f"FROM {recovery.RECOVERY_RECEIPTS_TABLE} "
+        "WHERE canonical_username=? AND status='complete' "
+        "ORDER BY updated_at DESC LIMIT 1",
         (CANONICAL_USERNAME,),
     ).fetchone()
     if not row:
@@ -208,6 +210,133 @@ def external_invariants(conn: sqlite3.Connection) -> dict[str, Any]:
     groups["ghostnetwork"]["ghost_parts"] = _rows_digest(conn, "ghost_parts")
     groups["summary_sha256"] = recovery.digest(groups)
     return groups
+
+
+def current_recovery_invariants(
+    conn: sqlite3.Connection,
+    completed: dict[str, Any],
+    profile: dict[str, Any],
+) -> dict[str, Any]:
+    """Validate the recovery result as current facts, not an old profile image."""
+    blockers = []
+    plan_id = str(completed["plan_id"] or "")
+    wallet = conn.execute(
+        "SELECT balance, version FROM wallet_balances WHERE username=?",
+        (CANONICAL_USERNAME,),
+    ).fetchone()
+    inventory = recovery.inventory_evidence(conn)
+    recovery_targets = []
+    for row in conn.execute(
+        "SELECT * FROM captured_targets WHERE owner_username=?",
+        (CANONICAL_USERNAME,),
+    ):
+        payload = recovery.loads_object(row["target_json"])
+        if str(payload.get("recovery_plan_id") or "") != plan_id:
+            continue
+        recovery_targets.append({
+            "target_id": recovery.stable_target_id(payload),
+            "stationary": int(row["stationary"] or 0) if "stationary" in row.keys() else 1,
+            "payload_sha256": recovery.digest(payload),
+        })
+    recovery_targets.sort(key=lambda item: item["target_id"])
+    target_ids = [item["target_id"] for item in recovery_targets if item["target_id"]]
+    ownership_ids = set()
+    if target_ids:
+        placeholders = ",".join("?" for _ in target_ids)
+        ownership_ids = {
+            str(row["target_id"])
+            for row in conn.execute(
+                "SELECT target_id, owner_username, ownership_version "
+                f"FROM territory_target_ownership WHERE target_id IN ({placeholders})",
+                tuple(target_ids),
+            )
+            if str(row["owner_username"] or "") == CANONICAL_USERNAME
+            and int(row["ownership_version"] or 0) == 1
+        }
+    area_columns = recovery.table_columns(conn, "player_areas")
+    area_status = " AND status='active'" if "status" in area_columns else ""
+    active_area_count = int(conn.execute(
+        "SELECT COUNT(*) FROM player_areas WHERE owner_username=?" + area_status,
+        (CANONICAL_USERNAME,),
+    ).fetchone()[0])
+    recovery_conflicts = recovery.open_recovery_conflict_ids(conn, completed)
+    ghost_reference_count = recovery.ghost_repair_reference_count(conn, plan_id)
+    active_cycle_count = int(conn.execute(
+        "SELECT COUNT(*) FROM ghost_cycles WHERE status='active'"
+    ).fetchone()[0])
+    active_cycle = conn.execute(
+        "SELECT cycle_id FROM ghost_cycles WHERE status='active' ORDER BY cycle_id LIMIT 1"
+    ).fetchone()
+    ghost_part_count = int(conn.execute(
+        "SELECT COUNT(*) FROM ghost_parts WHERE cycle_id=?",
+        (str(active_cycle["cycle_id"]),),
+    ).fetchone()[0]) if active_cycle else 0
+
+    if int(profile.get("level") or 0) != recovery.RECOVERY_LEVEL:
+        blockers.append("current_level_not_50")
+    if int(profile.get("respect") or 0) != recovery.RECOVERY_RESPECT:
+        blockers.append("current_respect_not_2560")
+    if not wallet or int(wallet["balance"] or 0) != recovery.RECOVERY_BALANCE:
+        blockers.append("current_wallet_not_250000")
+    if int(profile.get("hackcoins") or 0) != recovery.RECOVERY_BALANCE:
+        blockers.append("current_profile_wallet_mirror_not_250000")
+    if len(inventory["apps"]) != 11:
+        blockers.append("current_apps_not_11")
+    if len(inventory["tools"]) != 11:
+        blockers.append("current_tools_not_11")
+    if len(recovery_targets) != 8 or len(set(target_ids)) != 8:
+        blockers.append("current_recovery_targets_not_exactly_8")
+    if any(item["stationary"] != 1 for item in recovery_targets):
+        blockers.append("current_recovery_target_not_stationary")
+    if ownership_ids != set(target_ids):
+        blockers.append("current_recovery_target_ownership_invalid")
+    if active_area_count != 1:
+        blockers.append("current_recovery_area_count_not_1")
+    if recovery_conflicts:
+        blockers.append("current_recovery_conflicts_present")
+    if ghost_reference_count:
+        blockers.append("current_ghostnetwork_recovery_reference_present")
+    if active_cycle_count != 1 or ghost_part_count != 20:
+        blockers.append("current_ghostnetwork_readiness_invalid")
+
+    result = {
+        "ok": not blockers,
+        "blockers": sorted(set(blockers)),
+        "completed_recovery": {
+            "plan_id": plan_id,
+            "plan_sha256": completed["plan_sha256"],
+            "status": completed["status"],
+            "historical_profile_revision": int(completed["current_profile_revision"] or 0),
+            "historical_profile_checksum": completed["current_profile_checksum"],
+        },
+        "progression": {
+            "level": profile.get("level"),
+            "respect": profile.get("respect"),
+        },
+        "wallet": {
+            "profile_hackcoins": profile.get("hackcoins"),
+            "canonical_balance": int(wallet["balance"] or 0) if wallet else None,
+            "canonical_version": int(wallet["version"] or 0) if wallet else None,
+        },
+        "inventory": {
+            "apps": len(inventory["apps"]),
+            "tools": len(inventory["tools"]),
+        },
+        "territory": {
+            "recovery_target_count": len(recovery_targets),
+            "recovery_target_ids_sha256": recovery.digest(sorted(target_ids)),
+            "recovery_ownership_count": len(ownership_ids),
+            "active_area_count": active_area_count,
+            "recovery_conflict_count": len(recovery_conflicts),
+        },
+        "ghostnetwork": {
+            "active_cycle_count": active_cycle_count,
+            "part_count": ghost_part_count,
+            "recovery_reference_count": ghost_reference_count,
+        },
+    }
+    result["summary_sha256"] = recovery.digest(result)
+    return result
 
 
 def canonical_avatar_mapping() -> dict[str, Any]:
@@ -498,6 +627,25 @@ def profile_write_log_evidence(paths: list[str]) -> dict[str, Any]:
     }
 
 
+def valid_later_lkg_supersession(
+    lkg: Any,
+    completed: dict[str, Any],
+    current_state: dict[str, Any],
+    verification_blockers: list[str],
+    *,
+    checksum_valid: bool,
+) -> bool:
+    return (
+        "verified_lkg_promotion_invalid" in verification_blockers
+        and checksum_valid
+        and str(lkg["source"] or "") == "prewrite:profile_manager.update_profile"
+        and int(lkg["profile_revision"] or 0)
+        > int(completed["current_profile_revision"] or 0)
+        and int(current_state["revision"] or 0)
+        == int(lkg["profile_revision"] or 0) + 1
+    )
+
+
 def drift_audit(
     conn: sqlite3.Connection,
     plan: dict[str, Any],
@@ -538,6 +686,15 @@ def drift_audit(
         "profile_checksum_differs_from_receipt",
         "lkg_revision_mismatch",
     }
+    lkg_superseded_by_valid_write = valid_later_lkg_supersession(
+        lkg_row,
+        completed,
+        current_state,
+        list(base_verification.get("blockers") or []),
+        checksum_valid=lkg_checksum_valid,
+    )
+    if lkg_superseded_by_valid_write:
+        allowed_drift_blockers.add("verified_lkg_promotion_invalid")
     unexpected_verify_blockers = sorted(
         set(base_verification.get("blockers") or []) - allowed_drift_blockers
     )
@@ -556,6 +713,7 @@ def drift_audit(
         [lkg_source.removeprefix("prewrite:")]
         if lkg_source.startswith("prewrite:") else []
     )
+    current_invariants = current_recovery_invariants(conn, completed, current_profile)
     safe = (
         reconstruction["exact"]
         and int(lkg_row["profile_revision"] or 0) == 7
@@ -563,6 +721,7 @@ def drift_audit(
         and current_state["revision"] == 8
         and not protected_drift
         and not unexpected_verify_blockers
+        and current_invariants["ok"]
     )
     result = {
         "ok": safe,
@@ -613,7 +772,13 @@ def drift_audit(
             "all_blockers": base_verification.get("blockers") or [],
             "allowed_profile_lkg_drift_blockers": sorted(allowed_drift_blockers),
             "unexpected_blockers": unexpected_verify_blockers,
+            "historical_lkg_disposition": (
+                "completed_recovery_lkg_superseded_by_valid_later_profile_write"
+                if lkg_superseded_by_valid_write else
+                "no_valid_later_lkg_supersession_proven"
+            ),
         },
+        "current_recovery_invariants": current_invariants,
         "protected_gameplay_drift": protected_drift,
         "analysis": {
             "profile_manager_update_profile_can_be_login_refresh_normalization": True,
@@ -651,12 +816,13 @@ def audit_identity(conn: sqlite3.Connection) -> dict[str, Any]:
     if lkg:
         lkg_identity = identity_projection(recovery.loads_object(lkg["snapshot_json"]))
     evidence = historical_identity_evidence(conn)
+    recovery_invariants = current_recovery_invariants(conn, recovery_receipt, profile)
     recovery_profile_matches_current = (
         int(recovery_receipt["current_profile_revision"] or 0) == int(state["revision"])
         and str(recovery_receipt["current_profile_checksum"] or "") == state["stored_checksum"]
     )
     return {
-        "ok": True,
+        "ok": recovery_invariants["ok"],
         "command": "identity-audit",
         "read_only_database": True,
         "tool_version": TOOL_VERSION,
@@ -692,6 +858,7 @@ def audit_identity(conn: sqlite3.Connection) -> dict[str, Any]:
         },
         "historical_evidence": evidence,
         "completed_recovery": recovery_receipt,
+        "current_recovery_invariants": recovery_invariants,
         "recovery_profile_matches_current": recovery_profile_matches_current,
         "current_lkg": {
             "present": bool(lkg),
@@ -702,38 +869,12 @@ def audit_identity(conn: sqlite3.Connection) -> dict[str, Any]:
             "identity": lkg_identity,
         },
         "repair_required": any(profile.get(key) != value for key, value in EXPECTED_IDENTITY.items()),
+        "identity_plan_ready": recovery_invariants["ok"],
         "database_writes": 0,
     }
 
 
-def validate_drift_report(report: Any) -> dict[str, Any]:
-    if not isinstance(report, dict):
-        raise IdentityRepairError("Drift report must be a JSON object")
-    expected = dict(report)
-    report_sha256 = str(expected.pop("report_sha256", ""))
-    if not report_sha256 or report_sha256 != recovery.digest(expected):
-        raise IdentityRepairError("Drift report SHA-256 mismatch")
-    if not report.get("ok") or report.get("verdict") != (
-        "SAFE TO REBASE IDENTITY REPAIR ON CURRENT REVISION 8"
-    ):
-        raise IdentityRepairError("Drift report does not authorize identity rebase")
-    if not report.get("read_only_database") or int(report.get("database_writes", -1)) != 0:
-        raise IdentityRepairError("Drift report is not a read-only audit result")
-    return report
-
-
-def load_drift_report(path: str) -> dict[str, Any]:
-    try:
-        report = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise IdentityRepairError(f"Cannot load drift report: {exc}") from exc
-    return validate_drift_report(report)
-
-
-def build_plan(
-    conn: sqlite3.Connection,
-    approved_drift: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+def build_plan(conn: sqlite3.Connection) -> dict[str, Any]:
     audit = audit_identity(conn)
     profile = exact_profile_state(conn)["profile"]
     normalized = normalize_ghostnetwork_profile_identity({
@@ -750,39 +891,12 @@ def build_plan(
     state = exact_profile_state(conn, include_profile=False)
     external = external_invariants(conn)
     base = latest_completed_recovery(conn)
-    recovery_matches_current = not (
-        int(base["current_profile_revision"] or 0) != int(state["revision"])
-        or str(base["current_profile_checksum"] or "") != state["stored_checksum"]
-    )
-    drift_reference = None
-    if not recovery_matches_current:
-        if approved_drift is None:
-            raise IdentityRepairError(
-                "Current profile drifted after recovery; signed safe drift report is required"
-            )
-        approved_drift = validate_drift_report(approved_drift)
-        revisions = approved_drift.get("revisions") or {}
-        recovery_final = revisions.get("recovery_final") or {}
-        current = revisions.get("current") or {}
-        if (
-            int(recovery_final.get("revision") or 0)
-            != int(base["current_profile_revision"] or 0)
-            or str(recovery_final.get("checksum") or "")
-            != str(base["current_profile_checksum"] or "")
-            or int(current.get("revision") or 0) != int(state["revision"])
-            or str(current.get("checksum") or "") != state["stored_checksum"]
-        ):
-            raise IdentityRepairError(
-                "Drift report does not match current profile or completed recovery"
-            )
-        drift_reference = {
-            "report_sha256": approved_drift["report_sha256"],
-            "recovery_revision": int(recovery_final["revision"]),
-            "recovery_checksum": recovery_final["checksum"],
-            "current_revision": int(current["revision"]),
-            "current_checksum": current["checksum"],
-            "verdict": approved_drift["verdict"],
-        }
+    current_invariants = current_recovery_invariants(conn, base, profile)
+    if not current_invariants["ok"]:
+        raise IdentityRepairError(
+            "Current recovery invariants block identity plan: "
+            + ", ".join(current_invariants["blockers"])
+        )
     core = {
         "format_version": PLAN_VERSION,
         "tool_version": TOOL_VERSION,
@@ -798,10 +912,15 @@ def build_plan(
             "completed_recovery_plan_id": base["plan_id"],
             "completed_recovery_plan_sha256": base["plan_sha256"],
             "completed_recovery_status": base["status"],
+            "completed_recovery_historical_revision": int(base["current_profile_revision"] or 0),
+            "completed_recovery_historical_checksum": base["current_profile_checksum"],
+            "current_identity": {
+                key: copy.deepcopy(profile.get(key)) for key in sorted(MUTABLE_PROFILE_FIELDS)
+            },
+            "current_recovery_invariants": current_invariants,
             "external_invariants": external,
         },
         "canonical_avatar_mapping": audit["canonical_avatar_mapping"],
-        "post_recovery_drift": drift_reference,
     }
     seed = recovery.digest(core)
     core["plan_id"] = "trollu2_identity_" + seed[:24]
@@ -855,6 +974,14 @@ def precondition_blockers(conn: sqlite3.Connection, plan: dict[str, Any]) -> lis
         or base["status"] != "complete"
     ):
         blockers.append("CURRENT_RECOVERY_CHANGED_REPLAN_REQUIRED")
+    current_recovery = current_recovery_invariants(conn, base, profile)
+    if not current_recovery["ok"]:
+        blockers.extend(
+            "CURRENT_RECOVERY_INVARIANT_CHANGED_REPLAN_REQUIRED:" + item
+            for item in current_recovery["blockers"]
+        )
+    if current_recovery != expected["current_recovery_invariants"]:
+        blockers.append("CURRENT_RECOVERY_INVARIANTS_CHANGED_REPLAN_REQUIRED")
     if external_invariants(conn) != expected["external_invariants"]:
         blockers.append("CURRENT_GAMEPLAY_STATE_CHANGED_REPLAN_REQUIRED")
     if canonical_avatar_mapping() != plan["canonical_avatar_mapping"]:
@@ -1018,6 +1145,12 @@ def verify_identity(conn: sqlite3.Connection, plan: dict[str, Any]) -> dict[str,
     current_external = external_invariants(conn)
     if current_external != plan["preconditions"]["external_invariants"]:
         blockers.append("canonical_gameplay_state_changed")
+    completed = latest_completed_recovery(conn)
+    current_recovery = current_recovery_invariants(conn, completed, profile)
+    blockers.extend(
+        "current_recovery_invariant_invalid:" + item
+        for item in current_recovery["blockers"]
+    )
     normalized = normalize_ghostnetwork_profile_identity(profile)
     if not normalized["catalog_valid"] or normalized["clan_code"] != EXPECTED_CLAN_CODE \
             or normalized["profession_code"] != EXPECTED_PROFESSION_CODE:
@@ -1053,6 +1186,7 @@ def verify_identity(conn: sqlite3.Connection, plan: dict[str, Any]) -> dict[str,
         },
         "inventory": {"apps": apps, "tools": tools, "expected_11_11": apps == 11 and tools == 11},
         "canonical_state_sha256": current_external["summary_sha256"],
+        "current_recovery_invariants": current_recovery,
         "ghostnetwork_sha256": recovery.digest(current_external["ghostnetwork"]),
         "lkg_matches_identity_profile": lkg_matches,
     }
@@ -1138,7 +1272,6 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--db", default=argparse.SUPPRESS)
     plan.add_argument("--output", required=True)
     plan.add_argument("--overwrite", action="store_true")
-    plan.add_argument("--drift-report", default="")
     drift = sub.add_parser("drift-audit")
     drift.add_argument("--db", default=argparse.SUPPRESS)
     drift.add_argument("--recovery-plan", required=True)
@@ -1182,12 +1315,17 @@ def main(argv: list[str] | None = None) -> int:
             recovery.print_json(result)
             return 0 if result["ok"] else 1
         if args.command == "plan":
-            approved_drift = load_drift_report(args.drift_report) if args.drift_report else None
             with recovery.readonly_connection(args.db) as conn:
-                plan = build_plan(conn, approved_drift=approved_drift)
+                plan = build_plan(conn)
             write_plan(args.output, plan, args.overwrite)
             recovery.print_json({"ok": True, "command": "plan", "read_only_database": True,
                                  "plan_id": plan["plan_id"], "plan_sha256": plan["plan_sha256"],
+                                 "profile_revision": plan["preconditions"]["profile_revision"],
+                                 "profile_checksum": plan["preconditions"]["profile_checksum"],
+                                 "current_identity": plan["preconditions"]["current_identity"],
+                                 "expected_identity": plan["approved_changes"],
+                                 "current_recovery_invariants":
+                                     plan["preconditions"]["current_recovery_invariants"],
                                  "output": str(Path(args.output).resolve())})
             return 0
         plan = load_plan(args.plan)
@@ -1198,6 +1336,10 @@ def main(argv: list[str] | None = None) -> int:
                 blockers = precondition_blockers(conn, plan)
             recovery.print_json({"ok": not blockers, "command": "dry-run", "read_only_database": True,
                                  "plan_id": plan["plan_id"], "blockers": blockers,
+                                 "profile_revision": plan["preconditions"]["profile_revision"],
+                                 "profile_checksum": plan["preconditions"]["profile_checksum"],
+                                 "current_identity": plan["preconditions"]["current_identity"],
+                                 "expected_identity": plan["approved_changes"],
                                  "planned_profile_fields": sorted(MUTABLE_PROFILE_FIELDS),
                                  "planned_non_profile_writes": [RECEIPTS_TABLE],
                                  "ghostnetwork_planned_writes": 0})

@@ -74,7 +74,10 @@ class Trollu2IdentityRepairTests(unittest.TestCase):
                 CREATE TABLE player_apps (username TEXT, app_id TEXT, status TEXT);
                 CREATE TABLE player_tool_files (username TEXT, tool_id TEXT);
                 CREATE TABLE player_storage (username TEXT PRIMARY KEY, capacity INTEGER, used INTEGER, version INTEGER);
-                CREATE TABLE captured_targets (id INTEGER PRIMARY KEY, owner_username TEXT, target_json TEXT);
+                CREATE TABLE captured_targets (
+                    id INTEGER PRIMARY KEY, owner_username TEXT, stationary INTEGER,
+                    target_json TEXT
+                );
                 CREATE TABLE territory_target_ownership (target_id TEXT PRIMARY KEY, owner_username TEXT, ownership_version INTEGER);
                 CREATE TABLE player_areas (id INTEGER PRIMARY KEY, owner_username TEXT, geometry_json TEXT);
                 CREATE TABLE ghost_cycles (cycle_id TEXT PRIMARY KEY, status TEXT, state_version INTEGER);
@@ -121,8 +124,14 @@ class Trollu2IdentityRepairTests(unittest.TestCase):
             conn.execute("INSERT INTO player_storage VALUES ('trolu2',4352,273,533)")
             for index in range(8):
                 conn.execute(
-                    "INSERT INTO captured_targets VALUES (?,?,?)",
-                    (index + 1, "trolu2", recovery.canonical_json({"target_id": f"recovery-{index}"})),
+                    "INSERT INTO captured_targets VALUES (?,?,?,?)",
+                    (
+                        index + 1, "trolu2", 1,
+                        recovery.canonical_json({
+                            "target_id": f"recovery-{index}",
+                            "recovery_plan_id": "recovery-final",
+                        }),
+                    ),
                 )
                 conn.execute(
                     "INSERT INTO territory_target_ownership VALUES (?,?,?)",
@@ -280,37 +289,70 @@ class Trollu2IdentityRepairTests(unittest.TestCase):
         for field in ("apps", "hackcoins", "launch_queue", "session_token"):
             self.assertNotIn(field, snapshot)
 
-    def test_post_recovery_drift_requires_signed_safe_report_and_rebases_cas(self):
-        current = copy.deepcopy(self.profile)
-        current["desktop_settings"] = {"theme": "green"}
-        checksum = recovery.profile_checksum(current)
+    def test_completed_recovery_then_two_valid_writes_plans_current_rev8(self):
+        revision_7 = copy.deepcopy(self.profile)
+        revision_7["desktop_settings"] = {"theme": "green"}
+        checksum_7 = recovery.profile_checksum(revision_7)
+        snapshot_6 = tool.runtime_lkg_snapshot_value(self.profile, top_level=True)
         with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "UPDATE profile_last_known_good SET profile_revision=6, snapshot_json=?, "
+                "checksum=?, source='prewrite:profile_manager.update_profile' "
+                "WHERE username='trolu2'",
+                (recovery.canonical_json(snapshot_6), recovery.digest(snapshot_6)),
+            )
+            conn.execute(
+                "UPDATE users SET profile_json=?, profile_revision=7, profile_checksum=? "
+                "WHERE username='trolu2'",
+                (recovery.canonical_json(revision_7), checksum_7),
+            )
+        revision_8 = copy.deepcopy(revision_7)
+        revision_8["current_position"] = {"lat": 52.1, "lng": 20.9}
+        checksum_8 = recovery.profile_checksum(revision_8)
+        snapshot_7 = tool.runtime_lkg_snapshot_value(revision_7, top_level=True)
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "UPDATE profile_last_known_good SET profile_revision=7, snapshot_json=?, "
+                "checksum=?, source='prewrite:profile_manager.update_profile' "
+                "WHERE username='trolu2'",
+                (recovery.canonical_json(snapshot_7), recovery.digest(snapshot_7)),
+            )
             conn.execute(
                 "UPDATE users SET profile_json=?, profile_revision=8, profile_checksum=? "
                 "WHERE username='trolu2'",
-                (recovery.canonical_json(current), checksum),
+                (recovery.canonical_json(revision_8), checksum_8),
             )
         with recovery.readonly_connection(self.db_path) as conn:
-            with self.assertRaisesRegex(tool.IdentityRepairError, "safe drift report"):
-                tool.build_plan(conn)
-
-        recovery_checksum = recovery.profile_checksum(self.profile)
-        report = {
-            "ok": True,
-            "verdict": "SAFE TO REBASE IDENTITY REPAIR ON CURRENT REVISION 8",
-            "read_only_database": True,
-            "database_writes": 0,
-            "revisions": {
-                "recovery_final": {"revision": 6, "checksum": recovery_checksum},
-                "current": {"revision": 8, "checksum": checksum},
-            },
-        }
-        report["report_sha256"] = recovery.digest(report)
-        with recovery.readonly_connection(self.db_path) as conn:
-            plan = tool.build_plan(conn, approved_drift=report)
+            plan = tool.build_plan(conn)
         self.assertEqual(8, plan["preconditions"]["profile_revision"])
-        self.assertEqual(checksum, plan["preconditions"]["profile_checksum"])
-        self.assertEqual(report["report_sha256"], plan["post_recovery_drift"]["report_sha256"])
+        self.assertEqual(checksum_8, plan["preconditions"]["profile_checksum"])
+        self.assertEqual(6, plan["preconditions"]["completed_recovery_historical_revision"])
+        self.assertEqual(
+            {"avatar": "/static/images/default_avatar.png", "nick": "NowyHaker", "profession": None},
+            plan["preconditions"]["current_identity"],
+        )
+        before_profile, _, _ = self._current_profile()
+        result = tool.apply_identity(self.db_path, plan, "test-operator")
+        after_profile, after_revision, _ = self._current_profile()
+        self.assertEqual(9, after_revision)
+        self.assertEqual(sorted(tool.MUTABLE_PROFILE_FIELDS), result["changed_fields"])
+        self.assertEqual(tool.profile_invariant(before_profile), tool.profile_invariant(after_profile))
+
+    def test_valid_later_prewrite_lkg_supersedes_historical_recovery_lkg(self):
+        self.assertTrue(tool.valid_later_lkg_supersession(
+            {"source": "prewrite:profile_manager.update_profile", "profile_revision": 7},
+            {"current_profile_revision": 6},
+            {"revision": 8},
+            ["verified_lkg_promotion_invalid"],
+            checksum_valid=True,
+        ))
+        self.assertFalse(tool.valid_later_lkg_supersession(
+            {"source": "prewrite:unknown", "profile_revision": 7},
+            {"current_profile_revision": 6},
+            {"revision": 8},
+            ["verified_lkg_promotion_invalid"],
+            checksum_valid=True,
+        ))
 
 
 if __name__ == "__main__":
