@@ -269,6 +269,20 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
                         tool.canonical_json(payload),
                     ),
                 )
+            unrelated_payload = {
+                "target_id": "map:40.0:10.0:unrelated-ownership",
+                "lat": 40.0, "lng": 10.0, "label": "unrelated-ownership",
+            }
+            conn.execute(
+                "INSERT INTO territory_target_ownership VALUES "
+                "(?,?,7,?,?,?,?, '2026-08-20')",
+                (
+                    unrelated_payload["target_id"], tool.CANONICAL_USERNAME,
+                    unrelated_payload["lat"], unrelated_payload["lng"],
+                    unrelated_payload["label"],
+                    tool.canonical_json(unrelated_payload),
+                ),
+            )
             courier = {
                 "target_id": "map:52.15872:20.90926:Kuriero-bot",
                 "lat": 52.158725, "lng": 20.9092585,
@@ -318,6 +332,15 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
     def build_plan(self):
         with tool.readonly_connection(self.db_path) as conn:
             return tool.build_plan(conn, self.db_path)
+
+    def remove_historical_ownership(self):
+        with self.connect() as conn:
+            conn.execute(
+                "DELETE FROM territory_target_ownership WHERE target_id IN ({})".format(
+                    ",".join("?" for _ in tool.HISTORICAL_GEOMETRY_TARGET_IDS)
+                ),
+                tool.HISTORICAL_GEOMETRY_TARGET_IDS,
+            )
 
     def build_plan_and_manifest(self):
         plan = self.build_plan()
@@ -596,8 +619,8 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
             tool.atomic_city_grant(self.db_path, plan, city)
         with self.connect() as conn:
             self.assertEqual(0, conn.execute(
-                "SELECT COUNT(*) FROM territory_target_ownership WHERE owner_username=?",
-                (tool.CANONICAL_USERNAME,),
+                "SELECT COUNT(*) FROM territory_target_ownership "
+                "WHERE target_id LIKE 'recovery_%'",
             ).fetchone()[0])
             self.assertEqual(0, conn.execute(
                 "SELECT COUNT(*) FROM territory_rebuild_jobs WHERE job_id=?",
@@ -639,7 +662,8 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
             self.assertEqual(0, int(courier["stationary"]))
             self.assertEqual(1, int(courier["generated"]))
             audit_rows = conn.execute(
-                f"SELECT target_id, previous_owner_username, reason, "
+                f"SELECT target_id, previous_owner_username, captured_row_id, "
+                f"captured_sha256, ownership_state, recovery_plan_id, reason, "
                 f"operator_username, previous_state_sha256, status "
                 f"FROM {tool.RECOVERY_RETIREMENTS_TABLE} WHERE plan_id=?",
                 (plan["plan_id"],),
@@ -651,6 +675,10 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
             )
             self.assertTrue(all(
                 row["previous_owner_username"] == tool.CANONICAL_USERNAME
+                and int(row["captured_row_id"]) > 0
+                and row["captured_sha256"]
+                and row["ownership_state"] == "present"
+                and row["recovery_plan_id"] == plan["plan_id"]
                 and row["reason"] == tool.RECOVERY_REASON
                 and row["operator_username"] == "test-operator"
                 and row["previous_state_sha256"]
@@ -659,6 +687,13 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
             ))
             self.assertEqual(inventory_before, tool.inventory_evidence(conn))
             self.assertEqual(ghost_before, tool.ghostnetwork_evidence(conn))
+            unrelated = conn.execute(
+                "SELECT owner_username, ownership_version "
+                "FROM territory_target_ownership "
+                "WHERE target_id='map:40.0:10.0:unrelated-ownership'"
+            ).fetchone()
+            self.assertEqual(tool.CANONICAL_USERNAME, unrelated["owner_username"])
+            self.assertEqual(7, int(unrelated["ownership_version"]))
 
     def test_current_world_change_before_bonus_grant_fails_closed(self):
         plan, manifest = self.build_plan_and_manifest()
@@ -691,6 +726,134 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
             self.assertIsNone(tool.recovery_step(
                 conn, plan["plan_id"], "territory_city:" + city["city"].lower()
             ))
+
+    def test_retirement_allows_explicit_absent_ownership_and_removes_worker_sources(self):
+        self.remove_historical_ownership()
+        plan, manifest = self.build_plan_and_manifest()
+        retirement = plan["territory_recovery"]["historical_retirement"]
+        states = retirement["targets"]
+        self.assertEqual(9, len(states))
+        self.assertEqual({"absent"}, {item["ownership_state"] for item in states})
+        self.assertTrue(all("ownership_sha256" not in item for item in states))
+        self.assertTrue(all("ownership_version" not in item for item in states))
+        self.assertEqual(11, len(plan["preserve"]["apps"]))
+        self.assertEqual(11, len(plan["preserve"]["tools"]))
+        self.assertEqual(0, plan["ghostnetwork_isolation"]["writes"])
+        city = plan["territory_recovery"]["cities"][0]
+        self.assertEqual([], city["collisions"])
+        self.assertEqual([], city["combined_final_collisions"])
+
+        tool.initialize_recovery_receipt(self.db_path, plan, manifest)
+        result = tool.retire_historical_targets(
+            self.db_path, plan, "test-operator"
+        )
+        self.assertEqual(9, result["retired_count"])
+        from database import TerritoryStore
+        worker_store = TerritoryStore.__new__(TerritoryStore)
+        worker_store.db_path = self.db_path
+        actual_worker_areas = worker_store.build_player_areas(
+            tool.CANONICAL_USERNAME, tool.RECOVERY_LEVEL
+        )
+        with tool.readonly_connection(self.db_path) as conn:
+            audit_rows = conn.execute(
+                f"SELECT target_id, captured_row_id, captured_sha256, "
+                f"ownership_state, recovery_plan_id, previous_owner_username, "
+                f"reason, operator_username, retired_at "
+                f"FROM {tool.RECOVERY_RETIREMENTS_TABLE} WHERE plan_id=?",
+                (plan["plan_id"],),
+            ).fetchall()
+            stationary_count = int(conn.execute(
+                "SELECT COUNT(*) FROM captured_targets "
+                "WHERE owner_username=? AND stationary=1",
+                (tool.CANONICAL_USERNAME,),
+            ).fetchone()[0])
+            rebuilt_preview = tool.canonical_subject_area_preview(conn, [])
+            courier = conn.execute(
+                "SELECT id FROM captured_targets WHERE owner_username=? "
+                "AND label='Kuriero-bot' AND stationary=0",
+                (tool.CANONICAL_USERNAME,),
+            ).fetchone()
+            unrelated = conn.execute(
+                "SELECT ownership_version FROM territory_target_ownership "
+                "WHERE target_id='map:40.0:10.0:unrelated-ownership'"
+            ).fetchone()
+        self.assertEqual(9, len(audit_rows))
+        self.assertTrue(all(
+            row["ownership_state"] == "absent"
+            and int(row["captured_row_id"]) > 0
+            and row["captured_sha256"]
+            and row["recovery_plan_id"] == plan["plan_id"]
+            and row["previous_owner_username"] == tool.CANONICAL_USERNAME
+            and row["reason"] == tool.RECOVERY_REASON
+            and row["operator_username"] == "test-operator"
+            and row["retired_at"]
+            for row in audit_rows
+        ))
+        self.assertEqual(0, stationary_count)
+        self.assertEqual([], rebuilt_preview)
+        self.assertEqual([], actual_worker_areas)
+        self.assertIsNotNone(courier)
+        self.assertEqual(7, int(unrelated["ownership_version"]))
+
+    def test_ownership_appearing_after_absent_plan_fails_before_mutation(self):
+        self.remove_historical_ownership()
+        plan, manifest = self.build_plan_and_manifest()
+        tool.initialize_recovery_receipt(self.db_path, plan, manifest)
+        target = plan["territory_recovery"]["historical_retirement"]["targets"][0]
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO territory_target_ownership "
+                "(target_id,owner_username,ownership_version,lat,lng,label,"
+                "target_json,updated_at) VALUES (?,?,1,?,?,?,?,?)",
+                (
+                    target["target_id"], tool.CANONICAL_USERNAME,
+                    target["lat"], target["lng"], "appeared",
+                    tool.canonical_json({"target_id": target["target_id"]}),
+                    "2026-08-24",
+                ),
+            )
+        with self.assertRaisesRegex(
+            tool.RecoveryGateError, "CURRENT_WORLD_CHANGED_REPLAN_REQUIRED"
+        ):
+            tool.retire_historical_targets(self.db_path, plan, "test-operator")
+        with tool.readonly_connection(self.db_path) as conn:
+            self.assertEqual(9, conn.execute(
+                "SELECT COUNT(*) FROM captured_targets "
+                "WHERE owner_username=? AND stationary=1",
+                (tool.CANONICAL_USERNAME,),
+            ).fetchone()[0])
+            self.assertEqual(0, conn.execute(
+                f"SELECT COUNT(*) FROM {tool.RECOVERY_RETIREMENTS_TABLE} "
+                "WHERE plan_id=?",
+                (plan["plan_id"],),
+            ).fetchone()[0])
+
+    def test_captured_row_change_after_plan_fails_before_mutation(self):
+        self.remove_historical_ownership()
+        plan, manifest = self.build_plan_and_manifest()
+        tool.initialize_recovery_receipt(self.db_path, plan, manifest)
+        target = plan["territory_recovery"]["historical_retirement"]["targets"][0]
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE captured_targets SET updated_at='2026-08-24T12:00:00Z' "
+                "WHERE id=?",
+                (target["captured_row_id"],),
+            )
+        with self.assertRaisesRegex(
+            tool.RecoveryGateError, "CURRENT_WORLD_CHANGED_REPLAN_REQUIRED"
+        ):
+            tool.retire_historical_targets(self.db_path, plan, "test-operator")
+        with tool.readonly_connection(self.db_path) as conn:
+            self.assertEqual(9, conn.execute(
+                "SELECT COUNT(*) FROM captured_targets "
+                "WHERE owner_username=? AND stationary=1",
+                (tool.CANONICAL_USERNAME,),
+            ).fetchone()[0])
+            self.assertEqual(0, conn.execute(
+                f"SELECT COUNT(*) FROM {tool.RECOVERY_RETIREMENTS_TABLE} "
+                "WHERE plan_id=?",
+                (plan["plan_id"],),
+            ).fetchone()[0])
 
     def test_rollback_from_retirement_phase_restores_current_state_and_keeps_audit(self):
         plan, manifest = self.build_plan_and_manifest()

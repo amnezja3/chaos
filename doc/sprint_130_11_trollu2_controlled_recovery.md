@@ -877,13 +877,34 @@ Recovery v2 wycofuje dokładnie dziewięć potwierdzonych historycznych targetó
   `スーパー生鮮館TAIGA 藤沢石川店` (pełne stabilne ID analogicznie w planie).
 
 Nie wycofuje generated/nonstationary `Kuriero-bot` ani żadnego innego
-historycznego ownership. Retirement korzysta z bieżącej semantyki canonical
-abandon: kończy current `captured_targets` i `territory_target_ownership`, po
-czym kolejkuje jeden canonical rebuild. Dodatkowa immutable tabela
+historycznego ownership. Worker buduje geometrię wyłącznie z canonical
+`captured_targets` gracza z `stationary=1`; ownership registry nie jest wejściem
+algorytmu geometrii. Retirement usuwa więc przez CAS dokładnie dziewięć
+podpisanych captured rows, usuwa odpowiadający `territory_target_ownership`
+wyłącznie wtedy, gdy plan podpisał go jako `present`, a następnie kolejkuje jeden
+canonical rebuild. Dodatkowa immutable tabela
 `trollu2_recovery_target_retirements` zapisuje plan ID, target ID, poprzedniego
-ownera, `captured_at`, operatora, czas, przyczynę
+ownera, captured row ID i SHA, `captured_at`, jawny `ownership_state`, operatora,
+czas, przyczynę
 `sprint_130_11_incident_recovery`, checksum poprzedniego stanu oraz dokładne
 rekordy potrzebne do kontrolowanego rollbacku. Nie ma silent DELETE.
+
+### Korekta kontraktu optional ownership
+
+Server read-only gate potwierdził legalny wariant wszystkich dziewięciu
+historycznych markerów: canonical captured row istnieje, natomiast
+`territory_target_ownership` jest nieobecny. Plan zapisuje w takim przypadku
+`ownership_state=absent` i nie zapisuje pustego `ownership_sha256` ani zerowej
+wersji jako substytutu rekordu. Dla wariantu `present` podpisuje target ID,
+ownera, version i checksum całego ownership row.
+
+Apply sprawdza ten stan ponownie przed writer-lockiem i pod writer-lockiem.
+Pojawienie się ownership po planie, zniknięcie lub zmiana ownership present,
+zmiana captured row/checksum albo ownera kończy się
+`CURRENT_WORLD_CHANGED_REPLAN_REQUIRED` i zerem retirement writes. Narzędzie nie
+tworzy sztucznego ownership. Po retirement verify sprawdza również dokładne
+captured row IDs, durable audit, rzeczywisty stationary input workera oraz
+canonical preview przy LVL 50; dwa historyczne komponenty nie mogą się odtworzyć.
 
 Plan v2 ma trzy osobne preview:
 
@@ -921,7 +942,7 @@ gameplayu, obcych terytoriów ani GhostNetwork. Finalny stan GN ma nadal aktywny
 
 ### Wynik automatyczny
 
-- recovery + geometry audit: `31/31 OK`;
+- recovery + geometry audit: `34/34 OK`;
 - szeroka regresja profile/session/wallet/Target Registry/territory/CAS/
   reconciliation/GhostNetwork: `491/491 OK`;
 - planner/status/audit/dry-run pozostają read-only względem bazy;
@@ -929,6 +950,13 @@ gameplayu, obcych terytoriów ani GhostNetwork. Finalny stan GN ma nadal aktywny
 
 Sprint nie otrzymuje jeszcze końcowego `GO`: następną bramką jest wyłącznie
 serwerowy read-only plan v2 i dry-run na aktualnym current world.
+
+Po korekcie optional ownership testy recovery/geometry mają wynik `34/34 OK`,
+a ponowiona pełna regresja territory/conflicts/CAS/reconciliation/GN territory
+`391/391 OK`. Test korzysta również bezpośrednio z
+`TerritoryStore.build_player_areas()` i potwierdza, że po retirement canonical
+worker dostaje zero stationary targetów historycznych i nie odtwarza żadnego z
+dwóch dawnych obszarów.
 
 ## Definition of Done
 

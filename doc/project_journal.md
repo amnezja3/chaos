@@ -5,17 +5,21 @@
 - Live geometry audit potwierdził przyczynę `A+B`: dziewięć historycznych
   stationary targets reaktywuje przy LVL 25+ dwa kolidujące obszary, natomiast
   bonus-only Tokio ze starego planu jest czyste.
-- Recovery v2 kończy lifecycle dokładnie tych dziewięciu captured/ownership
-  records, zapisuje immutable retirement receipts i wykonuje canonical rebuild
-  przed zmianą levelu. `Kuriero-bot`, inventory 11/11, obcy current world oraz
-  GhostNetwork pozostają poza write scope.
+- Recovery v2 kończy lifecycle dokładnie dziewięciu canonical captured rows;
+  ownership registry jest jawnie podpisany jako `present` albo `absent` i jest
+  usuwany wyłącznie w wariancie present. Worker geometry czyta stationary
+  `captured_targets`, nie ownership registry. Durable retirement receipt zapisuje
+  captured row ID/SHA oraz explicit ownership state. `Kuriero-bot`, inventory
+  11/11, pozostały ownership, obcy current world i GhostNetwork pozostają poza
+  write scope.
 - Planner rozdziela historical, bonus-only i combined-final preview. Plan v1
   może dostarczyć wyłącznie współrzędne bonusu; apply wymaga nowego planu v2.
 - Pipeline jest resumable/exactly-once i ma dwie jawne bramki workera.
   Current-world drift kończy się `CURRENT_WORLD_CHANGED_REPLAN_REQUIRED`, a
   rollback jest ograniczony do recovery-owned danych przed `COMPLETE`.
-- Testy: recovery/geometry `31/31 OK`, szeroka regresja sąsiednich kontraktów
-  `491/491 OK`. Nie wykonano deployu, apply ani mutacji produkcyjnej bazy.
+- Testy: recovery/geometry `34/34 OK`, szeroka regresja sąsiednich kontraktów
+  `491/491 OK`; ponowiona regresja territory po optional-ownership
+  `391/391 OK`. Nie wykonano deployu, apply ani mutacji produkcyjnej bazy.
 - Status: `READY FOR SERVER READ-ONLY PLAN V2 / DRY-RUN`.
 
 ## 2026-08-22 - Sprint 130.10: blocker mapy po account switch

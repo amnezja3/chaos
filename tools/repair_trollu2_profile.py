@@ -33,7 +33,11 @@ from territory_geometry import (
 )
 
 
-TOOL_VERSION = "130.11.1-controlled-recovery"
+TOOL_VERSION = "130.11.2-optional-ownership-recovery"
+BONUS_SOURCE_TOOL_VERSIONS = {
+    TOOL_VERSION,
+    "130.11.1-controlled-recovery",
+}
 REPORTED_LOGIN = "Trollu2"
 CANONICAL_USERNAME = "trolu2"
 RECOVERY_LEVEL = 50
@@ -173,9 +177,13 @@ def ensure_recovery_schema(conn: sqlite3.Connection) -> None:
         f"""
         CREATE TABLE IF NOT EXISTS {RECOVERY_RETIREMENTS_TABLE} (
             plan_id TEXT NOT NULL,
+            recovery_plan_id TEXT NOT NULL DEFAULT '',
             target_id TEXT NOT NULL,
             previous_owner_username TEXT NOT NULL,
+            captured_row_id INTEGER NOT NULL DEFAULT 0,
+            captured_sha256 TEXT NOT NULL DEFAULT '',
             captured_at TEXT NOT NULL DEFAULT '',
+            ownership_state TEXT NOT NULL DEFAULT 'present',
             reason TEXT NOT NULL,
             operator_username TEXT NOT NULL,
             previous_captured_json TEXT NOT NULL,
@@ -188,6 +196,21 @@ def ensure_recovery_schema(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    retirement_columns = {
+        str(row["name"])
+        for row in conn.execute(f"PRAGMA table_info({RECOVERY_RETIREMENTS_TABLE})")
+    }
+    for column, definition in (
+        ("recovery_plan_id", "TEXT NOT NULL DEFAULT ''"),
+        ("captured_row_id", "INTEGER NOT NULL DEFAULT 0"),
+        ("captured_sha256", "TEXT NOT NULL DEFAULT ''"),
+        ("ownership_state", "TEXT NOT NULL DEFAULT 'present'"),
+    ):
+        if column not in retirement_columns:
+            conn.execute(
+                f"ALTER TABLE {RECOVERY_RETIREMENTS_TABLE} "
+                f"ADD COLUMN {column} {definition}"
+            )
     conn.execute(
         f"""
         CREATE TABLE IF NOT EXISTS {RECOVERY_STEPS_TABLE} (
@@ -932,6 +955,16 @@ def stable_target_id(target: dict[str, Any]) -> str:
     ).strip()
 
 
+def map_target_locator(target_id: str) -> tuple[float, float, str] | None:
+    parts = str(target_id or "").split(":", 3)
+    if len(parts) != 4 or parts[0] != "map":
+        return None
+    try:
+        return float(parts[1]), float(parts[2]), parts[3]
+    except (TypeError, ValueError):
+        return None
+
+
 def historical_retirement_scope(conn: sqlite3.Connection) -> dict[str, Any]:
     captured_rows = [dict(row) for row in conn.execute(
         "SELECT * FROM captured_targets WHERE owner_username=? ORDER BY id",
@@ -956,16 +989,19 @@ def historical_retirement_scope(conn: sqlite3.Connection) -> dict[str, Any]:
     for target_id in HISTORICAL_GEOMETRY_TARGET_IDS:
         ownership = ownership_by_id.get(target_id)
         candidates = list(captured_by_id.get(target_id) or [])
-        # Historical captured rows do not all carry their canonical map target ID
-        # in target_json.  The runtime ownership row does, and the canonical
-        # abandon lifecycle identifies the captured row by its exact coordinates.
-        if not candidates and ownership:
+        # Historical captured rows do not all carry their canonical map target ID.
+        # Canonical abandon identifies them by owner + rounded coordinates + label,
+        # independently of the optional ownership registry.
+        locator = map_target_locator(target_id)
+        if not candidates and locator:
+            locator_lat, locator_lng, locator_label = locator
             candidates = [
                 row for row in captured_rows
-                if round(float(row.get("lat") or 0.0), 7)
-                == round(float(ownership.get("lat") or 0.0), 7)
-                and round(float(row.get("lng") or 0.0), 7)
-                == round(float(ownership.get("lng") or 0.0), 7)
+                if round(float(row.get("lat") or 0.0), 5)
+                == round(locator_lat, 5)
+                and round(float(row.get("lng") or 0.0), 5)
+                == round(locator_lng, 5)
+                and str(row.get("label") or "") == locator_label
             ]
         if len(candidates) > 1:
             blockers.append("retirement_captured_ambiguous:" + target_id)
@@ -978,22 +1014,28 @@ def historical_retirement_scope(conn: sqlite3.Connection) -> dict[str, Any]:
         matched_captured_row_ids.add(int(captured["id"]))
         if int(captured.get("stationary") or 0) != 1:
             blockers.append("retirement_target_not_stationary:" + target_id)
-        if not ownership:
-            blockers.append("retirement_ownership_missing:" + target_id)
-        elif str(ownership.get("owner_username") or "") != CANONICAL_USERNAME:
+        if ownership and str(ownership.get("owner_username") or "") != CANONICAL_USERNAME:
             blockers.append("retirement_owner_changed:" + target_id)
         payload = loads_object(captured.get("target_json"))
-        targets.append({
+        target_state = {
             "target_id": target_id,
             "lat": float(captured["lat"]),
             "lng": float(captured["lng"]),
             "captured_at": str(captured.get("captured_at") or ""),
             "captured_row_id": int(captured["id"]),
             "captured_sha256": digest(captured),
-            "ownership_version": int((ownership or {}).get("ownership_version") or 0),
-            "ownership_sha256": digest(ownership) if ownership else "",
+            "captured_owner_username": str(captured.get("owner_username") or ""),
+            "ownership_state": "present" if ownership else "absent",
             "source_type": str(payload.get("source_type") or captured.get("source_type") or ""),
-        })
+        }
+        if ownership:
+            target_state.update({
+                "ownership_target_id": str(ownership.get("target_id") or ""),
+                "ownership_owner_username": str(ownership.get("owner_username") or ""),
+                "ownership_version": int(ownership.get("ownership_version") or 0),
+                "ownership_sha256": digest(ownership),
+            })
+        targets.append(target_state)
     if len(targets) != len(HISTORICAL_GEOMETRY_TARGET_IDS):
         blockers.append("retirement_scope_not_exactly_9")
     return {
@@ -1039,7 +1081,7 @@ def canonical_subject_area_preview(
     material = []
     excluded = {str(value) for value in exclude_target_ids}
     excluded_positions = {
-        (round(float(row["lat"]), 7), round(float(row["lng"]), 7))
+        (round(float(row["lat"]), 5), round(float(row["lng"]), 5))
         for row in select_by_values(
             conn,
             "territory_target_ownership",
@@ -1047,6 +1089,11 @@ def canonical_subject_area_preview(
             sorted(excluded),
         )
     }
+    excluded_positions.update(
+        (round(locator[0], 5), round(locator[1], 5))
+        for locator in (map_target_locator(value) for value in excluded)
+        if locator is not None
+    )
     if include_existing_subject:
         for row in conn.execute(
             "SELECT lat, lng, target_json FROM captured_targets "
@@ -1057,8 +1104,8 @@ def canonical_subject_area_preview(
             if (
                 stable_target_id(target) in excluded
                 or (
-                    round(float(row["lat"]), 7),
-                    round(float(row["lng"]), 7),
+                    round(float(row["lat"]), 5),
+                    round(float(row["lng"]), 5),
                 ) in excluded_positions
             ):
                 continue
@@ -1429,7 +1476,11 @@ def build_plan(
     return plan
 
 
-def load_plan(path: str) -> dict[str, Any]:
+def load_plan(
+    path: str,
+    *,
+    allowed_tool_versions: set[str] | None = None,
+) -> dict[str, Any]:
     try:
         value = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -1446,7 +1497,8 @@ def load_plan(path: str) -> dict[str, Any]:
         raise RecoveryGateError("Plan canonical username is not allowlisted")
     if int(value.get("plan_version") or 0) not in {1, 2}:
         raise RecoveryGateError("Unsupported recovery plan version")
-    if value.get("tool_version") != TOOL_VERSION:
+    allowed_versions = allowed_tool_versions or {TOOL_VERSION}
+    if value.get("tool_version") not in allowed_versions:
         raise RecoveryGateError("Plan was generated by a different recovery tool version")
     return value
 
@@ -1662,7 +1714,7 @@ def validate_plan_against_current(conn: sqlite3.Connection, db_path: str, plan: 
         current_retirement = historical_retirement_scope(conn)
         blockers.extend(current_retirement["blockers"])
         if current_retirement["scope_sha256"] != expected_retirement.get("scope_sha256"):
-            blockers.append("historical_retirement_scope_changed")
+            blockers.append("CURRENT_WORLD_CHANGED_REPLAN_REQUIRED:historical_retirement")
     for city in (plan.get("territory_recovery") or {}).get("cities", []):
         if plan_version >= 2:
             bonus_preview = canonical_area_preview_summary(
@@ -1866,7 +1918,7 @@ def retire_historical_targets(
         current = historical_retirement_scope(conn)
         if current["blockers"] or current["scope_sha256"] != expected.get("scope_sha256"):
             raise RecoveryGateError(
-                "Historical retirement scope changed: "
+                "CURRENT_WORLD_CHANGED_REPLAN_REQUIRED: historical retirement scope changed: "
                 + ", ".join(current["blockers"] or ["scope_sha256_mismatch"])
             )
     now = utc_now()
@@ -1885,7 +1937,10 @@ def retire_historical_targets(
             return {**existing["receipt"], "duplicate": True}
         locked = historical_retirement_scope(conn)
         if locked["blockers"] or locked["scope_sha256"] != expected.get("scope_sha256"):
-            raise RecoveryGateError("Historical retirement scope changed under writer lock")
+            raise RecoveryGateError(
+                "CURRENT_WORLD_CHANGED_REPLAN_REQUIRED: "
+                "historical retirement scope changed under writer lock"
+            )
         by_id = {item["target_id"]: item for item in locked["targets"]}
         for target_id in HISTORICAL_GEOMETRY_TARGET_IDS:
             item = by_id[target_id]
@@ -1893,23 +1948,28 @@ def retire_historical_targets(
                 "SELECT * FROM captured_targets WHERE id=?",
                 (int(item["captured_row_id"]),),
             ).fetchone())
-            ownership = dict(conn.execute(
+            ownership_row = conn.execute(
                 "SELECT * FROM territory_target_ownership WHERE target_id=?",
                 (target_id,),
-            ).fetchone())
+            ).fetchone()
+            ownership = dict(ownership_row) if ownership_row else None
             previous_state = {"captured": captured, "ownership": ownership}
             conn.execute(
                 f"""
                 INSERT INTO {RECOVERY_RETIREMENTS_TABLE}
-                    (plan_id, target_id, previous_owner_username, captured_at,
-                     reason, operator_username, previous_captured_json,
+                    (plan_id, recovery_plan_id, target_id,
+                     previous_owner_username, captured_row_id, captured_sha256,
+                     captured_at, ownership_state, reason, operator_username,
+                     previous_captured_json,
                      previous_ownership_json, previous_state_sha256, status,
                      retired_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'retired', ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retired', ?)
                 """,
                 (
-                    plan["plan_id"], target_id, CANONICAL_USERNAME,
-                    str(captured.get("captured_at") or ""), RECOVERY_REASON,
+                    plan["plan_id"], plan["plan_id"], target_id,
+                    CANONICAL_USERNAME, int(captured["id"]), digest(captured),
+                    str(captured.get("captured_at") or ""),
+                    item["ownership_state"], RECOVERY_REASON,
                     str(operator_username), canonical_json(captured),
                     canonical_json(ownership), digest(previous_state), now,
                 ),
@@ -1919,15 +1979,26 @@ def retire_historical_targets(
                 "AND stationary=1",
                 (int(item["captured_row_id"]), CANONICAL_USERNAME),
             )
-            removed_owner = conn.execute(
-                "DELETE FROM territory_target_ownership WHERE target_id=? "
-                "AND owner_username=? AND ownership_version=?",
-                (
-                    target_id, CANONICAL_USERNAME,
-                    int(item["ownership_version"]),
-                ),
-            )
-            if removed_capture.rowcount != 1 or removed_owner.rowcount != 1:
+            removed_owner_count = 0
+            if item["ownership_state"] == "present":
+                removed_owner = conn.execute(
+                    "DELETE FROM territory_target_ownership WHERE target_id=? "
+                    "AND owner_username=? AND ownership_version=?",
+                    (
+                        target_id, CANONICAL_USERNAME,
+                        int(item["ownership_version"]),
+                    ),
+                )
+                removed_owner_count = int(removed_owner.rowcount)
+            elif ownership is not None:
+                raise RecoveryGateError(
+                    "CURRENT_WORLD_CHANGED_REPLAN_REQUIRED: "
+                    "ownership appeared under writer lock: " + target_id
+                )
+            if (
+                removed_capture.rowcount != 1
+                or (item["ownership_state"] == "present" and removed_owner_count != 1)
+            ):
                 raise RecoveryGateError("Canonical retirement CAS failed: " + target_id)
         job_payload = {
             "recovery_contract": "sprint_130_11",
@@ -1960,6 +2031,10 @@ def verify_retirement_rebuild(
     conn: sqlite3.Connection, plan: dict[str, Any]
 ) -> dict[str, Any]:
     blockers = []
+    expected_by_id = {
+        item["target_id"]: item
+        for item in plan["territory_recovery"]["historical_retirement"]["targets"]
+    }
     job = retirement_job_status(conn, plan)
     if not job["complete"]:
         blockers.append("retirement_rebuild_not_complete")
@@ -1998,20 +2073,53 @@ def verify_retirement_rebuild(
     if conflicts:
         blockers.extend("retirement_created_conflict:" + value for value in conflicts)
     audit_count = 0
+    audit_rows = []
     if RECOVERY_RETIREMENTS_TABLE in table_names(conn):
-        audit_count = int(conn.execute(
-            f"SELECT COUNT(*) FROM {RECOVERY_RETIREMENTS_TABLE} "
-            "WHERE plan_id=? AND status='retired'",
+        audit_rows = list(conn.execute(
+            f"SELECT target_id, captured_row_id, captured_sha256, "
+            f"ownership_state, recovery_plan_id, status "
+            f"FROM {RECOVERY_RETIREMENTS_TABLE} "
+            "WHERE plan_id=? ORDER BY target_id",
             (plan["plan_id"],),
-        ).fetchone()[0])
+        ))
+        audit_count = len(audit_rows)
     if audit_count != len(HISTORICAL_GEOMETRY_TARGET_IDS):
         blockers.append("retirement_audit_count_invalid")
+    for row in audit_rows:
+        target_id = str(row["target_id"])
+        expected = expected_by_id.get(target_id)
+        if not expected:
+            blockers.append("retirement_audit_unexpected_target:" + target_id)
+            continue
+        if (
+            str(row["status"] or "") != "retired"
+            or str(row["recovery_plan_id"] or "") != plan["plan_id"]
+            or int(row["captured_row_id"] or 0) != int(expected["captured_row_id"])
+            or str(row["captured_sha256"] or "") != expected["captured_sha256"]
+            or str(row["ownership_state"] or "") != expected["ownership_state"]
+        ):
+            blockers.append("retirement_audit_mismatch:" + target_id)
+        if conn.execute(
+            "SELECT 1 FROM captured_targets WHERE id=?",
+            (int(expected["captured_row_id"]),),
+        ).fetchone():
+            blockers.append("retired_capture_row_still_active:" + target_id)
+    worker_input_count = int(conn.execute(
+        "SELECT COUNT(*) FROM captured_targets "
+        "WHERE owner_username=? AND stationary=1",
+        (CANONICAL_USERNAME,),
+    ).fetchone()[0])
+    worker_preview_area_count = len(canonical_subject_area_preview(conn, []))
+    if worker_preview_area_count:
+        blockers.append("retirement_worker_preview_areas_remain")
     return {
         "ok": not blockers,
         "blockers": sorted(set(blockers)),
         "job": job,
         "active_area_count": area_count,
         "retirement_audit_count": audit_count,
+        "canonical_worker_stationary_input_count": worker_input_count,
+        "canonical_worker_preview_area_count": worker_preview_area_count,
         "recovery_conflict_ids": conflicts,
     }
 
@@ -3560,7 +3668,11 @@ def command_audit(args: argparse.Namespace) -> int:
 
 def command_plan(args: argparse.Namespace) -> int:
     bonus_source_plan = (
-        load_plan(args.bonus_plan) if getattr(args, "bonus_plan", "") else None
+        load_plan(
+            args.bonus_plan,
+            allowed_tool_versions=BONUS_SOURCE_TOOL_VERSIONS,
+        )
+        if getattr(args, "bonus_plan", "") else None
     )
     with readonly_connection(args.db) as conn:
         plan = build_plan(conn, args.db, bonus_source_plan=bonus_source_plan)
