@@ -22,6 +22,20 @@
   `391/391 OK`. Nie wykonano deployu, apply ani mutacji produkcyjnej bazy.
 - Status: `READY FOR SERVER READ-ONLY PLAN V2 / DRY-RUN`.
 
+### Phase-aware resume istniejącego Recovery v2
+
+- Produkcyjny apply-03 błędnie uruchamiał ponownie pre-bonus empty-geometry
+  check po poprawnym finalnym rebuildzie `8 Tokio targets / 1 area`.
+- Retirement verification jest teraz scope-aware. Trwały milestone pozwala na
+  późniejszą recovery-owned geometrię, nadal blokując reaktywację któregokolwiek
+  z dziewięciu historycznych targetów lub naruszenie audit receipts.
+- Final geometry jest weryfikowana osobno: exact 8 IDs, complete job, 1 area,
+  zero recovery conflicts i zgodność geometry contract. Gameplay drift blokuje
+  settlement przed wallet/profile write.
+- Test `apply-01 → rebuild 0 → apply-02 → rebuild 1 → apply-03` przechodzi i
+  tworzy dokładnie jeden settlement receipt. Recovery/geometry: `37/37 OK`.
+- Istniejący plan i receipt są wznawialne; nie potrzeba rollbacku ani replanowania.
+
 ## 2026-08-22 - Sprint 130.10: blocker mapy po account switch
 
 - Manual przerwano po selektywnym `500` z `/api/map/player-actors` i braku menu

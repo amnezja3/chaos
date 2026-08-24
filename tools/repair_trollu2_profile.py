@@ -1135,6 +1135,24 @@ def canonical_area_preview_summary(areas: list[dict[str, Any]]) -> dict[str, Any
     }
 
 
+def geometry_contract_summary(areas: list[dict[str, Any]]) -> dict[str, Any]:
+    """Stable geometry contract excluding runtime-only vertex presentation fields."""
+    material = []
+    for area in areas or []:
+        material.append({
+            "vertices": [
+                {
+                    "lat": float(vertex["lat"]),
+                    "lng": float(vertex["lng"]),
+                }
+                for vertex in (area.get("vertices") or [])
+            ],
+            "area_size": float(area.get("area_size") or 0),
+            "max_edge_distance": float(area.get("max_edge_distance") or 0),
+        })
+    return {"area_count": len(material), "geometry_sha256": digest(material)}
+
+
 def collision_findings(
     conn: sqlite3.Connection,
     targets: list[dict[str, Any]],
@@ -1703,9 +1721,13 @@ def validate_plan_against_current(conn: sqlite3.Connection, db_path: str, plan: 
     blockers.extend(key for key, failed in checks.items() if failed)
     preserved_captured = preserved_non_retired_captured_projection(conn)
     if preserved_captured["count"] != int(expected.get("preserved_captured_count") or 0):
-        blockers.append("preserved_captured_count_changed")
+        blockers.append(
+            "CURRENT_WORLD_CHANGED_REPLAN_REQUIRED:preserved_captured_count_changed"
+        )
     if preserved_captured["sha256"] != expected.get("preserved_captured_sha256"):
-        blockers.append("preserved_captured_projection_changed")
+        blockers.append(
+            "CURRENT_WORLD_CHANGED_REPLAN_REQUIRED:preserved_captured_projection_changed"
+        )
     plan_version = int(plan.get("plan_version") or 1)
     if plan_version >= 2:
         expected_retirement = (
@@ -1901,6 +1923,32 @@ def retirement_job_status(conn: sqlite3.Connection, plan: dict[str, Any]) -> dic
     }
 
 
+def active_historical_capture_rows(
+    conn: sqlite3.Connection, target_id: str
+) -> list[dict[str, Any]]:
+    locator = map_target_locator(target_id)
+    matches = []
+    for row in conn.execute(
+        "SELECT * FROM captured_targets WHERE owner_username=? AND stationary=1",
+        (CANONICAL_USERNAME,),
+    ):
+        value = dict(row)
+        payload = loads_object(value.get("target_json"))
+        if stable_target_id(payload) == target_id:
+            matches.append(value)
+            continue
+        if locator is None:
+            continue
+        lat, lng, label = locator
+        if (
+            round(float(value.get("lat") or 0.0), 5) == round(lat, 5)
+            and round(float(value.get("lng") or 0.0), 5) == round(lng, 5)
+            and str(value.get("label") or "") == label
+        ):
+            matches.append(value)
+    return matches
+
+
 def retire_historical_targets(
     db_path: str,
     plan: dict[str, Any],
@@ -2028,7 +2076,10 @@ def retire_historical_targets(
 
 
 def verify_retirement_rebuild(
-    conn: sqlite3.Connection, plan: dict[str, Any]
+    conn: sqlite3.Connection,
+    plan: dict[str, Any],
+    *,
+    require_pre_bonus_empty_geometry: bool = True,
 ) -> dict[str, Any]:
     blockers = []
     expected_by_id = {
@@ -2044,18 +2095,13 @@ def verify_retirement_rebuild(
             (target_id,),
         ).fetchone():
             blockers.append("retired_ownership_still_active:" + target_id)
-        for row in conn.execute(
-            "SELECT target_json FROM captured_targets WHERE owner_username=?",
-            (CANONICAL_USERNAME,),
-        ):
-            if stable_target_id(loads_object(row["target_json"])) == target_id:
-                blockers.append("retired_capture_still_active:" + target_id)
-                break
+        if active_historical_capture_rows(conn, target_id):
+            blockers.append("retired_capture_still_active:" + target_id)
     area_count = int(conn.execute(
         "SELECT COUNT(*) FROM player_areas WHERE owner_username=? AND status='active'",
         (CANONICAL_USERNAME,),
     ).fetchone()[0])
-    if area_count:
+    if require_pre_bonus_empty_geometry and area_count:
         blockers.append("historical_active_areas_remain")
     receipt = recovery_receipt(conn, plan["plan_id"])
     conflicts = []
@@ -2110,7 +2156,7 @@ def verify_retirement_rebuild(
         (CANONICAL_USERNAME,),
     ).fetchone()[0])
     worker_preview_area_count = len(canonical_subject_area_preview(conn, []))
-    if worker_preview_area_count:
+    if require_pre_bonus_empty_geometry and worker_preview_area_count:
         blockers.append("retirement_worker_preview_areas_remain")
     return {
         "ok": not blockers,
@@ -2120,6 +2166,11 @@ def verify_retirement_rebuild(
         "retirement_audit_count": audit_count,
         "canonical_worker_stationary_input_count": worker_input_count,
         "canonical_worker_preview_area_count": worker_preview_area_count,
+        "verification_scope": (
+            "pre_bonus_empty_geometry"
+            if require_pre_bonus_empty_geometry
+            else "historical_retirement_only"
+        ),
         "recovery_conflict_ids": conflicts,
     }
 
@@ -2142,13 +2193,21 @@ def mark_retirement_rebuild_verified(
         receipt = recovery_receipt(conn, plan["plan_id"])
         if not receipt or receipt["status"] != "awaiting_retirement_rebuild":
             raise RecoveryGateError("Recovery phase changed before retirement verify")
-        insert_step(conn, plan["plan_id"], step_key, verification)
+        milestone = {
+            **verification,
+            "retirement_verified": True,
+            "retirement_verified_at": utc_now(),
+            "retirement_job_id": verification["job"]["job_id"],
+            "retirement_scope_sha256": plan["territory_recovery"]
+            ["historical_retirement"]["scope_sha256"],
+        }
+        insert_step(conn, plan["plan_id"], step_key, milestone)
         conn.execute(
             f"UPDATE {RECOVERY_RECEIPTS_TABLE} "
             "SET status='applying_final', updated_at=? WHERE plan_id=?",
             (utc_now(), plan["plan_id"]),
         )
-    return {**verification, "duplicate": False}
+    return {**milestone, "duplicate": False}
 
 
 def final_phase_precondition_blockers(
@@ -2167,9 +2226,13 @@ def final_phase_precondition_blockers(
         blockers.append("inventory_tools_changed")
     preserved_captured = preserved_non_retired_captured_projection(conn)
     if preserved_captured["count"] != int(expected.get("preserved_captured_count") or 0):
-        blockers.append("preserved_captured_count_changed")
+        blockers.append(
+            "CURRENT_WORLD_CHANGED_REPLAN_REQUIRED:preserved_captured_count_changed"
+        )
     if preserved_captured["sha256"] != expected.get("preserved_captured_sha256"):
-        blockers.append("preserved_captured_projection_changed")
+        blockers.append(
+            "CURRENT_WORLD_CHANGED_REPLAN_REQUIRED:preserved_captured_projection_changed"
+        )
     ghost = ghostnetwork_evidence(conn)
     if ghost["active_cycle_count"] != 1 or ghost["part_count"] != 20:
         blockers.append("ghostnetwork_readiness_invalid")
@@ -2586,6 +2649,116 @@ def open_recovery_conflict_ids(
     ]
 
 
+def final_geometry_verification(
+    conn: sqlite3.Connection, plan: dict[str, Any]
+) -> dict[str, Any]:
+    blockers = []
+    receipt = recovery_receipt(conn, plan["plan_id"])
+    jobs = plan_job_status(conn, plan)
+    if not jobs["complete"]:
+        blockers.append("final_rebuild_job_not_complete")
+    expected_targets = plan_targets(plan)
+    expected_ids = {str(target["target_id"]) for target in expected_targets}
+    captured_ids = set()
+    for row in conn.execute(
+        "SELECT owner_username, stationary, target_json FROM captured_targets "
+        "WHERE owner_username=?",
+        (CANONICAL_USERNAME,),
+    ):
+        payload = loads_object(row["target_json"])
+        if str(payload.get("recovery_plan_id") or "") != plan["plan_id"]:
+            continue
+        target_id = stable_target_id(payload)
+        captured_ids.add(target_id)
+        if int(row["stationary"] or 0) != 1:
+            blockers.append("final_recovery_target_not_stationary:" + target_id)
+    if captured_ids != expected_ids:
+        blockers.append("final_recovery_captured_target_set_mismatch")
+    ownership_rows = select_by_values(
+        conn,
+        "territory_target_ownership",
+        "target_id",
+        sorted(expected_ids),
+    )
+    ownership_ids = {
+        str(row["target_id"])
+        for row in ownership_rows
+        if str(row.get("owner_username") or "") == CANONICAL_USERNAME
+        and int(row.get("ownership_version") or 0) == 1
+    }
+    if ownership_ids != expected_ids:
+        blockers.append("final_recovery_ownership_target_set_mismatch")
+    for target_id in HISTORICAL_GEOMETRY_TARGET_IDS:
+        if active_historical_capture_rows(conn, target_id):
+            blockers.append("retired_capture_reactivated:" + target_id)
+        if conn.execute(
+            "SELECT 1 FROM territory_target_ownership WHERE target_id=?",
+            (target_id,),
+        ).fetchone():
+            blockers.append("retired_ownership_reactivated:" + target_id)
+    preserved = preserved_non_retired_captured_projection(conn)
+    expected_preconditions = plan["preconditions"]
+    if (
+        preserved["count"]
+        != int(expected_preconditions.get("preserved_captured_count") or 0)
+        or preserved["sha256"]
+        != expected_preconditions.get("preserved_captured_sha256")
+    ):
+        blockers.append(
+            "CURRENT_WORLD_CHANGED_REPLAN_REQUIRED:non_recovery_captured_projection"
+        )
+    cities = plan["territory_recovery"]["cities"]
+    signed_preview = (
+        cities[0].get("combined_final_worker_preview") or {}
+        if len(cities) == 1 else {}
+    )
+    if len(cities) != 1:
+        blockers.append("final_geometry_city_contract_invalid")
+    expected_summary = geometry_contract_summary(
+        canonical_subject_area_preview(
+            conn, expected_targets, include_existing_subject=False
+        )
+    )
+    if int(expected_summary["area_count"]) != int(signed_preview.get("area_count") or 0):
+        blockers.append("signed_final_area_count_mismatch")
+    canonical_summary = geometry_contract_summary(
+        canonical_subject_area_preview(conn, [])
+    )
+    if canonical_summary != expected_summary:
+        blockers.append("final_canonical_worker_geometry_mismatch")
+    actual_areas = []
+    for row in conn.execute(
+        "SELECT * FROM player_areas WHERE owner_username=? AND status='active' "
+        "ORDER BY id",
+        (CANONICAL_USERNAME,),
+    ):
+        value = dict(row)
+        actual_areas.append({
+            "vertices": loads_list(value.get("vertices_json")),
+            "area_size": float(value.get("area_size") or 0),
+            "max_edge_distance": float(value.get("max_edge_distance") or 0),
+        })
+    actual_summary = geometry_contract_summary(actual_areas)
+    if actual_summary != expected_summary:
+        blockers.append("final_persisted_geometry_mismatch")
+    conflicts = open_recovery_conflict_ids(conn, receipt) if receipt else []
+    if conflicts:
+        blockers.extend("recovery_created_conflict:" + value for value in conflicts)
+    return {
+        "ok": not blockers,
+        "blockers": sorted(set(blockers)),
+        "expected_recovery_target_count": len(expected_ids),
+        "captured_recovery_target_count": len(captured_ids),
+        "ownership_recovery_target_count": len(ownership_ids),
+        "expected_area_count": int(expected_summary.get("area_count") or 0),
+        "actual_area_count": len(actual_areas),
+        "canonical_worker_preview": canonical_summary,
+        "persisted_geometry": actual_summary,
+        "territory_jobs": jobs,
+        "recovery_conflict_ids": conflicts,
+    }
+
+
 def final_settlement(db_path: str, plan: dict[str, Any]) -> dict[str, Any]:
     step_key = "final_settlement"
     with readonly_connection(db_path) as conn:
@@ -2597,14 +2770,17 @@ def final_settlement(db_path: str, plan: dict[str, Any]) -> dict[str, Any]:
             raise RecoveryGateError("Recovery receipt missing")
         if receipt["status"] not in {"awaiting_final_rebuild", "awaiting_territory_jobs"}:
             raise RecoveryGateError("Recovery is not awaiting final rebuild settlement")
-        jobs = plan_job_status(conn, plan)
-        if not jobs["complete"]:
-            raise RecoveryGateError("Recovery territory jobs are not complete")
         recovery_conflicts = open_recovery_conflict_ids(conn, receipt)
         if recovery_conflicts:
             raise RecoveryGateError(
                 "Recovery-created conflict blocks final settlement: "
                 + ", ".join(recovery_conflicts)
+            )
+        geometry = final_geometry_verification(conn, plan)
+        if not geometry["ok"]:
+            raise RecoveryGateError(
+                "Final recovery geometry verification failed: "
+                + ", ".join(geometry["blockers"])
             )
         pending_progression = int(conn.execute(
             "SELECT COUNT(*) FROM territory_progression_receipts "
@@ -2653,15 +2829,18 @@ def final_settlement(db_path: str, plan: dict[str, Any]) -> dict[str, Any]:
         if recovery_step(conn, plan["plan_id"], step_key):
             replay = recovery_step(conn, plan["plan_id"], step_key)["receipt"]
             return {**replay, "duplicate": True}
-        jobs = plan_job_status(conn, plan)
-        if not jobs["complete"]:
-            raise RecoveryGateError("Recovery jobs changed before settlement commit")
         locked_receipt = recovery_receipt(conn, plan["plan_id"])
         recovery_conflicts = open_recovery_conflict_ids(conn, locked_receipt)
         if recovery_conflicts:
             raise RecoveryGateError(
                 "Recovery-created conflict blocks settlement commit: "
                 + ", ".join(recovery_conflicts)
+            )
+        geometry = final_geometry_verification(conn, plan)
+        if not geometry["ok"]:
+            raise RecoveryGateError(
+                "Final recovery geometry changed before settlement commit: "
+                + ", ".join(geometry["blockers"])
             )
         current_wallet = conn.execute(
             "SELECT balance, version FROM wallet_balances WHERE username=?",
@@ -2798,24 +2977,9 @@ def verify_recovery(
     ).fetchone()[0]) if RECOVERY_RETIREMENTS_TABLE in table_names(conn) else 0
     if retirement_audit_count != 9:
         blockers.append("retirement_audit_count_invalid")
-    for target_id in HISTORICAL_GEOMETRY_TARGET_IDS:
-        if conn.execute(
-            "SELECT 1 FROM territory_target_ownership WHERE target_id=?",
-            (target_id,),
-        ).fetchone():
-            blockers.append("retired_ownership_reactivated:" + target_id)
-    expected_area_count = sum(
-        int((city.get("combined_final_worker_preview") or {}).get("area_count") or 0)
-        for city in plan["territory_recovery"]["cities"]
-    )
-    actual_area_count = int(conn.execute(
-        "SELECT COUNT(*) FROM player_areas WHERE owner_username=? AND status='active'",
-        (CANONICAL_USERNAME,),
-    ).fetchone()[0])
-    if actual_area_count != expected_area_count:
-        blockers.append("final_active_area_count_mismatch")
-    if open_recovery_conflict_ids(conn, receipt):
-        blockers.append("recovery_created_conflict_present")
+    final_geometry = final_geometry_verification(conn, plan)
+    blockers.extend(final_geometry["blockers"])
+    actual_area_count = int(final_geometry["actual_area_count"])
     inventory = inventory_evidence(conn)
     if len(inventory["apps"]) != 11 or len(inventory["tools"]) != 11:
         blockers.append("inventory_11_11_not_preserved")
@@ -2942,6 +3106,7 @@ def verify_recovery(
         "retirement_rebuild_job": retirement_job,
         "retirement_audit_count": retirement_audit_count,
         "final_active_area_count": actual_area_count,
+        "final_geometry": final_geometry,
         "recovery_targets": len(plan_targets(plan)),
         "pending_gameplay_progression_receipts": pending_progression,
         "ghostnetwork": {
@@ -3788,7 +3953,14 @@ def command_apply(args: argparse.Namespace) -> int:
         args.db, plan, str(args.authorized_by).strip()
     )
     with readonly_connection(args.db) as conn:
-        retirement_verification = verify_retirement_rebuild(conn, plan)
+        retirement_milestone = recovery_step(
+            conn, plan["plan_id"], "retirement_rebuild_verified"
+        )
+        retirement_verification = verify_retirement_rebuild(
+            conn,
+            plan,
+            require_pre_bonus_empty_geometry=retirement_milestone is None,
+        )
     if not retirement_verification["ok"]:
         print_json({
             "ok": True,

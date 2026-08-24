@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import copy
+import io
 import json
 import sqlite3
 import tempfile
 import unittest
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
 
 from tools import repair_trollu2_profile as tool
 
@@ -110,8 +112,9 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
                 );
                 CREATE TABLE player_areas (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, owner_username TEXT,
-                    vertices_json TEXT, area_size REAL,
-                    status TEXT, updated_at TEXT
+                    vertices_json TEXT, centroid_lat REAL, centroid_lng REAL,
+                    area_size REAL, max_edge_distance REAL DEFAULT 0,
+                    status TEXT, created_at TEXT, updated_at TEXT
                 );
                 CREATE TABLE territory_area_publications (
                     owner_username TEXT PRIMARY KEY, payload_json TEXT, updated_at TEXT
@@ -348,6 +351,25 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
             manifest = tool.build_before_manifest(conn, self.db_path, plan)
         return plan, manifest
 
+    def apply_command_args(self, plan, manifest):
+        plan_path = Path(self.temp.name) / "plan.json"
+        manifest_path = Path(self.temp.name) / "before-manifest.json"
+        plan_path.write_text(
+            json.dumps(plan, ensure_ascii=False), encoding="utf-8"
+        )
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False), encoding="utf-8"
+        )
+        return SimpleNamespace(
+            db=self.db_path,
+            plan=str(plan_path),
+            before_manifest=str(manifest_path),
+            plan_sha256=plan["plan_sha256"],
+            manifest_sha256=manifest["manifest_sha256"],
+            write=True,
+            authorized_by="test-operator",
+        )
+
     def start_recovery(self):
         plan, manifest = self.build_plan_and_manifest()
         tool.initialize_recovery_receipt(self.db_path, plan, manifest)
@@ -373,18 +395,27 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
             )
 
     def complete_recovery_jobs(self, plan):
+        with tool.readonly_connection(self.db_path) as conn:
+            areas = tool.canonical_subject_area_preview(conn, [])
         with self.connect() as conn:
-            for city in plan["territory_recovery"]["cities"]:
-                vertices = [
-                    {"lat": target["lat"], "lng": target["lng"]}
-                    for target in city["targets"]
-                ]
+            conn.execute(
+                "DELETE FROM player_areas WHERE owner_username=?",
+                (tool.CANONICAL_USERNAME,),
+            )
+            for area in areas:
                 conn.execute(
                     "INSERT INTO player_areas "
-                    "(owner_username, vertices_json, area_size, status, updated_at) "
-                    "VALUES (?, ?, ?, 'active', '2026-02-04')",
-                    (tool.CANONICAL_USERNAME, tool.canonical_json(vertices), 500000.0),
+                    "(owner_username,vertices_json,centroid_lat,centroid_lng,"
+                    "area_size,max_edge_distance,status,created_at,updated_at) "
+                    "VALUES (?,?,?,?,?,?,'active','2026-02-04','2026-02-04')",
+                    (
+                        tool.CANONICAL_USERNAME,
+                        tool.canonical_json(area["vertices"]),
+                        area.get("centroid_lat"), area.get("centroid_lng"),
+                        area.get("area_size"), area.get("max_edge_distance"),
+                    ),
                 )
+            for city in plan["territory_recovery"]["cities"]:
                 conn.execute(
                     "UPDATE territory_rebuild_jobs SET status='complete', updated_at='2026-02-04' "
                     "WHERE job_id=?",
@@ -983,7 +1014,120 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
                 "SELECT * FROM profile_last_known_good WHERE username=?",
                 (tool.CANONICAL_USERNAME,),
             ).fetchone())
-        self.assertEqual(before_lkg, after_lkg)
+            self.assertEqual(before_lkg, after_lkg)
+
+    def test_three_apply_lifecycle_resumes_after_bonus_area_and_settles_once(self):
+        plan, manifest = self.build_plan_and_manifest()
+        args = self.apply_command_args(plan, manifest)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            first_rc = tool.command_apply(args)
+        self.assertEqual(3, first_rc)
+        self.assertEqual(
+            "AWAITING_RETIREMENT_REBUILD",
+            json.loads(output.getvalue())["phase"],
+        )
+
+        self.complete_retirement_job(plan)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            second_rc = tool.command_apply(args)
+        self.assertEqual(3, second_rc)
+        self.assertEqual(
+            "AWAITING_FINAL_REBUILD",
+            json.loads(output.getvalue())["phase"],
+        )
+        self.complete_recovery_jobs(plan)
+        with tool.readonly_connection(self.db_path) as conn:
+            scoped_retirement = tool.verify_retirement_rebuild(
+                conn, plan, require_pre_bonus_empty_geometry=False
+            )
+            final_geometry = tool.final_geometry_verification(conn, plan)
+        self.assertTrue(scoped_retirement["ok"], scoped_retirement["blockers"])
+        self.assertEqual(8, scoped_retirement["canonical_worker_stationary_input_count"])
+        self.assertEqual(1, scoped_retirement["canonical_worker_preview_area_count"])
+        self.assertTrue(final_geometry["ok"], final_geometry["blockers"])
+        self.assertEqual(8, final_geometry["captured_recovery_target_count"])
+        self.assertEqual(1, final_geometry["actual_area_count"])
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            third_rc = tool.command_apply(args)
+        third = json.loads(output.getvalue())
+        self.assertEqual(0, third_rc)
+        self.assertEqual("APPLIED_READY_FOR_VERIFY", third["phase"])
+        with tool.readonly_connection(self.db_path) as conn:
+            receipt = tool.recovery_receipt(conn, plan["plan_id"])
+            self.assertEqual("applied", receipt["status"])
+            self.assertEqual(1, conn.execute(
+                "SELECT COUNT(*) FROM wallet_balance_events "
+                "WHERE reason='sprint_130_11.recovery'"
+            ).fetchone()[0])
+            self.assertEqual(8, conn.execute(
+                "SELECT COUNT(*) FROM captured_targets "
+                "WHERE owner_username=? AND source_type='sprint_130_11_recovery'",
+                (tool.CANONICAL_USERNAME,),
+            ).fetchone()[0])
+
+    def test_historical_target_reactivation_blocks_scoped_retirement_after_bonus(self):
+        plan, _manifest = self.start_recovery()
+        self.complete_recovery_jobs(plan)
+        target = plan["territory_recovery"]["historical_retirement"]["targets"][0]
+        payload = {
+            "target_id": target["target_id"], "lat": target["lat"],
+            "lng": target["lng"], "label": "DPD", "stationary": True,
+        }
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO captured_targets "
+                "(owner_username,stationary,updated_at,lat,lng,label,name,icon,"
+                "source_type,generated,target_json,captured_at) "
+                "VALUES (?,1,'2026-08-24',?,?,?,?, '', 'scan',0,?,'2026-08-24')",
+                (
+                    tool.CANONICAL_USERNAME, target["lat"], target["lng"],
+                    "DPD", "DPD", tool.canonical_json(payload),
+                ),
+            )
+        with tool.readonly_connection(self.db_path) as conn:
+            verification = tool.verify_retirement_rebuild(
+                conn, plan, require_pre_bonus_empty_geometry=False
+            )
+        self.assertFalse(verification["ok"])
+        self.assertIn(
+            "retired_capture_still_active:" + target["target_id"],
+            verification["blockers"],
+        )
+
+    def test_new_gameplay_target_after_final_rebuild_blocks_resume_without_settlement(self):
+        plan, manifest = self.start_recovery()
+        self.complete_recovery_jobs(plan)
+        args = self.apply_command_args(plan, manifest)
+        payload = {
+            "target_id": "map:0.0:0.0:later-gameplay", "lat": 0.0,
+            "lng": 0.0, "label": "later-gameplay", "stationary": True,
+        }
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO captured_targets "
+                "(owner_username,stationary,updated_at,lat,lng,label,name,icon,"
+                "source_type,generated,target_json,captured_at) "
+                "VALUES (?,1,'2026-08-24',0,0,'later-gameplay','later-gameplay','',"
+                "'scan',0,?,'2026-08-24')",
+                (tool.CANONICAL_USERNAME, tool.canonical_json(payload)),
+            )
+        with self.assertRaisesRegex(
+            tool.RecoveryGateError, "CURRENT_WORLD_CHANGED_REPLAN_REQUIRED"
+        ):
+            with redirect_stdout(io.StringIO()):
+                tool.command_apply(args)
+        with tool.readonly_connection(self.db_path) as conn:
+            self.assertIsNone(tool.recovery_step(
+                conn, plan["plan_id"], "final_settlement"
+            ))
+            self.assertEqual(0, conn.execute(
+                "SELECT COUNT(*) FROM wallet_balance_events "
+                "WHERE reason='sprint_130_11.recovery'"
+            ).fetchone()[0])
 
     def test_verify_then_explicit_lkg_promotion_is_sanitized_and_idempotent(self):
         plan, _manifest = self.start_recovery()

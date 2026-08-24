@@ -2,7 +2,7 @@
 
 Data planu: 2026-08-21.
 
-Status: `READY FOR SERVER READ-ONLY PLAN V2 / DRY-RUN`.
+Status: `READY TO RESUME EXISTING RECOVERY V2 APPLY`.
 
 ## Existing geometry / level scaling diagnosis
 
@@ -857,7 +857,7 @@ credentials ani kopii produkcyjnej bazy.
 
 ## Recovery v2 — finalny kontrakt po diagnozie live (2026-08-24)
 
-Status implementacji: `READY FOR SERVER READ-ONLY PLAN V2 / DRY-RUN`.
+Status implementacji: `READY TO RESUME EXISTING RECOVERY V2 APPLY`.
 Produkcja nie została zmieniona przez tę implementację; apply, settlement, wallet
 i LKG pozostają zablokowane do zatwierdzenia nowego planu.
 
@@ -957,6 +957,34 @@ a ponowiona pełna regresja territory/conflicts/CAS/reconciliation/GN territory
 `TerritoryStore.build_player_areas()` i potwierdza, że po retirement canonical
 worker dostaje zero stationary targetów historycznych i nie odtwarza żadnego z
 dwóch dawnych obszarów.
+
+### Korekta resume po finalnym rebuildzie
+
+Produkcja potwierdziła poprawny przebieg `retirement rebuild: areas=0`, następnie
+grant ośmiu targetów Tokio i `final rebuild: areas=1, conflicts=0`. Trzeci apply
+wracał jednak do pre-bonus retirement verification i klasyfikował legalne
+recovery-owned `8 targets / 1 area` jako historyczną geometrię. Root cause był
+fazowy: verifier sprawdzał total stationary input i total player areas zamiast
+trwałego milestone oraz dziewięciu targetów należących do retirement scope.
+
+`retirement_rebuild_verified` jest teraz trwałym milestone. Nowe receipts
+zapisują `retirement_verified`, czas, job ID i signed retirement scope SHA.
+Istniejący produkcyjny milestone pozostaje kompatybilny i nie wymaga nowego
+planu. Kolejne apply sprawdzają nadal komplet i integralność dziewięciu audit
+records, terminalny retirement job oraz brak reaktywacji dokładnie tych target
+IDs, ale jawnie dopuszczają późniejsze osiem recovery targetów i jeden obszar
+Tokio.
+
+Final geometry ma osobną bramkę: dokładnie osiem signed recovery IDs, ownership
+version 1, complete final job, brak recovery conflict, zgodny canonical worker
+preview oraz jeden zgodny persisted area. Geometry SHA ignoruje runtime-only
+vertex presentation (`captured_at`, owner/version), natomiast nadal podpisuje
+współrzędne i metryki. Nowy non-recovery gameplay target lub reaktywowany target
+historyczny zatrzymuje settlement fail-closed.
+
+Regresja odtwarza trzy kolejne apply i potwierdza dokładnie jeden final wallet
+event, brak ponownego grantu oraz przejście apply-03 do settlementu. Wynik
+Recovery/geometry po tej korekcie: `37/37 OK`.
 
 ## Definition of Done
 
