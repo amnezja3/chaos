@@ -2,7 +2,7 @@
 
 Data planu: 2026-08-21.
 
-Status: `NO-GO — ROLLBACK VERIFIED; CURRENT-WORLD GEOMETRY CAPTURE REQUIRED`.
+Status: `READY FOR SERVER READ-ONLY PLAN V2 / DRY-RUN`.
 
 ## Existing geometry / level scaling diagnosis
 
@@ -854,6 +854,81 @@ credentials ani kopii produkcyjnej bazy.
 - reset lub nowy cykl GhostNetwork;
 - ręczne przesuwanie istniejących części GN;
 - Sprint 131 GhostNetwork Suite.
+
+## Recovery v2 — finalny kontrakt po diagnozie live (2026-08-24)
+
+Status implementacji: `READY FOR SERVER READ-ONLY PLAN V2 / DRY-RUN`.
+Produkcja nie została zmieniona przez tę implementację; apply, settlement, wallet
+i LKG pozostają zablokowane do zatwierdzenia nowego planu.
+
+Diagnoza live rozdzieliła dwa niezależne zbiory geometrii. Dziewięć
+historycznych stationary targets daje przy LVL 2 zero obszarów, a przy LVL
+25/26/50 te same dwa zamknięte obszary (`2638470.30 m2`). Oba historyczne
+komponenty kolidują już z current world. Osobny bonusowy ring Tokio ze starego
+planu przy LVL 50 daje jeden obszar (`4072932.27 m2`) i `collision_count=0`.
+Stary `city_collision:Tokio` był artefaktem połączenia starej i bonusowej
+geometrii. Klasyfikacja przyczyny pozostaje `A+B`.
+
+Recovery v2 wycofuje dokładnie dziewięć potwierdzonych historycznych targetów:
+
+- Warszawa: `DPD`, `POI-9D7173`, `Cerber`, `POI-67044F`, `POI-166846`,
+  `Arkazen` (pełne stabilne ID są zamrożone w kodzie i podpisanym planie);
+- Japonia: `Lawson`, `ユーミーClass`,
+  `スーパー生鮮館TAIGA 藤沢石川店` (pełne stabilne ID analogicznie w planie).
+
+Nie wycofuje generated/nonstationary `Kuriero-bot` ani żadnego innego
+historycznego ownership. Retirement korzysta z bieżącej semantyki canonical
+abandon: kończy current `captured_targets` i `territory_target_ownership`, po
+czym kolejkuje jeden canonical rebuild. Dodatkowa immutable tabela
+`trollu2_recovery_target_retirements` zapisuje plan ID, target ID, poprzedniego
+ownera, `captured_at`, operatora, czas, przyczynę
+`sprint_130_11_incident_recovery`, checksum poprzedniego stanu oraz dokładne
+rekordy potrzebne do kontrolowanego rollbacku. Nie ma silent DELETE.
+
+Plan v2 ma trzy osobne preview:
+
+1. `existing_historical_geometry` — dowód i disposition `retire_before_progression`;
+2. `bonus_only_worker_preview` — osiem bonusowych filarów ze współrzędnymi
+   centrum odziedziczonymi ze starego podpisanego planu;
+3. `combined_final_worker_preview` — stan po retirement, czyli zachowane
+   niehistoryczne targety plus bonus.
+
+Stary plan może być użyty wyłącznie przez `plan --bonus-plan`; wszystkie
+komendy operacyjne odrzucają plan v1. Nowy plan ma nowy `plan_id`, nowe target
+IDs i własne receipts.
+
+### Lifecycle i bramki
+
+```text
+PREPARED
+  -> retire exact 9 + immutable receipts + enqueue rebuild
+AWAITING_RETIREMENT_REBUILD
+  -> worker complete + 0 historycznych areas + 0 recovery conflicts
+  -> fresh current-world revalidation
+APPLYING_FINAL
+  -> guarded LVL 50 + 8 bonus targets + final rebuild
+AWAITING_FINAL_REBUILD
+  -> verify LVL50 / RSP2560 / HC250000 / 11 apps / 11 tools
+  -> explicit verified LKG promotion
+COMPLETE
+```
+
+Retry każdego kroku jest exactly-once. Zmiana świata przed grantem powoduje
+`CURRENT_WORLD_CHANGED_REPLAN_REQUIRED` przed częściowym zapisem. Rollback jest
+recovery-owned i dozwolony tylko przed `COMPLETE`; nie cofa późniejszego
+gameplayu, obcych terytoriów ani GhostNetwork. Finalny stan GN ma nadal aktywny
+`ghostnetwork_0001`, 20 części i zero recovery references/writes.
+
+### Wynik automatyczny
+
+- recovery + geometry audit: `31/31 OK`;
+- szeroka regresja profile/session/wallet/Target Registry/territory/CAS/
+  reconciliation/GhostNetwork: `491/491 OK`;
+- planner/status/audit/dry-run pozostają read-only względem bazy;
+- runtime web i worker nie importują narzędzia recovery.
+
+Sprint nie otrzymuje jeszcze końcowego `GO`: następną bramką jest wyłącznie
+serwerowy read-only plan v2 i dry-run na aktualnym current world.
 
 ## Definition of Done
 

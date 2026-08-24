@@ -215,7 +215,14 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
                         f"2026-01-0{index + 2}",
                     ),
                 )
-            for app_id, name in (("app_nmap", "Nmap"), ("app_metasploit", "Metasploit")):
+            inventory_items = [
+                ("app_nmap", "Nmap"),
+                ("app_metasploit", "Metasploit"),
+            ] + [
+                (f"app_preserved_{index}", f"Preserved {index}")
+                for index in range(1, 10)
+            ]
+            for app_id, name in inventory_items:
                 conn.execute(
                     "INSERT INTO player_apps VALUES (?,?,1,?,'installed','2026-01-02')",
                     (tool.CANONICAL_USERNAME, app_id, tool.canonical_json({"id": app_id, "name": name})),
@@ -226,6 +233,60 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
                      tool.canonical_json({"id": name + ".sh", "name": name + ".sh"}),
                      tool.canonical_json({"id": name + ".sh", "name": name + ".sh"})),
                 )
+            historical_targets = [
+                ("map:52.1486:20.90033:DPD", 52.1485961, 20.9003327, "DPD"),
+                ("map:52.15753:20.8892:POI-9D7173", 52.1575251, 20.8891974, "POI-9D7173"),
+                ("map:52.15806:20.90962:Cerber", 52.1580559, 20.9096169, "Cerber"),
+                ("map:52.15876:20.9115:POI-67044F", 52.1587556, 20.9114969, "POI-67044F"),
+                ("map:52.16796:20.89818:POI-166846", 52.1679612, 20.8981787, "POI-166846"),
+                ("map:52.17101:20.90633:Arkazen", 52.1710090, 20.9063306, "Arkazen"),
+                ("map:35.36472:139.46136:Lawson", 35.3647239, 139.4613615, "Lawson"),
+                ("map:35.36583:139.44617:ユーミーClass", 35.3658278, 139.4461742, "ユーミーClass"),
+                ("map:35.37252:139.45338:スーパー生鮮館TAIGA 藤沢石川店", 35.3725165, 139.4533766, "スーパー生鮮館TAIGA 藤沢石川店"),
+            ]
+            for target_id, lat, lng, label in historical_targets:
+                payload = {
+                    "target_id": target_id, "lat": lat, "lng": lng,
+                    "label": label, "source_type": "scan",
+                    "stationary": True, "generated": False,
+                    "captured_at": "2026-08-20T12:00:00",
+                }
+                conn.execute(
+                    "INSERT INTO captured_targets "
+                    "(owner_username,stationary,updated_at,lat,lng,label,name,icon,"
+                    "source_type,generated,target_json,captured_at) "
+                    "VALUES (?,1,'2026-08-20',?,?,?,?, '', 'scan',0,?,?)",
+                    (
+                        tool.CANONICAL_USERNAME, lat, lng, label, label,
+                        tool.canonical_json(payload), payload["captured_at"],
+                    ),
+                )
+                conn.execute(
+                    "INSERT INTO territory_target_ownership VALUES "
+                    "(?,?,1,?,?,?,?, '2026-08-20')",
+                    (
+                        target_id, tool.CANONICAL_USERNAME, lat, lng, label,
+                        tool.canonical_json(payload),
+                    ),
+                )
+            courier = {
+                "target_id": "map:52.15872:20.90926:Kuriero-bot",
+                "lat": 52.158725, "lng": 20.9092585,
+                "label": "Kuriero-bot", "source_type": "parcel_locker",
+                "stationary": False, "generated": True,
+                "captured_at": "2026-08-21T13:25:41",
+            }
+            conn.execute(
+                "INSERT INTO captured_targets "
+                "(owner_username,stationary,updated_at,lat,lng,label,name,icon,"
+                "source_type,generated,target_json,captured_at) "
+                "VALUES (?,0,'2026-08-21',?,?,?,?, '', 'parcel_locker',1,?,?)",
+                (
+                    tool.CANONICAL_USERNAME, courier["lat"], courier["lng"],
+                    courier["label"], courier["label"],
+                    tool.canonical_json(courier), courier["captured_at"],
+                ),
+            )
             conn.execute(
                 "INSERT INTO player_storage VALUES (?,?,?,?,?,?,?)",
                 (tool.CANONICAL_USERNAME, 1024, 20, "MB", 2, "2026-01-02", "{}"),
@@ -267,10 +328,26 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
     def start_recovery(self):
         plan, manifest = self.build_plan_and_manifest()
         tool.initialize_recovery_receipt(self.db_path, plan, manifest)
+        tool.retire_historical_targets(self.db_path, plan, "test-operator")
+        self.complete_retirement_job(plan)
+        tool.mark_retirement_rebuild_verified(self.db_path, plan)
         tool.apply_level_step(self.db_path, plan)
         for city in plan["territory_recovery"]["cities"]:
             tool.atomic_city_grant(self.db_path, plan, city)
         return plan, manifest
+
+    def complete_retirement_job(self, plan):
+        job_id = plan["territory_recovery"]["historical_retirement"]["rebuild_job_id"]
+        with self.connect() as conn:
+            conn.execute(
+                "DELETE FROM player_areas WHERE owner_username=?",
+                (tool.CANONICAL_USERNAME,),
+            )
+            conn.execute(
+                "UPDATE territory_rebuild_jobs SET status='complete', "
+                "updated_at='2026-02-04' WHERE job_id=?",
+                (job_id,),
+            )
 
     def complete_recovery_jobs(self, plan):
         with self.connect() as conn:
@@ -322,8 +399,8 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
 
     def test_plan_preserves_canonical_inventory_and_two_proven_installs(self):
         plan = self.build_plan()
-        self.assertEqual(2, len(plan["preserve"]["apps"]))
-        self.assertEqual(2, len(plan["preserve"]["tools"]))
+        self.assertEqual(11, len(plan["preserve"]["apps"]))
+        self.assertEqual(11, len(plan["preserve"]["tools"]))
         installs = plan["preserve"]["recent_googleplex_installs"]
         self.assertEqual({"app_nmap", "app_metasploit"}, {item["app_id"] for item in installs})
         self.assertTrue(all(item["canonical_inventory_match"] for item in installs))
@@ -415,10 +492,9 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
         )
         plan = self.build_plan()
         self.assertFalse(plan["ready_for_dry_run"])
-        self.assertIn("level_50_existing_geometry_conflict", plan["blockers"])
+        self.assertIn("combined_final_collision:Tokio", plan["blockers"])
         self.assertEqual(
-            "level_50_existing_geometry_conflict",
-            plan["territory_recovery"]["cities"][0]["relocation"]["reason"],
+            [], plan["territory_recovery"]["cities"][0]["collisions"]
         )
 
     def test_tampered_plan_signature_is_rejected(self):
@@ -505,6 +581,9 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
     def test_city_grant_is_atomic_when_captured_insert_fails(self):
         plan, manifest = self.build_plan_and_manifest()
         tool.initialize_recovery_receipt(self.db_path, plan, manifest)
+        tool.retire_historical_targets(self.db_path, plan, "test-operator")
+        self.complete_retirement_job(plan)
+        tool.mark_retirement_rebuild_verified(self.db_path, plan)
         tool.apply_level_step(self.db_path, plan)
         city = plan["territory_recovery"]["cities"][0]
         with self.connect() as conn:
@@ -528,9 +607,184 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
                 conn, plan["plan_id"], "territory_city:" + city["city"].lower()
             ))
 
+    def test_retirement_is_exactly_nine_audited_and_preserves_kuriero_inventory_gn(self):
+        plan, manifest = self.build_plan_and_manifest()
+        with tool.readonly_connection(self.db_path) as conn:
+            ghost_before = tool.ghostnetwork_evidence(conn)
+            inventory_before = tool.inventory_evidence(conn)
+        tool.initialize_recovery_receipt(self.db_path, plan, manifest)
+        first = tool.retire_historical_targets(
+            self.db_path, plan, "test-operator"
+        )
+        second = tool.retire_historical_targets(
+            self.db_path, plan, "test-operator"
+        )
+        self.assertEqual(9, first["retired_count"])
+        self.assertFalse(first["duplicate"])
+        self.assertTrue(second["duplicate"])
+        with tool.readonly_connection(self.db_path) as conn:
+            self.assertEqual(0, conn.execute(
+                "SELECT COUNT(*) FROM territory_target_ownership "
+                "WHERE target_id IN ({})".format(
+                    ",".join("?" for _ in tool.HISTORICAL_GEOMETRY_TARGET_IDS)
+                ),
+                tool.HISTORICAL_GEOMETRY_TARGET_IDS,
+            ).fetchone()[0])
+            courier = conn.execute(
+                "SELECT stationary, generated FROM captured_targets "
+                "WHERE owner_username=? AND label='Kuriero-bot'",
+                (tool.CANONICAL_USERNAME,),
+            ).fetchone()
+            self.assertIsNotNone(courier)
+            self.assertEqual(0, int(courier["stationary"]))
+            self.assertEqual(1, int(courier["generated"]))
+            audit_rows = conn.execute(
+                f"SELECT target_id, previous_owner_username, reason, "
+                f"operator_username, previous_state_sha256, status "
+                f"FROM {tool.RECOVERY_RETIREMENTS_TABLE} WHERE plan_id=?",
+                (plan["plan_id"],),
+            ).fetchall()
+            self.assertEqual(9, len(audit_rows))
+            self.assertEqual(
+                set(tool.HISTORICAL_GEOMETRY_TARGET_IDS),
+                {row["target_id"] for row in audit_rows},
+            )
+            self.assertTrue(all(
+                row["previous_owner_username"] == tool.CANONICAL_USERNAME
+                and row["reason"] == tool.RECOVERY_REASON
+                and row["operator_username"] == "test-operator"
+                and row["previous_state_sha256"]
+                and row["status"] == "retired"
+                for row in audit_rows
+            ))
+            self.assertEqual(inventory_before, tool.inventory_evidence(conn))
+            self.assertEqual(ghost_before, tool.ghostnetwork_evidence(conn))
+
+    def test_current_world_change_before_bonus_grant_fails_closed(self):
+        plan, manifest = self.build_plan_and_manifest()
+        tool.initialize_recovery_receipt(self.db_path, plan, manifest)
+        tool.retire_historical_targets(self.db_path, plan, "test-operator")
+        self.complete_retirement_job(plan)
+        tool.mark_retirement_rebuild_verified(self.db_path, plan)
+        tool.apply_level_step(self.db_path, plan)
+        city = plan["territory_recovery"]["cities"][0]
+        vertices = [
+            {"lat": target["lat"], "lng": target["lng"]}
+            for target in city["targets"]
+        ]
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO player_areas "
+                "(owner_username,vertices_json,area_size,status,updated_at) "
+                "VALUES ('foreign-player',?,1,'active','2026-02-05')",
+                (tool.canonical_json(vertices),),
+            )
+        with self.assertRaisesRegex(
+            tool.RecoveryGateError, "CURRENT_WORLD_CHANGED_REPLAN_REQUIRED"
+        ):
+            tool.atomic_city_grant(self.db_path, plan, city)
+        with tool.readonly_connection(self.db_path) as conn:
+            self.assertEqual(0, conn.execute(
+                "SELECT COUNT(*) FROM captured_targets "
+                "WHERE source_type='sprint_130_11_recovery'"
+            ).fetchone()[0])
+            self.assertIsNone(tool.recovery_step(
+                conn, plan["plan_id"], "territory_city:" + city["city"].lower()
+            ))
+
+    def test_rollback_from_retirement_phase_restores_current_state_and_keeps_audit(self):
+        plan, manifest = self.build_plan_and_manifest()
+        tool.initialize_recovery_receipt(self.db_path, plan, manifest)
+        tool.retire_historical_targets(self.db_path, plan, "test-operator")
+        rollback = tool.rollback_recovery(self.db_path, plan, manifest)
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE territory_rebuild_jobs SET status='complete' WHERE job_id=?",
+                (rollback["territory_rebuild_job_id"],),
+            )
+        with tool.readonly_connection(self.db_path) as conn:
+            verification = tool.verify_rollback(conn, plan, manifest)
+            statuses = [
+                row["status"] for row in conn.execute(
+                    f"SELECT status FROM {tool.RECOVERY_RETIREMENTS_TABLE} "
+                    "WHERE plan_id=?",
+                    (plan["plan_id"],),
+                )
+            ]
+        self.assertTrue(verification["ok"], verification["blockers"])
+        self.assertEqual(9, len(statuses))
+        self.assertEqual({"rolled_back"}, set(statuses))
+
+    def test_plan_separates_clean_bonus_from_historical_geometry(self):
+        plan = self.build_plan()
+        city = plan["territory_recovery"]["cities"][0]
+        self.assertEqual([], city["collisions"])
+        self.assertEqual([], city["combined_final_collisions"])
+        self.assertEqual(1, city["bonus_only_worker_preview"]["area_count"])
+        self.assertEqual(1, city["combined_final_worker_preview"]["area_count"])
+        self.assertEqual(
+            "retire_before_progression",
+            plan["territory_recovery"]["existing_historical_geometry"]["disposition"],
+        )
+
+    def test_replan_reuses_only_the_old_bonus_center_and_requires_v2_for_apply(self):
+        old_plan = self.build_plan()
+        old_plan["plan_version"] = 1
+        old_plan["plan_sha256"] = tool.digest({
+            key: value for key, value in old_plan.items()
+            if key != "plan_sha256"
+        })
+        with tool.readonly_connection(self.db_path) as conn:
+            replanned = tool.build_plan(
+                conn, self.db_path, bonus_source_plan=old_plan
+            )
+        old_city = old_plan["territory_recovery"]["cities"][0]
+        new_city = replanned["territory_recovery"]["cities"][0]
+        self.assertEqual(
+            old_city["relocation"]["selected_center"],
+            new_city["relocation"]["selected_center"],
+        )
+        self.assertEqual(old_plan["plan_id"], new_city["relocation"]["reused_from_plan_id"])
+        self.assertNotEqual(old_plan["plan_id"], replanned["plan_id"])
+        with self.assertRaisesRegex(tool.RecoveryGateError, "requires.*v2 plan"):
+            tool.require_recovery_v2_plan(old_plan)
+
+    def test_retirement_resolves_legacy_captured_row_by_canonical_ownership_coordinates(self):
+        target_id = tool.HISTORICAL_GEOMETRY_TARGET_IDS[0]
+        with self.connect() as conn:
+            ownership = conn.execute(
+                "SELECT lat, lng FROM territory_target_ownership WHERE target_id=?",
+                (target_id,),
+            ).fetchone()
+            row = conn.execute(
+                "SELECT id, target_json FROM captured_targets WHERE owner_username=? "
+                "AND ROUND(lat,7)=ROUND(?,7) AND ROUND(lng,7)=ROUND(?,7)",
+                (tool.CANONICAL_USERNAME, ownership["lat"], ownership["lng"]),
+            ).fetchone()
+            payload = json.loads(row["target_json"])
+            payload.pop("target_id", None)
+            conn.execute(
+                "UPDATE captured_targets SET target_json=? WHERE id=?",
+                (tool.canonical_json(payload), row["id"]),
+            )
+        with tool.readonly_connection(self.db_path) as conn:
+            scope = tool.historical_retirement_scope(conn)
+            preserved = tool.preserved_non_retired_captured_projection(conn)
+            plan = tool.build_plan(conn, self.db_path)
+        self.assertEqual([], scope["blockers"])
+        self.assertEqual(9, scope["count"])
+        self.assertEqual(1, preserved["count"])
+        self.assertEqual(
+            1,
+            plan["territory_recovery"]["cities"][0]
+            ["combined_final_worker_preview"]["area_count"],
+        )
+
     def test_final_settlement_is_exactly_once_and_does_not_promote_lkg(self):
         plan, _manifest = self.start_recovery()
         self.complete_recovery_jobs(plan)
+        with tool.readonly_connection(self.db_path) as conn:
+            self.assertEqual([], tool.final_phase_precondition_blockers(conn, plan))
         with self.connect() as conn:
             before_lkg = dict(conn.execute(
                 "SELECT * FROM profile_last_known_good WHERE username=?",
@@ -549,7 +803,13 @@ class Trollu2RecoveryToolTests(unittest.TestCase):
             self.assertEqual(50, state["profile"]["level"])
             self.assertEqual(2560, state["profile"]["respect"])
             self.assertEqual(250000, wallet["balance"])
-            self.assertEqual(tool.PILLARS_PER_CITY, len(state["profile"]["hacked"]))
+            self.assertEqual(
+                tool.PILLARS_PER_CITY + 1, len(state["profile"]["hacked"])
+            )
+            self.assertTrue(any(
+                item.get("target_id") == "map:52.15872:20.90926:Kuriero-bot"
+                for item in state["profile"]["hacked"]
+            ))
             self.assertEqual(1, conn.execute(
                 "SELECT COUNT(*) FROM wallet_balance_events WHERE reason='sprint_130_11.recovery'"
             ).fetchone()[0])
