@@ -26761,6 +26761,10 @@ def gonna_win():
         choice_id = None if normalized_choice_id in {"", "run_generated"} else normalized_choice_id
     operation_only = bool(data.get("operation_only"))
     flow_id = str(data.get("_flow_id") or request.headers.get("X-Hack-Flow-Id") or "")[:96]
+    try:
+        request_ordinal = max(1, min(9999, int(data.get("request_ordinal") or 1)))
+    except (TypeError, ValueError):
+        request_ordinal = 1
     launch_receipt = str(
         data.get("launch_receipt")
         or data.get("receipt")
@@ -26774,9 +26778,9 @@ def gonna_win():
         if target_has_stable_runtime_identity(expected_target)
         else ""
     )
+    receipt_scope = "operation_only" if operation_only else f"choice:{choice_id if choice_id is not None else 'auto'}"
     gonna_win_receipt_key = ""
     if launch_receipt and app_id and session.get("user"):
-        receipt_scope = "operation_only" if operation_only else f"choice:{choice_id if choice_id is not None else 'auto'}"
         receipt_seed = "|".join([
             "gonna_win_v2",
             str(session.get("user") or ""),
@@ -26805,6 +26809,13 @@ def gonna_win():
                     "expected_target_id": expected_target_id,
                     "receipt_target_id": receipt_target_id,
                     "created_operations": [],
+                    "operation_lifecycle": {
+                        "flow_id": flow_id,
+                        "receipt_scope": receipt_scope,
+                        "operation_ids": [],
+                        "request_ordinal": request_ordinal,
+                        "receipt_result": "receipt_target_mismatch",
+                    },
                 }
                 app_flow_debug(
                     flow_id,
@@ -26823,6 +26834,15 @@ def gonna_win():
                     f"expected_target_id={expected_target_id} receipt_target_id={receipt_target_id}",
                     flush=True,
                 )
+                print(
+                    "[GONNA_WIN_FLOW] "
+                    f"flow_id={flow_id or '-'} launch_receipt={_session_generation_hash(launch_receipt)} "
+                    f"receipt_key={_session_generation_hash(gonna_win_receipt_key)} "
+                    f"receipt_scope={receipt_scope} operation_id=- request_ordinal={request_ordinal} "
+                    "response_status=409 receipt_result=receipt_target_mismatch generation_result=current "
+                    "ofs_terminal_state=client_owned sfx_terminal_state=client_owned",
+                    flush=True,
+                )
                 return jsonify(payload), 409
             payload = copy.deepcopy((receipt or {}).get("payload") or {})
             status_code = int((receipt or {}).get("status_code") or 202)
@@ -26838,6 +26858,28 @@ def gonna_win():
                 }
             payload["duplicate"] = True
             payload["idempotent_replay"] = True
+            replay_operation_ids = [
+                str(item.get("operation_id"))
+                for item in (payload.get("created_operations") or [])
+                if isinstance(item, dict) and item.get("operation_id")
+            ][:8]
+            payload["operation_lifecycle"] = {
+                "flow_id": flow_id,
+                "receipt_scope": receipt_scope,
+                "operation_ids": replay_operation_ids,
+                "request_ordinal": request_ordinal,
+                "receipt_result": "replayed" if state == "completed" else "in_flight",
+            }
+            print(
+                "[GONNA_WIN_FLOW] "
+                f"flow_id={flow_id or '-'} launch_receipt={_session_generation_hash(launch_receipt)} "
+                f"receipt_key={_session_generation_hash(gonna_win_receipt_key)} "
+                f"receipt_scope={receipt_scope} operation_id={','.join(replay_operation_ids) or '-'} "
+                f"request_ordinal={request_ordinal} response_status={status_code} "
+                f"receipt_result={'replayed' if state == 'completed' else 'in_flight'} "
+                "generation_result=current ofs_terminal_state=client_owned sfx_terminal_state=client_owned",
+                flush=True,
+            )
             app_flow_debug(
                 flow_id,
                 "gonna_win_receipt_replay",
@@ -26861,9 +26903,39 @@ def gonna_win():
         operation_only=operation_only,
         launch_receipt=launch_receipt,
         receipt_key=gonna_win_receipt_key,
+        receipt_scope=receipt_scope,
+        request_ordinal=request_ordinal,
     )
 
     def finish_gonna_win_receipt(payload, status_code=200, status=None):
+        operation_ids = [
+            str(item.get("operation_id"))
+            for item in ((payload or {}).get("created_operations") or [])
+            if isinstance(item, dict) and item.get("operation_id")
+        ][:8]
+        receipt_result = (
+            "effect_applied"
+            if (payload or {}).get("success") is True
+            else "failed"
+        )
+        if isinstance(payload, dict):
+            payload["operation_lifecycle"] = {
+                "flow_id": flow_id,
+                "receipt_scope": receipt_scope,
+                "operation_ids": operation_ids,
+                "request_ordinal": request_ordinal,
+                "receipt_result": receipt_result,
+            }
+        print(
+            "[GONNA_WIN_FLOW] "
+            f"flow_id={flow_id or '-'} launch_receipt={_session_generation_hash(launch_receipt)} "
+            f"receipt_key={_session_generation_hash(gonna_win_receipt_key)} "
+            f"receipt_scope={receipt_scope} operation_id={','.join(operation_ids) or '-'} "
+            f"request_ordinal={request_ordinal} response_status={int(status_code or 200)} "
+            f"receipt_result={receipt_result} generation_result=current "
+            "ofs_terminal_state=client_owned sfx_terminal_state=client_owned",
+            flush=True,
+        )
         if not gonna_win_receipt_key:
             return
         app_action_receipt_store.finish(

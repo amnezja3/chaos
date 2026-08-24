@@ -8,6 +8,8 @@ let desktopSaveTimer = null;
 let toolbarProfile = null;
 let toolbarTargetFeedbackState = { targetKey: "", dotSignature: "", progress: 0 };
 let gonnaWinRequestQueue = Promise.resolve();
+const gonnaWinLifecycleStates = new Map();
+const GONNA_WIN_LIFECYCLE_LIMIT = 128;
 let toolbarTargetTruthRefreshing = false;
 let toolbarTargetHackedEffect = null;
 let toolbarTargetHackedEffectTimer = null;
@@ -83,6 +85,7 @@ function teardownDesktopForInvalidatedSession() {
     toolbarTargetHackedEffectKeys.clear();
     userProfileRequestPromise = null;
     gonnaWinRequestQueue = Promise.resolve();
+    gonnaWinLifecycleStates.clear();
     stateDeltaPollInFlight = false;
     systemMessagesPollInFlight = false;
     launchQueuePollInFlight = false;
@@ -2569,6 +2572,69 @@ function currentApplicationLaunchContext(appWindow = null) {
     };
 }
 
+function gonnaWinLifecycleKey(context = {}, receiptScope = "choice:auto") {
+    return [
+        String(context.flow_id || "").trim(),
+        String(context.launch_receipt || context.invocation_id || "").trim(),
+        String(context.app_id || "").trim(),
+        String(receiptScope || "choice:auto").trim()
+    ].join("|");
+}
+
+function getGonnaWinLifecycle(context = {}, receiptScope = "choice:auto") {
+    const key = gonnaWinLifecycleKey(context, receiptScope);
+    let state = gonnaWinLifecycleStates.get(key);
+    if (!state) {
+        state = {
+            key,
+            requestOrdinal: 0,
+            canonicalSuccess: false,
+            canonicalPayload: null,
+            operationIds: new Set(),
+            ofsTerminalState: "pending",
+            sfxTerminalState: "pending"
+        };
+        gonnaWinLifecycleStates.set(key, state);
+        while (gonnaWinLifecycleStates.size > GONNA_WIN_LIFECYCLE_LIMIT) {
+            gonnaWinLifecycleStates.delete(gonnaWinLifecycleStates.keys().next().value);
+        }
+    }
+    return state;
+}
+
+function nextGonnaWinRequestOrdinal(context = {}, receiptScope = "choice:auto") {
+    const state = getGonnaWinLifecycle(context, receiptScope);
+    state.requestOrdinal += 1;
+    return state.requestOrdinal;
+}
+
+function rememberGonnaWinCanonicalResult(context, receiptScope, payload = {}) {
+    const state = getGonnaWinLifecycle(context, receiptScope);
+    (payload.created_operations || []).forEach(operation => {
+        const operationId = String(operation && operation.operation_id || "").trim();
+        if (operationId) state.operationIds.add(operationId);
+    });
+    if (payload.success === true) {
+        state.canonicalSuccess = true;
+        state.canonicalPayload = { ...payload };
+        state.ofsTerminalState = "success";
+        if (payload.captured_target) state.sfxTerminalState = "success";
+    }
+    return state;
+}
+
+function preserveCanonicalGonnaWinSuccess(context, receiptScope, payload = null) {
+    const state = getGonnaWinLifecycle(context, receiptScope);
+    if (!state.canonicalSuccess || (payload && payload.success === true)) return payload;
+    return {
+        ...(state.canonicalPayload || { success: true }),
+        success: true,
+        duplicate: true,
+        idempotent_replay: true,
+        semantic_success_preserved: true
+    };
+}
+
 function applyApplicationLaunchContext(appWindow, fallbackAppData = {}) {
     if (!appWindow || !appWindow.dataset) return currentApplicationLaunchContext();
     const context = {
@@ -3817,7 +3883,7 @@ function startAppWaitLog(container, options = {}) {
     };
 }
 
-function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } = {}) {
+function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true, receiptScope = "choice:auto" } = {}) {
     if (appWindow?.dataset) appWindow.dataset.ofsPhase = "executing";
     const provisionalSession = appWindow?._provisionalApplicationSession;
     if (provisionalSession && !provisionalSession.disposed) {
@@ -3825,6 +3891,14 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
         setApplicationPresentationPhase(provisionalSession, "executing");
     }
     const context = currentApplicationLaunchContext(appWindow);
+    const lifecycle = getGonnaWinLifecycle(context, receiptScope);
+    const feedbackOwnerKey = gonnaWinLifecycleKey(context, receiptScope);
+    const feedbackOwners = appWindow
+        ? (appWindow._gonnaWinFeedbackOwners = appWindow._gonnaWinFeedbackOwners || {})
+        : null;
+    if (feedbackOwners && feedbackOwners[feedbackOwnerKey]) {
+        return feedbackOwners[feedbackOwnerKey];
+    }
     const ofs = window.OperationFeedbackSystem;
     let session = null;
     let stopLegacy = () => {};
@@ -3864,15 +3938,25 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
         startLegacyFallback();
     }
 
-    return {
+    const feedbackOwner = {
         session,
         complete(payload) {
+            const semanticPayload = preserveCanonicalGonnaWinSuccess(context, receiptScope, payload);
+            if (lifecycle.canonicalSuccess && payload && payload.success !== true) {
+                appFlowTrace(context.flow_id, "ofs_false_failure_suppressed", {
+                    app_id: appId,
+                    receipt_scope: receiptScope,
+                    ofs_terminal_state: lifecycle.ofsTerminalState
+                });
+                return false;
+            }
+            rememberGonnaWinCanonicalResult(context, receiptScope, semanticPayload || {});
             finishApplicationTitleSequence(appWindow, "payload_received");
             stopLegacy();
-            if (session) session.complete(payload);
+            if (session) session.complete(semanticPayload);
             const terminalSysinfo = appWindow?.querySelector?.('[data-terminal-sysinfo]');
             if (terminalSysinfo) {
-                const sysinfo = payload && payload.success === false ? "FAILED" : "COMPLETE";
+                const sysinfo = semanticPayload && semanticPayload.success === false ? "FAILED" : "COMPLETE";
                 terminalSysinfo.dataset.terminalSysinfo = sysinfo;
                 terminalSysinfo.textContent = sysinfo;
             }
@@ -3880,12 +3964,27 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
                 updateProvisionalApplicationSession(provisionalSession, "completing", "Finalizacja wyniku...");
                 setApplicationPresentationPhase(provisionalSession, "completing");
             }
+            return true;
         },
         presentProgressCompletion(items, success) {
             if (!session || typeof session.presentProgressCompletion !== "function") return false;
             return session.presentProgressCompletion(items, success);
         },
         fail(reason) {
+            if (lifecycle.canonicalSuccess) {
+                appFlowTrace(context.flow_id, "ofs_transport_failure_suppressed", {
+                    app_id: appId,
+                    receipt_scope: receiptScope,
+                    reason: String(reason || "request_failed"),
+                    ofs_terminal_state: lifecycle.ofsTerminalState
+                });
+                const terminalSysinfo = appWindow?.querySelector?.('[data-terminal-sysinfo]');
+                if (terminalSysinfo) {
+                    terminalSysinfo.dataset.terminalSysinfo = "COMPLETE";
+                    terminalSysinfo.textContent = "COMPLETE";
+                }
+                return false;
+            }
             finishApplicationTitleSequence(appWindow, "request_failed");
             stopLegacy();
             if (session) session.fail(reason);
@@ -3898,8 +3997,12 @@ function beginOperationFeedbackRequest(appWindow, appId, { legacyWait = true } =
                 updateProvisionalApplicationSession(provisionalSession, "failed", "Operacja zakonczona bledem.");
                 setApplicationPresentationPhase(provisionalSession, "failed");
             }
+            lifecycle.ofsTerminalState = "failed";
+            return true;
         }
     };
+    if (feedbackOwners) feedbackOwners[feedbackOwnerKey] = feedbackOwner;
+    return feedbackOwner;
 }
 
 function startLegacyAppWaitUnlessFeedbackEnabled(appWindow) {
@@ -5059,17 +5162,19 @@ async function notifyGonnaWin(appId, appWindow = null, {
 } = {}) {
     const context = currentApplicationLaunchContext(appWindow);
     const flowId = context.flow_id;
+    const receiptScope = "choice:auto";
     let feedback = deferFeedbackStart
         ? null
-        : beginOperationFeedbackRequest(appWindow, appId, { legacyWait });
+        : beginOperationFeedbackRequest(appWindow, appId, { legacyWait, receiptScope });
     const ensureFeedback = () => {
-        if (!feedback) feedback = beginOperationFeedbackRequest(appWindow, appId, { legacyWait });
+        if (!feedback) feedback = beginOperationFeedbackRequest(appWindow, appId, { legacyWait, receiptScope });
         return feedback;
     };
     return enqueueGonnaWinRequest(async () => {
         let response;
         let data;
         try {
+            const requestOrdinal = nextGonnaWinRequestOrdinal(context, receiptScope);
             response = await fetch('/gonna-win', {
                 method: 'POST',
                 headers: {
@@ -5082,14 +5187,16 @@ async function notifyGonnaWin(appId, appWindow = null, {
                     launch_key: context.launch_key,
                     launch_receipt: context.launch_receipt,
                     launch_source: context.source,
-                    expected_target: context.expected_target
+                    expected_target: context.expected_target,
+                    request_ordinal: requestOrdinal
                 })
             });
             data = await response.json();
         } catch (error) {
-            ensureFeedback().fail(error && error.name ? error.name : "request_failed");
             throw error;
         }
+        data = preserveCanonicalGonnaWinSuccess(context, receiptScope, data);
+        rememberGonnaWinCanonicalResult(context, receiptScope, data || {});
         if (appWindow) appWindow._lastGonnaWinResult = data;
         if (data.player_hack_access) {
             refreshPlayerHackAccess(data.player_hack_access);
@@ -5110,7 +5217,7 @@ async function notifyGonnaWin(appId, appWindow = null, {
             updateToolbarAimedTarget(data.target);
         }
         notifyCreatedOperations(data);
-        if (data.success && data.captured_target) {
+        if (data.success && data.captured_target && !data.semantic_success_preserved) {
             playAuthoritativeCaptureSfx(data.captured_target);
             notifyOpenMapsTargetHacked(data.captured_target);
             refreshToolbarProfile();
@@ -5127,6 +5234,16 @@ async function notifyGonnaWin(appId, appWindow = null, {
         }
         return data.success === true;
     }).catch(err => {
+        const preserved = preserveCanonicalGonnaWinSuccess(context, receiptScope, null);
+        if (preserved && preserved.success === true) {
+            ensureFeedback().complete(preserved);
+            appFlowTrace(flowId, "gonna_win_transport_failure_after_canonical_success", {
+                app_id: appId,
+                receipt_scope: receiptScope,
+                ofs_terminal_state: "success"
+            });
+            return true;
+        }
         ensureFeedback().fail(err && err.name ? err.name : "application_result_processing_failed");
         console.error(`❌ Błąd połączenia z /gonna-win dla ${appId}`, err);
         return false; // default przy błędzie
@@ -7092,6 +7209,7 @@ function notifyAppMapOperationStarted(appData) {
     const appId = appData.id;
     if (!appId) return;
     const context = buildApplicationLaunchContext(appData);
+    const receiptScope = "operation_only";
     const flowId = getCurrentAppFlowId(context.flow_id || appData.debug_flow?.flow_id || "");
     const queuedAt = performance.now();
     appFlowTrace(flowId, "operation_start_queued_from_app_launch", {
@@ -7106,6 +7224,7 @@ function notifyAppMapOperationStarted(appData) {
             queue_wait_ms: Math.round(performance.now() - queuedAt)
         });
         const startedAt = performance.now();
+        const requestOrdinal = nextGonnaWinRequestOrdinal(context, receiptScope);
         const response = await fetch('/gonna-win', {
             method: 'POST',
             headers: {
@@ -7119,10 +7238,12 @@ function notifyAppMapOperationStarted(appData) {
                 launch_key: context.launch_key,
                 launch_receipt: context.launch_receipt,
                 launch_source: context.source,
-                expected_target: context.expected_target
+                expected_target: context.expected_target,
+                request_ordinal: requestOrdinal
             })
         });
         const data = await response.json();
+        rememberGonnaWinCanonicalResult(context, receiptScope, data || {});
         appFlowTrace(flowId, "operation_start_response", {
             app_id: appId,
             status: response.status,
@@ -7161,6 +7282,7 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
     }
     const context = currentApplicationLaunchContext(appWindow);
     const flowId = context.flow_id;
+    const receiptScope = `choice:${choiceId !== null ? choiceId : "auto"}`;
     const queuedAt = performance.now();
     appFlowTrace(flowId, "app_option_request_queued", {
         app_id: appId,
@@ -7168,7 +7290,8 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
         launch_key: context.launch_key
     });
     const feedback = beginOperationFeedbackRequest(appWindow, appId, {
-        legacyWait: !(appWindow && appWindow._legacyAppWaitActive)
+        legacyWait: !(appWindow && appWindow._legacyAppWaitActive),
+        receiptScope
     });
     return enqueueGonnaWinRequest(async () => {
         appFlowTrace(flowId, "app_option_request_start", {
@@ -7180,6 +7303,7 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
         let response;
         let data;
         try {
+            const requestOrdinal = nextGonnaWinRequestOrdinal(context, receiptScope);
             response = await fetch('/gonna-win', {
                 method: 'POST',
                 headers: {
@@ -7193,14 +7317,16 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
                     launch_key: context.launch_key,
                     launch_receipt: context.launch_receipt,
                     launch_source: context.source,
-                    expected_target: context.expected_target
+                    expected_target: context.expected_target,
+                    request_ordinal: requestOrdinal
                 })
             });
             data = await response.json();
         } catch (error) {
-            feedback.fail(error && error.name ? error.name : "request_failed");
             throw error;
         }
+        data = preserveCanonicalGonnaWinSuccess(context, receiptScope, data);
+        rememberGonnaWinCanonicalResult(context, receiptScope, data || {});
         appFlowTrace(flowId, "app_option_response", {
             app_id: appId,
             choice_id: choiceId,
@@ -7252,7 +7378,7 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
             });
         }
         notifyCreatedOperations(data);
-        if (data.success && data.captured_target && responseMatchesCurrentTarget) {
+        if (data.success && data.captured_target && responseMatchesCurrentTarget && !data.semantic_success_preserved) {
             playAuthoritativeCaptureSfx(data.captured_target);
             notifyOpenMapsTargetHacked(data.captured_target);
             refreshToolbarProfile();
@@ -7265,6 +7391,16 @@ async function sendGonnaWinRequest(appId, choiceId = null, appWindow = null) {
         feedback.complete(data);
         return data;
     }).catch(error => {
+        const preserved = preserveCanonicalGonnaWinSuccess(context, receiptScope, null);
+        if (preserved && preserved.success === true) {
+            feedback.complete(preserved);
+            appFlowTrace(flowId, "gonna_win_transport_failure_after_canonical_success", {
+                app_id: appId,
+                receipt_scope: receiptScope,
+                ofs_terminal_state: "success"
+            });
+            return preserved;
+        }
         feedback.fail(error && error.name ? error.name : "application_result_processing_failed");
         console.error("Błąd komunikacji z backendem:", error);
         return { success: false };

@@ -9,7 +9,7 @@ Pierwsze trzy wynikają bezpośrednio z audytu gameplayowego, a `130.12.4` propo
 
 # Sprint 130.12.1 — Single Active Login / Session Ownership P0
 
-**Status bieżący:** IN PROGRESS — LOCAL IMPLEMENTATION READY, SERVER VALIDATION PENDING
+**Status bieżący:** SPRINT 130.12.1 — COMPLETE
 **Priorytet:** P0
 **Cel:** jedno konto może mieć tylko jedno aktywne, niezależne logowanie. Najnowsze poprawne logowanie zawsze wygrywa.
 
@@ -344,7 +344,7 @@ git diff --check OK
 Końcowy status:
 
 ```text
-SPRINT 130.12.1 — READY FOR SERVER VALIDATION
+SPRINT 130.12.1 — COMPLETE
 ```
 
 Bez deployu bez jawnej zgody.
@@ -373,14 +373,18 @@ node --check OK
 
 Pełne discovery: `1055` testów, `6` istniejących failure/error poza diffem
 130.12.1 (captured-object helper, GN post-130 fixture, dwa kontrakty GN map layer,
-hot-path aim target i static profile writer contract). Z tego powodu status pozostaje
-`IN PROGRESS` do naprawy baseline lub jawnego zatwierdzenia wyjątku oraz server validation.
+hot-path aim target i static profile writer contract).
+
+Manual produkcyjny potwierdził latest-login-wins, kontrolowane zastąpienie starej
+sesji, relogin bez czyszczenia cookies/cache, współdzielenie jednej sesji przez
+kilka kart, fail-closed stale requests oraz poprawne granice katalogu i desktop
+tile state. Werdykt: `SPRINT 130.12.1 — COMPLETE`.
 
 ---
 
 # Sprint 130.12.2 — Map / Territory / GhostNetwork / Operation Integrity P0
 
-**Status początkowy:** PLANNED
+**Status bieżący:** SPRINT 130.12.2 — READY FOR SERVER VALIDATION
 **Priorytet:** P0
 
 ## Cel
@@ -596,6 +600,29 @@ OFS terminal success renderowany dokładnie raz
 ```
 
 ## Definition of Done 130.12.2
+
+## Implementacja lokalna i walidacja
+
+- Historyczny fix `undefined.x` z commita
+  `ecaa77ea36e187f06783dc38b891934608914d76` został rozszerzony o kontrolowane
+  przechwycenie wyłącznie transient race wewnątrz `originalClipPoints()`;
+  niezwiązane wyjątki nadal są propagowane.
+- Snapshot GhostNetwork jest podmieniany atomowo. Niepoprawny marker lub curve
+  usuwa wyłącznie candidate layers i zachowuje poprzedni poprawny snapshot.
+- Territory areas stosują candidate-first replacement. Niepełny, niepoprawny
+  albo zduplikowany candidate nie usuwa poprzednich polygonów.
+- Recovery territory ma jednego promise ownera, bounded backoff i współdzieli
+  cały aktywny `refreshPlayerAreas`, dzięki czemu odpowiedź snapshotu jest
+  konsumowana dokładnie raz również w race optional refresh / critical recovery.
+- `/gonna-win` raportuje bounded `flow_id`, hashe receiptów, `receipt_scope`,
+  `operation_id`, `request_ordinal`, status i wynik receipt. Replay zachowuje ten
+  sam canonical `operation_id`.
+- OFS ma jednego terminal ownera dla semantic receipt. Późniejszy false payload
+  lub transport error nie nadpisuje wcześniej potwierdzonego canonical success.
+- Walidacja lokalna: 169 celowanych testów Python — OK; regresje Node map/GN,
+  snapshot recovery, delta client, OFS composer i gonna-win lifecycle — OK;
+  `py_compile`, `node --check` i `git diff --check` — OK.
+- Nie wykonano deployu ani restartu PM2. Zakres P1 130.12.3 pozostał nietknięty.
 
 ```text
 undefined.x nie blokuje mapy

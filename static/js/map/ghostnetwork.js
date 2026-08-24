@@ -349,8 +349,7 @@
         window.ghostNetworkConnectionProjections = {};
     }
 
-    function clearGhostNetworkLayer() {
-        clearGhostConnections();
+    function clearGhostParts() {
         Object.keys(window.ghostNetworkPartLayers || {}).forEach(removeGhostPartMarker);
         Object.keys(window.ghostNetworkTerritoryLayers || {}).forEach(removeGhostPartMarker);
         window.ghostNetworkPartLayers = {};
@@ -358,6 +357,11 @@
         window.ghostNetworkPendingTerritoryParts = {};
         window.ghostNetworkPartProjections = {};
         requestGhostTerritoryStatesRefresh();
+    }
+
+    function clearGhostNetworkLayer() {
+        clearGhostConnections();
+        clearGhostParts();
     }
 
     function renderGhostTerritoryBadge(part) {
@@ -562,29 +566,84 @@
         return L.layerGroup(layers);
     }
 
+    function ghostConnectionShouldRender(connection) {
+        const state = String(connection && connection.state || "hidden");
+        return Boolean(connection && connection.can_show_on_map
+            && ["half_from_a", "half_from_b", "active"].includes(state));
+    }
+
+    function removeCandidateLayer(map, layer) {
+        if (!map || !layer) return;
+        try { map.removeLayer(layer); } catch (_error) { /* candidate was not committed */ }
+    }
+
     function updateGhostConnectionLayer(connection) {
         const map = ensureGhostNetworkPanes();
         const key = connectionKey(connection);
         if (!map || !key) return false;
-        removeGhostConnectionLayer(key);
+        const previousLayer = window.ghostNetworkConnectionLayers[key] || null;
+        const candidate = createGhostConnectionLayer(connection);
+        if (!candidate) {
+            if (ghostConnectionShouldRender(connection)) return false;
+            removeGhostConnectionLayer(key);
+            window.ghostNetworkConnectionProjections[key] = connection;
+            return true;
+        }
+        try {
+            candidate.addTo(map);
+        } catch (err) {
+            removeCandidateLayer(map, candidate);
+            console.warn("[ghostnetwork] connection candidate rejected", {
+                connection_id: key,
+                error: String(err && err.message || "renderer_failure")
+            });
+            return false;
+        }
+        if (previousLayer && previousLayer !== candidate) {
+            removeCandidateLayer(map, previousLayer);
+        }
         window.ghostNetworkConnectionProjections[key] = connection;
-        const layer = createGhostConnectionLayer(connection);
-        if (!layer) return false;
-        layer.addTo(map);
-        window.ghostNetworkConnectionLayers[key] = layer;
+        window.ghostNetworkConnectionLayers[key] = candidate;
         return true;
     }
 
     function renderGhostConnections(connections) {
-        clearGhostConnections();
-        if (!Array.isArray(connections)) return 0;
-        let rendered = 0;
-        connections.forEach(connection => {
-            const key = connectionKey(connection);
-            if (key) window.ghostNetworkConnectionProjections[key] = connection;
-            if (updateGhostConnectionLayer(connection)) rendered += 1;
-        });
-        return rendered;
+        if (!Array.isArray(connections)) return false;
+        const map = ensureGhostNetworkPanes();
+        if (!map) return false;
+        const candidateLayers = {};
+        const candidateProjections = {};
+        const addedCandidates = [];
+        try {
+            connections.forEach(connection => {
+                const key = connectionKey(connection);
+                if (!key) return;
+                if (Object.prototype.hasOwnProperty.call(candidateProjections, key)) {
+                    throw new Error(`duplicate_connection_projection:${key}`);
+                }
+                candidateProjections[key] = connection;
+                const candidate = createGhostConnectionLayer(connection);
+                if (!candidate) {
+                    if (ghostConnectionShouldRender(connection)) {
+                        throw new Error(`invalid_connection_curve:${key}`);
+                    }
+                    return;
+                }
+                candidate.addTo(map);
+                candidateLayers[key] = candidate;
+                addedCandidates.push(candidate);
+            });
+        } catch (err) {
+            addedCandidates.forEach(layer => removeCandidateLayer(map, layer));
+            console.warn("[ghostnetwork] connection snapshot candidate rejected", err);
+            return false;
+        }
+
+        Object.values(window.ghostNetworkConnectionLayers || {})
+            .forEach(layer => removeCandidateLayer(map, layer));
+        window.ghostNetworkConnectionLayers = candidateLayers;
+        window.ghostNetworkConnectionProjections = candidateProjections;
+        return Object.keys(candidateLayers).length;
     }
 
     function refreshGhostConnections() {
@@ -649,11 +708,11 @@
         return true;
     }
 
-    function renderGhostParts(parts) {
+    function renderGhostParts(parts, options = {}) {
         if (!Array.isArray(parts)) return 0;
         let rendered = 0;
         batchGhostTerritoryStatesRefresh(() => {
-            clearGhostNetworkLayer();
+            if (options.clear !== false) clearGhostParts();
             parts
                 .filter(part => part && part.can_show_on_map !== false)
                 .slice(0, MAX_VISIBLE_PARTS)
@@ -662,6 +721,73 @@
                 });
         });
         return rendered;
+    }
+
+    function captureGhostLayerRegistries() {
+        return {
+            partLayers: window.ghostNetworkPartLayers,
+            connectionLayers: window.ghostNetworkConnectionLayers,
+            connectionProjections: window.ghostNetworkConnectionProjections,
+            territoryLayers: window.ghostNetworkTerritoryLayers,
+            pendingTerritoryParts: window.ghostNetworkPendingTerritoryParts,
+            partProjections: window.ghostNetworkPartProjections
+        };
+    }
+
+    function installGhostLayerRegistries(registries) {
+        window.ghostNetworkPartLayers = registries.partLayers;
+        window.ghostNetworkConnectionLayers = registries.connectionLayers;
+        window.ghostNetworkConnectionProjections = registries.connectionProjections;
+        window.ghostNetworkTerritoryLayers = registries.territoryLayers;
+        window.ghostNetworkPendingTerritoryParts = registries.pendingTerritoryParts;
+        window.ghostNetworkPartProjections = registries.partProjections;
+    }
+
+    function emptyGhostLayerRegistries() {
+        return {
+            partLayers: {}, connectionLayers: {}, connectionProjections: {},
+            territoryLayers: {}, pendingTerritoryParts: {}, partProjections: {}
+        };
+    }
+
+    function removeGhostRegistryLayers(registries) {
+        const map = getMap();
+        const layers = new Set([
+            ...Object.values(registries.partLayers || {}),
+            ...Object.values(registries.connectionLayers || {}),
+            ...Object.values(registries.territoryLayers || {})
+        ].filter(Boolean));
+        layers.forEach(layer => removeCandidateLayer(map, layer));
+    }
+
+    function replaceGhostSnapshotLayers(parts, connections) {
+        if (!Array.isArray(parts) || !Array.isArray(connections)) return false;
+        const previous = captureGhostLayerRegistries();
+        installGhostLayerRegistries(emptyGhostLayerRegistries());
+        let candidate = null;
+        try {
+            renderGhostParts(parts, { clear: false });
+            const connectionsResult = renderGhostConnections(connections);
+            if (connectionsResult === false) throw new Error("connection_candidate_failed");
+            candidate = captureGhostLayerRegistries();
+            const invalidExactPart = parts.some(part => {
+                if (!part || part.can_show_on_map === false) return false;
+                if (String(part.location_visibility || "").toLowerCase() !== "exact") return false;
+                const key = projectionKey(part);
+                return Boolean(key && !candidate.partLayers[key]);
+            });
+            if (invalidExactPart) throw new Error("part_candidate_failed");
+        } catch (err) {
+            removeGhostRegistryLayers(candidate || captureGhostLayerRegistries());
+            installGhostLayerRegistries(previous);
+            console.warn("[ghostnetwork] atomic snapshot replacement rejected", err);
+            requestGhostTerritoryStatesRefresh();
+            return false;
+        }
+        removeGhostRegistryLayers(previous);
+        installGhostLayerRegistries(candidate || emptyGhostLayerRegistries());
+        requestGhostTerritoryStatesRefresh();
+        return true;
     }
 
     function normalizeSnapshotPayload(data) {
@@ -729,6 +855,9 @@
                 return false;
             }
             const nextCycleId = String((data.cycle && data.cycle.cycle_id) || data.cycle_id || "").trim();
+            if (!replaceGhostSnapshotLayers(data.parts || [], data.connections || [])) {
+                return false;
+            }
             if (window.ghostNetworkCycleId && nextCycleId !== window.ghostNetworkCycleId) {
                 resetGhostNetworkDeltaDedupe();
             }
@@ -744,8 +873,6 @@
                     snapshotChecksum: window.ghostNetworkSnapshotChecksum
                 });
             }
-            renderGhostParts(data.parts || []);
-            renderGhostConnections(data.connections || []);
             notifyGhostNetworkDeltaViews({ type: "snapshot", snapshot: data });
             return true;
         } catch (err) {
@@ -841,6 +968,8 @@
     }
 
     function applyGhostNetworkDeltaPayload(event) {
+        // The per-user delta bus owns transport ordering and gap recovery. The
+        // map adapter only applies projections against its snapshot baseline.
         return applyGhostPartDelta(event) || applyGhostConnectionDelta(event);
     }
 

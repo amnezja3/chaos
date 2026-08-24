@@ -479,6 +479,15 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
                 source.index("enqueueGonnaWinRequest"),
             )
 
+    def test_canonical_success_owns_terminal_ofs_state_across_replays(self):
+        self.assertIn("gonnaWinLifecycleStates", self.terminal)
+        self.assertIn("requestOrdinal", self.terminal)
+        self.assertIn("semantic_success_preserved", self.terminal)
+        self.assertIn("ofs_false_failure_suppressed", self.terminal)
+        self.assertIn("ofs_transport_failure_suppressed", self.terminal)
+        self.assertIn("gonna_win_transport_failure_after_canonical_success", self.terminal)
+        self.assertIn("receiptScope", self.terminal)
+
     def test_mobile_layout_hides_global_desktop_sync_spinner(self):
         css = Path("static/css/style.css").read_text(encoding="utf-8")
         mobile_start = css.index("@media (max-width: 900px), (max-height: 700px)")

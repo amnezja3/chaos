@@ -8,6 +8,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 class GhostNetworkMapLayerContractTest(unittest.TestCase):
     def setUp(self):
         self.map_js = (ROOT / "static" / "js" / "map" / "ghostnetwork.js").read_text(encoding="utf-8")
+        self.delta_client_js = (ROOT / "static" / "js" / "ghostnetwork_delta_client.js").read_text(encoding="utf-8")
         self.map_template = (ROOT / "templates" / "map_template.html").read_text(encoding="utf-8")
         self.terminal_js = (ROOT / "static" / "js" / "terminal.js").read_text(encoding="utf-8")
 
@@ -83,12 +84,22 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn('console.warn("[ghostnetwork] incomplete snapshot rejected")', self.map_js)
         self.assertIn('console.warn("[ghostnetwork] stale snapshot rejected"', self.map_js)
         validation = self.map_js.index("if (!isCompleteGhostNetworkSnapshot(data))")
-        render = self.map_js.index("renderGhostParts(data.parts || [])")
+        render = self.map_js.index("replaceGhostSnapshotLayers(data.parts || [], data.connections || [])")
         self.assertLess(validation, render)
+
+    def test_snapshot_and_connection_replacement_are_atomic(self):
+        self.assertIn("replaceGhostSnapshotLayers", self.map_js)
+        self.assertIn("atomic snapshot replacement rejected", self.map_js)
+        self.assertIn("connection candidate rejected", self.map_js)
+        update_start = self.map_js.index("function updateGhostConnectionLayer")
+        update_end = self.map_js.index("function renderGhostConnections", update_start)
+        update = self.map_js[update_start:update_end]
+        self.assertLess(update.index("candidate.addTo(map)"), update.index("removeCandidateLayer(map, previousLayer)"))
 
     def test_recovery_is_coalesced_and_missing_projection_requests_it_once(self):
         self.assertIn("if (ghostNetworkRecoveryPromise) return ghostNetworkRecoveryPromise", self.map_js)
-        self.assertEqual(self.map_js.count('requestGhostNetworkRecovery("unapplied_delta", event)'), 1)
+        self.assertEqual(self.delta_client_js.count('recover("unapplied_delta", event)'), 1)
+        self.assertIn("recover: requestGhostNetworkRecovery", self.map_js)
         self.assertNotIn('recoverGhostNetworkLayer({ reason: "missing_projection"', self.map_js)
         self.assertNotIn('recoverGhostNetworkLayer({ reason: "missing_connection_projection"', self.map_js)
 
@@ -144,7 +155,7 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn("ghostnetwork-part-fallback", self.map_js)
         self.assertIn('type === "ghost.part_contained"', self.map_js)
         self.assertIn('type === "ghost.part_activated"', self.map_js)
-        snapshot_render = self.map_js.index("renderGhostParts(data.parts || [])")
+        snapshot_render = self.map_js.index("replaceGhostSnapshotLayers(data.parts || [], data.connections || [])")
         transition_logic = self.map_js.index('type === "ghost.part_contained"')
         self.assertLess(snapshot_render, transition_logic)
 
@@ -170,7 +181,7 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
         self.assertIn("batchGhostTerritoryStatesRefresh", self.map_js)
         self.assertIn("ghostTerritoryRefreshPending", self.map_js)
         self.assertIn("layer._ghostNetworkStrategicState === normalized", self.map_js)
-        render_start = self.map_js.index("function renderGhostParts(parts)")
+        render_start = self.map_js.index("function renderGhostParts(parts, options = {})")
         render_end = self.map_js.index("function normalizeSnapshotPayload", render_start)
         self.assertIn("batchGhostTerritoryStatesRefresh", self.map_js[render_start:render_end])
 

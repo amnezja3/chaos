@@ -3711,10 +3711,24 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         with client.session_transaction() as sess:
             sess["user"] = "root"
 
-        with patch.object(run, "sync_session_profile", return_value=profile), \
-                patch.object(run.user_store, "get_profile", return_value=None), \
-                patch.object(run, "UserProfileManager", FakeProfileManager):
-            response = client.post("/gonna-win", json={"app_id": "sniff_tool", "operation_only": True})
+        with tempfile.TemporaryDirectory() as tmpdir:
+            receipt_store = AppActionReceiptStore(os.path.join(tmpdir, "receipts.sqlite3"))
+            request_payload = {
+                "app_id": "sniff_tool",
+                "operation_only": True,
+                "launch_receipt": "operation-lifecycle-receipt",
+                "_flow_id": "operation-lifecycle-flow",
+                "request_ordinal": 1,
+            }
+            with patch.object(run, "app_action_receipt_store", receipt_store), \
+                    patch.object(run, "sync_session_profile", return_value=profile), \
+                    patch.object(run.user_store, "get_profile", return_value=None), \
+                    patch.object(run, "UserProfileManager", FakeProfileManager):
+                response = client.post("/gonna-win", json=request_payload)
+                replay = client.post("/gonna-win", json={
+                    **request_payload,
+                    "request_ordinal": 2,
+                })
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
@@ -3729,6 +3743,21 @@ class MissingProfileAndSessionSafetyTest(unittest.TestCase):
         self.assertEqual(created["map_action_id"], "sniff")
         self.assertEqual(created["operation_type"], "persistent_sniffer")
         self.assertEqual(created["status"], "running")
+        lifecycle = payload["operation_lifecycle"]
+        self.assertEqual(lifecycle["flow_id"], "operation-lifecycle-flow")
+        self.assertEqual(lifecycle["receipt_scope"], "operation_only")
+        self.assertEqual(lifecycle["request_ordinal"], 1)
+        self.assertEqual(lifecycle["operation_ids"], [created["operation_id"]])
+        replay_payload = replay.get_json()
+        self.assertEqual(replay.status_code, 200)
+        self.assertTrue(replay_payload["duplicate"])
+        self.assertTrue(replay_payload["idempotent_replay"])
+        self.assertEqual(
+            replay_payload["created_operations"][0]["operation_id"],
+            created["operation_id"],
+        )
+        self.assertEqual(replay_payload["operation_lifecycle"]["request_ordinal"], 2)
+        self.assertEqual(replay_payload["operation_lifecycle"]["receipt_result"], "replayed")
         self.assertEqual(len(profile["operations"]), 1)
         self.assertEqual(FakeProfileManager.updates, [])
 

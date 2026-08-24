@@ -2510,7 +2510,25 @@
                     this._parts = [];
                     return;
                 }
-                originalClipPoints.call(this);
+                try {
+                    originalClipPoints.call(this);
+                } catch (err) {
+                    const currentRendererBounds = this._renderer && this._renderer._bounds;
+                    const currentPixelBounds = this._pxBounds;
+                    const transientBoundsFailure = (
+                        !this._map
+                        || !this._renderer
+                        || !hasFiniteLeafletBounds(currentRendererBounds)
+                        || !hasFiniteLeafletBounds(currentPixelBounds)
+                        || (err instanceof TypeError && /(?:undefined|null).*\bx\b|\bx\b.*(?:undefined|null)/i.test(String(err.message || '')))
+                    );
+                    if (!transientBoundsFailure) throw err;
+                    this._parts = [];
+                    console.warn('[map renderer] transient polyline bounds race skipped', {
+                        layer: 'polyline',
+                        error: String(err && err.message || 'invalid_bounds')
+                    });
+                }
             };
             proto._chaosBoundsGuardInstalled = true;
         }
@@ -2681,7 +2699,7 @@
             cleanupLegacyPlayerAreaTooltipDom();
         }
 
-        function renderTerritoryAreaLayer(area = {}) {
+        function createTerritoryAreaLayerCandidate(area = {}) {
             const territoryId = territoryStableId(area);
             const points = (area.vertices || [])
                 .map(normalizeMapVertex)
@@ -2692,19 +2710,70 @@
                 return null;
             }
 
-            const polygon = registerLayerInArray('playerAreaLayers', L.polygon(points, territoryLayerStyle(area)));
-            polygon._chaosLayerRegistry = 'territoryAreaLayers';
+            const polygon = L.polygon(points, territoryLayerStyle(area));
+            polygon._chaosLayerRegistry = 'playerAreaLayersCandidate';
             polygon._chaosTerritoryId = territoryId;
             polygon._chaosTerritorySnapshot = { ...area, territory_id: territoryId };
-            polygon.addTo(map);
             bindTerritoryTooltip(polygon, territoryTooltip(area));
             bindTerritoryMapContextMenu(polygon);
-            window.territoryAreaLayers[territoryId] = {
+            return {
                 id: territoryId,
                 layer: polygon,
                 area: polygon._chaosTerritorySnapshot
             };
+        }
+
+        function renderTerritoryAreaLayer(area = {}) {
+            const candidate = createTerritoryAreaLayerCandidate(area);
+            if (!candidate) return null;
+            const polygon = candidate.layer;
+            polygon.addTo(map);
+            polygon._chaosLayerRegistry = 'territoryAreaLayers';
+            window.playerAreaLayers.push(polygon);
+            const territoryId = candidate.id;
+            window.territoryAreaLayers[territoryId] = {
+                ...candidate,
+                layer: polygon
+            };
             return polygon;
+        }
+
+        function replaceTerritoryAreaLayersAtomically(areas = []) {
+            if (!Array.isArray(areas)) return false;
+            const candidates = [];
+            const candidateRegistry = {};
+            try {
+                areas.forEach(area => {
+                    const candidate = createTerritoryAreaLayerCandidate(area);
+                    if (!candidate) throw new Error('invalid_territory_area_candidate');
+                    if (Object.prototype.hasOwnProperty.call(candidateRegistry, candidate.id)) {
+                        throw new Error(`duplicate_territory_area:${candidate.id}`);
+                    }
+                    candidate.layer.addTo(map);
+                    candidates.push(candidate.layer);
+                    candidateRegistry[candidate.id] = candidate;
+                });
+            } catch (err) {
+                candidates.forEach(layer => {
+                    try { removeMapLayerSafe(layer); } catch (_removeError) { /* keep previous snapshot */ }
+                });
+                console.warn('[map] territory candidate snapshot rejected', err);
+                return false;
+            }
+
+            const previousLayers = Array.from(new Set([
+                ...(window.playerAreaLayers || []),
+                ...Object.values(window.territoryAreaLayers || {}).map(entry => entry && entry.layer)
+            ].filter(Boolean)));
+            previousLayers.forEach(layer => {
+                try { removeMapLayerSafe(layer); } catch (err) {
+                    console.warn('[map] previous territory layer cleanup failed', err);
+                }
+            });
+            candidates.forEach(layer => { layer._chaosLayerRegistry = 'territoryAreaLayers'; });
+            window.playerAreaLayers = candidates;
+            window.territoryAreaLayers = candidateRegistry;
+            return true;
         }
 
         function renderTerritoryConflictLayer(conflict = {}) {
@@ -8290,6 +8359,7 @@
                 inFlight: {},
                 controllers: {},
                 critical: {},
+                promises: {},
                 paused: false,
                 pauseReason: '',
                 resumeTimer: null
@@ -8354,57 +8424,46 @@
 
             window.fetchMapSnapshot = async function(scope, url, options = {}) {
                 const state = window.mapRefreshState;
+                state.promises = state.promises || {};
                 const scopeKey = String(scope || 'map');
-                const isCriticalBoot = Boolean(options.critical || (window.mapBootState && window.mapBootState.loading && !window.mapBootState.ready));
+                const isCriticalBoot = Boolean(options.critical || options.recovery || (window.mapBootState && window.mapBootState.loading && !window.mapBootState.ready));
                 if (!isCriticalBoot && state.paused) {
                     return { skipped: true, reason: state.pauseReason || 'paused' };
                 }
                 if (state.inFlight[scopeKey]) {
-                    if (isCriticalBoot) {
-                        const previousController = state.controllers[scopeKey];
-                        const previousIsCritical = Boolean(state.critical && state.critical[scopeKey]);
-                        if (!previousIsCritical && previousController && typeof previousController.abort === 'function') {
-                            try {
-                                previousController.abort();
-                            } catch (err) {
-                                console.warn('[map refresh] critical boot abort failed', scopeKey, err);
-                            }
-                            delete state.controllers[scopeKey];
-                            delete state.inFlight[scopeKey];
-                            delete state.critical[scopeKey];
-                        }
-                    } else {
-                        return { skipped: true, reason: 'in_flight' };
+                    if (isCriticalBoot && state.promises[scopeKey]) {
+                        return state.promises[scopeKey];
                     }
-                }
-
-                if (state.inFlight[scopeKey]) {
-                    return { skipped: true, reason: isCriticalBoot ? 'critical_in_flight' : 'in_flight' };
+                    return { skipped: true, reason: 'in_flight' };
                 }
 
                 const controller = new AbortController();
                 const timeoutMs = Math.max(1000, Number(options.timeoutMs || 12000));
-                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
                 state.inFlight[scopeKey] = true;
                 state.controllers[scopeKey] = controller;
                 state.critical[scopeKey] = isCriticalBoot;
-
-                try {
-                    const res = await fetch(url, { signal: controller.signal });
-                    return { res };
-                } catch (err) {
-                    if (err && err.name === 'AbortError') {
-                        return { aborted: true, reason: state.pauseReason || 'aborted' };
+                const requestPromise = (async () => {
+                    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                    try {
+                        const res = await fetch(url, { signal: controller.signal });
+                        return { res };
+                    } catch (err) {
+                        if (err && err.name === 'AbortError') {
+                            return { aborted: true, reason: state.pauseReason || 'aborted' };
+                        }
+                        throw err;
+                    } finally {
+                        clearTimeout(timeoutId);
+                        if (state.controllers[scopeKey] === controller) {
+                            delete state.controllers[scopeKey];
+                            delete state.inFlight[scopeKey];
+                            delete state.critical[scopeKey];
+                            delete state.promises[scopeKey];
+                        }
                     }
-                    throw err;
-                } finally {
-                    clearTimeout(timeoutId);
-                    if (state.controllers[scopeKey] === controller) {
-                        delete state.controllers[scopeKey];
-                        delete state.inFlight[scopeKey];
-                        delete state.critical[scopeKey];
-                    }
-                }
+                })();
+                state.promises[scopeKey] = requestPromise;
+                return requestPromise;
             };
 
             window.buildClanVulnerabilityIcon = function(report) {
@@ -8506,30 +8565,54 @@
                 }
             };
 
-            window.requestTerritorySnapshotRecovery = function(reason = 'territory_delta_recovery', attempt = 0) {
-                if (window.territoryRecoveryTimer) {
-                    clearTimeout(window.territoryRecoveryTimer);
-                }
-                const recoveryAttempt = Math.max(0, Number(attempt || 0));
-                const recoveryDelays = [900, 1800, 3500];
-                window.territoryRecoveryTimer = setTimeout(() => {
-                    window.territoryRecoveryTimer = null;
-                    if (typeof window.refreshPlayerAreas === 'function') {
-                        Promise.resolve(window.refreshPlayerAreas({
-                            recovery: true,
-                            reason: recoveryAttempt ? `${reason}_retry_${recoveryAttempt}` : reason
-                        })).then(refreshed => {
-                            if (!refreshed && recoveryAttempt < recoveryDelays.length - 1) {
-                                window.requestTerritorySnapshotRecovery(reason, recoveryAttempt + 1);
+            window.territoryRecoveryState = window.territoryRecoveryState || {
+                requestedSequence: 0,
+                promise: null,
+                lastResult: null
+            };
+            window.requestTerritorySnapshotRecovery = function(reason = 'territory_delta_recovery') {
+                const state = window.territoryRecoveryState;
+                state.requestedSequence += 1;
+                const requestedReason = String(reason || 'territory_delta_recovery');
+                if (state.promise) return state.promise;
+                state.promise = (async () => {
+                    const recoveryDelays = [0, 250, 750, 1500];
+                    let attempt = 0;
+                    while (attempt < recoveryDelays.length) {
+                        const ownedSequence = state.requestedSequence;
+                        if (recoveryDelays[attempt]) {
+                            await new Promise(resolve => setTimeout(resolve, recoveryDelays[attempt]));
+                        }
+                        let refreshed = false;
+                        try {
+                            if (typeof window.refreshPlayerAreas === 'function') {
+                                refreshed = await window.refreshPlayerAreas({
+                                    critical: true,
+                                    recovery: true,
+                                    reason: attempt ? `${requestedReason}_retry_${attempt}` : requestedReason
+                                });
                             }
-                        }).catch(err => {
+                        } catch (err) {
                             console.warn('Territory snapshot recovery failed', err);
-                            if (recoveryAttempt < recoveryDelays.length - 1) {
-                                window.requestTerritorySnapshotRecovery(reason, recoveryAttempt + 1);
-                            }
-                        });
+                        }
+                        if (refreshed && ownedSequence === state.requestedSequence) {
+                            state.lastResult = { ok: true, sequence: ownedSequence, attempt };
+                            return true;
+                        }
+                        if (refreshed) attempt = 0;
+                        else attempt += 1;
                     }
-                }, recoveryDelays[Math.min(recoveryAttempt, recoveryDelays.length - 1)]);
+                    state.lastResult = {
+                        ok: false,
+                        sequence: state.requestedSequence,
+                        reason: 'bounded_recovery_exhausted'
+                    };
+                    console.warn('[map] territory snapshot recovery exhausted', state.lastResult);
+                    return false;
+                })().finally(() => {
+                    state.promise = null;
+                });
+                return state.promise;
             };
 
             window.applyTerritoryDelta = function(event) {
@@ -8627,7 +8710,10 @@
                 return true;
             };
 
-            window.refreshPlayerAreas = async function(options = {}) {
+            window.playerAreaRefreshPromise = null;
+            window.refreshPlayerAreas = function(options = {}) {
+                if (window.playerAreaRefreshPromise) return window.playerAreaRefreshPromise;
+                const refreshPromise = (async () => {
                 const isCritical = Boolean(options.critical);
                 const isNarrowViewport = typeof window.matchMedia === 'function'
                     && window.matchMedia('(max-width: 760px)').matches;
@@ -8637,7 +8723,8 @@
                 try {
                     const snapshot = await window.fetchMapSnapshot('player_areas', '/api/map/player-areas', {
                         timeoutMs: isCritical ? criticalTimeoutMs : (isNarrowViewport ? 30000 : 20000),
-                        critical: isCritical
+                        critical: isCritical,
+                        recovery: Boolean(options.recovery)
                     });
                     if (snapshot.skipped || snapshot.aborted) {
                         console.warn('[map] player areas snapshot not loaded', snapshot.reason || (snapshot.skipped ? 'skipped' : 'aborted'));
@@ -8651,8 +8738,8 @@
                     if (!res.ok) return false;
                     const data = await res.json();
                     if (refreshSeq !== window.playerAreaRefreshSeq) return false;
+                    if (!replaceTerritoryAreaLayersAtomically(data.areas || [])) return false;
                     cleanupLegacyPlayerAreaLayers();
-                    clearLayerArray('playerAreaLayers');
                     clearLayerArray('areaIntruderLayers');
                     clearLayerArray('contestedTargetLayers');
                     clearLayerArray('conflictAreaLayers');
@@ -8663,11 +8750,10 @@
                     // snapshot is rendered. Otherwise changed IDs accumulate
                     // overlapping polygons after each worker publication.
                     clearCanonicalTerritoryConflictLayers();
-                    resetTerritoryLayerRegistries();
+                    window.territoryConflictLayers = {};
 
                     window.mapViewerClan = String((data.player || {}).clan || window.mapViewerClan || '');
 
-                    (data.areas || []).forEach(renderTerritoryAreaLayer);
                     if (typeof window.refreshGhostTerritoryBadges === 'function') {
                         window.refreshGhostTerritoryBadges();
                     }
@@ -8764,6 +8850,11 @@
                 } finally {
                     window.endMapLoading(loadingToken);
                 }
+                })();
+                window.playerAreaRefreshPromise = refreshPromise.finally(() => {
+                    if (window.playerAreaRefreshPromise) window.playerAreaRefreshPromise = null;
+                });
+                return window.playerAreaRefreshPromise;
             };
 
             const MAP_PLAYER_ACTORS_SNAPSHOT_INTERVAL_MS = 30000;

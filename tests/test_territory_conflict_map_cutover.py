@@ -231,14 +231,15 @@ class TerritoryConflictMapCutoverTests(unittest.TestCase):
 
     def test_territory_snapshot_recovery_retries_after_inflight_or_abort(self):
         source = self.map_template
-        self.assertIn("recoveryDelays = [900, 1800, 3500]", source)
-        self.assertIn("if (!refreshed && recoveryAttempt < recoveryDelays.length - 1)", source)
-        self.assertIn("window.requestTerritorySnapshotRecovery(reason, recoveryAttempt + 1)", source)
+        self.assertIn("recoveryDelays = [0, 250, 750, 1500]", source)
+        self.assertIn("if (state.promise) return state.promise", source)
+        self.assertIn("if (window.playerAreaRefreshPromise) return window.playerAreaRefreshPromise", source)
+        self.assertIn("bounded_recovery_exhausted", source)
 
     def test_full_snapshot_removes_canonical_layers_before_reconciliation(self):
         source = self.map_template
         self.assertIn("function clearCanonicalTerritoryConflictLayers()", source)
-        refresh_start = source.index("window.refreshPlayerAreas = async function")
+        refresh_start = source.index("window.refreshPlayerAreas = function")
         refresh_source = source[refresh_start:]
         clear_index = refresh_source.index("clearCanonicalTerritoryConflictLayers();")
         reconcile_index = refresh_source.index("reconcileTerritoryConflictSnapshots(")

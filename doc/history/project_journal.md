@@ -1376,3 +1376,37 @@ Werdykt: `READY TO START SPRINT 131`.
   Control, canonical teleportu i shared delta client.
 - Nie wykonano deployu, restartu PM2 ani produkcyjnego backfillu; status sprintu
   pozostaje `IN PROGRESS`.
+
+## 2026-08-24 - Sprint 130.12.1 COMPLETE / Sprint 130.12.2 rozpoczęty
+
+`SPRINT 130.12.1 — COMPLETE`
+
+- Produkcyjny manual potwierdził latest-login-wins, natychmiastowe zastąpienie
+  poprzedniej niezależnej sesji, relogin bez czyszczenia cookies/cache oraz
+  poprawną pracę kilku kart współdzielących jedną sesję przeglądarki.
+- Stare requesty pozostały fail-closed bez mutacji danych. Publiczny katalog,
+  account-scoped catalog oraz desktop/tile state zachowały docelowy kontrakt.
+- Zakres session ownership zostaje zamknięty bez dalszych zmian.
+
+`SPRINT 130.12.2 — IN PROGRESS`
+
+- Rozpoczęto audit call chainów Leaflet/GhostNetwork/territory snapshot oraz
+  `/gonna-win`/OFS przed implementacją P0.
+- Zakres P1 Sprintu 130.12.3 pozostaje poza bieżącą pracą.
+- Bez deployu i restartu PM2 bez osobnej zgody.
+
+## 2026-08-24 - Sprint 130.12.2 READY FOR SERVER VALIDATION
+
+`SPRINT 130.12.2 — READY FOR SERVER VALIDATION`
+
+- Rozszerzono historyczny guard Leaflet `_clipPoints` o transient race zachodzący
+  już wewnątrz clippingu, bez maskowania niezwiązanych wyjątków.
+- GhostNetwork i territory areas przechodzą przez candidate-first atomic
+  replacement; błędny candidate zachowuje ostatnią poprawną warstwę.
+- Recovery territory ma jednego właściciela, bounded retry oraz współdzielony
+  refresh dla race `in_flight/aborted`.
+- `/gonna-win` otrzymał bounded lifecycle telemetry i request ordinal. Receipt
+  replay zachowuje canonical `operation_id`, a terminal OFS nie przechodzi w
+  false failure po wcześniej potwierdzonym success.
+- Celowane regresje: 169 testów Python oraz testy Node map/GN/recovery/OFS — OK.
+- Bez deployu, restartu PM2, zmian schematu bazy i bez rozszerzenia o P1 130.12.3.

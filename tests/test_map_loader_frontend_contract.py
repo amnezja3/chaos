@@ -64,6 +64,19 @@ class MapLoaderFrontendContractTest(unittest.TestCase):
         self.assertIn("!hasFiniteLeafletBounds(rendererBounds)", self.map_template)
         self.assertIn("!hasFiniteLeafletBounds(pixelBounds)", self.map_template)
         self.assertIn("this._parts = [];", self.map_template)
+        self.assertIn("transientBoundsFailure", self.map_template)
+        self.assertIn("transient polyline bounds race skipped", self.map_template)
+
+    def test_territory_recovery_is_coalesced_bounded_and_atomic(self):
+        self.assertIn("state.promises[scopeKey]", self.map_template)
+        self.assertIn("options.critical || options.recovery", self.map_template)
+        self.assertIn("window.territoryRecoveryState", self.map_template)
+        self.assertIn("if (state.promise) return state.promise", self.map_template)
+        self.assertIn("if (window.playerAreaRefreshPromise) return window.playerAreaRefreshPromise", self.map_template)
+        self.assertIn("bounded_recovery_exhausted", self.map_template)
+        self.assertIn("replaceTerritoryAreaLayersAtomically", self.map_template)
+        self.assertIn("invalid_territory_area_candidate", self.map_template)
+        self.assertIn("territory candidate snapshot rejected", self.map_template)
 
     def test_territory_polygons_bubble_contextmenu_to_empty_field_menu(self):
         style = self.map_template[

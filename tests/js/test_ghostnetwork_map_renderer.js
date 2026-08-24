@@ -69,10 +69,13 @@ function testLeafletPolylineBoundsGuard() {
     assert.ok(start >= 0 && end > start, "polyline bounds guard source must exist");
 
     let delegated = 0;
+    let clipBehavior = function renderNormally() {
+        delegated += 1;
+        this._parts = ["rendered"];
+    };
     const prototype = {
         _clipPoints() {
-            delegated += 1;
-            this._parts = ["rendered"];
+            return clipBehavior.call(this);
         }
     };
     const guardSandbox = {
@@ -99,6 +102,27 @@ function testLeafletPolylineBoundsGuard() {
     assert.strictEqual(delegated, 1, "valid subsequent frame must use Leaflet clipping");
     assert.strictEqual(line._parts.length, 1);
     assert.strictEqual(line._parts[0], "rendered");
+
+    clipBehavior = function transientRace() {
+        this._renderer._bounds = undefined;
+        throw new TypeError("Cannot read properties of undefined (reading 'x')");
+    };
+    const racingLine = Object.create(prototype);
+    racingLine._map = {};
+    racingLine._renderer = { _bounds: validBounds };
+    racingLine._pxBounds = validBounds;
+    racingLine._parts = ["stale"];
+    assert.doesNotThrow(() => racingLine._clipPoints());
+    assert.deepStrictEqual(Array.from(racingLine._parts), []);
+
+    clipBehavior = function unrelatedFailure() {
+        throw new Error("unrelated renderer defect");
+    };
+    const unrelatedLine = Object.create(prototype);
+    unrelatedLine._map = {};
+    unrelatedLine._renderer = { _bounds: validBounds };
+    unrelatedLine._pxBounds = validBounds;
+    assert.throws(() => unrelatedLine._clipPoints(), /unrelated renderer defect/);
 }
 
 testLeafletPolylineBoundsGuard();
@@ -174,6 +198,33 @@ function response(payload) {
         assert.strictEqual(layer.options.noClip, true, "GN connection must bypass Leaflet bounds clipping");
         assert.strictEqual(layer.points.length, 9, "active GN curve must use the lightweight point budget");
     });
+
+    assert.strictEqual(win.updateGhostConnectionLayer({
+        public_connection_id: "atomic-connection",
+        can_show_on_map: true,
+        state: "active",
+        endpoint_a: { latitude: 50.0, longitude: 20.0 },
+        endpoint_b: { latitude: 50.4, longitude: 20.5 }
+    }), true);
+    const previousAtomicLayer = win.ghostNetworkConnectionLayers["atomic-connection"];
+    const originalLayerGroup = sandbox.L.layerGroup;
+    sandbox.L.layerGroup = layers => ({
+        layers,
+        addTo() { throw new TypeError("renderer candidate failed"); }
+    });
+    assert.strictEqual(win.updateGhostConnectionLayer({
+        public_connection_id: "atomic-connection",
+        can_show_on_map: true,
+        state: "active",
+        endpoint_a: { latitude: 51.0, longitude: 21.0 },
+        endpoint_b: { latitude: 51.4, longitude: 21.5 }
+    }), false);
+    assert.strictEqual(
+        win.ghostNetworkConnectionLayers["atomic-connection"],
+        previousAtomicLayer,
+        "failed candidate must retain the previous valid connection layer"
+    );
+    sandbox.L.layerGroup = originalLayerGroup;
 
     mobileMode = true;
     const mobileConnection = win.createGhostConnectionLayer({
