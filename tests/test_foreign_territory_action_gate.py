@@ -121,6 +121,15 @@ class ForeignTerritoryActionGateTests(unittest.TestCase):
         legacy_targets = source.index("contested_targets_from_active_conflicts", guard)
         self.assertLess(guard, legacy_targets)
 
+    def test_frontend_treats_expected_403_as_controlled_system_message(self):
+        with open("templates/map_template.html", encoding="utf-8") as handle:
+            source = handle.read()
+
+        self.assertIn("function isForeignTerritoryProtectedResponse", source)
+        self.assertIn("isForeignTerritoryProtectedResponse(response, data)", source)
+        self.assertIn("isForeignTerritoryProtectedResponse(res, data)", source)
+        self.assertIn("addSystemMessage('warning', '🛡️ Terytorium'", source)
+
 
 if __name__ == "__main__":
     unittest.main()

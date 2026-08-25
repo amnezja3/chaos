@@ -5599,6 +5599,16 @@ function getVictimPickerScanId(item = {}) {
     return `${Number.isFinite(lat) ? lat.toFixed(6) : "x"}:${Number.isFinite(lng) ? lng.toFixed(6) : "y"}:${label}`;
 }
 
+function hasUsableGameplayCoordinates(value = {}) {
+    const lat = Number(value?.lat);
+    const lng = Number(value?.lng ?? value?.lon);
+    return Number.isFinite(lat)
+        && Number.isFinite(lng)
+        && lat >= -90 && lat <= 90
+        && lng >= -180 && lng <= 180
+        && !(Math.abs(lat) < 0.000001 && Math.abs(lng) < 0.000001);
+}
+
 function isVictimPickerMissingDisplayName(value) {
     const text = String(value || "").trim();
     return !text || text === "-" || text.toLowerCase() === "unknown";
@@ -5654,7 +5664,7 @@ function groupVictimPickerScanResults(results) {
 function openVictimPickerMapFocus(focus = {}, label = "Victim Picker") {
     const lat = Number(focus?.lat);
     const lng = Number(focus?.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    if (!hasUsableGameplayCoordinates({ lat, lng })) {
         addSystemMessage("warning", "VICTIM PICKER", "Brak pozycji celu dla mapy.");
         return false;
     }
@@ -5675,11 +5685,11 @@ async function teleportVictimPickerCandidate(candidate, refreshAfter = null) {
     const teleport = candidate?.teleport || candidate?.focus || {};
     const lat = Number(teleport.lat ?? candidate?.lat);
     const lng = Number(teleport.lng ?? candidate?.lng);
-    const label = candidate?.label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    if (!hasUsableGameplayCoordinates({ lat, lng })) {
         addSystemMessage("warning", "VICTIM PICKER", "Brak poprawnych wspolrzednych teleportu.");
         return false;
     }
+    const label = candidate?.label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
     const accepted = await showGhostDecisionDialog({
         title: "POTWIERDZENIE TELEPORTU",
@@ -5792,7 +5802,7 @@ function bindVictimPickerCommonActions(app, state) {
         const active = (Array.isArray(state.candidates) ? state.candidates : []).find(item => item.is_aimed);
         const target = state.aimed_target;
         const focus = active?.focus || active || target;
-        if (!focus) {
+        if (!hasUsableGameplayCoordinates(focus)) {
             addSystemMessage("warning", "VICTIM PICKER", "Brak aktywnego celu do pokazania.");
             return;
         }
@@ -6050,8 +6060,8 @@ function renderVictimPickerVictims(app, state) {
                             <div class="victim-picker-state" title="${candidate.is_aimed ? "Aktywny CEL" : candidate.can_aim ? risk.title : escapeHTML(reason || "Niedostepny")}">${getVictimPickerCandidateIcon(candidate)}</div>
                             <div class="victim-picker-actions">
                                 <button type="button" data-victim-picker-action="aim" data-target-id="${escapeHTML(candidate.target_id || "")}" title="${candidate.can_aim ? (candidate.is_aimed ? "Aktualny CEL" : "Oznacz jako CEL") : escapeHTML(reason || "Niedostepny")}" aria-label="${candidate.is_aimed ? "Aktualny CEL" : "Oznacz jako CEL"}" ${candidate.can_aim && !candidate.is_aimed ? "" : "disabled data-original-disabled=\"1\""}>${candidate.is_aimed ? VICTIM_PICKER_ICONS.aimed : VICTIM_PICKER_ICONS.aim}</button>
-                                <button type="button" data-victim-picker-action="show-map" data-target-id="${escapeHTML(candidate.target_id || "")}" title="Pokaz na mapie" aria-label="Pokaz na mapie">${VICTIM_PICKER_ICONS.map}</button>
-                                ${candidate.teleport ? `<button type="button" data-victim-picker-action="teleport" data-target-id="${escapeHTML(candidate.target_id || "")}" title="Teleport w okolice celu" aria-label="Teleport w okolice celu">${VICTIM_PICKER_ICONS.teleport}</button>` : ""}
+                                <button type="button" data-victim-picker-action="show-map" data-target-id="${escapeHTML(candidate.target_id || "")}" title="Pokaz na mapie" aria-label="Pokaz na mapie" ${hasUsableGameplayCoordinates(candidate.focus || candidate) ? "" : "disabled data-original-disabled=\"1\""}>${VICTIM_PICKER_ICONS.map}</button>
+                                ${candidate.teleport && hasUsableGameplayCoordinates(candidate.teleport) ? `<button type="button" data-victim-picker-action="teleport" data-target-id="${escapeHTML(candidate.target_id || "")}" title="Teleport w okolice celu" aria-label="Teleport w okolice celu">${VICTIM_PICKER_ICONS.teleport}</button>` : ""}
                             </div>
                         </article>
                     `;
@@ -6315,7 +6325,7 @@ function getTerritoryControlClusterByTargetId(state, targetId) {
 function openTerritoryControlMapFocus(focus = {}, label = "Territory Control") {
     const lat = Number(focus?.lat);
     const lng = Number(focus?.lng ?? focus?.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    if (!hasUsableGameplayCoordinates({ lat, lng })) {
         addSystemMessage("warning", "TERRITORY CONTROL", "Brak pozycji do pokazania na mapie.");
         return false;
     }
@@ -6335,11 +6345,11 @@ async function teleportTerritoryControlObject(item, refreshAfter = null) {
     const teleport = item?.teleport || item?.map_focus || item || {};
     const lat = Number(teleport.lat ?? item?.lat);
     const lng = Number(teleport.lng ?? item?.lng ?? item?.lon);
-    const label = item?.label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    if (!hasUsableGameplayCoordinates({ lat, lng })) {
         addSystemMessage("warning", "TERRITORY CONTROL", "Brak poprawnych wspolrzednych teleportu.");
         return false;
     }
+    const label = item?.label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
     const accepted = await showGhostDecisionDialog({
         title: "POTWIERDZENIE TELEPORTU",
@@ -7751,6 +7761,11 @@ function createBrowser() {
     let exchangeDashboard = { summary: {}, sectors: [], recent_transactions: [], history_7d: [] };
     let walletBalance = 0;
     let activeBrowserTab = "googleplex";
+    const browserQueries = {
+        googleplex: "",
+        exchange: "",
+        blacknet: ""
+    };
     let activeBlacknetSignalId = "";
     let blacknetPointerStartX = null;
     let pendingGoogleplexSearch = "";
@@ -8277,9 +8292,7 @@ function createBrowser() {
     const blacknetOpenGoogleplex = signal => {
         const query = blacknetCtaQuery(signal);
         pendingGoogleplexSearch = query;
-        if (query) {
-            search.value = query;
-        }
+        browserQueries.googleplex = query;
         switchBrowserTab("googleplex");
         if (query) {
             search.value = query;
@@ -8302,9 +8315,9 @@ function createBrowser() {
             || ""
         ).trim();
         if (action === "open_exchange_category" && sector && sector !== "market") {
-            search.value = sector;
+            browserQueries.exchange = sector;
         } else {
-            search.value = "";
+            browserQueries.exchange = "";
         }
         switchBrowserTab("exchange");
         addSystemMessage("info", "BlackNet", sector
@@ -9219,7 +9232,8 @@ function createBrowser() {
         walletBalance = Number(profile.hackcoins || 0);
         renderBrowserWallet();
         if (pendingGoogleplexSearch) {
-            search.value = pendingGoogleplexSearch;
+            browserQueries.googleplex = pendingGoogleplexSearch;
+            if (activeBrowserTab === "googleplex") search.value = pendingGoogleplexSearch;
         }
         renderCatalog();
     }
@@ -9310,7 +9324,12 @@ function createBrowser() {
     }
 
     function switchBrowserTab(tabName) {
+        if (tabName !== activeBrowserTab
+            && Object.prototype.hasOwnProperty.call(browserQueries, activeBrowserTab)) {
+            browserQueries[activeBrowserTab] = search.value;
+        }
         activeBrowserTab = tabName;
+        search.value = browserQueries[tabName] || "";
         updateBrowserChrome();
         updateBrowserNarrowMode();
         term.querySelectorAll('.browser-tab').forEach(button => {
@@ -9339,6 +9358,7 @@ function createBrowser() {
     });
     updateBrowserChrome();
     search.addEventListener('input', () => {
+        browserQueries[activeBrowserTab] = search.value;
         if (activeBrowserTab === "exchange") {
             renderExchange();
         } else if (activeBrowserTab === "blacknet") {

@@ -662,11 +662,27 @@ Regresje obejmują zachowanie kanonicznej tożsamości filaru przez picker i
 `expected_target`, read-only catalog oraz pierwszy konflikt CAS zapisu pulpitu.
 Bez deployu, restartu PM2 i commita.
 
+## Zamknięcie Sprintu 130.12.2 po manualu produkcyjnym
+
+**Status końcowy:** `SPRINT 130.12.2 — COMPLETE`
+
+- Powracający 409 ostatniej kropki filaru został ostatecznie przypisany do
+  `ProfileWriteConflict` wtórnej projekcji profilu poprzedniego właściciela już
+  po canonical capture, nie do target identity, ownership CAS, OFS ani session
+  generation.
+- Full-profile writer zastąpiono małym, rebasowanym patchem z bounded CAS retry.
+  Konflikt projekcji nie może już zamienić zatwierdzonego transferu w false
+  failure; session/precommit mismatch nadal pozostaje fail-closed.
+- Manual produkcyjny potwierdził finalizację filarów za pierwszym razem oraz
+  stabilny rebuild territory/GN bez białego overlaya.
+- Pełny zapis diagnostyczny:
+  `doc/hardbugfix/gonna_win_conflict_pillar_final_dot_409_sprint_130_12_2_2026-08-25.md`.
+
 ---
 
 # Sprint 130.12.3 — State Boundaries / UX / Cyberner Hot Paths P1
 
-**Status początkowy:** PLANNED
+**Status bieżący:** `SPRINT 130.12.3 — READY FOR SERVER VALIDATION`
 **Priorytet:** P1
 
 ## Cel
@@ -734,6 +750,23 @@ BlackNet CTA
 ```
 
 Nie manipuluje globalnym inputem.
+
+### Stan wejściowy potwierdzony 2026-08-25
+
+`CTA BlackNet → właściwy produkt i właściwa zakładka` jest już spełnione przez
+istniejący dispatcher:
+
+- `open_googleplex` i `open_googleplex_search` używają
+  `blacknetOpenGoogleplex()` oraz przełączają wyłącznie na `googleplex`;
+- `open_ghost_exchange`, `open_exchange_market` i `open_exchange_category`
+  używają `blacknetOpenExchange()` oraz przełączają wyłącznie na `exchange`;
+- query produktu i sector GX pochodzą z osobnych pól kontraktu CTA.
+
+Status tego punktu: `CONFIRMED IN CODE — NO REIMPLEMENTATION`.
+
+W ramach 130.12.3 wspólny element DOM `search` otrzymał trzy niezależne modele
+query (`googleplex`, `exchange`, `blacknet`). Przełączenie zakładki zapisuje stan
+wyłącznie zakładki opuszczanej i przywraca stan zakładki docelowej.
 
 Payload katalogu:
 
@@ -813,7 +846,8 @@ Backend teleportu również fail-closed.
 
 `0,0` nie może oznaczać „brak celu”.
 
-Jeżeli `(0,0)` jest autentycznym canonical targetem, może być zaakceptowane tylko z prawidłową stable identity.
+W ścieżkach Victim Picker i Territory Control `(0,0)` jest zawsze odrzucane
+fail-closed; nie jest reprezentacją braku celu ani dozwolonym fallbackiem.
 
 ## Testy
 
@@ -1003,6 +1037,45 @@ Oczekiwane:
 bounded query count
 bounded payload
 ```
+
+## Wynik implementacji 2026-08-25
+
+- CTA BlackNet do GGPL/GX potwierdzono w istniejącym dispatcherze bez
+  reimplementacji. Query trzech zakładek są odseparowane, a katalog przyjmuje
+  payload dopiero po `response.ok` i `Array.isArray()`.
+- Victim Picker czyta aktywny cel z `PlayerTargetRuntimeStore`; stale
+  `profile.aimed_target`, brak współrzędnych i `(0,0)` nie tworzą focusu ani
+  teleportu. Territory Control używa tego samego fail-closed guarda.
+- Oczekiwany backendowy `403 foreign_territory_protected` pozostaje bez zmian,
+  ale frontend mapy tłumaczy go na komunikat systemowy bez wyjątku i czerwonego
+  technicznego error UX.
+- Różnica dotted connections między dwoma kontami została sklasyfikowana jako
+  `EXPECTED`: backendowa viewer projection pomija connection, jeżeli dowolny
+  endpoint nie ma `location_visibility=exact`. Renderer respektuje wyłącznie
+  `state` i `can_show_on_map`; nie osłabiono visibility.
+- Canonical tile scheme nadal pochodzi z walidowanych desktop settings. Po trzech
+  kolejnych błędach `tileerror` zewnętrznego providera warstwa przechodzi runtime
+  na OSM, bez zapisywania fallbacku jako preferencji użytkownika.
+- Cyberner bootstrap, GET i POST wiadomości używają integralność-gated
+  `UserIdentityProjectionStore`. Usunięto runtime `load_profile_readonly()`,
+  `get_profile(peer)`, `list_profiles()` i profilowy skan klanu z tych ścieżek.
+
+```text
+PROFILE HOT PATH AUDIT
+new runtime call sites: 0 heavy
+profile_full_read: 0
+profile_full_write: 0
+profile_bytes: 0
+list_profiles/all-user scans: 0
+per-recipient profile reads: 0
+allowed heavy recovery/write call sites: none
+```
+
+- Regresje: 40 celowanych testów Python dla 130.12.3 — OK; dodatkowe 3 testy
+  desktop/catalog persistence — OK; Node GN renderer i map snapshot recovery —
+  OK; profil syntetyczny Cybernera 35 MB — OK; `py_compile`, `node --check` i
+  `git diff --check` — OK.
+- Bez deployu, restartu PM2 i bez commita.
 
 ## Definition of Done 130.12.3
 

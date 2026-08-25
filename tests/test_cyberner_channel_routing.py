@@ -11,7 +11,11 @@ from database import (
     GameStateDeltaBus,
     MailStore,
     SystemMessageStore,
+    UserIdentityProjectionStore,
     UserStore,
+    get_hot_path_metrics,
+    reset_hot_path_metrics,
+    restore_hot_path_metrics,
 )
 from tests.session_generation_fixture import SessionGenerationFixture
 
@@ -53,13 +57,14 @@ class CybernerChannelRoutingTest(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.db_path = os.path.join(self.temp_dir.name, "cyberner-routing.sqlite3")
         self.user_store = UserStore(db_path=self.db_path, seed_path=os.path.join(self.temp_dir.name, "missing.json"))
+        self.identity_store = UserIdentityProjectionStore(db_path=self.db_path)
         self.mail_store = MailStore(db_path=self.db_path)
         self.world_store = CybernerWorldStore(db_path=self.db_path)
         self.clan_store = CybernerClanStore(db_path=self.db_path)
         self.cursor_store = CybernerChannelCursorStore(db_path=self.db_path)
         self.system_store = SystemMessageStore(db_path=self.db_path)
         self.delta_bus = GameStateDeltaBus(db_path=self.db_path)
-        for username, clan in (("alice", "red"), ("bob", "blue"), ("carol", "red")):
+        for username, clan in (("alice", "virex"), ("bob", "sentinel_order"), ("carol", "virex")):
             self.user_store.save_profile_guarded(
                 valid_profile(username, clan),
                 expected_revision=0,
@@ -70,6 +75,7 @@ class CybernerChannelRoutingTest(unittest.TestCase):
         self.stack = patch.multiple(
             run,
             user_store=self.user_store,
+            identity_projection_store=self.identity_store,
             mail_store=self.mail_store,
             cyberner_world_store=self.world_store,
             cyberner_clan_store=self.clan_store,
@@ -141,23 +147,23 @@ class CybernerChannelRoutingTest(unittest.TestCase):
         alice = self.client_for("alice")
         sent = alice.post("/api/chats/messages", json={
             "scope": "channel",
-            "peer": "clan:red",
-            "body": "red only",
-            "client_message_id": "red-1",
+            "peer": "clan:virex",
+            "body": "virex only",
+            "client_message_id": "virex-1",
         })
         denied = self.client_for("bob").get(
-            "/api/chats/messages?scope=channel&peer=clan:red"
+            "/api/chats/messages?scope=channel&peer=clan:virex"
         )
         carol = self.client_for("carol").get(
-            "/api/chats/messages?scope=clan&peer=clan:red"
+            "/api/chats/messages?scope=clan&peer=clan:virex"
         )
 
         self.assertEqual(sent.status_code, 200)
-        self.assertEqual(sent.get_json()["channel"]["channel_key"], "clan:red")
+        self.assertEqual(sent.get_json()["channel"]["channel_key"], "clan:virex")
         self.assertEqual(denied.status_code, 400)
         self.assertEqual(carol.status_code, 200)
-        self.assertEqual([item["body"] for item in carol.get_json()["messages"]], ["red only"])
-        self.assertEqual(self.clan_store.list_messages("blue"), [])
+        self.assertEqual([item["body"] for item in carol.get_json()["messages"]], ["virex only"])
+        self.assertEqual(self.clan_store.list_messages("sentinel_order"), [])
 
     def test_friends_channel_stays_on_local_legacy_fanout(self):
         self.mail_store.add_contact_pair("alice", "carol")
@@ -170,7 +176,7 @@ class CybernerChannelRoutingTest(unittest.TestCase):
         self.assertEqual(len(self.mail_store.list_messages("alice", "channel", "friends")), 1)
         self.assertEqual(len(self.mail_store.list_messages("carol", "channel", "friends")), 1)
         self.assertEqual(self.world_store.list_messages(), [])
-        self.assertEqual(self.clan_store.list_messages("red"), [])
+        self.assertEqual(self.clan_store.list_messages("virex"), [])
 
     def test_notification_failure_does_not_change_committed_success(self):
         client = self.client_for("alice")
@@ -226,8 +232,8 @@ class CybernerChannelRoutingTest(unittest.TestCase):
             "enabled": True, "world": True, "clan": True, "live_delivery": True,
         }, clear=True):
             response = self.client_for("alice").post("/api/chats/messages", json={
-                "scope": "clan", "peer": "clan:red", "body": "red live",
-                "client_message_id": "red-live-1",
+                "scope": "clan", "peer": "clan:virex", "body": "virex live",
+                "client_message_id": "virex-live-1",
             })
 
         self.assertEqual(response.status_code, 200)
@@ -254,6 +260,36 @@ class CybernerChannelRoutingTest(unittest.TestCase):
         self.assertFalse(payload["channel_states"]["world"]["available"])
         self.assertTrue(payload["channel_states"]["friends"]["available"])
         self.assertTrue(payload["channel_states"]["clan"]["available"])
+
+    def test_cyberner_runtime_paths_do_not_read_or_scan_full_profiles(self):
+        heavy = self.user_store.get_profile_with_revision("alice")
+        heavy_profile = heavy["profile"]
+        heavy_profile["hot_path_padding"] = "x" * 35_000_000
+        self.user_store.save_profile_guarded(
+            heavy_profile,
+            expected_revision=heavy["profile_revision"],
+            source="test.cyberner_channel_routing.heavy_profile",
+        )
+        client = self.client_for("alice")
+        token = reset_hot_path_metrics()
+        try:
+            with patch.object(self.user_store, "get_profile", side_effect=AssertionError("full profile read")), \
+                    patch.object(self.user_store, "list_profiles", side_effect=AssertionError("profile scan")), \
+                    patch.object(self.user_store, "list_usernames_by_clan", side_effect=AssertionError("clan profile scan")):
+                bootstrap = client.get("/api/mail/bootstrap")
+                sent = client.post("/api/chats/messages", json={
+                    "scope": "clan", "peer": "clan:virex", "body": "bounded identity",
+                    "client_message_id": "hot-path-clan-1",
+                })
+            metrics = get_hot_path_metrics()
+        finally:
+            restore_hot_path_metrics(token)
+
+        self.assertEqual(bootstrap.status_code, 200)
+        self.assertEqual(sent.status_code, 200)
+        self.assertEqual(metrics["profile_full_read"], 0)
+        self.assertEqual(metrics["profile_full_write"], 0)
+        self.assertEqual(metrics["profile_bytes"], 0)
 
 
 if __name__ == "__main__":

@@ -521,7 +521,7 @@ def cyberner_unread_counts(username, profile=None, channel_states=None):
                 channel_states["world"] = {"available": False, "error": "read_failed"}
             print(f"[CYBERNER_READ] channel=world user={username} operation=unread error={exc}")
     if cyberner_shared_store_enabled("clan"):
-        profile = profile or load_profile_readonly(username, strip_sensitive=True) or {}
+        profile = profile or identity_projection_store.get_identity(username) or {}
         clan_key = get_profile_clan(profile)
         if clan_key:
             try:
@@ -564,10 +564,15 @@ def cyberner_mark_route_read(username, route, messages=None):
 def cyberner_route_recipients(username, profile, route):
     channel = route["channel"]
     if channel == "world" and cyberner_shared_store_enabled("world"):
-        return [name for name in user_store.list_usernames() if name != username]
+        return [
+            name for name in identity_projection_store.list_recipient_ids("public", limit=500)
+            if name != username
+        ]
     if channel == "clan" and cyberner_shared_store_enabled("clan"):
         return [
-            name for name in user_store.list_usernames_by_clan(route["store_key"])
+            name for name in identity_projection_store.list_recipient_ids(
+                "clan", clan_code=route["store_key"], limit=500
+            )
             if name != username
         ]
     legacy_scope, legacy_peer = cyberner_legacy_scope_peer(route)
@@ -16325,6 +16330,22 @@ def victim_picker_position(profile):
     return {"lat": lat, "lng": lng}
 
 
+def victim_picker_valid_coordinates(target):
+    target = target if isinstance(target, dict) else {}
+    try:
+        lat = float(target.get("lat"))
+        lng = float(target.get("lng", target.get("lon")))
+    except (TypeError, ValueError, AttributeError):
+        return False
+    return bool(
+        math.isfinite(lat)
+        and math.isfinite(lng)
+        and -90.0 <= lat <= 90.0
+        and -180.0 <= lng <= 180.0
+        and not (abs(lat) < 0.000001 and abs(lng) < 0.000001)
+    )
+
+
 def victim_picker_app_installed(profile):
     return app_is_installed(profile or {}, VICTIM_PICKER_APP_ID)
 
@@ -16344,6 +16365,8 @@ def victim_picker_distance(candidate, origin):
 
 
 def victim_picker_focus_payload(candidate):
+    if not victim_picker_valid_coordinates(candidate):
+        return None
     try:
         return {
             "lat": float(candidate.get("lat")),
@@ -16383,7 +16406,7 @@ def build_victim_picker_candidate(viewer_profile, raw_target, candidate_source, 
         and distance_m <= action_range
     )
     reason = str(disabled_reason or "").strip()
-    if lat is None or lng is None:
+    if not victim_picker_valid_coordinates(target):
         can_aim = False
         reason = reason or "missing_position"
     elif origin is None:
@@ -16472,6 +16495,8 @@ def build_victim_picker_active_target_candidate(viewer_profile, origin, action_r
         lat = float(aimed.get("lat"))
         lng = float(aimed.get("lng", aimed.get("lon")))
     except (TypeError, ValueError):
+        return None
+    if not victim_picker_valid_coordinates({"lat": lat, "lng": lng}):
         return None
 
     payload = {
@@ -20731,6 +20756,12 @@ def map_view():
         folium_js=Markup('<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>'),
         profile=map_profile_boot_payload(profile),
         map_viewer_username=session.get("user", ""),
+        map_tile_scheme={
+            "selected": scheme_id,
+            "fallback": "osm",
+            "fallback_tiles": MAP_TILE_SCHEMES["osm"]["tiles"],
+            "fallback_attr": MAP_TILE_SCHEMES["osm"]["attr"],
+        },
         session_generation=session_generation_client_context(),
     )
 
@@ -24159,6 +24190,12 @@ def victim_picker_candidates():
     profile = dict(profile)
     profile["targets"] = player_marked_target_store.list_targets(username)
     profile["apps"] = normalize_app_contracts(profile.get("apps", []))
+    active_target = player_target_runtime_store.get_active_target(username)
+    profile["aimed_target"] = (
+        dict(active_target)
+        if victim_picker_valid_coordinates(active_target)
+        else {}
+    )
     if not victim_picker_app_installed(profile):
         return jsonify({
             "success": False,
@@ -24199,6 +24236,12 @@ def victim_picker_aim():
     profile = dict(profile)
     profile["targets"] = player_marked_target_store.list_targets(username)
     profile["apps"] = normalize_app_contracts(profile.get("apps", []))
+    active_target = player_target_runtime_store.get_active_target(username)
+    profile["aimed_target"] = (
+        dict(active_target)
+        if victim_picker_valid_coordinates(active_target)
+        else {}
+    )
     if not victim_picker_app_installed(profile):
         return jsonify({
             "success": False,
@@ -25847,9 +25890,6 @@ def ensure_mail_seed(profile=None):
     if not username:
         return None
 
-    if profile is None:
-        profile = sync_session_profile()
-
     default_messages = resources_store.get(
         "messages",
         default=[]
@@ -25925,14 +25965,13 @@ def cyberner_channel_recipients(username, profile, peer_name):
         if not clan or requested_clan != clan:
             raise ValueError("Kanal klanu jest niedostepny.")
 
-        recipients = []
-        for item in user_store.list_profiles():
-            other_username = item.get("username")
-            if not other_username or other_username == username:
-                continue
-            if get_profile_clan(item) == clan:
-                recipients.append(other_username)
-        return recipients
+        return [
+            other_username
+            for other_username in identity_projection_store.list_recipient_ids(
+                "clan", clan_code=clan, limit=500
+            )
+            if other_username != username
+        ]
 
     raise ValueError("Nieznany kanal Cybernera.")
 
@@ -25948,7 +25987,7 @@ def cyberner_message_recipients(username, profile, scope, peer_name):
         return cyberner_channel_recipients(username, profile, peer_name)
     if scope == "direct":
         peer_name = str(peer_name or "").strip()
-        if peer_name and peer_name != username and user_store.get_profile(peer_name):
+        if peer_name and peer_name != username and user_store.has_user(peer_name):
             return [peer_name]
     return []
 
@@ -25959,10 +25998,9 @@ def mail_bootstrap():
         return jsonify({"error": "Brak danych użytkownika"}), 401
 
     username = session.get("user")
-    profile = load_profile_readonly(username, strip_sensitive=True)
+    profile = identity_projection_store.get_identity(username)
     if not profile:
-        invalidate_authenticated_session("profile_not_found")
-        return jsonify({"ok": False, "error": "profile_not_found"}), 401
+        return jsonify({"ok": False, "error": "identity_projection_unavailable"}), 409
     username = ensure_mail_seed(profile)
     mail_store.touch_presence(username)
     contacts = mail_store.list_contacts(username)
@@ -26027,7 +26065,7 @@ def request_player_contact():
     if target_username == username:
         return jsonify({"success": False, "error": "Nie mozesz dodac samego siebie."}), 400
 
-    target_profile = user_store.get_profile(target_username)
+    target_profile = identity_projection_store.get_identity(target_username)
     if not target_profile:
         return jsonify({"success": False, "error": "Nie ma takiego uzytkownika."}), 404
 
@@ -26062,7 +26100,7 @@ def request_player_contact():
             "contacts": mail_store.list_contacts(username),
         })
 
-    requester_profile = user_store.get_profile(username) or {}
+    requester_profile = identity_projection_store.get_identity(username) or {}
     requester_nick = requester_profile.get("nick") or username
     add_cyberner_direct_notification(
         target_username,
@@ -26094,10 +26132,9 @@ def chat_messages():
         return jsonify({"error": "Nie jesteś zalogowany"}), 401
 
     username = session.get("user")
-    profile = load_profile_readonly(username, strip_sensitive=True)
+    profile = identity_projection_store.get_identity(username)
     if not profile:
-        invalidate_authenticated_session("profile_not_found")
-        return jsonify({"error": "profile_not_found"}), 401
+        return jsonify({"error": "identity_projection_unavailable"}), 409
     username = ensure_mail_seed(profile)
     scope = request.args.get("scope", "group")
     peer_name = request.args.get("peer", "global" if scope in {"group", "world"} else "")
@@ -26143,10 +26180,9 @@ def send_chat_message():
         return jsonify({"error": "Nie jesteś zalogowany"}), 401
 
     username = session.get("user")
-    profile = load_profile_readonly(username, strip_sensitive=True)
+    profile = identity_projection_store.get_identity(username)
     if not profile:
-        invalidate_authenticated_session("profile_not_found")
-        return jsonify({"error": "profile_not_found"}), 401
+        return jsonify({"error": "identity_projection_unavailable"}), 409
     username = ensure_mail_seed(profile)
     data = request.get_json() or {}
     scope = data.get("scope", "group")

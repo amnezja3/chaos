@@ -1874,6 +1874,9 @@
   <script id="map-viewer-data" type="application/json">
     {{ map_viewer_username | tojson }}
   </script>
+  <script id="map-tile-scheme-data" type="application/json">
+    {{ map_tile_scheme | tojson }}
+  </script>
   <script id="session-generation-config" type="application/json">
     {{ session_generation | tojson }}
   </script>
@@ -1895,6 +1898,36 @@
     <script>
         const map = window[Object.keys(window).find(k => k.startsWith("map_"))];
         window.chaosMap = map;
+        const mapTileScheme = JSON.parse(
+            document.getElementById("map-tile-scheme-data").textContent
+        );
+
+        function installMapTileSchemeFallback() {
+            if (!map || !window.L || mapTileScheme.selected === mapTileScheme.fallback) return;
+            map.eachLayer(layer => {
+                if (!(layer instanceof L.TileLayer)) return;
+                let consecutiveErrors = 0;
+                let fallbackApplied = false;
+                layer.on("tileload", () => {
+                    if (!fallbackApplied) consecutiveErrors = 0;
+                });
+                layer.on("tileerror", () => {
+                    if (fallbackApplied) return;
+                    consecutiveErrors += 1;
+                    if (consecutiveErrors < 3) return;
+                    fallbackApplied = true;
+                    layer.options.attribution = mapTileScheme.fallback_attr;
+                    layer.setUrl(mapTileScheme.fallback_tiles, false);
+                    if (map.attributionControl) map.attributionControl._update();
+                    console.warn("[map tiles] selected scheme unavailable; using runtime OSM fallback", {
+                        selected: mapTileScheme.selected,
+                        fallback: mapTileScheme.fallback
+                    });
+                });
+            });
+        }
+
+        installMapTileSchemeFallback();
         installLeafletCircleMarkerBoundsGuard();
         installLeafletPolylineBoundsGuard();
         let lastContextWasMarker = false;
@@ -2328,6 +2361,13 @@
 
         window.showSecretPathLore = showSecretPathLore;
 
+        function isForeignTerritoryProtectedResponse(response, data) {
+            return response && response.status === 403 && (
+                data?.error === 'foreign_territory_protected'
+                || data?.reason === 'foreign_territory_protected'
+            );
+        }
+
         async function aimMapTargetOnly(target, trigger) {
             const normalized = normalizeMapMenuTarget(target || {});
             if (trigger && trigger.getAttribute('aria-busy') === 'true') return;
@@ -2357,6 +2397,12 @@
                 });
                 const data = await response.json();
                 if (!response.ok || !data.success || !data.target) {
+                    if (isForeignTerritoryProtectedResponse(response, data)) {
+                        addSystemMessage('warning', '🛡️ Terytorium', data.message || data.status || 'Ten obiekt jest chroniony przez obce terytorium.');
+                        closeAllMapMenus();
+                        if (trigger) trigger.setAttribute('aria-busy', 'false');
+                        return;
+                    }
                     throw new Error(data.message || data.error || 'Nie udalo sie ustawic celu.');
                 }
                 window.profileData = window.profileData || {};
@@ -5510,6 +5556,13 @@
                 });
                 const data = await res.json();
                 if (!res.ok || data.success === false || data.blocked) {
+                    if (isForeignTerritoryProtectedResponse(res, data)) {
+                        if (pendingMarkedTarget) {
+                            settlePendingMarkedTarget(pendingMarkedTarget, 'failed', 'TARGET PROTECTED');
+                        }
+                        addSystemMessage('warning', '🛡️ Terytorium', data.message || data.status || 'Ten obiekt jest chroniony przez obce terytorium.');
+                        return null;
+                    }
                     throw new Error(data.status || data.message || data.error || 'Operacja mapy nie powiodla sie.');
                 }
                 

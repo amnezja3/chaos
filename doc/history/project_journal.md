@@ -1474,3 +1474,55 @@ Werdykt: `READY TO START SPRINT 131`.
   bez rozwijania obiektu DevTools.
 - Walidacja lokalna: 210 testów Python oraz Node `/gonna-win` lifecycle i OFS —
   OK; bez deployu, restartu PM2 i commita.
+
+## 2026-08-25 - Sprint 130.12.2 COMPLETE
+
+`SPRINT 130.12.2 — COMPLETE`
+
+- Rozstrzygająca telemetryka wykazała, że powracający `409` ostatniej kropki
+  filaru nie pochodził z target/ownership guardów. Canonical capture był już
+  zapisany, a odpowiedź psuł późniejszy `ProfileWriteConflict` pełnej projekcji
+  profilu poprzedniego właściciela.
+- Full-profile writer zastąpiono małym rebasowanym patchem z bounded CAS retry.
+  Wyczerpany konflikt wtórnej projekcji nie zmienia canonical success w false
+  failure; session/precommit mismatch nadal pozostaje fail-closed.
+- Regresje lokalne: 81/81 oraz 305/305 — OK; `py_compile`, `node --check` i
+  `git diff --check` — OK.
+- Manual produkcyjny potwierdził poprawne finalizacje filarów konfliktu za
+  pierwszym razem. Map/GN rebuild pozostał stabilny, bez białego overlaya.
+- Trwały opis incydentu i procedura diagnostyczna:
+  `doc/hardbugfix/gonna_win_conflict_pillar_final_dot_409_sprint_130_12_2_2026-08-25.md`.
+
+## 2026-08-25 - Sprint 130.12.3 rozpoczęty
+
+`SPRINT 130.12.3 — IN PROGRESS`
+
+- Audit kodu potwierdził, że routing CTA BlackNet do właściwego produktu i
+  zakładki GGPL/GX został już naprawiony: dispatcher ma rozdzielone handlery
+  Googleplex i Ghost Exchange. Punkt oznaczono jako spełniony bez ponownej
+  implementacji.
+- Wspólny DOM input `search` nadal przechowuje query obu zakładek, dlatego
+  izolacja filtrów GGPL/GX/BlackNet pozostaje w zakresie 130.12.3.
+- Rozpoczęto prace nad pozostałymi P1: fail-closed Victim Picker, foreign 403 UX,
+  GN visibility, tile scheme persistence/fallback i hot path Cybernera.
+
+## 2026-08-25 - Sprint 130.12.3 READY FOR SERVER VALIDATION
+
+`SPRINT 130.12.3 — READY FOR SERVER VALIDATION`
+
+- CTA BlackNet → GGPL/GX pozostało bez reimplementacji; audit potwierdził
+  właściwy produkt i tab. Rozdzielono jedynie query GGPL/GX/BlackNet i zachowano
+  type guard katalogu przed `.filter()`.
+- Victim Picker i Territory Control odrzucają brak/stale targetu oraz `(0,0)`;
+  canonical aktywny target pochodzi z `PlayerTargetRuntimeStore`.
+- `foreign_territory_protected` pozostaje poprawnym backendowym 403, a mapa
+  pokazuje kontrolowany komunikat systemowy bez wyjątku frontendowego.
+- Dotted connection różna dla dwóch kont jest zgodna z viewer visibility:
+  connection nie trafia do payloadu, gdy endpoint nie ma exact location.
+- Tile scheme zachowuje canonical desktop preference, a awaria providera ma
+  runtime fallback do OSM bez zmiany zapisanej preferencji.
+- Cyberner usunięto z full-profile hot path: identity, klan i audience korzystają
+  z bounded `UserIdentityProjectionStore`. Test z profilem 35 MB: zero full
+  read/write/bytes i zero skanów profili.
+- Celowane testy Python, regresje Node, `py_compile`, `node --check` oraz
+  `git diff --check` przeszły. Bez deployu, restartu PM2 i commita.

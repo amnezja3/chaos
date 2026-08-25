@@ -294,6 +294,32 @@ class GhostVisibilityServiceTest(unittest.TestCase):
         self.assertFalse(inactive["can_show_on_map"])
         self.assertEqual(inactive["integrity"], 0)
 
+    def test_connection_visibility_difference_is_viewer_projection_not_renderer_state(self):
+        code_a, code_b, connection = self.connected_pair()
+        self.set_contained(code_a, owner="main", territory_clan="virex")
+        self.set_active(code_b, owner="echo_owner")
+        snapshot = self.repo.build_internal_snapshot(self.cycle["cycle_id"])
+
+        owner = self.visibility.build_snapshot_for_viewer(
+            snapshot,
+            {"viewer_id": "main", "viewer_clan": "virex", "audience_scope": "player"},
+        )
+        clanmate = self.visibility.build_snapshot_for_viewer(
+            snapshot,
+            {"viewer_id": "other_virex", "viewer_clan": "virex", "audience_scope": "player"},
+        )
+
+        owner_connection = next(
+            item for item in owner["connections"]
+            if item["connection_id"] == connection["connection_id"]
+        )
+        self.assertTrue(owner_connection["can_show_on_map"])
+        self.assertIn(owner_connection["state"], {"half_from_a", "half_from_b"})
+        self.assertFalse(any(
+            item["connection_id"] == connection["connection_id"]
+            for item in clanmate["connections"]
+        ))
+
     def test_territory_control_summary_does_not_leak_hidden_part_identity(self):
         hidden = self.set_contained("P3", owner="main", territory_clan="virex")
         projected = self.visibility.project_territory_component_for_viewer(
