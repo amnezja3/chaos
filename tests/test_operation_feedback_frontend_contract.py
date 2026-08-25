@@ -255,6 +255,8 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("current_target_id: (data && data.current_target_id) ||", notify)
         self.assertIn("request_ordinal: requestOrdinal", notify)
         self.assertIn("[GONNA_WIN_RESPONSE] ${JSON.stringify(responseTrace)}", notify)
+        self.assertIn('error: (data && data.error) || ""', notify)
+        self.assertIn("retryable: data && data.retryable === true", notify)
 
     def test_scan_ports_profile_has_required_mvp_libraries(self):
         required = {

@@ -5209,6 +5209,8 @@ async function notifyGonnaWin(appId, appWindow = null, {
                 success: data && data.success === true,
                 blocked: data && data.blocked === true,
                 reason: (data && data.reason) || "",
+                error: (data && data.error) || "",
+                retryable: data && data.retryable === true,
                 expected_target_id: (data && data.expected_target_id) || "",
                 current_target_id: (data && data.current_target_id) || "",
                 receipt_result: (data && data.operation_lifecycle && data.operation_lifecycle.receipt_result) || "",

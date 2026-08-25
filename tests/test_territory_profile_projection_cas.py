@@ -20,6 +20,77 @@ def profile_record(revision, **updates):
 
 
 class TerritoryProfileProjectionCasTest(unittest.TestCase):
+    def test_capture_owner_loss_projection_rebases_instead_of_false_409(self):
+        target = {
+            "target_id": "pillar-1", "lat": 52.1, "lng": 21.2,
+            "label": "Conflict Pillar",
+        }
+        fresh_hacked = [{"target_id": "pillar-2", "lat": 52.2, "lng": 21.3}]
+        records = [
+            profile_record(30, aimed_target=target, hacked=[target], nick="before"),
+            profile_record(31, aimed_target=target, hacked=[target], nick="concurrent"),
+        ]
+        applied_profile = copy.deepcopy(records[-1]["profile"])
+        applied_profile.update({
+            "aimed_target": {},
+            "hacked": fresh_hacked,
+            "captured_targets_source": "sqlite",
+        })
+
+        with patch.object(
+            run.player_target_runtime_store, "clear_if_matches", return_value=True
+        ), patch.object(
+            run.territory_store, "list_captured_targets", return_value=fresh_hacked
+        ), patch.object(
+            run, "load_profile_write_record", side_effect=records
+        ), patch.object(
+            run.user_store, "patch_profile_guarded",
+            side_effect=[
+                ProfileWriteConflict("concurrent writer"),
+                {"applied": True, "profile": applied_profile, "profile_revision": 32},
+            ],
+        ) as guarded_patch:
+            result = run.project_lost_territory_after_capture("alice", target)
+
+        self.assertTrue(result["applied"])
+        self.assertFalse(result["deferred"])
+        self.assertTrue(result["runtime_cleared"])
+        self.assertEqual(2, guarded_patch.call_count)
+        self.assertEqual(
+            [item.kwargs["expected_revision"] for item in guarded_patch.call_args_list],
+            [30, 31],
+        )
+        for item in guarded_patch.call_args_list:
+            self.assertEqual(
+                set(item.args[1]),
+                {"aimed_target", "hacked", "captured_targets_source"},
+            )
+            self.assertNotIn("nick", item.args[1])
+
+    def test_capture_owner_loss_projection_defers_exhausted_cas_after_canonical_commit(self):
+        target = {
+            "target_id": "pillar-1", "lat": 52.1, "lng": 21.2,
+            "label": "Conflict Pillar",
+        }
+        records = [profile_record(revision, aimed_target=target, hacked=[target])
+                   for revision in (40, 41, 42)]
+
+        with patch.object(
+            run.player_target_runtime_store, "clear_if_matches", return_value=True
+        ), patch.object(
+            run.territory_store, "list_captured_targets", return_value=[]
+        ), patch.object(
+            run, "load_profile_write_record", side_effect=records
+        ), patch.object(
+            run.user_store, "patch_profile_guarded",
+            side_effect=ProfileWriteConflict("busy profile writer"),
+        ) as guarded_patch:
+            result = run.project_lost_territory_after_capture("alice", target)
+
+        self.assertFalse(result["applied"])
+        self.assertTrue(result["deferred"])
+        self.assertEqual(3, guarded_patch.call_count)
+
     def test_controlled_recovery_conflict_consolidation_has_no_reward_or_profile_side_effect(self):
         conflict = {
             "conflict_id": "conflict-recovery",

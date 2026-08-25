@@ -7612,6 +7612,78 @@ def clear_aimed_target_if_matches(username, reference_target):
     return bool(runtime_cleared or (projection and projection.get("applied")))
 
 
+def project_lost_territory_after_capture(username, reference_target):
+    """Refresh the previous owner's compatibility projection after capture.
+
+    TerritoryStore and PlayerTargetRuntimeStore are authoritative here. The
+    profile is only a projection, so a concurrent profile writer must be
+    rebased instead of turning an already committed ownership transfer into a
+    false HTTP 409.
+    """
+    runtime_cleared = False
+    try:
+        runtime_cleared = bool(player_target_runtime_store.clear_if_matches(
+            username,
+            reference_target,
+            source="territory_capture_owner_loss",
+        ))
+    except Exception as exc:
+        print(f"[target runtime] owner loss clear failed user={username} error={exc}", flush=True)
+
+    projection_state = {"removed_from_profile": False}
+
+    def owner_projection(current_profile):
+        current_hacked = current_profile.get("hacked") or []
+        _remaining, removed = filter_targets_by_position(
+            current_hacked,
+            reference_target,
+            match_label=True,
+        )
+        if not removed:
+            _remaining, removed = filter_targets_by_position(
+                current_hacked,
+                reference_target,
+                match_label=False,
+            )
+        projection_state["removed_from_profile"] = bool(removed)
+        updates = {
+            "hacked": territory_store.list_captured_targets(username),
+            "captured_targets_source": "sqlite",
+        }
+        aimed = current_profile.get("aimed_target") or {}
+        if aimed and targets_share_selection_identity(aimed, reference_target):
+            updates["aimed_target"] = {}
+        return updates
+
+    try:
+        projection = patch_profile_projection_with_retry(
+            username,
+            owner_projection,
+            "territory.capture_owner_loss_projection",
+        )
+    except ProfileWriteConflict as exc:
+        # The canonical transfer has already committed. A conflict rebuild or
+        # the next snapshot read can repair this compatibility mirror; it must
+        # not make the attacker repeat an already successful final action.
+        print(
+            "[TERRITORY_OWNER_PROFILE_SYNC_DEFERRED] "
+            f"user={username} reason=profile_write_conflict error={exc}",
+            flush=True,
+        )
+        return {
+            "applied": False,
+            "deferred": True,
+            "runtime_cleared": runtime_cleared,
+            **projection_state,
+        }
+    return {
+        "applied": bool(projection and projection.get("applied")),
+        "deferred": False,
+        "runtime_cleared": runtime_cleared,
+        **projection_state,
+    }
+
+
 def infer_target_type_from_target(target):
     target = target or {}
     target_mode = str(target.get("target_mode") or "").strip()
@@ -27792,20 +27864,7 @@ def gonna_win():
         )
 
         if contest_owner_username and contest_owner_username != session["user"]:
-            owner_mgr = UserProfileManager(contest_owner_username)
             step_started_at = time.perf_counter()
-            removed_from_profile = owner_mgr.remove_from_list_by_coords(
-                "hacked",
-                captured_target.get("lat"),
-                captured_target.get("lng"),
-                label=captured_target.get("label")
-            )
-            if not removed_from_profile:
-                owner_mgr.remove_from_list_by_coords(
-                    "hacked",
-                    captured_target.get("lat"),
-                    captured_target.get("lng")
-                )
             removed_from_store = territory_store.remove_captured_target(
                 contest_owner_username,
                 captured_target.get("lat"),
@@ -27818,19 +27877,19 @@ def gonna_win():
                     captured_target.get("lat"),
                     captured_target.get("lng")
                 )
-            owner_mgr.update_profile({
-                "hacked": territory_store.list_captured_targets(contest_owner_username),
-                "captured_targets_source": "sqlite",
-            })
-            clear_aimed_target_if_matches(contest_owner_username, captured_target)
+            owner_projection = project_lost_territory_after_capture(
+                contest_owner_username,
+                captured_target,
+            )
             app_flow_debug_timed(
                 flow_id,
                 "gonna_win_contest_owner_remove_target_done",
                 app_flow_started_at,
                 step_started_at,
                 owner=contest_owner_username,
-                removed_from_profile=removed_from_profile,
+                removed_from_profile=owner_projection.get("removed_from_profile", False),
                 removed_from_store=removed_from_store,
+                projection_deferred=owner_projection.get("deferred", False),
             )
 
         if vulnerability_report:
@@ -27920,15 +27979,23 @@ def gonna_win():
             )
             if not defer_conflict_rebuild:
                 refresh_territory_stats_snapshot(owner_profile, owner_areas)
-                user_store.patch_profile_guarded(
-                    contest_owner_username,
-                    {
-                        "territory_stats": owner_profile.get("territory_stats", {}),
-                        "exp": owner_profile.get("exp"),
-                    },
-                    source="territory.owner_loss_projection",
-                    expected_revision=int(owner_record["profile_revision"]),
-                )
+                try:
+                    patch_profile_projection_with_retry(
+                        contest_owner_username,
+                        lambda current_profile: {
+                            "territory_stats": refresh_territory_stats_snapshot(
+                                current_profile, owner_areas
+                            ).get("territory_stats", {}),
+                            "exp": current_profile.get("exp"),
+                        },
+                        "territory.owner_loss_projection",
+                    )
+                except ProfileWriteConflict as exc:
+                    print(
+                        "[TERRITORY_OWNER_STATS_SYNC_DEFERRED] "
+                        f"user={contest_owner_username} reason=profile_write_conflict error={exc}",
+                        flush=True,
+                    )
             app_flow_debug_timed(
                 flow_id,
                 "gonna_win_owner_rebuild_deferred" if defer_conflict_rebuild
@@ -28121,11 +28188,18 @@ def gonna_win():
                 flush=True,
             )
         else:
-            user_store.patch_profile_guarded(
-                session["user"],
-                capture_profile_update,
-                source="gonna_win.capture_profile",
-            )
+            try:
+                user_store.patch_profile_guarded(
+                    session["user"],
+                    capture_profile_update,
+                    source="gonna_win.capture_profile",
+                )
+            except ProfileWriteConflict as exc:
+                print(
+                    "[TERRITORY_CAPTURE_PROFILE_SYNC_DEFERRED] "
+                    f"user={session.get('user')} reason=profile_write_conflict error={exc}",
+                    flush=True,
+                )
         app_flow_debug_timed(
             flow_id,
             "gonna_win_capture_profile_update_deferred" if defer_conflict_rebuild
