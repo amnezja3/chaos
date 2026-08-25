@@ -1526,3 +1526,22 @@ Werdykt: `READY TO START SPRINT 131`.
   read/write/bytes i zero skanów profili.
 - Celowane testy Python, regresje Node, `py_compile`, `node --check` oraz
   `git diff --check` przeszły. Bez deployu, restartu PM2 i commita.
+
+## 2026-08-25 - Sprint 130.12.3 COMPLETE
+
+`SPRINT 130.12.3 — COMPLETE`
+
+- Manual produkcyjny potwierdził wszystkie wcześniejsze punkty 130.12.3.
+- MARK na obcym terytorium korzysta już z kontrolowanego handlera w obu
+  ścieżkach (`/api/map/aim-target` i `/map-action`): system message jest obecny,
+  backendowy 403 pozostaje prawidłowy, a wpis sieciowy DevTools nie jest
+  blockerem.
+- Dyrektywa GhostSignal została doprecyzowana: pełne połączenie dwóch aktywnych
+  części jest publicznym globalnym stanem dla same/foreign/neutral viewerów.
+  Aktywne endpointy są public/exact, lecz identity, profesja i supermoc nadal
+  podlegają istniejącej projekcji.
+- Regresje potwierdzają wspólne active connection dla trzech viewerów oraz brak
+  zmian dla pooled/hidden/contained/half/inactive connections.
+- Walidacja końcowa: 45 testów Python, Node GN renderer i map snapshot recovery,
+  `py_compile`, `node --check` oraz `git diff --check` — OK.
+- Bez deployu, restartu PM2 i commita.

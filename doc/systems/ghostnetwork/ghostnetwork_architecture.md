@@ -234,6 +234,13 @@ Stan wizualny linii jest wyliczany:
 - obie części aktywne — pełna linia;
 - utrata aktywności — zerwanie pełnego połączenia.
 
+Pełne połączenie pomiędzy dwoma aktywnymi częściami jest publicznym, globalnym
+stanem GhostNetwork. Musi być obecne w projekcji każdego gracza niezależnie od
+klanu i relacji do właścicieli terytoriów. Publiczna linia może ujawniać wyłącznie
+publiczne identyfikatory endpointów, ich dokładne lokalizacje, klany i aktywny
+stan wymagane do renderowania przepływu; nie ujawnia kodu/nazwy części,
+profesji, supermocy ani ukrytej topologii innych połączeń.
+
 ## `visibility`
 
 Buduje projekcję stanu odpowiednią dla odbiorcy.

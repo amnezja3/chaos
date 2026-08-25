@@ -682,7 +682,7 @@ Bez deployu, restartu PM2 i commita.
 
 # Sprint 130.12.3 — State Boundaries / UX / Cyberner Hot Paths P1
 
-**Status bieżący:** `SPRINT 130.12.3 — READY FOR SERVER VALIDATION`
+**Status bieżący:** `SPRINT 130.12.3 — COMPLETE`
 **Priorytet:** P1
 
 ## Cel
@@ -1093,8 +1093,30 @@ Cyberner bez heavy profile hot path
 Końcowy status:
 
 ```text
-SPRINT 130.12.3 — READY FOR SERVER VALIDATION
+SPRINT 130.12.3 — COMPLETE
 ```
+
+### Domknięcie manuala produkcyjnego 2026-08-25
+
+- Manual potwierdził BlackNet/Googleplex/Ghost Exchange, izolację filtrów,
+  type-safe katalog, Victim Picker i Territory Control bez phantom targetu i
+  `(0,0)`, kontrolowany foreign territory scan, tile fallback oraz Cyberner bez
+  heavy-profile freeze.
+- Osobna ścieżka MARK została potwierdzona dla obu frontendowych call chainów:
+  `/api/map/aim-target` i `/map-action` rozpoznają backendowy
+  `403 foreign_territory_protected`, pokazują system message i nie przechodzą do
+  technicznego error UX. Sam wpis `Failed to load resource: 403` w DevTools jest
+  oczekiwany; backend nadal fail-closed zwraca 403.
+- Kanon i implementacja potwierdzają, że aktywna część ma dla każdego widza
+  `location_visibility=exact`, publiczny klan i aktywny status. Pełne połączenie
+  dwóch aktywnych części jest globalnie publiczne, ale zaszyfrowana tożsamość,
+  profesja i supermoc pozostają ukryte dla obcego/neutralnego widza.
+- Dodano regresje: to samo aktywne połączenie jest widoczne dla viewerów same
+  clan, foreign clan i neutral; pooled/hidden oraz dotychczasowe half/inactive
+  visibility pozostają bez zmian.
+- Testy domykające: 22 Python — OK; pełny celowany pakiet 130.12.3: 45 Python —
+  OK; Node GN renderer i map snapshot recovery — OK; `py_compile`,
+  `node --check` i `git diff --check` — OK.
 
 ---
 

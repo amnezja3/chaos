@@ -280,6 +280,65 @@ class GhostVisibilityServiceTest(unittest.TestCase):
         self.assertEqual(active["integrity"], 100)
         self.assertEqual(active["flow_direction"], "a_to_b")
 
+    def test_same_active_connection_is_public_for_same_foreign_and_neutral_viewers(self):
+        code_a, code_b, connection = self.connected_pair()
+        part_a = self.set_active(code_a, owner="owner-a")
+        self.set_active(code_b, owner="owner-b")
+        snapshot = self.repo.build_internal_snapshot(self.cycle["cycle_id"])
+        viewers = {
+            "same_clan": {
+                "viewer_id": "same-clan",
+                "viewer_clan": part_a["clan_code"],
+                "audience_scope": "player",
+            },
+            "foreign_clan": {
+                "viewer_id": "foreign-clan",
+                "viewer_clan": "unaffiliated_clan",
+                "audience_scope": "player",
+            },
+            "neutral": {
+                "viewer_id": "neutral",
+                "viewer_clan": "",
+                "audience_scope": "player",
+            },
+        }
+
+        for label, viewer in viewers.items():
+            with self.subTest(viewer=label):
+                projected = self.visibility.build_snapshot_for_viewer(snapshot, viewer)
+                active = next(
+                    item for item in projected["connections"]
+                    if item["connection_id"] == connection["connection_id"]
+                )
+                self.assertEqual(active["state"], "active")
+                self.assertTrue(active["can_show_on_map"])
+                self.assertEqual(active["integrity"], 100)
+                self.assertEqual(active["endpoint_a"]["visibility_level"] in {
+                    "full_owner", "full_clan", "active_foreign"
+                }, True)
+                self.assertEqual(active["endpoint_b"]["visibility_level"] in {
+                    "full_owner", "full_clan", "active_foreign"
+                }, True)
+                self.assertIsNotNone(active["endpoint_a"]["latitude"])
+                self.assertIsNotNone(active["endpoint_b"]["longitude"])
+
+    def test_hidden_neighbor_rules_are_unchanged_for_all_viewers(self):
+        code_a, _code_b, connection = self.connected_pair()
+        self.set_active(code_a, owner="owner-a")
+        snapshot = self.repo.build_internal_snapshot(self.cycle["cycle_id"])
+
+        for viewer in (
+            {"viewer_id": "same", "viewer_clan": "virex", "audience_scope": "player"},
+            {"viewer_id": "foreign", "viewer_clan": "phantom_mesh", "audience_scope": "player"},
+            {"viewer_id": "neutral", "viewer_clan": "", "audience_scope": "player"},
+        ):
+            with self.subTest(viewer=viewer["viewer_id"]):
+                projected = self.visibility.build_snapshot_for_viewer(snapshot, viewer)
+                self.assertFalse(any(
+                    item["connection_id"] == connection["connection_id"]
+                    for item in projected["connections"]
+                ))
+
     def test_connection_projection_keeps_inactive_technical_state_off_map(self):
         code_a, code_b, connection = self.connected_pair()
         self.set_public(code_a)

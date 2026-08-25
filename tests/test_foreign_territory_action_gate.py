@@ -130,6 +130,22 @@ class ForeignTerritoryActionGateTests(unittest.TestCase):
         self.assertIn("isForeignTerritoryProtectedResponse(res, data)", source)
         self.assertIn("addSystemMessage('warning', '🛡️ Terytorium'", source)
 
+        aim_start = source.index("async function aimMapTargetOnly")
+        aim_end = source.index("function findClanVulnerabilityForTarget", aim_start)
+        mark_start = source.index("async function mapAction")
+        mark_end = source.index("const bikeDirectionIcons", mark_start)
+        aim_path = source[aim_start:aim_end]
+        mark_path = source[mark_start:mark_end]
+
+        self.assertIn("fetch('/api/map/aim-target'", aim_path)
+        self.assertIn("isForeignTerritoryProtectedResponse(response, data)", aim_path)
+        self.assertIn("addSystemMessage('warning'", aim_path)
+        self.assertIn("fetch('/map-action'", mark_path)
+        self.assertIn("action === 'mark_target'", mark_path)
+        self.assertIn("isForeignTerritoryProtectedResponse(res, data)", mark_path)
+        self.assertIn("settlePendingMarkedTarget", mark_path)
+        self.assertIn("addSystemMessage('warning'", mark_path)
+
 
 if __name__ == "__main__":
     unittest.main()

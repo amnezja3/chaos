@@ -814,6 +814,12 @@ Gracze mogą wtedy wydedukować:
 
 Połówka zostaje uzupełniona i powstaje pełne połączenie.
 
+Pełne aktywne połączenie jest publicznym stanem globalnym: tę samą linię widzą
+gracze właściwych klanów, obcych klanów oraz gracze bez relacji klanowej. Jest to
+bezpieczne, ponieważ aktywny endpoint ma już publiczny status i dokładną
+lokalizację. Nie upublicznia to zaszyfrowanej tożsamości części, profesji,
+supermocy ani połączeń prowadzących do pooled/hidden/contained endpointów.
+
 ```text
 AKTYWNA CZĘŚĆ ━━━━━━━━━━━━━━━━━ AKTYWNA CZĘŚĆ
 ```
