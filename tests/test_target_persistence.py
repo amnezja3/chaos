@@ -636,6 +636,68 @@ class PlayerTargetRuntimeIdentityTest(unittest.TestCase):
                 if os.path.exists(candidate):
                     os.remove(candidate)
 
+    def test_rebuilt_conflict_pillar_keeps_runtime_progress_across_target_id_rotation(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            store = PlayerTargetRuntimeStore(db_path=path)
+            previous = {
+                "target_id": "territory:pillar:revision-4",
+                "target_mode": "territory_contest",
+                "stable_conflict_id": "conflict-stable-9",
+                "foreign_area_id": 41,
+                "expected_owner_username": "owner",
+                "lat": 52.1,
+                "lng": 21.2,
+                "actions_allowed": {"scan_ports": True},
+            }
+            rebuilt = {
+                **previous,
+                "target_id": "territory:pillar:revision-5",
+                "ownership_version": 5,
+                "actions_allowed": {"trace": True},
+            }
+            store.upsert_aimed("alice", rebuilt)
+
+            result = store.upsert_aimed(
+                "alice",
+                previous,
+                status="in_progress",
+                source="late_conflict_app",
+                expected_target=previous,
+            )
+
+            self.assertNotEqual("selection_changed", result["status"])
+            self.assertEqual("territory:pillar:revision-5", result["target"]["target_id"])
+            self.assertTrue(result["target"]["actions_allowed"]["scan_ports"])
+            self.assertTrue(result["target"]["actions_allowed"]["trace"])
+        finally:
+            for suffix in ("", "-wal", "-shm"):
+                candidate = f"{path}{suffix}"
+                if os.path.exists(candidate):
+                    os.remove(candidate)
+
+    def test_conflict_pillars_do_not_alias_across_stable_conflicts(self):
+        current = {
+            "target_id": "territory:current",
+            "target_mode": "territory_contest",
+            "stable_conflict_id": "conflict-a",
+            "foreign_area_id": 41,
+            "expected_owner_username": "owner",
+            "lat": 52.1,
+            "lng": 21.2,
+        }
+        other_conflict = {
+            **current,
+            "target_id": "territory:other",
+            "stable_conflict_id": "conflict-b",
+            "foreign_area_id": 42,
+        }
+
+        self.assertFalse(
+            PlayerTargetRuntimeStore._same_conflict_target_lineage(current, other_conflict)
+        )
+
     def test_stale_app_progress_cannot_replace_new_selection(self):
         fd, path = tempfile.mkstemp(suffix=".sqlite3")
         os.close(fd)

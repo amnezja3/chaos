@@ -5203,6 +5203,17 @@ async function notifyGonnaWin(appId, appWindow = null, {
                 })
             });
             data = await response.json();
+            appFlowTrace(flowId, "gonna_win_response", {
+                app_id: appId,
+                status: response.status,
+                success: data && data.success === true,
+                blocked: data && data.blocked === true,
+                reason: (data && data.reason) || "",
+                expected_target_id: (data && data.expected_target_id) || "",
+                current_target_id: (data && data.current_target_id) || "",
+                receipt_result: (data && data.operation_lifecycle && data.operation_lifecycle.receipt_result) || "",
+                request_ordinal: requestOrdinal
+            });
         } catch (error) {
             throw error;
         }

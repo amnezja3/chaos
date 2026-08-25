@@ -1428,3 +1428,24 @@ Werdykt: `READY TO START SPRINT 131`.
 - Walidacja lokalna: 231 testów Python oraz testy Node GN renderer, map snapshot
   recovery, OFS i `/gonna-win` lifecycle — OK.
 - Bez deployu, restartu PM2, zmian schematu bazy i bez commita.
+
+## 2026-08-25 - Sprint 130.12.2 second operation revalidation correction
+
+`SPRINT 130.12.2 — READY FOR SERVER REVALIDATION`
+
+- Drugi manual potwierdził stabilny rebuild territory/GN bez białego overlaya
+  oraz brak startowych `409` Browser/WebDragon.
+- Nadal sporadycznie występował `409` Trace Compass wyłącznie dla filarów
+  konfliktu; natychmiastowe ponowienie dla tego samego filaru przechodziło.
+- Audit wykazał niespójność identity guardów: warstwa domenowa rozpoznawała ten
+  sam filar po linii konfliktu i pozycji, lecz `PlayerTargetRuntimeStore` przy
+  CAS wymagał identycznego `target_id`. Snapshot sprzed przebudowy/odświeżenia
+  mógł więc zostać odrzucony jako `selection_changed` mimo ciągłości filaru.
+- Runtime dopuszcza teraz alias wyłącznie przy zgodnej stabilnej linii konfliktu
+  albo zgodnym foreign area, tej samej pozycji i bez zmiany właściciela. Inny
+  konflikt, pozycja lub właściciel nadal kończą się fail-closed.
+- Dodano regresję store i pełnego `/gonna-win`: późny snapshot scala postęp,
+  zachowuje nowszy runtime `target_id` i nie wymaga drugiej próby. Frontend loguje
+  jawnie status, reason, expected/current target id, receipt result i ordinal.
+- Walidacja lokalna: 201 testów Python oraz testy Node `/gonna-win`, OFS i map
+  snapshot recovery — OK; bez deployu, restartu PM2 i commita.

@@ -11549,6 +11549,76 @@ class PlayerTargetRuntimeStore:
         return bool(current_position and current_position == incoming_position)
 
     @classmethod
+    def _same_conflict_target_lineage(cls, current_target, incoming_target, precision=5):
+        """Alias a rebuilt conflict-pillar snapshot without aliasing another pillar."""
+        current_target = current_target if isinstance(current_target, dict) else {}
+        incoming_target = incoming_target if isinstance(incoming_target, dict) else {}
+
+        def is_conflict_target(target):
+            return bool(
+                str(target.get("target_mode") or "").strip() == "territory_contest"
+                or target.get("stable_conflict_id")
+                or target.get("conflict_id")
+                or target.get("foreign_area_id")
+            )
+
+        if not is_conflict_target(current_target) or not is_conflict_target(incoming_target):
+            return False
+
+        def position(target):
+            try:
+                return (
+                    round(float(target.get("lat")), precision),
+                    round(float(target.get("lng", target.get("lon"))), precision),
+                )
+            except (TypeError, ValueError):
+                return None
+
+        current_position = position(current_target)
+        incoming_position = position(incoming_target)
+        if not current_position or current_position != incoming_position:
+            return False
+
+        def owner(target):
+            return cls._clean_text(
+                target.get("expected_owner_username")
+                or target.get("contest_owner_username")
+                or target.get("owner_username")
+            )
+
+        current_owner = owner(current_target)
+        incoming_owner = owner(incoming_target)
+        if current_owner and incoming_owner and current_owner != incoming_owner:
+            return False
+
+        def conflict_ids(target):
+            values = {
+                cls._clean_text(target.get("stable_conflict_id")),
+                cls._clean_text(target.get("conflict_id")),
+            }
+            source_ids = target.get("source_conflict_ids") or []
+            if not isinstance(source_ids, (list, tuple, set)):
+                source_ids = [source_ids]
+            values.update(cls._clean_text(value) for value in source_ids)
+            values.discard("")
+            return values
+
+        if conflict_ids(current_target) & conflict_ids(incoming_target):
+            return True
+
+        current_area = cls._clean_text(current_target.get("foreign_area_id"))
+        incoming_area = cls._clean_text(incoming_target.get("foreign_area_id"))
+        return bool(current_area and current_area == incoming_area)
+
+    @classmethod
+    def _same_runtime_target(cls, current_target, incoming_target):
+        return bool(
+            cls.target_key(current_target) == cls.target_key(incoming_target)
+            or cls._same_ordinary_map_target(current_target, incoming_target)
+            or cls._same_conflict_target_lineage(current_target, incoming_target)
+        )
+
+    @classmethod
     def _progress_from_target(cls, target):
         target = target if isinstance(target, dict) else {}
         allowed = target.get("actions_allowed") or {}
@@ -11676,9 +11746,8 @@ class PlayerTargetRuntimeStore:
             current = self._row_payload(row)
             if current and isinstance(expected_target, dict) and expected_target:
                 expected_key = self.target_key(expected_target)
-                expected_matches_current = bool(
-                    current.get("target_key") == expected_key
-                    or self._same_ordinary_map_target(current.get("target"), expected_target)
+                expected_matches_current = self._same_runtime_target(
+                    current.get("target"), expected_target
                 )
                 if not expected_matches_current:
                     self._record_event(
@@ -11696,11 +11765,7 @@ class PlayerTargetRuntimeStore:
                         "version": current.get("version", 0),
                     }
             same_runtime_target = bool(
-                current
-                and (
-                    current.get("target_key") == target_key
-                    or self._same_ordinary_map_target(current.get("target"), target)
-                )
+                current and self._same_runtime_target(current.get("target"), target)
             )
             if same_runtime_target and current.get("status") == self.STATUS_CAPTURED:
                 self._record_event(conn, username, "target.aimed_rejected", target_key, current.get("version"), {"source": source})

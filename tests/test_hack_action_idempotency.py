@@ -168,6 +168,60 @@ class HackActionIdempotencyTests(unittest.TestCase):
 
         self.assertEqual(first, retry)
 
+    def test_gonna_win_accepts_late_snapshot_from_same_rebuilt_conflict_pillar(self):
+        previous = {
+            "target_id": "territory:pillar:revision-4",
+            "target_mode": "territory_contest",
+            "stable_conflict_id": "conflict-stable-9",
+            "foreign_area_id": 41,
+            "expected_owner_username": "owner",
+            "contest_owner_username": "owner",
+            "lat": 52.1,
+            "lng": 21.2,
+            "label": "Conflict Pillar",
+            "security": {"trace_guard": True},
+            "actions_allowed": {"trace": False},
+        }
+        rebuilt = {
+            **previous,
+            "target_id": "territory:pillar:revision-5",
+            "ownership_version": 5,
+        }
+        profile = complete_test_profile()
+        profile["apps"] = [{
+            "id": "trace_tool",
+            "name": "Trace Tool",
+            "map_actions": ["trace"],
+            "operation_types": [],
+            "requires_off": [],
+            "interferes_with": [],
+            "levels": [{"options": []}],
+        }]
+        profile["aimed_target"] = rebuilt
+        run.player_target_runtime_store.upsert_aimed("main", rebuilt)
+        client = run.app.test_client()
+        headers = self._authenticate_client(client)
+
+        with patch.object(run, "sync_session_profile", return_value=profile), \
+                patch.object(run, "create_missing_operations_for_app_target", return_value=[]):
+            response = client.post(
+                "/gonna-win",
+                headers=headers,
+                json={
+                    "app_id": "trace_tool",
+                    "operation_only": True,
+                    "expected_target": previous,
+                },
+            )
+
+        self.assertEqual(200, response.status_code)
+        payload = response.get_json()
+        self.assertTrue(payload["success"])
+        self.assertNotEqual("target_selection_changed", payload.get("reason"))
+        stored = run.player_target_runtime_store.get_active_target("main")
+        self.assertEqual("territory:pillar:revision-5", stored["target_id"])
+        self.assertTrue(stored["actions_allowed"]["trace"])
+
     def test_create_operations_for_app_action_skips_active_duplicate(self):
         run.player_operation_store.clear_all()
         profile = {"operations": []}

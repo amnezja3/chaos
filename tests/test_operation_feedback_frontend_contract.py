@@ -244,6 +244,17 @@ class OperationFeedbackFrontendContractTest(unittest.TestCase):
         self.assertIn("ownership_version: aimedTarget.ownership_version", context)
         self.assertNotIn('`${flowId || "manual"}:${appId || name}`', context)
 
+    def test_gonna_win_response_trace_exposes_conflict_identity(self):
+        notify = self.function_source(
+            "async function notifyGonnaWin",
+            "function notifyOpenMapsTargetHacked",
+        )
+        self.assertIn('appFlowTrace(flowId, "gonna_win_response"', notify)
+        self.assertIn("reason: (data && data.reason) ||", notify)
+        self.assertIn("expected_target_id: (data && data.expected_target_id) ||", notify)
+        self.assertIn("current_target_id: (data && data.current_target_id) ||", notify)
+        self.assertIn("request_ordinal: requestOrdinal", notify)
+
     def test_scan_ports_profile_has_required_mvp_libraries(self):
         required = {
             "defaults", "duration_profiles", "provisional_timelines",
