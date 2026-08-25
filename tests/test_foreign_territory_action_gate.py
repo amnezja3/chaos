@@ -62,6 +62,54 @@ class ForeignTerritoryActionGateTests(unittest.TestCase):
         self.assertTrue(response.get_json()["blocked"])
         self.assertEqual(response.get_json()["error"], "foreign_territory_protected")
 
+    def test_scan_outside_then_mark_returned_target_inside_is_fail_closed(self):
+        scan_center = (52.0000, 21.0000)
+        target_point = (52.0010, 21.0010)
+        aimed_before = {"target_id": "existing-target", "lat": 51.9, "lng": 20.9}
+        profile = {
+            "username": "attacker",
+            "curently_possition": {"lat": scan_center[0], "lng": scan_center[1]},
+            "aimed_target": dict(aimed_before),
+        }
+
+        def territory_gate(_username, lat, lng, **_kwargs):
+            if round(float(lat), 4) == target_point[0] and round(float(lng), 4) == target_point[1]:
+                return self.foreign_area()
+            return None
+
+        with self.client.session_transaction() as session_state:
+            session_state["profile"] = dict(profile)
+
+        with patch.object(run, "sync_session_profile", return_value=dict(profile)), \
+                patch.object(run, "get_player_action_range", return_value=5000), \
+                patch.object(run.fetcher, "get_all", return_value=[{
+                    "lat": target_point[0], "lon": target_point[1],
+                    "name": "Enemy object", "tags": {"amenity": "bench"},
+                }]), \
+                patch.object(run.player_marked_target_store, "list_targets", return_value=[]), \
+                patch.object(run.player_marked_target_store, "upsert") as marked_upsert, \
+                patch.object(run.user_store, "get_profile_identity", return_value={"username": "attacker"}), \
+                patch.object(run, "record_map_target_delta") as target_delta, \
+                patch.object(run, "foreign_territory_action_block", side_effect=territory_gate):
+            scan = self.client.post("/map-action", headers=self.headers, json={
+                "action": "scan", "lat": scan_center[0], "lng": scan_center[1],
+            })
+            self.assertEqual(scan.status_code, 200)
+            scanned_target = scan.get_json()["markers"][0]
+            mark = self.client.post("/map-action", headers=self.headers, json={
+                "action": "mark_target",
+                "lat": scanned_target["lat"], "lng": scanned_target["lon"],
+                "label": scanned_target["name"], "icon": scanned_target["icon"],
+                "source_type": scanned_target["source_type"],
+            })
+
+        self.assertEqual(mark.status_code, 403)
+        self.assertEqual(mark.get_json()["reason"], "foreign_territory_protected")
+        marked_upsert.assert_not_called()
+        target_delta.assert_not_called()
+        with self.client.session_transaction() as session_state:
+            self.assertEqual(session_state["profile"]["aimed_target"], aimed_before)
+
     def test_canonical_conflict_target_is_the_only_territory_exception(self):
         area = self.foreign_area()
         with patch.object(run, "find_foreign_area_for_point", return_value=area):
@@ -126,9 +174,7 @@ class ForeignTerritoryActionGateTests(unittest.TestCase):
             source = handle.read()
 
         self.assertIn("function isForeignTerritoryProtectedResponse", source)
-        self.assertIn("isForeignTerritoryProtectedResponse(response, data)", source)
-        self.assertIn("isForeignTerritoryProtectedResponse(res, data)", source)
-        self.assertIn("addSystemMessage('warning', '🛡️ Terytorium'", source)
+        self.assertIn("function handleForeignTerritoryProtectedResponse", source)
 
         aim_start = source.index("async function aimMapTargetOnly")
         aim_end = source.index("function findClanVulnerabilityForTarget", aim_start)
@@ -138,13 +184,11 @@ class ForeignTerritoryActionGateTests(unittest.TestCase):
         mark_path = source[mark_start:mark_end]
 
         self.assertIn("fetch('/api/map/aim-target'", aim_path)
-        self.assertIn("isForeignTerritoryProtectedResponse(response, data)", aim_path)
-        self.assertIn("addSystemMessage('warning'", aim_path)
+        self.assertIn("handleForeignTerritoryProtectedResponse(response, data)", aim_path)
         self.assertIn("fetch('/map-action'", mark_path)
         self.assertIn("action === 'mark_target'", mark_path)
-        self.assertIn("isForeignTerritoryProtectedResponse(res, data)", mark_path)
+        self.assertIn("handleForeignTerritoryProtectedResponse(res, data)", mark_path)
         self.assertIn("settlePendingMarkedTarget", mark_path)
-        self.assertIn("addSystemMessage('warning'", mark_path)
 
 
 if __name__ == "__main__":

@@ -144,12 +144,16 @@ class GhostNetworkDeltaAudienceBridgeTest(unittest.TestCase):
     def test_required_live_event_types_resolve_to_expected_audiences(self):
         events = [
             self.event("owner", "ghost.part_contained", payload={"territory_owner_id": "owner"}),
+            self.event("public", "ghost.part_activated"),
+            self.event("public", "ghost.part_deactivated"),
             self.event("public", "ghost.part_contested"),
             self.event("clan", "ghost.machine_progress_changed", audience_clan="virex"),
             self.event("public", "ghost.signal_sent"),
         ]
         expected = {
             "ghost.part_contained": {"owner"},
+            "ghost.part_activated": {"owner", "ally", "outsider"},
+            "ghost.part_deactivated": {"owner", "ally", "outsider"},
             "ghost.part_contested": {"owner", "ally", "outsider"},
             "ghost.machine_progress_changed": {"owner", "ally"},
             "ghost.signal_sent": {"owner", "ally", "outsider"},

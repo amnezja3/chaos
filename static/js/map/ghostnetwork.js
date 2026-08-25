@@ -27,6 +27,10 @@
         "ghost.connection_updated",
         "ghost.connection_removed"
     ]);
+    const CONNECTION_STATE_PART_DELTA_TYPES = new Set([
+        "ghost.part_activated",
+        "ghost.part_deactivated"
+    ]);
 
     window.ghostNetworkPartLayers = window.ghostNetworkPartLayers || {};
     window.ghostNetworkConnectionLayers = window.ghostNetworkConnectionLayers || {};
@@ -1030,6 +1034,13 @@
                 }
                 if (payload.snapshot_checksum) {
                     window.ghostNetworkSnapshotChecksum = payload.snapshot_checksum;
+                }
+                // A part delta contains only the endpoint projection. The
+                // canonical connection state is computed by the snapshot
+                // projector, so refresh atomically when an active endpoint
+                // enters or leaves the public graph.
+                if (CONNECTION_STATE_PART_DELTA_TYPES.has(String(event && event.type || ""))) {
+                    void requestGhostNetworkRecovery("connection_state_changed", event);
                 }
                 return true;
             },

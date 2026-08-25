@@ -173,6 +173,20 @@ class GhostPartLifecycleServiceTest(unittest.TestCase):
         self.assertEqual(activation_events[0]["payload"]["previous_status"], "public")
         self.assertEqual(activation_events[0]["payload"]["status"], "active")
         self.assertEqual(activation_events[0]["payload"]["conflict_state"], "none")
+        self.assertEqual(activation_events[0]["audience_scope"], "public")
+
+        deactivated = self.lifecycle.deactivate_part(
+            part["part_id"],
+            next_status="contained",
+            territory=territory,
+            source_event_id="same-territory-deactivation",
+        )
+        self.assertEqual(deactivated["status"], "contained")
+        deactivation_event = next(
+            event for event in self.repo.list_events(self.cycle["cycle_id"], limit=500)
+            if event["event_type"] == "ghost.part_deactivated"
+        )
+        self.assertEqual(deactivation_event["audience_scope"], "public")
 
     def test_invalid_transitions_and_health_diagnostics(self):
         pooled = self.repo.list_reservable_parts(self.cycle["cycle_id"], excluded_clan="virex")[0]

@@ -199,6 +199,52 @@ function response(payload) {
         assert.strictEqual(layer.points.length, 9, "active GN curve must use the lightweight point budget");
     });
 
+    for (const viewer of ["owner", "same-clan", "foreign-clan", "neutral"]) {
+        const viewerLayer = win.createGhostConnectionLayer({
+            public_connection_id: "globally-public-active-connection",
+            can_show_on_map: true,
+            state: "active",
+            viewer_relation: viewer,
+            endpoint_a: { location_visibility: "exact", latitude: 50.0, longitude: 20.0 },
+            endpoint_b: { location_visibility: "exact", latitude: 50.4, longitude: 20.5 }
+        });
+        assert.ok(viewerLayer, `${viewer} must render the public active connection`);
+        assert.strictEqual(viewerLayer.layers.length, 3);
+    }
+
+    win.fetchMapSnapshot = async () => ({ res: response({
+        ok: true,
+        cycle: { cycle_id: "cycle-1", state_version: 3 },
+        parts: [
+            { public_entity_id: "part-1", can_show_on_map: true, location_visibility: "exact", latitude: 1, longitude: 2 },
+            { public_entity_id: "part-2", can_show_on_map: true, location_visibility: "exact", latitude: 3, longitude: 4 }
+        ],
+        connections: [{
+            public_connection_id: "connection-after-activation",
+            can_show_on_map: true,
+            state: "active",
+            endpoint_a: { latitude: 1, longitude: 2 },
+            endpoint_b: { latitude: 3, longitude: 4 }
+        }]
+    }) });
+    assert.strictEqual(win.applyGhostNetworkDelta({
+        scope: "ghostnetwork", type: "ghost.part_activated", version: 3,
+        dedupe_key: "activation-recovery-3",
+        payload: {
+            cycle_id: "cycle-1", state_version: 3,
+            part_projection: {
+                public_entity_id: "part-2", can_show_on_map: true,
+                location_visibility: "exact", latitude: 3, longitude: 4,
+                module_state: "active"
+            }
+        }
+    }), true);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.ok(
+        win.ghostNetworkConnectionLayers["connection-after-activation"],
+        "part activation delta must recover the canonical active connection snapshot"
+    );
+
     assert.strictEqual(win.updateGhostConnectionLayer({
         public_connection_id: "atomic-connection",
         can_show_on_map: true,

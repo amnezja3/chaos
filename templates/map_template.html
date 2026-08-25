@@ -2368,6 +2368,16 @@
             );
         }
 
+        function handleForeignTerritoryProtectedResponse(response, data) {
+            if (!isForeignTerritoryProtectedResponse(response, data)) return false;
+            addSystemMessage(
+                'warning',
+                '🛡️ Terytorium',
+                data.message || data.status || 'Ten obiekt jest chroniony przez obce terytorium.'
+            );
+            return true;
+        }
+
         async function aimMapTargetOnly(target, trigger) {
             const normalized = normalizeMapMenuTarget(target || {});
             if (trigger && trigger.getAttribute('aria-busy') === 'true') return;
@@ -2397,8 +2407,7 @@
                 });
                 const data = await response.json();
                 if (!response.ok || !data.success || !data.target) {
-                    if (isForeignTerritoryProtectedResponse(response, data)) {
-                        addSystemMessage('warning', '🛡️ Terytorium', data.message || data.status || 'Ten obiekt jest chroniony przez obce terytorium.');
+                    if (handleForeignTerritoryProtectedResponse(response, data)) {
                         closeAllMapMenus();
                         if (trigger) trigger.setAttribute('aria-busy', 'false');
                         return;
@@ -5556,11 +5565,10 @@
                 });
                 const data = await res.json();
                 if (!res.ok || data.success === false || data.blocked) {
-                    if (isForeignTerritoryProtectedResponse(res, data)) {
+                    if (handleForeignTerritoryProtectedResponse(res, data)) {
                         if (pendingMarkedTarget) {
                             settlePendingMarkedTarget(pendingMarkedTarget, 'failed', 'TARGET PROTECTED');
                         }
-                        addSystemMessage('warning', '🛡️ Terytorium', data.message || data.status || 'Ten obiekt jest chroniony przez obce terytorium.');
                         return null;
                     }
                     throw new Error(data.status || data.message || data.error || 'Operacja mapy nie powiodla sie.');

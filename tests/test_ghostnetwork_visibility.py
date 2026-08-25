@@ -286,6 +286,11 @@ class GhostVisibilityServiceTest(unittest.TestCase):
         self.set_active(code_b, owner="owner-b")
         snapshot = self.repo.build_internal_snapshot(self.cycle["cycle_id"])
         viewers = {
+            "owner": {
+                "viewer_id": "owner-a",
+                "viewer_clan": part_a["clan_code"],
+                "audience_scope": "player",
+            },
             "same_clan": {
                 "viewer_id": "same-clan",
                 "viewer_clan": part_a["clan_code"],

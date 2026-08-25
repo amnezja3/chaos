@@ -114,8 +114,10 @@ class GhostPartLifecycleService:
             player_id=player_id,
             player_clan=player_clan or territory_clan,
             dedupe_key=f"part:{part_id}:activate:{source_event_id or territory['territory_state_version'] or now}",
-            audience_scope="clan",
-            audience_clan=territory_clan,
+            # An active endpoint has exact public location visibility. Its
+            # transition can complete an active -> active connection, so every
+            # authenticated viewer must receive the state-version edge.
+            audience_scope="public",
         )["part"]
 
     def reveal_part(self, part_id, reason="", source_event_id="", operation_id=""):
@@ -228,8 +230,10 @@ class GhostPartLifecycleService:
             operation_id=operation_id,
             territory=territory,
             dedupe_key=f"part:{part_id}:deactivate:{source_event_id or now}",
-            audience_scope="clan",
-            audience_clan=part.get("territory_clan") or territory["territory_clan"],
+            # Removing an active endpoint can remove a globally visible
+            # connection and therefore needs the same public lifecycle edge.
+            # Viewer projection still redacts a contained successor.
+            audience_scope="public",
         )["part"]
 
     def consume_part(self, part_id, signal_id, reason="", source_event_id=""):
