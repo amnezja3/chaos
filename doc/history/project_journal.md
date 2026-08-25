@@ -1449,3 +1449,28 @@ Werdykt: `READY TO START SPRINT 131`.
   jawnie status, reason, expected/current target id, receipt result i ordinal.
 - Walidacja lokalna: 201 testów Python oraz testy Node `/gonna-win`, OFS i map
   snapshot recovery — OK; bez deployu, restartu PM2 i commita.
+
+## 2026-08-25 - Sprint 130.12.2 final-dot ownership bootstrap correction
+
+`SPRINT 130.12.2 — READY FOR SERVER REVALIDATION`
+
+- Kolejny manual wykazał, że `409` pozostaje dokładnie na ostatniej kropce
+  filaru konfliktu. Wcześniejsze kroki kończyły tylko postęp celu; ostatni krok
+  jako jedyny wchodził w `TerritoryTargetOwnershipStore.capture()`.
+- Root cause: przy braku rekordu ownership finalny request bootstrapował
+  canonical row z `captured_targets` jako revision 1, a następnie mógł uznać tę
+  revision utworzoną przez siebie za konkurencyjną zmianę wobec legacy revision
+  0. Pierwsza próba zwracała `target_state_changed`; retry widział już revision 1
+  i przechodził.
+- Revision powstała w tym samym atomowym bootstrapie nie jest już traktowana jak
+  CAS loss. Canonical owner nadal pochodzi wyłącznie z `captured_targets` i musi
+  zgadzać się z expected owner; prawdziwa zmiana ownera/version pozostaje
+  fail-closed.
+- Dodano regresję finalnego capture z legacy version 0. Zachowano testy
+  multi-attacker first-commit-wins, forged owner, stale version i idempotent
+  replay.
+- Frontend emituje dodatkowo jednoliniowy JSON `[GONNA_WIN_RESPONSE]`, aby status,
+  reason, target IDs, receipt result i ordinal były widoczne w kopiowanym logu
+  bez rozwijania obiektu DevTools.
+- Walidacja lokalna: 210 testów Python oraz Node `/gonna-win` lifecycle i OFS —
+  OK; bez deployu, restartu PM2 i commita.

@@ -6698,6 +6698,7 @@ class TerritoryTargetOwnershipStore:
 
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
+            bootstrapped_ownership = False
             receipt = conn.execute(
                 "SELECT * FROM territory_target_capture_receipts WHERE action_id = ?",
                 (action_id,),
@@ -6764,8 +6765,9 @@ class TerritoryTargetOwnershipStore:
                     VALUES (?, ?, 1, ?, ?, ?, ?, ?)
                     """,
                     (target_id, initial_owner, lat, lng, label,
-                     dumps_json(initial_target), now),
+                    dumps_json(initial_target), now),
                 )
+                bootstrapped_ownership = True
                 current = conn.execute(
                     "SELECT * FROM territory_target_ownership WHERE target_id = ?",
                     (target_id,),
@@ -6809,7 +6811,16 @@ class TerritoryTargetOwnershipStore:
                      dumps_json(payload), now, now),
                 )
                 return payload
-            version_matches = expected_version in (None, "") or int(expected_version) == current_version
+            # The revision created above is this request's canonical bootstrap,
+            # not a concurrent ownership change. A legacy/conflict snapshot may
+            # legitimately carry version 0 before the ownership row exists; do
+            # not force the player to repeat the final hacking step merely to
+            # observe the revision we just created ourselves.
+            version_matches = (
+                bootstrapped_ownership
+                or expected_version in (None, "")
+                or int(expected_version) == current_version
+            )
             owner_matches = current_owner == expected_owner_username
             if not owner_matches or not version_matches:
                 payload = {

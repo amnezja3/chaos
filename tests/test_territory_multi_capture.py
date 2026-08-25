@@ -122,6 +122,22 @@ class TerritoryMultiCaptureTests(unittest.TestCase):
         self.assertEqual("defender", result["current_owner_username"])
         self.assertEqual("defender", self.store.get(self.target["target_id"])["owner_username"])
 
+    def test_bootstrap_revision_does_not_conflict_with_legacy_version_zero(self):
+        result = self.store.capture(
+            "action:bootstrap-zero",
+            self.target["target_id"],
+            "alice",
+            "defender",
+            {**self.target, "ownership_version": 0},
+            expected_version=0,
+            conflict_ids=["conflict:alice:defender"],
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual("captured", result["result"])
+        self.assertEqual("alice", result["winner_username"])
+        self.assertEqual(2, result["ownership_version"])
+
     def test_missing_canonical_owner_is_controlled_and_creates_no_set(self):
         missing = {**self.target, "target_id": "map:52.2:21.2:orphan", "lat": 52.2, "lng": 21.2}
         result = self.store.capture(

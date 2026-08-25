@@ -5203,7 +5203,7 @@ async function notifyGonnaWin(appId, appWindow = null, {
                 })
             });
             data = await response.json();
-            appFlowTrace(flowId, "gonna_win_response", {
+            const responseTrace = {
                 app_id: appId,
                 status: response.status,
                 success: data && data.success === true,
@@ -5213,7 +5213,9 @@ async function notifyGonnaWin(appId, appWindow = null, {
                 current_target_id: (data && data.current_target_id) || "",
                 receipt_result: (data && data.operation_lifecycle && data.operation_lifecycle.receipt_result) || "",
                 request_ordinal: requestOrdinal
-            });
+            };
+            appFlowTrace(flowId, "gonna_win_response", responseTrace);
+            console.info(`[GONNA_WIN_RESPONSE] ${JSON.stringify(responseTrace)}`);
         } catch (error) {
             throw error;
         }
