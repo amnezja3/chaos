@@ -10,8 +10,17 @@ const end = source.indexOf("function showInstallAppProgress", start);
 assert.ok(start >= 0 && end > start, "Googleplex response helpers must exist");
 
 const focused = [];
+let mapOpen = true;
+let mapOpenCalls = 0;
 const sandbox = {
     Number, String, Object,
+    document: {
+        querySelector() { return mapOpen ? {} : null; }
+    },
+    createMap() {
+        mapOpenCalls += 1;
+        mapOpen = true;
+    },
     notifyOpenMapsBlacknetFocus(payload) { focused.push(payload); }
 };
 vm.createContext(sandbox);
@@ -23,6 +32,13 @@ assert.strictEqual(sandbox.applyGoogleplexTravelToOpenMaps({ travel: {
 assert.strictEqual(focused.length, 1);
 assert.strictEqual(focused[0].mode, "teleport");
 assert.strictEqual(focused[0].receipt, "receipt-1");
+assert.strictEqual(mapOpenCalls, 0, "already open map must be reused");
+mapOpen = false;
+assert.strictEqual(sandbox.applyGoogleplexTravelToOpenMaps({ travel: {
+    receipt: "receipt-closed-map", position: { lat: 40.7128, lng: -74.006 }
+} }), true);
+assert.strictEqual(mapOpenCalls, 1, "closed map must open after ticket finalization");
+assert.strictEqual(focused[1].receipt, "receipt-closed-map");
 assert.strictEqual(sandbox.applyGoogleplexTravelToOpenMaps({}), false);
 
 const conflict = sandbox.googleplexInstallErrorDetails(

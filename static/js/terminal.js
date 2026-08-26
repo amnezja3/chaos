@@ -9739,6 +9739,12 @@ function applyGoogleplexTravelToOpenMaps(data = {}) {
     const lat = Number(position?.lat);
     const lng = Number(position?.lng);
     if (!travel || !Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+    const mapWasOpen = Boolean(document.querySelector(
+        '.terminal[data-app="map"], .map-window iframe, iframe[src="/map"]'
+    ));
+    if (!mapWasOpen && typeof createMap === "function") {
+        createMap();
+    }
     notifyOpenMapsBlacknetFocus({
         mode: "teleport", source: "googleplex_travel", lat, lng,
         receipt: travel.receipt,

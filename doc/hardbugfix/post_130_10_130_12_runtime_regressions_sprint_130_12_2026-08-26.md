@@ -55,6 +55,8 @@ Test backendowy sprawdza ten sam receipt i pozycję dla pierwszej odpowiedzi ora
 
 Pierwsza walidacja serwerowa ujawniła, że długi flow zakupu tworzył `UserProfileManager` przed wallet/effect/message, a równoległy refresh profilu mógł przed końcowym zapisem podbić revision. Ścisły, ale stary CAS kończył `/install-app` kodem 409, więc odpowiedź z travel receipt nie docierała do bridge'a. Commit produktu tworzy teraz manager bezpośrednio przed zapisem, ponawia zwykły revision conflict maksymalnie trzy razy i przy każdym podejściu scala receipts po `wallet_transaction_key`. Session/precommit rejection nadal kończy się fail-closed; retry nie omija generation guard. Początkowy oraz końcowy `sync_session_profile` nie wykonują już zbędnego normalization write w tym flow. Regresja wymusza konflikt `Expected profile revision 70, current is 71` i oczekuje sukcesu przy drugim CAS, jednego zakupu oraz stabilnego travel receipt.
 
+Drugi manual potwierdził zapis pozycji i focus otwartej mapy. Brakowało wyłącznie ścieżki dla zamkniętej mapy: bridge nie miał iframe, do którego mógł przekazać receipt. Udany travel otwiera teraz mapę, jeżeli nie istnieje jej okno, a następnie rejestruje canonical focus na synchronicznie utworzonym iframe; istniejący listener `load` dostarcza go po zakończeniu bootu mapy.
+
 Status: **RESOLVED — READY FOR SERVER VALIDATION**.
 
 ## 3. Googleplex — diagnostyka błędów instalacji/zakupu
