@@ -72,6 +72,24 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_domain_event_collector_deduplicates_event_and_nested_payload_identity(self):
+        event = {
+            "event_id": "event-one",
+            "event_type": "ghost.part_activated",
+            "dedupe_key": "part:one:activate:transition",
+            "payload": {
+                "event_id": "event-one",
+                "event_type": "ghost.part_activated",
+                "dedupe_key": "part:one:activate:transition",
+            },
+        }
+        collected = run.collect_ghostnetwork_domain_events({
+            "part": {"_domain_event": event},
+            "echo": event["payload"],
+        })
+        self.assertEqual(len(collected), 1)
+        self.assertEqual(collected[0]["event_id"], "event-one")
+
     @staticmethod
     def area(owner, version=1):
         return {
@@ -83,6 +101,17 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
                 {"lat": 52.2, "lng": 21.2},
                 {"lat": 52.0, "lng": 21.2},
             ],
+        }
+
+    @staticmethod
+    def area_at(area_id, owner, vertices, version=1):
+        return {
+            "id": area_id,
+            "owner_username": owner,
+            "status": "active",
+            "updated_at": f"2026-08-25T00:00:{version:02d}Z",
+            "publication_version": version,
+            "vertices": copy.deepcopy(vertices),
         }
 
     def test_canonical_area_publication_drives_contained_active_and_release(self):
@@ -150,6 +179,121 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
                 len(claim["viewers"]), complete=True,
             )
         self.assertIn("ghost.part_contained", event_types)
+
+    def test_pies1_warsaw_part_does_not_reactivate_after_tokyo_rebuild(self):
+        warsaw = [
+            {"lat": 52.0, "lng": 21.0},
+            {"lat": 52.2, "lng": 21.0},
+            {"lat": 52.2, "lng": 21.2},
+            {"lat": 52.0, "lng": 21.2},
+        ]
+        tokyo = [
+            {"lat": 35.60, "lng": 139.60},
+            {"lat": 35.80, "lng": 139.60},
+            {"lat": 35.80, "lng": 139.80},
+            {"lat": 35.60, "lng": 139.80},
+        ]
+        areas = [self.area_at("warsaw-v1", "pies1", warsaw, 1)]
+        profiles = {
+            "pies1": {"username": "pies1", "clan": self.part["clan_code"]},
+        }
+        cycle_id = self.repo.get_active_cycle()["cycle_id"]
+        delivered = []
+
+        def enqueue(event, recipients=None):
+            delivered.append(copy.deepcopy(event))
+            return {"ok": True, "recipients": len(recipients or [])}
+
+        with patch.object(run, "GhostNetworkService", return_value=self.service), \
+                patch.object(run, "ghostnetwork_territory_job_store", self.job_store), \
+                patch.object(run.territory_delta_publisher, "record_areas_updated", return_value=[]), \
+                patch.object(run.territory_store, "list_player_areas", side_effect=lambda *_: list(areas)), \
+                patch.object(run, "identity_projection_store", FakeIdentityProjection(profiles)), \
+                patch.object(run, "load_profile_write_record", return_value={
+                    "profile": {"username": "pies1"}, "profile_revision": 1,
+                }), \
+                patch.object(self.service, "handle_reward_event", return_value={"ok": True}), \
+                patch.object(run, "enqueue_ghostnetwork_event_delta", side_effect=enqueue):
+            run.record_territory_areas_delta("pies1", areas, reason="warsaw_initial")
+            initial_job = run.process_ghostnetwork_territory_job("pies1-worker")
+            initial_part = self.repo.get_part(self.part["part_id"])
+            self.assertEqual(initial_part["status"], "active")
+            initial_activation = [
+                event for event in delivered if event.get("event_type") == "ghost.part_activated"
+            ]
+            self.assertEqual(len(initial_activation), 1)
+            initial_event_id = initial_activation[0]["event_id"]
+            initial_dedupe = initial_activation[0]["dedupe_key"]
+
+            delivered.clear()
+            before_version = self.repo.get_state_version(cycle_id)
+            before_timestamp = initial_part["last_activated_at"]
+            areas[:] = [
+                self.area_at("warsaw-v2", "pies1", warsaw, 2),
+                self.area_at("tokyo-v1", "pies1", tokyo, 2),
+            ]
+            run.record_territory_areas_delta("pies1", areas, reason="tokyo_capture")
+            tokyo_job = run.process_ghostnetwork_territory_job("pies1-worker")
+            rebuilt_part = self.repo.get_part(self.part["part_id"])
+
+            self.assertNotEqual(initial_job["job_id"], tokyo_job["job_id"])
+            self.assertEqual(rebuilt_part["status"], "active")
+            self.assertEqual(rebuilt_part["territory_owner_id"], "pies1")
+            self.assertEqual(rebuilt_part["last_activated_at"], before_timestamp)
+            self.assertEqual(rebuilt_part["territory_id"], "warsaw-v2")
+            self.assertGreater(self.repo.get_state_version(cycle_id), before_version)
+            self.assertFalse(any(
+                event.get("event_type") in {
+                    "ghost.part_contained", "ghost.part_activated",
+                    "ghost.part_contested", "ghost.part_revealed",
+                    "ghost.part_deactivated", "ghost.machine_progress_changed",
+                    "ghost.machine_online", "ghost.signal_sent",
+                }
+                for event in delivered
+            ))
+
+            second_part = next(
+                part for part in self.repo.list_parts(cycle_id)
+                if part["part_id"] != self.part["part_id"]
+                and part["clan_code"] == self.part["clan_code"]
+            )
+            self.repo.update_part(
+                second_part["part_id"], status="public",
+                target_id="map:35.70:139.70:tokyo-gn",
+                latitude=35.70, longitude=139.70,
+                discovered_by="scanner", discovered_clan="virex",
+                discovered_at="2026-08-25T00:00:03Z",
+            )
+            delivered.clear()
+            areas[:] = [
+                self.area_at("warsaw-v2", "pies1", warsaw, 3),
+                self.area_at("tokyo-v1", "pies1", tokyo, 3),
+            ]
+            run.record_territory_areas_delta("pies1", areas, reason="tokyo_real_activation")
+            run.process_ghostnetwork_territory_job("pies1-worker")
+            true_activation = [
+                event for event in delivered if event.get("event_type") == "ghost.part_activated"
+            ]
+            self.assertEqual(len(true_activation), 1)
+            self.assertNotEqual(true_activation[0]["event_id"], initial_event_id)
+            self.assertNotEqual(true_activation[0]["dedupe_key"], initial_dedupe)
+
+            delivered.clear()
+            areas[:] = [
+                self.area_at("warsaw-v3", "pies1", warsaw, 4),
+                self.area_at("tokyo-v2", "pies1", tokyo, 4),
+            ]
+            run.record_territory_areas_delta("pies1", areas, reason="tokyo_replay")
+            run.process_ghostnetwork_territory_job("pies1-worker")
+            self.assertFalse(any(
+                event.get("event_type") in {
+                    "ghost.part_contained", "ghost.part_activated",
+                    "ghost.part_contested", "ghost.part_revealed",
+                    "ghost.part_deactivated", "ghost.machine_progress_changed",
+                    "ghost.machine_online", "ghost.signal_sent",
+                }
+                for event in delivered
+            ))
 
     def test_canonical_ghost_clan_profile_is_included_in_territory_publication(self):
         areas = [self.area("foreign-owner", 1)]

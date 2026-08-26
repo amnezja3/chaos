@@ -64,6 +64,8 @@ class GhostPartLifecycleService:
         territory = _territory_context(territory)
         if not territory["territory_owner_id"]:
             raise InvalidPartStateTransition("Contained part requires territory owner.")
+        if part.get("status") == "contained":
+            return self._refresh_territory_binding(part, territory)
         now = self.repository.now()
         updates = {
             "status": "contained",
@@ -93,6 +95,11 @@ class GhostPartLifecycleService:
         territory_clan = territory["territory_clan"] or _clean(player_clan)
         if part.get("clan_code") and territory_clan and part.get("clan_code") != territory_clan:
             raise InvalidPartStateTransition("Active part requires matching territory clan.")
+        if part.get("status") == "active":
+            return self._refresh_territory_binding(
+                part,
+                dict(territory, territory_clan=territory_clan),
+            )
         now = self.repository.now()
         updates = {
             "status": "active",
@@ -123,6 +130,8 @@ class GhostPartLifecycleService:
     def reveal_part(self, part_id, reason="", source_event_id="", operation_id=""):
         part = self._require_part(part_id)
         self._assert_base_transition(part, {"public", "contained", "active"}, "public")
+        if part.get("status") == "public" and part.get("conflict_state") != "contested":
+            return self._clear_territory_binding(part)
         now = self.repository.now()
         updates = {
             "status": "public",
@@ -147,7 +156,7 @@ class GhostPartLifecycleService:
         part = self._require_part(part_id)
         if part.get("status") not in self.ALLOWED_CONFLICT_BASE_STATUSES:
             raise InvalidPartStateTransition(f"Part cannot enter conflict from {part.get('status')}.")
-        if part.get("conflict_state") == "contested" and part.get("conflict_id") == _clean(conflict_id):
+        if part.get("conflict_state") == "contested":
             return part
         now = self.repository.now()
         updates = {
@@ -323,6 +332,33 @@ class GhostPartLifecycleService:
             raise InvalidPartStateTransition(f"Part cannot move from reserved to {to_status}.")
         if part.get("status") not in allowed_from:
             raise InvalidPartStateTransition(f"Part cannot move from {part.get('status')} to {to_status}.")
+
+    def _refresh_territory_binding(self, part, territory):
+        """Refresh rebuild-owned references without forging a lifecycle edge."""
+        updates = {
+            key: territory[key]
+            for key in (
+                "territory_id",
+                "territory_owner_id",
+                "territory_clan",
+                "territory_state_version",
+            )
+            if part.get(key) != territory.get(key)
+        }
+        return self.repository.update_part(part["part_id"], **updates) if updates else part
+
+    def _clear_territory_binding(self, part):
+        updates = {
+            key: value
+            for key, value in {
+                "territory_id": "",
+                "territory_owner_id": "",
+                "territory_clan": "",
+                "territory_state_version": 0,
+            }.items()
+            if part.get(key) != value
+        }
+        return self.repository.update_part(part["part_id"], **updates) if updates else part
 
     def _transition(
         self,

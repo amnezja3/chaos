@@ -86,6 +86,8 @@ class GameSfxFrontendContractTest(unittest.TestCase):
         for mapping in expected_mapping:
             self.assertIn(mapping, self.terminal)
         self.assertIn("function playGhostNetworkDeltaSfx", self.terminal)
+        self.assertIn("function isGhostNetworkLifecycleSfxTransition", self.terminal)
+        self.assertIn("!isGhostNetworkLifecycleSfxTransition(type, payload)", self.terminal)
         self.assertIn("!stateDeltaSfxPlaybackAllowed", self.terminal)
         self.assertIn("Number(payload.active_parts || 0) === Number(payload.previous_active_parts || 0)", self.terminal)
         self.assertIn("playGhostNetworkDeltaSfx(event);", self.terminal)
@@ -96,6 +98,15 @@ class GameSfxFrontendContractTest(unittest.TestCase):
         ]
         self.assertNotIn("playGhostNetworkDeltaSfx", recovery_source)
         self.assertNotIn("GameSfx.play", recovery_source)
+
+        result = subprocess.run(
+            ["node", "tests/js/test_ghostnetwork_sfx_transitions.js"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertIn("ghostnetwork transition sfx tests: OK", result.stdout)
 
     def test_live_message_audio_is_decoupled_from_hydration_and_cursors(self):
         self.assertIn('event.type === "cyberner.message_created" && stateDeltaSfxPlaybackAllowed', self.terminal)

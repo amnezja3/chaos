@@ -206,6 +206,72 @@ class GhostPartLifecycleServiceTest(unittest.TestCase):
         self.assertFalse(report["ok"])
         self.assertIn("active_part_wrong_territory_clan", report["errors"])
 
+    def test_same_semantic_state_rebinds_without_replaying_lifecycle_events(self):
+        part = self.reserve_and_discover("target-transition-sfx")
+        foreign = {
+            "territory_id": "warsaw-foreign-v1",
+            "territory_owner_id": "robot",
+            "territory_clan": "sentinel_order",
+            "territory_state_version": 21,
+        }
+        self.lifecycle.contain_part(
+            part["part_id"], territory=foreign, source_event_id="contain-real"
+        )
+        contained_at = self.repo.get_part(part["part_id"])["contained_at"]
+
+        rebound_foreign = dict(
+            foreign,
+            territory_id="warsaw-foreign-v2",
+            territory_state_version=22,
+        )
+        self.lifecycle.contain_part(
+            part["part_id"], territory=rebound_foreign, source_event_id="contain-rebuild"
+        )
+        after_contained_rebuild = self.repo.get_part(part["part_id"])
+        self.assertEqual(after_contained_rebuild["status"], "contained")
+        self.assertEqual(after_contained_rebuild["contained_at"], contained_at)
+        self.assertEqual(after_contained_rebuild["territory_id"], "warsaw-foreign-v2")
+
+        own = {
+            "territory_id": "warsaw-own-v1",
+            "territory_owner_id": "pies1",
+            "territory_clan": part["clan_code"],
+            "territory_state_version": 23,
+        }
+        self.lifecycle.activate_part(
+            part["part_id"], territory=own, player_id="pies1",
+            player_clan=part["clan_code"], source_event_id="activate-real",
+        )
+        activated_at = self.repo.get_part(part["part_id"])["last_activated_at"]
+
+        rebound_own = dict(
+            own,
+            territory_id="warsaw-own-v2",
+            territory_state_version=24,
+        )
+        self.lifecycle.activate_part(
+            part["part_id"], territory=rebound_own, player_id="pies1",
+            player_clan=part["clan_code"], source_event_id="activate-rebuild",
+        )
+        after_active_rebuild = self.repo.get_part(part["part_id"])
+        self.assertEqual(after_active_rebuild["status"], "active")
+        self.assertEqual(after_active_rebuild["last_activated_at"], activated_at)
+        self.assertEqual(after_active_rebuild["territory_id"], "warsaw-own-v2")
+
+        self.lifecycle.freeze_for_conflict(
+            part["part_id"], "conflict-one", source_event_id="hostile-real"
+        )
+        self.lifecycle.freeze_for_conflict(
+            part["part_id"], "conflict-two", source_event_id="hostile-rebuild"
+        )
+
+        events = self.repo.list_events(self.cycle["cycle_id"], limit=1000)
+        self.assertEqual(sum(event["event_type"] == "ghost.part_contained" for event in events), 1)
+        self.assertEqual(sum(event["event_type"] == "ghost.part_activated" for event in events), 1)
+        self.assertEqual(sum(event["event_type"] == "ghost.part_contested" for event in events), 1)
+        technical = [event for event in events if event["event_type"] == "ghost.part_updated"]
+        self.assertGreaterEqual(len(technical), 2)
+
     def test_replay_detects_status_sequence(self):
         part = self.reserve_and_discover("target-replay")
         revealed = self.lifecycle.reveal_part(part["part_id"], source_event_id="reveal-replay")

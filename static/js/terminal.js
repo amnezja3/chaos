@@ -10714,12 +10714,36 @@ const GHOSTNETWORK_SFX_BY_EVENT = Object.freeze({
     "ghost.signal_sent": "ghostnetwork.signal"
 });
 
+function isGhostNetworkLifecycleSfxTransition(type, payload = {}) {
+    const previousStatus = String(payload.previous_status || "").toLowerCase();
+    const status = String(payload.status || "").toLowerCase();
+    const previousConflict = String(payload.previous_conflict_state || "none").toLowerCase();
+    const conflict = String(payload.conflict_state || "none").toLowerCase();
+    if (type === "ghost.part_contained") {
+        return status === "contained" && previousStatus !== "contained";
+    }
+    if (type === "ghost.part_activated") {
+        return status === "active" && previousStatus !== "active";
+    }
+    if (type === "ghost.part_contested") {
+        return conflict === "contested" && previousConflict !== "contested";
+    }
+    if (type === "ghost.part_revealed") {
+        return status === "public" && previousStatus !== "public";
+    }
+    if (type === "ghost.part_deactivated") {
+        return previousStatus === "active" && status !== "active";
+    }
+    return true;
+}
+
 function playGhostNetworkDeltaSfx(event = {}) {
     if (!stateDeltaSfxPlaybackAllowed || !window.GameSfx || typeof window.GameSfx.play !== "function") return false;
     const type = String(event.type || "");
     const eventKey = GHOSTNETWORK_SFX_BY_EVENT[type];
     if (!eventKey) return false;
     const payload = event.payload && typeof event.payload === "object" ? event.payload : {};
+    if (!isGhostNetworkLifecycleSfxTransition(type, payload)) return false;
     if (type === "ghost.machine_progress_changed"
         && Number(payload.active_parts || 0) === Number(payload.previous_active_parts || 0)) return false;
     const eventId = String(payload.event_id || event.dedupe_key || `${type}:${event.version || payload.state_version || ""}`).trim();

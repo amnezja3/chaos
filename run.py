@@ -7757,16 +7757,25 @@ def ghostnetwork_player_payload(username, profile):
     }
 
 
-def collect_ghostnetwork_domain_events(value):
+def collect_ghostnetwork_domain_events(value, _seen=None):
     events = []
+    seen = _seen if isinstance(_seen, set) else set()
     if isinstance(value, dict):
         if value.get("event_id") and (value.get("event_type") or value.get("type")):
-            events.append(value)
+            identity = str(
+                value.get("event_id")
+                or value.get("dedupe_key")
+                or ""
+            ).strip()
+            if not identity or identity not in seen:
+                if identity:
+                    seen.add(identity)
+                events.append(value)
         for item in value.values():
-            events.extend(collect_ghostnetwork_domain_events(item))
+            events.extend(collect_ghostnetwork_domain_events(item, seen))
     elif isinstance(value, (list, tuple)):
         for item in value:
-            events.extend(collect_ghostnetwork_domain_events(item))
+            events.extend(collect_ghostnetwork_domain_events(item, seen))
     return events
 
 
