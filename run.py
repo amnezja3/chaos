@@ -11241,7 +11241,8 @@ def market_entries_record_count(entries):
     return sum(runtime_file_record_count(item) for item in entries if isinstance(item, dict))
 
 
-def refresh_market_runtime(username, profile, now=None, persist=False, payout_callback=None):
+def refresh_market_runtime(username, profile, now=None, persist=False, payout_callback=None,
+                           notification_callback=None):
     if not isinstance(profile, dict):
         return {"changed": False, "queued": 0, "listed": 0, "settled": 0, "sales": []}
 
@@ -11378,12 +11379,12 @@ def refresh_market_runtime(username, profile, now=None, persist=False, payout_ca
                 "created_at": sold_at,
                 "batch_id": batch_id,
             })
-            add_cyberner_direct_notification(
-                username,
-                "Ghost Exchange",
-                "Ghost Exchange",
-                "Sprzedano paczke danych",
-                (
+            notification = {
+                "username": username,
+                "peer_name": "Ghost Exchange",
+                "sender": "Ghost Exchange",
+                "subject": "Sprzedano paczke danych",
+                "body": (
                     f"Sektor: {sector}\n"
                     f"Liczba plikow: {len(batch_entries)}\n"
                     f"Wolumen: {sale_record['metadata'].get('volume_mb')} MB\n"
@@ -11391,7 +11392,15 @@ def refresh_market_runtime(username, profile, now=None, persist=False, payout_ca
                     f"Batch: {batch_id}\n"
                     f"Czas: {sold_at}"
                 ),
-            )
+                "batch_id": batch_id,
+            }
+            if callable(notification_callback):
+                notification_callback(notification)
+            else:
+                add_cyberner_direct_notification(
+                    notification["username"], notification["peer_name"],
+                    notification["sender"], notification["subject"], notification["body"],
+                )
             normalize_files_inventory(profile)
             normalize_profile_storage(profile)
             sales.append(history_entry)
@@ -11423,6 +11432,86 @@ def refresh_market_runtime(username, profile, now=None, persist=False, payout_ca
         "settled": len(sales),
         "sales": sales,
     }
+
+
+def commit_ghost_exchange_runtime(username, max_attempts=3, now=None):
+    """Settle and persist a GX batch against a fresh profile revision."""
+    refresh_now = market_runtime_now(now)
+    read_profile = user_store.get_profile(username)
+    if not isinstance(read_profile, dict):
+        raise ProfileRecoveryRequired("Ghost Exchange profile is unavailable.")
+    read_profile = copy.deepcopy(read_profile)
+    read_profile["hackcoins"] = canonical_wallet_balance(username)
+    read_previous_storage = storage_delta_snapshot(read_profile)
+    read_runtime = refresh_market_runtime(
+        username,
+        read_profile,
+        now=refresh_now,
+        payout_callback=lambda settlement: {
+            "balance": canonical_wallet_balance(username),
+            "transaction_key": f"ghost_exchange:auto:{username}:{settlement['batch_id']}",
+        },
+        notification_callback=lambda _notification: None,
+    )
+    if not read_runtime.get("changed"):
+        return read_profile, read_runtime, read_previous_storage
+
+    last_conflict = None
+    for _attempt in range(max(1, int(max_attempts or 1))):
+        manager = UserProfileManager(username)
+        get_profile = getattr(manager, "get_profile", None)
+        profile = (
+            get_profile(strip_sensitive=True)
+            if callable(get_profile)
+            else user_store.get_profile(username)
+        )
+        if not isinstance(profile, dict):
+            raise ProfileRecoveryRequired("Ghost Exchange profile is unavailable.")
+        profile = copy.deepcopy(profile)
+        profile["hackcoins"] = canonical_wallet_balance(username)
+        previous_storage = storage_delta_snapshot(profile)
+        pending_notifications = []
+        market_runtime = refresh_market_runtime(
+            username,
+            profile,
+            now=refresh_now,
+            payout_callback=lambda settlement: wallet_balance_store.credit(
+                username,
+                settlement["price"],
+                transaction_key=f"ghost_exchange:auto:{username}:{settlement['batch_id']}",
+                reason="ghost_exchange.auto_sale",
+                source="ghost_exchange",
+            ),
+            notification_callback=pending_notifications.append,
+        )
+        if not market_runtime.get("changed"):
+            return profile, market_runtime, previous_storage
+        try:
+            manager.update_profile({
+                "hackcoins": canonical_wallet_balance(username),
+                "files": profile.get("files", {}),
+                "market_history": profile.get("market_history", []),
+                "system_messages": profile.get("system_messages", []),
+                "storage_capacity": profile.get("storage_capacity"),
+                "storage_used": profile.get("storage_used"),
+                "storage_unit": profile.get("storage_unit", "MB"),
+                "storage_soft_limit": True,
+                "storage_over_limit": profile.get("storage_over_limit", False),
+            })
+        except ProfileWriteConflict as exc:
+            last_conflict = exc
+            continue
+        committed_profile = (
+            get_profile(strip_sensitive=True) if callable(get_profile) else profile
+        )
+        committed_profile["hackcoins"] = canonical_wallet_balance(username)
+        for notification in pending_notifications:
+            add_cyberner_direct_notification(
+                notification["username"], notification["peer_name"],
+                notification["sender"], notification["subject"], notification["body"],
+            )
+        return committed_profile, market_runtime, previous_storage
+    raise last_conflict
 
 
 def build_ghost_exchange_sector_payload(profile):
@@ -23111,35 +23200,13 @@ def api_ghost_exchange():
         return jsonify({"success": False, "message": "Brak danych uzytkownika"}), 401
 
     username = session["user"]
-    profile = user_store.get_profile(username) or sync_session_profile()
-    profile = refresh_and_persist_operations(username, profile)
-    profile["hackcoins"] = canonical_wallet_balance(username)
-    previous_storage = storage_delta_snapshot(profile)
     try:
-        market_runtime = refresh_market_runtime(
-            username,
-            profile,
-            payout_callback=lambda settlement: wallet_balance_store.credit(
-                username,
-                settlement["price"],
-                transaction_key=f"ghost_exchange:auto:{username}:{settlement['batch_id']}",
-                reason="ghost_exchange.auto_sale",
-                source="ghost_exchange",
-            ),
+        profile, market_runtime, previous_storage = commit_ghost_exchange_runtime(
+            username
         )
     except WalletWriteError as exc:
         return wallet_error_response(exc, status_key="message")
     if market_runtime.get("changed"):
-        UserProfileManager(username).update_profile({
-            "files": profile.get("files", {}),
-            "market_history": profile.get("market_history", []),
-            "system_messages": profile.get("system_messages", []),
-            "storage_capacity": profile.get("storage_capacity"),
-            "storage_used": profile.get("storage_used"),
-            "storage_unit": profile.get("storage_unit", "MB"),
-            "storage_soft_limit": True,
-            "storage_over_limit": profile.get("storage_over_limit", False),
-        })
         record_storage_delta(
             username,
             profile,

@@ -7511,7 +7511,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
                 "market_sector": "camera",
                 "sellable": True,
             }
-            for index in range(4)
+            for index in range(20)
         ]
         batch_id = run.market_batch_id("neo", "camera", entries)
         for entry in entries:
@@ -7519,8 +7519,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         profile = {
             "username": "neo",
             "hackcoins": 100,
-            "storage_capacity": 256,
-            "storage_used": 56,
+            "storage_capacity": 512,
+            "storage_used": 280,
             "storage_unit": "MB",
             "files": {"camera": entries, "market": []},
             "market_history": [],
@@ -7528,10 +7528,15 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         }
 
         class FakeManager:
+            update_attempts = 0
+
             def __init__(self, username):
                 self.username = username
 
             def update_profile(self, data):
+                self.__class__.update_attempts += 1
+                if self.__class__.update_attempts == 1:
+                    raise ProfileWriteConflict("Expected profile revision 90, current is 91.")
                 profile.update(data)
 
         client = run.app.test_client()
@@ -7553,6 +7558,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(first_response.status_code, 200)
         self.assertTrue(first_data["success"])
         self.assertEqual(first_data["market_runtime"]["settled"], 1)
+        self.assertEqual(FakeManager.update_attempts, 2)
         self.assertGreater(hc_after_sale, 100)
         self.assertEqual(profile["hackcoins"], hc_after_sale)
         self.assertEqual(len(profile["market_history"]), 1)

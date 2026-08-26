@@ -111,6 +111,26 @@ Python sprawdza zachowanie transition envelope i brak wycieku internal metadata.
 
 Status: **RESOLVED — READY FOR SERVER VALIDATION**.
 
+## Follow-up: Ghost Exchange batch settlement / transient 409
+
+### Objaw i reprodukcja
+
+Po jednoczesnym zejściu dużej paczki plików `GET /api/ghost-exchange` sporadycznie zwracał `409 profile_write_conflict`. GX nie otwierał się, ale mógł pojawić się przy kolejnej próbie w tej samej sesji.
+
+### Evidence i root cause
+
+Endpoint odczytowy wykonywał również należny settlement. Flow kredytował canonical wallet idempotentnym kluczem batcha, a dopiero później próbował zapisać usunięte pliki, historię i komunikat przez profile CAS. Równoległa zmiana rewizji pomiędzy odczytem a końcowym zapisem powodowała 409. Kolejny request przeliczał ten sam batch; wallet nie był kredytowany ponownie, lecz dopiero późniejszy CAS mógł wygrać. Powiadomienie Cyberner powstawało przed profile commit, więc retry groził także jego duplikacją.
+
+### Fix
+
+Zwykły dashboard bez zmiany runtime pozostaje ścieżką read-only. Gdy settlement/listing rzeczywiście zmienia stan, helper pobiera profil razem ze świeżą rewizją, wykonuje bounded CAS retry (maksymalnie trzy próby) i przy konflikcie przelicza projekcję od nowa. Kredyt walletu pozostaje exactly-once dzięki `ghost_exchange:auto:<user>:<batch_id>`. Deltę, historię i powiadomienie publikuje dopiero zwycięski profile commit. Session generation/precommit guard nie jest omijany i nie podlega retry.
+
+### Testy
+
+Regresja rozlicza 20 plików, wymusza konflikt pierwszego profile CAS i oczekuje HTTP 200 po drugim podejściu, jednego kredytu, jednego wpisu historii, jednego maila oraz zerowego ponownego settlementu przy następnym GET. Szersze testy pokrywają read-only dashboard, listing/dwell, backlog, storage limit, orphan cleanup oraz legacy batch.
+
+Status: **RESOLVED — READY FOR SERVER VALIDATION**.
+
 ## Powiązane pliki
 
 - `database.py`, `run.py`, `scripts/territory_conflict_worker.py`
