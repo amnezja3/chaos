@@ -51,6 +51,10 @@ Odpowiedź sukcesu i replay zawiera `travel: {receipt, duplicate, city, position
 
 Test backendowy sprawdza ten sam receipt i pozycję dla pierwszej odpowiedzi oraz replay. Test JS sprawdza bridge do otwartej mapy.
 
+### Follow-up manualny: profile revision 70→71
+
+Pierwsza walidacja serwerowa ujawniła, że długi flow zakupu tworzył `UserProfileManager` przed wallet/effect/message, a równoległy refresh profilu mógł przed końcowym zapisem podbić revision. Ścisły, ale stary CAS kończył `/install-app` kodem 409, więc odpowiedź z travel receipt nie docierała do bridge'a. Commit produktu tworzy teraz manager bezpośrednio przed zapisem, ponawia zwykły revision conflict maksymalnie trzy razy i przy każdym podejściu scala receipts po `wallet_transaction_key`. Session/precommit rejection nadal kończy się fail-closed; retry nie omija generation guard. Początkowy oraz końcowy `sync_session_profile` nie wykonują już zbędnego normalization write w tym flow. Regresja wymusza konflikt `Expected profile revision 70, current is 71` i oczekuje sukcesu przy drugim CAS, jednego zakupu oraz stabilnego travel receipt.
+
 Status: **RESOLVED — READY FOR SERVER VALIDATION**.
 
 ## 3. Googleplex — diagnostyka błędów instalacji/zakupu

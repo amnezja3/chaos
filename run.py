@@ -15258,6 +15258,53 @@ def googleplex_travel_receipt(purchase_key, purchase_record, profile, duplicate=
     }
 
 
+def merge_googleplex_purchase_records(existing, incoming):
+    """Merge receipts by wallet key without dropping purchases from another tab."""
+    merged = [copy.deepcopy(item) for item in (existing or []) if isinstance(item, dict)]
+
+    def identity(item):
+        wallet_key = str(item.get("wallet_transaction_key") or "").strip()
+        if wallet_key:
+            return f"wallet:{wallet_key}"
+        return "legacy:" + ":".join((
+            str(item.get("id") or "").strip(),
+            str(item.get("product_type") or "").strip(),
+            str(item.get("purchased_at") or "").strip(),
+        ))
+
+    seen = {identity(item) for item in merged}
+    for item in incoming or []:
+        if not isinstance(item, dict):
+            continue
+        key = identity(item)
+        if key in seen:
+            continue
+        merged.append(copy.deepcopy(item))
+        seen.add(key)
+    return merged
+
+
+def persist_googleplex_product_profile(username, updates, max_attempts=3):
+    """Commit a product receipt against a fresh revision with bounded CAS retry."""
+    last_conflict = None
+    for _attempt in range(max(1, int(max_attempts or 1))):
+        manager = UserProfileManager(username)
+        get_profile = getattr(manager, "get_profile", None)
+        current = get_profile(strip_sensitive=True) if callable(get_profile) else {}
+        candidate = copy.deepcopy(updates)
+        for key in ("googleplex_products", "product_purchases", "storage_upgrades"):
+            if key in candidate:
+                candidate[key] = merge_googleplex_purchase_records(
+                    current.get(key, []), candidate.get(key, [])
+                )
+        try:
+            manager.update_profile(candidate)
+            return get_profile(strip_sensitive=True) if callable(get_profile) else candidate
+        except ProfileWriteConflict as exc:
+            last_conflict = exc
+    raise last_conflict
+
+
 def public_pro_system_tools(profile=None):
     tools = []
     for tool in PRO_SYSTEM_TOOLS:
@@ -26417,12 +26464,11 @@ def install_app():
             return jsonify({"status": "error", "reason": "catalog_item_not_found", "message": "App not found"}), 404
 
         buyer_username = session["user"]
-        profile = sync_session_profile()
+        profile = sync_session_profile(persist_normalization=False)
         if not isinstance(profile, dict):
             return jsonify({"status": "error", "reason": "recovery_required", "message": "Profil wymaga odzyskania."}), 409
         profile["hackcoins"] = canonical_wallet_balance(buyer_username)
         previous_storage = storage_delta_snapshot(profile)
-        mgr = UserProfileManager(buyer_username)
         apps = profile.get("apps") if isinstance(profile.get("apps"), list) else []
         is_product = is_googleplex_product(app_data)
         consumable = bool(app_data.get("consumable"))
@@ -26632,7 +26678,10 @@ def install_app():
                 "scan_range_bonus": profile.get("scan_range_bonus", 0),
                 "bike_range_bonus": profile.get("bike_range_bonus", 0),
             }
-            mgr.update_profile(update_payload)
+            committed_profile = persist_googleplex_product_profile(
+                buyer_username, update_payload
+            )
+            profile.update(committed_profile)
             record_storage_delta(
                 buyer_username,
                 profile,
@@ -26659,7 +26708,9 @@ def install_app():
                     reason="googleplex_product_sale",
                     dedupe_key=f"wallet:balance:{purchase_key}:payee",
                 )
-            session["profile"] = sync_session_profile(rebuild_territory=False)
+            session["profile"] = sync_session_profile(
+                rebuild_territory=False, persist_normalization=False
+            )
             travel_receipt = googleplex_travel_receipt(
                 purchase_key, purchase_record, profile, duplicate=False
             )
@@ -26718,6 +26769,7 @@ def install_app():
             resources_store.set("app_config", store)
 
         # --- Aktualizuj profil (aplikacje i pliki) ---
+        mgr = UserProfileManager(buyer_username)
         mgr.update_profile({
             "apps": profile.get("apps", apps),
             "files": files,
@@ -26791,7 +26843,15 @@ def install_app():
         payload["status"] = "error"
         return jsonify(payload), status
     except (ProfileWriteConflict, ProfilePrecommitRejected) as exc:
-        return jsonify({"status": "error", "reason": "profile_write_conflict", "message": str(exc)}), 409
+        print(
+            f"[GOOGLEPLEX] profile commit rejected type={exc.__class__.__name__}",
+            flush=True,
+        )
+        return jsonify({
+            "status": "error",
+            "reason": "profile_write_conflict",
+            "message": "Stan konta zmienil sie podczas zakupu. Sprobuj ponownie.",
+        }), 409
     except ProfileRecoveryRequired as exc:
         return jsonify({"status": "error", "reason": "recovery_required", "message": str(exc)}), 409
     except ProfileValidationError as exc:

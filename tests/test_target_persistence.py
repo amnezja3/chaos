@@ -11,7 +11,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from unittest.mock import patch
 
 import run
-from database import AppActionReceiptStore, DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, PlayerInventoryStore, PlayerOperationStore, PlayerTargetRuntimeStore, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore
+from database import AppActionReceiptStore, DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, PlayerInventoryStore, PlayerOperationStore, PlayerTargetRuntimeStore, ProfileWriteConflict, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore
 from flask.testing import FlaskClient
 from profileManagment import UserProfileManager
 from session_generation_store import SessionGenerationStore
@@ -5820,10 +5820,15 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         product = next(item for item in run.googleplex_product_catalog() if item["id"] == "ticket_warszawa")
 
         class FakeManager:
+            update_attempts = 0
+
             def __init__(self, username):
                 self.username = username
 
             def update_profile(self, data):
+                self.__class__.update_attempts += 1
+                if self.__class__.update_attempts == 1:
+                    raise ProfileWriteConflict("Expected profile revision 70, current is 71.")
                 profile.update(data)
 
         client = run.app.test_client()
@@ -5848,6 +5853,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         city = run.TRAVEL_CITIES["Warszawa"]
         data = response.get_json()
         self.assertEqual(data["status"], "success")
+        self.assertEqual(FakeManager.update_attempts, 2)
         self.assertEqual(data["travel"]["position"], {"lat": city["lat"], "lng": city["lng"]})
         self.assertFalse(data["travel"]["duplicate"])
         replay_data = replay.get_json()
@@ -5858,6 +5864,25 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(profile["current_city"], "Warszawa")
         self.assertEqual(profile["apps"], [])
         self.assertEqual(profile["files"]["tools"], [])
+
+    def test_googleplex_receipt_merge_preserves_concurrent_and_legacy_purchases(self):
+        legacy = {"id": "legacy-upgrade", "product_type": "storage_upgrade"}
+        concurrent = {
+            "id": "ticket_tokio", "product_type": "travel_ticket",
+            "wallet_transaction_key": "purchase:concurrent",
+        }
+        incoming = {
+            "id": "ticket_warszawa", "product_type": "travel_ticket",
+            "wallet_transaction_key": "purchase:current",
+        }
+        merged = run.merge_googleplex_purchase_records(
+            [legacy, concurrent], [legacy, incoming]
+        )
+        self.assertEqual(len(merged), 3)
+        self.assertEqual(
+            {item.get("wallet_transaction_key") for item in merged if item.get("wallet_transaction_key")},
+            {"purchase:concurrent", "purchase:current"},
+        )
 
     def test_googleplex_product_effects_add_profile_bonuses(self):
         profile = {
