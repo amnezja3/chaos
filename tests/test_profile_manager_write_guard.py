@@ -151,6 +151,29 @@ class ProfileManagerWriteGuardTests(unittest.TestCase):
 
         self.assertEqual([("alice", 1)], observed)
 
+    def test_nullable_current_city_accepts_canonical_travel_city_only(self):
+        profile = complete_profile()
+        profile["current_city"] = None
+        self.store.save_profile_guarded(
+            profile,
+            expected_revision=0,
+            source="test.registration",
+            allow_create=True,
+        )
+        resources = FakeResources(profile)
+
+        manager = UserProfileManager(
+            "alice", store=self.store, resource_store=resources
+        )
+        manager.update_profile({"current_city": "Tokio"})
+
+        current = self.store.get_profile_with_revision("alice")
+        self.assertEqual("Tokio", current["profile"]["current_city"])
+        with self.assertRaises(TypeError):
+            UserProfileManager(
+                "alice", store=self.store, resource_store=resources
+            ).update_profile({"current_city": {"invalid": True}})
+
 
 if __name__ == "__main__":
     unittest.main()

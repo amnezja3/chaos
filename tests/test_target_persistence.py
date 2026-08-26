@@ -5815,6 +5815,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
             "files": {"tools": []},
             "storage_capacity": 512,
             "curently_possition": {"lat": 0, "lng": 0},
+            "current_city": None,
             "system_messages": [],
         }
         product = next(item for item in run.googleplex_product_catalog() if item["id"] == "ticket_warszawa")

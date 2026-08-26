@@ -57,6 +57,8 @@ Pierwsza walidacja serwerowa ujawniła, że długi flow zakupu tworzył `UserPro
 
 Drugi manual potwierdził zapis pozycji i focus otwartej mapy. Brakowało wyłącznie ścieżki dla zamkniętej mapy: bridge nie miał iframe, do którego mógł przekazać receipt. Udany travel otwiera teraz mapę, jeżeli nie istnieje jej okno, a następnie rejestruje canonical focus na synchronicznie utworzonym iframe; istniejący listener `load` dostarcza go po zakończeniu bootu mapy.
 
+Trzeci manual ujawnił profil z legalnym stanem `current_city=null`. Efekt biletu ustawiał canonical nazwę miasta, ale historyczny type guard `UserProfileManager` inferował dozwolony typ wyłącznie z bieżącej wartości i odrzucał `None → string`, już po idempotentnym transferze walletu. Kontrakt managera jawnie dopuszcza teraz wyłącznie `None|string` dla `current_city`; pozostałe pola nadal zachowują ścisłą kontrolę typu. Regresja pokrywa dokładne `current_city=None → Tokio`, odrzuca dict oraz ponownie sprawdza travel receipt, replay i CAS.
+
 Status: **RESOLVED — READY FOR SERVER VALIDATION**.
 
 ## 3. Googleplex — diagnostyka błędów instalacji/zakupu

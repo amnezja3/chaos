@@ -59,7 +59,9 @@ renderem mapy.
 Body fallback jest porównywany z surową generation bieżącej sesji. Nawigacje
 iframe/logout wysyłają jej pełny jednokierunkowy SHA-256 token, aby surowa
 generation nie trafiła do access logu URL; backend akceptuje token wyłącznie
-dla tych dwóch tras. Mapa ustawia ponadto `Referrer-Policy: no-referrer`.
+dla tych dwóch tras. Mapa ustawia ponadto `Referrer-Policy: origin`: zewnętrzny
+provider kafelków otrzymuje wymagany origin aplikacji, ale nigdy ścieżkę ani
+query zawierające token generation.
 Telemetria zapisuje tylko SHA-256 prefix generation, username i request ID; nie
 zapisuje surowych wartości.
 

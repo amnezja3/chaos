@@ -38,6 +38,10 @@ class Sprint130123FrontendContractTest(unittest.TestCase):
         self.assertIn("layer.setUrl(mapTileScheme.fallback_tiles, false)", self.map_template)
         self.assertNotIn("mapTileScheme.selected = mapTileScheme.fallback", self.map_template)
 
+    def test_map_tiles_send_origin_without_generation_query(self):
+        self.assertIn('<meta name="referrer" content="origin">', self.map_template)
+        self.assertNotIn('<meta name="referrer" content="no-referrer">', self.map_template)
+
 
 if __name__ == "__main__":
     unittest.main()

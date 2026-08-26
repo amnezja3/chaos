@@ -35,6 +35,9 @@ class UserProfileManager:
             "googleplex_products", "product_purchases", "storage_upgrades",
             "ghostnetwork_stats", "ghostnetwork_reward_history",
         }
+        self._nullable_profile_key_types = {
+            "current_city": str,
+        }
         self.store = store or default_user_store(users_path)
         self.resource_store = resource_store or JsonResourceStore()
         self.precommit_guard = precommit_guard
@@ -118,8 +121,12 @@ class UserProfileManager:
                 continue
 
             if key in self.user_profile:
-                original_type = type(self.user_profile[key])
-                if isinstance(new_value, original_type):
+                original_value = self.user_profile[key]
+                original_type = type(original_value)
+                nullable_type = self._nullable_profile_key_types.get(key)
+                if nullable_type and (new_value is None or isinstance(new_value, nullable_type)):
+                    self.user_profile[key] = new_value
+                elif isinstance(new_value, original_type):
                     self.user_profile[key] = new_value
                 else:
                     raise TypeError(f"Typ wartości dla '{key}' musi być {original_type.__name__}.")
@@ -139,8 +146,12 @@ class UserProfileManager:
 
         current_value = self.user_profile[profile_key]
         current_type = type(current_value)
+        nullable_type = self._nullable_profile_key_types.get(profile_key)
 
-        if isinstance(current_value, list):
+        if nullable_type and (new_value is None or isinstance(new_value, nullable_type)):
+            self.user_profile[profile_key] = new_value
+
+        elif isinstance(current_value, list):
             if not isinstance(new_value, list):
                 new_value = [new_value]
             for item in new_value:
