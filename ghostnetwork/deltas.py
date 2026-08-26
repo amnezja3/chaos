@@ -236,6 +236,18 @@ class GhostNetworkDeltaPublisher:
             "visibility_version": projection.get("visibility_version") or VISIBILITY_VERSION,
             "snapshot_checksum": snapshot_checksum(projection),
         }
+        # Lifecycle SFX is driven by canonical transitions, never by the
+        # projected/rendered state.  Keep only the public transition envelope;
+        # internal part metadata remains protected by the viewer projection.
+        event_payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        for key in (
+            "source_event_id", "previous_status", "status",
+            "previous_conflict_state", "conflict_state",
+            "previous_active_parts", "active_parts", "occurred_at",
+        ):
+            value = event_payload.get(key, event.get(key))
+            if value is not None:
+                payload[key] = copy.deepcopy(value)
 
         projected_entity = None
         if event_type.startswith("ghost.connection_"):

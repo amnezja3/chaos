@@ -1,10 +1,12 @@
 import unittest
-from datetime import datetime, timezone
+from unittest.mock import patch
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from database import PlayerOperationStore
 import run
+from tests.session_generation_fixture import SessionGenerationFixture
 from response_network.operation_risk_meter import (
     calculate_operation_risk,
     update_operation_risk_meter,
@@ -130,6 +132,77 @@ class OperationRiskMeterTest(unittest.TestCase):
         self.assertEqual(meter["risk_version"], 1)
         self.assertEqual(profile["risk_events"], [])
         self.assertEqual(profile["system_messages"], [])
+
+    def test_bounded_store_tick_moves_projection_without_profile_io(self):
+        runtime_now = datetime.now(timezone.utc).replace(microsecond=0)
+        operation = self._operation(
+            operation_type="vehicle_tracking",
+            movement_model="road_movement",
+            started_at=(runtime_now - timedelta(minutes=1)).isoformat(),
+            expires_at=(runtime_now + timedelta(minutes=119)).isoformat(),
+        )
+        self.assertEqual(len(run.player_operation_store.upsert_operations("neo", [operation])), 1)
+        tick_now = datetime.now(timezone.utc).timestamp() + 2
+        with patch.object(run.incident_initializer, "sync_operations", return_value={"actions": []}), \
+                patch.object(run, "sync_response_warnings", return_value=[]), \
+                patch.object(run.user_store, "get_profile", side_effect=AssertionError("profile hot path")):
+            first = run.process_operation_runtime_tick(
+                limit_users=1, min_age_seconds=0, now_ts=tick_now
+            )
+            first_position = dict(
+                run.player_operation_store.list_operations("neo")[0]["current_position"]
+            )
+            second = run.process_operation_runtime_tick(
+                limit_users=1, min_age_seconds=0, now_ts=tick_now + 30
+            )
+        stored = run.player_operation_store.list_operations("neo")[0]
+        self.assertEqual(first["operations"], 1)
+        self.assertEqual(second["operations"], 1)
+        self.assertNotEqual(stored["current_position"], first_position)
+        self.assertGreaterEqual(stored["_runtime_version"], 3)
+
+    def test_runtime_store_cas_rejects_stale_projection(self):
+        run.player_operation_store.upsert_operations("neo", [self._operation()])
+        first = run.player_operation_store.list_operations("neo")[0]
+        stale = dict(first)
+        first["remaining_seconds"] = 10
+        stale["remaining_seconds"] = 20
+        self.assertEqual(len(run.player_operation_store.compare_and_swap_runtime("neo", [first])), 1)
+        self.assertEqual(run.player_operation_store.compare_and_swap_runtime("neo", [stale]), [])
+        self.assertEqual(run.player_operation_store.list_operations("neo")[0]["remaining_seconds"], 10)
+
+    def test_summary_endpoint_reads_store_without_full_profile(self):
+        now = datetime.now(timezone.utc)
+        run.player_operation_store.upsert_operations("neo", [self._operation(
+            started_at=(now - timedelta(minutes=1)).isoformat(),
+            expires_at=(now + timedelta(hours=1)).isoformat(),
+        )])
+        fixture = SessionGenerationFixture("chaos_operation_summary_session_").start()
+        self.addCleanup(fixture.stop)
+        client = run.app.test_client()
+        headers = fixture.authenticate(client, "neo")
+        with patch.object(run.user_store, "get_profile", side_effect=AssertionError("profile hot path")):
+            response = client.get("/api/operations?summary=1", headers=headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["source"], "player_operations")
+        self.assertEqual(response.get_json()["active_count"], 1)
+
+    def test_tick_marks_timeout_cleanup_in_store_only(self):
+        now = datetime.now(timezone.utc)
+        run.player_operation_store.upsert_operations("neo", [self._operation(
+            started_at=(now - timedelta(hours=2)).isoformat(),
+            expires_at=(now - timedelta(seconds=1)).isoformat(),
+        )])
+        with patch.object(run.incident_initializer, "sync_operations", return_value={"actions": []}), \
+                patch.object(run, "sync_response_warnings", return_value=[]), \
+                patch.object(run.user_store, "get_profile", side_effect=AssertionError("profile hot path")):
+            result = run.process_operation_runtime_tick(
+                limit_users=1, min_age_seconds=0, now_ts=now.timestamp() + 2
+            )
+        operation = run.player_operation_store.list_operations("neo")[0]
+        self.assertEqual(result["operations"], 1)
+        self.assertEqual(operation["status"], "timeout")
+        self.assertFalse(operation["cleanup_state"]["marker_visible"])
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ class TerritoryWorkerGhostNetworkFairnessTest(unittest.TestCase):
 
     def common_patches(self):
         return (
+            patch.object(worker.run, "process_operation_runtime_tick", return_value={"operations": 0}),
             patch.object(worker.run, "retry_pending_strategic_progression", return_value=[]),
             patch.object(worker.run, "process_territory_rebuild_job", return_value=None),
             patch.object(worker.run, "process_territory_reconciliation_set", return_value=None),

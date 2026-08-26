@@ -13431,6 +13431,61 @@ def refresh_operation_runtime(operation, now_ts=None):
     return refreshed
 
 
+def process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0, now_ts=None):
+    """Advance canonical operation/incident projections without loading profiles."""
+    now_ts = now_ts if now_ts is not None else datetime.now(timezone.utc).timestamp()
+    usernames = player_operation_store.list_runtime_usernames(
+        limit=limit_users,
+        min_age_seconds=min_age_seconds,
+        now=datetime.fromtimestamp(now_ts, tz=timezone.utc).replace(tzinfo=None),
+    )
+    result = {"users": 0, "operations": 0, "incidents": 0, "warnings": 0}
+    for username in usernames:
+        operations = player_operation_store.list_operations(username, include_terminal=False)
+        refreshed = []
+        for operation in operations:
+            projection = refresh_operation_runtime(operation, now_ts=now_ts)
+            if projection.get("status") in OPERATION_TERMINAL_STATUSES:
+                mark_operation_cleanup_state(
+                    projection, now_iso=operation_iso_from_ts(now_ts)
+                )
+            refreshed.append(projection)
+        accepted = player_operation_store.compare_and_swap_runtime(username, refreshed)
+        if not accepted:
+            continue
+        result["users"] += 1
+        result["operations"] += len(accepted)
+        current = player_operation_store.list_operations(username, include_terminal=True)
+        links_before = {
+            str(operation.get("operation_id") or ""): copy.deepcopy(
+                operation.get("operation_risk_meter") or {}
+            )
+            for operation in current if isinstance(operation, dict)
+        }
+        incident_result = incident_initializer.sync_operations(current, now=operation_iso_from_ts(now_ts))
+        incident_actions = incident_result.get("actions") or []
+        if incident_actions:
+            publish_incident_actions(username, incident_actions)
+        warning_actions = sync_response_warnings(
+            username, None, current, now_iso=operation_iso_from_ts(now_ts)
+        )
+        # Incident/warning links are part of the operation projection.  A
+        # second CAS persists them only if gameplay did not replace the row.
+        link_updates = [
+            operation for operation in current if isinstance(operation, dict)
+            and links_before.get(str(operation.get("operation_id") or ""), {})
+            != (operation.get("operation_risk_meter") or {})
+        ]
+        linked = player_operation_store.compare_and_swap_runtime(
+            username, link_updates, event_type="operation.runtime_links"
+        ) if link_updates else []
+        result["incidents"] += len(incident_actions)
+        result["warnings"] += len([item for item in warning_actions if item.get("action") == "issued"])
+        if link_updates and not linked:
+            print(f"[OPERATIONS] runtime link CAS lost user={username}", flush=True)
+    return result
+
+
 def refresh_operations_runtime(profile, persist_timeouts=False, now_ts=None, username=None):
     now_ts = now_ts if now_ts is not None else datetime.now(timezone.utc).timestamp()
     operations = profile.get("operations") or []
@@ -15182,6 +15237,25 @@ def apply_googleplex_product_effect(profile, product, username=None):
 
     normalize_profile_storage(profile)
     return {"applied": applied, "messages": messages}
+
+
+def googleplex_travel_receipt(purchase_key, purchase_record, profile, duplicate=False):
+    purchase_record = purchase_record if isinstance(purchase_record, dict) else {}
+    travel = next((item for item in (purchase_record.get("effects") or [])
+                   if isinstance(item, dict) and item.get("type") == "travel_city"), None)
+    if not travel:
+        return None
+    position = player_position_store.get(profile.get("username")) if profile.get("username") else None
+    position = position or profile.get("curently_possition") or profile.get("current_position") or {}
+    return {
+        "receipt": purchase_key,
+        "duplicate": bool(duplicate),
+        "city": travel.get("city"),
+        "position": {"lat": position.get("lat", travel.get("lat")),
+                     "lng": position.get("lng", travel.get("lng"))},
+        "position_version": position.get("version", profile.get("position_version")),
+        "position_updated_at": position.get("updated_at", profile.get("position_updated_at")),
+    }
 
 
 def public_pro_system_tools(profile=None):
@@ -22692,11 +22766,9 @@ def api_operations():
 
     summary_mode = str(request.args.get("summary") or request.args.get("active_only") or "").strip().lower() in {"1", "true", "yes", "active"}
     if summary_mode:
-        profile = load_profile_readonly(session["user"], normalize_apps=False, normalize_files=False)
-        if not profile:
-            invalidate_authenticated_session("profile_not_found")
-            return jsonify({"success": False, "message": "Brak danych uzytkownika"}), 401
-        operations = operations_from_store_or_profile(session["user"], profile, refresh=False)
+        # The worker owns runtime advancement.  This hot path reads the ready
+        # canonical projection only; it must never hydrate a full profile.
+        operations = player_operation_store.list_operations(session["user"], include_terminal=True)
         active_operations = active_operations_from_operations(operations)
         operation_history = operation_history_from_operations(operations)
         return jsonify({
@@ -26333,7 +26405,7 @@ def add_system_message():
 def install_app():
     try:
         if "user" not in session:
-            return jsonify({"status": "error", "message": "Nie jestes zalogowany."}), 401
+            return jsonify({"status": "error", "reason": "authentication_required", "message": "Nie jestes zalogowany."}), 401
 
         data = request.get_json() or {}
         app_id = str(data.get("app_id") or "").strip()
@@ -26342,12 +26414,12 @@ def install_app():
 
         app_data = next((app for app in catalog if app.get("id") == app_id), None)
         if not app_data:
-            return jsonify({"status": "error", "message": "App not found"}), 404
+            return jsonify({"status": "error", "reason": "catalog_item_not_found", "message": "App not found"}), 404
 
         buyer_username = session["user"]
         profile = sync_session_profile()
         if not isinstance(profile, dict):
-            return jsonify({"status": "error", "message": "Profil wymaga odzyskania."}), 409
+            return jsonify({"status": "error", "reason": "recovery_required", "message": "Profil wymaga odzyskania."}), 409
         profile["hackcoins"] = canonical_wallet_balance(buyer_username)
         previous_storage = storage_delta_snapshot(profile)
         mgr = UserProfileManager(buyer_username)
@@ -26407,6 +26479,9 @@ def install_app():
                 dedupe_key=f"wallet:balance:{purchase_key}:buyer",
             )
             session["profile"] = profile
+            travel_receipt = googleplex_travel_receipt(
+                purchase_key, existing_receipt, profile, duplicate=True
+            ) if is_product else None
             return jsonify({
                 "status": "success",
                 "duplicate": True,
@@ -26417,6 +26492,7 @@ def install_app():
                 "app": normalize_app_contract(existing_receipt) if not is_product else None,
                 "apps": profile.get("apps", apps),
                 "files": profile.get("files", {}),
+                "travel": travel_receipt,
                 "storage": {
                     "capacity": profile.get("storage_capacity"),
                     "used": profile.get("storage_used"),
@@ -26434,7 +26510,7 @@ def install_app():
 
         requirement_error = validate_app_install_requirements(app_data, profile)
         if requirement_error:
-            return jsonify({"status": "error", "message": requirement_error}), 400
+            return jsonify({"status": "error", "reason": "requirements_not_met", "message": requirement_error}), 400
 
         buyer_name = profile.get("nick") or buyer_username
         price = max(0, int(app_data.get("price") or 0))
@@ -26455,6 +26531,7 @@ def install_app():
             if not payee_profile:
                 return jsonify({
                     "status": "error",
+                    "reason": "payment_recipient_unavailable",
                     "message": "Brak odbiorcy platnosci. Skontaktuj sie z adminem.",
                 }), 409
             payment = wallet_store.transfer(
@@ -26583,6 +26660,9 @@ def install_app():
                     dedupe_key=f"wallet:balance:{purchase_key}:payee",
                 )
             session["profile"] = sync_session_profile(rebuild_territory=False)
+            travel_receipt = googleplex_travel_receipt(
+                purchase_key, purchase_record, profile, duplicate=False
+            )
             return jsonify({
                 "status": "success",
                 "message": "Produkt zostal kupiony.",
@@ -26602,6 +26682,7 @@ def install_app():
                 },
                 "product": purchase_record,
                 "effects": effect_result.get("applied", []),
+                "travel": travel_receipt,
                 "storage_upgrade": {
                     "id": app_id,
                     "name": app_data.get("name"),
@@ -26717,7 +26798,7 @@ def install_app():
         return jsonify({"status": "error", "reason": "profile_validation_failed", "message": str(exc)}), 422
     except Exception as e:
         print(f"[EXCEPTION] Wystąpił błąd podczas instalacji: {e}")
-        return jsonify({"status": "error", "message": "Instalacja nie zostala zakonczona."}), 500
+        return jsonify({"status": "error", "reason": "install_internal_error", "message": "Instalacja nie zostala zakonczona."}), 500
 
 @app.route('/api/apps/uninstall', methods=['POST'])
 def uninstall_app():

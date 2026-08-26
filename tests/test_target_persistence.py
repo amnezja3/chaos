@@ -5840,10 +5840,20 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
                 "app_id": product["id"],
                 "transaction_key": "test:googleplex:ticket_warszawa:1",
             })
+            replay = client.post("/install-app", json={
+                "app_id": product["id"],
+                "transaction_key": "test:googleplex:ticket_warszawa:1",
+            })
 
         city = run.TRAVEL_CITIES["Warszawa"]
         data = response.get_json()
         self.assertEqual(data["status"], "success")
+        self.assertEqual(data["travel"]["position"], {"lat": city["lat"], "lng": city["lng"]})
+        self.assertFalse(data["travel"]["duplicate"])
+        replay_data = replay.get_json()
+        self.assertTrue(replay_data["duplicate"])
+        self.assertTrue(replay_data["travel"]["duplicate"])
+        self.assertEqual(replay_data["travel"]["receipt"], data["travel"]["receipt"])
         self.assertEqual(profile["curently_possition"], {"lat": city["lat"], "lng": city["lng"]})
         self.assertEqual(profile["current_city"], "Warszawa")
         self.assertEqual(profile["apps"], [])

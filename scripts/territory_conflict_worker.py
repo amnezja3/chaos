@@ -138,6 +138,7 @@ def compact_multi_audit_report(report):
 
 def process_once():
     global _consecutive_ghostnetwork_jobs
+    operation_tick = run.process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0)
     strategic_rewards = run.retry_pending_strategic_progression(limit=1)
     if strategic_rewards:
         print(
@@ -196,7 +197,7 @@ def process_once():
             )
             return True
         _consecutive_ghostnetwork_jobs = 0
-        return False
+        return bool(operation_tick.get("operations"))
     conflict_id = candidates[0]["conflict_id"]
     result = run.consolidate_conflict_rebuild(
         conflict_id,

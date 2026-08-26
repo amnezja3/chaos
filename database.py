@@ -9669,7 +9669,7 @@ class PlayerOperationStore:
             operation.setdefault("operation_id", row["operation_id"])
             operation.setdefault("status", row["status"])
             operation.setdefault("operation_type", row["operation_type"])
-            operation.setdefault("_runtime_version", int(row["version"] or 0))
+            operation["_runtime_version"] = int(row["version"] or 0)
             return operation
         return None
 
@@ -9704,6 +9704,80 @@ class PlayerOperationStore:
                 if isinstance(operation, dict)
             ]
 
+    def list_runtime_usernames(self, limit=8, min_age_seconds=1.0, now=None):
+        """Return a bounded set of owners whose canonical runtime projection is due."""
+        limit = max(1, min(int(limit or 1), 64))
+        now = now if isinstance(now, datetime) else datetime.utcnow()
+        cutoff = (now - timedelta(seconds=max(0.0, float(min_age_seconds or 0)))).isoformat(timespec="seconds") + "Z"
+        placeholders = ",".join("?" for _ in self.TERMINAL_STATUSES)
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT username, MIN(updated_at) AS oldest_update
+                FROM player_operations
+                WHERE status NOT IN ({placeholders}) AND updated_at <= ?
+                GROUP BY username
+                ORDER BY oldest_update, username
+                LIMIT ?
+                """,
+                (*sorted(self.TERMINAL_STATUSES), cutoff, limit),
+            ).fetchall()
+        return [str(row["username"] or "").strip() for row in rows if row["username"]]
+
+    def compare_and_swap_runtime(self, username, operations, event_type="operation.runtime_tick"):
+        """Atomically persist only projections read at the supplied runtime version."""
+        username = self._clean_text(username)
+        now = utc_now()
+        accepted = []
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            for incoming in operations or []:
+                if not isinstance(incoming, dict):
+                    continue
+                operation = copy.deepcopy(incoming)
+                operation_id = self._operation_id(operation)
+                try:
+                    expected_version = int(operation.pop("_runtime_version"))
+                except (KeyError, TypeError, ValueError):
+                    continue
+                row = conn.execute(
+                    "SELECT version FROM player_operations WHERE username = ? AND operation_id = ?",
+                    (username, operation_id),
+                ).fetchone()
+                if not row or int(row["version"] or 0) != expected_version:
+                    continue
+                version = expected_version + 1
+                operation["operation_id"] = operation_id
+                operation["_runtime_version"] = version
+                cursor = conn.execute(
+                    """
+                    UPDATE player_operations
+                    SET status = ?, operation_json = ?, risk_json = ?, version = ?, updated_at = ?
+                    WHERE username = ? AND operation_id = ? AND version = ?
+                    """,
+                    (
+                        self._status(operation), dumps_json(operation),
+                        dumps_json(self._risk_json(operation)), version, now,
+                        username, operation_id, expected_version,
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    continue
+                dedupe_key = f"runtime:{operation_id}:{version}"
+                event_id = "opev_" + hashlib.sha1(dedupe_key.encode("utf-8")).hexdigest()[:18]
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO operation_events
+                        (event_id, operation_id, event_type, dedupe_key, payload_json, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (event_id, operation_id, event_type, dedupe_key,
+                     dumps_json({"source": "bounded_runtime_tick", "status": self._status(operation),
+                                 "operation_id": operation_id, "version": version}), now),
+                )
+                accepted.append(operation)
+        return accepted
+
     def upsert_operations(self, username, operations, event_type="operation.upsert", source="", dedupe_key_prefix=""):
         username = self._clean_text(username)
         if not username:
@@ -9715,6 +9789,7 @@ class PlayerOperationStore:
             if not isinstance(incoming, dict):
                 continue
             operation = dict(incoming)
+            operation.pop("_runtime_version", None)
             operation_id = self._operation_id(operation)
             operation["operation_id"] = operation_id
             status = self._status(operation)

@@ -9718,6 +9718,36 @@ function googleplexInstallActionKey(app = {}) {
     return { key, storageKey };
 }
 
+function googleplexInstallErrorDetails(response, data = {}) {
+    const httpStatus = Number(response?.status || 0);
+    const reasonCode = String(data.reason_code || data.reason || data.error || "unknown_error").trim();
+    const canonicalMessage = String(data.message || "").trim();
+    let message = canonicalMessage;
+    if (!message) {
+        if (httpStatus === 401) message = "Sesja wygasla. Zaloguj sie ponownie.";
+        else if (httpStatus === 409) message = "Zakup koliduje z aktualnym stanem konta. Odswiez dane i sprobuj ponownie.";
+        else if (httpStatus === 422) message = "Dane produktu nie przeszly walidacji.";
+        else if (httpStatus === 400) message = "Nie spelniono warunkow zakupu lub instalacji.";
+        else message = "Nie udalo sie zakonczyc zakupu lub instalacji.";
+    }
+    return { httpStatus, reasonCode, message };
+}
+
+function applyGoogleplexTravelToOpenMaps(data = {}) {
+    const travel = data.travel && typeof data.travel === "object" ? data.travel : null;
+    const position = travel?.position && typeof travel.position === "object" ? travel.position : null;
+    const lat = Number(position?.lat);
+    const lng = Number(position?.lng);
+    if (!travel || !Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+    notifyOpenMapsBlacknetFocus({
+        mode: "teleport", source: "googleplex_travel", lat, lng,
+        receipt: travel.receipt,
+        position_version: travel.position_version,
+        position_updated_at: travel.position_updated_at
+    });
+    return true;
+}
+
 function showInstallAppProgress(app, onInstalled = null) {
     // Okno progressbar (symulacja jak instalator Windows/Linux)
     const steps = [
@@ -9768,9 +9798,9 @@ function showInstallAppProgress(app, onInstalled = null) {
                     client_action_key: installAction.key
                 })
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === "success") {
+            .then(async response => ({ response, data: await response.json().catch(() => ({})) }))
+            .then(({ response, data }) => {
+                if (response.ok && data.status === "success") {
                     try {
                         window.sessionStorage.removeItem(installAction.storageKey);
                     } catch (_err) {
@@ -9796,6 +9826,7 @@ function showInstallAppProgress(app, onInstalled = null) {
                             storage_over_limit: storage.over_limit === true
                         });
                     }
+                    applyGoogleplexTravelToOpenMaps(data);
 
                     // Zamykamy okno po 4 sekundach i przeładowujemy "pulpit"
                     setTimeout(async () => {
@@ -9817,7 +9848,15 @@ function showInstallAppProgress(app, onInstalled = null) {
                         }
                     }, 4000);
                 } else {
-                    result.innerHTML = `<span style="color:#f33;">\u2716 B\u0142\u0105d instalacji: ${escapeHTML(data.message || '')}</span>`;
+                    const diagnostic = googleplexInstallErrorDetails(response, data);
+                    result.innerHTML = `<span style="color:#f33;">\u2716 ${escapeHTML(diagnostic.message)}</span>`;
+                    addSystemMessage("danger", "Googleplex", diagnostic.message);
+                    console.warn("Googleplex purchase/install rejected", {
+                        http_status: diagnostic.httpStatus,
+                        reason_code: diagnostic.reasonCode,
+                        app_id: String(app.id || ""),
+                        product_type: String(app.product_type || "app")
+                    });
                 }
             })
             .catch(err => {

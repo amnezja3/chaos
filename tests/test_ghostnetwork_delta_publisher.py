@@ -58,6 +58,30 @@ class FakeRepository:
 
 
 class GhostNetworkDeltaPublisherTest(unittest.TestCase):
+    def test_live_lifecycle_delta_preserves_public_transition_envelope(self):
+        repository = FakeRepository()
+        projection = {
+            "visibility_version": "ghost-visibility-v1", "state_version": 9,
+            "cycle": {"cycle_id": "ghostnetwork_0001", "state_version": 9},
+            "parts": [{"part_id": "part-1", "public_entity_id": "ghost-public-1",
+                       "can_show_on_map": True}], "connections": [], "progress": {},
+        }
+        event = {
+            "event_id": "transition-1", "event_type": "ghost.part_activated",
+            "cycle_id": "ghostnetwork_0001", "part_id": "part-1", "state_version": 9,
+            "payload": {"source_event_id": "territory-7", "previous_status": "contained",
+                        "status": "active", "previous_conflict_state": "none",
+                        "conflict_state": "none", "internal_part_name": "must-not-leak"},
+        }
+        with patch("ghostnetwork.deltas.build_viewer_projection", return_value=projection):
+            delta = GhostNetworkDeltaPublisher(repository=repository).build_delta_for_viewer(
+                event, {"username": "alice"}
+            )
+        self.assertEqual(delta["payload"]["previous_status"], "contained")
+        self.assertEqual(delta["payload"]["status"], "active")
+        self.assertEqual(delta["payload"]["source_event_id"], "territory-7")
+        self.assertNotIn("internal_part_name", delta["payload"])
+
     def test_publishes_safe_part_delta_through_existing_delta_bus(self):
         delta_bus = FakeDeltaBus()
         repository = FakeRepository()
