@@ -1641,6 +1641,8 @@ function runSystemLauncherApp(appData) {
         createTerritoryControlApp,
         operation_control: createOperationControlApp,
         createOperationControlApp,
+        ghostnetwork_suite: createGhostNetworkSuiteApp,
+        createGhostNetworkSuiteApp,
         ghost_lab: createGhostLabHub,
         dev_bug_reporter: createDevBugReporterApp
     };
@@ -7232,6 +7234,180 @@ function createOperationControlApp() {
 
 window.createOperationControlApp = createOperationControlApp;
 window.operation_control = createOperationControlApp;
+
+const GHOSTNETWORK_SUITE_ENDPOINT = "/api/ghostnetwork/snapshot?view=suite";
+const GHOSTNETWORK_SUITE_SECTIONS = [
+    { id: "all", label: "WSZYSTKIE" },
+    { id: "public", label: "PUBLICZNE" },
+    { id: "blocked", label: "BLOKOWANE" },
+    { id: "active", label: "AKTYWNE" },
+    { id: "control", label: "MOJA KONTROLA" },
+];
+
+function ghostnetworkSuiteIndex(snapshot = {}) {
+    const parts = Array.isArray(snapshot.parts) ? snapshot.parts : [];
+    const byId = new Map(parts.map(part => [String(part?.public_entity_id || ""), part]).filter(([id]) => id));
+    const groups = snapshot.groups && typeof snapshot.groups === "object" ? snapshot.groups : {};
+    const refs = key => (Array.isArray(groups[key]) ? groups[key] : []).map(String).filter(id => byId.has(id));
+    const sectionIds = {
+        public: refs("public"),
+        blocked: refs("blocked"),
+        active: refs("clan_active"),
+        control: [...refs("self_foreign"), ...refs("self_own")],
+    };
+    parts.forEach(part => {
+        const id = String(part?.public_entity_id || "");
+        if (id && part?.viewer_relation === "foreign_active" && !sectionIds.active.includes(id)) sectionIds.active.push(id);
+    });
+    Object.keys(sectionIds).forEach(key => { sectionIds[key] = [...new Set(sectionIds[key])]; });
+    return { parts, byId, sectionIds };
+}
+
+function ghostnetworkSuiteVisibleText(part = {}) {
+    const owner = part.owner || {};
+    const territory = part.territory || {};
+    const safe = [
+        part.display_label, part.summary, part.status, part.conflict_state, part.viewer_relation,
+        owner.owner_alias, owner.owner_clan, territory.territory_id, territory.owner_alias, territory.owner_clan,
+    ];
+    if (part.identity_visible === true) safe.push(part.name, part.part_code, part.machine_code, part.profession_code);
+    if (part.ability_visible === true) safe.push(part.ability_name, part.ability_code);
+    return safe.filter(Boolean).join(" ").toLocaleLowerCase("pl");
+}
+
+function ghostnetworkSuiteSortValue(part, sort) {
+    if (sort === "distance") return Number.isFinite(Number(part?.distance_m)) ? Number(part.distance_m) : Number.MAX_SAFE_INTEGER;
+    if (sort === "state") return `${part?.conflict_state === "contested" ? "0" : "1"}:${part?.status || ""}`;
+    if (sort === "clan") return String(part?.owner?.owner_clan || part?.territory?.owner_clan || "");
+    if (sort === "owner") return String(part?.owner?.owner_alias || "");
+    if (sort === "updated") return -Date.parse(part?.updated_at || 0) || 0;
+    const priority = part?.conflict_state === "contested" ? 0 : String(part?.viewer_relation || "").startsWith("self_") ? 1 : part?.module_state === "active" ? 2 : 3;
+    return `${priority}:${part?.display_label || part?.public_entity_id || ""}`;
+}
+
+function ghostnetworkSuiteSelect(snapshot, filter = "all", query = "", sort = "strategic") {
+    const index = ghostnetworkSuiteIndex(snapshot);
+    const allowed = filter === "all" ? null : new Set(index.sectionIds[filter] || []);
+    const needle = String(query || "").trim().toLocaleLowerCase("pl");
+    return index.parts
+        .filter(part => !allowed || allowed.has(String(part?.public_entity_id || "")))
+        .filter(part => !needle || ghostnetworkSuiteVisibleText(part).includes(needle))
+        .sort((a, b) => {
+            const left = ghostnetworkSuiteSortValue(a, sort);
+            const right = ghostnetworkSuiteSortValue(b, sort);
+            if (typeof left === "number" && typeof right === "number" && left !== right) return left - right;
+            const compared = String(left).localeCompare(String(right), "pl");
+            return compared || String(a?.public_entity_id || "").localeCompare(String(b?.public_entity_id || ""), "pl");
+        });
+}
+
+function ghostnetworkSuiteCard(part = {}) {
+    const identity = part.identity_visible === true;
+    const ability = part.ability_visible === true;
+    const asset = part.visual_asset_url || part.marker_asset_url || "";
+    const location = part.location || {};
+    const owner = part.owner || {};
+    const territory = part.territory || {};
+    const locationLabel = location.visibility === "exact" ? "LOKACJA DOKLADNA" : location.visibility === "territory_only" ? "TYLKO TERYTORIUM" : "LOKACJA UKRYTA";
+    return `
+        <article class="ghostnetwork-suite-card" data-part-ref="${escapeHTML(part.public_entity_id || "")}">
+            <div class="ghostnetwork-suite-card-icon">${asset ? `<img src="${escapeHTML(asset)}" alt="">` : "◈"}</div>
+            <div class="ghostnetwork-suite-card-main">
+                <strong>${escapeHTML(part.display_label || "CZESC GHOSTNETWORK")}</strong>
+                <span>${escapeHTML(part.summary || part.status || "status niedostepny")}</span>
+                <small>${escapeHTML(locationLabel)} · ${escapeHTML(part.viewer_relation || "public")}</small>
+                ${identity && part.profession_code ? `<small>PROFESJA: ${escapeHTML(part.profession_code)}</small>` : ""}
+                ${ability && (part.ability_name || part.ability_code) ? `<small>ZDOLNOSC: ${escapeHTML(part.ability_name || part.ability_code)}</small>` : ""}
+                <details><summary>SZCZEGOLY</summary>
+                    ${identity && part.part_code ? `<small>KOD: ${escapeHTML(part.part_code)}</small>` : ""}
+                    ${identity && (part.machine_name || part.machine_code) ? `<small>MASZYNA: ${escapeHTML(part.machine_name || part.machine_code)}</small>` : ""}
+                    ${owner.owner_alias ? `<small>WLASCICIEL: ${escapeHTML(owner.owner_alias)}</small>` : ""}
+                    ${(owner.owner_clan || territory.owner_clan) ? `<small>KLAN: ${escapeHTML(owner.owner_clan || territory.owner_clan)}</small>` : ""}
+                    ${territory.territory_id ? `<small>TERYTORIUM: ${escapeHTML(territory.territory_id)}</small>` : ""}
+                    ${part.discovered_at ? `<small>ODKRYTO: ${escapeHTML(part.discovered_at)}</small>` : ""}
+                    ${part.updated_at ? `<small>AKTUALIZACJA: ${escapeHTML(part.updated_at)}</small>` : ""}
+                </details>
+            </div>
+            <div class="ghostnetwork-suite-card-state"><b>${escapeHTML(part.status || "unknown")}</b><span>${escapeHTML(part.conflict_state || "safe")}</span></div>
+            <div class="ghostnetwork-suite-card-actions"><button type="button" disabled title="Dostepne od Sprintu 134" aria-label="Pokaz na mapie — dostepne od Sprintu 134">MAPA</button><button type="button" disabled title="Dostepne od Sprintu 134" aria-label="Teleport — dostepny od Sprintu 134">TELEPORT</button></div>
+        </article>`;
+}
+
+function ghostnetworkSuiteCycleStatus(cycle = {}) {
+    const status = String(cycle.status || "active").toLowerCase();
+    if (status === "transmitting") return "GHOSTNETWORK ZAMKNIETY · TRANSMISJA W TOKU";
+    if (status === "stabilizing") return "NOWY CYKL OCZEKUJE NA STABILIZACJE";
+    if (status === "preparing") return "PRZYGOTOWANIE NOWEGO CYKLU";
+    if (status === "closed") return "AKTYWNY CYKL ZAKONCZONY";
+    return "STABILNIE";
+}
+
+function renderGhostNetworkSuite(app, state) {
+    const shell = app?.querySelector(".ghostnetwork-suite-shell");
+    if (!shell) return;
+    const snapshot = state.snapshot || {};
+    const summary = snapshot.summary || {};
+    const cycle = snapshot.cycle || {};
+    const selected = ghostnetworkSuiteSelect(snapshot, state.filter, state.query, state.sort);
+    const stale = state.error && state.snapshot;
+    shell.innerHTML = `
+        <header class="ghostnetwork-suite-header"><div><strong>GHOSTNETWORK // CYKL ${escapeHTML(cycle.cycle_id || "-")}</strong><span>${escapeHTML(snapshot.system_version || cycle.system_version || "GHOSTSYSTEM")}</span></div><div class="ghostnetwork-suite-counters"><b>ODKRYTE ${Number(summary.parts_discovered || 0)} / 20</b><b>AKTYWNE ${Number(summary.parts_active || 0)} / 20</b><b>BLOKOWANE ${Number(summary.parts_blocked || 0)}</b><b>PUBLICZNE ${Number(summary.parts_public || 0)}</b></div></header>
+        <div class="ghostnetwork-suite-toolbar"><nav>${GHOSTNETWORK_SUITE_SECTIONS.map(section => `<button type="button" data-suite-filter="${section.id}" class="${state.filter === section.id ? "is-active" : ""}">${section.label}</button>`).join("")}</nav><input type="search" data-suite-search value="${escapeHTML(state.query || "")}" placeholder="Szukaj w widocznych danych" aria-label="Szukaj czesci GhostNetwork"><select data-suite-sort aria-label="Sortowanie czesci"><option value="strategic" ${state.sort === "strategic" ? "selected" : ""}>STRATEGICZNE</option><option value="distance" ${state.sort === "distance" ? "selected" : ""}>ODLEGLOSC</option><option value="state" ${state.sort === "state" ? "selected" : ""}>STAN</option><option value="clan" ${state.sort === "clan" ? "selected" : ""}>KLAN</option><option value="owner" ${state.sort === "owner" ? "selected" : ""}>WLASCICIEL</option><option value="updated" ${state.sort === "updated" ? "selected" : ""}>OSTATNIA ZMIANA</option></select><button type="button" data-suite-refresh>ODSWIEZ</button></div>
+        <div class="ghostnetwork-suite-status ${state.error ? "is-error" : ""}">${state.loading ? "SYNCHRONIZACJA GHOSTNETWORK · ODCZYT PROJEKCJI WEZLOW" : stale ? `DANE STALE · ${escapeHTML(state.error)}` : state.error ? escapeHTML(state.error) : `${ghostnetworkSuiteCycleStatus(cycle)} · v${escapeHTML(snapshot.state_version || "-")}`}</div>
+        <section class="ghostnetwork-suite-list">${selected.length ? selected.map(ghostnetworkSuiteCard).join("") : `<div class="ghostnetwork-suite-empty">${state.loading ? "Synchronizacja GhostNetwork..." : "Brak czesci dla wybranego filtra."}</div>`}</section>`;
+    shell.querySelectorAll("[data-suite-filter]").forEach(button => button.addEventListener("click", () => { state.filter = button.dataset.suiteFilter || "all"; renderGhostNetworkSuite(app, state); }));
+    shell.querySelector("[data-suite-search]")?.addEventListener("input", event => {
+        state.query = event.target.value || "";
+        renderGhostNetworkSuite(app, state);
+        const input = app.querySelector("[data-suite-search]");
+        input?.focus();
+        input?.setSelectionRange(state.query.length, state.query.length);
+    });
+    shell.querySelector("[data-suite-sort]")?.addEventListener("change", event => { state.sort = event.target.value || "strategic"; renderGhostNetworkSuite(app, state); });
+    shell.querySelector("[data-suite-refresh]")?.addEventListener("click", () => loadGhostNetworkSuite(app, state));
+}
+
+async function loadGhostNetworkSuite(app, state) {
+    if (state.loading) return;
+    state.loading = true;
+    state.error = "";
+    renderGhostNetworkSuite(app, state);
+    try {
+        const response = await fetch(GHOSTNETWORK_SUITE_ENDPOINT, { credentials: "same-origin", cache: "no-store", headers: { "Accept": "application/json" } });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload?.suite_health?.ok === false) throw new Error(payload?.message || payload?.error || "Snapshot GhostNetwork jest niedostepny.");
+        state.snapshot = payload;
+    } catch (error) {
+        state.error = error?.message || "Nie udalo sie pobrac GhostNetwork Suite.";
+        console.warn("GhostNetwork Suite load failed", { reason: state.error });
+    } finally {
+        state.loading = false;
+        renderGhostNetworkSuite(app, state);
+    }
+}
+
+function createGhostNetworkSuiteApp() {
+    const existing = document.querySelector('.app-window[data-app="ghostnetwork-suite"]');
+    if (existing) { bringWindowToFront(existing); return existing; }
+    const app = document.createElement("div");
+    app.className = "app-window ghostnetwork-suite-window";
+    app.dataset.app = "ghostnetwork-suite";
+    app.dataset.appIcon = "◈";
+    app.dataset.appTitle = "GhostNetwork Suite";
+    const position = findAvailablePosition(920, 650);
+    Object.assign(app.style, { top: `${position.top}px`, left: `${position.left}px`, width: "920px", height: "650px" });
+    app.innerHTML = `<div class="title-bar">GhostNetwork Suite <span class="close-btn" style="float:right; cursor:pointer;">✖</span></div><div class="ghostnetwork-suite-shell"></div>`;
+    document.body.appendChild(app);
+    makeDraggable(app);
+    bringWindowToFront(app);
+    app.querySelector(".close-btn")?.addEventListener("click", () => app.remove());
+    const state = { filter: "all", query: "", sort: "strategic", loading: false, error: "", snapshot: null };
+    loadGhostNetworkSuite(app, state);
+    return app;
+}
+
+window.createGhostNetworkSuiteApp = createGhostNetworkSuiteApp;
+window.ghostnetwork_suite = createGhostNetworkSuiteApp;
 
 function appHasMapRuntime(appData) {
     if (!appData || typeof appData !== "object") return false;

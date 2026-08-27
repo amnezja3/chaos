@@ -4442,6 +4442,29 @@ PRO_SYSTEM_TOOLS = [
             "logs": ["Operation Control wymaga pulpitu systemowego. Uruchom z ikony aplikacji."]
         }],
     },
+    {
+        "id": "ghostnetworkSuite",
+        "name": "GhostNetwork Suite",
+        "icon": "\u25c8",
+        "category": "pro-system-tools",
+        "type": "pro-system-tool",
+        "family_id": "ghost_control_suite",
+        "icon_pack": "ghost_control",
+        "description": "Lekka konsola publicznej projekcji GhostNetwork: czesci publiczne, blokowane, aktywne i pozostajace pod kontrola gracza.",
+        "price": 10000,
+        "required_level": 1,
+        "required_respect": 0,
+        "allowed_fractions": [],
+        "risk_level": 0,
+        "purchase_account": "admin",
+        "interface": "system_launcher",
+        "system_launcher": "createGhostNetworkSuiteApp",
+        "levels": [{
+            "title": "GhostNetwork Suite",
+            "command": "ghostnetwork-suite --open",
+            "logs": ["GhostNetwork Suite wymaga pulpitu systemowego. Uruchom z ikony aplikacji."]
+        }],
+    },
 ]
 
 CREATOR_SYSTEM_APPS = [

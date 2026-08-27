@@ -1664,3 +1664,19 @@ Werdykt: `READY TO START SPRINT 131`.
 - Artefakt:
   `doc/hardbugfix/app_uninstall_canonical_inventory_pre_sprint_133_2026-08-27.md`.
 - Bez deployu, restartu PM2, produkcyjnych mutacji i commita.
+
+Manual serwerowy 2026-08-27 potwierdził poprawne działanie uninstallu.
+
+`APP UNINSTALL CANONICAL INVENTORY — RESOLVED`
+## 2026-08-27 — Sprint 133 rozpoczęty
+
+- rozpoczęto desktopową aplikację `ghostnetworkSuite` na projekcji Sprintu 132,
+- produkt dołączono do rodziny `ghost_control_suite`, cena `10 000 HC`, odbiorca/fallback `admin`,
+- zakres 133 pozostaje read-only: bez profilu, mapy i teleportu.
+
+Implementacja lokalna osiągnęła `SPRINT 133 — READY FOR SERVER VALIDATION`.
+Snapshot suite pozostaje jedynym hot pathem; wyszukiwarka nie indeksuje ukrytej
+tożsamości, a przyciski mapy i teleportu są disabled bez handlerów. Walidacja:
+15/15 testów produktu/projekcji, 34/34 testy siostrzanych aplikacji i 15/15
+skryptów JavaScript — OK; kontrole składni i diffu — OK. Bez deployu, restartu
+PM2 i commita.

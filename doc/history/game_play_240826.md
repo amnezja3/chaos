@@ -2444,7 +2444,7 @@ Sprint jest zakończony, gdy desktopowa aplikacja może jednym lekkim odczytem o
 > wykorzystują istniejące `visual_asset_url/marker_asset_url`. Akcje mapy i
 > teleportu są do Sprintu 134 ukryte lub disabled i nie wysyłają requestów.
 
-**Status planu:** `QUEUED — po Sprint 132`.
+**Status planu:** `READY FOR SERVER VALIDATION`.
 
 **Bramka heavy-profile:** aplikacja konsumuje wyłącznie `view=suite` i delty.
 Nie pobiera `/api/profile`, nie przechowuje profilu w cache i nie uruchamia

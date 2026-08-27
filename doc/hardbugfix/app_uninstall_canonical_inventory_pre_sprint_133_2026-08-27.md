@@ -1,7 +1,7 @@
 # App uninstall — canonical inventory i launcher
 
 Data: 2026-08-27  
-Status: `READY FOR SERVER VALIDATION`
+Status: `RESOLVED`
 
 ## Problem / objawy
 
@@ -58,3 +58,5 @@ odświeżania strony:
 5. ponowny uninstall jest bezpiecznym `noop`;
 6. operacja nie powoduje heavy-profile freeze.
 
+Manual serwerowy 2026-08-27 potwierdził poprawne usunięcie aplikacji i
+launchera. Hotfix został zamknięty przed rozpoczęciem Sprintu 133.
