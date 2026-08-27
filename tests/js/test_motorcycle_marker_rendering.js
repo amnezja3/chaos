@@ -65,5 +65,9 @@ const movementStart = source.indexOf("function updateAvatarDirection");
 const movementEnd = source.indexOf("function addLiveMarker", movementStart);
 const movementSource = source.slice(movementStart, movementEnd);
 assert.doesNotMatch(movementSource, /marker\.setIcon\(buildBikeIcon/, "movement and activity paths must not churn the Leaflet icon DOM");
+const bikeCssStart = source.indexOf(".motorcycle-avatar-bike {");
+const bikeCssEnd = source.indexOf("}", bikeCssStart);
+assert.doesNotMatch(source.slice(bikeCssStart, bikeCssEnd), /background\s*:/, "directional sprite must not be layered over a second motorcycle image");
+assert.match(source.slice(start, end), /onerror=.*racing_bike\.png/, "failed directional sprite must fall back only after an image error");
 
 console.log("motorcycle marker rendering tests: OK");

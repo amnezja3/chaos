@@ -660,7 +660,6 @@
       max-height: 48px !important;
       display: block;
       object-fit: contain;
-      background: transparent url("/static/icons/racing_bike.png") center / contain no-repeat;
       transform: translateZ(0);
       backface-visibility: hidden;
     }
@@ -5791,7 +5790,7 @@
                 html: `
                     <div class="motorcycle-avatar-shell ${showTravelPhone ? 'is-travel-waiting' : ''}">
                         <span class="motorcycle-avatar-name">${riderName}</span>
-                        <img class="motorcycle-avatar-bike" data-bike-direction="${direction}" src="${src}" alt="scigacz" width="48" height="48" decoding="sync" loading="eager">
+                        <img class="motorcycle-avatar-bike" data-bike-direction="${direction}" src="${src}" alt="scigacz" width="48" height="48" decoding="sync" loading="eager" onerror="if(!this.dataset.bikeFallback){this.dataset.bikeFallback='1';this.src='/static/icons/racing_bike.png';}">
                         <span class="motorcycle-phone-preloader" aria-hidden="true">
                             <span class="motorcycle-phone-ring"></span>
                             <span class="motorcycle-phone-ring"></span>
@@ -5827,6 +5826,7 @@
             );
             if (image.dataset.bikeDirection !== nextDirection) {
                 image.dataset.bikeDirection = nextDirection;
+                delete image.dataset.bikeFallback;
                 image.src = bikeDirectionIcons[nextDirection];
             }
             return true;

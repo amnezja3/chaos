@@ -1713,3 +1713,7 @@ Przed kolejnym sprintem usunięto wielokrotną przebudowę DOM markera motocykla
 Zmiany kierunku, aktywność telefonu i animacja trasy aktualizują istniejący sprite
 zamiast wywoływać `Leaflet.marker.setIcon()` na głównym wątku. Sprites są
 preloadowane, a bazowy motocykl pozostaje tłem awaryjnym podczas dekodowania.
+
+Korekta po manualu: bazowe tło prześwitywało przez przezroczysty sprite kierunkowy
+i wyglądało jak drugi nieruchomy motocykl. Tło usunięto; bazowy asset jest teraz
+ustawiany wyłącznie przez `img.onerror` po rzeczywistym błędzie ładowania.
