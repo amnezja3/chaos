@@ -1708,3 +1708,8 @@ Manual ujawnił, że fokus części przy zamkniętej mapie wygasał przed załad
 warstwy GN i pozostawiał widok motocykla. Intencja fokusu jest teraz trzymana do
 gotowości terytoriów lub publikacji snapshotu GN i konsumowana po pierwszym
 skutecznym ustawieniu widoku. Pełna regresja 16/16 skryptów Node — OK.
+
+Przed kolejnym sprintem usunięto wielokrotną przebudowę DOM markera motocykla.
+Zmiany kierunku, aktywność telefonu i animacja trasy aktualizują istniejący sprite
+zamiast wywoływać `Leaflet.marker.setIcon()` na głównym wątku. Sprites są
+preloadowane, a bazowy motocykl pozostaje tłem awaryjnym podczas dekodowania.

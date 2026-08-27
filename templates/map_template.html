@@ -642,6 +642,8 @@
       color: white;
       text-shadow: 0 0 2px black;
       transform: translateZ(0);
+      width: 48px;
+      min-height: 66px;
     }
 
     .motorcycle-avatar-name {
@@ -654,10 +656,13 @@
     .motorcycle-avatar-bike {
       width: 48px !important;
       max-width: 48px !important;
-      height: auto !important;
+      height: 48px !important;
       max-height: 48px !important;
       display: block;
       object-fit: contain;
+      background: transparent url("/static/icons/racing_bike.png") center / contain no-repeat;
+      transform: translateZ(0);
+      backface-visibility: hidden;
     }
 
     .motorcycle-phone-preloader {
@@ -5752,6 +5757,13 @@
             up_left: "/static/icons/racing_bike_up_left.png"
         };
 
+        const bikeDirectionPreloads = [...Object.values(bikeDirectionIcons), "/static/icons/racing_bike.png"].map(src => {
+            const image = new Image();
+            image.decoding = "async";
+            image.src = src;
+            return image;
+        });
+
         function getBikeDirection(from, to) {
             const dx = to.lng - from.lng;
             const dy = to.lat - from.lat;
@@ -5779,7 +5791,7 @@
                 html: `
                     <div class="motorcycle-avatar-shell ${showTravelPhone ? 'is-travel-waiting' : ''}">
                         <span class="motorcycle-avatar-name">${riderName}</span>
-                        <img class="motorcycle-avatar-bike" src="${src}" alt="scigacz" style="width: 48px; max-width: 48px; height: auto; max-height: 48px;">
+                        <img class="motorcycle-avatar-bike" data-bike-direction="${direction}" src="${src}" alt="scigacz" width="48" height="48" decoding="sync" loading="eager">
                         <span class="motorcycle-phone-preloader" aria-hidden="true">
                             <span class="motorcycle-phone-ring"></span>
                             <span class="motorcycle-phone-ring"></span>
@@ -5793,6 +5805,33 @@
             });
         }
 
+        function renderMotorcycleMarkerVisual(direction) {
+            const marker = window.avatarMarkerRef;
+            if (!marker) return false;
+            const nextDirection = bikeDirectionIcons[direction] ? direction : "right";
+            const iconElement = typeof marker.getElement === "function" ? marker.getElement() : marker._icon;
+            const shell = iconElement && iconElement.querySelector
+                ? iconElement.querySelector(".motorcycle-avatar-shell")
+                : null;
+            const image = shell && shell.querySelector
+                ? shell.querySelector(".motorcycle-avatar-bike")
+                : null;
+            if (!shell || !image) {
+                if (typeof marker.setIcon !== "function") return false;
+                marker.setIcon(buildBikeIcon(nextDirection));
+                return true;
+            }
+            shell.classList.toggle(
+                "is-travel-waiting",
+                Boolean(window.motorcycleTravelState && window.motorcycleTravelState.travelPhoneVisible)
+            );
+            if (image.dataset.bikeDirection !== nextDirection) {
+                image.dataset.bikeDirection = nextDirection;
+                image.src = bikeDirectionIcons[nextDirection];
+            }
+            return true;
+        }
+
         function updateAvatarDirection(targetLatLng) {
             const marker = window.avatarMarkerRef;
             if (!marker || !targetLatLng) return;
@@ -5803,14 +5842,14 @@
             );
             if (window.avatarBikeDirection === direction) return;
             window.avatarBikeDirection = direction;
-            marker.setIcon(buildBikeIcon(direction));
+            renderMotorcycleMarkerVisual(direction);
         }
 
         async function animateAvatarTravel(marker, from, to, duration = 2000) {
             window.avatarBikeDirection = null;
             const initialDirection = getBikeDirection(from, to);
             window.avatarBikeDirection = initialDirection;
-            marker.setIcon(buildBikeIcon(initialDirection));
+            renderMotorcycleMarkerVisual(initialDirection);
             return new Promise(resolve => {
                 const steps = 60;
                 const interval = duration / steps;
@@ -5830,7 +5869,7 @@
                     );
                     if (window.avatarBikeDirection !== direction) {
                         window.avatarBikeDirection = direction;
-                        marker.setIcon(buildBikeIcon(direction));
+                        renderMotorcycleMarkerVisual(direction);
                     }
 
                     if (step < steps) {
@@ -5879,10 +5918,9 @@
 
         function refreshMotorcycleMarkerIcon(direction) {
             const marker = window.avatarMarkerRef;
-            if (!marker || typeof marker.setIcon !== 'function') return false;
+            if (!marker) return false;
             const nextDirection = direction || window.avatarBikeDirection || "right";
-            marker.setIcon(buildBikeIcon(nextDirection));
-            return true;
+            return renderMotorcycleMarkerVisual(nextDirection);
         }
 
         function hideMotorcycleTravelPhone(reason = "ready") {
@@ -6014,7 +6052,7 @@
                     marker.setLatLng([to.lat, to.lng]);
                     const direction = getBikeDirection(from, to);
                     window.avatarBikeDirection = direction;
-                    marker.setIcon(buildBikeIcon(direction));
+                    renderMotorcycleMarkerVisual(direction);
                     finishMotorcycleTravelPulse(point.travel_id);
                 }
             } finally {
@@ -6075,7 +6113,7 @@
                 marker.setLatLng([applied.lat, applied.lng]);
                 const direction = getBikeDirection(previous, applied);
                 window.avatarBikeDirection = direction;
-                marker.setIcon(buildBikeIcon(direction));
+                renderMotorcycleMarkerVisual(direction);
             }
             return true;
         };
@@ -6102,34 +6140,12 @@
                 profileData.curently_possition.lng
             ];
 
-            const avatarIcon = L.divIcon({
-                className: 'custom-avatar-icon',
-                html: `
-                    <div style="
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        justify-content: center;
-                        font-size: 1rem;
-                        color: white;
-                        text-shadow: 0 0 2px black;
-                    ">
-                        <span style="font-size: 0.8rem; margin-bottom: 4px; color:red;">Avatar</span>
-                        <img src="/static/icons/racing_bike.png" alt="ścigacz" style="width: 48px; height: auto;">
-                    </div>
-                `,
-                iconSize: [48, 48],
-                iconAnchor: [24, 48],
-                popupAnchor: [0, -40]
-            });
-            
-            const avatarMarker = L.marker(avatarLatLng, { icon: avatarIcon }).addTo(map);
+            const avatarMarker = L.marker(avatarLatLng, { icon: buildBikeIcon("right") }).addTo(map);
             avatarMarker.bindPopup("👤 Twój Avatar");
 
             // 👇 ZAPISUJEMY GLOBALNIE
             window.avatarMarkerRef = avatarMarker;
             window.avatarBikeDirection = "right";
-            avatarMarker.setIcon(buildBikeIcon("right"));
             map.on('mousemove', function(e) {
                 updateAvatarDirection(e.latlng);
             });
