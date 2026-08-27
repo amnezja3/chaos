@@ -13,6 +13,7 @@ from unittest.mock import patch
 import run
 from database import (
     InstrumentedConnection,
+    PlayerInventoryStore,
     PlayerOperationStore,
     ProfilePrecommitRejected,
     TerritoryStore,
@@ -68,6 +69,7 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
         self.territory_store = TerritoryStore(self.db_path)
         self.operation_store = PlayerOperationStore(self.db_path)
         self.wallet_store = WalletBalanceStore(self.db_path)
+        self.inventory_store = PlayerInventoryStore(self.db_path)
         self.profiles = {
             "alice": complete_profile("alice"),
             "victim": complete_profile("victim"),
@@ -83,11 +85,13 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
         self.original_user_store = run.user_store
         self.original_generation_store = run.session_generation_store
         self.original_territory_store = run.territory_store
+        self.original_inventory_store = run.player_inventory_store
         self.original_testing = run.app.config.get("TESTING")
         self.original_propagate = run.app.config.get("PROPAGATE_EXCEPTIONS")
         run.user_store = self.user_store
         run.session_generation_store = self.generation_store
         run.territory_store = self.territory_store
+        run.player_inventory_store = self.inventory_store
         run.app.config.update(TESTING=True, PROPAGATE_EXCEPTIONS=False)
         self.client = run.app.test_client()
 
@@ -95,6 +99,7 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
         run.user_store = self.original_user_store
         run.session_generation_store = self.original_generation_store
         run.territory_store = self.original_territory_store
+        run.player_inventory_store = self.original_inventory_store
         run.app.config.update(
             TESTING=self.original_testing,
             PROPAGATE_EXCEPTIONS=self.original_propagate,
@@ -163,6 +168,60 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
         self.assertEqual(before["checksum"], after["checksum"])
         self.assertEqual(before["profile"], after["profile"])
         self.assertEqual(lkg_before, lkg_after)
+
+    def test_uninstall_started_by_a_rolls_back_when_login_b_replaces_session(self):
+        lineage = "uninstall-browser"
+        generation_a = "uninstall-generation-a"
+        generation_b = "uninstall-generation-b"
+        app = run.normalize_app_contract({
+            "id": "session_guarded_tool",
+            "name": "Session Guarded Tool",
+            "disk_usage": 20,
+        })
+        inventory_profile = {
+            "apps": [app],
+            "files": {"tools": [{
+                "tool_id": "Session Guarded Tool.sh",
+                "app_id": app["id"],
+                "name": "Session Guarded Tool.sh",
+                "file_size": 4,
+            }]},
+            "storage_capacity": 512,
+            "storage_used": 50,
+            "storage_unit": "MB",
+        }
+        self.inventory_store.seed_from_profile("alice", inventory_profile)
+        self._seed_client(lineage, generation_a)
+        canonical_uninstall = self.inventory_store.uninstall_app
+
+        def replace_before_commit(*args, **kwargs):
+            self.generation_store.activate(
+                lineage,
+                generation_b,
+                "alice",
+                reason="concurrent_login_b",
+            )
+            return canonical_uninstall(*args, **kwargs)
+
+        with patch.object(
+            self.inventory_store,
+            "uninstall_app",
+            side_effect=replace_before_commit,
+        ):
+            response = self.client.post(
+                "/api/apps/uninstall",
+                json={
+                    "app_id": app["id"],
+                    "tool_file": "Session Guarded Tool.sh",
+                },
+                headers={run.SESSION_GENERATION_HEADER: generation_a},
+            )
+
+        snapshot = self.inventory_store.snapshot("alice")
+        self.assertEqual(409, response.status_code)
+        self.assertEqual([app["id"]], [item["id"] for item in snapshot["apps"]])
+        self.assertEqual(1, len(snapshot["files"]["tools"]))
+        self.assertEqual(50, snapshot["storage"]["used"])
 
     def test_real_self_delete_commits_cleanup_before_revoking_lineage(self):
         lineage = "delete-browser"

@@ -11,7 +11,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from unittest.mock import patch
 
 import run
-from database import AppActionReceiptStore, DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, PlayerInventoryStore, PlayerOperationStore, PlayerTargetRuntimeStore, ProfileWriteConflict, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore
+from database import AppActionReceiptStore, DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, PlayerInventoryStore, PlayerOperationStore, PlayerTargetRuntimeStore, ProfileWriteConflict, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore, get_hot_path_metrics, reset_hot_path_metrics, restore_hot_path_metrics
 from flask.testing import FlaskClient
 from profileManagment import UserProfileManager
 from session_generation_store import SessionGenerationStore
@@ -310,6 +310,28 @@ def canonical_wallet_test_runtime(balances):
     with patch.object(run, "wallet_balance_store", wallet), \
             patch.object(run, "wallet_store", wallet):
         yield wallet
+
+
+@contextmanager
+def canonical_inventory_test_runtime(profile):
+    fd, path = tempfile.mkstemp(suffix=".sqlite3")
+    os.close(fd)
+    store = PlayerInventoryStore(db_path=path)
+    store.seed_from_profile(
+        str((profile or {}).get("username") or "tester"),
+        profile or {},
+    )
+    try:
+        with patch.object(run, "player_inventory_store", store):
+            yield store
+    finally:
+        for suffix in ("", "-wal", "-shm"):
+            candidate = f"{path}{suffix}"
+            if os.path.exists(candidate):
+                try:
+                    os.remove(candidate)
+                except PermissionError:
+                    pass
 
 
 class AppRequiredOffStateTest(unittest.TestCase):
@@ -5416,7 +5438,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         client = run.app.test_client()
         with client.session_transaction() as sess:
             sess["user"] = "tester"
-        with patch.object(run, "sync_session_profile", return_value=profile), \
+        with canonical_inventory_test_runtime(profile), \
+                patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run, "UserProfileManager", FakeManager):
             response = client.post("/api/apps/uninstall", json={
                 "app_id": "lifecycle_tool",
@@ -5430,10 +5453,79 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertTrue(data["removed_tool"])
         self.assertEqual(data["apps"], [])
         self.assertNotIn("Lifecycle Tool.sh", data["files"]["tools"])
-        self.assertIn("Lifecycle Tool.sh", data["files"]["projects"])
-        self.assertEqual(updates["apps"], [])
-        self.assertNotIn("Lifecycle Tool.sh", updates["files"]["tools"])
+        self.assertIn("Lifecycle Tool.sh", profile["files"]["projects"])
+        self.assertEqual(updates, {})
+        self.assertIn("Lifecycle Tool.sh", profile["files"]["tools"])
         self.assertLess(data["storage"]["used"], 30 + run.FILE_CATEGORY_SIZE_HINTS_MB["projects"])
+
+    def test_uninstall_uses_canonical_inventory_without_heavy_profile_and_is_idempotent(self):
+        app = normalize_app_contract({
+            "id": "bounded_uninstall_tool",
+            "name": "Bounded Uninstall Tool",
+            "disk_usage": 30,
+            "file_size": 20,
+        })
+        profile = {
+            "username": "bounded-uninstall-user",
+            "apps": [app],
+            "files": {
+                "tools": [{
+                    "tool_id": "Bounded Uninstall Tool.sh",
+                    "app_id": app["id"],
+                    "name": "Bounded Uninstall Tool.sh",
+                    "file_size": 5,
+                }],
+            },
+            "storage_capacity": 512,
+            "storage_used": 100,
+            "storage_unit": "MB",
+            "heavy_padding": "x" * 35_000_000,
+        }
+        client = run.app.test_client()
+        with client.session_transaction() as sess:
+            sess["user"] = profile["username"]
+
+        with canonical_inventory_test_runtime(profile) as inventory:
+            bus = GameStateDeltaBus(db_path=inventory.db_path)
+            token = reset_hot_path_metrics()
+            try:
+                with patch.object(run, "delta_bus", bus), \
+                        patch.object(run, "sync_session_profile", side_effect=AssertionError("full profile sync")), \
+                        patch.object(run, "UserProfileManager", side_effect=AssertionError("profile manager")), \
+                        patch.object(run.user_store, "get_profile", side_effect=AssertionError("full profile read")), \
+                        patch.object(run.user_store, "get_profile_with_revision", side_effect=AssertionError("heavy revision read")):
+                    response = client.post("/api/apps/uninstall", json={
+                        "app_id": app["id"],
+                        "tool_file": "Bounded Uninstall Tool.sh",
+                    })
+                    replay = client.post("/api/apps/uninstall", json={
+                        "app_id": app["id"],
+                        "tool_file": "Bounded Uninstall Tool.sh",
+                    })
+                metrics = get_hot_path_metrics()
+            finally:
+                restore_hot_path_metrics(token)
+
+            self.assertEqual(200, response.status_code)
+            self.assertEqual("success", response.get_json()["status"])
+            self.assertEqual([], response.get_json()["apps"])
+            self.assertEqual([], response.get_json()["files"]["tools"])
+            self.assertEqual(65, response.get_json()["storage"]["used"])
+            self.assertEqual(200, replay.status_code)
+            self.assertEqual("noop", replay.get_json()["status"])
+            self.assertEqual(65, replay.get_json()["storage"]["used"])
+            self.assertEqual([], inventory.snapshot(profile["username"])["apps"])
+            stale_profile_mirror = {
+                "apps": [app],
+                "files": {"tools": ["Bounded Uninstall Tool.sh"]},
+            }
+            inventory.mirror_profile(profile["username"], stale_profile_mirror)
+            self.assertEqual([], stale_profile_mirror["apps"])
+            self.assertEqual([], stale_profile_mirror["files"]["tools"])
+
+        self.assertEqual(0, metrics["profile_full_read"])
+        self.assertEqual(0, metrics["profile_full_write"])
+        self.assertEqual(0, metrics["profile_bytes"])
 
     def test_uninstall_app_is_idempotent_for_missing_app(self):
         profile = {
@@ -5454,7 +5546,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         client = run.app.test_client()
         with client.session_transaction() as sess:
             sess["user"] = "tester"
-        with patch.object(run, "sync_session_profile", return_value=profile), \
+        with canonical_inventory_test_runtime(profile), \
+                patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run, "UserProfileManager", FakeManager):
             response = client.post("/api/apps/uninstall", json={
                 "app_id": "missing_tool",
@@ -5469,7 +5562,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertFalse(data["removed_tool"])
         self.assertEqual(data["apps"], [])
         self.assertEqual(data["files"]["tools"], [])
-        self.assertEqual(updates["apps"], [])
+        self.assertEqual(updates, {})
 
     def test_uninstall_seed_and_ghostlab_apps_only_changes_profile(self):
         seed_app = normalize_app_contract({
@@ -5513,7 +5606,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         client = run.app.test_client()
         with client.session_transaction() as sess:
             sess["user"] = "tester"
-        with patch.object(run, "sync_session_profile", return_value=profile), \
+        with canonical_inventory_test_runtime(profile), \
+                patch.object(run, "sync_session_profile", return_value=profile), \
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run.resources_store, "set", side_effect=AssertionError("catalog should not change")):
             ghost_response = client.post("/api/apps/uninstall", json={
@@ -5528,8 +5622,8 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
         self.assertEqual(ghost_response.status_code, 200)
         self.assertEqual(seed_response.status_code, 200)
         self.assertEqual(seed_response.get_json()["apps"], [])
-        self.assertEqual(updates["files"]["tools"], [])
-        self.assertEqual(updates["files"]["projects"], ["GhostLab Tool.glab"])
+        self.assertEqual(updates, {})
+        self.assertEqual(profile["files"]["projects"], ["GhostLab Tool.glab"])
 
     def test_googleplex_storage_upgrade_increases_capacity_without_app_or_tool(self):
         profile = {
@@ -6014,6 +6108,7 @@ class TargetPersistenceHelpersTest(unittest.TestCase):
             with client.session_transaction() as sess:
                 sess["user"] = "tester"
             with canonical_wallet_test_runtime({"tester": 10000}), \
+                    canonical_inventory_test_runtime(profile), \
                     patch.object(run, "delta_bus", bus), \
                     patch.object(run, "sync_session_profile", return_value=profile), \
                     patch.object(run, "UserProfileManager", FakeManager), \

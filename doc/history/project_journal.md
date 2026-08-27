@@ -1632,3 +1632,35 @@ Werdykt: `READY TO START SPRINT 131`.
 - Bez GUI, deployu, restartu PM2 i produkcyjnych mutacji.
 
 `SPRINT 132 — READY FOR SERVER VALIDATION`
+
+## 2026-08-27 - Sprint 132 COMPLETE
+
+`SPRINT 132 — COMPLETE`
+
+- Walidacja serwerowa dla dwóch niezależnych sesji: HTTP 200, `view=suite`,
+  `suite_health.ok=true`, bez health errors.
+- Potwierdzono unikalność części, limit 20, zgodność summary, reference-only i
+  rozłączne groups, exact/territory-only privacy, hidden identity sanitization
+  oraz connections bez geometrii.
+- Powtórne odczyty zachowały `state_version`, snapshot checksum i suite-scoped
+  cache key.
+- Zamknięcie nie zmieniło runtime i nie wykonało restartu PM2, produkcyjnych
+  mutacji ani commita.
+
+## 2026-08-27 - pre-Sprint 133 app uninstall hotfix
+
+`APP UNINSTALL CANONICAL INVENTORY — READY FOR SERVER VALIDATION`
+
+- Root cause: `/api/apps/uninstall` usuwał aplikację z ciężkiego profilowego
+  mirrora, lecz nie odwoływał kanonicznego `player_apps`; overlay mógł ponownie
+  wprowadzić launcher do Menu Start.
+- Uninstall korzysta teraz wyłącznie z bounded `PlayerInventoryStore` i atomowo
+  aktualizuje app, tool oraz storage z session-generation precommit guardem.
+- Response i delta przebudowują pulpit/Menu Start bez pełnego profile refreshu;
+  retry jest `noop` i nie odejmuje storage ponownie.
+- Profil syntetyczny 35 MB: zero full read/write/bytes. Walidacja: 5/5
+  celowanych, 69/69 inventory/migration/hot-path, 134/134 gameplay/session oraz
+  14/14 pakietów Node — OK; składnia i diff check — OK.
+- Artefakt:
+  `doc/hardbugfix/app_uninstall_canonical_inventory_pre_sprint_133_2026-08-27.md`.
+- Bez deployu, restartu PM2, produkcyjnych mutacji i commita.

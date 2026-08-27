@@ -10445,6 +10445,20 @@ class PlayerInventoryStore:
     def write_from_profile(self, username, profile):
         return self.seed_from_profile(username, profile)
 
+    @staticmethod
+    def _inventory_storage_size(payload, *, app=False):
+        payload = payload if isinstance(payload, dict) else {}
+        keys = ("disk_usage", "install_size", "file_size") if app else ("file_size",)
+        for key in keys:
+            value = payload.get(key)
+            if value is None:
+                continue
+            try:
+                return max(0, int(round(float(value))))
+            except (TypeError, ValueError):
+                continue
+        return 0
+
     def uninstall_app(self, username, app_id="", tool_id=""):
         username = self._clean_text(username)
         app_id = self._clean_text(app_id)
@@ -10455,12 +10469,18 @@ class PlayerInventoryStore:
         changed = False
         with db_connect(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
+            removed_storage = 0
+            tool_rows = {}
             if app_id:
                 row = conn.execute(
-                    "SELECT version FROM player_apps WHERE username = ? AND app_id = ?",
+                    "SELECT app_json, status, version FROM player_apps WHERE username = ? AND app_id = ?",
                     (username, app_id),
                 ).fetchone()
-                if row:
+                if row and str(row["status"] or "") != "uninstalled":
+                    removed_storage += self._inventory_storage_size(
+                        loads_json(row["app_json"], {}),
+                        app=True,
+                    )
                     conn.execute(
                         """
                         UPDATE player_apps
@@ -10470,16 +10490,46 @@ class PlayerInventoryStore:
                         (int(row["version"] or 0) + 1, now, username, app_id),
                     )
                     changed = True
-                conn.execute(
-                    "DELETE FROM player_tool_files WHERE username = ? AND app_id = ?",
+                for tool_row in conn.execute(
+                    "SELECT tool_id, tool_json FROM player_tool_files WHERE username = ? AND app_id = ?",
                     (username, app_id),
-                )
+                ).fetchall():
+                    tool_rows[str(tool_row["tool_id"])] = tool_row
             if tool_id:
+                tool_row = conn.execute(
+                    "SELECT tool_id, tool_json FROM player_tool_files WHERE username = ? AND tool_id = ?",
+                    (username, tool_id),
+                ).fetchone()
+                if tool_row:
+                    tool_rows[str(tool_row["tool_id"])] = tool_row
+            for selected_tool_id, tool_row in tool_rows.items():
+                removed_storage += self._inventory_storage_size(
+                    loads_json(tool_row["tool_json"], {})
+                )
                 cursor = conn.execute(
                     "DELETE FROM player_tool_files WHERE username = ? AND tool_id = ?",
-                    (username, tool_id),
+                    (username, selected_tool_id),
                 )
                 changed = changed or cursor.rowcount > 0
+            if changed and removed_storage > 0:
+                storage_row = conn.execute(
+                    "SELECT used, version FROM player_storage WHERE username = ?",
+                    (username,),
+                ).fetchone()
+                if storage_row:
+                    conn.execute(
+                        """
+                        UPDATE player_storage
+                        SET used = ?, version = ?, updated_at = ?
+                        WHERE username = ?
+                        """,
+                        (
+                            max(0, int(storage_row["used"] or 0) - removed_storage),
+                            int(storage_row["version"] or 0) + 1,
+                            now,
+                            username,
+                        ),
+                    )
         return changed
 
     def clear_all(self):

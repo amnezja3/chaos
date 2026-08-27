@@ -275,12 +275,20 @@ def normalize_profile_storage_capacity(profile):
     return profile
 
 
-def record_storage_delta(username, profile, reason="", previous=None, dedupe_key_prefix=None):
+def record_storage_delta(
+    username,
+    profile,
+    reason="",
+    previous=None,
+    dedupe_key_prefix=None,
+    persist_inventory=True,
+):
     normalize_profile_storage_capacity(profile)
-    try:
-        player_inventory_store.write_from_profile(username, profile)
-    except Exception as exc:
-        print(f"[inventory store] storage mirror failed for {username}: {exc}")
+    if persist_inventory:
+        try:
+            player_inventory_store.write_from_profile(username, profile)
+        except Exception as exc:
+            print(f"[inventory store] storage mirror failed for {username}: {exc}")
     current = storage_delta_snapshot(profile)
     previous = previous if isinstance(previous, dict) else {}
     reason = str(reason or "storage_changed")
@@ -329,7 +337,17 @@ def apps_delta_snapshot(profile):
     }
 
 
-def record_apps_delta(username, profile, change_type, app=None, app_id=None, reason="", dedupe_key=None, extra=None):
+def record_apps_delta(
+    username,
+    profile,
+    change_type,
+    app=None,
+    app_id=None,
+    reason="",
+    dedupe_key=None,
+    extra=None,
+    persist_inventory=True,
+):
     if change_type not in {
         "apps.app_installed",
         "apps.app_uninstalled",
@@ -337,10 +355,11 @@ def record_apps_delta(username, profile, change_type, app=None, app_id=None, rea
         "apps.cooldown_changed",
     }:
         return None
-    try:
-        player_inventory_store.write_from_profile(username, profile)
-    except Exception as exc:
-        print(f"[inventory store] apps mirror failed for {username}: {exc}")
+    if persist_inventory:
+        try:
+            player_inventory_store.write_from_profile(username, profile)
+        except Exception as exc:
+            print(f"[inventory store] apps mirror failed for {username}: {exc}")
 
     payload = apps_delta_snapshot(profile)
     if app is not None:
@@ -26965,15 +26984,32 @@ def uninstall_app():
     app_id = str(data.get("app_id") or "").strip()
     tool_file = str(data.get("tool_file") or data.get("filename") or "").strip()
     app_name = str(data.get("name") or "").strip()
+    username = session["user"]
+    try:
+        inventory_before = player_inventory_store.snapshot(username)
+    except Exception as exc:
+        print(
+            f"[APP_UNINSTALL] inventory read failed user_hash={_session_generation_hash(username)} type={exc.__class__.__name__}",
+            flush=True,
+        )
+        return jsonify({
+            "status": "error",
+            "success": False,
+            "reason": "inventory_unavailable",
+            "message": "Stan aplikacji jest chwilowo niedostepny. Sprobuj ponownie.",
+        }), 503
+    if not inventory_before.get("initialized"):
+        return jsonify({
+            "status": "error",
+            "success": False,
+            "reason": "inventory_not_initialized",
+            "message": "Kanoniczny stan aplikacji wymaga migracji przed deinstalacja.",
+        }), 409
 
-    profile = sync_session_profile()
-    if not profile:
-        return jsonify({"status": "error", "message": "Brak danych profilu."}), 404
-
-    previous_storage = storage_delta_snapshot(profile)
-    apps = normalize_app_contracts(profile.get("apps", []))
-    normalize_files_inventory(profile)
-    files = profile.get("files", {})
+    apps = normalize_app_contracts(inventory_before.get("apps", []))
+    files = inventory_before.get("files") if isinstance(inventory_before.get("files"), dict) else {}
+    tools = list(files.get("tools", []) or [])
+    previous_storage = inventory_before.get("storage") if isinstance(inventory_before.get("storage"), dict) else {}
 
     matched_app = None
     for app in apps:
@@ -26988,61 +27024,87 @@ def uninstall_app():
             matched_app = app
             break
 
-    removed_app = False
-    removed_tool = False
-    if matched_app:
-        matched_id = str(matched_app.get("id") or "")
-        apps = [
-            app for app in apps
-            if str(app.get("id") or "") != matched_id
-        ]
-        before_tools = len(files.get("tools", []) or [])
-        files = remove_app_tool_files(files, matched_app)
-        removed_tool = len(files.get("tools", []) or []) != before_tools
-        removed_app = True
-    elif tool_file:
-        tools = list(files.get("tools", []) or [])
-        kept_tools = [
-            item for item in tools
-            if tool_file_entry_name(item) != tool_file
-        ]
-        removed_tool = len(kept_tools) != len(tools)
-        files["tools"] = kept_tools
+    matched_tool_id = ""
+    for tool in tools:
+        tool_name = tool_file_entry_name(tool)
+        tool_id = str(
+            (tool.get("tool_id") or tool.get("id") or tool_name)
+            if isinstance(tool, dict)
+            else tool_name
+        ).strip()
+        if tool_file and (tool_file == tool_name or tool_file == tool_id):
+            matched_tool_id = tool_id
+            break
 
-    profile["apps"] = normalize_app_contracts(apps)
-    profile["files"] = files
-    normalize_profile_storage(profile)
+    matched_id = str((matched_app or {}).get("id") or app_id).strip()
+    try:
+        changed = player_inventory_store.uninstall_app(
+            username,
+            app_id=matched_id,
+            tool_id=matched_tool_id or tool_file,
+        )
+        inventory_after = player_inventory_store.snapshot(username)
+    except Exception as exc:
+        print(
+            f"[APP_UNINSTALL] inventory commit failed user_hash={_session_generation_hash(username)} type={exc.__class__.__name__}",
+            flush=True,
+        )
+        return jsonify({
+            "status": "error",
+            "success": False,
+            "reason": "inventory_write_failed",
+            "message": "Deinstalacja nie zostala zakonczona.",
+        }), 409
 
-    mgr = UserProfileManager(session["user"])
-    mgr.update_profile({
-        "apps": profile.get("apps", []),
-        "files": profile.get("files", {}),
-        "storage_capacity": profile.get("storage_capacity"),
-        "storage_used": profile.get("storage_used"),
-        "storage_unit": profile.get("storage_unit", "MB"),
+    remaining_apps = normalize_app_contracts(inventory_after.get("apps", []))
+    remaining_files = (
+        inventory_after.get("files")
+        if isinstance(inventory_after.get("files"), dict)
+        else {"tools": []}
+    )
+    current_storage = (
+        inventory_after.get("storage")
+        if isinstance(inventory_after.get("storage"), dict)
+        else {}
+    )
+    removed_app = bool(matched_app) and not any(
+        str(app.get("id") or "") == str((matched_app or {}).get("id") or "")
+        for app in remaining_apps
+    )
+    removed_tool = len(remaining_files.get("tools", []) or []) < len(tools)
+    projection = {
+        "apps": remaining_apps,
+        "files": {"tools": list(remaining_files.get("tools", []) or [])},
+        "storage_capacity": current_storage.get("capacity"),
+        "storage_used": current_storage.get("used"),
+        "storage_unit": current_storage.get("unit", "MB"),
         "storage_soft_limit": True,
-        "storage_over_limit": profile.get("storage_over_limit", False),
-    })
+        "storage_over_limit": bool(
+            int(current_storage.get("used") or 0) > int(current_storage.get("capacity") or 0)
+        ),
+    }
     record_storage_delta(
-        session["user"],
-        profile,
+        username,
+        projection,
         reason="app_uninstall",
         previous=previous_storage,
-        dedupe_key_prefix=f"storage:{session['user']}:app_uninstall:{app_id or tool_file or app_name or runtime_file_now()}",
+        dedupe_key_prefix=f"storage:{username}:app_uninstall:{app_id or tool_file or app_name or runtime_file_now()}",
+        persist_inventory=False,
     )
     if removed_app or removed_tool:
         record_apps_delta(
-            session["user"],
-            profile,
+            username,
+            projection,
             "apps.app_uninstalled",
             app=matched_app,
             app_id=(matched_app or {}).get("id") or app_id or tool_file or app_name,
             reason="app_uninstall",
-            dedupe_key=f"apps:uninstalled:{session['user']}:{(matched_app or {}).get('id') or app_id or tool_file or app_name}",
+            dedupe_key=f"apps:uninstalled:{username}:{(matched_app or {}).get('id') or app_id or tool_file or app_name}",
+            persist_inventory=False,
         )
-    session["profile"] = profile
+    session.pop("profile", None)
 
-    status = "success" if removed_app or removed_tool else "noop"
+    status = "success" if changed or removed_app or removed_tool else "noop"
     message = (
         "Aplikacja zostala odinstalowana."
         if removed_app
@@ -27054,14 +27116,14 @@ def uninstall_app():
         "removed_app": removed_app,
         "removed_tool": removed_tool,
         "message": message,
-        "apps": profile.get("apps", []),
-        "files": profile.get("files", {}),
+        "apps": projection["apps"],
+        "files": projection["files"],
         "storage": {
-            "capacity": profile.get("storage_capacity"),
-            "used": profile.get("storage_used"),
-            "unit": profile.get("storage_unit", "MB"),
+            "capacity": projection.get("storage_capacity"),
+            "used": projection.get("storage_used"),
+            "unit": projection.get("storage_unit", "MB"),
             "soft_limit": True,
-            "over_limit": profile.get("storage_over_limit", False),
+            "over_limit": projection.get("storage_over_limit", False),
         }
     })
 

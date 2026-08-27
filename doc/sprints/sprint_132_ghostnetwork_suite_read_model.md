@@ -2,7 +2,7 @@
 
 Data rozpoczęcia: 2026-08-26.
 
-Status: `SPRINT 132 — READY FOR SERVER VALIDATION`.
+Status: `SPRINT 132 — COMPLETE`.
 
 ## Cel
 
@@ -114,8 +114,17 @@ Wynik końcowy:
 - GhostNetwork delta client i map renderer: `OK`;
 - `py_compile`, `node --check` i `git diff --check`: `OK`.
 
-Implementacja jest gotowa do walidacji serwerowej. Nie wykonano deployu,
-restartu PM2, produkcyjnych mutacji ani commita.
+Walidacja serwerowa 2026-08-27 potwierdziła dla dwóch niezależnych sesji:
+
+- HTTP 200 i `view=suite`;
+- `suite_health.ok=true` bez błędów;
+- unikalne części, limit, summary i reference-only groups;
+- poprawne exact/territory-only oraz hidden-identity privacy;
+- connections bez geometrii;
+- stabilne `state_version`, checksum i suite cache key.
+
+Sprint został zamknięty. Nie wykonano w ramach zamknięcia restartu PM2,
+produkcyjnych mutacji ani commita.
 
 ## Ograniczenia
 

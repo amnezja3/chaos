@@ -1982,7 +1982,11 @@ Sprint jest zakończony, gdy dokładnie wiadomo:
 > endpointu bez pomiaru uzasadniającego potrzebę; delty już niosą bezpieczną
 > `part_projection`, a recovery pobiera suite snapshot.
 
-**Status bieżący:** `SPRINT 132 — READY FOR SERVER VALIDATION`.
+**Status bieżący:** `SPRINT 132 — COMPLETE`.
+
+Walidacja serwerowa 2026-08-27: dwa niezależne odczyty viewer-projected
+zwróciły HTTP 200, `suite_health.ok=true`, poprawny kontrakt privacy/groups oraz
+stabilne `state_version`, checksum i suite cache key.
 
 **Rozpoczęto:** 2026-08-26.
 
