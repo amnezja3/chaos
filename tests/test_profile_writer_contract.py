@@ -23,6 +23,7 @@ DIRECT_PROFILE_SQL_ALLOWLIST = {
     Path("tools/repair_trollu2_profile.py"): {
         "apply_level_step", "final_settlement", "rollback_recovery",
     },
+    Path("tools/repair_trollu2_identity.py"): {"apply_identity"},
     Path("scripts/app_catalog_cleanup.py"): {"write_user_profile"},
     Path("scripts/db_migrations/migration_helpers.py"): {"write_profile"},
 }

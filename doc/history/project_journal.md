@@ -1545,3 +1545,90 @@ Werdykt: `READY TO START SPRINT 131`.
 - Walidacja końcowa: 45 testów Python, Node GN renderer i map snapshot recovery,
   `py_compile`, `node --check` oraz `git diff --check` — OK.
 - Bez deployu, restartu PM2 i commita.
+
+## 2026-08-26 - Sprint 130.12.3 finalnie zamknięty po hotfixach
+
+`SPRINT 130.12.3 — COMPLETE`
+
+- Produkcyjny manual potwierdził operations capsules/incidents/NPC, lifecycle
+  SFX GhostNetwork, public active connections, drop i spatial separation.
+- Potwierdzono GX po dużym batch settlement oraz pełny Googleplex travel flow:
+  idempotentny zakup, canonical position, `current_city`, travel receipt,
+  otwarcie/focus mapy i brak podwójnego obciążenia.
+- OSM `403r Referer is required` sklasyfikowano jako konflikt globalnego
+  `no-referrer` z polityką providera, nie cache ani powrót Leaflet race. Mapa
+  przekazuje wyłącznie origin, bez path/query generation.
+- Nie pozostają otwarte manualne blockery w zakresie 130.12.3.
+
+## 2026-08-26 - Sprint 130.12.4 rozpoczęty
+
+`SPRINT 130.12.4 — IN PROGRESS`
+
+- Pod-sprint jest wyłącznie closure/full-validation cutover; nie dodaje nowych
+  feature'ów.
+- Zakres: pełna regresja Python/JS, heavy-profile measurements, manual session,
+  map/GN/territory/operations/OFS, Googleplex/GX/BlackNet, Cyberner, kontrola
+  cutover oraz ponowny audit historycznych blockerów Sprintu 131.
+- Deploy, restart PM2, backup/migration apply i produkcyjne mutacje nadal
+  wymagają osobnej zgody.
+
+### Bramka startowa 130.12.4
+
+- Pierwszy pełny przebieg Python: 1092 testy, 4 failures i 2 errors. Izolowane
+  powtórzenia potwierdziły sześć deterministycznych rozjazdów testów po
+  wcześniejszych migracjach canonical store'ów; nie znaleziono nowej regresji
+  runtime.
+- Zaktualizowano wyłącznie fixture'y/allowlistę: Territory Control context,
+  marked-target GN E2E, bounded identity reads, desktop bounded projection
+  precommit oraz offline identity-recovery CAS exception.
+- Wynik po korekcie: 6/6 przypadków i 266/266 testów pełnych modułów — OK;
+  13/13 pakietów Node — OK; `py_compile`, `node --check` 27 plików oraz
+  `git diff --check` — OK.
+- Pełny rerun całego Python suite oraz pozostałe bramki 130.12.4 są nadal
+  wymagane przed zmianą statusu.
+
+## 2026-08-26 - Sprint 130.12.4 COMPLETE
+
+`SPRINT 130.12.4 — COMPLETE`
+
+- Pełna regresja po korekcie fixture'ów: 1092/1092 Python — OK; dodatkowa
+  bramka heavy-profile/read-path 24/24 — OK; 13/13 pakietów Node — OK.
+- `node --check` dla 27 plików, `py_compile` dotkniętych runtime/test modules i
+  `git diff --check` — OK.
+- Syntetyczny profil 35 MB potwierdził dla Cybernera zero full-profile
+  read/write/bytes i zero skanów profili. Statyczne i endpointowe kontrakty
+  potwierdzają bounded source dla GN, Territory Control, teleportu, mapy i
+  targetów.
+- Manual produkcyjny całej serii 130.12 potwierdził session ownership, map/GN,
+  territory, operations/OFS, GX/BlackNet/Googleplex, Cybernera, SFX, drop i
+  teleport. Nie pozostał zgłoszony blocker gameplayowy.
+- Re-audit Sprintu 131 zamknął pięć historycznych blockerów wejścia w 132.
+- Bez nowego deployu, restartu PM2, migration apply, produkcyjnych mutacji i
+  commita.
+
+`SPRINT 130.12 — COMPLETE`
+
+`SPRINT 131 AUDIT COMPLETE — READY FOR SPRINT 132`
+
+## 2026-08-26 - Sprint 132 rozpoczęty
+
+`SPRINT 132 — IN PROGRESS`
+
+- Rozszerzany jest istniejący `view=suite`; nie powstaje drugi endpoint, store,
+  cache ani visibility resolver.
+- Legacy suite wrapper kopiował pełne rekordy części do kilku list. Został
+  zastąpiony jedną listą `parts[]`, top-level `summary/groups` oraz bezpiecznymi
+  per-part `owner/territory/location/actions`.
+- Owner aliases korzystają z jednego bounded, revision-aware batch lookupu.
+  Exact actions używają opaque `public_entity_id`, a hidden territory-only
+  wyłącznie `territory_id`.
+- Dodano fail-closed sanitization, limit 20 części, suite health i cache key
+  rozdzielający viewer/view oraz owner identity revision.
+- Bramki: 31/31 testów suite/visibility/read-path, 217/217 pełnych testów
+  GhostNetwork, 35/35 identity/Territory Control oraz 1105/1105 pełnej regresji
+  Python — OK.
+- GhostNetwork delta client i map renderer, `py_compile`, `node --check` oraz
+  `git diff --check` — OK.
+- Bez GUI, deployu, restartu PM2 i produkcyjnych mutacji.
+
+`SPRINT 132 — READY FOR SERVER VALIDATION`

@@ -19631,7 +19631,36 @@ def api_ghostnetwork_snapshot():
             "progress": raw_snapshot.get("progress") or {},
             "state_version": raw_snapshot.get("state_version") or 0,
         }
-    projection = normalize_snapshot_view(projection, view=view)
+    owner_aliases = {}
+    if view == "suite":
+        owner_ids = sorted({
+            str(item.get("territory_owner_id") or "").strip()
+            for item in projection.get("parts") or []
+            if isinstance(item, dict)
+            and str(item.get("territory_owner_id") or "").strip()
+        })[:20]
+        if owner_ids:
+            try:
+                owner_aliases = {
+                    item["username"]: item
+                    for item in identity_projection_store.get_identities(
+                        owner_ids,
+                        max_items=20,
+                    )
+                    if isinstance(item, dict) and item.get("username")
+                }
+            except Exception as exc:
+                print(
+                    f"[ghostnetwork] suite owner aliases unavailable "
+                    f"owners={len(owner_ids)} "
+                    f"error_type={type(exc).__name__}",
+                    flush=True,
+                )
+    projection = normalize_snapshot_view(
+        projection,
+        view=view,
+        owner_aliases=owner_aliases,
+    )
 
     cycle = projection.get("cycle") if isinstance(projection.get("cycle"), dict) else {}
     try:

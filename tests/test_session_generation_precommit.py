@@ -129,23 +129,22 @@ class SessionGenerationPrecommitTests(unittest.TestCase):
         before = self.user_store.get_profile_with_revision("alice")
         lkg_before = self.user_store.get_last_known_good("alice")
 
-        def manager_after_replacement(username):
-            # The request and manager have already observed generation A. Move
-            # the same durable lineage to B immediately before update_profile
-            # obtains its writer transaction and runs the central hook.
-            manager = self._manager(username)
+        def record_after_replacement(username):
+            # The request has already observed generation A. Move the same
+            # durable lineage to B immediately before the bounded projection
+            # writer obtains its transaction and runs the central hook.
             self.generation_store.activate(
                 lineage,
                 generation_b,
                 "alice",
                 reason="concurrent_login_b",
             )
-            return manager
+            return self.user_store.get_profile_with_revision(username)
 
         with patch.object(
             run,
-            "UserProfileManager",
-            side_effect=manager_after_replacement,
+            "load_profile_write_record",
+            side_effect=record_after_replacement,
         ):
             response = self.client.post(
                 "/api/profile/desktop",

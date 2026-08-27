@@ -2,11 +2,11 @@
 
 Data audytu: 2026-08-21. Aktualizacja hot-path: 2026-08-23.
 
-Status: Sprinty 130.10 i 130.11 są zamknięte. Audit Sprintu 131 wykonano
-2026-08-24 i zapisano w
-`doc/sprints/sprint_131_ghostnetwork_suite_audit.md`. Werdykt pozostaje `NO-GO
-FOR SPRINT 132` do zamknięcia wykrytych heavy-profile i bounded-identity
-blockerów. Audit nie implementuje GhostNetwork Suite ani pipeline'u Ollamy.
+Status po re-audycie 2026-08-26: Sprinty 130.10–130.12 są zamknięte. Audit
+Sprintu 131 zapisano w `doc/sprints/sprint_131_ghostnetwork_suite_audit.md`.
+Wykryte wcześniej heavy-profile i bounded-identity blockery zostały zamknięte;
+werdykt brzmi `SPRINT 131 AUDIT COMPLETE — READY FOR SPRINT 132`. Audit nie
+implementuje GhostNetwork Suite ani pipeline'u Ollamy.
 
 Wiążąca bramka dla całej serii:
 `doc/architecture/profile_hot_path_contract_130_11_plus.md`. Jeżeli opis sprintu można
@@ -34,7 +34,7 @@ Artefakty:
 
 Zakres 131–138 nie jest renumerowany ani anulowany. Status Sprintu 131:
 
-`SPRINT 131 AUDIT COMPLETE — NO-GO FOR SPRINT 132`.
+`SPRINT 131 AUDIT COMPLETE — READY FOR SPRINT 132`.
 
 ## Zweryfikowany baseline
 

@@ -1118,16 +1118,80 @@ SPRINT 130.12.3 — COMPLETE
   OK; Node GN renderer i map snapshot recovery — OK; `py_compile`,
   `node --check` i `git diff --check` — OK.
 
+### Finalne domknięcie po hotfixach produkcyjnych 2026-08-26
+
+- Operations runtime ponownie publikuje ruchome kapsuły plików, incidenty i NPC
+  bez przywracania pełnego profilu do pollera.
+- GhostNetwork lifecycle SFX działa symetrycznie: prawdziwe transition gra
+  dokładnie raz, natomiast rebuild/snapshot/recovery nie odtwarza state jako
+  zdarzenia. Manual potwierdził także drop oraz spatial separation 50 km.
+- Ghost Exchange rozlicza duże batch settlementy z idempotentnym walletem i
+  bounded profile CAS retry; manual potwierdził ponowne otwieranie GX.
+- Googleplex ticket zachowuje travel receipt, canonical teleport i live-map
+  bridge. Jawny kontrakt `current_city=None|string` domknął ostatni backendowy
+  błąd 500; manual potwierdził poprawny teleport po bilecie.
+- Tile provider 403 nie był cache ani Leaflet race. Mapa wysyła teraz wyłącznie
+  origin jako Referer, bez ścieżki i query tokenu generation.
+
+Finalny status po manualu:
+
+```text
+SPRINT 130.12.3 — COMPLETE
+```
+
 ---
 
 # Sprint 130.12.4 — Full Validation / Production Cutover / Sprint 131 Re-audit
 
-**Status początkowy:** PLANNED
+**Status bieżący:** `SPRINT 130.12.4 — COMPLETE`
 **Priorytet:** Closure
+
+**Rozpoczęto:** 2026-08-26
+**Zamknięto:** 2026-08-26
 
 Ten pod-sprint proponuję jako formalne zamknięcie całego 130.12.
 
 Nie dodawać nowych feature'ów.
+
+## Stan bramki startowej 2026-08-26
+
+- Pełny pierwszy przebieg: 1092 testy Python, 4 failures i 2 errors. Wszystkie
+  sześć przypadków odtworzyło się również izolowanie.
+- Audit nie wykazał nowej regresji runtime. Testy odwoływały się do usuniętego
+  loadera Territory Control, nie patchowały nowych canonical target/identity
+  store'ów, nie obejmowały marked-target store w GN E2E, nadal wstrzykiwały
+  `UserProfileManager` zamiast bounded projection writera oraz nie miały jawnego
+  wyjątku dla istniejącego offline CAS recovery toola.
+- Fixture'y i statyczna allowlista zostały dostosowane do aktualnych call chainów
+  bez zmiany runtime. Precommit regresja ponownie wymusza przejęcie A → B tuż
+  przed transakcją bounded writera i potwierdza 409 oraz brak mutacji profilu.
+- Walidacja po korekcie: sześć testów celowanych — OK; sześć pełnych modułów,
+  łącznie 266 testów — OK; 13/13 pakietów Node — OK; `py_compile` kluczowych
+  runtime/test modules, `node --check` 27 plików i `git diff --check` — OK.
+- Pełny rerun 1092 testów, heavy-profile measurements, manual/server validation
+  i Sprint 131 re-audit pozostają otwarte.
+
+## Finalna bramka 2026-08-26
+
+- Pełny rerun Python po korekcie fixture'ów: `1092/1092 OK` w 799,716 s.
+- Pełny frontend: `13/13` pakietów Node — OK; `node --check` 27 plików — OK.
+- Dodatkowa bramka heavy-profile/read-path: 24/24 — OK. Profil syntetyczny
+  35 MB dla Cybernera zachował `profile_full_read=0`,
+  `profile_full_write=0`, `profile_bytes=0`, bez `list_profiles` i bez
+  per-recipient full-profile reads. GN snapshot, Territory Control, opaque
+  teleport, desktop/map boot i target hot paths mają bounded canonical source
+  oraz kontrakty zabraniające fallbacku do pełnego profilu.
+- Manual produkcyjny z 130.12.1–130.12.3 pokrył lifecycle A/B/relogin/tabs,
+  mapę i territory/GN, operations/OFS, Googleplex/GX/BlackNet, Cybernera,
+  lifecycle SFX, drop oraz teleport. Ostatnie zgłoszone blockery zostały przez
+  użytkownika potwierdzone jako poprawnie działające.
+- Identity projection ma jawne `status/audit/dry-run/apply/verify`, atomiczny
+  guarded-write i read-only dry-run. W tej bramce nie wykonano ponownego apply,
+  deployu, restartu PM2 ani mutacji produkcyjnej.
+- Re-audit Sprintu 131 oznaczył wszystkie pięć historycznych blockerów jako
+  `RESOLVED`: bounded identity/owner aliases, Territory Control zero-profile,
+  server-resolved opaque GN teleport, shared delta client bez Leaflet oraz
+  bounded audience recipient resolver.
 
 ## Cel
 
@@ -1428,6 +1492,14 @@ oraz:
 READY TO PLAN / START SPRINT 131
 ```
 
+Finalny wynik:
+
+```text
+SPRINT 130.12.4 — COMPLETE
+SPRINT 130.12 — COMPLETE
+SPRINT 131 AUDIT COMPLETE — READY FOR SPRINT 132
+```
+
 ---
 
 
@@ -1443,13 +1515,17 @@ READY TO PLAN / START SPRINT 131
 > `doc/sprints/sprint_131_ghostnetwork_suite_audit.md`. Pełne ustalenia:
 > `doc/sprints/sprint_131_plus_post_audit.md`.
 
-**Status:** `SPRINT 131 AUDIT COMPLETE — NO-GO FOR SPRINT 132`.
+**Status po re-audycie 2026-08-26:**
+`SPRINT 131 AUDIT COMPLETE — READY FOR SPRINT 132`.
 
 Audit z 2026-08-24 potwierdził istniejący visibility/snapshot/delta foundation,
 ale wykrył otwarte blockery: pełny profil w Territory Control i teleporcie,
 klientowe współrzędne wspólnego teleportu oraz brak bounded owner-alias
 projection. Szczegóły i inventory callsites 132–138:
 `doc/sprints/sprint_131_ghostnetwork_suite_audit.md`.
+
+Sprint 130.12 zamknął wskazane blockery; powyższe zdanie pozostaje opisem
+historycznego wyniku audytu z 2026-08-24.
 
 **Bramka heavy-profile:** audyt musi zinwentaryzować wszystkie przyszłe call
 sites 132–138. Każdy runtime full-profile read/write albo all-user profile scan
@@ -1906,7 +1982,12 @@ Sprint jest zakończony, gdy dokładnie wiadomo:
 > endpointu bez pomiaru uzasadniającego potrzebę; delty już niosą bezpieczną
 > `part_projection`, a recovery pobiera suite snapshot.
 
-**Status planu:** `QUEUED — po zatwierdzeniu artefaktu Sprintu 131`.
+**Status bieżący:** `SPRINT 132 — READY FOR SERVER VALIDATION`.
+
+**Rozpoczęto:** 2026-08-26.
+
+Artefakt wykonawczy:
+`doc/sprints/sprint_132_ghostnetwork_suite_read_model.md`.
 
 **Bramka heavy-profile:** viewer identity pochodzi z wąskiej integrity-gated
 projekcji. Snapshot i recovery mają `profile_full_read=0`,

@@ -59,7 +59,199 @@ def snapshot_checksum(projection):
     return _json_hash(payload)
 
 
-def normalize_snapshot_view(projection, view=DEFAULT_VIEW):
+def _suite_owner(owner_aliases, owner_id):
+    owner_id = _clean(owner_id)
+    raw = (owner_aliases or {}).get(owner_id) if owner_id else None
+    if isinstance(raw, dict):
+        alias = _clean(raw.get("display_alias") or raw.get("nick") or raw.get("username"))
+        revision = int(raw.get("source_profile_revision") or 0)
+        checksum = _clean(raw.get("source_profile_checksum"))
+    else:
+        alias = _clean(raw)
+        revision = 0
+        checksum = ""
+    return {
+        "owner_id": owner_id or None,
+        "owner_alias": alias or None,
+        "source_profile_revision": revision,
+        "source_profile_checksum": checksum,
+    }
+
+
+def _suite_actions(part, *, cycle_active=True):
+    public_entity_id = _clean(part.get("public_entity_id"))
+    territory_id = _clean(part.get("territory_id"))
+    location_visibility = _clean(part.get("location_visibility"))
+    exact_location_available = (
+        part.get("latitude") is not None
+        and part.get("longitude") is not None
+    )
+    if location_visibility == "exact" and public_entity_id and exact_location_available:
+        target_type = "ghostnetwork_part"
+        target_id = public_entity_id
+    elif location_visibility == "territory_only" and territory_id:
+        target_type = "ghostnetwork_territory"
+        target_id = territory_id
+    else:
+        target_type = None
+        target_id = None
+    enabled = bool(cycle_active and target_type and target_id)
+    return {
+        "can_show_on_map": enabled and bool(part.get("can_show_on_map")),
+        "can_teleport": enabled,
+        "map_target_type": target_type if enabled else None,
+        "map_target_id": target_id if enabled else None,
+        "teleport_target_type": target_type if enabled else None,
+        "teleport_target_id": target_id if enabled else None,
+    }
+
+
+def _suite_part(part, owner_aliases, *, cycle_active=True):
+    item = copy.deepcopy(part if isinstance(part, dict) else {})
+    for key in (
+        "vertices", "geometry", "polygon", "territory_geometry",
+        "active_reservations", "reservation", "reservations", "event_history",
+    ):
+        item.pop(key, None)
+    if not bool(item.get("identity_visible")):
+        for key in (
+            "part_id", "part_code", "name", "machine_code", "machine_name",
+            "profession_code", "profession_name", "ability_code", "ability_name",
+            "ability_description", "visual_asset_key", "visual_asset_url", "target_id",
+        ):
+            item[key] = None
+    owner = _suite_owner(owner_aliases, item.get("territory_owner_id"))
+    location_visibility = _clean(item.get("location_visibility")) or None
+    exact = location_visibility == "exact"
+    territory_id = _clean(item.get("territory_id")) or None
+    actions = _suite_actions(item, cycle_active=cycle_active)
+    item["owner"] = {
+        "owner_id": owner["owner_id"],
+        "owner_alias": owner["owner_alias"],
+        "owner_clan": item.get("territory_clan"),
+    }
+    item["territory"] = {
+        "territory_id": territory_id,
+        "cluster_id": territory_id,
+        "owner_id": owner["owner_id"],
+        "owner_alias": owner["owner_alias"],
+        "owner_clan": item.get("territory_clan"),
+        "conflict_state": item.get("conflict_state") or "none",
+    }
+    item["location"] = {
+        "visibility": location_visibility,
+        "latitude": item.get("latitude") if exact else None,
+        "longitude": item.get("longitude") if exact else None,
+        "map_focus_type": actions["map_target_type"],
+        "map_focus_id": actions["map_target_id"],
+    }
+    item["actions"] = actions
+    return item
+
+
+def _suite_summary(parts):
+    parts = [item for item in parts or [] if isinstance(item, dict)]
+    return {
+        "parts_total": len(parts),
+        "parts_discovered": len(parts),
+        "parts_public": sum(1 for item in parts if item.get("viewer_relation") == "public_neutral"),
+        "parts_blocked": sum(1 for item in parts if item.get("module_state") == "blocked"),
+        "parts_active": sum(1 for item in parts if item.get("module_state") == "active"),
+        "parts_contested": sum(1 for item in parts if item.get("contested")),
+        "parts_visible_to_viewer": len(parts),
+    }
+
+
+def _suite_groups(parts):
+    groups = {
+        "public": [],
+        "blocked": [],
+        "clan_active": [],
+        "self_foreign": [],
+        "self_own": [],
+    }
+    relation_to_group = {
+        "public_neutral": "public",
+        "foreign_blocked": "blocked",
+        "clan_own_active": "clan_active",
+        "self_foreign_blocked": "self_foreign",
+        "self_own_active": "self_own",
+    }
+    for item in parts or []:
+        if not isinstance(item, dict):
+            continue
+        group = relation_to_group.get(_clean(item.get("viewer_relation")))
+        public_entity_id = _clean(item.get("public_entity_id"))
+        if group and public_entity_id:
+            groups[group].append(public_entity_id)
+    return {
+        key: sorted(set(values))
+        for key, values in groups.items()
+    }
+
+
+def _suite_cache_key(base_key, owner_aliases):
+    identities = []
+    for owner_id in sorted((owner_aliases or {}).keys()):
+        owner = _suite_owner(owner_aliases, owner_id)
+        identities.append([
+            owner_id,
+            owner["source_profile_revision"],
+            owner["source_profile_checksum"],
+        ])
+    identity_version = _json_hash({"owners": identities})
+    return f"{_clean(base_key, 'ghostnetwork')}:view=suite:owners={identity_version}"
+
+
+def _suite_health(parts, groups, duplicate_ids, viewer, source_parts_count):
+    errors = []
+    if int(source_parts_count or 0) > 20:
+        errors.append(f"parts_limit_exceeded:{int(source_parts_count)}")
+    grouped = []
+    for values in (groups or {}).values():
+        grouped.extend(values or [])
+    if len(grouped) != len(set(grouped)):
+        errors.append("part_in_multiple_base_groups")
+    for public_id in sorted(set(duplicate_ids or [])):
+        errors.append(f"duplicate_public_entity_id:{public_id}")
+
+    viewer = viewer if isinstance(viewer, dict) else {}
+    viewer_id = _clean(viewer.get("viewer_id") or viewer.get("username"))
+    viewer_clan = _clean(viewer.get("viewer_clan") or viewer.get("clan_code"))
+    for item in parts or []:
+        public_id = _clean(item.get("public_entity_id"), "unknown")
+        visibility = _clean(item.get("location_visibility"))
+        if visibility == "exact" and (
+            item.get("latitude") is None or item.get("longitude") is None
+        ):
+            errors.append(f"exact_location_missing:{public_id}")
+        if visibility == "territory_only" and not _clean(item.get("territory_id")):
+            errors.append(f"territory_only_missing_territory:{public_id}")
+        if not bool(item.get("identity_visible")) and any(
+            item.get(key) is not None
+            for key in (
+                "part_id", "part_code", "name", "machine_code", "profession_code",
+                "ability_code", "visual_asset_url", "target_id",
+            )
+        ):
+            errors.append(f"hidden_identity_present:{public_id}")
+        relation = _clean(item.get("viewer_relation"))
+        if relation in {"self_foreign_blocked", "self_own_active"} and (
+            not viewer_id or _clean(item.get("territory_owner_id")) != viewer_id
+        ):
+            errors.append(f"self_relation_owner_mismatch:{public_id}")
+        if relation == "clan_own_active" and (
+            not viewer_clan or _clean(item.get("clan_code")) != viewer_clan
+        ):
+            errors.append(f"clan_relation_mismatch:{public_id}")
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "parts_checked": len(parts or []),
+    }
+
+
+def normalize_snapshot_view(projection, view=DEFAULT_VIEW, owner_aliases=None):
     projection = copy.deepcopy(projection if isinstance(projection, dict) else {})
     view = _clean(view, DEFAULT_VIEW)
     if view not in SNAPSHOT_VIEWS:
@@ -72,6 +264,41 @@ def normalize_snapshot_view(projection, view=DEFAULT_VIEW):
         return projection
 
     if view == "suite":
+        cycle = projection.get("cycle") if isinstance(projection.get("cycle"), dict) else {}
+        cycle_active = _clean(cycle.get("status"), "active") == "active"
+        parts = []
+        duplicate_ids = []
+        seen_ids = set()
+        for raw_part in projection.get("parts") or []:
+            if not isinstance(raw_part, dict):
+                continue
+            public_id = _clean(raw_part.get("public_entity_id"))
+            if not public_id:
+                continue
+            if public_id in seen_ids:
+                duplicate_ids.append(public_id)
+                continue
+            seen_ids.add(public_id)
+            parts.append(
+                _suite_part(raw_part, owner_aliases or {}, cycle_active=cycle_active)
+            )
+        source_parts_count = len(parts)
+        parts.sort(key=lambda item: _clean(item.get("public_entity_id")))
+        parts = parts[:20]
+        projection["parts"] = parts
+        projection["summary"] = _suite_summary(parts)
+        projection["groups"] = _suite_groups(parts)
+        projection["suite_health"] = _suite_health(
+            parts,
+            projection["groups"],
+            duplicate_ids,
+            projection.get("viewer"),
+            source_parts_count,
+        )
+        projection.pop("suite", None)
+        projection["cache_key"] = _suite_cache_key(
+            projection.get("cache_key"), owner_aliases or {}
+        )
         projection["connections"] = [
             {
                 "public_connection_id": item.get("public_connection_id"),

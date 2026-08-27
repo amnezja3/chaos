@@ -1,4 +1,4 @@
-# SPRINT 130.12 — IN PROGRESS
+# SPRINT 130.12 — COMPLETE
 
 ## GhostNetwork Suite Readiness Cutover
 
@@ -44,15 +44,15 @@ Readiness Cutover”. Ten plik jest technicznym artefaktem wykonania i dowodów.
 | Etap | Status | Artefakt / dowód |
 |---|---|---|
 | 0. Baseline i inventory | COMPLETE (LOCAL) | niniejszy dokument, inventory callsites |
-| 1. Bounded identity/recipient projection | IN PROGRESS | migracja, store, guarded-write tests |
-| 2. Territory Control zero-profile cutover | IN PROGRESS (LOCAL) | endpoint tests, GN projection contract |
-| 3. Canonical teleport i opaque GN targets | IN PROGRESS (LOCAL) | endpoint/security/idempotency tests |
+| 1. Bounded identity/recipient projection | COMPLETE | migracja, store, guarded-write tests |
+| 2. Territory Control zero-profile cutover | COMPLETE | endpoint tests, GN projection contract |
+| 3. Canonical teleport i opaque GN targets | COMPLETE | endpoint/security/idempotency tests |
 | 4. Shared GhostNetwork delta client | COMPLETE (LOCAL) | JS unit tests bez Leaflet |
-| 5. Recipient readiness | IN PROGRESS (LOCAL) | bounded audience resolver tests |
-| 6. Telemetry i narzędzia audytu | IN PROGRESS (LOCAL) | static/runtime audit outputs |
-| 7. Re-audit 131 i bramka | NOT STARTED | finalny raport `GO/NO-GO` |
+| 5. Recipient readiness | COMPLETE | bounded audience resolver tests |
+| 6. Telemetry i narzędzia audytu | COMPLETE | static/runtime audit outputs |
+| 7. Re-audit 131 i bramka | COMPLETE | `READY FOR SPRINT 132` |
 
-## Otwarte blockery wejścia w Sprint 132
+## Historyczne blockery wejścia w Sprint 132
 
 1. Brak materializowanej, revision-aware projekcji identity/recipient.
 2. Pełny profil w request path Territory Control.
@@ -63,7 +63,7 @@ Readiness Cutover”. Ten plik jest technicznym artefaktem wykonania i dowodów.
 Status tego dokumentu może zostać zmieniony na `COMPLETE` dopiero po spełnieniu
 pełnego DoD z roadmapy oraz ponownym audycie Sprintu 131.
 
-## Lokalny checkpoint 2026-08-24
+## Lokalny checkpoint 2026-08-24 — historyczny
 
 Wykonane lokalnie:
 
@@ -85,3 +85,20 @@ Pozostaje przed bramką operatorską: pełna regresja, heavy-profile query
 measurement, manual exact/territory-only, production backup/status/audit/dry-run
 oraz re-audit Sprintu 131. Żaden z tych kroków nie został oznaczony jako
 wykonany ani nie uruchamia produkcyjnej migracji/deployu.
+
+## Finalny checkpoint 2026-08-26
+
+- 1092/1092 testów Python, 24/24 heavy-profile/read-path i 13/13 pakietów Node
+  przeszło poprawnie.
+- Produkcyjny manual całej serii 130.12 potwierdził session, map/GN/territory,
+  operations/OFS, Googleplex/GX/BlackNet, Cybernera i teleport.
+- Pięć blockerów wskazanych wyżej jest `RESOLVED` przez canonical store/projection
+  i shared-client cutover. Re-audit 131 nie wykazał nowego blockera wejścia w
+  Sprint 132.
+- Nie wykonano w tym domknięciu nowego deployu, restartu PM2 ani migration apply.
+
+Finalny status:
+
+`SPRINT 130.12 — COMPLETE`
+
+`SPRINT 131 AUDIT COMPLETE — READY FOR SPRINT 132`

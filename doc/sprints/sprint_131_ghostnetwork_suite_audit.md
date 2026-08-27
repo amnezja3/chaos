@@ -2,7 +2,12 @@
 
 Data audytu: 2026-08-24.
 
-Status: `SPRINT 131 AUDIT COMPLETE — NO-GO FOR SPRINT 132`.
+Status po re-audycie 2026-08-26:
+`SPRINT 131 AUDIT COMPLETE — READY FOR SPRINT 132`.
+
+Pierwotne ustalenia `NO-GO` poniżej pozostają historycznym zapisem audytu z
+2026-08-24. Sprint 130.12 zamknął wszystkie wskazane blockery bez implementacji
+GUI GhostNetwork Suite.
 
 Audit jest wyłącznie dokumentacyjno-kontraktowy. Nie dodaje endpointu, GUI,
 produktu, migracji, pollera ani mutacji bazy. Zweryfikowano aktualny kod i testy,
@@ -331,3 +336,21 @@ Werdykt:
 `SPRINT 131 AUDIT COMPLETE`
 
 `NO-GO FOR SPRINT 132 — HEAVY-PROFILE AND BOUNDED-IDENTITY BLOCKERS OPEN`
+
+## Re-audit po Sprint 130.12 — 2026-08-26
+
+| Historyczny blocker | Wynik | Dowód |
+| --- | --- | --- |
+| Territory Control pełny profil | RESOLVED | `territory_control_load_context()` korzysta z identity, inventory, position i target canonical stores |
+| Teleport pełny profil / client coordinates | RESOLVED | `ghostnetwork_suite` rozwiązuje opaque ID po stronie serwera i zapisuje `PlayerPositionStore` |
+| Brak bounded owner aliases | RESOLVED | revision-aware `UserIdentityProjectionStore.get_identities()` |
+| Delta client zależny od Leaflet | RESOLVED | `static/js/ghostnetwork_delta_client.js`, wspólna instancja i adapter mapy |
+| Audience fan-out bez lekkiego indeksu | RESOLVED | `list_recipient_ids()` i bounded `get_identities()` |
+
+Re-audit nie znalazł runtime fallbacku do pełnego profilu w tych call chainach.
+Pełna regresja: 1092/1092 Python; heavy-profile/read-path: 24/24; frontend:
+13/13 pakietów Node.
+
+Werdykt po re-audycie:
+
+`SPRINT 131 AUDIT COMPLETE — READY FOR SPRINT 132`

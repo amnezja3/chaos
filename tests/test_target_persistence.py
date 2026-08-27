@@ -2960,7 +2960,7 @@ class LightweightPollingEndpointTest(unittest.TestCase):
         client = run.app.test_client()
         with client.session_transaction() as sess:
             sess["user"] = "tester"
-        with patch.object(run.user_store, "get_profile", return_value=profile), \
+        with patch.object(run.identity_projection_store, "get_identity", return_value=profile), \
                 patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")), \
                 patch.object(run, "UserProfileManager", side_effect=AssertionError("write should not run")):
             response = client.get("/system-messages")
@@ -2983,7 +2983,8 @@ class LightweightPollingEndpointTest(unittest.TestCase):
         with client.session_transaction() as sess:
             sess["user"] = "tester"
 
-        with patch.object(run.user_store, "get_profile", return_value=profile), \
+        with patch.dict(run.app.config, {"TESTING": True}), \
+                patch.object(run.identity_projection_store, "get_identity", return_value=profile), \
                 patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")), \
                 patch.object(run.mail_store, "ensure_seeded", return_value=None), \
                 patch.object(run.mail_store, "remove_contacts_without_users", return_value=None), \

@@ -214,6 +214,7 @@ class GhostVisibilityService:
             "territory_clan": _clean(part.get("territory_clan")) or None,
             "discovered_at": _clean(part.get("discovered_at")) or None,
             "updated_at": _clean(part.get("updated_at")) or None,
+            "state_version": int(part.get("state_version") or 0),
             "part_code": _clean(part.get("part_code")) if identity_visible else None,
             "visual_asset_key": visual_asset.get("visual_asset_key") if identity_visible else None,
             "visual_asset_url": visual_asset.get("visual_asset_url") if identity_visible else None,
@@ -439,7 +440,6 @@ class GhostVisibilityService:
             "machines": machines,
             "parts": parts,
             "connections": connections,
-            "suite": self._build_suite_views(parts, context),
         }
 
     @staticmethod
@@ -523,25 +523,6 @@ class GhostVisibilityService:
             "parts_contested": sum(1 for part in parts if part.get("contested")),
             "machines": list(machines.values()),
         }
-
-    @staticmethod
-    def _build_suite_views(parts, context):
-        viewer_id = context.get("viewer_id")
-        viewer_clan = context.get("viewer_clan")
-        return {
-            "public_parts": [part for part in parts if part.get("viewer_relation") == "public_neutral"],
-            "blocked_parts": [part for part in parts if part.get("module_state") == "blocked"],
-            "active_parts": [part for part in parts if part.get("module_state") == "active"],
-            "self_controlled_parts": [
-                part for part in parts
-                if viewer_id and part.get("territory_owner_id") == viewer_id
-            ],
-            "clan_parts": [
-                part for part in parts
-                if viewer_clan and part.get("clan_code") == viewer_clan
-            ],
-        }
-
 
 def build_viewer_projection(snapshot, viewer=None):
     return GhostVisibilityService().build_snapshot_for_viewer(snapshot, viewer=viewer)

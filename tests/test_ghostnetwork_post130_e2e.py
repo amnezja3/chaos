@@ -119,6 +119,8 @@ class GhostNetworkPost130E2ETest(unittest.TestCase):
                 patch.object(run, "UserProfileManager", FakeManager), \
                 patch.object(run.player_target_runtime_store, "upsert_aimed", side_effect=lambda _u, target, **_kwargs: {"target": target, "status": "aimed"}), \
                 patch.object(run.player_target_runtime_store, "mark_captured", return_value={"status": "captured"}), \
+                patch.object(run.player_marked_target_store, "remove_matching", return_value=1), \
+                patch.object(run.player_marked_target_store, "list_targets", return_value=[]), \
                 patch.object(run.territory_store, "save_captured_target", side_effect=save_capture), \
                 patch.object(run.territory_store, "list_captured_targets", side_effect=lambda _u: copy.deepcopy(captured)), \
                 patch.object(run.territory_store, "list_player_areas", return_value=[]), \

@@ -166,11 +166,13 @@ class CapturedObjectEndpointTest(unittest.TestCase):
     def test_territory_control_abandon_uses_the_same_canonical_queue(self):
         item = target()
         result = {"ok": True, "job_id": "territory_rebuild_tc", "target": item}
-        installed = {
-            "username": "alice",
-            "apps": [{"id": "territoryControl", "type": "pro-system-tool"}],
+        installed_context = {
+            "identity": {"username": "alice"},
+            "app_installed": True,
+            "position": None,
+            "aimed_target": None,
         }
-        with patch.object(run, "territory_control_load_profile", return_value=installed), \
+        with patch.object(run, "territory_control_load_context", return_value=installed_context), \
                 patch.object(run.territory_store, "get_captured_target", return_value=item), \
                 patch.object(run.territory_store, "abandon_captured_target", return_value=result) as abandon, \
                 patch.object(run.territory_store, "remove_captured_target") as legacy_remove, \
