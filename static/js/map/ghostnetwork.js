@@ -177,10 +177,30 @@
         return String(part.public_entity_id || part.part_id || part.entity_id || part.target_id || "").trim();
     }
 
+    function sameGhostNetworkSuiteFocus(left = {}, right = {}) {
+        return String(left.target_type || "") === String(right.target_type || "")
+            && String(left.public_entity_id || "") === String(right.public_entity_id || "")
+            && String(left.territory_id || "") === String(right.territory_id || "");
+    }
+
+    function clearPendingGhostNetworkSuiteFocus(focus = {}) {
+        if (sameGhostNetworkSuiteFocus(window.pendingGhostNetworkSuiteFocus || {}, focus)) {
+            window.pendingGhostNetworkSuiteFocus = null;
+        }
+    }
+
     function focusGhostNetworkSuiteTarget(focus = {}, attempt = 0) {
         const targetType = String(focus.target_type || "").trim();
         const publicId = String(focus.public_entity_id || "").trim();
         const territoryId = String(focus.territory_id || "").trim();
+        const validTarget = (targetType === "ghostnetwork_part" && publicId)
+            || (targetType === "ghostnetwork_territory" && territoryId);
+        if (!validTarget) return false;
+        if (attempt === 0) {
+            window.pendingGhostNetworkSuiteFocus = { ...focus };
+        } else if (!sameGhostNetworkSuiteFocus(window.pendingGhostNetworkSuiteFocus || {}, focus)) {
+            return false;
+        }
         if (targetType === "ghostnetwork_part" && publicId) {
             const marker = window.ghostNetworkPartLayers[publicId];
             if (marker && typeof marker.getLatLng === "function") {
@@ -188,6 +208,7 @@
                 map.setView([point.lat, point.lng], Math.max(typeof map.getZoom === "function" ? map.getZoom() : 16, 17), { animate: true });
                 const projection = window.ghostNetworkPartProjections[publicId] || marker.ghostNetworkProjection;
                 if (projection) window.setTimeout(() => openGhostPartPanel(projection, marker), 220);
+                clearPendingGhostNetworkSuiteFocus(focus);
                 return true;
             }
         }
@@ -201,6 +222,7 @@
                     map.setView([point.lat, point.lng], 17, { animate: true });
                 }
                 if (typeof layer.openTooltip === "function") window.setTimeout(() => layer.openTooltip(), 220);
+                clearPendingGhostNetworkSuiteFocus(focus);
                 return true;
             }
         }
@@ -208,6 +230,12 @@
             window.setTimeout(() => focusGhostNetworkSuiteTarget(focus, attempt + 1), 250);
         }
         return false;
+    }
+
+    function applyPendingGhostNetworkSuiteFocus() {
+        const focus = window.pendingGhostNetworkSuiteFocus;
+        if (!focus || typeof focus !== "object") return false;
+        return focusGhostNetworkSuiteTarget(focus, 1);
     }
 
     function connectionKey(connection) {
@@ -911,6 +939,7 @@
                 });
             }
             notifyGhostNetworkDeltaViews({ type: "snapshot", snapshot: data });
+            applyPendingGhostNetworkSuiteFocus();
             return true;
         } catch (err) {
             console.warn("[ghostnetwork] snapshot failed", err);
@@ -1101,6 +1130,7 @@
     window.refreshGhostTerritoryStates = refreshGhostTerritoryStates;
     window.openGhostPartPanel = openGhostPartPanel;
     window.focusGhostNetworkSuiteTarget = focusGhostNetworkSuiteTarget;
+    window.applyPendingGhostNetworkSuiteFocus = applyPendingGhostNetworkSuiteFocus;
     window.clearGhostNetworkLayer = clearGhostNetworkLayer;
     window.recoverGhostNetworkLayer = recoverGhostNetworkLayer;
     window.registerGhostNetworkDeltaView = registerGhostNetworkDeltaView;

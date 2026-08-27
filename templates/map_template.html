@@ -6948,6 +6948,9 @@
                     await window.bootStep('Recovery delt', 'delta_recovery', null, { critical: true, total: criticalTotal, index: 6 });
                     await window.bootStep('Delta-feed mapy', 'delta_feed_ready', null, { critical: true, total: criticalTotal, index: 7 });
                     enableMapGameplay();
+                    if (typeof window.applyPendingGhostNetworkSuiteFocus === 'function') {
+                        window.applyPendingGhostNetworkSuiteFocus();
+                    }
                     updateMapBootOverlay('Mapa gotowa.', 100);
                     setTimeout(hideMapPreloader, 220);
                     window.startMapSnapshotRefreshTimers();

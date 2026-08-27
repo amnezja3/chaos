@@ -2893,6 +2893,11 @@ jej okolicy, nie na samą kotwicę. Po zgodzie i canonical success teleport otwi
 mapę oraz pokazuje motocykl w nowej pozycji; mapa nie może otworzyć się przed
 dialogiem zgody. Dla ukrytej części nadal używany jest bezpieczny punkt terytorium.
 
+Manual potwierdził teleport i automatyczne otwarcie mapy zarówno na małych, jak
+i dużych kontach. Responsywny Suite używa jednego scrolla całej zawartości jak
+Cyberner; lista kart nie tworzy zagnieżdżonego scrolla, a nagłówek i filtry
+naturalnie znikają podczas przewijania.
+
 **Bramka heavy-profile:** focus, teleport i Territory Control rozwiązują
 identity oraz target przez canonical GN/territory stores. Zakazane są
 `get_profile`, `get_profile_with_revision`, `sync_session_profile` i

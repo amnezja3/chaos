@@ -1699,3 +1699,12 @@ otwiera się dopiero po zgodzie i canonical success, a eventy przycisków są
 izolowane od pulpitu. Renderer pomija `none` i duplikat label/summary. Regresje:
 65/65 GN/Territory, 3/3 teleport i 16/16 Node — OK. Sprint pozostaje
 `READY FOR SERVER REVALIDATION`; bez deployu, restartu PM2 i commita.
+
+Manual potwierdził teleport i otwieranie mapy na małych oraz dużych kontach.
+Responsywny GhostNetwork Suite otrzymał jeden wspólny pionowy scroll całego
+wnętrza; nagłówek/filtry przewijają się razem z kartami, bez nested scrolla listy.
+
+Manual ujawnił, że fokus części przy zamkniętej mapie wygasał przed załadowaniem
+warstwy GN i pozostawiał widok motocykla. Intencja fokusu jest teraz trzymana do
+gotowości terytoriów lub publikacji snapshotu GN i konsumowana po pierwszym
+skutecznym ustawieniu widoku. Pełna regresja 16/16 skryptów Node — OK.

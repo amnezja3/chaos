@@ -5456,8 +5456,27 @@ form button:hover {
 .territory-control-ghost-part { display: flex; flex-direction: column; gap: 3px; padding: 8px; border-left: 2px solid rgba(57, 255, 139, .52); background: rgba(0, 14, 9, .62); }
 .territory-control-ghost-part + .territory-control-ghost-part { margin-top: 6px; }
 .territory-control-ghost-part small { color: #86c6a0; }
-@media (max-width: 760px) {
+@media (max-width: 900px), (max-height: 700px) {
   .ghostnetwork-suite-window { min-width: 0; width: calc(100vw - 12px) !important; height: calc(100vh - 72px) !important; left: 6px !important; top: 6px !important; resize: none; }
+  .ghostnetwork-suite-shell {
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 10px 10px 70px;
+  }
+  .ghostnetwork-suite-header,
+  .ghostnetwork-suite-toolbar,
+  .ghostnetwork-suite-status,
+  .ghostnetwork-suite-list {
+    flex: 0 0 auto;
+  }
+  .ghostnetwork-suite-list {
+    min-height: auto;
+    overflow: visible;
+  }
   .ghostnetwork-suite-header, .ghostnetwork-suite-toolbar { grid-template-columns: 1fr; }
   .ghostnetwork-suite-counters { grid-template-columns: repeat(2, 1fr); }
   .ghostnetwork-suite-card { grid-template-columns: 46px 1fr; }

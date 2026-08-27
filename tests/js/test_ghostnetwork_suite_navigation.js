@@ -5,6 +5,7 @@ const fs = require("fs");
 const vm = require("vm");
 
 const terminal = fs.readFileSync("static/js/terminal.js", "utf8");
+const styles = fs.readFileSync("static/css/style.css", "utf8");
 const actionStart = terminal.indexOf("function ghostnetworkSuiteOpaqueAction");
 const actionEnd = terminal.indexOf("function openGhostNetworkSuiteMap", actionStart);
 assert.ok(actionStart >= 0 && actionEnd > actionStart);
@@ -42,7 +43,7 @@ assert.ok(consentIndex >= 0 && requestIndex > consentIndex && openMapIndex > req
 assert.match(terminal.slice(teleportStart, terminal.indexOf("async function loadGhostNetworkSuite", teleportStart)), /event\.stopPropagation|stopPropagation/);
 
 const mapSource = fs.readFileSync("static/js/map/ghostnetwork.js", "utf8");
-const focusStart = mapSource.indexOf("function focusGhostNetworkSuiteTarget");
+const focusStart = mapSource.indexOf("function sameGhostNetworkSuiteFocus");
 const focusEnd = mapSource.indexOf("function connectionKey", focusStart);
 assert.ok(focusStart >= 0 && focusEnd > focusStart);
 const calls = [];
@@ -77,6 +78,43 @@ assert.strictEqual(mapSandbox.focusGhostNetworkSuiteTarget({ target_type: "ghost
 assert.strictEqual(calls[0][0], "fitBounds");
 assert.strictEqual(calls[1], "tooltip");
 
+const delayedCalls = [];
+const delayedSandbox = {
+    String, Math,
+    map: {
+        getZoom: () => 12,
+        setView: (position, zoom) => delayedCalls.push(["setView", position, zoom]),
+    },
+    openGhostPartPanel: projection => delayedCalls.push(["panel", projection.public_entity_id]),
+    window: {
+        ghostNetworkPartLayers: {},
+        ghostNetworkPartProjections: {},
+        territoryAreaLayers: {},
+        setTimeout: () => {},
+    },
+};
+vm.createContext(delayedSandbox);
+vm.runInContext(mapSource.slice(focusStart, focusEnd), delayedSandbox);
+const delayedFocus = { target_type: "ghostnetwork_part", public_entity_id: "ghost-node:delayed" };
+assert.strictEqual(delayedSandbox.focusGhostNetworkSuiteTarget(delayedFocus), false);
+assert.strictEqual(delayedSandbox.window.pendingGhostNetworkSuiteFocus.public_entity_id, "ghost-node:delayed", "closed-map focus must survive a slow map boot");
+delayedSandbox.window.ghostNetworkPartLayers["ghost-node:delayed"] = {
+    ghostNetworkProjection: { public_entity_id: "ghost-node:delayed" },
+    getLatLng: () => ({ lat: 50.06, lng: 19.94 }),
+};
+delayedSandbox.window.ghostNetworkPartProjections["ghost-node:delayed"] = { public_entity_id: "ghost-node:delayed" };
+assert.strictEqual(delayedSandbox.applyPendingGhostNetworkSuiteFocus(), true);
+assert.strictEqual(delayedSandbox.window.pendingGhostNetworkSuiteFocus, null, "pending focus must be consumed exactly once");
+assert.deepStrictEqual(JSON.parse(JSON.stringify(delayedCalls[0])), ["setView", [50.06, 19.94], 17]);
+
+const mapTemplate = fs.readFileSync("templates/map_template.html", "utf8");
+const readyIndex = mapTemplate.indexOf("enableMapGameplay();");
+const pendingIndex = mapTemplate.indexOf("applyPendingGhostNetworkSuiteFocus", readyIndex);
+assert.ok(readyIndex >= 0 && pendingIndex > readyIndex, "map boot must replay pending Suite focus after critical scopes are ready");
+const snapshotStart = mapSource.indexOf("async function loadGhostNetworkSnapshot");
+const snapshotEnd = mapSource.indexOf("function extractDeltaProjection", snapshotStart);
+assert.match(mapSource.slice(snapshotStart, snapshotEnd), /applyPendingGhostNetworkSuiteFocus\(\)/, "GN snapshot publication must replay pending exact-part focus");
+
 const territoryStart = terminal.indexOf("function territoryControlGhostBadge");
 const territoryEnd = terminal.indexOf("function territoryControlThreatSummary", territoryStart);
 assert.ok(territoryStart >= 0 && territoryEnd > territoryStart);
@@ -99,5 +137,12 @@ assert.doesNotMatch(hiddenDetails, /SECRET-MACHINE/);
 assert.match(territorySandbox.territoryControlGhostBadge({
     contains_ghost_part: true, ghost_part_relation: "self_own_active", ghost_part_state: "active",
 }), /CZESC WLASNEGO KLANU/);
+
+const responsiveStart = styles.indexOf("@media (max-width: 900px), (max-height: 700px)", styles.indexOf(".ghostnetwork-suite-window"));
+const responsiveEnd = styles.indexOf(".victim-picker-window::after", responsiveStart);
+const responsiveSuite = styles.slice(responsiveStart, responsiveEnd);
+assert.match(responsiveSuite, /\.ghostnetwork-suite-shell\s*\{[^}]*overflow-y:\s*auto/s, "responsive Suite must own the single vertical scroll");
+assert.match(responsiveSuite, /\.ghostnetwork-suite-list\s*\{[^}]*overflow:\s*visible/s, "responsive list must not create a nested scroll");
+assert.doesNotMatch(responsiveSuite, /\.ghostnetwork-suite-list\s*\{[^}]*overflow:\s*auto/s, "responsive list must not keep its desktop scroller");
 
 console.log("ghostnetwork suite navigation tests: OK");

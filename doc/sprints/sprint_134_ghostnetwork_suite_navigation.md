@@ -29,6 +29,8 @@ Manual doprecyzował, że focus centruje marker części, natomiast teleport pro
 do stabilnego punktu w jej okolicy. Po zaakceptowaniu dialogu i canonical success
 teleport otwiera mapę na motocyklu; przed zgodą mapa pozostaje zamknięta.
 
+Fokus z zamkniętej mapy jest przechowywany do zakończenia bootu odpowiedniej warstwy. Gotowość terytoriów ponawia fokus ukrytej części, a publikacja snapshotu GhostNetwork ponawia fokus dokładnego węzła; początkowy widok motocykla nie może już wygasić intencji użytkownika.
+
 ## Implementacja i walidacja
 
 - dokładna część centruje marker i otwiera bezpieczny panel,
@@ -55,3 +57,7 @@ Bez deployu, restartu PM2 i commita.
 
 Ponowna walidacja: 65/65 GN/Territory, 3/3 canonical teleport, 16/16
 pakietów Node oraz kontrole składni/diffu — OK.
+
+Manual potwierdził teleport z otwarciem mapy na małych i dużych kontach.
+Kolejna korekta responsywna usuwa nested scroll: całe wnętrze Suite jest jednym
+przewijanym dokumentem, a lista kart ma `overflow: visible`.
