@@ -27,7 +27,11 @@ class GhostNetworkSuiteNavigationTests(unittest.TestCase):
             "target_type": "ghostnetwork_part", "public_entity_id": "ghost-node:one",
         })
         self.assertEqual(error, "")
-        self.assertEqual(resolved["position"], {"lat": 52.2, "lng": 21.1})
+        self.assertEqual(resolved["position"], run.ghostnetwork_teleport_vicinity_position(
+            52.2, 21.1, "alice", "ghost-node:one"
+        ))
+        self.assertNotEqual(resolved["position"], {"lat": 52.2, "lng": 21.1})
+        self.assertEqual(resolved["target"]["location_precision"], "vicinity")
         self.assertNotIn("part_id", resolved["target"])
 
     def test_changed_visibility_fails_closed(self):

@@ -25,6 +25,10 @@ Nie pokazują napisów `MAPA` ani `TELEPORT`. Dostępność zachowują przez `ti
 - focus i teleport nie zmieniają `aimed_target`,
 - map bridge nie uruchamia mapy przed jawnym kliknięciem.
 
+Manual doprecyzował, że focus centruje marker części, natomiast teleport prowadzi
+do stabilnego punktu w jej okolicy. Po zaakceptowaniu dialogu i canonical success
+teleport otwiera mapę na motocyklu; przed zgodą mapa pozostaje zamknięta.
+
 ## Implementacja i walidacja
 
 - dokładna część centruje marker i otwiera bezpieczny panel,
@@ -38,3 +42,16 @@ Nie pokazują napisów `MAPA` ani `TELEPORT`. Dostępność zachowują przez `ti
 - `py_compile`, `node --check`, `git diff --check` — OK.
 
 Bez deployu, restartu PM2 i commita.
+
+## Korekta po pierwszym manualu
+
+- focus nadal centruje dokładny marker części,
+- teleport dokładnej części wybiera deterministyczny punkt 28–46 m od kotwicy,
+- obowiązuje kolejność: zgoda → canonical request → success → otwarcie mapy →
+  focus motocykla,
+- pointer/click akcji nie propaguje do pulpitu ani launchera mapy,
+- sentinel konfliktu `none` nie jest renderowany,
+- summary identyczne z głównym labelem nie jest renderowane drugi raz.
+
+Ponowna walidacja: 65/65 GN/Territory, 3/3 canonical teleport, 16/16
+pakietów Node oraz kontrole składni/diffu — OK.

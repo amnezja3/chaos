@@ -2887,6 +2887,12 @@ ikon `map` i `teleport` z tego samego języka wizualnego co Territory Control
 (`▣`, `➜`). Nie pokazują tekstowych etykiet `MAPA` ani `TELEPORT`; znaczenie
 pozostaje dostępne przez `title` i `aria-label`.
 
+**Korekta manualna 134:** focus centruje dokładny marker części. Teleport do
+widocznej dokładnie części prowadzi do deterministycznego bezpiecznego punktu w
+jej okolicy, nie na samą kotwicę. Po zgodzie i canonical success teleport otwiera
+mapę oraz pokazuje motocykl w nowej pozycji; mapa nie może otworzyć się przed
+dialogiem zgody. Dla ukrytej części nadal używany jest bezpieczny punkt terytorium.
+
 **Bramka heavy-profile:** focus, teleport i Territory Control rozwiązują
 identity oraz target przez canonical GN/territory stores. Zakazane są
 `get_profile`, `get_profile_with_revision`, `sync_session_profile` i

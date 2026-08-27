@@ -20033,6 +20033,16 @@ def api_blacknet_ollama_outbox_status(digest_id):
     })
 
 
+def ghostnetwork_teleport_vicinity_position(latitude, longitude, username, public_entity_id):
+    """Return a stable point near a visible GN anchor, never the anchor itself."""
+    seed = hashlib.sha256(
+        f"ghostnetwork-teleport:{username}:{public_entity_id}".encode("utf-8")
+    ).digest()
+    angle = (int.from_bytes(seed[:4], "big") / float(2**32)) * math.tau
+    distance_m = 28.0 + (int.from_bytes(seed[4:6], "big") % 1800) / 100.0
+    return offset_position(float(latitude), float(longitude), distance_m, angle)
+
+
 def resolve_ghostnetwork_teleport_target(username, payload):
     """Resolve an opaque GN target under the viewer's current visibility."""
     coordinate_keys = {"lat", "lng", "lon", "latitude", "longitude"}
@@ -20095,13 +20105,15 @@ def resolve_ghostnetwork_teleport_target(username, payload):
         return None, "ghostnetwork_target_changed"
     if target_type == "ghostnetwork_part" and location_visibility == "exact":
         try:
-            position = {
-                "lat": float(selected.get("latitude")),
-                "lng": float(selected.get("longitude")),
-            }
+            position = ghostnetwork_teleport_vicinity_position(
+                float(selected.get("latitude")),
+                float(selected.get("longitude")),
+                username,
+                public_entity_id,
+            )
         except (TypeError, ValueError):
             return None, "ghostnetwork_target_location_unavailable"
-        location_precision = "exact"
+        location_precision = "vicinity"
     else:
         area = territory_store.get_player_area(territory_id)
         if not area:

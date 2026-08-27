@@ -1691,3 +1691,11 @@ Control. Ikony akcji są zgodne z Territory Control (`▣`, `➜`). Walidacja:
 65/65 GN/Territory, 13/13 endpoint/session i 16/16 pakietów Node — OK;
 kontrole składni i diffu — OK. `SPRINT 134 — READY FOR SERVER VALIDATION`.
 Bez deployu, restartu PM2 i commita.
+
+Pierwszy manual Sprintu 134 wykazał: exact teleport na kotwicę zamiast w jej
+okolicę, niespójną sekwencję otwierania mapy oraz techniczne `none` i powielony
+label na kartach. Exact teleport używa teraz stabilnego offsetu 28–46 m, mapa
+otwiera się dopiero po zgodzie i canonical success, a eventy przycisków są
+izolowane od pulpitu. Renderer pomija `none` i duplikat label/summary. Regresje:
+65/65 GN/Territory, 3/3 teleport i 16/16 Node — OK. Sprint pozostaje
+`READY FOR SERVER REVALIDATION`; bez deployu, restartu PM2 i commita.

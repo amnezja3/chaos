@@ -7345,13 +7345,17 @@ function ghostnetworkSuiteCard(part = {}) {
     const actions = part.actions || {};
     const canMap = actions.can_show_on_map === true;
     const canTeleport = actions.can_teleport === true;
+    const displayLabel = String(part.display_label || "CZESC GHOSTNETWORK");
+    const summary = String(part.summary || "").trim();
+    const distinctSummary = summary && summary.toLocaleLowerCase("pl") !== displayLabel.trim().toLocaleLowerCase("pl") ? summary : "";
+    const conflictState = String(part.conflict_state || "").trim().toLowerCase();
     const locationLabel = location.visibility === "exact" ? "LOKACJA DOKLADNA" : location.visibility === "territory_only" ? "TYLKO TERYTORIUM" : "LOKACJA UKRYTA";
     return `
         <article class="ghostnetwork-suite-card" data-part-ref="${escapeHTML(part.public_entity_id || "")}">
             <div class="ghostnetwork-suite-card-icon">${asset ? `<img src="${escapeHTML(asset)}" alt="">` : "◈"}</div>
             <div class="ghostnetwork-suite-card-main">
-                <strong>${escapeHTML(part.display_label || "CZESC GHOSTNETWORK")}</strong>
-                <span>${escapeHTML(part.summary || part.status || "status niedostepny")}</span>
+                <strong>${escapeHTML(displayLabel)}</strong>
+                ${distinctSummary ? `<span>${escapeHTML(distinctSummary)}</span>` : ""}
                 <small>${escapeHTML(locationLabel)} · ${escapeHTML(part.viewer_relation || "public")}</small>
                 ${identity && part.profession_code ? `<small>PROFESJA: ${escapeHTML(part.profession_code)}</small>` : ""}
                 ${ability && (part.ability_name || part.ability_code) ? `<small>ZDOLNOSC: ${escapeHTML(part.ability_name || part.ability_code)}</small>` : ""}
@@ -7365,7 +7369,7 @@ function ghostnetworkSuiteCard(part = {}) {
                     ${part.updated_at ? `<small>AKTUALIZACJA: ${escapeHTML(part.updated_at)}</small>` : ""}
                 </details>
             </div>
-            <div class="ghostnetwork-suite-card-state"><b>${escapeHTML(part.status || "unknown")}</b><span>${escapeHTML(part.conflict_state || "safe")}</span></div>
+            <div class="ghostnetwork-suite-card-state"><b>${escapeHTML(part.status || "unknown")}</b>${conflictState && conflictState !== "none" ? `<span>${escapeHTML(conflictState)}</span>` : ""}</div>
             <div class="ghostnetwork-suite-card-actions">
                 <button type="button" data-suite-card-action="map" ${canMap ? "" : "disabled data-original-disabled=\"1\""} title="${canMap ? "Pokaz na mapie" : "Mapa niedostepna dla aktualnej projekcji"}" aria-label="Pokaz czesc GhostNetwork na mapie">${TERRITORY_CONTROL_ICONS.map}</button>
                 <button type="button" data-suite-card-action="teleport" ${canTeleport ? "" : "disabled data-original-disabled=\"1\""} title="${canTeleport ? "Teleport" : "Teleport niedostepny dla aktualnej projekcji"}" aria-label="Teleport do czesci GhostNetwork">${TERRITORY_CONTROL_ICONS.teleport}</button>
@@ -7453,14 +7457,14 @@ async function teleportGhostNetworkSuitePart(app, state, part = {}) {
         }
         addSystemMessage("success", "GHOSTNETWORK SUITE", data.message || "Teleport wykonany.");
         const position = data.current_position || data.curently_possition || {};
-        const mapIsOpen = Boolean(document.querySelector('.terminal[data-app="map"], .map-window iframe, iframe[src="/map"]'));
-        if (mapIsOpen && Number.isFinite(Number(position.lat)) && Number.isFinite(Number(position.lng))) {
-            notifyOpenMapsBlacknetFocus({
+        if (Number.isFinite(Number(position.lat)) && Number.isFinite(Number(position.lng))) {
+            createMap();
+            window.setTimeout(() => notifyOpenMapsBlacknetFocus({
                 mode: "teleport", source: "ghostnetwork_suite",
                 lat: Number(position.lat), lng: Number(position.lng),
                 position_version: data.position_version,
                 position_updated_at: data.position_updated_at,
-            });
+            }), 80);
         }
         notifyGhostControlPositionChanged({ source: "ghostnetwork_suite", position, position_version: data.position_version });
         return true;
@@ -7497,13 +7501,18 @@ function renderGhostNetworkSuite(app, state) {
     });
     shell.querySelector("[data-suite-sort]")?.addEventListener("change", event => { state.sort = event.target.value || "strategic"; renderGhostNetworkSuite(app, state); });
     shell.querySelector("[data-suite-refresh]")?.addEventListener("click", () => loadGhostNetworkSuite(app, state));
-    shell.querySelectorAll("[data-suite-card-action]").forEach(button => button.addEventListener("click", async () => {
+    shell.querySelectorAll("[data-suite-card-action]").forEach(button => {
+        button.addEventListener("pointerdown", event => event.stopPropagation());
+        button.addEventListener("click", async event => {
+        event.preventDefault();
+        event.stopPropagation();
         const partId = button.closest("[data-part-ref]")?.dataset.partRef || "";
         const part = (state.snapshot?.parts || []).find(item => String(item?.public_entity_id || "") === partId);
         if (!part) return;
         if (button.dataset.suiteCardAction === "map") openGhostNetworkSuiteMap(part);
         if (button.dataset.suiteCardAction === "teleport") await teleportGhostNetworkSuitePart(app, state, part);
-    }));
+        });
+    });
     if (state.actionPending) shell.querySelectorAll("[data-suite-card-action]").forEach(button => { button.disabled = true; });
 }
 

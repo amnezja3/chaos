@@ -2734,10 +2734,13 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
 
         data = response.get_json()
         self.assertEqual(200, response.status_code)
-        position_upsert.assert_called_once_with(
-            "alice", {"lat": 52.25, "lng": 21.05}, source="ghostnetwork_suite"
+        expected_vicinity = run.ghostnetwork_teleport_vicinity_position(
+            52.25, 21.05, "alice", "gn_public_1"
         )
-        self.assertEqual("exact", data["ghostnetwork_target"]["location_precision"])
+        position_upsert.assert_called_once_with(
+            "alice", expected_vicinity, source="ghostnetwork_suite"
+        )
+        self.assertEqual("vicinity", data["ghostnetwork_target"]["location_precision"])
         self.assertNotIn("part_id", data["ghostnetwork_target"])
 
     def test_hidden_ghostnetwork_part_uses_territory_centroid_not_private_anchor(self):

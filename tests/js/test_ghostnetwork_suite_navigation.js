@@ -33,6 +33,13 @@ const mapActionStart = terminal.indexOf("function openGhostNetworkSuiteMap");
 const teleportStart = terminal.indexOf("async function teleportGhostNetworkSuitePart", mapActionStart);
 assert.match(terminal.slice(mapActionStart, teleportStart), /createMap\s*\(/, "explicit map action opens map");
 assert.doesNotMatch(terminal.slice(actionStart, teleportStart), /aimed_target|mark_target/, "navigation must not mutate target state");
+const teleportEnd = terminal.indexOf("function renderGhostNetworkSuite", teleportStart);
+const teleportSource = terminal.slice(teleportStart, teleportEnd);
+const consentIndex = teleportSource.indexOf("await showGhostDecisionDialog");
+const requestIndex = teleportSource.indexOf('fetch("/api/blacknet/cta/teleport"');
+const openMapIndex = teleportSource.indexOf("createMap()");
+assert.ok(consentIndex >= 0 && requestIndex > consentIndex && openMapIndex > requestIndex, "teleport must ask first and open map only after canonical request succeeds");
+assert.match(terminal.slice(teleportStart, terminal.indexOf("async function loadGhostNetworkSuite", teleportStart)), /event\.stopPropagation|stopPropagation/);
 
 const mapSource = fs.readFileSync("static/js/map/ghostnetwork.js", "utf8");
 const focusStart = mapSource.indexOf("function focusGhostNetworkSuiteTarget");

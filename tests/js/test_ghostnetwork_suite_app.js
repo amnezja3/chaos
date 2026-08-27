@@ -35,6 +35,27 @@ assert.strictEqual(sandbox.ghostnetworkSuiteSelect(snapshot, "all", "secret").le
 assert.strictEqual(sandbox.ghostnetworkSuiteSelect(snapshot, "all", "ukryta").length, 1, "search may use safe display fields");
 assert.strictEqual(sandbox.ghostnetworkSuiteSelect(snapshot, "all", "", "strategic")[0].public_entity_id, "p2", "contested items must lead strategic sorting");
 
+const cardStart = source.indexOf("function ghostnetworkSuiteCard");
+const cardEnd = source.indexOf("function ghostnetworkSuiteCycleStatus", cardStart);
+const cardSandbox = {
+    escapeHTML: value => String(value == null ? "" : value),
+    TERRITORY_CONTROL_ICONS: { map: "▣", teleport: "➜" },
+    String,
+};
+vm.createContext(cardSandbox);
+vm.runInContext(source.slice(cardStart, cardEnd), cardSandbox);
+const activeCard = cardSandbox.ghostnetworkSuiteCard({
+    public_entity_id: "p-active",
+    display_label: "AKTYWNY WEZEL GHOSTNETWORK",
+    summary: "AKTYWNY WEZEL GHOSTNETWORK",
+    status: "active",
+    conflict_state: "none",
+    location: { visibility: "exact" },
+    actions: { can_show_on_map: true, can_teleport: true },
+});
+assert.strictEqual((activeCard.match(/AKTYWNY WEZEL GHOSTNETWORK/g) || []).length, 1, "identical label and summary must render once");
+assert.doesNotMatch(activeCard, />none</, "neutral conflict sentinel must not be rendered");
+
 const suiteStart = source.indexOf("const GHOSTNETWORK_SUITE_ENDPOINT");
 const suiteEnd = source.indexOf("function appHasMapRuntime", suiteStart);
 const suiteSource = source.slice(suiteStart, suiteEnd);
