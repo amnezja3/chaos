@@ -177,6 +177,39 @@
         return String(part.public_entity_id || part.part_id || part.entity_id || part.target_id || "").trim();
     }
 
+    function focusGhostNetworkSuiteTarget(focus = {}, attempt = 0) {
+        const targetType = String(focus.target_type || "").trim();
+        const publicId = String(focus.public_entity_id || "").trim();
+        const territoryId = String(focus.territory_id || "").trim();
+        if (targetType === "ghostnetwork_part" && publicId) {
+            const marker = window.ghostNetworkPartLayers[publicId];
+            if (marker && typeof marker.getLatLng === "function") {
+                const point = marker.getLatLng();
+                map.setView([point.lat, point.lng], Math.max(typeof map.getZoom === "function" ? map.getZoom() : 16, 17), { animate: true });
+                const projection = window.ghostNetworkPartProjections[publicId] || marker.ghostNetworkProjection;
+                if (projection) window.setTimeout(() => openGhostPartPanel(projection, marker), 220);
+                return true;
+            }
+        }
+        if (targetType === "ghostnetwork_territory" && territoryId) {
+            const entry = window.territoryAreaLayers && window.territoryAreaLayers[territoryId];
+            const layer = entry && (entry.layer || entry);
+            if (layer) {
+                if (typeof layer.getBounds === "function" && layer.getBounds()?.isValid?.()) map.fitBounds(layer.getBounds(), { padding: [36, 36], maxZoom: 17 });
+                else if (typeof layer.getLatLng === "function") {
+                    const point = layer.getLatLng();
+                    map.setView([point.lat, point.lng], 17, { animate: true });
+                }
+                if (typeof layer.openTooltip === "function") window.setTimeout(() => layer.openTooltip(), 220);
+                return true;
+            }
+        }
+        if (attempt < 12) {
+            window.setTimeout(() => focusGhostNetworkSuiteTarget(focus, attempt + 1), 250);
+        }
+        return false;
+    }
+
     function connectionKey(connection) {
         if (!connection || typeof connection !== "object") return "";
         return String(connection.public_connection_id || connection.connection_id || connection.entity_id || "").trim();
@@ -1067,6 +1100,7 @@
     window.refreshGhostTerritoryBadges = refreshGhostTerritoryBadges;
     window.refreshGhostTerritoryStates = refreshGhostTerritoryStates;
     window.openGhostPartPanel = openGhostPartPanel;
+    window.focusGhostNetworkSuiteTarget = focusGhostNetworkSuiteTarget;
     window.clearGhostNetworkLayer = clearGhostNetworkLayer;
     window.recoverGhostNetworkLayer = recoverGhostNetworkLayer;
     window.registerGhostNetworkDeltaView = registerGhostNetworkDeltaView;

@@ -3821,6 +3821,13 @@
         }
 
         window.focusBlacknetMapSignal = function(focus = {}) {
+            if (
+                focus.source === 'ghostnetwork_suite'
+                && focus.mode !== 'teleport'
+                && typeof window.focusGhostNetworkSuiteTarget === 'function'
+            ) {
+                return window.focusGhostNetworkSuiteTarget(focus);
+            }
             const ids = [
                 focus.target_id,
                 focus.entity_id,

@@ -288,6 +288,15 @@ class GhostNetworkSuiteProjectionTest(unittest.TestCase):
         self.assertFalse(item["actions"]["can_teleport"])
         self.assertIsNone(item["actions"]["map_target_id"])
 
+    def test_consumed_part_disables_actions_even_in_active_cycle(self):
+        part = projected_part("ghost-node:consumed", "public_neutral", "neutral")
+        part["status"] = "consumed"
+        result = normalize_snapshot_view(projection([part]), view="suite")
+        actions = result["parts"][0]["actions"]
+        self.assertFalse(actions["can_show_on_map"])
+        self.assertFalse(actions["can_teleport"])
+        self.assertIsNone(actions["map_target_id"])
+
     def test_suite_cache_key_includes_viewer_base_and_owner_revision(self):
         part = projected_part(
             "ghost-node:hidden", "foreign_blocked", "blocked",

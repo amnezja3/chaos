@@ -95,7 +95,18 @@ def _suite_actions(part, *, cycle_active=True):
     else:
         target_type = None
         target_id = None
-    enabled = bool(cycle_active and target_type and target_id)
+    module_state = _clean(part.get("module_state")).lower()
+    lifecycle_status = _clean(part.get("status")).lower() or {
+        "neutral": "public",
+        "blocked": "contained",
+        "active": "active",
+    }.get(module_state, "")
+    enabled = bool(
+        cycle_active
+        and lifecycle_status in {"public", "contained", "active"}
+        and target_type
+        and target_id
+    )
     return {
         "can_show_on_map": enabled and bool(part.get("can_show_on_map")),
         "can_teleport": enabled,

@@ -1,6 +1,6 @@
 # Sprint 133 — GhostNetwork Suite desktop
 
-**Status:** `READY FOR SERVER VALIDATION`
+**Status:** `SPRINT 133 — COMPLETE`
 
 ## Zakres
 
@@ -45,3 +45,5 @@ Wynik lokalny 2026-08-27:
 - `py_compile`, `node --check`, `git diff --check` — OK.
 
 Nie wykonano deployu, restartu PM2 ani commita.
+
+Manual serwerowy potwierdził poprawną instalację, widoczność części i filtry.

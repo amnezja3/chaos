@@ -6199,6 +6199,7 @@ function createVictimPickerApp() {
     makeDraggable(app);
     app.querySelector('.close-btn')?.addEventListener('click', () => app.remove());
     const state = { view: "main", scan_results: [] };
+    app._ghostControlPositionRefresh = () => loadVictimPickerData(app, state, state.view || "main", { silent: true });
     loadVictimPickerData(app, state, "main");
     return app;
 }
@@ -6277,6 +6278,36 @@ function renderTerritoryControlThreatBadges(cluster = {}) {
     return territoryControlThreatBadges(cluster)
         .map(badge => `<span class="territory-control-threat territory-control-threat-${escapeHTML(badge.kind)}">${escapeHTML(badge.label)}</span>`)
         .join("");
+}
+
+function territoryControlGhostBadge(cluster = {}) {
+    if (!cluster.contains_ghost_part) return "";
+    const parts = Array.isArray(cluster.parts) ? cluster.parts : [];
+    const contested = parts.some(part => part?.contested || part?.conflict_state === "contested");
+    const relation = String(cluster.ghost_part_relation || parts[0]?.viewer_relation || "");
+    const state = String(cluster.ghost_part_state || parts[0]?.module_state || "");
+    let label = "KOMPONENT NIEZIDENTYFIKOWANY // BLOKOWANY";
+    if (contested) label = "KOMPONENT // KONFLIKT";
+    else if (relation === "self_own_active" || relation === "clan_own_active" || state === "active") label = "CZESC WLASNEGO KLANU // AKTYWNA";
+    else if (relation === "self_foreign_blocked" || state === "blocked") label = cluster.ghost_part_identity_visible ? "CZESC OBCEGO KLANU // BLOKOWANA" : label;
+    return `<span class="territory-control-ghost-badge state-${escapeHTML(contested ? "contested" : state || "blocked")}" title="GhostNetwork">${TERRITORY_CONTROL_ICONS.app} ${escapeHTML(label)}</span>`;
+}
+
+function renderTerritoryControlGhostDetails(cluster = {}) {
+    if (!cluster.contains_ghost_part) return "";
+    const parts = Array.isArray(cluster.parts) ? cluster.parts : [];
+    const rows = parts.map(part => {
+        const identity = part?.identity_visible === true;
+        return `<article class="territory-control-ghost-part">
+            <strong>${escapeHTML(part?.display_label || "NIEZIDENTYFIKOWANY KOMPONENT")}</strong>
+            <span>${escapeHTML(String(part?.module_state || "unknown").toUpperCase())}${part?.contested ? " · KONFLIKT" : ""}</span>
+            ${identity && (part.machine_name || part.machine_code) ? `<small>MASZYNA: ${escapeHTML(part.machine_name || part.machine_code)}</small>` : ""}
+            ${identity && (part.profession_name || part.profession_code) ? `<small>PROFESJA: ${escapeHTML(part.profession_name || part.profession_code)}</small>` : ""}
+            ${part?.ability_visible && (part.ability_name || part.ability_code) ? `<small>MOC: ${escapeHTML(part.ability_name || part.ability_code)}</small>` : ""}
+            ${part?.clan_name || part?.clan_code ? `<small>KLAN: ${escapeHTML(part.clan_name || part.clan_code)}</small>` : ""}
+        </article>`;
+    }).join("");
+    return `<section class="territory-control-ghost-section"><h4>GHOSTNETWORK <span>${Number(cluster.ghost_part_count || parts.length || 0)}</span></h4><p>${escapeHTML(cluster.ghost_part_summary || "TERYTORIUM PRZECHOWUJE KOMPONENT GHOSTNETWORK")}</p>${rows || `<div class="territory-control-empty">TERYTORIUM PRZECHOWUJE NIEZIDENTYFIKOWANY KOMPONENT</div>`}</section>`;
 }
 
 function territoryControlThreatSummary(cluster = {}) {
@@ -6448,6 +6479,7 @@ function renderTerritoryClusterCard(cluster) {
                 <span>${escapeHTML(territoryControlArea(cluster.area_size))} · ${escapeHTML(territoryControlMeters(cluster.distance_from_bike))} od motocykla</span>
             </div>
             <div class="territory-control-threats">${renderTerritoryControlThreatBadges(cluster)}</div>
+            <div class="territory-control-ghost-summary">${territoryControlGhostBadge(cluster)}</div>
             <div class="territory-control-actions">
                 <button type="button" data-territory-control-action="cluster-detail" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}" title="Otworz szczegoly">${TERRITORY_CONTROL_ICONS.open}</button>
                 <button type="button" data-territory-control-action="cluster-map" data-cluster-id="${escapeHTML(cluster.cluster_id || "")}" title="Pokaz na mapie">${TERRITORY_CONTROL_ICONS.map}</button>
@@ -6557,6 +6589,7 @@ function renderTerritoryControlCluster(app, state, cluster) {
                 </div>
             </div>
         </section>
+        ${renderTerritoryControlGhostDetails(cluster)}
         <section class="territory-control-object-list territory-control-cluster-nodes">
             <div class="territory-control-category">
                 <h4>FILARY <span>${pillars.length}</span></h4>
@@ -6822,6 +6855,7 @@ function createTerritoryControlApp() {
     bringWindowToFront(app);
     app.querySelector('.close-btn')?.addEventListener('click', () => app.remove());
     const state = { view: "list" };
+    app._ghostControlPositionRefresh = () => loadTerritoryControlData(app, state, state.view || "list", { silent: true });
     loadTerritoryControlData(app, state, "list");
     return app;
 }
@@ -7308,6 +7342,9 @@ function ghostnetworkSuiteCard(part = {}) {
     const location = part.location || {};
     const owner = part.owner || {};
     const territory = part.territory || {};
+    const actions = part.actions || {};
+    const canMap = actions.can_show_on_map === true;
+    const canTeleport = actions.can_teleport === true;
     const locationLabel = location.visibility === "exact" ? "LOKACJA DOKLADNA" : location.visibility === "territory_only" ? "TYLKO TERYTORIUM" : "LOKACJA UKRYTA";
     return `
         <article class="ghostnetwork-suite-card" data-part-ref="${escapeHTML(part.public_entity_id || "")}">
@@ -7329,7 +7366,10 @@ function ghostnetworkSuiteCard(part = {}) {
                 </details>
             </div>
             <div class="ghostnetwork-suite-card-state"><b>${escapeHTML(part.status || "unknown")}</b><span>${escapeHTML(part.conflict_state || "safe")}</span></div>
-            <div class="ghostnetwork-suite-card-actions"><button type="button" disabled title="Dostepne od Sprintu 134" aria-label="Pokaz na mapie — dostepne od Sprintu 134">MAPA</button><button type="button" disabled title="Dostepne od Sprintu 134" aria-label="Teleport — dostepny od Sprintu 134">TELEPORT</button></div>
+            <div class="ghostnetwork-suite-card-actions">
+                <button type="button" data-suite-card-action="map" ${canMap ? "" : "disabled data-original-disabled=\"1\""} title="${canMap ? "Pokaz na mapie" : "Mapa niedostepna dla aktualnej projekcji"}" aria-label="Pokaz czesc GhostNetwork na mapie">${TERRITORY_CONTROL_ICONS.map}</button>
+                <button type="button" data-suite-card-action="teleport" ${canTeleport ? "" : "disabled data-original-disabled=\"1\""} title="${canTeleport ? "Teleport" : "Teleport niedostepny dla aktualnej projekcji"}" aria-label="Teleport do czesci GhostNetwork">${TERRITORY_CONTROL_ICONS.teleport}</button>
+            </div>
         </article>`;
 }
 
@@ -7340,6 +7380,98 @@ function ghostnetworkSuiteCycleStatus(cycle = {}) {
     if (status === "preparing") return "PRZYGOTOWANIE NOWEGO CYKLU";
     if (status === "closed") return "AKTYWNY CYKL ZAKONCZONY";
     return "STABILNIE";
+}
+
+function ghostnetworkSuiteOpaqueAction(part = {}, actionName = "map") {
+    const actions = part.actions || {};
+    const targetType = String(actions[`${actionName}_target_type`] || "");
+    const targetId = String(actions[`${actionName}_target_id`] || "");
+    if (!targetId || !["ghostnetwork_part", "ghostnetwork_territory"].includes(targetType)) return null;
+    return {
+        source: "ghostnetwork_suite",
+        target_type: targetType,
+        public_entity_id: targetType === "ghostnetwork_part" ? targetId : undefined,
+        territory_id: targetType === "ghostnetwork_territory" ? targetId : undefined,
+    };
+}
+
+function openGhostNetworkSuiteMap(part = {}) {
+    const target = ghostnetworkSuiteOpaqueAction(part, "map");
+    if (!target) {
+        addSystemMessage("warning", "GHOSTNETWORK SUITE", "Mapa jest niedostepna dla aktualnej projekcji czesci.");
+        return false;
+    }
+    createMap();
+    window.setTimeout(() => notifyOpenMapsBlacknetFocus({
+        ...target,
+        mode: "ghostnetwork_suite",
+        label: part.display_label || "GhostNetwork",
+    }), 80);
+    if (target.target_type === "ghostnetwork_territory") {
+        addSystemMessage("info", "GHOSTNETWORK SUITE", "Dokladna lokalizacja komponentu jest ukryta. Pokazano terytorium przechowujace czesc.");
+    }
+    return true;
+}
+
+function notifyGhostControlPositionChanged(detail = {}) {
+    document.querySelectorAll('.app-window[data-app="victim-picker"], .app-window[data-app="territory-control"], .app-window[data-app="ghostnetwork-suite"]').forEach(app => {
+        if (typeof app._ghostControlPositionRefresh === "function") app._ghostControlPositionRefresh(detail);
+    });
+}
+
+async function teleportGhostNetworkSuitePart(app, state, part = {}) {
+    if (state.actionPending) return false;
+    const target = ghostnetworkSuiteOpaqueAction(part, "teleport");
+    if (!target) {
+        addSystemMessage("warning", "GHOSTNETWORK SUITE", "Teleport jest niedostepny dla aktualnej projekcji czesci.");
+        return false;
+    }
+    const territoryOnly = target.target_type === "ghostnetwork_territory";
+    const conflictWarning = part.contested || part.conflict_state === "contested" ? " Uwaga: komponent znajduje sie w aktywnym konflikcie." : "";
+    const accepted = await showGhostDecisionDialog({
+        title: territoryOnly ? "TELEPORT DO TERYTORIUM Z KOMPONENTEM" : "TELEPORT DO WEZLA GHOSTNETWORK",
+        message: `Wykonac teleport: ${part.display_label || "GhostNetwork"}?`,
+        details: `${territoryOnly ? "Cel: bezpieczny punkt terytorium; ukryta kotwica nie zostanie ujawniona." : "Cel: aktualna dokladna pozycja wezla."}${conflictWarning}`,
+        confirmLabel: "TELEPORT",
+        cancelLabel: "ANULUJ",
+        tone: part.contested ? "red" : "lime",
+    });
+    if (!accepted) return false;
+    state.actionPending = true;
+    renderGhostNetworkSuite(app, state);
+    try {
+        const response = await fetch("/api/blacknet/cta/teleport", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(target),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) {
+            addSystemMessage("warning", "GHOSTNETWORK SUITE", data.message || "Teleport odrzucony przez aktualna projekcje.");
+            await loadGhostNetworkSuite(app, state);
+            return false;
+        }
+        addSystemMessage("success", "GHOSTNETWORK SUITE", data.message || "Teleport wykonany.");
+        const position = data.current_position || data.curently_possition || {};
+        const mapIsOpen = Boolean(document.querySelector('.terminal[data-app="map"], .map-window iframe, iframe[src="/map"]'));
+        if (mapIsOpen && Number.isFinite(Number(position.lat)) && Number.isFinite(Number(position.lng))) {
+            notifyOpenMapsBlacknetFocus({
+                mode: "teleport", source: "ghostnetwork_suite",
+                lat: Number(position.lat), lng: Number(position.lng),
+                position_version: data.position_version,
+                position_updated_at: data.position_updated_at,
+            });
+        }
+        notifyGhostControlPositionChanged({ source: "ghostnetwork_suite", position, position_version: data.position_version });
+        return true;
+    } catch (error) {
+        console.warn("GhostNetwork Suite teleport failed", { reason: String(error?.message || "transport_error") });
+        addSystemMessage("warning", "GHOSTNETWORK SUITE", "Nie udalo sie wykonac teleportu.");
+        return false;
+    } finally {
+        state.actionPending = false;
+        renderGhostNetworkSuite(app, state);
+    }
 }
 
 function renderGhostNetworkSuite(app, state) {
@@ -7365,6 +7497,14 @@ function renderGhostNetworkSuite(app, state) {
     });
     shell.querySelector("[data-suite-sort]")?.addEventListener("change", event => { state.sort = event.target.value || "strategic"; renderGhostNetworkSuite(app, state); });
     shell.querySelector("[data-suite-refresh]")?.addEventListener("click", () => loadGhostNetworkSuite(app, state));
+    shell.querySelectorAll("[data-suite-card-action]").forEach(button => button.addEventListener("click", async () => {
+        const partId = button.closest("[data-part-ref]")?.dataset.partRef || "";
+        const part = (state.snapshot?.parts || []).find(item => String(item?.public_entity_id || "") === partId);
+        if (!part) return;
+        if (button.dataset.suiteCardAction === "map") openGhostNetworkSuiteMap(part);
+        if (button.dataset.suiteCardAction === "teleport") await teleportGhostNetworkSuitePart(app, state, part);
+    }));
+    if (state.actionPending) shell.querySelectorAll("[data-suite-card-action]").forEach(button => { button.disabled = true; });
 }
 
 async function loadGhostNetworkSuite(app, state) {
@@ -7401,7 +7541,8 @@ function createGhostNetworkSuiteApp() {
     makeDraggable(app);
     bringWindowToFront(app);
     app.querySelector(".close-btn")?.addEventListener("click", () => app.remove());
-    const state = { filter: "all", query: "", sort: "strategic", loading: false, error: "", snapshot: null };
+    const state = { filter: "all", query: "", sort: "strategic", loading: false, actionPending: false, error: "", snapshot: null };
+    app._ghostControlPositionRefresh = () => loadGhostNetworkSuite(app, state);
     loadGhostNetworkSuite(app, state);
     return app;
 }

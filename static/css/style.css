@@ -5445,7 +5445,17 @@ form button:hover {
 .ghostnetwork-suite-card-state b { color: #48ff94; text-transform: uppercase; }
 .ghostnetwork-suite-card-actions { display: flex; gap: 5px; }
 .ghostnetwork-suite-card-actions button:disabled { opacity: .42; cursor: not-allowed; }
+.ghostnetwork-suite-card-actions button { min-width: 38px; font-size: 18px; }
 .ghostnetwork-suite-empty { padding: 28px; text-align: center; border: 1px dashed rgba(62, 255, 151, .3); color: #83c9a6; }
+.territory-control-ghost-summary { grid-column: 1 / -1; }
+.territory-control-ghost-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid rgba(57, 255, 139, .42); color: #99ffc0; background: rgba(0, 35, 21, .72); font-size: 11px; }
+.territory-control-ghost-badge.state-contested { border-color: #ff8f38; color: #ffc079; }
+.territory-control-ghost-section { border: 1px solid rgba(57, 255, 139, .32); background: rgba(0, 25, 17, .72); padding: 10px; }
+.territory-control-ghost-section h4 { margin: 0 0 7px; color: #53ff99; }
+.territory-control-ghost-section p { margin: 0 0 8px; color: #8bc9a3; font-size: 12px; }
+.territory-control-ghost-part { display: flex; flex-direction: column; gap: 3px; padding: 8px; border-left: 2px solid rgba(57, 255, 139, .52); background: rgba(0, 14, 9, .62); }
+.territory-control-ghost-part + .territory-control-ghost-part { margin-top: 6px; }
+.territory-control-ghost-part small { color: #86c6a0; }
 @media (max-width: 760px) {
   .ghostnetwork-suite-window { min-width: 0; width: calc(100vw - 12px) !important; height: calc(100vh - 72px) !important; left: 6px !important; top: 6px !important; resize: none; }
   .ghostnetwork-suite-header, .ghostnetwork-suite-toolbar { grid-template-columns: 1fr; }

@@ -2702,10 +2702,11 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         class FakeGhostService:
             def get_snapshot_for_viewer(self, viewer):
                 self.viewer = viewer
-                return {"snapshot": {"parts": [{
+                return {"snapshot": {"cycle": {"status": "active"}, "parts": [{
                     "public_entity_id": "gn_public_1",
                     "display_label": "Widoczny modul",
                     "location_visibility": "exact",
+                    "status": "active",
                     "latitude": 52.25,
                     "longitude": 21.05,
                     "territory_id": "17",
@@ -2744,10 +2745,11 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
 
         class FakeGhostService:
             def get_snapshot_for_viewer(self, viewer):
-                return {"snapshot": {"parts": [{
+                return {"snapshot": {"cycle": {"status": "active"}, "parts": [{
                     "public_entity_id": "gn_hidden_1",
                     "display_label": "Sklasyfikowany modul",
                     "location_visibility": "territory_only",
+                    "status": "contained",
                     "latitude": None,
                     "longitude": None,
                     "territory_id": "17",
@@ -2771,8 +2773,8 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
                 patch.object(run, "record_map_player_actor_delta"):
             response = client.post("/api/blacknet/cta/teleport", json={
                 "source": "ghostnetwork_suite",
-                "target_type": "ghostnetwork_part",
-                "public_entity_id": "gn_hidden_1",
+                "target_type": "ghostnetwork_territory",
+                "territory_id": "17",
             })
 
         data = response.get_json()

@@ -1680,3 +1680,14 @@ tożsamości, a przyciski mapy i teleportu są disabled bez handlerów. Walidacj
 15/15 testów produktu/projekcji, 34/34 testy siostrzanych aplikacji i 15/15
 skryptów JavaScript — OK; kontrole składni i diffu — OK. Bez deployu, restartu
 PM2 i commita.
+
+Manual serwerowy potwierdził instalację GhostNetwork Suite, widoczność części
+i filtrowanie. `SPRINT 133 — COMPLETE`. Rozpoczęto Sprint 134; akcje mapy oraz
+teleportu mają używać ikon zgodnych z Territory Control zamiast napisów.
+
+Implementacja Sprintu 134 podłączyła opaque map focus i canonical teleport,
+dodała fail-closed revalidation lifecycle/visibility oraz badge GN w Territory
+Control. Ikony akcji są zgodne z Territory Control (`▣`, `➜`). Walidacja:
+65/65 GN/Territory, 13/13 endpoint/session i 16/16 pakietów Node — OK;
+kontrole składni i diffu — OK. `SPRINT 134 — READY FOR SERVER VALIDATION`.
+Bez deployu, restartu PM2 i commita.

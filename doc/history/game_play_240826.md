@@ -2444,7 +2444,10 @@ Sprint jest zakończony, gdy desktopowa aplikacja może jednym lekkim odczytem o
 > wykorzystują istniejące `visual_asset_url/marker_asset_url`. Akcje mapy i
 > teleportu są do Sprintu 134 ukryte lub disabled i nie wysyłają requestów.
 
-**Status planu:** `READY FOR SERVER VALIDATION`.
+**Status planu:** `SPRINT 133 — COMPLETE`.
+
+Manual serwerowy potwierdził instalację produktu, widoczność części oraz działanie
+filtrów. Akcje mapy i teleportu przechodzą do Sprintu 134.
 
 **Bramka heavy-profile:** aplikacja konsumuje wyłącznie `view=suite` i delty.
 Nie pobiera `/api/profile`, nie przechowuje profilu w cache i nie uruchamia
@@ -2877,7 +2880,12 @@ Sprint jest zakończony, gdy operator może bez mapy zobaczyć wszystkie dostęp
 > aktualnej backendowej projekcji visibility. Territory Control rozszerza swój
 > istniejący snapshot przez `project_territory_component_for_viewer`.
 
-**Status planu:** `QUEUED — po Sprint 133`.
+**Status planu:** `SPRINT 134 — READY FOR SERVER VALIDATION`.
+
+**Korekta UX po manualu 133:** przyciski akcji w GhostNetwork Suite używają
+ikon `map` i `teleport` z tego samego języka wizualnego co Territory Control
+(`▣`, `➜`). Nie pokazują tekstowych etykiet `MAPA` ani `TELEPORT`; znaczenie
+pozostaje dostępne przez `title` i `aria-label`.
 
 **Bramka heavy-profile:** focus, teleport i Territory Control rozwiązują
 identity oraz target przez canonical GN/territory stores. Zakazane są
@@ -3204,6 +3212,20 @@ Nie wykonywać jeszcze:
 ## DoD
 
 Sprint jest zakończony, gdy każda część może bezpiecznie otworzyć właściwy punkt mapy albo terytorium, teleport nie ujawnia ukrytej kotwicy, a Territory Control jednoznacznie pokazuje, które klastry przechowują własne i obce komponenty.
+
+## Wynik implementacji lokalnej 2026-08-27
+
+- Suite używa ikon Territory Control `▣` oraz `➜`, bez napisów na przyciskach.
+- Map bridge przekazuje tylko opaque `public_entity_id` albo `territory_id` i
+  rozwiązuje docelową warstwę dopiero w otwartej mapie.
+- Teleport ponownie sprawdza bieżący cykl, lifecycle oraz visibility targetu;
+  współrzędne klienta są zabronione.
+- Zmiana projekcji, `transmitting` i `consumed` blokują starą akcję fail-closed.
+- Territory Control renderuje istniejącą canonical projection jako badge i
+  szczegóły, bez ujawniania ukrytej tożsamości.
+- 65/65 testów GN/Territory, 13/13 endpoint/session oraz 16/16 pakietów Node — OK.
+- `py_compile`, `node --check`, `git diff --check` — OK.
+- Bez deployu, restartu PM2 i commita.
 
 ---
 

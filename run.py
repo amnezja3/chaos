@@ -20046,7 +20046,12 @@ def resolve_ghostnetwork_teleport_target(username, payload):
         return None, "identity_projection_not_ready"
     viewer = ghostnetwork_player_payload(username, identity)
     projected = get_ghostnetwork_service().get_snapshot_for_viewer(viewer)
-    parts = (projected.get("snapshot") or {}).get("parts") or []
+    snapshot = projected.get("snapshot") if isinstance(projected.get("snapshot"), dict) else projected
+    snapshot = snapshot if isinstance(snapshot, dict) else {}
+    cycle = snapshot.get("cycle") if isinstance(snapshot.get("cycle"), dict) else {}
+    if str(cycle.get("status") or "").strip().lower() != "active":
+        return None, "ghostnetwork_cycle_not_active"
+    parts = snapshot.get("parts") or []
 
     selected = None
     territory_id = str(payload.get("territory_id") or "").strip()
@@ -20072,6 +20077,22 @@ def resolve_ghostnetwork_teleport_target(username, payload):
             return None, "ghostnetwork_target_not_visible"
 
     location_visibility = str(selected.get("location_visibility") or "")
+    lifecycle_status = str(selected.get("status") or "").strip().lower()
+    if lifecycle_status not in {"public", "contained", "active"}:
+        return None, "ghostnetwork_target_inactive"
+    expected_target_type = (
+        "ghostnetwork_part" if location_visibility == "exact"
+        else "ghostnetwork_territory" if location_visibility == "territory_only"
+        else ""
+    )
+    expected_target_id = (
+        str(selected.get("public_entity_id") or "").strip()
+        if expected_target_type == "ghostnetwork_part"
+        else territory_id
+    )
+    requested_target_id = public_entity_id if target_type == "ghostnetwork_part" else territory_id
+    if not expected_target_type or target_type != expected_target_type or requested_target_id != expected_target_id:
+        return None, "ghostnetwork_target_changed"
     if target_type == "ghostnetwork_part" and location_visibility == "exact":
         try:
             position = {
@@ -20137,7 +20158,12 @@ def api_blacknet_cta_teleport():
                 "invalid_ghostnetwork_target_type",
                 "missing_public_entity_id",
                 "missing_territory_id",
-            } else (409 if resolve_error == "identity_projection_not_ready" else 404)
+            } else (409 if resolve_error in {
+                "identity_projection_not_ready",
+                "ghostnetwork_cycle_not_active",
+                "ghostnetwork_target_changed",
+                "ghostnetwork_target_inactive",
+            } else 404)
             return jsonify({
                 "success": False,
                 "message": "Cel GhostNetwork jest niedostepny dla biezacej projekcji.",
