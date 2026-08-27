@@ -1,4 +1,6 @@
 import unittest
+import json
+import sqlite3
 from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -20,8 +22,9 @@ def ts(hour, minute=0):
 class OperationRiskMeterTest(unittest.TestCase):
     def setUp(self):
         self.tmpdir = TemporaryDirectory()
+        self.db_path = str(Path(self.tmpdir.name) / "game.sqlite3")
         self.original_operation_store = run.player_operation_store
-        run.player_operation_store = PlayerOperationStore(db_path=str(Path(self.tmpdir.name) / "game.sqlite3"))
+        run.player_operation_store = PlayerOperationStore(db_path=self.db_path)
 
     def tearDown(self):
         run.player_operation_store = self.original_operation_store
@@ -160,6 +163,93 @@ class OperationRiskMeterTest(unittest.TestCase):
         self.assertEqual(second["operations"], 1)
         self.assertNotEqual(stored["current_position"], first_position)
         self.assertGreaterEqual(stored["_runtime_version"], 3)
+
+    def test_runtime_tick_never_hydrates_thousands_of_terminal_operations(self):
+        runtime_now = datetime.now(timezone.utc).replace(microsecond=0)
+        terminal_rows = []
+        for index in range(3000):
+            operation = self._operation(
+                operation_id=f"op-timeout-{index:04d}",
+                status="timeout",
+                started_at=(runtime_now - timedelta(days=2)).isoformat(),
+                expires_at=(runtime_now - timedelta(days=1)).isoformat(),
+            )
+            operation["archive_fixture"] = "x" * 128
+            encoded = json.dumps(operation, ensure_ascii=False, separators=(",", ":"))
+            terminal_rows.append((
+                operation["operation_id"], "neo", operation["target_id"],
+                operation["operation_type"], "timeout", encoded, "{}", 1,
+                operation["started_at"], operation["expires_at"],
+            ))
+        conn = sqlite3.connect(self.db_path)
+        try:
+            conn.executemany(
+                """
+                INSERT INTO player_operations
+                    (operation_id, username, target_key, operation_type, status,
+                     operation_json, risk_json, version, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                terminal_rows,
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        active = self._operation(
+            operation_id="op-live-bounded",
+            started_at=(runtime_now - timedelta(minutes=1)).isoformat(),
+            expires_at=(runtime_now + timedelta(hours=1)).isoformat(),
+        )
+        run.player_operation_store.upsert_operations(
+            "neo", [active], event_type="operation.started"
+        )
+        conn = sqlite3.connect(self.db_path)
+        try:
+            events_before = conn.execute("SELECT COUNT(*) FROM operation_events").fetchone()[0]
+        finally:
+            conn.close()
+
+        incident_inputs = []
+
+        def capture_incident_input(operations, now=None):
+            incident_inputs.append([item.get("operation_id") for item in operations])
+            return {"actions": []}
+
+        with patch.object(
+            run.incident_initializer, "sync_operations", side_effect=capture_incident_input
+        ), patch.object(run, "sync_response_warnings", return_value=[]), patch.object(
+            run.user_store, "get_profile", side_effect=AssertionError("profile hot path")
+        ):
+            result = run.process_operation_runtime_tick(
+                limit_users=1,
+                min_age_seconds=0,
+                now_ts=(runtime_now + timedelta(seconds=2)).timestamp(),
+            )
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            events_after = conn.execute("SELECT COUNT(*) FROM operation_events").fetchone()[0]
+        finally:
+            conn.close()
+        recent_history = run.player_operation_store.list_recent_terminal_operations(
+            "neo", limit=25
+        )
+
+        fixture = SessionGenerationFixture("chaos_operation_archive_bound_session_").start()
+        self.addCleanup(fixture.stop)
+        client = run.app.test_client()
+        headers = fixture.authenticate(client, "neo")
+        summary = client.get("/api/operations?summary=1", headers=headers)
+
+        self.assertEqual(result["operations"], 1)
+        self.assertEqual(incident_inputs, [["op-live-bounded"]])
+        self.assertEqual(events_after, events_before)
+        self.assertEqual(len(recent_history), 25)
+        self.assertTrue(all(item["status"] == "timeout" for item in recent_history))
+        self.assertEqual(summary.status_code, 200)
+        self.assertEqual(summary.get_json()["active_count"], 1)
+        self.assertEqual(summary.get_json()["history_count"], 25)
 
     def test_runtime_store_cas_rejects_stale_projection(self):
         run.player_operation_store.upsert_operations("neo", [self._operation()])

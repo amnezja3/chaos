@@ -1,4 +1,5 @@
 import unittest
+import sqlite3
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -282,6 +283,42 @@ class HackActionIdempotencyTests(unittest.TestCase):
         self.assertEqual(cancelled["status"], "cancelled")
         self.assertEqual(second_result, "already_terminal")
         self.assertEqual(second["status"], "cancelled")
+
+    def test_player_operation_store_unchanged_sync_does_not_bump_version_or_event(self):
+        operation = {
+            "operation_id": "op_unchanged_sync",
+            "target_id": "target-sync",
+            "map_action_id": "trace",
+            "operation_type": "generic_trace",
+            "source_app_id": "trace_1",
+            "status": "timeout",
+        }
+        run.player_operation_store.upsert_operations(
+            "main", [operation], event_type="operation.started"
+        )
+        stored_before = run.player_operation_store.list_operations("main")[0]
+        conn = sqlite3.connect(self.db_path)
+        try:
+            events_before = conn.execute("SELECT COUNT(*) FROM operation_events").fetchone()[0]
+        finally:
+            conn.close()
+
+        accepted = run.player_operation_store.upsert_operations(
+            "main",
+            [operation],
+            event_type="operation.runtime_sync",
+            source="refresh_and_persist_operations",
+        )
+
+        stored_after = run.player_operation_store.list_operations("main")[0]
+        conn = sqlite3.connect(self.db_path)
+        try:
+            events_after = conn.execute("SELECT COUNT(*) FROM operation_events").fetchone()[0]
+        finally:
+            conn.close()
+        self.assertEqual([item["operation_id"] for item in accepted], ["op_unchanged_sync"])
+        self.assertEqual(stored_after["_runtime_version"], stored_before["_runtime_version"])
+        self.assertEqual(events_after, events_before)
 
     def test_system_message_store_consumes_once_with_dedupe(self):
         message = {

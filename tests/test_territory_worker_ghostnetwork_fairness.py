@@ -9,6 +9,7 @@ class TerritoryWorkerGhostNetworkFairnessTest(unittest.TestCase):
         worker._consecutive_ghostnetwork_jobs = 0
         worker._ghostnetwork_delivery_turn = True
         worker._ghostnetwork_service = None
+        worker._next_operation_runtime_tick_at = 0.0
 
     def test_sqlite_contention_is_classified_for_retry(self):
         import sqlite3
@@ -65,6 +66,33 @@ class TerritoryWorkerGhostNetworkFairnessTest(unittest.TestCase):
             self.assertTrue(worker._ghostnetwork_delivery_turn)
         self.assertEqual(deliver.call_count, 1)
         self.assertEqual(reconcile.call_count, 1)
+
+    def test_operation_runtime_tick_has_completion_based_cadence(self):
+        result = {"users": 1, "operations": 1, "incidents": 0, "warnings": 0}
+        with patch.object(
+            worker.run, "process_operation_runtime_tick", return_value=result
+        ) as runtime_tick, patch.object(
+            worker.time, "monotonic", side_effect=[100.0, 101.5, 102.0, 103.5, 103.6]
+        ):
+            self.assertEqual(worker.process_operation_runtime_if_due(), result)
+            self.assertEqual(
+                worker.process_operation_runtime_if_due(),
+                {"users": 0, "operations": 0, "incidents": 0, "warnings": 0},
+            )
+            self.assertEqual(worker.process_operation_runtime_if_due(), result)
+        self.assertEqual(runtime_tick.call_count, 2)
+
+    def test_operation_activity_alone_does_not_suppress_idle_sleep_signal(self):
+        patches = self.common_patches()
+        for item in patches:
+            item.start()
+            self.addCleanup(item.stop)
+        worker.run.process_operation_runtime_tick.return_value = {
+            "users": 1, "operations": 9, "incidents": 0, "warnings": 0
+        }
+        with patch.object(worker, "process_ghostnetwork_once", return_value=False), \
+                patch.object(worker.run.territory_conflict_store, "list_rebuild_candidates", return_value=[]):
+            self.assertFalse(worker.process_once())
 
 
 if __name__ == "__main__":

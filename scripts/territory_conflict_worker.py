@@ -18,6 +18,7 @@ import run  # noqa: E402
 _consecutive_ghostnetwork_jobs = 0
 _ghostnetwork_delivery_turn = True
 _ghostnetwork_service = None
+_next_operation_runtime_tick_at = 0.0
 
 
 def is_database_contention(error):
@@ -28,6 +29,23 @@ def is_database_contention(error):
 
 def contention_backoff_seconds():
     return random.uniform(0.15, 0.65)
+
+
+def process_operation_runtime_if_due():
+    """Run the operation projection on its own cadence, independent of queue load."""
+    global _next_operation_runtime_tick_at
+    now = time.monotonic()
+    if now < _next_operation_runtime_tick_at:
+        return {"users": 0, "operations": 0, "incidents": 0, "warnings": 0}
+    result = run.process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0)
+    interval = max(
+        1.0,
+        float(os.environ.get("CHAOS_OPERATION_RUNTIME_TICK_SECONDS", "2")),
+    )
+    # Schedule from completion so a slow tick can never immediately retrigger
+    # itself and turn the worker into a permanent busy loop.
+    _next_operation_runtime_tick_at = time.monotonic() + interval
+    return result
 
 
 def process_ghostnetwork_once():
@@ -138,7 +156,7 @@ def compact_multi_audit_report(report):
 
 def process_once():
     global _consecutive_ghostnetwork_jobs
-    operation_tick = run.process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0)
+    process_operation_runtime_if_due()
     strategic_rewards = run.retry_pending_strategic_progression(limit=1)
     if strategic_rewards:
         print(
@@ -197,7 +215,7 @@ def process_once():
             )
             return True
         _consecutive_ghostnetwork_jobs = 0
-        return bool(operation_tick.get("operations"))
+        return False
     conflict_id = candidates[0]["conflict_id"]
     result = run.consolidate_conflict_rebuild(
         conflict_id,

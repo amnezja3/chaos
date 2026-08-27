@@ -8369,12 +8369,26 @@ def filter_accepted_created_operations(profile, created_operations):
     ]
 
 
+def bounded_operations_from_store(username, history_limit=25):
+    """Read active runtime plus a small terminal tail, never the full archive."""
+    active = player_operation_store.list_operations(username, include_terminal=False)
+    history = player_operation_store.list_recent_terminal_operations(
+        username, limit=history_limit
+    )
+    return active + history
+
+
 def operations_from_store_or_profile(username, profile, refresh=False, include_terminal=True):
     profile = profile if isinstance(profile, dict) else {}
     stored_operations = []
     if username:
         try:
-            stored_operations = player_operation_store.list_operations(username, include_terminal=include_terminal)
+            if include_terminal:
+                stored_operations = bounded_operations_from_store(username)
+            else:
+                stored_operations = player_operation_store.list_operations(
+                    username, include_terminal=False
+                )
             if not stored_operations and profile.get("operations"):
                 stored_operations = player_operation_store.seed_from_profile(username, profile)
         except Exception as exc:
@@ -13586,7 +13600,11 @@ def process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0, now_ts=No
             continue
         result["users"] += 1
         result["operations"] += len(accepted)
-        current = player_operation_store.list_operations(username, include_terminal=True)
+        # `accepted` contains every operation that was active at the start of
+        # this tick, including a row that has just transitioned to terminal.
+        # Feeding the full terminal archive here used to hydrate thousands of
+        # timeout rows on every tick.
+        current = accepted
         links_before = {
             str(operation.get("operation_id") or ""): copy.deepcopy(
                 operation.get("operation_risk_meter") or {}
@@ -22905,10 +22923,7 @@ def api_profile():
         invalidate_authenticated_session("profile_not_found")
         return jsonify({"error": "Brak danych uzytkownika"}), 401
     try:
-        stored_operations = player_operation_store.list_operations(
-            session["user"],
-            include_terminal=True,
-        )
+        stored_operations = bounded_operations_from_store(session["user"])
     except Exception as exc:
         print(f"[PROFILE] operation snapshot fallback user={session['user']} error={exc}", flush=True)
         stored_operations = []
@@ -23013,7 +23028,7 @@ def api_operations():
     if summary_mode:
         # The worker owns runtime advancement.  This hot path reads the ready
         # canonical projection only; it must never hydrate a full profile.
-        operations = player_operation_store.list_operations(session["user"], include_terminal=True)
+        operations = bounded_operations_from_store(session["user"])
         active_operations = active_operations_from_operations(operations)
         operation_history = operation_history_from_operations(operations)
         return jsonify({

@@ -9704,6 +9704,32 @@ class PlayerOperationStore:
                 if isinstance(operation, dict)
             ]
 
+    def list_recent_terminal_operations(self, username, limit=25):
+        """Return bounded terminal history without hydrating the full archive."""
+        username = self._clean_text(username)
+        if not username:
+            return []
+        limit = max(0, min(int(limit or 0), 250))
+        if limit == 0:
+            return []
+        placeholders = ",".join("?" for _ in self.TERMINAL_STATUSES)
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM player_operations
+                WHERE username = ? AND status IN ({placeholders})
+                ORDER BY updated_at DESC, created_at DESC, operation_id DESC
+                LIMIT ?
+                """,
+                (username, *sorted(self.TERMINAL_STATUSES), limit),
+            ).fetchall()
+        operations = [
+            operation for operation in (self._row_to_operation(row) for row in rows)
+            if isinstance(operation, dict)
+        ]
+        operations.reverse()
+        return operations
+
     def list_runtime_usernames(self, limit=8, min_age_seconds=1.0, now=None):
         """Return a bounded set of owners whose canonical runtime projection is due."""
         limit = max(1, min(int(limit or 1), 64))
@@ -9724,7 +9750,13 @@ class PlayerOperationStore:
             ).fetchall()
         return [str(row["username"] or "").strip() for row in rows if row["username"]]
 
-    def compare_and_swap_runtime(self, username, operations, event_type="operation.runtime_tick"):
+    def compare_and_swap_runtime(
+        self,
+        username,
+        operations,
+        event_type="operation.runtime_tick",
+        record_event=False,
+    ):
         """Atomically persist only projections read at the supplied runtime version."""
         username = self._clean_text(username)
         now = utc_now()
@@ -9763,18 +9795,19 @@ class PlayerOperationStore:
                 )
                 if cursor.rowcount != 1:
                     continue
-                dedupe_key = f"runtime:{operation_id}:{version}"
-                event_id = "opev_" + hashlib.sha1(dedupe_key.encode("utf-8")).hexdigest()[:18]
-                conn.execute(
-                    """
-                    INSERT OR IGNORE INTO operation_events
-                        (event_id, operation_id, event_type, dedupe_key, payload_json, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (event_id, operation_id, event_type, dedupe_key,
-                     dumps_json({"source": "bounded_runtime_tick", "status": self._status(operation),
-                                 "operation_id": operation_id, "version": version}), now),
-                )
+                if record_event:
+                    dedupe_key = f"runtime:{operation_id}:{version}"
+                    event_id = "opev_" + hashlib.sha1(dedupe_key.encode("utf-8")).hexdigest()[:18]
+                    conn.execute(
+                        """
+                        INSERT OR IGNORE INTO operation_events
+                            (event_id, operation_id, event_type, dedupe_key, payload_json, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (event_id, operation_id, event_type, dedupe_key,
+                         dumps_json({"source": "bounded_runtime_tick", "status": self._status(operation),
+                                     "operation_id": operation_id, "version": version}), now),
+                    )
                 accepted.append(operation)
         return accepted
 
@@ -9803,14 +9836,15 @@ class PlayerOperationStore:
                 "operation_json": dumps_json(operation),
                 "risk_json": dumps_json(self._risk_json(operation)),
             })
+        placeholders = ",".join("?" for _ in self.TERMINAL_STATUSES)
         with db_connect(self.db_path) as conn:
             active_rows = conn.execute(
-                """
+                f"""
                 SELECT operation_id, operation_json, version
                 FROM player_operations
-                WHERE username = ?
+                WHERE username = ? AND status NOT IN ({placeholders})
                 """,
-                (username,),
+                (username, *sorted(self.TERMINAL_STATUSES)),
             ).fetchall()
         active_keys = {}
         for row in active_rows:
@@ -9827,15 +9861,21 @@ class PlayerOperationStore:
             latest_versions = sorted(
                 (row["operation_id"], int(row["version"] or 0))
                 for row in conn.execute(
-                    "SELECT operation_id, version FROM player_operations WHERE username = ?",
-                    (username,),
+                    f"""
+                    SELECT operation_id, version FROM player_operations
+                    WHERE username = ? AND status NOT IN ({placeholders})
+                    """,
+                    (username, *sorted(self.TERMINAL_STATUSES)),
                 ).fetchall()
             )
             if latest_versions != observed_versions:
                 active_keys = {}
                 for row in conn.execute(
-                    "SELECT operation_id, operation_json FROM player_operations WHERE username = ?",
-                    (username,),
+                    f"""
+                    SELECT operation_id, operation_json FROM player_operations
+                    WHERE username = ? AND status NOT IN ({placeholders})
+                    """,
+                    (username, *sorted(self.TERMINAL_STATUSES)),
                 ).fetchall():
                     existing_op = loads_json(row["operation_json"], {})
                     key = self._active_logical_key(existing_op)
@@ -9860,9 +9900,32 @@ class PlayerOperationStore:
                         continue
 
                 existing = conn.execute(
-                    "SELECT version, created_at FROM player_operations WHERE operation_id = ?",
+                    """
+                    SELECT username, target_key, operation_type, status,
+                           operation_json, risk_json, version, created_at
+                    FROM player_operations WHERE operation_id = ?
+                    """,
                     (operation_id,),
                 ).fetchone()
+                if existing:
+                    existing_operation = loads_json(existing["operation_json"], {})
+                    if isinstance(existing_operation, dict):
+                        existing_operation.pop("_runtime_version", None)
+                    if (
+                        existing["username"] == username
+                        and existing["target_key"] == item["target_key"]
+                        and existing["operation_type"] == item["operation_type"]
+                        and existing["status"] == status
+                        and existing_operation == operation
+                        and loads_json(existing["risk_json"], {}) == loads_json(item["risk_json"], {})
+                    ):
+                        # Synchronization callers may submit a complete profile
+                        # repeatedly. Preserve acceptance semantics without
+                        # manufacturing a new version/event for unchanged state.
+                        accepted.append(operation)
+                        if logical_key:
+                            active_keys[logical_key] = operation_id
+                        continue
                 version = int(existing["version"] or 0) + 1 if existing else 1
                 created_at = existing["created_at"] if existing else self._created_at(operation, now)
                 conn.execute(
