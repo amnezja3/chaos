@@ -1717,3 +1717,17 @@ preloadowane, a bazowy motocykl pozostaje tłem awaryjnym podczas dekodowania.
 Korekta po manualu: bazowe tło prześwitywało przez przezroczysty sprite kierunkowy
 i wyglądało jak drugi nieruchomy motocykl. Tło usunięto; bazowy asset jest teraz
 ustawiany wyłącznie przez `img.onerror` po rzeczywistym błędzie ładowania.
+
+## 2026-08-27 — Sprint 135
+
+GhostNetwork Suite został podłączony do wspólnego `GhostNetworkDeltaClient` bez
+Leaflet i bez nowego pollera. Backend publikuje bezpieczną projekcję Suite,
+visibility cutover zastępuje cały rekord, consumed usuwa opaque ID, a recovery
+korzysta tylko z `snapshot?view=suite`. Zamknięcie okna usuwa adapter i retry.
+
+Walidacja: 231/231 testów GhostNetwork, 93/93 Ghost Control/territory/session,
+18/18 pakietów Node, `py_compile`, `node --check` i `git diff --check` — OK.
+
+`SPRINT 135 — READY FOR SERVER VALIDATION`
+
+Bez deployu, restartu PM2, produkcyjnych mutacji i commita.

@@ -7277,6 +7277,23 @@ const GHOSTNETWORK_SUITE_SECTIONS = [
     { id: "active", label: "AKTYWNE" },
     { id: "control", label: "MOJA KONTROLA" },
 ];
+const GHOSTNETWORK_SUITE_PART_DELTA_TYPES = new Set([
+    "ghost.part_discovered", "ghost.part_contained", "ghost.part_revealed",
+    "ghost.part_activated", "ghost.part_deactivated", "ghost.part_contested",
+    "ghost.part_conflict_resolved", "ghost.part_anchor_migrated",
+    "ghost.part_updated", "ghost.part_consumed", "ghost.part_recovered",
+    "ghost.part_defended", "ghost.part_anchor_source_lost",
+]);
+const GHOSTNETWORK_SUITE_CYCLE_DELTA_TYPES = new Set([
+    "ghost.cycle_created", "ghost.cycle_activated", "ghost.cycle_status_changed",
+    "ghost.cycle_state_changed",
+    "ghost.cycle_locked", "ghost.version_changed", "ghost.restart_required",
+    "ghost.signal_sent",
+]);
+const GHOSTNETWORK_SUITE_RECOVERY_DELTA_TYPES = new Set([
+    "ghost.parts_created", "ghost.parts_consumed", "ghost.connections_closed",
+    "ghost.topology_created", "ghost.stabilization_started", "ghost.abilities_disabled",
+]);
 
 function ghostnetworkSuiteIndex(snapshot = {}) {
     const parts = Array.isArray(snapshot.parts) ? snapshot.parts : [];
@@ -7333,6 +7350,205 @@ function ghostnetworkSuiteSelect(snapshot, filter = "all", query = "", sort = "s
             const compared = String(left).localeCompare(String(right), "pl");
             return compared || String(a?.public_entity_id || "").localeCompare(String(b?.public_entity_id || ""), "pl");
         });
+}
+
+function ghostnetworkSuiteDeltaPartFromMapProjection(projection = {}, previous = null, cycleActive = true) {
+    const item = { ...projection };
+    const identity = item.identity_visible === true;
+    if (!identity) {
+        [
+            "part_id", "part_code", "name", "machine_code", "machine_name",
+            "profession_code", "profession_name", "ability_code", "ability_name",
+            "ability_description", "visual_asset_key", "visual_asset_url", "target_id",
+        ].forEach(key => { item[key] = null; });
+    }
+    const locationVisibility = String(item.location_visibility || item.location?.visibility || "");
+    const exact = locationVisibility === "exact";
+    const territoryId = String(item.territory_id || item.territory?.territory_id || "") || null;
+    const ownerId = String(item.territory_owner_id || item.owner?.owner_id || "") || null;
+    const previousOwner = previous?.owner || {};
+    const preservedAlias = ownerId && String(previousOwner.owner_id || "") === ownerId
+        ? previousOwner.owner_alias || null : null;
+    if (!exact) {
+        item.latitude = null;
+        item.longitude = null;
+    }
+    const lifecycleStatus = String(item.status || "").toLowerCase();
+    const liveStatus = ["public", "contained", "active"].includes(lifecycleStatus);
+    let targetType = null;
+    let targetId = null;
+    if (exact && item.public_entity_id && item.latitude != null && item.longitude != null) {
+        targetType = "ghostnetwork_part";
+        targetId = String(item.public_entity_id);
+    } else if (locationVisibility === "territory_only" && territoryId) {
+        targetType = "ghostnetwork_territory";
+        targetId = territoryId;
+    }
+    const enabled = Boolean(cycleActive && liveStatus && targetType && targetId);
+    item.owner = {
+        owner_id: ownerId,
+        owner_alias: item.owner?.owner_alias || preservedAlias,
+        owner_clan: item.territory_clan || item.owner?.owner_clan || null,
+    };
+    item.territory = {
+        territory_id: territoryId,
+        cluster_id: territoryId,
+        owner_id: ownerId,
+        owner_alias: item.owner.owner_alias,
+        owner_clan: item.territory_clan || item.territory?.owner_clan || null,
+        conflict_state: item.conflict_state || "none",
+    };
+    item.location = {
+        visibility: locationVisibility || null,
+        latitude: exact ? item.latitude : null,
+        longitude: exact ? item.longitude : null,
+        map_focus_type: enabled ? targetType : null,
+        map_focus_id: enabled ? targetId : null,
+    };
+    item.actions = {
+        can_show_on_map: enabled && item.can_show_on_map === true,
+        can_teleport: enabled,
+        map_target_type: enabled ? targetType : null,
+        map_target_id: enabled ? targetId : null,
+        teleport_target_type: enabled ? targetType : null,
+        teleport_target_id: enabled ? targetId : null,
+    };
+    return item;
+}
+
+function ghostnetworkSuiteRebuildDerived(snapshot = {}) {
+    const seen = new Set();
+    snapshot.parts = (Array.isArray(snapshot.parts) ? snapshot.parts : [])
+        .filter(part => {
+            const id = String(part?.public_entity_id || "");
+            if (!id || seen.has(id)) return false;
+            seen.add(id);
+            return true;
+        })
+        .slice(0, 20);
+    const groups = { public: [], blocked: [], clan_active: [], self_foreign: [], self_own: [] };
+    const relationGroups = {
+        public_neutral: "public", foreign_blocked: "blocked",
+        clan_own_active: "clan_active", self_foreign_blocked: "self_foreign",
+        self_own_active: "self_own",
+    };
+    snapshot.parts.forEach(part => {
+        const group = relationGroups[String(part?.viewer_relation || "")];
+        if (group) groups[group].push(String(part.public_entity_id));
+    });
+    Object.keys(groups).forEach(key => { groups[key] = [...new Set(groups[key])].sort(); });
+    snapshot.groups = groups;
+    snapshot.summary = {
+        parts_total: snapshot.parts.length,
+        parts_discovered: snapshot.parts.length,
+        parts_public: snapshot.parts.filter(part => part?.viewer_relation === "public_neutral").length,
+        parts_blocked: snapshot.parts.filter(part => part?.module_state === "blocked").length,
+        parts_active: snapshot.parts.filter(part => part?.module_state === "active").length,
+        parts_contested: snapshot.parts.filter(part => part?.contested === true).length,
+        parts_visible_to_viewer: snapshot.parts.length,
+    };
+    return snapshot;
+}
+
+function ghostnetworkSuiteDisableActions(snapshot = {}) {
+    (snapshot.parts || []).forEach(part => {
+        part.actions = {
+            ...(part.actions || {}),
+            can_show_on_map: false, can_teleport: false,
+            map_target_type: null, map_target_id: null,
+            teleport_target_type: null, teleport_target_id: null,
+        };
+    });
+    return snapshot;
+}
+
+function ghostnetworkSuiteApplyDelta(app, state, event = {}) {
+    if (!app?.isConnected || state.closed || !state.snapshot) return false;
+    const type = String(event.type || "");
+    const payload = event.payload && typeof event.payload === "object" ? event.payload : {};
+    const eventCycleId = String(payload.cycle_id || event.cycle_id || "");
+    const currentCycleId = String(state.snapshot.cycle?.cycle_id || "");
+    if (eventCycleId && currentCycleId && eventCycleId !== currentCycleId) return false;
+    let handled = false;
+
+    if (GHOSTNETWORK_SUITE_PART_DELTA_TYPES.has(type)) {
+        const projection = payload.suite_part_projection || payload.part_projection || null;
+        const publicId = String(
+            projection?.public_entity_id || payload.public_entity_id || event.entity_id || ""
+        );
+        if (!publicId) return false;
+        const parts = Array.isArray(state.snapshot.parts) ? state.snapshot.parts : [];
+        const index = parts.findIndex(part => String(part?.public_entity_id || "") === publicId);
+        if (type === "ghost.part_consumed" || payload.removed === true) {
+            if (index >= 0) parts.splice(index, 1);
+            handled = true;
+        } else {
+            if (!projection) return false;
+            if (index < 0 && type !== "ghost.part_discovered") return false;
+            const previous = index >= 0 ? parts[index] : null;
+            const cycleActive = !state.restartRequired
+                && String(state.snapshot.cycle?.status || "active").toLowerCase() === "active";
+            const normalized = ghostnetworkSuiteDeltaPartFromMapProjection(projection, previous, cycleActive);
+            if (index >= 0) parts[index] = normalized;
+            else parts.push(normalized);
+            handled = true;
+        }
+        ghostnetworkSuiteRebuildDerived(state.snapshot);
+    } else if (type.startsWith("ghost.connection_")) {
+        const projection = payload.suite_connection_projection || payload.connection_projection || null;
+        const publicId = String(projection?.public_connection_id || event.entity_id || "");
+        if (!publicId) return false;
+        const connections = Array.isArray(state.snapshot.connections) ? state.snapshot.connections : [];
+        const index = connections.findIndex(item => String(item?.public_connection_id || "") === publicId);
+        if (type === "ghost.connection_removed" || payload.removed === true) {
+            if (index >= 0) connections.splice(index, 1);
+        } else if (projection) {
+            const safeProjection = {
+                public_connection_id: publicId,
+                state: projection.state,
+                state_version: projection.state_version,
+                viewer_relation: projection.viewer_relation,
+                can_show_on_map: projection.can_show_on_map === true,
+            };
+            if (index >= 0) connections[index] = safeProjection;
+            else connections.push(safeProjection);
+        } else return false;
+        handled = true;
+    } else if (GHOSTNETWORK_SUITE_RECOVERY_DELTA_TYPES.has(type)) {
+        return false;
+    } else if (type.startsWith("ghost.machine_")) {
+        state.snapshot.progress = {
+            ...(state.snapshot.progress || {}),
+            last_machine_delta: payload.machine_progress || {},
+        };
+        handled = true;
+    } else if (GHOSTNETWORK_SUITE_CYCLE_DELTA_TYPES.has(type)) {
+        if (payload.cycle && typeof payload.cycle === "object") {
+            state.snapshot.cycle = { ...(state.snapshot.cycle || {}), ...payload.cycle };
+        }
+        if (payload.progress && typeof payload.progress === "object") {
+            state.snapshot.progress = { ...(state.snapshot.progress || {}), ...payload.progress };
+        }
+        if (type === "ghost.restart_required" || type === "ghost.cycle_locked") {
+            state.restartRequired = true;
+            ghostnetworkSuiteDisableActions(state.snapshot);
+        }
+        if (["ghost.cycle_activated", "ghost.version_changed"].includes(type)
+                || (["ghost.cycle_status_changed", "ghost.cycle_state_changed"].includes(type)
+                    && String(state.snapshot.cycle?.status || "").toLowerCase() === "active")) {
+            state.restartRequired = false;
+            return false;
+        }
+        handled = true;
+    }
+    if (!handled) return false;
+    const version = Number(payload.state_version || event.state_version || 0);
+    if (Number.isFinite(version) && version > 0) {
+        state.snapshot.state_version = Math.max(Number(state.snapshot.state_version || 0), version);
+    }
+    if (payload.snapshot_checksum) state.snapshot.snapshot_checksum = payload.snapshot_checksum;
+    renderGhostNetworkSuite(app, state);
+    return true;
 }
 
 function ghostnetworkSuiteCard(part = {}) {
@@ -7481,6 +7697,20 @@ async function teleportGhostNetworkSuitePart(app, state, part = {}) {
 function renderGhostNetworkSuite(app, state) {
     const shell = app?.querySelector(".ghostnetwork-suite-shell");
     if (!shell) return;
+    const renderedCards = shell.querySelectorAll("[data-part-ref]");
+    const expanded = renderedCards.length ? new Set() : new Set(state.expandedPartIds || []);
+    shell.querySelectorAll("[data-part-ref] details[open]").forEach(details => {
+        const id = details.closest("[data-part-ref]")?.dataset.partRef || "";
+        if (id) expanded.add(id);
+    });
+    state.expandedPartIds = expanded;
+    const previousScrollTop = shell.scrollTop;
+    const searchWasFocused = document.activeElement?.matches?.("[data-suite-search]")
+        && shell.contains(document.activeElement);
+    const searchSelection = searchWasFocused ? {
+        start: document.activeElement.selectionStart,
+        end: document.activeElement.selectionEnd,
+    } : null;
     const snapshot = state.snapshot || {};
     const summary = snapshot.summary || {};
     const cycle = snapshot.cycle || {};
@@ -7489,8 +7719,20 @@ function renderGhostNetworkSuite(app, state) {
     shell.innerHTML = `
         <header class="ghostnetwork-suite-header"><div><strong>GHOSTNETWORK // CYKL ${escapeHTML(cycle.cycle_id || "-")}</strong><span>${escapeHTML(snapshot.system_version || cycle.system_version || "GHOSTSYSTEM")}</span></div><div class="ghostnetwork-suite-counters"><b>ODKRYTE ${Number(summary.parts_discovered || 0)} / 20</b><b>AKTYWNE ${Number(summary.parts_active || 0)} / 20</b><b>BLOKOWANE ${Number(summary.parts_blocked || 0)}</b><b>PUBLICZNE ${Number(summary.parts_public || 0)}</b></div></header>
         <div class="ghostnetwork-suite-toolbar"><nav>${GHOSTNETWORK_SUITE_SECTIONS.map(section => `<button type="button" data-suite-filter="${section.id}" class="${state.filter === section.id ? "is-active" : ""}">${section.label}</button>`).join("")}</nav><input type="search" data-suite-search value="${escapeHTML(state.query || "")}" placeholder="Szukaj w widocznych danych" aria-label="Szukaj czesci GhostNetwork"><select data-suite-sort aria-label="Sortowanie czesci"><option value="strategic" ${state.sort === "strategic" ? "selected" : ""}>STRATEGICZNE</option><option value="distance" ${state.sort === "distance" ? "selected" : ""}>ODLEGLOSC</option><option value="state" ${state.sort === "state" ? "selected" : ""}>STAN</option><option value="clan" ${state.sort === "clan" ? "selected" : ""}>KLAN</option><option value="owner" ${state.sort === "owner" ? "selected" : ""}>WLASCICIEL</option><option value="updated" ${state.sort === "updated" ? "selected" : ""}>OSTATNIA ZMIANA</option></select><button type="button" data-suite-refresh>ODSWIEZ</button></div>
-        <div class="ghostnetwork-suite-status ${state.error ? "is-error" : ""}">${state.loading ? "SYNCHRONIZACJA GHOSTNETWORK · ODCZYT PROJEKCJI WEZLOW" : stale ? `DANE STALE · ${escapeHTML(state.error)}` : state.error ? escapeHTML(state.error) : `${ghostnetworkSuiteCycleStatus(cycle)} · v${escapeHTML(snapshot.state_version || "-")}`}</div>
+        <div class="ghostnetwork-suite-status ${state.error ? "is-error" : ""}">${state.loading ? "SYNCHRONIZACJA GHOSTNETWORK · ODCZYT PROJEKCJI WEZLOW" : state.restartRequired ? "RESTART GHOSTSYSTEMU WYMAGANY · AKCJE ZABLOKOWANE" : stale ? `DANE STALE · ${escapeHTML(state.error)}` : state.error ? escapeHTML(state.error) : `${ghostnetworkSuiteCycleStatus(cycle)} · v${escapeHTML(snapshot.state_version || "-")}`}</div>
         <section class="ghostnetwork-suite-list">${selected.length ? selected.map(ghostnetworkSuiteCard).join("") : `<div class="ghostnetwork-suite-empty">${state.loading ? "Synchronizacja GhostNetwork..." : "Brak czesci dla wybranego filtra."}</div>`}</section>`;
+    shell.querySelectorAll("[data-part-ref]").forEach(card => {
+        const details = card.querySelector("details");
+        if (details && expanded.has(card.dataset.partRef || "")) details.open = true;
+    });
+    shell.scrollTop = previousScrollTop;
+    if (searchWasFocused) {
+        const input = shell.querySelector("[data-suite-search]");
+        input?.focus();
+        if (input && searchSelection) {
+            input.setSelectionRange(searchSelection.start, searchSelection.end);
+        }
+    }
     shell.querySelectorAll("[data-suite-filter]").forEach(button => button.addEventListener("click", () => { state.filter = button.dataset.suiteFilter || "all"; renderGhostNetworkSuite(app, state); }));
     shell.querySelector("[data-suite-search]")?.addEventListener("input", event => {
         state.query = event.target.value || "";
@@ -7513,26 +7755,111 @@ function renderGhostNetworkSuite(app, state) {
         if (button.dataset.suiteCardAction === "teleport") await teleportGhostNetworkSuitePart(app, state, part);
         });
     });
-    if (state.actionPending) shell.querySelectorAll("[data-suite-card-action]").forEach(button => { button.disabled = true; });
+    if (state.actionPending || state.restartRequired) shell.querySelectorAll("[data-suite-card-action]").forEach(button => { button.disabled = true; });
 }
 
-async function loadGhostNetworkSuite(app, state) {
-    if (state.loading) return;
+function ghostnetworkSuiteSetBaseline(snapshot = {}) {
+    const client = window.GhostNetworkDeltaClient;
+    if (!client || typeof client.setBaseline !== "function") return false;
+    client.setBaseline({
+        view: "suite",
+        cycleId: snapshot.cycle?.cycle_id || "",
+        stateVersion: snapshot.state_version || snapshot.current_version || 0,
+        snapshotChecksum: snapshot.snapshot_checksum || "",
+    });
+    return true;
+}
+
+function scheduleGhostNetworkSuiteRecovery(app, state, reason = "delta_recovery") {
+    if (state.closed || !app?.isConnected) return false;
+    if (state.recoveryTimer) return true;
+    const attempt = Math.min(3, Number(state.recoveryAttempt || 0) + 1);
+    state.recoveryAttempt = attempt;
+    const delay = attempt === 1 ? 0 : Math.min(2000, 500 * (2 ** (attempt - 2)));
+    state.recoveryTimer = window.setTimeout(async () => {
+        state.recoveryTimer = null;
+        const recovered = await loadGhostNetworkSuite(app, state, { recovery: true, reason });
+        if (!recovered && attempt < 3) scheduleGhostNetworkSuiteRecovery(app, state, reason);
+    }, delay);
+    return true;
+}
+
+async function loadGhostNetworkSuite(app, state, options = {}) {
+    if (state.closed || !app?.isConnected) return false;
+    if (state.loading) {
+        if (options.recovery) state.recoveryPending = true;
+        return false;
+    }
     state.loading = true;
     state.error = "";
     renderGhostNetworkSuite(app, state);
+    let loaded = false;
     try {
         const response = await fetch(GHOSTNETWORK_SUITE_ENDPOINT, { credentials: "same-origin", cache: "no-store", headers: { "Accept": "application/json" } });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || payload?.suite_health?.ok === false) throw new Error(payload?.message || payload?.error || "Snapshot GhostNetwork jest niedostepny.");
         state.snapshot = payload;
+        state.restartRequired = payload.restart_required === true
+            || String(payload.cycle?.status || "").toLowerCase() === "restart_required";
+        state.recoveryAttempt = 0;
+        ghostnetworkSuiteSetBaseline(payload);
+        loaded = true;
     } catch (error) {
         state.error = error?.message || "Nie udalo sie pobrac GhostNetwork Suite.";
         console.warn("GhostNetwork Suite load failed", { reason: state.error });
     } finally {
         state.loading = false;
-        renderGhostNetworkSuite(app, state);
+        if (!state.closed && app?.isConnected) renderGhostNetworkSuite(app, state);
+        if (state.recoveryPending && !state.closed) {
+            state.recoveryPending = false;
+            scheduleGhostNetworkSuiteRecovery(app, state, "delta_during_snapshot");
+        }
     }
+    return loaded;
+}
+
+function connectGhostNetworkSuiteDelta(app, state) {
+    const client = window.GhostNetworkDeltaClient;
+    if (!client || typeof client.registerAdapter !== "function") return false;
+    const adapterName = `suite_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    state.deltaAdapterName = client.registerAdapter(adapterName, {
+        accepts(event = {}) {
+            const type = String(event.type || "");
+            return GHOSTNETWORK_SUITE_PART_DELTA_TYPES.has(type)
+                || GHOSTNETWORK_SUITE_CYCLE_DELTA_TYPES.has(type)
+                || GHOSTNETWORK_SUITE_RECOVERY_DELTA_TYPES.has(type)
+                || type.startsWith("ghost.connection_")
+                || type.startsWith("ghost.machine_");
+        },
+        apply(event) {
+            if (state.loading || !state.snapshot) {
+                state.recoveryPending = true;
+                return true;
+            }
+            return ghostnetworkSuiteApplyDelta(app, state, event);
+        },
+        recover(reason) {
+            return scheduleGhostNetworkSuiteRecovery(app, state, reason);
+        },
+    });
+    app._ghostNetworkSuiteRecover = reason => scheduleGhostNetworkSuiteRecovery(app, state, reason);
+    return Boolean(state.deltaAdapterName);
+}
+
+function disconnectGhostNetworkSuiteDelta(app, state) {
+    state.closed = true;
+    if (state.recoveryTimer) window.clearTimeout(state.recoveryTimer);
+    state.recoveryTimer = null;
+    const client = window.GhostNetworkDeltaClient;
+    if (state.deltaAdapterName && client && typeof client.unregisterAdapter === "function") {
+        client.unregisterAdapter(state.deltaAdapterName);
+    }
+    state.deltaAdapterName = "";
+    if (app) {
+        app._ghostNetworkSuiteRecover = null;
+        app._ghostControlPositionRefresh = null;
+    }
+    return true;
 }
 
 function createGhostNetworkSuiteApp() {
@@ -7549,9 +7876,18 @@ function createGhostNetworkSuiteApp() {
     document.body.appendChild(app);
     makeDraggable(app);
     bringWindowToFront(app);
-    app.querySelector(".close-btn")?.addEventListener("click", () => app.remove());
-    const state = { filter: "all", query: "", sort: "strategic", loading: false, actionPending: false, error: "", snapshot: null };
+    const state = {
+        filter: "all", query: "", sort: "strategic", loading: false,
+        actionPending: false, error: "", snapshot: null, closed: false,
+        restartRequired: false, recoveryPending: false, recoveryAttempt: 0,
+        recoveryTimer: null, deltaAdapterName: "", expandedPartIds: new Set(),
+    };
+    app.querySelector(".close-btn")?.addEventListener("click", () => {
+        disconnectGhostNetworkSuiteDelta(app, state);
+        app.remove();
+    });
     app._ghostControlPositionRefresh = () => loadGhostNetworkSuite(app, state);
+    connectGhostNetworkSuiteDelta(app, state);
     loadGhostNetworkSuite(app, state);
     return app;
 }
@@ -11328,6 +11664,11 @@ async function recoverResponseNpcDeltaScope() {
 async function recoverGhostNetworkDeltaScope() {
     let recovered = false;
     const tasks = [];
+    document.querySelectorAll('.app-window[data-app="ghostnetwork-suite"]').forEach(app => {
+        if (typeof app._ghostNetworkSuiteRecover !== "function") return;
+        tasks.push(Promise.resolve(app._ghostNetworkSuiteRecover("state_delta_recovery")));
+        recovered = true;
+    });
     document.querySelectorAll('.map-window iframe, iframe[src="/map"]').forEach(frame => {
         try {
             const mapWindow = frame.contentWindow;

@@ -933,6 +933,7 @@
             window.ghostNetworkSnapshotChecksum = data.snapshot_checksum || window.ghostNetworkSnapshotChecksum || "";
             if (ghostNetworkDeltaClient && typeof ghostNetworkDeltaClient.setBaseline === "function") {
                 ghostNetworkDeltaClient.setBaseline({
+                    view: "map",
                     cycleId: nextCycleId,
                     stateVersion: window.ghostNetworkStateVersion,
                     snapshotChecksum: window.ghostNetworkSnapshotChecksum
@@ -1081,6 +1082,12 @@
     const ghostNetworkMapAdapterName = `map_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     if (ghostNetworkDeltaClient && typeof ghostNetworkDeltaClient.registerAdapter === "function") {
         ghostNetworkDeltaClient.registerAdapter(ghostNetworkMapAdapterName, {
+            accepts(event) {
+                const type = String(event && event.type || "");
+                return DELTA_TYPES.has(type) || CONNECTION_DELTA_TYPES.has(type)
+                    || Boolean(extractDeltaProjection(event))
+                    || Boolean(extractConnectionProjection(event));
+            },
             apply(event) {
                 const applied = applyGhostNetworkDeltaPayload(event);
                 if (!applied) return false;

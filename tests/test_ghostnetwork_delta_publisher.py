@@ -1,4 +1,5 @@
 import hashlib
+import json
 import unittest
 from unittest.mock import patch
 
@@ -135,6 +136,10 @@ class GhostNetworkDeltaPublisherTest(unittest.TestCase):
         self.assertEqual(payload["state_version"], 8)
         self.assertTrue(payload["snapshot_checksum"])
         self.assertEqual(payload["part_projection"]["public_entity_id"], "ghost-public-1")
+        suite_part = payload["suite_part_projection"]
+        self.assertEqual(suite_part["public_entity_id"], "ghost-public-1")
+        self.assertEqual(suite_part["location"]["visibility"], "exact")
+        self.assertEqual(suite_part["actions"]["map_target_id"], "ghost-public-1")
 
         with patch("ghostnetwork.deltas.build_viewer_projection", return_value=projection):
             replay = GhostNetworkDeltaPublisher(
@@ -185,6 +190,34 @@ class GhostNetworkDeltaPublisherTest(unittest.TestCase):
         self.assertEqual(published, [])
         self.assertEqual(delta_bus.records, [])
 
+    def test_consumed_part_publishes_only_opaque_removal_without_projection(self):
+        delta_bus = FakeDeltaBus()
+        repository = FakeRepository()
+        projection = {
+            "projection": "viewer_visibility",
+            "visibility_version": "ghost-visibility-v1",
+            "state_version": 10,
+            "cycle": {"cycle_id": "ghostnetwork_0001", "state_version": 10},
+            "parts": [], "connections": [], "progress": {},
+        }
+        event = {
+            "event_id": "event-consumed", "event_type": "ghost.part_consumed",
+            "cycle_id": "ghostnetwork_0001", "part_id": "internal-secret-part-id",
+            "state_version": 10,
+        }
+        with patch("ghostnetwork.deltas.build_viewer_projection", return_value=projection):
+            published = GhostNetworkDeltaPublisher(
+                repository=repository, delta_bus=delta_bus,
+            ).publish_event(event, [{"username": "outsider", "viewer_clan": "OTHER"}])
+
+        self.assertEqual(len(published), 1)
+        record = published[0]
+        self.assertTrue(record["entity_id"].startswith("ghost-node:"))
+        self.assertTrue(record["payload"]["removed"])
+        self.assertEqual(record["payload"]["public_entity_id"], record["entity_id"])
+        self.assertNotIn("part_projection", record["payload"])
+        self.assertNotIn("internal-secret-part-id", json.dumps(record, sort_keys=True))
+
     def test_hidden_safe_projection_is_matched_by_public_entity_id(self):
         delta_bus = FakeDeltaBus()
         repository = FakeRepository()
@@ -200,6 +233,8 @@ class GhostNetworkDeltaPublisherTest(unittest.TestCase):
                 "public_entity_id": public_id,
                 "visibility_level": "contained_hidden",
                 "location_visibility": "territory_only",
+                "module_state": "blocked",
+                "status": "contained",
                 "territory_id": "territory-1",
                 "can_show_on_map": True,
             }],
@@ -223,6 +258,11 @@ class GhostNetworkDeltaPublisherTest(unittest.TestCase):
         self.assertEqual(len(published), 1)
         self.assertEqual(published[0]["entity_id"], public_id)
         self.assertIsNone(published[0]["payload"]["part_projection"]["part_id"])
+        suite_part = published[0]["payload"]["suite_part_projection"]
+        self.assertIsNone(suite_part["part_id"])
+        self.assertIsNone(suite_part["target_id"])
+        self.assertIsNone(suite_part["location"]["latitude"])
+        self.assertEqual(suite_part["actions"]["map_target_type"], "ghostnetwork_territory")
 
     def test_multi_recipient_publication_reads_internal_snapshot_once(self):
         repository = FakeRepository()

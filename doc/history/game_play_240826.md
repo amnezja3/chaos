@@ -3248,7 +3248,7 @@ Sprint jest zakończony, gdy każda część może bezpiecznie otworzyć właśc
 > mapowego JS. Delty korzystają z `/api/state/changes`, recovery z
 > `snapshot?view=suite`, a snapshot/recovery nie odtwarza SFX.
 
-**Status planu:** `QUEUED — po manualnej bramce Sprintu 134`.
+**Status realizacji:** `SPRINT 135 — READY FOR SERVER VALIDATION`.
 
 **Bramka heavy-profile:** delta/recovery nie odpytują `/api/profile`, nie
 wykonują profile overlay ani pełnego refreshu. Shared client przechowuje tylko
@@ -3627,6 +3627,14 @@ Sprint jest zakończony, gdy:
 12. Narzędzie nie tworzy żadnego alternatywnego źródła prawdy.
 
 Po Sprintach 131–135 zaawansowany operator dostaje kompletną lekką ścieżkę obserwacji GhostNetwork: widzi, gdzie znajdują się publiczne części, kto blokuje komponenty, które moduły jego klanu są aktywne oraz jakie części kontroluje osobiście — a ciężką mapę otwiera wyłącznie wtedy, gdy naprawdę potrzebuje zobaczyć przestrzenny kontekst.
+
+Implementacja 2026-08-27: Suite korzysta ze shared delta clienta, stosuje
+serverową `suite_part_projection`, wykonuje replacement przy zmianie visibility,
+usuwa consumed przez opaque ID i odzyskuje stan wyłącznie przez `view=suite`.
+Mapa i Suite mają osobne baseline, adapter-specific recovery oraz wspólny
+transport bez dodatkowego pollera. Walidacja: 231/231 GhostNetwork, 93/93
+Ghost Control/territory/session i 18/18 JavaScript; składnia i diff — OK.
+Bez deployu, restartu PM2 i commita.
 
 ---
 

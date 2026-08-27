@@ -70,5 +70,18 @@ assert.doesNotMatch(suiteSource, /body: JSON\.stringify\(\{[^}]*lat/s);
 assert.match(suiteSource, /GHOSTNETWORK ZAMKNIETY · TRANSMISJA W TOKU/);
 assert.match(suiteSource, /NOWY CYKL OCZEKUJE NA STABILIZACJE/);
 assert.match(suiteSource, /const existing = document\.querySelector/);
+assert.match(suiteSource, /GhostNetworkDeltaClient/);
+assert.match(suiteSource, /registerAdapter/);
+assert.match(suiteSource, /unregisterAdapter/);
+assert.match(suiteSource, /suite_part_projection/);
+assert.match(suiteSource, /scheduleGhostNetworkSuiteRecovery/);
+assert.doesNotMatch(suiteSource, /setInterval\s*\(/, "Suite must not create a second poller");
+assert.doesNotMatch(suiteSource, /GameSfx|playGhostNetworkDeltaSfx/, "snapshot and recovery must not play lifecycle SFX");
+
+const recoveryStart = source.indexOf("async function recoverGhostNetworkDeltaScope");
+const recoveryEnd = source.indexOf("async function recoverDeltaScopes", recoveryStart);
+assert.ok(recoveryStart >= 0 && recoveryEnd > recoveryStart);
+assert.match(source.slice(recoveryStart, recoveryEnd), /_ghostNetworkSuiteRecover/);
+assert.doesNotMatch(source.slice(recoveryStart, recoveryEnd), /api\/profile/);
 
 console.log("ghostnetwork suite app tests: OK");

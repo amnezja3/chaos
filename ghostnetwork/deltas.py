@@ -492,6 +492,13 @@ class GhostNetworkDeltaPublisher:
             projected_entity = self._find_connection(projection, event)
             if projected_entity:
                 payload["connection_projection"] = projected_entity
+                payload["suite_connection_projection"] = {
+                    "public_connection_id": projected_entity.get("public_connection_id"),
+                    "state": projected_entity.get("state"),
+                    "state_version": projected_entity.get("state_version"),
+                    "viewer_relation": projected_entity.get("viewer_relation"),
+                    "can_show_on_map": bool(projected_entity.get("can_show_on_map")),
+                }
         elif event_type.startswith("ghost.machine_"):
             payload["machine_progress"] = copy.deepcopy(event.get("payload") or {})
         elif event_type.startswith("ghost.cycle_") or event_type in {"ghost.version_changed", "ghost.restart_required", "ghost.signal_sent"}:
@@ -501,6 +508,24 @@ class GhostNetworkDeltaPublisher:
             projected_entity = self._find_part(projection, event)
             if projected_entity:
                 payload["part_projection"] = projected_entity
+                cycle = projection.get("cycle") if isinstance(projection.get("cycle"), dict) else {}
+                payload["suite_part_projection"] = _suite_part(
+                    projected_entity,
+                    {},
+                    cycle_active=_clean(cycle.get("status"), "active") == "active",
+                )
+            elif event_type == "ghost.part_consumed" and _clean(event.get("part_id")):
+                # A consumed part no longer belongs to the current viewer
+                # projection. Publish only its stable opaque reference so an
+                # already-open client can remove the stale card/layer without
+                # learning identity, coordinates or topology.
+                projected_entity = {
+                    "public_entity_id": _public_part_entity_id(
+                        cycle_id, event.get("part_id")
+                    )
+                }
+                payload["public_entity_id"] = projected_entity["public_entity_id"]
+                payload["removed"] = True
             elif event_type.startswith("ghost.part_"):
                 # A viewer without a safe part projection must not receive an
                 # internal part id or infer a hidden node from event metadata.

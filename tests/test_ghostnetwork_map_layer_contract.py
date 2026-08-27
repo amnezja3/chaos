@@ -98,7 +98,10 @@ class GhostNetworkMapLayerContractTest(unittest.TestCase):
 
     def test_recovery_is_coalesced_and_missing_projection_requests_it_once(self):
         self.assertIn("if (ghostNetworkRecoveryPromise) return ghostNetworkRecoveryPromise", self.map_js)
-        self.assertEqual(self.delta_client_js.count('recover("unapplied_delta", event)'), 1)
+        self.assertEqual(
+            self.delta_client_js.count('recoverAdapter(adapter, "unapplied_delta", event)'),
+            1,
+        )
         self.assertIn("recover: requestGhostNetworkRecovery", self.map_js)
         self.assertNotIn('recoverGhostNetworkLayer({ reason: "missing_projection"', self.map_js)
         self.assertNotIn('recoverGhostNetworkLayer({ reason: "missing_connection_projection"', self.map_js)

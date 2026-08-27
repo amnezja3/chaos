@@ -6,6 +6,7 @@
             cycleId: "",
             stateVersion: 0,
             snapshotChecksum: "",
+            baselines: {},
             transportVersion: 0,
             processed: [],
             processedSet: new Set(),
@@ -96,6 +97,19 @@
             })).then(results => results.some(Boolean));
         }
 
+        function recoverAdapter(adapter, reason, event) {
+            if (!adapter || typeof adapter.recover !== "function") return false;
+            try {
+                Promise.resolve(adapter.recover(reason || "delta_recovery", event)).catch(error => {
+                    console.warn("[ghostnetwork] adapter recovery failed", error);
+                });
+                return true;
+            } catch (error) {
+                console.warn("[ghostnetwork] adapter recovery failed", error);
+                return false;
+            }
+        }
+
         function handle(event) {
             if (!event || typeof event !== "object") return false;
             const type = String(event.type || "");
@@ -121,17 +135,28 @@
             let attempted = false;
             Object.values(state.adapters).forEach(adapter => {
                 if (!adapter || typeof adapter.apply !== "function") return;
+                if (typeof adapter.accepts === "function") {
+                    try {
+                        if (!adapter.accepts(event)) return;
+                    } catch (error) {
+                        console.warn("[ghostnetwork] delta adapter predicate failed", error);
+                        recoverAdapter(adapter, "adapter_predicate_failed", event);
+                        return;
+                    }
+                }
                 attempted = true;
                 try {
-                    applied = adapter.apply(event) || applied;
+                    const adapterApplied = adapter.apply(event);
+                    if (!adapterApplied) recoverAdapter(adapter, "unapplied_delta", event);
+                    applied = adapterApplied || applied;
                 } catch (error) {
                     console.warn("[ghostnetwork] delta adapter failed", error);
+                    recoverAdapter(adapter, "adapter_failed", event);
                 }
             });
             // Receiving while no view is open is valid: the transport remains
             // warm and a later view obtains its own snapshot baseline.
             if (attempted && !applied) {
-                recover("unapplied_delta", event);
                 return false;
             }
 
@@ -176,14 +201,24 @@
             },
             setBaseline(baseline = {}) {
                 const nextCycle = String(baseline.cycleId || baseline.cycle_id || "").trim();
-                if (state.cycleId && nextCycle && nextCycle !== state.cycleId) {
+                const cycleChanged = Boolean(state.cycleId && nextCycle && nextCycle !== state.cycleId);
+                if (cycleChanged) {
                     this.resetDedupe();
+                    state.baselines = {};
                 }
                 if (nextCycle) state.cycleId = nextCycle;
                 const version = Number(baseline.stateVersion || baseline.state_version || 0);
-                if (Number.isFinite(version) && version >= 0) state.stateVersion = version;
+                if (Number.isFinite(version) && version >= 0) {
+                    state.stateVersion = cycleChanged ? version : Math.max(state.stateVersion, version);
+                }
                 const checksum = String(baseline.snapshotChecksum || baseline.snapshot_checksum || "");
                 if (checksum) state.snapshotChecksum = checksum;
+                const baselineKey = String(baseline.view || baseline.key || "default").trim() || "default";
+                state.baselines[baselineKey] = {
+                    cycleId: nextCycle,
+                    stateVersion: Number.isFinite(version) ? version : 0,
+                    snapshotChecksum: checksum,
+                };
             },
             resetDedupe() {
                 state.processed = [];

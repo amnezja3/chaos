@@ -85,9 +85,72 @@ function testIframeReusesDesktopSingleton() {
     assert.strictEqual(child.GhostNetworkDeltaClient, desktop.GhostNetworkDeltaClient);
 }
 
+function testFailedAdapterRecoversWithoutBlockingSuccessfulSibling() {
+    const window = loadClient();
+    const client = window.GhostNetworkDeltaClient;
+    let suiteRecoveries = 0;
+    let mapApplies = 0;
+    client.registerAdapter("suite", {
+        accepts: event => String(event.type || "").startsWith("ghost.part_"),
+        apply() { return false; },
+        recover(reason) {
+            assert.strictEqual(reason, "unapplied_delta");
+            suiteRecoveries += 1;
+            return true;
+        }
+    });
+    client.registerAdapter("map", {
+        accepts: event => String(event.type || "").startsWith("ghost.part_"),
+        apply() { mapApplies += 1; return true; },
+    });
+
+    assert.strictEqual(client.handle(ghostEvent({ dedupe_key: "partial-adapter" })), true);
+    assert.strictEqual(mapApplies, 1);
+    assert.strictEqual(suiteRecoveries, 1, "failed Suite adapter must recover even when map applied the event");
+}
+
+function testAdapterPredicateSkipsUnrelatedEvent() {
+    const window = loadClient();
+    const client = window.GhostNetworkDeltaClient;
+    let applies = 0;
+    client.registerAdapter("part-only", {
+        accepts: event => String(event.type || "").startsWith("ghost.part_"),
+        apply() { applies += 1; return true; },
+    });
+    assert.strictEqual(client.handle(ghostEvent({
+        dedupe_key: "machine-event",
+        type: "ghost.machine_progress_changed",
+    })), true);
+    assert.strictEqual(applies, 0);
+}
+
+function testMapAndSuiteBaselinesDoNotRegressSharedVersion() {
+    const window = loadClient();
+    const client = window.GhostNetworkDeltaClient;
+    client.setBaseline({ view: "map", cycleId: "cycle-1", stateVersion: 12, snapshotChecksum: "map-12" });
+    client.setBaseline({ view: "suite", cycleId: "cycle-1", stateVersion: 10, snapshotChecksum: "suite-10" });
+    assert.strictEqual(client.state.stateVersion, 12);
+    assert.strictEqual(client.state.baselines.map.snapshotChecksum, "map-12");
+    assert.strictEqual(client.state.baselines.suite.snapshotChecksum, "suite-10");
+}
+
+function testAdapterUnregisterLeavesSharedClientAlive() {
+    const window = loadClient();
+    const client = window.GhostNetworkDeltaClient;
+    client.registerAdapter("suite", { apply() { return true; } });
+    assert.ok(client.state.adapters.suite);
+    assert.strictEqual(client.unregisterAdapter("suite"), true);
+    assert.strictEqual(client.state.adapters.suite, undefined);
+    assert.strictEqual(typeof window.GhostNetworkDeltaClient.handle, "function");
+}
+
 testWorksWithoutLeafletOrMap();
 testAdapterAndRecoveryContracts();
 testTransportGapTriggersRecovery();
 testIframeReusesDesktopSingleton();
+testFailedAdapterRecoversWithoutBlockingSuccessfulSibling();
+testAdapterPredicateSkipsUnrelatedEvent();
+testMapAndSuiteBaselinesDoNotRegressSharedVersion();
+testAdapterUnregisterLeavesSharedClientAlive();
 
 console.log("ghostnetwork delta client tests: ok");
