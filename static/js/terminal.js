@@ -8658,6 +8658,27 @@ function createBrowser() {
     let catalog = [];
     let catalogLoaded = false;
     let catalogLoading = null;
+    const dedupeGoogleplexCatalog = payload => {
+        const deduped = [];
+        const positions = new Map();
+        (Array.isArray(payload) ? payload : []).forEach(item => {
+            if (!item || typeof item !== "object") return;
+            const appId = String(item.id || item.app_id || "").trim();
+            if (!appId) {
+                deduped.push(item);
+                return;
+            }
+            if (positions.has(appId)) {
+                // Later code-owned entries override stale resource copies while
+                // retaining one stable card position for the canonical app id.
+                deduped[positions.get(appId)] = item;
+                return;
+            }
+            positions.set(appId, deduped.length);
+            deduped.push(item);
+        });
+        return deduped;
+    };
     let googleplexHomeSnapshot = null;
     let googleplexHomeLoading = null;
     let googleplexHomeError = "";
@@ -9889,8 +9910,8 @@ function createBrowser() {
                 && projectedApps
                 && item.installed === true
                 && !installed;
-            const installBlockedReason = staleInstalledProjection
-                ? ""
+            const installBlockedReason = !isProduct && projectedApps
+                ? (installed ? "Aplikacja juz kupiona." : (staleInstalledProjection ? "" : item.install_blocked_reason || ""))
                 : item.install_blocked_reason || "";
             const canInstall = !installed && canAfford && !installBlockedReason;
             const buttonLabel = installed ? (isProduct ? "KUPIONO" : "ZAINSTALOWANO") : (canAfford ? (isProduct ? "Kup" : "Zainstaluj") : "Brak \u015brodk\u00f3w");
@@ -9947,7 +9968,7 @@ function createBrowser() {
                 <div class="googolplex-card-hint">${escapeHTML(installBlockedReason)}</div>
             ` : "";
             const card = document.createElement('article');
-            card.className = 'googolplex-card';
+            card.className = `googolplex-card${installed ? " is-installed" : ""}`;
             card.innerHTML = `
                 <div class="googolplex-card-title">
                     <span class="googolplex-card-icon">${item.icon || browserUiIcons.app}</span>
@@ -10005,9 +10026,7 @@ function createBrowser() {
                 installButton.textContent = "INSTALACJA...";
                 showInstallAppProgress(
                     item,
-                    async () => {
-                        await loadCatalog();
-                    },
+                    null,
                     success => {
                         installInFlight = false;
                         if (!success && installButton.isConnected) {
@@ -10337,21 +10356,17 @@ function createBrowser() {
         }
         if (catalogLoading) return catalogLoading;
         catalogLoading = (async () => {
-            const [profileRes, resourcesRes] = await Promise.all([
-                fetch('/api/profile'),
-                fetch('/api/catalog')
-            ]);
-            const profile = await profileRes.json().catch(() => ({}));
+            const resourcesRes = await fetch('/resources.json', {
+                credentials: 'same-origin',
+                cache: 'no-store'
+            });
             const catalogPayload = await resourcesRes.json().catch(() => null);
-            if (!profileRes.ok) {
-                throw new Error(`Googleplex profile HTTP ${profileRes.status}`);
-            }
             if (!resourcesRes.ok || !Array.isArray(catalogPayload)) {
                 throw new Error(`Googleplex catalog HTTP ${resourcesRes.status}`);
             }
-            catalog = catalogPayload;
+            catalog = dedupeGoogleplexCatalog(catalogPayload);
             catalogLoaded = true;
-            walletBalance = Number(profile.hackcoins || walletBalance || 0);
+            walletBalance = Number((toolbarProfile || {}).hackcoins ?? walletBalance ?? 0);
             renderBrowserWallet();
             if (pendingGoogleplexSearch) {
                 browserQueries.googleplex = pendingGoogleplexSearch;

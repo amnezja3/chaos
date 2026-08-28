@@ -762,6 +762,11 @@ body {
   overflow-wrap: anywhere;
 }
 
+.googolplex-card.is-installed {
+  border-color: #d6a13a;
+  box-shadow: inset 0 0 0 1px rgba(255, 190, 70, 0.12);
+}
+
 .googolplex-card-title {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
