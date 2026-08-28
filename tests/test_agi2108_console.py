@@ -10,6 +10,9 @@ from database import (
     ProfilePrecommitRejected,
     UserStore,
     WalletBalanceStore,
+    get_hot_path_metrics,
+    reset_hot_path_metrics,
+    restore_hot_path_metrics,
     reset_request_transaction_precommit_guard,
     set_request_transaction_precommit_guard,
 )
@@ -30,11 +33,27 @@ def _profile(username, hackcoins):
         "hackcoins": hackcoins,
         "respect": 0,
         "exp": "0 / 1000",
+        "avatar": "/static/images/default_avatar.png",
+        "clan": "Alpha",
+        "fraction": {"id": "alpha"},
+        "inventory": [],
         "apps": [],
         "files": {"tools": [], "download": []},
+        "hacked": [],
+        "desktop_settings": {},
+        "security": {},
+        "territory_stats": {},
+        "operations": [],
+        "targets": [],
+        "market_history": [],
+        "product_purchases": [],
+        "storage_upgrades": [],
+        "ghostnetwork_reward_history": [],
+        "risk_events": [],
         "storage_capacity": 100,
         "storage_used": 0,
         "system_messages": [],
+        "launch_queue": [],
     }
 
 
@@ -171,25 +190,38 @@ class Agi2108BoundedInstallTest(unittest.TestCase):
         client = run.app.test_client()
         with client.session_transaction() as flask_session:
             flask_session["user"] = "alice"
-        with patch.object(run, "wallet_balance_store", self.wallet), \
-                patch.object(run, "player_inventory_store", self.inventory), \
-                patch.object(run, "system_message_store", messages), \
-                patch.object(run, "get_app_catalog", return_value=[self.app]), \
-                patch.object(run, "record_storage_delta") as storage_delta, \
-                patch.object(run, "record_apps_delta") as apps_delta, \
-                patch.object(run, "record_wallet_balance_delta") as wallet_delta, \
-                patch.object(run, "sync_session_profile", side_effect=AssertionError("full profile read")) as sync_read, \
-                patch.object(run.user_store, "get_profile", side_effect=AssertionError("full profile read")) as full_read, \
-                patch.object(run.user_store, "list_profiles", side_effect=AssertionError("profile scan")) as full_scan, \
-                patch.object(run.user_store, "save_profile_guarded", side_effect=AssertionError("full profile write")) as full_write:
-            self.assertGreater(len(heavy_profile["blob"]), 35_000_000)
-            response = client.post("/install-app", json={"app_id": "agi2108Console"})
+        metrics_token = reset_hot_path_metrics()
+        try:
+            with patch.object(run, "wallet_balance_store", self.wallet), \
+                    patch.object(run, "player_inventory_store", self.inventory), \
+                    patch.object(run, "system_message_store", messages), \
+                    patch.object(run, "get_app_catalog", return_value=[self.app]), \
+                    patch.object(run, "record_storage_delta") as storage_delta, \
+                    patch.object(run, "record_apps_delta") as apps_delta, \
+                    patch.object(run, "record_wallet_balance_delta") as wallet_delta, \
+                    patch.object(run, "sync_session_profile", side_effect=AssertionError("full profile read")) as sync_read, \
+                    patch.object(run.user_store, "get_profile", side_effect=AssertionError("full profile read")) as full_read, \
+                    patch.object(run.user_store, "list_profiles", side_effect=AssertionError("profile scan")) as full_scan, \
+                    patch.object(run.user_store, "save_profile_guarded", side_effect=AssertionError("full profile write")) as full_write:
+                self.assertGreater(len(heavy_profile["blob"]), 35_000_000)
+                response = client.post("/install-app", json={"app_id": "agi2108Console"})
+            metrics = get_hot_path_metrics()
+        finally:
+            restore_hot_path_metrics(metrics_token)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["status"], "success")
         sync_read.assert_not_called()
         full_read.assert_not_called()
         full_scan.assert_not_called()
         full_write.assert_not_called()
+        for key in (
+            "profile_full_read",
+            "profile_full_write",
+            "profile_bytes",
+            "all_user_profile_scan",
+            "per_recipient_profile_read",
+        ):
+            self.assertEqual(metrics[key], 0, key)
         storage_delta.assert_called_once()
         apps_delta.assert_called_once()
         self.assertEqual(wallet_delta.call_count, 2)
