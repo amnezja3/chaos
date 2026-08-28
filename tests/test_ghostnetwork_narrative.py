@@ -77,9 +77,12 @@ class GhostNetworkNarrativeOutboxTest(unittest.TestCase):
 
         signal_id = result["signal"]["signal_id"]
         outbox = self.repo.list_narrative_outbox(signal_id=signal_id, limit=20)
-        self.assertEqual({item["medium"] for item in outbox}, {"blacknet", "cyberner", "radio", "ollama_outbox"})
+        self.assertEqual({item["target_medium"] for item in outbox}, {"blacknet", "cyberner", "radio"})
         self.assertTrue(all(item["status"] == "ready" for item in outbox))
         self.assertTrue(all(item["truth_class"] == "canonical" for item in outbox))
+        self.assertTrue(all(item["processor"] == "ollama" for item in outbox))
+        self.assertTrue(all(item["schema_version"] == "ghost-narrative-task-v1" for item in outbox))
+        self.assertEqual(len({item["dedupe_key"] for item in outbox}), 3)
 
         for item in outbox:
             self.assertEqual(item["cycle_id"], cycle["cycle_id"])
@@ -128,11 +131,11 @@ class GhostNetworkNarrativeOutboxTest(unittest.TestCase):
     def test_ollama_output_cannot_add_facts_or_unsafe_cta(self):
         cycle = self.create_locked_cycle()
         result = self.service.start_transmission(cycle["cycle_id"])
-        item = self.repo.list_narrative_outbox(signal_id=result["signal"]["signal_id"], medium="ollama_outbox")[0]
+        item = self.repo.list_narrative_outbox(signal_id=result["signal"]["signal_id"], medium="blacknet")[0]
         invalid = self.service.narrative.validate_model_output(
             item,
             {
-                "medium": "ollama_outbox",
+                "medium": "blacknet",
                 "truth_class": "canonical",
                 "title": "GhostSignal",
                 "body": "New hidden part captured",

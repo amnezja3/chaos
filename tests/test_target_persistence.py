@@ -7,12 +7,14 @@ import tempfile
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
+from types import SimpleNamespace
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from unittest.mock import patch
 
 import run
 from database import AppActionReceiptStore, DevBugReportStore, GameStateDeltaBus, JsonResourceStore, MailStore, PlayerInventoryStore, PlayerOperationStore, PlayerTargetRuntimeStore, ProfileWriteConflict, UserStore, WalletBalanceStore, WalletLedgerStore, WalletStore, get_hot_path_metrics, reset_hot_path_metrics, restore_hot_path_metrics
 from flask.testing import FlaskClient
+from ghostnetwork import GhostNetworkRepository
 from profileManagment import UserProfileManager
 from session_generation_store import SessionGenerationStore
 from werkzeug.datastructures import Headers
@@ -2569,18 +2571,6 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertEqual(by_fact["fact-world"]["entity_id"], "global")
         self.assertEqual(by_fact["fact-world"]["metadata"]["thread_peer"], "global")
 
-        package = build_blacknet_ollama_outbox(facts, snapshot, now=now)
-        outbox_by_fact = {signal["fact_id"]: signal for signal in package["selected_signals"]}
-
-        self.assertEqual(outbox_by_fact["fact-googleplex"]["cta_query"], "Ghost Vault Basic")
-        self.assertEqual(outbox_by_fact["fact-googleplex"]["metadata"]["product_name"], "Ghost Vault Basic")
-        self.assertEqual(outbox_by_fact["fact-radio"]["cta_target_id"], "blacknet_radio_2")
-        self.assertEqual(outbox_by_fact["fact-radio"]["metadata"]["track_file"], "002_signal.mp3")
-        self.assertEqual(outbox_by_fact["fact-market-sector"]["cta_query"], "network")
-        self.assertEqual(outbox_by_fact["fact-market-sector"]["metadata"]["sector_key"], "network")
-        self.assertEqual(outbox_by_fact["fact-world"]["cta_target"], "world")
-        self.assertEqual(outbox_by_fact["fact-world"]["metadata"]["thread_channel"], "world")
-
     def test_blacknet_signal_families_keep_cta_targets_semantic(self):
         now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
         base = {
@@ -2844,37 +2834,70 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
                 },
             }],
         }
-        signals = build_blacknet_world_signals(facts, now=now)
+        task = {
+            "outbox_id": "task-diagnostic-private",
+            "schema_version": "ghost-narrative-task-v1",
+            "source_scope": "blacknet_world",
+            "source_event_id": "digest-private",
+            "processor": "ollama",
+            "target_medium": "blacknet",
+            "audience_scope": "public",
+            "audience_clan": "",
+            "audience_owner": "",
+            "status": "ready",
+            "facts": facts["facts"],
+            "allowed_actions": [{
+                "cta_action": "open_map",
+                "payload": {"target_id": "poi-putka"},
+            }],
+            "attempt_count": 0,
+            "max_attempts": 5,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+        }
 
-        package = build_blacknet_ollama_outbox(facts, signals, now=now)
+        package = build_blacknet_ollama_outbox(task, now=now)
 
         self.assertEqual(package["status"], "ready")
+        self.assertTrue(package["diagnostic_export"])
         self.assertTrue(package["validation"]["ok"])
         self.assertFalse(package["diagnostics"]["ollama_executed"])
+        self.assertFalse(package["diagnostics"]["file_is_source_of_truth"])
         self.assertEqual(package["facts"][0]["fact_id"], "fact-hotspot-private")
-        self.assertEqual(package["selected_signals"][0]["fact_id"], "fact-hotspot-private")
         exported_metadata = package["facts"][0]["metadata"]
         self.assertEqual(exported_metadata["target_id"], "poi-putka")
         self.assertNotIn("username", exported_metadata)
         self.assertNotIn("participants", exported_metadata)
         self.assertNotIn("email", exported_metadata)
         self.assertNotIn("secret", exported_metadata)
-        self.assertTrue(set(package["allowed_actions"]).issubset(BLACKNET_ALLOWED_CTA_ACTIONS))
-        self.assertIn("poi-putka", package["existing_identifiers"]["target_ids"])
+        self.assertEqual(package["allowed_actions"][0]["cta_action"], "open_map")
 
         invalid = {
             "schema_version": package["schema_version"],
+            "diagnostic_export": True,
             "digest_id": "empty",
+            "task_id": "empty",
+            "processor": "ollama",
             "facts": [],
             "allowed_actions": [],
         }
         self.assertIn("no_facts", validate_blacknet_ollama_outbox(invalid))
+        with self.assertRaises(ValueError):
+            build_blacknet_ollama_outbox({**task, "target_medium": "cyberner"}, now=now)
 
     def test_blacknet_ollama_outbox_file_store_and_status_update(self):
         now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
-        facts = {
-            "version": "facts-store",
-            "facts": [{
+        with tempfile.TemporaryDirectory() as database_tmp:
+            repo = GhostNetworkRepository(db_path=os.path.join(database_tmp, "ghost.sqlite3"))
+            task = repo.enqueue_narrative_task({
+                "event_id": "event-store-market",
+                "source_scope": "blacknet_world",
+                "source_event_id": "event-store-market",
+                "processor": "ollama",
+                "target_medium": "blacknet",
+                "audience_scope": "public",
+                "truth_class": "canonical",
+                "facts": [{
                 "fact_id": "fact-store-market",
                 "fact_type": "market_sales_7d",
                 "category": "market",
@@ -2889,34 +2912,55 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
                 "expires_at": "2026-07-11T12:10:00Z",
                 "source_system": "ghost_exchange",
                 "metadata": {"file_count": 5, "volume_mb": 40},
-            }],
-        }
-        package = build_blacknet_ollama_outbox(facts, build_blacknet_world_signals(facts, now=now), now=now)
+                }],
+                "allowed_actions": [],
+            })
+            package = build_blacknet_ollama_outbox(task, now=now)
 
-        with tempfile.TemporaryDirectory() as tmpdir, \
-                patch.object(run, "BLACKNET_OLLAMA_OUTBOX_DIR", tmpdir):
-            path = write_blacknet_ollama_outbox(package)
-            self.assertTrue(os.path.exists(path))
-            loaded = read_blacknet_ollama_outbox(package["digest_id"])
-            self.assertEqual(loaded["digest_id"], package["digest_id"])
-            latest = latest_blacknet_ollama_outbox()
-            self.assertEqual(latest["digest_id"], package["digest_id"])
+            with tempfile.TemporaryDirectory() as tmpdir, \
+                    patch.object(run, "BLACKNET_OLLAMA_OUTBOX_DIR", tmpdir), \
+                    patch.object(run, "get_ghostnetwork_service", return_value=SimpleNamespace(repository=repo)):
+                path = write_blacknet_ollama_outbox(package)
+                self.assertTrue(os.path.exists(path))
+                with open(path, "r", encoding="utf-8") as handle:
+                    exported_file = json.load(handle)
+                self.assertEqual(exported_file["digest_id"], package["digest_id"])
+                with open(path, "w", encoding="utf-8") as handle:
+                    json.dump({"status": "processing", "tampered": True}, handle)
+                loaded = read_blacknet_ollama_outbox(package["digest_id"])
+                self.assertEqual(loaded["digest_id"], package["digest_id"])
+                self.assertEqual(loaded["status"], "ready")
+                os.unlink(path)
+                self.assertFalse(os.path.exists(path))
+                self.assertEqual(
+                    read_blacknet_ollama_outbox(package["digest_id"])["status"],
+                    "ready",
+                )
+                latest = latest_blacknet_ollama_outbox()
+                self.assertEqual(latest["digest_id"], package["digest_id"])
 
-            updated, error = update_blacknet_ollama_outbox_status(
-                package["digest_id"],
-                "processing",
-                message="worker picked package",
-            )
+                updated, error = update_blacknet_ollama_outbox_status(
+                    package["digest_id"],
+                    "processing",
+                    message="worker picked package",
+                )
 
-            self.assertEqual(error, "")
-            self.assertEqual(updated["status"], "processing")
-            self.assertIn("status_updated_at", updated)
-            self.assertEqual(read_blacknet_ollama_outbox(package["digest_id"])["status"], "processing")
+                self.assertEqual(error, "diagnostic_export_read_only")
+                self.assertEqual(updated["status"], "ready")
+                self.assertEqual(read_blacknet_ollama_outbox(package["digest_id"])["status"], "ready")
 
     def test_blacknet_ollama_outbox_endpoints_are_admin_only_and_readonly(self):
-        fake_facts = {
-            "version": "facts-endpoint",
-            "facts": [{
+        with tempfile.TemporaryDirectory() as database_tmp:
+            repo = GhostNetworkRepository(db_path=os.path.join(database_tmp, "ghost.sqlite3"))
+            task = repo.enqueue_narrative_task({
+                "event_id": "event-endpoint-ops",
+                "source_scope": "blacknet_world",
+                "source_event_id": "event-endpoint-ops",
+                "processor": "ollama",
+                "target_medium": "blacknet",
+                "audience_scope": "public",
+                "truth_class": "canonical",
+                "facts": [{
                 "fact_id": "fact-endpoint-ops",
                 "fact_type": "operations_active_count",
                 "category": "operations",
@@ -2931,35 +2975,42 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
                 "expires_at": "2999-07-11T12:10:00Z",
                 "source_system": "operations",
                 "metadata": {},
-            }],
-        }
-        non_admin = self._client_with_user("alice")
-        self.assertEqual(non_admin.get("/api/blacknet/ollama/outbox/latest").status_code, 403)
+                }],
+                "allowed_actions": [],
+            })
+            service = SimpleNamespace(repository=repo)
+            non_admin = self._client_with_user("alice")
+            with patch.object(run, "get_ghostnetwork_service", return_value=service):
+                self.assertEqual(non_admin.get("/api/blacknet/ollama/outbox/latest").status_code, 403)
 
-        client = self._client_with_user("admin")
-        with tempfile.TemporaryDirectory() as tmpdir, \
-                patch.object(run, "BLACKNET_OLLAMA_OUTBOX_DIR", tmpdir), \
-                patch.object(run, "build_blacknet_world_facts_snapshot", return_value=fake_facts), \
-                patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")):
-            generated = client.post("/api/blacknet/ollama/outbox/generate")
-            generated_data = generated.get_json()
-            digest_id = generated_data["digest_id"]
-            latest = client.get("/api/blacknet/ollama/outbox/latest")
-            fetched = client.get(f"/api/blacknet/ollama/outbox/{digest_id}")
-            updated = client.post(
-                f"/api/blacknet/ollama/outbox/{digest_id}/status",
-                json={"status": "processing", "message": "taken"},
-            )
+            client = self._client_with_user("admin")
+            with tempfile.TemporaryDirectory() as tmpdir, \
+                    patch.object(run, "BLACKNET_OLLAMA_OUTBOX_DIR", tmpdir), \
+                    patch.object(run, "get_ghostnetwork_service", return_value=service), \
+                    patch.object(run, "sync_session_profile", side_effect=AssertionError("sync should not run")):
+                generated = client.post("/api/blacknet/ollama/outbox/generate")
+                generated_data = generated.get_json()
+                digest_id = generated_data["digest_id"]
+                latest = client.get("/api/blacknet/ollama/outbox/latest")
+                fetched = client.get(f"/api/blacknet/ollama/outbox/{digest_id}")
+                updated = client.post(
+                    f"/api/blacknet/ollama/outbox/{digest_id}/status",
+                    json={"status": "processing", "message": "taken"},
+                )
+            canonical_status = repo.get_narrative_outbox(task["outbox_id"])["status"]
 
         self.assertEqual(generated.status_code, 200)
         self.assertTrue(generated_data["success"])
         self.assertTrue(generated_data["validation"]["ok"])
+        self.assertTrue(generated_data["outbox"]["diagnostic_export"])
+        self.assertEqual(generated_data["digest_id"], task["outbox_id"])
         self.assertEqual(latest.status_code, 200)
         self.assertEqual(latest.get_json()["outbox"]["digest_id"], digest_id)
         self.assertEqual(fetched.status_code, 200)
         self.assertEqual(fetched.get_json()["outbox"]["digest_id"], digest_id)
-        self.assertEqual(updated.status_code, 200)
-        self.assertEqual(updated.get_json()["status"], "processing")
+        self.assertEqual(updated.status_code, 409)
+        self.assertEqual(updated.get_json()["error"], "diagnostic_export_read_only")
+        self.assertEqual(canonical_status, "ready")
 
 
 class LightweightPollingEndpointTest(unittest.TestCase):

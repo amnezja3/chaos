@@ -3638,7 +3638,173 @@ Bez deployu, restartu PM2 i commita.
 
 ---
 
-Lecimy z trzema sprintami domykającymi właściwy obieg narracyjny: zdarzenia GhostNetwork trafią jako bezpieczne fakty do istniejącego BlackNet/Ollama inboxa, model przygotuje ustrukturyzowaną narrację, a zwalidowany outbox opublikuje ją jako sygnały `ollama_enriched`.
+> Historyczny wstęp do planu 136–138, zastąpionego rewizją poniżej: trzy sprinty
+> miały domknąć obieg narracyjny przez event bridge, model i publikację
+> `ollama_enriched`.
+
+# Rewizja roadmapy Ollama/Outbox — Sprinty 135.1–135.5
+
+Data rewizji: 2026-08-27.
+
+Status: `SPRINT 135.1 — COMPLETE / READY FOR SPRINT 135.2`.
+
+Ta rewizja jest wiążąca wobec historycznych planów Sprintów 136–138 zapisanych
+poniżej. Stare rozdziały pozostają materiałem źródłowym i nie są usuwane, ale
+nie stanowią już równoległej kolejności implementacji.
+
+## Powód rewizji
+
+Audit 135.1 potwierdził, że repo posiada dwa różne mechanizmy nazywane
+outboxem:
+
+1. plikowy, administracyjny BlackNet Ollama outbox ze Sprintu 83;
+2. trwały SQLite `ghost_narrative_outbox` ze Sprintu 129.
+
+Nie wolno podłączać modelu do dwóch kolejek ani rozpoczynać od event bridge'a.
+Najpierw istniejący store Sprintu 129 musi zostać przekształcony w jeden
+niezawodny transport tasków dla całego GhostSystemu. Plikowy outbox zostaje
+wyłącznie diagnostycznym eksportem canonical taska.
+
+Odzyskany zakres obejmuje:
+
+- formalnie zamrożony Sprint 84 `Ollama Enriched Signal Ingest + Mixed Feed`;
+- świadomie odłożony `BlackNet AI Ecosystem (Sprint 21+)`;
+- GhostNetwork/GhostSignal i odpowiedzi z 2108;
+- BlackNet, Googleplex News, Cyberner AI Central/AGI 2108;
+- dedykowane narzędzie kupowane i instalowane z Googleplex.
+
+## Wiążący przepływ
+
+```text
+canonical event albo authorized installed-app request
+→ audience-projected facts
+→ canonical Ollama Outbox task
+→ local Ollama worker/LLM
+→ canonical Inbox candidate
+→ validation/quarantine
+→ publication receipt/router
+→ BlackNet | Googleplex News | Googleplex tool | Cyberner AGI 2108
+```
+
+Ollama jest demonem narracyjnym, nie source of truth. Nie może zmieniać
+gameplayu, outcome GhostSignalu, audience, faktów, walletu, profilu, terytoriów,
+części GN ani operacji.
+
+## Nowa kolejność sprintów
+
+### Sprint 135.2 — Canonical LLM Task Transport
+
+Dokument:
+`doc/sprints/sprint_135_2_canonical_llm_task_transport.md`.
+
+Cel: niezawodny transport tasków, jeszcze bez LLM.
+
+- addytywne rozszerzenie `ghost_narrative_outbox`;
+- `source_scope`, `processor=ollama`, `target_medium` i wersje kontraktów;
+- atomic enqueue/claim/lease/renew/complete/retry/dead-letter;
+- dokładnie jeden task per event/audience/medium;
+- dokładnie jeden aktywny lease owner;
+- crash/lease recovery bez utraty i duplikatu;
+- legacy BlackNet file outbox tylko jako DB → JSON diagnostic export.
+
+Poza zakresem: producenci, aplikacja Googleplex, worker, Inbox i publikacja.
+
+Implementacja 2026-08-27: schema/store, canonical dedupe, transakcyjny claim,
+owner/lease CAS, retry/dead-letter, crash recovery, bounded cursor i indeksy są
+gotowe lokalnie. Rekordy Sprintu 129 są migrowane addytywnie, a plikowy
+BlackNet outbox jest read-only eksportem canonical DB. Nie podłączono Ollamy.
+
+Status: `SPRINT 135.2 — READY FOR SERVER VALIDATION`.
+
+### Sprint 135.3 — Event Producers and Googleplex App Ingress
+
+Dokument:
+`doc/sprints/sprint_135_3_llm_event_producers_googleplex_ingress.md`.
+
+- GhostNetwork/GhostSignal oraz BlackNet world facts producers;
+- visibility projection przed enqueue;
+- bounded ingress dla zainstalowanej aplikacji Googleplex;
+- entitlement, session/precommit guard, quota i receipt/dedupe;
+- nadal brak klienta Ollamy i publikacji.
+
+### Sprint 135.4 — Ollama Worker and Canonical Inbox
+
+Dokument:
+`doc/sprints/sprint_135_4_ollama_worker_canonical_inbox.md`.
+
+- pierwszy lokalny worker Ollamy;
+- structured JSON, timeout i lease heartbeat;
+- canonical Inbox, validator i quarantine;
+- zaakceptowany wynik pozostaje niewidoczny dla graczy.
+
+### Sprint 135.4.1 — Googleplex Home and News Foundation
+
+Dokument:
+`doc/sprints/sprint_135_4_1_googleplex_home_news_foundation.md`.
+
+- nowy Googleplex Home;
+- osobna sekcja i audience-projected read surface News;
+- izolacja Home/News/Catalog/GX/BlackNet;
+- responsywny layout z jednym scrollem;
+- zero publikacji modelu.
+
+### Sprint 135.4.2 — Purchasable Googleplex LLM Tool
+
+Dokument:
+`doc/sprints/sprint_135_4_2_googleplex_purchasable_llm_tool.md`.
+
+- prosty produkt kupowany i instalowany z Googleplex;
+- canonical purchase/install/uninstall i launcher;
+- approved templates zamiast dowolnego promptu;
+- jeden bezpieczny task receipt oraz owner-scoped status;
+- brak wyświetlenia body odpowiedzi przed Sprintem 135.5.
+
+### Sprint 135.5 — LLM Publishers
+
+Dokument:
+`doc/sprints/sprint_135_5_llm_publishers_blacknet_googleplex_cyberner.md`.
+
+- BlackNet mixed feed `ollama_enriched`;
+- newsy na Googleplex Home;
+- owner-scoped wynik w kupowanym narzędziu;
+- Cyberner AI Central/AGI 2108;
+- exactly-once publication receipts, audience prepublish guard i fallback;
+- tylko `ACCEPTED` Inbox candidate może zostać opublikowany.
+
+### Sprint 135.6 — Hardening and Cutover
+
+Pozostaje końcową bramką replay/crash/load/visibility, backpressure,
+observability, runbooka i controlled cutover. Cutover jest fail-closed przy
+jakimkolwiek full-profile read/write, skanie wszystkich profili albo
+per-recipient `profile_json`; obowiązuje fixture 35 MB i komplet metryk
+heavy-profile równy zero.
+
+## Mapowanie historycznych Sprintów 136–138
+
+| Historyczny plan | Wiążący następca |
+| --- | --- |
+| 136 — event bridge do outboxa | 135.2 transport + 135.3 producers |
+| 137 — Ollama Inbox/Outbox | 135.4 worker + canonical Inbox |
+| 138 — publikacja do BlackNet | 135.4.1 + 135.4.2 + 135.5 publishers |
+
+Historyczne opisy 136–138 mogą dostarczać przypadki testowe i założenia
+narracyjne, ale ich numeracja, kolejność i schema nie są już wiążące.
+
+## Aktualna bramka
+
+```text
+135.1 COMPLETE
+→ 135.2 READY FOR SERVER VALIDATION
+→ 135.3 BLOCKED BY 135.2
+→ 135.4 BLOCKED BY 135.3
+→ 135.4.1 BLOCKED BY 135.4
+→ 135.4.2 BLOCKED BY 135.4.1
+→ 135.5 BLOCKED BY 135.4.2
+```
+
+Pierwotna rewizja roadmapy była dokumentacyjna. Implementacja 135.2 zmienia
+lokalny runtime i addytywny schema contract, ale nie wykonała deployu,
+produkcyjnej migracji ani zmiany konfiguracji procesów.
 
 # Sprint 136 — GhostNetwork: bridge zdarzeń do BlackNet Outbox
 

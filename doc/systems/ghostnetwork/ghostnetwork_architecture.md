@@ -558,20 +558,31 @@ updated_at
 
 ### `ghost_narrative_outbox`
 
-Zatwierdzone fakty dla mediów i przyszłej Ollamy:
+Od Sprintu 135.2 jest to jedna canonical kolejka transportowa tasków LLM dla
+całego Ghost Systemu, nadal bez uruchamiania Ollamy:
 
 ```text
-outbox_id
-event_id
-audience_scope
-audience_clan
-medium
-truth_class
-facts_json
-status
-created_at
-processed_at
+task_id / outbox_id
+schema_version
+source_scope + source_event_id/source_receipt_id/source_app_id
+processor = ollama
+target_medium
+audience_scope/clan/owner
+canon/world/ghostsystem/prompt/output/model policy versions
+truth_class + truth_class_policy
+facts_json + allowed_actions_json
+priority + dedupe_key
+status + attempt_count/max_attempts
+claimed_by + claimed_at + lease_until + next_attempt_at
+last_error_code + last_error_at
+created_at + updated_at + completed_at + dead_lettered_at
 ```
+
+Tożsamość jest kanoniczna dla `source event/receipt + audience + medium`.
+Claim, renew, processing, complete, retry i dead-letter są atomowe oraz CAS-safe
+względem właściciela i lease. Wygasły lease odzyskuje ten sam task, bez nowego
+rekordu. Plikowy BlackNet outbox jest wyłącznie diagnostyczną projekcją DB →
+JSON i nie ma własnego lifecycle.
 
 ## Statusy części
 

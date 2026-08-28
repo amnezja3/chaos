@@ -2,6 +2,13 @@
 
 Data audytu: 2026-08-21. Aktualizacja hot-path: 2026-08-23.
 
+Aktualizacja roadmapy 2026-08-27: pierwotne Sprinty 136-138 dotyczące event
+bridge, pierwszego workera Ollamy i publikacji BlackNet zostały włączone do
+pełniejszego kontraktu Sprintu 135.1. Wiążąca kolejność implementacji to obecnie
+135.2-135.6 opisana w
+`doc/sprints/sprint_135_1_ollama_outbox_integration_audit.md`. Historyczne opisy
+136-138 pozostają materiałem źródłowym, ale nie są równoległym roadmapem.
+
 Status po re-audycie 2026-08-26: Sprinty 130.10–130.12 są zamknięte. Audit
 Sprintu 131 zapisano w `doc/sprints/sprint_131_ghostnetwork_suite_audit.md`.
 Wykryte wcześniej heavy-profile i bounded-identity blockery zostały zamknięte;

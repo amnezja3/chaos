@@ -29,10 +29,25 @@ nadrzędne wobec historycznych planów oraz wpisów journalu.
 
 ## Status bieżący
 
-- Sprinty 130.10, 130.10.1, 130.10.2 i 130.11 są zamknięte.
-- Audit Sprintu 131 jest zakończony. Projekt ma `NO-GO FOR SPRINT 132` do
-  zamknięcia blockerów wskazanych w
-  [`sprints/sprint_131_ghostnetwork_suite_audit.md`](sprints/sprint_131_ghostnetwork_suite_audit.md).
+- Sprinty 130.10-130.12 oraz GhostNetwork Suite 131-135 są zamknięte albo
+  przekazane do potwierdzonej walidacji zgodnie z journalem.
+- Audit integracji Ollamy jest zapisany w
+  [`sprints/sprint_135_1_ollama_outbox_integration_audit.md`](sprints/sprint_135_1_ollama_outbox_integration_audit.md).
+  Przywraca formalnie zamrożony Sprint 84 oraz świadomie odłożony BlackNet AI
+  Ecosystem (Sprint 21+), wyznacza jeden canonical outbox oraz roadmap 135.2+.
+  Status: `SPRINT 135.1 — COMPLETE`; canonical transport 135.2 jest
+  `READY FOR SERVER VALIDATION`.
+- Osobne kontrakty realizacyjne:
+  [`135.2 — canonical task transport`](sprints/sprint_135_2_canonical_llm_task_transport.md),
+  [`135.3 — event producers i Googleplex ingress`](sprints/sprint_135_3_llm_event_producers_googleplex_ingress.md),
+  [`135.4 — Ollama worker i canonical Inbox`](sprints/sprint_135_4_ollama_worker_canonical_inbox.md),
+  [`135.4.1 — Googleplex Home i News foundation`](sprints/sprint_135_4_1_googleplex_home_news_foundation.md),
+  [`135.4.2 — kupowane narzędzie Googleplex`](sprints/sprint_135_4_2_googleplex_purchasable_llm_tool.md),
+  [`135.5 — publishery BlackNet/Googleplex News/Cyberner`](sprints/sprint_135_5_llm_publishers_blacknet_googleplex_cyberner.md).
+- Sprint 135.2 rozszerza SQLite `ghost_narrative_outbox` do jednej kolejki z
+  canonical dedupe, claim/lease/CAS, retry/dead-letter i crash recovery. Legacy
+  BlackNet JSON jest tylko eksportem diagnostycznym; Ollama, Inbox, producenci i
+  publikacja pozostają poza zakresem do kolejnych bramek.
 - Recovery Trollu2 jest zakończone i nie jest aktywnym backlogiem.
 
 Przenosząc lub dodając dokument, należy zaktualizować ten indeks i wszystkie

@@ -270,6 +270,92 @@ class GhostNetworkService:
     def list_narrative_outbox(self, **filters):
         return self.repository.list_narrative_outbox(**filters)
 
+    def enqueue_narrative_task(self, task):
+        return self.repository.enqueue_narrative_task(task)
+
+    def get_narrative_task(self, task_id):
+        return self.repository.get_narrative_outbox(task_id)
+
+    def claim_next_narrative_task(self, worker_id, **options):
+        return self.repository.claim_next_narrative_task(worker_id, **options)
+
+    def renew_narrative_task_lease(
+        self,
+        task_id,
+        worker_id,
+        expected_lease_until,
+        **options,
+    ):
+        return self.repository.renew_narrative_task_lease(
+            task_id,
+            worker_id,
+            expected_lease_until,
+            **options,
+        )
+
+    def mark_narrative_task_processing(
+        self,
+        task_id,
+        worker_id,
+        expected_lease_until,
+        **options,
+    ):
+        return self.repository.mark_narrative_task_processing(
+            task_id,
+            worker_id,
+            expected_lease_until,
+            **options,
+        )
+
+    def complete_narrative_task(
+        self,
+        task_id,
+        worker_id,
+        expected_lease_until,
+        **options,
+    ):
+        return self.repository.complete_narrative_task(
+            task_id,
+            worker_id,
+            expected_lease_until,
+            **options,
+        )
+
+    def retry_narrative_task(
+        self,
+        task_id,
+        worker_id,
+        expected_lease_until,
+        reason_code,
+        **options,
+    ):
+        return self.repository.retry_narrative_task(
+            task_id,
+            worker_id,
+            expected_lease_until,
+            reason_code,
+            **options,
+        )
+
+    def dead_letter_narrative_task(
+        self,
+        task_id,
+        worker_id,
+        expected_lease_until,
+        reason_code,
+        **options,
+    ):
+        return self.repository.dead_letter_narrative_task(
+            task_id,
+            worker_id,
+            expected_lease_until,
+            reason_code,
+            **options,
+        )
+
+    def recover_expired_narrative_leases(self, **options):
+        return self.repository.recover_expired_narrative_leases(**options)
+
     def finalize_signal_archive(self, signal_id):
         return self.archive.finalize_signal_archive(signal_id)
 

@@ -2,13 +2,19 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from .repository import GhostNetworkRepository, _clean, _hash_id
+from .repository import (
+    GhostNetworkRepository,
+    NARRATIVE_TASK_PROCESSOR,
+    NARRATIVE_TASK_SCHEMA_VERSION,
+    _clean,
+    _hash_id,
+    canonical_narrative_task_dedupe_key,
+)
 
 
 CANON_VERSION = "ghostnetwork-narrative-v1"
-OUTBOX_STATUSES = {"created", "ready", "processing", "processed", "failed", "expired", "archived"}
 TRUTH_CLASSES = {"canonical", "interpretation", "rumor", "propaganda", "narrative_deception"}
-NARRATIVE_MEDIA = {"blacknet", "cyberner", "radio", "ollama_outbox"}
+NARRATIVE_MEDIA = {"blacknet", "cyberner", "radio"}
 ALLOWED_CTA_ACTIONS = {
     "show_ghostnetwork_part",
     "show_ghostnetwork_node",
@@ -114,8 +120,6 @@ class GhostNarrativePublisher:
                         item = self.enqueue_cyberner(event, audience, facts)
                     elif medium == "radio":
                         item = self.enqueue_radio(event, audience, facts)
-                    elif medium == "ollama_outbox":
-                        item = self.enqueue_ollama_outbox(event, audience, facts)
                     else:
                         continue
                     outbox.append(item)
@@ -161,20 +165,13 @@ class GhostNarrativePublisher:
     def enqueue_radio(self, event, audience, facts):
         return self._enqueue(event, audience, facts, "radio")
 
-    def enqueue_ollama_outbox(self, event, audience, facts):
-        return self._enqueue(event, audience, facts, "ollama_outbox")
-
     def retry_failed_publications(self, limit=100):
-        candidates = []
-        for status in ("created", "failed"):
-            candidates.extend(self.repository.list_narrative_outbox(status=status, limit=limit))
+        candidates = self.repository.list_narrative_outbox(status="retry_wait", limit=limit)
         retried = []
         for item in candidates[: max(1, int(limit or 100))]:
             retried.append(
-                self.repository.update_narrative_outbox_status(
+                self.repository.requeue_narrative_task(
                     item["outbox_id"],
-                    "ready",
-                    processed_at="",
                     validation={**(item.get("validation") or {}), "retry_requested_at": self.repository.now()},
                 )
             )
@@ -184,7 +181,7 @@ class GhostNarrativePublisher:
         outbox_item = outbox_item if isinstance(outbox_item, dict) else {}
         output = output if isinstance(output, dict) else {}
         errors = []
-        if _clean(output.get("medium")) != _clean(outbox_item.get("medium")):
+        if _clean(output.get("medium")) != _clean(outbox_item.get("target_medium") or outbox_item.get("medium")):
             errors.append("medium_mismatch")
         if _clean(output.get("truth_class"), "canonical") not in TRUTH_CLASSES:
             errors.append("invalid_truth_class")
@@ -215,7 +212,8 @@ class GhostNarrativePublisher:
             "ghostsystem_version": outbox_item.get("ghostsystem_version"),
             "cycle_id": outbox_item.get("cycle_id"),
             "signal_id": outbox_item.get("signal_id"),
-            "medium": outbox_item.get("medium"),
+            "processor": outbox_item.get("processor") or NARRATIVE_TASK_PROCESSOR,
+            "medium": outbox_item.get("target_medium") or outbox_item.get("medium"),
             "audience": {
                 "scope": outbox_item.get("audience_scope"),
                 "clan": outbox_item.get("audience_clan"),
@@ -238,32 +236,40 @@ class GhostNarrativePublisher:
             raise ValueError(f"Invalid GhostNetwork narrative medium: {medium}")
         facts = facts if isinstance(facts, list) else []
         validation = self._validate_publication(event, audience, facts, medium)
-        status = "ready" if validation["ok"] else "failed"
+        status = "ready" if validation["ok"] else "retry_wait"
         event_id = _clean(event.get("event_id"))
         signal_id = self._resolve_signal_id(event)
         audience_scope = _clean(audience.get("scope"), "public")
         audience_clan = _clean(audience.get("clan"))
-        dedupe_key = f"ghost:narrative:{event_id}:{medium}:{audience_scope}:{audience_clan}:{signal_id}"
-        return self.repository.insert_narrative_outbox(
-            {
-                "outbox_id": _hash_id("narrative", event_id, medium, audience_scope, audience_clan, signal_id),
+        task = {
+                "schema_version": NARRATIVE_TASK_SCHEMA_VERSION,
                 "event_id": event_id,
+                "source_scope": "ghostnetwork",
+                "source_event_id": event_id,
                 "cycle_id": _clean(event.get("cycle_id")),
                 "signal_id": signal_id,
                 "audience_scope": audience_scope,
                 "audience_clan": audience_clan,
                 "audience_owner": _clean(audience.get("owner")),
-                "medium": medium,
+                "processor": NARRATIVE_TASK_PROCESSOR,
+                "target_medium": medium,
                 "truth_class": self._truth_class_for_facts(facts),
+                "truth_class_policy": self._truth_class_for_facts(facts),
                 "facts": facts,
                 "allowed_actions": self._allowed_actions_for_event(event, medium),
                 "canon_version": self.canon_version,
                 "ghostsystem_version": self._ghostsystem_version_for_event(event),
+                "world_state_version": str(_safe_int(event.get("state_version"))),
+                "prompt_version": "unassigned",
+                "output_schema_version": "unassigned",
+                "model_policy_version": "unassigned",
+                "task_variant": _event_kind(event.get("event_type")) or "default",
                 "status": status,
                 "validation": validation,
-                "dedupe_key": dedupe_key,
             }
-        )
+        task["dedupe_key"] = canonical_narrative_task_dedupe_key(task)
+        task["outbox_id"] = _hash_id("narrative_task", task["dedupe_key"])
+        return self.repository.enqueue_narrative_task(task)
 
     def _validate_publication(self, event, audience, facts, medium):
         errors = []
@@ -401,7 +407,7 @@ class GhostNarrativePublisher:
     def _media_for_event(self, event, audience):
         kind = _event_kind(event.get("event_type"))
         if kind == "signal_sent":
-            return ["blacknet", "cyberner", "radio", "ollama_outbox"]
+            return ["blacknet", "cyberner", "radio"]
         if kind in {"cycle_locked", "connection_completed", "part_discovered", "machine_online"}:
-            return ["blacknet", "cyberner", "ollama_outbox"]
-        return ["blacknet", "ollama_outbox"]
+            return ["blacknet", "cyberner"]
+        return ["blacknet"]

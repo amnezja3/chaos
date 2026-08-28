@@ -4,7 +4,7 @@ import copy
 import hashlib
 import math
 from contextlib import contextmanager, nullcontext
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from sqlite3 import IntegrityError
 
 import Haversine
@@ -50,6 +50,20 @@ def _iso(value=None):
     return dt.astimezone(timezone.utc).isoformat()
 
 
+def _utc_datetime(value=None):
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, (int, float)):
+        dt = datetime.fromtimestamp(float(value), tz=timezone.utc)
+    elif value:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    else:
+        dt = _utc_now()
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def _clean(value, default=""):
     text = str(value or "").strip()
     return text or default
@@ -59,6 +73,46 @@ def _hash_id(prefix, *parts):
     raw = ":".join(str(part or "") for part in parts)
     digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
     return f"{prefix}_{digest}"
+
+
+NARRATIVE_TASK_SCHEMA_VERSION = "ghost-narrative-task-v1"
+NARRATIVE_TASK_PROCESSOR = "ollama"
+NARRATIVE_TASK_READY_STATUSES = {"ready", "retry_wait"}
+NARRATIVE_TASK_ACTIVE_STATUSES = {"claimed", "processing"}
+NARRATIVE_TASK_TERMINAL_STATUSES = {"completed", "dead_letter"}
+NARRATIVE_TASK_LEGACY_STATUS_MAP = {
+    "": "ready",
+    "pending": "ready",
+    "created": "ready",
+    "processed": "completed",
+    "failed": "retry_wait",
+    "expired": "retry_wait",
+    "archived": "completed",
+}
+
+
+def canonical_narrative_task_dedupe_key(item):
+    item = item if isinstance(item, dict) else {}
+    source_scope = _clean(item.get("source_scope"), "ghostnetwork")
+    source_identity = _clean(
+        item.get("source_event_id")
+        or item.get("source_receipt_id")
+        or item.get("event_id")
+    )
+    if not source_identity:
+        raise ValueError("Narrative task requires source event or receipt identity")
+    target_medium = _clean(item.get("target_medium") or item.get("medium"))
+    if not target_medium:
+        raise ValueError("Narrative task requires target_medium")
+    return _hash_id(
+        "llm_task",
+        source_scope,
+        source_identity,
+        _clean(item.get("audience_scope"), "public"),
+        _clean(item.get("audience_clan")),
+        _clean(item.get("audience_owner")),
+        target_medium,
+    )
 
 
 def haversine_distance_km(lat_a, lng_a, lat_b, lng_b):
@@ -615,14 +669,47 @@ class GhostNetworkRepository:
                 CREATE TABLE IF NOT EXISTS ghost_narrative_outbox (
                     outbox_id TEXT PRIMARY KEY,
                     event_id TEXT NOT NULL,
+                    cycle_id TEXT NOT NULL DEFAULT '',
+                    signal_id TEXT NOT NULL DEFAULT '',
                     audience_scope TEXT NOT NULL,
                     audience_clan TEXT NOT NULL DEFAULT '',
+                    audience_owner TEXT NOT NULL DEFAULT '',
                     medium TEXT NOT NULL,
                     truth_class TEXT NOT NULL,
-                    facts_json TEXT NOT NULL DEFAULT '{}',
-                    status TEXT NOT NULL DEFAULT 'pending',
+                    facts_json TEXT NOT NULL DEFAULT '[]',
+                    allowed_actions_json TEXT NOT NULL DEFAULT '[]',
+                    canon_version TEXT NOT NULL DEFAULT '',
+                    ghostsystem_version TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'ready',
                     created_at TEXT NOT NULL,
-                    processed_at TEXT NOT NULL DEFAULT ''
+                    processed_at TEXT NOT NULL DEFAULT '',
+                    validation_json TEXT NOT NULL DEFAULT '{}',
+                    dedupe_key TEXT NOT NULL DEFAULT '',
+                    schema_version TEXT NOT NULL DEFAULT 'ghost-narrative-task-v1',
+                    source_scope TEXT NOT NULL DEFAULT 'ghostnetwork',
+                    source_event_id TEXT NOT NULL DEFAULT '',
+                    source_receipt_id TEXT NOT NULL DEFAULT '',
+                    source_app_id TEXT NOT NULL DEFAULT '',
+                    processor TEXT NOT NULL DEFAULT 'ollama',
+                    target_medium TEXT NOT NULL DEFAULT '',
+                    world_state_version TEXT NOT NULL DEFAULT '',
+                    prompt_version TEXT NOT NULL DEFAULT 'unassigned',
+                    output_schema_version TEXT NOT NULL DEFAULT 'unassigned',
+                    model_policy_version TEXT NOT NULL DEFAULT 'unassigned',
+                    truth_class_policy TEXT NOT NULL DEFAULT '',
+                    task_variant TEXT NOT NULL DEFAULT 'default',
+                    priority INTEGER NOT NULL DEFAULT 0,
+                    attempt_count INTEGER NOT NULL DEFAULT 0,
+                    max_attempts INTEGER NOT NULL DEFAULT 5,
+                    claimed_by TEXT NOT NULL DEFAULT '',
+                    claimed_at TEXT NOT NULL DEFAULT '',
+                    lease_until TEXT NOT NULL DEFAULT '',
+                    next_attempt_at TEXT NOT NULL DEFAULT '',
+                    last_error_code TEXT NOT NULL DEFAULT '',
+                    last_error_at TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL DEFAULT '',
+                    completed_at TEXT NOT NULL DEFAULT '',
+                    dead_lettered_at TEXT NOT NULL DEFAULT ''
                 )
                 """
             )
@@ -654,11 +741,217 @@ class GhostNetworkRepository:
                 "validation_json TEXT NOT NULL DEFAULT '{}'",
             )
             self._ensure_column(conn, "ghost_narrative_outbox", "dedupe_key", "dedupe_key TEXT NOT NULL DEFAULT ''")
+            narrative_task_columns = (
+                ("schema_version", "schema_version TEXT NOT NULL DEFAULT 'ghost-narrative-task-v1'"),
+                ("source_scope", "source_scope TEXT NOT NULL DEFAULT 'ghostnetwork'"),
+                ("source_event_id", "source_event_id TEXT NOT NULL DEFAULT ''"),
+                ("source_receipt_id", "source_receipt_id TEXT NOT NULL DEFAULT ''"),
+                ("source_app_id", "source_app_id TEXT NOT NULL DEFAULT ''"),
+                ("processor", "processor TEXT NOT NULL DEFAULT 'ollama'"),
+                ("target_medium", "target_medium TEXT NOT NULL DEFAULT ''"),
+                ("world_state_version", "world_state_version TEXT NOT NULL DEFAULT ''"),
+                ("prompt_version", "prompt_version TEXT NOT NULL DEFAULT 'unassigned'"),
+                ("output_schema_version", "output_schema_version TEXT NOT NULL DEFAULT 'unassigned'"),
+                ("model_policy_version", "model_policy_version TEXT NOT NULL DEFAULT 'unassigned'"),
+                ("truth_class_policy", "truth_class_policy TEXT NOT NULL DEFAULT ''"),
+                ("task_variant", "task_variant TEXT NOT NULL DEFAULT 'default'"),
+                ("priority", "priority INTEGER NOT NULL DEFAULT 0"),
+                ("attempt_count", "attempt_count INTEGER NOT NULL DEFAULT 0"),
+                ("max_attempts", "max_attempts INTEGER NOT NULL DEFAULT 5"),
+                ("claimed_by", "claimed_by TEXT NOT NULL DEFAULT ''"),
+                ("claimed_at", "claimed_at TEXT NOT NULL DEFAULT ''"),
+                ("lease_until", "lease_until TEXT NOT NULL DEFAULT ''"),
+                ("next_attempt_at", "next_attempt_at TEXT NOT NULL DEFAULT ''"),
+                ("last_error_code", "last_error_code TEXT NOT NULL DEFAULT ''"),
+                ("last_error_at", "last_error_at TEXT NOT NULL DEFAULT ''"),
+                ("updated_at", "updated_at TEXT NOT NULL DEFAULT ''"),
+                ("completed_at", "completed_at TEXT NOT NULL DEFAULT ''"),
+                ("dead_lettered_at", "dead_lettered_at TEXT NOT NULL DEFAULT ''"),
+            )
+            for column, ddl in narrative_task_columns:
+                self._ensure_column(conn, "ghost_narrative_outbox", column, ddl)
+            conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET source_event_id = event_id
+                WHERE source_event_id = '' AND event_id != ''
+                """
+            )
+            conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET target_medium = CASE
+                        WHEN medium = 'ollama_outbox' THEN 'blacknet'
+                        ELSE medium
+                    END
+                WHERE target_medium = ''
+                """
+            )
+            conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET status = CASE status
+                        WHEN 'pending' THEN 'ready'
+                        WHEN 'created' THEN 'ready'
+                        WHEN 'processed' THEN 'completed'
+                        WHEN 'failed' THEN 'retry_wait'
+                        WHEN 'expired' THEN 'retry_wait'
+                        WHEN 'archived' THEN 'completed'
+                        ELSE status
+                    END
+                WHERE status IN ('pending', 'created', 'processed', 'failed', 'expired', 'archived')
+                """
+            )
+            conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET status = 'completed',
+                    completed_at = CASE WHEN completed_at = '' THEN created_at ELSE completed_at END,
+                    processed_at = CASE WHEN processed_at = '' THEN created_at ELSE processed_at END,
+                    last_error_code = CASE
+                        WHEN last_error_code = '' THEN 'legacy_diagnostic_medium_retired'
+                        ELSE last_error_code
+                    END
+                WHERE medium = 'ollama_outbox' AND status != 'completed'
+                """
+            )
+            conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET updated_at = CASE WHEN updated_at = '' THEN created_at ELSE updated_at END,
+                    next_attempt_at = CASE
+                        WHEN next_attempt_at = '' AND status IN ('ready', 'retry_wait') THEN created_at
+                        ELSE next_attempt_at
+                    END
+                WHERE updated_at = ''
+                   OR (next_attempt_at = '' AND status IN ('ready', 'retry_wait'))
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_repository_migrations (
+                    migration_id TEXT PRIMARY KEY,
+                    applied_at TEXT NOT NULL
+                )
+                """
+            )
+            dedupe_migration_id = "narrative_task_canonical_dedupe_v1"
+            dedupe_migrated = conn.execute(
+                """
+                SELECT migration_id FROM ghost_repository_migrations
+                WHERE migration_id = ? LIMIT 1
+                """,
+                (dedupe_migration_id,),
+            ).fetchone()
+            if not dedupe_migrated:
+                legacy_tasks = conn.execute(
+                    """
+                    SELECT outbox_id, event_id, source_scope, source_event_id,
+                           source_receipt_id, audience_scope, audience_clan,
+                           audience_owner, medium, target_medium, dedupe_key,
+                           created_at
+                    FROM ghost_narrative_outbox
+                    WHERE medium != 'ollama_outbox'
+                    ORDER BY created_at ASC, outbox_id ASC
+                    """
+                ).fetchall()
+                for legacy_task in legacy_tasks:
+                    source_identity = (
+                        legacy_task["source_event_id"]
+                        or legacy_task["event_id"]
+                        or legacy_task["source_receipt_id"]
+                    )
+                    target_medium = legacy_task["target_medium"] or legacy_task["medium"]
+                    if not source_identity or not target_medium:
+                        continue
+                    canonical_key = canonical_narrative_task_dedupe_key({
+                        "source_scope": legacy_task["source_scope"],
+                        "source_event_id": legacy_task["source_event_id"] or legacy_task["event_id"],
+                        "source_receipt_id": legacy_task["source_receipt_id"],
+                        "audience_scope": legacy_task["audience_scope"],
+                        "audience_clan": legacy_task["audience_clan"],
+                        "audience_owner": legacy_task["audience_owner"],
+                        "target_medium": target_medium,
+                    })
+                    if legacy_task["dedupe_key"] == canonical_key:
+                        continue
+                    duplicate = conn.execute(
+                        """
+                        SELECT outbox_id
+                        FROM ghost_narrative_outbox
+                        WHERE dedupe_key = ? AND outbox_id != ?
+                        LIMIT 1
+                        """,
+                        (canonical_key, legacy_task["outbox_id"]),
+                    ).fetchone()
+                    if duplicate:
+                        conn.execute(
+                            """
+                            UPDATE ghost_narrative_outbox
+                            SET status = 'completed',
+                                completed_at = CASE
+                                    WHEN completed_at = '' THEN created_at ELSE completed_at
+                                END,
+                                processed_at = CASE
+                                    WHEN processed_at = '' THEN created_at ELSE processed_at
+                                END,
+                                last_error_code = 'legacy_duplicate_retired',
+                                updated_at = CASE
+                                    WHEN updated_at = '' THEN created_at ELSE updated_at
+                                END
+                            WHERE outbox_id = ?
+                            """,
+                            (legacy_task["outbox_id"],),
+                        )
+                        continue
+                    conn.execute(
+                        "UPDATE ghost_narrative_outbox SET dedupe_key = ? WHERE outbox_id = ?",
+                        (canonical_key, legacy_task["outbox_id"]),
+                    )
+                conn.execute(
+                    """
+                    INSERT INTO ghost_repository_migrations (migration_id, applied_at)
+                    VALUES (?, ?)
+                    """,
+                    (dedupe_migration_id, self.now()),
+                )
             conn.execute(
                 """
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_narrative_outbox_dedupe
                 ON ghost_narrative_outbox(dedupe_key)
                 WHERE dedupe_key IS NOT NULL AND dedupe_key != ''
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_task_ready
+                ON ghost_narrative_outbox(
+                    processor, status, next_attempt_at, priority DESC, created_at, outbox_id
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_task_lease
+                ON ghost_narrative_outbox(status, lease_until)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_task_source_event
+                ON ghost_narrative_outbox(source_scope, source_event_id)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_task_source_receipt
+                ON ghost_narrative_outbox(source_scope, source_receipt_id)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_task_status_updated
+                ON ghost_narrative_outbox(status, updated_at, outbox_id)
                 """
             )
             conn.execute(
@@ -872,24 +1165,65 @@ class GhostNetworkRepository:
         if not row:
             return None
         keys = set(row.keys())
+        medium = row["medium"]
+        target_medium = row["target_medium"] if "target_medium" in keys else medium
+        facts = loads_json(row["facts_json"], [])
+        if not isinstance(facts, list):
+            facts = []
+        allowed_actions = (
+            loads_json(row["allowed_actions_json"], [])
+            if "allowed_actions_json" in keys
+            else []
+        )
+        if not isinstance(allowed_actions, list):
+            allowed_actions = []
+        validation = loads_json(row["validation_json"], {}) if "validation_json" in keys else {}
+        if not isinstance(validation, dict):
+            validation = {}
         return {
             "outbox_id": row["outbox_id"],
+            "task_id": row["outbox_id"],
+            "schema_version": row["schema_version"] if "schema_version" in keys else NARRATIVE_TASK_SCHEMA_VERSION,
             "event_id": row["event_id"],
+            "source_scope": row["source_scope"] if "source_scope" in keys else "ghostnetwork",
+            "source_event_id": row["source_event_id"] if "source_event_id" in keys else row["event_id"],
+            "source_receipt_id": row["source_receipt_id"] if "source_receipt_id" in keys else "",
+            "source_app_id": row["source_app_id"] if "source_app_id" in keys else "",
             "cycle_id": row["cycle_id"] if "cycle_id" in keys else "",
             "signal_id": row["signal_id"] if "signal_id" in keys else "",
             "audience_scope": row["audience_scope"],
             "audience_clan": row["audience_clan"],
             "audience_owner": row["audience_owner"] if "audience_owner" in keys else "",
-            "medium": row["medium"],
+            "processor": row["processor"] if "processor" in keys else NARRATIVE_TASK_PROCESSOR,
+            "medium": target_medium,
+            "target_medium": target_medium,
             "truth_class": row["truth_class"],
-            "facts": loads_json(row["facts_json"], []),
-            "allowed_actions": loads_json(row["allowed_actions_json"], []) if "allowed_actions_json" in keys else [],
+            "truth_class_policy": row["truth_class_policy"] if "truth_class_policy" in keys else "",
+            "facts": facts,
+            "allowed_actions": allowed_actions,
             "canon_version": row["canon_version"] if "canon_version" in keys else "",
             "ghostsystem_version": row["ghostsystem_version"] if "ghostsystem_version" in keys else "",
+            "world_state_version": row["world_state_version"] if "world_state_version" in keys else "",
+            "prompt_version": row["prompt_version"] if "prompt_version" in keys else "unassigned",
+            "output_schema_version": row["output_schema_version"] if "output_schema_version" in keys else "unassigned",
+            "model_policy_version": row["model_policy_version"] if "model_policy_version" in keys else "unassigned",
+            "task_variant": row["task_variant"] if "task_variant" in keys else "default",
+            "priority": int(row["priority"] or 0) if "priority" in keys else 0,
             "status": row["status"],
+            "attempt_count": int(row["attempt_count"] or 0) if "attempt_count" in keys else 0,
+            "max_attempts": int(row["max_attempts"] or 5) if "max_attempts" in keys else 5,
+            "claimed_by": row["claimed_by"] if "claimed_by" in keys else "",
+            "claimed_at": row["claimed_at"] if "claimed_at" in keys else "",
+            "lease_until": row["lease_until"] if "lease_until" in keys else "",
+            "next_attempt_at": row["next_attempt_at"] if "next_attempt_at" in keys else "",
+            "last_error_code": row["last_error_code"] if "last_error_code" in keys else "",
+            "last_error_at": row["last_error_at"] if "last_error_at" in keys else "",
             "created_at": row["created_at"],
+            "updated_at": row["updated_at"] if "updated_at" in keys else row["created_at"],
             "processed_at": row["processed_at"],
-            "validation": loads_json(row["validation_json"], {}) if "validation_json" in keys else {},
+            "completed_at": row["completed_at"] if "completed_at" in keys else "",
+            "dead_lettered_at": row["dead_lettered_at"] if "dead_lettered_at" in keys else "",
+            "validation": validation,
             "dedupe_key": row["dedupe_key"] if "dedupe_key" in keys else "",
         }
 
@@ -2968,81 +3302,153 @@ class GhostNetworkRepository:
         with self._conn() as conn:
             return self._narrative_outbox(
                 conn.execute(
-                    "SELECT * FROM ghost_narrative_outbox WHERE dedupe_key = ? LIMIT 1",
+                    """
+                    SELECT * FROM ghost_narrative_outbox
+                    WHERE dedupe_key = ? AND dedupe_key IS NOT NULL AND dedupe_key != ''
+                    LIMIT 1
+                    """,
                     (dedupe_key,),
                 ).fetchone()
             )
 
-    def insert_narrative_outbox(self, item):
+    def enqueue_narrative_task(self, item):
         item = item if isinstance(item, dict) else {}
-        dedupe_key = _clean(item.get("dedupe_key"))
-        if dedupe_key:
-            existing = self.get_narrative_outbox_by_dedupe_key(dedupe_key)
-            if existing:
-                existing["idempotent"] = True
-                return existing
-        now = self.now()
-        outbox_id = _clean(
-            item.get("outbox_id")
-            or _hash_id(
-                "narrative",
-                item.get("event_id"),
-                item.get("medium"),
-                item.get("audience_scope"),
-                item.get("audience_clan"),
-                item.get("signal_id"),
-                dedupe_key,
-            )
-        )
+        now = _iso(item.get("created_at") or self.now())
+        target_medium = _clean(item.get("target_medium") or item.get("medium"))
+        if not target_medium:
+            raise ValueError("Narrative task requires target_medium")
+        source_scope = _clean(item.get("source_scope"), "ghostnetwork")
+        source_event_id = _clean(item.get("source_event_id") or item.get("event_id"))
+        source_receipt_id = _clean(item.get("source_receipt_id"))
+        if not source_event_id and not source_receipt_id:
+            raise ValueError("Narrative task requires source event or receipt identity")
+        processor = _clean(item.get("processor"), NARRATIVE_TASK_PROCESSOR)
+        if processor != NARRATIVE_TASK_PROCESSOR:
+            raise ValueError("Narrative task processor must be ollama")
+        dedupe_item = {
+            **item,
+            "source_scope": source_scope,
+            "source_event_id": source_event_id,
+            "source_receipt_id": source_receipt_id,
+            "target_medium": target_medium,
+        }
+        dedupe_key = canonical_narrative_task_dedupe_key(dedupe_item)
+        supplied_dedupe_key = _clean(item.get("dedupe_key"))
+        if supplied_dedupe_key and supplied_dedupe_key != dedupe_key:
+            raise ValueError("Narrative task dedupe_key does not match canonical identity")
+        status = _clean(item.get("status"), "ready")
+        status = NARRATIVE_TASK_LEGACY_STATUS_MAP.get(status, status)
+        if status not in NARRATIVE_TASK_READY_STATUSES:
+            raise ValueError("Narrative task enqueue must start ready or retry_wait")
+        max_attempts = max(1, min(int(item.get("max_attempts") or 5), 100))
+        attempt_count = 0
+        completed_at = ""
+        dead_lettered_at = ""
+        processed_at = ""
+        next_attempt_at = _clean(item.get("next_attempt_at"))
+        if status in NARRATIVE_TASK_READY_STATUSES and not next_attempt_at:
+            next_attempt_at = now
+        outbox_id = _hash_id("narrative_task", dedupe_key)
+        supplied_outbox_id = _clean(item.get("outbox_id"))
+        if supplied_outbox_id and supplied_outbox_id != outbox_id:
+            raise ValueError("Narrative task outbox_id does not match canonical identity")
+        record = {
+            "outbox_id": outbox_id,
+            "event_id": _clean(item.get("event_id") or source_event_id or source_receipt_id),
+            "cycle_id": _clean(item.get("cycle_id")),
+            "signal_id": _clean(item.get("signal_id")),
+            "audience_scope": _clean(item.get("audience_scope"), "public"),
+            "audience_clan": _clean(item.get("audience_clan")),
+            "audience_owner": _clean(item.get("audience_owner")),
+            "medium": target_medium,
+            "truth_class": _clean(item.get("truth_class"), "canonical"),
+            "facts_json": dumps_json(item.get("facts") if isinstance(item.get("facts"), list) else []),
+            "allowed_actions_json": dumps_json(
+                item.get("allowed_actions") if isinstance(item.get("allowed_actions"), list) else []
+            ),
+            "canon_version": _clean(item.get("canon_version")),
+            "ghostsystem_version": _clean(item.get("ghostsystem_version")),
+            "status": status,
+            "created_at": now,
+            "processed_at": processed_at,
+            "validation_json": dumps_json(
+                item.get("validation") if isinstance(item.get("validation"), dict) else {}
+            ),
+            "dedupe_key": dedupe_key,
+            "schema_version": _clean(item.get("schema_version"), NARRATIVE_TASK_SCHEMA_VERSION),
+            "source_scope": source_scope,
+            "source_event_id": source_event_id,
+            "source_receipt_id": source_receipt_id,
+            "source_app_id": _clean(item.get("source_app_id")),
+            "processor": processor,
+            "target_medium": target_medium,
+            "world_state_version": _clean(item.get("world_state_version")),
+            "prompt_version": _clean(item.get("prompt_version"), "unassigned"),
+            "output_schema_version": _clean(item.get("output_schema_version"), "unassigned"),
+            "model_policy_version": _clean(item.get("model_policy_version"), "unassigned"),
+            "truth_class_policy": _clean(item.get("truth_class_policy")),
+            "task_variant": _clean(item.get("task_variant"), "default"),
+            "priority": int(item.get("priority") or 0),
+            "attempt_count": attempt_count,
+            "max_attempts": max_attempts,
+            "claimed_by": "",
+            "claimed_at": "",
+            "lease_until": "",
+            "next_attempt_at": next_attempt_at,
+            "last_error_code": _clean(item.get("last_error_code")),
+            "last_error_at": _clean(item.get("last_error_at")),
+            "updated_at": _clean(item.get("updated_at") or now),
+            "completed_at": completed_at,
+            "dead_lettered_at": dead_lettered_at,
+        }
         with self._conn() as conn:
-            try:
-                conn.execute(
-                    """
-                    INSERT INTO ghost_narrative_outbox (
-                        outbox_id, event_id, cycle_id, signal_id,
-                        audience_scope, audience_clan, audience_owner, medium,
-                        truth_class, facts_json, allowed_actions_json,
-                        canon_version, ghostsystem_version, status,
-                        created_at, processed_at, validation_json, dedupe_key
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        outbox_id,
-                        _clean(item.get("event_id")),
-                        _clean(item.get("cycle_id")),
-                        _clean(item.get("signal_id")),
-                        _clean(item.get("audience_scope"), "public"),
-                        _clean(item.get("audience_clan")),
-                        _clean(item.get("audience_owner")),
-                        _clean(item.get("medium")),
-                        _clean(item.get("truth_class"), "canonical"),
-                        dumps_json(item.get("facts") if isinstance(item.get("facts"), list) else []),
-                        dumps_json(
-                            item.get("allowed_actions")
-                            if isinstance(item.get("allowed_actions"), list)
-                            else []
-                        ),
-                        _clean(item.get("canon_version")),
-                        _clean(item.get("ghostsystem_version")),
-                        _clean(item.get("status"), "ready"),
-                        _clean(item.get("created_at") or now),
-                        _clean(item.get("processed_at")),
-                        dumps_json(
-                            item.get("validation")
-                            if isinstance(item.get("validation"), dict)
-                            else {}
-                        ),
-                        dedupe_key,
-                    ),
+            cursor = conn.execute(
+                """
+                INSERT OR IGNORE INTO ghost_narrative_outbox (
+                    outbox_id, event_id, cycle_id, signal_id,
+                    audience_scope, audience_clan, audience_owner, medium,
+                    truth_class, facts_json, allowed_actions_json,
+                    canon_version, ghostsystem_version, status,
+                    created_at, processed_at, validation_json, dedupe_key,
+                    schema_version, source_scope, source_event_id,
+                    source_receipt_id, source_app_id, processor, target_medium,
+                    world_state_version, prompt_version, output_schema_version,
+                    model_policy_version, truth_class_policy, task_variant,
+                    priority, attempt_count, max_attempts, claimed_by, claimed_at,
+                    lease_until, next_attempt_at, last_error_code, last_error_at,
+                    updated_at, completed_at, dead_lettered_at
                 )
-            except IntegrityError:
-                if dedupe_key:
-                    existing = self.get_narrative_outbox_by_dedupe_key(dedupe_key)
-                    if existing:
-                        existing["idempotent"] = True
-                        return existing
-                raise
+                VALUES (
+                    :outbox_id, :event_id, :cycle_id, :signal_id,
+                    :audience_scope, :audience_clan, :audience_owner, :medium,
+                    :truth_class, :facts_json, :allowed_actions_json,
+                    :canon_version, :ghostsystem_version, :status,
+                    :created_at, :processed_at, :validation_json, :dedupe_key,
+                    :schema_version, :source_scope, :source_event_id,
+                    :source_receipt_id, :source_app_id, :processor, :target_medium,
+                    :world_state_version, :prompt_version, :output_schema_version,
+                    :model_policy_version, :truth_class_policy, :task_variant,
+                    :priority, :attempt_count, :max_attempts, :claimed_by, :claimed_at,
+                    :lease_until, :next_attempt_at, :last_error_code, :last_error_at,
+                    :updated_at, :completed_at, :dead_lettered_at
+                )
+                """,
+                record,
+            )
+            if cursor.rowcount == 0:
+                existing = conn.execute(
+                    """
+                    SELECT * FROM ghost_narrative_outbox
+                    WHERE dedupe_key = ? AND dedupe_key IS NOT NULL AND dedupe_key != ''
+                    LIMIT 1
+                    """,
+                    (dedupe_key,),
+                ).fetchone()
+                if existing:
+                    result = self._narrative_outbox(existing)
+                    result["idempotent"] = True
+                    return result
+                raise RepositoryIntegrityError("Narrative task identity conflict")
             return self._narrative_outbox(
                 conn.execute(
                     "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
@@ -3050,7 +3456,23 @@ class GhostNetworkRepository:
                 ).fetchone()
             )
 
-    def list_narrative_outbox(self, cycle_id=None, signal_id=None, medium=None, status=None, limit=100):
+    def insert_narrative_outbox(self, item):
+        """Compatibility alias for Sprint 129 callers."""
+        return self.enqueue_narrative_task(item)
+
+    def list_narrative_outbox(
+        self,
+        cycle_id=None,
+        signal_id=None,
+        medium=None,
+        status=None,
+        limit=100,
+        processor=None,
+        source_scope=None,
+        source_event_id=None,
+        source_receipt_id=None,
+        cursor=None,
+    ):
         limit = max(1, min(int(limit or 100), 1000))
         clauses = []
         params = []
@@ -3061,11 +3483,31 @@ class GhostNetworkRepository:
             clauses.append("signal_id = ?")
             params.append(_clean(signal_id))
         if medium:
-            clauses.append("medium = ?")
+            clauses.append("target_medium = ?")
             params.append(_clean(medium))
         if status:
             clauses.append("status = ?")
-            params.append(_clean(status))
+            normalized_status = NARRATIVE_TASK_LEGACY_STATUS_MAP.get(_clean(status), _clean(status))
+            params.append(normalized_status)
+        if processor:
+            clauses.append("processor = ?")
+            params.append(_clean(processor))
+        if source_scope:
+            clauses.append("source_scope = ?")
+            params.append(_clean(source_scope))
+        if source_event_id:
+            clauses.append("source_event_id = ?")
+            params.append(_clean(source_event_id))
+        if source_receipt_id:
+            clauses.append("source_receipt_id = ?")
+            params.append(_clean(source_receipt_id))
+        if cursor:
+            clauses.append(
+                "(created_at, outbox_id) > ("
+                "SELECT created_at, outbox_id FROM ghost_narrative_outbox WHERE outbox_id = ?"
+                ")"
+            )
+            params.append(_clean(cursor))
         where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
         params.append(limit)
         with self._conn() as conn:
@@ -3080,7 +3522,400 @@ class GhostNetworkRepository:
             ).fetchall()
             return [self._narrative_outbox(row) for row in rows]
 
+    def get_latest_narrative_task(
+        self,
+        target_medium=None,
+        status=None,
+        processor=NARRATIVE_TASK_PROCESSOR,
+    ):
+        clauses = ["processor = ?"]
+        params = [_clean(processor, NARRATIVE_TASK_PROCESSOR)]
+        if target_medium:
+            clauses.append("target_medium = ?")
+            params.append(_clean(target_medium))
+        if status:
+            normalized_status = NARRATIVE_TASK_LEGACY_STATUS_MAP.get(_clean(status), _clean(status))
+            clauses.append("status = ?")
+            params.append(normalized_status)
+        with self._conn() as conn:
+            return self._narrative_outbox(
+                conn.execute(
+                    f"""
+                    SELECT * FROM ghost_narrative_outbox
+                    WHERE {' AND '.join(clauses)}
+                    ORDER BY updated_at DESC, created_at DESC, outbox_id DESC
+                    LIMIT 1
+                    """,
+                    tuple(params),
+                ).fetchone()
+            )
+
+    def _recover_expired_narrative_leases_conn(self, conn, now, limit):
+        rows = conn.execute(
+            """
+            SELECT outbox_id, status, lease_until, attempt_count, max_attempts
+            FROM ghost_narrative_outbox
+            WHERE status IN ('claimed', 'processing')
+              AND lease_until != ''
+              AND lease_until <= ?
+            ORDER BY lease_until ASC, outbox_id ASC
+            LIMIT ?
+            """,
+            (now, max(1, min(int(limit or 100), 1000))),
+        ).fetchall()
+        recovered = []
+        for row in rows:
+            exhausted = int(row["attempt_count"] or 0) >= max(1, int(row["max_attempts"] or 5))
+            next_status = "dead_letter" if exhausted else "ready"
+            cursor = conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET status = ?, claimed_by = '', claimed_at = '', lease_until = '',
+                    next_attempt_at = ?, last_error_code = 'lease_expired',
+                    last_error_at = ?, updated_at = ?,
+                    dead_lettered_at = CASE WHEN ? = 'dead_letter' THEN ? ELSE dead_lettered_at END,
+                    processed_at = CASE WHEN ? = 'dead_letter' THEN ? ELSE processed_at END
+                WHERE outbox_id = ? AND status = ? AND lease_until = ?
+                """,
+                (
+                    next_status,
+                    "" if exhausted else now,
+                    now,
+                    now,
+                    next_status,
+                    now,
+                    next_status,
+                    now,
+                    row["outbox_id"],
+                    row["status"],
+                    row["lease_until"],
+                ),
+            )
+            if cursor.rowcount == 1:
+                recovered.append(row["outbox_id"])
+        return recovered
+
+    def recover_expired_narrative_leases(self, now=None, limit=100):
+        now_iso = _iso(now if now is not None else self.now())
+        with self.transaction():
+            conn = self._transaction_conn
+            recovered_ids = self._recover_expired_narrative_leases_conn(conn, now_iso, limit)
+            return [
+                self._narrative_outbox(
+                    conn.execute(
+                        "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                        (outbox_id,),
+                    ).fetchone()
+                )
+                for outbox_id in recovered_ids
+            ]
+
+    def claim_next_narrative_task(
+        self,
+        worker_id,
+        lease_seconds=60,
+        processor=NARRATIVE_TASK_PROCESSOR,
+        target_medium=None,
+        now=None,
+        recovery_limit=100,
+    ):
+        worker_id = _clean(worker_id)
+        if not worker_id:
+            raise ValueError("Narrative task claim requires worker_id")
+        lease_seconds = max(1, min(int(lease_seconds or 60), 3600))
+        now_iso = _iso(now if now is not None else self.now())
+        lease_until = _iso(_utc_datetime(now_iso) + timedelta(seconds=lease_seconds))
+        with self.transaction():
+            conn = self._transaction_conn
+            self._recover_expired_narrative_leases_conn(conn, now_iso, recovery_limit)
+            clauses = [
+                "processor = ?",
+                "status IN ('ready', 'retry_wait')",
+                "attempt_count < max_attempts",
+                "(next_attempt_at = '' OR next_attempt_at <= ?)",
+            ]
+            params = [_clean(processor, NARRATIVE_TASK_PROCESSOR), now_iso]
+            if target_medium:
+                clauses.append("target_medium = ?")
+                params.append(_clean(target_medium))
+            row = conn.execute(
+                f"""
+                SELECT * FROM ghost_narrative_outbox
+                WHERE {' AND '.join(clauses)}
+                ORDER BY priority DESC, next_attempt_at ASC, created_at ASC, outbox_id ASC
+                LIMIT 1
+                """,
+                tuple(params),
+            ).fetchone()
+            if not row:
+                return None
+            cursor = conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET status = 'claimed', claimed_by = ?, claimed_at = ?, lease_until = ?,
+                    attempt_count = attempt_count + 1, updated_at = ?
+                WHERE outbox_id = ? AND status = ?
+                  AND attempt_count < max_attempts
+                  AND (next_attempt_at = '' OR next_attempt_at <= ?)
+                """,
+                (
+                    worker_id,
+                    now_iso,
+                    lease_until,
+                    now_iso,
+                    row["outbox_id"],
+                    row["status"],
+                    now_iso,
+                ),
+            )
+            if cursor.rowcount != 1:
+                return None
+            return self._narrative_outbox(
+                conn.execute(
+                    "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                    (row["outbox_id"],),
+                ).fetchone()
+            )
+
+    def renew_narrative_task_lease(
+        self,
+        outbox_id,
+        worker_id,
+        expected_lease_until,
+        lease_seconds=60,
+        now=None,
+    ):
+        now_iso = _iso(now if now is not None else self.now())
+        expected_lease_until = _clean(expected_lease_until)
+        if not _clean(worker_id) or not expected_lease_until:
+            return None
+        base = max(_utc_datetime(now_iso), _utc_datetime(expected_lease_until))
+        next_lease_until = _iso(base + timedelta(seconds=max(1, min(int(lease_seconds or 60), 3600))))
+        with self._conn() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET lease_until = ?, updated_at = ?
+                WHERE outbox_id = ? AND claimed_by = ?
+                  AND status IN ('claimed', 'processing')
+                  AND lease_until = ? AND lease_until > ?
+                """,
+                (
+                    next_lease_until,
+                    now_iso,
+                    _clean(outbox_id),
+                    _clean(worker_id),
+                    expected_lease_until,
+                    now_iso,
+                ),
+            )
+            if cursor.rowcount != 1:
+                return None
+            return self._narrative_outbox(
+                conn.execute(
+                    "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                    (_clean(outbox_id),),
+                ).fetchone()
+            )
+
+    def mark_narrative_task_processing(self, outbox_id, worker_id, expected_lease_until, now=None):
+        now_iso = _iso(now if now is not None else self.now())
+        with self._conn() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET status = 'processing', updated_at = ?
+                WHERE outbox_id = ? AND status = 'claimed' AND claimed_by = ?
+                  AND lease_until = ? AND lease_until > ?
+                """,
+                (
+                    now_iso,
+                    _clean(outbox_id),
+                    _clean(worker_id),
+                    _clean(expected_lease_until),
+                    now_iso,
+                ),
+            )
+            if cursor.rowcount != 1:
+                return None
+            return self._narrative_outbox(
+                conn.execute(
+                    "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                    (_clean(outbox_id),),
+                ).fetchone()
+            )
+
+    def complete_narrative_task(self, outbox_id, worker_id, expected_lease_until, now=None):
+        now_iso = _iso(now if now is not None else self.now())
+        with self._conn() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET status = 'completed', completed_at = ?, processed_at = ?,
+                    updated_at = ?, next_attempt_at = '', last_error_code = ''
+                WHERE outbox_id = ? AND claimed_by = ?
+                  AND status IN ('claimed', 'processing')
+                  AND lease_until = ? AND lease_until > ?
+                """,
+                (
+                    now_iso,
+                    now_iso,
+                    now_iso,
+                    _clean(outbox_id),
+                    _clean(worker_id),
+                    _clean(expected_lease_until),
+                    now_iso,
+                ),
+            )
+            if cursor.rowcount != 1:
+                return None
+            return self._narrative_outbox(
+                conn.execute(
+                    "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                    (_clean(outbox_id),),
+                ).fetchone()
+            )
+
+    def retry_narrative_task(
+        self,
+        outbox_id,
+        worker_id,
+        expected_lease_until,
+        reason_code,
+        backoff_seconds=None,
+        now=None,
+    ):
+        now_iso = _iso(now if now is not None else self.now())
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                (_clean(outbox_id),),
+            ).fetchone()
+            current = self._narrative_outbox(row)
+            if not current:
+                return None
+            exhausted = current["attempt_count"] >= current["max_attempts"]
+            next_status = "dead_letter" if exhausted else "retry_wait"
+            if backoff_seconds is None:
+                backoff_seconds = min(300, 5 * (2 ** max(0, current["attempt_count"] - 1)))
+            backoff_seconds = max(0, min(int(backoff_seconds or 0), 86400))
+            next_attempt_at = "" if exhausted else _iso(
+                _utc_datetime(now_iso) + timedelta(seconds=backoff_seconds)
+            )
+            cursor = conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET status = ?, claimed_by = '', claimed_at = '', lease_until = '',
+                    next_attempt_at = ?, last_error_code = ?, last_error_at = ?,
+                    updated_at = ?, dead_lettered_at = CASE
+                        WHEN ? = 'dead_letter' THEN ? ELSE dead_lettered_at END,
+                    processed_at = CASE WHEN ? = 'dead_letter' THEN ? ELSE processed_at END
+                WHERE outbox_id = ? AND claimed_by = ?
+                  AND status IN ('claimed', 'processing')
+                  AND lease_until = ? AND lease_until > ?
+                """,
+                (
+                    next_status,
+                    next_attempt_at,
+                    _clean(reason_code, "worker_retry"),
+                    now_iso,
+                    now_iso,
+                    next_status,
+                    now_iso,
+                    next_status,
+                    now_iso,
+                    _clean(outbox_id),
+                    _clean(worker_id),
+                    _clean(expected_lease_until),
+                    now_iso,
+                ),
+            )
+            if cursor.rowcount != 1:
+                return None
+            return self._narrative_outbox(
+                conn.execute(
+                    "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                    (_clean(outbox_id),),
+                ).fetchone()
+            )
+
+    def dead_letter_narrative_task(
+        self,
+        outbox_id,
+        worker_id,
+        expected_lease_until,
+        reason_code,
+        now=None,
+    ):
+        now_iso = _iso(now if now is not None else self.now())
+        with self._conn() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET status = 'dead_letter', dead_lettered_at = ?, processed_at = ?,
+                    updated_at = ?, next_attempt_at = '', last_error_code = ?,
+                    last_error_at = ?
+                WHERE outbox_id = ? AND claimed_by = ?
+                  AND status IN ('claimed', 'processing')
+                  AND lease_until = ? AND lease_until > ?
+                """,
+                (
+                    now_iso,
+                    now_iso,
+                    now_iso,
+                    _clean(reason_code, "worker_dead_letter"),
+                    now_iso,
+                    _clean(outbox_id),
+                    _clean(worker_id),
+                    _clean(expected_lease_until),
+                    now_iso,
+                ),
+            )
+            if cursor.rowcount != 1:
+                return None
+            return self._narrative_outbox(
+                conn.execute(
+                    "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                    (_clean(outbox_id),),
+                ).fetchone()
+            )
+
+    def requeue_narrative_task(self, outbox_id, now=None, validation=None):
+        now_iso = _iso(now if now is not None else self.now())
+        validation = validation if isinstance(validation, dict) else None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                (_clean(outbox_id),),
+            ).fetchone()
+            current = self._narrative_outbox(row)
+            if not current or current["status"] != "retry_wait":
+                return None
+            next_validation = validation if validation is not None else current.get("validation") or {}
+            cursor = conn.execute(
+                """
+                UPDATE ghost_narrative_outbox
+                SET status = 'ready', next_attempt_at = ?, updated_at = ?,
+                    validation_json = ?
+                WHERE outbox_id = ? AND status = 'retry_wait'
+                """,
+                (now_iso, now_iso, dumps_json(next_validation), _clean(outbox_id)),
+            )
+            if cursor.rowcount != 1:
+                return None
+            return self._narrative_outbox(
+                conn.execute(
+                    "SELECT * FROM ghost_narrative_outbox WHERE outbox_id = ? LIMIT 1",
+                    (_clean(outbox_id),),
+                ).fetchone()
+            )
+
     def update_narrative_outbox_status(self, outbox_id, status, processed_at=None, validation=None):
+        """Bounded Sprint 129 compatibility transition; worker paths require lease CAS."""
+        requested = _clean(status)
+        next_status = NARRATIVE_TASK_LEGACY_STATUS_MAP.get(requested, requested)
+        if next_status not in {"ready", "retry_wait", "completed", "dead_letter"}:
+            raise ValueError("Narrative task status requires canonical lifecycle method")
         validation = validation if isinstance(validation, dict) else None
         with self._conn() as conn:
             existing = conn.execute(
@@ -3090,17 +3925,47 @@ class GhostNetworkRepository:
             if not existing:
                 return None
             current = self._narrative_outbox(existing)
+            if current["status"] in NARRATIVE_TASK_ACTIVE_STATUSES:
+                raise ValueError("Active narrative task status requires lease owner")
+            allowed = {
+                "ready": {"ready", "retry_wait"},
+                "retry_wait": {"ready", "retry_wait"},
+                "completed": {"completed"},
+                "dead_letter": {"dead_letter"},
+            }
+            if next_status not in allowed.get(current["status"], set()):
+                raise ValueError(
+                    f"Invalid narrative task transition: {current['status']} -> {next_status}"
+                )
             next_validation = validation if validation is not None else current.get("validation") or {}
+            now = self.now()
+            terminal_at = _clean(processed_at or now) if next_status in NARRATIVE_TASK_TERMINAL_STATUSES else ""
             conn.execute(
                 """
                 UPDATE ghost_narrative_outbox
-                SET status = ?, processed_at = ?, validation_json = ?
+                SET status = ?, processed_at = ?, validation_json = ?, updated_at = ?,
+                    next_attempt_at = CASE
+                        WHEN ? = 'ready' THEN ?
+                        WHEN ? = 'retry_wait' THEN ?
+                        ELSE ''
+                    END,
+                    completed_at = CASE WHEN ? = 'completed' THEN ? ELSE completed_at END,
+                    dead_lettered_at = CASE WHEN ? = 'dead_letter' THEN ? ELSE dead_lettered_at END
                 WHERE outbox_id = ?
                 """,
                 (
-                    _clean(status),
-                    _clean(processed_at if processed_at is not None else current.get("processed_at")),
+                    next_status,
+                    terminal_at,
                     dumps_json(next_validation),
+                    now,
+                    next_status,
+                    now,
+                    next_status,
+                    now,
+                    next_status,
+                    terminal_at,
+                    next_status,
+                    terminal_at,
                     _clean(outbox_id),
                 ),
             )

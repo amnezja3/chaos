@@ -1731,3 +1731,115 @@ Walidacja: 231/231 testów GhostNetwork, 93/93 Ghost Control/territory/session,
 `SPRINT 135 — READY FOR SERVER VALIDATION`
 
 Bez deployu, restartu PM2, produkcyjnych mutacji i commita.
+
+## 2026-08-27 — Sprint 135.1 Ollama Outbox integration audit
+
+`SPRINT 135.1 — COMPLETE`
+
+Następna bramka: `READY FOR SPRINT 135.2`.
+
+- Odzyskano formalnie zamrożony Sprint 84 `Ollama Enriched Signal Ingest +
+  Mixed Feed` oraz świadomie odłożony, nienumerowany osobno zakres
+  `BlackNet AI Ecosystem (Sprint 21+)`.
+- Potwierdzono dwa istniejące mechanizmy: plikowy admin/dev export BlackNet ze
+  Sprintu 83 oraz trwały SQLite `ghost_narrative_outbox` ze Sprintu 129.
+- Wiążąca decyzja: trwały store Sprintu 129 zostanie rozszerzony do jednej
+  canonical kolejki Ollamy; plikowy outbox pozostanie wyłącznie
+  jednokierunkowym adapterem diagnostycznym.
+- Zdefiniowano pełny flow `canonical event / installed app -> Ollama Outbox ->
+  local worker/LLM -> Ollama Inbox -> validation/quarantine -> BlackNet |
+  Googleplex News | Cyberner AGI-2108`, bez prawa modelu do mutacji gameplayu.
+- Rozdzielono `processor=ollama` od `target_medium`, opisano claim/lease,
+  dedupe, receipts, audience projection, truth classes, CTA allowlist i
+  bezpieczny ingress z dedykowanej aplikacji instalowanej przez Googleplex.
+- Roadmap 135.2-135.6 zastępuje fragmentaryczny plan 136-138: queue
+  convergence, producers/app ingress, worker/inbox, publishers oraz hardening.
+- Doprecyzowano twardą bramkę 135.2: `zbudować niezawodny transport tasków LLM,
+  jeszcze bez LLM`. Sprint obejmuje wyłącznie canonical schema/store,
+  enqueue/claim/lease/renew/complete/retry/dead-letter, concurrency/crash
+  recovery i diagnostyczny eksport starego BlackNet outboxa. Nie obejmuje
+  producentów, aplikacji Googleplex, workera, Inboxu ani publikacji.
+- Obowiązkowe invariants 135.2: dokładnie jeden task dla
+  `event + audience + target_medium`, dokładnie jeden aktywny lease owner oraz
+  brak zgubienia lub zdublowania taska po crashu i wygaśnięciu lease.
+- Pozostała decyzja produktowa przed 135.5: minimalny read model i miejsce UI
+  dla `Googleplex News`.
+- Artefakt:
+  `doc/sprints/sprint_135_1_ollama_outbox_integration_audit.md`.
+- Audit nie zmienił runtime, bazy i konfiguracji procesów; bez deployu,
+  restartu PM2, produkcyjnych mutacji i commita.
+
+## 2026-08-27 — specyfikacje wykonawcze Sprintów 135.2-135.5
+
+- Roadmap z audytu 135.1 rozdzielono na cztery osobne dokumenty sprintów.
+- 135.2: canonical transport tasków bez Ollamy, z atomowym
+  enqueue/claim/lease/renew/complete/retry/dead-letter i diagnostycznym eksportem
+  legacy BlackNet.
+- 135.3: producenci GhostNetwork/GhostSignal/BlackNet oraz bounded ingress
+  dedykowanej aplikacji Googleplex; nadal bez klienta Ollamy.
+- 135.4: pierwszy lokalny worker Ollamy, structured output, canonical Inbox,
+  validator i quarantine; bez publikacji dla graczy.
+- 135.5: exactly-once publishery do BlackNet, Googleplex News i Cybernera
+  AGI-2108, wyłącznie z accepted Inbox candidate.
+- Wpis był planistyczny; aktualny status 135.2 znajduje się w późniejszym
+  wpisie implementacyjnym. 135.3-135.5 pozostają za exit gates.
+- Dokumentacja nie zmieniła runtime, bazy ani konfiguracji procesów.
+
+## 2026-08-27 — rozszerzenie roadmapy Googleplex przed Sprintem 135.5
+
+- Dodano Sprint 135.4.1: projekt i foundation Googleplex Home z osobnym,
+  audience-projected News read surface, bez publikacji Ollamy.
+- Dodano Sprint 135.4.2: proste narzędzie kupowane i instalowane z Googleplex,
+  korzystające z ingressu 135.3 i pokazujące task status, ale jeszcze bez body
+  odpowiedzi modelu.
+- Sprint 135.5 domyka oba elementy: publikuje accepted candidates na Googleplex
+  Home/News i udostępnia owner-scoped result w kupowanym narzędziu oraz
+  Cybernerze AGI-2108.
+- Kolejność bramek: `135.4 -> 135.4.1 -> 135.4.2 -> 135.5`.
+- Wiążącą rewizję oraz mapowanie historycznych Sprintów 136-138 dopisano do
+  `doc/history/game_play_240826.md`; stare rozdziały zachowano jako materiał
+  źródłowy, ale nie jako równoległy roadmap.
+- Bez zmian runtime, bazy i konfiguracji procesów.
+
+## 2026-08-27 — Sprint 135.2 Canonical LLM Task Transport
+
+`SPRINT 135.2 — READY FOR SERVER VALIDATION`
+
+- Rozszerzono addytywnie `ghost_narrative_outbox` ze Sprintu 129 do jednej
+  canonical kolejki Ghost Systemu, bez uruchamiania Ollamy.
+- Canonical identity gwarantuje jeden task dla `source event/receipt + audience
+  + target_medium`; caller nie może podmienić `dedupe_key` ani `task_id`.
+- Dodano atomowe `enqueue → claim → processing → complete/retry/dead-letter`,
+  owner/lease CAS, renew, deterministic backoff i bounded crash recovery.
+- Dwa workery nie mogą posiadać tego samego aktywnego lease. Po wygaśnięciu
+  stary owner nie może ukończyć taska przejętego przez nowego workera.
+- Migracja normalizuje rekordy Sprintu 129 oraz canonical dedupe dokładnie raz;
+  historyczne pseudo-medium `ollama_outbox` jest wycofane jako terminalny
+  artefakt diagnostyczny.
+- Dodano indeksy ready/lease/source/status i potwierdzono ich użycie przez
+  `EXPLAIN QUERY PLAN`, także na fixture 2000 terminalnych tasków.
+- Stary plikowy BlackNet outbox jest teraz wyłącznie sanityzowanym eksportem
+  DB → JSON. Odczyt i status korzystają z canonical DB; plik nie może zmienić
+  lifecycle taska.
+- Nie dodano workera Ollamy, requestu HTTP, Inboxu, producentów gameplayowych,
+  aplikacji Googleplex ani publikacji dla graczy.
+- Walidacja: 243/243 pełnych testów GhostNetwork, 21/21 BlackNet world/outbox,
+  16/16 finalnych queue/narrative, `py_compile`, kontrola mojibake i
+  `git diff --check` — OK.
+- Bez deployu, restartu PM2, produkcyjnych mutacji i commita.
+
+## 2026-08-28 — heavy-profile gate dla roadmapy 135.3–135.6
+
+- Ujednolicono wszystkie wiążące specyfikacje 135.3, 135.4, 135.4.1, 135.4.2
+  i 135.5 twardą bramką zgodną z
+  `profile_hot_path_contract_130_11_plus.md`.
+- Każdy producer, worker, endpoint, read model i publisher ma zakaz używania
+  `load_profile*`, `get_profile`, `list_profiles`, per-recipient `profile_json`
+  oraz pełnego profilu jako cache/source of truth.
+- Każdy sprint wymaga fixture profilu minimum 35 MB i wyników:
+  `profile_full_read=0`, `profile_full_write=0`, `profile_bytes=0`,
+  `all_user_profile_scan=0`, `per_recipient_profile_read=0`.
+- Analogiczną fail-closed bramkę dopisano do planowanego hardening/cutover
+  Sprintu 135.6.
+- Zmiana jest wyłącznie dokumentacyjna; bez zmian runtime, bazy, deployu,
+  restartu PM2 i commita.
