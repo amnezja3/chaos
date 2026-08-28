@@ -956,6 +956,14 @@ class GhostNetworkRepository:
             )
             conn.execute(
                 """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_task_app_owner_created
+                ON ghost_narrative_outbox(
+                    source_scope, source_app_id, audience_owner, created_at
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS ghost_achievements (
                     achievement_id TEXT PRIMARY KEY,
                     player_id TEXT NOT NULL DEFAULT '',
@@ -3521,6 +3529,31 @@ class GhostNetworkRepository:
                 tuple(params),
             ).fetchall()
             return [self._narrative_outbox(row) for row in rows]
+
+    def count_recent_narrative_tasks(
+        self,
+        *,
+        source_scope,
+        source_app_id,
+        audience_owner,
+        created_after,
+    ):
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM ghost_narrative_outbox
+                WHERE source_scope = ? AND source_app_id = ?
+                  AND audience_owner = ? AND created_at >= ?
+                """,
+                (
+                    _clean(source_scope),
+                    _clean(source_app_id),
+                    _clean(audience_owner),
+                    _clean(created_after),
+                ),
+            ).fetchone()
+            return int(row["count"] or 0) if row else 0
 
     def get_latest_narrative_task(
         self,

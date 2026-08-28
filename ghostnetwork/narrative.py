@@ -10,6 +10,7 @@ from .repository import (
     _hash_id,
     canonical_narrative_task_dedupe_key,
 )
+from .visibility import _public_entity_id
 
 
 CANON_VERSION = "ghostnetwork-narrative-v1"
@@ -144,10 +145,15 @@ class GhostNarrativePublisher:
             "part_discovered",
             "part_contained",
             "part_activated",
+            "part_contested",
+            "part_conflict_resolved",
+            "part_deactivated",
             "part_revealed",
             "part_recovered",
             "part_defended",
             "machine_online",
+            "machine_offline",
+            "machine_progress_changed",
             "connection_completed",
             "cycle_locked",
             "version_changed",
@@ -352,16 +358,26 @@ class GhostNarrativePublisher:
     def _generic_domain_fact(self, event, audience):
         kind = _event_kind(event.get("event_type"))
         event_id = _clean(event.get("event_id"))
-        return {
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        part_id = _clean(event.get("part_id"))
+        public_entity_id = _clean(event.get("public_entity_id"))
+        if not public_entity_id and part_id:
+            public_entity_id = _public_entity_id(event.get("cycle_id"), part_id)
+        fact = {
             "fact_id": f"ghost_fact:{event_id}:{kind}:{_clean(audience.get('scope'), 'public')}",
             "event_id": event_id,
             "cycle_id": _clean(event.get("cycle_id")),
             "audience_scope": _clean(audience.get("scope"), "public"),
             "truth_class": "canonical",
             "fact_type": kind,
-            "entity_id": _clean(event.get("entity_id") or event.get("part_id")),
+            "public_entity_id": public_entity_id or None,
             "state_version": _safe_int(event.get("state_version")),
+            "previous_status": _clean(payload.get("previous_status")) or None,
+            "status": _clean(payload.get("status")) or None,
+            "previous_conflict_state": _clean(payload.get("previous_conflict_state")) or None,
+            "conflict_state": _clean(payload.get("conflict_state")) or None,
         }
+        return fact
 
     def _allowed_actions_for_event(self, event, medium):
         kind = _event_kind(event.get("event_type"))
@@ -402,7 +418,29 @@ class GhostNarrativePublisher:
         return _clean(payload.get("signal_id") or event.get("signal_id") or event.get("entity_id"))
 
     def _audiences_for_event(self, event):
-        return [{"scope": "public", "clan": "", "owner": ""}]
+        event = event if isinstance(event, dict) else {}
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        scope = _clean(event.get("audience_scope"), "internal").lower()
+        if scope in {"internal", "system"}:
+            return []
+        if scope == "public":
+            return [{"scope": "public", "clan": "", "owner": ""}]
+        if scope == "clan":
+            clan = _clean(
+                event.get("audience_clan")
+                or event.get("clan_code")
+                or payload.get("territory_clan")
+                or payload.get("clan_code")
+            )
+            return [{"scope": "clan", "clan": clan, "owner": ""}] if clan else []
+        if scope in {"owner", "player"}:
+            owner = _clean(
+                event.get("player_id")
+                or payload.get("player_id")
+                or payload.get("territory_owner_id")
+            )
+            return [{"scope": "owner", "clan": "", "owner": owner}] if owner else []
+        return []
 
     def _media_for_event(self, event, audience):
         kind = _event_kind(event.get("event_type"))

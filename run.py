@@ -65,6 +65,8 @@ from response_network.territory_context_reader import TerritoryContextReader
 from response_network.territory_delta import TerritoryDeltaPublisher
 from response_network.warning_store import ResponseWarningStore
 from ghostnetwork import (
+    BlackNetNarrativeProducer,
+    GoogleplexLlmTaskIngress,
     GhostNetworkDeltaPublisher,
     GhostNetworkService,
     GhostRuntimeCoordinator,
@@ -2089,6 +2091,78 @@ def build_blacknet_world_facts_snapshot(now=None, use_cache=True):
     return snapshot
 
 
+def build_blacknet_narrative_source_snapshot(now=None):
+    """Build a bounded world digest without scanning player profiles.
+
+    The legacy interactive BlackNet feed retains its own projection contract.
+    LLM task production deliberately uses only canonical public stores and
+    static product/radio contracts so the scheduled producer cannot introduce
+    a full-profile scan into the worker.
+    """
+    now_dt = now if isinstance(now, datetime) else blacknet_utc_now()
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
+    facts = []
+    sources = {}
+    for source_name, builder in (
+        ("googleplex", build_blacknet_googleplex_facts),
+        ("radio", build_blacknet_radio_facts),
+        ("conflicts", build_blacknet_conflict_activity_facts),
+        ("incidents", build_blacknet_incident_facts),
+    ):
+        try:
+            projected = builder(now_dt)
+            projected = [item for item in (projected or []) if isinstance(item, dict)][:64]
+            facts.extend(projected)
+            sources[source_name] = {"ok": True, "facts": len(projected)}
+        except Exception as exc:
+            sources[source_name] = {
+                "ok": False,
+                "error_type": type(exc).__name__,
+            }
+    facts = facts[:128]
+    version = hashlib.sha1(json.dumps(
+        [
+            {
+                "fact_id": item.get("fact_id"),
+                "value": item.get("value"),
+                "source_system": item.get("source_system"),
+            }
+            for item in facts
+        ],
+        sort_keys=True,
+        ensure_ascii=True,
+    ).encode("utf-8")).hexdigest()[:16]
+    return {
+        "schema": BLACKNET_WORLD_FACTS_SCHEMA,
+        "snapshot_type": "blacknet_world_facts",
+        "version": version,
+        "generated_at": blacknet_iso(now_dt),
+        "expires_at": blacknet_iso(
+            now_dt + timedelta(seconds=BLACKNET_WORLD_FACTS_TTL_SECONDS)
+        ),
+        "facts": facts,
+        "diagnostics": {
+            "bounded": True,
+            "profile_reads": 0,
+            "sources": sources,
+            "fact_count": len(facts),
+        },
+    }
+
+
+def enqueue_blacknet_world_narrative_digest(now=None):
+    facts_snapshot = build_blacknet_narrative_source_snapshot(now=now)
+    signal_snapshot = build_blacknet_world_signals(
+        snapshot=facts_snapshot,
+        now=now if isinstance(now, datetime) else blacknet_utc_now(),
+        limit=20,
+    )
+    return BlackNetNarrativeProducer(
+        get_ghostnetwork_service().repository
+    ).enqueue_digest(signal_snapshot)
+
+
 def blacknet_fact_number(fact):
     if not isinstance(fact, dict):
         return 0
@@ -3083,7 +3157,7 @@ def apply_ghostnetwork_runtime_result(service, result, timings=None):
             timings["audience_profiles"] = int((time.perf_counter() - phase_started) * 1000)
     dirty_profiles = set()
     rewards_to_finalize = []
-    pipeline_ms = reward_ms = delta_ms = finalization_ms = 0.0
+    pipeline_ms = reward_ms = narrative_ms = delta_ms = finalization_ms = 0.0
     player_ids = {
         str(event.get("player_id") or (event.get("payload") or {}).get("player_id") or "").strip()
         for event in events
@@ -3143,6 +3217,22 @@ def apply_ghostnetwork_runtime_result(service, result, timings=None):
                 reward_ms += time.perf_counter() - phase_started
                 reward_results.append(reward)
     repository_transaction_ms = time.perf_counter() - repository_started
+    narrative_results = []
+    for event in events:
+        phase_started = time.perf_counter()
+        try:
+            narrative = service.publish_narrative_event(event)
+        except Exception as exc:
+            narrative = {
+                "ok": False,
+                "event_id": str(event.get("event_id") or ""),
+                "errors": [{"reason": "producer_failed", "error": str(exc)[:160]}],
+                "outbox": [],
+            }
+        narrative_ms += time.perf_counter() - phase_started
+        narrative_results.append(narrative)
+    if isinstance(result, dict):
+        result["narrative_tasks"] = narrative_results
     for event in events:
         phase_started = time.perf_counter()
         recipients = ghostnetwork_event_recipient_profiles(
@@ -3176,6 +3266,7 @@ def apply_ghostnetwork_runtime_result(service, result, timings=None):
         timings["pipeline_outcomes"] = int(pipeline_ms * 1000)
         timings["reward_handlers"] = int(reward_ms * 1000)
         timings["reward_repository_transaction"] = int(repository_transaction_ms * 1000)
+        timings["narrative_enqueue"] = int(narrative_ms * 1000)
         timings["delta_enqueue"] = int(delta_ms * 1000)
         timings["reward_profile_save"] = int(profile_save_ms * 1000)
         timings["reward_finalization"] = int(finalization_ms * 1000)
@@ -19906,6 +19997,95 @@ def api_blacknet_ollama_outbox_status(digest_id):
         "digest_id": package.get("digest_id"),
         "status": package.get("status"),
         "outbox": package,
+    })
+
+
+def googleplex_llm_app_contract(app_id):
+    app_id = str(app_id or "").strip()
+    if not app_id:
+        return None
+    return next((
+        item for item in get_app_catalog()
+        if isinstance(item, dict)
+        and str(item.get("id") or item.get("app_id") or "").strip() == app_id
+        and isinstance(item.get("llm_ingress"), dict)
+        and item["llm_ingress"].get("enabled") is True
+    ), None)
+
+
+@app.route("/api/googleplex/llm/tasks", methods=["POST"])
+def api_googleplex_llm_task_submit():
+    username = str(session.get("user") or "").strip()
+    if not username:
+        return jsonify({
+            "success": False,
+            "accepted": False,
+            "reason_code": "not_logged_in",
+            "message": "Wymagane jest aktywne logowanie.",
+        }), 401
+    payload = request.get_json(silent=True) or {}
+    app_id = str(payload.get("app_id") or "").strip()
+    app_contract = googleplex_llm_app_contract(app_id)
+    if not app_contract:
+        return jsonify({
+            "success": False,
+            "accepted": False,
+            "reason_code": "app_ingress_not_enabled",
+            "message": "Ta aplikacja nie udostepnia zatwierdzonego wejscia AGI.",
+        }), 404
+    result = GoogleplexLlmTaskIngress(
+        get_ghostnetwork_service().repository,
+        player_inventory_store,
+    ).submit(username, app_contract, payload)
+    if not result.get("ok"):
+        reason = str(result.get("reason_code") or "request_rejected")
+        status_code = 403 if reason == "app_not_installed" else 422
+        return jsonify({
+            "success": False,
+            **result,
+            "message": "Zlecenie AGI zostalo odrzucone przez polityke aplikacji.",
+        }), status_code
+    print(
+        "[LLM_TASK_PRODUCER] source_scope=googleplex_app "
+        f"user_hash={hashlib.sha256(username.encode('utf-8')).hexdigest()[:16]} "
+        f"app_id={app_id[:80]} receipt_id={result.get('receipt_id')} "
+        f"task_id={result.get('task_id')} enqueue={result.get('enqueue_result')}",
+        flush=True,
+    )
+    return jsonify({"success": True, **result}), 202
+
+
+@app.route("/api/googleplex/llm/tasks/<receipt_id>")
+def api_googleplex_llm_task_status(receipt_id):
+    username = str(session.get("user") or "").strip()
+    if not username:
+        return jsonify({"success": False, "reason_code": "not_logged_in"}), 401
+    receipt_id = str(receipt_id or "").strip()
+    tasks = get_ghostnetwork_service().repository.list_narrative_outbox(
+        source_scope="googleplex_app",
+        source_receipt_id=receipt_id,
+        limit=2,
+    )
+    task = next((
+        item for item in tasks
+        if str(item.get("audience_scope") or "") == "owner"
+        and str(item.get("audience_owner") or "") == username
+    ), None)
+    if not task:
+        return jsonify({
+            "success": False,
+            "reason_code": "task_receipt_not_found",
+        }), 404
+    return jsonify({
+        "success": True,
+        "receipt": {
+            "receipt_id": receipt_id,
+            "task_public_id": task.get("outbox_id"),
+            "status": task.get("status"),
+            "submitted_at": task.get("created_at"),
+            "updated_at": task.get("updated_at"),
+            "retryable": task.get("status") == "retry_wait",
+        },
     })
 
 

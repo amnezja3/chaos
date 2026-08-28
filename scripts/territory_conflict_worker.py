@@ -19,6 +19,7 @@ _consecutive_ghostnetwork_jobs = 0
 _ghostnetwork_delivery_turn = True
 _ghostnetwork_service = None
 _next_operation_runtime_tick_at = 0.0
+_next_blacknet_narrative_tick_at = 0.0
 
 
 def is_database_contention(error):
@@ -45,6 +46,27 @@ def process_operation_runtime_if_due():
     # Schedule from completion so a slow tick can never immediately retrigger
     # itself and turn the worker into a permanent busy loop.
     _next_operation_runtime_tick_at = time.monotonic() + interval
+    return result
+
+
+def process_blacknet_narrative_if_due():
+    """Enqueue one bounded public digest per canonical time window."""
+    global _next_blacknet_narrative_tick_at
+    now = time.monotonic()
+    if now < _next_blacknet_narrative_tick_at:
+        return None
+    interval = max(
+        300.0,
+        float(os.environ.get("CHAOS_BLACKNET_NARRATIVE_TICK_SECONDS", "900")),
+    )
+    result = run.enqueue_blacknet_world_narrative_digest()
+    _next_blacknet_narrative_tick_at = time.monotonic() + interval
+    print(
+        "[TERRITORY_WORKER] blacknet_narrative "
+        f"status={result.get('status')} receipt_id={result.get('receipt_id') or '-'} "
+        f"task_id={((result.get('task') or {}).get('outbox_id') or '-')}",
+        flush=True,
+    )
     return result
 
 
@@ -157,6 +179,7 @@ def compact_multi_audit_report(report):
 def process_once():
     global _consecutive_ghostnetwork_jobs
     process_operation_runtime_if_due()
+    process_blacknet_narrative_if_due()
     strategic_rewards = run.retry_pending_strategic_progression(limit=1)
     if strategic_rewards:
         print(

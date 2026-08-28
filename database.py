@@ -10460,13 +10460,13 @@ class PlayerInventoryStore:
             "storage": storage,
         }
 
-    def has_app(self, username, app_id):
+    def has_app(self, username, app_id, conn=None):
         """Return one canonical entitlement without loading the inventory."""
         username = self._clean_text(username)
         app_id = self._clean_text(app_id)
         if not username or not app_id:
             return False
-        with db_connect(self.db_path) as conn:
+        if conn is not None:
             return bool(conn.execute(
                 """
                 SELECT 1
@@ -10476,6 +10476,8 @@ class PlayerInventoryStore:
                 """,
                 (username, app_id),
             ).fetchone())
+        with db_connect(self.db_path) as own_conn:
+            return self.has_app(username, app_id, conn=own_conn)
 
     def mirror_profile(self, username, profile):
         snapshot = self.snapshot(username)

@@ -3727,6 +3727,14 @@ Dokument:
 - entitlement, session/precommit guard, quota i receipt/dedupe;
 - nadal brak klienta Ollamy i publikacji.
 
+Implementacja 2026-08-28: canonical event bridge GhostNetwork/GhostSignal,
+bounded BlackNet digest producer oraz owner-scoped Googleplex ingress są
+gotowe lokalnie. Audience jest projektowane przed enqueue, replay i requesty
+równoległe zachowują jeden task, a nowe ścieżki nie czytają ani nie zapisują
+pełnego profilu. Nie podłączono klienta Ollamy, Inboxu ani publikacji.
+
+Status: `SPRINT 135.3 — READY FOR SERVER VALIDATION`.
+
 ### Sprint 135.4 — Ollama Worker and Canonical Inbox
 
 Dokument:

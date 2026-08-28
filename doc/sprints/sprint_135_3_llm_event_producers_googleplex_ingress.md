@@ -1,6 +1,6 @@
 # Sprint 135.3 — LLM Event Producers and Googleplex App Ingress
 
-Status: `PLANNED / BLOCKED BY SPRINT 135.2`.
+Status: `SPRINT 135.3 — READY FOR SERVER VALIDATION`.
 
 ## Cel
 
@@ -260,4 +260,32 @@ per_recipient_profile_read = 0
 Po spełnieniu bramki: `SPRINT 135.3 — READY FOR SERVER VALIDATION`, a po
 potwierdzeniu `READY FOR SPRINT 135.4`.
 
+## Wynik implementacji — 2026-08-28
+
+- canonical lifecycle events GhostNetwork/GhostSignal tworzą task po
+  projekcji audience; eventy `internal/system` oraz rebuild bez transition
+  tworzą zero tasków;
+- publiczny task używa opaque `public_entity_id` i nie eksportuje wewnętrznego
+  `part_id`, nazw części ani hidden topology;
+- bounded BlackNet world digest jest tworzony z publicznych canonical stores,
+  ma stabilny receipt okna i nie zależy od działania Ollamy;
+- worker jedynie okresowo enqueue'uje digest; nie claimuje tasków i nie
+  wykonuje żadnego połączenia z LLM;
+- Googleplex ingress wymaga canonical installation entitlement, zatwierdzonego
+  template i owner audience; dowolny prompt, model, medium, CTA, URL i pola
+  spoza kontraktu są odrzucane;
+- entitlement jest sprawdzany ponownie w tej samej transakcji przed enqueue,
+  quota jest atomowa, a równoległy replay tego samego receipt tworzy jeden task;
+- endpoint statusu receipt jest owner-scoped i nie ujawnia facts, validation
+  ani informacji o lease;
+- fixture profilu 35 MB potwierdza zero `get_profile()`/`list_profiles()` w
+  nowych ścieżkach.
+
+Walidacja lokalna: testy producentów i ingressu, canonical outbox,
+GhostNetwork lifecycle/bridge/visibility, BlackNet signals,
+session-generation precommit oraz Googleplex install/uninstall przeszły.
+`py_compile` i `git diff --check` są wymagane w finalnej bramce zmiany.
+
+Nadal poza zakresem pozostają: klient Ollamy, worker LLM, Inbox, publikacja
+wyników, produkt/UI aplikacji Googleplex oraz deploy/restart PM2.
 

@@ -169,16 +169,25 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
             run.process_ghostnetwork_territory_job("test-worker")
 
         event_types = []
+        event_ids = []
         while True:
             claim = self.delivery_store.claim("test-delivery-worker")
             if not claim:
                 break
             event_types.append(claim["event"].get("event_type"))
+            event_ids.append(claim["event"].get("event_id"))
             self.delivery_store.advance(
                 claim["job_id"], "test-delivery-worker", len(claim["viewers"]), 0,
                 len(claim["viewers"]), complete=True,
             )
         self.assertIn("ghost.part_contained", event_types)
+        contained_event_id = event_ids[event_types.index("ghost.part_contained")]
+        narrative = self.repo.list_narrative_outbox(
+            source_event_id=contained_event_id,
+            limit=10,
+        )
+        self.assertEqual(len(narrative), 1)
+        self.assertEqual(narrative[0]["source_scope"], "ghostnetwork")
 
     def test_pies1_warsaw_part_does_not_reactivate_after_tokyo_rebuild(self):
         warsaw = [
@@ -229,6 +238,7 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
             delivered.clear()
             before_version = self.repo.get_state_version(cycle_id)
             before_timestamp = initial_part["last_activated_at"]
+            before_narrative_count = len(self.repo.list_narrative_outbox(limit=100))
             areas[:] = [
                 self.area_at("warsaw-v2", "pies1", warsaw, 2),
                 self.area_at("tokyo-v1", "pies1", tokyo, 2),
@@ -252,6 +262,10 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
                 }
                 for event in delivered
             ))
+            self.assertEqual(
+                len(self.repo.list_narrative_outbox(limit=100)),
+                before_narrative_count,
+            )
 
             second_part = next(
                 part for part in self.repo.list_parts(cycle_id)
