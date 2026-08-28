@@ -49,6 +49,7 @@ assert.strictEqual(unsafe.entries[0].action.kind, "STAMP_ONLY");
 assert.strictEqual(unsafe.entries[0].action.action_type, "");
 
 const terminalSource = fs.readFileSync("static/js/terminal.js", "utf8");
+const newsCss = fs.readFileSync("static/css/googleplex_news.css", "utf8");
 assert.ok(terminalSource.includes("loadGoogleplexHome().catch(() => {});"), "browser boot must load Home");
 assert.ok(terminalSource.includes("if (!catalogLoaded)"), "catalog must be lazy");
 assert.ok(source.includes("dataset.inFlight"), "action dispatch must be single-flight");
@@ -56,5 +57,8 @@ assert.ok(terminalSource.includes("browser-maximize-btn"), "WebDragons must expo
 assert.ok(terminalSource.includes("is-window-maximized"), "maximize must use a reversible window state");
 assert.ok(terminalSource.includes("restoreGeometry"), "restore must preserve the prior geometry");
 assert.ok(terminalSource.includes("defaultBrowserHeight"), "initial browser geometry must adapt to viewport height");
+assert.ok(!newsCss.includes("grid-auto-rows: 68px"), "windowed cards must not overflow undersized grid tracks");
+assert.ok(newsCss.includes("grid-template-columns: minmax(0, 1fr) auto"), "brand and HC must own separate header columns");
+assert.ok(newsCss.includes("filter: drop-shadow"), "the logo glow must follow the rendered wordmark bounds");
 
 console.log("googleplex news tests: OK");

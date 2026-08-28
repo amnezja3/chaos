@@ -8,7 +8,13 @@
 }
 
 .browser-window.is-browser-googleplex .googolplex-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   min-height: 66px;
+  max-height: none;
+  overflow: visible;
+  gap: 12px;
   border: 1px solid rgba(71, 255, 117, .26);
   padding: 5px 10px;
   background:
@@ -21,14 +27,26 @@
   align-items: center;
   min-width: 0;
   height: 50px;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .gp-brand-lockup img {
   display: block;
-  width: min(360px, 46cqw);
-  max-height: 50px;
-  object-fit: contain;
+  width: auto;
+  height: 50px;
+  max-width: 100%;
+  object-fit: scale-down;
   object-position: left center;
+  filter: drop-shadow(0 0 7px rgba(71, 255, 117, .42));
+}
+
+.browser-window.is-browser-googleplex .googolplex-header h1 {
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
 }
 
 .gp-account-context {
@@ -40,6 +58,9 @@
   font: 700 11px/1.2 Consolas, monospace;
   letter-spacing: .04em;
   text-transform: uppercase;
+  position: static;
+  justify-self: end;
+  max-width: 100%;
 }
 
 .gp-account-context strong { color: #f1fff5; }
@@ -94,10 +115,6 @@
   grid-auto-flow: dense;
   grid-auto-rows: 82px;
   gap: 10px;
-}
-
-.browser-window:not(.is-window-maximized) .gp-news-grid {
-  grid-auto-rows: 68px;
 }
 
 .browser-window:not(.is-window-maximized) .gp-news-card--hero {
@@ -378,11 +395,28 @@ button.gp-news-card:hover .gp-news-card__asset img {
 }
 
 @container (max-width: 767px) {
-  .browser-window.is-browser-googleplex .googolplex-header { min-height: 58px; padding: 5px 7px; }
-  .gp-brand-lockup { height: 43px; }
-  .gp-brand-lockup img { width: min(235px, 62cqw); max-height: 43px; }
-  .gp-account-context { grid-template-columns: 1fr; gap: 1px; font-size: 9px; }
-  .gp-account-context .gp-account-rank { display: none; }
+  .browser-window.is-browser-googleplex .googolplex-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    min-height: 58px;
+    max-height: none;
+    overflow: visible;
+    gap: 7px;
+    padding: 5px 7px;
+  }
+  .gp-brand-lockup { width: fit-content; height: 43px; max-width: 100%; }
+  .gp-brand-lockup img { width: auto; height: 43px; max-width: 100%; max-height: none; }
+  .browser-window.is-browser-googleplex .gp-account-context {
+    grid-template-columns: auto auto;
+    justify-self: end;
+    gap: 1px 6px;
+    max-width: 92px;
+    padding: 5px 6px;
+    font-size: 9px;
+    white-space: nowrap;
+    overflow: visible;
+  }
+  .browser-window.is-browser-googleplex .gp-account-context .gp-account-rank { display: none; }
   .gp-news-grid { display: flex; flex-direction: column; gap: 9px; }
   .gp-news-card { flex: none; width: 100%; }
   .gp-news-card--hero { min-height: 420px; }
