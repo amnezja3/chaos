@@ -1,6 +1,6 @@
 # Sprint 135.4 — Ollama Worker and Canonical Inbox
 
-Status: `SPRINT 135.4 — READY FOR SERVER VALIDATION`.
+Status: `SPRINT 135.4 — COMPLETE`.
 
 ## Wynik implementacji
 
@@ -49,8 +49,8 @@ Nie uruchomiono lokalnej Ollamy, procesu PM2, deployu ani publikacji.
 ### Korekta po pierwszej walidacji produkcyjnej
 
 Pierwszy synthetic package miał 2513 tokenów i wymagał około 259 sekund samego
-prompt evaluation; trzy realne taski przekroczyły nawet 240 sekund. Timeout nie
-został zwiększony. Deterministyczny TASK PACKAGE ma teraz twardy limit 2400
+prompt evaluation; trzy realne taski przekroczyły nawet 240 sekund. Najpierw
+usunięto policy oversizing bez maskowania go timeoutem. Deterministyczny TASK PACKAGE ma teraz twardy limit 2400
 bajtów, odpowiadający budżetowi około 500–700 tokenów dla realnego 20-fact
 digestu. Każdy canonical `fact_id`, source/task/receipt, audience i wersje
 pozostają obecne. Payload facts jest allowlistowany oraz dokładany sprawiedliwie
@@ -63,6 +63,29 @@ dlatego read timeout wynosi 240 s; 180 s odcinałoby prawidłowy cold-start.
 Attempt audit zapisuje teraz `input_bytes` i `fact_count`; dry-run raportuje
 dodatkowo estymowany input tokens oraz rzeczywisty `prompt_eval_count` zwrócony
 przez Ollamę.
+
+### Finalna walidacja produkcyjna
+
+Realny najcięższy BlackNet world digest przeszedł pełny przepływ:
+
+```text
+20 facts
+→ TASK PACKAGE 2395 B
+→ prompt_eval_count 978
+→ eval_count 160
+→ model runtime 196.97 s
+→ Outbox completed, attempt_count=1, last_error_code=""
+→ exactly one accepted candidate: narrative_candidate_2b8de8afec953faa
+→ zero player publication
+```
+
+Czas modelu przekroczył lease 180 s, a finalizacja CAS zakończyła się
+poprawnie dla tego samego workera. Potwierdza to heartbeat/lease renewal podczas
+długiego realnego wywołania. Po teście worker nadal raportował `enabled=false`;
+automatyczny consumer nie został pozostawiony aktywny. Historyczne rekordy
+`dead_letter` i `retry_wait` pozostają artefaktami walidacji starszych polityk.
+Przy `concurrency=1` załadowany model zajmował około 5.2 GB, host zachował około
+4.0 GiB available, a web i territory worker pozostały online.
 
 Wiążący handoff runtime:
 `doc/sprints/sprint_135_4_codex_ollama_server_runtime_brief.md`.
@@ -648,5 +671,4 @@ per_recipient_profile_read = 0
 
 `OUTBOX → OLLAMA → ONE VALIDATED INBOX CANDIDATE / ZERO PLAYER PUBLICATION`
 
-Po spełnieniu bramki: `SPRINT 135.4 — READY FOR SERVER VALIDATION`, a po
-potwierdzeniu `READY FOR SPRINT 135.4.1`.
+Potwierdzony wynik: `SPRINT 135.4 — COMPLETE / READY FOR SPRINT 135.4.1`.

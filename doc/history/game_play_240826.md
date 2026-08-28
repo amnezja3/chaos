@@ -3745,16 +3745,27 @@ Dokument:
 - canonical Inbox, validator i quarantine;
 - zaakceptowany wynik pozostaje niewidoczny dla graczy.
 
+Status: `SPRINT 135.4 — COMPLETE / READY FOR SPRINT 135.4.1`.
+
 ### Sprint 135.4.1 — Googleplex Home and News Foundation
 
 Dokument:
 `doc/sprints/sprint_135_4_1_googleplex_home_news_foundation.md`.
 
-- nowy Googleplex Home;
-- osobna sekcja i audience-projected read surface News;
-- izolacja Home/News/Catalog/GX/BlackNet;
-- responsywny layout z jednym scrollem;
-- zero publikacji modelu.
+- status: `PLANNED / READY TO START`;
+- zakres został rozpisany od nowa według
+  `googleplex_news_functional_spec.md`, `googleplex_news_visual_css_spec.md`
+  oraz zatwierdzonej referencji `doc/visual/ggpl_news.png`;
+- pusty query otwiera Home/News, a niepusty zachowuje istniejący search,
+  purchase, install i travel;
+- audience-projected, bounded read surface z kartami `ACTIONABLE` lub
+  `STAMP_ONLY` i wyłącznie canonical action bridge;
+- cztery poziomy geometrii `hero/large/medium/small`, editorialowy CSS Grid,
+  dolny status strip i jeden scroll na mobile;
+- heavy-profile hot path, wywołanie Ollamy i enqueue tasków podczas open/refresh
+  pozostają równe zero;
+- accepted Inbox candidate pozostaje niewidoczny bez publication receipt z
+  przyszłego Sprintu 135.5.
 
 ### Sprint 135.4.2 — Purchasable Googleplex LLM Tool
 
@@ -3802,10 +3813,10 @@ narracyjne, ale ich numeracja, kolejność i schema nie są już wiążące.
 
 ```text
 135.1 COMPLETE
-→ 135.2 READY FOR SERVER VALIDATION
-→ 135.3 BLOCKED BY 135.2
-→ 135.4 BLOCKED BY 135.3
-→ 135.4.1 BLOCKED BY 135.4
+→ 135.2 COMPLETE
+→ 135.3 COMPLETE
+→ 135.4 COMPLETE
+→ 135.4.1 PLANNED / READY TO START
 → 135.4.2 BLOCKED BY 135.4.1
 → 135.5 BLOCKED BY 135.4.2
 ```
@@ -5178,7 +5189,7 @@ Po Sprintach 136–138 GhostNetwork nie tylko działa jako system strategiczny �
 
 ## Sprint 135.4 — lokalny worker Ollamy i canonical Inbox
 
-Status implementacji: `SPRINT 135.4 — READY FOR SERVER VALIDATION`.
+Status implementacji: `SPRINT 135.4 — COMPLETE`.
 
 Sprint dostarczył niezależny, domyślnie wyłączony proces
 `chaos-ollama-worker`, atomowy consumer Outboxa, heartbeat lease, trwałą historię
@@ -5203,3 +5214,20 @@ Walidacja produkcyjna ujawniła zbyt ciężki prompt: 2513 tokenów wymagało ok
 ograniczony do 2400 bajtów (~500–700 tokenów dla realnego digestu),
 `num_predict` do 192, a attempt telemetry rozszerzona o `input_bytes` i
 `fact_count`. Wszystkie canonical refs pozostają zachowane.
+
+Finalna walidacja produkcyjna przeszła pełny tor
+`Outbox → local Ollama → canonical Inbox → backend validator → completed`.
+Ciężki BlackNet digest zawierał 20 facts, finalny package 2395 B, 978 tokenów
+promptu i 160 tokenów odpowiedzi. Model pracował 196.97 s, czyli dłużej niż
+lease 180 s; poprawny commit CAS potwierdził heartbeat renewal. Outbox zakończył
+się z `attempt_count=1` i pustym `last_error_code`, a candidate
+`narrative_candidate_2b8de8afec953faa` powstał dokładnie raz ze statusem
+`accepted`. Publikacja do graczy pozostała zerowa, a worker po teście nadal
+raportował `enabled=false`.
+
+Werdykt:
+
+```text
+SPRINT 135.4 — COMPLETE
+READY FOR SPRINT 135.4.1
+```
