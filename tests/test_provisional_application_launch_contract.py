@@ -178,10 +178,19 @@ class ProvisionalApplicationLaunchContractTest(unittest.TestCase):
             "function scheduleOperationalAppAutoClose",
             "async function buildIconsFromJsonWithCommand",
         )
+        self.assertIn("const APP_TERMINAL_AUTO_CLOSE_MS = 5000", self.terminal)
         self.assertIn("app-auto-close-overlay", close)
         self.assertIn("data-auto-close-seconds", close)
+        self.assertIn("Math.ceil(APP_TERMINAL_AUTO_CLOSE_MS / 1000)", close)
         self.assertIn("setInterval(updateCountdown, 1000)", close)
         self.assertNotIn("app-auto-close-notice", close)
+
+    def test_operational_auto_close_is_only_scheduled_after_success(self):
+        self.assertEqual(
+            self.terminal.count("scheduleOperationalAppAutoClose(app);"),
+            4,
+        )
+        self.assertNotIn("if (!success) scheduleOperationalAppAutoClose(app)", self.terminal)
 
     def test_mobile_toolbar_cycles_registered_windows_without_second_registry(self):
         self.assertIn('id="system-window-tab-button"', self.terminal)

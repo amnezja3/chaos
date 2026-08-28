@@ -136,7 +136,7 @@ function isExpectedFetchAbort(err) {
 const STATE_DELTA_LIMIT = 100;
 const STATE_DELTA_DEFAULT_RECOVERY_SCOPES = ["wallet", "storage", "apps", "mail", "ghost_exchange", "map", "territory", "incident", "ghostnetwork"];
 const CYBERNER_THREAD_REFRESH_INTERVAL_MS = 10000;
-const APP_TERMINAL_AUTO_CLOSE_MS = 30000;
+const APP_TERMINAL_AUTO_CLOSE_MS = 5000;
 window.APP_FLOW_TRACE = window.APP_FLOW_TRACE !== false;
 window.HACK_FLOW_DEBUG = window.HACK_FLOW_DEBUG === true;
 window.BLACKNET_CTA_DEBUG = window.BLACKNET_CTA_DEBUG === true;
@@ -2782,7 +2782,8 @@ function scheduleOperationalAppAutoClose(appWindow) {
         overlay = document.createElement('div');
         overlay.className = 'app-auto-close-overlay';
         overlay.setAttribute('role', 'timer');
-        overlay.innerHTML = '<span>SESSION CLOSE</span><strong data-auto-close-seconds>30</strong><span>s</span>';
+        const initialSeconds = Math.ceil(APP_TERMINAL_AUTO_CLOSE_MS / 1000);
+        overlay.innerHTML = `<span>SESSION CLOSE</span><strong data-auto-close-seconds>${String(initialSeconds).padStart(2, '0')}</strong><span>s</span>`;
         viewport.appendChild(overlay);
     }
     const deadline = Date.now() + APP_TERMINAL_AUTO_CLOSE_MS;
