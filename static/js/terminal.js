@@ -8587,7 +8587,7 @@ function createBrowser() {
             <button type="button" class="browser-tab" data-browser-tab="exchange">Ghost Exchange</button>
             <button type="button" class="browser-tab" data-browser-tab="blacknet">BlackNet</button>
         </div>
-        <input type="text" id="${terminalId}-search" placeholder="Wyszukaj aplikacj\u0119..." class="googolplex-search">
+        <input type="text" id="${terminalId}-search" placeholder="Szukaj aplikacji...  /all - pokaz wszystkie" class="googolplex-search">
         <div id="${terminalId}-results" class="googolplex-grid">
             <div class="app-load-panel">
                 <div class="app-load-panel__title">Ladowanie WebDragons...</div>
@@ -9878,9 +9878,17 @@ function createBrowser() {
             return;
         }
 
-        const matches = showAll
+        const filteredMatches = showAll
             ? catalog.filter(item => item && typeof item === "object")
             : catalog.filter(item => googleplexSearchText(item).includes(query));
+        const editorialMode = showAll || filteredMatches.length >= 7;
+        const matches = editorialMode
+            ? filteredMatches.slice().sort((left, right) => {
+                const downloadsDelta = Number(right.downloads || 0) - Number(left.downloads || 0);
+                if (downloadsDelta) return downloadsDelta;
+                return String(left.id || left.app_id || "").localeCompare(String(right.id || right.app_id || ""));
+            })
+            : filteredMatches;
 
         results.innerHTML = '';
         if (matches.length === 0) {
@@ -9889,7 +9897,20 @@ function createBrowser() {
             return;
         }
 
-        matches.forEach(item => {
+        let cardsRoot = results;
+        if (editorialMode) {
+            results.innerHTML = `<main class="gp-home gp-catalog-home" data-search-mode="${showAll ? "all" : "ranked"}">
+                <header class="gp-home__intro"><span>${showAll ? "ALL APPLICATIONS" : "SEARCH RESULTS"} // EDITORIAL GRID</span><strong>${matches.length} APPS</strong></header>
+                <section class="gp-news-grid gp-catalog-editorial-grid" aria-label="Googleplex applications"></section>
+                <footer class="gp-news-protocol"><span>SOURCE: PUBLIC CATALOG</span><span>RANK: DOWNLOADS DESC</span><span>TIE: APP_ID</span><span>PROFILE: NOT READ</span></footer>
+            </main>`;
+            cardsRoot = results.querySelector('.gp-catalog-editorial-grid');
+        } else {
+            results.innerHTML = '<section class="gp-catalog-classic-grid" aria-label="Wyniki wyszukiwania Googleplex"></section>';
+            cardsRoot = results.querySelector('.gp-catalog-classic-grid');
+        }
+
+        matches.forEach((item, layoutIndex) => {
             const price = Number(item.price || 0);
             const isProduct = !!(item.product_type || (Array.isArray(item.effects) && item.effects.length));
             const projectedApps = Array.isArray((toolbarProfile || {}).apps)
@@ -9968,26 +9989,53 @@ function createBrowser() {
                 <div class="googolplex-card-hint">${escapeHTML(installBlockedReason)}</div>
             ` : "";
             const card = document.createElement('article');
-            card.className = `googolplex-card${installed ? " is-installed" : ""}`;
-            card.innerHTML = `
-                <div class="googolplex-card-title">
-                    <span class="googolplex-card-icon">${item.icon || browserUiIcons.app}</span>
-                    <span>${escapeHTML(item.name || 'Aplikacja')}</span>
-                </div>
-                <p>${escapeHTML(item.description || 'Brak opisu.')}</p>
-                ${proMeta}
-                ${contractMeta}
-                ${blockedHint}
-                <div class="googolplex-card-meta">
-                    <span>${escapeHTML(item.type || 'tool')}</span>
-                    <span>${Number(item.downloads || 0)} pobra\u0144</span>
-                </div>
-                <div class="googolplex-card-footer">
-                    <strong>${price} HC</strong>
-                    <button type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button>
-                </div>
-            `;
-            const installButton = card.querySelector('button');
+            if (editorialMode) {
+                const weight = layoutIndex === 0
+                    ? "hero"
+                    : layoutIndex <= 2
+                        ? "large"
+                        : layoutIndex <= 5 ? "medium" : "small";
+                const category = String(item.category || item.type || "application").toUpperCase();
+                const tier = String(item.balance_tier || item.app_level || "Basic");
+                card.className = `gp-news-card gp-news-card--${weight} gp-catalog-card${installed ? " is-installed" : ""}`;
+                card.dataset.layoutIndex = String(layoutIndex);
+                card.dataset.state = installed ? "verified" : (layoutIndex === 0 ? "trending" : "normal");
+                card.dataset.assetFamily = "tool";
+                card.dataset.assetState = installed ? "victory" : "neutral";
+                card.innerHTML = `
+                    <span class="gp-news-card__asset gp-news-card__asset--fallback gp-catalog-card__asset" aria-hidden="true"><span>${escapeHTML(item.icon || browserUiIcons.app)}</span></span>
+                    <span class="gp-news-card__shade" aria-hidden="true"></span>
+                    <span class="gp-news-card__body">
+                        <span class="gp-news-card__eyebrow">${escapeHTML(category)} // APPLICATION</span>
+                        <span class="gp-news-card__title">${escapeHTML(item.name || 'Aplikacja')}</span>
+                        <span class="gp-news-card__summary">${escapeHTML(item.description || 'Brak opisu.')}</span>
+                        <span class="gp-news-card__stats"><strong>${Number(item.downloads || 0)} DOWNLOADS</strong><small>${price} HC // ${escapeHTML(tier)}</small></span>
+                        ${installBlockedReason ? `<span class="gp-catalog-card__hint">${escapeHTML(installBlockedReason)}</span>` : ""}
+                        <span class="gp-news-card__footer"><small>${escapeHTML(item.type || 'tool')}</small><button class="gp-catalog-card__install" data-googleplex-install type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button></span>
+                    </span>
+                `;
+            } else {
+                card.className = `googolplex-card${installed ? " is-installed" : ""}`;
+                card.innerHTML = `
+                    <div class="googolplex-card-title">
+                        <span class="googolplex-card-icon">${escapeHTML(item.icon || browserUiIcons.app)}</span>
+                        <span>${escapeHTML(item.name || 'Aplikacja')}</span>
+                    </div>
+                    <p>${escapeHTML(item.description || 'Brak opisu.')}</p>
+                    ${proMeta}
+                    ${contractMeta}
+                    ${blockedHint}
+                    <div class="googolplex-card-meta">
+                        <span>${escapeHTML(item.type || 'tool')}</span>
+                        <span>${Number(item.downloads || 0)} pobra\u0144</span>
+                    </div>
+                    <div class="googolplex-card-footer">
+                        <strong>${price} HC</strong>
+                        <button data-googleplex-install type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button>
+                    </div>
+                `;
+            }
+            const installButton = card.querySelector('[data-googleplex-install]');
             let installInFlight = false;
             installButton.addEventListener('click', async () => {
                 if (!canInstall) return;
@@ -10036,7 +10084,7 @@ function createBrowser() {
                     }
                 );
             });
-            results.appendChild(card);
+            cardsRoot.appendChild(card);
         });
         updateBrowserNarrowMode();
     };
@@ -10491,7 +10539,7 @@ function createBrowser() {
         } else {
             title.innerHTML = '<span class="gp-brand-lockup"><img src="/static/images/googleplx/brand/googleplex-news-wordmark.svg" alt="Googleplex News"></span>';
             renderBrowserWallet();
-            search.placeholder = "Wyszukaj aplikacje...";
+            search.placeholder = "Szukaj aplikacji...  /all - pokaz wszystkie";
             renderCatalog();
         }
     }
