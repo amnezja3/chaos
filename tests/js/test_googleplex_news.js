@@ -32,6 +32,16 @@ assert.ok(snapshot);
 assert.strictEqual(snapshot.entries.length, 1);
 assert.strictEqual(snapshot.entries[0].action.kind, "ACTIONABLE");
 assert.strictEqual(snapshot.entries[0].presentation.asset_path, "/static/images/googleplx/scene/world-neutral-01.webp");
+const renderedRoot = {innerHTML: "", querySelectorAll: () => []};
+ui.renderHome(renderedRoot, {
+    success: true,
+    view: "home",
+    entries: snapshot.entries,
+    global_stats: [],
+    protocol_status: {}
+});
+assert.ok(renderedRoot.innerHTML.includes('data-layout-index="0"'), "cards need deterministic editorial slots");
+assert.ok(renderedRoot.innerHTML.includes("OTWÓRZ MAPĘ"), "CTA copy should describe the canonical action");
 
 const unsafe = ui.normalizeSnapshot({
     success: true,
@@ -60,5 +70,9 @@ assert.ok(terminalSource.includes("defaultBrowserHeight"), "initial browser geom
 assert.ok(!newsCss.includes("grid-auto-rows: 68px"), "windowed cards must not overflow undersized grid tracks");
 assert.ok(newsCss.includes("grid-template-columns: minmax(0, 1fr) auto"), "brand and HC must own separate header columns");
 assert.ok(newsCss.includes("filter: drop-shadow"), "the logo glow must follow the rendered wordmark bounds");
+assert.ok(newsCss.includes('.gp-news-card[data-layout-index="0"]'), "fullscreen must place HERO in an explicit slot");
+assert.ok(newsCss.includes('.gp-news-card[data-layout-index="5"]'), "fullscreen must place all cover cards explicitly");
+assert.ok(newsCss.includes(".gp-news-card:nth-child(n+7)"), "remaining cards must form the lower small-card strip");
+assert.ok(newsCss.includes("@media (min-width: 901px) and (min-height: 701px)"), "prototype layout must not override mobile");
 
 console.log("googleplex news tests: OK");

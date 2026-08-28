@@ -13,6 +13,10 @@ Punkt kontrolny 2026-08-28:
 - startowa geometria WebDragons jest zależna od viewportu, zwarty chrome pokazuje
   kartę HERO w pierwszym widoku, a kontrolka obok `X` przełącza odwracalny
   fullscreen samego okna WebDragons;
+- fullscreen odwzorowuje kompozycję `ggpl_news.png`: poziomy masthead
+  `wordmark/search/account`, jawne sloty `1× HERO + 2× LARGE + 3× MEDIUM`,
+  dolny pas SMALL, zróżnicowaną ekspozycję assetów i opisowe CTA; reguły te
+  nie nadpisują stabilnego widoku mobilnego;
 - gotowy jest code-owned rejestr assetów, wspólny SVG sprite, placeholdery
   brand/icon oraz cztery produkcyjne placeholdery HERO:
   `neutral`, `danger`, `victory`, `defence`;

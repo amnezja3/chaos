@@ -6,6 +6,14 @@
     const ASSET_FAMILIES = new Set(["scene", "character", "tool", "map", "clan", "package", "storage", "market", "network", "system", "stamp"]);
     const ASSET_STATES = new Set(["neutral", "danger", "victory", "defence"]);
     const ACTIONS = new Set(["open_googleplex_search", "open_blacknet", "open_ghost_exchange", "open_map", "open_cyberner", "open_operation"]);
+    const ACTION_LABELS = Object.freeze({
+        open_googleplex_search: "ZOBACZ NARZĘDZIE",
+        open_blacknet: "OTWÓRZ BLACKNET",
+        open_ghost_exchange: "ZOBACZ EXCHANGE",
+        open_map: "OTWÓRZ MAPĘ",
+        open_cyberner: "OTWÓRZ KANAŁ",
+        open_operation: "OPERACJE"
+    });
     const ASSET_PREFIX = "/static/images/googleplx/";
 
     const text = (value, max = 240) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -105,7 +113,7 @@
         return `<span class="gp-news-card__asset gp-news-card__asset--fallback" style="${style}" aria-hidden="true"><span>${escapeHtml(presentation.asset_family.toUpperCase())}</span></span>`;
     };
 
-    const cardMarkup = entry => {
+    const cardMarkup = (entry, layoutIndex) => {
         const {content, presentation, action} = entry;
         const interactive = action.kind === "ACTIONABLE";
         const tag = interactive ? "button" : "article";
@@ -114,8 +122,9 @@
         const stats = presentation.primary_stat || presentation.secondary_stat
             ? `<span class="gp-news-card__stats"><strong>${escapeHtml(presentation.primary_stat)}</strong><small>${escapeHtml(presentation.secondary_stat)}</small></span>`
             : "";
-        const cta = interactive ? `<span class="gp-news-card__cta"><svg aria-hidden="true"><use href="/static/images/googleplx/icons/googleplex-news-icons.svg#open"></use></svg> OTWÓRZ</span>` : `<span class="gp-news-card__stamp">READ ONLY</span>`;
-        return `<${tag}${type} class="gp-news-card gp-news-card--${presentation.weight}" data-interactive="${interactive}" data-state="${presentation.state}" data-asset-family="${presentation.asset_family}" data-asset-state="${presentation.asset_state}"${actionData}>
+        const actionLabel = ACTION_LABELS[action.action_type] || "OTWÓRZ";
+        const cta = interactive ? `<span class="gp-news-card__cta"><svg aria-hidden="true"><use href="/static/images/googleplx/icons/googleplex-news-icons.svg#open"></use></svg> ${escapeHtml(actionLabel)}</span>` : `<span class="gp-news-card__stamp">READ ONLY</span>`;
+        return `<${tag}${type} class="gp-news-card gp-news-card--${presentation.weight}" data-layout-index="${layoutIndex}" data-interactive="${interactive}" data-state="${presentation.state}" data-asset-family="${presentation.asset_family}" data-asset-state="${presentation.asset_state}"${actionData}>
             ${assetMarkup(presentation)}
             <span class="gp-news-card__shade" aria-hidden="true"></span>
             <span class="gp-news-card__body">
@@ -148,7 +157,7 @@
             return null;
         }
         const entries = snapshot.entries;
-        const cards = entries.length ? entries.map(cardMarkup).join("") : `<article class="gp-news-card gp-news-card--small" data-interactive="false" data-state="stale" data-asset-family="stamp"><span class="gp-news-card__body"><span class="gp-news-card__eyebrow">SYSTEM</span><span class="gp-news-card__title">Brak nowych wpisów</span><span class="gp-news-card__summary">Canonical feed pozostaje pusty.</span><span class="gp-news-card__stamp">READ ONLY</span></span></article>`;
+        const cards = entries.length ? entries.map(cardMarkup).join("") : `<article class="gp-news-card gp-news-card--small" data-layout-index="0" data-interactive="false" data-state="stale" data-asset-family="stamp"><span class="gp-news-card__body"><span class="gp-news-card__eyebrow">SYSTEM</span><span class="gp-news-card__title">Brak nowych wpisów</span><span class="gp-news-card__summary">Canonical feed pozostaje pusty.</span><span class="gp-news-card__stamp">READ ONLY</span></span></article>`;
         root.innerHTML = `<main class="gp-home" data-state-version="${escapeHtml(snapshot.state_version)}">
             <header class="gp-home__intro"><span>WORLD INTELLIGENCE // EDITORIAL GRID</span><strong>${entries.length} SIGNALS</strong></header>
             <section class="gp-news-grid" aria-label="Googleplex News">${cards}</section>
