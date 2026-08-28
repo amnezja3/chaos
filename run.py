@@ -4413,6 +4413,7 @@ PRO_SYSTEM_TOOLS = [
         "interface": "system_launcher",
         "system_launcher": "createAgi2108ConsoleApp",
         "bounded_install": True,
+        "purchase_confirmation": True,
         "file_size": 12,
         "install_size": 16,
         "llm_ingress": {

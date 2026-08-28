@@ -72,6 +72,7 @@ class Agi2108ConsoleContractTest(unittest.TestCase):
         self.assertEqual(self.product["price"], 10000)
         self.assertEqual(self.product["purchase_account"], "admin")
         self.assertTrue(self.product["bounded_install"])
+        self.assertTrue(self.product["purchase_confirmation"])
         self.assertEqual(ingress["usage_cost_hc"], 0)
         self.assertEqual(ingress["rate_limit"], {"max_tasks": 5, "window_seconds": 3600})
         self.assertEqual(template["id"], "owner-analysis")
@@ -153,6 +154,12 @@ class Agi2108BoundedInstallTest(unittest.TestCase):
         first = self._purchase()
         replay = self._purchase()
         snapshot = self.inventory.snapshot("alice")
+        locked_catalog = run.googleplex_catalog_payload(self.app, {
+            "apps": snapshot["apps"],
+            "hackcoins": self.wallet.get_balance("alice"),
+            "level": 1,
+            "respect": 0,
+        })
         self.assertTrue(first["applied"])
         self.assertTrue(replay["duplicate"])
         self.assertEqual(self.wallet.get_balance("alice"), 15000)
@@ -163,10 +170,20 @@ class Agi2108BoundedInstallTest(unittest.TestCase):
             item for item in snapshot["apps"]
             if item.get("id") == "agi2108Console"
         ]), 1)
+        self.assertTrue(locked_catalog["installed"])
+        self.assertTrue(locked_catalog["install_blocked_reason"])
         self.assertTrue(self.inventory.uninstall_app("alice", app_id="agi2108Console"))
         after = self.inventory.snapshot("alice")
+        purchasable_catalog = run.googleplex_catalog_payload(self.app, {
+            "apps": after["apps"],
+            "hackcoins": 25000,
+            "level": 1,
+            "respect": 0,
+        })
         self.assertFalse(self.inventory.has_app("alice", "agi2108Console"))
         self.assertEqual(after["storage"]["used"], 0)
+        self.assertFalse(purchasable_catalog["installed"])
+        self.assertEqual(purchasable_catalog["install_blocked_reason"], "")
 
     def test_precommit_rejection_rolls_back_payment_and_install(self):
         token = set_request_transaction_precommit_guard(

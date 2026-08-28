@@ -8716,6 +8716,7 @@ function createBrowser() {
 
     updateBrowserNarrowMode();
     let browserNarrowObserver = null;
+    let appsProjectionListener = null;
     if (window.ResizeObserver) {
         browserNarrowObserver = new ResizeObserver(updateBrowserNarrowMode);
         browserNarrowObserver.observe(term);
@@ -8727,6 +8728,9 @@ function createBrowser() {
     const closeBrowser = () => {
         browserNarrowObserver?.disconnect();
         window.removeEventListener('resize', updateBrowserNarrowMode);
+        if (appsProjectionListener) {
+            window.removeEventListener('chaos:apps-projection-updated', appsProjectionListener);
+        }
         term.remove();
     };
     const closeButton = term.querySelector('.close-btn');
@@ -9866,17 +9870,30 @@ function createBrowser() {
 
         matches.forEach(item => {
             const price = Number(item.price || 0);
-            const installed = item.installed === true;
             const isProduct = !!(item.product_type || (Array.isArray(item.effects) && item.effects.length));
+            const projectedApps = Array.isArray((toolbarProfile || {}).apps)
+                ? toolbarProfile.apps
+                : null;
+            const installed = isProduct
+                ? item.installed === true
+                : projectedApps
+                    ? projectedApps.some(app => String(app?.id || app?.app_id || '') === String(item.id || ''))
+                    : item.installed === true;
             const travelEffect = Array.isArray(item.effects)
                 ? item.effects.find(effect => effect && typeof effect === "object" && effect.type === "travel_city")
                 : null;
             const isTravelTicket = item.product_type === "travel_ticket" || Boolean(travelEffect);
             const travelDestination = String(travelEffect?.city || item.travel_city || "").trim();
             const canAfford = walletBalance >= price;
-            const installBlockedReason = item.install_blocked_reason || "";
+            const staleInstalledProjection = !isProduct
+                && projectedApps
+                && item.installed === true
+                && !installed;
+            const installBlockedReason = staleInstalledProjection
+                ? ""
+                : item.install_blocked_reason || "";
             const canInstall = !installed && canAfford && !installBlockedReason;
-            const buttonLabel = installed ? (isProduct ? "Kupione" : "Zainstalowane") : (canAfford ? (isProduct ? "Kup" : "Zainstaluj") : "Brak \u015brodk\u00f3w");
+            const buttonLabel = installed ? (isProduct ? "KUPIONO" : "ZAINSTALOWANO") : (canAfford ? (isProduct ? "Kup" : "Zainstaluj") : "Brak \u015brodk\u00f3w");
             const hasInstallRequirements = item.type === "pro-system-tool" || item.category === "pro-system-tools" || item.category === "creators" || item.required_level || item.required_respect;
             const riskLevel = Math.max(0, Math.min(5, Number(item.risk_level || 0)));
             const riskStars = riskLevel ? "&#9733;".repeat(riskLevel) : "brak";
@@ -9949,8 +9966,11 @@ function createBrowser() {
                     <button type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button>
                 </div>
             `;
-            card.querySelector('button').addEventListener('click', async () => {
+            const installButton = card.querySelector('button');
+            let installInFlight = false;
+            installButton.addEventListener('click', async () => {
                 if (!canInstall) return;
+                if (installInFlight) return;
                 if (isTravelTicket) {
                     const accepted = await blacknetDecisionDialog({
                         title: "POTWIERDZENIE PODROZY",
@@ -9966,15 +9986,50 @@ function createBrowser() {
                         addSystemMessage("info", "Googleplex", "Teleport anulowany. Ticket nie zostal kupiony.");
                         return;
                     }
+                } else if (item.purchase_confirmation === true) {
+                    const accepted = await blacknetDecisionDialog({
+                        title: "POTWIERDZENIE ZAKUPU",
+                        message: `Kupic i zainstalowac: ${item.name || "aplikacja"}?`,
+                        details: `${item.name || "Aplikacja"} kosztuje ${price} HC. Anulowanie nie pobierze HC i nie utworzy launchera.`,
+                        confirmLabel: "KUP I ZAINSTALUJ",
+                        cancelLabel: "ANULUJ",
+                        tone: "lime"
+                    });
+                    if (!accepted) {
+                        addSystemMessage("info", "Googleplex", "Zakup aplikacji anulowany.");
+                        return;
+                    }
                 }
-                showInstallAppProgress(item, async () => {
-                    await loadCatalog();
-                });
+                installInFlight = true;
+                installButton.disabled = true;
+                installButton.textContent = "INSTALACJA...";
+                showInstallAppProgress(
+                    item,
+                    async () => {
+                        await loadCatalog();
+                    },
+                    success => {
+                        installInFlight = false;
+                        if (!success && installButton.isConnected) {
+                            installButton.disabled = false;
+                            installButton.textContent = buttonLabel;
+                        }
+                    }
+                );
             });
             results.appendChild(card);
         });
         updateBrowserNarrowMode();
     };
+
+    appsProjectionListener = () => {
+        if (term.isConnected && activeBrowserTab === "googleplex" && search.value.trim()) {
+            walletBalance = Number((toolbarProfile || {}).hackcoins ?? walletBalance ?? 0);
+            renderBrowserWallet();
+            renderCatalog();
+        }
+    };
+    window.addEventListener('chaos:apps-projection-updated', appsProjectionListener);
 
     const gxSectorLabels = {
         camera: "Kamery",
@@ -10826,7 +10881,7 @@ function applyGoogleplexTravelToOpenMaps(data = {}) {
     return true;
 }
 
-function showInstallAppProgress(app, onInstalled = null) {
+function showInstallAppProgress(app, onInstalled = null, onSettled = null) {
     // Okno progressbar (symulacja jak instalator Windows/Linux)
     const steps = [
         `Rozpoczynanie instalacji aplikacji: ${app.name || 'aplikacja'}`,
@@ -10924,6 +10979,7 @@ function showInstallAppProgress(app, onInstalled = null) {
                                 reason: "install_response"
                             });
                         }
+                        if (typeof onSettled === "function") onSettled(true, data);
                     }, 4000);
                 } else {
                     const diagnostic = googleplexInstallErrorDetails(response, data);
@@ -10935,10 +10991,12 @@ function showInstallAppProgress(app, onInstalled = null) {
                         app_id: String(app.id || ""),
                         product_type: String(app.product_type || "app")
                     });
+                    if (typeof onSettled === "function") onSettled(false, data);
                 }
             })
             .catch(err => {
                 result.innerHTML = `<span style="color:#f33;">\u2716 B\u0142\u0105d po\u0142\u0105czenia z serwerem.</span>`;
+                if (typeof onSettled === "function") onSettled(false, { reason: "network_error" });
             });
             return;
         }
@@ -11641,6 +11699,13 @@ async function updateAppsView(payload = {}) {
     setToolbarProfile(nextProfile);
     await rebuildDesktopAppsFromProfile(nextProfile);
     refreshOpenFileManagersForApps(payload);
+    try {
+        window.dispatchEvent(new CustomEvent('chaos:apps-projection-updated', {
+            detail: payload
+        }));
+    } catch (_error) {
+        // A missing CustomEvent implementation must not block canonical UI refresh.
+    }
 }
 
 function updateCybernerDeltaViews(payload = {}) {
