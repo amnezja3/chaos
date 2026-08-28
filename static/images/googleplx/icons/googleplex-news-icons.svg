@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <style>.gp-i{fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}</style>
+  </defs>
+  <symbol id="scene" viewBox="0 0 64 64"><path class="gp-i" d="M6 52V22l13-8 10 7 13-13 16 12v32M16 52V34h10v18m9 0V29h12v23M8 52h48"/></symbol>
+  <symbol id="character" viewBox="0 0 64 64"><circle class="gp-i" cx="32" cy="20" r="10"/><path class="gp-i" d="M13 55c2-14 9-21 19-21s17 7 19 21M23 18l9-8 9 8"/></symbol>
+  <symbol id="tool" viewBox="0 0 64 64"><path class="gp-i" d="M38 9a14 14 0 0 0-13 19L8 45l11 11 17-17A14 14 0 0 0 55 26l-9 9-10-7 2-12 9-7a14 14 0 0 0-9 0Z"/></symbol>
+  <symbol id="map" viewBox="0 0 64 64"><path class="gp-i" d="m7 14 15-6 20 7 15-6v41l-15 6-20-7-15 6ZM22 8v41m20-34v41"/><circle class="gp-i" cx="42" cy="31" r="5"/></symbol>
+  <symbol id="clan" viewBox="0 0 64 64"><path class="gp-i" d="M32 6 53 18v18c0 12-8 19-21 23C19 55 11 48 11 36V18Z"/><path class="gp-i" d="m21 34 8 8 15-19"/></symbol>
+  <symbol id="package" viewBox="0 0 64 64"><path class="gp-i" d="m8 19 24-12 24 12-24 12ZM8 19v27l24 12 24-12V19M32 31v27M20 13l24 12"/></symbol>
+  <symbol id="storage" viewBox="0 0 64 64"><ellipse class="gp-i" cx="32" cy="13" rx="23" ry="8"/><path class="gp-i" d="M9 13v36c0 4 10 8 23 8s23-4 23-8V13M9 31c0 4 10 8 23 8s23-4 23-8"/></symbol>
+  <symbol id="market" viewBox="0 0 64 64"><path class="gp-i" d="M8 54h48M12 46l11-14 9 7 18-25M43 14h7v7"/><circle class="gp-i" cx="14" cy="17" r="6"/></symbol>
+  <symbol id="network" viewBox="0 0 64 64"><circle class="gp-i" cx="32" cy="32" r="7"/><circle class="gp-i" cx="12" cy="14" r="6"/><circle class="gp-i" cx="52" cy="14" r="6"/><circle class="gp-i" cx="12" cy="51" r="6"/><circle class="gp-i" cx="52" cy="51" r="6"/><path class="gp-i" d="m17 18 10 9m10 0 10-9M17 47l10-10m10 0 10 10"/></symbol>
+  <symbol id="system" viewBox="0 0 64 64"><path class="gp-i" d="M32 7v8m0 34v8M7 32h8m34 0h8M14 14l6 6m24 24 6 6m0-36-6 6M20 44l-6 6"/><circle class="gp-i" cx="32" cy="32" r="12"/><path class="gp-i" d="m27 32 4 4 7-9"/></symbol>
+  <symbol id="stamp" viewBox="0 0 64 64"><circle class="gp-i" cx="32" cy="29" r="20"/><path class="gp-i" d="m21 29 8 8 15-17M20 47l-4 10 16-5 16 5-4-10"/></symbol>
+  <symbol id="search" viewBox="0 0 64 64"><circle class="gp-i" cx="28" cy="28" r="18"/><path class="gp-i" d="m41 41 15 15"/></symbol>
+  <symbol id="filter" viewBox="0 0 64 64"><path class="gp-i" d="M8 12h48L39 32v17l-14 7V32Z"/></symbol>
+  <symbol id="grid" viewBox="0 0 64 64"><path class="gp-i" d="M8 8h20v20H8zm28 0h20v20H36zM8 36h20v20H8zm28 0h20v20H36z"/></symbol>
+  <symbol id="open" viewBox="0 0 64 64"><path class="gp-i" d="M10 20v34h34M25 39 54 10m-20 0h20v20"/></symbol>
+  <symbol id="warning" viewBox="0 0 64 64"><path class="gp-i" d="M32 7 59 55H5Zm0 17v15m0 8v1"/></symbol>
+  <symbol id="defence" viewBox="0 0 64 64"><path class="gp-i" d="M32 6 54 18v17c0 13-8 20-22 24C18 55 10 48 10 35V18Z"/><path class="gp-i" d="M20 34h24M32 22v24"/></symbol>
+  <symbol id="victory" viewBox="0 0 64 64"><path class="gp-i" d="M18 8h28v12c0 12-6 20-14 20s-14-8-14-20ZM18 15H8v5c0 8 5 13 13 13m25-18h10v5c0 8-5 13-13 13M32 40v10m-12 7h24"/></symbol>
+  <symbol id="read-only" viewBox="0 0 64 64"><path class="gp-i" d="M8 32s8-16 24-16 24 16 24 16-8 16-24 16S8 32 8 32Z"/><circle class="gp-i" cx="32" cy="32" r="7"/><path class="gp-i" d="M11 55 53 9"/></symbol>
+  <symbol id="product" viewBox="0 0 64 64"><use href="#tool"/></symbol>
+  <symbol id="blacknet" viewBox="0 0 64 64"><use href="#network"/></symbol>
+  <symbol id="ghost-exchange" viewBox="0 0 64 64"><use href="#market"/></symbol>
+  <symbol id="map-focus" viewBox="0 0 64 64"><use href="#map"/></symbol>
+  <symbol id="travel" viewBox="0 0 64 64"><path class="gp-i" d="M8 48c12-4 12-21 24-21s12 17 24 21M12 15h40M18 9l-6 6 6 6m28-12 6 6-6 6"/><circle class="gp-i" cx="32" cy="27" r="5"/></symbol>
+  <symbol id="cyberner" viewBox="0 0 64 64"><use href="#network"/></symbol>
+  <symbol id="integrity" viewBox="0 0 64 64"><use href="#system"/></symbol>
+  <symbol id="verified" viewBox="0 0 64 64"><use href="#stamp"/></symbol>
+</svg>

@@ -1,6 +1,22 @@
 # Sprint 135.4.1 — Googleplex Home + News Foundation
 
-Status: `PLANNED / READY TO START`.
+Status: `IN PROGRESS`.
+
+Punkt kontrolny 2026-08-28:
+
+- działa bounded `GET /api/googleplex/news?view=home` bez odczytu profilu,
+  Outboxa, Inboxa i bez wywołania Ollamy;
+- pusty query otwiera editorialowy Home, a wyszukiwanie zachowuje istniejący
+  katalog i jest ładowane dopiero na żądanie;
+- działa canonical action bridge do istniejących powierzchni bez bezpośrednich
+  mutacji gameplayowych;
+- gotowy jest code-owned rejestr assetów, wspólny SVG sprite, placeholdery
+  brand/icon oraz cztery produkcyjne placeholdery HERO:
+  `neutral`, `danger`, `victory`, `defence`;
+- finalne assety przygotowywane przez autora mogą zastępować wpisy rejestru
+  bez zmiany kontraktu UI;
+- testy lokalne są zielone, ale sprint pozostaje otwarty do integracji finalnych
+  assetów i manualnej walidacji serwerowej.
 
 Sprint 135.4 jest zamknięty. Sprint 135.4.1 buduje lekką, bezpieczną
 powierzchnię Googleplex Home/News, ale nadal nie publikuje graczom wyników

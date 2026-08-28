@@ -3752,7 +3752,7 @@ Status: `SPRINT 135.4 — COMPLETE / READY FOR SPRINT 135.4.1`.
 Dokument:
 `doc/sprints/sprint_135_4_1_googleplex_home_news_foundation.md`.
 
-- status: `PLANNED / READY TO START`;
+- status: `IN PROGRESS`;
 - zakres został rozpisany od nowa według
   `googleplex_news_functional_spec.md`, `googleplex_news_visual_css_spec.md`
   oraz zatwierdzonej referencji `doc/visual/ggpl_news.png`;
@@ -3766,6 +3766,11 @@ Dokument:
   pozostają równe zero;
 - accepted Inbox candidate pozostaje niewidoczny bez publication receipt z
   przyszłego Sprintu 135.5.
+- wdrożony lokalnie pierwszy przekrój: bounded Home endpoint, editorial grid,
+  lazy search, canonical action bridge, rejestr 11 rodzin assetów i cztery
+  produkcyjne placeholdery HERO (`neutral/danger/victory/defence`);
+- brak deployu, restartu PM2, commita i pushu; finalny pakiet assetów pozostaje
+  do podmiany i walidacji manualnej.
 
 ### Sprint 135.4.2 — Purchasable Googleplex LLM Tool
 
@@ -3816,7 +3821,7 @@ narracyjne, ale ich numeracja, kolejność i schema nie są już wiążące.
 → 135.2 COMPLETE
 → 135.3 COMPLETE
 → 135.4 COMPLETE
-→ 135.4.1 PLANNED / READY TO START
+→ 135.4.1 IN PROGRESS
 → 135.4.2 BLOCKED BY 135.4.1
 → 135.5 BLOCKED BY 135.4.2
 ```

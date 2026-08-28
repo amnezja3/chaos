@@ -78,6 +78,10 @@ from session_generation_store import (
     SessionGenerationStateError,
     SessionGenerationStore,
 )
+from googleplex_news import (
+    GoogleplexNewsConfigurationError,
+    build_googleplex_news_snapshot,
+)
 from territory_geometry import polygons_intersect as canonical_polygons_intersect
 
 app = Flask(__name__)
@@ -25751,6 +25755,41 @@ def account_catalog():
     ]
 
     return jsonify(catalog)
+
+
+@app.route("/api/googleplex/news")
+def api_googleplex_news():
+    """Bounded read-only Home projection; never reads an account profile."""
+    username = str(session.get("user") or "").strip()
+    if not username:
+        return jsonify({
+            "success": False,
+            "error": "not_logged_in",
+            "message": "Googleplex News wymaga aktywnej sesji.",
+        }), 401
+    view = str(request.args.get("view") or "home").strip().lower()
+    if view != "home":
+        return jsonify({
+            "success": False,
+            "error": "unsupported_news_view",
+            "message": "Ten widok Googleplex News nie jest jeszcze dostępny.",
+        }), 400
+    try:
+        snapshot = build_googleplex_news_snapshot(
+            catalog=get_app_catalog(),
+            viewer_key=username,
+            session_generation=str(getattr(g, "session_generation", "") or ""),
+            limit=request.args.get("limit", 20),
+        )
+    except GoogleplexNewsConfigurationError as exc:
+        return jsonify({
+            "success": False,
+            "error": str(exc),
+            "message": "Registry assetów Googleplex News jest niedostępne.",
+        }), 503
+    response = jsonify(snapshot)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
 
 
 @app.route("/api/radio/channel/<channel_id>")

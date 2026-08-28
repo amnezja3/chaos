@@ -8386,8 +8386,8 @@ function createBrowser() {
     </div>
     <div class="googolplex-shell">
         <div class="googolplex-header">
-            <h1 id="${terminalId}-title">Googolplex</h1>
-            <div id="${terminalId}-wallet" class="googolplex-wallet">HackCoiny: ...</div>
+            <h1 id="${terminalId}-title"><span class="gp-brand-lockup"><img src="/static/images/googleplx/brand/googleplex-news-wordmark.svg" alt="Googleplex News"></span></h1>
+            <div id="${terminalId}-wallet" class="googolplex-wallet gp-account-context"><span>HC</span><strong>...</strong></div>
         </div>
         <div class="browser-tabs">
             <button type="button" class="browser-tab is-active" data-browser-tab="googleplex">Googleplex</button>
@@ -8420,9 +8420,15 @@ function createBrowser() {
     const browserHeader = term.querySelector('.googolplex-header');
     const browserTabs = term.querySelector('.browser-tabs');
     let catalog = [];
+    let catalogLoaded = false;
+    let catalogLoading = null;
+    let googleplexHomeSnapshot = null;
+    let googleplexHomeLoading = null;
+    let googleplexHomeError = "";
+    let googleplexHomeScrollTop = 0;
     let exchangeFiles = [];
     let exchangeDashboard = { summary: {}, sectors: [], recent_transactions: [], history_7d: [] };
-    let walletBalance = 0;
+    let walletBalance = Number((toolbarProfile || {}).hackcoins || 0);
     let activeBrowserTab = "googleplex";
     const browserQueries = {
         googleplex: "",
@@ -8433,9 +8439,21 @@ function createBrowser() {
     let blacknetPointerStartX = null;
     let pendingGoogleplexSearch = "";
     const renderBrowserWallet = () => {
-        wallet.textContent = activeBrowserTab === "blacknet"
-            ? "SIGNAL BUS v0"
-            : `HackCoiny: ${Number.isFinite(walletBalance) ? walletBalance : "..."}`;
+        if (activeBrowserTab === "blacknet") {
+            wallet.classList.remove("gp-account-context");
+            wallet.textContent = "SIGNAL BUS v0";
+            return;
+        }
+        if (activeBrowserTab === "googleplex") {
+            const profile = toolbarProfile || {};
+            const nick = String(profile.nick || profile.username || "OPERATOR").trim();
+            const rank = String(profile.rank || profile.level || profile.app_level || "ACTIVE").trim();
+            wallet.classList.add("gp-account-context");
+            wallet.innerHTML = `<span>HC</span><strong>${escapeHTML(Number.isFinite(walletBalance) ? walletBalance : "...")}</strong><span class="gp-account-rank">${escapeHTML(nick)}</span><strong class="gp-account-rank">${escapeHTML(rank)}</strong>`;
+            return;
+        }
+        wallet.classList.remove("gp-account-context");
+        wallet.textContent = `HackCoiny: ${Number.isFinite(walletBalance) ? walletBalance : "..."}`;
     };
 
     const updateBrowserChrome = () => {
@@ -9444,6 +9462,118 @@ function createBrowser() {
         updateBrowserNarrowMode();
     };
 
+    const googleplexHomeUi = window.GoogleplexNewsUI || null;
+
+    const renderGoogleplexHome = () => {
+        if (activeBrowserTab !== "googleplex" || search.value.trim()) return;
+        if (!googleplexHomeUi) {
+            results.innerHTML = '<div class="googolplex-empty">Modul Googleplex News jest niedostepny.</div>';
+            return;
+        }
+        if (googleplexHomeSnapshot) {
+            googleplexHomeUi.renderHome(results, googleplexHomeSnapshot, {
+                onAction: runGoogleplexNewsAction
+            });
+            requestAnimationFrame(() => {
+                results.scrollTop = Math.max(0, googleplexHomeScrollTop || 0);
+            });
+            updateBrowserNarrowMode();
+            return;
+        }
+        if (googleplexHomeError) {
+            googleplexHomeUi.renderError(results, googleplexHomeError);
+            return;
+        }
+        googleplexHomeUi.renderLoading(results);
+    };
+
+    const loadGoogleplexHome = async ({ force = false } = {}) => {
+        if (googleplexHomeSnapshot && !force) {
+            renderGoogleplexHome();
+            return googleplexHomeSnapshot;
+        }
+        if (googleplexHomeLoading) return googleplexHomeLoading;
+        googleplexHomeError = "";
+        renderGoogleplexHome();
+        googleplexHomeLoading = (async () => {
+            const response = await fetch('/api/googleplex/news?view=home&limit=20', {
+                credentials: 'same-origin',
+                cache: 'no-store'
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload || payload.success !== true) {
+                throw new Error(payload?.message || `Googleplex News HTTP ${response.status}`);
+            }
+            const normalized = googleplexHomeUi?.normalizeSnapshot(payload);
+            if (!normalized) throw new Error('Nieprawidlowy kontrakt Googleplex News.');
+            googleplexHomeSnapshot = payload;
+            googleplexHomeError = "";
+            if (activeBrowserTab === "googleplex" && !search.value.trim()) {
+                renderGoogleplexHome();
+            }
+            return payload;
+        })().catch(error => {
+            googleplexHomeError = String(error?.message || 'Nie udalo sie pobrac Googleplex News.');
+            if (activeBrowserTab === "googleplex" && !search.value.trim()) {
+                renderGoogleplexHome();
+            }
+            throw error;
+        }).finally(() => {
+            googleplexHomeLoading = null;
+        });
+        return googleplexHomeLoading;
+    };
+
+    async function runGoogleplexNewsAction(entry) {
+        const action = entry?.action || {};
+        const actionType = String(action.action_type || "").trim();
+        const target = String(action.action_target || "").trim();
+        if (action.kind !== "ACTIONABLE") return false;
+        if (actionType === "open_googleplex_search") {
+            browserQueries.googleplex = target || "/all";
+            pendingGoogleplexSearch = browserQueries.googleplex;
+            search.value = browserQueries.googleplex;
+            renderCatalog();
+            return true;
+        }
+        if (actionType === "open_blacknet") {
+            browserQueries.blacknet = "";
+            switchBrowserTab("blacknet");
+            return true;
+        }
+        if (actionType === "open_ghost_exchange") {
+            browserQueries.exchange = target === "market" ? "" : target;
+            switchBrowserTab("exchange");
+            return true;
+        }
+        if (actionType === "open_map") {
+            return blacknetOpenMap({
+                id: entry?.content?.news_id || "googleplex-news",
+                title: entry?.content?.title || "Googleplex News",
+                cta_target_id: target || "world",
+                metadata: {}
+            }).ok;
+        }
+        if (actionType === "open_cyberner") {
+            return blacknetOpenCybernerThread({
+                id: entry?.content?.news_id || "googleplex-news",
+                title: entry?.content?.title || "Googleplex News",
+                cta_target: target || "world",
+                metadata: {thread_scope: "group", thread_channel: "world", thread_peer: "global"}
+            }).ok;
+        }
+        if (actionType === "open_operation") {
+            return blacknetOpenOperation({
+                id: entry?.content?.news_id || "googleplex-news",
+                title: entry?.content?.title || "Googleplex News",
+                cta_target_id: "",
+                metadata: {}
+            }, "open").ok;
+        }
+        addSystemMessage("warning", "Googleplex News", "Nieznany lub niedozwolony most akcji.");
+        return false;
+    }
+
     const renderCatalog = () => {
         if (activeBrowserTab !== "googleplex") return;
         updateBrowserNarrowMode();
@@ -9451,8 +9581,25 @@ function createBrowser() {
         const query = rawQuery.toLowerCase();
         const showAll = query === "/all";
         if (!query) {
-            results.innerHTML = "";
+            renderGoogleplexHome();
+            if (!googleplexHomeSnapshot && !googleplexHomeLoading && !googleplexHomeError) {
+                loadGoogleplexHome().catch(() => {});
+            }
             updateBrowserNarrowMode();
+            return;
+        }
+
+        if (!catalogLoaded) {
+            if (results.querySelector('.gp-home')) {
+                googleplexHomeScrollTop = results.scrollTop;
+            }
+            results.innerHTML = '<div class="googolplex-empty">Synchronizacja katalogu Googleplex...</div>';
+            loadCatalog().catch(error => {
+                console.warn('Googleplex catalog lazy load failed', error);
+                if (activeBrowserTab === "googleplex" && search.value.trim()) {
+                    results.innerHTML = '<div class="googolplex-empty">Nie udało się pobrać katalogu.</div>';
+                }
+            });
             return;
         }
 
@@ -9879,26 +10026,39 @@ function createBrowser() {
     });
 
     async function loadCatalog() {
-        const [profileRes, resourcesRes] = await Promise.all([
-            fetch('/api/profile'),
-            fetch('/api/catalog')
-        ]);
-        const profile = await profileRes.json().catch(() => ({}));
-        const catalogPayload = await resourcesRes.json().catch(() => null);
-        if (!profileRes.ok) {
-            throw new Error(`Googleplex profile HTTP ${profileRes.status}`);
+        if (catalogLoaded) {
+            renderCatalog();
+            return catalog;
         }
-        if (!resourcesRes.ok || !Array.isArray(catalogPayload)) {
-            throw new Error(`Googleplex catalog HTTP ${resourcesRes.status}`);
-        }
-        catalog = catalogPayload;
-        walletBalance = Number(profile.hackcoins || 0);
-        renderBrowserWallet();
-        if (pendingGoogleplexSearch) {
-            browserQueries.googleplex = pendingGoogleplexSearch;
-            if (activeBrowserTab === "googleplex") search.value = pendingGoogleplexSearch;
-        }
-        renderCatalog();
+        if (catalogLoading) return catalogLoading;
+        catalogLoading = (async () => {
+            const [profileRes, resourcesRes] = await Promise.all([
+                fetch('/api/profile'),
+                fetch('/api/catalog')
+            ]);
+            const profile = await profileRes.json().catch(() => ({}));
+            const catalogPayload = await resourcesRes.json().catch(() => null);
+            if (!profileRes.ok) {
+                throw new Error(`Googleplex profile HTTP ${profileRes.status}`);
+            }
+            if (!resourcesRes.ok || !Array.isArray(catalogPayload)) {
+                throw new Error(`Googleplex catalog HTTP ${resourcesRes.status}`);
+            }
+            catalog = catalogPayload;
+            catalogLoaded = true;
+            walletBalance = Number(profile.hackcoins || walletBalance || 0);
+            renderBrowserWallet();
+            if (pendingGoogleplexSearch) {
+                browserQueries.googleplex = pendingGoogleplexSearch;
+                if (activeBrowserTab === "googleplex") search.value = pendingGoogleplexSearch;
+                pendingGoogleplexSearch = "";
+            }
+            renderCatalog();
+            return catalog;
+        })().finally(() => {
+            catalogLoading = null;
+        });
+        return catalogLoading;
     }
 
     async function loadExchange() {
@@ -10009,7 +10169,7 @@ function createBrowser() {
             search.placeholder = "Szukaj sygnalow, zrodel, ryzyka...";
             renderBlackNet();
         } else {
-            title.textContent = "Googolplex";
+            title.innerHTML = '<span class="gp-brand-lockup"><img src="/static/images/googleplx/brand/googleplex-news-wordmark.svg" alt="Googleplex News"></span>';
             renderBrowserWallet();
             search.placeholder = "Wyszukaj aplikacje...";
             renderCatalog();
@@ -10047,9 +10207,8 @@ function createBrowser() {
             stepBlacknetSignal(1, "down");
         }
     });
-    loadCatalog().catch(() => {
-        results.innerHTML = '<div class="googolplex-empty">Nie uda\u0142o si\u0119 pobra\u0107 katalogu.</div>';
-    });
+    renderBrowserWallet();
+    loadGoogleplexHome().catch(() => {});
 }
 
 function openWalletApp(options = {}) {

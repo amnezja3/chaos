@@ -1,6 +1,6 @@
 # Googleplex News — asset registry source
 
-Status katalogu: `SCAFFOLD / ASSETS TO BE PRODUCED`.
+Status katalogu: `PRODUCTION PLACEHOLDERS READY / FINAL ASSETS IN PREPARATION`.
 
 Ten katalog jest jedynym code-owned źródłem assetów dla Googleplex Home/News.
 Nazwa katalogu `googleplx` jest kontraktem ścieżki i nie powinna być poprawiana
@@ -100,17 +100,17 @@ OPTIONAL   → tworzyć tylko dla konkretnego zatwierdzonego zastosowania
 
 | Rodzina | Format | `neutral` | `danger` | `victory` | `defence` | Stan produkcji |
 | --- | --- | --- | --- | --- | --- | --- |
-| `scene` | WebP `16:9`/`4:3`, min. `1200×700` | DEDICATED | DEDICATED | DEDICATED | DEDICATED | `MISSING` |
-| `character` | transparent WebP/PNG `3:4`/`4:5` | DEDICATED | OPTIONAL | OPTIONAL | OPTIONAL | `MISSING` |
-| `tool` | transparent PNG/WebP `1:1`, `256–512 px` | DEDICATED | COMPOSED | COMPOSED | COMPOSED | `MISSING` |
-| `map` | SVG/HTML/Canvas; statycznie WebP `4:3`/`1:1` | COMPOSED | COMPOSED | COMPOSED | COMPOSED | `MISSING` |
-| `clan` | SVG, fallback transparent PNG `1:1` | DEDICATED | COMPOSED | COMPOSED | COMPOSED | `MISSING` |
-| `package` | transparent PNG/WebP `1:1`/izometria | DEDICATED | COMPOSED | COMPOSED | COMPOSED | `MISSING` |
-| `storage` | transparent PNG/WebP; dane w CSS/HTML | DEDICATED | COMPOSED | COMPOSED | COMPOSED | `MISSING` |
-| `market` | SVG/Canvas/HTML | COMPOSED | COMPOSED | COMPOSED | COMPOSED | `MISSING` |
-| `network` | SVG/PNG `1:1`, opcjonalny CSS motion | DEDICATED | COMPOSED | COMPOSED | COMPOSED | `MISSING` |
-| `system` | minimalistyczny SVG | DEDICATED | COMPOSED | COMPOSED | COMPOSED | `MISSING` |
-| `stamp` | mały lekki SVG | DEDICATED | DEDICATED | DEDICATED | DEDICATED | `MISSING` |
+| `scene` | WebP `16:9`/`4:3`, min. `1200×700` | DEDICATED | DEDICATED | DEDICATED | DEDICATED | `READY PLACEHOLDER` |
+| `character` | transparent WebP/PNG `3:4`/`4:5` | DEDICATED | OPTIONAL | OPTIONAL | OPTIONAL | `READY SYMBOL` |
+| `tool` | transparent PNG/WebP `1:1`, `256–512 px` | DEDICATED | COMPOSED | COMPOSED | COMPOSED | `READY SYMBOL` |
+| `map` | SVG/HTML/Canvas; statycznie WebP `4:3`/`1:1` | COMPOSED | COMPOSED | COMPOSED | COMPOSED | `READY SYMBOL` |
+| `clan` | SVG, fallback transparent PNG `1:1` | DEDICATED | COMPOSED | COMPOSED | COMPOSED | `READY SYMBOL` |
+| `package` | transparent PNG/WebP `1:1`/izometria | DEDICATED | COMPOSED | COMPOSED | COMPOSED | `READY SYMBOL` |
+| `storage` | transparent PNG/WebP; dane w CSS/HTML | DEDICATED | COMPOSED | COMPOSED | COMPOSED | `READY SYMBOL` |
+| `market` | SVG/Canvas/HTML | COMPOSED | COMPOSED | COMPOSED | COMPOSED | `READY SYMBOL` |
+| `network` | SVG/PNG `1:1`, opcjonalny CSS motion | DEDICATED | COMPOSED | COMPOSED | COMPOSED | `READY SYMBOL` |
+| `system` | minimalistyczny SVG | DEDICATED | COMPOSED | COMPOSED | COMPOSED | `READY SYMBOL` |
+| `stamp` | mały lekki SVG | DEDICATED | DEDICATED | DEDICATED | DEDICATED | `READY SYMBOL` |
 
 `neutral` jest obowiązkowym fallbackiem każdej rodziny. Dedykowane cztery
 warianty HERO są obowiązkowe dla `scene`. Pozostałe rodziny używają osobnego
@@ -147,10 +147,10 @@ przygotować:
 
 | Planowany `asset_id` | Plik | Format | Użycie | Stan |
 | --- | --- | --- | --- | --- |
-| `gp_brand_wordmark_primary` | `brand/googleplex-news-wordmark.svg` | SVG | pełny masthead desktop | `MISSING` |
-| `gp_brand_mark_primary` | `brand/googleplex-news-mark.svg` | SVG | kompaktowy/mobile mark | `MISSING` |
+| `gp_brand_wordmark_primary` | `brand/googleplex-news-wordmark.svg` | SVG | pełny masthead desktop | `READY PLACEHOLDER` |
+| `gp_brand_mark_primary` | `brand/googleplex-news-mark.svg` | SVG | kompaktowy/mobile mark | `READY PLACEHOLDER` |
 | `gp_brand_wordmark_mono` | `brand/googleplex-news-wordmark-mono.svg` | SVG | reduced/print/fallback | `MISSING` |
-| `gp_brand_favicon` | `brand/googleplex-news-favicon.svg` | SVG | WebDragons/tab/icon | `MISSING` |
+| `gp_brand_favicon` | `brand/googleplex-news-favicon.svg` | SVG | WebDragons/tab/icon | `READY PLACEHOLDER` |
 
 Logo zachowuje estetykę z `ggpl_news.png`: mocny editorialny wordmark, terminalowy
 kontrast i czytelność na czarnym tle. Tagline, aktualny czas, HC, rank i dane
@@ -158,29 +158,31 @@ konta pozostają tekstem HTML, nie częścią grafiki logo.
 
 ## Ikonografia z wizualizacji
 
-Ikony są lokalnymi SVG, bez emoji i bez zewnętrznego icon CDN.
+Ikony są lokalnymi SVG, bez emoji i bez zewnętrznego icon CDN. Placeholdery są
+obecnie symbolami w `icons/googleplex-news-icons.svg`; finalny pack może zachować
+sprite albo rozdzielić pliki bez zmiany `asset_id`.
 
 | Planowany `asset_id` | Plik | Funkcja | Stan |
 | --- | --- | --- | --- |
-| `gp_icon_search` | `icons/search.svg` | wyszukiwanie Googleplex | `MISSING` |
-| `gp_icon_filter` | `icons/filter.svg` | filtr/sort feedu | `MISSING` |
-| `gp_icon_grid` | `icons/grid.svg` | Home/grid | `MISSING` |
-| `gp_icon_product` | `icons/product.svg` | aplikacja/produkt | `MISSING` |
-| `gp_icon_blacknet` | `icons/blacknet.svg` | teaser BlackNet | `MISSING` |
-| `gp_icon_exchange` | `icons/ghost-exchange.svg` | teaser Ghost Exchange | `MISSING` |
-| `gp_icon_map_focus` | `icons/map-focus.svg` | focus mapy/regionu | `MISSING` |
-| `gp_icon_travel` | `icons/travel.svg` | podróż/trasa | `MISSING` |
-| `gp_icon_clan` | `icons/clan.svg` | klan | `MISSING` |
-| `gp_icon_package` | `icons/package.svg` | paczka/plik | `MISSING` |
-| `gp_icon_storage` | `icons/storage.svg` | dysk/capacity | `MISSING` |
-| `gp_icon_cyberner` | `icons/cyberner.svg` | sieć/Cyberner | `MISSING` |
-| `gp_icon_integrity` | `icons/integrity.svg` | integrity/protocol | `MISSING` |
-| `gp_icon_verified` | `icons/verified.svg` | canonical/verified | `MISSING` |
-| `gp_icon_read_only` | `icons/read-only.svg` | STAMP_ONLY | `MISSING` |
-| `gp_icon_warning` | `icons/warning.svg` | warning/danger | `MISSING` |
-| `gp_icon_defence` | `icons/defence.svg` | protection/defence | `MISSING` |
-| `gp_icon_victory` | `icons/victory.svg` | success/victory | `MISSING` |
-| `gp_icon_open` | `icons/open.svg` | canonical open/detail CTA | `MISSING` |
+| `gp_icon_search` | `icons/googleplex-news-icons.svg#search` | wyszukiwanie Googleplex | `READY PLACEHOLDER` |
+| `gp_icon_filter` | `icons/googleplex-news-icons.svg#filter` | filtr/sort feedu | `READY PLACEHOLDER` |
+| `gp_icon_grid` | `icons/googleplex-news-icons.svg#grid` | Home/grid | `READY PLACEHOLDER` |
+| `gp_icon_product` | `icons/googleplex-news-icons.svg#product` | aplikacja/produkt | `READY PLACEHOLDER` |
+| `gp_icon_blacknet` | `icons/googleplex-news-icons.svg#blacknet` | teaser BlackNet | `READY PLACEHOLDER` |
+| `gp_icon_exchange` | `icons/googleplex-news-icons.svg#ghost-exchange` | teaser Ghost Exchange | `READY PLACEHOLDER` |
+| `gp_icon_map_focus` | `icons/googleplex-news-icons.svg#map-focus` | focus mapy/regionu | `READY PLACEHOLDER` |
+| `gp_icon_travel` | `icons/googleplex-news-icons.svg#travel` | podróż/trasa | `READY PLACEHOLDER` |
+| `gp_icon_clan` | `icons/googleplex-news-icons.svg#clan` | klan | `READY PLACEHOLDER` |
+| `gp_icon_package` | `icons/googleplex-news-icons.svg#package` | paczka/plik | `READY PLACEHOLDER` |
+| `gp_icon_storage` | `icons/googleplex-news-icons.svg#storage` | dysk/capacity | `READY PLACEHOLDER` |
+| `gp_icon_cyberner` | `icons/googleplex-news-icons.svg#cyberner` | sieć/Cyberner | `READY PLACEHOLDER` |
+| `gp_icon_integrity` | `icons/googleplex-news-icons.svg#integrity` | integrity/protocol | `READY PLACEHOLDER` |
+| `gp_icon_verified` | `icons/googleplex-news-icons.svg#verified` | canonical/verified | `READY PLACEHOLDER` |
+| `gp_icon_read_only` | `icons/googleplex-news-icons.svg#read-only` | STAMP_ONLY | `READY PLACEHOLDER` |
+| `gp_icon_warning` | `icons/googleplex-news-icons.svg#warning` | warning/danger | `READY PLACEHOLDER` |
+| `gp_icon_defence` | `icons/googleplex-news-icons.svg#defence` | protection/defence | `READY PLACEHOLDER` |
+| `gp_icon_victory` | `icons/googleplex-news-icons.svg#victory` | success/victory | `READY PLACEHOLDER` |
+| `gp_icon_open` | `icons/googleplex-news-icons.svg#open` | canonical open/detail CTA | `READY PLACEHOLDER` |
 
 CTA może użyć jednej ikony i krótkiej etykiety. Ikona sama nie tworzy action;
 widoczność i interaktywność wynikają z canonical `ACTIONABLE`.
@@ -191,10 +193,10 @@ Pierwszy minimalny asset pack musi zawierać cztery sceny:
 
 | Planowany `asset_id` | Plik | Stan | Focal default | Stan produkcji |
 | --- | --- | --- | --- | --- |
-| `gp_scene_world_neutral_01` | `scene/world-neutral-01.webp` | `neutral` | `50% 50%` | `MISSING` |
-| `gp_scene_world_danger_01` | `scene/world-danger-01.webp` | `danger` | `58% 48%` | `MISSING` |
-| `gp_scene_world_victory_01` | `scene/world-victory-01.webp` | `victory` | `50% 42%` | `MISSING` |
-| `gp_scene_world_defence_01` | `scene/world-defence-01.webp` | `defence` | `55% 48%` | `MISSING` |
+| `gp_scene_world_neutral_01` | `scene/world-neutral-01.webp` | `neutral` | `50% 50%` | `READY PLACEHOLDER` |
+| `gp_scene_world_danger_01` | `scene/world-danger-01.webp` | `danger` | `58% 48%` | `READY PLACEHOLDER` |
+| `gp_scene_world_victory_01` | `scene/world-victory-01.webp` | `victory` | `50% 42%` | `READY PLACEHOLDER` |
+| `gp_scene_world_defence_01` | `scene/world-defence-01.webp` | `defence` | `55% 48%` | `READY PLACEHOLDER` |
 
 Każda scena musi pozostawiać text-safe area zgodną z layoutem HERO. Gradient pod
 tekst powstaje w CSS, nie jest wypalony w WebP.
@@ -294,12 +296,12 @@ Asset jest `ready`, gdy:
 ## Aktualny stan katalogu
 
 ```text
-logo/brand assets:        0 ready
-iconography:              0 ready
-11 family base assets:    0 ready
-4 HERO state assets:      0 ready
-rotation groups:          0 ready
-asset_registry.json:      not created
+logo/brand placeholders:  3 ready / 1 final mono pending
+iconography:              19 ready placeholder symbols in one sprite
+11 family fallbacks:      11 ready symbols
+4 HERO state assets:      4 ready WebP placeholders
+rotation groups:          4 HERO groups seeded / expanded pools pending
+asset_registry.json:      ready, code-owned, fail-closed
 ```
 
 Ten stan nie blokuje backend/read-model foundation. Do czasu przygotowania

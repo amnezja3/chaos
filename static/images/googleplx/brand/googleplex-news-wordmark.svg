@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="120" viewBox="0 0 560 120" role="img" aria-labelledby="title">
+  <title id="title">Googleplex News</title>
+  <rect width="560" height="120" fill="#020403"/>
+  <path d="M8 8h544v104H8z" fill="none" stroke="#47ff75" stroke-width="2"/>
+  <path d="M24 88 82 22h36L60 88Zm63 0 58-66h20l-58 66Z" fill="#47ff75" opacity=".18"/>
+  <text x="132" y="62" fill="#f3fff5" font-family="Arial Narrow,Impact,sans-serif" font-size="43" font-weight="800" letter-spacing="2">GOOGLEPLEX</text>
+  <text x="136" y="91" fill="#47ff75" font-family="Consolas,monospace" font-size="20" font-weight="700" letter-spacing="7">NEWS // 2108</text>
+  <path d="M518 24v72M506 36h24M506 84h24" stroke="#47ff75" stroke-width="3"/>
+</svg>
