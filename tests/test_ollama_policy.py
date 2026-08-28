@@ -211,10 +211,9 @@ class OllamaPolicyTest(unittest.TestCase):
             "observed_at": "2026-08-28T12:00:00+00:00",
         } for index in range(20)]
         actions = [{
-            "cta_action": f"focus_world_signal_{index:02d}",
+            "cta_action": f"focus_world_signal_production_digest_candidate_{index:02d}",
             "payload": {
                 "public_entity_id": f"pe-{index:02d}",
-                "target_medium": "blacknet",
                 "kind": "map",
             },
         } for index in range(18)]
@@ -276,6 +275,13 @@ class OllamaPolicyTest(unittest.TestCase):
         })
         self.assertEqual(model_input["truth"], "canonical_facts_only")
         self.assertEqual(package["fact_count"], 20)
+        admitted_ctas = model_input.get("ctas") or []
+        self.assertGreater(len(admitted_ctas), 0)
+        self.assertLess(len(admitted_ctas), len(actions))
+        self.assertEqual(
+            {row[0] for row in admitted_ctas},
+            set(package["cta_map"]),
+        )
         self.assertLessEqual(package["input_bytes"], MAX_TASK_PACKAGE_BYTES)
         self.assertGreaterEqual(package["estimated_input_tokens"], 500)
         self.assertLessEqual(package["estimated_input_tokens"], 700)

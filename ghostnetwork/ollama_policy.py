@@ -107,6 +107,30 @@ def _try_add_fact_column(model_input, source_facts, facts, fact_columns, field_s
     return False
 
 
+def _try_add_cta_row(model_input, cta_map, ref, action_name, action):
+    created_structure = "ctas" not in model_input
+    if created_structure:
+        model_input["cta_columns"] = ["cta_ref", "action"]
+        model_input["ctas"] = []
+    model_input["ctas"].append([ref, action_name])
+    if len(_encoded_package(model_input).encode("utf-8")) <= MAX_TASK_PACKAGE_BYTES:
+        cta_map[ref] = copy.deepcopy(action)
+        return True
+    model_input["ctas"].pop()
+    if created_structure:
+        model_input.pop("ctas", None)
+        model_input.pop("cta_columns", None)
+    return False
+
+
+def _try_add_top_level_field(model_input, field, value):
+    model_input[field] = value
+    if len(_encoded_package(model_input).encode("utf-8")) <= MAX_TASK_PACKAGE_BYTES:
+        return True
+    model_input.pop(field, None)
+    return False
+
+
 def assign_ollama_task_policy(task):
     task = dict(task or {})
     policy = resolve_ollama_task_policy(
@@ -158,7 +182,7 @@ def build_ollama_task_package(task, policy=None):
         raise ValueError("ollama_task_has_no_facts")
 
     cta_map = {}
-    ctas = []
+    cta_candidates = []
     for index, action in enumerate((task.get("allowed_actions") or [])[:32], start=1):
         if not isinstance(action, dict):
             continue
@@ -166,8 +190,7 @@ def build_ollama_task_package(task, policy=None):
         if not action_name:
             continue
         ref = f"c{index:02d}"
-        cta_map[ref] = copy.deepcopy(action)
-        ctas.append([ref, action_name])
+        cta_candidates.append((ref, action_name, action))
 
     fact_columns = ["fact_ref"]
     source = {
@@ -203,26 +226,37 @@ def build_ollama_task_package(task, policy=None):
             **audience,
         },
         "truth": str(task.get("truth_class_policy") or "").strip(),
-        "editorial": str(task.get("editorial_profile") or "")[:96],
-        "context": str(task.get("narrative_context") or "")[:256],
         "fact_columns": fact_columns,
         "facts": facts,
-        "cta_columns": ["cta_ref", "action"],
-        "ctas": ctas,
-        "limits": {"title": 96, "body": 480, "refs": 16},
     }
 
     mandatory_bytes = len(_encoded_package(model_input).encode("utf-8"))
     if mandatory_bytes > MAX_TASK_PACKAGE_BYTES:
         raise ValueError("ollama_task_mandatory_skeleton_too_large")
 
-    # Optional data is admitted as complete columns: every fact gets the field
-    # or no fact does. Canonical reference columns have priority, but they are
-    # still budgeted so they cannot crowd mandatory fact/source identity out.
+    # CTA visibility is optional: the model may always return cta_ref=null.
+    # Only complete rows that fit become valid backend-resolvable references.
+    for ref, action_name, action in cta_candidates:
+        _try_add_cta_row(model_input, cta_map, ref, action_name, action)
+
+    # Fact data is admitted as complete columns: every fact gets the field or
+    # no fact does. Canonical reference columns have priority over semantics.
     for field_spec in CANONICAL_FACT_REF_FIELDS:
         _try_add_fact_column(model_input, source_facts, facts, fact_columns, field_spec)
     for field_spec in COMPACT_FACT_FIELDS:
         _try_add_fact_column(model_input, source_facts, facts, fact_columns, field_spec)
+
+    # These bounded narrative hints are useful but not canonical identity.
+    # They never displace facts, CTA rows, or source/version/audience refs.
+    _try_add_top_level_field(
+        model_input, "editorial", str(task.get("editorial_profile") or "")[:96]
+    )
+    _try_add_top_level_field(
+        model_input, "context", str(task.get("narrative_context") or "")[:256]
+    )
+    _try_add_top_level_field(
+        model_input, "limits", {"title": 96, "body": 480, "refs": 16}
+    )
 
     encoded = _encoded_package(model_input)
     input_bytes = len(encoded.encode("utf-8"))
