@@ -1643,6 +1643,8 @@ function runSystemLauncherApp(appData) {
         createOperationControlApp,
         ghostnetwork_suite: createGhostNetworkSuiteApp,
         createGhostNetworkSuiteApp,
+        agi2108_console: createAgi2108ConsoleApp,
+        createAgi2108ConsoleApp,
         ghost_lab: createGhostLabHub,
         dev_bug_reporter: createDevBugReporterApp
     };
@@ -7895,6 +7897,189 @@ function createGhostNetworkSuiteApp() {
 
 window.createGhostNetworkSuiteApp = createGhostNetworkSuiteApp;
 window.ghostnetwork_suite = createGhostNetworkSuiteApp;
+
+function createAgi2108ConsoleApp() {
+    const existing = document.querySelector('.app-window[data-app="agi2108-console"]');
+    if (existing) { bringWindowToFront(existing); return existing; }
+
+    const app = document.createElement('div');
+    app.className = 'app-window agi2108-console-window';
+    app.dataset.app = 'agi2108-console';
+    app.dataset.appIcon = '⌬';
+    app.dataset.appTitle = 'AGI 2108 Console';
+    const position = findAvailablePosition(620, 520);
+    Object.assign(app.style, {
+        top: `${position.top}px`, left: `${position.left}px`,
+        width: '620px', height: '520px'
+    });
+    app.innerHTML = `
+        <div class="title-bar">AGI 2108 Console <span class="close-btn" style="float:right; cursor:pointer;">✖</span></div>
+        <div class="agi2108-shell">
+            <header class="agi2108-header">
+                <span class="agi2108-mark" aria-hidden="true">⌬</span>
+                <span><strong>AGI 2108 // OWNER ANALYSIS</strong><small>Canonical narrative transport</small></span>
+                <i>5 / H</i>
+            </header>
+            <section class="agi2108-contract">
+                <span>TEMPLATE <b>owner-analysis</b></span>
+                <span>MEDIUM <b>Cyberner / AGI 2108</b></span>
+                <span>COST <b>0 HC</b></span>
+            </section>
+            <label class="agi2108-topic-label" for="agi2108-topic">TEMAT ANALIZY</label>
+            <textarea id="agi2108-topic" class="agi2108-topic" maxlength="120" rows="4" placeholder="Wpisz temat analizy operatorskiej (maks. 120 znaków)"></textarea>
+            <div class="agi2108-compose-footer"><span data-agi-count>0 / 120</span><button type="button" data-agi-submit>WYŚLIJ TASK</button></div>
+            <section class="agi2108-status" data-agi-status data-state="idle">
+                <strong>GOTOWY</strong><span>Brak aktywnego receipt.</span><small></small>
+            </section>
+            <button type="button" class="agi2108-result-link" disabled>WYNIK W CYBERNER AGI 2108 // PUBLIKACJA OD 135.5</button>
+        </div>`;
+    document.body.appendChild(app);
+    makeDraggable(app);
+    bringWindowToFront(app);
+
+    const topicInput = app.querySelector('.agi2108-topic');
+    const count = app.querySelector('[data-agi-count]');
+    const submit = app.querySelector('[data-agi-submit]');
+    const status = app.querySelector('[data-agi-status]');
+    const username = String((toolbarProfile || {}).username || (toolbarProfile || {}).nick || 'owner').trim().toLowerCase();
+    const receiptStorageKey = `agi2108:receipt:${username}`;
+    const pendingStorageKey = `agi2108:pending:${username}`;
+    let receiptId = '';
+    let pendingAction = null;
+    let pollTimer = null;
+    let submitting = false;
+
+    const setStatus = (state, title, message, detail = '') => {
+        status.dataset.state = state;
+        status.querySelector('strong').textContent = title;
+        status.querySelector('span').textContent = message;
+        status.querySelector('small').textContent = detail;
+    };
+    const receiptShort = value => String(value || '').slice(0, 22);
+    const stopPolling = () => {
+        if (pollTimer) window.clearTimeout(pollTimer);
+        pollTimer = null;
+    };
+    const scheduleStatus = () => {
+        stopPolling();
+        if (app.isConnected && receiptId) pollTimer = window.setTimeout(loadStatus, 5000);
+    };
+    const loadStatus = async () => {
+        if (!receiptId || !app.isConnected) return;
+        try {
+            const response = await fetch(`/api/googleplex/llm/tasks/${encodeURIComponent(receiptId)}`, {
+                credentials: 'same-origin', cache: 'no-store'
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || data.success === false) {
+                setStatus('failed', 'STATUS NIEDOSTĘPNY', data.message || 'Nie udało się odtworzyć receipt.', receiptShort(receiptId));
+                return;
+            }
+            const receipt = data.receipt || {};
+            const state = String(receipt.status || 'accepted');
+            const labels = {
+                accepted: ['PRZYJĘTO', 'Task został przyjęty do canonical transportu.'],
+                queued: ['W KOLEJCE', 'Task oczekuje na lokalny worker AGI.'],
+                processing: ['PRZETWARZANIE', 'AGI 2108 przetwarza bounded package.'],
+                completed: ['ZAKOŃCZONO', 'Candidate został przetworzony. Treść pozostaje ukryta do Sprintu 135.5.'],
+                failed: ['NIEPOWODZENIE', receipt.user_message || 'Task zakończył się kontrolowanym błędem.']
+            };
+            const label = labels[state] || labels.accepted;
+            setStatus(
+                state,
+                label[0],
+                receipt.user_message || label[1],
+                `RECEIPT ${receiptShort(receipt.receipt_id || receiptId)}`
+            );
+            if (state === 'accepted' || state === 'queued' || state === 'processing') scheduleStatus();
+        } catch (_error) {
+            setStatus('failed', 'BRAK POŁĄCZENIA', 'Status pozostaje zapisany. Ponowimy po otwarciu aplikacji.', receiptShort(receiptId));
+        }
+    };
+
+    topicInput?.addEventListener('input', () => {
+        if (count) count.textContent = `${topicInput.value.length} / 120`;
+    });
+    submit?.addEventListener('click', async () => {
+        const value = String(topicInput?.value || '').trim();
+        if (!value) {
+            setStatus('failed', 'BRAK TEMATU', 'Wpisz temat analizy.');
+            topicInput?.focus();
+            return;
+        }
+        if (submitting) return;
+        submitting = true;
+        submit.disabled = true;
+        const clientReceipt = (
+            pendingAction && pendingAction.topic === value && pendingAction.receipt_id
+                ? pendingAction.receipt_id
+                : `agi2108:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`}`
+        );
+        pendingAction = {receipt_id: clientReceipt, topic: value};
+        try { window.sessionStorage?.setItem(pendingStorageKey, JSON.stringify(pendingAction)); } catch (_error) {}
+        setStatus('accepted', 'WYSYŁANIE', 'Walidacja entitlement, template i receipt...');
+        try {
+            const requestPayload = {
+                app_id: 'agi2108Console',
+                app_action_id: clientReceipt,
+                client_receipt_id: clientReceipt,
+                approved_template_id: 'owner-analysis',
+                input: {topic: value}
+            };
+            const response = await fetch('/api/googleplex/llm/tasks', {
+                method: 'POST', credentials: 'same-origin',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(requestPayload)
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || data.success === false) {
+                setStatus('failed', 'TASK ODRZUCONY', data.message || 'Polityka AGI odrzuciła zlecenie.', String(data.reason_code || 'request_rejected'));
+                if (response.status < 500) {
+                    pendingAction = null;
+                    try { window.sessionStorage?.removeItem(pendingStorageKey); } catch (_error) {}
+                }
+                return;
+            }
+            receiptId = String(data.receipt_id || '');
+            if (receiptId) window.sessionStorage?.setItem(receiptStorageKey, receiptId);
+            pendingAction = null;
+            try { window.sessionStorage?.removeItem(pendingStorageKey); } catch (_error) {}
+            setStatus('accepted', 'PRZYJĘTO', 'Utworzono jeden owner-scoped task.', `RECEIPT ${receiptShort(receiptId)}`);
+            topicInput.value = '';
+            if (count) count.textContent = '0 / 120';
+            scheduleStatus();
+        } catch (_error) {
+            setStatus('failed', 'BRAK POŁĄCZENIA', 'Task nie został potwierdzony. Spróbuj ponownie.');
+        } finally {
+            submitting = false;
+            submit.disabled = false;
+        }
+    });
+
+    app.querySelector('.close-btn')?.addEventListener('click', () => {
+        stopPolling();
+        app.remove();
+    });
+    try {
+        receiptId = String(window.sessionStorage?.getItem(receiptStorageKey) || '');
+        const savedPending = JSON.parse(window.sessionStorage?.getItem(pendingStorageKey) || 'null');
+        if (savedPending && savedPending.receipt_id && savedPending.topic) {
+            pendingAction = savedPending;
+            topicInput.value = String(savedPending.topic).slice(0, 120);
+            if (count) count.textContent = `${topicInput.value.length} / 120`;
+            setStatus('accepted', 'NIEPOTWIERDZONY RECEIPT', 'Ponowienie użyje tej samej tożsamości taska.', receiptShort(savedPending.receipt_id));
+        }
+    } catch (_error) {
+        receiptId = '';
+        pendingAction = null;
+    }
+    if (receiptId && !pendingAction) loadStatus();
+    topicInput?.focus();
+    return app;
+}
+
+window.createAgi2108ConsoleApp = createAgi2108ConsoleApp;
+window.agi2108_console = createAgi2108ConsoleApp;
 
 function appHasMapRuntime(appData) {
     if (!appData || typeof appData !== "object") return false;

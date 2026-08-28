@@ -3752,7 +3752,7 @@ Status: `SPRINT 135.4 — COMPLETE / READY FOR SPRINT 135.4.1`.
 Dokument:
 `doc/sprints/sprint_135_4_1_googleplex_home_news_foundation.md`.
 
-- status: `IN PROGRESS`;
+- status: `SPRINT 135.4.1 — COMPLETE / READY FOR SPRINT 135.4.2`;
 - zakres został rozpisany od nowa według
   `googleplex_news_functional_spec.md`, `googleplex_news_visual_css_spec.md`
   oraz zatwierdzonej referencji `doc/visual/ggpl_news.png`;
@@ -3771,8 +3771,10 @@ Dokument:
   produkcyjne placeholdery HERO (`neutral/danger/victory/defence`);
 - WebDragons otrzymał responsywną geometrię startową, widoczny HERO bez
   wstępnego przewijania oraz odwracalną kontrolkę fullscreen obok zamknięcia;
-- brak deployu, restartu PM2, commita i pushu; finalny pakiet assetów pozostaje
-  do podmiany i walidacji manualnej.
+- manual 2026-08-28 zaakceptował Googleplex News w widoku okienkowym,
+  fullscreen i mobile; finalne assety pozostają wymienialne przez registry i
+  nie blokują zamknięcia foundation;
+- brak deployu, restartu PM2, commita i pushu.
 
 ### Sprint 135.4.2 — Purchasable Googleplex LLM Tool
 
@@ -3784,6 +3786,20 @@ Dokument:
 - approved templates zamiast dowolnego promptu;
 - jeden bezpieczny task receipt oraz owner-scoped status;
 - brak wyświetlenia body odpowiedzi przed Sprintem 135.5.
+- status: `IN PROGRESS — ETAP A PRODUCT CONTRACT APPROVED / IMPLEMENTATION`;
+- audit startowy potwierdził reuse canonical catalog/purchase/inventory,
+  `GoogleplexLlmTaskIngress`, Outbox i owner-scoped receipt status; nie powstaje
+  druga kolejka, drugi inventory ani nowy heavy-profile path.
+- zatwierdzony kontrakt: `agi2108Console`, `AGI 2108 Console`, ikona `⌬`, cena
+  `10 000 HC`, sprzedawca/fallback `admin`, template `owner-analysis`, bounded
+  `topic<=120`, koszt użycia `0 HC`, limit `5 tasków/h`, owner-scoped Cyberner
+  AGI 2108; body pozostaje niedostępne do 135.5.
+- Etap A wdrożony lokalnie: atomowy bounded wallet+inventory purchase,
+  idempotentny retry, canonical launcher/uninstall/delty, zarejestrowana policy
+  `googleplex_app + owner-analysis + cyberner`, owner-scoped status i konsola z
+  trwałym pending receipt dla niejednoznacznej odpowiedzi sieciowej;
+- frontend i API nie pokazują model body/raw outputu przed 135.5; nowe hot pathy
+  nie korzystają z pełnego profilu.
 
 ### Sprint 135.5 — LLM Publishers
 
@@ -3823,8 +3839,8 @@ narracyjne, ale ich numeracja, kolejność i schema nie są już wiążące.
 → 135.2 COMPLETE
 → 135.3 COMPLETE
 → 135.4 COMPLETE
-→ 135.4.1 IN PROGRESS
-→ 135.4.2 BLOCKED BY 135.4.1
+→ 135.4.1 COMPLETE
+→ 135.4.2 IN PROGRESS / ETAP A CONTRACT APPROVED
 → 135.5 BLOCKED BY 135.4.2
 ```
 
@@ -3851,7 +3867,7 @@ zawiera wyłącznie audience-specific projected facts.
 
 Podłączyć zatwierdzone zdarzenia GhostNetwork do istniejącego pipeline’u narracyjnego BlackNetu.
 
-BlackNet Outbox ma od tej pory otrzymywać również fakty dotyczące:
+BlackNet i Googleplex News Outbox mają od tej pory otrzymywać również fakty dotyczące:
 
 * odkrywania części,
 * blokowania komponentów,

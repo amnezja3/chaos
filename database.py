@@ -10511,6 +10511,130 @@ class PlayerInventoryStore:
         with db_connect(self.db_path) as own_conn:
             return self.has_app(username, app_id, conn=own_conn)
 
+    def install_app_with_conn(self, conn, username, app, *, purchase_key=""):
+        """Install one canonical app inside the caller's transaction.
+
+        This is intentionally bounded: it touches one app, one tool file and
+        one storage row.  It never reads or rewrites profile_json.
+        """
+        username = self._clean_text(username)
+        app = dict(app) if isinstance(app, dict) else {}
+        app_id = self._app_id(app)
+        purchase_key = self._clean_text(purchase_key)
+        if not username or not app_id or not purchase_key:
+            raise ValueError("Canonical app installation identity is required.")
+
+        storage_row = conn.execute(
+            "SELECT capacity, used, unit, version FROM player_storage WHERE username = ?",
+            (username,),
+        ).fetchone()
+        if not storage_row:
+            raise ValueError("inventory_not_initialized")
+
+        existing = conn.execute(
+            "SELECT app_json, status, version FROM player_apps WHERE username = ? AND app_id = ?",
+            (username, app_id),
+        ).fetchone()
+        existing_app = loads_json(existing["app_json"], {}) if existing else {}
+        if (
+            existing
+            and str(existing["status"] or "") != "uninstalled"
+            and str((existing_app or {}).get("wallet_transaction_key") or "") == purchase_key
+        ):
+            duplicate_app = dict(existing_app or {})
+            duplicate_app.setdefault("id", app_id)
+            duplicate_app.setdefault("status", str(existing["status"] or "installed"))
+            return {
+                "app": duplicate_app,
+                "app_id": app_id,
+                "duplicate": True,
+                "storage_added": 0,
+            }
+        if existing and str(existing["status"] or "") != "uninstalled":
+            raise ValueError("app_already_installed")
+
+        now = utc_now()
+        installed_app = dict(app)
+        installed_app["id"] = app_id
+        installed_app["status"] = "installed"
+        installed_app["wallet_transaction_key"] = purchase_key
+        app_version = int(existing["version"] or 0) + 1 if existing else 1
+        conn.execute(
+            """
+            INSERT INTO player_apps
+                (username, app_id, app_json, status, version, updated_at)
+            VALUES (?, ?, ?, 'installed', ?, ?)
+            ON CONFLICT(username, app_id) DO UPDATE SET
+                app_json = excluded.app_json,
+                status = 'installed',
+                version = excluded.version,
+                updated_at = excluded.updated_at
+            """,
+            (username, app_id, dumps_json(installed_app), app_version, now),
+        )
+
+        tool_id = self._clean_text(
+            installed_app.get("file_name") or f"{installed_app.get('name') or app_id}.sh"
+        )
+        tool_payload = {
+            "id": tool_id,
+            "tool_id": tool_id,
+            "file": tool_id,
+            "name": tool_id,
+            "app_id": app_id,
+            "source_app_id": app_id,
+            # The app row owns the install footprint. This launcher projection
+            # remains zero-sized so uninstall cannot subtract it twice.
+            "file_size": 0,
+        }
+        tool_row = conn.execute(
+            "SELECT version FROM player_tool_files WHERE username = ? AND tool_id = ?",
+            (username, tool_id),
+        ).fetchone()
+        tool_version = int(tool_row["version"] or 0) + 1 if tool_row else 1
+        conn.execute(
+            """
+            INSERT INTO player_tool_files
+                (username, tool_id, app_id, tool_json, version, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(username, tool_id) DO UPDATE SET
+                app_id = excluded.app_id,
+                tool_json = excluded.tool_json,
+                version = excluded.version,
+                updated_at = excluded.updated_at
+            """,
+            (username, tool_id, app_id, dumps_json(tool_payload), tool_version, now),
+        )
+
+        storage_added = self._inventory_storage_size(installed_app, app=True)
+        conn.execute(
+            """
+            UPDATE player_storage
+            SET used = ?, version = ?, updated_at = ?
+            WHERE username = ?
+            """,
+            (
+                max(0, int(storage_row["used"] or 0) + storage_added),
+                int(storage_row["version"] or 0) + 1,
+                now,
+                username,
+            ),
+        )
+        return {
+            "app": installed_app,
+            "app_id": app_id,
+            "duplicate": False,
+            "storage_added": storage_added,
+            "tool_id": tool_id,
+        }
+
+    def install_app(self, username, app, *, purchase_key):
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            return self.install_app_with_conn(
+                conn, username, app, purchase_key=purchase_key
+            )
+
     def mirror_profile(self, username, profile):
         snapshot = self.snapshot(username)
         if not isinstance(profile, dict):
@@ -11247,6 +11371,7 @@ class WalletBalanceStore:
         note="",
         debit_up_to=False,
         source="wallet.transfer",
+        transaction_callback=None,
     ):
         from_username = self._clean_text(from_username)
         to_username = self._clean_text(to_username)
@@ -11311,7 +11436,7 @@ class WalletBalanceStore:
                     raise WalletWriteError(
                         "Canonical transfer exists without complete balance events."
                     )
-                return {
+                result = {
                     "applied": False,
                     "duplicate": True,
                     "amount": int(replay["amount"] or 0),
@@ -11321,6 +11446,9 @@ class WalletBalanceStore:
                     "target_version": int(incoming["version"] or 0),
                     "transaction": dict(replay),
                 }
+                if transaction_callback is not None:
+                    transaction_callback(conn=conn, transaction=result)
+                return result
 
             source_row = self._canonical_row_with_conn(conn, from_username)
             target_row = self._canonical_row_with_conn(conn, to_username)
@@ -11501,7 +11629,7 @@ class WalletBalanceStore:
                     now,
                 ),
             )
-            return {
+            result = {
                 "applied": True,
                 "duplicate": False,
                 "amount": actual_amount,
@@ -11519,6 +11647,9 @@ class WalletBalanceStore:
                     "created_at": now,
                 },
             }
+            if transaction_callback is not None:
+                transaction_callback(conn=conn, transaction=result)
+            return result
 
     def recovery_set_balance(
         self,

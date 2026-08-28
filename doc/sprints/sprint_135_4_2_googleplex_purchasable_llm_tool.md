@@ -1,6 +1,28 @@
 # Sprint 135.4.2 — Purchasable Googleplex LLM Tool
 
-Status: `PLANNED / BLOCKED BY SPRINT 135.4.1`.
+Status: `IN PROGRESS — ETAP A PRODUCT CONTRACT APPROVED / IMPLEMENTATION`.
+
+## Start sprintu — 2026-08-28
+
+Warunek wejścia został spełniony po manualnym zaakceptowaniu Sprintu 135.4.1.
+Audit aktualnego runtime potwierdził, że implementacja ma rozszerzyć istniejący
+call chain, bez tworzenia drugiego systemu:
+
+```text
+Googleplex canonical catalog/purchase/install
+→ PlayerInventoryStore entitlement
+→ /api/googleplex/llm/tasks
+→ GoogleplexLlmTaskIngress
+→ canonical ghost_narrative_outbox
+→ /api/googleplex/llm/tasks/<receipt_id> owner status
+```
+
+Gotowe są już: bounded entitlement, idempotentny receipt/task, owner audience,
+quota, session-generation transaction precommit guard, zakaz arbitralnego
+promptu/modelu/audience/CTA/URL oraz status bez promptu, lease i raw outputu.
+
+Decyzje produktowe Etapu A zostały jawnie zatwierdzone 2026-08-29. Implementacja
+korzysta wyłącznie z poniższego kontraktu i nie publikuje body przed 135.5.
 
 ## Cel
 
@@ -9,23 +31,42 @@ graczowi zlecić zatwierdzony task narracyjny przez ingress Sprintu 135.3 oraz
 śledzić jego techniczny status. Sprint nie publikuje jeszcze treści odpowiedzi
 modelu — to następuje w 135.5.
 
-## Decyzje produktowe do zamknięcia na początku sprintu
-
-Przed implementacją należy zatwierdzić:
+## Zatwierdzony kontrakt produktu — Etap A
 
 ```text
-product_id / app_id
-nazwa in-world
-ikona i rodzina produktu
-cena HC
-target/fallback sprzedawcy
-approved template set
-limity użycia i ewentualny koszt pojedynczego taska
-domyślny kanał wyniku: owner-scoped Cyberner AGI 2108 / aplikacja
+app_id: agi2108Console
+nazwa: AGI 2108 Console
+ikona: ⌬
+cena: 10 000 HC
+sprzedawca/fallback: admin
+approved template: owner-analysis
+input: topic, maksymalnie 120 znaków
+koszt użycia: 0 HC
+limit: 5 tasków / 1 godzinę / owner
+medium: owner-scoped Cyberner AGI 2108
+body wyniku: niedostępne do Sprintu 135.5
 ```
 
-Nie należy wprowadzać roboczej nazwy, ceny ani odbiorcy jako ukrytego fallbacku.
-Po zatwierdzeniu wartości trafiają do canonical app/product config.
+Prompt, model, schema, audience, medium i CTA pozostają backend-owned. Aplikacja
+przyjmuje wyłącznie bounded `topic`; użycie nie wykonuje transferu wallet.
+
+## Checkpoint implementacyjny Etapu A — 2026-08-29
+
+- produkt został dodany do canonical Googleplex catalog z dokładnie
+  zatwierdzonym kontraktem;
+- zakup `10 000 HC` oraz instalacja w `PlayerInventoryStore` są jednym bounded
+  transaction z precommit guard; retry nie pobiera HC ani storage drugi raz;
+- instalacja i uninstall publikują istniejące bounded apps/storage/wallet delty,
+  bez odczytu albo zapisu `profile_json`;
+- registry mapuje `googleplex_app + owner-analysis + cyberner` na wersjonowany
+  prompt/schema/model policy; `topic` powyżej 120 znaków jest fail-closed;
+- konsola zapisuje owner-scoped receipt, pokazuje tylko bezpieczny status i
+  utrzymuje ten sam pending receipt przy niejednoznacznym błędzie sieciowym;
+- status `completed` nie zawiera body, raw outputu, walidacji ani lease internals.
+
+Dodane regresje obejmują atomowy purchase/replay/uninstall, rollback przy
+session precommit reject, fixture profilu 35 MB bez heavy-profile read/write,
+owner privacy/status, exact product/registry contract oraz responsive frontend.
 
 ## Warunek wejścia
 
@@ -216,5 +257,3 @@ per_recipient_profile_read = 0
 
 Po spełnieniu bramki: `SPRINT 135.4.2 — READY FOR SERVER VALIDATION`, a po
 potwierdzeniu `READY FOR SPRINT 135.5`.
-
-

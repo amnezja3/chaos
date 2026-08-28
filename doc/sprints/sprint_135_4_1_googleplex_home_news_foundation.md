@@ -1,6 +1,6 @@
 # Sprint 135.4.1 — Googleplex Home + News Foundation
 
-Status: `IN PROGRESS`.
+Status: `SPRINT 135.4.1 — COMPLETE / READY FOR SPRINT 135.4.2`.
 
 Punkt kontrolny 2026-08-28:
 
@@ -21,9 +21,9 @@ Punkt kontrolny 2026-08-28:
   brand/icon oraz cztery produkcyjne placeholdery HERO:
   `neutral`, `danger`, `victory`, `defence`;
 - finalne assety przygotowywane przez autora mogą zastępować wpisy rejestru
-  bez zmiany kontraktu UI;
-- testy lokalne są zielone, ale sprint pozostaje otwarty do integracji finalnych
-  assetów i manualnej walidacji serwerowej.
+  bez zmiany kontraktu UI i nie blokują zamknięcia foundation;
+- testy lokalne są zielone, a układ okienkowy, fullscreen i mobile zostały
+  zaakceptowane manualnie 2026-08-28.
 
 Sprint 135.4 jest zamknięty. Sprint 135.4.1 buduje lekką, bezpieczną
 powierzchnię Googleplex Home/News, ale nadal nie publikuje graczom wyników

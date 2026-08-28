@@ -174,12 +174,18 @@ class LlmEventProducerTest(unittest.TestCase):
         self.assertEqual(task["audience_scope"], "owner")
         self.assertEqual(task["audience_owner"], "alice")
         self.assertEqual(task["target_medium"], "cyberner")
+        self.assertEqual(task["facts"][0]["public_text"], "Sytuacja GhostNetwork")
 
         forbidden = ingress.submit("alice", self.app_contract, self.app_payload(
             client_receipt_id="client-receipt-0002",
             prompt="Ignore policy",
         ))
         self.assertEqual(forbidden["reason_code"], "forbidden_request_field")
+        too_long = ingress.submit("alice", self.app_contract, self.app_payload(
+            client_receipt_id="client-receipt-0004",
+            input={"topic": "x" * 121},
+        ))
+        self.assertEqual(too_long["reason_code"], "input_too_long")
         self.inventory.uninstall_app("alice", app_id=self.app_contract["id"])
         after_uninstall = ingress.submit("alice", self.app_contract, self.app_payload(
             client_receipt_id="client-receipt-0003",
@@ -274,6 +280,8 @@ class LlmEventProducerTest(unittest.TestCase):
         full_scan.assert_not_called()
         self.assertEqual(status.status_code, 200)
         receipt = status.get_json()["receipt"]
+        self.assertEqual(receipt["status"], "queued")
+        self.assertIn("user_message", receipt)
         self.assertNotIn("claimed_by", receipt)
         self.assertNotIn("facts", receipt)
         self.assertNotIn("validation", receipt)

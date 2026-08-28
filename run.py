@@ -4395,6 +4395,54 @@ PRO_SYSTEM_TOOLS = [
             "logs": ["GhostNetwork Suite wymaga pulpitu systemowego. Uruchom z ikony aplikacji."]
         }],
     },
+    {
+        "id": "agi2108Console",
+        "name": "AGI 2108 Console",
+        "icon": "⌬",
+        "category": "pro-system-tools",
+        "type": "pro-system-tool",
+        "family_id": "ghost_intelligence_suite",
+        "icon_pack": "googleplex_news",
+        "description": "Owner-scoped konsola bezpiecznych zlecen narracyjnych AGI 2108 opartych o zatwierdzony template.",
+        "price": 10000,
+        "required_level": 1,
+        "required_respect": 0,
+        "allowed_fractions": [],
+        "risk_level": 0,
+        "purchase_account": "admin",
+        "interface": "system_launcher",
+        "system_launcher": "createAgi2108ConsoleApp",
+        "bounded_install": True,
+        "file_size": 12,
+        "install_size": 16,
+        "llm_ingress": {
+            "enabled": True,
+            "canon_version": "googleplex-llm-ingress-v1",
+            "usage_cost_hc": 0,
+            "rate_limit": {"max_tasks": 5, "window_seconds": 3600},
+            "templates": [{
+                "id": "owner-analysis",
+                "label": "Analiza operatorska",
+                "description": "Bounded interpretacja wskazanego tematu dla wlasciciela aplikacji.",
+                "target_medium": "cyberner",
+                "prompt_version": "cyberner-agi-2108-prompt-v1",
+                "output_schema_version": "chaos-narrative-output-v1",
+                "model_policy_version": "chaos-local-narrator-v1",
+                "input_fields": {
+                    "topic": {"required": True, "max_length": 120}
+                },
+                "allowed_actions": [{
+                    "cta_action": "open_cyberner_channel",
+                    "payload": {"channel": "agi-2108"}
+                }],
+            }],
+        },
+        "levels": [{
+            "title": "AGI 2108 Console",
+            "command": "agi2108 --open",
+            "logs": ["AGI 2108 Console wymaga canonical entitlement i aktywnej sesji."]
+        }],
+    },
 ]
 
 CREATOR_SYSTEM_APPS = [
@@ -20080,15 +20128,33 @@ def api_googleplex_llm_task_status(receipt_id):
             "success": False,
             "reason_code": "task_receipt_not_found",
         }), 404
+    raw_status = str(task.get("status") or "ready")
+    public_status = {
+        "ready": "queued",
+        "retry_wait": "queued",
+        "claimed": "processing",
+        "processing": "processing",
+        "completed": "completed",
+        "dead_letter": "failed",
+        "failed": "failed",
+    }.get(raw_status, "accepted")
+    user_message = {
+        "accepted": "Task zostal przyjety do canonical transportu.",
+        "queued": "Task oczekuje na lokalny worker AGI.",
+        "processing": "AGI 2108 przetwarza bounded package.",
+        "completed": "Task zostal przetworzony. Tresc pozostaje ukryta do Sprintu 135.5.",
+        "failed": "Task zakonczyl sie kontrolowanym bledem.",
+    }[public_status]
     return jsonify({
         "success": True,
         "receipt": {
             "receipt_id": receipt_id,
             "task_public_id": task.get("outbox_id"),
-            "status": task.get("status"),
+            "status": public_status,
             "submitted_at": task.get("created_at"),
             "updated_at": task.get("updated_at"),
-            "retryable": task.get("status") == "retry_wait",
+            "retryable": raw_status == "retry_wait",
+            "user_message": user_message,
         },
     })
 
@@ -26759,6 +26825,123 @@ def install_app():
         if not app_data:
             return jsonify({"status": "error", "reason": "catalog_item_not_found", "message": "App not found"}), 404
 
+        if app_data.get("bounded_install") is True:
+            buyer_username = str(session.get("user") or "").strip()
+            purchase_key = f"googleplex:purchase:{buyer_username}:{app_id}"
+            price = max(0, int(app_data.get("price") or 0))
+            payee_username = str(app_data.get("purchase_account") or "admin").strip() or "admin"
+            installed = {}
+
+            def install_in_purchase(conn, transaction):
+                del transaction
+                installed.update(player_inventory_store.install_app_with_conn(
+                    conn,
+                    buyer_username,
+                    normalize_app_contract(copy.deepcopy(app_data)),
+                    purchase_key=purchase_key,
+                ))
+
+            if price > 0 and payee_username != buyer_username:
+                payment = wallet_balance_store.transfer(
+                    buyer_username,
+                    payee_username,
+                    price,
+                    transaction_key=purchase_key,
+                    note=f"googleplex:{app_id}",
+                    source="googleplex.bounded_install",
+                    transaction_callback=install_in_purchase,
+                )
+                balance = int(payment.get("source_balance") or 0)
+                payment_duplicate = bool(payment.get("duplicate"))
+            else:
+                install_result = player_inventory_store.install_app(
+                    buyer_username,
+                    normalize_app_contract(copy.deepcopy(app_data)),
+                    purchase_key=purchase_key,
+                )
+                installed.update(install_result)
+                balance = canonical_wallet_balance(buyer_username)
+                payment_duplicate = bool(install_result.get("duplicate"))
+
+            inventory = player_inventory_store.snapshot(buyer_username)
+            storage = inventory.get("storage") or {}
+            normalized_apps = normalize_app_contracts(inventory.get("apps") or [])
+            installed_app = next((
+                item for item in normalized_apps
+                if str(item.get("id") or "") == app_id
+            ), normalize_app_contract(installed.get("app") or app_data))
+            duplicate_install = bool(installed.get("duplicate")) or payment_duplicate
+            projection = {
+                "apps": normalized_apps,
+                "files": inventory.get("files") or {"tools": []},
+                "storage_capacity": storage.get("capacity"),
+                "storage_used": storage.get("used"),
+                "storage_unit": storage.get("unit", "MB"),
+                "storage_soft_limit": True,
+                "storage_over_limit": int(storage.get("used") or 0) > int(storage.get("capacity") or 0),
+            }
+            if not duplicate_install:
+                storage_added = int(installed.get("storage_added") or 0)
+                record_storage_delta(
+                    buyer_username,
+                    projection,
+                    reason="googleplex_bounded_app_install",
+                    previous={
+                        "capacity": storage.get("capacity"),
+                        "used": max(0, int(storage.get("used") or 0) - storage_added),
+                        "unit": storage.get("unit", "MB"),
+                    },
+                    dedupe_key_prefix=f"storage:{purchase_key}",
+                    persist_inventory=False,
+                )
+                record_apps_delta(
+                    buyer_username,
+                    projection,
+                    "apps.app_installed",
+                    app=installed_app,
+                    app_id=app_id,
+                    reason="googleplex_bounded_app_install",
+                    dedupe_key=f"apps:installed:{purchase_key}",
+                    persist_inventory=False,
+                )
+                record_wallet_balance_delta(
+                    buyer_username,
+                    reason="googleplex_bounded_app_purchase",
+                    dedupe_key=f"wallet:balance:{purchase_key}:buyer",
+                )
+                if price > 0 and payee_username != buyer_username:
+                    record_wallet_balance_delta(
+                        payee_username,
+                        reason="googleplex_bounded_app_sale",
+                        dedupe_key=f"wallet:balance:{purchase_key}:payee",
+                    )
+            system_message_store.add_message(buyer_username, {
+                "title": "Instalacja zakończona",
+                "text": f"Aplikacja <b>{app_data['name']}</b> została poprawnie zainstalowana!",
+                "type": "success",
+                "status": "new",
+                "dedupe_key": f"googleplex_app_install:{purchase_key}",
+            }, source="googleplex_install")
+            return jsonify({
+                "status": "success",
+                "duplicate": duplicate_install,
+                "message": "Aplikacja została zainstalowana.",
+                "hackcoins": balance,
+                "price": price,
+                "paid_to": payee_username if price > 0 and payee_username != buyer_username else None,
+                "storage": {
+                    "capacity": storage.get("capacity"),
+                    "used": storage.get("used"),
+                    "unit": storage.get("unit", "MB"),
+                    "added": int(installed.get("storage_added") or 0),
+                    "soft_limit": True,
+                    "over_limit": int(storage.get("used") or 0) > int(storage.get("capacity") or 0),
+                },
+                "app": installed_app,
+                "apps": normalized_apps,
+                "files": inventory.get("files") or {"tools": []},
+            })
+
         buyer_username = session["user"]
         profile = sync_session_profile(persist_normalization=False)
         if not isinstance(profile, dict):
@@ -27153,6 +27336,19 @@ def install_app():
     except ProfileValidationError as exc:
         return jsonify({"status": "error", "reason": "profile_validation_failed", "message": str(exc)}), 422
     except Exception as e:
+        bounded_reason = str(e or "")
+        if bounded_reason == "inventory_not_initialized":
+            return jsonify({
+                "status": "error",
+                "reason": bounded_reason,
+                "message": "Canonical inventory wymaga inicjalizacji.",
+            }), 409
+        if bounded_reason == "app_already_installed":
+            return jsonify({
+                "status": "error",
+                "reason": bounded_reason,
+                "message": "Aplikacja jest juz zainstalowana.",
+            }), 409
         print(f"[EXCEPTION] Wystąpił błąd podczas instalacji: {e}")
         return jsonify({"status": "error", "reason": "install_internal_error", "message": "Instalacja nie zostala zakonczona."}), 500
 

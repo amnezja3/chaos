@@ -257,7 +257,11 @@ class GoogleplexLlmTaskIngress:
         safe_inputs = {}
         for field_name, contract in field_contracts.items():
             contract = contract if isinstance(contract, dict) else {}
-            value = _safe_text(raw_inputs.get(field_name), min(500, _safe_int(contract.get("max_length"), 160)))
+            max_length = min(500, _safe_int(contract.get("max_length"), 160))
+            raw_value = str(raw_inputs.get(field_name) or "").strip()
+            if len(raw_value) > max_length:
+                return self._rejected("input_too_long")
+            value = _safe_text(raw_value, max_length)
             if contract.get("required") and not value:
                 return self._rejected("required_input_missing")
             if value:
@@ -273,6 +277,7 @@ class GoogleplexLlmTaskIngress:
             "truth_class": "interpretation",
             "template_id": template_id,
             "request_fields": safe_inputs,
+            "public_text": _safe_text(safe_inputs.get("topic"), 120),
             "context_ref": _safe_text(payload.get("context_ref"), 120),
         }
         allowed_actions = []

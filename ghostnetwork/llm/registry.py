@@ -90,6 +90,10 @@ def _build_registry():
         "ghostnetwork", "signal_sent", "radio", "ghostsignal-prompt-v1",
         Path("ghostsignal") / "signal-v1.md",
     ))
+    policies.append(_policy(
+        "googleplex_app", "owner-analysis", "cyberner",
+        "cyberner-agi-2108-prompt-v1", Path("cyberner") / "agi-2108-v1.md",
+    ))
     return {(p.source_scope, p.task_variant, p.target_medium): p for p in policies}
 
 
@@ -154,4 +158,3 @@ def verify_prompt_registry():
         except ValueError as exc:
             errors.append(str(exc))
     return {"ok": not errors, "errors": sorted(set(errors)), "policies": len(seen)}
-
