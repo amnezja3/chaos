@@ -89,6 +89,24 @@ def _encoded_package(model_input):
     )
 
 
+def _try_add_fact_column(model_input, source_facts, facts, fact_columns, field_spec):
+    source_field, column, value_limit = field_spec
+    if column in fact_columns:
+        return False
+    values = [_compact_value(item.get(source_field), value_limit) for item in source_facts]
+    if not any(value is not None for value in values):
+        return False
+    fact_columns.append(column)
+    for row, value in zip(facts, values):
+        row.append(value)
+    if len(_encoded_package(model_input).encode("utf-8")) <= MAX_TASK_PACKAGE_BYTES:
+        return True
+    fact_columns.pop()
+    for row in facts:
+        row.pop()
+    return False
+
+
 def assign_ollama_task_policy(task):
     task = dict(task or {})
     policy = resolve_ollama_task_policy(
@@ -127,7 +145,7 @@ def build_ollama_task_package(task, policy=None):
     source_facts = []
     facts = []
     fact_refs = set()
-    for item in (task.get("facts") or [])[:32]:
+    for item in (task.get("facts") or []):
         if not isinstance(item, dict):
             continue
         fact_id = str(item.get("fact_id") or "").strip()
@@ -144,7 +162,7 @@ def build_ollama_task_package(task, policy=None):
     for index, action in enumerate((task.get("allowed_actions") or [])[:32], start=1):
         if not isinstance(action, dict):
             continue
-        action_name = str(action.get("cta_action") or "").strip()
+        action_name = str(action.get("cta_action") or "").strip()[:64]
         if not action_name:
             continue
         ref = f"c{index:02d}"
@@ -152,23 +170,17 @@ def build_ollama_task_package(task, policy=None):
         ctas.append([ref, action_name])
 
     fact_columns = ["fact_ref"]
-    for source_field, column, value_limit in CANONICAL_FACT_REF_FIELDS:
-        values = [_compact_value(item.get(source_field), value_limit) for item in source_facts]
-        if not any(value is not None for value in values):
-            continue
-        fact_columns.append(column)
-        for row, value in zip(facts, values):
-            row.append(value)
-
-    source = {"scope": policy.source_scope}
-    task_id = str(task.get("outbox_id") or task.get("task_id") or "")[:128]
-    if task_id:
-        source["task"] = task_id
-    for key, field in (("event", "source_event_id"), ("receipt", "source_receipt_id")):
-        value = str(task.get(field) or "")[:128]
-        if value:
-            source[key] = value
-    versions = {}
+    source = {
+        "scope": policy.source_scope,
+        "task": str(task.get("outbox_id") or task.get("task_id") or "")[:128],
+        "event": str(task.get("source_event_id") or "")[:128],
+        "receipt": str(task.get("source_receipt_id") or "")[:128],
+    }
+    versions = {
+        "prompt": policy.prompt_version,
+        "output_schema": policy.output_schema_version,
+        "model_policy": policy.model_policy_version,
+    }
     for key, field in (
         ("canon", "canon_version"),
         ("ghostsystem", "ghostsystem_version"),
@@ -177,11 +189,11 @@ def build_ollama_task_package(task, policy=None):
         value = str(task.get(field) or "")[:96]
         if value:
             versions[key] = value
-    audience = {"scope": str(task.get("audience_scope") or "").strip()}
-    for key, field in (("clan", "audience_clan"), ("owner", "audience_owner")):
-        value = str(task.get(field) or "")[:96]
-        if value:
-            audience[key] = value
+    audience = {
+        "scope": str(task.get("audience_scope") or "").strip(),
+        "clan": str(task.get("audience_clan") or "")[:96],
+        "owner": str(task.get("audience_owner") or "")[:96],
+    }
 
     model_input = {
         "source": source,
@@ -200,21 +212,17 @@ def build_ollama_task_package(task, policy=None):
         "limits": {"title": 96, "body": 480, "refs": 16},
     }
 
-    # Add semantic fields fairly across all facts while keeping every canonical
-    # fact ref. No producer-controlled instruction can alter this allowlist.
-    for source_field, column, value_limit in COMPACT_FACT_FIELDS:
-        if column in fact_columns:
-            continue
-        values = [_compact_value(item.get(source_field), value_limit) for item in source_facts]
-        if not any(value is not None for value in values):
-            continue
-        fact_columns.append(column)
-        for row, value in zip(facts, values):
-            row.append(value)
-        if len(_encoded_package(model_input).encode("utf-8")) > MAX_TASK_PACKAGE_BYTES:
-            fact_columns.pop()
-            for row in facts:
-                row.pop()
+    mandatory_bytes = len(_encoded_package(model_input).encode("utf-8"))
+    if mandatory_bytes > MAX_TASK_PACKAGE_BYTES:
+        raise ValueError("ollama_task_mandatory_skeleton_too_large")
+
+    # Optional data is admitted as complete columns: every fact gets the field
+    # or no fact does. Canonical reference columns have priority, but they are
+    # still budgeted so they cannot crowd mandatory fact/source identity out.
+    for field_spec in CANONICAL_FACT_REF_FIELDS:
+        _try_add_fact_column(model_input, source_facts, facts, fact_columns, field_spec)
+    for field_spec in COMPACT_FACT_FIELDS:
+        _try_add_fact_column(model_input, source_facts, facts, fact_columns, field_spec)
 
     encoded = _encoded_package(model_input)
     input_bytes = len(encoded.encode("utf-8"))

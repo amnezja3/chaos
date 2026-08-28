@@ -193,6 +193,120 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertGreaterEqual(package["estimated_input_tokens"], 500)
         self.assertLessEqual(package["estimated_input_tokens"], 700)
 
+    def test_production_weight_blacknet_digest_budgets_all_optional_columns(self):
+        facts = [{
+            "fact_id": f"blacknet_fact:production-world-signal-{index:02d}",
+            "signal_id": f"sig-{index:02d}",
+            "event_id": f"evt-{index:02d}",
+            "cycle_id": "gn-0001",
+            "public_entity_id": f"pe-{index:02d}",
+            "region_id": f"r{index:02d}",
+            "lock_snapshot_id": f"ls-{index:02d}",
+            "lock_snapshot_checksum": f"sum-{index:02d}-abcdef",
+            "truth_class": "canonical",
+            "signal_type": "territory_activity",
+            "category": "ghostnetwork",
+            "title": f"Sygnal swiatowy {index:02d}",
+            "importance": index % 5,
+            "observed_at": "2026-08-28T12:00:00+00:00",
+        } for index in range(20)]
+        actions = [{
+            "cta_action": f"focus_world_signal_{index:02d}",
+            "payload": {
+                "public_entity_id": f"pe-{index:02d}",
+                "target_medium": "blacknet",
+                "kind": "map",
+            },
+        } for index in range(18)]
+        task = assign_ollama_task_policy({
+            "outbox_id": "narrative_task_blacknet_production_weight",
+            "source_scope": "blacknet_world",
+            "source_event_id": "blacknet_world_digest_event_production",
+            "source_receipt_id": "blacknet_world_digest_receipt_production",
+            "task_variant": "world_digest",
+            "target_medium": "blacknet",
+            "audience_scope": "public",
+            "audience_clan": "",
+            "audience_owner": "",
+            "truth_class_policy": "canonical_facts_only",
+            "canon_version": "blacknet-world-narrative-v1",
+            "ghostsystem_version": "ghostsystem-v510",
+            "world_state_version": "world-state-production-510",
+            "editorial_profile": "blacknet_world_reporter",
+            "narrative_context": "Globalny digest kanonicznych sygnalow Ghost System.",
+            "facts": facts,
+            "allowed_actions": actions,
+        })
+
+        facts_bytes = len(json.dumps(facts, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+        actions_bytes = len(json.dumps(actions, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+        self.assertGreaterEqual(facts_bytes, 7800)
+        self.assertLessEqual(facts_bytes, 8800)
+        self.assertGreaterEqual(actions_bytes, 1900)
+        self.assertLessEqual(actions_bytes, 2400)
+
+        package = build_ollama_task_package(task)
+        model_input = json.loads(package["messages"][1]["content"])
+        ref_index = model_input["fact_columns"].index("fact_ref")
+        self.assertEqual(
+            {row[ref_index] for row in model_input["facts"]},
+            {fact["fact_id"] for fact in facts},
+        )
+        self.assertTrue(all(
+            len(row) == len(model_input["fact_columns"])
+            for row in model_input["facts"]
+        ))
+        self.assertEqual(model_input["source"], {
+            "scope": "blacknet_world",
+            "task": task["outbox_id"],
+            "event": task["source_event_id"],
+            "receipt": task["source_receipt_id"],
+        })
+        self.assertEqual(model_input["versions"], {
+            "canon": task["canon_version"],
+            "ghostsystem": task["ghostsystem_version"],
+            "world": task["world_state_version"],
+            "prompt": task["prompt_version"],
+            "output_schema": task["output_schema_version"],
+            "model_policy": task["model_policy_version"],
+        })
+        self.assertEqual(model_input["medium"], "blacknet")
+        self.assertEqual(model_input["audience"], {
+            "scope": "public", "clan": "", "owner": "",
+        })
+        self.assertEqual(model_input["truth"], "canonical_facts_only")
+        self.assertEqual(package["fact_count"], 20)
+        self.assertLessEqual(package["input_bytes"], MAX_TASK_PACKAGE_BYTES)
+        self.assertGreaterEqual(package["estimated_input_tokens"], 500)
+        self.assertLessEqual(package["estimated_input_tokens"], 700)
+
+    def test_oversized_mandatory_identity_has_distinct_fail_closed_error(self):
+        task = self.task()
+        task["facts"] = [
+            {"fact_id": f"mandatory-{index:02d}-" + ("x" * 128)}
+            for index in range(32)
+        ]
+
+        with self.assertRaisesRegex(
+            ValueError, "ollama_task_mandatory_skeleton_too_large"
+        ):
+            build_ollama_task_package(task)
+
+    def test_fact_identity_is_not_silently_truncated_at_32_rows(self):
+        task = self.task()
+        task["facts"] = [
+            {"fact_id": f"f{index:02d}"}
+            for index in range(40)
+        ]
+
+        package = build_ollama_task_package(task)
+        model_input = json.loads(package["messages"][1]["content"])
+        self.assertEqual(package["fact_count"], 40)
+        self.assertEqual(
+            {row[0] for row in model_input["facts"]},
+            {fact["fact_id"] for fact in task["facts"]},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
