@@ -91,6 +91,41 @@ NARRATIVE_TASK_LEGACY_STATUS_MAP = {
 }
 
 
+def _narrative_policy_rows(policies):
+    rows = []
+    for item in policies or []:
+        if hasattr(item, "eligibility_tuple"):
+            item = item.eligibility_tuple()
+        elif isinstance(item, dict):
+            item = (
+                item.get("source_scope"),
+                item.get("task_variant"),
+                item.get("target_medium"),
+                item.get("prompt_version"),
+                item.get("output_schema_version"),
+                item.get("model_policy_version"),
+            )
+        if not isinstance(item, (list, tuple)) or len(item) != 6:
+            continue
+        row = tuple(_clean(value) for value in item)
+        if all(row) and "unassigned" not in row:
+            rows.append(row)
+    return tuple(dict.fromkeys(rows))
+
+
+def _narrative_policy_sql(policies):
+    rows = _narrative_policy_rows(policies)
+    if not rows:
+        return "0 = 1", []
+    predicate = "(" + " OR ".join(
+        "(source_scope = ? AND task_variant = ? AND target_medium = ? "
+        "AND prompt_version = ? AND output_schema_version = ? "
+        "AND model_policy_version = ?)"
+        for _item in rows
+    ) + ")"
+    return predicate, [value for row in rows for value in row]
+
+
 def canonical_narrative_task_dedupe_key(item):
     item = item if isinstance(item, dict) else {}
     source_scope = _clean(item.get("source_scope"), "ghostnetwork")
@@ -962,6 +997,126 @@ class GhostNetworkRepository:
                 )
                 """
             )
+            # Eligibility is an explicit, small OR-registry layered over the
+            # canonical ready queue. A second wide prefix index makes SQLite
+            # abandon the bounded scheduling index for ordinary claims.
+            conn.execute("DROP INDEX IF EXISTS idx_ghost_narrative_task_policy_ready")
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_registered_ready
+                ON ghost_narrative_outbox(
+                    priority DESC, next_attempt_at, created_at, outbox_id
+                )
+                WHERE processor = 'ollama'
+                  AND status IN ('ready', 'retry_wait')
+                  AND prompt_version != 'unassigned'
+                  AND output_schema_version != 'unassigned'
+                  AND model_policy_version != 'unassigned'
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_narrative_inbox_attempts (
+                    attempt_id TEXT PRIMARY KEY,
+                    task_id TEXT NOT NULL,
+                    attempt_number INTEGER NOT NULL,
+                    worker_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    model_name TEXT NOT NULL,
+                    model_digest TEXT NOT NULL,
+                    ollama_runtime_version TEXT NOT NULL DEFAULT '',
+                    prompt_version TEXT NOT NULL,
+                    output_schema_version TEXT NOT NULL,
+                    model_policy_version TEXT NOT NULL,
+                    request_hash TEXT NOT NULL DEFAULT '',
+                    response_hash TEXT NOT NULL DEFAULT '',
+                    total_duration_ns INTEGER NOT NULL DEFAULT 0,
+                    load_duration_ns INTEGER NOT NULL DEFAULT 0,
+                    prompt_eval_count INTEGER NOT NULL DEFAULT 0,
+                    eval_count INTEGER NOT NULL DEFAULT 0,
+                    result TEXT NOT NULL DEFAULT '',
+                    error_code TEXT NOT NULL DEFAULT '',
+                    error_message TEXT NOT NULL DEFAULT '',
+                    retryable INTEGER NOT NULL DEFAULT 0,
+                    started_at TEXT NOT NULL,
+                    completed_at TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(task_id, attempt_number)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_attempt_task
+                ON ghost_narrative_inbox_attempts(task_id, attempt_number DESC)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_attempt_status
+                ON ghost_narrative_inbox_attempts(status, updated_at, attempt_id)
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_narrative_inbox_candidates (
+                    candidate_id TEXT PRIMARY KEY,
+                    task_id TEXT NOT NULL,
+                    attempt_id TEXT NOT NULL UNIQUE,
+                    source_scope TEXT NOT NULL,
+                    source_event_id TEXT NOT NULL DEFAULT '',
+                    source_receipt_id TEXT NOT NULL DEFAULT '',
+                    output_schema_version TEXT NOT NULL,
+                    prompt_version TEXT NOT NULL,
+                    model_policy_version TEXT NOT NULL,
+                    model_name TEXT NOT NULL,
+                    model_digest TEXT NOT NULL,
+                    ollama_runtime_version TEXT NOT NULL DEFAULT '',
+                    target_medium TEXT NOT NULL,
+                    audience_scope TEXT NOT NULL,
+                    audience_clan TEXT NOT NULL DEFAULT '',
+                    audience_owner TEXT NOT NULL DEFAULT '',
+                    truth_class TEXT NOT NULL,
+                    title TEXT NOT NULL DEFAULT '',
+                    body TEXT NOT NULL DEFAULT '',
+                    tone TEXT NOT NULL DEFAULT '',
+                    fact_refs_json TEXT NOT NULL DEFAULT '[]',
+                    cta_ref TEXT NOT NULL DEFAULT '',
+                    cta_action TEXT NOT NULL DEFAULT '',
+                    cta_payload_json TEXT NOT NULL DEFAULT '{}',
+                    bounded_raw_output TEXT NOT NULL DEFAULT '',
+                    output_hash TEXT NOT NULL,
+                    validation_status TEXT NOT NULL,
+                    validation_errors_json TEXT NOT NULL DEFAULT '[]',
+                    quarantine_reason TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    validated_at TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_narrative_one_accepted
+                ON ghost_narrative_inbox_candidates(task_id)
+                WHERE validation_status = 'accepted'
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_candidate_task
+                ON ghost_narrative_inbox_candidates(task_id, created_at, candidate_id)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_candidate_status
+                ON ghost_narrative_inbox_candidates(
+                    validation_status, created_at, candidate_id
+                )
+                """
+            )
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS ghost_achievements (
@@ -1233,6 +1388,82 @@ class GhostNetworkRepository:
             "dead_lettered_at": row["dead_lettered_at"] if "dead_lettered_at" in keys else "",
             "validation": validation,
             "dedupe_key": row["dedupe_key"] if "dedupe_key" in keys else "",
+        }
+
+    @staticmethod
+    def _narrative_attempt(row):
+        if not row:
+            return None
+        return {
+            "attempt_id": row["attempt_id"],
+            "task_id": row["task_id"],
+            "attempt_number": int(row["attempt_number"] or 0),
+            "worker_id": row["worker_id"],
+            "status": row["status"],
+            "model_name": row["model_name"],
+            "model_digest": row["model_digest"],
+            "ollama_runtime_version": row["ollama_runtime_version"],
+            "prompt_version": row["prompt_version"],
+            "output_schema_version": row["output_schema_version"],
+            "model_policy_version": row["model_policy_version"],
+            "request_hash": row["request_hash"],
+            "response_hash": row["response_hash"],
+            "total_duration_ns": int(row["total_duration_ns"] or 0),
+            "load_duration_ns": int(row["load_duration_ns"] or 0),
+            "prompt_eval_count": int(row["prompt_eval_count"] or 0),
+            "eval_count": int(row["eval_count"] or 0),
+            "result": row["result"],
+            "error_code": row["error_code"],
+            "error_message": row["error_message"],
+            "retryable": bool(row["retryable"]),
+            "started_at": row["started_at"],
+            "completed_at": row["completed_at"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    @staticmethod
+    def _narrative_candidate(row):
+        if not row:
+            return None
+        fact_refs = loads_json(row["fact_refs_json"], [])
+        validation_errors = loads_json(row["validation_errors_json"], [])
+        cta_payload = loads_json(row["cta_payload_json"], {})
+        return {
+            "candidate_id": row["candidate_id"],
+            "task_id": row["task_id"],
+            "attempt_id": row["attempt_id"],
+            "source_scope": row["source_scope"],
+            "source_event_id": row["source_event_id"],
+            "source_receipt_id": row["source_receipt_id"],
+            "output_schema_version": row["output_schema_version"],
+            "prompt_version": row["prompt_version"],
+            "model_policy_version": row["model_policy_version"],
+            "model_name": row["model_name"],
+            "model_digest": row["model_digest"],
+            "ollama_runtime_version": row["ollama_runtime_version"],
+            "target_medium": row["target_medium"],
+            "audience_scope": row["audience_scope"],
+            "audience_clan": row["audience_clan"],
+            "audience_owner": row["audience_owner"],
+            "truth_class": row["truth_class"],
+            "title": row["title"],
+            "body": row["body"],
+            "tone": row["tone"],
+            "fact_refs": fact_refs if isinstance(fact_refs, list) else [],
+            "cta_ref": row["cta_ref"],
+            "cta_action": row["cta_action"],
+            "cta_payload": cta_payload if isinstance(cta_payload, dict) else {},
+            "bounded_raw_output": row["bounded_raw_output"],
+            "output_hash": row["output_hash"],
+            "validation_status": row["validation_status"],
+            "validation_errors": (
+                validation_errors if isinstance(validation_errors, list) else []
+            ),
+            "quarantine_reason": row["quarantine_reason"],
+            "created_at": row["created_at"],
+            "validated_at": row["validated_at"],
+            "updated_at": row["updated_at"],
         }
 
     @staticmethod
@@ -3555,6 +3786,56 @@ class GhostNetworkRepository:
             ).fetchone()
             return int(row["count"] or 0) if row else 0
 
+    def narrative_task_queue_counts(self, eligible_policies=None, now=None):
+        now_iso = _iso(now if now is not None else self.now())
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT status, COUNT(*) AS count
+                FROM ghost_narrative_outbox
+                WHERE processor = ?
+                GROUP BY status
+                """,
+                (NARRATIVE_TASK_PROCESSOR,),
+            ).fetchall()
+            counts = {str(row["status"]): int(row["count"] or 0) for row in rows}
+            policy_clause, policy_params = _narrative_policy_sql(eligible_policies)
+            eligibility = conn.execute(
+                f"""
+                SELECT
+                    SUM(CASE WHEN {policy_clause}
+                        AND ((audience_scope = 'public' AND audience_clan = '' AND audience_owner = '')
+                          OR (audience_scope = 'clan' AND audience_clan != '' AND audience_owner = '')
+                          OR (audience_scope = 'owner' AND audience_owner != ''))
+                        THEN 1 ELSE 0 END) AS eligible,
+                    SUM(CASE WHEN NOT ({policy_clause})
+                        OR NOT ((audience_scope = 'public' AND audience_clan = '' AND audience_owner = '')
+                          OR (audience_scope = 'clan' AND audience_clan != '' AND audience_owner = '')
+                          OR (audience_scope = 'owner' AND audience_owner != ''))
+                        THEN 1 ELSE 0 END) AS ineligible,
+                    MIN(CASE WHEN {policy_clause}
+                        AND status IN ('ready', 'retry_wait')
+                        AND (next_attempt_at = '' OR next_attempt_at <= ?)
+                        THEN created_at ELSE NULL END) AS oldest_eligible_ready
+                FROM ghost_narrative_outbox
+                WHERE processor = ? AND status IN ('ready', 'retry_wait')
+                """,
+                tuple(
+                    policy_params
+                    + policy_params
+                    + policy_params
+                    + [now_iso, NARRATIVE_TASK_PROCESSOR]
+                ),
+            ).fetchone()
+        return {
+            "statuses": counts,
+            "eligible_ready": int((eligibility or {})["eligible"] or 0),
+            "ineligible_ready": int((eligibility or {})["ineligible"] or 0),
+            "oldest_eligible_ready": (
+                str((eligibility or {})["oldest_eligible_ready"] or "")
+            ),
+        }
+
     def get_latest_narrative_task(
         self,
         target_medium=None,
@@ -3649,6 +3930,7 @@ class GhostNetworkRepository:
         lease_seconds=60,
         processor=NARRATIVE_TASK_PROCESSOR,
         target_medium=None,
+        eligible_policies=None,
         now=None,
         recovery_limit=100,
     ):
@@ -3661,19 +3943,49 @@ class GhostNetworkRepository:
         with self.transaction():
             conn = self._transaction_conn
             self._recover_expired_narrative_leases_conn(conn, now_iso, recovery_limit)
+            normalized_processor = _clean(processor, NARRATIVE_TASK_PROCESSOR)
+            if eligible_policies is not None and normalized_processor != NARRATIVE_TASK_PROCESSOR:
+                return None
             clauses = [
-                "processor = ?",
+                (
+                    "processor = 'ollama'"
+                    if eligible_policies is not None
+                    else "processor = ?"
+                ),
                 "status IN ('ready', 'retry_wait')",
                 "attempt_count < max_attempts",
                 "(next_attempt_at = '' OR next_attempt_at <= ?)",
             ]
-            params = [_clean(processor, NARRATIVE_TASK_PROCESSOR), now_iso]
+            params = (
+                [now_iso]
+                if eligible_policies is not None
+                else [normalized_processor, now_iso]
+            )
             if target_medium:
                 clauses.append("target_medium = ?")
                 params.append(_clean(target_medium))
+            if eligible_policies is not None:
+                clauses.extend((
+                    "prompt_version != 'unassigned'",
+                    "output_schema_version != 'unassigned'",
+                    "model_policy_version != 'unassigned'",
+                ))
+                policy_clause, policy_params = _narrative_policy_sql(eligible_policies)
+                clauses.append(policy_clause)
+                params.extend(policy_params)
+                clauses.append(
+                    "((audience_scope = 'public' AND audience_clan = '' AND audience_owner = '') "
+                    "OR (audience_scope = 'clan' AND audience_clan != '' AND audience_owner = '') "
+                    "OR (audience_scope = 'owner' AND audience_owner != ''))"
+                )
+            index_hint = (
+                "INDEXED BY idx_ghost_narrative_registered_ready"
+                if eligible_policies is not None
+                else ""
+            )
             row = conn.execute(
                 f"""
-                SELECT * FROM ghost_narrative_outbox
+                SELECT * FROM ghost_narrative_outbox {index_hint}
                 WHERE {' AND '.join(clauses)}
                 ORDER BY priority DESC, next_attempt_at ASC, created_at ASC, outbox_id ASC
                 LIMIT 1
@@ -3912,6 +4224,308 @@ class GhostNetworkRepository:
                     (_clean(outbox_id),),
                 ).fetchone()
             )
+
+    def begin_narrative_attempt(
+        self,
+        task,
+        worker_id,
+        expected_lease_until,
+        model_name,
+        model_digest,
+        request_hash="",
+        now=None,
+    ):
+        task = task if isinstance(task, dict) else {}
+        task_id = _clean(task.get("outbox_id") or task.get("task_id"))
+        attempt_number = max(1, int(task.get("attempt_count") or 1))
+        worker_id = _clean(worker_id)
+        expected_lease_until = _clean(expected_lease_until)
+        if not task_id or not worker_id or not expected_lease_until:
+            return None
+        attempt_id = _hash_id("narrative_attempt", task_id, attempt_number)
+        now_iso = _iso(now if now is not None else self.now())
+        with self.transaction():
+            conn = self._transaction_conn
+            owned = conn.execute(
+                """
+                SELECT 1 FROM ghost_narrative_outbox
+                WHERE outbox_id = ? AND claimed_by = ?
+                  AND status IN ('claimed', 'processing')
+                  AND lease_until = ? AND lease_until > ?
+                LIMIT 1
+                """,
+                (task_id, worker_id, expected_lease_until, now_iso),
+            ).fetchone()
+            if not owned:
+                return None
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO ghost_narrative_inbox_attempts (
+                    attempt_id, task_id, attempt_number, worker_id, status,
+                    model_name, model_digest, ollama_runtime_version,
+                    prompt_version, output_schema_version, model_policy_version,
+                    request_hash, started_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'started', ?, ?, '', ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    attempt_id,
+                    task_id,
+                    attempt_number,
+                    worker_id,
+                    _clean(model_name),
+                    _clean(model_digest),
+                    _clean(task.get("prompt_version")),
+                    _clean(task.get("output_schema_version")),
+                    _clean(task.get("model_policy_version")),
+                    _clean(request_hash),
+                    now_iso,
+                    now_iso,
+                    now_iso,
+                ),
+            )
+            return self._narrative_attempt(conn.execute(
+                "SELECT * FROM ghost_narrative_inbox_attempts WHERE attempt_id = ? LIMIT 1",
+                (attempt_id,),
+            ).fetchone())
+
+    def finish_narrative_attempt(
+        self,
+        attempt_id,
+        *,
+        status,
+        result="",
+        error_code="",
+        error_message="",
+        retryable=False,
+        generation=None,
+        now=None,
+    ):
+        allowed_statuses = {
+            "model_completed", "candidate_recorded", "completed", "retry",
+            "failed", "lease_lost",
+        }
+        status = _clean(status)
+        if status not in allowed_statuses:
+            raise ValueError("Invalid narrative attempt status")
+        generation = generation if isinstance(generation, dict) else {}
+        now_iso = _iso(now if now is not None else self.now())
+        with self._conn() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ghost_narrative_inbox_attempts
+                SET status = ?, result = ?, error_code = ?, error_message = ?,
+                    retryable = ?, response_hash = ?, ollama_runtime_version = ?,
+                    total_duration_ns = ?, load_duration_ns = ?,
+                    prompt_eval_count = ?, eval_count = ?,
+                    completed_at = ?, updated_at = ?
+                WHERE attempt_id = ?
+                """,
+                (
+                    status,
+                    _clean(result),
+                    _clean(error_code),
+                    _clean(error_message)[:240],
+                    1 if retryable else 0,
+                    _clean(generation.get("raw_response_hash")),
+                    _clean(generation.get("runtime_version")),
+                    int(generation.get("total_duration_ns") or 0),
+                    int(generation.get("load_duration_ns") or 0),
+                    int(generation.get("prompt_eval_count") or 0),
+                    int(generation.get("eval_count") or 0),
+                    now_iso,
+                    now_iso,
+                    _clean(attempt_id),
+                ),
+            )
+            if cursor.rowcount != 1:
+                return None
+            return self._narrative_attempt(conn.execute(
+                "SELECT * FROM ghost_narrative_inbox_attempts WHERE attempt_id = ? LIMIT 1",
+                (_clean(attempt_id),),
+            ).fetchone())
+
+    def record_narrative_candidate(
+        self,
+        task,
+        attempt_id,
+        worker_id,
+        expected_lease_until,
+        validation,
+        raw_output,
+        generation,
+        now=None,
+    ):
+        task = task if isinstance(task, dict) else {}
+        validation = validation if isinstance(validation, dict) else {}
+        generation = generation if isinstance(generation, dict) else {}
+        task_id = _clean(task.get("outbox_id") or task.get("task_id"))
+        validation_status = _clean(validation.get("status"))
+        if validation_status not in {"accepted", "quarantined", "rejected"}:
+            raise ValueError("Narrative candidate requires terminal validation")
+        output = validation.get("output") if isinstance(validation.get("output"), dict) else {}
+        resolved_cta = (
+            validation.get("resolved_cta")
+            if isinstance(validation.get("resolved_cta"), dict)
+            else {}
+        )
+        raw_output = str(raw_output or "")
+        raw_bytes = raw_output.encode("utf-8")[:16 * 1024]
+        bounded_raw = raw_bytes.decode("utf-8", errors="ignore")
+        now_iso = _iso(now if now is not None else self.now())
+        candidate_id = _hash_id("narrative_candidate", task_id, attempt_id)
+        with self.transaction():
+            conn = self._transaction_conn
+            owned = conn.execute(
+                """
+                SELECT 1 FROM ghost_narrative_outbox
+                WHERE outbox_id = ? AND claimed_by = ?
+                  AND status IN ('claimed', 'processing')
+                  AND lease_until = ? AND lease_until > ?
+                LIMIT 1
+                """,
+                (
+                    task_id,
+                    _clean(worker_id),
+                    _clean(expected_lease_until),
+                    now_iso,
+                ),
+            ).fetchone()
+            attempt = conn.execute(
+                """
+                SELECT 1 FROM ghost_narrative_inbox_attempts
+                WHERE attempt_id = ? AND task_id = ? LIMIT 1
+                """,
+                (_clean(attempt_id), task_id),
+            ).fetchone()
+            if not owned or not attempt:
+                return None
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO ghost_narrative_inbox_candidates (
+                        candidate_id, task_id, attempt_id, source_scope,
+                        source_event_id, source_receipt_id, output_schema_version,
+                        prompt_version, model_policy_version, model_name,
+                        model_digest, ollama_runtime_version, target_medium,
+                        audience_scope, audience_clan, audience_owner, truth_class,
+                        title, body, tone, fact_refs_json, cta_ref, cta_action,
+                        cta_payload_json, bounded_raw_output, output_hash,
+                        validation_status, validation_errors_json,
+                        quarantine_reason, created_at, validated_at, updated_at
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    )
+                    """,
+                    (
+                        candidate_id,
+                        task_id,
+                        _clean(attempt_id),
+                        _clean(task.get("source_scope")),
+                        _clean(task.get("source_event_id")),
+                        _clean(task.get("source_receipt_id")),
+                        _clean(task.get("output_schema_version")),
+                        _clean(task.get("prompt_version")),
+                        _clean(task.get("model_policy_version")),
+                        _clean(generation.get("model")),
+                        _clean(generation.get("model_digest")),
+                        _clean(generation.get("runtime_version")),
+                        _clean(task.get("target_medium") or task.get("medium")),
+                        _clean(task.get("audience_scope")),
+                        _clean(task.get("audience_clan")),
+                        _clean(task.get("audience_owner")),
+                        _clean(task.get("truth_class")),
+                        str(output.get("title") or "")[:96],
+                        str(output.get("body") or "")[:800],
+                        _clean(output.get("tone")),
+                        dumps_json(output.get("fact_refs") if isinstance(output.get("fact_refs"), list) else []),
+                        _clean(output.get("cta_ref")),
+                        _clean(resolved_cta.get("cta_action")),
+                        dumps_json(
+                            resolved_cta.get("payload")
+                            if isinstance(resolved_cta.get("payload"), dict)
+                            else {}
+                        ),
+                        bounded_raw,
+                        hashlib.sha256(raw_output.encode("utf-8")).hexdigest(),
+                        validation_status,
+                        dumps_json(validation.get("errors") if isinstance(validation.get("errors"), list) else []),
+                        _clean((validation.get("errors") or [""])[0]) if validation_status == "quarantined" else "",
+                        now_iso,
+                        now_iso,
+                        now_iso,
+                    ),
+                )
+            except IntegrityError:
+                existing = conn.execute(
+                    """
+                    SELECT * FROM ghost_narrative_inbox_candidates
+                    WHERE attempt_id = ?
+                       OR (task_id = ? AND validation_status = 'accepted')
+                    ORDER BY CASE WHEN attempt_id = ? THEN 0 ELSE 1 END
+                    LIMIT 1
+                    """,
+                    (_clean(attempt_id), task_id, _clean(attempt_id)),
+                ).fetchone()
+                return self._narrative_candidate(existing)
+            return self._narrative_candidate(conn.execute(
+                "SELECT * FROM ghost_narrative_inbox_candidates WHERE attempt_id = ? LIMIT 1",
+                (_clean(attempt_id),),
+            ).fetchone())
+
+    def get_narrative_candidate_for_task(self, task_id):
+        with self._conn() as conn:
+            return self._narrative_candidate(conn.execute(
+                """
+                SELECT * FROM ghost_narrative_inbox_candidates
+                WHERE task_id = ?
+                ORDER BY CASE validation_status WHEN 'accepted' THEN 0 ELSE 1 END,
+                         created_at ASC, candidate_id ASC
+                LIMIT 1
+                """,
+                (_clean(task_id),),
+            ).fetchone())
+
+    def list_narrative_candidates(self, validation_status=None, limit=100):
+        limit = max(1, min(int(limit or 100), 1000))
+        clauses = []
+        params = []
+        if validation_status:
+            clauses.append("validation_status = ?")
+            params.append(_clean(validation_status))
+        where = "WHERE " + " AND ".join(clauses) if clauses else ""
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM ghost_narrative_inbox_candidates
+                {where}
+                ORDER BY created_at ASC, candidate_id ASC LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+            return [self._narrative_candidate(row) for row in rows]
+
+    def list_narrative_attempts(self, task_id=None, limit=100):
+        limit = max(1, min(int(limit or 100), 1000))
+        with self._conn() as conn:
+            if task_id:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM ghost_narrative_inbox_attempts
+                    WHERE task_id = ? ORDER BY attempt_number ASC LIMIT ?
+                    """,
+                    (_clean(task_id), limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM ghost_narrative_inbox_attempts
+                    ORDER BY created_at ASC, attempt_id ASC LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
+            return [self._narrative_attempt(row) for row in rows]
 
     def requeue_narrative_task(self, outbox_id, now=None, validation=None):
         now_iso = _iso(now if now is not None else self.now())

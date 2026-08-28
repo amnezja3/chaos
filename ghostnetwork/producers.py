@@ -10,6 +10,7 @@ from .repository import (
     _clean,
     _hash_id,
 )
+from .ollama_policy import assign_ollama_task_policy
 
 
 BLACKNET_SOURCE_SCOPE = "blacknet_world"
@@ -164,7 +165,7 @@ class BlackNetNarrativeProducer:
         source_receipt_id = _hash_id(
             "blacknet_digest", window_id, world_version or "unversioned"
         )
-        task = self.repository.enqueue_narrative_task({
+        task = self.repository.enqueue_narrative_task(assign_ollama_task_policy({
             "schema_version": NARRATIVE_TASK_SCHEMA_VERSION,
             "source_scope": BLACKNET_SOURCE_SCOPE,
             "source_receipt_id": source_receipt_id,
@@ -188,7 +189,7 @@ class BlackNetNarrativeProducer:
                 "signal_count": len(facts),
                 "window_id": window_id,
             },
-        })
+        }))
         return {
             "ok": True,
             "status": "deduplicated" if task.get("idempotent") else "created",
@@ -293,7 +294,7 @@ class GoogleplexLlmTaskIngress:
                         )
                     },
                 })
-        task_record = {
+        task_record = assign_ollama_task_policy({
             "schema_version": NARRATIVE_TASK_SCHEMA_VERSION,
             "source_scope": GOOGLEPLEX_SOURCE_SCOPE,
             "source_receipt_id": receipt_id,
@@ -317,7 +318,7 @@ class GoogleplexLlmTaskIngress:
                 "producer": "googleplex_app",
                 "template_id": template_id,
             },
-        }
+        })
         rate_limit = ingress.get("rate_limit")
         rate_limit = rate_limit if isinstance(rate_limit, dict) else {}
         max_tasks = max(1, min(_safe_int(rate_limit.get("max_tasks"), 6), 100))

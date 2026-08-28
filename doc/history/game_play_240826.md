@@ -5175,3 +5175,25 @@ Minimum:
 Sprint jest zakończony, gdy ważne działania GhostNetwork automatycznie stają się narracyjnymi sygnałami BlackNetu, przechodzą przez Ollama Inbox/Outbox, respektują widoczność części, posiadają mechaniczny fallback i pozostają całkowicie odseparowane od źródła prawdy gameplayu.
 
 Po Sprintach 136–138 GhostNetwork nie tylko działa jako system strategiczny — zaczyna również sam opowiadać historię swoich konfliktów, aktywacji i transmisji przez żywy strumień BlackNetu.
+
+## Sprint 135.4 — lokalny worker Ollamy i canonical Inbox
+
+Status implementacji: `SPRINT 135.4 — READY FOR SERVER VALIDATION`.
+
+Sprint dostarczył niezależny, domyślnie wyłączony proces
+`chaos-ollama-worker`, atomowy consumer Outboxa, heartbeat lease, trwałą historię
+attemptów oraz bounded Inbox candidates. Crash po zapisie candidate nie powoduje
+drugiego model call, a stale owner nie może zapisać ani domknąć wyniku.
+
+Prompty nie są danymi taska ani stringami workera. Powstał wersjonowany registry
+`ghostnetwork/llm/`, który składa warstwy `SYSTEM + DOMAIN + TASK PACKAGE` i
+wiąże `source_scope + task_variant + target_medium` z prompt/schema/model policy.
+Nieznane kombinacje, `unassigned`, brak pliku lub mismatch wersji pozostają
+fail-closed przed claimem.
+
+Ollama generuje tylko `title/body/tone/fact_refs/cta_ref`. Source, audience,
+truth class, outcome i payload CTA pozostają backend-owned. Accepted candidate
+nie jest jeszcze publikowany graczom; publikacja pozostaje zakresem 135.5.
+
+Zachowano twardy zakaz heavy profile. Worker korzysta wyłącznie z bounded taska,
+Outboxa i Inboxa; fixture profilu 35 MiB nie powoduje pełnego odczytu ani skanu.

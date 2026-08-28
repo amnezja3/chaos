@@ -10,6 +10,7 @@ from .repository import (
     _hash_id,
     canonical_narrative_task_dedupe_key,
 )
+from .ollama_policy import assign_ollama_task_policy
 from .visibility import _public_entity_id
 
 
@@ -273,6 +274,7 @@ class GhostNarrativePublisher:
                 "status": status,
                 "validation": validation,
             }
+        task = assign_ollama_task_policy(task)
         task["dedupe_key"] = canonical_narrative_task_dedupe_key(task)
         task["outbox_id"] = _hash_id("narrative_task", task["dedupe_key"])
         return self.repository.enqueue_narrative_task(task)
