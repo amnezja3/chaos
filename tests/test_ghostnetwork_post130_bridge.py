@@ -208,6 +208,7 @@ class GhostNetworkPost130BridgeTest(unittest.TestCase):
                 patch.object(run, "ghostnetwork_territory_job_store", self.job_store), \
                 patch.object(run.territory_delta_publisher, "record_areas_updated", return_value=[]), \
                 patch.object(run.territory_store, "list_player_areas", side_effect=lambda *_: list(areas)), \
+                patch.object(run.territory_store, "get_area_publication", return_value=None), \
                 patch.object(run, "identity_projection_store", FakeIdentityProjection(profiles)), \
                 patch.object(run, "load_profile_write_record", return_value={
                     "profile": {"username": "pies1"}, "profile_revision": 1,
