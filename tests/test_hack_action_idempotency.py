@@ -453,6 +453,101 @@ class HackActionIdempotencyTests(unittest.TestCase):
         self.assertEqual(payload["active_count"], 1)
         self.assertEqual(payload["active_operations"][0]["operation_id"], "op_summary")
 
+    def test_map_operation_cancel_uses_canonical_store_and_is_idempotent(self):
+        operation = {
+            "operation_id": "op_map_cancel",
+            "target_id": "target-cancel",
+            "map_action_id": "trace",
+            "operation_type": "vehicle_tracking",
+            "source_app_id": "trace_1",
+            "status": "running",
+            "operation_risk_meter": {
+                "current_heat": 55,
+                "active_contribution": 55,
+                "warning_crossed": True,
+                "warning_dedupe_key": "operation-risk:op_map_cancel:warning",
+            },
+        }
+        run.player_operation_store.upsert_operations(
+            "main", [operation], event_type="operation.started"
+        )
+        client = run.app.test_client()
+        headers = self._authenticate_client(client)
+
+        with patch.object(
+            run,
+            "sync_session_profile",
+            side_effect=AssertionError("canonical cancel must not hydrate a full profile"),
+        ), patch.object(run.incident_initializer, "sync_operations", return_value={"actions": []}), \
+                patch.object(run, "sync_response_warnings", return_value=[]):
+            first = client.post(
+                "/api/operations/cancel",
+                headers=headers,
+                json={"operation_id": "op_map_cancel"},
+            )
+            replay = client.post(
+                "/api/operations/cancel",
+                headers=headers,
+                json={"operation_id": "op_map_cancel"},
+            )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(replay.status_code, 200)
+        first_payload = first.get_json()
+        replay_payload = replay.get_json()
+        self.assertEqual(first_payload["result"], "cancelled")
+        self.assertFalse(first_payload["idempotent"])
+        self.assertEqual(replay_payload["result"], "already_cancelled")
+        self.assertTrue(replay_payload["idempotent"])
+        self.assertEqual(first_payload["receipt"], replay_payload["receipt"])
+        self.assertEqual(first_payload["active_operations"], [])
+        stored = run.player_operation_store.list_operations("main")[0]
+        self.assertEqual(stored["status"], "cancelled")
+        self.assertFalse(stored["cleanup_state"]["marker_visible"])
+        self.assertEqual(stored["operation_risk_meter"]["active_contribution"], 0)
+        self.assertTrue(stored["operation_risk_meter"]["warning_cancelled"])
+        conn = sqlite3.connect(self.db_path)
+        try:
+            cancel_events = conn.execute(
+                "SELECT COUNT(*) FROM operation_events WHERE event_type = 'operation.cancelled'"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        self.assertEqual(cancel_events, 1)
+
+    def test_map_operation_cancel_missing_identity_is_domain_conflict_not_404(self):
+        client = run.app.test_client()
+        headers = self._authenticate_client(client)
+
+        response = client.post(
+            "/api/operations/cancel",
+            headers=headers,
+            json={"operation_id": "missing-operation"},
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.get_json()["reason_code"], "operation_not_available")
+
+    def test_stale_profile_sync_cannot_resurrect_cancelled_operation(self):
+        operation = {
+            "operation_id": "op_no_resurrection",
+            "target_id": "target-1",
+            "map_action_id": "trace",
+            "operation_type": "generic_trace",
+            "source_app_id": "trace_1",
+            "status": "running",
+        }
+        run.player_operation_store.upsert_operations("main", [operation])
+        run.player_operation_store.cancel_operation("main", "op_no_resurrection")
+
+        accepted = run.player_operation_store.upsert_operations(
+            "main", [operation], event_type="operation.profile_mirror_sync"
+        )
+
+        self.assertEqual(accepted[0]["status"], "cancelled")
+        stored = run.player_operation_store.list_operations("main")[0]
+        self.assertEqual(stored["status"], "cancelled")
+
     def test_merge_operations_monotonic_preserves_latest_and_incoming_work(self):
         latest = [
             {

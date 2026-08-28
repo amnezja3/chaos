@@ -36,7 +36,7 @@ class OllamaClientConfig:
     runtime_version: str = EXPECTED_RUNTIME_VERSION
     quantization: str = "Q4_K_M"
     num_ctx: int = 4096
-    num_predict: int = 512
+    num_predict: int = 192
     temperature: float = 0.0
     keep_alive: str = "5m"
     connect_timeout_sec: float = 2.0
@@ -54,7 +54,7 @@ class OllamaClientConfig:
             ),
             quantization=os.environ.get("CHAOS_OLLAMA_QUANTIZATION", "Q4_K_M"),
             num_ctx=int(os.environ.get("CHAOS_OLLAMA_NUM_CTX", "4096")),
-            num_predict=int(os.environ.get("CHAOS_OLLAMA_NUM_PREDICT", "512")),
+            num_predict=int(os.environ.get("CHAOS_OLLAMA_NUM_PREDICT", "192")),
             temperature=float(os.environ.get("CHAOS_OLLAMA_TEMPERATURE", "0")),
             keep_alive=os.environ.get("CHAOS_OLLAMA_KEEP_ALIVE", "5m"),
             connect_timeout_sec=float(os.environ.get(
@@ -93,7 +93,7 @@ class OllamaClientConfig:
             errors.append("ollama_quantization_not_allowed")
         if not 512 <= int(self.num_ctx) <= 4096:
             errors.append("ollama_num_ctx_out_of_policy")
-        if not 1 <= int(self.num_predict) <= 512:
+        if not 128 <= int(self.num_predict) <= 192:
             errors.append("ollama_num_predict_out_of_policy")
         if float(self.temperature) != 0.0:
             errors.append("ollama_temperature_must_be_zero")

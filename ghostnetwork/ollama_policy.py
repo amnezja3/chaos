@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import re
 
 from .llm.policies.chaos_local_narrator_v1 import (
@@ -20,7 +21,8 @@ from .llm.registry import (
 )
 
 
-MAX_MODEL_INPUT_BYTES = 48 * 1024
+MAX_TASK_PACKAGE_BYTES = 2400
+ESTIMATED_TOKEN_CHARS = 3.5
 MAX_MODEL_CONTENT_BYTES = 16 * 1024
 MAX_HTTP_RESPONSE_BYTES = 64 * 1024
 ALLOWED_TONES = (
@@ -33,6 +35,58 @@ ALLOWED_TONES = (
     "clan",
 )
 URL_PATTERN = re.compile(r"(?:https?://|www\.|ftp://)", re.IGNORECASE)
+COMPACT_FACT_FIELDS = (
+    ("fact_type", "type", 48),
+    ("signal_type", "type", 48),
+    ("status", "status", 48),
+    ("previous_status", "previous_status", 48),
+    ("conflict_state", "conflict_state", 48),
+    ("previous_conflict_state", "previous_conflict_state", 48),
+    ("title", "title", 72),
+    ("headline", "headline", 72),
+    ("label", "label", 48),
+    ("value", "value", 48),
+    ("stat", "stat", 72),
+    ("public_text", "text", 96),
+    ("category", "category", 40),
+    ("importance", "importance", 0),
+    ("observed_at", "observed_at", 40),
+    ("valid_until", "valid_until", 40),
+    ("part_count", "part_count", 0),
+    ("connection_count", "connection_count", 0),
+    ("machine_count", "machine_count", 0),
+    ("restart_required", "restart_required", 0),
+    ("confirmation_status", "confirmation_status", 40),
+    ("outcome", "outcome", 40),
+)
+CANONICAL_FACT_REF_FIELDS = (
+    ("signal_id", "signal_id", 96),
+    ("event_id", "event_id", 96),
+    ("cycle_id", "cycle_id", 96),
+    ("public_entity_id", "public_entity_id", 120),
+    ("region_id", "region_id", 96),
+    ("lock_snapshot_id", "lock_snapshot_id", 96),
+    ("lock_snapshot_checksum", "lock_snapshot_checksum", 96),
+)
+
+
+def _compact_value(value, limit):
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value
+    return str(value)[:limit]
+
+
+def _encoded_package(model_input):
+    return json.dumps(
+        model_input,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
 
 
 def assign_ollama_task_policy(task):
@@ -70,6 +124,7 @@ def build_ollama_task_package(task, policy=None):
     ):
         raise ValueError("ollama_task_policy_version_mismatch")
 
+    source_facts = []
     facts = []
     fact_refs = set()
     for item in (task.get("facts") or [])[:32]:
@@ -79,7 +134,8 @@ def build_ollama_task_package(task, policy=None):
         if not fact_id or fact_id in fact_refs:
             continue
         fact_refs.add(fact_id)
-        facts.append(copy.deepcopy(item))
+        source_facts.append(item)
+        facts.append([fact_id])
     if not facts:
         raise ValueError("ollama_task_has_no_facts")
 
@@ -91,43 +147,78 @@ def build_ollama_task_package(task, policy=None):
         action_name = str(action.get("cta_action") or "").strip()
         if not action_name:
             continue
-        ref = f"cta_{index:02d}"
+        ref = f"c{index:02d}"
         cta_map[ref] = copy.deepcopy(action)
-        ctas.append({"cta_ref": ref, "cta_action": action_name})
+        ctas.append([ref, action_name])
+
+    fact_columns = ["fact_ref"]
+    for source_field, column, value_limit in CANONICAL_FACT_REF_FIELDS:
+        values = [_compact_value(item.get(source_field), value_limit) for item in source_facts]
+        if not any(value is not None for value in values):
+            continue
+        fact_columns.append(column)
+        for row, value in zip(facts, values):
+            row.append(value)
+
+    source = {"scope": policy.source_scope}
+    task_id = str(task.get("outbox_id") or task.get("task_id") or "")[:128]
+    if task_id:
+        source["task"] = task_id
+    for key, field in (("event", "source_event_id"), ("receipt", "source_receipt_id")):
+        value = str(task.get(field) or "")[:128]
+        if value:
+            source[key] = value
+    versions = {}
+    for key, field in (
+        ("canon", "canon_version"),
+        ("ghostsystem", "ghostsystem_version"),
+        ("world", "world_state_version"),
+    ):
+        value = str(task.get(field) or "")[:96]
+        if value:
+            versions[key] = value
+    audience = {"scope": str(task.get("audience_scope") or "").strip()}
+    for key, field in (("clan", "audience_clan"), ("owner", "audience_owner")):
+        value = str(task.get(field) or "")[:96]
+        if value:
+            audience[key] = value
 
     model_input = {
-        "task_id": str(task.get("outbox_id") or task.get("task_id") or "")[:128],
-        "source": {
-            "scope": policy.source_scope,
-            "event_id": str(task.get("source_event_id") or "")[:128],
-            "receipt_id": str(task.get("source_receipt_id") or "")[:128],
-        },
-        "versions": {
-            "canon": str(task.get("canon_version") or "")[:128],
-            "ghostsystem": str(task.get("ghostsystem_version") or "")[:128],
-            "world_state": str(task.get("world_state_version") or "")[:128],
-        },
-        "target_medium": policy.target_medium,
+        "source": source,
+        "versions": versions,
+        "medium": policy.target_medium,
         "audience": {
-            "scope": str(task.get("audience_scope") or "").strip(),
-            "clan": str(task.get("audience_clan") or "")[:128],
-            "owner": str(task.get("audience_owner") or "")[:128],
+            **audience,
         },
-        "truth_class_policy": str(task.get("truth_class_policy") or "").strip(),
-        "editorial_profile": str(task.get("editorial_profile") or "")[:256],
-        "narrative_context": str(task.get("narrative_context") or "")[:4096],
+        "truth": str(task.get("truth_class_policy") or "").strip(),
+        "editorial": str(task.get("editorial_profile") or "")[:96],
+        "context": str(task.get("narrative_context") or "")[:256],
+        "fact_columns": fact_columns,
         "facts": facts,
-        "fact_refs": sorted(fact_refs),
-        "allowed_ctas": ctas,
-        "limits": {"title_chars": 96, "body_chars": 800, "fact_refs": 16},
+        "cta_columns": ["cta_ref", "action"],
+        "ctas": ctas,
+        "limits": {"title": 96, "body": 480, "refs": 16},
     }
-    encoded = json.dumps(
-        model_input,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    if len(encoded.encode("utf-8")) > MAX_MODEL_INPUT_BYTES:
+
+    # Add semantic fields fairly across all facts while keeping every canonical
+    # fact ref. No producer-controlled instruction can alter this allowlist.
+    for source_field, column, value_limit in COMPACT_FACT_FIELDS:
+        if column in fact_columns:
+            continue
+        values = [_compact_value(item.get(source_field), value_limit) for item in source_facts]
+        if not any(value is not None for value in values):
+            continue
+        fact_columns.append(column)
+        for row, value in zip(facts, values):
+            row.append(value)
+        if len(_encoded_package(model_input).encode("utf-8")) > MAX_TASK_PACKAGE_BYTES:
+            fact_columns.pop()
+            for row in facts:
+                row.pop()
+
+    encoded = _encoded_package(model_input)
+    input_bytes = len(encoded.encode("utf-8"))
+    if input_bytes > MAX_TASK_PACKAGE_BYTES:
         raise ValueError("ollama_task_package_too_large")
     system_prompt, domain_prompt = load_prompt_layers(policy)
     return {
@@ -140,6 +231,9 @@ def build_ollama_task_package(task, policy=None):
         "fact_refs": frozenset(fact_refs),
         "cta_map": cta_map,
         "request_hash": hashlib.sha256(encoded.encode("utf-8")).hexdigest(),
+        "input_bytes": input_bytes,
+        "estimated_input_tokens": int(math.ceil(len(encoded) / ESTIMATED_TOKEN_CHARS)),
+        "fact_count": len(facts),
     }
 
 

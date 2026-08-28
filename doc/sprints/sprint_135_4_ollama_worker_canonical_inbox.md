@@ -46,6 +46,22 @@ klienta HTTP, worker/lease/crash, Inbox/dedupe/quarantine, historyczne
 `unassigned`, tysiące rekordów kolejki oraz istniejącą fixture profilu 35 MiB.
 Nie uruchomiono lokalnej Ollamy, procesu PM2, deployu ani publikacji.
 
+### Korekta po pierwszej walidacji produkcyjnej
+
+Pierwszy synthetic package miał 2513 tokenów i wymagał około 259 sekund samego
+prompt evaluation; trzy realne taski przekroczyły nawet 240 sekund. Timeout nie
+został zwiększony. Deterministyczny TASK PACKAGE ma teraz twardy limit 2400
+bajtów, odpowiadający budżetowi około 500–700 tokenów dla realnego 20-fact
+digestu. Każdy canonical `fact_id`, source/task/receipt, audience i wersje
+pozostają obecne. Payload facts jest allowlistowany oraz dokładany sprawiedliwie
+w ramach pozostałego budżetu; arbitrary instructions i nieznane pola nie mogą
+powiększać ani zmieniać warstwy promptu.
+
+`num_predict` został ograniczony do 192, przy zachowaniu timeoutu 2s/120s.
+Attempt audit zapisuje teraz `input_bytes` i `fact_count`; dry-run raportuje
+dodatkowo estymowany input tokens oraz rzeczywisty `prompt_eval_count` zwrócony
+przez Ollamę.
+
 Wiążący handoff runtime:
 `doc/sprints/sprint_135_4_codex_ollama_server_runtime_brief.md`.
 
@@ -62,7 +78,7 @@ model digest          46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87
 quantization          Q4_K_M
 concurrency           1
 num_ctx               4096
-num_predict           512
+num_predict           192
 temperature           0
 keep_alive            5m
 connect/read timeout  2s / 120s
@@ -223,6 +239,8 @@ Początkowe limity procesu są jawne i konfigurowalne:
 
 ```text
 poll interval                  1.5s + bounded jitter do 0.25s
+max deterministic TASK PACKAGE 2400 B (~500–700 est. tokens)
+num_predict                    192
 max HTTP response              64 KiB
 max bounded_raw_output         16 KiB
 max bounded error message      240 znaków
@@ -448,6 +466,13 @@ limits
 Worker nie rozszerza facts przez query do domen gameplayowych. Prompt systemowy
 jest wersjonowany w kodzie/zasobach i wybierany przez allowlistę, nie przez dane
 użytkownika.
+
+Wire representation facts jest kolumnowa: `fact_columns[]` opisuje pozycje w
+każdym wierszu `facts[]`. Pozwala to zachować wszystkie canonical refs bez
+powtarzania nazw pól dwadzieścia razy. Kolumny referencyjne są obowiązkowe;
+allowlistowane kolumny opisowe są dokładane całymi kolumnami, deterministycznie,
+do wyczerpania budżetu. `input_bytes` oznacza rozmiar UTF-8 tego package, a nie
+pełnego raw promptu ani odpowiedzi modelu.
 
 ## Canonical Inbox schema
 

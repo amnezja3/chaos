@@ -6322,7 +6322,13 @@
                     const remaining = window.escapeMapText(window.formatRemainingTime(operation.expires_at));
                     const risk = window.escapeMapText(window.operationRiskLabel(operation));
                     const icon = window.escapeMapText(meta.icon);
-                    const operationId = window.escapeMapText(operation.operation_id || '');
+                    const rawOperationId = String(operation.operation_id || '').trim();
+                    const operationId = window.escapeMapText(rawOperationId);
+                    const cancelInFlight = Boolean(
+                        rawOperationId
+                        && window.operationCancelInFlight instanceof Map
+                        && window.operationCancelInFlight.has(rawOperationId)
+                    );
                     return `
                         <div class="active-operation-card">
                             <div class="active-operation-card__title">
@@ -6336,7 +6342,7 @@
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>
                             <div class="active-operation-card__remaining">Pozostało: ${remaining}</div>
                             <div class="active-operation-card__risk">Ryzyko: ${risk}</div>
-                            ${operationId ? `<div class="active-operation-card__actions"><button type="button" class="active-operation-card__cancel" data-operation-cancel="${operationId}">Anuluj</button></div>` : ''}
+                            ${operationId ? `<div class="active-operation-card__actions"><button type="button" class="active-operation-card__cancel" data-operation-cancel="${operationId}" aria-busy="${cancelInFlight ? 'true' : 'false'}" ${cancelInFlight ? 'disabled' : ''}>${cancelInFlight ? 'Anulowanie...' : 'Anuluj'}</button></div>` : ''}
                         </div>
                     `;
                 }).join('');
@@ -6414,7 +6420,13 @@
                     const remaining = window.escapeMapText(window.formatRemainingTime(operation.expires_at));
                     const risk = window.escapeMapText(window.operationRiskLabel(operation));
                     const icon = window.escapeMapText(meta.icon);
-                    const operationId = window.escapeMapText(operation.operation_id || '');
+                    const rawOperationId = String(operation.operation_id || '').trim();
+                    const operationId = window.escapeMapText(rawOperationId);
+                    const cancelInFlight = Boolean(
+                        rawOperationId
+                        && window.operationCancelInFlight instanceof Map
+                        && window.operationCancelInFlight.has(rawOperationId)
+                    );
                     return `
                         <div class="active-operation-card">
                             <div class="active-operation-card__title">
@@ -6428,7 +6440,7 @@
                             <div class="active-operation-card__meta">Start: ${started} | Koniec: ${expires}</div>
                             <div class="active-operation-card__remaining">Pozostalo: ${remaining}</div>
                             <div class="active-operation-card__risk">Ryzyko: ${risk}</div>
-                            ${operationId ? `<div class="active-operation-card__actions"><button type="button" class="active-operation-card__cancel" data-operation-cancel="${operationId}">Anuluj</button></div>` : ''}
+                            ${operationId ? `<div class="active-operation-card__actions"><button type="button" class="active-operation-card__cancel" data-operation-cancel="${operationId}" aria-busy="${cancelInFlight ? 'true' : 'false'}" ${cancelInFlight ? 'disabled' : ''}>${cancelInFlight ? 'Anulowanie...' : 'Anuluj'}</button></div>` : ''}
                         </div>
                     `;
                 }).join('');
@@ -6595,25 +6607,64 @@
                 }
             };
 
-            window.cancelActiveOperation = async function(operationId) {
-                if (!operationId) return;
-                try {
+            window.operationCancelInFlight = window.operationCancelInFlight instanceof Map
+                ? window.operationCancelInFlight
+                : new Map();
+
+            window.cancelActiveOperation = function(operationId) {
+                const canonicalOperationId = String(operationId || '').trim();
+                if (!canonicalOperationId) return Promise.resolve(null);
+                const pending = window.operationCancelInFlight.get(canonicalOperationId);
+                if (pending) return pending;
+
+                const request = (async () => {
+                    let succeeded = false;
+                    try {
                     const res = await fetch('/api/operations/cancel', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ operation_id: operationId })
+                        body: JSON.stringify({ operation_id: canonicalOperationId })
                     });
                     const data = await res.json().catch(() => ({}));
                     if (!res.ok || !data.success) {
                         window.notifyOperationLifecycle(data.message || 'Nie udalo sie anulowac operacji.', 'error');
-                        return;
+                        return data;
+                    }
+                    succeeded = true;
+                    if (Array.isArray(data.active_operations)) {
+                        window.latestActiveOperations = data.active_operations;
+                        window.latestOperationHistory = Array.isArray(data.operation_history)
+                            ? data.operation_history
+                            : (window.latestOperationHistory || []);
+                        window.renderActiveOperationsPanel(
+                            window.latestActiveOperations,
+                            window.latestOperationHistory
+                        );
+                        window.renderActiveOperationMarkers(window.latestActiveOperations);
                     }
                     window.notifyOperationLifecycle(data.message || 'Operacja zostala anulowana.', 'success');
                     await window.refreshActiveOperations();
-                } catch (err) {
-                    console.warn('Cancel operation failed', err);
-                    window.notifyOperationLifecycle('Nie udalo sie anulowac operacji.', 'error');
-                }
+                    return data;
+                    } catch (err) {
+                        console.warn('Cancel operation failed', err);
+                        window.notifyOperationLifecycle('Nie udalo sie anulowac operacji.', 'error');
+                        return null;
+                    } finally {
+                        window.operationCancelInFlight.delete(canonicalOperationId);
+                        if (!succeeded) {
+                            window.renderActiveOperationsPanel(
+                                window.latestActiveOperations || [],
+                                window.latestOperationHistory || []
+                            );
+                        }
+                    }
+                })();
+                window.operationCancelInFlight.set(canonicalOperationId, request);
+                window.renderActiveOperationsPanel(
+                    window.latestActiveOperations || [],
+                    window.latestOperationHistory || []
+                );
+                return request;
             };
 
             if (!window.activeOperationCancelHandlerBound) {
@@ -6638,6 +6689,7 @@
                     if (!button) return;
                     event.preventDefault();
                     event.stopPropagation();
+                    if (button.disabled || button.getAttribute('aria-busy') === 'true') return;
                     const operationId = button.getAttribute('data-operation-cancel');
                     window.cancelActiveOperation(operationId);
                 });

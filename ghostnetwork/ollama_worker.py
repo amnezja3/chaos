@@ -237,6 +237,8 @@ class OllamaNarrativeWorker:
             policy.model_name,
             policy.model_digest,
             request_hash=package["request_hash"],
+            input_bytes=package["input_bytes"],
+            fact_count=package["fact_count"],
         )
         if not attempt:
             return {"result": "lease_lost", "task_id": task["outbox_id"]}
@@ -347,6 +349,8 @@ class OllamaNarrativeWorker:
             "task_id": task["outbox_id"],
             "candidate_id": candidate["candidate_id"],
             "validation_status": candidate["validation_status"],
+            "input_bytes": package["input_bytes"],
+            "fact_count": package["fact_count"],
         }
 
     def run(self, stop_event=None):

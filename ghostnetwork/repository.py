@@ -1029,6 +1029,8 @@ class GhostNetworkRepository:
                     output_schema_version TEXT NOT NULL,
                     model_policy_version TEXT NOT NULL,
                     request_hash TEXT NOT NULL DEFAULT '',
+                    input_bytes INTEGER NOT NULL DEFAULT 0,
+                    fact_count INTEGER NOT NULL DEFAULT 0,
                     response_hash TEXT NOT NULL DEFAULT '',
                     total_duration_ns INTEGER NOT NULL DEFAULT 0,
                     load_duration_ns INTEGER NOT NULL DEFAULT 0,
@@ -1045,6 +1047,18 @@ class GhostNetworkRepository:
                     UNIQUE(task_id, attempt_number)
                 )
                 """
+            )
+            self._ensure_column(
+                conn,
+                "ghost_narrative_inbox_attempts",
+                "input_bytes",
+                "input_bytes INTEGER NOT NULL DEFAULT 0",
+            )
+            self._ensure_column(
+                conn,
+                "ghost_narrative_inbox_attempts",
+                "fact_count",
+                "fact_count INTEGER NOT NULL DEFAULT 0",
             )
             conn.execute(
                 """
@@ -1407,6 +1421,8 @@ class GhostNetworkRepository:
             "output_schema_version": row["output_schema_version"],
             "model_policy_version": row["model_policy_version"],
             "request_hash": row["request_hash"],
+            "input_bytes": int(row["input_bytes"] or 0),
+            "fact_count": int(row["fact_count"] or 0),
             "response_hash": row["response_hash"],
             "total_duration_ns": int(row["total_duration_ns"] or 0),
             "load_duration_ns": int(row["load_duration_ns"] or 0),
@@ -4233,6 +4249,8 @@ class GhostNetworkRepository:
         model_name,
         model_digest,
         request_hash="",
+        input_bytes=0,
+        fact_count=0,
         now=None,
     ):
         task = task if isinstance(task, dict) else {}
@@ -4264,8 +4282,9 @@ class GhostNetworkRepository:
                     attempt_id, task_id, attempt_number, worker_id, status,
                     model_name, model_digest, ollama_runtime_version,
                     prompt_version, output_schema_version, model_policy_version,
-                    request_hash, started_at, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 'started', ?, ?, '', ?, ?, ?, ?, ?, ?, ?)
+                    request_hash, input_bytes, fact_count,
+                    started_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'started', ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     attempt_id,
@@ -4278,6 +4297,8 @@ class GhostNetworkRepository:
                     _clean(task.get("output_schema_version")),
                     _clean(task.get("model_policy_version")),
                     _clean(request_hash),
+                    max(0, int(input_bytes or 0)),
+                    max(0, int(fact_count or 0)),
                     now_iso,
                     now_iso,
                     now_iso,

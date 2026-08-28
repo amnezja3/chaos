@@ -23108,49 +23108,77 @@ def api_cancel_operation():
     if not operation_id:
         return jsonify({"success": False, "message": "Brak identyfikatora operacji."}), 400
 
-    profile = sync_session_profile()
-    operation, result = cancel_profile_operation(profile, operation_id, cancelled_by=session["user"])
+    username = session["user"]
+    operation, result = player_operation_store.cancel_operation(
+        username,
+        operation_id,
+        cancelled_by=username,
+    )
     if result == "not_found":
-        store_operation, store_result = player_operation_store.cancel_operation(
-            session["user"],
-            operation_id,
-            cancelled_by=session["user"],
-        )
-        if store_result == "cancelled":
-            operation = store_operation
-            result = "cancelled"
-    if result == "not_found":
-        return jsonify({"success": False, "message": "Nie znaleziono operacji."}), 404
-    if result in {"already_terminal", "not_active"}:
+        # The route exists; a stale/non-canonical operation identity is a
+        # gameplay state conflict, not a missing HTTP resource.
         return jsonify({
             "success": False,
+            "error": "operation_not_available",
+            "reason_code": "operation_not_available",
+            "message": "Operacja nie jest juz dostepna.",
+        }), 409
+    if result in {"already_terminal", "not_active"}:
+        status = str((operation or {}).get("status") or "").strip().lower()
+        if status in {"cancelled", "canceled"}:
+            operations = bounded_operations_from_store(username)
+            return jsonify({
+                "success": True,
+                "message": "Operacja byla juz anulowana.",
+                "result": "already_cancelled",
+                "idempotent": True,
+                "receipt": {"receipt_id": f"cancel:{operation_id}", "operation_id": operation_id},
+                "operation": operation,
+                "operations": operations,
+                "active_operations": active_operations_from_operations(operations),
+                "operation_history": operation_history_from_operations(operations),
+            })
+        return jsonify({
+            "success": False,
+            "error": result,
+            "reason_code": result,
             "message": "Operacja nie jest juz aktywna.",
             "operation": operation,
         }), 409
+    if result != "cancelled":
+        return jsonify({
+            "success": False,
+            "error": result or "cancel_failed",
+            "reason_code": result or "cancel_failed",
+            "message": "Nie udalo sie anulowac operacji.",
+        }), 409
 
-    UserProfileManager(session["user"]).update_profile({
-        "operations": profile.get("operations", []),
-        "files": profile.get("files", {}),
-        "risk_events": profile.get("risk_events", []),
-        "system_messages": profile.get("system_messages", []),
-    })
-    player_operation_store.upsert_operations(
-        session["user"],
-        profile.get("operations", []),
-        event_type="operation.cancelled",
-        source="api_operations_cancel",
-    )
-    stored_profile = user_store.get_profile(session["user"]) or {}
-    profile["operations"] = stored_profile.get("operations", [])
-    profile["files"] = stored_profile.get("files", {})
-    profile["risk_events"] = stored_profile.get("risk_events", [])
-    profile["system_messages"] = stored_profile.get("system_messages", [])
-    session["profile"] = profile
-    operations, _ = refresh_operations_runtime(profile, persist_timeouts=False, username=session["user"])
+    # Reconcile only the bounded canonical runtime projection. This preserves
+    # incident/warning cleanup without hydrating or writing the full profile.
+    operations = bounded_operations_from_store(username)
+    try:
+        incident_result = incident_initializer.sync_operations(
+            operations,
+            now=operation.get("cancelled_at"),
+        )
+        incident_actions = incident_result.get("actions") or []
+        if incident_actions:
+            publish_incident_actions(username, incident_actions)
+        sync_response_warnings(
+            username,
+            None,
+            [operation],
+            now_iso=operation.get("cancelled_at"),
+        )
+    except Exception as exc:
+        print(f"[OPERATIONS] cancel runtime cleanup skipped operation_id={operation_id}: {exc}", flush=True)
 
     return jsonify({
         "success": True,
         "message": "Operacja zostala anulowana.",
+        "result": "cancelled",
+        "idempotent": False,
+        "receipt": {"receipt_id": f"cancel:{operation_id}", "operation_id": operation_id},
         "operation": operation,
         "operations": operations,
         "active_operations": active_operations_from_operations(operations),

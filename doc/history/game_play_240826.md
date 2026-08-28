@@ -5197,3 +5197,9 @@ nie jest jeszcze publikowany graczom; publikacja pozostaje zakresem 135.5.
 
 Zachowano twardy zakaz heavy profile. Worker korzysta wyłącznie z bounded taska,
 Outboxa i Inboxa; fixture profilu 35 MiB nie powoduje pełnego odczytu ani skanu.
+
+Walidacja produkcyjna ujawniła zbyt ciężki prompt: 2513 tokenów wymagało około
+259 sekund prompt evaluation. Bez zwiększania timeoutu TASK PACKAGE został
+ograniczony do 2400 bajtów (~500–700 tokenów dla realnego digestu),
+`num_predict` do 192, a attempt telemetry rozszerzona o `input_bytes` i
+`fact_count`. Wszystkie canonical refs pozostają zachowane.

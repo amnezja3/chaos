@@ -181,6 +181,10 @@ class OllamaWorkerTest(unittest.TestCase):
         self.assertEqual(len(candidates), 1)
         self.assertEqual(candidates[0]["validation_status"], "accepted")
         self.assertEqual(attempts[0]["status"], "completed")
+        self.assertGreater(attempts[0]["input_bytes"], 0)
+        self.assertEqual(attempts[0]["fact_count"], 1)
+        self.assertEqual(result["input_bytes"], attempts[0]["input_bytes"])
+        self.assertEqual(result["fact_count"], attempts[0]["fact_count"])
 
     def test_two_workers_produce_exactly_one_model_call_and_candidate(self):
         self.repo.enqueue_narrative_task(self.task(event_id="two-workers"))

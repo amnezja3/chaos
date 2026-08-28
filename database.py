@@ -9911,6 +9911,19 @@ class PlayerOperationStore:
                     existing_operation = loads_json(existing["operation_json"], {})
                     if isinstance(existing_operation, dict):
                         existing_operation.pop("_runtime_version", None)
+                    existing_status = self._clean_text(existing["status"]).lower()
+                    if existing_status in self.TERMINAL_STATUSES and status not in self.TERMINAL_STATUSES:
+                        # profile_json is only a compatibility mirror. A stale
+                        # profile sync must never resurrect a canonical terminal
+                        # operation (especially after a concurrent cancel).
+                        preserved = copy.deepcopy(existing_operation)
+                        if isinstance(preserved, dict):
+                            preserved.setdefault("operation_id", operation_id)
+                            preserved.setdefault("status", existing_status)
+                            preserved.setdefault("operation_type", existing["operation_type"])
+                            preserved["_runtime_version"] = int(existing["version"] or 0)
+                            accepted.append(preserved)
+                        continue
                     if (
                         existing["username"] == username
                         and existing["target_key"] == item["target_key"]
@@ -10005,7 +10018,26 @@ class PlayerOperationStore:
             if isinstance(resource_buffer, dict):
                 resource_buffer["cancelled"] = True
                 resource_buffer.setdefault("files", [])
+            cleanup = operation.setdefault("cleanup_state", {})
+            if isinstance(cleanup, dict):
+                cleanup["active_object_active"] = False
+                cleanup["marker_visible"] = False
+                cleanup["support_active"] = False
+                cleanup["cleaned_at"] = cleanup.get("cleaned_at") or now
+                if self._operation_type(operation) == "persistent_sniffer":
+                    cleanup["implant_state"] = "ended"
+            if self._operation_type(operation) == "camera_shutdown":
+                support_state = operation.setdefault("support_state", {})
+                if isinstance(support_state, dict):
+                    support_state["active"] = False
+                    support_state["risk_modifier_active"] = False
+            # Local import avoids the response_network package importing its
+            # database-backed context readers while database.py is still being
+            # initialized.
+            from response_network.operation_risk_meter import cancel_operation_risk_meter
+            cancel_operation_risk_meter(operation, now_ts=now)
             version = int(row["version"] or 0) + 1
+            operation["_runtime_version"] = version
             conn.execute(
                 """
                 UPDATE player_operations

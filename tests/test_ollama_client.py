@@ -81,7 +81,7 @@ class OllamaClientTest(unittest.TestCase):
         self.assertFalse(kwargs["json"]["think"])
         self.assertNotIn("tools", kwargs["json"])
         self.assertEqual(kwargs["json"]["options"]["num_ctx"], 4096)
-        self.assertEqual(kwargs["json"]["options"]["num_predict"], 512)
+        self.assertEqual(kwargs["json"]["options"]["num_predict"], 192)
 
     def test_non_loopback_config_and_oversized_response_fail_closed(self):
         config = OllamaClientConfig(base_url="http://example.test:11434")
