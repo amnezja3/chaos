@@ -82,6 +82,7 @@ class OllamaClientTest(unittest.TestCase):
         self.assertNotIn("tools", kwargs["json"])
         self.assertEqual(kwargs["json"]["options"]["num_ctx"], 4096)
         self.assertEqual(kwargs["json"]["options"]["num_predict"], 192)
+        self.assertEqual(kwargs["timeout"], (2.0, 240.0))
 
     def test_non_loopback_config_and_oversized_response_fail_closed(self):
         config = OllamaClientConfig(base_url="http://example.test:11434")
@@ -94,6 +95,11 @@ class OllamaClientTest(unittest.TestCase):
         client = ChaosOllamaClient(session=FakeSession([oversized]))
         with self.assertRaisesRegex(OllamaClientError, "ollama_response_too_large"):
             client.generate(package, policy)
+
+        self.assertIn(
+            "ollama_read_timeout_out_of_policy",
+            OllamaClientConfig(read_timeout_sec=180).validate(),
+        )
 
     def test_timeout_is_retryable_and_response_model_is_pinned(self):
         package, policy = self.package()

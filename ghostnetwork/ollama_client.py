@@ -40,7 +40,7 @@ class OllamaClientConfig:
     temperature: float = 0.0
     keep_alive: str = "5m"
     connect_timeout_sec: float = 2.0
-    read_timeout_sec: float = 120.0
+    read_timeout_sec: float = 240.0
     max_http_response_bytes: int = MAX_HTTP_RESPONSE_BYTES
 
     @classmethod
@@ -61,7 +61,7 @@ class OllamaClientConfig:
                 "CHAOS_OLLAMA_CONNECT_TIMEOUT_SEC", "2"
             )),
             read_timeout_sec=float(os.environ.get(
-                "CHAOS_OLLAMA_READ_TIMEOUT_SEC", "120"
+                "CHAOS_OLLAMA_READ_TIMEOUT_SEC", "240"
             )),
             max_http_response_bytes=int(os.environ.get(
                 "CHAOS_OLLAMA_MAX_HTTP_RESPONSE_BYTES",
@@ -97,6 +97,8 @@ class OllamaClientConfig:
             errors.append("ollama_num_predict_out_of_policy")
         if float(self.temperature) != 0.0:
             errors.append("ollama_temperature_must_be_zero")
+        if float(self.read_timeout_sec) != 240.0:
+            errors.append("ollama_read_timeout_out_of_policy")
         if not 1024 <= int(self.max_http_response_bytes) <= MAX_HTTP_RESPONSE_BYTES:
             errors.append("ollama_response_limit_out_of_policy")
         return errors

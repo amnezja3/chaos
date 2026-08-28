@@ -57,7 +57,9 @@ pozostają obecne. Payload facts jest allowlistowany oraz dokładany sprawiedliw
 w ramach pozostałego budżetu; arbitrary instructions i nieznane pola nie mogą
 powiększać ani zmieniać warstwy promptu.
 
-`num_predict` został ograniczony do 192, przy zachowaniu timeoutu 2s/120s.
+`num_predict` został ograniczony do 192. Ostatnia walidacja realnego ciężkiego
+taska zakończyła się poprawnie po 187.5 s (`983` tokeny promptu + `164` outputu),
+dlatego read timeout wynosi 240 s; 180 s odcinałoby prawidłowy cold-start.
 Attempt audit zapisuje teraz `input_bytes` i `fact_count`; dry-run raportuje
 dodatkowo estymowany input tokens oraz rzeczywisty `prompt_eval_count` zwrócony
 przez Ollamę.
@@ -81,7 +83,7 @@ num_ctx               4096
 num_predict           192
 temperature           0
 keep_alive            5m
-connect/read timeout  2s / 120s
+connect/read timeout  2s / 240s
 lease/heartbeat       180s / 30s
 stream/think/tools    false / false / none
 ```
@@ -241,6 +243,7 @@ Początkowe limity procesu są jawne i konfigurowalne:
 poll interval                  1.5s + bounded jitter do 0.25s
 max deterministic TASK PACKAGE 2400 B (~500–700 est. tokens)
 num_predict                    192
+connect/read timeout           2s / 240s
 max HTTP response              64 KiB
 max bounded_raw_output         16 KiB
 max bounded error message      240 znaków
