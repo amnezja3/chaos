@@ -3769,6 +3769,8 @@ Dokument:
 - wdrożony lokalnie pierwszy przekrój: bounded Home endpoint, editorial grid,
   lazy search, canonical action bridge, rejestr 11 rodzin assetów i cztery
   produkcyjne placeholdery HERO (`neutral/danger/victory/defence`);
+- WebDragons otrzymał responsywną geometrię startową, widoczny HERO bez
+  wstępnego przewijania oraz odwracalną kontrolkę fullscreen obok zamknięcia;
 - brak deployu, restartu PM2, commita i pushu; finalny pakiet assetów pozostaje
   do podmiany i walidacji manualnej.
 

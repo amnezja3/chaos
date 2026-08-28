@@ -1,14 +1,16 @@
 .browser-window.is-browser-googleplex .googolplex-shell {
   container-type: inline-size;
+  gap: 8px;
+  padding: 8px;
   background:
     radial-gradient(circle at 75% 5%, rgba(0, 255, 110, .07), transparent 28%),
     linear-gradient(180deg, #020604, #010302 72%, #000);
 }
 
 .browser-window.is-browser-googleplex .googolplex-header {
-  min-height: 78px;
+  min-height: 66px;
   border: 1px solid rgba(71, 255, 117, .26);
-  padding: 8px 12px;
+  padding: 5px 10px;
   background:
     repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,.018) 3px 4px),
     #020604;
@@ -18,13 +20,13 @@
   display: inline-flex;
   align-items: center;
   min-width: 0;
-  height: 58px;
+  height: 50px;
 }
 
 .gp-brand-lockup img {
   display: block;
   width: min(360px, 46cqw);
-  max-height: 58px;
+  max-height: 50px;
   object-fit: contain;
   object-position: left center;
 }
@@ -44,7 +46,8 @@
 .gp-account-context span { color: #6cff97; }
 
 .browser-window.is-browser-googleplex .googolplex-search {
-  min-height: 44px;
+  min-height: 38px;
+  padding-block: 7px;
   border-color: rgba(144, 255, 65, .55);
   background: linear-gradient(90deg, rgba(122, 145, 20, .16), #030705 55%);
   color: #eaffef;
@@ -69,13 +72,13 @@
 }
 
 .gp-home__intro {
-  min-height: 38px;
+  min-height: 34px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   padding: 0 10px;
-  margin-bottom: 10px;
+  margin-bottom: 7px;
   border-left: 3px solid var(--gp-green);
   background: rgba(0, 35, 18, .72);
   color: #80d99d;
@@ -91,6 +94,18 @@
   grid-auto-flow: dense;
   grid-auto-rows: 82px;
   gap: 10px;
+}
+
+.browser-window:not(.is-window-maximized) .gp-news-grid {
+  grid-auto-rows: 68px;
+}
+
+.browser-window:not(.is-window-maximized) .gp-news-card--hero {
+  min-height: 340px;
+}
+
+.browser-window.is-window-maximized .gp-news-card--hero {
+  min-height: 500px;
 }
 
 .gp-news-card {
@@ -355,7 +370,7 @@ button.gp-news-card:hover .gp-news-card__asset img {
 
 @container (max-width: 1199px) {
   .gp-news-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
-  .gp-news-card--hero { grid-column: span 8; grid-row: span 5; min-height: 410px; }
+  .gp-news-card--hero { grid-column: span 8; grid-row: span 5; min-height: 360px; }
   .gp-news-card--large { grid-column: span 4; grid-row: span 3; }
   .gp-news-card--medium { grid-column: span 4; grid-row: span 3; }
   .gp-news-card--small { grid-column: span 2; grid-row: span 2; }

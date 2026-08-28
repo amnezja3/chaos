@@ -1481,6 +1481,62 @@ body {
   font-size: 16px;
 }
 
+.browser-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.browser-window-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+}
+
+.browser-window-control {
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 24px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #fff;
+  font: 700 16px/1 monospace;
+  cursor: pointer;
+}
+
+.browser-window-control:hover,
+.browser-window-control:focus-visible {
+  border-color: #37ff78;
+  color: #37ff78;
+  outline: none;
+}
+
+.browser-title-bar .close-btn:hover,
+.browser-title-bar .close-btn:focus-visible {
+  border-color: #ff4034;
+  color: #ff4034;
+}
+
+.browser-title-bar .close-btn {
+  font-size: 0;
+}
+
+.browser-window.is-window-maximized {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  resize: none !important;
+  box-sizing: border-box;
+}
+
 
 input:focus {
     outline: none;

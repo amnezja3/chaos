@@ -8356,13 +8356,16 @@ function createBrowser() {
     const term = document.createElement('div');
     term.className = 'terminal browser-window';
     term.dataset.app = "browser";
+    term.dataset.appTitle = "WebDragons";
     term.style.display = 'flex';
     term.style.flexDirection = 'column';
-    const position = findAvailablePosition();
+    const defaultBrowserWidth = Math.min(1180, Math.max(920, window.innerWidth - 80));
+    const defaultBrowserHeight = Math.min(760, Math.max(620, window.innerHeight - 92));
+    const position = findAvailablePosition(defaultBrowserWidth, defaultBrowserHeight);
     term.style.top = `${position.top}px`;
     term.style.left = `${position.left}px`;
-    term.style.width = `920px`;
-    term.style.height = `560px`;
+    term.style.width = `${defaultBrowserWidth}px`;
+    term.style.height = `${defaultBrowserHeight}px`;
 
     const terminalId = `browser-${Date.now()}`;
     const browserUiIcons = {
@@ -8370,13 +8373,18 @@ function createBrowser() {
         back: '\u2190',
         forward: '\u2192',
         favorite: '\u2B50',
-        app: '\u25A3'
+        app: '\u25A3',
+        maximize: '\u26F6',
+        restore: '\u2750'
     };
 
     term.innerHTML = `
-    <div class="title-bar">
-        WebDragons
-        <span class="close-btn" style="float:right; cursor:pointer;">\u2716</span>
+    <div class="title-bar browser-title-bar">
+        <span class="browser-window-title">WebDragons</span>
+        <span class="browser-window-controls">
+            <button type="button" class="browser-window-control browser-maximize-btn" aria-label="Powiększ WebDragons" title="Pełny ekran WebDragons" aria-pressed="false">${browserUiIcons.maximize}</button>
+            <span class="close-btn browser-window-control" role="button" tabindex="0" aria-label="Zamknij WebDragons" title="Zamknij">\u2716</span>
+        </span>
     </div>
     <div class="browser-nav">
         <button class="nav-btn">${browserUiIcons.back}</button>
@@ -8411,7 +8419,50 @@ function createBrowser() {
         contentWrapper.style.minHeight = '0';
     }
     makeDraggable(term);
-    term.querySelector('.close-btn').addEventListener('click', () => term.remove());
+
+    const maximizeButton = term.querySelector('.browser-maximize-btn');
+    let restoreGeometry = null;
+    const setBrowserMaximized = (maximized) => {
+        if (maximized === term.classList.contains('is-window-maximized')) return;
+        if (maximized) {
+            const rect = term.getBoundingClientRect();
+            restoreGeometry = {
+                top: term.style.top || `${rect.top}px`,
+                left: term.style.left || `${rect.left}px`,
+                width: term.style.width || `${rect.width}px`,
+                height: term.style.height || `${rect.height}px`,
+                resize: term.style.resize || ''
+            };
+            term.classList.add('is-window-maximized');
+            term.style.top = '0';
+            term.style.left = '0';
+            term.style.width = '100vw';
+            term.style.height = '100vh';
+            term.style.resize = 'none';
+        } else if (restoreGeometry) {
+            term.classList.remove('is-window-maximized');
+            term.style.top = restoreGeometry.top;
+            term.style.left = restoreGeometry.left;
+            term.style.width = restoreGeometry.width;
+            term.style.height = restoreGeometry.height;
+            term.style.resize = restoreGeometry.resize;
+            restoreGeometry = null;
+        }
+        if (maximizeButton) {
+            maximizeButton.textContent = maximized ? browserUiIcons.restore : browserUiIcons.maximize;
+            maximizeButton.setAttribute('aria-pressed', maximized ? 'true' : 'false');
+            maximizeButton.setAttribute('aria-label', maximized ? 'Przywróć okno WebDragons' : 'Powiększ WebDragons');
+            maximizeButton.title = maximized ? 'Przywróć okno WebDragons' : 'Pełny ekran WebDragons';
+        }
+        bringWindowToFront(term);
+    };
+    maximizeButton?.addEventListener('click', () => {
+        setBrowserMaximized(!term.classList.contains('is-window-maximized'));
+    });
+    term.querySelector('.browser-title-bar')?.addEventListener('dblclick', event => {
+        if (event.target.closest('.browser-window-control')) return;
+        setBrowserMaximized(!term.classList.contains('is-window-maximized'));
+    });
 
     // Obsługa wyszukiwania
     const search = term.querySelector(`#${terminalId}-search`);
@@ -8479,13 +8530,27 @@ function createBrowser() {
     };
 
     updateBrowserNarrowMode();
+    let browserNarrowObserver = null;
     if (window.ResizeObserver) {
-        const browserNarrowObserver = new ResizeObserver(updateBrowserNarrowMode);
+        browserNarrowObserver = new ResizeObserver(updateBrowserNarrowMode);
         browserNarrowObserver.observe(term);
         const shell = term.querySelector('.googolplex-shell');
         if (shell) browserNarrowObserver.observe(shell);
     }
     window.addEventListener('resize', updateBrowserNarrowMode);
+
+    const closeBrowser = () => {
+        browserNarrowObserver?.disconnect();
+        window.removeEventListener('resize', updateBrowserNarrowMode);
+        term.remove();
+    };
+    const closeButton = term.querySelector('.close-btn');
+    closeButton?.addEventListener('click', closeBrowser);
+    closeButton?.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        closeBrowser();
+    });
 
     const googleplexList = (value) => Array.isArray(value)
         ? value.map(item => String(item || '').trim()).filter(Boolean)

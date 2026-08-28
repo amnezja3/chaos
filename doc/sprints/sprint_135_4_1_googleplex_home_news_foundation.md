@@ -10,6 +10,9 @@ Punkt kontrolny 2026-08-28:
   katalog i jest ładowane dopiero na żądanie;
 - działa canonical action bridge do istniejących powierzchni bez bezpośrednich
   mutacji gameplayowych;
+- startowa geometria WebDragons jest zależna od viewportu, zwarty chrome pokazuje
+  kartę HERO w pierwszym widoku, a kontrolka obok `X` przełącza odwracalny
+  fullscreen samego okna WebDragons;
 - gotowy jest code-owned rejestr assetów, wspólny SVG sprite, placeholdery
   brand/icon oraz cztery produkcyjne placeholdery HERO:
   `neutral`, `danger`, `victory`, `defence`;

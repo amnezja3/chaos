@@ -52,5 +52,9 @@ const terminalSource = fs.readFileSync("static/js/terminal.js", "utf8");
 assert.ok(terminalSource.includes("loadGoogleplexHome().catch(() => {});"), "browser boot must load Home");
 assert.ok(terminalSource.includes("if (!catalogLoaded)"), "catalog must be lazy");
 assert.ok(source.includes("dataset.inFlight"), "action dispatch must be single-flight");
+assert.ok(terminalSource.includes("browser-maximize-btn"), "WebDragons must expose a maximize control");
+assert.ok(terminalSource.includes("is-window-maximized"), "maximize must use a reversible window state");
+assert.ok(terminalSource.includes("restoreGeometry"), "restore must preserve the prior geometry");
+assert.ok(terminalSource.includes("defaultBrowserHeight"), "initial browser geometry must adapt to viewport height");
 
 console.log("googleplex news tests: OK");
