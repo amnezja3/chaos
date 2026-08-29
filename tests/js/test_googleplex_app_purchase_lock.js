@@ -19,7 +19,7 @@ assert.match(source, /walletBalance = Number\(\(toolbarProfile \|\| \{\}\)\.hack
 assert.match(source, /chaos:apps-projection-updated/);
 assert.match(source, /window\.dispatchEvent\(new CustomEvent/);
 assert.match(source, /installed \? "Aplikacja juz kupiona\."/);
-assert.match(source, /googolplex-card gp-search-card gp-search-card--\$\{weight\}\$\{installed \? " is-installed"/);
+assert.match(source, /googolplex-card gp-search-product gp-search-product--\$\{variant\}\$\{installed \? " is-installed"/);
 assert.match(source, /const dedupeGoogleplexCatalog = payload =>/);
 assert.match(source, /catalog = dedupeGoogleplexCatalog\(catalogPayload\)/);
 

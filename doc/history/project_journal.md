@@ -1843,3 +1843,22 @@ Następna bramka: `READY FOR SPRINT 135.2`.
   Sprintu 135.6.
 - Zmiana jest wyłącznie dokumentacyjna; bez zmian runtime, bazy, deployu,
   restartu PM2 i commita.
+
+## 2026-08-29 — start Sprintu 135.4.1.1 Googleplex Search Presentation Repair
+
+- Status: `SPRINT 135.4.1.1 — IN PROGRESS / READY FOR VISUAL VALIDATION`.
+- Dwie odrzucone iteracje prezentacji Search (`595f592`, `eb366df`) cofnięto
+  lokalnie do baseline `c07b086`, wyłącznie w rendererze/CSS/testach Search.
+- Nie cofnięto Googleplex News, AGI 2108, canonical purchased/install state,
+  inventory, backendu ani rankingu wyszukiwania.
+- Kolejne etapy mają wprowadzić jeden group engine oraz klasy geometryczne bez
+  redukowania danych produktu i dopiero po osobnej walidacji fullscreen,
+  start-size i mobile.
+- Bez deployu, restartu PM2, zmian bazy, commita i pushu.
+- Po baseline dodano jeden mapper paczek `1 HERO + 2 MIDDLE + 3 SMALL`, jeden
+  pełny renderer produktu, canonical icon element bez panelu oraz osobną
+  geometrię pojedynczego wyniku. Pierwszy render obejmuje trzy pełne paczki.
+- Automatyczna regresja obejmuje 2/3/4/6/7/12/70 wyników, pełny zestaw pól,
+  brak przycinania i brak requestów per karta; 23/23 testów JS przechodzi.
+- Sprint pozostaje otwarty do manualnej akceptacji fullscreen, start-size i
+  mobile.

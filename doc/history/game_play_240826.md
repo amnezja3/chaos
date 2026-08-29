@@ -5254,3 +5254,16 @@ Werdykt:
 SPRINT 135.4 — COMPLETE
 READY FOR SPRINT 135.4.1
 ```
+
+### Sprint 135.4.1.1 — Googleplex Search Presentation Repair
+
+Status: `IN PROGRESS — READY FOR VISUAL VALIDATION`.
+
+Po dwóch odrzuconych iteracjach presentation layer przywrócono Search do
+baseline `c07b086`. Sprint naprawi prezentację bez zmian danych produktów,
+backendu, rankingu, canonical inventory oraz purchase/install. Wiążący zakres:
+`doc/sprints/sprint_135_4_1_1_googleplex_search_presentation_repair.md`.
+
+Implementacja używa jednego pełnego renderera produktu i paczek
+`1 HERO + 2 MIDDLE + 3 SMALL`. Automatyczna regresja jest zielona; sprint
+pozostaje otwarty do osobnej walidacji fullscreen, start-size i mobile.

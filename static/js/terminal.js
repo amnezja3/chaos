@@ -8537,6 +8537,25 @@ function createMap() {
     term.querySelector('.close-btn')?.addEventListener('click', () => term.remove());
 }
 
+const GOOGLEPLEX_SEARCH_SMALLS_PER_GROUP = 3;
+const GOOGLEPLEX_SEARCH_GROUP_SIZE = 1 + 2 + GOOGLEPLEX_SEARCH_SMALLS_PER_GROUP;
+const GOOGLEPLEX_SEARCH_INITIAL_GROUPS = 3;
+
+function groupGoogleplexSearchResults(items) {
+    const ordered = Array.isArray(items) ? items : [];
+    const groups = [];
+    for (let offset = 0; offset < ordered.length; offset += GOOGLEPLEX_SEARCH_GROUP_SIZE) {
+        const slice = ordered.slice(offset, offset + GOOGLEPLEX_SEARCH_GROUP_SIZE);
+        groups.push({
+            index: groups.length,
+            hero: slice[0] || null,
+            middle: slice.slice(1, 3),
+            small: slice.slice(3, GOOGLEPLEX_SEARCH_GROUP_SIZE)
+        });
+    }
+    return groups;
+}
+
 function createBrowser() {
     const term = document.createElement('div');
     term.className = 'terminal browser-window';
@@ -8659,7 +8678,7 @@ function createBrowser() {
     let catalogLoaded = false;
     let catalogLoading = null;
     let catalogProgressQuery = "";
-    let catalogVisibleLimit = 24;
+    let catalogVisibleGroups = GOOGLEPLEX_SEARCH_INITIAL_GROUPS;
     const dedupeGoogleplexCatalog = payload => {
         const deduped = [];
         const positions = new Map();
@@ -9883,8 +9902,7 @@ function createBrowser() {
         const filteredMatches = showAll
             ? catalog.filter(item => item && typeof item === "object")
             : catalog.filter(item => googleplexSearchText(item).includes(query));
-        const editorialMode = showAll || filteredMatches.length >= 7;
-        const matches = editorialMode
+        const matches = showAll
             ? filteredMatches.slice().sort((left, right) => {
                 const downloadsDelta = Number(right.downloads || 0) - Number(left.downloads || 0);
                 if (downloadsDelta) return downloadsDelta;
@@ -9893,11 +9911,8 @@ function createBrowser() {
             : filteredMatches;
         if (catalogProgressQuery !== query) {
             catalogProgressQuery = query;
-            catalogVisibleLimit = 24;
+            catalogVisibleGroups = GOOGLEPLEX_SEARCH_INITIAL_GROUPS;
         }
-        const renderedMatches = editorialMode
-            ? matches.slice(0, catalogVisibleLimit)
-            : matches;
 
         results.innerHTML = '';
         if (matches.length === 0) {
@@ -9906,20 +9921,19 @@ function createBrowser() {
             return;
         }
 
-        let cardsRoot = results;
-        if (editorialMode) {
-            results.innerHTML = `<main class="gp-home gp-catalog-home" data-search-mode="${showAll ? "all" : "ranked"}">
-                <header class="gp-home__intro"><span>${showAll ? "ALL APPLICATIONS" : "SEARCH RESULTS"} // EDITORIAL GRID</span><strong>${matches.length} APPS</strong></header>
-                <section class="gp-search-grid gp-search-grid--editorial" aria-label="Googleplex applications"></section>
-                <footer class="gp-news-protocol"><span>SOURCE: PUBLIC CATALOG</span><span>RANK: DOWNLOADS DESC</span><span>TIE: APP_ID</span><span>PROFILE: NOT READ</span></footer>
-            </main>`;
-            cardsRoot = results.querySelector('.gp-search-grid--editorial');
-        } else {
-            results.innerHTML = '<section class="gp-search-grid gp-search-grid--classic" aria-label="Wyniki wyszukiwania Googleplex"></section>';
-            cardsRoot = results.querySelector('.gp-search-grid--classic');
-        }
+        const isSingleResult = matches.length === 1;
+        const visibleLimit = isSingleResult
+            ? 1
+            : catalogVisibleGroups * GOOGLEPLEX_SEARCH_GROUP_SIZE;
+        const visibleMatches = matches.slice(0, visibleLimit);
+        results.innerHTML = `<main class="gp-home gp-catalog-home" data-search-mode="${showAll ? "all" : "query"}">
+            <header class="gp-home__intro"><span>${showAll ? "ALL APPLICATIONS" : "SEARCH RESULTS"} // PRODUCT GRID</span><strong>${matches.length} APPS</strong></header>
+            <section class="gp-search-results${isSingleResult ? " gp-search-results--single" : ""}" aria-label="Googleplex applications"></section>
+            <footer class="gp-news-protocol"><span>SOURCE: PUBLIC CATALOG</span><span>${showAll ? "RANK: DOWNLOADS DESC" : "ORDER: SEARCH RESULT"}</span><span>${showAll ? "TIE: APP_ID" : "QUERY: BOUNDED"}</span><span>PROFILE: NOT READ</span></footer>
+        </main>`;
+        const cardsRoot = results.querySelector('.gp-search-results');
 
-        renderedMatches.forEach((item, layoutIndex) => {
+        const createProductCard = (item, variant, layoutIndex) => {
             const price = Number(item.price || 0);
             const isProduct = !!(item.product_type || (Array.isArray(item.effects) && item.effects.length));
             const projectedApps = Array.isArray((toolbarProfile || {}).apps)
@@ -9998,15 +10012,15 @@ function createBrowser() {
                 <div class="googolplex-card-hint">${escapeHTML(installBlockedReason)}</div>
             ` : "";
             const card = document.createElement('article');
-            const cyclePosition = layoutIndex % 8;
-            const weight = editorialMode
-                ? (cyclePosition === 0 ? "hero" : cyclePosition <= 2 ? "medium" : "small")
-                : "small";
-            card.className = `googolplex-card gp-search-card gp-search-card--${weight}${installed ? " is-installed" : ""}`;
+            card.className = `googolplex-card gp-search-product gp-search-product--${variant}${installed ? " is-installed" : ""}`;
             card.dataset.layoutIndex = String(layoutIndex);
-            card.dataset.cyclePosition = String(cyclePosition);
+            card.dataset.assetFamily = "tool";
+            card.dataset.assetState = installed ? "victory" : "neutral";
             card.innerHTML = `
-                <div class="gp-search-card__content">
+                <div class="gp-search-product__icon" aria-hidden="true">
+                    <span class="googolplex-card-icon">${escapeHTML(item.icon || browserUiIcons.app)}</span>
+                </div>
+                <div class="gp-search-product__content">
                     <div class="googolplex-card-title">
                         <span>${escapeHTML(item.name || 'Aplikacja')}</span>
                     </div>
@@ -10016,15 +10030,12 @@ function createBrowser() {
                     ${blockedHint}
                     <div class="googolplex-card-meta">
                         <span>${escapeHTML(item.type || 'tool')}</span>
-                        <span>${Number(item.downloads || 0)} pobrań</span>
+                        <span>${Number(item.downloads || 0)} pobra\u0144</span>
                     </div>
                 </div>
-                <div class="gp-search-card__asset" aria-hidden="true">
-                    <span class="googolplex-card-icon">${escapeHTML(item.icon || browserUiIcons.app)}</span>
-                </div>
-                <div class="googolplex-card-footer gp-search-card__action">
+                <div class="googolplex-card-footer gp-search-product__footer">
                     <strong>${price} HC</strong>
-                    <button data-googleplex-install type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button>
+                    <button class="gp-search-product__action" data-googleplex-install type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button>
                 </div>
             `;
             const installButton = card.querySelector('[data-googleplex-install]');
@@ -10076,28 +10087,61 @@ function createBrowser() {
                     }
                 );
             });
-            let cardTarget = cardsRoot;
-            if (editorialMode) {
-                const groupIndex = Math.floor(layoutIndex / 8);
-                let group = cardsRoot.querySelector(`[data-search-group="${groupIndex}"]`);
-                if (!group) {
-                    group = document.createElement('section');
-                    group.className = 'gp-search-group';
-                    group.dataset.searchGroup = String(groupIndex);
-                    cardsRoot.appendChild(group);
-                }
-                cardTarget = group;
-            }
-            cardTarget.appendChild(card);
-        });
-        if (editorialMode && renderedMatches.length < matches.length) {
+            return card;
+        };
+
+        if (isSingleResult) {
+            cardsRoot.appendChild(createProductCard(visibleMatches[0], "single", 0));
+        } else {
+            const groups = groupGoogleplexSearchResults(visibleMatches);
+            groups.forEach(groupData => {
+                const group = document.createElement('section');
+                group.className = 'gp-search-group';
+                group.dataset.groupIndex = String(groupData.index);
+                group.setAttribute('aria-label', `Grupa aplikacji ${groupData.index + 1}`);
+
+                const heroColumn = document.createElement('div');
+                heroColumn.className = 'gp-search-group__hero';
+                heroColumn.appendChild(createProductCard(
+                    groupData.hero,
+                    "hero",
+                    groupData.index * GOOGLEPLEX_SEARCH_GROUP_SIZE
+                ));
+
+                const side = document.createElement('div');
+                side.className = 'gp-search-group__side';
+                const middleGrid = document.createElement('div');
+                middleGrid.className = 'gp-search-group__middle';
+                groupData.middle.forEach((item, index) => {
+                    middleGrid.appendChild(createProductCard(
+                        item,
+                        "middle",
+                        groupData.index * GOOGLEPLEX_SEARCH_GROUP_SIZE + index + 1
+                    ));
+                });
+                const smallGrid = document.createElement('div');
+                smallGrid.className = 'gp-search-group__small';
+                groupData.small.forEach((item, index) => {
+                    smallGrid.appendChild(createProductCard(
+                        item,
+                        "small",
+                        groupData.index * GOOGLEPLEX_SEARCH_GROUP_SIZE + index + 3
+                    ));
+                });
+                side.append(middleGrid, smallGrid);
+                group.append(heroColumn, side);
+                cardsRoot.appendChild(group);
+            });
+        }
+
+        if (visibleMatches.length < matches.length) {
             const more = document.createElement('button');
             more.type = 'button';
             more.className = 'gp-search-more';
-            more.textContent = `POKAZ WIECEJ // ${matches.length - renderedMatches.length}`;
+            more.textContent = `POKAZ WIECEJ // ${matches.length - visibleMatches.length}`;
             more.addEventListener('click', () => {
                 const previousScrollTop = results.scrollTop;
-                catalogVisibleLimit += 24;
+                catalogVisibleGroups += GOOGLEPLEX_SEARCH_INITIAL_GROUPS;
                 renderCatalog();
                 results.scrollTop = previousScrollTop;
             });
