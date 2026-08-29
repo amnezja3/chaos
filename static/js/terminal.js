@@ -8658,6 +8658,8 @@ function createBrowser() {
     let catalog = [];
     let catalogLoaded = false;
     let catalogLoading = null;
+    let catalogProgressQuery = "";
+    let catalogVisibleLimit = 24;
     const dedupeGoogleplexCatalog = payload => {
         const deduped = [];
         const positions = new Map();
@@ -9889,6 +9891,13 @@ function createBrowser() {
                 return String(left.id || left.app_id || "").localeCompare(String(right.id || right.app_id || ""));
             })
             : filteredMatches;
+        if (catalogProgressQuery !== query) {
+            catalogProgressQuery = query;
+            catalogVisibleLimit = 24;
+        }
+        const renderedMatches = editorialMode
+            ? matches.slice(0, catalogVisibleLimit)
+            : matches;
 
         results.innerHTML = '';
         if (matches.length === 0) {
@@ -9901,16 +9910,16 @@ function createBrowser() {
         if (editorialMode) {
             results.innerHTML = `<main class="gp-home gp-catalog-home" data-search-mode="${showAll ? "all" : "ranked"}">
                 <header class="gp-home__intro"><span>${showAll ? "ALL APPLICATIONS" : "SEARCH RESULTS"} // EDITORIAL GRID</span><strong>${matches.length} APPS</strong></header>
-                <section class="gp-news-grid gp-catalog-editorial-grid" aria-label="Googleplex applications"></section>
+                <section class="gp-search-grid gp-search-grid--editorial" aria-label="Googleplex applications"></section>
                 <footer class="gp-news-protocol"><span>SOURCE: PUBLIC CATALOG</span><span>RANK: DOWNLOADS DESC</span><span>TIE: APP_ID</span><span>PROFILE: NOT READ</span></footer>
             </main>`;
-            cardsRoot = results.querySelector('.gp-catalog-editorial-grid');
+            cardsRoot = results.querySelector('.gp-search-grid--editorial');
         } else {
-            results.innerHTML = '<section class="gp-catalog-classic-grid" aria-label="Wyniki wyszukiwania Googleplex"></section>';
-            cardsRoot = results.querySelector('.gp-catalog-classic-grid');
+            results.innerHTML = '<section class="gp-search-grid gp-search-grid--classic" aria-label="Wyniki wyszukiwania Googleplex"></section>';
+            cardsRoot = results.querySelector('.gp-search-grid--classic');
         }
 
-        matches.forEach((item, layoutIndex) => {
+        renderedMatches.forEach((item, layoutIndex) => {
             const price = Number(item.price || 0);
             const isProduct = !!(item.product_type || (Array.isArray(item.effects) && item.effects.length));
             const projectedApps = Array.isArray((toolbarProfile || {}).apps)
@@ -9936,105 +9945,42 @@ function createBrowser() {
                 : item.install_blocked_reason || "";
             const canInstall = !installed && canAfford && !installBlockedReason;
             const buttonLabel = installed ? (isProduct ? "KUPIONO" : "ZAINSTALOWANO") : (canAfford ? (isProduct ? "Kup" : "Zainstaluj") : "Brak \u015brodk\u00f3w");
-            const hasInstallRequirements = item.type === "pro-system-tool" || item.category === "pro-system-tools" || item.category === "creators" || item.required_level || item.required_respect;
-            const riskLevel = Math.max(0, Math.min(5, Number(item.risk_level || 0)));
-            const riskStars = riskLevel ? "&#9733;".repeat(riskLevel) : "brak";
-            const fileSize = Number(item.file_size || 0);
-            const diskUsage = Number(item.disk_usage || item.install_size || fileSize || 0);
-            const qualityScore = Math.max(0, Math.min(100, Number(item.quality_score || 0)));
-            const reliability = Math.max(0, Math.min(100, Number(item.reliability || 0)));
-            const creatorPower = Math.max(0, Math.min(100, Number(item.creator_power || 0)));
-            const powerScore = Math.max(0, Math.min(100, Number(item.power_score || 0)));
-            const priceHint = Number(item.price_hint || 0);
-            const effectsText = Array.isArray(item.effects)
-                ? item.effects.map(effect => {
-                    if (!effect || typeof effect !== 'object') return '';
-                    if (effect.type === 'travel_city') return `Miasto: ${effect.city || item.travel_city || '-'}`;
-                    if (effect.type === 'storage_capacity_bonus') return `Dysk +${formatStorageSize(effect.value || item.storage_capacity_bonus || 0)}`;
-                    if (effect.type === 'map_zoom_bonus') return `Zoom +${Number(effect.value || 0)}`;
-                    if (effect.type === 'scan_range_bonus') return `Skan +${Number(effect.value || 0)} m`;
-                    if (effect.type === 'bike_range_bonus') return `Rower +${Number(effect.value || 0)} m`;
-                    return `${effect.type || 'efekt'} ${effect.value || effect.city || ''}`.trim();
-                }).filter(Boolean).join(', ')
-                : '';
-            const proMeta = hasInstallRequirements ? `
-                <div class="googolplex-card-requirements">
-                    <span>LVL ${Number(item.required_level || 1)}</span>
-                    <span>Respect ${Number(item.required_respect || 0)}</span>
-                    <span>Risk ${riskStars}</span>
+            const card = document.createElement('article');
+            const cyclePosition = layoutIndex % 8;
+            const weight = editorialMode
+                ? (cyclePosition === 0 ? "hero" : cyclePosition <= 2 ? "medium" : "small")
+                : "small";
+            const category = String(item.category || item.type || "application").toUpperCase();
+            const tier = String(item.balance_tier || item.app_level || "Basic");
+            const family = String(item.tool_family || item.type || "tool");
+            const rawAsset = String(item.visual_asset_url || item.asset_path || item.icon_url || "").trim();
+            const safeAsset = /^\/static\/images\/[a-z0-9_./-]+\.(?:webp|png|svg)$/i.test(rawAsset)
+                ? rawAsset
+                : "";
+            const assetMarkup = safeAsset
+                ? `<img src="${escapeHTML(safeAsset)}" alt="" loading="lazy" decoding="async">`
+                : `<span class="gp-search-card__asset-icon" aria-hidden="true">${escapeHTML(item.icon || browserUiIcons.app)}</span>`;
+            card.className = `gp-search-card gp-search-card--${weight}${installed ? " is-installed" : ""}`;
+            card.dataset.layoutIndex = String(layoutIndex);
+            card.dataset.cyclePosition = String(cyclePosition);
+            card.innerHTML = `
+                <div class="gp-search-card__content">
+                    <span class="gp-search-card__eyebrow">${escapeHTML(category)} // APPLICATION</span>
+                    <strong class="gp-search-card__title">${escapeHTML(item.name || 'Aplikacja')}</strong>
+                    <p class="gp-search-card__summary">${escapeHTML(item.description || 'Brak opisu.')}</p>
+                    <span class="gp-search-card__params">
+                        <span>${Number(item.downloads || 0)} DOWNLOADS</span>
+                        <span>${price} HC</span>
+                        <span>${escapeHTML(tier)}</span>
+                        <span>${escapeHTML(family)}</span>
+                    </span>
                 </div>
-            ` : "";
-            const contractMeta = `
-                <div class="googolplex-contract">
-                    <span>Poziom: <b>${escapeHTML(item.app_level || 'Basic')}</b></span>
-                    <span>Rodzina: <b>${escapeHTML(item.tool_family || item.type || 'tool')}</b></span>
-                    <span>Tryb: <b>${escapeHTML(item.tool_mode || item.scanner_mode || 'desktop')}</b></span>
-                    ${isProduct ? `<span>Produkt: <b>${escapeHTML(item.product_type || '-')}</b></span>` : ''}
-                    ${isProduct ? `<span>Kategoria: <b>${escapeHTML(item.category || '-')}</b></span>` : ''}
-                    ${isProduct ? `<span>Efekt: <b>${escapeHTML(effectsText || '-')}</b></span>` : ''}
-                    <span>Tier: <b>${escapeHTML(item.balance_tier || item.app_level || 'Basic')}</b></span>
-                    <span>Map: <b>${escapeHTML(googleplexListText(item.map_actions))}</b></span>
-                    <span>Ops: <b>${escapeHTML(googleplexListText(item.operation_types))}</b></span>
-                    <span>Data: <b>${escapeHTML(googleplexListText(item.resource_types))}</b></span>
-                    <span>Waga: <b>${escapeHTML(formatStorageSize(fileSize))}</b></span>
-                    <span>Instalacja: <b>${escapeHTML(formatStorageSize(diskUsage))}</b></span>
-                    <span>Jako\u015b\u0107: <b>${qualityScore}/100</b></span>
-                    <span>Niezawodno\u015b\u0107: <b>${reliability}/100</b></span>
-                    <span>Moc tw\u00f3rcy: <b>${creatorPower}/100</b></span>
-                    <span>Moc: <b>${powerScore}/100</b></span>
-                    <span>Cena sugerowana: <b>${priceHint ? `${priceHint} HC` : '-'}</b></span>
+                <div class="gp-search-card__asset">${assetMarkup}</div>
+                <div class="gp-search-card__action">
+                    ${installBlockedReason ? `<span class="gp-search-card__state">${escapeHTML(installBlockedReason)}</span>` : ""}
+                    <button data-googleplex-install type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button>
                 </div>
             `;
-            const blockedHint = installBlockedReason ? `
-                <div class="googolplex-card-hint">${escapeHTML(installBlockedReason)}</div>
-            ` : "";
-            const card = document.createElement('article');
-            if (editorialMode) {
-                const weight = layoutIndex === 0
-                    ? "hero"
-                    : layoutIndex <= 2
-                        ? "large"
-                        : layoutIndex <= 5 ? "medium" : "small";
-                const category = String(item.category || item.type || "application").toUpperCase();
-                const tier = String(item.balance_tier || item.app_level || "Basic");
-                card.className = `gp-news-card gp-news-card--${weight} gp-catalog-card${installed ? " is-installed" : ""}`;
-                card.dataset.layoutIndex = String(layoutIndex);
-                card.dataset.state = installed ? "verified" : (layoutIndex === 0 ? "trending" : "normal");
-                card.dataset.assetFamily = "tool";
-                card.dataset.assetState = installed ? "victory" : "neutral";
-                card.innerHTML = `
-                    <span class="gp-news-card__asset gp-news-card__asset--fallback gp-catalog-card__asset" aria-hidden="true"><span>${escapeHTML(item.icon || browserUiIcons.app)}</span></span>
-                    <span class="gp-news-card__shade" aria-hidden="true"></span>
-                    <span class="gp-news-card__body">
-                        <span class="gp-news-card__eyebrow">${escapeHTML(category)} // APPLICATION</span>
-                        <span class="gp-news-card__title">${escapeHTML(item.name || 'Aplikacja')}</span>
-                        <span class="gp-news-card__summary">${escapeHTML(item.description || 'Brak opisu.')}</span>
-                        <span class="gp-news-card__stats"><strong>${Number(item.downloads || 0)} DOWNLOADS</strong><small>${price} HC // ${escapeHTML(tier)}</small></span>
-                        ${installBlockedReason ? `<span class="gp-catalog-card__hint">${escapeHTML(installBlockedReason)}</span>` : ""}
-                        <span class="gp-news-card__footer"><small>${escapeHTML(item.type || 'tool')}</small><button class="gp-catalog-card__install" data-googleplex-install type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button></span>
-                    </span>
-                `;
-            } else {
-                card.className = `googolplex-card${installed ? " is-installed" : ""}`;
-                card.innerHTML = `
-                    <div class="googolplex-card-title">
-                        <span class="googolplex-card-icon">${escapeHTML(item.icon || browserUiIcons.app)}</span>
-                        <span>${escapeHTML(item.name || 'Aplikacja')}</span>
-                    </div>
-                    <p>${escapeHTML(item.description || 'Brak opisu.')}</p>
-                    ${proMeta}
-                    ${contractMeta}
-                    ${blockedHint}
-                    <div class="googolplex-card-meta">
-                        <span>${escapeHTML(item.type || 'tool')}</span>
-                        <span>${Number(item.downloads || 0)} pobra\u0144</span>
-                    </div>
-                    <div class="googolplex-card-footer">
-                        <strong>${price} HC</strong>
-                        <button data-googleplex-install type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button>
-                    </div>
-                `;
-            }
             const installButton = card.querySelector('[data-googleplex-install]');
             let installInFlight = false;
             installButton.addEventListener('click', async () => {
@@ -10086,6 +10032,19 @@ function createBrowser() {
             });
             cardsRoot.appendChild(card);
         });
+        if (editorialMode && renderedMatches.length < matches.length) {
+            const more = document.createElement('button');
+            more.type = 'button';
+            more.className = 'gp-search-more';
+            more.textContent = `POKAZ WIECEJ // ${matches.length - renderedMatches.length}`;
+            more.addEventListener('click', () => {
+                const previousScrollTop = results.scrollTop;
+                catalogVisibleLimit += 24;
+                renderCatalog();
+                results.scrollTop = previousScrollTop;
+            });
+            results.querySelector('.gp-catalog-home')?.appendChild(more);
+        }
         updateBrowserNarrowMode();
     };
 
