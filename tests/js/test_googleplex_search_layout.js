@@ -2,7 +2,6 @@
 
 const assert = require("assert");
 const fs = require("fs");
-const path = require("path");
 const vm = require("vm");
 
 const presentation = require("../../static/js/googleplex_search_presentation.js");
@@ -16,21 +15,8 @@ const presentationStyles = fs.readFileSync(
     "static/css/googleplex_search.css",
     "utf8"
 );
+const desktopStyles = fs.readFileSync("static/css/style.css", "utf8");
 const newsStyles = fs.readFileSync("static/css/googleplex_news.css", "utf8");
-const socketDirectory = path.join(
-    "static",
-    "images",
-    "googleplx",
-    "icons",
-    "app-sockets"
-);
-const socketAssets = [
-    "01_icon_socket_core.svg",
-    "02_icon_socket_side.svg",
-    "03_icon_socket_compact.svg",
-    "04_icon_socket_hex.svg",
-    "05_icon_socket_target.svg"
-];
 
 class FakeClassList {
     constructor(node) {
@@ -317,7 +303,7 @@ assert.doesNotMatch(listSource, /\.slice\s*\(|substring\s*\(|substr\s*\(|\.\.\./
 // Long identifiers retain their exact text and receive legal break points only
 // after canonical separators. This prevents scanner_reco|n style wrapping.
 const breakStart = terminalSource.indexOf("const googleplexBreakableText =");
-const breakEnd = terminalSource.indexOf("const googleplexIconSocketAssets", breakStart);
+const breakEnd = terminalSource.indexOf("const googleplexSearchText", breakStart);
 assert.ok(breakStart >= 0 && breakEnd > breakStart, "breakable identifier helper missing");
 const breakSource = terminalSource.slice(breakStart, breakEnd);
 const renderBreakable = value => {
@@ -468,7 +454,6 @@ assert.match(catalogSource, /item\.description \|\| ["']Brak opisu\.["']/);
     "gp-app-status-strip",
     "gp-app-card__body",
     "gp-app-icon-stage",
-    "gp-app-icon-stage__socket",
     "gp-app-icon-stage__user-icon",
     "gp-app-spec-panel",
     "gp-app-purchase-state",
@@ -481,11 +466,7 @@ assert.match(
     /gp-app-icon-stage__user-icon[^>]*>\s*\$\{escapeHTML\(iconValue\)\}\s*</,
     "the foreground layer must render the exact escaped creator icon"
 );
-assert.match(
-    catalogSource,
-    /<img class="gp-app-icon-stage__socket" src="\$\{escapeHTML\(iconSocketAsset\)\}" alt="" draggable="false">/,
-    "the code-owned SVG socket must remain a separate background image layer"
-);
+assert.doesNotMatch(catalogSource, /gp-app-icon-stage__socket|iconSocketAsset/);
 const statusMarkupStart = catalogSource.indexOf("const requirementsMeta");
 const statusMarkupEnd = catalogSource.indexOf("const coreParameterRows", statusMarkupStart);
 const statusMarkup = catalogSource.slice(statusMarkupStart, statusMarkupEnd);
@@ -556,7 +537,6 @@ assert.match(
     ".gp-app-status-strip",
     ".gp-app-card__body",
     ".gp-app-icon-stage",
-    ".gp-app-icon-stage__socket",
     ".gp-app-icon-stage__user-icon",
     ".gp-app-spec-panel",
     ".gp-app-purchase-state",
@@ -565,9 +545,8 @@ assert.match(
     assert.ok(presentationStyles.includes(selector), `missing card selector: ${selector}`);
 });
 
-// The socket is a decorative background layer. The creator-owned foreground
-// icon itself stays transparent, borderless and free of image replacement or
-// visual filters.
+// Only the creator-owned foreground asset is rendered. It stays transparent,
+// borderless and free of a socket/frame/glow layer.
 const userIconRule = presentationStyles.match(
     /\.gp-app-icon-stage__user-icon(?:\s*,[^\{]*)?\s*\{([^}]*)\}/
 );
@@ -577,6 +556,23 @@ assert.match(userIconRule[1], /background:\s*none\s*;/);
 assert.doesNotMatch(
     userIconRule[1],
     /background-image\s*:|url\s*\(|filter\s*:|mask(?:-image)?\s*:|(?:^|[;\s])content\s*:/
+);
+assert.match(
+    presentationStyles,
+    /\.gp-app-icon-stage\s*\{[\s\S]*?place-self:\s*start center[\s\S]*?align-items:\s*flex-start[\s\S]*?background:\s*none[\s\S]*?box-shadow:\s*none/
+);
+assert.doesNotMatch(presentationStyles, /\.gp-app-icon-stage__socket\b/);
+assert.match(
+    presentationStyles,
+    /\.gp-app-purchase-state\s*\{[\s\S]*?width:\s*fit-content[\s\S]*?border:\s*0[\s\S]*?background:\s*none/
+);
+assert.match(
+    presentationStyles,
+    /\.gp-app-status-strip\s*\{[\s\S]*?width:\s*fit-content[\s\S]*?display:\s*inline-flex/
+);
+assert.match(
+    presentationStyles,
+    /\.gp-app-market-footer__action\s*\{[\s\S]*?width:\s*150px[\s\S]*?height:\s*40px/
 );
 assert.doesNotMatch(presentationStyles, /line-clamp:\s*[1-9]/);
 [
@@ -601,39 +597,27 @@ assert.doesNotMatch(presentationStyles, /\.gp-search-product\s*\{[^}]*overflow-w
 assert.match(presentationStyles, /:where\(\.gp-search-view, \.gp-search-view \*\)[\s\S]*?box-sizing:\s*border-box/);
 assert.match(
     presentationStyles,
-    /\.gp-app-icon-stage\s*\{[\s\S]*?display:\s*flex[\s\S]*?align-items:\s*center[\s\S]*?justify-content:\s*center/
+    /\.gp-app-icon-stage\s*\{[\s\S]*?display:\s*flex[\s\S]*?align-items:\s*flex-start[\s\S]*?justify-content:\s*center/
 );
 assert.match(
     presentationStyles,
-    /\.gp-app-icon-stage__user-icon\s*\{[\s\S]*?display:\s*flex[\s\S]*?align-items:\s*center[\s\S]*?justify-content:\s*center/
+    /\.gp-app-icon-stage__user-icon\s*\{[\s\S]*?display:\s*flex[\s\S]*?align-items:\s*flex-start[\s\S]*?justify-content:\s*center/
+);
+assert.match(
+    presentationStyles,
+    /@container \(max-width: 767px\)[\s\S]*?\.gp-app-spec-panel__technical,[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/
 );
 assert.doesNotMatch(presentationStyles, /overflow-x:\s*hidden/);
 assert.doesNotMatch(newsStyles, /\.gp-search-group\b|\.gp-search-product\b/);
 assert.doesNotMatch(catalogSource, /class="gp-home|class="googolplex-card/);
 
-// Five local, lightweight SVG sockets form the visual holder. They may not
-// embed an application icon, raster image, executable markup or remote asset.
-socketAssets.forEach(fileName => {
-    const assetPath = path.join(socketDirectory, fileName);
-    assert.ok(fs.existsSync(assetPath), `missing Googleplex icon socket: ${fileName}`);
-    const stats = fs.statSync(assetPath);
-    assert.ok(stats.size > 0 && stats.size <= 32768, `${fileName} must remain lightweight`);
-    const svg = fs.readFileSync(assetPath, "utf8");
-    assert.match(svg, /<svg\b/i, `${fileName} must be SVG`);
-    assert.match(svg, /viewBox\s*=\s*["'][^"']+["']/i, `${fileName} needs a viewBox`);
-    assert.match(
-        svg,
-        /currentColor|var\(--|(?:stroke|fill)=["']#(?:fff|ffffff)["']/i,
-        `${fileName} must be monochrome/CSS-tintable`
-    );
-    assert.doesNotMatch(svg, /<text\b|<image\b|<script\b|<foreignObject\b/i);
-    assert.doesNotMatch(svg, /(?:href|xlink:href)\s*=\s*["'](?:https?:|\/\/|data:)/i);
-    assert.doesNotMatch(svg, /\son(?:load|error|click|mouseover|focus)\s*=/i);
-    assert.ok(
-        presentationStyles.includes(fileName) || terminalSource.includes(fileName),
-        `${fileName} is generated but not wired into the card system`
-    );
-});
+assert.match(terminalSource, /<button type="button" class="close-btn browser-window-control"/);
+assert.match(terminalSource, /browserNarrowObserver\.observe\(term\)/);
+assert.doesNotMatch(terminalSource, /browserNarrowObserver\.observe\(shell\)/);
+assert.match(
+    desktopStyles,
+    /\.browser-title-bar\s*\{[\s\S]*?position:\s*relative[\s\S]*?z-index:\s*20[\s\S]*?pointer-events:\s*auto/
+);
 
 for (const templatePath of [
     "templates/index.html",

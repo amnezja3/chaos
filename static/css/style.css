@@ -1487,17 +1487,23 @@ body {
 }
 
 .browser-title-bar {
+  position: relative;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  pointer-events: auto;
 }
 
 .browser-window-controls {
+  position: relative;
+  z-index: 21;
   display: inline-flex;
   align-items: center;
   gap: 7px;
   margin-left: auto;
+  pointer-events: auto;
 }
 
 .browser-window-control {
