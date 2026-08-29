@@ -1099,6 +1099,7 @@ class GhostNetworkRepository:
                     cta_ref TEXT NOT NULL DEFAULT '',
                     cta_action TEXT NOT NULL DEFAULT '',
                     cta_payload_json TEXT NOT NULL DEFAULT '{}',
+                    asset_ref TEXT NOT NULL DEFAULT '',
                     bounded_raw_output TEXT NOT NULL DEFAULT '',
                     output_hash TEXT NOT NULL,
                     validation_status TEXT NOT NULL,
@@ -1109,6 +1110,10 @@ class GhostNetworkRepository:
                     updated_at TEXT NOT NULL
                 )
                 """
+            )
+            self._ensure_column(
+                conn, "ghost_narrative_inbox_candidates", "asset_ref",
+                "asset_ref TEXT NOT NULL DEFAULT ''",
             )
             conn.execute(
                 """
@@ -1195,10 +1200,15 @@ class GhostNetworkRepository:
                     cta_ref TEXT NOT NULL DEFAULT '',
                     cta_action TEXT NOT NULL DEFAULT '',
                     cta_payload_json TEXT NOT NULL DEFAULT '{}',
+                    asset_ref TEXT NOT NULL DEFAULT '',
                     created_at TEXT NOT NULL,
                     published_at TEXT NOT NULL
                 )
                 """
+            )
+            self._ensure_column(
+                conn, "ghost_narrative_medium_records", "asset_ref",
+                "asset_ref TEXT NOT NULL DEFAULT ''",
             )
             conn.execute(
                 """
@@ -1548,6 +1558,7 @@ class GhostNetworkRepository:
             "cta_ref": row["cta_ref"],
             "cta_action": row["cta_action"],
             "cta_payload": cta_payload if isinstance(cta_payload, dict) else {},
+            "asset_ref": row["asset_ref"] if "asset_ref" in set(row.keys()) else "",
             "bounded_raw_output": row["bounded_raw_output"],
             "output_hash": row["output_hash"],
             "validation_status": row["validation_status"],
@@ -1614,6 +1625,7 @@ class GhostNetworkRepository:
             "cta_ref": row["cta_ref"],
             "cta_action": row["cta_action"],
             "cta_payload": cta_payload if isinstance(cta_payload, dict) else {},
+            "asset_ref": row["asset_ref"] if "asset_ref" in keys else "",
             "created_at": row["created_at"],
             "published_at": row["published_at"],
         }
@@ -4525,6 +4537,7 @@ class GhostNetworkRepository:
             if isinstance(validation.get("resolved_cta"), dict)
             else {}
         )
+        resolved_asset_ref = _clean(validation.get("resolved_asset_ref"))
         raw_output = str(raw_output or "")
         raw_bytes = raw_output.encode("utf-8")[:16 * 1024]
         bounded_raw = raw_bytes.decode("utf-8", errors="ignore")
@@ -4566,12 +4579,12 @@ class GhostNetworkRepository:
                         model_digest, ollama_runtime_version, target_medium,
                         audience_scope, audience_clan, audience_owner, truth_class,
                         title, body, tone, fact_refs_json, cta_ref, cta_action,
-                        cta_payload_json, bounded_raw_output, output_hash,
+                        cta_payload_json, asset_ref, bounded_raw_output, output_hash,
                         validation_status, validation_errors_json,
                         quarantine_reason, created_at, validated_at, updated_at
                     ) VALUES (
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                     """,
                     (
@@ -4603,6 +4616,7 @@ class GhostNetworkRepository:
                             if isinstance(resolved_cta.get("payload"), dict)
                             else {}
                         ),
+                        resolved_asset_ref,
                         bounded_raw,
                         hashlib.sha256(raw_output.encode("utf-8")).hexdigest(),
                         validation_status,
@@ -4811,6 +4825,7 @@ class GhostNetworkRepository:
                 SELECT r.*, c.validation_status, c.source_scope, c.source_event_id,
                        c.source_receipt_id, c.truth_class, c.title, c.body, c.tone,
                        c.fact_refs_json, c.cta_ref, c.cta_action, c.cta_payload_json,
+                       c.asset_ref,
                        c.target_medium AS candidate_medium,
                        c.audience_scope AS candidate_audience_scope,
                        c.audience_clan AS candidate_audience_clan,
@@ -4853,8 +4868,8 @@ class GhostNetworkRepository:
                     target_medium, audience_scope, audience_clan, audience_owner,
                     source_scope, source_event_id, source_receipt_id, truth_class,
                     title, body, tone, fact_refs_json, cta_ref, cta_action,
-                    cta_payload_json, created_at, published_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    cta_payload_json, asset_ref, created_at, published_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(publication_receipt_id) DO NOTHING
                 """,
                 (
@@ -4864,7 +4879,7 @@ class GhostNetworkRepository:
                     row["source_scope"], row["source_event_id"], row["source_receipt_id"],
                     row["truth_class"], row["title"], row["body"], row["tone"],
                     row["fact_refs_json"], row["cta_ref"], row["cta_action"],
-                    row["cta_payload_json"], row["created_at"], now_iso,
+                    row["cta_payload_json"], row["asset_ref"], row["created_at"], now_iso,
                 ),
             )
             cursor = conn.execute(

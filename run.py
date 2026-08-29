@@ -2615,6 +2615,8 @@ def blacknet_signal_from_publication(record):
         action = "none"
     target_id = str(payload.get("target_id") or payload.get("channel") or "")[:120]
     query = str(payload.get("query") or "")[:120]
+    if action == "teleport_to_hotspot" and target_id not in BLACKNET_HOTSPOTS:
+        action = "focus_map_target" if target_id else "none"
     return {
         "id": str(record.get("medium_record_id") or ""),
         "source": "ollama_enriched",
@@ -2645,6 +2647,33 @@ def blacknet_signal_from_publication(record):
             "audience_scope": record.get("audience_scope"),
         },
     }
+
+
+def blacknet_canonical_fact_ref(value):
+    value = str(value or "").strip()
+    return value[len("blacknet_fact:"):] if value.startswith("blacknet_fact:") else value
+
+
+def select_blacknet_narrative_records(records, limit):
+    """Keep the newest record for one semantic set of canonical facts."""
+    selected = []
+    semantic_keys = set()
+    for record in records or []:
+        if not isinstance(record, dict):
+            continue
+        refs = tuple(sorted({
+            blacknet_canonical_fact_ref(item)
+            for item in record.get("fact_refs") or []
+            if blacknet_canonical_fact_ref(item)
+        }))
+        key = refs or (str(record.get("source_receipt_id") or ""),)
+        if key in semantic_keys:
+            continue
+        semantic_keys.add(key)
+        selected.append(record)
+        if len(selected) >= limit:
+            break
+    return selected
 
 
 def blacknet_ollama_text(value, limit=160):
@@ -20036,11 +20065,13 @@ def api_blacknet_world_signals():
     identity = identity_projection_store.get_identity(username) or {}
     narrative_limit = min(2, max(1, limit // 4))
     records = get_ghostnetwork_service().repository.list_narrative_medium_records_for_viewer(
-        "blacknet", owner=username, clan=get_profile_clan(identity), limit=narrative_limit
+        "blacknet", owner=username, clan=get_profile_clan(identity),
+        limit=min(8, narrative_limit * 4),
     )
+    records = select_blacknet_narrative_records(records, narrative_limit)
     excluded = set(exclude_ids)
-    narratives = [
-        blacknet_signal_from_publication(record)
+    visible_records = [
+        record
         for record in records
         if not excluded.intersection({
             str(record.get("medium_record_id") or ""),
@@ -20048,9 +20079,24 @@ def api_blacknet_world_signals():
             *(str(item) for item in record.get("fact_refs") or []),
         })
     ][:narrative_limit]
-    deterministic = list(signal_snapshot.get("signals") or [])
+    narratives = [blacknet_signal_from_publication(record) for record in visible_records]
+    narrated_fact_refs = {
+        blacknet_canonical_fact_ref(ref)
+        for record in visible_records
+        for ref in record.get("fact_refs") or []
+        if blacknet_canonical_fact_ref(ref)
+    }
+    original_deterministic = list(signal_snapshot.get("signals") or [])
+    deterministic = [
+        signal for signal in original_deterministic
+        if blacknet_canonical_fact_ref(signal.get("fact_id") or signal.get("id"))
+        not in narrated_fact_refs
+    ]
     signal_snapshot["signals"] = (narratives + deterministic)[:limit]
     signal_snapshot.setdefault("diagnostics", {})["published_narratives"] = len(narratives)
+    signal_snapshot["diagnostics"]["suppressed_narrated_fallbacks"] = (
+        len(original_deterministic) - len(deterministic)
+    )
     signal_snapshot["version"] = hashlib.sha1(json.dumps({
         "foundation": signal_snapshot.get("version"),
         "publication_ids": [item.get("id") for item in narratives],
@@ -20244,7 +20290,8 @@ def api_googleplex_llm_task_status(receipt_id):
     if not username:
         return jsonify({"success": False, "reason_code": "not_logged_in"}), 401
     receipt_id = str(receipt_id or "").strip()
-    tasks = get_ghostnetwork_service().repository.list_narrative_outbox(
+    repository = get_ghostnetwork_service().repository
+    tasks = repository.list_narrative_outbox(
         source_scope="googleplex_app",
         source_receipt_id=receipt_id,
         limit=2,
@@ -20269,12 +20316,19 @@ def api_googleplex_llm_task_status(receipt_id):
         "dead_letter": "failed",
         "failed": "failed",
     }.get(raw_status, "accepted")
+    candidate = repository.get_narrative_candidate_for_task(task.get("outbox_id"))
+    if (
+        raw_status == "completed"
+        and candidate
+        and candidate.get("validation_status") in {"rejected", "quarantined"}
+    ):
+        public_status = "failed"
     user_message = {
         "accepted": "Task zostal przyjety do canonical transportu.",
         "queued": "Task oczekuje na lokalny worker AGI.",
         "processing": "AGI 2108 przetwarza bounded package.",
-        "completed": "Task zostal przetworzony. Tresc pozostaje ukryta do Sprintu 135.5.",
-        "failed": "Task zakonczyl sie kontrolowanym bledem.",
+        "completed": "Task zostal przetworzony i oczekuje na bezpieczna publikacje.",
+        "failed": "Wynik AGI jest niedostepny. Task zakonczyl sie kontrolowanym bledem.",
     }[public_status]
     response_payload = {
         "success": True,
@@ -20288,9 +20342,26 @@ def api_googleplex_llm_task_status(receipt_id):
             "user_message": user_message,
         },
     }
-    publication = get_ghostnetwork_service().repository.get_narrative_publication_for_source_receipt(
+    publication = repository.get_narrative_publication_for_source_receipt(
         receipt_id, owner=username
     )
+    if publication:
+        from ghostnetwork.ollama_policy import (
+            owner_analysis_echoes_input,
+            presentation_safety_errors,
+        )
+        unsafe_publication = presentation_safety_errors(
+            publication.get("title"), publication.get("body")
+        )
+        echo_publication = owner_analysis_echoes_input(
+            publication.get("title"), publication.get("body"), task.get("facts") or []
+        )
+        if unsafe_publication or echo_publication:
+            publication = None
+            response_payload["receipt"]["status"] = "failed"
+            response_payload["receipt"]["user_message"] = (
+                "Wynik AGI jest niedostepny. Publikacja nie spelnia aktualnej polityki."
+            )
     if (
         publication
         and publication.get("target_medium") == "cyberner"

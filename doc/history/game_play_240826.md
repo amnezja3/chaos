@@ -5302,3 +5302,19 @@ Werdykt:
 SPRINT 135.4.1.1 — COMPLETE
 READY TO RESUME SPRINT 135.4.2 FINAL VALIDATION
 ```
+
+## Sprint 135.5 — reopen po walidacji serwerowej
+
+Status: `SPRINT 135.5 — REOPENED / SERVER VALIDATION FAILED`.
+
+Produkcja potwierdziła działający transport, receipts i medium writes, ale
+ujawniła cztery blokery: appendowanie kart Googleplex News zamiast aktualizacji
+slotów, wyciek technicznych ID do presentation, echo topicu jako wynik AGI oraz
+duplikację BlackNet/niebezpieczny teleport CTA. Publisher został przeznaczony
+do zatrzymania na czas audytu; 135.6 pozostaje zamrożony.
+
+Lokalny repair wprowadza stabilne sloty Googleplex, wersjonowany asset-aware
+output, fail-closed presentation guard, anti-echo owner-analysis, semantyczną
+deduplikację BlackNetu i degradację niezweryfikowanego teleportu do focus/no CTA.
+Sprint może wrócić do COMPLETE dopiero po ponownej fizycznej walidacji każdego
+medium osobno.

@@ -13,6 +13,8 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
+from ghostnetwork.ollama_policy import presentation_safety_errors
+
 
 SCHEMA_VERSION = "googleplex-news-home-v1"
 FOUNDATION_PUBLISHED_AT = "2026-08-28T00:00:00Z"
@@ -356,49 +358,95 @@ def merge_googleplex_news_publications(
     snapshot: dict[str, Any], records: Iterable[dict[str, Any]], *,
     limit: int = DEFAULT_LIMIT, registry_path: str = ""
 ) -> dict[str, Any]:
-    """Prepend safe published records without changing the deterministic fallback."""
+    """Project publications into stable Home slots without growing the feed."""
     result = dict(snapshot or {})
     try:
         bounded_limit = max(MIN_LIMIT, min(MAX_LIMIT, int(limit or DEFAULT_LIMIT)))
     except (TypeError, ValueError):
         bounded_limit = DEFAULT_LIMIT
     registry = load_asset_registry(registry_path)
-    weights = ("hero", "large", "large", "medium", "medium", "small")
-    published = []
-    for index, record in enumerate(list(records or [])[:6]):
+    slot_ids = (
+        "gp-home-world-grid",
+        "gp-home-blacknet",
+        "gp-home-exchange",
+        "gp-home-map",
+        "gp-home-cyberner",
+        "gp-home-featured",
+    )
+    existing = list(result.get("entries") or [])
+    slots = {
+        str(item.get("content", {}).get("news_id") or ""): item
+        for item in existing if isinstance(item, dict)
+    }
+    safe_records = []
+    semantic_keys = set()
+    for record in records or []:
         if not isinstance(record, dict) or record.get("target_medium") != "googleplex_news":
             continue
+        if presentation_safety_errors(record.get("title"), record.get("body")):
+            continue
+        semantic_key = tuple(sorted(str(item) for item in record.get("fact_refs") or []))
+        semantic_key = semantic_key or (str(record.get("source_receipt_id") or ""),)
+        if semantic_key in semantic_keys:
+            continue
+        semantic_keys.add(semantic_key)
+        safe_records.append(record)
+        if len(safe_records) >= len(slot_ids):
+            break
+
+    replacements = {}
+    for index, record in enumerate(safe_records):
+        slot_id = slot_ids[index]
+        fallback = slots.get(slot_id)
+        if not fallback:
+            continue
+        presentation = fallback.get("presentation") or {}
+        asset = fallback.get("asset") or {}
         payload = record.get("cta_payload") if isinstance(record.get("cta_payload"), dict) else {}
         action = str(record.get("cta_action") or "")
         target = str(
             payload.get("target_id") or payload.get("channel")
             or payload.get("query") or ""
         )
-        published.append(_entry(
-            news_id=str(record.get("medium_record_id") or ""),
+        requested_asset = str(record.get("asset_ref") or "")
+        registry_asset = registry.get(requested_asset)
+        if (
+            registry_asset
+            and registry_asset.get("status") == "ready"
+            and presentation.get("weight") in registry_asset.get("allowed_presentation_weights", [])
+        ):
+            asset_id = requested_asset
+            asset_family = str(registry_asset.get("asset_family") or "network")
+        else:
+            asset_id = str(asset.get("asset_id") or "gp_fallback_network")
+            asset_family = str(asset.get("asset_family") or "network")
+        replacements[slot_id] = _entry(
+            news_id=slot_id,
             source="ollama_enriched",
             source_ref=str(record.get("publication_receipt_id") or ""),
             category="WORLD INTELLIGENCE",
-            weight=weights[index % len(weights)],
+            weight=str(presentation.get("weight") or "small"),
             title=str(record.get("title") or ""),
             summary=str(record.get("body") or ""),
             truth_class=str(record.get("truth_class") or "canonical"),
             audience_scope=str(record.get("audience_scope") or "public"),
             state="new",
             accent_role="network",
-            asset_id="gp_fallback_network",
-            asset_family="network",
+            asset_id=asset_id,
+            asset_family=asset_family,
             registry=registry,
             primary_stat="OLLAMA ENRICHED",
             action_type=action,
             action_target=target,
             action_payload_ref=str(record.get("cta_ref") or ""),
             published_at=str(record.get("published_at") or result.get("generated_at") or ""),
-        ))
-    existing = list(result.get("entries") or [])
-    result["entries"] = (published + existing)[:bounded_limit]
+        )
+    result["entries"] = [
+        replacements.get(str(item.get("content", {}).get("news_id") or ""), item)
+        for item in existing
+    ][:bounded_limit]
     protocol = dict(result.get("protocol_status") or {})
-    if published:
+    if replacements:
         protocol.update({
             "source": "canonical-publication-read-model",
             "ollama_used": True,
@@ -418,6 +466,7 @@ def merge_googleplex_news_publications(
     )
     diagnostics = dict(result.get("diagnostics") or {})
     diagnostics["entry_count"] = len(result["entries"])
-    diagnostics["published_entry_count"] = len(published)
+    diagnostics["published_entry_count"] = len(replacements)
+    diagnostics["publication_slot_ids"] = list(replacements)
     result["diagnostics"] = diagnostics
     return result

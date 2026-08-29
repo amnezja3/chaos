@@ -1,6 +1,47 @@
 # Sprint 135.5 — LLM Publishers: BlackNet, Googleplex News and Cyberner
 
-Status: `SPRINT 135.5 — READY FOR SERVER VALIDATION`.
+Status: `SPRINT 135.5 — REOPENED / SERVER VALIDATION FAILED`.
+
+## Reopen po walidacji produkcyjnej — 2026-08-29
+
+Transport, publication receipts i zapis medium records przeszły walidację, ale
+warstwa semantyczna/presentation nie spełniła kontraktu. Publisher musi pozostać
+zatrzymany na serwerze do ponownej walidacji.
+
+```text
+Transport:                    PASS
+Publication receipts:         PASS
+Media writes:                 PASS
+Googleplex News projection:   FAIL
+Presentation-safe output:     FAIL
+Cyberner result source:       FAIL
+BlackNet dedupe/content:      FAIL / TO AUDIT
+CTA resolution:               FAIL / TO AUDIT
+```
+
+Potwierdzone root causes i naprawy lokalne:
+
+- Googleplex News prependował nowe rekordy z kolejnymi wagami presentation.
+  Projekcja używa teraz sześciu stabilnych slotów foundation i zastępuje ich
+  zawartość bez zwiększania liczby kart ani tworzenia kolejnych HERO;
+- Googleplex News ma osobny, wersjonowany schema/prompt z `asset_ref`. Model
+  widzi wyłącznie bounded `allowed_asset_refs`, a backend ponownie sprawdza
+  status assetu i zgodność z wagą slotu; arbitralna ścieżka/URL jest niemożliwa;
+- presentation validator oraz prepublish guard blokują URL-e, techniczne
+  identyfikatory i długie token-like hex IDs w title/body;
+- owner-analysis odrzuca odpowiedź będącą echem topicu. Completed task z
+  rejected/quarantined candidate zwraca stan `failed / wynik niedostępny`, bez
+  promptu, raw outputu ani tekstu udającego odpowiedź AGI;
+- BlackNet deduplikuje publikacje po zbiorze canonical fact refs i nie pokazuje
+  deterministic fallbacku obok narracji o tych samych faktach;
+- `teleport_to_hotspot` nie jest oferowany modelowi przez world digest, ponieważ
+  bounded CTA package nie niesie canonical współrzędnych. Zostaje bezpieczny
+  `focus_map_target`; stare publikacje z nieznanym hotspotem są degradowane do
+  focusu albo braku CTA.
+
+Sprint pozostaje otwarty. Exit gate wymaga osobnej fizycznej rewalidacji
+Googleplex News, Cyberner AGI i BlackNet po wdrożeniu, przy zatrzymanym
+publisherze podczas inspekcji danych historycznych. Sprint 135.6 nie rusza.
 
 ## Start sprintu — 2026-08-29
 
@@ -32,10 +73,11 @@ receiptu.
   ani w workerze gameplayowym;
 - accepted candidate jest materializowany exactly once jako bounded medium
   record, a lease/crash recovery nie może utworzyć drugiego wpisu;
-- BlackNet miesza maksymalnie dwa wpisy `ollama_enriched` na stronę i zawsze
-  zachowuje deterministic feed; CTA przechodzi przez istniejącą allowlistę;
-- Googleplex News przyjmuje maksymalnie sześć publikacji i zachowuje
-  foundation/fallback oraz oddzielny read model od katalogu i zakupów;
+- BlackNet miesza maksymalnie dwa wpisy `ollama_enriched` na stronę, zachowuje
+  deterministic feed dla nienarrated facts i usuwa fallback o tych samych fact
+  refs; CTA przechodzi przez istniejącą allowlistę oraz target guard;
+- Googleplex News projektuje maksymalnie sześć najnowszych publikacji do
+  stałych slotów foundation, bez appendowania kart i bez drugiego HERO;
 - Cyberner udostępnia owner-scoped, read-only kanał `AGI 2108`, oparty o
   monotoniczny publication ordinal i bounded unread cursor; retry publikacji
   nie tworzy drugiej wiadomości ani drugiego unread;
@@ -140,7 +182,8 @@ canonical publication receipt
 
 Invariants:
 
-- deterministic signals pozostają dostępne i nie są zastępowane;
+- deterministic signals pozostają dostępne, chyba że konkretny accepted
+  wpis narracyjny prezentuje ten sam canonical fact ref w tym samym widoku;
 - sortowanie/paginacja nie faworyzują bez limitu treści Ollamy;
 - candidate nie może nadpisać istniejącego canonical signal;
 - CTA przechodzi przez istniejący dispatcher i jego allowlistę;

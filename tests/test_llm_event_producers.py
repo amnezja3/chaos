@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import tempfile
@@ -132,6 +133,15 @@ class LlmEventProducerTest(unittest.TestCase):
         self.assertEqual(news["status"], "created")
         self.assertEqual(news["task"]["target_medium"], "googleplex_news")
         self.assertNotEqual(first["task"]["outbox_id"], news["task"]["outbox_id"])
+
+        teleport_snapshot = copy.deepcopy(snapshot)
+        teleport_snapshot["version"] = "signals-teleport"
+        teleport_snapshot["signals"][0]["cta_action"] = "teleport_to_hotspot"
+        teleport = producer.enqueue_digest(teleport_snapshot, window_id="teleport-window")
+        self.assertEqual(
+            teleport["task"]["allowed_actions"][0]["cta_action"],
+            "focus_map_target",
+        )
 
         with patch.object(run.user_store, "list_profiles", side_effect=AssertionError("full profile scan")), \
                 patch.object(run.user_store, "get_profile", side_effect=AssertionError("full profile read")), \

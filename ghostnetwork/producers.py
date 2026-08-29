@@ -40,7 +40,6 @@ BLACKNET_ALLOWED_ACTIONS = {
     "play_radio_podcast",
     "show_hotspot",
     "start_operation",
-    "teleport_to_hotspot",
 }
 FORBIDDEN_APP_REQUEST_KEYS = {
     "prompt",
@@ -150,6 +149,12 @@ class BlackNetNarrativeProducer:
                 "valid_until": _safe_text(signal.get("valid_until"), 64),
             })
             action = _clean(signal.get("cta_action"))
+            # The bounded digest does not carry canonical hotspot coordinates.
+            # A teleport ref would therefore resolve an incident/receipt ID as
+            # if it were a hotspot. Preserve navigation, but never expose an
+            # unverified teleport capability to the model.
+            if action == "teleport_to_hotspot":
+                action = "focus_map_target"
             if action in BLACKNET_ALLOWED_ACTIONS:
                 allowed_actions.append({
                     "cta_action": action,

@@ -77,6 +77,46 @@ class OllamaPolicyTest(unittest.TestCase):
             set(result["errors"]), {"external_url", "unknown_cta_ref", "unknown_fact_ref"}
         )
 
+    def test_validator_quarantines_internal_identifier_in_presentation_text(self):
+        package = build_ollama_task_package(self.task())
+        result = parse_and_validate_ollama_content(json.dumps({
+            "title": "Aktualizacja systemu",
+            "body": "Wpis 02b4180b63e5 zostal przetworzony.",
+            "tone": "info",
+            "fact_refs": ["fact-1"],
+            "cta_ref": None,
+        }), package)
+
+        self.assertEqual(result["status"], "quarantined")
+        self.assertIn("internal_identifier_leak", result["errors"])
+
+    def test_owner_analysis_echo_is_rejected_instead_of_published(self):
+        task = assign_ollama_task_policy({
+            "source_scope": "googleplex_app",
+            "task_variant": "owner-analysis",
+            "target_medium": "cyberner",
+            "audience_scope": "owner",
+            "audience_owner": "alice",
+            "truth_class_policy": "owner_requested_interpretation",
+            "facts": [{
+                "fact_id": "googleplex_request:one",
+                "public_text": "Jak znalezc czesc?",
+                "request_fields": {"topic": "Jak znalezc czesc?"},
+            }],
+            "allowed_actions": [],
+        })
+        package = build_ollama_task_package(task)
+        result = parse_and_validate_ollama_content(json.dumps({
+            "title": "Analiza AGI",
+            "body": "jak znalezc czesc",
+            "tone": "system",
+            "fact_refs": ["googleplex_request:one"],
+            "cta_ref": None,
+        }), package)
+
+        self.assertEqual(result["status"], "rejected")
+        self.assertIn("owner_analysis_echo", result["errors"])
+
     def test_unregistered_or_unassigned_task_cannot_build_request(self):
         with self.assertRaisesRegex(ValueError, "policy_not_registered"):
             build_ollama_task_package({
@@ -211,12 +251,13 @@ class OllamaPolicyTest(unittest.TestCase):
 
         package = build_ollama_task_package(task)
 
-        self.assertEqual(package["format"]["$id"], "chaos-narrative-output-v1")
+        self.assertEqual(package["format"]["$id"], "chaos-narrative-output-assets-v1")
         self.assertEqual(package["format"]["properties"]["title"]["maxLength"], 48)
         self.assertEqual(package["format"]["properties"]["body"]["maxLength"], 120)
         self.assertEqual(package["format"]["properties"]["fact_refs"]["maxItems"], 1)
         self.assertEqual(package["fact_count"], 20)
         self.assertLessEqual(package["input_bytes"], MAX_TASK_PACKAGE_BYTES)
+        self.assertLessEqual(package["estimated_input_tokens"], 700)
         model_input = json.loads(package["messages"][1]["content"])
         self.assertEqual(model_input["output_limits"], {
             "title_chars": 48,
@@ -224,11 +265,40 @@ class OllamaPolicyTest(unittest.TestCase):
             "fact_refs": 1,
             "json_only": True,
         })
+        self.assertEqual(model_input["allowed_asset_refs"], [
+            "gp_scene_world_neutral_01", "gp_fallback_network",
+        ])
+        self.assertEqual(
+            package["format"]["properties"]["asset_ref"]["enum"],
+            [None, *model_input["allowed_asset_refs"]],
+        )
         ref_index = model_input["fact_columns"].index("fact_ref")
+        self.assertIn("title", model_input["fact_columns"])
         self.assertEqual(
             {row[ref_index] for row in model_input["facts"]},
             {item["fact_id"] for item in task["facts"]},
         )
+        accepted = parse_and_validate_ollama_content(json.dumps({
+            "title": "Sytuacja swiata",
+            "body": "Canonical sygnal pozostaje aktywny.",
+            "tone": "info",
+            "fact_refs": [task["facts"][0]["fact_id"]],
+            "cta_ref": None,
+            "asset_ref": "gp_scene_world_neutral_01",
+        }), package)
+        self.assertEqual(accepted["status"], "accepted")
+        self.assertEqual(accepted["resolved_asset_ref"], "gp_scene_world_neutral_01")
+
+        unsafe_asset = parse_and_validate_ollama_content(json.dumps({
+            "title": "Sytuacja swiata",
+            "body": "Canonical sygnal pozostaje aktywny.",
+            "tone": "info",
+            "fact_refs": [task["facts"][0]["fact_id"]],
+            "cta_ref": None,
+            "asset_ref": "../../private.png",
+        }), package)
+        self.assertEqual(unsafe_asset["status"], "quarantined")
+        self.assertIn("unknown_asset_ref", unsafe_asset["errors"])
 
         blacknet_task = dict(task, target_medium="blacknet")
         blacknet_task = assign_ollama_task_policy(blacknet_task)

@@ -15,8 +15,10 @@ from .policies.chaos_local_narrator_v1 import (
 ROOT = Path(__file__).resolve().parent
 SYSTEM_PROMPT_VERSION = "chaos-narrator-system-v1"
 OUTPUT_SCHEMA_VERSION = "chaos-narrative-output-v1"
+ASSET_OUTPUT_SCHEMA_VERSION = "chaos-narrative-output-assets-v1"
 SYSTEM_PROMPT_PATH = ROOT / "prompts" / "system" / "chaos-narrator-v1.md"
 SCHEMA_PATH = ROOT / "schemas" / "chaos-narrative-output-v1.json"
+ASSET_SCHEMA_PATH = ROOT / "schemas" / "chaos-narrative-output-assets-v1.json"
 
 
 @dataclass(frozen=True)
@@ -55,13 +57,14 @@ GHOSTNETWORK_CYBERNER_VARIANTS = frozenset({
 })
 
 
-def _policy(source, variant, medium, version, relative_path):
+def _policy(source, variant, medium, version, relative_path, output_schema_version=OUTPUT_SCHEMA_VERSION):
     return OllamaTaskPolicy(
         source_scope=source,
         task_variant=variant,
         target_medium=medium,
         prompt_version=version,
         prompt_path=ROOT / "prompts" / relative_path,
+        output_schema_version=output_schema_version,
     )
 
 
@@ -72,7 +75,8 @@ def _build_registry():
     )]
     policies.append(_policy(
         "blacknet_world", "world_digest", "googleplex_news",
-        "googleplex-news-prompt-v1", Path("googleplex") / "news-digest-v1.md",
+        "googleplex-news-assets-prompt-v1", Path("googleplex") / "news-digest-assets-v1.md",
+        ASSET_OUTPUT_SCHEMA_VERSION,
     ))
     for variant in sorted(GHOSTNETWORK_BLACKNET_VARIANTS):
         is_signal = variant == "signal_sent"
@@ -138,10 +142,14 @@ def load_prompt_layers(policy):
 
 
 def load_output_schema(version=OUTPUT_SCHEMA_VERSION):
-    if version != OUTPUT_SCHEMA_VERSION:
+    paths = {
+        OUTPUT_SCHEMA_VERSION: SCHEMA_PATH,
+        ASSET_OUTPUT_SCHEMA_VERSION: ASSET_SCHEMA_PATH,
+    }
+    if version not in paths:
         raise ValueError(f"schema_version_not_registered:{version}")
     try:
-        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+        schema = json.loads(paths[version].read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise ValueError(f"schema_missing_or_invalid:{version}") from exc
     if schema.get("$id") != version:

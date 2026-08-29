@@ -28,18 +28,21 @@ class AcceptedClient:
     def verify(self):
         return {"ok": True, "errors": []}
 
-    def generate(self, _package, policy):
+    def generate(self, package, policy):
+        output = {
+            "title": "Canonical title",
+            "body": "Canonical body",
+            "tone": "info",
+            "fact_refs": ["fact:one"],
+            "cta_ref": None,
+        }
+        if "asset_ref" in (package.get("format", {}).get("properties") or {}):
+            output["asset_ref"] = next(iter(package.get("allowed_asset_refs") or ()), None)
         return OllamaGenerationResult(
             model=policy.model_name,
             model_digest=policy.model_digest,
             runtime_version="test",
-            content=json.dumps({
-                "title": "Canonical title",
-                "body": "Canonical body",
-                "tone": "info",
-                "fact_refs": ["fact:one"],
-                "cta_ref": None,
-            }),
+            content=json.dumps(output),
             done=True,
             done_reason="stop",
             total_duration_ns=1,
@@ -118,6 +121,21 @@ class NarrativePublicationTest(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["fact_refs"], ["fact:one"])
         self.assertEqual(records[0]["truth_class"], "canonical")
+
+    def test_googleplex_asset_ref_survives_candidate_and_medium_projection(self):
+        candidate = self.accepted_candidate(
+            "googleplex-asset", source_scope="blacknet_world",
+            task_variant="world_digest", target_medium="googleplex_news",
+        )
+        self.assertEqual(candidate["asset_ref"], "gp_scene_world_neutral_01")
+        publisher = NarrativePublicationService(
+            repository=self.repo, worker_id="googleplex-publisher"
+        )
+        published = publisher.process_once()
+        self.assertEqual(published["result"], "published")
+        self.assertEqual(
+            published["record"]["asset_ref"], "gp_scene_world_neutral_01"
+        )
 
     def test_only_one_worker_owns_publication_lease(self):
         candidate = self.accepted_candidate("two-publishers")

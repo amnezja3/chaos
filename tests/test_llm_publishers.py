@@ -36,7 +36,7 @@ def publication(record_id="medium-one", medium="googleplex_news", **overrides):
 
 
 class LlmPublisherAdapterTest(unittest.TestCase):
-    def test_googleplex_news_merges_bounded_publication_and_keeps_fallback(self):
+    def test_googleplex_news_replaces_stable_slots_without_growing_feed(self):
         snapshot = build_googleplex_news_snapshot(
             catalog=[{"id": "tool", "name": "Tool", "published": True}],
             viewer_key="alice", session_generation="one", limit=20,
@@ -44,16 +44,26 @@ class LlmPublisherAdapterTest(unittest.TestCase):
         foundation_ids = {
             item["content"]["news_id"] for item in snapshot["entries"]
         }
-        records = [publication(f"medium-{index}") for index in range(10)]
+        records = [
+            publication(f"medium-{index}", fact_refs=[f"fact:{index}"])
+            for index in range(10)
+        ]
         merged = merge_googleplex_news_publications(copy.deepcopy(snapshot), records, limit=20)
         published = [
             item for item in merged["entries"]
             if item["content"]["source"] == "ollama_enriched"
         ]
         self.assertEqual(len(published), 6)
-        self.assertTrue(foundation_ids.intersection(
+        self.assertEqual(len(merged["entries"]), len(snapshot["entries"]))
+        self.assertEqual(
+            {item["content"]["news_id"] for item in merged["entries"]},
+            foundation_ids,
+        )
+        self.assertNotIn("medium-0", {
             item["content"]["news_id"] for item in merged["entries"]
-        ))
+        })
+        self.assertEqual(merged["entries"][0]["presentation"]["weight"], "hero")
+        self.assertEqual(merged["entries"][0]["content"]["news_id"], "gp-home-world-grid")
         self.assertTrue(merged["protocol_status"]["publication_enabled"])
         self.assertTrue(merged["protocol_status"]["ollama_used"])
 
@@ -68,6 +78,18 @@ class LlmPublisherAdapterTest(unittest.TestCase):
         self.assertEqual(entry["content"]["source"], "ollama_enriched")
         self.assertEqual(entry["action"]["kind"], "STAMP_ONLY")
 
+    def test_googleplex_news_hides_historical_unsafe_publication(self):
+        snapshot = build_googleplex_news_snapshot(
+            catalog=[], viewer_key="alice", session_generation="one", limit=20,
+        )
+        merged = merge_googleplex_news_publications(snapshot, [publication(
+            body="Produkt 02b4180b63e5 jest aktywny."
+        )], limit=20)
+        self.assertFalse(any(
+            item["content"]["source"] == "ollama_enriched"
+            for item in merged["entries"]
+        ))
+
     def test_blacknet_projection_preserves_labels_and_fails_closed_on_cta(self):
         signal = run.blacknet_signal_from_publication(publication(
             medium="blacknet", cta_action="arbitrary_tool_call"
@@ -77,13 +99,29 @@ class LlmPublisherAdapterTest(unittest.TestCase):
         self.assertEqual(signal["metadata"]["truth_class"], "canonical")
         self.assertEqual(signal["metadata"]["fact_refs"], ["fact:one"])
 
+        unsafe_teleport = run.blacknet_signal_from_publication(publication(
+            medium="blacknet", cta_action="teleport_to_hotspot",
+            cta_payload={"target_id": "incident_badd648821f3"},
+        ))
+        self.assertEqual(unsafe_teleport["cta_action"], "focus_map_target")
+
     def test_blacknet_endpoint_caps_narratives_and_keeps_deterministic_signal(self):
         heavy_profile_fixture = {"payload": "x" * (35 * 1024 * 1024)}
         self.assertGreaterEqual(len(heavy_profile_fixture["payload"]), 35 * 1024 * 1024)
-        records = [publication(f"blacknet-{index}", medium="blacknet") for index in range(5)]
+        records = [
+            publication(
+                f"blacknet-{index}", medium="blacknet",
+                fact_refs=["blacknet_fact:deterministic-one"],
+                source_receipt_id=f"source-{index}",
+            )
+            for index in range(5)
+        ]
         foundation = {
             "version": "foundation-v1",
-            "signals": [{"id": "deterministic-one", "source": "world_generated"}],
+            "signals": [{
+                "id": "deterministic-one", "fact_id": "deterministic-one",
+                "source": "world_generated",
+            }],
             "diagnostics": {},
         }
         repository = Mock()
@@ -108,8 +146,9 @@ class LlmPublisherAdapterTest(unittest.TestCase):
         finally:
             restore_hot_path_metrics(token)
         payload = response.get_json()["snapshot"]
-        self.assertEqual(payload["diagnostics"]["published_narratives"], 2)
-        self.assertIn("deterministic-one", [item["id"] for item in payload["signals"]])
+        self.assertEqual(payload["diagnostics"]["published_narratives"], 1)
+        self.assertEqual(payload["diagnostics"]["suppressed_narrated_fallbacks"], 1)
+        self.assertNotIn("deterministic-one", [item["id"] for item in payload["signals"]])
         self.assertNotEqual(payload["version"], "foundation-v1")
         for key in (
             "profile_full_read", "profile_full_write", "profile_bytes",
@@ -137,6 +176,36 @@ class LlmPublisherAdapterTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "tylko do odczytu"):
             run.cyberner_store_message("alice", {"username": "alice"}, route, "hello")
+
+    def test_agi_rejected_candidate_is_unavailable_and_never_echoed(self):
+        repository = Mock()
+        repository.list_narrative_outbox.return_value = [{
+            "outbox_id": "task-one", "status": "completed",
+            "audience_scope": "owner", "audience_owner": "alice",
+            "created_at": "2026-08-29T12:00:00+00:00",
+            "updated_at": "2026-08-29T12:01:00+00:00",
+            "facts": [{"public_text": "Jak znalezc czesc?"}],
+        }]
+        repository.get_narrative_candidate_for_task.return_value = {
+            "validation_status": "rejected",
+            "validation_errors": ["owner_analysis_echo"],
+        }
+        repository.get_narrative_publication_for_source_receipt.return_value = publication(
+            "agi-echo", medium="cyberner", source_scope="googleplex_app",
+            audience_scope="owner", audience_owner="alice",
+            title="Analiza AGI", body="Jak znalezc czesc?",
+        )
+        with run.app.test_request_context("/api/googleplex/llm/tasks/receipt-one"):
+            session["user"] = "alice"
+            with patch.object(
+                run, "get_ghostnetwork_service",
+                return_value=Mock(repository=repository),
+            ):
+                response = run.api_googleplex_llm_task_status("receipt-one")
+        payload = response.get_json()
+        self.assertEqual(payload["receipt"]["status"], "failed")
+        self.assertNotIn("publication", payload)
+        self.assertNotIn("owner_analysis_echo", str(payload))
 
 
 if __name__ == "__main__":
