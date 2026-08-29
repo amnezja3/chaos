@@ -193,6 +193,41 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertGreaterEqual(package["estimated_input_tokens"], 500)
         self.assertLessEqual(package["estimated_input_tokens"], 700)
 
+    def test_googleplex_news_uses_bounded_generation_schema_with_canonical_contract(self):
+        task = assign_ollama_task_policy({
+            "outbox_id": "narrative_task_googleplex_news_limits",
+            "source_scope": "blacknet_world",
+            "source_receipt_id": "googleplex_news_limits",
+            "task_variant": "world_digest",
+            "target_medium": "googleplex_news",
+            "audience_scope": "public",
+            "truth_class_policy": "canonical",
+            "facts": [
+                {"fact_id": f"googleplex-news-fact-{index:02d}", "title": "Signal"}
+                for index in range(20)
+            ],
+            "allowed_actions": [],
+        })
+
+        package = build_ollama_task_package(task)
+
+        self.assertEqual(package["format"]["$id"], "chaos-narrative-output-v1")
+        self.assertEqual(package["format"]["properties"]["title"]["maxLength"], 64)
+        self.assertEqual(package["format"]["properties"]["body"]["maxLength"], 220)
+        self.assertEqual(package["format"]["properties"]["fact_refs"]["maxItems"], 2)
+        self.assertEqual(package["fact_count"], 20)
+        self.assertLessEqual(package["input_bytes"], MAX_TASK_PACKAGE_BYTES)
+
+        blacknet_task = dict(task, target_medium="blacknet")
+        blacknet_task = assign_ollama_task_policy(blacknet_task)
+        blacknet_package = build_ollama_task_package(blacknet_task)
+        self.assertEqual(
+            blacknet_package["format"]["properties"]["body"]["maxLength"], 800
+        )
+        self.assertEqual(
+            blacknet_package["format"]["properties"]["fact_refs"]["maxItems"], 16
+        )
+
     def test_production_weight_blacknet_digest_budgets_all_optional_columns(self):
         facts = [{
             "fact_id": f"blacknet_fact:production-world-signal-{index:02d}",

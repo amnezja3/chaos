@@ -25,6 +25,9 @@ MAX_TASK_PACKAGE_BYTES = 2400
 ESTIMATED_TOKEN_CHARS = 3.5
 MAX_MODEL_CONTENT_BYTES = 16 * 1024
 MAX_HTTP_RESPONSE_BYTES = 64 * 1024
+GENERATION_OUTPUT_LIMITS = {
+    "googleplex_news": {"title": 64, "body": 220, "refs": 2},
+}
 ALLOWED_TONES = (
     "info",
     "warning",
@@ -129,6 +132,25 @@ def _try_add_top_level_field(model_input, field, value):
         return True
     model_input.pop(field, None)
     return False
+
+
+def _generation_output_schema(policy):
+    """Return a policy-scoped generation constraint within the canonical schema."""
+    schema = load_output_schema(policy.output_schema_version)
+    limits = GENERATION_OUTPUT_LIMITS.get(policy.target_medium)
+    if not limits:
+        return schema
+    properties = schema.get("properties") or {}
+    properties["title"]["maxLength"] = min(
+        int(properties["title"].get("maxLength") or limits["title"]), limits["title"]
+    )
+    properties["body"]["maxLength"] = min(
+        int(properties["body"].get("maxLength") or limits["body"]), limits["body"]
+    )
+    properties["fact_refs"]["maxItems"] = min(
+        int(properties["fact_refs"].get("maxItems") or limits["refs"]), limits["refs"]
+    )
+    return schema
 
 
 def assign_ollama_task_policy(task):
@@ -269,7 +291,7 @@ def build_ollama_task_package(task, policy=None):
             {"role": "system", "content": system_prompt + "\n\n" + domain_prompt},
             {"role": "user", "content": encoded},
         ],
-        "format": load_output_schema(policy.output_schema_version),
+        "format": _generation_output_schema(policy),
         "fact_refs": frozenset(fact_refs),
         "cta_map": cta_map,
         "request_hash": hashlib.sha256(encoded.encode("utf-8")).hexdigest(),
