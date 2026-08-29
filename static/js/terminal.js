@@ -8656,6 +8656,7 @@ function createBrowser() {
     const wallet = term.querySelector(`#${terminalId}-wallet`);
     const browserHeader = term.querySelector('.googolplex-header');
     const browserTabs = term.querySelector('.browser-tabs');
+    const googleplexShell = term.querySelector('.googolplex-shell');
     let catalog = [];
     let catalogLoaded = false;
     let catalogLoading = null;
@@ -8684,6 +8685,7 @@ function createBrowser() {
     let googleplexHomeLoading = null;
     let googleplexHomeError = "";
     let googleplexHomeScrollTop = 0;
+    let googleplexRenderedViewKey = "boot";
     let exchangeFiles = [];
     let exchangeDashboard = { summary: {}, sectors: [], recent_transactions: [], history_7d: [] };
     let walletBalance = Number((toolbarProfile || {}).hackcoins || 0);
@@ -8696,6 +8698,34 @@ function createBrowser() {
     let activeBlacknetSignalId = "";
     let blacknetPointerStartX = null;
     let pendingGoogleplexSearch = "";
+    const getGoogleplexScrollSurface = () => {
+        const resultsOverflow = String(window.getComputedStyle?.(results)?.overflowY || "").toLowerCase();
+        if (resultsOverflow === "auto" || resultsOverflow === "scroll") return results;
+        const shellOverflow = String(window.getComputedStyle?.(googleplexShell)?.overflowY || "").toLowerCase();
+        if (shellOverflow === "auto" || shellOverflow === "scroll") return googleplexShell;
+        return results;
+    };
+    const beginGoogleplexCatalogView = viewKey => {
+        const previousSurface = getGoogleplexScrollSurface();
+        const previousTop = Number(previousSurface?.scrollTop || 0);
+        const previousLeft = Number(previousSurface?.scrollLeft || 0);
+        const viewChanged = googleplexRenderedViewKey !== viewKey;
+        googleplexRenderedViewKey = viewKey;
+        if (viewChanged && previousSurface) {
+            previousSurface.scrollTop = 0;
+            previousSurface.scrollLeft = 0;
+        }
+        return () => requestAnimationFrame(() => {
+            const surface = getGoogleplexScrollSurface();
+            if (!surface) return;
+            surface.scrollTop = viewChanged ? 0 : previousTop;
+            surface.scrollLeft = viewChanged ? 0 : previousLeft;
+        });
+    };
+    const rememberGoogleplexHomeScroll = () => {
+        if (!results.querySelector('.gp-home')) return;
+        googleplexHomeScrollTop = Math.max(0, Number(getGoogleplexScrollSurface()?.scrollTop || 0));
+    };
     const renderBrowserWallet = () => {
         if (activeBrowserTab === "blacknet") {
             wallet.classList.remove("gp-account-context");
@@ -8766,6 +8796,9 @@ function createBrowser() {
     const googleplexList = (value) => Array.isArray(value)
         ? value.map(item => String(item || '').trim()).filter(Boolean)
         : [];
+    const googleplexBreakableText = value => escapeHTML(
+        value == null || value === "" ? "-" : String(value)
+    ).replace(/([_,])/g, "$1<wbr>");
     const googleplexIconSocketAssets = Object.freeze({
         core: "/static/images/googleplx/icons/app-sockets/01_icon_socket_core.svg",
         side: "/static/images/googleplx/icons/app-sockets/02_icon_socket_side.svg",
@@ -9745,6 +9778,8 @@ function createBrowser() {
 
     const renderGoogleplexHome = () => {
         if (activeBrowserTab !== "googleplex" || search.value.trim()) return;
+        rememberGoogleplexHomeScroll();
+        googleplexRenderedViewKey = "home";
         if (!googleplexHomeUi) {
             results.innerHTML = '<div class="googolplex-empty">Modul Googleplex News jest niedostepny.</div>';
             return;
@@ -9754,7 +9789,10 @@ function createBrowser() {
                 onAction: runGoogleplexNewsAction
             });
             requestAnimationFrame(() => {
-                results.scrollTop = Math.max(0, googleplexHomeScrollTop || 0);
+                const surface = getGoogleplexScrollSurface();
+                if (!surface) return;
+                surface.scrollTop = Math.max(0, googleplexHomeScrollTop || 0);
+                surface.scrollLeft = 0;
             });
             updateBrowserNarrowMode();
             return;
@@ -9868,11 +9906,12 @@ function createBrowser() {
             return;
         }
 
+        rememberGoogleplexHomeScroll();
+        const settleCatalogScroll = beginGoogleplexCatalogView(showAll ? "all" : `query:${query}`);
+
         if (!catalogLoaded) {
-            if (results.querySelector('.gp-home')) {
-                googleplexHomeScrollTop = results.scrollTop;
-            }
             results.innerHTML = '<div class="googolplex-empty">Synchronizacja katalogu Googleplex...</div>';
+            settleCatalogScroll();
             loadCatalog().catch(error => {
                 console.warn('Googleplex catalog lazy load failed', error);
                 if (activeBrowserTab === "googleplex" && search.value.trim()) {
@@ -9895,6 +9934,7 @@ function createBrowser() {
         results.innerHTML = '';
         if (matches.length === 0) {
             results.innerHTML = '<div class="googolplex-empty">Brak aplikacji do pokazania.</div>';
+            settleCatalogScroll();
             updateBrowserNarrowMode();
             return;
         }
@@ -10002,12 +10042,12 @@ function createBrowser() {
             const renderSpecRows = (rows, rowClass) => rows.map(({ key, label, value }) => `
                 <div class="gp-app-spec ${rowClass}" data-spec-key="${escapeHTML(key)}">
                     <dt>${escapeHTML(label)}</dt>
-                    <dd>${escapeHTML(value == null || value === "" ? "-" : String(value))}</dd>
+                    <dd>${googleplexBreakableText(value)}</dd>
                 </div>
             `).join("");
             const renderTechnicalRows = rows => rows.map(({ key, label, values }) => {
                 const tokens = values.length
-                    ? values.map(value => `<span class="gp-app-spec-panel__token">${escapeHTML(value)}</span>`).join("")
+                    ? values.map(value => `<span class="gp-app-spec-panel__token">${googleplexBreakableText(value)}</span>`).join("")
                     : '<span class="gp-app-spec-panel__token">-</span>';
                 return `
                     <div class="gp-app-spec gp-app-spec--technical" data-spec-key="${escapeHTML(key)}">
@@ -10156,6 +10196,7 @@ function createBrowser() {
                 result_count: matches.length
             });
         }
+        settleCatalogScroll();
         updateBrowserNarrowMode();
     };
 
@@ -10585,11 +10626,17 @@ function createBrowser() {
     }
 
     function switchBrowserTab(tabName) {
+        if (activeBrowserTab === "googleplex") {
+            rememberGoogleplexHomeScroll();
+        }
         if (tabName !== activeBrowserTab
             && Object.prototype.hasOwnProperty.call(browserQueries, activeBrowserTab)) {
             browserQueries[activeBrowserTab] = search.value;
         }
         activeBrowserTab = tabName;
+        if (tabName !== "googleplex") {
+            googleplexRenderedViewKey = `tab:${tabName}`;
+        }
         search.value = browserQueries[tabName] || "";
         updateBrowserChrome();
         updateBrowserNarrowMode();

@@ -314,6 +314,94 @@ Object.entries(longMetadataFixtures).forEach(([field, values]) => {
 });
 assert.doesNotMatch(listSource, /\.slice\s*\(|substring\s*\(|substr\s*\(|\.\.\./);
 
+// Long identifiers retain their exact text and receive legal break points only
+// after canonical separators. This prevents scanner_reco|n style wrapping.
+const breakStart = terminalSource.indexOf("const googleplexBreakableText =");
+const breakEnd = terminalSource.indexOf("const googleplexIconSocketAssets", breakStart);
+assert.ok(breakStart >= 0 && breakEnd > breakStart, "breakable identifier helper missing");
+const breakSource = terminalSource.slice(breakStart, breakEnd);
+const renderBreakable = value => {
+    const sandbox = { __value: value };
+    vm.runInNewContext(
+        `${escapeSource}\n${breakSource}\nglobalThis.__rendered = googleplexBreakableText(globalThis.__value);`,
+        sandbox
+    );
+    return sandbox.__rendered;
+};
+assert.strictEqual(
+    renderBreakable("system_product,scanner_recon"),
+    "system_<wbr>product,<wbr>scanner_<wbr>recon"
+);
+assert.strictEqual(renderBreakable("travel_ticket"), "travel_<wbr>ticket");
+assert.strictEqual(
+    renderBreakable('<img src=x onerror="boom">'),
+    "&lt;img src=x onerror=&quot;boom&quot;&gt;"
+);
+
+const scrollHelperStart = terminalSource.indexOf("const getGoogleplexScrollSurface =");
+const scrollHelperEnd = terminalSource.indexOf("const renderBrowserWallet", scrollHelperStart);
+assert.ok(scrollHelperStart >= 0 && scrollHelperEnd > scrollHelperStart, "Googleplex scroll lifecycle helper missing");
+const scrollHelperSource = terminalSource.slice(scrollHelperStart, scrollHelperEnd);
+assert.match(scrollHelperSource, /overflowY/);
+assert.match(scrollHelperSource, /return results/);
+assert.match(scrollHelperSource, /return googleplexShell/);
+assert.match(scrollHelperSource, /googleplexRenderedViewKey !== viewKey/);
+assert.match(scrollHelperSource, /surface\.scrollTop = viewChanged \? 0 : previousTop/);
+assert.match(scrollHelperSource, /surface\.scrollLeft = viewChanged \? 0 : previousLeft/);
+assert.match(scrollHelperSource, /googleplexHomeScrollTop = Math\.max/);
+
+const runScrollLifecycle = mode => {
+    const resultsNode = {
+        scrollTop: mode === "desktop" ? 420 : 0,
+        scrollLeft: mode === "desktop" ? 17 : 0,
+        querySelector: () => ({ className: "gp-home" })
+    };
+    const shellNode = {
+        scrollTop: mode === "mobile" ? 360 : 0,
+        scrollLeft: mode === "mobile" ? 11 : 0
+    };
+    const sandbox = {
+        __results: resultsNode,
+        __shell: shellNode,
+        __mode: mode
+    };
+    vm.runInNewContext(`
+        const results = globalThis.__results;
+        const googleplexShell = globalThis.__shell;
+        let googleplexRenderedViewKey = "all";
+        let googleplexHomeScrollTop = 0;
+        const window = {
+            getComputedStyle(node) {
+                if (globalThis.__mode === "desktop") {
+                    return { overflowY: node === results ? "auto" : "visible" };
+                }
+                return { overflowY: node === googleplexShell ? "auto" : "visible" };
+            }
+        };
+        const requestAnimationFrame = callback => callback();
+        ${scrollHelperSource}
+        globalThis.__begin = beginGoogleplexCatalogView;
+        globalThis.__rememberHome = rememberGoogleplexHomeScroll;
+        globalThis.__homeTop = () => googleplexHomeScrollTop;
+    `, sandbox);
+    return sandbox;
+};
+
+const desktopScroll = runScrollLifecycle("desktop");
+desktopScroll.__begin("query:bilet")();
+assert.strictEqual(desktopScroll.__results.scrollTop, 0, "new desktop query resets result scroller");
+assert.strictEqual(desktopScroll.__results.scrollLeft, 0);
+desktopScroll.__results.scrollTop = 233;
+desktopScroll.__begin("query:bilet")();
+assert.strictEqual(desktopScroll.__results.scrollTop, 233, "same query rerender preserves desktop scroll");
+
+const mobileScroll = runScrollLifecycle("mobile");
+mobileScroll.__begin("query:bilet")();
+assert.strictEqual(mobileScroll.__shell.scrollTop, 0, "new mobile query resets shell scroller");
+mobileScroll.__shell.scrollTop = 187;
+mobileScroll.__rememberHome();
+assert.strictEqual(mobileScroll.__homeTop(), 187, "Home remembers the canonical mobile shell scroll");
+
 const renderStart = terminalSource.indexOf("const renderCatalog = () =>");
 const renderEnd = terminalSource.indexOf("appsProjectionListener =", renderStart);
 assert.ok(renderStart >= 0 && renderEnd > renderStart, "Googleplex catalog renderer missing");
@@ -323,6 +411,8 @@ const catalogSource = terminalSource.slice(renderStart, renderEnd);
 // entries for /all, deterministic /all ranking and source order for queries.
 assert.match(catalogSource, /if \(!query\)[\s\S]*renderGoogleplexHome\(\)/);
 assert.match(catalogSource, /const showAll = query === "\/all"/);
+assert.match(catalogSource, /beginGoogleplexCatalogView\(showAll \? "all" : `query:\$\{query\}`\)/);
+assert.match(catalogSource, /settleCatalogScroll\(\)/);
 assert.match(
     catalogSource,
     /const matches = showAll[\s\S]*filteredMatches\.slice\(\)\.sort[\s\S]*Number\(right\.downloads \|\| 0\) - Number\(left\.downloads \|\| 0\)/
@@ -405,7 +495,7 @@ assert.doesNotMatch(statusMarkup, /<button\b/, "LVL / RESPECT / RISK are status,
 assert.match(catalogSource, /values:\s*googleplexList\(item\.map_actions\)/);
 assert.match(catalogSource, /values:\s*googleplexList\(item\.operation_types\)/);
 assert.match(catalogSource, /values:\s*googleplexList\(item\.resource_types\)/);
-assert.match(catalogSource, /values\.map\(value => `<span class="gp-app-spec-panel__token">\$\{escapeHTML\(value\)\}<\/span>`\)/);
+assert.match(catalogSource, /values\.map\(value => `<span class="gp-app-spec-panel__token">\$\{googleplexBreakableText\(value\)\}<\/span>`\)/);
 assert.match(catalogSource, /installed \? "Aplikacja juz kupiona\."/);
 assert.match(catalogSource, /installed \? \(isProduct \? "KUPIONO" : "ZAINSTALOWANO"\)/);
 assert.doesNotMatch(catalogSource, /line-clamp|safeAsset|visual_asset_url|asset_path|icon_url/);
@@ -435,15 +525,23 @@ assert.match(
 );
 assert.match(
     presentationStyles,
-    /\.browser-window\.is-window-maximized\.is-browser-googleplex \.gp-search-group\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 5fr\) minmax\(0, 7fr\)/
+    /\.browser-window\.is-window-maximized\.is-browser-googleplex \.gp-search-group\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/
 );
 assert.match(
     presentationStyles,
-    /\.browser-window\.is-window-maximized\.is-browser-googleplex \.gp-search-group__middle\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 3fr\) minmax\(0, 4fr\)/
+    /\.browser-window\.is-window-maximized\.is-browser-googleplex \.gp-search-group__hero,[\s\S]*?\.gp-search-group__small\s*\{[\s\S]*?display:\s*contents/
 );
 assert.match(
     presentationStyles,
-    /\.browser-window\.is-window-maximized\.is-browser-googleplex \.gp-search-group__small\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 2fr\) minmax\(0, 3fr\) minmax\(0, 2fr\)/
+    /\.browser-window\.is-window-maximized\.is-browser-googleplex \.gp-search-product--hero\s*\{[\s\S]*?grid-column:\s*span 3/
+);
+assert.match(
+    presentationStyles,
+    /\.browser-window:not\(\.is-window-maximized\):not\(\.browser-narrow\)\.is-browser-googleplex \.googolplex-shell\s*\{[\s\S]*?grid-template-columns:/
+);
+assert.match(
+    presentationStyles,
+    /\.browser-window:not\(\.is-window-maximized\):not\(\.browser-narrow\)\.is-browser-googleplex \.googolplex-search\s*\{[\s\S]*?grid-column:\s*2[\s\S]*?grid-row:\s*1/
 );
 assert.match(
     presentationStyles,
@@ -478,7 +576,7 @@ assert.match(userIconRule[1], /border:\s*0(?:\s+[^;]+)?;/);
 assert.match(userIconRule[1], /background:\s*none\s*;/);
 assert.doesNotMatch(
     userIconRule[1],
-    /background-image\s*:|url\s*\(|filter\s*:|mask(?:-image)?\s*:|content\s*:/
+    /background-image\s*:|url\s*\(|filter\s*:|mask(?:-image)?\s*:|(?:^|[;\s])content\s*:/
 );
 assert.doesNotMatch(presentationStyles, /line-clamp:\s*[1-9]/);
 [
@@ -490,14 +588,26 @@ assert.doesNotMatch(presentationStyles, /line-clamp:\s*[1-9]/);
     "gp-app-purchase-state",
     "gp-app-market-footer"
 ].forEach(className => {
-    const hiddenRule = new RegExp(`\\.${className}[^{}]*\\{[^}]*display:\\s*none`);
+    const hiddenRule = new RegExp(`\\.${className}(?![-_])[^{}]*\\{[^}]*display:\\s*none`);
     assert.doesNotMatch(presentationStyles, hiddenRule, `${className} cannot be hidden`);
 });
 assert.match(
     presentationStyles,
-    /\.gp-app-spec-panel[\s\S]*?(?:overflow-wrap:\s*anywhere|word-break:\s*break-word)/,
-    "long MAP / OPS / DATA values need a bounded wrapping strategy"
+    /\.gp-app-spec-panel__token\s*\{[\s\S]*?overflow-wrap:\s*normal[\s\S]*?word-break:\s*normal/,
+    "technical identifiers may only wrap at renderer-owned opportunities"
 );
+assert.doesNotMatch(presentationStyles, /min-height:\s*360px/);
+assert.doesNotMatch(presentationStyles, /\.gp-search-product\s*\{[^}]*overflow-wrap:\s*anywhere/);
+assert.match(presentationStyles, /:where\(\.gp-search-view, \.gp-search-view \*\)[\s\S]*?box-sizing:\s*border-box/);
+assert.match(
+    presentationStyles,
+    /\.gp-app-icon-stage\s*\{[\s\S]*?display:\s*flex[\s\S]*?align-items:\s*center[\s\S]*?justify-content:\s*center/
+);
+assert.match(
+    presentationStyles,
+    /\.gp-app-icon-stage__user-icon\s*\{[\s\S]*?display:\s*flex[\s\S]*?align-items:\s*center[\s\S]*?justify-content:\s*center/
+);
+assert.doesNotMatch(presentationStyles, /overflow-x:\s*hidden/);
 assert.doesNotMatch(newsStyles, /\.gp-search-group\b|\.gp-search-product\b/);
 assert.doesNotMatch(catalogSource, /class="gp-home|class="googolplex-card/);
 
