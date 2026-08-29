@@ -454,6 +454,7 @@ assert.match(catalogSource, /item\.description \|\| ["']Brak opisu\.["']/);
     "gp-app-status-strip",
     "gp-app-card__body",
     "gp-app-icon-stage",
+    "gp-app-icon-stage__socket",
     "gp-app-icon-stage__user-icon",
     "gp-app-spec-panel",
     "gp-app-purchase-state",
@@ -466,7 +467,10 @@ assert.match(
     /gp-app-icon-stage__user-icon[^>]*>\s*\$\{escapeHTML\(iconValue\)\}\s*</,
     "the foreground layer must render the exact escaped creator icon"
 );
-assert.doesNotMatch(catalogSource, /gp-app-icon-stage__socket|iconSocketAsset/);
+assert.match(
+    catalogSource,
+    /<img class="gp-app-icon-stage__socket" src="\$\{escapeHTML\(iconSocketAsset\)\}" alt="" draggable="false">/
+);
 const statusMarkupStart = catalogSource.indexOf("const requirementsMeta");
 const statusMarkupEnd = catalogSource.indexOf("const coreParameterRows", statusMarkupStart);
 const statusMarkup = catalogSource.slice(statusMarkupStart, statusMarkupEnd);
@@ -545,8 +549,8 @@ assert.match(
     assert.ok(presentationStyles.includes(selector), `missing card selector: ${selector}`);
 });
 
-// Only the creator-owned foreground asset is rendered. It stays transparent,
-// borderless and free of a socket/frame/glow layer.
+// The code-owned socket is a separate, non-interactive background asset. The
+// creator-owned foreground asset remains transparent and borderless.
 const userIconRule = presentationStyles.match(
     /\.gp-app-icon-stage__user-icon(?:\s*,[^\{]*)?\s*\{([^}]*)\}/
 );
@@ -561,7 +565,10 @@ assert.match(
     presentationStyles,
     /\.gp-app-icon-stage\s*\{[\s\S]*?place-self:\s*start center[\s\S]*?align-items:\s*flex-start[\s\S]*?background:\s*none[\s\S]*?box-shadow:\s*none/
 );
-assert.doesNotMatch(presentationStyles, /\.gp-app-icon-stage__socket\b/);
+assert.match(
+    presentationStyles,
+    /\.gp-app-icon-stage__socket\s*\{[\s\S]*?box-shadow:\s*none !important[\s\S]*?object-fit:\s*contain[\s\S]*?pointer-events:\s*none/
+);
 assert.match(
     presentationStyles,
     /\.gp-app-purchase-state\s*\{[\s\S]*?width:\s*fit-content[\s\S]*?border:\s*0[\s\S]*?background:\s*none/

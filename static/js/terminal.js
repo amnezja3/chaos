@@ -8807,6 +8807,13 @@ function createBrowser() {
     const googleplexBreakableText = value => escapeHTML(
         value == null || value === "" ? "-" : String(value)
     ).replace(/([_,])/g, "$1<wbr>");
+    const googleplexIconSocketAssets = Object.freeze({
+        core: "/static/images/googleplx/icons/app-sockets/01_icon_socket_core.svg",
+        side: "/static/images/googleplx/icons/app-sockets/02_icon_socket_side.svg",
+        compact: "/static/images/googleplx/icons/app-sockets/03_icon_socket_compact.svg",
+        hex: "/static/images/googleplx/icons/app-sockets/04_icon_socket_hex.svg",
+        target: "/static/images/googleplx/icons/app-sockets/05_icon_socket_target.svg"
+    });
     const googleplexSearchText = (item) => [
         item.name,
         item.description,
@@ -10072,15 +10079,28 @@ function createBrowser() {
             const appId = String(item.id || item.app_id || "");
             const iconValue = String(item.icon || browserUiIcons.app);
             const familyLabel = String(item.tool_family || item.category || item.type || "tool");
+            const normalizedFamily = `${familyLabel} ${item.type || ""}`.toLowerCase();
+            const iconSocket = variant === "hero" || variant === "single"
+                ? "core"
+                : variant === "middle"
+                    ? (/scanner|tracker|recon/.test(normalizedFamily) ? "target" : "side")
+                    : /custom|system|exploit/.test(normalizedFamily)
+                        ? "hex"
+                        : /scanner|tracker|recon/.test(normalizedFamily)
+                            ? "target"
+                            : "compact";
             const presentationVariant = variant === "middle"
                 ? "side"
                 : variant === "small" ? "compact" : variant;
+            const iconSocketAsset = googleplexIconSocketAssets[iconSocket]
+                || googleplexIconSocketAssets.compact;
             const card = document.createElement('article');
             card.className = `gp-search-product gp-search-product--${variant}${installed ? " is-installed" : ""} gp-app-card gp-app-card--${presentationVariant}`;
             card.dataset.appId = appId;
             card.dataset.layoutIndex = String(layoutIndex);
             card.dataset.assetFamily = "tool";
             card.dataset.assetState = installed ? "victory" : "neutral";
+            card.dataset.iconSocket = iconSocket;
             card.innerHTML = `
                 <header class="gp-app-card__header gp-search-product__header">
                     <span class="gp-app-card__eyebrow gp-search-product__eyebrow">${escapeHTML(familyLabel)} // APPLICATION</span>
@@ -10089,7 +10109,8 @@ function createBrowser() {
                 </header>
                 ${requirementsMeta}
                 <div class="gp-app-card__body">
-                    <div class="gp-app-icon-stage gp-search-product__icon" aria-hidden="true">
+                    <div class="gp-app-icon-stage gp-app-icon-stage--${iconSocket} gp-search-product__icon" aria-hidden="true">
+                        <img class="gp-app-icon-stage__socket" src="${escapeHTML(iconSocketAsset)}" alt="" draggable="false">
                         <span class="gp-app-icon-stage__user-icon gp-search-product__icon-symbol">${escapeHTML(iconValue)}</span>
                     </div>
                     <div class="gp-app-spec-panel">
