@@ -81,6 +81,7 @@ from session_generation_store import (
 from googleplex_news import (
     GoogleplexNewsConfigurationError,
     build_googleplex_news_snapshot,
+    merge_googleplex_news_publications,
 )
 from territory_geometry import polygons_intersect as canonical_polygons_intersect
 
@@ -515,6 +516,16 @@ def normalize_cyberner_route(scope, peer_name, profile=None):
             "store_key": "friends",
         }
 
+    if scope == "channel" and lowered_peer == "agi-2108":
+        username = str((profile or {}).get("username") or "").strip()
+        if not username or not player_inventory_store.has_app(username, "agi2108Console"):
+            raise ValueError("Kanal AGI 2108 wymaga zainstalowanej konsoli.")
+        return {
+            "channel": "agi2108", "source": "ai", "scope": "channel",
+            "peer": "agi-2108", "channel_key": f"agi-2108:{username}",
+            "store_key": username,
+        }
+
     if scope == "direct":
         if not peer_name:
             raise ValueError("Brak odbiorcy rozmowy prywatnej.")
@@ -532,6 +543,8 @@ def cyberner_legacy_scope_peer(route):
         return "group", "global"
     if route["channel"] == "clan":
         return "channel", route["peer"]
+    if route["channel"] == "agi2108":
+        return "channel", "agi-2108"
     return route["scope"], route["peer"]
 
 
@@ -558,11 +571,54 @@ def cyberner_unread_counts(username, profile=None, channel_states=None):
                 if isinstance(channel_states, dict):
                     channel_states["clan"] = {"available": False, "error": "read_failed"}
                 print(f"[CYBERNER_READ] channel=clan user={username} operation=unread error={exc}")
+    if player_inventory_store.has_app(username, "agi2108Console"):
+        try:
+            cursor = cyberner_channel_cursor_store.get(username, "agi2108", username)
+            counts.setdefault("channel", {})["agi-2108"] = (
+                get_ghostnetwork_service().repository.count_narrative_medium_records_for_viewer_after(
+                    "cyberner", owner=username,
+                    after_ordinal=cursor["last_read_message_id"],
+                    audience_scope="owner",
+                )
+            )
+        except Exception as exc:
+            if isinstance(channel_states, dict):
+                channel_states["agi2108"] = {"available": False, "error": "read_failed"}
+            print(f"[CYBERNER_READ] channel=agi2108 user={username} operation=unread error={exc}")
     return counts
 
 
 def cyberner_list_route_messages(username, route, limit=100, after_id=None, before_id=None):
     channel = route["channel"]
+    if channel == "agi2108":
+        records = get_ghostnetwork_service().repository.list_narrative_medium_records(
+            "cyberner", audience_scope="owner", audience_owner=username,
+            limit=max(1, min(int(limit or 100), 100)),
+        )
+        records = [record for record in records if record.get("source_scope") == "googleplex_app"]
+        messages = [{
+            "id": int(record.get("publication_ordinal") or 0),
+            "message_id": record.get("medium_record_id"),
+            "source": "ai",
+            "channel": "agi2108",
+            "channel_key": route["channel_key"],
+            "scope": "channel",
+            "peer": "agi-2108",
+            "sender": "AI Central / AGI 2108",
+            "subject": record.get("title") or "AGI 2108",
+            "body": record.get("body") or "",
+            "created_at": record.get("published_at"),
+            "publication_receipt_id": record.get("publication_receipt_id"),
+            "truth_class": record.get("truth_class"),
+        } for record in reversed(records)]
+        try:
+            if after_id is not None:
+                messages = [item for item in messages if item["id"] > int(after_id)]
+            if before_id is not None:
+                messages = [item for item in messages if item["id"] < int(before_id)]
+        except (TypeError, ValueError):
+            raise ValueError("Nieprawidlowy kursor kanalu AGI 2108.")
+        return messages[:max(1, min(int(limit or 100), 100))]
     if channel == "world" and cyberner_shared_store_enabled("world"):
         return cyberner_world_store.list_messages(after_id=after_id, before_id=before_id, limit=limit)
     if channel == "clan" and cyberner_shared_store_enabled("clan"):
@@ -575,6 +631,9 @@ def cyberner_list_route_messages(username, route, limit=100, after_id=None, befo
 
 def cyberner_mark_route_read(username, route, messages=None):
     channel = route["channel"]
+    if channel == "agi2108":
+        latest_id = max((int(item.get("id") or 0) for item in messages or []), default=0)
+        return cyberner_channel_cursor_store.advance(username, "agi2108", username, latest_id)
     if channel == "world" and cyberner_shared_store_enabled("world"):
         latest_id = max((int(item.get("id") or 0) for item in messages or []), default=0)
         return cyberner_channel_cursor_store.advance(username, "world", "global", latest_id)
@@ -588,6 +647,8 @@ def cyberner_mark_route_read(username, route, messages=None):
 
 def cyberner_route_recipients(username, profile, route):
     channel = route["channel"]
+    if channel == "agi2108":
+        return []
     if channel == "world" and cyberner_shared_store_enabled("world"):
         return [
             name for name in identity_projection_store.list_recipient_ids("public", limit=500)
@@ -606,6 +667,8 @@ def cyberner_route_recipients(username, profile, route):
 
 def cyberner_store_message(username, profile, route, body, subject="", client_message_id=None):
     channel = route["channel"]
+    if channel == "agi2108":
+        raise ValueError("Kanal AGI 2108 jest tylko do odczytu.")
     if channel == "world" and cyberner_shared_store_enabled("world"):
         return cyberner_world_store.add_message(
             username, body, subject=subject, client_message_id=client_message_id
@@ -2162,9 +2225,12 @@ def enqueue_blacknet_world_narrative_digest(now=None):
         now=now if isinstance(now, datetime) else blacknet_utc_now(),
         limit=20,
     )
-    return BlackNetNarrativeProducer(
-        get_ghostnetwork_service().repository
-    ).enqueue_digest(signal_snapshot)
+    producer = BlackNetNarrativeProducer(get_ghostnetwork_service().repository)
+    blacknet = producer.enqueue_digest(signal_snapshot, target_medium="blacknet")
+    googleplex_news = producer.enqueue_digest(
+        signal_snapshot, target_medium="googleplex_news"
+    )
+    return {**blacknet, "googleplex_news": googleplex_news}
 
 
 def blacknet_fact_number(fact):
@@ -2538,6 +2604,47 @@ def build_blacknet_world_signals(snapshot=None, now=None, limit=BLACKNET_WORLD_S
             "cached_at": time.time(),
         }
     return result
+
+
+def blacknet_signal_from_publication(record):
+    """Project one published record into the existing bounded BlackNet card contract."""
+    record = record if isinstance(record, dict) else {}
+    payload = record.get("cta_payload") if isinstance(record.get("cta_payload"), dict) else {}
+    action = str(record.get("cta_action") or "").strip()
+    if action not in BLACKNET_ALLOWED_CTA_ACTIONS:
+        action = "none"
+    target_id = str(payload.get("target_id") or payload.get("channel") or "")[:120]
+    query = str(payload.get("query") or "")[:120]
+    return {
+        "id": str(record.get("medium_record_id") or ""),
+        "source": "ollama_enriched",
+        "signal_type": "narrative_publication",
+        "fact_id": (record.get("fact_refs") or [""])[0] if record.get("fact_refs") else "",
+        "channel": "BLACKNET // OLLAMA ENRICHED",
+        "title": str(record.get("title") or "WORLD NARRATIVE")[:72],
+        "label": str(record.get("truth_class") or "canonical")[:32].upper(),
+        "value": "AI 2108",
+        "stat": str(record.get("body") or "")[:240],
+        "timer": "LIVE",
+        "tone": "cyan",
+        "layout": 2,
+        "cta": "OTWÓRZ" if action != "none" else "READ ONLY",
+        "cta_action": action,
+        "cta_target_id": target_id,
+        "cta_query": query,
+        "radar": blacknet_radar_from_seed(record.get("medium_record_id"), sides=2),
+        "importance": 1,
+        "generated_at": record.get("published_at"),
+        "observed_at": record.get("published_at"),
+        "category": "ollama_enriched",
+        "region_id": "global",
+        "metadata": {
+            "publication_receipt_id": record.get("publication_receipt_id"),
+            "truth_class": record.get("truth_class"),
+            "fact_refs": list(record.get("fact_refs") or [])[:20],
+            "audience_scope": record.get("audience_scope"),
+        },
+    }
 
 
 def blacknet_ollama_text(value, limit=160):
@@ -19925,6 +20032,29 @@ def api_blacknet_world_signals():
         if item.strip()
     ]
     signal_snapshot = build_blacknet_world_signals(limit=limit, exclude_ids=exclude_ids)
+    username = str(session.get("user") or "").strip()
+    identity = identity_projection_store.get_identity(username) or {}
+    narrative_limit = min(2, max(1, limit // 4))
+    records = get_ghostnetwork_service().repository.list_narrative_medium_records_for_viewer(
+        "blacknet", owner=username, clan=get_profile_clan(identity), limit=narrative_limit
+    )
+    excluded = set(exclude_ids)
+    narratives = [
+        blacknet_signal_from_publication(record)
+        for record in records
+        if not excluded.intersection({
+            str(record.get("medium_record_id") or ""),
+            str(record.get("publication_receipt_id") or ""),
+            *(str(item) for item in record.get("fact_refs") or []),
+        })
+    ][:narrative_limit]
+    deterministic = list(signal_snapshot.get("signals") or [])
+    signal_snapshot["signals"] = (narratives + deterministic)[:limit]
+    signal_snapshot.setdefault("diagnostics", {})["published_narratives"] = len(narratives)
+    signal_snapshot["version"] = hashlib.sha1(json.dumps({
+        "foundation": signal_snapshot.get("version"),
+        "publication_ids": [item.get("id") for item in narratives],
+    }, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:16]
     return jsonify({
         "success": True,
         "snapshot": signal_snapshot,
@@ -20146,7 +20276,7 @@ def api_googleplex_llm_task_status(receipt_id):
         "completed": "Task zostal przetworzony. Tresc pozostaje ukryta do Sprintu 135.5.",
         "failed": "Task zakonczyl sie kontrolowanym bledem.",
     }[public_status]
-    return jsonify({
+    response_payload = {
         "success": True,
         "receipt": {
             "receipt_id": receipt_id,
@@ -20157,7 +20287,29 @@ def api_googleplex_llm_task_status(receipt_id):
             "retryable": raw_status == "retry_wait",
             "user_message": user_message,
         },
-    })
+    }
+    publication = get_ghostnetwork_service().repository.get_narrative_publication_for_source_receipt(
+        receipt_id, owner=username
+    )
+    if (
+        publication
+        and publication.get("target_medium") == "cyberner"
+        and publication.get("audience_scope") == "owner"
+        and publication.get("audience_owner") == username
+    ):
+        response_payload["publication"] = {
+            "publication_receipt_id": publication.get("publication_receipt_id"),
+            "source": publication.get("source_scope"),
+            "truth_class": publication.get("truth_class"),
+            "title": publication.get("title"),
+            "body": publication.get("body"),
+            "tone": publication.get("tone"),
+            "fact_refs": publication.get("fact_refs") or [],
+            "cta_ref": publication.get("cta_ref") or "",
+            "published_at": publication.get("published_at"),
+        }
+        response_payload["receipt"]["user_message"] = "Wynik AGI 2108 jest gotowy."
+    return jsonify(response_payload)
 
 
 def ghostnetwork_teleport_vicinity_position(latitude, longitude, username, public_entity_id):
@@ -25848,6 +26000,16 @@ def api_googleplex_news():
             session_generation=str(getattr(g, "session_generation", "") or ""),
             limit=request.args.get("limit", 20),
         )
+        identity = identity_projection_store.get_identity(username) or {}
+        published = get_ghostnetwork_service().repository.list_narrative_medium_records_for_viewer(
+            "googleplex_news",
+            owner=username,
+            clan=get_profile_clan(identity),
+            limit=6,
+        )
+        snapshot = merge_googleplex_news_publications(
+            snapshot, published, limit=request.args.get("limit", 20)
+        )
     except GoogleplexNewsConfigurationError as exc:
         return jsonify({
             "success": False,
@@ -26437,6 +26599,20 @@ def build_cyberner_channels(profile, contacts, group_active_count, accepted_cont
             "clan": clan,
         })
 
+    username = str((profile or {}).get("username") or "").strip()
+    if username and player_inventory_store.has_app(username, "agi2108Console"):
+        channels.append({
+            "source": "ai",
+            "channel": "agi2108",
+            "scope": "channel",
+            "peer": "agi-2108",
+            "title": "AGI 2108",
+            "subtitle": "Owner-scoped kanal AI Central",
+            "preview": "Zaakceptowane analizy operatora",
+            "enabled": True,
+            "meta": "OWNER // READ ONLY",
+        })
+
     return channels
 
 
@@ -26642,14 +26818,15 @@ def chat_messages():
         )
         cursor = cyberner_mark_route_read(username, route, messages)
         legacy_scope, legacy_peer = cyberner_legacy_scope_peer(route)
-        record_mail_delta(
-            username,
-            "mail.unread_changed",
-            scope=legacy_scope,
-            peer_name=legacy_peer,
-            reason="thread_read",
-            dedupe_key=f"mail:unread_read:{username}:{mail_delta_thread_key(legacy_scope, legacy_peer)}:{runtime_file_now()}",
-        )
+        if route["channel"] != "agi2108":
+            record_mail_delta(
+                username,
+                "mail.unread_changed",
+                scope=legacy_scope,
+                peer_name=legacy_peer,
+                reason="thread_read",
+                dedupe_key=f"mail:unread_read:{username}:{mail_delta_thread_key(legacy_scope, legacy_peer)}:{runtime_file_now()}",
+            )
     except (TypeError, ValueError) as e:
         return jsonify({"error": str(e)}), 400
 
@@ -26660,7 +26837,11 @@ def chat_messages():
         "unread_counts": cyberner_unread_counts(username, profile),
         "group_active_count": mail_store.group_active_count(username),
         "recovery": {
-            "store": "shared" if cyberner_shared_store_enabled(route["channel"]) else "legacy",
+            "store": (
+                "publication" if route["channel"] == "agi2108"
+                else "shared" if cyberner_shared_store_enabled(route["channel"])
+                else "legacy"
+            ),
             "after_id": max((int(item.get("id") or 0) for item in messages), default=0),
         },
     })

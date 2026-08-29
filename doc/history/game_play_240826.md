@@ -3786,7 +3786,7 @@ Dokument:
 - approved templates zamiast dowolnego promptu;
 - jeden bezpieczny task receipt oraz owner-scoped status;
 - brak wyświetlenia body odpowiedzi przed Sprintem 135.5.
-- status: `IN PROGRESS — ETAP A PRODUCT CONTRACT APPROVED / IMPLEMENTATION`;
+- status: `SPRINT 135.4.2 — COMPLETE / READY FOR SPRINT 135.5`;
 - audit startowy potwierdził reuse canonical catalog/purchase/inventory,
   `GoogleplexLlmTaskIngress`, Outbox i owner-scoped receipt status; nie powstaje
   druga kolejka, drugi inventory ani nowy heavy-profile path.
@@ -3800,11 +3800,16 @@ Dokument:
   trwałym pending receipt dla niejednoznacznej odpowiedzi sieciowej;
 - frontend i API nie pokazują model body/raw outputu przed 135.5; nowe hot pathy
   nie korzystają z pełnego profilu.
+- manual produkcyjny potwierdził canonical purchase, purchased/disabled state,
+  uninstall/reinstall, launcher, owner-scoped task receipt/status oraz brak
+  heavy-profile regresji; body pozostaje ukryte do 135.5.
 
 ### Sprint 135.5 — LLM Publishers
 
 Dokument:
 `doc/sprints/sprint_135_5_llm_publishers_blacknet_googleplex_cyberner.md`.
+
+Status: `SPRINT 135.5 — READY FOR SERVER VALIDATION`.
 
 - BlackNet mixed feed `ollama_enriched`;
 - newsy na Googleplex Home;
@@ -3812,6 +3817,19 @@ Dokument:
 - Cyberner AI Central/AGI 2108;
 - exactly-once publication receipts, audience prepublish guard i fallback;
 - tylko `ACCEPTED` Inbox candidate może zostać opublikowany.
+- canonical publication receipts zapewniają jednego właściciela lease oraz
+  atomowy medium record + acknowledgement bez replayu po crashu;
+- osobny `chaos-narrative-publisher` pozostaje domyślnie wyłączony i nie
+  obciąża requestów Flask ani workerów gameplayowych;
+- BlackNet zachowuje deterministic feed i dopuszcza maksymalnie dwa bounded
+  wpisy `ollama_enriched`; Googleplex News zachowuje foundation i maksymalnie
+  sześć publikacji modelowych;
+- owner-scoped AGI 2108 jest widoczny w statusie aplikacji i read-only kanale
+  Cybernera; monotoniczny publication ordinal zasila dokładnie jeden unread;
+- public/clan/owner audience nie przecieka między kontami, CTA pozostaje na
+  allowliście, a quarantined/rejected nie są publikowane;
+- regresja lokalna: `119` testów Python, testy JS AGI/News, `py_compile`,
+  `node --check` i `git diff --check` przeszły; zero deployu/PM2/commit/push.
 
 ### Sprint 135.6 — Hardening and Cutover
 
@@ -3840,8 +3858,8 @@ narracyjne, ale ich numeracja, kolejność i schema nie są już wiążące.
 → 135.3 COMPLETE
 → 135.4 COMPLETE
 → 135.4.1 COMPLETE
-→ 135.4.2 IN PROGRESS / ETAP A CONTRACT APPROVED
-→ 135.5 BLOCKED BY 135.4.2
+→ 135.4.2 COMPLETE
+→ 135.5 IN PROGRESS
 ```
 
 Pierwotna rewizja roadmapy była dokumentacyjna. Implementacja 135.2 zmienia
@@ -5257,7 +5275,7 @@ READY FOR SPRINT 135.4.1
 
 ### Sprint 135.4.1.1 — Googleplex Search Presentation Repair
 
-Status: `IN PROGRESS — READY FOR VISUAL VALIDATION`.
+Status: `SPRINT 135.4.1.1 — COMPLETE`.
 
 Po dwóch odrzuconych iteracjach presentation layer przywrócono Search do
 baseline `c07b086`. Sprint naprawi prezentację bez zmian danych produktów,
@@ -5273,5 +5291,14 @@ bez zmian.
 Paczki mają rytm `1 HERO + 2 MIDDLE + 3 SMALL`. Manual wykrył, że wcześniejszy
 limit ukrywał większość `/all`; nowy mount dostaje cały bounded public catalog.
 Regresja wykonawcza dla 70 wejść potwierdza 70 kart DOM, 12 grup oraz ostatni
-produkt bez braków i duplikacji. Cały frontend JS jest zielony; sprint pozostaje
-otwarty do osobnej walidacji fullscreen, start-size i mobile.
+produkt bez braków i duplikacji. Cały frontend JS jest zielony. Manual
+2026-08-29 zaakceptował fullscreen, start-size i mobile, code-owned assetowe
+tło ikon, ich responsywne skalowanie, cenę HERO oraz wspólną geometrię CTA.
+Kontrolki fullscreen/close są odseparowane od drag handle i działają poprawnie.
+
+Werdykt:
+
+```text
+SPRINT 135.4.1.1 — COMPLETE
+READY TO RESUME SPRINT 135.4.2 FINAL VALIDATION
+```

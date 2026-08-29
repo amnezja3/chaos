@@ -12999,7 +12999,7 @@ class CybernerClanStore:
 
 
 class CybernerChannelCursorStore:
-    CHANNEL_TYPES = {"world", "clan"}
+    CHANNEL_TYPES = {"world", "clan", "agi2108"}
 
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path

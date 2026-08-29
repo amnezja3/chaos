@@ -124,10 +124,14 @@ class LlmEventProducerTest(unittest.TestCase):
         producer = BlackNetNarrativeProducer(self.repo)
         first = producer.enqueue_digest(snapshot)
         second = producer.enqueue_digest(snapshot)
+        news = producer.enqueue_digest(snapshot, target_medium="googleplex_news")
         self.assertEqual(first["status"], "created")
         self.assertEqual(second["status"], "deduplicated")
         self.assertEqual(first["task"]["outbox_id"], second["task"]["outbox_id"])
         self.assertEqual(first["task"]["source_scope"], "blacknet_world")
+        self.assertEqual(news["status"], "created")
+        self.assertEqual(news["task"]["target_medium"], "googleplex_news")
+        self.assertNotEqual(first["task"]["outbox_id"], news["task"]["outbox_id"])
 
         with patch.object(run.user_store, "list_profiles", side_effect=AssertionError("full profile scan")), \
                 patch.object(run.user_store, "get_profile", side_effect=AssertionError("full profile read")), \

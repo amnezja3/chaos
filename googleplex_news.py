@@ -350,3 +350,74 @@ def build_googleplex_news_snapshot(
             "llm_tasks_enqueued": 0,
         },
     }
+
+
+def merge_googleplex_news_publications(
+    snapshot: dict[str, Any], records: Iterable[dict[str, Any]], *,
+    limit: int = DEFAULT_LIMIT, registry_path: str = ""
+) -> dict[str, Any]:
+    """Prepend safe published records without changing the deterministic fallback."""
+    result = dict(snapshot or {})
+    try:
+        bounded_limit = max(MIN_LIMIT, min(MAX_LIMIT, int(limit or DEFAULT_LIMIT)))
+    except (TypeError, ValueError):
+        bounded_limit = DEFAULT_LIMIT
+    registry = load_asset_registry(registry_path)
+    weights = ("hero", "large", "large", "medium", "medium", "small")
+    published = []
+    for index, record in enumerate(list(records or [])[:6]):
+        if not isinstance(record, dict) or record.get("target_medium") != "googleplex_news":
+            continue
+        payload = record.get("cta_payload") if isinstance(record.get("cta_payload"), dict) else {}
+        action = str(record.get("cta_action") or "")
+        target = str(
+            payload.get("target_id") or payload.get("channel")
+            or payload.get("query") or ""
+        )
+        published.append(_entry(
+            news_id=str(record.get("medium_record_id") or ""),
+            source="ollama_enriched",
+            source_ref=str(record.get("publication_receipt_id") or ""),
+            category="WORLD INTELLIGENCE",
+            weight=weights[index % len(weights)],
+            title=str(record.get("title") or ""),
+            summary=str(record.get("body") or ""),
+            truth_class=str(record.get("truth_class") or "canonical"),
+            audience_scope=str(record.get("audience_scope") or "public"),
+            state="new",
+            accent_role="network",
+            asset_id="gp_fallback_network",
+            asset_family="network",
+            registry=registry,
+            primary_stat="OLLAMA ENRICHED",
+            action_type=action,
+            action_target=target,
+            action_payload_ref=str(record.get("cta_ref") or ""),
+            published_at=str(record.get("published_at") or result.get("generated_at") or ""),
+        ))
+    existing = list(result.get("entries") or [])
+    result["entries"] = (published + existing)[:bounded_limit]
+    protocol = dict(result.get("protocol_status") or {})
+    if published:
+        protocol.update({
+            "source": "canonical-publication-read-model",
+            "ollama_used": True,
+            "publication_enabled": True,
+        })
+    result["protocol_status"] = protocol
+    stats = list(result.get("global_stats") or [])
+    for item in stats:
+        if item.get("key") == "entries":
+            item["value"] = len(result["entries"])
+        elif item.get("key") == "sources":
+            item["value"] = len({entry.get("content", {}).get("source") for entry in result["entries"]})
+    result["global_stats"] = stats
+    result["state_version"] = _stable_hash(
+        SCHEMA_VERSION,
+        json.dumps(result["entries"], ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+    )
+    diagnostics = dict(result.get("diagnostics") or {})
+    diagnostics["entry_count"] = len(result["entries"])
+    diagnostics["published_entry_count"] = len(published)
+    result["diagnostics"] = diagnostics
+    return result

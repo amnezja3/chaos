@@ -1,6 +1,6 @@
 # Sprint 135.4.2 — Purchasable Googleplex LLM Tool
 
-Status: `IN PROGRESS — ETAP A PRODUCT CONTRACT APPROVED / IMPLEMENTATION`.
+Status: `SPRINT 135.4.2 — COMPLETE / READY FOR SPRINT 135.5`.
 
 ## Start sprintu — 2026-08-28
 
@@ -257,3 +257,13 @@ per_recipient_profile_read = 0
 
 Po spełnieniu bramki: `SPRINT 135.4.2 — READY FOR SERVER VALIDATION`, a po
 potwierdzeniu `READY FOR SPRINT 135.5`.
+
+Manual produkcyjny został potwierdzony 2026-08-29: canonical purchase,
+purchased/disabled state, bounded instalacja, uninstall/reinstall, launcher,
+owner-scoped task receipt i status oraz brak heavy-profile regresji działają
+zgodnie z kontraktem. Body pozostaje celowo ukryte do Sprintu 135.5.
+
+```text
+SPRINT 135.4.2 — COMPLETE
+READY FOR SPRINT 135.5
+```

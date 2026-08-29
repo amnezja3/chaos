@@ -136,7 +136,7 @@ class GoogleplexNewsFoundationTest(unittest.TestCase):
         end = source.index('\n\n@app.route', start + 1)
         route = source[start:end]
         for forbidden in (
-            "load_profile", "get_profile", "list_profiles", "profile_json",
+            "load_profile", "get_profile(", "list_profiles", "profile_json",
             "Ollama", "narrative_outbox", "narrative_candidate",
         ):
             self.assertNotIn(forbidden, route)

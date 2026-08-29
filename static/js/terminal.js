@@ -7937,7 +7937,10 @@ function createAgi2108ConsoleApp() {
             <section class="agi2108-status" data-agi-status data-state="idle">
                 <strong>GOTOWY</strong><span>Brak aktywnego receipt.</span><small></small>
             </section>
-            <button type="button" class="agi2108-result-link" disabled>WYNIK W CYBERNER AGI 2108 // PUBLIKACJA OD 135.5</button>
+            <section class="agi2108-result" data-agi-result hidden>
+                <strong></strong><p></p><small></small>
+            </section>
+            <button type="button" class="agi2108-result-link" disabled>WYNIK W CYBERNER AGI 2108</button>
         </div>`;
     document.body.appendChild(app);
     makeDraggable(app);
@@ -7947,6 +7950,8 @@ function createAgi2108ConsoleApp() {
     const count = app.querySelector('[data-agi-count]');
     const submit = app.querySelector('[data-agi-submit]');
     const status = app.querySelector('[data-agi-status]');
+    const resultPanel = app.querySelector('[data-agi-result]');
+    const resultLink = app.querySelector('.agi2108-result-link');
     const username = String((toolbarProfile || {}).username || (toolbarProfile || {}).nick || 'owner').trim().toLowerCase();
     const receiptStorageKey = `agi2108:receipt:${username}`;
     const pendingStorageKey = `agi2108:pending:${username}`;
@@ -7982,12 +7987,13 @@ function createAgi2108ConsoleApp() {
                 return;
             }
             const receipt = data.receipt || {};
+            const publication = data.publication && typeof data.publication === 'object' ? data.publication : null;
             const state = String(receipt.status || 'accepted');
             const labels = {
                 accepted: ['PRZYJĘTO', 'Task został przyjęty do canonical transportu.'],
                 queued: ['W KOLEJCE', 'Task oczekuje na lokalny worker AGI.'],
                 processing: ['PRZETWARZANIE', 'AGI 2108 przetwarza bounded package.'],
-                completed: ['ZAKOŃCZONO', 'Candidate został przetworzony. Treść pozostaje ukryta do Sprintu 135.5.'],
+                completed: ['ZAKOŃCZONO', publication ? 'Wynik AGI 2108 jest gotowy.' : 'Candidate oczekuje na bezpieczną publikację.'],
                 failed: ['NIEPOWODZENIE', receipt.user_message || 'Task zakończył się kontrolowanym błędem.']
             };
             const label = labels[state] || labels.accepted;
@@ -7997,6 +8003,13 @@ function createAgi2108ConsoleApp() {
                 receipt.user_message || label[1],
                 `RECEIPT ${receiptShort(receipt.receipt_id || receiptId)}`
             );
+            if (publication && resultPanel && resultLink) {
+                resultPanel.querySelector('strong').textContent = String(publication.title || 'AGI 2108');
+                resultPanel.querySelector('p').textContent = String(publication.body || '');
+                resultPanel.querySelector('small').textContent = `SOURCE ${publication.source || 'canonical'} // ${publication.truth_class || 'canonical'} // RECEIPT ${receiptShort(publication.publication_receipt_id)}`;
+                resultPanel.hidden = false;
+                resultLink.disabled = false;
+            }
             if (state === 'accepted' || state === 'queued' || state === 'processing') scheduleStatus();
         } catch (_error) {
             setStatus('failed', 'BRAK POŁĄCZENIA', 'Status pozostaje zapisany. Ponowimy po otwarciu aplikacji.', receiptShort(receiptId));
@@ -8005,6 +8018,10 @@ function createAgi2108ConsoleApp() {
 
     topicInput?.addEventListener('input', () => {
         if (count) count.textContent = `${topicInput.value.length} / 120`;
+    });
+    resultLink?.addEventListener('click', () => {
+        if (!resultPanel || resultLink.disabled) return;
+        resultPanel.hidden = !resultPanel.hidden;
     });
     submit?.addEventListener('click', async () => {
         const value = String(topicInput?.value || '').trim();

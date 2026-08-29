@@ -115,8 +115,11 @@ class BlackNetNarrativeProducer:
     def __init__(self, repository):
         self.repository = repository
 
-    def enqueue_digest(self, snapshot, *, window_id=None):
+    def enqueue_digest(self, snapshot, *, window_id=None, target_medium="blacknet"):
         snapshot = snapshot if isinstance(snapshot, dict) else {}
+        target_medium = _clean(target_medium, "blacknet")
+        if target_medium not in {"blacknet", "googleplex_news"}:
+            return {"ok": False, "status": "rejected", "reason_code": "unsupported_target_medium", "task": None}
         signals = [
             item for item in (snapshot.get("signals") or [])
             if isinstance(item, dict) and item.get("signal_type") != "out_of_signal"
@@ -170,7 +173,7 @@ class BlackNetNarrativeProducer:
             "source_scope": BLACKNET_SOURCE_SCOPE,
             "source_receipt_id": source_receipt_id,
             "processor": NARRATIVE_TASK_PROCESSOR,
-            "target_medium": "blacknet",
+            "target_medium": target_medium,
             "audience_scope": "public",
             "truth_class": "canonical",
             "truth_class_policy": "canonical",

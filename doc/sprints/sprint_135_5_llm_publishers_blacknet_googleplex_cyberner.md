@@ -1,6 +1,56 @@
 # Sprint 135.5 — LLM Publishers: BlackNet, Googleplex News and Cyberner
 
-Status: `PLANNED / BLOCKED BY SPRINT 135.4.2`.
+Status: `SPRINT 135.5 — READY FOR SERVER VALIDATION`.
+
+## Start sprintu — 2026-08-29
+
+Warunek wejścia został spełniony po potwierdzeniu manualnym Sprintu 135.4.2.
+Bazowa regresja Outbox/Inbox, AGI ingress/status, Googleplex News i kanałów
+Cybernera przechodzi (`62` testy Python oraz testy JS AGI/News). Implementacja
+rozpoczyna się od canonical publication receipt i routera; żaden adapter nie
+może publikować bez accepted candidate, właściwej audience i idempotentnego
+receiptu.
+
+### Checkpoint A — canonical publication transport
+
+- dodano addytywne `ghost_narrative_publication_receipts` oraz
+  `ghost_narrative_medium_records` w tym samym canonical repository;
+- identity jest unikalne dla `candidate + medium + audience`;
+- claim posiada jednego właściciela i lease recovery;
+- medium record oraz acknowledgement `published` powstają w jednej transakcji;
+- rejected/quarantined oraz mismatch medium/audience są fail-closed;
+- owner-scoped status AGI zwraca bounded publication projection dopiero po
+  opublikowaniu accepted candidate; prompt/raw output/validation/lease nie są
+  ujawniane;
+- publiczne adaptery BlackNet, Googleplex News i właściwa projekcja kanału
+  Cyberner pozostają następnym etapem sprintu.
+
+### Checkpoint B — medium adapters i runtime publisher
+
+- dodano osobny, domyślnie wyłączony proces
+  `chaos-narrative-publisher`; publikacja nie wykonuje się w requestach Flask
+  ani w workerze gameplayowym;
+- accepted candidate jest materializowany exactly once jako bounded medium
+  record, a lease/crash recovery nie może utworzyć drugiego wpisu;
+- BlackNet miesza maksymalnie dwa wpisy `ollama_enriched` na stronę i zawsze
+  zachowuje deterministic feed; CTA przechodzi przez istniejącą allowlistę;
+- Googleplex News przyjmuje maksymalnie sześć publikacji i zachowuje
+  foundation/fallback oraz oddzielny read model od katalogu i zakupów;
+- Cyberner udostępnia owner-scoped, read-only kanał `AGI 2108`, oparty o
+  monotoniczny publication ordinal i bounded unread cursor; retry publikacji
+  nie tworzy drugiej wiadomości ani drugiego unread;
+- status aplikacji AGI zwraca tylko bezpieczną projekcję opublikowanego wyniku;
+  prompt, raw output, walidacja, quarantine i lease pozostają ukryte;
+- public/clan/owner są filtrowane przez lekką identity projection i canonical
+  audience zapisane w tasku/candidate; nie powstał nowy heavy-profile path;
+- BlackNet world digest produkuje rozdzielne, deduplikowane taski dla `blacknet`
+  i `googleplex_news`; medium pozostaje immutable i model nie wybiera routingu.
+
+Walidacja lokalna: `119` testów Python obejmujących 135.2–135.5 przeszło,
+testy JS AGI/Googleplex News przeszły, `py_compile`, `node --check` oraz
+`git diff --check` są zielone. Nie wykonano deployu, restartu PM2, commita ani
+pushu. Proces publishera pozostaje `enabled=false` do kontrolowanej walidacji
+serwerowej.
 
 ## Cel
 
@@ -292,5 +342,3 @@ per_recipient_profile_read = 0
 
 Po spełnieniu bramki: `SPRINT 135.5 — READY FOR SERVER VALIDATION`, a po
 potwierdzeniu `READY FOR SPRINT 135.6`.
-
-

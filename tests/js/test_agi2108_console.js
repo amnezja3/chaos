@@ -21,7 +21,9 @@ assert.match(appSource, /if \(state === 'accepted' \|\| state === 'queued' \|\| 
 assert.match(appSource, /stopPolling\(\);[\s\S]*app\.remove\(\)/);
 assert.match(source, /pendingAction\.topic === value/);
 assert.match(source, /if \(submitting\) return/);
-assert.match(source, /Treść pozostaje ukryta do Sprintu 135\.5/);
+assert.match(source, /Candidate oczekuje na bezpieczną publikację/);
+assert.match(source, /data\.publication && typeof data\.publication === 'object'/);
+assert.match(source, /publication\.body/);
 assert.doesNotMatch(source, /receipt\.(body|raw_output|validation|claimed_by)/);
 
 assert.match(styles, /\.agi2108-console-window/);

@@ -5670,6 +5670,16 @@ form button:hover {
 .agi2108-status[data-state="failed"] { border-color: #ff5c78; }
 .agi2108-status[data-state="failed"] strong { color: #ff8195; }
 .agi2108-result-link { width: 100%; margin-top: 12px; }
+.agi2108-result {
+    margin-top: 12px;
+    padding: 12px;
+    border-left: 3px solid #45aaff;
+    background: rgba(0, 18, 32, .78);
+}
+.agi2108-result[hidden] { display: none; }
+.agi2108-result strong { display: block; color: #74c8ff; margin-bottom: 7px; }
+.agi2108-result p { margin: 0 0 8px; color: #d8f3ff; white-space: pre-wrap; }
+.agi2108-result small { color: #70a4bd; overflow-wrap: anywhere; }
 
 @media (max-width: 680px), (max-height: 600px) {
   .agi2108-console-window {

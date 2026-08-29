@@ -30,6 +30,7 @@ from .closure import GhostNetworkClosureService
 from .transmission import GhostTransmissionService
 from .narrative import GhostNarrativePublisher
 from .producers import BlackNetNarrativeProducer, GoogleplexLlmTaskIngress
+from .publication import NarrativePublicationService
 from .module_state import GhostModuleStateService
 from .reservations import GhostDropPolicy, GhostReservationService, is_ghostnetwork_eligible_target
 from .service import GhostNetworkService
@@ -75,6 +76,7 @@ __all__ = [
     "GhostNarrativePublisher",
     "BlackNetNarrativeProducer",
     "GoogleplexLlmTaskIngress",
+    "NarrativePublicationService",
     "GhostPartLifecycleService",
     "GhostModuleStateService",
     "GhostReservationService",

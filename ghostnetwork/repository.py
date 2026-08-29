@@ -1133,6 +1133,84 @@ class GhostNetworkRepository:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS ghost_narrative_publication_receipts (
+                    publication_receipt_id TEXT PRIMARY KEY,
+                    candidate_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    target_medium TEXT NOT NULL,
+                    audience_scope TEXT NOT NULL,
+                    audience_clan TEXT NOT NULL DEFAULT '',
+                    audience_owner TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'ready',
+                    medium_record_id TEXT NOT NULL,
+                    attempt_count INTEGER NOT NULL DEFAULT 0,
+                    claimed_by TEXT NOT NULL DEFAULT '',
+                    claimed_at TEXT NOT NULL DEFAULT '',
+                    lease_until TEXT NOT NULL DEFAULT '',
+                    next_attempt_at TEXT NOT NULL DEFAULT '',
+                    last_error_code TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    published_at TEXT NOT NULL DEFAULT '',
+                    dead_lettered_at TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_ghost_narrative_publication_identity
+                ON ghost_narrative_publication_receipts(
+                    candidate_id, target_medium, audience_scope,
+                    audience_clan, audience_owner
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_publication_ready
+                ON ghost_narrative_publication_receipts(
+                    status, next_attempt_at, created_at, publication_receipt_id
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ghost_narrative_medium_records (
+                    medium_record_id TEXT PRIMARY KEY,
+                    publication_receipt_id TEXT NOT NULL UNIQUE,
+                    candidate_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    target_medium TEXT NOT NULL,
+                    audience_scope TEXT NOT NULL,
+                    audience_clan TEXT NOT NULL DEFAULT '',
+                    audience_owner TEXT NOT NULL DEFAULT '',
+                    source_scope TEXT NOT NULL,
+                    source_event_id TEXT NOT NULL DEFAULT '',
+                    source_receipt_id TEXT NOT NULL DEFAULT '',
+                    truth_class TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    body TEXT NOT NULL,
+                    tone TEXT NOT NULL DEFAULT '',
+                    fact_refs_json TEXT NOT NULL DEFAULT '[]',
+                    cta_ref TEXT NOT NULL DEFAULT '',
+                    cta_action TEXT NOT NULL DEFAULT '',
+                    cta_payload_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    published_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_ghost_narrative_medium_audience
+                ON ghost_narrative_medium_records(
+                    target_medium, audience_scope, audience_clan,
+                    audience_owner, published_at DESC, medium_record_id DESC
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS ghost_achievements (
                     achievement_id TEXT PRIMARY KEY,
                     player_id TEXT NOT NULL DEFAULT '',
@@ -1480,6 +1558,64 @@ class GhostNetworkRepository:
             "created_at": row["created_at"],
             "validated_at": row["validated_at"],
             "updated_at": row["updated_at"],
+        }
+
+    @staticmethod
+    def _narrative_publication_receipt(row):
+        if not row:
+            return None
+        return {
+            "publication_receipt_id": row["publication_receipt_id"],
+            "candidate_id": row["candidate_id"],
+            "task_id": row["task_id"],
+            "target_medium": row["target_medium"],
+            "audience_scope": row["audience_scope"],
+            "audience_clan": row["audience_clan"],
+            "audience_owner": row["audience_owner"],
+            "status": row["status"],
+            "medium_record_id": row["medium_record_id"],
+            "attempt_count": int(row["attempt_count"] or 0),
+            "claimed_by": row["claimed_by"],
+            "claimed_at": row["claimed_at"],
+            "lease_until": row["lease_until"],
+            "next_attempt_at": row["next_attempt_at"],
+            "last_error_code": row["last_error_code"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "published_at": row["published_at"],
+            "dead_lettered_at": row["dead_lettered_at"],
+        }
+
+    @staticmethod
+    def _narrative_medium_record(row):
+        if not row:
+            return None
+        fact_refs = loads_json(row["fact_refs_json"], [])
+        cta_payload = loads_json(row["cta_payload_json"], {})
+        keys = set(row.keys())
+        return {
+            "publication_ordinal": int(row["publication_ordinal"] or 0) if "publication_ordinal" in keys else 0,
+            "medium_record_id": row["medium_record_id"],
+            "publication_receipt_id": row["publication_receipt_id"],
+            "candidate_id": row["candidate_id"],
+            "task_id": row["task_id"],
+            "target_medium": row["target_medium"],
+            "audience_scope": row["audience_scope"],
+            "audience_clan": row["audience_clan"],
+            "audience_owner": row["audience_owner"],
+            "source_scope": row["source_scope"],
+            "source_event_id": row["source_event_id"],
+            "source_receipt_id": row["source_receipt_id"],
+            "truth_class": row["truth_class"],
+            "title": row["title"],
+            "body": row["body"],
+            "tone": row["tone"],
+            "fact_refs": fact_refs if isinstance(fact_refs, list) else [],
+            "cta_ref": row["cta_ref"],
+            "cta_action": row["cta_action"],
+            "cta_payload": cta_payload if isinstance(cta_payload, dict) else {},
+            "created_at": row["created_at"],
+            "published_at": row["published_at"],
         }
 
     @staticmethod
@@ -4507,6 +4643,13 @@ class GhostNetworkRepository:
                 (_clean(task_id),),
             ).fetchone())
 
+    def get_narrative_candidate(self, candidate_id):
+        with self._conn() as conn:
+            return self._narrative_candidate(conn.execute(
+                "SELECT * FROM ghost_narrative_inbox_candidates WHERE candidate_id = ? LIMIT 1",
+                (_clean(candidate_id),),
+            ).fetchone())
+
     def list_narrative_candidates(self, validation_status=None, limit=100):
         limit = max(1, min(int(limit or 100), 1000))
         clauses = []
@@ -4526,6 +4669,360 @@ class GhostNetworkRepository:
                 tuple(params),
             ).fetchall()
             return [self._narrative_candidate(row) for row in rows]
+
+    def ensure_narrative_publication(self, candidate_id, now=None):
+        """Create the one canonical publication identity for an accepted candidate."""
+        now_iso = _iso(now if now is not None else self.now())
+        with self.transaction():
+            conn = self._transaction_conn
+            row = conn.execute(
+                """
+                SELECT c.*, o.target_medium AS task_medium,
+                       o.audience_scope AS task_audience_scope,
+                       o.audience_clan AS task_audience_clan,
+                       o.audience_owner AS task_audience_owner
+                FROM ghost_narrative_inbox_candidates c
+                JOIN ghost_narrative_outbox o ON o.outbox_id = c.task_id
+                WHERE c.candidate_id = ? LIMIT 1
+                """,
+                (_clean(candidate_id),),
+            ).fetchone()
+            if not row or row["validation_status"] != "accepted":
+                return None
+            target_medium = _clean(row["target_medium"])
+            audience = (
+                _clean(row["audience_scope"]),
+                _clean(row["audience_clan"]),
+                _clean(row["audience_owner"]),
+            )
+            if target_medium not in {"blacknet", "googleplex_news", "cyberner", "radio"}:
+                return None
+            if target_medium != _clean(row["task_medium"]) or audience != (
+                _clean(row["task_audience_scope"]),
+                _clean(row["task_audience_clan"]),
+                _clean(row["task_audience_owner"]),
+            ):
+                return None
+            receipt_id = _hash_id("narrative_publication", row["candidate_id"], target_medium, *audience)
+            record_id = _hash_id("narrative_medium", receipt_id)
+            conn.execute(
+                """
+                INSERT INTO ghost_narrative_publication_receipts (
+                    publication_receipt_id, candidate_id, task_id, target_medium,
+                    audience_scope, audience_clan, audience_owner, status,
+                    medium_record_id, next_attempt_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ready', ?, ?, ?, ?)
+                ON CONFLICT(candidate_id, target_medium, audience_scope,
+                            audience_clan, audience_owner) DO NOTHING
+                """,
+                (
+                    receipt_id, row["candidate_id"], row["task_id"], target_medium,
+                    *audience, record_id, now_iso, now_iso, now_iso,
+                ),
+            )
+            return self._narrative_publication_receipt(conn.execute(
+                """
+                SELECT * FROM ghost_narrative_publication_receipts
+                WHERE candidate_id = ? AND target_medium = ?
+                  AND audience_scope = ? AND audience_clan = ? AND audience_owner = ?
+                LIMIT 1
+                """,
+                (row["candidate_id"], target_medium, *audience),
+            ).fetchone())
+
+    def narrative_publication_queue_counts(self):
+        """Return bounded operational counts without loading candidates or profiles."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT status, COUNT(*) AS count
+                FROM ghost_narrative_publication_receipts
+                GROUP BY status
+                """
+            ).fetchall()
+            medium_rows = conn.execute(
+                """
+                SELECT target_medium, COUNT(*) AS count
+                FROM ghost_narrative_medium_records
+                GROUP BY target_medium
+                """
+            ).fetchall()
+        return {
+            "statuses": {str(row["status"]): int(row["count"] or 0) for row in rows},
+            "published_by_medium": {
+                str(row["target_medium"]): int(row["count"] or 0)
+                for row in medium_rows
+            },
+        }
+
+    def claim_next_narrative_publication(self, worker_id, lease_seconds=60, now=None):
+        worker_id = _clean(worker_id)
+        if not worker_id:
+            raise ValueError("Publication worker_id is required")
+        now_dt = _utc_datetime(now if now is not None else self.now())
+        now_iso = _iso(now_dt)
+        lease_until = _iso(now_dt + timedelta(seconds=max(10, int(lease_seconds or 60))))
+        with self.transaction():
+            conn = self._transaction_conn
+            conn.execute(
+                """
+                UPDATE ghost_narrative_publication_receipts
+                SET status = 'ready', claimed_by = '', claimed_at = '', lease_until = '',
+                    next_attempt_at = ?, updated_at = ?, last_error_code = 'lease_expired'
+                WHERE status = 'claimed' AND lease_until != '' AND lease_until <= ?
+                """,
+                (now_iso, now_iso, now_iso),
+            )
+            row = conn.execute(
+                """
+                SELECT * FROM ghost_narrative_publication_receipts
+                WHERE status IN ('ready', 'retry_wait') AND next_attempt_at <= ?
+                ORDER BY created_at, publication_receipt_id LIMIT 1
+                """,
+                (now_iso,),
+            ).fetchone()
+            if not row:
+                return None
+            cursor = conn.execute(
+                """
+                UPDATE ghost_narrative_publication_receipts
+                SET status = 'claimed', claimed_by = ?, claimed_at = ?, lease_until = ?,
+                    attempt_count = attempt_count + 1, updated_at = ?
+                WHERE publication_receipt_id = ? AND status IN ('ready', 'retry_wait')
+                """,
+                (worker_id, now_iso, lease_until, now_iso, row["publication_receipt_id"]),
+            )
+            if cursor.rowcount != 1:
+                return None
+            return self._narrative_publication_receipt(conn.execute(
+                "SELECT * FROM ghost_narrative_publication_receipts WHERE publication_receipt_id = ?",
+                (row["publication_receipt_id"],),
+            ).fetchone())
+
+    def publish_claimed_narrative_candidate(
+        self, publication_receipt_id, worker_id, expected_lease_until, now=None
+    ):
+        """Atomically materialize a medium record and acknowledge its receipt."""
+        now_iso = _iso(now if now is not None else self.now())
+        with self.transaction():
+            conn = self._transaction_conn
+            row = conn.execute(
+                """
+                SELECT r.*, c.validation_status, c.source_scope, c.source_event_id,
+                       c.source_receipt_id, c.truth_class, c.title, c.body, c.tone,
+                       c.fact_refs_json, c.cta_ref, c.cta_action, c.cta_payload_json,
+                       c.target_medium AS candidate_medium,
+                       c.audience_scope AS candidate_audience_scope,
+                       c.audience_clan AS candidate_audience_clan,
+                       c.audience_owner AS candidate_audience_owner
+                FROM ghost_narrative_publication_receipts r
+                JOIN ghost_narrative_inbox_candidates c ON c.candidate_id = r.candidate_id
+                WHERE r.publication_receipt_id = ? LIMIT 1
+                """,
+                (_clean(publication_receipt_id),),
+            ).fetchone()
+            if not row:
+                return None
+            if row["status"] == "published":
+                return {
+                    "receipt": self._narrative_publication_receipt(row),
+                    "record": self._narrative_medium_record(conn.execute(
+                        "SELECT * FROM ghost_narrative_medium_records WHERE publication_receipt_id = ?",
+                        (row["publication_receipt_id"],),
+                    ).fetchone()),
+                    "duplicate": True,
+                }
+            if (
+                row["status"] != "claimed"
+                or _clean(row["claimed_by"]) != _clean(worker_id)
+                or _clean(row["lease_until"]) != _clean(expected_lease_until)
+                or row["lease_until"] <= now_iso
+                or row["validation_status"] != "accepted"
+            ):
+                return None
+            if (
+                _clean(row["target_medium"]) != _clean(row["candidate_medium"])
+                or (_clean(row["audience_scope"]), _clean(row["audience_clan"]), _clean(row["audience_owner"]))
+                != (_clean(row["candidate_audience_scope"]), _clean(row["candidate_audience_clan"]), _clean(row["candidate_audience_owner"]))
+            ):
+                return None
+            conn.execute(
+                """
+                INSERT INTO ghost_narrative_medium_records (
+                    medium_record_id, publication_receipt_id, candidate_id, task_id,
+                    target_medium, audience_scope, audience_clan, audience_owner,
+                    source_scope, source_event_id, source_receipt_id, truth_class,
+                    title, body, tone, fact_refs_json, cta_ref, cta_action,
+                    cta_payload_json, created_at, published_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(publication_receipt_id) DO NOTHING
+                """,
+                (
+                    row["medium_record_id"], row["publication_receipt_id"],
+                    row["candidate_id"], row["task_id"], row["target_medium"],
+                    row["audience_scope"], row["audience_clan"], row["audience_owner"],
+                    row["source_scope"], row["source_event_id"], row["source_receipt_id"],
+                    row["truth_class"], row["title"], row["body"], row["tone"],
+                    row["fact_refs_json"], row["cta_ref"], row["cta_action"],
+                    row["cta_payload_json"], row["created_at"], now_iso,
+                ),
+            )
+            cursor = conn.execute(
+                """
+                UPDATE ghost_narrative_publication_receipts
+                SET status = 'published', published_at = ?, updated_at = ?,
+                    claimed_by = '', claimed_at = '', lease_until = '', last_error_code = ''
+                WHERE publication_receipt_id = ? AND status = 'claimed'
+                  AND claimed_by = ? AND lease_until = ?
+                """,
+                (now_iso, now_iso, row["publication_receipt_id"], _clean(worker_id), _clean(expected_lease_until)),
+            )
+            if cursor.rowcount != 1:
+                raise RepositoryIntegrityError("Publication acknowledgement CAS failed")
+            return {
+                "receipt": self._narrative_publication_receipt(conn.execute(
+                    "SELECT * FROM ghost_narrative_publication_receipts WHERE publication_receipt_id = ?",
+                    (row["publication_receipt_id"],),
+                ).fetchone()),
+                "record": self._narrative_medium_record(conn.execute(
+                    "SELECT * FROM ghost_narrative_medium_records WHERE publication_receipt_id = ?",
+                    (row["publication_receipt_id"],),
+                ).fetchone()),
+                "duplicate": False,
+            }
+
+    def reject_claimed_narrative_publication(
+        self, publication_receipt_id, worker_id, expected_lease_until,
+        error_code, now=None
+    ):
+        now_iso = _iso(now if now is not None else self.now())
+        with self._conn() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ghost_narrative_publication_receipts
+                SET status = 'dead_letter', last_error_code = ?,
+                    dead_lettered_at = ?, updated_at = ?, claimed_by = '',
+                    claimed_at = '', lease_until = ''
+                WHERE publication_receipt_id = ? AND status = 'claimed'
+                  AND claimed_by = ? AND lease_until = ?
+                """,
+                (
+                    _clean(error_code, "prepublish_guard_rejected"), now_iso, now_iso,
+                    _clean(publication_receipt_id), _clean(worker_id),
+                    _clean(expected_lease_until),
+                ),
+            )
+            if cursor.rowcount != 1:
+                return None
+            return self._narrative_publication_receipt(conn.execute(
+                "SELECT * FROM ghost_narrative_publication_receipts WHERE publication_receipt_id = ?",
+                (_clean(publication_receipt_id),),
+            ).fetchone())
+
+    def list_narrative_medium_records(
+        self, target_medium, audience_scope=None, audience_clan=None,
+        audience_owner=None, limit=100
+    ):
+        clauses = ["target_medium = ?"]
+        params = [_clean(target_medium)]
+        for column, value in (
+            ("audience_scope", audience_scope),
+            ("audience_clan", audience_clan),
+            ("audience_owner", audience_owner),
+        ):
+            if value is not None:
+                clauses.append(f"{column} = ?")
+                params.append(_clean(value))
+        params.append(max(1, min(int(limit or 100), 500)))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT rowid AS publication_ordinal, * FROM ghost_narrative_medium_records
+                WHERE {' AND '.join(clauses)}
+                ORDER BY published_at DESC, medium_record_id DESC LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+            return [self._narrative_medium_record(row) for row in rows]
+
+    def list_narrative_medium_records_for_viewer(
+        self, target_medium, owner="", clan="", limit=100
+    ):
+        owner = _clean(owner)
+        clan = _clean(clan)
+        audience = ["audience_scope = 'public'"]
+        params = [_clean(target_medium)]
+        if owner:
+            audience.append("(audience_scope = 'owner' AND audience_owner = ?)")
+            params.append(owner)
+        if clan:
+            audience.append("(audience_scope = 'clan' AND audience_clan = ?)")
+            params.append(clan)
+        params.append(max(1, min(int(limit or 100), 500)))
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT rowid AS publication_ordinal, * FROM ghost_narrative_medium_records
+                WHERE target_medium = ? AND ({' OR '.join(audience)})
+                ORDER BY published_at DESC, medium_record_id DESC LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+            return [self._narrative_medium_record(row) for row in rows]
+
+    def count_narrative_medium_records_for_viewer_after(
+        self, target_medium, *, owner="", clan="", after_ordinal=0,
+        audience_scope="",
+    ):
+        """Count unread bounded projections using SQLite's monotonic local row identity."""
+        owner = _clean(owner)
+        clan = _clean(clan)
+        audience_scope = _clean(audience_scope)
+        params = [_clean(target_medium), max(0, int(after_ordinal or 0))]
+        if audience_scope == "owner":
+            audience = ["(audience_scope = 'owner' AND audience_owner = ?)"]
+            params.append(owner)
+        elif audience_scope == "clan":
+            audience = ["(audience_scope = 'clan' AND audience_clan = ?)"]
+            params.append(clan)
+        elif audience_scope == "public":
+            audience = ["audience_scope = 'public'"]
+        else:
+            audience = ["audience_scope = 'public'"]
+        if not audience_scope and owner:
+            audience.append("(audience_scope = 'owner' AND audience_owner = ?)")
+            params.append(owner)
+        if not audience_scope and clan:
+            audience.append("(audience_scope = 'clan' AND audience_clan = ?)")
+            params.append(clan)
+        with self._conn() as conn:
+            row = conn.execute(
+                f"""
+                SELECT COUNT(*) AS count
+                FROM ghost_narrative_medium_records
+                WHERE target_medium = ? AND rowid > ?
+                  AND ({' OR '.join(audience)})
+                """,
+                tuple(params),
+            ).fetchone()
+        return int(row["count"] or 0) if row else 0
+
+    def get_narrative_publication_for_source_receipt(self, source_receipt_id, owner=""):
+        clauses = ["m.source_receipt_id = ?"]
+        params = [_clean(source_receipt_id)]
+        if owner:
+            clauses.extend(["m.audience_scope = 'owner'", "m.audience_owner = ?"])
+            params.append(_clean(owner))
+        with self._conn() as conn:
+            row = conn.execute(
+                f"""
+                SELECT m.rowid AS publication_ordinal, m.* FROM ghost_narrative_medium_records m
+                WHERE {' AND '.join(clauses)}
+                ORDER BY m.published_at DESC LIMIT 1
+                """,
+                tuple(params),
+            ).fetchone()
+            return self._narrative_medium_record(row)
 
     def list_narrative_attempts(self, task_id=None, limit=100):
         limit = max(1, min(int(limit or 100), 1000))

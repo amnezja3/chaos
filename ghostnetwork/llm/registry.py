@@ -70,6 +70,10 @@ def _build_registry():
         "blacknet_world", "world_digest", "blacknet",
         "blacknet-world-prompt-v1", Path("blacknet") / "world-digest-v1.md",
     )]
+    policies.append(_policy(
+        "blacknet_world", "world_digest", "googleplex_news",
+        "googleplex-news-prompt-v1", Path("googleplex") / "news-digest-v1.md",
+    ))
     for variant in sorted(GHOSTNETWORK_BLACKNET_VARIANTS):
         is_signal = variant == "signal_sent"
         policies.append(_policy(

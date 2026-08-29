@@ -1,6 +1,6 @@
 # SPRINT 135.4.1.1 — Googleplex Search Presentation Repair
 
-Status: `IN PROGRESS — READY FOR VISUAL VALIDATION`
+Status: `SPRINT 135.4.1.1 — COMPLETE`
 
 Baseline rozpoczęcia: `c07b086` (stan sprzed dwóch odrzuconych iteracji
 presentation layer: `595f592` i `eb366df`). Cofnięcie obejmuje wyłącznie
@@ -14,15 +14,24 @@ Stan implementacji 2026-08-29:
 - Etap B: complete — nowy, odseparowany moduł prezentacji tworzy paczki
   `1 HERO + 2 MIDDLE + 3 SMALL`;
 - Etap C: complete — nowy pojedynczy renderer zachowuje cały canonical content,
-  a istniejący icon element jest częścią karty bez ramki, panelu i backgroundu;
-- Etap D: implemented — Search ma własny arkusz CSS niezależny od kart News i
-  legacy `.googolplex-card`; jeden DOM obsługuje fullscreen, start-size i mobile,
-  ale nadal wymaga manualnej akceptacji screenshotów;
+  a istniejący icon element jest częścią karty na code-owned assetowym tle;
+- Etap D: complete — Search ma własny arkusz CSS niezależny od kart News i
+  legacy `.googolplex-card`; jeden DOM obsługuje zaakceptowane manualnie widoki
+  fullscreen, start-size i mobile;
 - Etap E: complete — pojedynczy wynik ma osobny wariant geometryczny, ale ten
   sam renderer i pełny zestaw danych;
 - Etap F: automated complete — przypadki 0/1/2/3/4/6/7/12/70, realne
   mountowanie 70 kart, pełny content, purchased state, brak per-card requestów
   i cały frontend JS są zielone.
+
+Manual acceptance 2026-08-29:
+
+- fullscreen, start-size i mobile: zaakceptowane;
+- `/all`: pełny katalog 70 aplikacji bez braków i duplikacji;
+- proporcje ikon, skalowanie `contain` i code-owned assetowe tło: zaakceptowane;
+- cena HERO, wspólna geometria CTA i purchased message: zaakceptowane;
+- fullscreen/close pozostają interaktywne i są odseparowane od drag handle;
+- brak zmian backendu, canonical search/rankingu oraz heavy-profile hot path.
 
 Clean replacement boundary:
 
@@ -910,7 +919,7 @@ Sprint jest zakończony dopiero, gdy:
 SEARCH DATA — BEZ ZMIAN
 PURCHASE/INSTALL — BEZ ZMIAN
 FULL PRODUCT CONTENT — ZACHOWANY
-ICON — W KOMPOZYCJI, BEZ RAMKI
+ICON — W KOMPOZYCJI, Z CODE-OWNED ASSETOWYM TŁEM
 1 RESULT — PEŁNA KARTA PRODUKTU
 2+ RESULTS — JEDEN GROUP ENGINE
 GROUP LOOP — HERO + 2×MIDDLE + 3–5×SMALL + REPEAT

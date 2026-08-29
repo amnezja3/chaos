@@ -88,7 +88,7 @@ class Agi2108ConsoleContractTest(unittest.TestCase):
         self.assertEqual(policy.output_schema_version, "chaos-narrative-output-v1")
         self.assertEqual(policy.model_policy_version, "chaos-local-narrator-v1")
 
-    def test_frontend_is_bounded_owner_console_without_model_body(self):
+    def test_frontend_reads_only_bounded_owner_publication_body(self):
         source = (ROOT / "static" / "js" / "terminal.js").read_text(encoding="utf-8")
         css = (ROOT / "static" / "css" / "style.css").read_text(encoding="utf-8")
         self.assertIn("function createAgi2108ConsoleApp()", source)
@@ -98,6 +98,9 @@ class Agi2108ConsoleContractTest(unittest.TestCase):
         self.assertIn("agi2108:receipt:${username}", source)
         self.assertNotIn("receipt.body", source)
         self.assertNotIn("receipt.raw_output", source)
+        self.assertIn("publication.body", source)
+        self.assertNotIn("publication.raw_output", source)
+        self.assertNotIn("publication.validation", source)
         self.assertIn(".agi2108-console-window", css)
         self.assertIn("overflow-y: auto", css)
 
