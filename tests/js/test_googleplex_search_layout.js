@@ -612,11 +612,25 @@ assert.doesNotMatch(newsStyles, /\.gp-search-group\b|\.gp-search-product\b/);
 assert.doesNotMatch(catalogSource, /class="gp-home|class="googolplex-card/);
 
 assert.match(terminalSource, /<button type="button" class="close-btn browser-window-control"/);
+assert.match(terminalSource, /class="browser-window-title browser-window-drag-handle" data-window-drag-handle/);
+assert.match(terminalSource, /const dragHandle = el\.querySelector\('\[data-window-drag-handle\]'\) \|\| titleBar/);
+assert.match(terminalSource, /dragHandle\.addEventListener\('mousedown'/);
 assert.match(terminalSource, /browserNarrowObserver\.observe\(term\)/);
 assert.doesNotMatch(terminalSource, /browserNarrowObserver\.observe\(shell\)/);
 assert.match(
     desktopStyles,
     /\.browser-title-bar\s*\{[\s\S]*?position:\s*relative[\s\S]*?z-index:\s*20[\s\S]*?pointer-events:\s*auto/
+);
+assert.match(desktopStyles, /\.browser-title-bar\s*\{[\s\S]*?cursor:\s*default/);
+assert.match(desktopStyles, /\.browser-window-drag-handle\s*\{[\s\S]*?cursor:\s*move/);
+assert.match(desktopStyles, /\.browser-window-control\s*\{[\s\S]*?cursor:\s*pointer/);
+assert.match(
+    presentationStyles,
+    /\.browser-window:not\(\.is-window-maximized\):not\(\.browser-narrow\)\.is-browser-googleplex \.gp-app-icon-stage\s*\{[\s\S]*?aspect-ratio:\s*1[\s\S]*?place-self:\s*center[\s\S]*?align-items:\s*center/
+);
+assert.match(
+    presentationStyles,
+    /\.browser-window\.is-window-maximized\.is-browser-googleplex \.gp-search-product--hero \.gp-app-market-footer__price strong,[\s\S]*?font-size:\s*42px/
 );
 
 for (const templatePath of [

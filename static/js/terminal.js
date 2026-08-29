@@ -458,11 +458,18 @@ function makeDraggable(el) {
     bringWindowToFront(el);
 
     const titleBar = el.querySelector('.title-bar') || el;
+    const dragHandle = el.querySelector('[data-window-drag-handle]') || titleBar;
     let isDragging = false;
     let offsetX = 0;
     let offsetY = 0;
 
-    titleBar.addEventListener('mousedown', (e) => {
+    const finishDragging = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        document.body.style.userSelect = 'auto';
+    };
+
+    dragHandle.addEventListener('mousedown', (e) => {
         if (e.target.closest('.close-btn, button, input, textarea, select, a')) return;
         if (isMobileSafeMode()) return;
 
@@ -481,10 +488,9 @@ function makeDraggable(el) {
     });
 
     window.addEventListener('mouseup', () => {
-        if (!isDragging) return;
-        isDragging = false;
-        document.body.style.userSelect = 'auto';
+        finishDragging();
     });
+    window.addEventListener('blur', finishDragging);
 
     el.addEventListener('mousedown', () => bringWindowToFront(el));
 }
@@ -8566,7 +8572,7 @@ function createBrowser() {
 
     term.innerHTML = `
     <div class="title-bar browser-title-bar">
-        <span class="browser-window-title">WebDragons</span>
+        <span class="browser-window-title browser-window-drag-handle" data-window-drag-handle>WebDragons</span>
         <span class="browser-window-controls">
             <button type="button" class="browser-window-control browser-maximize-btn" aria-label="Powiększ WebDragons" title="Pełny ekran WebDragons" aria-pressed="false">${browserUiIcons.maximize}</button>
             <button type="button" class="close-btn browser-window-control" aria-label="Zamknij WebDragons" title="Zamknij">\u2716</button>

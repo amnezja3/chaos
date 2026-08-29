@@ -1494,6 +1494,16 @@ body {
   justify-content: space-between;
   gap: 8px;
   pointer-events: auto;
+  cursor: default;
+}
+
+.browser-window-drag-handle {
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  cursor: move;
 }
 
 .browser-window-controls {
@@ -1518,6 +1528,8 @@ body {
   color: #fff;
   font: 700 16px/1 monospace;
   cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
 }
 
 .browser-window-control:hover,
