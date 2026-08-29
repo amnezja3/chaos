@@ -49,6 +49,8 @@ INTERNAL_IDENTIFIER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 OPAQUE_HEX_PATTERN = re.compile(r"\b[0-9a-f]{10,}\b", re.IGNORECASE)
+OPAQUE_HEX_FRAGMENT_PATTERN = re.compile(r"\b[0-9a-f]{6,}\b", re.IGNORECASE)
+CANONICAL_POI_NAME_PATTERN = re.compile(r"\bPOI-[A-Z0-9][A-Z0-9_-]{1,80}\b", re.IGNORECASE)
 COMPACT_FACT_FIELDS = (
     ("fact_type", "type", 48),
     ("signal_type", "type", 48),
@@ -112,14 +114,30 @@ def presentation_safety_errors(title, body):
     for value in (title, body):
         if isinstance(value, str) and URL_PATTERN.search(value):
             errors.append("external_url")
-        if isinstance(value, str) and INTERNAL_IDENTIFIER_PATTERN.search(value):
+        inspected = CANONICAL_POI_NAME_PATTERN.sub("", value) if isinstance(value, str) else value
+        if isinstance(inspected, str) and INTERNAL_IDENTIFIER_PATTERN.search(inspected):
             errors.append("internal_identifier_leak")
     return sorted(set(errors))
 
 
+def unknown_canonical_poi_names(title, body, source_facts):
+    requested = {
+        item.casefold()
+        for value in (title, body)
+        for item in CANONICAL_POI_NAME_PATTERN.findall(str(value or ""))
+    }
+    if not requested:
+        return set()
+    canonical_source = json.dumps(
+        list(source_facts or ()), ensure_ascii=False, sort_keys=True
+    ).casefold()
+    return {item for item in requested if item not in canonical_source}
+
+
 def normalize_canonical_identifier_leaks(title, body, source_facts):
     """Replace only source-backed opaque hashes with a safe canonical label."""
-    replacements = {}
+    canonical_tokens = []
+    safe_text = []
     for fact in source_facts or ():
         if not isinstance(fact, dict):
             continue
@@ -131,12 +149,16 @@ def normalize_canonical_identifier_leaks(title, body, source_facts):
                 break
         if not safe_label:
             continue
+        presentation_values = " ".join(
+            str(fact.get(field) or "") for field in ("title", "label", "stat")
+        ).casefold()
+        safe_text.append(presentation_values)
         canonical_values = " ".join(
             str(value) for key, value in fact.items()
             if key not in {"title", "label", "stat", "public_text"}
         )
         for token in OPAQUE_HEX_PATTERN.findall(canonical_values):
-            replacements.setdefault(token.casefold(), safe_label)
+            canonical_tokens.append((token.casefold(), safe_label))
 
     normalized = []
     applied = False
@@ -145,14 +167,33 @@ def normalize_canonical_identifier_leaks(title, body, source_facts):
 
         def replace(match):
             nonlocal applied
-            replacement = replacements.get(match.group(0).casefold())
+            fragment = match.group(0).casefold()
+            if any(fragment in value for value in safe_text):
+                return match.group(0)
+            replacement = next((
+                label for token, label in canonical_tokens
+                if token.startswith(fragment) or fragment in token
+            ), "")
             if not replacement:
                 return match.group(0)
             applied = True
             return replacement
 
-        normalized.append(OPAQUE_HEX_PATTERN.sub(replace, text))
+        normalized.append(OPAQUE_HEX_FRAGMENT_PATTERN.sub(replace, text))
     return normalized[0], normalized[1], applied
+
+
+def bound_presentation_text(value, limit):
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    limit = max(1, int(limit or 1))
+    if len(text) <= limit:
+        return text, False
+    if limit <= 3:
+        return text[:limit], True
+    prefix = text[:limit - 3].rstrip()
+    if " " in prefix:
+        prefix = prefix.rsplit(" ", 1)[0].rstrip()
+    return prefix + "...", True
 
 
 def owner_analysis_echoes_input(title, body, source_facts):
@@ -463,13 +504,22 @@ def parse_and_validate_ollama_content(content, task_package):
     title, body, identifier_normalized = normalize_canonical_identifier_leaks(
         title, body, task_package.get("source_facts") or ()
     )
+    format_properties = ((task_package.get("format") or {}).get("properties") or {})
+    title_limit = int((format_properties.get("title") or {}).get("maxLength") or 96)
+    body_limit = int((format_properties.get("body") or {}).get("maxLength") or 800)
+    title, title_bounded = bound_presentation_text(title, title_limit)
+    body, body_bounded = bound_presentation_text(body, body_limit)
     if identifier_normalized:
         output = dict(output)
         output["title"] = title
         output["body"] = body
-    if not isinstance(title, str) or not title.strip() or len(title) > 96:
+    elif title_bounded or body_bounded:
+        output = dict(output)
+        output["title"] = title
+        output["body"] = body
+    if not isinstance(title, str) or not title.strip() or len(title) > title_limit:
         errors.append("invalid_title")
-    if not isinstance(body, str) or not body.strip() or len(body) > 800:
+    if not isinstance(body, str) or not body.strip() or len(body) > body_limit:
         errors.append("invalid_body")
     if tone not in ALLOWED_TONES:
         errors.append("invalid_tone")
@@ -490,6 +540,10 @@ def parse_and_validate_ollama_content(content, task_package):
         if not isinstance(asset_ref, str) or asset_ref not in (task_package.get("allowed_asset_refs") or ()):
             security_errors.append("unknown_asset_ref")
     security_errors.extend(presentation_safety_errors(title, body))
+    if unknown_canonical_poi_names(
+        title, body, task_package.get("source_facts") or ()
+    ):
+        security_errors.append("unknown_canonical_poi_name")
 
     policy = task_package.get("policy")
     if (
@@ -521,5 +575,8 @@ def parse_and_validate_ollama_content(content, task_package):
         },
         "resolved_cta": copy.deepcopy((task_package.get("cta_map") or {}).get(cta_ref)),
         "resolved_asset_ref": asset_ref if allows_asset and asset_ref else "",
-        "normalizations": ["canonical_identifier_to_safe_label"] if identifier_normalized else [],
+        "normalizations": [
+            *(["canonical_identifier_to_safe_label"] if identifier_normalized else []),
+            *(["schema_length_bounded"] if title_bounded or body_bounded else []),
+        ],
     }

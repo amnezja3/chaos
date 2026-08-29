@@ -341,6 +341,37 @@ class OllamaPolicyTest(unittest.TestCase):
             ["canonical_identifier_to_safe_label"],
         )
 
+        poi_task = assign_ollama_task_policy({
+            **task,
+            "facts": [{
+                "fact_id": "blacknet_fact:poi:one",
+                "title": "POI-142E5E",
+                "label": "OBIEKT SWIATA",
+            }],
+        })
+        poi_package = build_ollama_task_package(poi_task)
+        known_poi = parse_and_validate_ollama_content(json.dumps({
+            "title": "Aktywny obiekt",
+            "body": "POI-142E5E pozostaje widoczny.",
+            "tone": "info",
+            "fact_refs": ["blacknet_fact:poi:one"],
+            "cta_ref": None,
+            "asset_ref": "gp_scene_world_neutral_01",
+        }), poi_package)
+        self.assertEqual(known_poi["status"], "accepted")
+        self.assertIn("POI-142E5E", known_poi["output"]["body"])
+
+        invented_poi = parse_and_validate_ollama_content(json.dumps({
+            "title": "Aktywny obiekt",
+            "body": "POI-DEADBEEF9999 pozostaje widoczny.",
+            "tone": "info",
+            "fact_refs": ["blacknet_fact:poi:one"],
+            "cta_ref": None,
+            "asset_ref": "gp_scene_world_neutral_01",
+        }), poi_package)
+        self.assertEqual(invented_poi["status"], "quarantined")
+        self.assertIn("unknown_canonical_poi_name", invented_poi["errors"])
+
         blacknet_task = dict(task, target_medium="blacknet")
         blacknet_task = assign_ollama_task_policy(blacknet_task)
         blacknet_package = build_ollama_task_package(blacknet_task)

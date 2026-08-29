@@ -4,7 +4,13 @@ import hashlib
 import os
 
 from .repository import GhostNetworkRepository
-from .ollama_policy import owner_analysis_echoes_input, presentation_safety_errors
+from .ollama_policy import (
+    GENERATION_OUTPUT_LIMITS,
+    normalize_canonical_identifier_leaks,
+    owner_analysis_echoes_input,
+    presentation_safety_errors,
+    unknown_canonical_poi_names,
+)
 
 
 SUPPORTED_PUBLICATION_MEDIA = {"blacknet", "googleplex_news", "cyberner"}
@@ -45,6 +51,24 @@ class NarrativePublicationService:
         if safety_errors:
             return False, safety_errors[0]
         task = task if isinstance(task, dict) else {}
+        if unknown_canonical_poi_names(
+            candidate.get("title"), candidate.get("body"), task.get("facts") or []
+        ):
+            return False, "unknown_canonical_poi_name"
+        limits = GENERATION_OUTPUT_LIMITS.get(candidate.get("target_medium"))
+        if limits and (
+            len(str(candidate.get("title") or "")) > limits["title"]
+            or len(str(candidate.get("body") or "")) > limits["body"]
+        ):
+            return False, "candidate_exceeds_presentation_limit"
+        normalized_title, normalized_body, normalized = normalize_canonical_identifier_leaks(
+            candidate.get("title"), candidate.get("body"), task.get("facts") or []
+        )
+        if normalized and (
+            normalized_title != candidate.get("title")
+            or normalized_body != candidate.get("body")
+        ):
+            return False, "candidate_requires_normalization"
         if (
             candidate.get("source_scope") == "googleplex_app"
             and task.get("task_variant") == "owner-analysis"

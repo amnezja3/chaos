@@ -36,6 +36,13 @@ Potwierdzone root causes i naprawy lokalne:
   dostarczonego canonical fact, validator zastępuje go deterministycznie
   presentation-safe `title`/`label`/`stat` tego samego faktu. Nieznany hash nadal
   kończy się quarantine; raw output pozostaje wyłącznie w audycie;
+- source-backed prefiks skrócony przez granicę outputu jest rozpoznawany od
+  sześciu znaków, natomiast canonical kody jawnie obecne w `title/label/stat`
+  pozostają legalne. Dopiero po tej normalizacji backend skraca tekst do
+  policy-scoped `maxLength`, bez pozostawienia połowy identyfikatora;
+- nazwy obiektów świata zaczynające się od `POI-` są presentation-safe, jeżeli
+  występują w canonical facts taska. Nie są normalizowane ani usuwane;
+  wymyślony przez model `POI-*` pozostaje fail-closed;
 - owner-analysis odrzuca odpowiedź będącą echem topicu. Completed task z
   rejected/quarantined candidate zwraca stan `failed / wynik niedostępny`, bez
   promptu, raw outputu ani tekstu udającego odpowiedź AGI;
