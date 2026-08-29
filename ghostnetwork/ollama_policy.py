@@ -48,6 +48,7 @@ INTERNAL_IDENTIFIER_PATTERN = re.compile(
     r"(?:\b(?:narrative|receipt|candidate|task|event|signal)_[a-z0-9_:-]{6,}\b|\b[0-9a-f]{10,}\b)",
     re.IGNORECASE,
 )
+OPAQUE_HEX_PATTERN = re.compile(r"\b[0-9a-f]{10,}\b", re.IGNORECASE)
 COMPACT_FACT_FIELDS = (
     ("fact_type", "type", 48),
     ("signal_type", "type", 48),
@@ -114,6 +115,44 @@ def presentation_safety_errors(title, body):
         if isinstance(value, str) and INTERNAL_IDENTIFIER_PATTERN.search(value):
             errors.append("internal_identifier_leak")
     return sorted(set(errors))
+
+
+def normalize_canonical_identifier_leaks(title, body, source_facts):
+    """Replace only source-backed opaque hashes with a safe canonical label."""
+    replacements = {}
+    for fact in source_facts or ():
+        if not isinstance(fact, dict):
+            continue
+        safe_label = ""
+        for field in ("title", "label", "stat"):
+            candidate = re.sub(r"\s+", " ", str(fact.get(field) or "")).strip()
+            if candidate and not presentation_safety_errors(candidate, ""):
+                safe_label = candidate[:72]
+                break
+        if not safe_label:
+            continue
+        canonical_values = " ".join(
+            str(value) for key, value in fact.items()
+            if key not in {"title", "label", "stat", "public_text"}
+        )
+        for token in OPAQUE_HEX_PATTERN.findall(canonical_values):
+            replacements.setdefault(token.casefold(), safe_label)
+
+    normalized = []
+    applied = False
+    for value in (title, body):
+        text = str(value or "")
+
+        def replace(match):
+            nonlocal applied
+            replacement = replacements.get(match.group(0).casefold())
+            if not replacement:
+                return match.group(0)
+            applied = True
+            return replacement
+
+        normalized.append(OPAQUE_HEX_PATTERN.sub(replace, text))
+    return normalized[0], normalized[1], applied
 
 
 def owner_analysis_echoes_input(title, body, source_facts):
@@ -421,6 +460,13 @@ def parse_and_validate_ollama_content(content, task_package):
     refs = output.get("fact_refs")
     cta_ref = output.get("cta_ref")
     asset_ref = output.get("asset_ref")
+    title, body, identifier_normalized = normalize_canonical_identifier_leaks(
+        title, body, task_package.get("source_facts") or ()
+    )
+    if identifier_normalized:
+        output = dict(output)
+        output["title"] = title
+        output["body"] = body
     if not isinstance(title, str) or not title.strip() or len(title) > 96:
         errors.append("invalid_title")
     if not isinstance(body, str) or not body.strip() or len(body) > 800:
@@ -475,4 +521,5 @@ def parse_and_validate_ollama_content(content, task_package):
         },
         "resolved_cta": copy.deepcopy((task_package.get("cta_map") or {}).get(cta_ref)),
         "resolved_asset_ref": asset_ref if allows_asset and asset_ref else "",
+        "normalizations": ["canonical_identifier_to_safe_label"] if identifier_normalized else [],
     }

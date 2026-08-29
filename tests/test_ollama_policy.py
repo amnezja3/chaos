@@ -312,6 +312,35 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(unsafe_asset["status"], "quarantined")
         self.assertIn("unknown_asset_ref", unsafe_asset["errors"])
 
+        source_backed_hash = "2552ffccca18"
+        normalized_task = assign_ollama_task_policy({
+            **task,
+            "facts": [{
+                "fact_id": f"blacknet_fact:incident:{source_backed_hash}",
+                "title": "INCYDENT / L4 ESCALATED",
+                "label": "POZIOM REAKCJI",
+                "stat": "escalated / rosnie",
+            }],
+        })
+        normalized_package = build_ollama_task_package(normalized_task)
+        normalized = parse_and_validate_ollama_content(json.dumps({
+            "title": "Aktualnosci z Googleplex",
+            "body": f"Wojna w rejonie {source_backed_hash}.",
+            "tone": "warning",
+            "fact_refs": [normalized_task["facts"][0]["fact_id"]],
+            "cta_ref": None,
+            "asset_ref": "gp_scene_world_neutral_01",
+        }), normalized_package)
+        self.assertEqual(normalized["status"], "accepted")
+        self.assertEqual(
+            normalized["output"]["body"],
+            "Wojna w rejonie INCYDENT / L4 ESCALATED.",
+        )
+        self.assertEqual(
+            normalized["normalizations"],
+            ["canonical_identifier_to_safe_label"],
+        )
+
         blacknet_task = dict(task, target_medium="blacknet")
         blacknet_task = assign_ollama_task_policy(blacknet_task)
         blacknet_package = build_ollama_task_package(blacknet_task)

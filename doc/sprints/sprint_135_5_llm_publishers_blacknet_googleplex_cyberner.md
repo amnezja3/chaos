@@ -32,6 +32,10 @@ Potwierdzone root causes i naprawy lokalne:
 - Googleplex TASK PACKAGE nie udostępnia opcjonalnych `value`, `signal_id` ani
   pozostałych canonical ref columns. Po mandatory `fact_id` priorytet otrzymują
   wyłącznie presentation-safe `title`, `label`, `stat`, category/status;
+- jeżeli model mimo promptu skopiuje do title/body hash będący częścią
+  dostarczonego canonical fact, validator zastępuje go deterministycznie
+  presentation-safe `title`/`label`/`stat` tego samego faktu. Nieznany hash nadal
+  kończy się quarantine; raw output pozostaje wyłącznie w audycie;
 - owner-analysis odrzuca odpowiedź będącą echem topicu. Completed task z
   rejected/quarantined candidate zwraca stan `failed / wynik niedostępny`, bez
   promptu, raw outputu ani tekstu udającego odpowiedź AGI;
