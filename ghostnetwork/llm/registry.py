@@ -15,10 +15,12 @@ from .policies.chaos_local_narrator_v1 import (
 ROOT = Path(__file__).resolve().parent
 SYSTEM_PROMPT_VERSION = "chaos-narrator-system-v1"
 OUTPUT_SCHEMA_VERSION = "chaos-narrative-output-v1"
-ASSET_OUTPUT_SCHEMA_VERSION = "chaos-narrative-output-assets-v1"
+ASSET_OUTPUT_SCHEMA_V1_VERSION = "chaos-narrative-output-assets-v1"
+ASSET_OUTPUT_SCHEMA_VERSION = "chaos-narrative-output-assets-v2"
 SYSTEM_PROMPT_PATH = ROOT / "prompts" / "system" / "chaos-narrator-v1.md"
 SCHEMA_PATH = ROOT / "schemas" / "chaos-narrative-output-v1.json"
-ASSET_SCHEMA_PATH = ROOT / "schemas" / "chaos-narrative-output-assets-v1.json"
+ASSET_SCHEMA_V1_PATH = ROOT / "schemas" / "chaos-narrative-output-assets-v1.json"
+ASSET_SCHEMA_PATH = ROOT / "schemas" / "chaos-narrative-output-assets-v2.json"
 
 
 @dataclass(frozen=True)
@@ -75,7 +77,7 @@ def _build_registry():
     )]
     policies.append(_policy(
         "blacknet_world", "world_digest", "googleplex_news",
-        "googleplex-news-assets-prompt-v3", Path("googleplex") / "news-digest-assets-v3.md",
+        "googleplex-news-assets-prompt-v4", Path("googleplex") / "news-digest-assets-v4.md",
         ASSET_OUTPUT_SCHEMA_VERSION,
     ))
     for variant in sorted(GHOSTNETWORK_BLACKNET_VARIANTS):
@@ -144,6 +146,7 @@ def load_prompt_layers(policy):
 def load_output_schema(version=OUTPUT_SCHEMA_VERSION):
     paths = {
         OUTPUT_SCHEMA_VERSION: SCHEMA_PATH,
+        ASSET_OUTPUT_SCHEMA_V1_VERSION: ASSET_SCHEMA_V1_PATH,
         ASSET_OUTPUT_SCHEMA_VERSION: ASSET_SCHEMA_PATH,
     }
     if version not in paths:

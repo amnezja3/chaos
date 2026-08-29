@@ -37,9 +37,17 @@ Potwierdzone root causes i naprawy lokalne:
   presentation-safe `title`/`label`/`stat` tego samego faktu. Nieznany hash nadal
   kończy się quarantine; raw output pozostaje wyłącznie w audycie;
 - source-backed prefiks skrócony przez granicę outputu jest rozpoznawany od
-  sześciu znaków, natomiast canonical kody jawnie obecne w `title/label/stat`
-  pozostają legalne. Dopiero po tej normalizacji backend skraca tekst do
-  policy-scoped `maxLength`, bez pozostawienia połowy identyfikatora;
+  sześciu znaków w treści oraz od trzech znaków na samym końcu outputu,
+  wyłącznie gdy pasuje do identyfikatora dostarczonego w source facts.
+  Canonical kody jawnie obecne w `title/label/stat` pozostają legalne. Dopiero
+  po tej normalizacji backend skraca tekst do policy-scoped `maxLength`, bez
+  pozostawienia połowy identyfikatora;
+- produkcyjna rewalidacja promptu v3 ujawniła dwa dalsze fail-closed gaps:
+  body zakończone prefiksem `02b` oraz pusty `asset_ref`. Nowy immutable
+  `googleplex-news-assets-prompt-v4` z
+  `chaos-narrative-output-assets-v2` wymaga jednego canonical assetu z
+  `allowed_asset_refs`; parser kieruje brak assetu do quarantine, a prepublish
+  guard blokuje także starszy accepted candidate bez assetu;
 - nazwy obiektów świata zaczynające się od `POI-` są presentation-safe, jeżeli
   występują w canonical facts taska. Nie są normalizowane ani usuwane;
   wymyślony przez model `POI-*` pozostaje fail-closed;

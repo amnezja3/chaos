@@ -61,6 +61,11 @@ class NarrativePublicationService:
             or len(str(candidate.get("body") or "")) > limits["body"]
         ):
             return False, "candidate_exceeds_presentation_limit"
+        if (
+            candidate.get("target_medium") == "googleplex_news"
+            and not str(candidate.get("asset_ref") or "").strip()
+        ):
+            return False, "missing_asset_ref"
         normalized_title, normalized_body, normalized = normalize_canonical_identifier_leaks(
             candidate.get("title"), candidate.get("body"), task.get("facts") or []
         )

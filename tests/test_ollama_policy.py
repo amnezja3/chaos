@@ -258,7 +258,7 @@ class OllamaPolicyTest(unittest.TestCase):
 
         package = build_ollama_task_package(task)
 
-        self.assertEqual(package["format"]["$id"], "chaos-narrative-output-assets-v1")
+        self.assertEqual(package["format"]["$id"], "chaos-narrative-output-assets-v2")
         self.assertEqual(package["format"]["properties"]["title"]["maxLength"], 48)
         self.assertEqual(package["format"]["properties"]["body"]["maxLength"], 120)
         self.assertEqual(package["format"]["properties"]["fact_refs"]["maxItems"], 1)
@@ -277,7 +277,7 @@ class OllamaPolicyTest(unittest.TestCase):
         ])
         self.assertEqual(
             package["format"]["properties"]["asset_ref"]["enum"],
-            [None, *model_input["allowed_asset_refs"]],
+            model_input["allowed_asset_refs"],
         )
         ref_index = model_input["fact_columns"].index("fact_ref")
         self.assertIn("title", model_input["fact_columns"])
@@ -312,6 +312,17 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(unsafe_asset["status"], "quarantined")
         self.assertIn("unknown_asset_ref", unsafe_asset["errors"])
 
+        missing_asset = parse_and_validate_ollama_content(json.dumps({
+            "title": "Sytuacja swiata",
+            "body": "Canonical sygnal pozostaje aktywny.",
+            "tone": "info",
+            "fact_refs": [task["facts"][0]["fact_id"]],
+            "cta_ref": None,
+            "asset_ref": None,
+        }), package)
+        self.assertEqual(missing_asset["status"], "quarantined")
+        self.assertIn("missing_asset_ref", missing_asset["errors"])
+
         source_backed_hash = "2552ffccca18"
         normalized_task = assign_ollama_task_policy({
             **task,
@@ -340,6 +351,18 @@ class OllamaPolicyTest(unittest.TestCase):
             normalized["normalizations"],
             ["canonical_identifier_to_safe_label"],
         )
+
+        truncated_prefix = parse_and_validate_ollama_content(json.dumps({
+            "title": "Aktualnosci z Googleplex",
+            "body": "Produkt Googleplex sygnalizuje sygnaly: 255",
+            "tone": "warning",
+            "fact_refs": [normalized_task["facts"][0]["fact_id"]],
+            "cta_ref": None,
+            "asset_ref": "gp_scene_world_neutral_01",
+        }), normalized_package)
+        self.assertEqual(truncated_prefix["status"], "accepted")
+        self.assertNotIn("255", truncated_prefix["output"]["body"])
+        self.assertIn("INCYDENT / L4 ESCALATED", truncated_prefix["output"]["body"])
 
         poi_task = assign_ollama_task_policy({
             **task,

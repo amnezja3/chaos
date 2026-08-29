@@ -50,6 +50,7 @@ INTERNAL_IDENTIFIER_PATTERN = re.compile(
 )
 OPAQUE_HEX_PATTERN = re.compile(r"\b[0-9a-f]{10,}\b", re.IGNORECASE)
 OPAQUE_HEX_FRAGMENT_PATTERN = re.compile(r"\b[0-9a-f]{6,}\b", re.IGNORECASE)
+TRAILING_HEX_FRAGMENT_PATTERN = re.compile(r"\b[0-9a-f]{3,9}$", re.IGNORECASE)
 CANONICAL_POI_NAME_PATTERN = re.compile(r"\bPOI-[A-Z0-9][A-Z0-9_-]{1,80}\b", re.IGNORECASE)
 COMPACT_FACT_FIELDS = (
     ("fact_type", "type", 48),
@@ -179,7 +180,26 @@ def normalize_canonical_identifier_leaks(title, body, source_facts):
             applied = True
             return replacement
 
-        normalized.append(OPAQUE_HEX_FRAGMENT_PATTERN.sub(replace, text))
+        text = OPAQUE_HEX_FRAGMENT_PATTERN.sub(replace, text)
+
+        # Constrained generation can stop in the middle of an opaque source
+        # identifier (for example ``02b`` from ``02b4180b63e5``).  Such a
+        # fragment is too short for the generic leak detector, so resolve it
+        # only when it is the terminal prefix of a known source token.  This
+        # avoids treating arbitrary short words or canonical presentation
+        # codes as identifiers.
+        trailing = TRAILING_HEX_FRAGMENT_PATTERN.search(text)
+        if trailing:
+            fragment = trailing.group(0).casefold()
+            replacement = next((
+                label for token, label in canonical_tokens
+                if token.startswith(fragment)
+            ), "")
+            if replacement:
+                applied = True
+                text = text[:trailing.start()] + replacement
+
+        normalized.append(text)
     return normalized[0], normalized[1], applied
 
 
@@ -301,7 +321,14 @@ def _generation_output_schema(policy, allowed_asset_refs=()):
         int(properties["fact_refs"].get("maxItems") or limits["refs"]), limits["refs"]
     )
     if "asset_ref" in properties:
-        properties["asset_ref"]["enum"] = [None, *allowed_asset_refs]
+        asset_types = properties["asset_ref"].get("type")
+        nullable_asset = (
+            asset_types == "null"
+            or isinstance(asset_types, list) and "null" in asset_types
+        )
+        properties["asset_ref"]["enum"] = [
+            *([None] if nullable_asset else []), *allowed_asset_refs
+        ]
     return schema
 
 
@@ -536,8 +563,16 @@ def parse_and_validate_ollama_content(content, task_package):
     if cta_ref is not None:
         if not isinstance(cta_ref, str) or cta_ref not in (task_package.get("cta_map") or {}):
             security_errors.append("unknown_cta_ref")
-    if allows_asset and asset_ref is not None:
-        if not isinstance(asset_ref, str) or asset_ref not in (task_package.get("allowed_asset_refs") or ()):
+    asset_schema = format_properties.get("asset_ref") or {}
+    asset_types = asset_schema.get("type")
+    asset_required = allows_asset and not (
+        asset_types == "null"
+        or isinstance(asset_types, list) and "null" in asset_types
+    )
+    if allows_asset:
+        if asset_required and (asset_ref is None or asset_ref == ""):
+            security_errors.append("missing_asset_ref")
+        elif not isinstance(asset_ref, str) or asset_ref not in (task_package.get("allowed_asset_refs") or ()):
             security_errors.append("unknown_asset_ref")
     security_errors.extend(presentation_safety_errors(title, body))
     if unknown_canonical_poi_names(

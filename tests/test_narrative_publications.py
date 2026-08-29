@@ -137,6 +137,18 @@ class NarrativePublicationTest(unittest.TestCase):
             published["record"]["asset_ref"], "gp_scene_world_neutral_01"
         )
 
+    def test_googleplex_candidate_without_asset_is_not_publishable(self):
+        valid, reason = NarrativePublicationService.validate_candidate({
+            "validation_status": "accepted",
+            "target_medium": "googleplex_news",
+            "audience_scope": "public",
+            "title": "Aktualnosci z Googleplex",
+            "body": "Canonical world update.",
+            "asset_ref": "",
+        }, {"facts": []})
+        self.assertFalse(valid)
+        self.assertEqual(reason, "missing_asset_ref")
+
     def test_only_one_worker_owns_publication_lease(self):
         candidate = self.accepted_candidate("two-publishers")
         self.repo.ensure_narrative_publication(candidate["candidate_id"])
