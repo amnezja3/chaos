@@ -9945,39 +9945,85 @@ function createBrowser() {
                 : item.install_blocked_reason || "";
             const canInstall = !installed && canAfford && !installBlockedReason;
             const buttonLabel = installed ? (isProduct ? "KUPIONO" : "ZAINSTALOWANO") : (canAfford ? (isProduct ? "Kup" : "Zainstaluj") : "Brak \u015brodk\u00f3w");
+            const hasInstallRequirements = item.type === "pro-system-tool" || item.category === "pro-system-tools" || item.category === "creators" || item.required_level || item.required_respect;
+            const riskLevel = Math.max(0, Math.min(5, Number(item.risk_level || 0)));
+            const riskStars = riskLevel ? "&#9733;".repeat(riskLevel) : "brak";
+            const fileSize = Number(item.file_size || 0);
+            const diskUsage = Number(item.disk_usage || item.install_size || fileSize || 0);
+            const qualityScore = Math.max(0, Math.min(100, Number(item.quality_score || 0)));
+            const reliability = Math.max(0, Math.min(100, Number(item.reliability || 0)));
+            const creatorPower = Math.max(0, Math.min(100, Number(item.creator_power || 0)));
+            const powerScore = Math.max(0, Math.min(100, Number(item.power_score || 0)));
+            const priceHint = Number(item.price_hint || 0);
+            const effectsText = Array.isArray(item.effects)
+                ? item.effects.map(effect => {
+                    if (!effect || typeof effect !== 'object') return '';
+                    if (effect.type === 'travel_city') return `Miasto: ${effect.city || item.travel_city || '-'}`;
+                    if (effect.type === 'storage_capacity_bonus') return `Dysk +${formatStorageSize(effect.value || item.storage_capacity_bonus || 0)}`;
+                    if (effect.type === 'map_zoom_bonus') return `Zoom +${Number(effect.value || 0)}`;
+                    if (effect.type === 'scan_range_bonus') return `Skan +${Number(effect.value || 0)} m`;
+                    if (effect.type === 'bike_range_bonus') return `Rower +${Number(effect.value || 0)} m`;
+                    return `${effect.type || 'efekt'} ${effect.value || effect.city || ''}`.trim();
+                }).filter(Boolean).join(', ')
+                : '';
+            const proMeta = hasInstallRequirements ? `
+                <div class="googolplex-card-requirements">
+                    <span>LVL ${Number(item.required_level || 1)}</span>
+                    <span>Respect ${Number(item.required_respect || 0)}</span>
+                    <span>Risk ${riskStars}</span>
+                </div>
+            ` : "";
+            const contractMeta = `
+                <div class="googolplex-contract">
+                    <span>Poziom: <b>${escapeHTML(item.app_level || 'Basic')}</b></span>
+                    <span>Rodzina: <b>${escapeHTML(item.tool_family || item.type || 'tool')}</b></span>
+                    <span>Tryb: <b>${escapeHTML(item.tool_mode || item.scanner_mode || 'desktop')}</b></span>
+                    ${isProduct ? `<span>Produkt: <b>${escapeHTML(item.product_type || '-')}</b></span>` : ''}
+                    ${isProduct ? `<span>Kategoria: <b>${escapeHTML(item.category || '-')}</b></span>` : ''}
+                    ${isProduct ? `<span>Efekt: <b>${escapeHTML(effectsText || '-')}</b></span>` : ''}
+                    <span>Tier: <b>${escapeHTML(item.balance_tier || item.app_level || 'Basic')}</b></span>
+                    <span>Map: <b>${escapeHTML(googleplexListText(item.map_actions))}</b></span>
+                    <span>Ops: <b>${escapeHTML(googleplexListText(item.operation_types))}</b></span>
+                    <span>Data: <b>${escapeHTML(googleplexListText(item.resource_types))}</b></span>
+                    <span>Waga: <b>${escapeHTML(formatStorageSize(fileSize))}</b></span>
+                    <span>Instalacja: <b>${escapeHTML(formatStorageSize(diskUsage))}</b></span>
+                    <span>Jako\u015b\u0107: <b>${qualityScore}/100</b></span>
+                    <span>Niezawodno\u015b\u0107: <b>${reliability}/100</b></span>
+                    <span>Moc tw\u00f3rcy: <b>${creatorPower}/100</b></span>
+                    <span>Moc: <b>${powerScore}/100</b></span>
+                    <span>Cena sugerowana: <b>${priceHint ? `${priceHint} HC` : '-'}</b></span>
+                </div>
+            `;
+            const blockedHint = installBlockedReason ? `
+                <div class="googolplex-card-hint">${escapeHTML(installBlockedReason)}</div>
+            ` : "";
             const card = document.createElement('article');
             const cyclePosition = layoutIndex % 8;
             const weight = editorialMode
                 ? (cyclePosition === 0 ? "hero" : cyclePosition <= 2 ? "medium" : "small")
                 : "small";
-            const category = String(item.category || item.type || "application").toUpperCase();
-            const tier = String(item.balance_tier || item.app_level || "Basic");
-            const family = String(item.tool_family || item.type || "tool");
-            const rawAsset = String(item.visual_asset_url || item.asset_path || item.icon_url || "").trim();
-            const safeAsset = /^\/static\/images\/[a-z0-9_./-]+\.(?:webp|png|svg)$/i.test(rawAsset)
-                ? rawAsset
-                : "";
-            const assetMarkup = safeAsset
-                ? `<img src="${escapeHTML(safeAsset)}" alt="" loading="lazy" decoding="async">`
-                : `<span class="gp-search-card__asset-icon" aria-hidden="true">${escapeHTML(item.icon || browserUiIcons.app)}</span>`;
-            card.className = `gp-search-card gp-search-card--${weight}${installed ? " is-installed" : ""}`;
+            card.className = `googolplex-card gp-search-card gp-search-card--${weight}${installed ? " is-installed" : ""}`;
             card.dataset.layoutIndex = String(layoutIndex);
             card.dataset.cyclePosition = String(cyclePosition);
             card.innerHTML = `
                 <div class="gp-search-card__content">
-                    <span class="gp-search-card__eyebrow">${escapeHTML(category)} // APPLICATION</span>
-                    <strong class="gp-search-card__title">${escapeHTML(item.name || 'Aplikacja')}</strong>
-                    <p class="gp-search-card__summary">${escapeHTML(item.description || 'Brak opisu.')}</p>
-                    <span class="gp-search-card__params">
-                        <span>${Number(item.downloads || 0)} DOWNLOADS</span>
-                        <span>${price} HC</span>
-                        <span>${escapeHTML(tier)}</span>
-                        <span>${escapeHTML(family)}</span>
-                    </span>
+                    <div class="googolplex-card-title">
+                        <span>${escapeHTML(item.name || 'Aplikacja')}</span>
+                    </div>
+                    <p>${escapeHTML(item.description || 'Brak opisu.')}</p>
+                    ${proMeta}
+                    ${contractMeta}
+                    ${blockedHint}
+                    <div class="googolplex-card-meta">
+                        <span>${escapeHTML(item.type || 'tool')}</span>
+                        <span>${Number(item.downloads || 0)} pobrań</span>
+                    </div>
                 </div>
-                <div class="gp-search-card__asset">${assetMarkup}</div>
-                <div class="gp-search-card__action">
-                    ${installBlockedReason ? `<span class="gp-search-card__state">${escapeHTML(installBlockedReason)}</span>` : ""}
+                <div class="gp-search-card__asset" aria-hidden="true">
+                    <span class="googolplex-card-icon">${escapeHTML(item.icon || browserUiIcons.app)}</span>
+                </div>
+                <div class="googolplex-card-footer gp-search-card__action">
+                    <strong>${price} HC</strong>
                     <button data-googleplex-install type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button>
                 </div>
             `;
@@ -10030,7 +10076,19 @@ function createBrowser() {
                     }
                 );
             });
-            cardsRoot.appendChild(card);
+            let cardTarget = cardsRoot;
+            if (editorialMode) {
+                const groupIndex = Math.floor(layoutIndex / 8);
+                let group = cardsRoot.querySelector(`[data-search-group="${groupIndex}"]`);
+                if (!group) {
+                    group = document.createElement('section');
+                    group.className = 'gp-search-group';
+                    group.dataset.searchGroup = String(groupIndex);
+                    cardsRoot.appendChild(group);
+                }
+                cardTarget = group;
+            }
+            cardTarget.appendChild(card);
         });
         if (editorialMode && renderedMatches.length < matches.length) {
             const more = document.createElement('button');
