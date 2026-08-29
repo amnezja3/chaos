@@ -187,6 +187,43 @@ sprite albo rozdzielić pliki bez zmiany `asset_id`.
 CTA może użyć jednej ikony i krótkiej etykiety. Ikona sama nie tworzy action;
 widoczność i interaktywność wynikają z canonical `ACTIONABLE`.
 
+## Googleplex Search UI chrome — sockety ikon aplikacji
+
+Karty produktów Googleplex Search zachowują dokładnie ikonę wybraną przez autora
+aplikacji. Emoji, runa, pojedynczy znak Unicode albo inny canonical `item.icon`
+nie są zamieniane, filtrowane ani wpisywane do assetu. Pięć lokalnych socketów
+stanowi wyłącznie dekoracyjną warstwę HUD renderowaną pod prawdziwą ikoną:
+
+| Socket | Plik | Domyślne zastosowanie |
+| --- | --- | --- |
+| `core` | `icons/app-sockets/01_icon_socket_core.svg` | `HERO` i pojedynczy wynik |
+| `side` | `icons/app-sockets/02_icon_socket_side.svg` | `SIDE` / `MIDDLE` |
+| `compact` | `icons/app-sockets/03_icon_socket_compact.svg` | `SMALL` |
+| `hex` | `icons/app-sockets/04_icon_socket_hex.svg` | stabilny wariant rodzin system/custom/exploit |
+| `target` | `icons/app-sockets/05_icon_socket_target.svg` | stabilny wariant rodzin scanner/tracker |
+
+Sockety są code-owned UI chrome, a nie narracyjnymi assetami Googleplex News.
+Nie należą do `allowed_asset_refs`, nie są wybierane przez Ollamę i celowo nie
+mają rekordów w `asset_registry.json`. Dobór wariantu odbywa się wyłącznie po
+code-owned klasie prezentacyjnej lub stabilnej rodzinie produktu; nie może być
+losowy ani zależny od tekstu wygenerowanego przez model.
+
+Każdy plik ma transparentne tło i widok `256×256`. Zawiera tylko lekką geometrię
+HUD, pozostawia czystą strefę centralną dla ikony i nie może zawierać:
+
+- ikon użytkownika ani przykładowych emoji;
+- tekstu, liczb lub fake gameplay data;
+- bitmap, fontów, skryptów, `foreignObject` ani zewnętrznych odwołań;
+- ciężkich filtrów, blurów lub wypalonego koloru stanu.
+
+Warstwa socketu powinna być używana jako CSS mask albo transparentny obraz
+tintowany filtrem do istniejącego akcentu produktu. Prawdziwa ikona pozostaje
+osobnym elementem DOM nad dekoracją.
+Socket ma `pointer-events: none` i jest `aria-hidden`; nie jest dodatkowym
+panelem, ramką produktu ani źródłem semantyki. `background-image` nie może być
+nakładany na kartę lub canonical user icon — URL socketu należy wyłącznie do
+dekoracyjnej warstwy maski.
+
 ## HERO — obowiązkowy pierwszy zestaw
 
 Pierwszy minimalny asset pack musi zawierać cztery sceny:

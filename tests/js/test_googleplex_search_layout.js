@@ -2,6 +2,8 @@
 
 const assert = require("assert");
 const fs = require("fs");
+const path = require("path");
+const vm = require("vm");
 
 const presentation = require("../../static/js/googleplex_search_presentation.js");
 
@@ -15,6 +17,20 @@ const presentationStyles = fs.readFileSync(
     "utf8"
 );
 const newsStyles = fs.readFileSync("static/css/googleplex_news.css", "utf8");
+const socketDirectory = path.join(
+    "static",
+    "images",
+    "googleplx",
+    "icons",
+    "app-sockets"
+);
+const socketAssets = [
+    "01_icon_socket_core.svg",
+    "02_icon_socket_side.svg",
+    "03_icon_socket_compact.svg",
+    "04_icon_socket_hex.svg",
+    "05_icon_socket_target.svg"
+];
 
 class FakeClassList {
     constructor(node) {
@@ -222,6 +238,82 @@ assert.doesNotMatch(
 assert.match(presentationSource, /root\.GoogleplexSearchPresentation = api/);
 assert.match(presentationSource, /module\.exports = api/);
 
+// User-selected icons are canonical text. Emoji, runes and other Unicode
+// symbols must survive the same escaping path used by the card renderer; only
+// markup metacharacters may change.
+const escapeStart = terminalSource.indexOf("function escapeHTML(value)");
+const escapeEnd = terminalSource.indexOf("function sanitizeToastHTML", escapeStart);
+assert.ok(escapeStart >= 0 && escapeEnd > escapeStart, "escapeHTML helper missing");
+const escapeSource = terminalSource.slice(escapeStart, escapeEnd);
+const escapeIcon = value => {
+    const sandbox = { __icon: value };
+    vm.runInNewContext(
+        `${escapeSource}\nglobalThis.__escaped = escapeHTML(globalThis.__icon);`,
+        sandbox
+    );
+    return sandbox.__escaped;
+};
+[
+    "\u{1F47B}", // emoji
+    "\u16B1",    // rune
+    "\u232C",    // single Unicode symbol
+    "\u{1F6F0}\uFE0F" // multi-codepoint emoji with variation selector
+].forEach(icon => {
+    assert.strictEqual(escapeIcon(icon), icon, `user icon must be preserved: ${icon}`);
+    assert.strictEqual(escapeIcon(icon).includes("\uFFFD"), false);
+});
+assert.strictEqual(
+    escapeIcon('<img src=x onerror="boom">'),
+    "&lt;img src=x onerror=&quot;boom&quot;&gt;",
+    "creator icon remains text and cannot inject markup"
+);
+
+// MAP / OPS / DATA can carry long canonical lists. Exercise the production
+// list normalizer itself and require every token to remain present and ordered.
+const listStart = terminalSource.indexOf("const googleplexList = (value) =>");
+const listEnd = terminalSource.indexOf("const googleplexSearchText", listStart);
+assert.ok(listStart >= 0 && listEnd > listStart, "Googleplex list normalizer missing");
+const listSource = terminalSource.slice(listStart, listEnd);
+const normalizeCanonicalList = value => {
+    const sandbox = { __list: value };
+    vm.runInNewContext(
+        `${listSource}\nglobalThis.__formatted = googleplexList(globalThis.__list);`,
+        sandbox
+    );
+    return Array.from(sandbox.__formatted);
+};
+const longMetadataFixtures = {
+    map: [
+        "scan_ports",
+        "scan_hotspots",
+        "territory_conflict_projection_north_sector",
+        "world_map_player_actor_focus",
+        "ghostnetwork_public_connection_overlay",
+        "foreign_territory_boundary_analysis"
+    ],
+    ops: [
+        "wifi_scanner",
+        "persistent_sniffer",
+        "vehicle_tracking_with_position_history",
+        "credential_extraction_and_validation",
+        "conflict_pillar_terminal_operation"
+    ],
+    data: [
+        "internal_recon_state",
+        "device_logs",
+        "hotspot_database",
+        "encrypted_credentials_archive",
+        "operator_position_history",
+        "\u{1F47B}_unicode_fact_reference"
+    ]
+};
+Object.entries(longMetadataFixtures).forEach(([field, values]) => {
+    const normalized = normalizeCanonicalList(values);
+    assert.deepStrictEqual(normalized, values, `${field} must not be truncated or reordered`);
+    values.forEach(value => assert.ok(normalized.includes(value), `${field} lost ${value}`));
+});
+assert.doesNotMatch(listSource, /\.slice\s*\(|substring\s*\(|substr\s*\(|\.\.\./);
+
 const renderStart = terminalSource.indexOf("const renderCatalog = () =>");
 const renderEnd = terminalSource.indexOf("appsProjectionListener =", renderStart);
 assert.ok(renderStart >= 0 && renderEnd > renderStart, "Googleplex catalog renderer missing");
@@ -256,11 +348,11 @@ assert.strictEqual((catalogSource.match(/card\.innerHTML = `/g) || []).length, 1
 assert.match(catalogSource, /gp-search-product--\$\{variant\}/);
 assert.match(
     catalogSource,
-    /const requirementsMeta[\s\S]*const parameterRows[\s\S]*const parametersMeta[\s\S]*const blockedHint/
+    /const requirementsMeta[\s\S]*const coreParameterRows[\s\S]*const technicalParameterRows[\s\S]*const metricParameterRows[\s\S]*const coreParametersMeta[\s\S]*const technicalParametersMeta[\s\S]*const metricParametersMeta[\s\S]*const purchaseState/
 );
 assert.match(
     catalogSource,
-    /\$\{requirementsMeta\}[\s\S]*\$\{parametersMeta\}[\s\S]*\$\{blockedHint\}/
+    /\$\{requirementsMeta\}[\s\S]*\$\{coreParametersMeta\}[\s\S]*\$\{technicalParametersMeta\}[\s\S]*\$\{metricParametersMeta\}[\s\S]*\$\{purchaseState\}/
 );
 [
     '"Poziom"',
@@ -281,8 +373,41 @@ assert.match(
     assert.ok(catalogSource.includes(label), `missing full-card field: ${label}`);
 });
 assert.match(catalogSource, /item\.description \|\| ["']Brak opisu\.["']/);
-assert.match(catalogSource, /gp-search-product__icon/);
-assert.match(catalogSource, /gp-search-product__icon-symbol/);
+[
+    "gp-app-card__header",
+    "gp-app-status-strip",
+    "gp-app-card__body",
+    "gp-app-icon-stage",
+    "gp-app-icon-stage__socket",
+    "gp-app-icon-stage__user-icon",
+    "gp-app-spec-panel",
+    "gp-app-purchase-state",
+    "gp-app-market-footer"
+].forEach(className => {
+    assert.ok(catalogSource.includes(className), `missing card presentation class: ${className}`);
+});
+assert.match(
+    catalogSource,
+    /gp-app-icon-stage__user-icon[^>]*>\s*\$\{escapeHTML\(iconValue\)\}\s*</,
+    "the foreground layer must render the exact escaped creator icon"
+);
+assert.match(
+    catalogSource,
+    /<img class="gp-app-icon-stage__socket" src="\$\{escapeHTML\(iconSocketAsset\)\}" alt="" draggable="false">/,
+    "the code-owned SVG socket must remain a separate background image layer"
+);
+const statusMarkupStart = catalogSource.indexOf("const requirementsMeta");
+const statusMarkupEnd = catalogSource.indexOf("const coreParameterRows", statusMarkupStart);
+const statusMarkup = catalogSource.slice(statusMarkupStart, statusMarkupEnd);
+assert.match(statusMarkup, /gp-app-status-strip__item/);
+assert.match(statusMarkup, /<small>LVL<\/small>[\s\S]*<small>RESPECT<\/small>[\s\S]*<small>RISK<\/small>/);
+assert.doesNotMatch(statusMarkup, /<button\b/, "LVL / RESPECT / RISK are status, not actions");
+assert.match(catalogSource, /values:\s*googleplexList\(item\.map_actions\)/);
+assert.match(catalogSource, /values:\s*googleplexList\(item\.operation_types\)/);
+assert.match(catalogSource, /values:\s*googleplexList\(item\.resource_types\)/);
+assert.match(catalogSource, /values\.map\(value => `<span class="gp-app-spec-panel__token">\$\{escapeHTML\(value\)\}<\/span>`\)/);
+assert.match(catalogSource, /installed \? "Aplikacja juz kupiona\."/);
+assert.match(catalogSource, /installed \? \(isProduct \? "KUPIONO" : "ZAINSTALOWANO"\)/);
 assert.doesNotMatch(catalogSource, /line-clamp|safeAsset|visual_asset_url|asset_path|icon_url/);
 
 const cardStart = catalogSource.indexOf("const createProductCard =");
@@ -328,13 +453,77 @@ assert.match(
     presentationStyles,
     /\.browser-window\.browser-narrow\.is-browser-googleplex \.googolplex-grid\s*\{[\s\S]*?overflow:\s*visible !important/
 );
+[
+    ".gp-app-card__header",
+    ".gp-app-status-strip",
+    ".gp-app-card__body",
+    ".gp-app-icon-stage",
+    ".gp-app-icon-stage__socket",
+    ".gp-app-icon-stage__user-icon",
+    ".gp-app-spec-panel",
+    ".gp-app-purchase-state",
+    ".gp-app-market-footer"
+].forEach(selector => {
+    assert.ok(presentationStyles.includes(selector), `missing card selector: ${selector}`);
+});
+
+// The socket is a decorative background layer. The creator-owned foreground
+// icon itself stays transparent, borderless and free of image replacement or
+// visual filters.
+const userIconRule = presentationStyles.match(
+    /\.gp-app-icon-stage__user-icon(?:\s*,[^\{]*)?\s*\{([^}]*)\}/
+);
+assert.ok(userIconRule, "foreground user-icon CSS rule missing");
+assert.match(userIconRule[1], /border:\s*0(?:\s+[^;]+)?;/);
+assert.match(userIconRule[1], /background:\s*none\s*;/);
+assert.doesNotMatch(
+    userIconRule[1],
+    /background-image\s*:|url\s*\(|filter\s*:|mask(?:-image)?\s*:|content\s*:/
+);
+assert.doesNotMatch(presentationStyles, /line-clamp:\s*[1-9]/);
+[
+    "gp-app-card__header",
+    "gp-app-status-strip",
+    "gp-app-card__body",
+    "gp-app-icon-stage",
+    "gp-app-spec-panel",
+    "gp-app-purchase-state",
+    "gp-app-market-footer"
+].forEach(className => {
+    const hiddenRule = new RegExp(`\\.${className}[^{}]*\\{[^}]*display:\\s*none`);
+    assert.doesNotMatch(presentationStyles, hiddenRule, `${className} cannot be hidden`);
+});
 assert.match(
     presentationStyles,
-    /\.gp-search-product__icon[\s\S]*border:\s*0[\s\S]*background:\s*none/
+    /\.gp-app-spec-panel[\s\S]*?(?:overflow-wrap:\s*anywhere|word-break:\s*break-word)/,
+    "long MAP / OPS / DATA values need a bounded wrapping strategy"
 );
-assert.doesNotMatch(presentationStyles, /background-image\s*:|line-clamp:\s*[1-9]|display:\s*none/);
 assert.doesNotMatch(newsStyles, /\.gp-search-group\b|\.gp-search-product\b/);
 assert.doesNotMatch(catalogSource, /class="gp-home|class="googolplex-card/);
+
+// Five local, lightweight SVG sockets form the visual holder. They may not
+// embed an application icon, raster image, executable markup or remote asset.
+socketAssets.forEach(fileName => {
+    const assetPath = path.join(socketDirectory, fileName);
+    assert.ok(fs.existsSync(assetPath), `missing Googleplex icon socket: ${fileName}`);
+    const stats = fs.statSync(assetPath);
+    assert.ok(stats.size > 0 && stats.size <= 32768, `${fileName} must remain lightweight`);
+    const svg = fs.readFileSync(assetPath, "utf8");
+    assert.match(svg, /<svg\b/i, `${fileName} must be SVG`);
+    assert.match(svg, /viewBox\s*=\s*["'][^"']+["']/i, `${fileName} needs a viewBox`);
+    assert.match(
+        svg,
+        /currentColor|var\(--|(?:stroke|fill)=["']#(?:fff|ffffff)["']/i,
+        `${fileName} must be monochrome/CSS-tintable`
+    );
+    assert.doesNotMatch(svg, /<text\b|<image\b|<script\b|<foreignObject\b/i);
+    assert.doesNotMatch(svg, /(?:href|xlink:href)\s*=\s*["'](?:https?:|\/\/|data:)/i);
+    assert.doesNotMatch(svg, /\son(?:load|error|click|mouseover|focus)\s*=/i);
+    assert.ok(
+        presentationStyles.includes(fileName) || terminalSource.includes(fileName),
+        `${fileName} is generated but not wired into the card system`
+    );
+});
 
 for (const templatePath of [
     "templates/index.html",

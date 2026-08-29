@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" preserveAspectRatio="xMidYMid meet">
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <g opacity=".22" stroke-width="2">
+      <path d="m128 17 96 56v110l-96 56-96-56V73Z" stroke-dasharray="31 10 6 14"/>
+      <path d="m128 38 78 45v90l-78 45-78-45V83Z" stroke-dasharray="20 12"/>
+    </g>
+    <g opacity=".52" stroke-width="4">
+      <path d="M96 56h64M192 74l18 31M192 182l18-31M96 200h64M64 182l-18-31M64 74 46 105"/>
+      <path d="m128 52 13 8M204 96v15M204 160v-15M128 204l-13-8M52 160v-15M52 96v15"/>
+    </g>
+    <g opacity=".34" stroke-width="3">
+      <circle cx="128" cy="29" r="5"/>
+      <circle cx="214" cy="79" r="5"/>
+      <circle cx="214" cy="177" r="5"/>
+      <circle cx="128" cy="227" r="5"/>
+      <circle cx="42" cy="177" r="5"/>
+      <circle cx="42" cy="79" r="5"/>
+      <path d="M80 69h23l10 10M176 69h-23l-10 10M80 187h23l10-10M176 187h-23l-10-10"/>
+    </g>
+    <g opacity=".16" stroke-width="2">
+      <path d="M18 116h37M201 116h37M18 140h37M201 140h37" stroke-dasharray="7 7"/>
+    </g>
+  </g>
+</svg>

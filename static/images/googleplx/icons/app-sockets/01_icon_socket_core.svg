@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" preserveAspectRatio="xMidYMid meet">
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <g opacity=".2" stroke-width="2">
+      <circle cx="128" cy="128" r="101" stroke-dasharray="24 9 5 12"/>
+      <circle cx="128" cy="128" r="88" stroke-dasharray="7 12 31 10"/>
+      <path d="M42 76h18l10 10M196 76h18M42 180h18l10-10M196 180h18"/>
+      <path d="M76 42v18l10 10M180 42v18M76 214v-18l10-10M180 214v-18"/>
+    </g>
+    <g opacity=".38" stroke-width="3">
+      <circle cx="128" cy="128" r="72" stroke-dasharray="38 13 8 17"/>
+      <path d="M128 13v19M128 224v19M13 128h19M224 128h19"/>
+      <path d="m48 48 14 14m132-14-14 14M48 208l14-14m132 14-14-14"/>
+      <path d="M105 31h46M105 225h46M31 105v46M225 105v46"/>
+    </g>
+    <g opacity=".62" stroke-width="4">
+      <path d="M95 66a68 68 0 0 1 66 0M190 95a68 68 0 0 1 0 66M161 190a68 68 0 0 1-66 0M66 161a68 68 0 0 1 0-66"/>
+      <path d="M118 47h20M118 209h20M47 118v20M209 118v20"/>
+    </g>
+    <g opacity=".28" stroke-width="2">
+      <path d="M25 97h18l7 7M231 97h-18l-7 7M25 159h18l7-7M231 159h-18l-7-7"/>
+      <path d="M97 25v18l7 7M159 25v18l-7 7M97 231v-18l7-7M159 231v-18l-7-7"/>
+    </g>
+  </g>
+</svg>

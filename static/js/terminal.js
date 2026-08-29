@@ -8766,10 +8766,13 @@ function createBrowser() {
     const googleplexList = (value) => Array.isArray(value)
         ? value.map(item => String(item || '').trim()).filter(Boolean)
         : [];
-    const googleplexListText = (value) => {
-        const list = googleplexList(value);
-        return list.length ? list.join(', ') : '-';
-    };
+    const googleplexIconSocketAssets = Object.freeze({
+        core: "/static/images/googleplx/icons/app-sockets/01_icon_socket_core.svg",
+        side: "/static/images/googleplx/icons/app-sockets/02_icon_socket_side.svg",
+        compact: "/static/images/googleplx/icons/app-sockets/03_icon_socket_compact.svg",
+        hex: "/static/images/googleplx/icons/app-sockets/04_icon_socket_hex.svg",
+        target: "/static/images/googleplx/icons/app-sockets/05_icon_socket_target.svg"
+    });
     const googleplexSearchText = (item) => [
         item.name,
         item.description,
@@ -9950,74 +9953,136 @@ function createBrowser() {
                 }).filter(Boolean).join(', ')
                 : '';
             const requirementsMeta = `
-                <div class="gp-search-product__requirements" aria-label="Wymagania aplikacji">
-                    <span>LVL ${Number(item.required_level || 1)}</span>
-                    <span>Respect ${Number(item.required_respect || 0)}</span>
-                    <span>Risk ${riskStars}</span>
+                <div class="gp-app-status-strip gp-search-product__requirements" aria-label="Wymagania aplikacji">
+                    <span class="gp-app-status-strip__item">
+                        <small>LVL</small>
+                        <strong>${Number(item.required_level || 1)}</strong>
+                    </span>
+                    <span class="gp-app-status-strip__item">
+                        <small>RESPECT</small>
+                        <strong>${Number(item.required_respect || 0)}</strong>
+                    </span>
+                    <span class="gp-app-status-strip__item">
+                        <small>RISK</small>
+                        <strong>${riskStars}</strong>
+                    </span>
                 </div>
             `;
-            const parameterRows = [
-                ["Poziom", item.app_level || "Basic"],
-                ["Rodzina", item.tool_family || item.type || "tool"],
-                ["Tryb", item.tool_mode || item.scanner_mode || "desktop"]
+            const coreParameterRows = [
+                { key: "level", label: "Poziom", value: item.app_level || "Basic" },
+                { key: "family", label: "Rodzina", value: item.tool_family || item.type || "tool" },
+                { key: "mode", label: "Tryb", value: item.tool_mode || item.scanner_mode || "desktop" }
             ];
             if (isProduct) {
-                parameterRows.push(
-                    ["Produkt", item.product_type || "-"],
-                    ["Kategoria", item.category || "-"],
-                    ["Efekt", effectsText || "-"]
+                coreParameterRows.push(
+                    { key: "product", label: "Produkt", value: item.product_type || "-" },
+                    { key: "category", label: "Kategoria", value: item.category || "-" },
+                    { key: "effect", label: "Efekt", value: effectsText || "-" }
                 );
             }
-            parameterRows.push(
-                ["Tier", item.balance_tier || item.app_level || "Basic"],
-                ["Map", googleplexListText(item.map_actions)],
-                ["Ops", googleplexListText(item.operation_types)],
-                ["Data", googleplexListText(item.resource_types)],
-                ["Waga", formatStorageSize(fileSize)],
-                ["Instalacja", formatStorageSize(diskUsage)],
-                ["Jako\u015b\u0107", `${qualityScore}/100`],
-                ["Niezawodno\u015b\u0107", `${reliability}/100`],
-                ["Moc tw\u00f3rcy", `${creatorPower}/100`],
-                ["Moc", `${powerScore}/100`],
-                ["Cena sugerowana", priceHint ? `${priceHint} HC` : "-"]
-            );
-            const parametersMeta = parameterRows.map(([label, value]) => `
-                <div class="gp-search-product__parameter">
-                    <dt>${escapeHTML(label)}:</dt>
+            coreParameterRows.push({
+                key: "tier",
+                label: "Tier",
+                value: item.balance_tier || item.app_level || "Basic"
+            });
+            const technicalParameterRows = [
+                { key: "map", label: "Map", values: googleplexList(item.map_actions) },
+                { key: "ops", label: "Ops", values: googleplexList(item.operation_types) },
+                { key: "data", label: "Data", values: googleplexList(item.resource_types) }
+            ];
+            const metricParameterRows = [
+                { key: "weight", label: "Waga", value: formatStorageSize(fileSize) },
+                { key: "install", label: "Instalacja", value: formatStorageSize(diskUsage) },
+                { key: "quality", label: "Jako\u015b\u0107", value: `${qualityScore}/100` },
+                { key: "reliability", label: "Niezawodno\u015b\u0107", value: `${reliability}/100` },
+                { key: "creator", label: "Moc tw\u00f3rcy", value: `${creatorPower}/100` },
+                { key: "power", label: "Moc", value: `${powerScore}/100` },
+                { key: "price-hint", label: "Cena sugerowana", value: priceHint ? `${priceHint} HC` : "-" }
+            ];
+            const renderSpecRows = (rows, rowClass) => rows.map(({ key, label, value }) => `
+                <div class="gp-app-spec ${rowClass}" data-spec-key="${escapeHTML(key)}">
+                    <dt>${escapeHTML(label)}</dt>
                     <dd>${escapeHTML(value == null || value === "" ? "-" : String(value))}</dd>
                 </div>
             `).join("");
-            const blockedHint = installBlockedReason
-                ? `<div class="gp-search-product__hint">${escapeHTML(installBlockedReason)}</div>`
+            const renderTechnicalRows = rows => rows.map(({ key, label, values }) => {
+                const tokens = values.length
+                    ? values.map(value => `<span class="gp-app-spec-panel__token">${escapeHTML(value)}</span>`).join("")
+                    : '<span class="gp-app-spec-panel__token">-</span>';
+                return `
+                    <div class="gp-app-spec gp-app-spec--technical" data-spec-key="${escapeHTML(key)}">
+                        <dt>${escapeHTML(label)}</dt>
+                        <dd>${tokens}</dd>
+                    </div>
+                `;
+            }).join("");
+            const coreParametersMeta = renderSpecRows(coreParameterRows, "gp-app-spec--core");
+            const technicalParametersMeta = renderTechnicalRows(technicalParameterRows);
+            const metricParametersMeta = renderSpecRows(metricParameterRows, "gp-app-spec--metric");
+            const purchaseStateText = installed
+                ? (installBlockedReason || "Aplikacja juz kupiona.")
+                : installBlockedReason;
+            const purchaseState = purchaseStateText
+                ? `<div class="gp-app-purchase-state gp-search-product__hint" data-purchase-state="${installed ? "owned" : "blocked"}">
+                    <span class="gp-app-purchase-state__mark" aria-hidden="true">${installed ? "&#10003;" : "!"}</span>
+                    <span>${escapeHTML(purchaseStateText)}</span>
+                </div>`
                 : "";
             const appId = String(item.id || item.app_id || "");
             const iconValue = String(item.icon || browserUiIcons.app);
             const familyLabel = String(item.tool_family || item.category || item.type || "tool");
+            const normalizedFamily = `${familyLabel} ${item.type || ""}`.toLowerCase();
+            const iconSocket = variant === "hero" || variant === "single"
+                ? "core"
+                : variant === "middle"
+                    ? (/scanner|tracker|recon/.test(normalizedFamily) ? "target" : "side")
+                    : /custom|system|exploit/.test(normalizedFamily)
+                        ? "hex"
+                        : /scanner|tracker|recon/.test(normalizedFamily)
+                            ? "target"
+                            : "compact";
+            const presentationVariant = variant === "middle"
+                ? "side"
+                : variant === "small" ? "compact" : variant;
+            const iconSocketAsset = googleplexIconSocketAssets[iconSocket]
+                || googleplexIconSocketAssets.compact;
             const card = document.createElement('article');
-            card.className = `gp-search-product gp-search-product--${variant}${installed ? " is-installed" : ""}`;
+            card.className = `gp-search-product gp-search-product--${variant}${installed ? " is-installed" : ""} gp-app-card gp-app-card--${presentationVariant}`;
             card.dataset.appId = appId;
             card.dataset.layoutIndex = String(layoutIndex);
             card.dataset.assetFamily = "tool";
             card.dataset.assetState = installed ? "victory" : "neutral";
+            card.dataset.iconSocket = iconSocket;
             card.innerHTML = `
-                <div class="gp-search-product__icon" aria-hidden="true">
-                    <span class="gp-search-product__icon-symbol">${escapeHTML(iconValue)}</span>
-                </div>
-                <header class="gp-search-product__header">
-                    <span class="gp-search-product__eyebrow">${escapeHTML(familyLabel)} // APPLICATION</span>
-                    <h2 class="gp-search-product__title">${escapeHTML(item.name || "Aplikacja")}</h2>
-                    <p class="gp-search-product__description">${escapeHTML(item.description || "Brak opisu.")}</p>
-                    ${requirementsMeta}
+                <header class="gp-app-card__header gp-search-product__header">
+                    <span class="gp-app-card__eyebrow gp-search-product__eyebrow">${escapeHTML(familyLabel)} // APPLICATION</span>
+                    <h2 class="gp-app-card__title gp-search-product__title">${escapeHTML(item.name || "Aplikacja")}</h2>
+                    <p class="gp-app-card__description gp-search-product__description">${escapeHTML(item.description || "Brak opisu.")}</p>
                 </header>
-                <dl class="gp-search-product__parameters">${parametersMeta}</dl>
-                ${blockedHint}
-                <footer class="gp-search-product__footer">
-                    <div class="gp-search-product__commerce">
-                        <span>${escapeHTML(item.type || "tool")}</span>
-                        <span>${Number(item.downloads || 0)} pobra\u0144</span>
-                        <strong>${price} HC</strong>
+                ${requirementsMeta}
+                <div class="gp-app-card__body">
+                    <div class="gp-app-icon-stage gp-app-icon-stage--${iconSocket} gp-search-product__icon" aria-hidden="true">
+                        <img class="gp-app-icon-stage__socket" src="${escapeHTML(iconSocketAsset)}" alt="" draggable="false">
+                        <span class="gp-app-icon-stage__user-icon gp-search-product__icon-symbol">${escapeHTML(iconValue)}</span>
                     </div>
-                    <button class="gp-search-product__action" data-googleplex-install type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button>
+                    <div class="gp-app-spec-panel">
+                        <dl class="gp-app-spec-panel__core">${coreParametersMeta}</dl>
+                        <dl class="gp-app-spec-panel__technical" aria-label="Dane techniczne aplikacji">${technicalParametersMeta}</dl>
+                        <dl class="gp-app-spec-panel__metrics">${metricParametersMeta}</dl>
+                    </div>
+                </div>
+                ${purchaseState}
+                <footer class="gp-app-market-footer gp-search-product__footer">
+                    <div class="gp-app-market-footer__identity gp-search-product__commerce">
+                        <span>${escapeHTML(item.type || "tool")}</span>
+                        <span><strong>${Number(item.downloads || 0)}</strong> pobra\u0144</span>
+                    </div>
+                    <div class="gp-app-market-footer__price">
+                        <small>CENA</small>
+                        <strong>${price}</strong>
+                        <span>HC</span>
+                    </div>
+                    <button class="gp-app-market-footer__action gp-search-product__action" data-googleplex-install type="button" ${canInstall ? "" : "disabled"}>${buttonLabel}</button>
                 </footer>
             `;
             const installButton = card.querySelector('[data-googleplex-install]');
