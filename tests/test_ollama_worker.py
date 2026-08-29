@@ -229,6 +229,35 @@ class OllamaWorkerTest(unittest.TestCase):
         self.assertEqual(current["status"], "retry_wait")
         self.assertEqual(current["last_error_code"], "ollama_timeout")
 
+    def test_controlled_run_once_can_claim_one_selected_medium(self):
+        blacknet = self.repo.enqueue_narrative_task(self.task(event_id="medium-blacknet"))
+        cyberner_task = assign_ollama_task_policy({
+            "event_id": "medium-cyberner",
+            "source_scope": "googleplex_app",
+            "source_event_id": "medium-cyberner",
+            "source_app_id": "agi2108Console",
+            "processor": "ollama",
+            "target_medium": "cyberner",
+            "audience_scope": "owner",
+            "audience_owner": "alice",
+            "truth_class": "interpretation",
+            "truth_class_policy": "owner_requested_interpretation",
+            "facts": [{"fact_id": "fact:medium-cyberner", "fact_type": "test"}],
+            "allowed_actions": [],
+            "canon_version": "test-v1",
+            "task_variant": "owner-analysis",
+            "status": "ready",
+        })
+        cyberner = self.repo.enqueue_narrative_task(cyberner_task)
+        client = FakeClient([self.accepted("medium-cyberner")])
+
+        result = self.worker(client).process_once(target_medium="cyberner")
+
+        self.assertEqual(result["result"], "completed")
+        self.assertEqual(result["task_id"], cyberner["outbox_id"])
+        self.assertEqual(self.repo.get_narrative_outbox(blacknet["outbox_id"])["status"], "ready")
+
+
     def test_failed_runtime_preflight_does_not_claim_task(self):
         item = self.repo.enqueue_narrative_task(self.task(event_id="preflight"))
         client = FakeClient([self.accepted("preflight")])

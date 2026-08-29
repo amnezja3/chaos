@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import unittest
+import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from ghostnetwork.ollama_client import OllamaGenerationResult
@@ -9,6 +10,7 @@ from ghostnetwork.ollama_policy import assign_ollama_task_policy
 from ghostnetwork.ollama_worker import OllamaNarrativeWorker, OllamaWorkerConfig
 from ghostnetwork.publication import NarrativePublicationService
 from ghostnetwork.repository import GhostNetworkRepository
+from scripts.narrative_publication_worker import is_database_contention
 
 
 class MutableClock:
@@ -182,6 +184,11 @@ class NarrativePublicationTest(unittest.TestCase):
         counts = self.repo.narrative_publication_queue_counts()
         self.assertEqual(counts["statuses"], {"published": 1})
         self.assertEqual(counts["published_by_medium"], {"blacknet": 1})
+
+    def test_publisher_classifies_only_transient_sqlite_contention_as_retryable(self):
+        self.assertTrue(is_database_contention(sqlite3.OperationalError("database is locked")))
+        self.assertTrue(is_database_contention(sqlite3.OperationalError("database is busy")))
+        self.assertFalse(is_database_contention(sqlite3.OperationalError("no such table")))
 
     def test_owner_cyberner_unread_ordinal_is_exactly_once_and_advances(self):
         self.accepted_candidate(

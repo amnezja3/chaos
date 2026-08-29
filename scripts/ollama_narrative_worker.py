@@ -76,7 +76,15 @@ def _dry_run(client):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Canonical CHAOS Ollama narrative worker")
     parser.add_argument("command", choices=("status", "verify", "dry-run", "run-once", "run"))
+    parser.add_argument(
+        "--target-medium",
+        choices=("blacknet", "googleplex_news", "cyberner"),
+        default=None,
+        help="Claim one task for controlled medium-specific run-once validation.",
+    )
     args = parser.parse_args(argv)
+    if args.target_medium and args.command != "run-once":
+        parser.error("--target-medium is available only with run-once")
     worker = _worker()
     try:
         if args.command == "status":
@@ -94,7 +102,7 @@ def main(argv=None):
             _print({"ok": False, "error": "ollama_worker_disabled"})
             return 4
         if args.command == "run-once":
-            result = worker.process_once()
+            result = worker.process_once(target_medium=args.target_medium)
             _print(result)
             return 0 if result.get("result") not in {"invalid_worker_config"} else 5
 
@@ -102,7 +110,7 @@ def main(argv=None):
         signal.signal(signal.SIGTERM, lambda *_args: stop_event.set())
         signal.signal(signal.SIGINT, lambda *_args: stop_event.set())
         _print({"ok": True, "status": "started", "worker_id": worker.worker_id})
-        worker.run(stop_event)
+        worker.run(stop_event, on_result=_print)
         _print({"ok": True, "status": "stopped", "worker_id": worker.worker_id})
         return 0
     except OllamaClientError as exc:

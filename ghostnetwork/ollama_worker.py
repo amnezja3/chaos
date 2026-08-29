@@ -187,7 +187,7 @@ class OllamaNarrativeWorker:
             "candidate_id": candidate["candidate_id"],
         }
 
-    def process_once(self):
+    def process_once(self, target_medium=None):
         if self.config.validate():
             return {"result": "invalid_worker_config", "errors": self.config.validate()}
         registry_status = verify_prompt_registry()
@@ -200,6 +200,7 @@ class OllamaNarrativeWorker:
             self.worker_id,
             lease_seconds=self.config.lease_seconds,
             eligible_policies=self.policies,
+            target_medium=target_medium,
         )
         if not task:
             return {"result": "idle"}
@@ -353,11 +354,13 @@ class OllamaNarrativeWorker:
             "fact_count": package["fact_count"],
         }
 
-    def run(self, stop_event=None):
+    def run(self, stop_event=None, on_result=None):
         stop_event = stop_event or threading.Event()
         while not stop_event.is_set():
             if self.config.enabled:
-                self.process_once()
+                result = self.process_once()
+                if callable(on_result) and result.get("result") != "idle":
+                    on_result(result)
             delay = self.config.poll_seconds + random.uniform(
                 0.0, self.config.poll_jitter_seconds
             )

@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import signal
+import sqlite3
 import sys
 import threading
 from pathlib import Path
@@ -41,6 +42,13 @@ def _int_env(name, default, minimum, maximum):
 
 def _print(payload):
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True), flush=True)
+
+
+def is_database_contention(error):
+    return isinstance(error, sqlite3.OperationalError) and any(
+        marker in str(error).lower()
+        for marker in ("database is locked", "database table is locked", "database is busy")
+    )
 
 
 def _runtime():
@@ -96,7 +104,19 @@ def main(argv=None):
         return 0
     _print({"ok": True, "status": "started", "worker_id": service.worker_id})
     while not stop_event.is_set():
-        result = service.process_once(lease_seconds=lease_seconds)
+        try:
+            result = service.process_once(lease_seconds=lease_seconds)
+        except sqlite3.OperationalError as exc:
+            if not is_database_contention(exc):
+                raise
+            _print({
+                "ok": False,
+                "result": "database_contention",
+                "error_code": "sqlite_busy",
+                "retryable": True,
+            })
+            stop_event.wait(poll_seconds)
+            continue
         if result.get("result") != "idle":
             _print(result)
         stop_event.wait(poll_seconds)
