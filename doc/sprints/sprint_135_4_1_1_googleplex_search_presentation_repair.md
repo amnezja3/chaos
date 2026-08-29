@@ -10,17 +10,35 @@ canonical inventory ani backendu wyszukiwania.
 
 Stan implementacji 2026-08-29:
 
-- Etap A: complete — oba odrzucone podejścia cofnięto do baseline;
-- Etap B: complete — jeden deterministyczny mapper tworzy paczki
+- Etap A: complete — odrzucona warstwa Search została całkowicie usunięta;
+- Etap B: complete — nowy, odseparowany moduł prezentacji tworzy paczki
   `1 HERO + 2 MIDDLE + 3 SMALL`;
-- Etap C: complete — istniejący canonical icon element jest częścią karty,
-  bez ramki, panelu i backgroundu;
-- Etap D: implemented — jeden CSS/DOM contract dla fullscreen, start-size i
-  mobile; wymaga manualnej akceptacji screenshotów;
+- Etap C: complete — nowy pojedynczy renderer zachowuje cały canonical content,
+  a istniejący icon element jest częścią karty bez ramki, panelu i backgroundu;
+- Etap D: implemented — Search ma własny arkusz CSS niezależny od kart News i
+  legacy `.googolplex-card`; jeden DOM obsługuje fullscreen, start-size i mobile,
+  ale nadal wymaga manualnej akceptacji screenshotów;
 - Etap E: complete — pojedynczy wynik ma osobny wariant geometryczny, ale ten
   sam renderer i pełny zestaw danych;
-- Etap F: automated complete — przypadki 2/3/4/6/7/12/70, pełny content,
-  purchased state, brak per-card requestów i cały frontend JS są zielone.
+- Etap F: automated complete — przypadki 0/1/2/3/4/6/7/12/70, realne
+  mountowanie 70 kart, pełny content, purchased state, brak per-card requestów
+  i cały frontend JS są zielone.
+
+Clean replacement boundary:
+
+```text
+static/js/googleplex_search_presentation.js
+→ jedyny group/mount engine
+
+static/css/googleplex_search.css
+→ jedyny Search layout/style contract
+
+static/js/terminal.js
+→ canonical filter/ranking/data/purchase + jeden product factory
+
+static/css/googleplex_news.css
+→ bez reguł Search
+```
 
 ## Cel
 

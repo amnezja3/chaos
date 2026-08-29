@@ -5264,8 +5264,14 @@ baseline `c07b086`. Sprint naprawi prezentację bez zmian danych produktów,
 backendu, rankingu, canonical inventory oraz purchase/install. Wiążący zakres:
 `doc/sprints/sprint_135_4_1_1_googleplex_search_presentation_repair.md`.
 
-Implementacja używa jednego pełnego renderera produktu i paczek
-`1 HERO + 2 MIDDLE + 3 SMALL`. Automatyczna regresja jest zielona; sprint
-pozostaje otwarty do osobnej walidacji fullscreen, start-size i mobile.
-Manual wykrył, że trzy-paczkowy limit ukrywał większość `/all`; limit usunięto,
-a cały bounded public catalog jest teraz przekazywany do group engine.
+Odrzucona warstwa Search została usunięta w całości. Nowa implementacja ma
+osobny `googleplex_search_presentation.js`, osobny `googleplex_search.css` i
+jeden pełny renderer produktu, bez dziedziczenia kart News ani legacy
+`.googolplex-card`. Canonical filtering, ranking i purchase/install pozostają
+bez zmian.
+
+Paczki mają rytm `1 HERO + 2 MIDDLE + 3 SMALL`. Manual wykrył, że wcześniejszy
+limit ukrywał większość `/all`; nowy mount dostaje cały bounded public catalog.
+Regresja wykonawcza dla 70 wejść potwierdza 70 kart DOM, 12 grup oraz ostatni
+produkt bez braków i duplikacji. Cały frontend JS jest zielony; sprint pozostaje
+otwarty do osobnej walidacji fullscreen, start-size i mobile.
