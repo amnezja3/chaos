@@ -82,7 +82,10 @@ class NarrativePublicationTest(unittest.TestCase):
             "audience_owner": audience_owner,
             "truth_class": "canonical",
             "truth_class_policy": "canonical_facts_only",
-            "facts": [{"fact_id": "fact:one", "fact_type": "test"}],
+            "facts": [{
+                "fact_id": "fact:one", "fact_type": "test",
+                "title": "Canonical body",
+            }],
             "allowed_actions": [],
             "canon_version": "test-v1",
             "task_variant": task_variant,

@@ -55,6 +55,12 @@ Potwierdzone root causes i naprawy lokalne:
   Każdy world-digest CTA niesie teraz code-owned `fact_ref`, a validator
   kwarantannuje `cta_fact_mismatch`. Prepublish guard odrzuca accepted candidates
   ze starszej polityki po jej zastąpieniu;
+- candidate v5 zachował język i format, lecz dla faktu `Bilet: Tokio` zwrócił
+  ogólne twierdzenie o wielu produktach oraz asset `danger` wyprowadzony z innego
+  faktu taska. Prompt v6 eksponuje per-fact `asset_state`, a validator wymaga
+  dosłownego presentation anchor z wybranego `title/label/stat` i sprawdza asset
+  względem tego samego `fact_ref`. Brak groundingu daje
+  `selected_fact_not_grounded`, a obcy asset `asset_fact_mismatch`;
 - nazwy obiektów świata zaczynające się od `POI-` są presentation-safe, jeżeli
   występują w canonical facts taska. Nie są normalizowane ani usuwane;
   wymyślony przez model `POI-*` pozostaje fail-closed;

@@ -85,8 +85,14 @@ class OllamaPolicyTest(unittest.TestCase):
             "audience_scope": "public",
             "truth_class_policy": "canonical",
             "facts": [
-                {"fact_id": "fact:conflict", "title": "Aktywny konflikt"},
-                {"fact_id": "fact:incident", "title": "Aktywny incydent"},
+                {
+                    "fact_id": "fact:conflict", "title": "Nowy produkt",
+                    "signal_type": "product_opportunity",
+                },
+                {
+                    "fact_id": "fact:incident", "title": "Aktywny incydent",
+                    "signal_type": "incident_hotspot",
+                },
             ],
             "allowed_actions": [{
                 "cta_action": "focus_map_target",
@@ -101,7 +107,7 @@ class OllamaPolicyTest(unittest.TestCase):
         ])
         output = {
             "title": "Aktualnosci Googleplex",
-            "body": "Aktywny konflikt pozostaje widoczny.",
+            "body": "Nowy produkt pozostaje widoczny.",
             "tone": "warning",
             "fact_refs": ["fact:conflict"],
             "cta_ref": "c01",
@@ -113,8 +119,18 @@ class OllamaPolicyTest(unittest.TestCase):
 
         output["fact_refs"] = ["fact:incident"]
         output["body"] = "Aktywny incydent pozostaje widoczny."
+        wrong_asset = parse_and_validate_ollama_content(json.dumps(output), package)
+        self.assertEqual(wrong_asset["status"], "quarantined")
+        self.assertIn("asset_fact_mismatch", wrong_asset["errors"])
+
+        output["asset_ref"] = "gp_scene_world_danger_01"
         matched = parse_and_validate_ollama_content(json.dumps(output), package)
         self.assertEqual(matched["status"], "accepted")
+
+        output["body"] = "Sytuacja pozostaje aktywna."
+        ungrounded = parse_and_validate_ollama_content(json.dumps(output), package)
+        self.assertEqual(ungrounded["status"], "quarantined")
+        self.assertIn("selected_fact_not_grounded", ungrounded["errors"])
 
     def test_validator_quarantines_internal_identifier_in_presentation_text(self):
         package = build_ollama_task_package(self.task())
@@ -331,7 +347,7 @@ class OllamaPolicyTest(unittest.TestCase):
         )
         accepted = parse_and_validate_ollama_content(json.dumps({
             "title": "Sytuacja swiata",
-            "body": "Canonical sygnal pozostaje aktywny.",
+            "body": "Canonical signal pozostaje aktywny.",
             "tone": "info",
             "fact_refs": [task["facts"][0]["fact_id"]],
             "cta_ref": None,
@@ -342,7 +358,7 @@ class OllamaPolicyTest(unittest.TestCase):
 
         unsafe_asset = parse_and_validate_ollama_content(json.dumps({
             "title": "Sytuacja swiata",
-            "body": "Canonical sygnal pozostaje aktywny.",
+            "body": "Canonical signal pozostaje aktywny.",
             "tone": "info",
             "fact_refs": [task["facts"][0]["fact_id"]],
             "cta_ref": None,
@@ -353,7 +369,7 @@ class OllamaPolicyTest(unittest.TestCase):
 
         missing_asset = parse_and_validate_ollama_content(json.dumps({
             "title": "Sytuacja swiata",
-            "body": "Canonical sygnal pozostaje aktywny.",
+            "body": "Canonical signal pozostaje aktywny.",
             "tone": "info",
             "fact_refs": [task["facts"][0]["fact_id"]],
             "cta_ref": None,

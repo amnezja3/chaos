@@ -81,6 +81,7 @@ GOOGLEPLEX_PRESENTATION_FACT_FIELDS = (
     ("headline", "headline", 72),
     ("label", "label", 48),
     ("stat", "stat", 72),
+    ("presentation_asset_state", "asset_state", 12),
     ("category", "category", 40),
     ("status", "status", 48),
     ("conflict_state", "conflict_state", 48),
@@ -235,7 +236,7 @@ def owner_analysis_echoes_input(title, body, source_facts):
     return normalized(title) in normalized_sources or normalized(body) in normalized_sources
 
 
-def googleplex_allowed_asset_refs(source_facts):
+def googleplex_asset_state(source_facts):
     """Derive asset state from canonical fields, never from generated tone/text."""
     values = " ".join(
         str(fact.get(field) or "").casefold()
@@ -250,7 +251,41 @@ def googleplex_allowed_asset_refs(source_facts):
         state = "danger"
     else:
         state = "neutral"
-    return (GOOGLEPLEX_ASSET_REF_BY_STATE[state], "gp_fallback_network")
+    return state
+
+
+def googleplex_primary_asset_ref(source_facts):
+    return GOOGLEPLEX_ASSET_REF_BY_STATE[googleplex_asset_state(source_facts)]
+
+
+def googleplex_allowed_asset_refs(source_facts):
+    refs = []
+    for fact in source_facts or ():
+        if not isinstance(fact, dict):
+            continue
+        ref = googleplex_primary_asset_ref((fact,))
+        if ref not in refs:
+            refs.append(ref)
+    if not refs:
+        refs.append(googleplex_primary_asset_ref(()))
+    refs.append("gp_fallback_network")
+    return tuple(refs)
+
+
+def googleplex_fact_grounding_anchors(fact):
+    anchors = []
+    for field in ("title", "headline", "label", "stat"):
+        value = re.sub(r"\s+", " ", str((fact or {}).get(field) or "")).strip()
+        if not value or presentation_safety_errors(value, ""):
+            continue
+        candidates = [value]
+        if field in {"title", "headline"} and "/" in value:
+            candidates.append(value.rsplit("/", 1)[-1].strip())
+        for candidate in candidates:
+            normalized = re.sub(r"\s+", " ", candidate).strip().casefold()
+            if len(normalized) >= 4 and normalized not in anchors:
+                anchors.append(normalized)
+    return tuple(anchors)
 
 
 def _encoded_package(model_input):
@@ -448,8 +483,20 @@ def build_ollama_task_package(task, policy=None):
         }
     allowed_asset_refs = ()
     if policy.target_medium == "googleplex_news":
+        source_facts = [
+            {
+                **fact,
+                "presentation_asset_state": googleplex_asset_state((fact,)),
+            }
+            for fact in source_facts
+        ]
         allowed_asset_refs = googleplex_allowed_asset_refs(source_facts)
         model_input["allowed_asset_refs"] = list(allowed_asset_refs)
+        model_input["asset_refs_by_state"] = {
+            state: ref for state, ref in GOOGLEPLEX_ASSET_REF_BY_STATE.items()
+            if ref in allowed_asset_refs
+        }
+        model_input["asset_refs_by_state"]["fallback"] = "gp_fallback_network"
 
     mandatory_bytes = len(_encoded_package(model_input).encode("utf-8"))
     if mandatory_bytes > MAX_TASK_PACKAGE_BYTES:
@@ -589,6 +636,22 @@ def parse_and_validate_ollama_content(content, task_package):
             security_errors.append("missing_asset_ref")
         elif not isinstance(asset_ref, str) or asset_ref not in (task_package.get("allowed_asset_refs") or ()):
             security_errors.append("unknown_asset_ref")
+    if allows_asset and isinstance(refs, list) and len(refs) == 1:
+        selected_facts = [
+            fact for fact in (task_package.get("source_facts") or ())
+            if isinstance(fact, dict) and fact.get("fact_id") == refs[0]
+        ]
+        anchors = [
+            anchor for fact in selected_facts
+            for anchor in googleplex_fact_grounding_anchors(fact)
+        ]
+        presentation = re.sub(
+            r"\s+", " ", f"{title or ''} {body or ''}"
+        ).strip().casefold()
+        if not anchors or not any(anchor in presentation for anchor in anchors):
+            security_errors.append("selected_fact_not_grounded")
+        if asset_ref and asset_ref not in googleplex_allowed_asset_refs(selected_facts):
+            security_errors.append("asset_fact_mismatch")
     security_errors.extend(presentation_safety_errors(title, body))
     if unknown_canonical_poi_names(
         title, body, task_package.get("source_facts") or ()
