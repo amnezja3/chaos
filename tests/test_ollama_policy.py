@@ -212,11 +212,23 @@ class OllamaPolicyTest(unittest.TestCase):
         package = build_ollama_task_package(task)
 
         self.assertEqual(package["format"]["$id"], "chaos-narrative-output-v1")
-        self.assertEqual(package["format"]["properties"]["title"]["maxLength"], 64)
-        self.assertEqual(package["format"]["properties"]["body"]["maxLength"], 220)
-        self.assertEqual(package["format"]["properties"]["fact_refs"]["maxItems"], 2)
+        self.assertEqual(package["format"]["properties"]["title"]["maxLength"], 48)
+        self.assertEqual(package["format"]["properties"]["body"]["maxLength"], 120)
+        self.assertEqual(package["format"]["properties"]["fact_refs"]["maxItems"], 1)
         self.assertEqual(package["fact_count"], 20)
         self.assertLessEqual(package["input_bytes"], MAX_TASK_PACKAGE_BYTES)
+        model_input = json.loads(package["messages"][1]["content"])
+        self.assertEqual(model_input["output_limits"], {
+            "title_chars": 48,
+            "body_chars": 120,
+            "fact_refs": 1,
+            "json_only": True,
+        })
+        ref_index = model_input["fact_columns"].index("fact_ref")
+        self.assertEqual(
+            {row[ref_index] for row in model_input["facts"]},
+            {item["fact_id"] for item in task["facts"]},
+        )
 
         blacknet_task = dict(task, target_medium="blacknet")
         blacknet_task = assign_ollama_task_policy(blacknet_task)

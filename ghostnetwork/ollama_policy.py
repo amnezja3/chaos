@@ -26,7 +26,7 @@ ESTIMATED_TOKEN_CHARS = 3.5
 MAX_MODEL_CONTENT_BYTES = 16 * 1024
 MAX_HTTP_RESPONSE_BYTES = 64 * 1024
 GENERATION_OUTPUT_LIMITS = {
-    "googleplex_news": {"title": 64, "body": 220, "refs": 2},
+    "googleplex_news": {"title": 48, "body": 120, "refs": 1},
 }
 ALLOWED_TONES = (
     "info",
@@ -251,6 +251,16 @@ def build_ollama_task_package(task, policy=None):
         "fact_columns": fact_columns,
         "facts": facts,
     }
+    generation_limits = GENERATION_OUTPUT_LIMITS.get(policy.target_medium)
+    if generation_limits:
+        # This bounded hint is part of the mandatory package for constrained
+        # media. Optional CTA/fact columns must not displace output safety.
+        model_input["output_limits"] = {
+            "title_chars": generation_limits["title"],
+            "body_chars": generation_limits["body"],
+            "fact_refs": generation_limits["refs"],
+            "json_only": True,
+        }
 
     mandatory_bytes = len(_encoded_package(model_input).encode("utf-8"))
     if mandatory_bytes > MAX_TASK_PACKAGE_BYTES:
