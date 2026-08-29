@@ -2615,7 +2615,22 @@ def blacknet_signal_from_publication(record):
         action = "none"
     target_id = str(payload.get("target_id") or payload.get("channel") or "")[:120]
     query = str(payload.get("query") or "")[:120]
-    if action == "teleport_to_hotspot" and target_id not in BLACKNET_HOTSPOTS:
+    try:
+        payload_lat = float(payload.get("lat"))
+        payload_lng = float(payload.get("lng", payload.get("lon")))
+        has_payload_position = (
+            math.isfinite(payload_lat) and math.isfinite(payload_lng)
+            and -90 <= payload_lat <= 90 and -180 <= payload_lng <= 180
+        )
+    except (TypeError, ValueError):
+        payload_lat = None
+        payload_lng = None
+        has_payload_position = False
+    if (
+        action == "teleport_to_hotspot"
+        and target_id not in BLACKNET_HOTSPOTS
+        and not has_payload_position
+    ):
         action = "focus_map_target" if target_id else "none"
     return {
         "id": str(record.get("medium_record_id") or ""),
@@ -2645,6 +2660,10 @@ def blacknet_signal_from_publication(record):
             "truth_class": record.get("truth_class"),
             "fact_refs": list(record.get("fact_refs") or [])[:20],
             "audience_scope": record.get("audience_scope"),
+            "hotspot_id": target_id if action == "teleport_to_hotspot" else "",
+            "lat": payload_lat if has_payload_position else None,
+            "lng": payload_lng if has_payload_position else None,
+            "target_label": str(payload.get("label") or "")[:120],
         },
     }
 

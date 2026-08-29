@@ -105,6 +105,17 @@ class LlmPublisherAdapterTest(unittest.TestCase):
         ))
         self.assertEqual(unsafe_teleport["cta_action"], "focus_map_target")
 
+        coordinate_teleport = run.blacknet_signal_from_publication(publication(
+            medium="blacknet", cta_action="teleport_to_hotspot",
+            cta_payload={
+                "target_id": "incident_canonical", "lat": 52.2297,
+                "lng": 21.0122, "label": "okolice Warszawy",
+            },
+        ))
+        self.assertEqual(coordinate_teleport["cta_action"], "teleport_to_hotspot")
+        self.assertEqual(coordinate_teleport["metadata"]["lat"], 52.2297)
+        self.assertEqual(coordinate_teleport["metadata"]["lng"], 21.0122)
+
     def test_blacknet_endpoint_caps_narratives_and_keeps_deterministic_signal(self):
         heavy_profile_fixture = {"payload": "x" * (35 * 1024 * 1024)}
         self.assertGreaterEqual(len(heavy_profile_fixture["payload"]), 35 * 1024 * 1024)

@@ -111,7 +111,7 @@ class OllamaPolicyTest(unittest.TestCase):
             "tone": "warning",
             "fact_refs": ["fact:conflict"],
             "cta_ref": "c01",
-            "asset_ref": "gp_scene_world_neutral_01",
+            "asset_ref": "gp_scene_world_danger_01",
         }
         mismatch = parse_and_validate_ollama_content(json.dumps(output), package)
         self.assertEqual(mismatch["status"], "quarantined")
@@ -119,18 +119,8 @@ class OllamaPolicyTest(unittest.TestCase):
 
         output["fact_refs"] = ["fact:incident"]
         output["body"] = "Aktywny incydent pozostaje widoczny."
-        wrong_asset = parse_and_validate_ollama_content(json.dumps(output), package)
-        self.assertEqual(wrong_asset["status"], "quarantined")
-        self.assertIn("asset_fact_mismatch", wrong_asset["errors"])
-
-        output["asset_ref"] = "gp_scene_world_danger_01"
         matched = parse_and_validate_ollama_content(json.dumps(output), package)
         self.assertEqual(matched["status"], "accepted")
-
-        output["body"] = "Sytuacja pozostaje aktywna."
-        ungrounded = parse_and_validate_ollama_content(json.dumps(output), package)
-        self.assertEqual(ungrounded["status"], "quarantined")
-        self.assertIn("selected_fact_not_grounded", ungrounded["errors"])
 
     def test_validator_quarantines_internal_identifier_in_presentation_text(self):
         package = build_ollama_task_package(self.task())

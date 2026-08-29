@@ -21,6 +21,7 @@ from ghostnetwork import (
     GhostNetworkService,
     GoogleplexLlmTaskIngress,
 )
+from ghostnetwork.ollama_policy import build_ollama_task_package
 
 
 class LlmEventProducerTest(unittest.TestCase):
@@ -146,6 +147,27 @@ class LlmEventProducerTest(unittest.TestCase):
             teleport["task"]["allowed_actions"][0]["cta_action"],
             "focus_map_target",
         )
+
+        coordinate_snapshot = copy.deepcopy(teleport_snapshot)
+        coordinate_snapshot["version"] = "signals-coordinate-teleport"
+        coordinate_snapshot["signals"][0]["metadata"] = {
+            "lat": 52.2297, "lng": 21.0122, "location_label": "Warszawa",
+        }
+        coordinate_teleport = producer.enqueue_digest(
+            coordinate_snapshot, window_id="coordinate-teleport-window",
+            target_medium="googleplex_news",
+        )
+        coordinate_action = coordinate_teleport["task"]["allowed_actions"][0]
+        self.assertEqual(coordinate_action["cta_action"], "teleport_to_hotspot")
+        self.assertEqual(coordinate_action["payload"]["lat"], 52.2297)
+        self.assertEqual(coordinate_action["payload"]["lng"], 21.0122)
+        self.assertEqual(coordinate_action["payload"]["label"], "Warszawa")
+        coordinate_package = build_ollama_task_package(coordinate_teleport["task"])
+        coordinate_input = json.loads(coordinate_package["messages"][1]["content"])
+        self.assertIn("lat", coordinate_input["fact_columns"])
+        self.assertIn("lng", coordinate_input["fact_columns"])
+        self.assertIn(52.2297, coordinate_input["facts"][0])
+        self.assertIn(21.0122, coordinate_input["facts"][0])
 
         with patch.object(run.user_store, "list_profiles", side_effect=AssertionError("full profile scan")), \
                 patch.object(run.user_store, "get_profile", side_effect=AssertionError("full profile read")), \

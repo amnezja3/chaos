@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -40,6 +41,7 @@ BLACKNET_ALLOWED_ACTIONS = {
     "play_radio_podcast",
     "show_hotspot",
     "start_operation",
+    "teleport_to_hotspot",
 }
 FORBIDDEN_APP_REQUEST_KEYS = {
     "prompt",
@@ -74,6 +76,16 @@ def _safe_int(value, default=0):
 def _safe_text(value, limit=240):
     text = re.sub(r"\s+", " ", str(value or "")).strip()
     return text[: max(0, int(limit or 0))]
+
+
+def _safe_coordinate(value, minimum, maximum):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number) or number < minimum or number > maximum:
+        return None
+    return round(number, 6)
 
 
 def _digest_window(snapshot, minutes=15):
@@ -133,6 +145,14 @@ class BlackNetNarrativeProducer:
             fact_id = _safe_text(signal.get("fact_id") or signal_id, 120)
             if not signal_id or not fact_id:
                 continue
+            metadata = signal.get("metadata") if isinstance(signal.get("metadata"), dict) else {}
+            lat = _safe_coordinate(
+                metadata.get("lat", signal.get("lat")), -90.0, 90.0
+            )
+            lng = _safe_coordinate(
+                metadata.get("lng", metadata.get("lon", signal.get("lng", signal.get("lon")))),
+                -180.0, 180.0,
+            )
             facts.append({
                 "fact_id": f"blacknet_fact:{fact_id}",
                 "truth_class": "canonical",
@@ -144,16 +164,17 @@ class BlackNetNarrativeProducer:
                 "label": _safe_text(signal.get("label"), 64),
                 "value": _safe_text(signal.get("value"), 48),
                 "stat": _safe_text(signal.get("stat"), 120),
+                "lat": lat,
+                "lng": lng,
                 "importance": _safe_int(signal.get("importance")),
                 "observed_at": _safe_text(signal.get("observed_at"), 64),
                 "valid_until": _safe_text(signal.get("valid_until"), 64),
             })
             action = _clean(signal.get("cta_action"))
-            # The bounded digest does not carry canonical hotspot coordinates.
-            # A teleport ref would therefore resolve an incident/receipt ID as
-            # if it were a hotspot. Preserve navigation, but never expose an
-            # unverified teleport capability to the model.
-            if action == "teleport_to_hotspot":
+            # Dynamic teleport is legal only when its code-owned payload carries
+            # canonical coordinates.  The model sees only cta_ref and can never
+            # author or replace the destination.
+            if action == "teleport_to_hotspot" and (lat is None or lng is None):
                 action = "focus_map_target"
             if action in BLACKNET_ALLOWED_ACTIONS:
                 allowed_actions.append({
@@ -162,6 +183,14 @@ class BlackNetNarrativeProducer:
                     "payload": {
                         "target_id": _safe_text(signal.get("cta_target_id"), 120),
                         "query": _safe_text(signal.get("cta_query"), 120),
+                        "lat": lat,
+                        "lng": lng,
+                        "label": _safe_text(
+                            metadata.get("location_label")
+                            or metadata.get("target_label")
+                            or signal.get("title"),
+                            120,
+                        ),
                     },
                 })
 

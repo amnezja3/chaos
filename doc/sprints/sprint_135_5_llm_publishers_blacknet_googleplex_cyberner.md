@@ -61,6 +61,15 @@ Potwierdzone root causes i naprawy lokalne:
   dosłownego presentation anchor z wybranego `title/label/stat` i sprawdza asset
   względem tego samego `fact_ref`. Brak groundingu daje
   `selected_fact_not_grounded`, a obcy asset `asset_fact_mismatch`;
+- dwie identyczne kwarantanny v6 potwierdziły, że literalne kopiowanie
+  presentation anchorów jest zbyt restrykcyjne dla lokalnego modelu 8B i nie
+  odpowiada jego roli. Kontrakt v7 traktuje tekst jako krótką interpretację
+  narracyjną: model może przybliżyć miasto/okolicę na podstawie bounded
+  `lat/lng`, natomiast backend pozostaje jedynym właścicielem celu. `fact_ref`,
+  CTA, target ID i canonical współrzędne nie są generowane przez model;
+- dynamiczny `teleport_to_hotspot` jest zachowywany tylko z poprawnym code-owned
+  `lat/lng`. Współrzędne przechodzą przez publication payload do istniejącego
+  endpointu teleportu. Bez współrzędnych akcja nadal degraduje się do focusu;
 - nazwy obiektów świata zaczynające się od `POI-` są presentation-safe, jeżeli
   występują w canonical facts taska. Nie są normalizowane ani usuwane;
   wymyślony przez model `POI-*` pozostaje fail-closed;
