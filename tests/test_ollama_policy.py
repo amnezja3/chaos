@@ -243,7 +243,14 @@ class OllamaPolicyTest(unittest.TestCase):
             "audience_scope": "public",
             "truth_class_policy": "canonical",
             "facts": [
-                {"fact_id": f"googleplex-news-fact-{index:02d}", "title": "Signal"}
+                {
+                    "fact_id": f"googleplex-news-fact-{index:02d}",
+                    "title": "Canonical signal",
+                    "label": "WORLD",
+                    "stat": "Konflikt pozostaje aktywny",
+                    "value": f"02b4180b63e5{index:02d}",
+                    "signal_id": f"internal-signal-{index:02d}",
+                }
                 for index in range(20)
             ],
             "allowed_actions": [],
@@ -274,6 +281,11 @@ class OllamaPolicyTest(unittest.TestCase):
         )
         ref_index = model_input["fact_columns"].index("fact_ref")
         self.assertIn("title", model_input["fact_columns"])
+        self.assertIn("label", model_input["fact_columns"])
+        self.assertIn("stat", model_input["fact_columns"])
+        self.assertNotIn("value", model_input["fact_columns"])
+        self.assertNotIn("signal_id", model_input["fact_columns"])
+        self.assertNotIn("02b4180b63e5", package["messages"][1]["content"])
         self.assertEqual(
             {row[ref_index] for row in model_input["facts"]},
             {item["fact_id"] for item in task["facts"]},

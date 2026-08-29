@@ -29,6 +29,9 @@ Potwierdzone root causes i naprawy lokalne:
   status assetu i zgodność z wagą slotu; arbitralna ścieżka/URL jest niemożliwa;
 - presentation validator oraz prepublish guard blokują URL-e, techniczne
   identyfikatory i długie token-like hex IDs w title/body;
+- Googleplex TASK PACKAGE nie udostępnia opcjonalnych `value`, `signal_id` ani
+  pozostałych canonical ref columns. Po mandatory `fact_id` priorytet otrzymują
+  wyłącznie presentation-safe `title`, `label`, `stat`, category/status;
 - owner-analysis odrzuca odpowiedź będącą echem topicu. Completed task z
   rejected/quarantined candidate zwraca stan `failed / wynik niedostępny`, bez
   promptu, raw outputu ani tekstu udającego odpowiedź AGI;

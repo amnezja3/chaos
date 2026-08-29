@@ -72,6 +72,19 @@ COMPACT_FACT_FIELDS = (
     ("confirmation_status", "confirmation_status", 40),
     ("outcome", "outcome", 40),
 )
+GOOGLEPLEX_PRESENTATION_FACT_FIELDS = (
+    ("title", "title", 72),
+    ("headline", "headline", 72),
+    ("label", "label", 48),
+    ("stat", "stat", 72),
+    ("category", "category", 40),
+    ("status", "status", 48),
+    ("conflict_state", "conflict_state", 48),
+    ("outcome", "outcome", 40),
+    ("importance", "importance", 0),
+    ("observed_at", "observed_at", 40),
+    ("valid_until", "valid_until", 40),
+)
 CANONICAL_FACT_REF_FIELDS = (
     ("signal_id", "signal_id", 96),
     ("event_id", "event_id", 96),
@@ -338,7 +351,7 @@ def build_ollama_task_package(task, policy=None):
     # be admitted before optional internal reference columns. All fact IDs and
     # top-level identity remain mandatory in either ordering.
     field_groups = (
-        (COMPACT_FACT_FIELDS, CANONICAL_FACT_REF_FIELDS)
+        (GOOGLEPLEX_PRESENTATION_FACT_FIELDS,)
         if policy.target_medium == "googleplex_news"
         else (CANONICAL_FACT_REF_FIELDS, COMPACT_FACT_FIELDS)
     )
