@@ -13,7 +13,7 @@ module.exports = {
       kill_timeout: 10000,
       env: {
         PYTHONUNBUFFERED: "1",
-        CHAOS_NARRATIVE_PUBLISHER_ENABLED: "false",
+        CHAOS_NARRATIVE_PUBLISHER_ENABLED: process.env.CHAOS_NARRATIVE_PUBLISHER_ENABLED || "false",
         CHAOS_NARRATIVE_PUBLISHER_POLL_SECONDS: "1.5",
         CHAOS_NARRATIVE_PUBLISHER_LEASE_SECONDS: "60"
       }

@@ -13,7 +13,7 @@ module.exports = {
       kill_timeout: 10000,
       env: {
         PYTHONUNBUFFERED: "1",
-        CHAOS_OLLAMA_WORKER_ENABLED: "false",
+        CHAOS_OLLAMA_WORKER_ENABLED: process.env.CHAOS_OLLAMA_WORKER_ENABLED || "false",
         CHAOS_OLLAMA_BASE_URL: "http://127.0.0.1:11434",
         CHAOS_OLLAMA_MODEL: "llama3.1:8b",
         CHAOS_OLLAMA_MODEL_DIGEST: "46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e",

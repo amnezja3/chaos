@@ -74,7 +74,7 @@ def main(argv=None):
     if args.command == "status":
         _print(_status(repository, service, enabled, poll_seconds, lease_seconds))
         return 0
-    if not enabled:
+    if args.command == "run-once" and not enabled:
         _print({"ok": False, "error": "narrative_publisher_disabled"})
         return 4
     if args.command == "run-once":
@@ -85,6 +85,15 @@ def main(argv=None):
     stop_event = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_args: stop_event.set())
     signal.signal(signal.SIGINT, lambda *_args: stop_event.set())
+    if not enabled:
+        _print({
+            "ok": True,
+            "status": "disabled",
+            "worker_id": service.worker_id,
+        })
+        stop_event.wait()
+        _print({"ok": True, "status": "stopped", "worker_id": service.worker_id})
+        return 0
     _print({"ok": True, "status": "started", "worker_id": service.worker_id})
     while not stop_event.is_set():
         result = service.process_once(lease_seconds=lease_seconds)
