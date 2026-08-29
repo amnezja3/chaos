@@ -8539,7 +8539,6 @@ function createMap() {
 
 const GOOGLEPLEX_SEARCH_SMALLS_PER_GROUP = 3;
 const GOOGLEPLEX_SEARCH_GROUP_SIZE = 1 + 2 + GOOGLEPLEX_SEARCH_SMALLS_PER_GROUP;
-const GOOGLEPLEX_SEARCH_INITIAL_GROUPS = 3;
 
 function groupGoogleplexSearchResults(items) {
     const ordered = Array.isArray(items) ? items : [];
@@ -8677,8 +8676,6 @@ function createBrowser() {
     let catalog = [];
     let catalogLoaded = false;
     let catalogLoading = null;
-    let catalogProgressQuery = "";
-    let catalogVisibleGroups = GOOGLEPLEX_SEARCH_INITIAL_GROUPS;
     const dedupeGoogleplexCatalog = payload => {
         const deduped = [];
         const positions = new Map();
@@ -9909,11 +9906,6 @@ function createBrowser() {
                 return String(left.id || left.app_id || "").localeCompare(String(right.id || right.app_id || ""));
             })
             : filteredMatches;
-        if (catalogProgressQuery !== query) {
-            catalogProgressQuery = query;
-            catalogVisibleGroups = GOOGLEPLEX_SEARCH_INITIAL_GROUPS;
-        }
-
         results.innerHTML = '';
         if (matches.length === 0) {
             results.innerHTML = '<div class="googolplex-empty">Brak aplikacji do pokazania.</div>';
@@ -9922,10 +9914,6 @@ function createBrowser() {
         }
 
         const isSingleResult = matches.length === 1;
-        const visibleLimit = isSingleResult
-            ? 1
-            : catalogVisibleGroups * GOOGLEPLEX_SEARCH_GROUP_SIZE;
-        const visibleMatches = matches.slice(0, visibleLimit);
         results.innerHTML = `<main class="gp-home gp-catalog-home" data-search-mode="${showAll ? "all" : "query"}">
             <header class="gp-home__intro"><span>${showAll ? "ALL APPLICATIONS" : "SEARCH RESULTS"} // PRODUCT GRID</span><strong>${matches.length} APPS</strong></header>
             <section class="gp-search-results${isSingleResult ? " gp-search-results--single" : ""}" aria-label="Googleplex applications"></section>
@@ -10091,9 +10079,9 @@ function createBrowser() {
         };
 
         if (isSingleResult) {
-            cardsRoot.appendChild(createProductCard(visibleMatches[0], "single", 0));
+            cardsRoot.appendChild(createProductCard(matches[0], "single", 0));
         } else {
-            const groups = groupGoogleplexSearchResults(visibleMatches);
+            const groups = groupGoogleplexSearchResults(matches);
             groups.forEach(groupData => {
                 const group = document.createElement('section');
                 group.className = 'gp-search-group';
@@ -10132,20 +10120,6 @@ function createBrowser() {
                 group.append(heroColumn, side);
                 cardsRoot.appendChild(group);
             });
-        }
-
-        if (visibleMatches.length < matches.length) {
-            const more = document.createElement('button');
-            more.type = 'button';
-            more.className = 'gp-search-more';
-            more.textContent = `POKAZ WIECEJ // ${matches.length - visibleMatches.length}`;
-            more.addEventListener('click', () => {
-                const previousScrollTop = results.scrollTop;
-                catalogVisibleGroups += GOOGLEPLEX_SEARCH_INITIAL_GROUPS;
-                renderCatalog();
-                results.scrollTop = previousScrollTop;
-            });
-            results.querySelector('.gp-catalog-home')?.appendChild(more);
         }
         updateBrowserNarrowMode();
     };

@@ -1857,7 +1857,9 @@ Następna bramka: `READY FOR SPRINT 135.2`.
 - Bez deployu, restartu PM2, zmian bazy, commita i pushu.
 - Po baseline dodano jeden mapper paczek `1 HERO + 2 MIDDLE + 3 SMALL`, jeden
   pełny renderer produktu, canonical icon element bez panelu oraz osobną
-  geometrię pojedynczego wyniku. Pierwszy render obejmuje trzy pełne paczki.
+  geometrię pojedynczego wyniku. Po manualnym wykryciu niepełnego `/all`
+  usunięto limit trzech paczek: wszystkie elementy bounded public catalog są
+  przekazywane do group engine.
 - Automatyczna regresja obejmuje 2/3/4/6/7/12/70 wyników, pełny zestaw pól,
   brak przycinania i brak requestów per karta; 23/23 testów JS przechodzi.
 - Sprint pozostaje otwarty do manualnej akceptacji fullscreen, start-size i

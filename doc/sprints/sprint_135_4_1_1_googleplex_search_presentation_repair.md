@@ -612,7 +612,26 @@ Nie odwrotnie.
 
 ## 19. Progressive rendering dużych list
 
-Dla `/all` nie trzeba od razu renderować wszystkich elementów.
+Po manualnej walidacji produkcyjnej 2026-08-29 `/all` ma renderować cały
+bounded public catalog. Wcześniejszy limit trzech paczek powodował, że widok
+deklarował pełną liczbę aplikacji, ale nie pokazywał większości asortymentu.
+
+Aktualny kontrakt:
+
+```text
+/all
+→ wszystkie wyniki z /resources.json
+→ deterministyczny ranking
+→ wszystkie paczki presentation
+```
+
+Jeżeli w przyszłości katalog przekroczy bezpieczny budżet DOM, progressive
+rendering może wrócić wyłącznie jako automatyczne dokładanie przy scrollu,
+które gwarantuje osiągalność wszystkich wyników. Nie wolno ponownie wprowadzić
+cichego limitu ani wymagać niewidocznego przycisku na końcu bardzo długiej
+kolumny.
+
+Historyczna preferencja przed manualem była następująca:
 
 Preferowane:
 

@@ -43,8 +43,8 @@ assert.match(catalogSource, /const showAll = query === "\/all"/);
 assert.match(catalogSource, /const matches = showAll[\s\S]*Number\(right\.downloads \|\| 0\) - Number\(left\.downloads \|\| 0\)/);
 assert.match(catalogSource, /String\(left\.id \|\| left\.app_id[\s\S]*localeCompare/);
 assert.match(catalogSource, /const isSingleResult = matches\.length === 1/);
-assert.match(catalogSource, /createProductCard\(visibleMatches\[0\], "single", 0\)/);
-assert.match(catalogSource, /groupGoogleplexSearchResults\(visibleMatches\)/);
+assert.match(catalogSource, /createProductCard\(matches\[0\], "single", 0\)/);
+assert.match(catalogSource, /groupGoogleplexSearchResults\(matches\)/);
 assert.match(catalogSource, /gp-search-group__hero/);
 assert.match(catalogSource, /gp-search-group__middle/);
 assert.match(catalogSource, /gp-search-group__small/);
@@ -64,20 +64,18 @@ assert.match(catalogSource, /gp-search-product__icon/);
 assert.match(catalogSource, /googolplex-card-icon/);
 assert.doesNotMatch(catalogSource, /background-image|safeAsset|visual_asset_url|asset_path|icon_url/);
 
-// Progressive rendering adds complete three-group batches without changing order.
+// Every result is passed to the group engine; /all cannot silently stop at 18.
 assert.match(source, /GOOGLEPLEX_SEARCH_GROUP_SIZE = 1 \+ 2 \+ GOOGLEPLEX_SEARCH_SMALLS_PER_GROUP/);
-assert.match(source, /GOOGLEPLEX_SEARCH_INITIAL_GROUPS = 3/);
-assert.match(catalogSource, /catalogVisibleGroups \* GOOGLEPLEX_SEARCH_GROUP_SIZE/);
-assert.match(catalogSource, /catalogVisibleGroups \+= GOOGLEPLEX_SEARCH_INITIAL_GROUPS/);
-assert.match(catalogSource, /gp-search-more/);
+assert.match(catalogSource, /groupGoogleplexSearchResults\(matches\)/);
+assert.doesNotMatch(catalogSource, /visibleMatches|visibleLimit|catalogVisibleGroups|gp-search-more/);
 assert.match(source, /Szukaj aplikacji\.\.\.  \/all - pokaz wszystkie/);
 
 const searchCssStart = styles.indexOf("/* Search uses one full product renderer");
 const searchCssEnd = styles.indexOf(".gp-news-stats", searchCssStart);
 const searchStyles = styles.slice(searchCssStart, searchCssEnd);
-assert.match(searchStyles, /\.gp-search-group[\s\S]*grid-template-columns: minmax\(360px/);
-assert.match(searchStyles, /\.gp-search-group__middle \{ grid-template-columns: repeat\(2/);
-assert.match(searchStyles, /\.gp-search-group__small \{ grid-template-columns: repeat\(3/);
+assert.match(searchStyles, /\.gp-search-group[\s\S]*grid-template-columns: minmax\(390px, 5fr\) minmax\(0, 7fr\)/);
+assert.match(searchStyles, /\.gp-search-group__middle \{ grid-template-columns: minmax\(0, 3fr\) minmax\(0, 4fr\)/);
+assert.match(searchStyles, /\.gp-search-group__small \{ grid-template-columns: minmax\(0, 2fr\) minmax\(0, 3fr\) minmax\(0, 2fr\)/);
 assert.match(searchStyles, /\.gp-search-product__icon[\s\S]*border: 0;[\s\S]*background: none/);
 assert.match(searchStyles, /\.gp-search-product--single/);
 assert.doesNotMatch(searchStyles, /background-image\s*:|line-clamp|display:\s*none/);

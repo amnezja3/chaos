@@ -5267,3 +5267,5 @@ backendu, rankingu, canonical inventory oraz purchase/install. Wiążący zakres
 Implementacja używa jednego pełnego renderera produktu i paczek
 `1 HERO + 2 MIDDLE + 3 SMALL`. Automatyczna regresja jest zielona; sprint
 pozostaje otwarty do osobnej walidacji fullscreen, start-size i mobile.
+Manual wykrył, że trzy-paczkowy limit ukrywał większość `/all`; limit usunięto,
+a cały bounded public catalog jest teraz przekazywany do group engine.
