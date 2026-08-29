@@ -48,6 +48,13 @@ Potwierdzone root causes i naprawy lokalne:
   `chaos-narrative-output-assets-v2` wymaga jednego canonical assetu z
   `allowed_asset_refs`; parser kieruje brak assetu do quarantine, a prepublish
   guard blokuje także starszy accepted candidate bez assetu;
+- produkcyjny candidate v4 przeszedł bramki techniczne, ale ujawnił rozjazd
+  semantyczny: wybrany `fact_ref` konfliktu został połączony z CTA innego
+  incydentu, a tekst był angielski i obejmował więcej faktów niż publication
+  refs. Prompt v5 wymaga polskiego tekstu o dokładnie jednym wybranym fakcie.
+  Każdy world-digest CTA niesie teraz code-owned `fact_ref`, a validator
+  kwarantannuje `cta_fact_mismatch`. Prepublish guard odrzuca accepted candidates
+  ze starszej polityki po jej zastąpieniu;
 - nazwy obiektów świata zaczynające się od `POI-` są presentation-safe, jeżeli
   występują w canonical facts taska. Nie są normalizowane ani usuwane;
   wymyślony przez model `POI-*` pozostaje fail-closed;

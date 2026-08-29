@@ -282,10 +282,16 @@ def _try_add_fact_column(model_input, source_facts, facts, fact_columns, field_s
 
 def _try_add_cta_row(model_input, cta_map, ref, action_name, action):
     created_structure = "ctas" not in model_input
+    action_fact_ref = str(action.get("fact_ref") or "")[:128]
     if created_structure:
-        model_input["cta_columns"] = ["cta_ref", "action"]
+        model_input["cta_columns"] = ["cta_ref", "action"] + (
+            ["fact_ref"] if action_fact_ref else []
+        )
         model_input["ctas"] = []
-    model_input["ctas"].append([ref, action_name])
+    row = [ref, action_name]
+    if "fact_ref" in model_input["cta_columns"]:
+        row.append(action_fact_ref)
+    model_input["ctas"].append(row)
     if len(_encoded_package(model_input).encode("utf-8")) <= MAX_TASK_PACKAGE_BYTES:
         cta_map[ref] = copy.deepcopy(action)
         return True
@@ -563,6 +569,15 @@ def parse_and_validate_ollama_content(content, task_package):
     if cta_ref is not None:
         if not isinstance(cta_ref, str) or cta_ref not in (task_package.get("cta_map") or {}):
             security_errors.append("unknown_cta_ref")
+        else:
+            cta_fact_ref = str(
+                ((task_package.get("cta_map") or {}).get(cta_ref) or {}).get("fact_ref")
+                or ""
+            ).strip()
+            if cta_fact_ref and (
+                not isinstance(refs, list) or cta_fact_ref not in refs
+            ):
+                security_errors.append("cta_fact_mismatch")
     asset_schema = format_properties.get("asset_ref") or {}
     asset_types = asset_schema.get("type")
     asset_required = allows_asset and not (

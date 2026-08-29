@@ -77,6 +77,45 @@ class OllamaPolicyTest(unittest.TestCase):
             set(result["errors"]), {"external_url", "unknown_cta_ref", "unknown_fact_ref"}
         )
 
+    def test_googleplex_cta_must_belong_to_selected_fact(self):
+        task = assign_ollama_task_policy({
+            "source_scope": "blacknet_world",
+            "task_variant": "world_digest",
+            "target_medium": "googleplex_news",
+            "audience_scope": "public",
+            "truth_class_policy": "canonical",
+            "facts": [
+                {"fact_id": "fact:conflict", "title": "Aktywny konflikt"},
+                {"fact_id": "fact:incident", "title": "Aktywny incydent"},
+            ],
+            "allowed_actions": [{
+                "cta_action": "focus_map_target",
+                "fact_ref": "fact:incident",
+                "payload": {"target_id": "incident-one", "query": ""},
+            }],
+        })
+        package = build_ollama_task_package(task)
+        model_input = json.loads(package["messages"][1]["content"])
+        self.assertEqual(model_input["cta_columns"], [
+            "cta_ref", "action", "fact_ref",
+        ])
+        output = {
+            "title": "Aktualnosci Googleplex",
+            "body": "Aktywny konflikt pozostaje widoczny.",
+            "tone": "warning",
+            "fact_refs": ["fact:conflict"],
+            "cta_ref": "c01",
+            "asset_ref": "gp_scene_world_neutral_01",
+        }
+        mismatch = parse_and_validate_ollama_content(json.dumps(output), package)
+        self.assertEqual(mismatch["status"], "quarantined")
+        self.assertIn("cta_fact_mismatch", mismatch["errors"])
+
+        output["fact_refs"] = ["fact:incident"]
+        output["body"] = "Aktywny incydent pozostaje widoczny."
+        matched = parse_and_validate_ollama_content(json.dumps(output), package)
+        self.assertEqual(matched["status"], "accepted")
+
     def test_validator_quarantines_internal_identifier_in_presentation_text(self):
         package = build_ollama_task_package(self.task())
         result = parse_and_validate_ollama_content(json.dumps({

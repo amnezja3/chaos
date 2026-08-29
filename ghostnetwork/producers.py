@@ -158,6 +158,7 @@ class BlackNetNarrativeProducer:
             if action in BLACKNET_ALLOWED_ACTIONS:
                 allowed_actions.append({
                     "cta_action": action,
+                    "fact_ref": f"blacknet_fact:{fact_id}",
                     "payload": {
                         "target_id": _safe_text(signal.get("cta_target_id"), 120),
                         "query": _safe_text(signal.get("cta_query"), 120),

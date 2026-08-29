@@ -132,6 +132,10 @@ class LlmEventProducerTest(unittest.TestCase):
         self.assertEqual(first["task"]["source_scope"], "blacknet_world")
         self.assertEqual(news["status"], "created")
         self.assertEqual(news["task"]["target_medium"], "googleplex_news")
+        self.assertEqual(
+            news["task"]["allowed_actions"][0]["fact_ref"],
+            "blacknet_fact:fact-1",
+        )
         self.assertNotEqual(first["task"]["outbox_id"], news["task"]["outbox_id"])
 
         teleport_snapshot = copy.deepcopy(snapshot)

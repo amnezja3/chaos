@@ -149,6 +149,24 @@ class NarrativePublicationTest(unittest.TestCase):
         self.assertFalse(valid)
         self.assertEqual(reason, "missing_asset_ref")
 
+    def test_superseded_googleplex_candidate_is_not_publishable(self):
+        valid, reason = NarrativePublicationService.validate_candidate({
+            "validation_status": "accepted",
+            "source_scope": "blacknet_world",
+            "target_medium": "googleplex_news",
+            "audience_scope": "public",
+            "title": "Googleplex News",
+            "body": "Canonical world update.",
+            "asset_ref": "gp_scene_world_danger_01",
+        }, {
+            "task_variant": "world_digest",
+            "prompt_version": "googleplex-news-assets-prompt-v4",
+            "output_schema_version": "chaos-narrative-output-assets-v2",
+            "facts": [],
+        })
+        self.assertFalse(valid)
+        self.assertEqual(reason, "candidate_policy_superseded")
+
     def test_only_one_worker_owns_publication_lease(self):
         candidate = self.accepted_candidate("two-publishers")
         self.repo.ensure_narrative_publication(candidate["candidate_id"])

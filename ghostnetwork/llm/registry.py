@@ -77,7 +77,7 @@ def _build_registry():
     )]
     policies.append(_policy(
         "blacknet_world", "world_digest", "googleplex_news",
-        "googleplex-news-assets-prompt-v4", Path("googleplex") / "news-digest-assets-v4.md",
+        "googleplex-news-assets-prompt-v5", Path("googleplex") / "news-digest-assets-v5.md",
         ASSET_OUTPUT_SCHEMA_VERSION,
     ))
     for variant in sorted(GHOSTNETWORK_BLACKNET_VARIANTS):
