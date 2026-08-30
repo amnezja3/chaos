@@ -22474,13 +22474,15 @@ def hack_action():
             hack_action_idempotency_started = True
 
     step_started_at = time.perf_counter()
-    # Hack launch is latency-sensitive. Geometry rebuilds belong to the
-    # territory worker; this request only reads current runtime state and
-    # appends the launch receipt/target changes below.
-    profile = sync_session_profile(
-        rebuild_territory=False,
-        persist_normalization=False,
-    )
+    # Hack launch is latency-sensitive.  The preflight/selected branches have
+    # already loaded a readonly profile; reuse it instead of parsing the full
+    # profile JSON a second time in sync_session_profile().
+    profile = locals().get("readonly_profile")
+    if not isinstance(profile, dict):
+        profile = sync_session_profile(
+            rebuild_territory=False,
+            persist_normalization=False,
+        )
     app_flow_debug_timed(
         flow_id,
         "hack_action_sync_session_profile_done",
