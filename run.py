@@ -23173,7 +23173,6 @@ def hack_action():
         profile["aimed_target"],
         update_fields={
             "launch_queue": profile["launch_queue"],
-            "operations": profile.get("operations", []),
             "risk_events": profile.get("risk_events", []),
             "system_messages": profile.get("system_messages", []),
         },
@@ -23546,23 +23545,13 @@ def operation_control_cancel():
     if not operation_id:
         return jsonify({"success": False, "error": "missing_operation_id"}), 400
 
-    profile = sync_session_profile(rebuild_territory=False)
-    if not profile:
-        return jsonify({"success": False, "error": "profile_not_found"}), 404
-    if not operation_control_app_installed(profile):
+    if not player_inventory_store.has_app(username, OPERATION_CONTROL_APP_ID):
         return operation_control_forbidden_response()
-
-    refresh_operations_runtime(profile, persist_timeouts=True, username=username)
-    operation, result = cancel_profile_operation(profile, operation_id, cancelled_by=username)
-    if result == "not_found":
-        store_operation, store_result = player_operation_store.cancel_operation(
-            username,
-            operation_id,
-            cancelled_by=username,
-        )
-        if store_result == "cancelled":
-            operation = store_operation
-            result = "cancelled"
+    operation, result = player_operation_store.cancel_operation(
+        username,
+        operation_id,
+        cancelled_by=username,
+    )
     if result == "not_found":
         return jsonify({"success": False, "error": "not_found", "message": "Nie znaleziono operacji."}), 404
     if result in {"already_terminal", "not_active"}:
@@ -23570,26 +23559,23 @@ def operation_control_cancel():
             "success": False,
             "error": result,
             "message": "Operacja nie jest juz aktywna.",
-            "operation": summarize_operation_control_item(operation, profile=profile) if operation else None,
+            "operation": summarize_operation_control_item(operation) if operation else None,
         }), 409
     if result != "cancelled":
         return jsonify({"success": False, "error": result or "cancel_failed"}), 409
 
-    persist_operation_control_profile(username, profile)
-    player_operation_store.upsert_operations(
+    operations = bounded_operations_from_store(username)
+    snapshot = build_operation_control_snapshot(
         username,
-        profile.get("operations", []),
-        event_type="operation.cancelled",
-        source="operation_control_cancel",
+        {"username": username},
+        operations=operations,
     )
-    operations = operations_from_store_or_profile(username, profile, refresh=False)
-    snapshot = build_operation_control_snapshot(username, profile, operations=operations)
     return jsonify({
         "success": True,
         "ok": True,
         "message": "Operacja zostala anulowana.",
         "result": result,
-        "operation": summarize_operation_control_item(operation, profile=profile),
+        "operation": summarize_operation_control_item(operation),
         "snapshot": snapshot,
         "remaining_active": snapshot.get("active_count", 0),
     })
@@ -23611,13 +23597,10 @@ def operation_control_cancel_group():
     if not operation_ids:
         return jsonify({"success": False, "error": "empty_operation_ids"}), 400
 
-    profile = sync_session_profile(rebuild_territory=False)
-    if not profile:
-        return jsonify({"success": False, "error": "profile_not_found"}), 404
-    if not operation_control_app_installed(profile):
+    if not player_inventory_store.has_app(username, OPERATION_CONTROL_APP_ID):
         return operation_control_forbidden_response()
-
-    operations, _ = refresh_operations_runtime(profile, persist_timeouts=True, username=username)
+    profile = {"username": username}
+    operations = bounded_operations_from_store(username)
     operation_map = {
         str(operation.get("operation_id") or ""): operation
         for operation in operations or []
@@ -23660,7 +23643,13 @@ def operation_control_cancel_group():
             already_terminal.append(operation_id)
             continue
 
-        _, result = cancel_profile_operation(profile, operation_id, cancelled_by=username, now_ts=now_ts)
+        cancelled_operation, result = player_operation_store.cancel_operation(
+            username,
+            operation_id,
+            cancelled_by=username,
+        )
+        if isinstance(cancelled_operation, dict):
+            operation_map[operation_id] = cancelled_operation
         if result == "cancelled":
             item = {
                 "operation_id": operation_id,
@@ -23691,14 +23680,7 @@ def operation_control_cancel_group():
             results.append(item)
             failed.append(item)
 
-    persist_operation_control_profile(username, profile)
-    player_operation_store.upsert_operations(
-        username,
-        profile.get("operations", []),
-        event_type="operation.cancelled_group",
-        source="operation_control_cancel_group",
-    )
-    operations = operations_from_store_or_profile(username, profile, refresh=False)
+    operations = bounded_operations_from_store(username)
     snapshot = build_operation_control_snapshot(username, profile, operations=operations)
     return jsonify({
         "success": True,
