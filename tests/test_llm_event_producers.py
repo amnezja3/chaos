@@ -189,7 +189,9 @@ class LlmEventProducerTest(unittest.TestCase):
                 {
                     "id": "googleplex-product-one",
                     "fact_id": "bnf:googleplex:googleplex_product_signal:one",
-                    "signal_type": "googleplex_product_signal",
+                    # Production presentation type differs from the canonical
+                    # producer type encoded in fact_id. Routing must use both.
+                    "signal_type": "product_opportunity",
                     "category": "googleplex",
                     "title": "GOOGLEPLEX / V-MAP",
                     "label": "CENA",
@@ -219,6 +221,10 @@ class LlmEventProducerTest(unittest.TestCase):
         self.assertEqual(
             news["task"]["facts"][0]["signal_type"], "conflict_target_alert"
         )
+        self.assertFalse(any(
+            "googleplex_product_signal" in fact["fact_id"]
+            for fact in news["task"]["facts"]
+        ))
 
         product_only = producer.enqueue_digest(
             {**snapshot, "signals": snapshot["signals"][:1]},

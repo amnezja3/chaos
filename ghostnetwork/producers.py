@@ -142,7 +142,10 @@ class BlackNetNarrativeProducer:
         if target_medium == "googleplex_news":
             signals = [
                 item for item in signals
-                if item.get("signal_type") != "googleplex_product_signal"
+                if (
+                    item.get("signal_type") != "googleplex_product_signal"
+                    and "googleplex_product_signal" not in str(item.get("fact_id") or "")
+                )
             ]
         signals = signals[:20]
         if not signals:

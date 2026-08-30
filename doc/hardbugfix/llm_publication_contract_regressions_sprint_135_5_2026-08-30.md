@@ -222,3 +222,13 @@ deduplikacji semantycznej ani kontroli projection surface.
 Pozostają trzy bramki jakościowe: Googleplex News v8, BlackNet v2 i Cyberner
 AGI v2. Ewentualny `135.5.x slot-aware generation repair` powstaje wyłącznie po
 potwierdzeniu rozjazdu treści z realną geometrią slotów.
+
+### Follow-up produkcyjny — dual signal type
+
+Pierwszy task v8 po wdrożeniu ujawnił, że snapshot używa prezentacyjnego
+`signal_type=product_opportunity`, podczas gdy canonical typ produktu jest
+zakodowany w `fact_id` jako `googleplex_product_signal`. Filtr oparty wyłącznie
+o `signal_type` nie usuwał więc produktów z facts Googleplex News. Routing
+rozpoznaje teraz oba legalne kształty: jawny typ sygnału oraz canonical segment
+`fact_id`. Test regresyjny używa dokładnego produkcyjnego wariantu
+`product_opportunity + bnf:googleplex:googleplex_product_signal:*`.
