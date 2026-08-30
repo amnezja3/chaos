@@ -13726,22 +13726,14 @@ def refresh_operation_runtime(operation, now_ts=None):
 
 
 def process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0, now_ts=None):
-    """Advance operation projections and persist terminal operation artifacts.
-
-    The runtime worker historically updated only ``player_operations``.  That
-    left completed operations visible in the map/resource buffer while their
-    finalized files were never copied into the canonical profile inventory
-    unless the player happened to hit the full operations endpoint.  Keep the
-    bounded projection pass, then hydrate each touched user once so the normal
-    finalizers can materialize files and persist them.
-    """
+    """Advance canonical operation/incident projections without loading profiles."""
     now_ts = now_ts if now_ts is not None else datetime.now(timezone.utc).timestamp()
     usernames = player_operation_store.list_runtime_usernames(
         limit=limit_users,
         min_age_seconds=min_age_seconds,
         now=datetime.fromtimestamp(now_ts, tz=timezone.utc).replace(tzinfo=None),
     )
-    result = {"users": 0, "operations": 0, "incidents": 0, "warnings": 0, "files": 0}
+    result = {"users": 0, "operations": 0, "incidents": 0, "warnings": 0}
     for username in usernames:
         operations = player_operation_store.list_operations(username, include_terminal=False)
         refreshed = []
@@ -13789,55 +13781,6 @@ def process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0, now_ts=No
         result["warnings"] += len([item for item in warning_actions if item.get("action") == "issued"])
         if link_updates and not linked:
             print(f"[OPERATIONS] runtime link CAS lost user={username}", flush=True)
-        # File finalizers operate on the canonical profile inventory rather
-        # than the lightweight operation projection.  Run them from the
-        # worker so completed files do not depend on a player opening a UI
-        # endpoint.  A concurrent profile write is retried by the next tick.
-        try:
-            # Avoid profile I/O for users whose tick only advanced active
-            # projections; hydrate only when a finalizable operation is
-            # present in this bounded batch.
-            needs_file_finalization = any(
-                isinstance(item, dict)
-                and item.get("status") in OPERATION_FINALIZABLE_STATUSES
-                for item in accepted
-            )
-            if not needs_file_finalization:
-                continue
-            profile = user_store.get_profile(username)
-            before_files = sum(
-                len(items) for items in (profile or {}).get("files", {}).values()
-                if isinstance(items, list)
-            )
-            if isinstance(profile, dict):
-                # The profile copy can lag the canonical runtime store.  Add
-                # the bounded runtime projection before running finalizers,
-                # while retaining the profile's historical operation rows.
-                stored_operations = bounded_operations_from_store(username)
-                profile_operations = profile.get("operations")
-                if not isinstance(profile_operations, list):
-                    profile_operations = []
-                by_id = {
-                    str(item.get("operation_id") or item.get("id") or ""): item
-                    for item in profile_operations
-                    if isinstance(item, dict)
-                }
-                for item in stored_operations:
-                    item_id = str(item.get("operation_id") or item.get("id") or "")
-                    if item_id:
-                        by_id[item_id] = item
-                profile["operations"] = list(by_id.values())
-                refresh_and_persist_operations(username, profile)
-                fresh = user_store.get_profile(username) or {}
-                after_files = sum(
-                    len(items) for items in fresh.get("files", {}).values()
-                    if isinstance(items, list)
-                )
-                result["files"] += max(0, after_files - before_files)
-        except Exception as exc:
-            if any(marker in str(exc).lower() for marker in ("database is locked", "database is busy")):
-                raise
-            print(f"[OPERATIONS] file finalization skipped user={username}: {exc}", flush=True)
     return result
 
 
