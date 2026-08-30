@@ -66,7 +66,6 @@ COMPACT_FACT_FIELDS = (
     ("stat", "stat", 72),
     ("public_text", "text", 96),
     ("category", "category", 40),
-    ("importance", "importance", 0),
     ("observed_at", "observed_at", 40),
     ("valid_until", "valid_until", 40),
     ("part_count", "part_count", 0),
@@ -87,7 +86,6 @@ GOOGLEPLEX_PRESENTATION_FACT_FIELDS = (
     ("status", "status", 48),
     ("conflict_state", "conflict_state", 48),
     ("outcome", "outcome", 40),
-    ("importance", "importance", 0),
     ("observed_at", "observed_at", 40),
     ("valid_until", "valid_until", 40),
 )

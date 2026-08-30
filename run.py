@@ -1302,6 +1302,21 @@ def blacknet_operation_target_snapshot(operation):
 def blacknet_conflict_target_snapshot(conflict, target):
     if not isinstance(conflict, dict) or not isinstance(target, dict):
         return None
+    # Canonical territory pillars expose a public wrapper whose actual map
+    # target lives under ``target``.  Older conflict rows and fixtures keep the
+    # target fields flat, so normalize both shapes before deriving the public
+    # fact.  Without this unwrap we retain only the wrapper target_id and lose
+    # the canonical label/coordinates required by BlackNet map CTA payloads.
+    public_target = dict(target)
+    nested_target = public_target.get("target")
+    if isinstance(nested_target, dict):
+        target = dict(nested_target)
+        for key in (
+            "target_id", "id", "status", "target_type", "source_type",
+            "target_mode", "node_role",
+        ):
+            if target.get(key) in (None, "") and public_target.get(key) not in (None, ""):
+                target[key] = public_target.get(key)
     target = blacknet_operation_target_payload({
         **conflict,
         "target": target,

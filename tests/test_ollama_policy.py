@@ -259,6 +259,7 @@ class OllamaPolicyTest(unittest.TestCase):
         ref_index = model_input["fact_columns"].index("fact_ref")
         signal_index = model_input["fact_columns"].index("signal_id")
         type_index = model_input["fact_columns"].index("type")
+        self.assertNotIn("importance", model_input["fact_columns"])
         actual_refs = {item[ref_index] for item in model_input["facts"]}
         actual_signal_refs = {item[signal_index] for item in model_input["facts"]}
         self.assertEqual(actual_refs, expected_refs)
@@ -330,6 +331,7 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertIn("stat", model_input["fact_columns"])
         self.assertNotIn("value", model_input["fact_columns"])
         self.assertNotIn("signal_id", model_input["fact_columns"])
+        self.assertNotIn("importance", model_input["fact_columns"])
         self.assertNotIn("02b4180b63e5", package["messages"][1]["content"])
         self.assertEqual(
             {row[ref_index] for row in model_input["facts"]},

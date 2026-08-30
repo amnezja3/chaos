@@ -78,10 +78,41 @@ Potwierdzone root causes i naprawy lokalne:
   promptu, raw outputu ani tekstu udającego odpowiedź AGI;
 - BlackNet deduplikuje publikacje po zbiorze canonical fact refs i nie pokazuje
   deterministic fallbacku obok narracji o tych samych faktach;
-- `teleport_to_hotspot` nie jest oferowany modelowi przez world digest, ponieważ
-  bounded CTA package nie niesie canonical współrzędnych. Zostaje bezpieczny
-  `focus_map_target`; stare publikacje z nieznanym hotspotem są degradowane do
-  focusu albo braku CTA.
+- produkcyjny soak ujawnił, że `territory_conflict_pillars.public_target_json`
+  przechowuje właściwy cel mapy w zagnieżdżonym `target`, podczas gdy projekcja
+  faktu konfliktu czytała wyłącznie płaski wrapper. Lokalna poprawka normalizuje
+  oba kształty i zachowuje canonical `target_id`, label oraz `lat/lng` w fakcie,
+  sygnale i code-owned CTA payload. Pole `importance` pozostaje backendową wagą
+  rankingu i nie jest już udostępniane modelowi jako dane narracyjne, dzięki
+  czemu lokalny model nie może przedstawiać wartości 75/50/25 jako procentów;
+- `teleport_to_hotspot` jest oferowany modelowi wyłącznie przez code-owned
+  `cta_ref` powiązany z tym samym faktem i tylko wtedy, gdy payload zawiera
+  canonical współrzędne. Bez nich akcja degraduje się do focusu albo braku CTA.
+
+## Rewalidacja serwerowa — 2026-08-30
+
+Googleplex News v7 przeszedł fizyczną walidację. Accepted candidate utworzył
+dokładnie jeden publication receipt i jeden medium record, a ponowne
+`publisher run-once` zwróciło `idle`. Projekcja zastąpiła istniejący stabilny
+slot HERO bez zwiększenia liczby kart. HERO pozostaje zgodnie z kontraktem
+informacyjny (`READ ONLY`) i nie renderuje CTA. Asset `danger` oraz oznaczenie
+`OLLAMA ENRICHED` są widoczne.
+
+CTA nie należy do HERO Googleplex. Osobny fizyczny test w BlackNet ujawnił
+blocker: link otworzył mapę z focusem na motocyklu, mimo że target powinien
+wynikać z faktu wybranego przez narrację. Deterministyczne sygnały budują CTA
+poprawnie, więc do audytu pozostaje przejście
+`selected fact -> deterministic signal -> publication CTA payload`.
+
+```text
+Googleplex stable-slot projection: PASS
+Googleplex presentation:           PASS
+Googleplex exactly-once:            PASS
+Googleplex HERO CTA absence:        PASS / EXPECTED
+BlackNet CTA fact target:            BLOCK
+Cyberner result source:             TO REVALIDATE
+BlackNet dedupe/content:             TO REVALIDATE
+```
 
 Sprint pozostaje otwarty. Exit gate wymaga osobnej fizycznej rewalidacji
 Googleplex News, Cyberner AGI i BlackNet po wdrożeniu, przy zatrzymanym

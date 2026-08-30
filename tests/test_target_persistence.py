@@ -2026,6 +2026,49 @@ class BlackNetWorldFactsSnapshotTest(unittest.TestCase):
         self.assertAlmostEqual(fact["metadata"]["lat"], 52.280897)
         self.assertAlmostEqual(fact["metadata"]["lng"], 20.997489)
 
+    def test_blacknet_conflict_target_unwraps_canonical_pillar_public_target(self):
+        now = datetime(2026, 8, 30, 10, 0, tzinfo=timezone.utc)
+        conflicts = [{
+            "id": 10,
+            "conflict_id": "territory_conflict_nested",
+            "conflict_key": "conflict:nested",
+            "participants": ["main", "ghost"],
+            "status": "active",
+            "targets": [{
+                "target_id": "legacy:08ccbb3c6ab0ed1f7e39",
+                "status": "contested",
+                "node_role": "pillar",
+                "target": {
+                    "target_id": "legacy:08ccbb3c6ab0ed1f7e39",
+                    "label": "リラックス 方南町店",
+                    "name": "リラックス 方南町店",
+                    "lat": 35.6831595,
+                    "lng": 139.6561171,
+                    "source_type": "unknown",
+                },
+            }],
+        }]
+
+        with patch.object(run.user_store, "list_profiles", return_value=[]), \
+                patch.object(run, "get_app_catalog", return_value=[]), \
+                patch.object(run.territory_conflict_store, "list_active", return_value=conflicts), \
+                patch.object(run, "build_blacknet_radio_facts", return_value=[]):
+            snapshot = build_blacknet_world_facts_snapshot(now=now)
+
+        fact = next(item for item in snapshot["facts"] if item["fact_type"] == "conflict_target_alert")
+        self.assertEqual(fact["category"], "リラックス 方南町店")
+        self.assertEqual(fact["metadata"]["target_id"], "legacy:08ccbb3c6ab0ed1f7e39")
+        self.assertEqual(fact["metadata"]["target_label"], "リラックス 方南町店")
+        self.assertAlmostEqual(fact["metadata"]["lat"], 35.6831595)
+        self.assertAlmostEqual(fact["metadata"]["lng"], 139.6561171)
+        self.assertEqual(fact["metadata"]["cta_target_id"], "legacy:08ccbb3c6ab0ed1f7e39")
+
+        signal = run.blacknet_signal_from_fact(fact, now)
+        self.assertEqual(signal["cta_action"], "focus_map_target")
+        self.assertEqual(signal["cta_target_id"], "legacy:08ccbb3c6ab0ed1f7e39")
+        self.assertAlmostEqual(signal["metadata"]["lat"], 35.6831595)
+        self.assertAlmostEqual(signal["metadata"]["lng"], 139.6561171)
+
     def test_blacknet_conflict_without_coordinates_does_not_emit_unknown_map_target(self):
         now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
         conflicts = [{
