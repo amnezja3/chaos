@@ -4684,6 +4684,30 @@ class GhostNetworkRepository:
             ).fetchall()
             return [self._narrative_candidate(row) for row in rows]
 
+    def list_unstaged_narrative_candidates(self, validation_status="accepted", limit=100):
+        """Return bounded candidates that do not have a publication identity yet."""
+        limit = max(1, min(int(limit or 100), 1000))
+        clauses = ["r.publication_receipt_id IS NULL"]
+        params = []
+        if validation_status:
+            clauses.append("c.validation_status = ?")
+            params.append(_clean(validation_status))
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT c.*
+                FROM ghost_narrative_inbox_candidates c
+                LEFT JOIN ghost_narrative_publication_receipts r
+                  ON r.candidate_id = c.candidate_id
+                WHERE {' AND '.join(clauses)}
+                ORDER BY c.created_at DESC, c.candidate_id DESC
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+            return [self._narrative_candidate(row) for row in rows]
+
     def ensure_narrative_publication(self, candidate_id, now=None):
         """Create the one canonical publication identity for an accepted candidate."""
         now_iso = _iso(now if now is not None else self.now())

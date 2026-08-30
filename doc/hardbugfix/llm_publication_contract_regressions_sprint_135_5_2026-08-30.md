@@ -200,8 +200,9 @@ deduplikacji semantycznej ani kontroli projection surface.
    backend musi zachować całą odpowiedzialność wykonawczą.
 7. Slot-aware generation należy dodawać dopiero po obserwacji realnego problemu,
    zachowując backendowy hard limit niezależnie od promptu.
-8. Powtarzalny `database is locked` powinien otrzymać osobny artefakt z analizą
-   czasu transakcji i writerów; pojedynczy wpis w historycznym logu nie wystarcza.
+8. Powtarzalny `database is locked` wymaga analizy nie tylko czasu pojedynczej
+   transakcji, ale także selekcji pracy: idempotentny insert nadal może tworzyć
+   niepotrzebny writer-lock, jeśli worker stale wybiera już obsłużone rekordy.
 
 ## Powiązane pliki, commity i sprinty
 
@@ -232,3 +233,20 @@ o `signal_type` nie usuwał więc produktów z facts Googleplex News. Routing
 rozpoznaje teraz oba legalne kształty: jawny typ sygnału oraz canonical segment
 `fact_id`. Test regresyjny używa dokładnego produkcyjnego wariantu
 `product_opportunity + bnf:googleplex:googleplex_product_signal:*`.
+
+### Follow-up produkcyjny — publisher staging starvation i SQLite contention
+
+Po ponownym uruchomieniu publisher pozostawał online, ale `73` accepted
+candidates nie miały receiptów, CPU procesu dochodziło do `100%`, a log ponownie
+zarejestrował kontrolowany `database_contention / sqlite_busy`. Root cause był w
+`stage_accepted(limit=100)`: każdy loop pobierał 100 najstarszych accepted
+candidates bez względu na istniejący receipt i dla każdego wykonywał osobne
+`BEGIN IMMEDIATE` z idempotentnym `ON CONFLICT DO NOTHING`. Stare rekordy
+powodowały więc serię pustych writer-transakcji, a nowsze candidates mogły nie
+wejść do pierwszej setki.
+
+Repozytorium udostępnia teraz bounded selekcję wyłącznie candidates bez
+publication receiptu, od najnowszych. Jeden loop skanuje maksymalnie 500
+niestaged rekordów, tworzy najwyżej 4 receipts i publikuje jeden. Rekord z
+istniejącym receiptem nie otwiera ponownie writer-transakcji. Exactly-once i
+lease publication pozostają bez zmian.

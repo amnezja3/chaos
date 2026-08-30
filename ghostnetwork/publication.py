@@ -95,10 +95,12 @@ class NarrativePublicationService:
             return False, "owner_analysis_echo"
         return True, "ok"
 
-    def stage_accepted(self, limit=100):
+    def stage_accepted(self, limit=4, scan_limit=500):
+        limit = max(1, min(int(limit or 4), 32))
+        scan_limit = max(limit, min(int(scan_limit or 500), 500))
         staged = []
-        for candidate in self.repository.list_narrative_candidates(
-            validation_status="accepted", limit=max(1, min(int(limit or 100), 500))
+        for candidate in self.repository.list_unstaged_narrative_candidates(
+            validation_status="accepted", limit=scan_limit
         ):
             task = self.repository.get_narrative_outbox(candidate.get("task_id"))
             valid, _reason = self.validate_candidate(candidate, task)
@@ -107,10 +109,15 @@ class NarrativePublicationService:
             receipt = self.repository.ensure_narrative_publication(candidate["candidate_id"])
             if receipt:
                 staged.append(receipt)
+                if len(staged) >= limit:
+                    break
         return staged
 
     def process_once(self, lease_seconds=60):
-        self.stage_accepted(limit=100)
+        # Keep writer pressure bounded: stage only a small number of genuinely
+        # unstaged candidates per loop, then publish one receipt.  Historical
+        # accepted candidates that already have receipts are never rewritten.
+        self.stage_accepted(limit=4, scan_limit=500)
         receipt = self.repository.claim_next_narrative_publication(
             self.worker_id, lease_seconds=lease_seconds
         )

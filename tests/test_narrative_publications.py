@@ -202,6 +202,45 @@ class NarrativePublicationTest(unittest.TestCase):
         self.assertEqual(result["result"], "published")
         self.assertEqual(len(self.repo.list_narrative_medium_records("blacknet")), 1)
 
+    def test_staging_lists_only_unstaged_candidates_newest_first(self):
+        oldest = self.accepted_candidate("staging-oldest")
+        self.clock.advance(1)
+        middle = self.accepted_candidate("staging-middle")
+        self.clock.advance(1)
+        newest = self.accepted_candidate("staging-newest")
+        self.repo.ensure_narrative_publication(oldest["candidate_id"])
+        self.repo.ensure_narrative_publication(middle["candidate_id"])
+
+        unstaged = self.repo.list_unstaged_narrative_candidates(limit=10)
+
+        self.assertEqual(
+            [candidate["candidate_id"] for candidate in unstaged],
+            [newest["candidate_id"]],
+        )
+
+    def test_staging_does_not_revisit_existing_receipts_and_is_bounded(self):
+        candidates = []
+        for index in range(6):
+            candidates.append(self.accepted_candidate(f"bounded-staging-{index}"))
+            self.clock.advance(1)
+        publisher = NarrativePublicationService(
+            repository=self.repo, worker_id="bounded-staging-publisher"
+        )
+
+        first = publisher.stage_accepted(limit=2, scan_limit=10)
+        second = publisher.stage_accepted(limit=2, scan_limit=10)
+
+        self.assertEqual(len(first), 2)
+        self.assertEqual(len(second), 2)
+        self.assertTrue(
+            {item["candidate_id"] for item in first}.isdisjoint(
+                {item["candidate_id"] for item in second}
+            )
+        )
+        self.assertEqual(
+            len(self.repo.list_unstaged_narrative_candidates(limit=10)), 2
+        )
+
     def test_public_clan_and_owner_records_are_projected_without_cross_account_leak(self):
         self.accepted_candidate("audience-public")
         self.accepted_candidate(
