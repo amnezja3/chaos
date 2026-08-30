@@ -11646,6 +11646,7 @@ def commit_ghost_exchange_runtime(username, max_attempts=3, now=None):
     if not isinstance(read_profile, dict):
         raise ProfileRecoveryRequired("Ghost Exchange profile is unavailable.")
     read_profile = copy.deepcopy(read_profile)
+    player_inventory_store.mirror_profile(username, read_profile)
     read_profile["hackcoins"] = canonical_wallet_balance(username)
     read_previous_storage = storage_delta_snapshot(read_profile)
     read_runtime = refresh_market_runtime(
@@ -11673,6 +11674,7 @@ def commit_ghost_exchange_runtime(username, max_attempts=3, now=None):
         if not isinstance(profile, dict):
             raise ProfileRecoveryRequired("Ghost Exchange profile is unavailable.")
         profile = copy.deepcopy(profile)
+        player_inventory_store.mirror_profile(username, profile)
         profile["hackcoins"] = canonical_wallet_balance(username)
         previous_storage = storage_delta_snapshot(profile)
         pending_notifications = []
@@ -11709,6 +11711,7 @@ def commit_ghost_exchange_runtime(username, max_attempts=3, now=None):
         committed_profile = (
             get_profile(strip_sensitive=True) if callable(get_profile) else profile
         )
+        player_inventory_store.sync_data_files_from_profile(username, profile)
         committed_profile["hackcoins"] = canonical_wallet_balance(username)
         for notification in pending_notifications:
             add_cyberner_direct_notification(
@@ -13725,6 +13728,79 @@ def refresh_operation_runtime(operation, now_ts=None):
     return refreshed
 
 
+def finalize_operation_files_bounded(username, operation):
+    """Materialize one terminal operation into canonical data-file inventory.
+
+    This projection intentionally contains only storage metadata and the one
+    operation being finalized.  It never reads profile_json.
+    """
+    if not username or not isinstance(operation, dict):
+        return []
+    if operation.get("status") not in OPERATION_FINALIZABLE_STATUSES:
+        return []
+    artifact_state = operation.setdefault("artifact_state", {})
+    if artifact_state.get("finalized_at"):
+        return player_inventory_store.list_data_files(
+            username,
+            operation_id=str(operation.get("operation_id") or ""),
+        )
+    inventory = player_inventory_store.snapshot(username)
+    storage = inventory.get("storage") if isinstance(inventory.get("storage"), dict) else {}
+    projection = {
+        "username": username,
+        "operations": [operation],
+        "files": {},
+        "market_history": [],
+        "system_messages": [],
+        "risk_events": [],
+        "storage_capacity": int(storage.get("capacity") or DEFAULT_STORAGE_CAPACITY_MB),
+        "storage_used": int(storage.get("used") or 0),
+        "storage_unit": str(storage.get("unit") or "MB"),
+        "storage_soft_limit": True,
+    }
+    changed = False
+    for finalizer in (
+        finalize_vehicle_tracking_file,
+        finalize_device_tracking_file,
+        finalize_atm_log_extraction_files,
+        finalize_persistent_sniffer_files,
+        finalize_camera_stream_file,
+        finalize_wifi_scanner_files,
+        finalize_audio_interference_files,
+        finalize_vehicle_ecu_files,
+        finalize_generic_trace_file,
+    ):
+        if finalizer(projection, operation):
+            changed = True
+    if apply_operation_quality_to_files(projection, operation):
+        changed = True
+    generated = []
+    for folder, items in (projection.get("files") or {}).items():
+        if folder in {"tools", "market"} or not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            item = normalize_runtime_file_entry(item, folder)
+            if is_ghost_exchange_sellable(item):
+                item["sellable"] = True
+                item["market_status"] = "queued_for_market"
+                item["queued_at"] = item.get("queued_at") or runtime_file_now()
+                item["market_sector"] = market_sector_for_file(item)
+            generated.append(item)
+    if changed or generated:
+        artifact_state["finalized_at"] = runtime_file_now()
+        artifact_state["file_ids"] = [item.get("id") for item in generated]
+        artifact_state["file_count"] = len(generated)
+    persisted = player_inventory_store.append_data_files(
+        username,
+        generated,
+        operation_id=str(operation.get("operation_id") or ""),
+        finalized_operation=operation if (changed or generated) else None,
+    )
+    return persisted
+
+
 def process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0, now_ts=None):
     """Advance canonical operation/incident projections without loading profiles."""
     now_ts = now_ts if now_ts is not None else datetime.now(timezone.utc).timestamp()
@@ -13733,7 +13809,7 @@ def process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0, now_ts=No
         min_age_seconds=min_age_seconds,
         now=datetime.fromtimestamp(now_ts, tz=timezone.utc).replace(tzinfo=None),
     )
-    result = {"users": 0, "operations": 0, "incidents": 0, "warnings": 0}
+    result = {"users": 0, "operations": 0, "incidents": 0, "warnings": 0, "files": 0}
     for username in usernames:
         operations = player_operation_store.list_operations(username, include_terminal=False)
         refreshed = []
@@ -13781,6 +13857,11 @@ def process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0, now_ts=No
         result["warnings"] += len([item for item in warning_actions if item.get("action") == "issued"])
         if link_updates and not linked:
             print(f"[OPERATIONS] runtime link CAS lost user={username}", flush=True)
+        for operation in accepted:
+            if operation.get("status") not in OPERATION_FINALIZABLE_STATUSES:
+                continue
+            finalized = finalize_operation_files_bounded(username, operation)
+            result["files"] += len(finalized)
     return result
 
 

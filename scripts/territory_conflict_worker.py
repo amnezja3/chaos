@@ -39,6 +39,12 @@ def process_operation_runtime_if_due():
     if now < _next_operation_runtime_tick_at:
         return {"users": 0, "operations": 0, "incidents": 0, "warnings": 0}
     result = run.process_operation_runtime_tick(limit_users=4, min_age_seconds=1.0)
+    if result.get("files"):
+        print(
+            f"[TERRITORY_WORKER] operation_files_finalized={result['files']} "
+            f"users={result.get('users', 0)}",
+            flush=True,
+        )
     interval = max(
         1.0,
         float(os.environ.get("CHAOS_OPERATION_RUNTIME_TICK_SECONDS", "2")),

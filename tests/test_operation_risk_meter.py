@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from database import PlayerOperationStore
+from database import PlayerInventoryStore, PlayerOperationStore
 import run
 from tests.session_generation_fixture import SessionGenerationFixture
 from response_network.operation_risk_meter import (
@@ -24,10 +24,13 @@ class OperationRiskMeterTest(unittest.TestCase):
         self.tmpdir = TemporaryDirectory()
         self.db_path = str(Path(self.tmpdir.name) / "game.sqlite3")
         self.original_operation_store = run.player_operation_store
+        self.original_inventory_store = run.player_inventory_store
         run.player_operation_store = PlayerOperationStore(db_path=self.db_path)
+        run.player_inventory_store = PlayerInventoryStore(db_path=self.db_path)
 
     def tearDown(self):
         run.player_operation_store = self.original_operation_store
+        run.player_inventory_store = self.original_inventory_store
         self.tmpdir.cleanup()
 
     def _operation(self, **overrides):
@@ -163,6 +166,48 @@ class OperationRiskMeterTest(unittest.TestCase):
         self.assertEqual(second["operations"], 1)
         self.assertNotEqual(stored["current_position"], first_position)
         self.assertGreaterEqual(stored["_runtime_version"], 3)
+
+    def test_terminal_tick_finalizes_file_without_profile_io(self):
+        runtime_now = datetime.now(timezone.utc).replace(microsecond=0)
+        operation = self._operation(
+            operation_id="op-wifi-bounded",
+            operation_type="wifi_scanner",
+            status="running",
+            started_at=(runtime_now - timedelta(minutes=11)).isoformat(),
+            expires_at=(runtime_now - timedelta(minutes=1)).isoformat(),
+            duration_seconds=600,
+            resource_types=["wifi_networks"],
+        )
+        run.player_inventory_store.seed_from_profile("neo", {
+            "apps": [],
+            "files": {"tools": []},
+            "storage_capacity": 500,
+            "storage_used": 0,
+            "storage_unit": "MB",
+        })
+        self.assertEqual(len(run.player_operation_store.upsert_operations("neo", [operation])), 1)
+        with patch.object(run.incident_initializer, "sync_operations", return_value={"actions": []}), \
+                patch.object(run, "sync_response_warnings", return_value=[]), \
+                patch.object(run.user_store, "get_profile", side_effect=AssertionError("profile hot path")):
+            result = run.process_operation_runtime_tick(
+                limit_users=1,
+                min_age_seconds=0,
+                now_ts=runtime_now.timestamp(),
+            )
+        files = run.player_inventory_store.list_data_files(
+            "neo", operation_id="op-wifi-bounded"
+        )
+        stored = next(
+            item for item in run.player_operation_store.list_operations("neo", include_terminal=True)
+            if item.get("operation_id") == "op-wifi-bounded"
+        )
+        self.assertEqual(result["files"], 1)
+        self.assertEqual(stored["status"], "timeout")
+        self.assertEqual(stored["artifact_state"]["file_count"], 1)
+        self.assertEqual(len(files), 1)
+        self.assertEqual(files[0]["file_category"], "network")
+        self.assertEqual(files[0]["market_status"], "queued_for_market")
+        self.assertTrue(files[0]["sellable"])
 
     def test_runtime_tick_never_hydrates_thousands_of_terminal_operations(self):
         runtime_now = datetime.now(timezone.utc).replace(microsecond=0)

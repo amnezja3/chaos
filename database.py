@@ -2614,6 +2614,34 @@ def init_db(db_path=DB_PATH):
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS player_data_files (
+                username TEXT NOT NULL,
+                file_id TEXT NOT NULL,
+                folder TEXT NOT NULL,
+                operation_id TEXT NOT NULL DEFAULT '',
+                file_json TEXT NOT NULL DEFAULT '{}',
+                market_status TEXT NOT NULL DEFAULT 'not_listed',
+                version INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(username, file_id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_player_data_files_operation
+            ON player_data_files(username, operation_id)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_player_data_files_market
+            ON player_data_files(username, market_status, updated_at)
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS player_storage (
                 username TEXT PRIMARY KEY,
                 capacity INTEGER NOT NULL DEFAULT 0,
@@ -10511,6 +10539,207 @@ class PlayerInventoryStore:
         with db_connect(self.db_path) as own_conn:
             return self.has_app(username, app_id, conn=own_conn)
 
+    @staticmethod
+    def _data_file_id(file_entry):
+        file_entry = file_entry if isinstance(file_entry, dict) else {}
+        return str(file_entry.get("id") or file_entry.get("file_id") or "").strip()
+
+    def list_data_files(self, username, *, operation_id="", statuses=None, limit=0):
+        """Read canonical gameplay files without hydrating profile_json."""
+        username = self._clean_text(username)
+        operation_id = self._clean_text(operation_id)
+        if not username:
+            return []
+        clauses = ["username = ?"]
+        params = [username]
+        if operation_id:
+            clauses.append("operation_id = ?")
+            params.append(operation_id)
+        normalized_statuses = [self._clean_text(item) for item in (statuses or []) if self._clean_text(item)]
+        if normalized_statuses:
+            clauses.append("market_status IN (" + ",".join("?" for _ in normalized_statuses) + ")")
+            params.extend(normalized_statuses)
+        sql = (
+            "SELECT folder, file_json FROM player_data_files WHERE "
+            + " AND ".join(clauses)
+            + " ORDER BY created_at, file_id"
+        )
+        if limit:
+            sql += " LIMIT ?"
+            params.append(max(1, min(int(limit), 5000)))
+        with db_connect(self.db_path) as conn:
+            rows = conn.execute(sql, tuple(params)).fetchall()
+        result = []
+        for row in rows:
+            payload = loads_json(row["file_json"], {})
+            if isinstance(payload, dict):
+                payload.setdefault("file_category", row["folder"])
+                result.append(payload)
+        return result
+
+    def append_data_files(self, username, files, *, operation_id="", finalized_operation=None):
+        """Atomically append artifacts and mark their operation finalized."""
+        username = self._clean_text(username)
+        operation_id = self._clean_text(operation_id)
+        prepared = []
+        for incoming in files or []:
+            if not isinstance(incoming, dict):
+                continue
+            payload = copy.deepcopy(incoming)
+            file_id = self._data_file_id(payload)
+            folder = self._clean_text(payload.get("file_category"), "system")
+            if not file_id:
+                continue
+            payload_operation_id = self._clean_text(
+                payload.get("source_operation_id") or payload.get("operation_id") or operation_id
+            )
+            payload["id"] = file_id
+            payload["file_category"] = folder
+            if payload_operation_id:
+                payload["source_operation_id"] = payload_operation_id
+            prepared.append((file_id, folder, payload_operation_id, payload))
+        if not username or not prepared:
+            return []
+        now = utc_now()
+        inserted = []
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            storage_row = conn.execute(
+                "SELECT used, version FROM player_storage WHERE username = ?",
+                (username,),
+            ).fetchone()
+            storage_added = 0
+            for file_id, folder, payload_operation_id, payload in prepared:
+                existing = conn.execute(
+                    "SELECT file_json FROM player_data_files WHERE username = ? AND file_id = ?",
+                    (username, file_id),
+                ).fetchone()
+                if existing:
+                    existing_payload = loads_json(existing["file_json"], {})
+                    if isinstance(existing_payload, dict):
+                        inserted.append(existing_payload)
+                    continue
+                market_status = self._clean_text(payload.get("market_status"), "not_listed")
+                created_at = self._clean_text(payload.get("created_at"), now)
+                conn.execute(
+                    """
+                    INSERT INTO player_data_files
+                        (username, file_id, folder, operation_id, file_json,
+                         market_status, version, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+                    """,
+                    (
+                        username, file_id, folder, payload_operation_id,
+                        dumps_json(payload), market_status, created_at, now,
+                    ),
+                )
+                inserted.append(payload)
+                try:
+                    storage_added += max(0, int(round(float(payload.get("file_size") or 0))))
+                except (TypeError, ValueError):
+                    pass
+            if storage_row and storage_added:
+                conn.execute(
+                    """
+                    UPDATE player_storage
+                    SET used = ?, version = ?, updated_at = ?
+                    WHERE username = ?
+                    """,
+                    (
+                        max(0, int(storage_row["used"] or 0) + storage_added),
+                        int(storage_row["version"] or 0) + 1,
+                        now,
+                        username,
+                    ),
+                )
+            if isinstance(finalized_operation, dict):
+                finalized_payload = copy.deepcopy(finalized_operation)
+                finalized_id = self._clean_text(
+                    finalized_payload.get("operation_id") or operation_id
+                )
+                operation_row = conn.execute(
+                    """
+                    SELECT version FROM player_operations
+                    WHERE username = ? AND operation_id = ?
+                    """,
+                    (username, finalized_id),
+                ).fetchone()
+                if operation_row:
+                    version = int(operation_row["version"] or 0) + 1
+                    finalized_payload["_runtime_version"] = version
+                    conn.execute(
+                        """
+                        UPDATE player_operations
+                        SET operation_json = ?, risk_json = ?, version = ?, updated_at = ?
+                        WHERE username = ? AND operation_id = ?
+                        """,
+                        (
+                            dumps_json(finalized_payload),
+                            dumps_json(finalized_payload.get("operation_risk_meter") or {}),
+                            version,
+                            now,
+                            username,
+                            finalized_id,
+                        ),
+                    )
+        return inserted
+
+    def sync_data_files_from_profile(self, username, profile):
+        """Apply GX lifecycle changes only to already-canonical data files."""
+        username = self._clean_text(username)
+        if not username or not isinstance(profile, dict):
+            return 0
+        files = profile.get("files") if isinstance(profile.get("files"), dict) else {}
+        visible = {}
+        for folder, items in files.items():
+            if folder == "tools" or not isinstance(items, list):
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                file_id = self._data_file_id(item)
+                if file_id:
+                    visible[file_id] = (str(folder), item)
+        now = utc_now()
+        changed = 0
+        with db_connect(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            rows = conn.execute(
+                "SELECT file_id, version FROM player_data_files WHERE username = ?",
+                (username,),
+            ).fetchall()
+            for row in rows:
+                file_id = str(row["file_id"])
+                current = visible.get(file_id)
+                if current is None:
+                    conn.execute(
+                        "DELETE FROM player_data_files WHERE username = ? AND file_id = ?",
+                        (username, file_id),
+                    )
+                    changed += 1
+                    continue
+                folder, payload = current
+                conn.execute(
+                    """
+                    UPDATE player_data_files
+                    SET folder = ?, operation_id = ?, file_json = ?, market_status = ?,
+                        version = ?, updated_at = ?
+                    WHERE username = ? AND file_id = ?
+                    """,
+                    (
+                        folder,
+                        self._clean_text(payload.get("source_operation_id") or payload.get("operation_id")),
+                        dumps_json(payload),
+                        self._clean_text(payload.get("market_status"), "not_listed"),
+                        int(row["version"] or 0) + 1,
+                        now,
+                        username,
+                        file_id,
+                    ),
+                )
+                changed += 1
+        return changed
+
     def install_app_with_conn(self, conn, username, app, *, purchase_key=""):
         """Install one canonical app inside the caller's transaction.
 
@@ -10651,6 +10880,15 @@ class PlayerInventoryStore:
             )
             tools = (snapshot.get("files") or {}).get("tools")
             files["tools"] = copy.deepcopy(tools or [])
+            for data_file in self.list_data_files(username):
+                folder = str(data_file.get("file_category") or "system")
+                bucket = files.setdefault(folder, [])
+                file_id = self._data_file_id(data_file)
+                if file_id and not any(
+                    self._data_file_id(item) == file_id
+                    for item in bucket if isinstance(item, dict)
+                ):
+                    bucket.append(copy.deepcopy(data_file))
             profile["files"] = files
         storage = snapshot.get("storage")
         if storage:
