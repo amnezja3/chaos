@@ -73,11 +73,11 @@ def _policy(source, variant, medium, version, relative_path, output_schema_versi
 def _build_registry():
     policies = [_policy(
         "blacknet_world", "world_digest", "blacknet",
-        "blacknet-world-prompt-v1", Path("blacknet") / "world-digest-v1.md",
+        "blacknet-world-prompt-v2", Path("blacknet") / "world-digest-v2.md",
     )]
     policies.append(_policy(
         "blacknet_world", "world_digest", "googleplex_news",
-        "googleplex-news-assets-prompt-v7", Path("googleplex") / "news-digest-assets-v7.md",
+        "googleplex-news-assets-prompt-v8", Path("googleplex") / "news-digest-assets-v8.md",
         ASSET_OUTPUT_SCHEMA_VERSION,
     ))
     for variant in sorted(GHOSTNETWORK_BLACKNET_VARIANTS):
@@ -102,7 +102,7 @@ def _build_registry():
     ))
     policies.append(_policy(
         "googleplex_app", "owner-analysis", "cyberner",
-        "cyberner-agi-2108-prompt-v1", Path("cyberner") / "agi-2108-v1.md",
+        "cyberner-agi-2108-prompt-v2", Path("cyberner") / "agi-2108-v2.md",
     ))
     return {(p.source_scope, p.task_variant, p.target_medium): p for p in policies}
 

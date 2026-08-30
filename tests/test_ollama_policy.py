@@ -202,6 +202,29 @@ class OllamaPolicyTest(unittest.TestCase):
             finally:
                 OLLAMA_TASK_POLICY_REGISTRY[key] = original
 
+    def test_2108_editorial_prompts_are_versioned_and_keep_googleplex_as_platform(self):
+        blacknet = resolve_ollama_task_policy("blacknet_world", "world_digest", "blacknet")
+        news = resolve_ollama_task_policy("blacknet_world", "world_digest", "googleplex_news")
+        agi = resolve_ollama_task_policy("googleplex_app", "owner-analysis", "cyberner")
+
+        self.assertEqual(blacknet.prompt_version, "blacknet-world-prompt-v2")
+        self.assertEqual(news.prompt_version, "googleplex-news-assets-prompt-v8")
+        self.assertEqual(agi.prompt_version, "cyberner-agi-2108-prompt-v2")
+
+        blacknet_prompt = load_prompt_layers(blacknet)[1]
+        news_prompt = load_prompt_layers(news)[1]
+        agi_prompt = load_prompt_layers(agi)[1]
+        for prompt in (blacknet_prompt, news_prompt):
+            self.assertIn("Googleplex jest platforma publikacji i katalogiem", prompt)
+            self.assertIn("Ghost System", prompt)
+            self.assertIn("swiat CHAOS", prompt)
+            self.assertIn("WZORCE STYLU", prompt)
+        self.assertIn("fragment transmisji z roku 2108", blacknet_prompt)
+        self.assertIn("przechwycony", blacknet_prompt)
+        self.assertIn("PRZECHWYT //", blacknet_prompt)
+        self.assertIn("Glos AGI 2108", agi_prompt)
+        self.assertIn("WZORCE STYLU", agi_prompt)
+
     def test_task_cannot_override_prompt_model_schema_and_injection_is_data(self):
         task = self.task()
         task.update({

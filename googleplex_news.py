@@ -383,9 +383,16 @@ def merge_googleplex_news_publications(
     for record in records or []:
         if not isinstance(record, dict) or record.get("target_medium") != "googleplex_news":
             continue
+        # The featured Googleplex product is a canonical catalog projection:
+        # name, description, downloads and product link are code-owned.  Do
+        # not let current or historical LLM product publications replace any
+        # editorial slot, especially gp-home-featured.
+        fact_refs = [str(item) for item in record.get("fact_refs") or []]
+        if any("googleplex_product_signal" in item for item in fact_refs):
+            continue
         if presentation_safety_errors(record.get("title"), record.get("body")):
             continue
-        semantic_key = tuple(sorted(str(item) for item in record.get("fact_refs") or []))
+        semantic_key = tuple(sorted(fact_refs))
         semantic_key = semantic_key or (str(record.get("source_receipt_id") or ""),)
         if semantic_key in semantic_keys:
             continue

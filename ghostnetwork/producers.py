@@ -134,7 +134,17 @@ class BlackNetNarrativeProducer:
         signals = [
             item for item in (snapshot.get("signals") or [])
             if isinstance(item, dict) and item.get("signal_type") != "out_of_signal"
-        ][:20]
+        ]
+        # Googleplex owns its promotional product card deterministically from
+        # the canonical catalog.  Product signals may still be narrated by
+        # BlackNet, but must not create News tasks that could overwrite that
+        # card (or consume the bounded fact budget).
+        if target_medium == "googleplex_news":
+            signals = [
+                item for item in signals
+                if item.get("signal_type") != "googleplex_product_signal"
+            ]
+        signals = signals[:20]
         if not signals:
             return {"ok": True, "status": "empty", "task": None}
 

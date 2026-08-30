@@ -84,7 +84,7 @@ class Agi2108ConsoleContractTest(unittest.TestCase):
             "googleplex_app", "owner-analysis", "cyberner"
         )
         self.assertIsNotNone(policy)
-        self.assertEqual(policy.prompt_version, "cyberner-agi-2108-prompt-v1")
+        self.assertEqual(policy.prompt_version, "cyberner-agi-2108-prompt-v2")
         self.assertEqual(policy.output_schema_version, "chaos-narrative-output-v1")
         self.assertEqual(policy.model_policy_version, "chaos-local-narrator-v1")
 

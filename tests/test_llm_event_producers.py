@@ -180,6 +180,54 @@ class LlmEventProducerTest(unittest.TestCase):
             )
         self.assertEqual(safe["diagnostics"]["profile_reads"], 0)
 
+    def test_googleplex_news_excludes_catalog_product_signals(self):
+        snapshot = {
+            "version": "signals-product-routing-v1",
+            "world_facts_version": "facts-product-routing-v1",
+            "generated_at": "2026-08-30T12:00:00+00:00",
+            "signals": [
+                {
+                    "id": "googleplex-product-one",
+                    "fact_id": "bnf:googleplex:googleplex_product_signal:one",
+                    "signal_type": "googleplex_product_signal",
+                    "category": "googleplex",
+                    "title": "GOOGLEPLEX / V-MAP",
+                    "label": "CENA",
+                    "value": "955 HC",
+                },
+                {
+                    "id": "world-conflict-one",
+                    "fact_id": "bnf:conflicts:conflict_target_alert:one",
+                    "signal_type": "conflict_target_alert",
+                    "category": "conflicts",
+                    "title": "CONFLICT / POI-TOKYO",
+                    "label": "TARGET SPORNY",
+                    "value": "1x",
+                },
+            ],
+        }
+        producer = BlackNetNarrativeProducer(self.repo)
+        blacknet = producer.enqueue_digest(
+            snapshot, window_id="product-routing-blacknet", target_medium="blacknet"
+        )
+        news = producer.enqueue_digest(
+            snapshot, window_id="product-routing-news", target_medium="googleplex_news"
+        )
+
+        self.assertEqual(len(blacknet["task"]["facts"]), 2)
+        self.assertEqual(len(news["task"]["facts"]), 1)
+        self.assertEqual(
+            news["task"]["facts"][0]["signal_type"], "conflict_target_alert"
+        )
+
+        product_only = producer.enqueue_digest(
+            {**snapshot, "signals": snapshot["signals"][:1]},
+            window_id="product-only-news",
+            target_medium="googleplex_news",
+        )
+        self.assertEqual(product_only["status"], "empty")
+        self.assertIsNone(product_only["task"])
+
     def test_blacknet_worker_tick_is_bounded_by_its_cadence(self):
         territory_conflict_worker._next_blacknet_narrative_tick_at = 0.0
         result = {"status": "created", "receipt_id": "receipt-one", "task": {}}

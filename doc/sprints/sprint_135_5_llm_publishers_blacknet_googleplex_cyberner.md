@@ -85,6 +85,12 @@ Potwierdzone root causes i naprawy lokalne:
   sygnale i code-owned CTA payload. Pole `importance` pozostaje backendową wagą
   rankingu i nie jest już udostępniane modelowi jako dane narracyjne, dzięki
   czemu lokalny model nie może przedstawiać wartości 75/50/25 jako procentów;
+- prompting otrzymał nowe immutable wersje dla BlackNet, Googleplex News i
+  Cyberner AGI 2108. BlackNet generuje urwany fragment transmisji z 2108
+  przechwycony przez Ghost System, Googleplex pozostaje wyłącznie platformą
+  publikacji/katalogiem, a AGI odpowiada bez echa inputu. Każdy profil zawiera
+  krótkie wzorce właściwego tonu, bez rozszerzania uprawnień modelu ani source
+  facts;
 - `teleport_to_hotspot` jest oferowany modelowi wyłącznie przez code-owned
   `cta_ref` powiązany z tym samym faktem i tylko wtedy, gdy payload zawiera
   canonical współrzędne. Bez nich akcja degraduje się do focusu albo braku CTA.
@@ -460,3 +466,8 @@ per_recipient_profile_read = 0
 
 Po spełnieniu bramki: `SPRINT 135.5 — READY FOR SERVER VALIDATION`, a po
 potwierdzeniu `READY FOR SPRINT 135.6`.
+- promocyjny box produktu na Googleplex Home pozostaje deterministyczną kartą
+  canonical katalogu: nazwa, pełny opis, liczba pobrań i link do produktu nie są
+  generowane przez model. Sygnały produktowe nadal mogą zasilać narrację
+  BlackNet, ale są wykluczone z tasków Googleplex News i nie mogą nadpisywać
+  slotów redakcyjnych ani `gp-home-featured`.

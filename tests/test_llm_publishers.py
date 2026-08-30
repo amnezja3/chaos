@@ -90,6 +90,43 @@ class LlmPublisherAdapterTest(unittest.TestCase):
             for item in merged["entries"]
         ))
 
+    def test_googleplex_product_card_remains_canonical_catalog_projection(self):
+        snapshot = build_googleplex_news_snapshot(
+            catalog=[{
+                "id": "v-map", "name": "V-MAP", "published": True,
+                "description": "Skanuje i szuka otwartych portow i luk w zabezpieczeniach.",
+                "downloads": 15,
+            }],
+            viewer_key="alice", session_generation="one", limit=20,
+        )
+        product_record = publication(
+            "historical-product-publication",
+            fact_refs=["blacknet_fact:bnf:googleplex:googleplex_product_signal:v-map"],
+            title="Modelowy tytul produktu",
+            body="Modelowy opis produktu.",
+        )
+
+        merged = merge_googleplex_news_publications(snapshot, [product_record], limit=20)
+        featured = next(
+            item for item in merged["entries"]
+            if item["content"]["news_id"] == "gp-home-featured"
+        )
+
+        self.assertEqual(featured["content"]["source"], "googleplex")
+        self.assertEqual(featured["content"]["title"], "V-MAP")
+        self.assertEqual(
+            featured["content"]["summary"],
+            "Skanuje i szuka otwartych portow i luk w zabezpieczeniach.",
+        )
+        self.assertEqual(featured["presentation"]["primary_stat"], "15 DL")
+        self.assertEqual(featured["action"]["action_type"], "open_googleplex_search")
+        self.assertEqual(featured["action"]["action_target"], "V-MAP")
+        self.assertEqual(featured["action"]["action_payload_ref"], "v-map")
+        self.assertFalse(any(
+            item["content"]["source"] == "ollama_enriched"
+            for item in merged["entries"]
+        ))
+
     def test_blacknet_projection_preserves_labels_and_fails_closed_on_cta(self):
         signal = run.blacknet_signal_from_publication(publication(
             medium="blacknet", cta_action="arbitrary_tool_call"
