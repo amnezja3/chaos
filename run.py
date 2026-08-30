@@ -13886,7 +13886,6 @@ def refresh_and_persist_operations(username, profile):
         return profile
 
     UserProfileManager(username).update_profile({
-        "operations": profile.get("operations", []),
         "files": profile.get("files", {}),
         "risk_events": profile.get("risk_events", []),
         "system_messages": profile.get("system_messages", []),
@@ -14381,7 +14380,6 @@ def build_operation_control_snapshot(username, profile, operations=None):
 
 def persist_operation_control_profile(username, profile):
     UserProfileManager(username).update_profile({
-        "operations": profile.get("operations", []),
         "files": profile.get("files", {}),
         "risk_events": profile.get("risk_events", []),
         "system_messages": profile.get("system_messages", []),
