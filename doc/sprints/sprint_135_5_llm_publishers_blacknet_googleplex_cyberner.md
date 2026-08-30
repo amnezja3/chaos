@@ -1,6 +1,49 @@
 # Sprint 135.5 — LLM Publishers: BlackNet, Googleplex News and Cyberner
 
-Status: `SPRINT 135.5 — REOPENED / SERVER VALIDATION FAILED`.
+Status: `SPRINT 135.5 — FINAL SERVER VALIDATION`.
+
+## Final server validation — 2026-08-30
+
+Implementacja, transport, publication receipts, exactly-once oraz code-owned
+CTA/canonical target są zakończone. Po wdrożeniu wersji
+`blacknet-world-prompt-v2`, `googleplex-news-assets-prompt-v8` i
+`cyberner-agi-2108-prompt-v2` sprint nie otrzymuje kolejnych zmian na zapas.
+Do zamknięcia pozostaje fizyczna walidacja jakości trzech mediów:
+
+```text
+135.5 implementation:       DONE
+Transport:                  PASS
+Publication receipts:       PASS
+Exactly-once:               PASS
+CTA / canonical target:     PASS
+
+Googleplex v8 quality:      PENDING
+BlackNet v2 quality:        PENDING
+Cyberner AGI v2 quality:    PENDING
+Slot geometry contract:     VALIDATE FIRST
+```
+
+Googleplex News v8 musi potwierdzić nowy prompt/schema, brak
+`googleplex_product_signal` w facts, podmianę dokładnie jednego stable slotu bez
+nowej karty lub dodatkowego HERO oraz niezależność canonical boxu produktu
+(nazwa, opis, `DL`, link). `asset_ref` musi być legalny dla użytej powierzchni i
+zgodny z wybranym canonical faktem.
+
+BlackNet v2 wymaga kilku rzeczywistych publikacji. Oczekiwany ton to fragment
+transmisji z 2108 przechwycony przez Ghost System, nie raport techniczny.
+Narracja i deterministic fallback nie mogą być pokazane równolegle dla tego
+samego zbioru `fact_refs`; soak obejmuje również obserwację blokad SQLite.
+
+Cyberner AGI v2 wymaga kilku różnych tematów oraz prześledzenia każdego przez
+`topic -> task -> candidate -> publication -> Cyberner`. Wynik nie może być
+echem inputu, fallbackiem udającym odpowiedź ani ujawniać identyfikatorów i
+danych technicznych.
+
+Jawny `presentation_slot: hero | sidebox | small` nie jest dodawany przed
+obserwacją produkcyjną. Jeżeli istniejące limity dadzą właściwe proporcje, sprint
+zamyka się bez dalszego kodu. Tylko potwierdzony rozjazd treści i geometrii
+otwiera mały `135.5.x slot-aware generation repair`; backendowe hard limits
+pozostają niezależną bramką bezpieczeństwa.
 
 ## Reopen po walidacji produkcyjnej — 2026-08-29
 
