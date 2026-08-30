@@ -4,6 +4,10 @@ Katalog `doc/hardbugfix/` przechowuje osobne artefakty dokumentacyjne dotyczące
 
 Dokumenty te są niezależne od `project_journal.md`.
 
+## Artefakty
+
+- [Sprint 135.5 — regresje kontraktu publikacji LLM](llm_publication_contract_regressions_sprint_135_5_2026-08-30.md)
+
 Dziennik projektu zapisuje chronologię prac, natomiast `hardbugfix/` ma zachować pełny kontekst problemu: objawy, diagnozę, root cause, wykonane próby naprawy, finalne rozwiązanie oraz wnioski istotne dla przyszłych sprintów.
 
 Celem katalogu jest stworzenie trwałej bazy wiedzy o problemach, których ponowne diagnozowanie od zera byłoby kosztowne.
