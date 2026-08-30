@@ -380,6 +380,7 @@ def merge_googleplex_news_publications(
     }
     safe_records = []
     semantic_keys = set()
+    content_keys = set()
     for record in records or []:
         if not isinstance(record, dict) or record.get("target_medium") != "googleplex_news":
             continue
@@ -396,7 +397,14 @@ def merge_googleplex_news_publications(
         semantic_key = semantic_key or (str(record.get("source_receipt_id") or ""),)
         if semantic_key in semantic_keys:
             continue
+        content_key = (
+            " ".join(str(record.get("title") or "").split()).casefold(),
+            " ".join(str(record.get("body") or "").split()).casefold(),
+        )
+        if content_key in content_keys:
+            continue
         semantic_keys.add(semantic_key)
+        content_keys.add(content_key)
         safe_records.append(record)
         if len(safe_records) >= len(slot_ids):
             break

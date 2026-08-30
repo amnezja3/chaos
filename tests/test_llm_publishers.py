@@ -45,7 +45,11 @@ class LlmPublisherAdapterTest(unittest.TestCase):
             item["content"]["news_id"] for item in snapshot["entries"]
         }
         records = [
-            publication(f"medium-{index}", fact_refs=[f"fact:{index}"])
+            publication(
+                f"medium-{index}", fact_refs=[f"fact:{index}"],
+                title=f"Bezpieczny tytul {index}",
+                body=f"Narracja oparta na fakcie {index}.",
+            )
             for index in range(10)
         ]
         merged = merge_googleplex_news_publications(copy.deepcopy(snapshot), records, limit=20)
@@ -77,6 +81,31 @@ class LlmPublisherAdapterTest(unittest.TestCase):
         entry = merged["entries"][0]
         self.assertEqual(entry["content"]["source"], "ollama_enriched")
         self.assertEqual(entry["action"]["kind"], "STAMP_ONLY")
+
+    def test_googleplex_news_deduplicates_identical_content_across_fact_refs(self):
+        snapshot = build_googleplex_news_snapshot(
+            catalog=[], viewer_key="alice", session_generation="one", limit=20,
+        )
+        records = [
+            publication(
+                "duplicate-content-one", fact_refs=["fact:one"],
+                title="Napięcie rośnie nad Tokio",
+                body="W pobliżu miasta wykryto aktywny konflikt.",
+            ),
+            publication(
+                "duplicate-content-two", fact_refs=["fact:two"],
+                title="  Napięcie   rośnie nad Tokio ",
+                body="W pobliżu miasta wykryto aktywny konflikt.",
+            ),
+        ]
+
+        merged = merge_googleplex_news_publications(snapshot, records, limit=20)
+        enriched = [
+            item for item in merged["entries"]
+            if item["content"]["source"] == "ollama_enriched"
+        ]
+
+        self.assertEqual(len(enriched), 1)
 
     def test_googleplex_news_hides_historical_unsafe_publication(self):
         snapshot = build_googleplex_news_snapshot(
