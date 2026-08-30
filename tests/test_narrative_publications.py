@@ -4,6 +4,7 @@ import tempfile
 import unittest
 import sqlite3
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 from ghostnetwork.ollama_client import OllamaGenerationResult
 from ghostnetwork.ollama_policy import assign_ollama_task_policy
@@ -240,6 +241,26 @@ class NarrativePublicationTest(unittest.TestCase):
         self.assertEqual(
             len(self.repo.list_unstaged_narrative_candidates(limit=10)), 2
         )
+
+    def test_nonpublishable_accepted_candidate_gets_terminal_receipt(self):
+        candidate = self.accepted_candidate("terminal-prepublish-rejection")
+        publisher = NarrativePublicationService(
+            repository=self.repo, worker_id="rejecting-publisher"
+        )
+
+        with patch.object(
+            NarrativePublicationService, "validate_candidate",
+            return_value=(False, "candidate_policy_superseded"),
+        ):
+            result = publisher.process_once()
+
+        self.assertEqual(result["result"], "rejected")
+        self.assertEqual(result["reason"], "candidate_policy_superseded")
+        self.assertEqual(result["receipt"]["status"], "dead_letter")
+        self.assertEqual(
+            result["receipt"]["candidate_id"], candidate["candidate_id"]
+        )
+        self.assertEqual(self.repo.list_unstaged_narrative_candidates(limit=10), [])
 
     def test_public_clan_and_owner_records_are_projected_without_cross_account_leak(self):
         self.accepted_candidate("audience-public")

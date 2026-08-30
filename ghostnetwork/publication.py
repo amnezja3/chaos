@@ -102,10 +102,10 @@ class NarrativePublicationService:
         for candidate in self.repository.list_unstaged_narrative_candidates(
             validation_status="accepted", limit=scan_limit
         ):
-            task = self.repository.get_narrative_outbox(candidate.get("task_id"))
-            valid, _reason = self.validate_candidate(candidate, task)
-            if not valid:
-                continue
+            # Every accepted candidate receives an auditable publication
+            # identity. Validation happens after the receipt is claimed below;
+            # superseded or unsafe historical candidates become terminally
+            # rejected instead of being rescanned forever.
             receipt = self.repository.ensure_narrative_publication(candidate["candidate_id"])
             if receipt:
                 staged.append(receipt)

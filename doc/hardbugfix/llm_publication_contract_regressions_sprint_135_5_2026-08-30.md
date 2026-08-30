@@ -249,4 +249,7 @@ Repozytorium udostępnia teraz bounded selekcję wyłącznie candidates bez
 publication receiptu, od najnowszych. Jeden loop skanuje maksymalnie 500
 niestaged rekordów, tworzy najwyżej 4 receipts i publikuje jeden. Rekord z
 istniejącym receiptem nie otwiera ponownie writer-transakcji. Exactly-once i
-lease publication pozostają bez zmian.
+lease publication pozostają bez zmian. Prepublish validation odbywa się po
+claimie: historyczny accepted candidate odrzucony przez aktualną politykę dostaje
+terminalny receipt `dead_letter` z reason code, zamiast pozostawać bez receiptu i wracać do
+każdego kolejnego skanu.
