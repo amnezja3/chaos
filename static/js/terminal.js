@@ -8010,7 +8010,12 @@ function createAgi2108ConsoleApp() {
                 resultPanel.hidden = false;
                 resultLink.disabled = false;
             }
-            if (state === 'accepted' || state === 'queued' || state === 'processing') scheduleStatus();
+            if (
+                state === 'accepted'
+                || state === 'queued'
+                || state === 'processing'
+                || (state === 'completed' && !publication)
+            ) scheduleStatus();
         } catch (_error) {
             setStatus('failed', 'BRAK POŁĄCZENIA', 'Status pozostaje zapisany. Ponowimy po otwarciu aplikacji.', receiptShort(receiptId));
         }
