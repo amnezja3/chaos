@@ -205,6 +205,8 @@ class LlmPublisherAdapterTest(unittest.TestCase):
         self.assertEqual(coordinate_teleport["cta_action"], "teleport_to_hotspot")
         self.assertEqual(coordinate_teleport["metadata"]["lat"], 52.2297)
         self.assertEqual(coordinate_teleport["metadata"]["lng"], 21.0122)
+        self.assertEqual(coordinate_teleport["metadata"]["hotspot_id"], "")
+        self.assertNotIn("52.2297", coordinate_teleport["metadata"]["target_label"])
 
     def test_blacknet_endpoint_caps_narratives_and_keeps_deterministic_signal(self):
         heavy_profile_fixture = {"payload": "x" * (35 * 1024 * 1024)}

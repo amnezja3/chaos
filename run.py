@@ -2016,7 +2016,10 @@ def build_blacknet_incident_facts(now_dt):
         level = max(1, int(incident.get("level") or 1))
         radius_m = max(0, int(incident.get("search_radius_m") or 0))
         trend = blacknet_incident_trend(incident)
-        location_label = f"INCYDENT {entry['center_label']}"
+        # Display text must not masquerade as the executable coordinate target.
+        # The CTA uses the safe entry lat/lng below, while center_label describes
+        # the incident centre; combining them produced a misleading map label.
+        location_label = f"Strefa incydentu L{level}"
         expires_at = parse_operation_timestamp(incident.get("expires_at"))
         ttl_seconds = BLACKNET_WORLD_FACTS_TTL_SECONDS
         if expires_at:
@@ -2712,10 +2715,21 @@ def blacknet_signal_from_publication(record):
             "truth_class": record.get("truth_class"),
             "fact_refs": list(record.get("fact_refs") or [])[:20],
             "audience_scope": record.get("audience_scope"),
-            "hotspot_id": target_id if action == "teleport_to_hotspot" else "",
+            # Coordinate-backed narrative actions are canonical coordinate
+            # targets, not legacy named hotspots. Keep target_id separately for
+            # audit, but never let it override lat/lng in the map bridge.
+            "hotspot_id": (
+                target_id
+                if action == "teleport_to_hotspot"
+                and target_id in BLACKNET_HOTSPOTS
+                and not has_payload_position
+                else ""
+            ),
             "lat": payload_lat if has_payload_position else None,
             "lng": payload_lng if has_payload_position else None,
-            "target_label": str(payload.get("label") or "")[:120],
+            "target_label": str(
+                record.get("title") if has_payload_position else payload.get("label") or ""
+            )[:120],
         },
     }
 
@@ -20699,7 +20713,16 @@ def api_blacknet_cta_teleport():
             and -90 <= payload_lat <= 90
             and -180 <= payload_lng <= 180
         )
-        if hotspot:
+        # Coordinates carried by the publication are the canonical destination.
+        # They must win over display labels and legacy hotspot aliases.
+        if has_payload_position:
+            position = {
+                "lat": payload_lat,
+                "lng": payload_lng,
+            }
+            target_label = label or "target"
+            hotspot_payload = None
+        elif hotspot:
             position = {
                 "lat": float(hotspot["lat"]),
                 "lng": float(hotspot["lng"]),
@@ -20710,13 +20733,6 @@ def api_blacknet_cta_teleport():
                 "label": hotspot["label"],
                 "risk": hotspot.get("risk", ""),
             }
-        elif has_payload_position:
-            position = {
-                "lat": payload_lat,
-                "lng": payload_lng,
-            }
-            target_label = label or "target"
-            hotspot_payload = None
         else:
             error_code = "unknown_hotspot" if hotspot_id else "unknown_target"
             return jsonify({

@@ -9469,15 +9469,16 @@ function createBrowser() {
 
     const blacknetTeleportToHotspot = async signal => {
         const metadata = signal?.metadata || {};
-        const hotspotId = String(
+        const lat = Number(metadata.lat ?? metadata.latitude ?? signal?.lat);
+        const lng = Number(metadata.lng ?? metadata.lon ?? metadata.longitude ?? signal?.lng ?? signal?.lon);
+        const hasCoordinates = Number.isFinite(lat) && Number.isFinite(lng);
+        const hotspotId = hasCoordinates ? "" : String(
             metadata.hotspot_id
             || signal?.cta_target_id
             || ""
         ).trim();
-        const lat = Number(metadata.lat ?? metadata.latitude ?? signal?.lat);
-        const lng = Number(metadata.lng ?? metadata.lon ?? metadata.longitude ?? signal?.lng ?? signal?.lon);
         const label = String(metadata.target_label || metadata.label || signal?.title || hotspotId || "target").trim();
-        if (!hotspotId && (!Number.isFinite(lat) || !Number.isFinite(lng))) {
+        if (!hotspotId && !hasCoordinates) {
             return blacknetCtaResult(false, "Sygnal BlackNet nie zawiera konkretnego celu teleportu.");
         }
         const accepted = await blacknetDecisionDialog({
@@ -9497,8 +9498,8 @@ function createBrowser() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     hotspot_id: hotspotId,
-                    lat: Number.isFinite(lat) ? lat : null,
-                    lng: Number.isFinite(lng) ? lng : null,
+                    lat: hasCoordinates ? lat : null,
+                    lng: hasCoordinates ? lng : null,
                     label,
                     signal_id: signal?.id || ""
                 })

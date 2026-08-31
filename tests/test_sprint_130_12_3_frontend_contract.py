@@ -32,6 +32,10 @@ class Sprint130123FrontendContractTest(unittest.TestCase):
         self.assertIn("!(Math.abs(lat) < 0.000001 && Math.abs(lng) < 0.000001)", self.terminal)
         self.assertIn("if (!hasUsableGameplayCoordinates(focus))", self.terminal)
 
+    def test_blacknet_coordinate_teleport_does_not_resolve_display_label_as_hotspot(self):
+        self.assertIn('const hotspotId = hasCoordinates ? "" : String(', self.terminal)
+        self.assertIn("window.blacknetCoordinateFocusLayer = L.circleMarker([lat, lng]", self.map_template)
+
     def test_non_osm_tile_scheme_has_runtime_404_fallback(self):
         self.assertIn('layer.on("tileerror"', self.map_template)
         self.assertIn("consecutiveErrors < 3", self.map_template)

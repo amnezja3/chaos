@@ -3887,6 +3887,27 @@
             map.setView([lat, lng], nextZoom, { animate: true });
             if (entry && entry.marker && typeof entry.marker.openTooltip === 'function') {
                 setTimeout(() => entry.marker.openTooltip(), 250);
+            } else if (typeof L !== 'undefined' && typeof L.circleMarker === 'function') {
+                if (window.blacknetCoordinateFocusLayer && typeof map.removeLayer === 'function') {
+                    map.removeLayer(window.blacknetCoordinateFocusLayer);
+                }
+                window.blacknetCoordinateFocusLayer = L.circleMarker([lat, lng], {
+                    radius: 11,
+                    color: '#00ffd5',
+                    weight: 3,
+                    opacity: 1,
+                    fillColor: '#001f1a',
+                    fillOpacity: 0.35,
+                    className: 'blacknet-coordinate-focus'
+                }).addTo(map);
+                const focusLabel = String(focus.label || 'Cel sygnalu BlackNet').trim();
+                if (focusLabel && typeof window.blacknetCoordinateFocusLayer.bindTooltip === 'function') {
+                    window.blacknetCoordinateFocusLayer.bindTooltip(focusLabel, {
+                        permanent: false,
+                        direction: 'top'
+                    });
+                    setTimeout(() => window.blacknetCoordinateFocusLayer?.openTooltip(), 250);
+                }
             }
             return true;
         };

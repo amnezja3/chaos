@@ -108,6 +108,16 @@ class OllamaPolicyTest(unittest.TestCase):
         self.assertEqual(blacknet_result["status"], "quarantined")
         self.assertIn("source_calendar_year_leak", blacknet_result["errors"])
 
+        technical_region = parse_and_validate_ollama_content(json.dumps({
+            "title": "Incydent narasta",
+            "body": "W regionie world-INCYDENT poziom reakcji wzrosl do L4.",
+            "tone": "warning",
+            "fact_refs": ["blacknet_fact:incident:one"],
+            "cta_ref": None,
+        }), build_ollama_task_package(blacknet))
+        self.assertEqual(technical_region["status"], "quarantined")
+        self.assertIn("technical_region_prefix_leak", technical_region["errors"])
+
         news = assign_ollama_task_policy({
             **common,
             "task_variant": "googleplex_world_dispatch",

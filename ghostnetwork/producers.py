@@ -141,13 +141,16 @@ class BlackNetNarrativeProducer:
             -180.0, 180.0,
         )
         fact_ref = f"blacknet_fact:{fact_id}"
+        region_id = _safe_text(signal.get("region_id"), 96)
+        if re.match(r"^world[-_:]", region_id, re.IGNORECASE):
+            region_id = ""
         fact = {
             "fact_id": fact_ref,
             "truth_class": "canonical",
             "signal_id": signal_id,
             "signal_type": _safe_text(signal.get("signal_type"), 48),
             "category": _safe_text(signal.get("category"), 48),
-            "region_id": _safe_text(signal.get("region_id"), 96),
+            "region_id": region_id,
             "title": _safe_text(signal.get("title"), 96),
             "label": _safe_text(signal.get("label"), 64),
             "value": _safe_text(signal.get("value"), 48),

@@ -137,6 +137,9 @@ odpowiedzi. Echo topicu mogło przejść jako pozorny rezultat AGI.
 - wybrany `fact_ref`, `asset_ref` i `cta_ref` są walidowane jako jeden kontrakt;
 - CTA payload jest rozwiązywany wyłącznie przez backend z canonical signal;
   model nie tworzy target ID ani współrzędnych;
+- coordinate-backed teleport zawsze rozwiązuje canonical `lat/lng` przed
+  legacy aliasem hotspotu; `INCYDENT <lat,lng>` pozostaje display label i nie
+  może skierować mapy na marker motocykla zamiast na punkt faktu;
 - projekcja targetu normalizuje płaski oraz zagnieżdżony
   `public_target_json.target`;
 - BlackNet deduplikuje deterministic i enriched records po canonical fact refs;

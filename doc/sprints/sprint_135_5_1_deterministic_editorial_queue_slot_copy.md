@@ -27,7 +27,9 @@ Zaimplementowano lokalnie:
 - działa bounded novelty guard `duplicate_content`;
 - po pierwszej walidacji serwerowej dodano fail-closed guards
   `raw_coordinate_leak` i `source_calendar_year_leak`; aktywne prompty BlackNet
-  v4 i Googleplex HERO v10 nie mogą przepisywać runtime roku 2026 ani lat/lng;
+  v5 i Googleplex HERO v10 nie mogą przepisywać runtime roku 2026 ani lat/lng;
+- kolejna walidacja dodała `technical_region_prefix_leak`; BlackNet v5 nie
+  otrzymuje technicznego `region_id` rozpoczynającego się od `world-/_/:`;
 - worker nie claimuje historycznej polityki wielofaktowego `world_digest`;
 - testy wymuszają brak pełnego profilu na schedulerze i endpointach.
 
@@ -802,6 +804,9 @@ append-only audit -> preserved
 - world dispatch nie nadpisuje product promo;
 - brak aktywnego copy zachowuje foundation;
 - pełny profil nie jest czytany przez żadną ścieżkę sprintu.
+- coordinate-backed CTA BlackNet daje pierwszeństwo canonical `lat/lng` przed
+  legacy `hotspot_id`; `label` jest wyłącznie tekstem prezentacyjnym, a mapa
+  oznacza punkt faktu osobnym markerem również po wykonaniu teleportu.
 
 ### Heavy-profile regression
 
@@ -830,6 +835,9 @@ append-only audit -> preserved
 9. Odświeżyć jeden small slot i potwierdzić brak zmian pozostałych kart.
 10. Zasymulować spóźniony candidate: slot pozostaje przy nowszej wersji.
 11. Obserwować SQLite writer contention i czasy endpointu News w soak.
+12. Dla CTA incydentu potwierdzić, że etykieta w rodzaju `INCYDENT <lat,lng>`
+    nie jest rozwiązywana jako hotspot: zapis pozycji i fokus mapy używają
+    współrzędnych z canonical payloadu, a mapa pokazuje marker celu.
 
 ## Definition of Done
 

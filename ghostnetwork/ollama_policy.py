@@ -148,6 +148,8 @@ def source_metadata_leak_errors(title, body, source_facts):
         errors.append("raw_coordinate_leak")
     if any(year != "2108" and re.search(rf"\b{re.escape(year)}\b", text) for year in source_years):
         errors.append("source_calendar_year_leak")
+    if re.search(r"\bworld[-_:]", text, re.IGNORECASE):
+        errors.append("technical_region_prefix_leak")
     return errors
 
 

@@ -2729,6 +2729,37 @@ class BlackNetWorldSignalPublisherTest(unittest.TestCase):
         self.assertEqual(data["position_version"], 8)
         record_delta.assert_called_once()
 
+    def test_blacknet_teleport_coordinates_override_hotspot_alias_and_label(self):
+        client = self._client_with_user("alice")
+        coordinate_position = {"lat": 35.6766, "lng": 139.653286}
+        position_result = {
+            "changed": True,
+            "position": coordinate_position,
+            "version": 9,
+            "updated_at": "2026-08-24T10:02:00Z",
+        }
+
+        with patch.object(run, "load_profile_readonly", side_effect=AssertionError("profile should not load")), \
+                patch.object(run, "UserProfileManager", side_effect=AssertionError("profile writer should not run")), \
+                patch.object(run.player_position_store, "upsert", return_value=position_result) as position_upsert, \
+                patch.object(run.identity_projection_store, "get_identity", return_value={"username": "alice"}), \
+                patch.object(run, "notify_area_intrusion", return_value=None), \
+                patch.object(run, "record_map_player_actor_delta"):
+            response = client.post("/api/blacknet/cta/teleport", json={
+                "hotspot_id": "mokotow",
+                "lat": coordinate_position["lat"],
+                "lng": coordinate_position["lng"],
+                "label": "INCYDENT 35.6766, 139.653286",
+            })
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["success"])
+        self.assertIsNone(data["hotspot"])
+        position_upsert.assert_called_once_with(
+            "alice", coordinate_position, source="blacknet"
+        )
+
     def test_ghostnetwork_teleport_resolves_public_entity_server_side(self):
         client = self._client_with_user("alice")
 

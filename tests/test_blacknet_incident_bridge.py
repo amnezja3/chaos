@@ -66,6 +66,8 @@ class BlackNetIncidentBridgeTest(unittest.TestCase):
             self.assertEqual(metadata["incident_level"], 3)
             self.assertEqual(metadata["incident_lat"], 52.23)
             self.assertEqual(metadata["incident_lng"], 21.01)
+            self.assertEqual(metadata["location_label"], "Strefa incydentu L3")
+            self.assertNotIn(metadata["incident_coordinates"], metadata["location_label"])
             self.assertNotEqual((metadata["lat"], metadata["lng"]), (52.23, 21.01))
             self.assertGreater(
                 distance_m({"lat": 52.23, "lng": 21.01}, {"lat": metadata["lat"], "lng": metadata["lng"]}),

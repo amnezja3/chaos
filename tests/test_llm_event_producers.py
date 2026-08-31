@@ -197,6 +197,7 @@ class LlmEventProducerTest(unittest.TestCase):
             "cta_action": "focus_map_target",
             "cta_target_id": "legacy:canonical-target",
             "metadata": {"lat": 35.6766, "lng": 139.653286},
+            "region_id": "world-INCYDENT / L4 ESCALATED",
         }
         producer = BlackNetNarrativeProducer(self.repo)
 
@@ -209,6 +210,7 @@ class LlmEventProducerTest(unittest.TestCase):
         self.assertEqual(blacknet["status"], "created")
         self.assertEqual(replay["status"], "deduplicated")
         self.assertEqual(len(blacknet["task"]["facts"]), 1)
+        self.assertEqual(blacknet["task"]["facts"][0]["region_id"], "")
         self.assertEqual(blacknet["task"]["allowed_actions"], [])
         self.assertEqual(
             blacknet["task"]["task_variant"], "blacknet_signal_narration"
