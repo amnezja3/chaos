@@ -121,6 +121,36 @@ def presentation_safety_errors(title, body):
     return sorted(set(errors))
 
 
+def source_metadata_leak_errors(title, body, source_facts):
+    """Reject raw coordinates and runtime calendar years from presentation copy."""
+    text = f"{title or ''}\n{body or ''}"
+    errors = []
+    coordinate_tokens = set()
+    source_years = set()
+    for fact in source_facts or ():
+        if not isinstance(fact, dict):
+            continue
+        for field in ("lat", "lng", "lon"):
+            try:
+                number = float(fact.get(field))
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(number):
+                continue
+            for precision in (4, 5, 6):
+                coordinate_tokens.add(f"{number:.{precision}f}".rstrip("0").rstrip("."))
+        for field in ("observed_at", "valid_until", "created_at", "updated_at"):
+            source_years.update(re.findall(r"\b20\d{2}\b", str(fact.get(field) or "")))
+    if any(
+        token and re.search(rf"(?<!\d){re.escape(token)}(?!\d)", text)
+        for token in coordinate_tokens
+    ):
+        errors.append("raw_coordinate_leak")
+    if any(year != "2108" and re.search(rf"\b{re.escape(year)}\b", text) for year in source_years):
+        errors.append("source_calendar_year_leak")
+    return errors
+
+
 def unknown_canonical_poi_names(title, body, source_facts):
     requested = {
         item.casefold()
@@ -601,6 +631,9 @@ def parse_and_validate_ollama_content(content, task_package):
         elif not isinstance(asset_ref, str) or asset_ref not in (task_package.get("allowed_asset_refs") or ()):
             security_errors.append("unknown_asset_ref")
     security_errors.extend(presentation_safety_errors(title, body))
+    security_errors.extend(source_metadata_leak_errors(
+        title, body, task_package.get("source_facts") or ()
+    ))
     if unknown_canonical_poi_names(
         title, body, task_package.get("source_facts") or ()
     ):

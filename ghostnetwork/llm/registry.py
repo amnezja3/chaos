@@ -82,11 +82,11 @@ def _build_registry():
     ))
     policies.append(_policy(
         "blacknet_world", "blacknet_signal_narration", "blacknet",
-        "blacknet-signal-prompt-v3", Path("blacknet") / "signal-v3.md",
+        "blacknet-signal-prompt-v4", Path("blacknet") / "signal-v4.md",
     ))
     policies.append(_policy(
         "blacknet_world", "googleplex_world_dispatch", "googleplex_news",
-        "googleplex-world-hero-prompt-v9", Path("googleplex") / "world-hero-v9.md",
+        "googleplex-world-hero-prompt-v10", Path("googleplex") / "world-hero-v10.md",
         ASSET_OUTPUT_SCHEMA_VERSION,
     ))
     for variant in sorted(GHOSTNETWORK_BLACKNET_VARIANTS):

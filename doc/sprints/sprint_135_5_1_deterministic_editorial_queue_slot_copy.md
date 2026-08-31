@@ -23,6 +23,9 @@ Zaimplementowano lokalnie:
 - Stage I dopuszcza publikacje LLM wyłącznie do `gp-home-world-grid`; pozostałe
   karty pozostają canonical foundation;
 - działa bounded novelty guard `duplicate_content`;
+- po pierwszej walidacji serwerowej dodano fail-closed guards
+  `raw_coordinate_leak` i `source_calendar_year_leak`; aktywne prompty BlackNet
+  v4 i Googleplex HERO v10 nie mogą przepisywać runtime roku 2026 ani lat/lng;
 - worker nie claimuje historycznej polityki wielofaktowego `world_digest`;
 - testy wymuszają brak pełnego profilu na schedulerze i endpointach.
 

@@ -77,6 +77,53 @@ class OllamaPolicyTest(unittest.TestCase):
             set(result["errors"]), {"external_url", "unknown_cta_ref", "unknown_fact_ref"}
         )
 
+    def test_single_source_policies_reject_runtime_year_and_raw_coordinates(self):
+        common = {
+            "source_scope": "blacknet_world",
+            "audience_scope": "public",
+            "truth_class_policy": "canonical",
+            "facts": [{
+                "fact_id": "blacknet_fact:incident:one",
+                "title": "INCYDENT / L4 ESCALATED",
+                "label": "POZIOM REAKCJI",
+                "lat": 51.517819,
+                "lng": -0.054158,
+                "observed_at": "2026-08-31T10:38:46+00:00",
+            }],
+            "allowed_actions": [],
+            "selected_source_ref": "blacknet_fact:incident:one",
+        }
+        blacknet = assign_ollama_task_policy({
+            **common,
+            "task_variant": "blacknet_signal_narration",
+            "target_medium": "blacknet",
+        })
+        blacknet_result = parse_and_validate_ollama_content(json.dumps({
+            "title": "Incydent narasta",
+            "body": "W roku 2026 sygnal przeszedl w faze L4.",
+            "tone": "warning",
+            "fact_refs": ["blacknet_fact:incident:one"],
+            "cta_ref": None,
+        }), build_ollama_task_package(blacknet))
+        self.assertEqual(blacknet_result["status"], "quarantined")
+        self.assertIn("source_calendar_year_leak", blacknet_result["errors"])
+
+        news = assign_ollama_task_policy({
+            **common,
+            "task_variant": "googleplex_world_dispatch",
+            "target_medium": "googleplex_news",
+        })
+        news_result = parse_and_validate_ollama_content(json.dumps({
+            "title": "Incydent przechodzi w L4",
+            "body": "Eskalacja trwa w rejonie 51.517819, -0.054158.",
+            "tone": "warning",
+            "fact_refs": ["blacknet_fact:incident:one"],
+            "cta_ref": None,
+            "asset_ref": "gp_scene_world_danger_01",
+        }), build_ollama_task_package(news))
+        self.assertEqual(news_result["status"], "quarantined")
+        self.assertIn("raw_coordinate_leak", news_result["errors"])
+
     def test_googleplex_cta_must_belong_to_selected_fact(self):
         task = assign_ollama_task_policy({
             "source_scope": "blacknet_world",

@@ -9,6 +9,7 @@ from .ollama_policy import (
     normalize_canonical_identifier_leaks,
     owner_analysis_echoes_input,
     presentation_safety_errors,
+    source_metadata_leak_errors,
     unknown_canonical_poi_names,
 )
 from .llm.registry import resolve_ollama_task_policy
@@ -52,6 +53,11 @@ class NarrativePublicationService:
         if safety_errors:
             return False, safety_errors[0]
         task = task if isinstance(task, dict) else {}
+        metadata_errors = source_metadata_leak_errors(
+            candidate.get("title"), candidate.get("body"), task.get("facts") or []
+        )
+        if metadata_errors:
+            return False, metadata_errors[0]
         if candidate.get("target_medium") == "googleplex_news":
             current_policy = resolve_ollama_task_policy(
                 candidate.get("source_scope"), task.get("task_variant"),
