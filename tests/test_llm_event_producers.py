@@ -238,6 +238,35 @@ class LlmEventProducerTest(unittest.TestCase):
             "legacy:canonical-target",
         )
 
+    def test_single_source_version_ignores_rolling_runtime_ttl(self):
+        producer = BlackNetNarrativeProducer(self.repo)
+        signal = {
+            "id": "incident-one",
+            "fact_id": "bnf:incidents:incident_hotspot_reaction:one",
+            "signal_type": "incident_hotspot",
+            "category": "incident",
+            "title": "INCYDENT / L4 ESCALATED",
+            "label": "POZIOM REAKCJI",
+            "value": "1x",
+            "stat": "escalating",
+            "importance": 75,
+            "valid_until": "2026-08-31T11:00:00+00:00",
+        }
+        first = producer.enqueue_signal(
+            {"version": "snapshot-one"}, signal, target_medium="blacknet"
+        )
+        replay = producer.enqueue_signal(
+            {"version": "snapshot-two"},
+            {**signal, "valid_until": "2026-08-31T11:15:00+00:00"},
+            target_medium="blacknet",
+        )
+        self.assertEqual(first["status"], "created")
+        self.assertEqual(replay["status"], "deduplicated")
+        self.assertEqual(
+            first["task"]["selected_source_version"],
+            replay["task"]["selected_source_version"],
+        )
+
     def test_stage_one_scheduler_advances_blacknet_and_serializes_hero(self):
         signals = {
             "version": "signals-v1",

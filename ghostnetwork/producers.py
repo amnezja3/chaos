@@ -198,7 +198,7 @@ class BlackNetNarrativeProducer:
         source_version_payload = {
             key: fact.get(key) for key in (
                 "fact_id", "signal_type", "category", "region_id", "title", "label",
-                "value", "stat", "lat", "lng", "valid_until",
+                "value", "stat", "lat", "lng",
             )
         }
         source_version_payload["action"] = fixed_action or {}

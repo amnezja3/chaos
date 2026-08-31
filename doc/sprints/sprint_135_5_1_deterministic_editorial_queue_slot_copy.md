@@ -14,6 +14,8 @@ Zaimplementowano lokalnie:
   target są code-owned;
 - niezmieniona wersja źródła jest idempotentna, a scheduler przechodzi do
   kolejnego nieprzetworzonego sygnału;
+- semantyczny hash źródła ignoruje ruchome runtime TTL (`valid_until`), więc
+  odświeżenie ważności tego samego faktu nie tworzy pozornie nowej publikacji;
 - Googleplex serializuje otwarte assignmenty HERO i zapisuje aktywny pointer w
   `ghost_narrative_slot_state`;
 - publikacja slotu używa optimistic CAS; stale assignment kończy się
